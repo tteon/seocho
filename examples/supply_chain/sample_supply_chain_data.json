@@ -1,0 +1,93 @@
+{
+  "supply_chain_entities": [
+    {
+      "type": "supplier",
+      "id": "supplier_001",
+      "name": "Acme Manufacturing Corp",
+      "location": {
+        "address": "123 Industrial Way, Detroit, MI 48201",
+        "coordinates": {"lat": 42.3314, "lng": -83.0458},
+        "gln": "1234567890123"
+      },
+      "capabilities": ["CNC_machining", "assembly", "quality_control"],
+      "certifications": ["ISO_9001", "AS9100"],
+      "contact": {
+        "email": "procurement@acmemfg.com",
+        "phone": "+1-313-555-0100"
+      }
+    },
+    {
+      "type": "manufacturer",
+      "id": "manufacturer_001",
+      "name": "Global Auto Parts Ltd",
+      "location": {
+        "address": "456 Factory Blvd, Cleveland, OH 44101",
+        "coordinates": {"lat": 41.4993, "lng": -81.6944},
+        "gln": "9876543210987"
+      },
+      "production_lines": 12,
+      "daily_capacity": 5000,
+      "specialties": ["engine_components", "transmission_parts"]
+    },
+    {
+      "type": "distributor",
+      "id": "distributor_001",
+      "name": "Regional Supply Network",
+      "location": {
+        "address": "789 Distribution Dr, Chicago, IL 60601",
+        "coordinates": {"lat": 41.8781, "lng": -87.6298},
+        "gln": "5555555555555"
+      },
+      "warehouse_size": "50000_sqft",
+      "inventory_turnover": 24,
+      "service_regions": ["midwest", "northeast"]
+    }
+  ],
+  "logistics_data": [
+    {
+      "shipment_id": "SHP-2024-001",
+      "origin": "supplier_001",
+      "destination": "manufacturer_001",
+      "cargo": {
+        "description": "Steel components batch A47",
+        "weight": 2500,
+        "dimensions": {"length": 48, "width": 40, "height": 36},
+        "unit": "lbs"
+      },
+      "transport_mode": "ground",
+      "carrier": "Fast Freight LLC",
+      "tracking_events": [
+        {
+          "timestamp": "2024-01-15T08:00:00Z",
+          "event": "picked_up",
+          "location": {"lat": 42.3314, "lng": -83.0458}
+        },
+        {
+          "timestamp": "2024-01-15T14:30:00Z",
+          "event": "in_transit",
+          "location": {"lat": 41.85, "lng": -83.12}
+        },
+        {
+          "timestamp": "2024-01-15T18:45:00Z",
+          "event": "delivered",
+          "location": {"lat": 41.4993, "lng": -81.6944}
+        }
+      ],
+      "estimated_delivery": "2024-01-15T19:00:00Z",
+      "actual_delivery": "2024-01-15T18:45:00Z"
+    }
+  ],
+  "inventory_data": [
+    {
+      "location_id": "distributor_001",
+      "product_id": "PART-ENG-001",
+      "product_name": "Engine Block Assembly",
+      "current_stock": 150,
+      "min_stock": 50,
+      "max_stock": 200,
+      "unit_cost": 285.50,
+      "supplier": "manufacturer_001",
+      "last_restock": "2024-01-10T10:00:00Z"
+    }
+  ]
+}

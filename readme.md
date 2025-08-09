@@ -4,6 +4,12 @@
 
 **Seocho** is an open-source framework that tracks data lineage across your entire data stack, stores relationships in graph databases, and validates data quality - all while preparing your data for AI-powered insights through GraphRAG (Graph Retrieval-Augmented Generation).
 
+## 💬 Community
+
+Join our Discord to ask questions, share feedback, or collaborate on features.  
+We welcome contributors, testers, and anyone curious about the project!
+
+👉 **[Join the Discord Server](https://discord.gg/RcR5e5VSJW)**  
 
 Key features
 

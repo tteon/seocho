@@ -1,0 +1,82 @@
+version: "3.8"
+
+services:
+  dozerdb:
+    image: graphstack/dozerdb:5.26.3.0
+    container_name: dozerdb
+    ports:
+      - "7474:7474"  # Neo4j Browser
+      - "7687:7687"  # Bolt
+    environment:
+      - NEO4J_AUTH=neo4j/thisisakccdemo
+      - NEO4J_PLUGINS=["apoc"]
+      - NEO4J_apoc_export_file_enabled=true
+      - NEO4J_apoc_import_file_enabled=true
+      - NEO4J_dbms_security_procedures_unrestricted=*
+    volumes:
+      - ./neo4j/data:/data
+      - ./neo4j/logs:/logs
+      - ./neo4j/import:/var/lib/neo4j/import
+      - ./neo4j/plugins:/plugins
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - seocho_net
+
+  datahub-launcher:
+    build:
+      context: ./docker/datahub
+      dockerfile: Dockerfile
+    container_name: datahub-launcher
+    volumes:
+      - ./workspace:/workspace
+      - ./sharepoint:/sharepoint
+      - ./config:/app/config
+      - ./scripts:/app/scripts
+    ports:
+      - "9010:9002"
+    depends_on:
+      - dozerdb
+    networks:
+      - seocho_net
+    tty: true
+    stdin_open: true
+
+  engine:
+    container_name: engine
+    build:
+      context: ./docker/engine
+      dockerfile: Dockerfile
+    volumes:
+      - ./sharepoint:/sharepoint
+      - ./workspace:/workspace
+      - ./src:/app/src
+      - ./config:/app/config
+      - ./examples:/app/examples
+    depends_on:
+      - dozerdb
+      - datahub-launcher
+    networks:
+      - seocho_net
+    environment:
+      - PYTHONPATH=/app/src
+    command: tail -f /dev/null  # Keep container running
+
+  neodash:
+    image: diyoyo/neodash:latest-arm
+    container_name: neodash
+    ports:
+      - "5005:5005"
+    environment:
+      - DASHBOARD_NEO4J_URI=bolt://dozerdb:7687
+    depends_on:
+      - dozerdb
+    networks:
+      - seocho_net
+
+volumes:
+  sharepoint:
+
+networks:
+  seocho_net:
+    driver: bridge

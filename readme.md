@@ -80,7 +80,7 @@ GraphRAG retrieves, compacts, and feeds graph context to the LLM for accurate, g
 ### Quickstart
 
 ```bash
-git clone https://github.com/your-org/seocho.git
+git clone https://github.com/tteon/seocho.git
 cd seocho
 make bootstrap
 make up

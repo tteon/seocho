@@ -11,7 +11,9 @@ We welcome contributors, testers, and anyone curious about the project!
 
 👉 **[Join the Discord Server](https://discord.gg/RcR5e5VSJW)**  
 
-Key features
+---
+
+## Key features
 
 1.Designed for multi-domain, multi-semantic knowledge graphs.
 

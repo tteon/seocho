@@ -1,0 +1,6 @@
+neo4j
+acryl-datahub
+requests
+pydantic
+pytest
+requests-mock

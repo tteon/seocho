@@ -4,3 +4,13 @@ requests
 pydantic
 pytest
 requests-mock
+openai
+hydra-core
+omegaconf
+jinja2
+jupyter
+pandas
+pyarrow
+fastparquet
+huggingface_hub
+faiss-cpu

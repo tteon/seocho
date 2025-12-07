@@ -1,61 +1,62 @@
-# GraphRAG Application
+# SEOCHO - GraphRAG Pipeline
 
-This repository contains the source code for a GraphRAG (Graph Retrieval-Augmented Generation) application, integrating Neo4j, DataHub, and LLM-powered services.
+## Overview
+**SEOCHO** is a Graph Retrieval-Augmented Generation (GraphRAG) application. It ingests semi-structured financial data, extracts entities and relationships using LLMs, and builds a Knowledge Graph in Neo4j. It also maintains metadata in DataHub and supports vector search via FAISS.
 
-## Architecture
+## Features
+- **Entity Extraction**: Uses OpenAI (GPT-3.5/4) to extract nodes and relationships from text.
+- **Entity Linking**: Resolves duplicates and standardizes entities.
+- **Knowledge Graph**: Stores structured data in Neo4j (using `open-gds` for algorithms).
+- **Metadata Management**: Integrates with DataHub for lineage and dataset tracking.
+- **Vector Search**: Embeds content using OpenAI Embeddings and stores in FAISS.
+- **Jupyter Interface**: Built-in notebook environment for debugging and analysis.
 
-The application is composed of the following services:
-
-*   **Graph Storage**: Neo4j (GraphStack with various plugins like APOC, GDS).
-*   **Metadata Management**: DataHub (GMS, Frontend, MySQL, Elasticsearch, Kafka, Zookeeper).
-*   **Core Services**:
-    *   `extraction-service`: Python service for extracting knowledge from data and populating the graph.
-    *   `semantic-service`: Python service for semantic reasoning and graph querying.
-    *   `chat-interface`: Streamlit-based chat UI for interacting with the system.
-    *   `app`: Next.js web application for visualizing graph data and managing the system.
-
-## Prerequisites
-
-*   Docker
-*   Docker Compose
-*   Node.js (for local `app` development)
-*   Python 3.10+ (for local service development)
+## Project Structure
+```
+seocho/
+├── extraction/         # Python Extraction Service
+│   ├── conf/           # Hydra Configuration (Prompts/Models)
+│   ├── pipeline.py     # Main Logic Class
+│   ├── main.py         # Entry Point
+│   ├── collector.py    # Data Ingestion (Real + Mock)
+│   ├── extractor.py    # OpenAI Logic
+│   └── ...
+├── notebooks/          # Jupyter Notebooks for Debugging
+├── docker-compose.yml  # Infrastructure Definition
+└── README.md
+```
 
 ## Getting Started
 
-1.  **Clone the repository**:
-    ```bash
-    git clone https://github.com/tteon/seocho.git
-    cd seocho/graphrag-app
-    ```
+### Prerequisites
+- **Docker** & **Docker Compose**
+- **OpenAI API Key**
 
-2.  **Configure Environment**:
-    Copy the example environment file and adjust as needed:
-    ```bash
-    cp .env.example .env
-    ```
-    *   Update `OPENAI_API_KEY` and other sensitive values in `.env`.
+### 1. Configuration
+Create a `.env` file in the project root:
+```bash
+OPENAI_API_KEY=sk-...
+NEO4J_PASSWORD=password
+```
 
-3.  **Run with Docker Compose**:
-    ```bash
-    docker-compose up --build -d
-    ```
+### 2. Run with Docker
+Start the entire stack:
+```bash
+docker-compose up --build
+```
+This will start:
+- **Extraction Service**: Runs the pipeline.
+- **Neo4j**: Graph Database (http://localhost:7474).
+- **DataHub**: Metadata Platform (http://localhost:9002).
+- **Jupyter**: Debugging Interface (http://localhost:8888, token: `graphrag`).
 
-4.  **Access the Services**:
-    *   **DataHub**: http://localhost:9002 (Default: `datahub` / `datahub`)
-    *   **Neo4j Browser**: http://localhost:7474 (Default: `neo4j` / `password` or as configured in `.env`)
-    *   **GraphRAG App**: http://localhost:3000
-    *   **Chat Interface**: http://localhost:8501
+### 3. Modes (Mock vs Real Data)
+You can toggle between Mock Data and Real Data (HuggingFace FinDER dataset) in `extraction/conf/config.yaml`:
+```yaml
+mock_data: true  # Set to false to use real dataset
+```
 
-## Folder Structure
-
-*   `app/`: Next.js web application.
-*   `chat/`: Streamlit chat interface.
-*   `extraction/`: Extraction service code.
-*   `semantic/`: Semantic service code.
-*   `graph/`: scripts for Neo4j.
-*   `data/`: Persistent data volumes (excluded from git).
-
-## License
-
-[MIT](LICENSE)
+## Development
+- **Pipeline Logic**: Modify `extraction/pipeline.py`.
+- **Prompts**: Edit `extraction/conf/prompts/*.yaml`.
+- **Debugging**: Use `notebooks/debug_agent.ipynb`.

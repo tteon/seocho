@@ -21,6 +21,7 @@ class MetadataHandler:
             description=f"Raw data from {data_item['source']}",
             customProperties={
                 "source": data_item["source"],
+                "category": data_item.get("category", "unknown"),
                 "content_length": str(len(data_item["content"]))
             }
         )

@@ -1,0 +1,9 @@
+defaults:
+  - prompts: default
+  - linking_prompt: linking
+  - _self_
+  - _self_
+
+model: gpt-3.5-turbo
+mock_data: true
+openai_api_key: ${oc.env:OPENAI_API_KEY}

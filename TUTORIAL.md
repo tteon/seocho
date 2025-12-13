@@ -1,39 +1,69 @@
-# Tutorial: Ingesting Custom Data
+# Tutorial: Zero to GraphRAG
 
-This guide explains how to load your own datasets from HuggingFace into the GraphRAG system.
+This comprehensive guide takes you through the entire workflow: bringing your own data, customizing agents, and visualizing the results.
 
-## Prerequisites
-- A HuggingFace account.
-- A dataset uploaded to HuggingFace (or use a public one).
-- Your `HF_TOKEN` set in the `.env` file (run `./setup_env.sh`).
+## 1. Bring Your Own Data (Data Ingestion)
+The system supports auto-syncing schema from your data.
 
-## Step 1: Configure the Collector
-Open `extraction/collector.py` and modify the `dataset_url` in the `DataCollector` class.
-
+### Step 1.1: Configure Source
+Open `extraction/collector.py`. Set your HuggingFace dataset ID:
 ```python
-class DataCollector:
-    def __init__(self, use_mock: bool = False):
-        self.use_mock = use_mock
-        # CHANGE THIS to your dataset ID
-        self.dataset_url = "your-username/your-dataset-name" 
-        self.target_categories = ['Your', 'Target', 'Categories']
+self.dataset_url = "Linq-AI-Research/FinDER"  # Your Dataset ID
 ```
+Ensure your dataset has a text column (e.g., `text`, `content`, `references`).
 
-## Step 2: Schema Matching
-Ensure your dataset has the following columns (or modify `collector.py` to map them):
-- `category`: Used for filtering (optional).
-- `references` (or `text`, `content`): The actual text content to process.
-
-The `DataCollector` attempts to auto-detect content columns, but strictly speaking, it looks for `references` or `text`.
-
-## Step 3: Run Extraction
-Restart the extraction service to pick up the changes:
-
+### Step 1.2: Run Extraction & Auto-Sync
+Run the extraction pipeline. The system will **automatically discover** new entity types from your data and update the schema.
 ```bash
-docker-compose restart extraction-service
+docker-compose run extraction-service
+```
+- **Check**: Look at `extraction/conf/schemas/baseline.yaml`. You'll see new definitions (e.g., `Company`, `Person`) added automatically!
+
+---
+
+## 2. Customize Your Agents
+Define the "Brain" of your system. We use a centralized agent registry.
+
+### Step 2.1: Edit Agent Definitions
+Open `extraction/agents.py`. You can define new agents here.
+```python
+# Example: Adding a new expert
+billing_agent = Agent(
+    name="BillingExpert",
+    instructions="You are an expert in financial billing and invoicing."
+)
+
+# Add to Manager's handoffs
+manager_agent = Agent(
+    name="Manager",
+    instructions="...",
+    handoffs=[research_agent, billing_agent] # <--- Add here
+)
+```
+### step 2.2: Restart Interface
+To apply changes to the Evaluation Interface:
+```bash
+docker-compose restart evaluation-interface
 ```
 
-The service will automatically pull your dataset, process the text, extract entities, and load them into Neo4j!
+---
 
-## Step 4: Verify
-1.  Check **Neo4j** ([http://localhost:7474](http://localhost:7474)) to visualize your new graph.
+## 3. Evaluation & Visualization
+Monitor your agents' reasoning and performance.
+
+### Step 3.1: Chat & Analyze
+Access the **Evaluation Interface** at **[http://localhost:8501](http://localhost:8501)**.
+- Chat with your manager agent.
+- The system uses **AdvancedSQLiteSession** to track precise token usage and history.
+
+### Step 3.2: The NeoDash Experience
+Access **NeoDash** at **[http://localhost:5005](http://localhost:5005)**.
+
+1.  **Connect**: URI `bolt://neo4j:7687`, User `neo4j`, Pass `password`.
+2.  **Load Dashboard**:
+    - Click **New Dashboard**.
+    - Click the **Load** icon (folder/code symbol).
+    - Paste the content of **`neodash_dashboard.json`** (found in the project root).
+3.  **Explore**:
+    - **Overview**: See real-time Agent Popularity and Token Costs.
+    - **Trace Inspector**: Visualize the graph of `(:Trace)-[:NEXT]->(:Step)`. See exactly how agents handed off tasks!

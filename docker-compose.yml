@@ -174,7 +174,7 @@ services:
   evaluation-interface:
     build: ./evaluation
     container_name: evaluation-interface
-    command: chainlit run app.py -w --port 8501
+    command: streamlit run app.py --server.port=8501 --server.address=0.0.0.0
     ports:
       - "${CHAT_INTERFACE_PORT:-8501}:8501"
     environment:

@@ -1,12 +1,13 @@
 # GraphRAG with Multi-Agent Tracing
 
-Welcome to the **Seocho GraphRAG** project! This repository provides a powerful, multi-agent Retrieval-Augmented Generation (RAG) system powered by **Neo4j**, **HuggingFace**, and **Arize Phoenix**.
+Welcome to the **Seocho GraphRAG** project! This repository provides a powerful, multi-agent Retrieval-Augmented Generation (RAG) system powered by **Neo4j**, **HuggingFace**, and **OpenAI Agents**.
 
 ## 🚀 Key Features
-- **Native Agent Tracing**: Built-in tracing with OpenAI Agents SDK. Visualize workflows in the OpenAI Traces dashboard.
+- **Evaluation Interface**: A Chainlit-based control plane for rigorous testing and monitoring.
+- **Deep Tracing**: Advanced tracing to **Neo4j** (Trace Graph) and **SQLite** (Session Analytics).
+- **LEX-Style Schema**: Schema-as-Code with **Auto-Sync** capabilities. Automatically discovers and enforces schema from data.
 - **Easy Data Ingestion**: Load your own datasets from HuggingFace with a single configuration change.
-- **Multi-Database Support**: Dynamically manage and load data into specific Neo4j databases based on categories.
-- **Graph Power**: Leverage Neo4j for deep semantic understanding and entity linking.
+- **NeoDash Visualization**: Pre-configured dashboards to visualize Agent Reasoning and Costs.
 
 ## 🛠️ Quick Start
 
@@ -25,15 +26,15 @@ docker-compose up -d --build
 ```
 
 ### 3. Explore
-- **Chat Interface (Chainlit)**: [http://localhost:8501](http://localhost:8501)
+- **Evaluation Interface**: [http://localhost:8501](http://localhost:8501)
 - **NeoDash (Dashboard)**: [http://localhost:5005](http://localhost:5005)
 - **Neo4j Browser**: [http://localhost:7474](http://localhost:7474)
 
-## 📊 Ingesting Your Own Data
-Want to use your own HuggingFace dataset? It's easy!
-👉 **[Read the TUTORIAL.md](TUTORIAL.md)** for a step-by-step guide.
+## 📊 Ingesting Your Own Data & Customizing Agents
+We have improved the workflow significantly.
+👉 **[Read the TUTORIAL.md](TUTORIAL.md)** for a complete "Zero to GraphRAG" guide.
 
 ## 🧩 Architecture
-- **Extraction Service**: Extracts entities and relationships using OpenAI models.
+- **Extraction Service**: Auto-discovers schema and extracts entities.
 - **Semantic Service**: Manages graph queries and reasoning.
-- **Chat Interface**: Streamlit-based UI for interacting with your data.
+- **Evaluation Interface**: Chainlit-based UI for interacting with and evaluating your agents.

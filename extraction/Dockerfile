@@ -8,4 +8,8 @@ RUN pip install --upgrade pip && \
 
 COPY . .
 
-CMD ["python", "main.py"]
+COPY entrypoint.sh .
+RUN chmod +x entrypoint.sh
+
+# CMD ["python", "main.py"]
+CMD ["/bin/bash", "./entrypoint.sh"]

@@ -1,62 +1,39 @@
-# SEOCHO - GraphRAG Pipeline
+# GraphRAG with Multi-Agent Tracing
 
-## Overview
-**SEOCHO** is a Graph Retrieval-Augmented Generation (GraphRAG) application. It ingests semi-structured financial data, extracts entities and relationships using LLMs, and builds a Knowledge Graph in Neo4j. It also maintains metadata in DataHub and supports vector search via FAISS.
+Welcome to the **Seocho GraphRAG** project! This repository provides a powerful, multi-agent Retrieval-Augmented Generation (RAG) system powered by **Neo4j**, **HuggingFace**, and **Arize Phoenix**.
 
-## Features
-- **Entity Extraction**: Uses OpenAI (GPT-3.5/4) to extract nodes and relationships from text.
-- **Entity Linking**: Resolves duplicates and standardizes entities.
-- **Knowledge Graph**: Stores structured data in Neo4j (using `open-gds` for algorithms).
-- **Metadata Management**: Integrates with DataHub for lineage and dataset tracking.
-- **Vector Search**: Embeds content using OpenAI Embeddings and stores in FAISS.
-- **Jupyter Interface**: Built-in notebook environment for debugging and analysis.
+## 🚀 Key Features
+- **Multi-Agent Tracing**: Visualize agent interactions and performance with [Arize Phoenix](https://docs.arize.com/phoenix/).
+- **Easy Data Ingestion**: Load your own datasets from HuggingFace with a single configuration change.
+- **Multi-Database Support**: Dynamically manage and load data into specific Neo4j databases based on categories.
+- **Graph Power**: Leverage Neo4j for deep semantic understanding and entity linking.
 
-## Project Structure
-```
-seocho/
-├── extraction/         # Python Extraction Service
-│   ├── conf/           # Hydra Configuration (Prompts/Models)
-│   ├── pipeline.py     # Main Logic Class
-│   ├── main.py         # Entry Point
-│   ├── collector.py    # Data Ingestion (Real + Mock)
-│   ├── extractor.py    # OpenAI Logic
-│   └── ...
-├── notebooks/          # Jupyter Notebooks for Debugging
-├── docker-compose.yml  # Infrastructure Definition
-└── README.md
-```
+## 🛠️ Quick Start
 
-## Getting Started
+### 1. Setup Environment
+We provide an interactive script to help you configure your API keys (`OPENAI_API_KEY`, `HF_TOKEN`, etc.).
 
-### Prerequisites
-- **Docker** & **Docker Compose**
-- **OpenAI API Key**
-
-### 1. Configuration
-Create a `.env` file in the project root:
 ```bash
-OPENAI_API_KEY=sk-...
-NEO4J_PASSWORD=password
+./setup_env.sh
 ```
 
-### 2. Run with Docker
-Start the entire stack:
+### 2. Run the Stack
+Build and start all services using Docker:
+
 ```bash
-docker-compose up --build
-```
-This will start:
-- **Extraction Service**: Runs the pipeline.
-- **Neo4j**: Graph Database (http://localhost:7474).
-- **DataHub**: Metadata Platform (http://localhost:9002).
-- **Jupyter**: Debugging Interface (http://localhost:8888, token: `graphrag`).
-
-### 3. Modes (Mock vs Real Data)
-You can toggle between Mock Data and Real Data (HuggingFace FinDER dataset) in `extraction/conf/config.yaml`:
-```yaml
-mock_data: true  # Set to false to use real dataset
+docker-compose up -d --build
 ```
 
-## Development
-- **Pipeline Logic**: Modify `extraction/pipeline.py`.
-- **Prompts**: Edit `extraction/conf/prompts/*.yaml`.
-- **Debugging**: Use `notebooks/debug_agent.ipynb`.
+### 3. Explore
+- **Chat Interface**: [http://localhost:8501](http://localhost:8501)
+- **Phoenix Tracing**: [http://localhost:6006](http://localhost:6006)
+- **Neo4j Browser**: [http://localhost:7474](http://localhost:7474)
+
+## 📊 Ingesting Your Own Data
+Want to use your own HuggingFace dataset? It's easy!
+👉 **[Read the TUTORIAL.md](TUTORIAL.md)** for a step-by-step guide.
+
+## 🧩 Architecture
+- **Extraction Service**: Extracts entities and relationships using OpenAI models.
+- **Semantic Service**: Manages graph queries and reasoning.
+- **Chat Interface**: Streamlit-based UI for interacting with your data.

@@ -65,3 +65,45 @@ class VectorStore:
             pickle.dump({"doc_map": self.doc_map, "documents": self.documents}, f)
             
         print(f"Saved vector index to {index_path} with {self.index.ntotal} vectors.")
+
+    def load_index(self, input_dir: str):
+        """
+        Loads the FAISS index and metadata from disk.
+        """
+        index_path = os.path.join(input_dir, "vectors.index")
+        meta_path = os.path.join(input_dir, "vectors_meta.pkl")
+        
+        if os.path.exists(index_path) and os.path.exists(meta_path):
+            self.index = faiss.read_index(index_path)
+            with open(meta_path, "rb") as f:
+                data = pickle.load(f)
+                self.doc_map = data["doc_map"]
+                self.documents = data["documents"]
+            print(f"Loaded vector index from {input_dir} with {self.index.ntotal} vectors.")
+        else:
+            print(f"Index not found in {input_dir}, starting fresh.")
+
+    def search(self, query: str, k: int = 3) -> List[dict]:
+        """
+        Searches the index for the query text.
+        """
+        if self.index.ntotal == 0:
+            return []
+            
+        embedding = self.embed_text(query)
+        vector = np.array([embedding], dtype='float32')
+        
+        distances, indices = self.index.search(vector, k)
+        
+        results = []
+        for idx in indices[0]:
+            if idx != -1 and idx in self.doc_map:
+                # Retrieve metadata (we stored doc_id in doc_map, but documents list has more info)
+                # This could be optimized, but for now we look up in documents list manually or store map better
+                # doc_map maps internal_id -> doc_id
+                doc_id = self.doc_map[idx]
+                # Find doc in documents (inefficient O(N) but okay for POC)
+                doc_meta = next((d for d in self.documents if d["id"] == doc_id), {"text_preview": "N/A"})
+                results.append({"id": doc_id, "text": doc_meta.get("text_preview", "")})
+                
+        return results

@@ -36,6 +36,26 @@ def create_databases(db_names):
 
 if __name__ == "__main__":
     # Example usage based on user snippet
-    # "BASELINE": "kgnormal", "FIBO": "kgfibo"
-    target_dbs = ["kgnormal", "kgfibo"]
+    # "BASELINE": "kgnormal", "FIBO": "kgfibo", "TRACING": "agent_traces"
+    target_dbs = ["kgnormal", "kgfibo", "agent_traces"]
     create_databases(target_dbs)
+    
+    # --- LEX Schema Application ---
+    from schema_manager import SchemaManager
+    sm = SchemaManager()
+    
+    # Map DBs to Schema Files
+    schema_map = {
+        "agent_traces": "conf/schemas/tracing.yaml",
+        "kgnormal": "conf/schemas/baseline.yaml",
+        "kgfibo": "conf/schemas/baseline.yaml" # Assuming same schema for now
+    }
+    
+    # Determine base path for configs
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    for db, schema_file in schema_map.items():
+        full_path = os.path.join(base_dir, schema_file)
+        sm.apply_schema(db, full_path)
+        
+    sm.close()

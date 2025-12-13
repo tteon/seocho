@@ -25,7 +25,7 @@ docker-compose up -d --build
 ```
 
 ### 3. Explore
-- **Chat Interface**: [http://localhost:8501](http://localhost:8501)
+- **Chat Interface (Chainlit)**: [http://localhost:8501](http://localhost:8501)
 - **NeoDash (Dashboard)**: [http://localhost:5005](http://localhost:5005)
 - **Neo4j Browser**: [http://localhost:7474](http://localhost:7474)
 

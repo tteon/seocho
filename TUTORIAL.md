@@ -36,5 +36,4 @@ docker-compose restart extraction-service
 The service will automatically pull your dataset, process the text, extract entities, and load them into Neo4j!
 
 ## Step 4: Verify
-1.  Check **Phoenix** ([http://localhost:6006](http://localhost:6006)) to see the extraction agents at work.
-2.  Check **Neo4j** ([http://localhost:7474](http://localhost:7474)) to visualize your new graph.
+1.  Check **Neo4j** ([http://localhost:7474](http://localhost:7474)) to visualize your new graph.

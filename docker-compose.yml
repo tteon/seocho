@@ -22,6 +22,16 @@ services:
     networks:
       - graphrag-net
 
+  neodash:
+    image: neo4jlabs/neodash:latest
+    container_name: neodash
+    ports:
+      - "5005:5005"
+    environment:
+      - ssoEnabled=false
+    networks:
+      - graphrag-net
+
   # --- DataHub Prerequisites ---
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:7.10.1
@@ -166,11 +176,10 @@ services:
     container_name: chat-interface
     ports:
       - "${CHAT_INTERFACE_PORT:-8501}:8501"
-      - "6006:6006" # Phoenix UI
-      - "4317:4317" # Phoenix OTEL Collector
     environment:
       - EXTRACTION_SERVICE_URL=http://extraction-service:8001
       - SEMANTIC_SERVICE_URL=http://semantic-service:8000
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
     depends_on:
       - extraction-service
       - semantic-service

@@ -82,7 +82,16 @@ class ExtractionPipeline:
             # 6. Save Intermediate Results
             self._save_results(item['id'], extracted_data)
             
-            # 7. Load Graph
+            # 7. Auto-Sync Schema
+            # Update YAML based on findings and re-apply to DB
+            schema_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "conf/schemas/baseline.yaml")
+            from schema_manager import SchemaManager
+            sm = SchemaManager()
+            sm.update_schema_from_records(extracted_data, schema_path)
+            sm.apply_schema("kgnormal", schema_path) # Apply to baseline DB
+            sm.close()
+
+            # 8. Load Graph
             self.graph_loader.load_graph(extracted_data, item['id'])
             print(f"Loaded graph data for {item['id']}")
             

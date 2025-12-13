@@ -1,0 +1,89 @@
+{
+    "title": "Agent Tracing Dashboard (Advanced)",
+    "version": "2.2",
+    "settings": {
+        "pagenumber": 0,
+        "editable": true,
+        "fullscreenEnabled": false,
+        "parameters": {},
+        "theme": "light"
+    },
+    "pages": [
+        {
+            "title": "Overview",
+            "reports": [
+                {
+                    "title": "Recent Sessions",
+                    "query": "MATCH (s:Session) RETURN s.id AS SessionID, s.start_time AS StartTime ORDER BY StartTime DESC LIMIT 5",
+                    "width": 12,
+                    "height": 4,
+                    "x": 0,
+                    "y": 0,
+                    "type": "table",
+                    "selection": {},
+                    "settings": {}
+                },
+                {
+                    "title": "Agent Popularity",
+                    "query": "MATCH (s:Step)-[:USED_AGENT]->(a:Agent) RETURN a.name AS Agent, count(s) AS Operations ORDER BY Operations DESC",
+                    "width": 6,
+                    "height": 4,
+                    "x": 0,
+                    "y": 4,
+                    "type": "bar",
+                    "selection": {
+                        "index": "Agent",
+                        "value": "Operations",
+                        "key": "(none)"
+                    },
+                    "settings": {}
+                },
+                {
+                    "title": "Cache Efficiency",
+                    "query": "MATCH (s:Step) RETURN toString(coalesce(s.cache_hit, false)) AS CacheHit, count(*) AS Count",
+                    "width": 6,
+                    "height": 4,
+                    "x": 6,
+                    "y": 4,
+                    "type": "pie",
+                    "selection": {
+                        "index": "CacheHit",
+                        "value": "Count",
+                        "key": "(none)"
+                    },
+                    "settings": {}
+                }
+            ]
+        },
+        {
+            "title": "Trace Inspector",
+            "reports": [
+                {
+                    "title": "Execution Flow (Linked List)",
+                    "query": "MATCH p=(t:Trace)-[:HAS_STEP]->(s:Step)-[:NEXT*]->(end:Step) RETURN p LIMIT 50",
+                    "width": 12,
+                    "height": 6,
+                    "x": 0,
+                    "y": 0,
+                    "type": "graph",
+                    "selection": {
+                        "Node": "type",
+                        "Step": "agent"
+                    },
+                    "settings": {}
+                },
+                {
+                    "title": "Step Details",
+                    "query": "MATCH (t:Trace)-[:HAS_STEP]->(s:Step)\nOPTIONAL MATCH (s)-[:USED_AGENT]->(a:Agent)\nRETURN s.timestamp AS Time, s.type AS Type, a.name AS Agent, s.content AS Content, s.token_usage AS Tokens\nORDER BY Time DESC",
+                    "width": 12,
+                    "height": 6,
+                    "x": 0,
+                    "y": 6,
+                    "type": "table",
+                    "selection": {},
+                    "settings": {}
+                }
+            ]
+        }
+    ]
+}

@@ -14,3 +14,10 @@ pyarrow
 fastparquet
 huggingface_hub
 faiss-cpu
+fastapi
+uvicorn
+pydantic
+hydra-core
+graphviz
+python-dotenv
+datasets

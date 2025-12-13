@@ -110,6 +110,14 @@ services:
     environment:
       - DATAHUB_GMS_HOST=datahub-gms
       - DATAHUB_GMS_PORT=8080
+      - DATAHUB_SECRET=x
+      - DATAHUB_PLAY_MEM_BUFFER_SIZE=10MB
+      - JAVA_TOOL_OPTIONS=-DDATAHUB_PLAY_MEM_BUFFER_SIZE=10MB
+      - KAFKA_BOOTSTRAP_SERVER=kafka:29092
+      - ELASTIC_CLIENT_HOST=elasticsearch
+      - ELASTIC_CLIENT_PORT=9200
+      - DATAHUB_TRACKING_TOPIC=DataHubUsageEvent_v1
+      - DATAHUB_APP_VERSION=1.0.0
     depends_on:
       - datahub-gms
     networks:
@@ -121,6 +129,7 @@ services:
     container_name: extraction-service
     ports:
       - "8888:8888"
+      - "8001:8001"
     volumes:
       - ./extraction:/app
       - ./notebooks:/app/notebooks
@@ -157,9 +166,13 @@ services:
     container_name: chat-interface
     ports:
       - "${CHAT_INTERFACE_PORT:-8501}:8501"
+      - "6006:6006" # Phoenix UI
+      - "4317:4317" # Phoenix OTEL Collector
     environment:
+      - EXTRACTION_SERVICE_URL=http://extraction-service:8001
       - SEMANTIC_SERVICE_URL=http://semantic-service:8000
     depends_on:
+      - extraction-service
       - semantic-service
     networks:
       - graphrag-net

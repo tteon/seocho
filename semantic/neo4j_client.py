@@ -40,24 +40,21 @@ class Neo4jClient:
         tx.run(query, doc_id=doc_id, entity_name=entity_name, relationship_type=relationship_type)
 
     def init_n10s(self):
+        # Schema operations in Neo4j often need to be in their own implicit transactions (auto-commit),
+        # especially when mixing them or if they are procedure calls that do schema mods.
+        # We use a session and run them directly.
         with self.driver.session() as session:
-            session.execute_write(self._init_n10s_tx)
+            # 1. Init n10s
+            try:
+                session.run("CALL n10s.graphconfig.init()")
+            except Exception as e:
+                print(f"n10s init warning (might be already initialized): {e}")
 
-    @staticmethod
-    def _init_n10s_tx(tx):
-        # Check if n10s is already initialized to avoid errors or just run it idempotently if possible
-        # n10s.graphconfig.init() requires unique constraint on :Resource(uri) usually
-        # We will try to run init, catching potential errors if it's already done
-        try:
-            tx.run("CALL n10s.graphconfig.init()")
-        except Exception as e:
-            print(f"n10s init warning (might be already initialized): {e}")
-            
-        # Create constraint for n10s if not exists
-        try:
-            tx.run("CREATE CONSTRAINT n10s_unique_uri IF NOT EXISTS FOR (r:Resource) REQUIRE r.uri IS UNIQUE")
-        except Exception as e:
-            print(f"n10s constraint warning: {e}")
+            # 2. Create constraint
+            try:
+                session.run("CREATE CONSTRAINT n10s_unique_uri IF NOT EXISTS FOR (r:Resource) REQUIRE r.uri IS UNIQUE")
+            except Exception as e:
+                print(f"n10s constraint warning: {e}")
 
     def merge_datahub_entity(self, urn):
         with self.driver.session() as session:

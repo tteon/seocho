@@ -2,7 +2,7 @@ defaults:
   - prompts: default
   - linking_prompt: linking
   - _self_
-  - _self_
+
 
 model: gpt-3.5-turbo
 mock_data: true

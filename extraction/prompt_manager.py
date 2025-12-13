@@ -9,12 +9,24 @@ class PromptManager:
         self.cfg = cfg
         self.history_file = "prompt_history.json"
         
+        # Load user override prompts
+        self.user_prompts = {}
+        user_prompts_path = os.path.join(os.path.dirname(__file__), "user_prompts.yaml")
+        if os.path.exists(user_prompts_path):
+            import yaml
+            print(f"📖 Loading Custom User Prompts from {user_prompts_path}")
+            with open(user_prompts_path, 'r') as f:
+                self.user_prompts = yaml.safe_load(f) or {}
+
     def render_system_prompt(self, context: dict) -> str:
-        template = Template(self.cfg.prompts.system)
+        # Check for user override
+        raw_template = self.user_prompts.get("system") or self.cfg.prompts.system
+        template = Template(raw_template)
         return template.render(**context)
 
     def render_user_prompt(self, context: dict) -> str:
-        template = Template(self.cfg.prompts.user)
+        raw_template = self.user_prompts.get("user") or self.cfg.prompts.user
+        template = Template(raw_template)
         return template.render(**context)
 
     def log_result(self, prompt_name: str, input_text: str, output: str, latency: float):

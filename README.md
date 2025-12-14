@@ -1,40 +1,99 @@
-# GraphRAG with Multi-Agent Tracing
+# SEOCHO (서초)
+**Scalable Enterprise GraphRAG & Multi-Agent Orchestration Framework**
 
-Welcome to the **Seocho GraphRAG** project! This repository provides a powerful, multi-agent Retrieval-Augmented Generation (RAG) system powered by **Neo4j**, **HuggingFace**, and **OpenAI Agents**.
+[![Open Source](https://img.shields.io/badge/Open%20Source-SEOCHO-blue)](https://github.com/your-org/seocho)
+[![Feature](https://img.shields.io/badge/New%20Feature-Agent%20Studio-success)](http://localhost:8501)
+[![Stack](https://img.shields.io/badge/Stack-Neo4j%20|%20FastAPI%20|%20Streamlit-orange)]()
 
-## 🚀 Key Features
-- **Evaluation Interface**: A Chainlit-based control plane for rigorous testing and monitoring.
-- **Deep Tracing**: Advanced tracing to **Neo4j** (Trace Graph) and **SQLite** (Session Analytics).
-- **LEX-Style Schema**: Schema-as-Code with **Auto-Sync** capabilities. Automatically discovers and enforces schema from data.
-- **Easy Data Ingestion**: Load your own datasets from HuggingFace with a single configuration change.
-- **NeoDash Visualization**: Pre-configured dashboards to visualize Agent Reasoning and Costs.
+**SEOCHO** is an open-source framework designed to bridge the gap between **unstructured data** and **structured knowledge graphs** for enterprise AI. It provides a scalable pipeline for Entity Extraction, Linking, and a robust Multi-Agent Studio for executing complex reasoning tasks over your data.
 
-## 🛠️ Quick Start
+---
 
-### 1. Setup Environment
-We provide an interactive script to help you configure your API keys (`OPENAI_API_KEY`, `HF_TOKEN`, etc.).
+## 📢 Feature Update: Seocho Agent Studio
+We are excited to introduce **Agent Studio**, a new module integrated directly into SEOCHO.
+* **Visual Agent Debugging**: Interact with your agents and see their thought process in a real-time node graph.
+* **Hierarchical Logic**: Ready-to-use Router -> Graph Analyst -> DBA -> Supervisor architecture.
+* **Multi-Database Support**: Seamlessly switch between different ontologies (e.g., General vs. Financial).
+* **Native Tracing**: Built on `openai-agents` with full observability.
 
+---
+
+## 🚀 Core Capabilities
+
+### 1. 🏗️ Knowledge Graph Integration
+Transform raw text into a high-fidelity Knowledge Graph.
+- **Scalable Ingestion**: Pipeline to process documents and linking them to standard ontologies (FIBO, etc.).
+- **Schema Management**: Dynamic schema application using `SchemaManager`.
+- **DataHub Integration**: Governance and metadata management for your graph assets.
+
+### 2. 🧠 Multi-Agent Orchestration
+Move beyond simple RAG. SEOCHO agents understand structure.
+- **Router Agent**: Intelligently routes queries based on complexity (Single-hop vs. Multi-hop).
+- **Graph DBA Agent**: A specialized Text2Cypher expert that understands your specific graph schema and executes optimized queries.
+- **Supervisor**: Aggregates insights from Vector, Graph, and Web sources.
+
+### 3. 👁️ Observability & Reproducibility
+- **Streamlit-Flow**: "White-box" your agents. See exactly why an agent chose a tool.
+- **OpenAI Trace**: Send execution traces to your dashboard for long-term analysis.
+- **Test-Driven**: Comprehensive `pytest` suite for agent tools and APIs.
+
+---
+
+## ⚡ Quick Start
+
+### Prerequisites
+- Docker & Docker Compose
+- OpenAI API Key
+
+### Build & Run
 ```bash
-./setup_env.sh
-```
+# 1. Clone the repository
+git clone https://github.com/your-org/seocho.git
+cd seocho
 
-### 2. Run the Stack
-Build and start all services using Docker:
+# 2. Configure Environment
+cp .env.example .env
+# Enter your OPENAI_API_KEY and NEO4J_PASSWORD
 
-```bash
+# 3. Launch the Stack
 docker-compose up -d --build
 ```
 
-### 3. Explore
-- **Evaluation Interface**: [http://localhost:8501](http://localhost:8501)
-- **NeoDash (Dashboard)**: [http://localhost:5005](http://localhost:5005)
-- **Neo4j Browser**: [http://localhost:7474](http://localhost:7474)
+### Access Points
+| Service | URL | Description |
+|---------|-----|-------------|
+| **Agent Studio UI** | `http://localhost:8501` | Chat and visualize agent traces. |
+| **API Server** | `http://localhost:8001/docs` | FastAPI backend for agents. |
+| **Neo4j Browser** | `http://localhost:7474` | Direct graph database inspections. |
 
-## 📊 Ingesting Your Own Data & Customizing Agents
-We have improved the workflow significantly.
-👉 **[Read the TUTORIAL.md](TUTORIAL.md)** for a complete "Zero to GraphRAG" guide.
+---
 
-## 🧩 Architecture
-- **Extraction Service**: Auto-discovers schema and extracts entities.
-- **Semantic Service**: Manages graph queries and reasoning.
-- **Evaluation Interface**: Chainlit-based UI for interacting with and evaluating your agents.
+## 📂 Architecture
+
+```mermaid
+graph TD
+    User[User] -->|Chat| UI[Streamlit Agent Studio]
+    UI -->|API Request| API[Agent Server (FastAPI)]
+    
+    subgraph "SEOCHO Agent Core"
+        Router[Router Agent] --> Graph[Graph Agent]
+        Router --> Vector[Vector Agent]
+        Graph --> DBA[Graph DBA]
+        DBA -->|Text2Cypher| Neo4j[(Neo4j Graph)]
+        Vector -->|Search| FAISS[(Vector Store)]
+        All --> Supervisor[Supervisor]
+    end
+    
+    API --> Router
+    Supervisor -->|Final Answer| API
+    API -->|Trace Steps| UI
+```
+
+## 🤝 Contributing
+SEOCHO is a community-driven project. We welcome contributions for:
+- New Ontology mappings.
+- Additional Agent Tools.
+- UI Enhancements.
+
+## 📜 License
+MIT License.

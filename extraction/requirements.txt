@@ -20,4 +20,6 @@ pydantic
 hydra-core
 graphviz
 python-dotenv
+
 datasets
+openai-agents

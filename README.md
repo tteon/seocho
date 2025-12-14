@@ -89,11 +89,14 @@ graph TD
     API -->|Trace Steps| UI
 ```
 
+
 ## 🤝 Contributing
 SEOCHO is a community-driven project. We welcome contributions for:
 - New Ontology mappings.
 - Additional Agent Tools.
 - UI Enhancements.
+
+Please read our [Contributing Guidelines](CONTRIBUTING.md) before getting started.
 
 ## 📜 License
 MIT License.

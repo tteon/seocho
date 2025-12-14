@@ -22,15 +22,6 @@ services:
     networks:
       - graphrag-net
 
-  neodash:
-    image: neo4jlabs/neodash:latest
-    container_name: neodash
-    ports:
-      - "5005:5005"
-    environment:
-      - ssoEnabled=false
-    networks:
-      - graphrag-net
 
   # --- DataHub Prerequisites ---
   elasticsearch:

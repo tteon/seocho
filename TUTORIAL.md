@@ -1,69 +1,105 @@
-# Tutorial: Zero to GraphRAG
+# Seocho Agent Studio Tutorial
 
-This comprehensive guide takes you through the entire workflow: bringing your own data, customizing agents, and visualizing the results.
+This guide covers the core workflows of the Seocho Agent Studio.
 
-## 1. Bring Your Own Data (Data Ingestion)
-The system supports auto-syncing schema from your data.
+## 1. Entity Extraction & Linking (Custom Dataset)
 
-### Step 1.1: Configure Source
-Open `extraction/collector.py`. Set your HuggingFace dataset ID:
-```python
-self.dataset_url = "Linq-AI-Research/FinDER"  # Your Dataset ID
-```
-Ensure your dataset has a text column (e.g., `text`, `content`, `references`).
+You can process your own text files to populate the Knowledge Graph.
 
-### Step 1.2: Run Extraction & Auto-Sync
-Run the extraction pipeline. The system will **automatically discover** new entity types from your data and update the schema.
+### **Step 1: Prepare Data**
+Place your text files (e.g., `financial_report.txt`) in `data/inputs/`.
+
+### **Step 2: Run Extraction Pipeline**
+The system uses the `extraction/pipeline.py` script.
 ```bash
-docker-compose run extraction-service
+# Inside the extraction-service container or locally
+python extraction/main.py --mode=extraction --input=data/inputs/
 ```
-- **Check**: Look at `extraction/conf/schemas/baseline.yaml`. You'll see new definitions (e.g., `Company`, `Person`) added automatically!
+*What happens:*
+1. **Extraction**: LLM identifies entities (e.g., "Apple Inc.", "Tim Cook").
+2. **Linking**: Maps aliases to canonical IDs (e.g., "Apple" -> `Apple Inc. (ORG-001)`).
+3. **Ingestion**: Creates Nodes and Relationships in Neo4j.
 
 ---
 
-## 2. Customize Your Agents
-Define the "Brain" of your system. We use a centralized agent registry.
+## 2. Designing the Agent Flow
 
-### Step 2.1: Edit Agent Definitions
-Open `extraction/agents.py`. You can define new agents here.
+We use a **Router -> Graph -> DBA -> Supervisor** pattern.
+
+### **The Architecture**
+- **Router**: "I see a multi-hop question. Send to Graph Agent."
+- **Graph Agent**: "I need to find connections between A and B. DB, please check the schema."
+- **Graph DBA**: "I found the schema. Executing Cypher query... Here are the results."
+- **Graph Agent**: "Looks good. Supervisor, here is the answer."
+- **Supervisor**: "User, here is your final answer..."
+
+### **Customizing the DBA**
+Edit `extraction/agent_server.py` to add new databases or few-shot examples.
+
 ```python
-# Example: Adding a new expert
-billing_agent = Agent(
-    name="BillingExpert",
-    instructions="You are an expert in financial billing and invoicing."
+agent_graph_dba = Agent(
+    name="GraphDBA",
+    instructions="""
+    ...
+    ## Case: My Custom Dataset
+    User: "Who owns X?"
+    Cypher: "MATCH (a)-[:OWNS]->(b) ..."
+    """,
+    tools=[get_databases_tool, get_schema_tool, execute_cypher_tool]
 )
-
-# Add to Manager's handoffs
-manager_agent = Agent(
-    name="Manager",
-    instructions="...",
-    handoffs=[research_agent, billing_agent] # <--- Add here
-)
-```
-### step 2.2: Restart Interface
-To apply changes to the Evaluation Interface:
-```bash
-docker-compose restart evaluation-interface
 ```
 
 ---
 
-## 3. Evaluation & Visualization
-Monitor your agents' reasoning and performance.
+## 3. Visualization & Debugging
 
-### Step 3.1: Chat & Analyze
-Access the **Evaluation Interface** at **[http://localhost:8501](http://localhost:8501)**.
-- Chat with your manager agent.
-- The system uses **AdvancedSQLiteSession** to track precise token usage and history.
+### **Using Streamlit Flow**
+1. Go to [http://localhost:8501](http://localhost:8501).
+2. Chat with the agent.
+3. Observe the generated graph on the right.
+    - **Blue Node**: Your Input.
+    - **Orange Node**: Agent Thought / Tool Call.
+    - **Green Node**: Final Response.
+    - **Purple Node**: Tool Result.
 
-### Step 3.2: The NeoDash Experience
-Access **NeoDash** at **[http://localhost:5005](http://localhost:5005)**.
+### **Debugging Tips**
+- **Cycle Detected?** If you see Graph Agent and DBA bouncing back and forth, check the DBA instructions. It might be failing to generate valid Cypher.
+- **Wrong Router Decision?** Check the Router instructions in `agent_server.py` and refine the "Trigger When" descriptions.
 
-1.  **Connect**: URI `bolt://neo4j:7687`, User `neo4j`, Pass `password`.
-2.  **Load Dashboard**:
-    - Click **New Dashboard**.
-    - Click the **Load** icon (folder/code symbol).
-    - Paste the content of **`neodash_dashboard.json`** (found in the project root).
-3.  **Explore**:
-    - **Overview**: See real-time Agent Popularity and Token Costs.
-    - **Trace Inspector**: Visualize the graph of `(:Trace)-[:NEXT]->(:Step)`. See exactly how agents handed off tasks!
+---
+
+## 4. OpenAI Tracing
+
+The system is instrumented with `openai-agents` native tracing.
+
+### **Enabling Tracing**
+Ensure your `OPENAI_API_KEY` is set. The agent server wraps execution in a trace context:
+
+```python
+with trace(f"Request {user_id}"):
+    await Runner.run(...)
+```
+
+### **Viewing Traces**
+Logs are sent to your configured OpenAI Trace destination (if configured) or printed to stdout in the container logs.
+```bash
+docker logs extraction-service
+```
+Future updates will support direct export to the OpenAI Dashboard.
+
+---
+
+## 5. Testing & Reproducibility
+
+To ensure your agent logic is robust, you can run the included test suite.
+
+### **Running Tests**
+Tests are located in `extraction/tests/`.
+
+```bash
+docker-compose exec extraction-service pytest tests/
+```
+
+### **What is tested?**
+- **Tools**: Unit tests for `get_schema_tool`, `get_databases_tool`.
+- **API**: Integration validity of the `agent_server` endpoints.

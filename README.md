@@ -65,6 +65,20 @@ docker-compose up -d --build
 | **Agent Studio UI** | `http://localhost:8501` | Chat and visualize agent traces. |
 | **API Server** | `http://localhost:8001/docs` | FastAPI backend for agents. |
 | **Neo4j Browser** | `http://localhost:7474` | Direct graph database inspections. |
+| **DataHub UI** | `http://localhost:9002` | Metadata Catalog (User: `datahub`, Pwd: `datahub`). |
+
+### 🛠️ Data Mesh Demo
+SEOCHO includes a fully functioning Data Mesh simulation.
+1. **Mock Data Generation** (Seeds Neo4j with FIBO domains):
+    ```bash
+    docker exec extraction-service python demos/data_mesh_mock.py
+    ```
+2. **Financial Metadata Tutorial** (Seeds DataHub with Bond Security mappings):
+    ```bash
+    # Ensure DataHub GMS is running first!
+    docker exec extraction-service python demos/datahub_fibo_ingest.py
+    docker exec extraction-service python demos/demo_fibo_metadata.py
+    ```
 
 ---
 

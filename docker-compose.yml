@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  jupyter:
+    build: .
+    ports:
+      - "8888:8888"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      # 1. 여기서 주소는 반드시 '서비스명:8080'이어야 함
+      - OPIK_URL_OVERRIDE=http://opik-backend:8080/api
+    env_file: .env
+    # 2. Opik과 같은 네트워크를 쓰도록 지정 (중요)
+    networks:
+      - opik-network
+    restart: always
+
+# 3. Opik 설정을 포함
+include:
+  - path: ./opik/deployment/docker-compose/docker-compose.yaml
+
+networks:
+  opik-network:
+    external: true
+    name: opik_default # Opik이 기본적으로 생성하는 네트워크 이름

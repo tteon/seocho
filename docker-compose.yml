@@ -1,25 +1,27 @@
-version: '3.8'
-
 services:
-  jupyter:
+  agent-jupyter:
     build: .
+    container_name: agent-jupyter-container
     ports:
       - "8888:8888"
+    # [핵심] 호스트 네트워크 모드를 사용하여 localhost:5173에 직접 접근합니다.
+    # 이 모드에서는 별도의 ports 설정이나 networks 설정이 필요 없습니다.
+    network_mode: "host"
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      # 1. 여기서 주소는 반드시 '서비스명:8080'이어야 함
-      - OPIK_URL_OVERRIDE=http://opik-backend:8080/api
-    env_file: .env
-    # 2. Opik과 같은 네트워크를 쓰도록 지정 (중요)
-    networks:
-      - opik-network
+      # 사용자님이 원하시는 대로 브라우저 주소와 동일하게 설정합니다.
+      - OPIK_URL_OVERRIDE=http://localhost:5173/api
+      - JUPYTER_TOKEN=
+    env_file:
+      - .env
+    volumes:
+      # 호스트의 현재 폴더를 컨테이너의 /workspace에 마운트
+      - .:/workspace
     restart: always
 
-# 3. Opik 설정을 포함
-include:
-  - path: ./opik/deployment/docker-compose/docker-compose.yaml
-
+# network_mode: "host"를 사용하므로 하단의 networks 정의는 
+# 이 서비스에는 영향을 주지 않지만, 다른 설정과의 호환성을 위해 남겨둘 수 있습니다.
 networks:
-  opik-network:
+  opik_network:
     external: true
-    name: opik_default # Opik이 기본적으로 생성하는 네트워크 이름
+    name: opik_default

@@ -1,0 +1,8 @@
+openai
+opik
+pandas
+matplotlib
+jupyter
+openai-agents
+owlready2
+datasets

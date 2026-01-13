@@ -1,0 +1,14 @@
+app:
+  name: "GraphAgent"
+  version: "0.1.0"
+  environment: "development"
+
+indexing:
+  batch_size: 100
+  retry_count: 3
+  retry_delay: 2
+
+agents:
+  default_model: "gpt-4o"
+  temperature: 0.0
+  max_tokens: 4000

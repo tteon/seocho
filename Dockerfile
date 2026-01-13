@@ -1,4 +1,4 @@
-# Dockerfile
+�# Dockerfile
 FROM python:3.11-slim
 
 # 시스템 의존성 설치 (matplotlib 및 분석 도구용)
@@ -21,4 +21,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Jupyter Notebook 실행 (작업 디렉토리를 /workspace로 지정)
-CMD ["jupyter", "notebook", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--allow-root", "--NotebookApp.token=''"]
+CMD ["jupyter", "notebook", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--allow-root", "--NotebookApp.token=''"]�"(b0e6decff02e86082a996666e26c3487e65f339e2)file:///home/ubuntu/lab/seocho/Dockerfile:file:///home/ubuntu/lab/seocho

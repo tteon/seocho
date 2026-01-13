@@ -1,4 +1,4 @@
-services:
+‚services:
   agent-jupyter:
     build: .
     container_name: agent-jupyter-container
@@ -6,7 +6,7 @@ services:
       - "8888:8888"
     # [í•µì‹¬] í˜¸ìŠ¤íŠ¸ ë„¤íŠ¸ì›Œí¬ ëª¨ë“œë¥¼ ì‚¬ìš©í•˜ì—¬ localhost:5173ì— ì§ì ‘ ì ‘ê·¼í•©ë‹ˆë‹¤.
     # ì´ ëª¨ë“œì—ì„œëŠ” ë³„ë„ì˜ ports ì„¤ì •ì´ë‚˜ networks ì„¤ì •ì´ í•„ìš” ì—†ìŠµë‹ˆë‹¤.
-    network_mode: "host"
+    # network_mode: "host" 
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       # ì‚¬ìš©ìë‹˜ì´ ì›í•˜ì‹œëŠ” ëŒ€ë¡œ ë¸Œë¼ìš°ì € ì£¼ì†Œì™€ ë™ì¼í•˜ê²Œ ì„¤ì •í•©ë‹ˆë‹¤.
@@ -18,10 +18,74 @@ services:
       # í˜¸ìŠ¤íŠ¸ì˜ í˜„ì¬ í´ë”ë¥¼ ì»¨í…Œì´ë„ˆì˜ /workspaceì— ë§ˆìš´íŠ¸
       - .:/workspace
     restart: always
+    networks:
+      - graphrag-net
 
-# network_mode: "host"ë¥¼ ì‚¬ìš©í•˜ë¯€ë¡œ í•˜ë‹¨ì˜ networks ì •ì˜ëŠ” 
-# ì´ ì„œë¹„ìŠ¤ì—ëŠ” ì˜í–¥ì„ ì£¼ì§€ ì•Šì§€ë§Œ, ë‹¤ë¥¸ ì„¤ì •ê³¼ì˜ í˜¸í™˜ì„±ì„ ìœ„í•´ ë‚¨ê²¨ë‘˜ ìˆ˜ ìˆìŠµë‹ˆë‹¤.
+  # --- Graph Storage ---
+  neo4j:
+    image: graphstack/dozerdb:5.26.3.0
+    container_name: graphrag-neo4j
+    ports:
+      - "${NEO4J_HTTP_PORT:-7474}:7474" # HTTP
+      - "${NEO4J_BOLT_PORT:-7687}:7687" # Bolt
+    environment:
+      - NEO4J_AUTH=${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-password}
+      - NEO4J_PLUGINS=["apoc", "n10s"]
+      - dbms.security.procedures.unrestricted=apoc.*,n10s.*
+      - dbms.security.procedures.allowlist=apoc.*,n10s.*
+      - NEO4J_apoc_export_file_enabled=true
+      - NEO4J_apoc_import_file_enabled=true
+      - NEO4J_dbms_security_procedures_unrestricted=*
+    volumes:
+      - ./data/neo4j/data:/data
+      - ./data/neo4j/logs:/logs
+      - ./data/neo4j/import:/var/lib/neo4j/import
+      - ./data/neo4j/plugins:/plugins
+    networks:
+      - graphrag-net
+
 networks:
   opik_network:
     external: true
     name: opik_default
+  graphrag-net:
+    driver: bridge½ ½¿
+¿Ó ÓÔ
+ÔÙ Ùü
+üş ş€*cascade08
+€‚ ‚š*cascade08
+š ­*cascade08
+­® ®µ*cascade08
+µ¶ ¶¸*cascade08
+¸¹ ¹¼*cascade08
+¼½ ½Ù*cascade08
+ÙÜ Üà*cascade08
+àá áğ*cascade08
+ğñ ñó*cascade08
+óô ôÒ*cascade08
+ÒÓ ÓÀ*cascade08
+ÀÁ ÁÔ*cascade08
+ÔÖ Ö×*cascade08
+×Ø Øò*cascade08
+òó óô*cascade08
+ôõ õö*cascade08
+ö÷ ÷±	*cascade08
+±	²	 ²	¹	*cascade08
+¹	º	 º	™
+*cascade08
+™
+š
+ š
+İ
+*cascade08
+İ
+Ş
+ Ş
+ƒ*cascade08
+ƒ„ „‡*cascade08
+‡ˆ ˆŸ*cascade08
+Ÿ¦ ¦§*cascade08
+§¨ ¨Ò*cascade08
+Ò× ×Ú*cascade08
+ÚÛ Û›*cascade08
+›ß ß‚*cascade08"(b0e6decff02e86082a996666e26c3487e65f339e21file:///home/ubuntu/lab/seocho/docker-compose.yml:file:///home/ubuntu/lab/seocho

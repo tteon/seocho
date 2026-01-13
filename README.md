@@ -1,57 +1,103 @@
-# SEOCHO Project (Feature: KG Build)
+# Graph RAG Evaluation Framework
 
-This repository contains the setup and pipeline for building a Hybrid Knowledge Graph (RDF + LPG) using the Opik platform and OpenAI.
+A modular framework for evaluating hybrid retrieval agents using LPG (Labeled Property Graph), RDF, and Vector search.
 
-## Prerequisites
-
-- Ubuntu/Linux Instance
-- OpenAI API Key
-
-## 1. Setup Environment
-
-We provide a `setup.sh` script to automate the installation of Docker, Docker Compose, and the Opik platform.
+## 🚀 Quick Start
 
 ```bash
-chmod +x setup.sh
-./setup.sh
+# 1. Build indexes
+docker exec agent-jupyter-container python -m src.cli.index --all
+
+# 2. Run experiments
+docker exec agent-jupyter-container python -m src.cli.evaluate --macro
 ```
 
-> **Note**: This script may require `sudo` permissions and might prompt for a password. After installation, you may need to log out and log back in (or use `newgrp docker`) to apply Docker group permissions.
+## 📁 Project Structure
 
-## 2. Configuration
+```
+src/
+├── config/          # Configuration & schemas
+├── retrieval/       # Database tools (LPG, RDF, LanceDB)
+├── indexing/        # Data ingestion pipelines
+├── evaluation/      # Experiment framework & metrics
+├── agents/          # Agent definitions
+├── data/            # Opik dataset utilities
+└── cli/             # Command-line entry points
+```
 
-Create a `.env` file in the root directory with your OpenAI API Key:
+## 🔧 CLI Commands
+
+### Indexing
+```bash
+python -m src.cli.index --lancedb     # Vector index only
+python -m src.cli.index --neo4j       # Graph index only
+python -m src.cli.index --all         # Both indexes
+```
+
+### Evaluation
+```bash
+python -m src.cli.evaluate --modes lpg,hybrid   # Specific modes
+python -m src.cli.evaluate --ablation           # All ablation combinations
+python -m src.cli.evaluate --macro              # Macro experiments
+python -m src.cli.evaluate --all                # Everything
+```
+
+### Data Export
+```bash
+python -m src.cli.export --traces       # Export Opik traces
+python -m src.cli.export --datasets     # Export all datasets
+```
+
+## 🧪 Experiment Types
+
+### Macro Experiments
+System-level comparisons:
+- **M1**: Full System (LPG+RDF+HYBRID) with Manager
+- **M2**: Full System with Single Agent
+- **M3**: LPG+HYBRID (no ontology)
+- **M4**: RDF+HYBRID (no structured facts)
+
+### Ablation Study
+Component-level analysis:
+- **A1-A3**: Single retrieval methods (LPG, RDF, HYBRID)
+- **A4-A6**: Pair combinations
+
+## 📊 Metrics
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `AnswerRelevance` | LLM | Output addresses query |
+| `Hallucination` | LLM | Fabrication detection |
+| `RoutingAccuracy` | Custom | Correct tool selection |
+| `ContextPrecision` | Custom | Retrieved context quality |
+| `ConflictResolutionScore` | Custom | Hierarchy of Truth compliance |
+
+## 🔌 Environment Variables
 
 ```bash
-# .env
-OPENAI_API_KEY=sk-proj-....
+# Required
+OPENAI_API_KEY=sk-...
+
+# Database (defaults work in Docker)
+NEO4J_URI=bolt://graphrag-neo4j:7687
+LANCEDB_PATH=/workspace/data/lancedb
+OPIK_URL_OVERRIDE=http://localhost:5173/api
 ```
 
-## 3. Launching the Services
+## 📚 Adding New Components
 
-This project uses Docker Compose to run the Jupyter environment integrated with Opik.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for:
+- Adding new retrieval tools
+- Creating custom metrics
+- Defining new experiments
+
+## 🐳 Docker Setup
 
 ```bash
-docker-compose up --build -d
+docker-compose up -d
+docker exec -it agent-jupyter-container bash
 ```
 
-- **Jupyter Lab**: [http://localhost:8888](http://localhost:8888)
-- **Opik Platform**: [http://localhost:5173](http://localhost:5173)
+## License
 
-## 4. Running the Pipeline
-
-1. Access Jupyter Lab at [http://localhost:8888](http://localhost:8888).
-2. Open `workspace/pipeline.py` or create a new notebook.
-3. Run the pipeline to process data and generate the Knowledge Graph.
-
-The pipeline results (RDF `.ttl` and LPG `.csv`) will be saved in the `output/` directory.
-
-## Directory Structure
-
-- `Dockerfile`: Defines the Python environment for the agent.
-- `docker-compose.yml`:Orchestrates the Jupyter agent and opik networking.
-- `setup.sh`: Installs Docker and Opik.
-- `workspace/`: Contains the source code and pipeline logic.
-    - `pipeline.py`: Main logic for FIBO-based KG extraction.
-- `opik/`: (Cloned by setup.sh) The generic Opik platform.
-
+MIT

@@ -1,4 +1,3 @@
-cat << 'EOF' > setup-docker-and-opik.sh
 #!/bin/bash
 
 # 1. 기존 구버전 및 관련 패키지 삭제
@@ -60,7 +59,3 @@ echo "모든 프로세스가 완료되었습니다."
 echo "주의: 현재 터미널 세션에서는 Docker 권한이 미비할 수 있습니다."
 echo "새로운 터미널을 열거나 'exit' 후 재접속하여 작업을 계속하세요."
 echo "--------------------------------------------------"
-EOF
-
-# 실행 권한 부여
-chmod +x setup-docker-and-opik.sh

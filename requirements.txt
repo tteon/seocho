@@ -6,3 +6,6 @@ jupyter
 openai-agents
 owlready2
 datasets
+lancedb
+tantivy
+neo4j

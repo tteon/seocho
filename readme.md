@@ -1,174 +1,116 @@
-# Seocho: Open Source Data Lineage & GraphRAG Framework
+# SEOCHO (서초)
+**Scalable Enterprise GraphRAG & Multi-Agent Orchestration Framework**
 
-![banner](./images/banner.png)
+[![Open Source](https://img.shields.io/badge/Open%20Source-SEOCHO-blue)](https://github.com/your-org/seocho)
+[![Feature](https://img.shields.io/badge/New%20Feature-Agent%20Studio-success)](http://localhost:8501)
+[![Stack](https://img.shields.io/badge/Stack-Neo4j%20|%20FastAPI%20|%20Streamlit-orange)]()
 
-**Seocho** is an open-source framework that tracks data lineage across your entire data stack, stores relationships in graph databases, and validates data quality - all while preparing your data for AI-powered insights through GraphRAG (Graph Retrieval-Augmented Generation).
-
-## 💬 Community
-
-Join our Discord to ask questions, share feedback, or collaborate on features.  
-We welcome contributors, testers, and anyone curious about the project!
-
-👉 **[Join the Discord Server](https://discord.gg/RcR5e5VSJW)**  
+**SEOCHO** is an open-source framework designed to bridge the gap between **unstructured data** and **structured knowledge graphs** for enterprise AI. It provides a scalable pipeline for Entity Extraction, Linking, and a robust Multi-Agent Studio for executing complex reasoning tasks over your data.
 
 ---
 
-## Key features
-
-1.Designed for multi-domain, multi-semantic knowledge graphs.
-
-2.Bridges enterprise data catalogs with graph reasoning.
-
-3.Fully open-source, so you can learn, adapt, and extend.
-
-4.Optimized for GraphRAG, the next frontier of retrieval-augmented generation using soft-prompting & hard-prompting.
+## 📢 Feature Update: Seocho Agent Studio
+We are excited to introduce **Agent Studio**, a new module integrated directly into SEOCHO.
+* **Visual Agent Debugging**: Interact with your agents and see their thought process in a real-time node graph.
+* **Hierarchical Logic**: Ready-to-use Router -> Graph Analyst -> DBA -> Supervisor architecture.
+* **Multi-Database Support**: Seamlessly switch between different ontologies (e.g., General vs. Financial).
+* **Native Tracing**: Built on `openai-agents` with full observability.
 
 ---
 
-## 🚀 Features
+## 🚀 Core Capabilities
 
-### 🔍 **Data Lineage Tracking**
-- **DataHub integration** - Track every dataset, transformation, and data movement
-- **Complete audit trails** - See exactly how your data flows from source to destination
-- **Impact analysis** - Understand downstream effects before making changes
+### 1. 🏗️ Knowledge Graph Integration
+Transform raw text into a high-fidelity Knowledge Graph.
+- **Scalable Ingestion**: Pipeline to process documents and linking them to standard ontologies (FIBO, etc.).
+- **Schema Management**: Dynamic schema application using `SchemaManager`.
+- **DataHub Integration**: Governance and metadata management for your graph assets.
 
-### 🗄️ **Graph Database Storage**
-- **DozerDB (Neo4j)** - Store complex relationships between data entities using multi-instance
-- **Native graph queries** - Find connections and patterns in your data
-- **Real-time updates** - Live lineage as your data changes
+### 2. 🧠 Multi-Agent Orchestration
+Move beyond simple RAG. SEOCHO agents understand structure.
+- **Router Agent**: Intelligently routes queries based on complexity (Single-hop vs. Multi-hop).
+- **Graph DBA Agent**: A specialized Text2Cypher expert that understands your specific graph schema and executes optimized queries.
+- **Supervisor**: Aggregates insights from Vector, Graph, and Web sources.
 
-### ✅ **Data Quality Validation**
-- **Automated auditing** - openai SDK agent engine validates data completeness and accuracy
-- **Quality scoring** - Quantitative metrics for data trustworthiness
-- **Alert system** - Get notified when data quality drops
-
-### 📊 **Interactive Visualization**
-- **NeoDash dashboards** - Beautiful, interactive charts and graphs high 
-- **Real-time lineage maps** - See your data's journey visually
-- **Custom dashboards** - Build views for different stakeholders for knowledge graph diversity schema
-
-### 🤖 **AI-Ready Architecture**
-- **GraphRAG foundation** - Prepare your data for LLM-powered insights
-- **Semantic relationships** - Rich context for AI models using triplets and graph qualification by graph embedding
-- **Trust scores** - AI knows which data to trust based on ontology
-- **GraphRAG Evaluation Dataset** - Making your own Multihop query and compare performance between other RAG pipeline.
----
-
-## 🧭 System Overview
-![system](./images/systemOverview.png)
-
-### Full Flow
-
-DataHub catalogs and tracks data lineage from your silos.
-
-Ontology Factory refines and unifies semantics into a graph schema.
-
-DozerDB manages and serves graph data in domain-specific instances.
-
-GraphRAG retrieves, compacts, and feeds graph context to the LLM for accurate, grounded answers.
+### 3. 👁️ Observability & Reproducibility
+- **Streamlit-Flow**: "White-box" your agents. See exactly why an agent chose a tool.
+- **OpenAI Trace**: Send execution traces to your dashboard for long-term analysis.
+- **Test-Driven**: Comprehensive `pytest` suite for agent tools and APIs.
 
 ---
 
-## 🧑‍💻 Getting Started
+## ⚡ Quick Start
 
 ### Prerequisites
+- Docker & Docker Compose
+- OpenAI API Key
 
-* Docker
-* Docker Compose
-* Python 3.8+ (for DataHub CLI)
-
-### Quickstart
-
+### Build & Run
 ```bash
-git clone https://github.com/tteon/seocho.git
+# 1. Clone the repository
+git clone https://github.com/your-org/seocho.git
 cd seocho
-make bootstrap
-make up
+
+# 2. Configure Environment
+cp .env.example .env
+# Enter your OPENAI_API_KEY and NEO4J_PASSWORD
+
+# 3. Launch the Stack
+docker-compose up -d --build
 ```
 
-Access the following:
+### Access Points
+| Service | URL | Description |
+|---------|-----|-------------|
+| **Agent Studio UI** | `http://localhost:8501` | Chat and visualize agent traces. |
+| **API Server** | `http://localhost:8001/docs` | FastAPI backend for agents. |
+| **Neo4j Browser** | `http://localhost:7474` | Direct graph database inspections. |
+| **DataHub UI** | `http://localhost:9002` | Metadata Catalog (User: `datahub`, Pwd: `datahub`). |
 
-* DataHub UI: [http://localhost:9002](http://localhost:9002)
-* Neodash Dashboard: [http://localhost:5005](http://localhost:5005)
-
-To ingest sample data:
-
-```bash
-make ingest-glossary
-```
+### 🛠️ Data Mesh Demo
+SEOCHO includes a fully functioning Data Mesh simulation.
+1. **Mock Data Generation** (Seeds Neo4j with FIBO domains):
+    ```bash
+    docker exec extraction-service python demos/data_mesh_mock.py
+    ```
+2. **Financial Metadata Tutorial** (Seeds DataHub with Bond Security mappings):
+    ```bash
+    # Ensure DataHub GMS is running first!
+    docker exec extraction-service python demos/datahub_fibo_ingest.py
+    docker exec extraction-service python demos/demo_fibo_metadata.py
+    ```
 
 ---
 
-## 📦 Project Structure
+## 📂 Architecture
 
-```
-seocho/
-├── datahub/                # DataHub launcher and Dockerfile
-├── engine/                 # Python-based auditing logic
-├── neo4j/                  # DozerDB volume mounts (data, logs, plugins, etc.)
-├── workspace/              # Shared data directory (input/output)
-├── sharepoint/             # External shareable data volume
-├── docker-compose.yml      # Main orchestration
-├── Makefile                # Developer shortcuts
-├── bootstrap.sh            # Initial environment setup script
-├── recipe.yml              # Ingestion config for CSV
-├── recipe_glossary.yml     # Ingestion config for RDF glossary terms
-└── README.md               # Project intro & usage
-```
-
----
-
-## ✨ Example Use Case
-
-1. Ingest sample CSV into DataHub via CLI:
-
-```bash
-datahub ingest -c recipe.yml
+```mermaid
+graph TD
+    User[User] -->|Chat| UI[Streamlit Agent Studio]
+    UI -->|API Request| API[Agent Server (FastAPI)]
+    
+    subgraph "SEOCHO Agent Core"
+        Router[Router Agent] --> Graph[Graph Agent]
+        Router --> Vector[Vector Agent]
+        Graph --> DBA[Graph DBA]
+        DBA -->|Text2Cypher| Neo4j[(Neo4j Graph)]
+        Vector -->|Search| FAISS[(Vector Store)]
+        All --> Supervisor[Supervisor]
+    end
+    
+    API --> Router
+    Supervisor -->|Final Answer| API
+    API -->|Trace Steps| UI
 ```
 
-2. Ingest RDF-based taxonomy as glossary terms:
-
-```bash
-make ingest-glossary
-```
-
-3. DataHub triggers Engine to validate quality/completeness
-4. Engine stores result as new metadata (or graph node)
-5. Neodash shows the lineage & quality metrics together
-6. Future: LLM retrieves info via GraphRAG to answer questions
-
----
-
-## 🤖 Toward GraphRAG
-
-Seocho is designed as a foundation for building a **GraphRAG** system:
-
-* **GraphDB stores structured relationships** (entities, time, metrics)
-* **Lineage ensures traceability and trust in source data**
-* **Audit results improve RAG responses with data quality info**
-
----
 
 ## 🤝 Contributing
+SEOCHO is a community-driven project. We welcome contributions for:
+- New Ontology mappings.
+- Additional Agent Tools.
+- UI Enhancements.
 
-We welcome issues, discussions, and PRs!
+Please read our [Contributing Guidelines](CONTRIBUTING.md) before getting started.
 
-To contribute:
-
-```bash
-# Fork + Clone
-# Run locally
-# Suggest improvements via PR
-```
-
----
-
-## 📄 License
-
-MIT License © 2025 Seocho Contributors
-
----
-
-## 📬 Contact
-
-Questions? Ideas? Reach us via [GitHub Issues](https://github.com/your-org/seocho/issues)
+## 📜 License
+MIT License.

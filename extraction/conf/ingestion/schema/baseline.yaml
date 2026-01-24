@@ -1,0 +1,81 @@
+name: "baseline"
+
+prompts:
+  extraction: |
+    You are an expert in financial and legal document analysis. Extract entities from the text below based on the specified categories.
+
+    **Target Entity Types:**
+    1. FINANCIAL_TERM (e.g., Revenue, Net Income, Assets, Debt Ratio, EBIT)
+    2. COMPANY_NAME (e.g., Samsung Electronics, Apple Inc., Tesla)
+    3. LEGAL_ENTITY (e.g., Patent, Contract, Lawsuit, Regulation)
+
+    **Input Text:**
+    ---
+    {input_text}
+    ---
+
+    **Constraint:** Output must be strictly in JSON format matching the schema provided.
+
+  linking: |
+    You are an entity relationship analysis expert. Based on the **Extracted Entity List** and the **Source Text**, identify meaningful relationships between pairs of entities.
+
+    **Relation Types:**
+    1. INCREASED_BY (e.g., 'Revenue' increased by 'New Product Launch')
+    2. OWNS (e.g., 'Apple' owns 'Patent')
+    3. RELATED_TO (General association)
+
+    **Extracted Entity List:**
+    ---
+    {extracted_entities}
+    ---
+
+    **Source Text:**
+    ---
+    {input_text}
+    ---
+
+    **Constraint:** Output must be strictly in JSON format.
+
+schemas:
+  extraction:
+    type: "object"
+    properties:
+      extracted_entities:
+        type: "array"
+        items:
+          type: "object"
+          properties:
+            text:
+              type: "string"
+              description: "The exact entity text found in the document."
+            type:
+              type: "string"
+              enum: ["FINANCIAL_TERM", "COMPANY_NAME", "LEGAL_ENTITY"]
+              description: "The category of the entity."
+          required: ["text", "type"]
+          additionalProperties: false
+    required: ["extracted_entities"]
+    additionalProperties: false
+
+  linking:
+    type: "object"
+    properties:
+      entity_relationships:
+        type: "array"
+        items:
+          type: "object"
+          properties:
+            source_entity:
+              type: "string"
+              description: "Subject entity"
+            target_entity:
+              type: "string"
+              description: "Object entity"
+            relation_type:
+              type: "string"
+              enum: ["INCREASED_BY", "OWNS", "RELATED_TO"]
+              description: "Relationship type"
+          required: ["source_entity", "target_entity", "relation_type"]
+          additionalProperties: false
+    required: ["entity_relationships"]
+    additionalProperties: false

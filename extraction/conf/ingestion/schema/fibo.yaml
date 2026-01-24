@@ -1,0 +1,93 @@
+name: "fibo"
+
+# Using label 'kgfibo' or similar if we had separate DNS. 
+# For now we use the same URI but we can override it if the user adds the container.
+neo4j_uri_override: "bolt://neo4j:7687" 
+
+prompts:
+  extraction: |
+    You are a Financial Ontology Expert. Analyze the text and extract entities mapping them to the Financial Industry Business Ontology (FIBO) classes.
+
+    **Target FIBO Classes:**
+    1. fibo-be-le-lp:LegalEntity (Companies, Organizations, Corporations. e.g., 'Apple Inc.')
+    2. fibo-fnd-acc-cur:MonetaryAmount (Specific financial figures. e.g., '$10 million', '5% interest')
+    3. fibo-fbc-fi-fi:FinancialInstrument (Stocks, Bonds, Derivatives)
+    4. fibo-fnd-agr-ctr:Contract (Agreements, policies, covenants)
+    5. fibo-fnd-law-lcap:LegalCapacity (Patents, Licenses, Rights)
+    6. fibo-fnd-acc-aeq:FinancialPosition (Abstract concepts: Revenue, Debt, Assets, Liabilities)
+
+    **Input Text:**
+    ---
+    {input_text}
+    ---
+
+    **Constraint:** Output must be strictly in JSON format matching the schema provided.
+
+  linking: |
+    You are a Knowledge Graph Engineer. Link the provided entities using formal semantic relationships derived from FIBO properties.
+
+    **Relation Types (FIBO Object Properties):**
+    1. hasIdentity (Connects a name/ticker to a Legal Entity)
+    2. hasOwnership (Entity A owns Entity B, e.g., Company owns Patent)
+    3. isPartyTo (Entity is involved in a Contract or Lawsuit)
+    4. hasMonetaryValue (Connects a Financial Position like 'Revenue' to a Monetary Amount like '$1B')
+    5. refersTo (General citation or reference in documents)
+
+    **Extracted Entity List:**
+    ---
+    {extracted_entities}
+    ---
+
+    **Source Text:**
+    ---
+    {input_text}
+    ---
+
+    **Constraint:** Output must be strictly in JSON format.
+
+schemas:
+  extraction:
+    type: "object"
+    properties:
+      extracted_entities:
+        type: "array"
+        items:
+          type: "object"
+          properties:
+            text:
+              type: "string"
+              description: "The exact entity text."
+            fibo_class:
+              type: "string"
+              enum:
+                - "LegalEntity"
+                - "MonetaryAmount"
+                - "FinancialInstrument"
+                - "Contract"
+                - "LegalCapacity"
+                - "FinancialPosition"
+              description: "The specific FIBO-aligned class."
+          required: ["text", "fibo_class"]
+          additionalProperties: false
+    required: ["extracted_entities"]
+    additionalProperties: false
+
+  linking:
+    type: "object"
+    properties:
+      entity_relationships:
+        type: "array"
+        items:
+          type: "object"
+          properties:
+            source_entity:
+              type: "string"
+            target_entity:
+              type: "string"
+            relation_type:
+              type: "string"
+              enum: ["hasIdentity", "hasOwnership", "isPartyTo", "hasMonetaryValue", "refersTo"]
+          required: ["source_entity", "target_entity", "relation_type"]
+          additionalProperties: false
+    required: ["entity_relationships"]
+    additionalProperties: false

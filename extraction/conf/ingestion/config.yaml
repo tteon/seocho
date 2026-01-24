@@ -1,0 +1,23 @@
+defaults:
+  - schema: baseline
+  - _self_
+
+hydra:
+  run:
+    dir: outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+
+dataset:
+  path: "hf://datasets/Linq-AI-Research/FinDER/data/train-00000-of-00001.parquet"
+  categories:
+    - "Financials"
+    - "Company overview"
+    - "Legal"
+  sample_size: 10
+
+neo4j:
+  uri: "bolt://neo4j:7687" # Default to main container. Override in schema if needed.
+  user: "${oc.env:NEO4J_USER,neo4j}"
+  password: "${oc.env:NEO4J_PASSWORD,password}"
+
+openai:
+  model: "gpt-4o"

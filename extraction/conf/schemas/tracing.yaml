@@ -1,0 +1,62 @@
+
+# LEX-Style Schema Definition for Agent Tracing
+# Philosophy: Define the "Shape" of the graph properties and constraints.
+
+graph_type: "TracingGraph"
+version: "1.0"
+
+nodes:
+  Session:
+    description: "Represents a user interaction session"
+    properties:
+      id:
+        type: STRING
+        constraint: UNIQUE
+      start_time:
+        type: DATETIME
+
+  Trace:
+    description: "A single thread of execution or workflow"
+    properties:
+      id:
+        type: STRING
+        constraint: UNIQUE
+      timestamp:
+        type: DATETIME
+        index: TRUE
+
+  Step:
+    description: "An atomic action taken by an agent"
+    properties:
+      id:
+        type: STRING
+        constraint: UNIQUE
+      type:
+        type: STRING
+        index: TRUE
+      agent:
+        type: STRING
+        index: TRUE
+      timestamp:
+        type: DATETIME
+
+  Agent:
+    description: "Canonical representation of an AI agent"
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+
+relationships:
+  HAS_TRACE:
+    source: Session
+    target: Trace
+  HAS_STEP:
+    source: Trace
+    target: Step
+  NEXT:
+    source: Step
+    target: Step
+  USED_AGENT:
+    source: Step
+    target: Agent

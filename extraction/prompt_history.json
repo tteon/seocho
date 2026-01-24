@@ -1,0 +1,30 @@
+[
+  {
+    "timestamp": "2025-12-07T14:09:19.012279",
+    "prompt_version": "default",
+    "input_preview": "GraphRAG Inc. was founded in 2024 to revolutionize...",
+    "output": "{\n    \"nodes\": [\n        {\n            \"id\": \"1\",\n            \"label\": \"Organization\",\n            \"properties\": {\n                \"name\": \"GraphRAG Inc.\"\n            }\n        },\n        {\n            \"id\": \"2\",\n            \"label\": \"Person\",\n            \"properties\": {\n                \"name\": \"Unknown\"\n            }\n        },\n        {\n            \"id\": \"3\",\n            \"label\": \"Concept\",\n            \"properties\": {\n                \"name\": \"knowledge graph extraction\"\n            }\n        }\n    ],\n    \"relationships\": [\n        {\n            \"source\": \"2\",\n            \"target\": \"1\",\n            \"type\": \"FOUNDED\",\n            \"properties\": {}\n        },\n        {\n            \"source\": \"1\",\n            \"target\": \"3\",\n            \"type\": \"REVOLUTIONIZE\",\n            \"properties\": {}\n        }\n    ]\n}",
+    "latency": 3.428403615951538
+  },
+  {
+    "timestamp": "2025-12-07T14:09:52.437993",
+    "prompt_version": "default",
+    "input_preview": "Revenue for Q3 2024 exceeded $5M, driven by strong...",
+    "output": "{\n    \"nodes\": [\n        {\"id\": \"revenue_Q3_2024\", \"label\": \"FinancialMetric\", \"properties\": {\"name\": \"Revenue for Q3 2024\", \"value\": \"$5M\"}},\n        {\"id\": \"enterprise_adoption\", \"label\": \"Concept\", \"properties\": {\"name\": \"Strong enterprise adoption\"}}\n    ],\n    \"relationships\": []\n}",
+    "latency": 1.961153268814087
+  },
+  {
+    "timestamp": "2025-12-07T14:09:54.873288",
+    "prompt_version": "default",
+    "input_preview": "The use of this software is governed by the MIT Li...",
+    "output": "{\n    \"nodes\": [\n        {\"id\": \"org1\", \"label\": \"Organization\", \"properties\": {\"name\": \"MIT License\"}},\n        {\"id\": \"statute1\", \"label\": \"LegalStatute\", \"properties\": {\"name\": \"MIT License\"}},\n        {\"id\": \"concept1\", \"label\": \"Concept\", \"properties\": {\"name\": \"software\"}}\n    ],\n    \"relationships\": [\n        {\"source\": \"concept1\", \"target\": \"statute1\", \"type\": \"GOVERNED_BY\", \"properties\": {}}\n    ]\n}",
+    "latency": 2.2880682945251465
+  },
+  {
+    "timestamp": "2025-12-07T14:09:57.381970",
+    "prompt_version": "default",
+    "input_preview": "Deepmind's AlphaFold has transformed biology....",
+    "output": "{\n    \"nodes\": [\n        {\n            \"id\": \"1\",\n            \"label\": \"Organization\",\n            \"properties\": {\n                \"name\": \"Deepmind\"\n            }\n        },\n        {\n            \"id\": \"2\",\n            \"label\": \"Concept\",\n            \"properties\": {\n                \"name\": \"AlphaFold\"\n            }\n        },\n        {\n            \"id\": \"3\",\n            \"label\": \"Concept\",\n            \"properties\": {\n                \"name\": \"biology\"\n            }\n        }\n    ],\n    \"relationships\": [\n        {\n            \"source\": \"1\",\n            \"target\": \"2\",\n            \"type\": \"DEVELOPS\",\n            \"properties\": {}\n        },\n        {\n            \"source\": \"2\",\n            \"target\": \"3\",\n            \"type\": \"TRANSFORMS\",\n            \"properties\": {}\n        }\n    ]\n}",
+    "latency": 2.2529244422912598
+  }
+]

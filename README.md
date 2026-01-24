@@ -87,17 +87,20 @@ SEOCHO includes a fully functioning Data Mesh simulation.
 ```mermaid
 graph TD
     User[User] -->|Chat| UI[Streamlit Agent Studio]
-    UI -->|API Request| API[Agent Server (FastAPI)]
-    
-    subgraph "SEOCHO Agent Core"
+    UI -->|API Request| API[Agent Server FastAPI]
+
+    subgraph SEOCHO_Agent_Core[SEOCHO Agent Core]
         Router[Router Agent] --> Graph[Graph Agent]
         Router --> Vector[Vector Agent]
+        Router --> Web[Web Agent]
         Graph --> DBA[Graph DBA]
         DBA -->|Text2Cypher| Neo4j[(Neo4j Graph)]
         Vector -->|Search| FAISS[(Vector Store)]
-        All --> Supervisor[Supervisor]
+        DBA --> Supervisor[Supervisor]
+        Vector --> Supervisor
+        Web --> Supervisor
     end
-    
+
     API --> Router
     Supervisor -->|Final Answer| API
     API -->|Trace Steps| UI

@@ -1,9 +1,12 @@
 import os
+import logging
 import faiss
 import numpy as np
 import pickle
 from openai import OpenAI
 from typing import List
+
+logger = logging.getLogger(__name__)
 
 class VectorStore:
     def __init__(self, api_key: str, dimension: int = 1536):
@@ -29,7 +32,7 @@ class VectorStore:
             )
             return response.data[0].embedding
         except Exception as e:
-            print(f"Error generating embedding: {e}")
+            logger.error("Error generating embedding: %s", e)
             return [0.0] * self.dimension
 
     def add_document(self, doc_id: str, text: str):
@@ -37,14 +40,14 @@ class VectorStore:
         Embeds text and adds it to the FAISS index.
         """
         if not text or not text.strip():
-            print(f"Skipping empty text for doc {doc_id}")
+            logger.warning("Skipping empty text for doc %s", doc_id)
             return
 
         embedding = self.embed_text(text)
         vector = np.array([embedding], dtype='float32')
-        
+
         self.index.add(vector)
-        
+
         # Store metadata
         internal_id = self.index.ntotal - 1
         self.doc_map[internal_id] = doc_id
@@ -56,15 +59,15 @@ class VectorStore:
         """
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
-            
+
         index_path = os.path.join(output_dir, "vectors.index")
         faiss.write_index(self.index, index_path)
-        
+
         meta_path = os.path.join(output_dir, "vectors_meta.pkl")
         with open(meta_path, "wb") as f:
             pickle.dump({"doc_map": self.doc_map, "documents": self.documents}, f)
-            
-        print(f"Saved vector index to {index_path} with {self.index.ntotal} vectors.")
+
+        logger.info("Saved vector index to %s with %d vectors.", index_path, self.index.ntotal)
 
     def load_index(self, input_dir: str):
         """
@@ -72,16 +75,16 @@ class VectorStore:
         """
         index_path = os.path.join(input_dir, "vectors.index")
         meta_path = os.path.join(input_dir, "vectors_meta.pkl")
-        
+
         if os.path.exists(index_path) and os.path.exists(meta_path):
             self.index = faiss.read_index(index_path)
             with open(meta_path, "rb") as f:
                 data = pickle.load(f)
                 self.doc_map = data["doc_map"]
                 self.documents = data["documents"]
-            print(f"Loaded vector index from {input_dir} with {self.index.ntotal} vectors.")
+            logger.info("Loaded vector index from %s with %d vectors.", input_dir, self.index.ntotal)
         else:
-            print(f"Index not found in {input_dir}, starting fresh.")
+            logger.warning("Index not found in %s, starting fresh.", input_dir)
 
     def search(self, query: str, k: int = 3) -> List[dict]:
         """
@@ -89,21 +92,17 @@ class VectorStore:
         """
         if self.index.ntotal == 0:
             return []
-            
+
         embedding = self.embed_text(query)
         vector = np.array([embedding], dtype='float32')
-        
+
         distances, indices = self.index.search(vector, k)
-        
+
         results = []
         for idx in indices[0]:
             if idx != -1 and idx in self.doc_map:
-                # Retrieve metadata (we stored doc_id in doc_map, but documents list has more info)
-                # This could be optimized, but for now we look up in documents list manually or store map better
-                # doc_map maps internal_id -> doc_id
                 doc_id = self.doc_map[idx]
-                # Find doc in documents (inefficient O(N) but okay for POC)
                 doc_meta = next((d for d in self.documents if d["id"] == doc_id), {"text_preview": "N/A"})
                 results.append({"id": doc_id, "text": doc_meta.get("text_preview", "")})
-                
+
         return results

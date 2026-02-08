@@ -1,8 +1,11 @@
 import json
+import logging
 import time
 from openai import OpenAI
 from prompt_manager import PromptManager
 from jinja2 import Template
+
+logger = logging.getLogger(__name__)
 
 class EntityLinker:
     def __init__(self, prompt_manager: PromptManager, api_key: str, model: str):
@@ -18,27 +21,11 @@ class EntityLinker:
         if not nodes:
             return extracted_data
 
-        # Render prompt
-        # Note: In a real app we might put this in PromptManager, but for simplicity constructing here
-        # or assuming PromptManager handles the template loading via direct access or a new method.
-        # Let's assume we added a method or use raw config if accessible, 
-        # but better to use the pattern establish in PromptManager.
-        
-        # We need to access the linking prompt. 
-        # Let's simply construct the context and render manually if PromptManager 
-        # doesn't have a specific method for 'linking'.
-        # Actually from previous step, we added 'linking' to config root 'linking_prompt' or via defaults.
-        # Let's assume config structure: cfg.linking_prompt.linking
-        
         try:
-             # Just use the template directly from config if available or pass to manager
-             # For strictly following the pattern, we'd add 'render_linking_prompt' to PromptManager.
-             # But let's do it here for speed if PromptManager is pure Jinja.
-             
              template_str = self.prompt_manager.cfg.linking_prompt.linking
              template = Template(template_str)
              prompt = template.render(category=category, entities=json.dumps(nodes, indent=2))
-             
+
              response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
@@ -47,17 +34,19 @@ class EntityLinker:
                 ],
                 response_format={"type": "json_object"}
              )
-             
+
              content = response.choices[0].message.content
              linked_result = json.loads(content)
-             
-             # Merge back relationships if LLM dropped them, or use LLM's full output
-             # ideally prompt asks for full graph back.
+
+             # Merge back relationships if LLM dropped them
              if "relationships" not in linked_result:
                  linked_result["relationships"] = extracted_data.get("relationships", [])
-                 
+
              return linked_result
 
+        except json.JSONDecodeError as e:
+            logger.error("Failed to parse linking response as JSON: %s", e)
+            return extracted_data
         except Exception as e:
-            print(f"Error during entity linking: {e}")
+            logger.error("Error during entity linking: %s", e)
             return extracted_data

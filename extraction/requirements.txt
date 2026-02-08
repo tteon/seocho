@@ -2,6 +2,8 @@ neo4j
 requests
 pydantic
 pytest
+pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0
 requests-mock
 openai
 hydra-core
@@ -19,6 +21,8 @@ pydantic
 hydra-core
 graphviz
 python-dotenv
+tenacity>=8.2.0
+httpx>=0.25.0
 
 datasets
 openai-agents

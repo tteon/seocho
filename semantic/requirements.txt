@@ -4,6 +4,5 @@ neo4j
 langchain
 langchain-openai
 pydantic
-kafka-python
 pytest
 httpx

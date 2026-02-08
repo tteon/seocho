@@ -4,13 +4,14 @@ import time
 from openai import OpenAI
 from prompt_manager import PromptManager
 from jinja2 import Template
+from tracing import wrap_openai_client
 
 logger = logging.getLogger(__name__)
 
 class EntityLinker:
     def __init__(self, prompt_manager: PromptManager, api_key: str, model: str):
         self.prompt_manager = prompt_manager
-        self.client = OpenAI(api_key=api_key)
+        self.client = wrap_openai_client(OpenAI(api_key=api_key))
         self.model = model
 
     def link_entities(self, extracted_data: dict, category: str = "general") -> dict:

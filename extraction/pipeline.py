@@ -7,7 +7,6 @@ from omegaconf import DictConfig
 
 from collector import DataCollector
 from data_source import DataSource
-from metadata import MetadataHandler
 from extractor import EntityExtractor
 from prompt_manager import PromptManager
 from graph_loader import GraphLoader
@@ -16,6 +15,7 @@ from vector_store import VectorStore
 from deduplicator import EntityDeduplicator
 from ontology_prompt_bridge import OntologyPromptBridge
 from config import NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD
+from tracing import track
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +51,6 @@ class ExtractionPipeline:
             self._ontology_bridge = OntologyPromptBridge(self._ontology)
             logger.info("Loaded ontology '%s' from %s", self._ontology.name, ontology_path)
 
-        self.metadata_handler = MetadataHandler()
         self.prompt_manager = PromptManager(cfg)
 
         self.extractor = EntityExtractor(
@@ -79,6 +78,7 @@ class ExtractionPipeline:
 
         self._schema_manager = SchemaManager(NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD)
 
+    @track("pipeline.run")
     def run(self):
         """Execute the full extraction pipeline."""
         logger.info("Starting Extraction Pipeline...")
@@ -99,6 +99,7 @@ class ExtractionPipeline:
         self._schema_manager.close()
         logger.info("Pipeline execution complete.")
 
+    @track("pipeline.process_item")
     def process_item(self, item: dict):
         """Process a single data item: extract → link → dedup → schema → load."""
         try:
@@ -128,17 +129,14 @@ class ExtractionPipeline:
                 len(extracted_data.get("relationships", [])),
             )
 
-            # 5. Metadata
-            self.metadata_handler.emit_metadata(item)
-
-            # 6. Vector Embedding
+            # 5. Vector Embedding
             logger.debug("Embedding content for %s...", item["id"])
             self.vector_store.add_document(item["id"], item["content"])
 
-            # 7. Save Intermediate Results
+            # 6. Save Intermediate Results
             self._save_results(item["id"], extracted_data)
 
-            # 8. Auto-Sync Schema
+            # 7. Auto-Sync Schema
             schema_path = os.path.join(
                 os.path.dirname(os.path.abspath(__file__)),
                 "conf/schemas/baseline.yaml",
@@ -146,7 +144,7 @@ class ExtractionPipeline:
             self._schema_manager.update_schema_from_records(extracted_data, schema_path)
             self._schema_manager.apply_schema(self.target_database, schema_path)
 
-            # 9. Load Graph
+            # 8. Load Graph
             self.graph_loader.load_graph(extracted_data, item["id"])
             logger.info("Loaded graph data for %s", item["id"])
 

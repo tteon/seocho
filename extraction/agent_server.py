@@ -16,6 +16,7 @@ from config import NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD, db_registry
 from shared_memory import SharedMemory
 from agent_factory import AgentFactory
 from database_manager import DatabaseManager
+from tracing import configure_opik, track
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,10 @@ app.add_middleware(
     allow_methods=["POST"],
     allow_headers=["*"],
 )
+
+@app.on_event("startup")
+async def _startup():
+    configure_opik()
 
 # ------------------------------------------------------------------
 # 1. Context & Trace Logic
@@ -241,6 +246,7 @@ class DebateResponse(BaseModel):
 # ------------------------------------------------------------------
 
 @app.post("/run_agent", response_model=AgentResponse)
+@track("agent_server.run_agent")
 async def run_agent(request: QueryRequest):
     """Legacy single-router endpoint."""
     srv_context = ServerContext(
@@ -302,6 +308,7 @@ async def run_agent(request: QueryRequest):
 
 
 @app.post("/run_debate", response_model=DebateResponse)
+@track("agent_server.run_debate")
 async def run_debate(request: QueryRequest):
     """Parallel Debate endpoint: all DB agents answer in parallel, Supervisor synthesises."""
     from debate import DebateOrchestrator

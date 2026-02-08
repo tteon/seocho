@@ -5,6 +5,7 @@ import numpy as np
 import pickle
 from openai import OpenAI
 from typing import List
+from tracing import wrap_openai_client
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +15,7 @@ class VectorStore:
         Initialize VectorStore with OpenAI client and FAISS index.
         Default dimension 1536 is for text-embedding-3-small / text-embedding-ada-002.
         """
-        self.client = OpenAI(api_key=api_key)
+        self.client = wrap_openai_client(OpenAI(api_key=api_key))
         self.dimension = dimension
         self.index = faiss.IndexFlatL2(dimension)
         self.doc_map = {} # Maps internal ID to doc ID

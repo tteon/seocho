@@ -4,13 +4,14 @@ import time
 from typing import Optional, Dict, Any
 from openai import OpenAI
 from prompt_manager import PromptManager
+from tracing import wrap_openai_client
 
 logger = logging.getLogger(__name__)
 
 class EntityExtractor:
     def __init__(self, prompt_manager: PromptManager, api_key: str, model: str):
         self.prompt_manager = prompt_manager
-        self.client = OpenAI(api_key=api_key)
+        self.client = wrap_openai_client(OpenAI(api_key=api_key))
         self.model = model
 
     def extract_entities(

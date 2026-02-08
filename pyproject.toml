@@ -1,0 +1,69 @@
+[project]
+name = "seocho"
+version = "0.1.0"
+description = "Agent-Driven Knowledge Graph Platform"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    # Neo4j
+    "neo4j",
+    # OpenAI
+    "openai",
+    "openai-agents",
+    # FastAPI server
+    "fastapi",
+    "uvicorn",
+    "pydantic>=2.0",
+    # LLM pipeline
+    "hydra-core",
+    "omegaconf",
+    "jinja2",
+    "tenacity>=8.2.0",
+    # Data handling
+    "pandas",
+    "pyarrow",
+    "fastparquet",
+    "datasets",
+    "huggingface_hub",
+    # Vector search
+    "faiss-cpu",
+    # Observability
+    "opik",
+    # Utilities
+    "requests",
+    "python-dotenv",
+    "graphviz",
+    "numpy",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "httpx>=0.25.0",
+    "requests-mock",
+    "flake8",
+    "black",
+    "isort",
+]
+notebook = [
+    "jupyter",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["extraction/tests"]
+pythonpath = ["extraction"]
+asyncio_mode = "auto"
+
+[tool.black]
+line-length = 88
+target-version = ["py311"]
+
+[tool.isort]
+profile = "black"
+line_length = 88
+
+[tool.flake8]
+max-line-length = 88
+exclude = ["__pycache__", "*.pyc", ".git", "demos"]

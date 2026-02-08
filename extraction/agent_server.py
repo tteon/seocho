@@ -5,33 +5,90 @@ import os
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 # OpenAI Agent SDK Imports (Local Shim)
 from agents import Agent, Runner, function_tool, RunContextWrapper, trace
 
-from config import NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD, db_registry
+from config import NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD, db_registry, validate_config
 from shared_memory import SharedMemory
 from agent_factory import AgentFactory
 from database_manager import DatabaseManager
+from exceptions import (
+    SeochoError,
+    ConfigurationError,
+    InfrastructureError,
+    DataValidationError,
+    PipelineError,
+)
+from middleware import RequestIDMiddleware
 from tracing import configure_opik, track, update_current_span, update_current_trace
 
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Agent Server")
 
+# Request ID middleware
+app.add_middleware(RequestIDMiddleware)
+
 # CORS — restrict to local development origins
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:8501", "http://localhost:3000"],
-    allow_methods=["POST"],
+    allow_methods=["POST", "GET"],
     allow_headers=["*"],
 )
 
+
+# ------------------------------------------------------------------
+# Exception handlers — structured error responses
+# ------------------------------------------------------------------
+
+class ErrorDetail(BaseModel):
+    error_code: str
+    message: str
+    request_id: Optional[str] = None
+
+
+class ErrorResponse(BaseModel):
+    error: ErrorDetail
+
+
+_EXCEPTION_STATUS_MAP = {
+    ConfigurationError: 400,
+    DataValidationError: 422,
+    PipelineError: 422,
+    InfrastructureError: 502,
+}
+
+
+@app.exception_handler(SeochoError)
+async def seocho_error_handler(request: Request, exc: SeochoError):
+    status_code = 500
+    for exc_type, code in _EXCEPTION_STATUS_MAP.items():
+        if isinstance(exc, exc_type):
+            status_code = code
+            break
+
+    from middleware import get_request_id
+    request_id = get_request_id()
+
+    body = ErrorResponse(
+        error=ErrorDetail(
+            error_code=type(exc).__name__,
+            message=str(exc),
+            request_id=request_id,
+        )
+    )
+    return JSONResponse(status_code=status_code, content=body.model_dump())
+
+
 @app.on_event("startup")
 async def _startup():
+    validate_config()
     configure_opik()
 
 # ------------------------------------------------------------------
@@ -55,6 +112,12 @@ class ServerContext:
 # --- Real Managers ---
 from vector_store import VectorStore
 from neo4j import GraphDatabase
+from dependencies import (
+    get_neo4j_connector,
+    get_database_manager,
+    get_agent_factory,
+    get_vector_store,
+)
 
 
 class Neo4jConnector:
@@ -79,6 +142,7 @@ class Neo4jConnector:
 neo4j_conn = Neo4jConnector()
 db_manager = DatabaseManager()
 agent_factory = AgentFactory(neo4j_conn)
+faiss_manager = VectorStore(api_key=os.getenv("OPENAI_API_KEY", ""))
 
 # --- Tools ---
 
@@ -122,7 +186,11 @@ def execute_cypher_tool(context: RunContextWrapper, query: str, database: str = 
 
 @function_tool
 def search_vector_tool(query: str) -> str:
-    return faiss_manager.search(query)
+    """Searches the FAISS vector index for semantically similar documents."""
+    results = faiss_manager.search(query)
+    if not results:
+        return "No results found in vector index."
+    return json.dumps(results)
 
 @function_tool
 def web_search_tool(query: str) -> str:
@@ -307,6 +375,8 @@ async def run_agent(request: QueryRequest):
             response=str(result.final_output),
             trace_steps=mapped_steps
         )
+    except SeochoError:
+        raise
     except Exception as e:
         logger.error("Agent execution failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="Agent execution failed. Check server logs for details.")
@@ -349,6 +419,8 @@ async def run_debate(request: QueryRequest):
     try:
         result = await orchestrator.run_debate(request.query, srv_context)
         return DebateResponse(**result)
+    except SeochoError:
+        raise
     except Exception as e:
         logger.error("Debate execution failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="Debate execution failed. Check server logs for details.")

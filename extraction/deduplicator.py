@@ -7,6 +7,7 @@ Technologies Corp") and merges them under a canonical ID.
 """
 
 import logging
+from collections import OrderedDict
 from typing import Dict, List, Tuple
 
 import numpy as np
@@ -14,6 +15,8 @@ import numpy as np
 from vector_store import VectorStore
 
 logger = logging.getLogger(__name__)
+
+MAX_CANONICAL_EMBEDDINGS = 10000
 
 
 class EntityDeduplicator:
@@ -28,8 +31,8 @@ class EntityDeduplicator:
         self.similarity_threshold = similarity_threshold
         # entity name -> canonical id
         self._canonical_map: Dict[str, str] = {}
-        # canonical id -> embedding (numpy array)
-        self._canonical_embeddings: Dict[str, np.ndarray] = {}
+        # canonical id -> embedding (numpy array), bounded OrderedDict
+        self._canonical_embeddings: OrderedDict = OrderedDict()
 
     # ------------------------------------------------------------------
     # Public API
@@ -47,8 +50,8 @@ class EntityDeduplicator:
         Strategy:
         1. Embed each entity name.
         2. Compare against existing canonical embeddings (cosine similarity).
-        3. If above threshold → reuse canonical ID.
-        4. Otherwise → register as new canonical entity.
+        3. If above threshold -> reuse canonical ID.
+        4. Otherwise -> register as new canonical entity.
         """
         deduped: List[Dict] = []
         seen_canonical_ids: set = set()
@@ -91,6 +94,10 @@ class EntityDeduplicator:
                 # New canonical entity
                 self._canonical_map[name] = node_id
                 self._canonical_embeddings[node_id] = embedding
+                # Evict oldest if over capacity
+                while len(self._canonical_embeddings) > MAX_CANONICAL_EMBEDDINGS:
+                    evicted_id, _ = self._canonical_embeddings.popitem(last=False)
+                    logger.debug("Dedup EVICT canonical embedding: %s", evicted_id)
                 if node_id not in seen_canonical_ids:
                     deduped.append(node)
                     seen_canonical_ids.add(node_id)

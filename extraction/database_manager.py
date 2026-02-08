@@ -9,6 +9,7 @@ import logging
 from typing import Optional
 
 from neo4j import GraphDatabase
+from neo4j.exceptions import ServiceUnavailable, SessionExpired
 
 from config import (
     NEO4J_URI,
@@ -19,6 +20,8 @@ from config import (
 )
 from graph_loader import GraphLoader
 from ontology.base import Ontology
+from exceptions import InvalidDatabaseNameError, Neo4jConnectionError
+from retry_utils import neo4j_retry
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +49,7 @@ class DatabaseManager:
     # Public API
     # ------------------------------------------------------------------
 
+    @neo4j_retry
     def provision_database(
         self,
         db_name: str,
@@ -60,10 +64,13 @@ class DatabaseManager:
         4. Register in db_registry
 
         Returns the database name on success.
-        Raises ValueError for invalid names, RuntimeError for creation failures.
+
+        Raises:
+            InvalidDatabaseNameError: For names failing regex validation.
+            Neo4jConnectionError: On transient Neo4j failures (retried automatically).
         """
         if not _VALID_DB_NAME_RE.match(db_name):
-            raise ValueError(
+            raise InvalidDatabaseNameError(
                 f"Invalid DB name '{db_name}': "
                 "must be alphanumeric and start with a letter"
             )
@@ -74,9 +81,10 @@ class DatabaseManager:
             with self.driver.session(database="system") as session:
                 session.run(f"CREATE DATABASE {db_name} IF NOT EXISTS")
             logger.info("Database '%s' created (or already exists).", db_name)
-        except Exception as e:
-            logger.error("Failed to create database '%s': %s", db_name, e)
-            raise RuntimeError(f"Database creation failed: {e}") from e
+        except (ServiceUnavailable, SessionExpired) as e:
+            raise Neo4jConnectionError(
+                f"Neo4j connection failed during provisioning '{db_name}': {e}"
+            ) from e
 
         # Apply ontology constraints
         if ontology is not None:
@@ -101,7 +109,7 @@ class DatabaseManager:
     ) -> None:
         """Load graph data into a specific database using GraphLoader."""
         if not db_registry.is_valid(db_name):
-            raise ValueError(f"Database '{db_name}' is not registered.")
+            raise InvalidDatabaseNameError(f"Database '{db_name}' is not registered.")
 
         loader = self._get_loader(db_name)
         loader.load_graph(graph_data, source_id)
@@ -130,9 +138,10 @@ class DatabaseManager:
                 f"Property Keys: {', '.join(prop_keys) or 'none'}",
             ]
             return "\n".join(lines)
-        except Exception as e:
-            logger.error("Failed to get schema for '%s': %s", db_name, e)
-            return f"Error retrieving schema for '{db_name}': {e}"
+        except (ServiceUnavailable, SessionExpired) as e:
+            raise Neo4jConnectionError(
+                f"Neo4j connection failed retrieving schema for '{db_name}': {e}"
+            ) from e
 
     def close(self) -> None:
         """Close driver and all cached graph loaders."""

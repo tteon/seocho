@@ -27,117 +27,18 @@ The de facto enterprise framework for building observable, multi-agent systems t
 
 ## Architecture
 
-The project is organized as a Docker-based microservices architecture with Python services:
+> For detailed module descriptions, database architecture, agent definitions, and service ports, see **CLAUDE.md**.
 
-### Core Services
-
-- `extraction/` - Core ETL pipeline and multi-agent system
-  - `pipeline.py` - Central orchestration: DataCollector → EntityExtractor → EntityLinker → GraphLoader
-  - `agent_server.py` - FastAPI server with OpenAI Agents SDK (`/run_agent` endpoint)
-  - `agents/` - Agent base classes and tool registry
-    - `base.py` - BaseAgent abstract class, ToolRegistry singleton, `@register_tool` decorator
-  - `ontology/` - Ontology management system
-    - `base.py` - NodeDefinition, RelationshipDefinition, PropertyType, ConstraintType
-  - `vector_store.py` - FAISS embedding manager for semantic retrieval
-  - `schema_manager.py` - Dynamic Neo4j schema discovery and application
-  - `graph_loader.py` - Neo4j graph data ingestion
-  - `prompt_manager.py` - Jinja2 prompt template rendering
-  - `conf/` - Hydra configuration (prompts, schemas, ingestion recipes)
-
-- `evaluation/` - Streamlit Agent Studio
-  - `app.py` - Split-screen UI: chat (left) + live agent flow graph (right)
-  - Uses `streamlit_flow` for real-time trace visualization
-
-- `semantic/` - Semantic analysis service
-  - `main.py` - FastAPI server
-  - `agent.py` - LangChain-based agent implementation
-  - `neo4j_client.py` - Graph database client
-
-- `demos/` - Data Mesh demonstrations
-  - `data_mesh_mock.py` - Seeds Neo4j with FIBO-style domains, products, datasets
-  - `datahub_fibo_ingest.py` - Creates FIBO glossary terms and domains in DataHub
-  - `demo_fibo_metadata.py` - Financial metadata tutorial
-
-- `src/seocho/` - Modular package for DataHub ingestion utilities
-  - `ingestion/` - DataHub integration and data ingestion scripts
-  - `core/` - Configuration and shared utilities
-
-### Multi-Agent Hierarchy
-
-```
-Router Agent (entry point)
-    ├── VectorAgent → FAISS search → Supervisor
-    ├── GraphAgent → GraphDBA (Text2Cypher) → Neo4j → Supervisor
-    ├── WebAgent → web search → Supervisor
-    └── TableAgent → structured data → Supervisor
-```
-
-### Data Layer
-
-- **Neo4j** (DozerDB 5.26) - Graph databases: `kgnormal`, `kgfibo`, `agent_traces`
-- **DataHub** - Metadata governance (GMS + Frontend)
-- **FAISS** - Vector similarity search
-- **Elasticsearch** - DataHub search backend
-- **MySQL** - DataHub persistence
-- **Kafka** - Event streaming for DataHub
+The project is a Docker-based microservices architecture. Key directories: `extraction/`, `evaluation/`, `semantic/`, `demos/`.
 
 ## Common Development Commands
 
-### Docker Development
+> For full command reference, see **CLAUDE.md**. Quick reference below:
 
 ```bash
-# Start/stop services
-make up                    # Start all Docker services
-make down                  # Stop all services
-make restart               # Restart services
-make clean                 # Remove containers and volumes
-
-# Logs and debugging
-make logs                  # View logs (tail -f style)
-make shell                 # Open bash in engine container
-
-# Bootstrap
-make bootstrap             # Build containers and prepare environment
-```
-
-### Testing & Code Quality
-
-```bash
-# Via Make
-make test                  # Run pytest in Docker
-make lint                  # Run flake8 + black check
-make format                # Auto-format with black + isort
-
-# Direct pytest
-docker compose exec extraction-service pytest tests/ -v
-docker compose exec extraction-service pytest tests/test_api_integration.py -v
-docker compose exec extraction-service pytest tests/test_tools.py::test_get_schema -v
-```
-
-### Data Ingestion
-
-```bash
-# DataHub ingestion
-make ingest-glossary              # Ingest glossary terms
-make ingest-supply-chain          # Ingest supply chain data
-make ingest-custom RECIPE=path    # Custom ingestion recipe
-
-# Data Mesh demos
-docker exec extraction-service python demos/data_mesh_mock.py
-docker exec extraction-service python demos/datahub_fibo_ingest.py
-docker exec extraction-service python demos/demo_fibo_metadata.py
-```
-
-### Local Development (without Docker)
-
-```bash
-# Install dependencies
-pip install -r extraction/requirements.txt
-pip install -r evaluation/requirements.txt
-
-# Run services
-cd extraction && uvicorn agent_server:app --host 0.0.0.0 --port 8001
-cd evaluation && streamlit run app.py --server.port 8501
+make up / make down / make restart    # Docker lifecycle
+make test / make lint / make format   # Quality gates
+make shell                            # Shell into extraction-service
 ```
 
 ## Key Technical Details
@@ -216,3 +117,29 @@ Please consider the following when reviewing code contributions.
 - New agents must include docstrings explaining their role and capabilities
 - Update `extraction/conf/prompts/` with any new prompt templates
 - Link to relevant modules and classes in documentation
+
+## Landing the Plane (Session Completion)
+
+**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
+
+**MANDATORY WORKFLOW:**
+
+1. **File issues for remaining work** - Create issues for anything that needs follow-up
+2. **Run quality gates** (if code changed) - Tests, linters, builds
+3. **Update issue status** - Close finished work, update in-progress items
+4. **PUSH TO REMOTE** - This is MANDATORY:
+   ```bash
+   git pull --rebase
+   bd sync
+   git push
+   git status  # MUST show "up to date with origin"
+   ```
+5. **Clean up** - Clear stashes, prune remote branches
+6. **Verify** - All changes committed AND pushed
+7. **Hand off** - Provide context for next session
+
+**CRITICAL RULES:**
+- Work is NOT complete until `git push` succeeds
+- NEVER stop before pushing - that leaves work stranded locally
+- NEVER say "ready to push when you are" - YOU must push
+- If push fails, resolve and retry until it succeeds

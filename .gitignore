@@ -82,3 +82,10 @@ neostore*
 # Docker volumes and mounts
 workspace/
 sharepoint/
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+**/.ipynb_checkpoints/
+
+# Large exports
+kgbuild_export.*

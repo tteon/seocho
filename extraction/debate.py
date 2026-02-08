@@ -14,7 +14,7 @@ from typing import Any, Dict, List
 from agents import Agent, Runner, trace
 
 from shared_memory import SharedMemory
-from tracing import track
+from tracing import track, update_current_span, update_current_trace
 
 logger = logging.getLogger(__name__)
 
@@ -57,27 +57,38 @@ class DebateOrchestrator:
     ) -> Dict[str, Any]:
         """Execute full debate cycle: fan-out → collect → synthesise."""
 
-        # 1. Parallel execution
+        agent_names = [a.name for a in self.agents.values()]
+        db_names = list(self.agents.keys())
+        update_current_trace(
+            metadata={"query": query[:200], "mode": "parallel_debate"},
+            tags=["debate"],
+        )
+        update_current_span(
+            metadata={
+                "phase": "orchestration",
+                "agent_count": len(self.agents),
+                "agent_names": agent_names,
+                "db_names": db_names,
+            },
+        )
+
+        # 1. Parallel execution (fan-out)
         tasks = [
             self._run_single_agent(db_name, agent, query, context)
             for db_name, agent in self.agents.items()
         ]
         debate_results: List[DebateResult] = await asyncio.gather(*tasks)
 
-        # 2. Store results in shared memory
+        # 2. Store results in shared memory (collect)
         for result in debate_results:
             self.shared_memory.put(
                 f"agent_result:{result.db_name}", result.response
             )
 
         # 3. Synthesise with Supervisor
-        synthesis_input = self._format_for_supervisor(query, debate_results)
-        with trace("Supervisor Synthesis"):
-            supervisor_result = await Runner.run(
-                agent=self.supervisor,
-                input=synthesis_input,
-                context=context,
-            )
+        supervisor_result = await self._run_supervisor(
+            query, debate_results, context
+        )
 
         # 4. Build unified trace for UI
         all_trace_steps = self._build_debate_trace(
@@ -105,25 +116,69 @@ class DebateOrchestrator:
     async def _run_single_agent(
         self, db_name: str, agent: Agent, query: str, context: Any
     ) -> DebateResult:
+        update_current_span(
+            metadata={
+                "phase": "fan-out",
+                "db_name": db_name,
+                "agent_name": agent.name,
+            },
+            tags=[f"db:{db_name}", "debate-agent"],
+        )
         try:
             with trace(f"Debate:{agent.name}"):
                 result = await Runner.run(
                     agent=agent, input=query, context=context
                 )
+            response_text = str(result.final_output)
+            update_current_span(
+                output={"response_preview": response_text[:300]},
+            )
             return DebateResult(
                 agent_name=agent.name,
                 db_name=db_name,
-                response=str(result.final_output),
+                response=response_text,
                 trace_steps=self._extract_trace(result),
             )
         except Exception as e:
             logger.error("Agent %s failed: %s", agent.name, e)
+            update_current_span(
+                metadata={"error": str(e)},
+                tags=["error"],
+            )
             return DebateResult(
                 agent_name=agent.name,
                 db_name=db_name,
                 response=f"Error: {e}",
                 trace_steps=[],
             )
+
+    # ------------------------------------------------------------------
+    # Supervisor synthesis (traced)
+    # ------------------------------------------------------------------
+
+    @track("debate.supervisor_synthesis")
+    async def _run_supervisor(
+        self, query: str, debate_results: List[DebateResult], context: Any
+    ):
+        update_current_span(
+            metadata={
+                "phase": "synthesis",
+                "input_agent_count": len(debate_results),
+                "input_agents": [r.agent_name for r in debate_results],
+            },
+            tags=["supervisor"],
+        )
+        synthesis_input = self._format_for_supervisor(query, debate_results)
+        with trace("Supervisor Synthesis"):
+            result = await Runner.run(
+                agent=self.supervisor,
+                input=synthesis_input,
+                context=context,
+            )
+        update_current_span(
+            output={"synthesis_preview": str(result.final_output)[:300]},
+        )
+        return result
 
     # ------------------------------------------------------------------
     # Formatting helpers

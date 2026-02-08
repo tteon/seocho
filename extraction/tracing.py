@@ -65,3 +65,39 @@ def track(name: str):
         except Exception:
             return fn
     return decorator
+
+
+def update_current_span(**kwargs) -> None:
+    """Attach metadata/tags to the currently active Opik span.
+
+    Accepted keyword arguments (all optional):
+        metadata: dict  — arbitrary key-value pairs shown in the Opik UI
+        input: dict     — structured input data
+        output: dict    — structured output data
+        tags: list[str] — searchable tags
+    """
+    if not OPIK_ENABLED:
+        return
+    try:
+        from opik import opik_context
+
+        opik_context.update_current_span(**kwargs)
+    except Exception as exc:
+        logger.debug("update_current_span failed (no active span?): %s", exc)
+
+
+def update_current_trace(**kwargs) -> None:
+    """Attach metadata/tags to the currently active Opik trace.
+
+    Accepted keyword arguments (all optional):
+        metadata: dict  — arbitrary key-value pairs
+        tags: list[str] — searchable tags
+    """
+    if not OPIK_ENABLED:
+        return
+    try:
+        from opik import opik_context
+
+        opik_context.update_current_trace(**kwargs)
+    except Exception as exc:
+        logger.debug("update_current_trace failed (no active trace?): %s", exc)

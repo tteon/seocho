@@ -67,3 +67,25 @@ def configure_logging(level: str = "INFO") -> None:
         format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
+
+
+def validate_config() -> None:
+    """Validate critical configuration at startup.
+
+    Raises:
+        MissingAPIKeyError: If OPENAI_API_KEY is missing or empty.
+    """
+    from exceptions import MissingAPIKeyError
+
+    api_key = os.getenv("OPENAI_API_KEY", "")
+    if not api_key:
+        raise MissingAPIKeyError(
+            "OPENAI_API_KEY environment variable is required but not set"
+        )
+
+    logger = logging.getLogger(__name__)
+    if NEO4J_URI == "bolt://neo4j:7687":
+        logger.warning(
+            "Using default NEO4J_URI (%s). Set NEO4J_URI env var for production.",
+            NEO4J_URI,
+        )

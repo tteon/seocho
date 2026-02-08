@@ -39,75 +39,187 @@ st.markdown("""
         border-radius: 10px;
         padding: 10px;
     }
+    .trace-detail-box {
+        background-color: #fafafa;
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        padding: 12px;
+        font-size: 0.85rem;
+        white-space: pre-wrap;
+        word-break: break-word;
+        max-height: 300px;
+        overflow-y: auto;
+    }
 </style>
 """, unsafe_allow_html=True)
 
 # --- Configuration ---
 API_URL = os.getenv("EXTRACTION_SERVICE_URL", "http://extraction-service:8001")
 
+# --- Node Style Map ---
+NODE_STYLES = {
+    "USER_INPUT":   {"bg": "#e3f2fd", "border": "1px solid #90caf9",  "label": "User Input"},
+    "THOUGHT":      {"bg": "#fff3e0", "border": "1px solid #ffcc80",  "label": "Thought"},
+    "GENERATION":   {"bg": "#e8f5e9", "border": "1px solid #a5d6a7",  "label": "Generation"},
+    "TOOL_RESULT":  {"bg": "#f3e5f5", "border": "1px solid #ce93d8",  "label": "Tool Result"},
+    "FANOUT":       {"bg": "#fff9c4", "border": "2px solid #fbc02d",  "label": "Fan-Out"},
+    "DEBATE":       {"bg": "#bbdefb", "border": "2px solid #1976d2",  "label": "Agent"},
+    "COLLECT":      {"bg": "#ffe0b2", "border": "2px solid #f57c00",  "label": "Collect"},
+    "SYNTHESIS":    {"bg": "#c8e6c9", "border": "2px solid #388e3c",  "label": "Synthesis"},
+    # Agent internal step types
+    "TOOL_CALL":    {"bg": "#fff3e0", "border": "1px dashed #ef6c00",  "label": "Tool Call"},
+    "TOOL_OUTPUT":  {"bg": "#f3e5f5", "border": "1px dashed #8e24aa",  "label": "Tool Output"},
+    "REASONING":    {"bg": "#e8f5e9", "border": "1px dashed #2e7d32",  "label": "Reasoning"},
+}
+
+EDGE_COLORS = {
+    "fanout":   "#1976d2",
+    "internal": "#90a4ae",
+    "collect":  "#f57c00",
+    "synthesis": "#388e3c",
+    "linear":   "#999",
+}
+
+
 # --- Helper Functions ---
 
 def get_trace_flow(steps):
     """
     Converts a list of step dictionaries into a StreamlitFlowState.
+    Supports linear (legacy), fan-out/collect (debate), and internal agent sub-steps.
     """
     if not steps:
         return StreamlitFlowState(nodes=[], edges=[])
 
     nodes = []
     edges = []
-    
+
     for i, s in enumerate(steps):
-        # Determine Node Style based on Step Type
         node_type = s.get("type", "UNKNOWN")
-        style = {"background-color": "#ffffff", "border": "1px solid #ddd", "color": "#333", "width": "220px"}
-        
-        icon = "⚙️"
-        if node_type == "USER_INPUT":
-            style["background-color"] = "#e3f2fd" # Light Blue
-            icon = "👤"
-        elif node_type == "THOUGHT":
-            style["background-color"] = "#fff3e0" # Light Orange
-            icon = "🤔"
-        elif node_type == "GENERATION":
-            style["background-color"] = "#e8f5e9" # Light Green
-            icon = "✅"
-        elif node_type == "TOOL_RESULT":
-            style["background-color"] = "#f3e5f5" # Light Purple
-            icon = "🛠️"
-        
-        # Content Shortening
+        style_info = NODE_STYLES.get(node_type, NODE_STYLES.get("THOUGHT"))
+
+        style = {
+            "background-color": style_info["bg"],
+            "border": style_info["border"],
+            "color": "#333",
+            "width": "200px",
+            "font-size": "0.75rem",
+        }
+
+        # Smaller nodes for internal agent steps
+        if node_type in ("TOOL_CALL", "TOOL_OUTPUT", "REASONING"):
+            style["width"] = "180px"
+            style["font-size"] = "0.7rem"
+
+        # Content
         content_preview = s.get("content", "")
         if len(content_preview) > 60:
             content_preview = content_preview[:60] + "..."
 
         agent_name = s.get("agent", "System")
-        label = f"**{icon} {agent_name}**\n\n_{node_type}_\n\n{content_preview}"
-        
+        type_label = style_info["label"]
+        label = f"**{agent_name}**\n\n_{type_label}_\n\n{content_preview}"
+
         nodes.append(StreamlitFlowNode(
             id=s["id"],
-            pos=(0, 0), # Layout will handle this
+            pos=(0, 0),
             data={"content": label},
             node_type="default",
             style=style,
-            draggable=True
+            draggable=True,
         ))
 
-        # Create Edge to next step
-        if i < len(steps) - 1:
-             edges.append(StreamlitFlowEdge(
-                id=f"{s['id']}-{steps[i+1]['id']}",
-                source=s["id"],
-                target=steps[i+1]["id"],
+        # --- Edge Creation ---
+        metadata = s.get("metadata", {})
+
+        if node_type == "DEBATE" and "parent" in metadata:
+            # Fan-out edge: FANOUT -> DEBATE
+            edges.append(StreamlitFlowEdge(
+                id=f"e-{metadata['parent']}-{s['id']}",
+                source=metadata["parent"],
+                target=s["id"],
                 animated=True,
-                style={"stroke": "#999"}
+                style={"stroke": EDGE_COLORS["fanout"]},
             ))
+        elif node_type in ("TOOL_CALL", "TOOL_OUTPUT", "REASONING") and "parent" in metadata:
+            # Internal agent step: parent -> this step (chain within agent)
+            edges.append(StreamlitFlowEdge(
+                id=f"e-{metadata['parent']}-{s['id']}",
+                source=metadata["parent"],
+                target=s["id"],
+                animated=False,
+                style={"stroke": EDGE_COLORS["internal"], "stroke-dasharray": "5,5"},
+            ))
+        elif node_type == "COLLECT" and "sources" in metadata:
+            # Collect edges: last step of each agent -> COLLECT
+            for src_id in metadata["sources"]:
+                edges.append(StreamlitFlowEdge(
+                    id=f"e-{src_id}-{s['id']}",
+                    source=src_id,
+                    target=s["id"],
+                    animated=True,
+                    style={"stroke": EDGE_COLORS["collect"]},
+                ))
+        elif node_type == "SYNTHESIS" and "parent" in metadata:
+            # COLLECT -> SYNTHESIS
+            edges.append(StreamlitFlowEdge(
+                id=f"e-{metadata['parent']}-{s['id']}",
+                source=metadata["parent"],
+                target=s["id"],
+                animated=True,
+                style={"stroke": EDGE_COLORS["synthesis"]},
+            ))
+        elif node_type not in ("FANOUT", "DEBATE", "COLLECT", "SYNTHESIS",
+                               "TOOL_CALL", "TOOL_OUTPUT", "REASONING"):
+            # Legacy linear chain
+            if i < len(steps) - 1:
+                edges.append(StreamlitFlowEdge(
+                    id=f"e-{s['id']}-{steps[i+1]['id']}",
+                    source=s["id"],
+                    target=steps[i+1]["id"],
+                    animated=True,
+                    style={"stroke": EDGE_COLORS["linear"]},
+                ))
 
     return StreamlitFlowState(nodes=nodes, edges=edges)
 
 
+def build_step_index(steps):
+    """Build a dict of step_id -> step for quick detail lookup."""
+    return {s["id"]: s for s in steps}
+
+
+def render_step_detail(step):
+    """Render a detail panel for a selected trace step."""
+    if not step:
+        return
+
+    node_type = step.get("type", "UNKNOWN")
+    agent = step.get("agent", "System")
+    metadata = step.get("metadata", {})
+    full_content = metadata.get("full_content", step.get("content", ""))
+    tool_names = metadata.get("tool_names", [])
+    db_name = metadata.get("db", "")
+
+    style_info = NODE_STYLES.get(node_type, {"label": node_type})
+
+    st.markdown(f"#### {agent} - {style_info['label']}")
+
+    cols = st.columns(3)
+    with cols[0]:
+        st.caption(f"Type: `{node_type}`")
+    with cols[1]:
+        if db_name:
+            st.caption(f"Database: `{db_name}`")
+    with cols[2]:
+        if tool_names:
+            st.caption(f"Tools: `{', '.join(tool_names)}`")
+
+    st.markdown(f'<div class="trace-detail-box">{full_content}</div>', unsafe_allow_html=True)
+
+
 # --- Main Application ---
-st.title("🤖 Seocho Agent Studio")
+st.title("Seocho Agent Studio")
 
 # Initialize Session State
 if "messages" not in st.session_state:
@@ -118,21 +230,32 @@ if "trace_version" not in st.session_state:
     st.session_state["trace_version"] = 0
 if "session_id" not in st.session_state:
     st.session_state["session_id"] = str(uuid.uuid4())
+if "use_debate" not in st.session_state:
+    st.session_state["use_debate"] = False
+if "selected_node" not in st.session_state:
+    st.session_state["selected_node"] = None
 
 # Layout
 col1, col2 = st.columns([1, 1], gap="large")
 
 with col1:
-    st.subheader("💬 Conversation")
-    
+    st.subheader("Conversation")
+
+    # Mode toggle
+    st.session_state["use_debate"] = st.toggle(
+        "Parallel Debate Mode",
+        value=st.session_state["use_debate"],
+        help="Enable to use all DB agents in parallel (Society-of-Mind pattern).",
+    )
+
     # Chat Container
     chat_container = st.container(height=600)
-    
+
     with chat_container:
         for msg in st.session_state["messages"]:
             with st.chat_message(msg["role"]):
                 st.markdown(msg["content"])
-    
+
     # Input
     if prompt := st.chat_input("Enter your query..."):
         # Add user message
@@ -146,49 +269,74 @@ with col1:
             with st.chat_message("assistant"):
                 message_placeholder = st.empty()
                 message_placeholder.markdown("Running...")
-                
+
                 try:
-                    # Call API
                     payload = {"query": prompt, "user_id": st.session_state["session_id"]}
-                    resp = requests.post(f"{API_URL}/run_agent", json=payload)
-                    
+
+                    if st.session_state["use_debate"]:
+                        endpoint = f"{API_URL}/run_debate"
+                    else:
+                        endpoint = f"{API_URL}/run_agent"
+
+                    resp = requests.post(endpoint, json=payload)
+
                     if resp.status_code == 200:
                         data = resp.json()
                         response_text = data.get("response", "")
                         trace_steps = data.get("trace_steps", [])
-                        
+
                         message_placeholder.markdown(response_text)
-                        
+
                         st.session_state["messages"].append({"role": "assistant", "content": response_text})
-                        
+
                         # Update Trace View
                         st.session_state["current_trace_steps"] = trace_steps
                         st.session_state["trace_version"] += 1
+                        st.session_state["selected_node"] = None
                     else:
                         st.error(f"API Error: {resp.status_code} - {resp.text}")
-                        
+
                 except Exception as e:
                     st.error(f"Connection Error: {e}")
 
 with col2:
-    st.subheader("🕸️ Live Agent Flow")
-    st.caption("Automatic visualization of 'openai-agents' execution.")
-    
+    st.subheader("Live Agent Flow")
+    if st.session_state["use_debate"]:
+        st.caption("Parallel Debate: fan-out / internal reasoning / collect / synthesize")
+    else:
+        st.caption("Automatic visualization of agent execution.")
+
     if st.session_state["current_trace_steps"]:
-        # Fetch Flow State
+        # Build flow state
         flow_state = get_trace_flow(st.session_state["current_trace_steps"])
-        
-        # Render
-        streamlit_flow(
+
+        # Render flow graph (returns selected node id on click)
+        selected = streamlit_flow(
             "trace_flow",
             flow_state,
             layout=TreeLayout(direction='down'),
             fit_view=True,
-            height=600,
+            height=450,
             enable_pane_menu=True,
             enable_node_menu=True,
-            key=f"flow_{st.session_state['trace_version']}" 
+            get_node_on_click=True,
+            key=f"flow_{st.session_state['trace_version']}",
         )
+
+        # Track selected node
+        if selected and selected != st.session_state.get("selected_node"):
+            st.session_state["selected_node"] = selected
+
+        # --- Step Detail Panel ---
+        st.markdown("---")
+        st.subheader("Step Detail")
+
+        step_index = build_step_index(st.session_state["current_trace_steps"])
+        selected_id = st.session_state.get("selected_node")
+
+        if selected_id and selected_id in step_index:
+            render_step_detail(step_index[selected_id])
+        else:
+            st.info("Click a node in the flow graph to see its full content, tool calls, and reasoning.")
     else:
         st.info("Agent steps will appear here automatically after you send a message.")
-

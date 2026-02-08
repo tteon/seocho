@@ -1,104 +1,159 @@
 import os
 import json
+import logging
+from typing import Optional
+
 from omegaconf import DictConfig
+
 from collector import DataCollector
+from data_source import DataSource
 from metadata import MetadataHandler
 from extractor import EntityExtractor
 from prompt_manager import PromptManager
 from graph_loader import GraphLoader
 from linker import EntityLinker
 from vector_store import VectorStore
+from deduplicator import EntityDeduplicator
+from ontology_prompt_bridge import OntologyPromptBridge
+from config import NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD
+
+logger = logging.getLogger(__name__)
+
 
 class ExtractionPipeline:
-    def __init__(self, cfg: DictConfig):
+    def __init__(
+        self,
+        cfg: DictConfig,
+        data_source: Optional[DataSource] = None,
+        ontology_path: Optional[str] = None,
+        target_database: str = "kgnormal",
+    ):
         self.cfg = cfg
         self.output_dir = "output"
+        self.target_database = target_database
         os.makedirs(self.output_dir, exist_ok=True)
-        
-        # Initialize Components
-        self.collector = DataCollector(use_mock=cfg.get("mock_data", False))
+
+        # --- Data source (new) or legacy collector ---
+        self._data_source = data_source
+        self._legacy_collector = (
+            DataCollector(use_mock=cfg.get("mock_data", False))
+            if data_source is None
+            else None
+        )
+
+        # --- Ontology-driven prompt bridge ---
+        self._ontology = None
+        self._ontology_bridge = None
+        if ontology_path:
+            from ontology.base import Ontology
+
+            self._ontology = Ontology.from_yaml(ontology_path)
+            self._ontology_bridge = OntologyPromptBridge(self._ontology)
+            logger.info("Loaded ontology '%s' from %s", self._ontology.name, ontology_path)
+
         self.metadata_handler = MetadataHandler()
         self.prompt_manager = PromptManager(cfg)
-        
+
         self.extractor = EntityExtractor(
             prompt_manager=self.prompt_manager,
             api_key=cfg.openai_api_key,
-            model=cfg.model
+            model=cfg.model,
         )
-        
+
         # Graph Loader
-        neo4j_uri = os.getenv("NEO4J_URI", "bolt://neo4j:7687")
-        neo4j_user = os.getenv("NEO4J_USER", "neo4j")
-        neo4j_password = os.getenv("NEO4J_PASSWORD", "password")
-        self.graph_loader = GraphLoader(neo4j_uri, neo4j_user, neo4j_password)
-        
+        self.graph_loader = GraphLoader(NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD)
+
         self.linker = EntityLinker(
             prompt_manager=self.prompt_manager,
             api_key=cfg.openai_api_key,
-            model=cfg.model
+            model=cfg.model,
         )
-        
+
         self.vector_store = VectorStore(api_key=cfg.openai_api_key)
 
+        # Deduplicator
+        self.deduplicator = EntityDeduplicator(vector_store=self.vector_store)
+
+        # Schema Manager — reuse across items instead of creating per-item
+        from schema_manager import SchemaManager
+
+        self._schema_manager = SchemaManager(NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD)
+
     def run(self):
-        """
-        Executes the full extraction pipeline.
-        """
-        print("Starting Extraction Pipeline...")
-        
+        """Execute the full extraction pipeline."""
+        logger.info("Starting Extraction Pipeline...")
+
         # 1. Collect Data
-        raw_data = self.collector.collect_raw_data()
-        
+        if self._data_source is not None:
+            raw_data = self._data_source.load()
+        else:
+            raw_data = self._legacy_collector.collect_raw_data()
+
         for item in raw_data:
-            print(f"Processing item {item['id']} ({item['category']})...")
+            logger.info("Processing item %s (%s)...", item["id"], item["category"])
             self.process_item(item)
-            
+
         # Finalize
         self.vector_store.save_index(self.output_dir)
         self.graph_loader.close()
-        print("Pipeline execution complete.")
+        self._schema_manager.close()
+        logger.info("Pipeline execution complete.")
 
     def process_item(self, item: dict):
-        """
-        Processes a single data item through extraction, linking, embedding, and loading.
-        """
+        """Process a single data item: extract → link → dedup → schema → load."""
         try:
-            # 2. Extract Entities
-            extracted_data = self.extractor.extract_entities(item['content'], item.get('category', 'general'))
-            print(f"Extracted {len(extracted_data.get('nodes', []))} nodes.")
-            
+            # Build extraction context
+            context = {"text": item["content"], "category": item.get("category", "general")}
+            if self._ontology_bridge:
+                context.update(self._ontology_bridge.render_extraction_context())
+
+            # 2. Extract Entities (with ontology context if available)
+            extracted_data = self.extractor.extract_entities(
+                item["content"], item.get("category", "general"), extra_context=context
+            )
+            logger.info("Extracted %d nodes.", len(extracted_data.get("nodes", [])))
+
             # 3. Entity Linking
-            print("Linking entities...")
-            extracted_data = self.linker.link_entities(extracted_data, category=item.get('category', 'general'))
-            print(f"Linked entities, count: {len(extracted_data.get('nodes', []))}")
-            
-            # 4. Metadata
+            logger.debug("Linking entities...")
+            extracted_data = self.linker.link_entities(
+                extracted_data, category=item.get("category", "general")
+            )
+            logger.info("Linked entities, count: %d", len(extracted_data.get("nodes", [])))
+
+            # 4. Deduplication
+            extracted_data = self.deduplicator.deduplicate(extracted_data)
+            logger.info(
+                "After dedup: %d nodes, %d relationships",
+                len(extracted_data.get("nodes", [])),
+                len(extracted_data.get("relationships", [])),
+            )
+
+            # 5. Metadata
             self.metadata_handler.emit_metadata(item)
-            
-            # 5. Vector Embedding
-            print(f"Embedding content for {item['id']}...")
-            self.vector_store.add_document(item['id'], item['content'])
 
-            # 6. Save Intermediate Results
-            self._save_results(item['id'], extracted_data)
-            
-            # 7. Auto-Sync Schema
-            # Update YAML based on findings and re-apply to DB
-            schema_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "conf/schemas/baseline.yaml")
-            from schema_manager import SchemaManager
-            sm = SchemaManager()
-            sm.update_schema_from_records(extracted_data, schema_path)
-            sm.apply_schema("kgnormal", schema_path) # Apply to baseline DB
-            sm.close()
+            # 6. Vector Embedding
+            logger.debug("Embedding content for %s...", item["id"])
+            self.vector_store.add_document(item["id"], item["content"])
 
-            # 8. Load Graph
-            self.graph_loader.load_graph(extracted_data, item['id'])
-            print(f"Loaded graph data for {item['id']}")
-            
+            # 7. Save Intermediate Results
+            self._save_results(item["id"], extracted_data)
+
+            # 8. Auto-Sync Schema
+            schema_path = os.path.join(
+                os.path.dirname(os.path.abspath(__file__)),
+                "conf/schemas/baseline.yaml",
+            )
+            self._schema_manager.update_schema_from_records(extracted_data, schema_path)
+            self._schema_manager.apply_schema(self.target_database, schema_path)
+
+            # 9. Load Graph
+            self.graph_loader.load_graph(extracted_data, item["id"])
+            logger.info("Loaded graph data for %s", item["id"])
+
         except Exception as e:
-            print(f"Error processing item {item['id']}: {e}")
+            logger.error("Error processing item %s: %s", item["id"], e)
 
     def _save_results(self, item_id: str, data: dict):
         filename = f"{self.output_dir}/{item_id}_extracted.json"
-        with open(filename, 'w') as f:
+        with open(filename, "w") as f:
             json.dump(data, f, indent=2)

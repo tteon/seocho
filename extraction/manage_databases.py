@@ -1,61 +1,80 @@
+"""
+Database provisioning script.
+
+Creates predefined Neo4j databases and applies schemas.
+Uses centralized config from config.py.
+"""
 
 import os
+import logging
+
 from neo4j import GraphDatabase
 
-def create_databases(db_names):
-    """
-    Creates databases in Neo4j if they don't exist.
-    Requires connection to the 'system' database.
-    """
-    uri = os.getenv("NEO4J_URI", "bolt://neo4j:7687")
-    user = os.getenv("NEO4J_USER", "neo4j")
-    password = os.getenv("NEO4J_PASSWORD", "password")
+from config import NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD, _VALID_DB_NAME_RE, db_registry
 
-    print(f"Connecting to {uri} to manage databases...")
-    
+logger = logging.getLogger(__name__)
+
+
+def create_databases(db_names):
+    """Create databases in Neo4j if they don't exist.
+
+    Requires connection to the 'system' database.
+    Validates names against _VALID_DB_NAME_RE before creation.
+    """
+    logger.info("Connecting to %s to manage databases...", NEO4J_URI)
+
     try:
-        # Must connect to 'system' database to run administration commands
-        driver = GraphDatabase.driver(uri, auth=(user, password))
-        
+        driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
+
         with driver.session(database="system") as session:
             for db_name in db_names:
+                if not _VALID_DB_NAME_RE.match(db_name):
+                    logger.error(
+                        "Skipping invalid DB name '%s': "
+                        "must be alphanumeric and start with a letter",
+                        db_name,
+                    )
+                    continue
+
                 try:
-                    print(f"Checking/Creating database: {db_name}")
-                    # Enterprise or DozerDB feature
-                    q = f"CREATE DATABASE {db_name} IF NOT EXISTS"
-                    session.run(q)
-                    print(f"✅ Database '{db_name}' ready.")
+                    logger.info("Checking/Creating database: %s", db_name)
+                    session.run(f"CREATE DATABASE {db_name} IF NOT EXISTS")
+                    db_registry.register(db_name)
+                    logger.info("Database '%s' ready.", db_name)
                 except Exception as e:
-                    print(f"❌ Failed to create '{db_name}': {e}")
-                    print("   (Note: Multi-database is an Enterprise/DozerDB feature. Community Edition does not support this.)")
-                    
+                    logger.error("Failed to create '%s': %s", db_name, e)
+                    logger.info(
+                        "Note: Multi-database is an Enterprise/DozerDB feature. "
+                        "Community Edition does not support this."
+                    )
+
         driver.close()
-        
+
     except Exception as e:
-        print(f"❌ Connection to system database failed: {e}")
+        logger.error("Connection to system database failed: %s", e)
+
 
 if __name__ == "__main__":
-    # Example usage based on user snippet
-    # "BASELINE": "kgnormal", "FIBO": "kgfibo", "TRACING": "agent_traces"
-    target_dbs = ["kgnormal", "kgfibo", "agent_traces"]
+    logging.basicConfig(level=logging.INFO)
+
+    target_dbs = ["kgnormal", "kgfibo", "agenttraces"]
     create_databases(target_dbs)
-    
-    # --- LEX Schema Application ---
+
+    # --- Schema Application ---
     from schema_manager import SchemaManager
-    sm = SchemaManager()
-    
-    # Map DBs to Schema Files
+
+    sm = SchemaManager(NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD)
+
     schema_map = {
-        "agent_traces": "conf/schemas/tracing.yaml",
+        "agenttraces": "conf/schemas/tracing.yaml",
         "kgnormal": "conf/schemas/baseline.yaml",
-        "kgfibo": "conf/schemas/baseline.yaml" # Assuming same schema for now
+        "kgfibo": "conf/schemas/baseline.yaml",
     }
-    
-    # Determine base path for configs
+
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    
+
     for db, schema_file in schema_map.items():
         full_path = os.path.join(base_dir, schema_file)
         sm.apply_schema(db, full_path)
-        
+
     sm.close()

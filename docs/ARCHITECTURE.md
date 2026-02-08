@@ -73,11 +73,18 @@ SEOCHO는 비정형 데이터를 Knowledge Graph로 변환하고, 동적으로 �
 | DebateOrchestrator | `extraction/debate.py` | Parallel Debate 패턴 (fan-out → collect → synthesize) |
 | Agent Server | `extraction/agent_server.py` | FastAPI endpoints (`/run_agent`, `/run_debate`) |
 
+### Observability Layer
+
+| Module | File | Purpose |
+|--------|------|---------|
+| Tracing | `extraction/tracing.py` | Opik integration: `configure_opik()`, `wrap_openai_client()`, `@track`, `update_current_span` |
+| Config | `extraction/config.py` | `OPIK_URL`, `OPIK_WORKSPACE`, `OPIK_PROJECT_NAME`, `OPIK_ENABLED` |
+
 ### UI Layer
 
 | Module | File | Purpose |
 |--------|------|---------|
-| Agent Studio | `evaluation/app.py` | Streamlit split-screen (chat + live trace graph) |
+| Agent Studio | `evaluation/app.py` | Streamlit split-screen (chat + live trace graph) — **PoC demo용** |
 
 ## Two Execution Modes
 
@@ -155,9 +162,40 @@ context = bridge.render_extraction_context()
 - 온톨로지 YAML의 NodeDefinition/RelationshipDefinition을 LLM 프롬프트 변수로 변환
 - `default.yaml` 프롬프트에서 `{% if ontology_name %}` 분기로 동적 vs 레거시 프롬프트
 
-## Trace Visualization (Streamlit)
+## Observability: Agent Studio vs Opik
 
-### Debate Trace Topology
+두 시스템의 역할이 명확히 분리되어 있습니다:
+
+### Agent Studio (PoC Demo)
+- **목적**: 이해관계자 데모, PoC 시연, 실시간 agent flow 시각화
+- **위치**: `evaluation/app.py` (Streamlit, port 8501)
+- **trace 방식**: `_build_debate_trace()`로 수동 구성된 FANOUT/DEBATE/COLLECT/SYNTHESIS 그래프
+- **제한**: LLM 비용/latency 추적 없음, evaluation 기능 없음
+
+### Opik (Production Eval & Trace)
+- **목적**: 개발/디버깅/운영 모니터링, LLM evaluation, agent visualization
+- **위치**: `http://localhost:5173` (opt-in: `docker compose --profile opik up -d`)
+- **trace 방식**: `@track` 데코레이터 + `wrap_openai_client` 자동 tracing → native span tree
+- **기능**: parent-child span tree, LLM 비용/latency, datasets & experiments, scoring
+
+### Opik Span Tree (Debate Pattern)
+
+Opik에서 Debate 패턴은 다음과 같은 span hierarchy로 표현됩니다:
+
+```
+agent_server.run_debate                          [tags: debate-mode]
+  └─ debate.run_debate                           [phase: orchestration, agent_count: N]
+       ├─ debate.run_single_agent                [phase: fan-out, db: kgnormal]
+       │    └─ (OpenAI chat.completions.create)  [auto-traced]
+       ├─ debate.run_single_agent                [phase: fan-out, db: kgfibo]
+       │    └─ (OpenAI chat.completions.create)  [auto-traced]
+       └─ debate.supervisor_synthesis            [phase: synthesis]
+            └─ (OpenAI chat.completions.create)  [auto-traced]
+```
+
+각 span에 `metadata` (db_name, agent_name, phase)와 `tags`가 첨부되어 Opik UI에서 필터링/검색 가능.
+
+### Streamlit Trace Topology (PoC Demo)
 
 ```
 FANOUT (yellow) ─┬─ DEBATE: Agent_kgnormal (blue)
@@ -179,6 +217,11 @@ OPENAI_API_KEY=sk-...
 NEO4J_URI=bolt://neo4j:7687
 NEO4J_USER=neo4j
 NEO4J_PASSWORD=password
+
+# Opik (opt-in)
+OPIK_VERSION=latest
+OPIK_URL=http://opik-backend:8080/api
+OPIK_PROJECT_NAME=seocho
 ```
 
 ### Hydra Config (`extraction/conf/`)

@@ -106,16 +106,17 @@ DataSource → OntologyPromptBridge → EntityExtractor → EntityLinker → Ent
 - `shared_memory.py` — Request-scoped agent shared memory + query cache
 - `debate.py` — DebateOrchestrator: parallel fan-out → collect → synthesize
 - `config.py` — Centralized config + DatabaseRegistry singleton (`db_registry`) + Opik settings
-- `tracing.py` — Opik integration: `configure_opik()`, `wrap_openai_client()`, `@track()` decorator
+- `tracing.py` — Opik integration: `configure_opik()`, `wrap_openai_client()`, `@track()`, `update_current_span()`, `update_current_trace()`
 - `ontology/base.py` — Ontology, NodeDefinition, RelationshipDefinition, PropertyType
 - `vector_store.py` — FAISS embedding manager
 - `schema_manager.py` — Dynamic schema discovery and application
 - `graph_loader.py` — Neo4j MERGE operations with regex-validated labels
 - `conf/` — Hydra configs (prompts, schemas, ingestion recipes)
 
-**evaluation/** - Streamlit Agent Studio
+**evaluation/** - Streamlit Agent Studio (PoC demo)
 - `app.py` — Split-screen UI: chat + live agent flow graph (supports both linear and fan-out topology)
 - Toggle: "Parallel Debate Mode" switches between `/run_agent` and `/run_debate`
+- Role: PoC presentation & demo tool — NOT production observability
 
 **semantic/** - FastAPI semantic analysis service
 
@@ -129,9 +130,23 @@ DataSource → OntologyPromptBridge → EntityExtractor → EntityLinker → Ent
   - Runtime registry: `db_registry` (singleton in `config.py`)
   - DB selection: `driver.session(database="kgfibo")`
 - **FAISS**: Vector similarity search for semantic retrieval
-- **Opik** (opt-in profile): LLM evaluation & tracing platform
+- **Opik** (opt-in profile): Production LLM evaluation, tracing & agent visualization
   - MySQL 8.4 + Redis + ClickHouse + MinIO + Backend + Frontend
   - Enabled via `docker compose --profile opik up -d`
+
+### Observability: Agent Studio vs Opik
+
+| Concern | Agent Studio (Streamlit) | Opik |
+|---------|--------------------------|------|
+| **Role** | PoC demo & presentation | Production eval & trace |
+| **Agent trace** | Custom flow graph (FANOUT/DEBATE/COLLECT) | Native span tree with parent-child |
+| **LLM call tracing** | Manual trace_steps construction | Auto-traced via `wrap_openai_client` |
+| **Cost / latency** | Not tracked | Built-in per-span metrics |
+| **Evaluation** | None | Datasets, scoring, experiments |
+| **When to use** | Stakeholder demos, PoC walkthroughs | Development, debugging, production monitoring |
+
+Agent Studio trace visualization (`_build_debate_trace`) remains for demo purposes.
+For development and production monitoring, use Opik at `http://localhost:5173`.
 
 ## Configuration
 

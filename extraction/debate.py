@@ -14,6 +14,7 @@ from typing import Any, Dict, List
 from agents import Agent, Runner, trace
 
 from shared_memory import SharedMemory
+from tracing import track
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +51,7 @@ class DebateOrchestrator:
     # Public API
     # ------------------------------------------------------------------
 
+    @track("debate.run_debate")
     async def run_debate(
         self, query: str, context: Any
     ) -> Dict[str, Any]:
@@ -99,6 +101,7 @@ class DebateOrchestrator:
     # Single agent execution (error-isolated)
     # ------------------------------------------------------------------
 
+    @track("debate.run_single_agent")
     async def _run_single_agent(
         self, db_name: str, agent: Agent, query: str, context: Any
     ) -> DebateResult:

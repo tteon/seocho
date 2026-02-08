@@ -14,6 +14,12 @@ NEO4J_URI = os.getenv("NEO4J_URI", "bolt://neo4j:7687")
 NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "password")
 
+# Opik observability settings
+OPIK_URL = os.getenv("OPIK_URL_OVERRIDE", "")
+OPIK_WORKSPACE = os.getenv("OPIK_WORKSPACE", "default")
+OPIK_PROJECT_NAME = os.getenv("OPIK_PROJECT_NAME", "seocho")
+OPIK_ENABLED = bool(OPIK_URL)
+
 # DB name validation: alphanumeric only, must start with a letter
 _VALID_DB_NAME_RE = re.compile(r'^[A-Za-z][A-Za-z0-9]*$')
 

@@ -6,6 +6,7 @@ from omegaconf import DictConfig, OmegaConf
 from openai import OpenAI
 from graph_loader import GraphLoader
 from vector_store import VectorStore
+from tracing import wrap_openai_client
 
 # Initialize generic client, will set API key in main or environment
 client = None
@@ -87,7 +88,7 @@ def main(cfg: DictConfig):
     print(f"Configuration:\n{OmegaConf.to_yaml(cfg)}")
     
     global client
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    client = wrap_openai_client(OpenAI(api_key=os.getenv("OPENAI_API_KEY")))
     
     # 1. Load Dataset
     print(f"Loading dataset from {cfg.dataset.path}...")

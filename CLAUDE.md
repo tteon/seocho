@@ -42,14 +42,18 @@ docker compose exec extraction-service pytest tests/ -v
 docker compose exec extraction-service pytest tests/test_api_integration.py -v  # Single test file
 ```
 
-### Data Ingestion & Demos
+### Opik Observability (opt-in)
 ```bash
-make ingest-glossary           # Ingest glossary terms to DataHub
-make ingest-supply-chain       # Ingest supply chain sample data
+make opik-up                   # Start core + Opik services
+make opik-down                 # Stop all services including Opik
+make opik-logs                 # View Opik service logs
+# Or directly: docker compose --profile opik up -d
+```
 
-# Data Mesh demos (run inside extraction-service):
+### Data Mesh Demos
+```bash
+# Run inside extraction-service:
 docker exec extraction-service python demos/data_mesh_mock.py      # Seed Neo4j with FIBO domains
-docker exec extraction-service python demos/datahub_fibo_ingest.py # Seed DataHub with FIBO metadata
 docker exec extraction-service python demos/demo_fibo_metadata.py  # Financial metadata tutorial
 ```
 
@@ -101,7 +105,8 @@ DataSource → OntologyPromptBridge → EntityExtractor → EntityLinker → Ent
 - `agent_factory.py` — Dynamic per-DB Agent creation with closure-bound tools
 - `shared_memory.py` — Request-scoped agent shared memory + query cache
 - `debate.py` — DebateOrchestrator: parallel fan-out → collect → synthesize
-- `config.py` — Centralized config + DatabaseRegistry singleton (`db_registry`)
+- `config.py` — Centralized config + DatabaseRegistry singleton (`db_registry`) + Opik settings
+- `tracing.py` — Opik integration: `configure_opik()`, `wrap_openai_client()`, `@track()` decorator
 - `ontology/base.py` — Ontology, NodeDefinition, RelationshipDefinition, PropertyType
 - `vector_store.py` — FAISS embedding manager
 - `schema_manager.py` — Dynamic schema discovery and application
@@ -123,14 +128,10 @@ DataSource → OntologyPromptBridge → EntityExtractor → EntityLinker → Ent
   - DB name validation: `^[A-Za-z][A-Za-z0-9]*$` (alphanumeric, starts with letter)
   - Runtime registry: `db_registry` (singleton in `config.py`)
   - DB selection: `driver.session(database="kgfibo")`
-- **DataHub**: Metadata governance (GMS on 8080, Frontend on 9002)
 - **FAISS**: Vector similarity search for semantic retrieval
-
-### Infrastructure Dependencies
-DataHub requires:
-- Elasticsearch 7.10 (search backend)
-- MySQL 5.7 (metadata storage)
-- Kafka + Zookeeper (event streaming)
+- **Opik** (opt-in profile): LLM evaluation & tracing platform
+  - MySQL 8.4 + Redis + ClickHouse + MinIO + Backend + Frontend
+  - Enabled via `docker compose --profile opik up -d`
 
 ## Configuration
 
@@ -141,6 +142,11 @@ NEO4J_USER=neo4j
 NEO4J_PASSWORD=password
 NEO4J_HTTP_PORT=7474
 NEO4J_BOLT_PORT=7687
+
+# Opik (opt-in)
+OPIK_VERSION=latest
+OPIK_URL=http://opik-backend:8080/api
+OPIK_PROJECT_NAME=seocho
 ```
 
 ### Hydra Config Structure (`extraction/conf/`)
@@ -261,8 +267,9 @@ node = NodeDefinition(
 | FastAPI Agent Server | 8001 |
 | Neo4j HTTP | 7474 |
 | Neo4j Bolt | 7687 |
-| DataHub GMS | 8080 |
-| DataHub Frontend | 9002 |
+| Opik Frontend (opt-in) | 5173 |
+| Opik Backend API (opt-in) | 8080 |
+| Opik ClickHouse (opt-in) | 8123 |
 
 ## Development Guidelines
 

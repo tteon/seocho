@@ -5,6 +5,8 @@ from openai import OpenAI
 from prompt_manager import PromptManager
 from jinja2 import Template
 from tracing import wrap_openai_client
+from exceptions import OpenAIAPIError, LinkingError
+from retry_utils import openai_retry
 
 logger = logging.getLogger(__name__)
 
@@ -14,9 +16,14 @@ class EntityLinker:
         self.client = wrap_openai_client(OpenAI(api_key=api_key))
         self.model = model
 
+    @openai_retry
     def link_entities(self, extracted_data: dict, category: str = "general") -> dict:
         """
         Uses LLM to perform entity linking and resolution.
+
+        Raises:
+            OpenAIAPIError: On transient OpenAI failures (retried automatically).
+            LinkingError: On non-retryable failures (e.g. bad JSON response).
         """
         nodes = extracted_data.get("nodes", [])
         if not nodes:
@@ -35,19 +42,22 @@ class EntityLinker:
                 ],
                 response_format={"type": "json_object"}
              )
-
-             content = response.choices[0].message.content
-             linked_result = json.loads(content)
-
-             # Merge back relationships if LLM dropped them
-             if "relationships" not in linked_result:
-                 linked_result["relationships"] = extracted_data.get("relationships", [])
-
-             return linked_result
-
-        except json.JSONDecodeError as e:
-            logger.error("Failed to parse linking response as JSON: %s", e)
-            return extracted_data
+        except LinkingError:
+            raise
         except Exception as e:
-            logger.error("Error during entity linking: %s", e)
-            return extracted_data
+            raise OpenAIAPIError(f"OpenAI linking call failed: {e}") from e
+
+        content = response.choices[0].message.content
+
+        try:
+            linked_result = json.loads(content)
+        except json.JSONDecodeError as e:
+            raise LinkingError(
+                f"Failed to parse linking response as JSON: {e}"
+            ) from e
+
+        # Merge back relationships if LLM dropped them
+        if "relationships" not in linked_result:
+            linked_result["relationships"] = extracted_data.get("relationships", [])
+
+        return linked_result

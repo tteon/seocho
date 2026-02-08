@@ -5,6 +5,8 @@ from typing import Optional, Dict, Any
 from openai import OpenAI
 from prompt_manager import PromptManager
 from tracing import wrap_openai_client
+from exceptions import OpenAIAPIError, ExtractionError
+from retry_utils import openai_retry
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +16,7 @@ class EntityExtractor:
         self.client = wrap_openai_client(OpenAI(api_key=api_key))
         self.model = model
 
+    @openai_retry
     def extract_entities(
         self,
         text: str,
@@ -27,6 +30,10 @@ class EntityExtractor:
             text: Raw text to extract entities from.
             category: Data category for prompt routing.
             extra_context: Additional template variables (e.g. ontology context).
+
+        Raises:
+            OpenAIAPIError: On transient OpenAI failures (retried automatically).
+            ExtractionError: On non-retryable extraction failures (e.g. bad JSON).
         """
         context = {"text": text, "category": category}
         if extra_context:
@@ -45,18 +52,18 @@ class EntityExtractor:
                 ],
                 response_format={"type": "json_object"}
             )
-
-            latency = time.time() - start_time
-            content = response.choices[0].message.content
-
-            # Log result
-            self.prompt_manager.log_result("default", text, content, latency)
-
-            return json.loads(content)
-
-        except json.JSONDecodeError as e:
-            logger.error("Failed to parse extraction response as JSON: %s", e)
-            return {"nodes": [], "relationships": []}
         except Exception as e:
-            logger.error("Error during extraction: %s", e)
-            return {"nodes": [], "relationships": []}
+            raise OpenAIAPIError(f"OpenAI extraction call failed: {e}") from e
+
+        latency = time.time() - start_time
+        content = response.choices[0].message.content
+
+        # Log result
+        self.prompt_manager.log_result("default", text, content, latency)
+
+        try:
+            return json.loads(content)
+        except json.JSONDecodeError as e:
+            raise ExtractionError(
+                f"Failed to parse extraction response as JSON: {e}"
+            ) from e

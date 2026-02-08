@@ -1,6 +1,9 @@
 import logging
 import re
 from neo4j import GraphDatabase
+from neo4j.exceptions import ServiceUnavailable, SessionExpired
+from exceptions import Neo4jConnectionError, InvalidLabelError, LoadError
+from retry_utils import neo4j_retry
 
 logger = logging.getLogger(__name__)
 
@@ -11,12 +14,11 @@ _VALID_LABEL_RE = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')
 def _validate_label(label: str) -> str:
     """Validate and sanitize a Neo4j label or relationship type.
 
-    Returns the label if valid, otherwise falls back to 'Entity'.
+    Returns the label if valid, raises InvalidLabelError otherwise.
     """
     if _VALID_LABEL_RE.match(label):
         return label
-    logger.warning("Invalid label '%s', falling back to 'Entity'", label)
-    return "Entity"
+    raise InvalidLabelError(f"Invalid Neo4j label: '{label}'")
 
 
 class GraphLoader:
@@ -26,21 +28,33 @@ class GraphLoader:
     def close(self):
         self.driver.close()
 
+    @neo4j_retry
     def load_graph(self, graph_data: dict, source_id: str):
         """
         Loads nodes and relationships into Neo4j.
+
+        Raises:
+            Neo4jConnectionError: On transient Neo4j failures (retried automatically).
+            LoadError: On data/validation issues during loading.
         """
         if not graph_data or "nodes" not in graph_data:
             return
 
-        with self.driver.session() as session:
-            # 1. Load Nodes
-            for node in graph_data.get("nodes", []):
-                session.execute_write(self._create_node, node, source_id)
+        try:
+            with self.driver.session() as session:
+                # 1. Load Nodes
+                for node in graph_data.get("nodes", []):
+                    session.execute_write(self._create_node, node, source_id)
 
-            # 2. Load Relationships
-            for rel in graph_data.get("relationships", []):
-                session.execute_write(self._create_relationship, rel)
+                # 2. Load Relationships
+                for rel in graph_data.get("relationships", []):
+                    session.execute_write(self._create_relationship, rel)
+        except (ServiceUnavailable, SessionExpired) as e:
+            raise Neo4jConnectionError(f"Neo4j connection failed during load: {e}") from e
+        except (Neo4jConnectionError, LoadError, InvalidLabelError):
+            raise
+        except Exception as e:
+            raise LoadError(f"Graph loading failed for source '{source_id}': {e}") from e
 
     @staticmethod
     def _create_node(tx, node, source_id):

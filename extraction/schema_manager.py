@@ -2,7 +2,10 @@ import logging
 import yaml
 import os
 from neo4j import GraphDatabase
+from neo4j.exceptions import ServiceUnavailable, SessionExpired
 from config import NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD
+from exceptions import Neo4jConnectionError
+from retry_utils import neo4j_retry
 
 logger = logging.getLogger(__name__)
 
@@ -16,9 +19,13 @@ class SchemaManager:
     def close(self):
         self.driver.close()
 
+    @neo4j_retry
     def apply_schema(self, database, yaml_path):
         """
         Reads a YAML schema definition and applies constraints/indexes.
+
+        Raises:
+            Neo4jConnectionError: On transient Neo4j failures (retried automatically).
         """
         logger.info("Reading schema from %s for DB '%s'...", yaml_path, database)
 
@@ -31,29 +38,42 @@ class SchemaManager:
 
         nodes = schema.get('nodes', {})
 
-        with self.driver.session(database=database) as session:
-            for label, definition in nodes.items():
-                props = definition.get('properties', {})
-                for prop_name, config in props.items():
-                    # 1. Unique Constraints
-                    if config.get('constraint') == 'UNIQUE':
-                        constraint_name = f"constraint_{label}_{prop_name}_unique"
-                        query = f"CREATE CONSTRAINT {constraint_name} IF NOT EXISTS FOR (n:{label}) REQUIRE n.{prop_name} IS UNIQUE"
-                        try:
-                            session.run(query)
-                            logger.info("Applied UNIQUE constraint on :%s(%s)", label, prop_name)
-                        except Exception as e:
-                            logger.error("Failed to apply constraint on :%s(%s): %s", label, prop_name, e)
+        try:
+            with self.driver.session(database=database) as session:
+                for label, definition in nodes.items():
+                    props = definition.get('properties', {})
+                    for prop_name, config in props.items():
+                        # 1. Unique Constraints
+                        if config.get('constraint') == 'UNIQUE':
+                            constraint_name = f"constraint_{label}_{prop_name}_unique"
+                            query = f"CREATE CONSTRAINT {constraint_name} IF NOT EXISTS FOR (n:{label}) REQUIRE n.{prop_name} IS UNIQUE"
+                            try:
+                                session.run(query)
+                                logger.info("Applied UNIQUE constraint on :%s(%s)", label, prop_name)
+                            except (ServiceUnavailable, SessionExpired) as e:
+                                raise Neo4jConnectionError(
+                                    f"Neo4j connection failed applying constraint on :{label}({prop_name}): {e}"
+                                ) from e
+                            except Exception as e:
+                                logger.error("Failed to apply constraint on :%s(%s): %s", label, prop_name, e)
 
-                    # 2. Indexes
-                    if config.get('index') is True:
-                        index_name = f"index_{label}_{prop_name}"
-                        query = f"CREATE INDEX {index_name} IF NOT EXISTS FOR (n:{label}) ON (n.{prop_name})"
-                        try:
-                            session.run(query)
-                            logger.info("Applied INDEX on :%s(%s)", label, prop_name)
-                        except Exception as e:
-                            logger.error("Failed to apply index on :%s(%s): %s", label, prop_name, e)
+                        # 2. Indexes
+                        if config.get('index') is True:
+                            index_name = f"index_{label}_{prop_name}"
+                            query = f"CREATE INDEX {index_name} IF NOT EXISTS FOR (n:{label}) ON (n.{prop_name})"
+                            try:
+                                session.run(query)
+                                logger.info("Applied INDEX on :%s(%s)", label, prop_name)
+                            except (ServiceUnavailable, SessionExpired) as e:
+                                raise Neo4jConnectionError(
+                                    f"Neo4j connection failed applying index on :{label}({prop_name}): {e}"
+                                ) from e
+                            except Exception as e:
+                                logger.error("Failed to apply index on :%s(%s): %s", label, prop_name, e)
+        except (ServiceUnavailable, SessionExpired) as e:
+            raise Neo4jConnectionError(
+                f"Neo4j connection failed during schema application for '{database}': {e}"
+            ) from e
 
         logger.info("Schema application for '%s' complete.", database)
 

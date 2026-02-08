@@ -6,6 +6,8 @@ import pickle
 from openai import OpenAI
 from typing import List
 from tracing import wrap_openai_client
+from exceptions import OpenAIAPIError
+from retry_utils import openai_retry
 
 logger = logging.getLogger(__name__)
 
@@ -21,9 +23,13 @@ class VectorStore:
         self.doc_map = {} # Maps internal ID to doc ID
         self.documents = [] # Metadata storage
 
+    @openai_retry
     def embed_text(self, text: str) -> List[float]:
         """
         Generate embedding for a given text using OpenAI API.
+
+        Raises:
+            OpenAIAPIError: On transient OpenAI failures (retried automatically).
         """
         text = text.replace("\n", " ")
         try:
@@ -33,8 +39,7 @@ class VectorStore:
             )
             return response.data[0].embedding
         except Exception as e:
-            logger.error("Error generating embedding: %s", e)
-            return [0.0] * self.dimension
+            raise OpenAIAPIError(f"Embedding generation failed: {e}") from e
 
     def add_document(self, doc_id: str, text: str):
         """

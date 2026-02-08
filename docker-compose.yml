@@ -25,108 +25,6 @@ services:
       - graphrag-net
 
 
-  # --- DataHub Prerequisites ---
-  elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:7.10.1
-    container_name: elasticsearch
-    environment:
-      - "discovery.type=single-node"
-      - "xpack.security.enabled=false"
-      - "ES_JAVA_OPTS=-Xms256m -Xmx256m"
-    ports:
-      - "${ELASTICSEARCH_PORT:-9200}:9200"
-    healthcheck:
-      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=50s || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - graphrag-net
-
-  mysql:
-    image: mysql:5.7
-    container_name: mysql
-    environment:
-      - MYSQL_DATABASE=datahub
-      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-datahub}
-    ports:
-      - "${MYSQL_PORT:-3306}:3306"
-    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_bin --default-authentication-plugin=mysql_native_password
-    volumes:
-      - ./data/mysql:/var/lib/mysql
-    networks:
-      - graphrag-net
-
-  zookeeper:
-    image: confluentinc/cp-zookeeper:5.5.0
-    container_name: zookeeper
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-    networks:
-      - graphrag-net
-
-  kafka:
-    image: confluentinc/cp-kafka:5.5.0
-    container_name: kafka
-    depends_on:
-      - zookeeper
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-    networks:
-      - graphrag-net
-
-  # --- DataHub Core ---
-  datahub-gms:
-    image: linkedin/datahub-gms:latest
-    container_name: datahub-gms
-    ports:
-      - "${DATAHUB_GMS_PORT:-8080}:8080"
-    environment:
-      - DATAHUB_GMS_HOST=${DATAHUB_GMS_HOST:-datahub-gms}
-      - DATAHUB_GMS_PORT=8080
-      - EBEAN_DATASOURCE_USERNAME=root
-      - EBEAN_DATASOURCE_PASSWORD=${MYSQL_ROOT_PASSWORD:-datahub}
-      - EBEAN_DATASOURCE_HOST=mysql:3306
-      - EBEAN_DATASOURCE_URL=jdbc:mysql://mysql:3306/datahub?verifyServerCertificate=false&useSSL=false&useUnicode=yes&characterEncoding=UTF-8
-      - EBEAN_DATASOURCE_DRIVER=com.mysql.jdbc.Driver
-      - KAFKA_BOOTSTRAP_SERVER=kafka:29092
-      - ELASTICSEARCH_HOST=elasticsearch
-      - ELASTICSEARCH_PORT=9200
-    depends_on:
-      - mysql
-      - elasticsearch
-      - kafka
-    networks:
-      - graphrag-net
-
-  datahub-frontend:
-    image: linkedin/datahub-frontend-react:latest
-    container_name: datahub-frontend
-    ports:
-      - "${DATAHUB_FRONTEND_PORT:-9002}:9002"
-    environment:
-      - DATAHUB_GMS_HOST=datahub-gms
-      - DATAHUB_GMS_PORT=8080
-      - DATAHUB_SECRET=x
-      - AUTH_JAAS_ENABLED=true
-      - DATAHUB_PLAY_MEM_BUFFER_SIZE=10MB
-      - JAVA_TOOL_OPTIONS=-DDATAHUB_PLAY_MEM_BUFFER_SIZE=10MB
-      - KAFKA_BOOTSTRAP_SERVER=kafka:29092
-      - ELASTIC_CLIENT_HOST=elasticsearch
-      - ELASTIC_CLIENT_PORT=9200
-      - DATAHUB_TRACKING_TOPIC=DataHubUsageEvent_v1
-      - DATAHUB_APP_VERSION=1.0.0
-    depends_on:
-      - datahub-gms
-    networks:
-      - graphrag-net
-
   # --- Application Services ---
   extraction-service:
     build: ./extraction
@@ -142,11 +40,11 @@ services:
       - NEO4J_URI=bolt://neo4j:7687
       - NEO4J_USER=${NEO4J_USER:-neo4j}
       - NEO4J_PASSWORD=${NEO4J_PASSWORD:-password}
-      - DATAHUB_GMS_URL=http://datahub-gms:8080
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPIK_URL_OVERRIDE=${OPIK_URL:-}
+      - OPIK_PROJECT_NAME=${OPIK_PROJECT_NAME:-seocho}
     depends_on:
       - neo4j
-      - datahub-gms
     networks:
       - graphrag-net
 
@@ -159,10 +57,8 @@ services:
       - NEO4J_URI=bolt://neo4j:7687
       - NEO4J_USER=${NEO4J_USER:-neo4j}
       - NEO4J_PASSWORD=${NEO4J_PASSWORD:-password}
-      - DATAHUB_GMS_URL=http://datahub-gms:8080
     depends_on:
       - neo4j
-      - datahub-gms
     networks:
       - graphrag-net
 
@@ -181,6 +77,159 @@ services:
     depends_on:
       - extraction-service
       - semantic-service
+    networks:
+      - graphrag-net
+
+  # --- Opik Observability (opt-in: docker compose --profile opik up -d) ---
+  opik-mysql:
+    image: mysql:8.4.2
+    container_name: opik-mysql
+    profiles: ["opik"]
+    environment:
+      MYSQL_ROOT_PASSWORD: ${OPIK_MYSQL_PASSWORD:-opik}
+      MYSQL_DATABASE: opik
+      MYSQL_USER: opik
+      MYSQL_PASSWORD: ${OPIK_MYSQL_PASSWORD:-opik}
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./data/opik/mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - graphrag-net
+
+  opik-redis:
+    image: redis:7.2.4-alpine
+    container_name: opik-redis
+    profiles: ["opik"]
+    ports:
+      - "6379:6379"
+    networks:
+      - graphrag-net
+
+  opik-zookeeper:
+    image: zookeeper:3.9.4
+    container_name: opik-zookeeper
+    profiles: ["opik"]
+    ports:
+      - "2181:2181"
+    networks:
+      - graphrag-net
+
+  opik-clickhouse:
+    image: clickhouse/clickhouse-server:25.3.6.56-alpine
+    container_name: opik-clickhouse
+    profiles: ["opik"]
+    environment:
+      CLICKHOUSE_USER: ${OPIK_CH_USER:-opik}
+      CLICKHOUSE_PASSWORD: ${OPIK_CH_PASSWORD:-opik}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+      CLICKHOUSE_DB: opik
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    volumes:
+      - ./data/opik/clickhouse:/var/lib/clickhouse
+    depends_on:
+      - opik-zookeeper
+    networks:
+      - graphrag-net
+
+  opik-minio:
+    image: minio/minio
+    container_name: opik-minio
+    profiles: ["opik"]
+    environment:
+      MINIO_ROOT_USER: ${OPIK_MINIO_USER:-opik}
+      MINIO_ROOT_PASSWORD: ${OPIK_MINIO_PASSWORD:-opikopik}
+    command: server /data --console-address ":9090"
+    ports:
+      - "9001:9000"
+      - "9090:9090"
+    volumes:
+      - ./data/opik/minio:/data
+    networks:
+      - graphrag-net
+
+  opik-minio-init:
+    image: minio/mc
+    container_name: opik-minio-init
+    profiles: ["opik"]
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set opik http://opik-minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD};
+      mc mb --ignore-existing opik/opik;
+      exit 0;
+      "
+    environment:
+      MINIO_ROOT_USER: ${OPIK_MINIO_USER:-opik}
+      MINIO_ROOT_PASSWORD: ${OPIK_MINIO_PASSWORD:-opikopik}
+    depends_on:
+      - opik-minio
+    networks:
+      - graphrag-net
+
+  opik-backend:
+    image: ghcr.io/comet-ml/opik/opik-backend:${OPIK_VERSION:-latest}
+    container_name: opik-backend
+    profiles: ["opik"]
+    environment:
+      STATE_DB_URL: jdbc:mysql://opik-mysql:3306/opik
+      STATE_DB_USER: opik
+      STATE_DB_PASS: ${OPIK_MYSQL_PASSWORD:-opik}
+      ANALYTICS_DB_PROTOCOL: HTTP
+      ANALYTICS_DB_HOST: opik-clickhouse
+      ANALYTICS_DB_PORT: 8123
+      ANALYTICS_DB_USERNAME: ${OPIK_CH_USER:-opik}
+      ANALYTICS_DB_PASSWORD: ${OPIK_CH_PASSWORD:-opik}
+      ANALYTICS_DB_DATABASE_NAME: opik
+      REDIS_URL: redis://opik-redis:6379
+      MINIO_URL: http://opik-minio:9000
+      MINIO_ACCESS_KEY: ${OPIK_MINIO_USER:-opik}
+      MINIO_SECRET_KEY: ${OPIK_MINIO_PASSWORD:-opikopik}
+      MINIO_BUCKET: opik
+    ports:
+      - "8080:8080"
+      - "3003:3003"
+    depends_on:
+      opik-mysql:
+        condition: service_healthy
+      opik-clickhouse:
+        condition: service_started
+      opik-redis:
+        condition: service_started
+      opik-minio-init:
+        condition: service_completed_successfully
+    networks:
+      - graphrag-net
+
+  opik-python-backend:
+    image: ghcr.io/comet-ml/opik/opik-python-backend:${OPIK_VERSION:-latest}
+    container_name: opik-python-backend
+    profiles: ["opik"]
+    environment:
+      OPIK_BASE_URL: http://opik-backend:8080/api
+    ports:
+      - "8000:8000"
+    depends_on:
+      - opik-backend
+    networks:
+      - graphrag-net
+
+  opik-frontend:
+    image: ghcr.io/comet-ml/opik/opik-frontend:${OPIK_VERSION:-latest}
+    container_name: opik-frontend
+    profiles: ["opik"]
+    environment:
+      OPIK_BASE_URL: http://opik-backend:8080/api
+    ports:
+      - "5173:5173"
+    depends_on:
+      - opik-backend
     networks:
       - graphrag-net
 

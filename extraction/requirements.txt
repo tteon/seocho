@@ -1,5 +1,4 @@
 neo4j
-acryl-datahub
 requests
 pydantic
 pytest
@@ -23,3 +22,4 @@ python-dotenv
 
 datasets
 openai-agents
+opik

@@ -2,7 +2,7 @@
 
 DOCKER_COMPOSE = docker compose
 
-.PHONY: up down restart logs clean bootstrap ingest-glossary ingest-supply-chain shell test lint format help
+.PHONY: up down restart logs clean bootstrap shell test lint format help opik-up opik-down opik-logs
 
 ##@ Development
 
@@ -17,7 +17,6 @@ help: ## Show this help message
 
 bootstrap: ## Bootstrap the development environment
 	@echo "🚀 Bootstrapping Seocho environment..."
-	@chmod +x scripts/datahub-bootstrap.sh
 	@docker compose build
 	@echo "✅ Environment ready!"
 
@@ -42,20 +41,6 @@ logs: ## View logs from all services
 shell: ## Open shell in engine container
 	@docker compose exec engine bash
 
-##@ Data Ingestion
-
-ingest-glossary: ## Ingest glossary terms into DataHub
-	@echo "📚 Ingesting glossary terms..."
-	@docker compose exec engine python /app/src/seocho/ingestion/datahub_integration.py
-
-ingest-supply-chain: ## Ingest supply chain sample data
-	@echo "📦 Ingesting supply chain data..."
-	@docker compose exec engine python /app/src/seocho/ingestion/ingest_data.py
-
-ingest-custom: ## Ingest custom data (specify RECIPE=path/to/recipe.yml)
-	@echo "📥 Ingesting custom data..."
-	@docker compose exec engine datahub ingest -c $(RECIPE)
-
 ##@ Development
 
 test: ## Run tests
@@ -76,6 +61,21 @@ clean: ## Clean up containers and volumes
 	@echo "🧹 Cleaning up..."
 	@docker compose down -v --remove-orphans
 	@docker system prune -f
+
+##@ Opik Observability
+
+opik-up: ## Start core + Opik services
+	@echo "🔭 Starting Seocho with Opik observability..."
+	@docker compose --profile opik up -d
+	@echo "✅ Services started with Opik!"
+	@echo "🔭 Access Opik UI: http://localhost:5173"
+
+opik-down: ## Stop all services including Opik
+	@echo "🛑 Stopping services (including Opik)..."
+	@docker compose --profile opik down
+
+opik-logs: ## View Opik service logs
+	@docker compose --profile opik logs -f --tail=100 opik-backend opik-python-backend opik-frontend
 
 ##@ Production
 

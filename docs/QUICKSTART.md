@@ -1,6 +1,6 @@
 # SEOCHO Quick Start Guide
 
-Get SEOCHO running in 5 minutes! 🚀
+Get SEOCHO running in 5 minutes.
 
 ---
 
@@ -15,16 +15,11 @@ Get SEOCHO running in 5 minutes! 🚀
 ## Step 1: Clone & Configure
 
 ```bash
-# Clone the repository
 git clone https://github.com/tteon/seocho.git
 cd seocho
 
-# Copy environment template
 cp .env.example .env
-
-# Edit .env and add your keys
-# Required: OPENAI_API_KEY=sk-...
-# Optional: NEO4J_PASSWORD=your-password
+# Edit .env — required: OPENAI_API_KEY=sk-...
 ```
 
 ---
@@ -32,38 +27,32 @@ cp .env.example .env
 ## Step 2: Start Services
 
 ```bash
-# Launch all services
-docker-compose up -d --build
+make up
 
 # Check status
-docker-compose ps
+docker compose ps
 ```
 
-**Expected Output:**
+**Expected output:**
 ```
 NAME                  STATUS
-graphrag-neo4j        running (healthy)
+graphrag-neo4j        running
 extraction-service    running
 semantic-service      running
 evaluation-interface  running
-datahub-gms          running
-datahub-frontend     running
 ```
 
 ---
 
 ## Step 3: Access the Platform
 
-| Service | URL | Purpose |
-|---------|-----|---------|
-| **Agent Studio** | http://localhost:8501 | Chat with agents, view traces |
-| **API Docs** | http://localhost:8001/docs | REST API documentation |
-| **Neo4j Browser** | http://localhost:7474 | Graph database UI |
-| **DataHub** | http://localhost:9002 | Metadata catalog |
+| Service | URL |
+|---------|-----|
+| **Agent Studio** | http://localhost:8501 |
+| **API Docs** | http://localhost:8001/docs |
+| **Neo4j Browser** | http://localhost:7474 |
 
-**Default Credentials:**
-- Neo4j: `neo4j` / `password`
-- DataHub: `datahub` / `datahub`
+**Credentials:** Neo4j: `neo4j` / `password`
 
 ---
 
@@ -73,14 +62,22 @@ datahub-frontend     running
 
 1. Open http://localhost:8501
 2. Type: `What databases are available?`
-3. Watch the agent trace flow in real-time!
+3. Watch the agent trace flow in real-time
+
+Toggle **"Parallel Debate Mode"** to use multi-agent debate.
 
 ### Via API
 
 ```bash
+# Router mode
 curl -X POST http://localhost:8001/run_agent \
   -H "Content-Type: application/json" \
   -d '{"query": "What entities exist in the graph?", "user_id": "quickstart"}'
+
+# Debate mode
+curl -X POST http://localhost:8001/run_debate \
+  -H "Content-Type: application/json" \
+  -d '{"query": "Compare entities across all databases"}'
 ```
 
 ---
@@ -88,21 +85,30 @@ curl -X POST http://localhost:8001/run_agent \
 ## Step 5: Load Sample Data
 
 ```bash
-# Generate mock financial data
 docker exec extraction-service python demos/data_mesh_mock.py
-
-# Load FIBO ontology metadata
-docker exec extraction-service python demos/datahub_fibo_ingest.py
 ```
+
+This seeds Neo4j with FIBO financial domain entities.
+
+---
+
+## Optional: Enable Opik Tracing
+
+```bash
+make opik-up
+# Open http://localhost:5173 for the Opik dashboard
+```
+
+All LLM calls and agent executions are auto-traced. See traces, costs, and latency in the Opik UI.
 
 ---
 
 ## Next Steps
 
-### Build Your First Ontology
+### Define Your Own Ontology
 
 ```yaml
-# extraction/conf/ontologies/custom/my_domain.yaml
+# extraction/conf/schemas/my_domain.yaml
 graph_type: "MyDomain"
 version: "1.0"
 
@@ -113,10 +119,6 @@ nodes:
       name:
         type: STRING
         constraint: UNIQUE
-      email:
-        type: STRING
-        index: TRUE
-
   Organization:
     description: "A company or institution"
     properties:
@@ -130,12 +132,9 @@ relationships:
     target: Organization
 ```
 
-### Create a Custom Agent
-
-See `docs/AGENT_DEVELOPMENT.md` for detailed guide.
+### Create a Custom Agent Tool
 
 ```python
-# extraction/agents/my_agent.py
 from agents import Agent, function_tool
 
 @function_tool
@@ -157,17 +156,13 @@ my_agent = Agent(
 ### Services Not Starting?
 
 ```bash
-# Check logs
-docker-compose logs extraction-service
-
-# Restart specific service
-docker-compose restart extraction-service
+docker compose logs extraction-service
+docker compose restart extraction-service
 ```
 
 ### Neo4j Connection Failed?
 
 ```bash
-# Verify Neo4j is healthy
 docker exec graphrag-neo4j cypher-shell -u neo4j -p password "RETURN 1"
 ```
 
@@ -179,54 +174,3 @@ NEO4J_HTTP_PORT=17474
 NEO4J_BOLT_PORT=17687
 CHAT_INTERFACE_PORT=18501
 ```
-
----
-
-## Architecture Overview
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     YOUR APPLICATION                        │
-├─────────────────────────────────────────────────────────────┤
-│                                                              │
-│   ┌─────────────┐       ┌─────────────┐                     │
-│   │   Agent     │──────▶│   FastAPI   │                     │
-│   │   Studio    │       │   Server    │                     │
-│   │  (8501)     │       │   (8001)    │                     │
-│   └─────────────┘       └──────┬──────┘                     │
-│                                │                             │
-│                    ┌───────────┼───────────┐                │
-│                    ▼           ▼           ▼                │
-│              ┌─────────┐ ┌─────────┐ ┌─────────┐           │
-│              │ Router  │ │ Vector  │ │  Graph  │           │
-│              │ Agent   │ │ Agent   │ │  Agent  │           │
-│              └─────────┘ └─────────┘ └────┬────┘           │
-│                                           │                 │
-│                                           ▼                 │
-│                                    ┌────────────┐          │
-│                                    │  GraphDBA  │          │
-│                                    │   Agent    │          │
-│                                    └─────┬──────┘          │
-│                                          │                  │
-│  ┌───────────────────────────────────────┼─────────────┐   │
-│  │                DATA LAYER             │             │   │
-│  │   ┌─────────┐  ┌─────────┐  ┌────────┴───┐        │   │
-│  │   │  FAISS  │  │ DataHub │  │   Neo4j    │        │   │
-│  │   │ Vectors │  │Metadata │  │   Graph    │        │   │
-│  │   └─────────┘  └─────────┘  └────────────┘        │   │
-│  └───────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Community
-
-- 📖 [Documentation](./docs/)
-- 🐛 [Issue Tracker](https://github.com/tteon/seocho/issues)
-- 💬 [Discord](https://discord.gg/RcR5e5VSJW)
-- 🤝 [Contributing Guide](../CONTRIBUTING.md)
-
----
-
-**Happy Building!** 🎉

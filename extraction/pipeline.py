@@ -1,7 +1,8 @@
 import os
 import json
 import logging
-from typing import Optional
+from dataclasses import dataclass, field
+from typing import Optional, List, Dict, Any
 
 from omegaconf import DictConfig
 
@@ -15,9 +16,22 @@ from vector_store import VectorStore
 from deduplicator import EntityDeduplicator
 from ontology_prompt_bridge import OntologyPromptBridge
 from config import NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD
+from exceptions import PipelineError
 from tracing import track
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class PipelineResult:
+    """Aggregated result from a pipeline run."""
+    items_processed: int = 0
+    items_failed: int = 0
+    errors: List[Dict[str, Any]] = field(default_factory=list)
+
+    @property
+    def success(self) -> bool:
+        return self.items_failed == 0
 
 
 class ExtractionPipeline:
@@ -79,9 +93,14 @@ class ExtractionPipeline:
         self._schema_manager = SchemaManager(NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD)
 
     @track("pipeline.run")
-    def run(self):
-        """Execute the full extraction pipeline."""
+    def run(self) -> PipelineResult:
+        """Execute the full extraction pipeline.
+
+        Returns:
+            PipelineResult with counts and per-item error details.
+        """
         logger.info("Starting Extraction Pipeline...")
+        result = PipelineResult()
 
         # 1. Collect Data
         if self._data_source is not None:
@@ -89,67 +108,88 @@ class ExtractionPipeline:
         else:
             raw_data = self._legacy_collector.collect_raw_data()
 
-        for item in raw_data:
-            logger.info("Processing item %s (%s)...", item["id"], item["category"])
-            self.process_item(item)
+        total = len(raw_data) if hasattr(raw_data, '__len__') else '?'
+
+        for idx, item in enumerate(raw_data):
+            item_id = item.get("id", f"item_{idx}")
+            logger.info("[%s/%s] Processing item %s (%s)...",
+                        idx + 1, total, item_id, item.get("category", "unknown"))
+            try:
+                self.process_item(item)
+                result.items_processed += 1
+            except (PipelineError, Exception) as e:
+                result.items_failed += 1
+                result.errors.append({
+                    "item_id": item_id,
+                    "error_type": type(e).__name__,
+                    "message": str(e),
+                })
+                logger.error("Failed to process item %s: %s", item_id, e)
 
         # Finalize
         self.vector_store.save_index(self.output_dir)
         self.graph_loader.close()
         self._schema_manager.close()
-        logger.info("Pipeline execution complete.")
+
+        logger.info(
+            "Pipeline complete: %d success, %d failed out of %s total",
+            result.items_processed,
+            result.items_failed,
+            total,
+        )
+        return result
 
     @track("pipeline.process_item")
     def process_item(self, item: dict):
-        """Process a single data item: extract → link → dedup → schema → load."""
-        try:
-            # Build extraction context
-            context = {"text": item["content"], "category": item.get("category", "general")}
-            if self._ontology_bridge:
-                context.update(self._ontology_bridge.render_extraction_context())
+        """Process a single data item: extract -> link -> dedup -> schema -> load.
 
-            # 2. Extract Entities (with ontology context if available)
-            extracted_data = self.extractor.extract_entities(
-                item["content"], item.get("category", "general"), extra_context=context
-            )
-            logger.info("Extracted %d nodes.", len(extracted_data.get("nodes", [])))
+        Raises:
+            PipelineError: On any processing failure for this item.
+        """
+        # Build extraction context
+        context = {"text": item["content"], "category": item.get("category", "general")}
+        if self._ontology_bridge:
+            context.update(self._ontology_bridge.render_extraction_context())
 
-            # 3. Entity Linking
-            logger.debug("Linking entities...")
-            extracted_data = self.linker.link_entities(
-                extracted_data, category=item.get("category", "general")
-            )
-            logger.info("Linked entities, count: %d", len(extracted_data.get("nodes", [])))
+        # 2. Extract Entities (with ontology context if available)
+        extracted_data = self.extractor.extract_entities(
+            item["content"], item.get("category", "general"), extra_context=context
+        )
+        logger.info("Extracted %d nodes.", len(extracted_data.get("nodes", [])))
 
-            # 4. Deduplication
-            extracted_data = self.deduplicator.deduplicate(extracted_data)
-            logger.info(
-                "After dedup: %d nodes, %d relationships",
-                len(extracted_data.get("nodes", [])),
-                len(extracted_data.get("relationships", [])),
-            )
+        # 3. Entity Linking
+        logger.debug("Linking entities...")
+        extracted_data = self.linker.link_entities(
+            extracted_data, category=item.get("category", "general")
+        )
+        logger.info("Linked entities, count: %d", len(extracted_data.get("nodes", [])))
 
-            # 5. Vector Embedding
-            logger.debug("Embedding content for %s...", item["id"])
-            self.vector_store.add_document(item["id"], item["content"])
+        # 4. Deduplication
+        extracted_data = self.deduplicator.deduplicate(extracted_data)
+        logger.info(
+            "After dedup: %d nodes, %d relationships",
+            len(extracted_data.get("nodes", [])),
+            len(extracted_data.get("relationships", [])),
+        )
 
-            # 6. Save Intermediate Results
-            self._save_results(item["id"], extracted_data)
+        # 5. Vector Embedding
+        logger.debug("Embedding content for %s...", item["id"])
+        self.vector_store.add_document(item["id"], item["content"])
 
-            # 7. Auto-Sync Schema
-            schema_path = os.path.join(
-                os.path.dirname(os.path.abspath(__file__)),
-                "conf/schemas/baseline.yaml",
-            )
-            self._schema_manager.update_schema_from_records(extracted_data, schema_path)
-            self._schema_manager.apply_schema(self.target_database, schema_path)
+        # 6. Save Intermediate Results
+        self._save_results(item["id"], extracted_data)
 
-            # 8. Load Graph
-            self.graph_loader.load_graph(extracted_data, item["id"])
-            logger.info("Loaded graph data for %s", item["id"])
+        # 7. Auto-Sync Schema
+        schema_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "conf/schemas/baseline.yaml",
+        )
+        self._schema_manager.update_schema_from_records(extracted_data, schema_path)
+        self._schema_manager.apply_schema(self.target_database, schema_path)
 
-        except Exception as e:
-            logger.error("Error processing item %s: %s", item["id"], e)
+        # 8. Load Graph
+        self.graph_loader.load_graph(extracted_data, item["id"])
+        logger.info("Loaded graph data for %s", item["id"])
 
     def _save_results(self, item_id: str, data: dict):
         filename = f"{self.output_dir}/{item_id}_extracted.json"

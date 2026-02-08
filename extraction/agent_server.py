@@ -16,7 +16,7 @@ from config import NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD, db_registry
 from shared_memory import SharedMemory
 from agent_factory import AgentFactory
 from database_manager import DatabaseManager
-from tracing import configure_opik, track
+from tracing import configure_opik, track, update_current_span, update_current_trace
 
 logger = logging.getLogger(__name__)
 
@@ -249,6 +249,11 @@ class DebateResponse(BaseModel):
 @track("agent_server.run_agent")
 async def run_agent(request: QueryRequest):
     """Legacy single-router endpoint."""
+    update_current_trace(
+        metadata={"user_id": request.user_id, "query": request.query[:200]},
+        tags=["router-mode"],
+    )
+    update_current_span(metadata={"mode": "router", "user_id": request.user_id})
     srv_context = ServerContext(
         user_id=request.user_id,
         last_query=request.query,
@@ -311,6 +316,11 @@ async def run_agent(request: QueryRequest):
 @track("agent_server.run_debate")
 async def run_debate(request: QueryRequest):
     """Parallel Debate endpoint: all DB agents answer in parallel, Supervisor synthesises."""
+    update_current_trace(
+        metadata={"user_id": request.user_id, "query": request.query[:200]},
+        tags=["debate-mode"],
+    )
+    update_current_span(metadata={"mode": "debate", "user_id": request.user_id})
     from debate import DebateOrchestrator
 
     memory = SharedMemory()

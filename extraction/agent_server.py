@@ -27,6 +27,14 @@ from exceptions import (
 from middleware import RequestIDMiddleware
 from tracing import configure_opik, track, update_current_span, update_current_trace
 from policy import require_runtime_permission
+from rule_api import (
+    RuleInferRequest,
+    RuleInferResponse,
+    RuleValidateRequest,
+    RuleValidateResponse,
+    infer_rule_profile,
+    validate_rule_profile,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -463,3 +471,25 @@ async def list_databases():
 async def list_agents():
     """List all active DB-bound agents."""
     return {"agents": agent_factory.list_agents()}
+
+
+@app.post("/rules/infer", response_model=RuleInferResponse)
+@track("agent_server.rules_infer")
+async def rules_infer(request: RuleInferRequest):
+    """Infer SHACL-like rule profile from graph payload."""
+    try:
+        require_runtime_permission(role="user", action="infer_rules", workspace_id=request.workspace_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    return infer_rule_profile(request)
+
+
+@app.post("/rules/validate", response_model=RuleValidateResponse)
+@track("agent_server.rules_validate")
+async def rules_validate(request: RuleValidateRequest):
+    """Validate graph payload against provided or inferred rule profile."""
+    try:
+        require_runtime_permission(role="user", action="validate_rules", workspace_id=request.workspace_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    return validate_rule_profile(request)

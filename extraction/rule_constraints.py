@@ -32,6 +32,21 @@ class RuleSet:
             "rules": [asdict(rule) for rule in self.rules],
         }
 
+    @classmethod
+    def from_dict(cls, payload: Dict[str, Any]) -> "RuleSet":
+        schema_version = payload.get("schema_version", "rules.v1")
+        rules = []
+        for item in payload.get("rules", []):
+            rules.append(
+                Rule(
+                    label=item["label"],
+                    property_name=item["property_name"],
+                    kind=item["kind"],
+                    params=item.get("params", {}),
+                )
+            )
+        return cls(schema_version=schema_version, rules=rules)
+
     def to_shacl_like(self) -> Dict[str, Any]:
         """Return a SHACL-inspired shape document."""
         shapes: Dict[str, Dict[str, Any]] = {}

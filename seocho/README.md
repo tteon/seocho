@@ -1,54 +1,96 @@
 # SEOCHO Rig Workspace
 
 This directory is the rig-level operating surface for agent-driven development.
+It is optimized for repeatable execution, clear ownership, and auditable delivery.
 
-## Purpose
+## What This Workspace Is For
 
-- Keep work moving through explicit agent ownership and handoff.
-- Standardize issue lifecycle, quality gates, and landing flow.
-- Make every change auditable with logs and issue links.
+- Ship work through explicit issue ownership (`bd`).
+- Make every task reproducible with command and artifact traces.
+- Keep coordination (`mayor`) and execution (`crew`) separate.
+- Land changes safely with consistent sync/rebase/push discipline.
 
-## Working Areas
+## Directory Map
 
-- `crew/hardy/`: human-led development workspace.
-- `mayor/rig/`: mayor's canonical rig clone for coordination and state.
-- `witness/rig/`: health/watch layer for rig execution.
-- `refinery/rig/`: merge/readiness execution layer.
-- `.beads/`: rig issue tracking context.
+- `crew/hardy/`: human-led execution workspace.
+- `mayor/rig/`: canonical coordination state and policy anchor.
+- `witness/rig/`: health/watch layer.
+- `refinery/rig/`: readiness and merge execution layer.
+- `docs/`: operating model, templates, architecture notes.
+- `.beads/`: issue state store for `bd`.
 
-## Agent-Driven Flow
+## Quick Start (New Session)
 
-1. Pick work from `bd ready`.
-2. Claim with `bd update <id> --status in_progress`.
-3. Execute in small, verifiable increments.
-4. Record operational checks (`scripts/ops-check.sh` at town root).
-5. Close with tests + `bd close <id>`.
-6. Land through pull/rebase/sync/push discipline.
-
-## Definition Of Done
-
-- The target issue is closed or explicitly handed off.
-- Required checks passed and logs captured.
-- Follow-up items filed as new issues.
-- Changes are committed and pushed.
-
-## Quick Commands
+Run from town root (`/home/hadry/gt`):
 
 ```bash
+scripts/check-beads-path.sh .
 bd ready
 bd show <id>
 bd update <id> --status in_progress
-bd close <id>
-
-# town-level helpers from repo root
-scripts/check-beads-path.sh .
-scripts/ops-check.sh --rig seocho --fix
-scripts/gt-land.sh --rig seocho
 ```
 
-## Next Docs
+Then execute work in small slices and validate:
 
-- `AGENTS.md`: execution rules for coding agents.
-- `docs/ADD_PLAYBOOK.md`: full operating model.
-- `docs/TASK_TEMPLATE.md`: reusable task brief format.
-- `docs/CONTEXT_GRAPH_BLUEPRINT.md`: context graph architecture and rollout plan.
+```bash
+# run focused checks for changed area first
+scripts/ops-check.sh --rig seocho
+```
+
+Close and land:
+
+```bash
+bd close <id>
+git pull --rebase
+bd sync
+git push
+git status
+```
+
+Expected final status:
+
+- issue is `closed` (or explicit handoff issue exists),
+- branch is up to date with `origin/master`,
+- validation artifacts are traceable.
+
+## Standard Delivery Loop
+
+1. Intake
+2. Clarify acceptance criteria
+3. Implement in verifiable slices
+4. Validate changed surface
+5. Sync issue state
+6. Rebase, push, and verify branch state
+
+## Role Boundaries
+
+- `crew`: implements and validates task-level changes.
+- `mayor`: holds coordination policy and canonical process decisions.
+- `refinery`: applies readiness/merge discipline.
+- `witness`: monitors rig health and execution anomalies.
+
+When boundaries blur, create a follow-up issue rather than extending scope silently.
+
+## Definition Of Done
+
+- Target issue resolved and status updated.
+- Required checks passed for the touched surface.
+- Follow-up risks captured as new `bd` issues.
+- Artifacts/logs available for replay.
+- Commit is pushed to remote.
+
+## Common Failure Cases
+
+- Missing issue link to code change.
+- Validation run omitted or not recorded.
+- Local-only commit not pushed.
+- Runtime/generated files treated as source of truth.
+
+Use `docs/ADD_PLAYBOOK.md` incident flow when any of the above appears.
+
+## Document Map
+
+- `AGENTS.md`: execution constraints and handoff minimum.
+- `docs/ADD_PLAYBOOK.md`: full operating model and checklists.
+- `docs/TASK_TEMPLATE.md`: task brief template for consistent intake.
+- `docs/CONTEXT_GRAPH_BLUEPRINT.md`: context graph model and rollout plan.

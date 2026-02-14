@@ -295,6 +295,7 @@ See [CLAUDE.md](CLAUDE.md) for coding rules, patterns, and module reference.
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed architecture.
 See [docs/ADD_PLAYBOOK.md](docs/ADD_PLAYBOOK.md) for agent-driven delivery workflow.
 See [docs/CONTEXT_GRAPH_BLUEPRINT.md](docs/CONTEXT_GRAPH_BLUEPRINT.md) for context graph rollout.
+See [docs/decisions/DECISION_LOG.md](docs/decisions/DECISION_LOG.md) for architecture decision history.
 
 ---
 

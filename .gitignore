@@ -82,3 +82,15 @@ coverage.xml
 *.cover
 .hypothesis/
 .pytest_cache/
+# Gas Town runtime and nested repositories
+.beads/beads.db-shm
+.beads/beads.db-wal
+.beads/daemon.pid
+.beads/sync-state.json
+daemon/activity.json
+daemon/daemon.pid
+**/mayor/rig/
+**/refinery/rig/
+**/witness/rig/
+**/crew/
+.beads/last-touched

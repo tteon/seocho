@@ -215,6 +215,8 @@ seocho/
 |----------|--------|-------------|
 | `/run_agent` | POST | Router mode — single-agent routing |
 | `/run_debate` | POST | Debate mode — all DB agents in parallel |
+| `/rules/infer` | POST | Infer SHACL-like rule profile from graph payload |
+| `/rules/validate` | POST | Validate graph payload against inferred/provided rules |
 | `/databases` | GET | List registered Neo4j databases |
 | `/agents` | GET | List active DB-bound agents |
 
@@ -224,6 +226,17 @@ seocho/
   "query": "What companies are in the financial ontology?",
   "user_id": "user_default",
   "workspace_id": "default"
+}
+```
+
+**Request body** (`/rules/infer`):
+```json
+{
+  "workspace_id": "default",
+  "graph": {
+    "nodes": [{"id": "1", "label": "Company", "properties": {"name": "Acme"}}],
+    "relationships": []
+  }
 }
 ```
 

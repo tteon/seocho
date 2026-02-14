@@ -23,6 +23,13 @@ Each entry must link to a full ADR when impact is non-trivial.
   - add explicit workflow doc for control plane/data plane visibility
   - make README the primary entry with workflow and doc map links
 
+## 2026-02-15
+
+- Accepted `ADR-0003-rule-api-phase1.md`
+  - add `/rules/infer` and `/rules/validate`
+  - enforce runtime permission actions for rules APIs
+  - keep workspace-aware request contract
+
 ## Template
 
 Use this block for new entries:

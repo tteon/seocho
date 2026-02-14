@@ -28,8 +28,8 @@ class RuntimePolicyEngine:
 
     def __init__(self):
         self._role_permissions: Dict[str, Set[str]] = {
-            "admin": {"run_agent", "run_debate", "read_databases", "read_agents"},
-            "user": {"run_agent", "run_debate", "read_databases", "read_agents"},
+            "admin": {"run_agent", "run_debate", "read_databases", "read_agents", "infer_rules", "validate_rules"},
+            "user": {"run_agent", "run_debate", "read_databases", "read_agents", "infer_rules", "validate_rules"},
             "viewer": {"read_databases", "read_agents"},
         }
 

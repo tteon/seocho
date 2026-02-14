@@ -134,6 +134,7 @@ Please consider the following when reviewing code contributions.
    git push
    git status  # MUST show "up to date with origin"
    ```
+   - Push target branch policy: **always push to `main`**.
 5. **Clean up** - Clear stashes, prune remote branches
 6. **Verify** - All changes committed AND pushed
 7. **Hand off** - Provide context for next session

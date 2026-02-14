@@ -25,6 +25,9 @@ SEOCHO는 비정형 데이터를 Knowledge Graph로 변환하고, 동적으로 �
   EntityDeduplicator (embedding similarity dedup)
        │
        ▼
+  RuleConstraints (SHACL-like inference + validation)
+       │
+       ▼
   DatabaseManager (Neo4j DB creation + schema + load)
        │
        ▼
@@ -53,6 +56,7 @@ SEOCHO는 비정형 데이터를 Knowledge Graph로 변환하고, 동적으로 �
 | EntityExtractor | `extraction/extractor.py` | OpenAI LLM 기반 entity/relationship extraction |
 | EntityLinker | `extraction/linker.py` | LLM 기반 entity resolution |
 | EntityDeduplicator | `extraction/deduplicator.py` | Embedding cosine similarity 기반 semantic dedup |
+| RuleConstraints | `extraction/rule_constraints.py` | SHACL-like 규칙 추론 및 노드 제약 검증 어노테이션 |
 | PromptManager | `extraction/prompt_manager.py` | Jinja2 prompt templating + history logging |
 
 ### Database Layer

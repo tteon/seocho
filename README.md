@@ -27,6 +27,11 @@ CSV/JSON/API → Ontology-Driven Extraction → Entity Linking → Deduplication
 - All agents answer independently via `asyncio.gather()`
 - Supervisor synthesizes a unified response
 
+**Rule Constraints (SHACL-like)** infer validation rules from extracted graph data:
+- infer required/datatype/enum/range rules from dataset patterns
+- annotate node-level constraint violations
+- export rule profile for downstream graph governance
+
 ---
 
 ## Quick Start
@@ -253,6 +258,23 @@ Agent_kgfibo:   "Found 2 bonds and 1 issuer..."
 Supervisor: "Across both databases, the key entities are..."
 ```
 
+### SHACL-like Rule Constraint Inference
+
+Pipeline can infer and apply lightweight constraints after deduplication.
+
+```yaml
+# extraction/conf/config.yaml
+enable_rule_constraints: true
+```
+
+Generated output includes:
+
+- `rule_profile`: inferred rules
+- `rule_validation_summary`: pass/fail node counts
+- `nodes[*].rule_validation`: per-node violations
+
+This is designed for later translation to SHACL/Neo4j governance flows.
+
 ---
 
 ## Development
@@ -271,6 +293,8 @@ docker exec extraction-service python demos/data_mesh_mock.py
 
 See [CLAUDE.md](CLAUDE.md) for coding rules, patterns, and module reference.
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed architecture.
+See [docs/ADD_PLAYBOOK.md](docs/ADD_PLAYBOOK.md) for agent-driven delivery workflow.
+See [docs/CONTEXT_GRAPH_BLUEPRINT.md](docs/CONTEXT_GRAPH_BLUEPRINT.md) for context graph rollout.
 
 ---
 

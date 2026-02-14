@@ -18,6 +18,11 @@ Each entry must link to a full ADR when impact is non-trivial.
   - introduce DozerDB-first config aliases
   - keep ontology reasoning out of request hot path
 
+- Accepted docs restructure (no ADR)
+  - separate active docs and archive docs
+  - add explicit workflow doc for control plane/data plane visibility
+  - make README the primary entry with workflow and doc map links
+
 ## Template
 
 Use this block for new entries:

@@ -4,6 +4,38 @@
 
 SEOCHO는 비정형 데이터를 Knowledge Graph로 변환하고, 동적으로 생성되는 DB별 Agent Pool이 Parallel Debate 패턴으로 질의에 응답하는 플랫폼입니다.
 
+Current baseline:
+
+- Agent runtime: OpenAI Agents SDK
+- Trace/evaluation: Opik
+- Graph backend: DozerDB (Neo4j protocol compatible)
+
+## Control Plane vs Data Plane
+
+### Control Plane
+
+- agent orchestration and routing policies
+- runtime authorization policy enforcement
+- deployment quality gates and ADR governance
+
+Primary modules:
+
+- `extraction/agent_server.py`
+- `extraction/policy.py`
+- `docs/decisions/`
+
+### Data Plane
+
+- data ingestion and extraction pipeline
+- SHACL-like rule inference and validation
+- graph loading/query execution on DozerDB
+
+Primary modules:
+
+- `extraction/pipeline.py`
+- `extraction/rule_constraints.py`
+- `extraction/graph_loader.py`
+
 ## End-to-End Data Flow
 
 ```

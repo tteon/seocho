@@ -3,9 +3,30 @@
 **Agent-Driven Knowledge Graph Platform**
 
 [![Open Source](https://img.shields.io/badge/Open%20Source-SEOCHO-blue)](https://github.com/tteon/seocho)
-[![Stack](https://img.shields.io/badge/Stack-Neo4j%20|%20FastAPI%20|%20OpenAI%20Agents-orange)]()
+[![Stack](https://img.shields.io/badge/Stack-DozerDB%20|%20FastAPI%20|%20OpenAI%20Agents-orange)]()
 
 SEOCHO transforms unstructured data into structured knowledge graphs and provides dynamic, per-database agent pools with **Parallel Debate** orchestration for multi-perspective reasoning.
+
+## Current Consensus
+
+- Runtime: **OpenAI Agents SDK**
+- Trace/Eval: **Opik**
+- Graph DB: **DozerDB** (fixed)
+- Tenancy: **Single-tenant MVP**, with `workspace_id` propagated for future expansion
+
+## Planes
+
+### Control Plane
+
+- Agent routing/instructions and runtime policies
+- Deployment and quality gates
+- Decision governance (`docs/decisions/*`)
+
+### Data Plane
+
+- Ingestion/extraction/linking/dedup
+- SHACL-like rule inference and validation
+- Graph load/query against DozerDB
 
 ---
 
@@ -201,7 +222,8 @@ seocho/
 ```json
 {
   "query": "What companies are in the financial ontology?",
-  "user_id": "user_default"
+  "user_id": "user_default",
+  "workspace_id": "default"
 }
 ```
 
@@ -293,9 +315,11 @@ docker exec extraction-service python demos/data_mesh_mock.py
 
 See [CLAUDE.md](CLAUDE.md) for coding rules, patterns, and module reference.
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed architecture.
+See [docs/WORKFLOW.md](docs/WORKFLOW.md) for control/data plane workflow.
 See [docs/ADD_PLAYBOOK.md](docs/ADD_PLAYBOOK.md) for agent-driven delivery workflow.
 See [docs/CONTEXT_GRAPH_BLUEPRINT.md](docs/CONTEXT_GRAPH_BLUEPRINT.md) for context graph rollout.
 See [docs/decisions/DECISION_LOG.md](docs/decisions/DECISION_LOG.md) for architecture decision history.
+See [docs/README.md](docs/README.md) for active-vs-archive doc map.
 
 ---
 

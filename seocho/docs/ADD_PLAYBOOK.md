@@ -45,3 +45,13 @@ When unexpected state appears:
 - Reopen rate.
 - Number of hotfixes per week.
 - % of changes with automated validation.
+
+## 8. Context Graph Adoption
+
+- Use `docs/CONTEXT_GRAPH_BLUEPRINT.md` as the source of truth for schema and rollout.
+- Every task should leave a machine-verifiable trail:
+  - issue transition,
+  - execution artifacts,
+  - validation result,
+  - landing status.
+- Prefer script-level event capture over manual notes to reduce drift.

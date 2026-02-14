@@ -51,3 +51,4 @@ scripts/gt-land.sh --rig seocho
 - `AGENTS.md`: execution rules for coding agents.
 - `docs/ADD_PLAYBOOK.md`: full operating model.
 - `docs/TASK_TEMPLATE.md`: reusable task brief format.
+- `docs/CONTEXT_GRAPH_BLUEPRINT.md`: context graph architecture and rollout plan.

@@ -9,10 +9,16 @@ import os
 import re
 import logging
 
-# Neo4j connection settings
-NEO4J_URI = os.getenv("NEO4J_URI", "bolt://neo4j:7687")
-NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
-NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "password")
+# DozerDB connection settings (primary)
+# Keep NEO4J_* aliases for compatibility because DozerDB is Neo4j-protocol compatible.
+DOZERDB_URI = os.getenv("DOZERDB_URI", os.getenv("NEO4J_URI", "bolt://neo4j:7687"))
+DOZERDB_USER = os.getenv("DOZERDB_USER", os.getenv("NEO4J_USER", "neo4j"))
+DOZERDB_PASSWORD = os.getenv("DOZERDB_PASSWORD", os.getenv("NEO4J_PASSWORD", "password"))
+
+# Backward-compatible aliases used by existing modules
+NEO4J_URI = DOZERDB_URI
+NEO4J_USER = DOZERDB_USER
+NEO4J_PASSWORD = DOZERDB_PASSWORD
 
 # Opik observability settings
 OPIK_URL = os.getenv("OPIK_URL_OVERRIDE", "")

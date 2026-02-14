@@ -26,6 +26,7 @@ from exceptions import (
 )
 from middleware import RequestIDMiddleware
 from tracing import configure_opik, track, update_current_span, update_current_trace
+from policy import require_runtime_permission
 
 logger = logging.getLogger(__name__)
 
@@ -97,6 +98,7 @@ async def _startup():
 @dataclass
 class ServerContext:
     user_id: str
+    workspace_id: str = "default"
     trace_path: List[str] = field(default_factory=list)
     last_query: str = ""
     shared_memory: Optional[SharedMemory] = None
@@ -299,6 +301,7 @@ JSON object with `target_agent` and `reasoning`.
 class QueryRequest(BaseModel):
     query: str = Field(..., max_length=2000)
     user_id: str = "user_default"
+    workspace_id: str = Field(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$")
 
 class AgentResponse(BaseModel):
     response: str
@@ -317,13 +320,25 @@ class DebateResponse(BaseModel):
 @track("agent_server.run_agent")
 async def run_agent(request: QueryRequest):
     """Legacy single-router endpoint."""
+    try:
+        require_runtime_permission(role="user", action="run_agent", workspace_id=request.workspace_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
     update_current_trace(
-        metadata={"user_id": request.user_id, "query": request.query[:200]},
+        metadata={
+            "user_id": request.user_id,
+            "workspace_id": request.workspace_id,
+            "query": request.query[:200],
+        },
         tags=["router-mode"],
     )
-    update_current_span(metadata={"mode": "router", "user_id": request.user_id})
+    update_current_span(
+        metadata={"mode": "router", "user_id": request.user_id, "workspace_id": request.workspace_id}
+    )
     srv_context = ServerContext(
         user_id=request.user_id,
+        workspace_id=request.workspace_id,
         last_query=request.query,
         shared_memory=SharedMemory(),
     )
@@ -386,16 +401,28 @@ async def run_agent(request: QueryRequest):
 @track("agent_server.run_debate")
 async def run_debate(request: QueryRequest):
     """Parallel Debate endpoint: all DB agents answer in parallel, Supervisor synthesises."""
+    try:
+        require_runtime_permission(role="user", action="run_debate", workspace_id=request.workspace_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
     update_current_trace(
-        metadata={"user_id": request.user_id, "query": request.query[:200]},
+        metadata={
+            "user_id": request.user_id,
+            "workspace_id": request.workspace_id,
+            "query": request.query[:200],
+        },
         tags=["debate-mode"],
     )
-    update_current_span(metadata={"mode": "debate", "user_id": request.user_id})
+    update_current_span(
+        metadata={"mode": "debate", "user_id": request.user_id, "workspace_id": request.workspace_id}
+    )
     from debate import DebateOrchestrator
 
     memory = SharedMemory()
     srv_context = ServerContext(
         user_id=request.user_id,
+        workspace_id=request.workspace_id,
         last_query=request.query,
         shared_memory=memory,
     )

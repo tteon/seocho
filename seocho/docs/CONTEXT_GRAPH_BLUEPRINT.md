@@ -1,141 +1,257 @@
 # Context Graph Blueprint For SEOCHO
 
-## 1. Why This Matters
+This document maps context graph concepts to SEOCHO's actual operating model.
+The goal is not "graph for graph's sake", but reliable agent execution at scale.
 
-Context graphs are not just storage. They are the runtime control surface that decides:
+## 1. Problem Statement
 
-- what an agent sees,
-- what it is allowed to do,
-- what memory is durable vs ephemeral,
-- and how decisions are audited.
+SEOCHO already has:
 
-For SEOCHO, this becomes the backbone of agent-driven development rather than an optional RAG add-on.
+- issue state (`bd`),
+- execution surfaces (`crew`, `mayor`, `refinery`, `witness`),
+- operational scripts (`ops-check`, `gt-land`).
 
-## 2. Core Framing
+What is missing is a single machine-readable trace that links:
 
-Adopting the two-article framing in SEOCHO terms:
+- intent (why action happened),
+- execution (what changed),
+- validation (what passed/failed),
+- authority (what policy allowed it),
+- delivery (what was landed).
 
-- Two clocks:
-  - Fast clock: per-task interaction (prompting, tool calls, handoff, checks).
-  - Slow clock: schema, ontology, policy, quality gate evolution.
-- Coordinate systems:
-  - Identity: who acted (human/agent/service).
-  - Time: when context was valid and when it changed.
-  - Intent: which issue/task/goal the action belongs to.
-  - Authority: what policy allowed or blocked the action.
-  - Provenance: where facts came from and whether they were verified.
+That trace is the context graph.
 
-## 3. SEOCHO Mapping
+## 2. Operating Model: Two Clocks
 
-### 3.1 Control Plane (Slow Clock)
+### 2.1 Fast Clock (Per Task / Per Run)
 
-- `seocho/mayor/rig/`: canonical policy + orchestration context.
-- `seocho/refinery/rig/`: readiness, merge, and verification orchestration.
-- `seocho/docs/`: operational protocol and policy docs.
+Handles day-to-day work:
 
-Slow-clock responsibilities:
+- claim issue,
+- run commands,
+- edit files,
+- validate,
+- land.
 
-- context schema versioning,
-- policy updates (what agents can read/write/execute),
-- quality gate definitions and thresholds,
-- migration rules for graph and metadata.
+Primary concern: latency and reliability of execution.
 
-### 3.2 Data Plane (Fast Clock)
+### 2.2 Slow Clock (Weekly / Release Cadence)
 
-- `seocho/crew/hardy/`: human and agent execution surface.
-- `scripts/ops-check.sh`, `scripts/gt-land.sh`: operational signals and landing traces.
-- issue tracking (`bd`): intent and status transitions.
+Handles model/policy evolution:
 
-Fast-clock responsibilities:
+- schema version changes,
+- gate threshold changes,
+- policy and permissions updates,
+- retrospective metrics.
 
-- bind each action to an issue/task ID,
-- capture command, result, artifact, and decision edge,
-- keep short-lived working context separate from durable memory.
+Primary concern: correctness and governance over time.
 
-## 4. Minimum Context Graph Schema (v0)
+## 3. Coordinate System For Context
 
-### Node Types
+Every event or edge should be explainable through:
 
-- `Task`: issue-level unit (`bd` issue).
-- `Run`: one execution slice in a session.
-- `Artifact`: files, logs, patches, test reports.
-- `Decision`: accepted/rejected path with rationale.
-- `Policy`: rule or gate in effect.
-- `Actor`: human, agent, automation process.
+- `identity`: who acted (`human`, `agent`, `service`),
+- `time`: when it started/ended and when it became invalid,
+- `intent`: linked issue/task and expected outcome,
+- `authority`: policy/check that allowed or blocked it,
+- `provenance`: source command/file/commit/log.
 
-### Edge Types
+If one axis is missing, the event is incomplete.
+
+## 4. SEOCHO Surface Mapping
+
+### 4.1 Control Plane (Slow Clock)
+
+- `seocho/mayor/rig/`: canonical orchestration and policy anchor.
+- `seocho/refinery/rig/`: readiness and merge policy enforcement.
+- `seocho/docs/`: policy + protocol definitions.
+
+### 4.2 Data Plane (Fast Clock)
+
+- `seocho/crew/hardy/`: execution workspace.
+- `scripts/ops-check.sh`: operational snapshot signal.
+- `scripts/gt-land.sh`: landing event signal.
+- `.beads/issues.jsonl`: issue state timeline.
+
+## 5. Graph Schema v0
+
+### 5.1 Node Types
+
+- `Task`: `bd` issue.
+- `Run`: one bounded execution attempt.
+- `Artifact`: file/log/test report/patch.
+- `Decision`: accepted/rejected choice.
+- `GateResult`: pass/fail for a named gate.
+- `Policy`: rule in force.
+- `Actor`: human/agent/automation identity.
+
+### 5.2 Edge Types
 
 - `Actor -> Task`: `owns`, `assists`, `reviews`
-- `Run -> Task`: `implements`, `validates`
+- `Run -> Task`: `implements`, `validates`, `lands`
 - `Run -> Artifact`: `produced`, `modified`, `consumed`
+- `Run -> GateResult`: `evaluated_by`
+- `Policy -> GateResult`: `defines`
 - `Decision -> Artifact`: `approves`, `rejects`, `depends_on`
-- `Policy -> Run`: `constrains`, `permits`, `blocks`
 - `Artifact -> Artifact`: `derived_from`
 
-### Required Properties
+### 5.3 Required Properties
 
-- `id` (stable)
-- `ts_start`, `ts_end` (ISO 8601)
-- `scope` (`crew`, `mayor`, `refinery`, `witness`, `town`)
-- `confidence` (0.0-1.0 for extracted/inferred links)
-- `source_ref` (command, file path, issue ID, commit SHA)
+- `id`: stable UUID/string
+- `kind`: node/edge subtype
+- `ts_start`, `ts_end`: ISO8601 UTC
+- `scope`: `crew|mayor|refinery|witness|town`
+- `task_id`: issue ID when applicable (example: `hq-xxa`)
+- `run_id`: execution correlation ID
+- `source_ref`: command, file path, commit SHA, or issue URL
+- `confidence`: `0.0-1.0` for inferred links
+- `schema_version`: current schema tag (example: `cg.v0`)
 
-## 5. Execution Loops
+## 6. Canonical Event Contract (JSON)
 
-### 5.1 Fast Loop (Per Task)
+Event stream should be append-only and normalized.
 
-1. Claim task (`bd update ... in_progress`).
-2. Start `Run` node with actor + environment snapshot.
-3. Execute changes and checks.
-4. Store produced artifacts and decision links.
-5. Close with test result + landing result + push confirmation.
+Example event:
 
-### 5.2 Slow Loop (Weekly/Release)
+```json
+{
+  "schema_version": "cg.v0",
+  "event_id": "evt_20260214_223602_001",
+  "run_id": "run_hq-xxa_20260214T2235Z",
+  "task_id": "hq-xxa",
+  "event_type": "gate_result",
+  "actor": {
+    "type": "agent",
+    "id": "codex"
+  },
+  "scope": "town",
+  "timestamp": "2026-02-14T22:36:02Z",
+  "payload": {
+    "gate": "ops_check",
+    "status": "failed",
+    "command": "scripts/ops-check.sh --rig seocho",
+    "exit_code": 1
+  },
+  "source_ref": "logs/ops/raw/20260214T143606Z.log"
+}
+```
 
-1. Review failure/reopen/hotfix clusters from graph.
-2. Update policies and gates.
-3. Migrate schema/version as needed.
-4. Validate regressions in trace completeness and reproducibility.
+Required `event_type` set (v0):
 
-## 6. Semi-Automation Design (Immediate)
+- `task_claimed`
+- `task_closed`
+- `run_started`
+- `run_finished`
+- `artifact_changed`
+- `gate_result`
+- `landing_result`
+- `decision_recorded`
 
-### 6.1 What To Auto-Capture First
+## 7. Execution Loops
 
-- command summaries (`gt doctor`, test/lint/build commands),
-- issue transitions (`ready` -> `in_progress` -> `closed`),
-- landing events (pull/rebase/sync/push),
-- produced logs and changed files.
+### 7.1 Fast Loop (Task-Level)
 
-### 6.2 How To Integrate With Existing Scripts
+1. Claim task (`bd update ... in_progress`)
+2. Emit `run_started`
+3. Execute and emit `artifact_changed`
+4. Run gates and emit `gate_result`
+5. Land and emit `landing_result`
+6. Emit `run_finished`
 
-- Extend `scripts/ops-check.sh` to emit structured JSON summary.
-- Extend `scripts/gt-land.sh` to write a `Run` record on success/failure.
-- Add a lightweight `scripts/context-log.sh` to append normalized events.
+### 7.2 Slow Loop (Weekly Governance)
 
-## 7. Quality Gates For Context Graph Adoption
+1. Analyze reopen/hotfix clusters by task and subsystem
+2. Tune gate and policy thresholds
+3. Migrate schema if event fields are insufficient
+4. Publish policy updates in docs and enforcement scripts
 
-Phase 1 gates:
+## 8. Script Integration Plan
 
-- every merged task has linked issue ID and check artifact,
-- landing status is machine-verifiable,
-- no credential or machine-local path leaks in stored context.
+### 8.1 `scripts/ops-check.sh`
 
-Phase 2 gates:
+Add:
 
-- provenance coverage for key decisions >= 90%,
-- reproducible run rate >= 85%,
-- reopen rate trend decreasing over rolling 4 weeks.
+- machine-readable summary output (JSON line),
+- optional `--task-id` and `--run-id`,
+- stable location for exported records.
 
-## 8. Rollout Plan
+### 8.2 `scripts/gt-land.sh`
 
-1. Week 1: schema v0 + JSON capture in existing scripts.
-2. Week 2: graph materialization job and simple query dashboard.
-3. Week 3: policy checks wired to merge readiness.
-4. Week 4: retrospective and schema v1 adjustments.
+Add:
 
-## 9. Immediate Next Tasks
+- structured landing result (`pull`, `rebase`, `sync`, `push`),
+- explicit failure reason classification,
+- final event containing branch sync status.
 
-- define canonical event JSON schema,
-- patch `ops-check` and `gt-land` emitters,
-- add one command to inspect latest task context trail,
-- add playbook section for context graph debugging.
+### 8.3 New `scripts/context-log.sh`
+
+Responsibilities:
+
+- validate required event fields,
+- append JSONL record,
+- reject secrets/token patterns,
+- fail closed on malformed payload.
+
+## 9. Query Patterns (What We Should Ask)
+
+Operational queries:
+
+- "Which tasks closed without any successful gate?"
+- "Which runs touched policy-sensitive paths?"
+- "Which reopened issues had failed ops gate before close?"
+- "Which actor identities produce highest rework rate?"
+
+Release queries:
+
+- "Coverage of landing_result over all closed tasks"
+- "Mean lead time by subsystem"
+- "Top failure reasons for push/rebase"
+
+## 10. Quality Gates For Adoption
+
+Phase 1:
+
+- 100% of closed tasks have `task_id`-linked validation artifact
+- 100% of merged tasks have landing result record
+- 0 leaked credentials in context logs
+
+Phase 2:
+
+- provenance coverage for decisions >= 90%
+- reproducible run rate >= 85%
+- reopen rate trending down over rolling 4 weeks
+
+## 11. Security And Data Hygiene
+
+- Never store raw tokens/secrets in event payload.
+- Mask machine-local absolute paths when not needed.
+- Keep context logs append-only and auditable.
+- Separate runtime cache from durable context records.
+
+## 12. Rollout Plan (4 Weeks)
+
+1. Week 1
+- freeze schema v0
+- add JSON emission to `ops-check` and `gt-land`
+- start collecting baseline events
+
+2. Week 2
+- materialize graph from JSONL
+- add minimal dashboard or query script
+- validate event completeness
+
+3. Week 3
+- wire policy checks into merge/readiness path
+- fail build for missing mandatory event links
+
+4. Week 4
+- retrospective on data quality
+- adjust schema to `cg.v1`
+- update playbook and scripts
+
+## 13. Immediate Backlog
+
+- define canonical event schema issue
+- implement script emitters
+- add context trail inspection command
+- add context graph debugging section in playbook

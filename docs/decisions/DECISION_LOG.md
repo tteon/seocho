@@ -30,6 +30,11 @@ Each entry must link to a full ADR when impact is non-trivial.
   - enforce runtime permission actions for rules APIs
   - keep workspace-aware request contract
 
+- Accepted `ADR-0004-rule-profile-lifecycle-and-cypher-export.md`
+  - add rule profile save/list/get APIs
+  - add DozerDB Cypher export API for rule profiles
+  - return unsupported mapping kinds explicitly in export response
+
 ## Template
 
 Use this block for new entries:

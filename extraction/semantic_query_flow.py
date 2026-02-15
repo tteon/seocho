@@ -636,10 +636,16 @@ class SemanticAgentFlow:
         self.rdf_agent = RDFAgent(connector)
         self.answer_agent = AnswerGenerationAgent()
 
-    def run(self, question: str, databases: Sequence[str]) -> Dict[str, Any]:
+    def run(
+        self,
+        question: str,
+        databases: Sequence[str],
+        entity_overrides: Optional[Dict[str, Dict[str, Any]]] = None,
+    ) -> Dict[str, Any]:
         trace_steps: List[Dict[str, Any]] = []
 
         semantic_context = self.resolver.resolve(question, databases)
+        self._apply_entity_overrides(semantic_context, entity_overrides or {})
         trace_steps.append(
             {
                 "id": "0",
@@ -649,6 +655,9 @@ class SemanticAgentFlow:
                 "metadata": {
                     "entities": semantic_context.get("entities", []),
                     "unresolved_entities": semantic_context.get("unresolved_entities", []),
+                    "overrides_applied": sorted(
+                        list(semantic_context.get("overrides_applied", {}).keys())
+                    ),
                 },
             }
         )
@@ -716,3 +725,55 @@ class SemanticAgentFlow:
             "lpg_result": lpg_result,
             "rdf_result": rdf_result,
         }
+
+    @staticmethod
+    def _apply_entity_overrides(
+        semantic_context: Dict[str, Any],
+        entity_overrides: Dict[str, Dict[str, Any]],
+    ) -> None:
+        if not entity_overrides:
+            return
+
+        matches = semantic_context.setdefault("matches", {})
+        unresolved = set(semantic_context.get("unresolved_entities", []))
+        applied: Dict[str, Dict[str, Any]] = {}
+
+        for question_entity, override in entity_overrides.items():
+            if not question_entity:
+                continue
+
+            db_name = override.get("database")
+            node_id = override.get("node_id")
+            if db_name is None or node_id is None:
+                continue
+
+            candidate = {
+                "database": str(db_name),
+                "entity_text": question_entity,
+                "node_id": node_id,
+                "labels": override.get("labels", []),
+                "display_name": override.get("display_name", question_entity),
+                "base_score": 1.0,
+                "source": "override",
+                "index_name": None,
+                "lexical_score": 1.0,
+                "label_boost": 0.0,
+                "alias_boost": 0.0,
+                "final_score": 10.0,
+            }
+
+            existing = matches.get(question_entity, [])
+            matches[question_entity] = [candidate] + [
+                row for row in existing
+                if not (row.get("database") == candidate["database"] and row.get("node_id") == candidate["node_id"])
+            ]
+            unresolved.discard(question_entity)
+            applied[question_entity] = {
+                "database": candidate["database"],
+                "node_id": candidate["node_id"],
+                "display_name": candidate["display_name"],
+            }
+
+        semantic_context["unresolved_entities"] = sorted(unresolved)
+        if applied:
+            semantic_context["overrides_applied"] = applied

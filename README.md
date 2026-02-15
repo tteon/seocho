@@ -125,6 +125,11 @@ curl -X POST http://localhost:8001/indexes/fulltext/ensure \
     "index_name": "entity_fulltext",
     "create_if_missing": true
   }'
+
+# (Optional) Build ontology hints from OWL for semantic reranking
+python scripts/ontology/build_ontology_hints.py \
+  --ontology ./path/to/domain.owl \
+  --output output/ontology_hints.json
 ```
 
 ---
@@ -281,7 +286,15 @@ seocho/
 {
   "query": "What is Neo4j connected to?",
   "workspace_id": "default",
-  "databases": ["kgnormal", "kgfibo"]
+  "databases": ["kgnormal", "kgfibo"],
+  "entity_overrides": [
+    {
+      "question_entity": "Neo4j",
+      "database": "kgnormal",
+      "node_id": 101,
+      "display_name": "Neo4j"
+    }
+  ]
 }
 ```
 

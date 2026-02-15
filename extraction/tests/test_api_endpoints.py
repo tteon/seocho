@@ -73,6 +73,38 @@ class TestListEndpoints:
             data = response.json()
             assert data["route"] == "lpg"
 
+    def test_run_agent_semantic_with_overrides(self, client):
+        if client is None:
+            pytest.skip("client not available")
+        with patch("agent_server.semantic_agent_flow.run") as mock_run:
+            mock_run.return_value = {
+                "response": "Route selected: LPG.",
+                "trace_steps": [],
+                "route": "lpg",
+                "semantic_context": {
+                    "entities": ["Neo4j"],
+                    "matches": {"Neo4j": [{"source": "override"}]},
+                    "unresolved_entities": [],
+                    "overrides_applied": {"Neo4j": {"database": "kgnormal", "node_id": 1}},
+                },
+                "lpg_result": {"mode": "lpg", "summary": "", "records": []},
+                "rdf_result": None,
+            }
+            response = client.post(
+                "/run_agent_semantic",
+                json={
+                    "query": "Tell me about Neo4j",
+                    "workspace_id": "default",
+                    "databases": ["kgnormal"],
+                    "entity_overrides": [
+                        {"question_entity": "Neo4j", "database": "kgnormal", "node_id": 1}
+                    ],
+                },
+            )
+            assert response.status_code == 200
+            payload = response.json()
+            assert "overrides_applied" in payload["semantic_context"]
+
     def test_fulltext_ensure_endpoint(self, client):
         if client is None:
             pytest.skip("client not available")

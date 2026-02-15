@@ -68,6 +68,9 @@ Use **Execution Mode** selector:
 - `Router`: legacy single-route flow
 - `Debate`: parallel multi-agent flow
 - `Semantic`: entity extraction/fulltext resolution -> LPG/RDF specialists
+- Semantic mode includes candidate disambiguation UI:
+  - select entity candidates in right panel
+  - click `Re-run with selected entities`
 
 ### Via API
 
@@ -100,6 +103,11 @@ curl -X POST http://localhost:8001/indexes/fulltext/ensure \
     "index_name":"entity_fulltext",
     "create_if_missing":true
   }'
+
+# Optional: build ontology hints from OWL (offline)
+python scripts/ontology/build_ontology_hints.py \
+  --ontology ./path/to/domain.owl \
+  --output output/ontology_hints.json
 ```
 
 ---

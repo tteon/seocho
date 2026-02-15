@@ -112,6 +112,17 @@ This route runs:
 - semantic dedup/disambiguation
 - router -> LPG/RDF specialist -> answer generation
 
+Optional (offline ontology hint artifact):
+
+```bash
+python scripts/ontology/build_ontology_hints.py \
+  --ontology ./path/to/domain.owl \
+  --output output/ontology_hints.json
+```
+
+Once generated, semantic reranking auto-loads hints from `output/ontology_hints.json`
+or `ONTOLOGY_HINTS_PATH`.
+
 ## 4. Rule Lifecycle Tutorial (Core New Feature)
 
 ## 4.1 Infer rule profile from graph payload

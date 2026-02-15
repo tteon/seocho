@@ -69,6 +69,11 @@ Each entry must link to a full ADR when impact is non-trivial.
   - consume offline ontology hints for alias/label-aware reranking
   - expose semantic execution mode in Agent Studio
 
+- Accepted `ADR-0012-semantic-override-loop-and-offline-owlready2-hints.md`
+  - add `entity_overrides` contract to `/run_agent_semantic`
+  - add Agent Studio candidate selection + rerun loop
+  - add owlready2 offline hint builder script
+
 ## Template
 
 Use this block for new entries:

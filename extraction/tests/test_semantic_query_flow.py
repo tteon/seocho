@@ -117,3 +117,24 @@ def test_resolve_applies_ontology_alias_hint(tmp_path, monkeypatch):
 
     assert result["alias_resolved"]["Neo4-j"] == "Neo4j"
     assert "database" in result["label_hints"]
+
+
+def test_semantic_agent_flow_applies_entity_overrides():
+    flow = SemanticAgentFlow(FakeConnector())
+    result = flow.run(
+        question="What is Neo4j connected to?",
+        databases=["kgnormal"],
+        entity_overrides={
+            "Neo4j": {
+                "database": "kgnormal",
+                "node_id": 777,
+                "display_name": "Neo4j Override",
+                "labels": ["Database"],
+            }
+        },
+    )
+
+    applied = result["semantic_context"].get("overrides_applied", {})
+    assert "Neo4j" in applied
+    assert applied["Neo4j"]["node_id"] == 777
+    assert result["semantic_context"]["matches"]["Neo4j"][0]["source"] == "override"

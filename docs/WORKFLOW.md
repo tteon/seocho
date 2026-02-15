@@ -60,8 +60,17 @@ Primary surfaces:
 
 3. Agent execution
 - run `/run_agent` or `/run_debate`
+- for query-time entity disambiguation, run `/run_agent_semantic`
 - enforce runtime policy checks
 - capture traces in Opik
+
+Semantic path summary:
+
+- semantic layer extracts entities from question
+- fulltext search resolves graph entity candidates
+- dedup/disambiguation reranks candidates
+- router dispatches to LPG or RDF specialist agent
+- answer generation agent synthesizes final response
 
 4. Validation and landing
 - run code and ops gates

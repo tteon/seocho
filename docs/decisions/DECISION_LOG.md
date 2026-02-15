@@ -59,6 +59,11 @@ Each entry must link to a full ADR when impact is non-trivial.
   - update docs index archive status
   - ignore local scratch/nested workspace directories
 
+- Accepted `ADR-0010-semantic-agent-flow-with-fulltext-entity-resolution.md`
+  - add `/run_agent_semantic` for query-time entity disambiguation path
+  - adopt 4-agent query flow (Router/LPG/RDF/AnswerGeneration)
+  - standardize fulltext-first entity resolution with semantic reranking
+
 ## Template
 
 Use this block for new entries:

@@ -331,10 +331,22 @@ class QueryRequest(BaseModel):
     workspace_id: str = Field(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$")
 
 
+class EntityOverride(BaseModel):
+    question_entity: str = Field(..., min_length=1, max_length=256)
+    database: str = Field(..., min_length=1, max_length=64)
+    node_id: int
+    display_name: Optional[str] = None
+    labels: List[str] = Field(default_factory=list)
+
+
 class SemanticQueryRequest(QueryRequest):
     databases: Optional[List[str]] = Field(
         default=None,
         description="Optional list of target databases for semantic entity resolution.",
+    )
+    entity_overrides: Optional[List[EntityOverride]] = Field(
+        default=None,
+        description="Optional fixed entity mapping from UI-assisted disambiguation.",
     )
 
 
@@ -516,6 +528,26 @@ async def run_agent_semantic(request: SemanticQueryRequest):
     if not valid_dbs:
         raise HTTPException(status_code=400, detail="No target databases available.")
 
+    overrides_by_entity: Dict[str, Dict[str, Any]] = {}
+    for item in request.entity_overrides or []:
+        question_entity = str(item.question_entity).strip()
+        database = str(item.database).strip()
+        if not question_entity:
+            raise HTTPException(status_code=400, detail="entity_overrides[].question_entity is required")
+        if not database:
+            raise HTTPException(status_code=400, detail="entity_overrides[].database is required")
+        if database not in valid_dbs:
+            raise HTTPException(
+                status_code=400,
+                detail=f"entity_overrides contains database '{database}' outside requested databases {valid_dbs}",
+            )
+        overrides_by_entity[question_entity] = {
+            "database": database,
+            "node_id": item.node_id,
+            "display_name": item.display_name,
+            "labels": item.labels,
+        }
+
     update_current_trace(
         metadata={
             "user_id": request.user_id,
@@ -535,7 +567,11 @@ async def run_agent_semantic(request: SemanticQueryRequest):
     )
 
     try:
-        result = semantic_agent_flow.run(question=request.query, databases=valid_dbs)
+        result = semantic_agent_flow.run(
+            question=request.query,
+            databases=valid_dbs,
+            entity_overrides=overrides_by_entity,
+        )
         return SemanticAgentResponse(**result)
     except SeochoError:
         raise

@@ -186,6 +186,7 @@ User → SemanticLayer → RouterAgent → {LPGAgent | RDFAgent | both} → Answ
   - contains-based fallback search
   - optional ontology-hint alias/label boost from offline artifact (`output/ontology_hints.json`)
   - lightweight semantic dedup/disambiguation
+- frontend can pin candidate mappings and resend as `entity_overrides`
 - route policy:
   - RDF hints (`rdf`, `owl`, `shacl`, `sparql`) → RDFAgent
   - default → LPGAgent
@@ -330,3 +331,7 @@ conf/
 | `/indexes/fulltext/ensure` | POST | Ensure fulltext index exists for semantic routing |
 | `/databases` | GET | List registered databases |
 | `/agents` | GET | List active DB-bound agents |
+
+Offline helper:
+
+- `scripts/ontology/build_ontology_hints.py` builds `output/ontology_hints.json` from OWL via owlready2.

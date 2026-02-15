@@ -36,6 +36,7 @@ Validate sprint labeling:
 ```bash
 scripts/pm/lint-items.sh --sprint 2026-S03
 scripts/pm/sprint-board.sh --sprint 2026-S03
+scripts/pm/lint-agent-docs.sh
 ```
 
 ## 4. Coding Rules

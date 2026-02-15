@@ -48,6 +48,9 @@ Primary surfaces:
 1. Intake
 - define issue scope and acceptance criteria
 - assign `workspace_id`
+- capture work item using standardized scripts:
+  - `scripts/pm/new-issue.sh`
+  - `scripts/pm/new-task.sh`
 
 2. Ingestion and graph build
 - run extraction pipeline
@@ -62,6 +65,7 @@ Primary surfaces:
 
 4. Validation and landing
 - run code and ops gates
+- run sprint label lint (`scripts/pm/lint-items.sh --sprint <id>`)
 - close issue, rebase, sync, push
 - verify branch is up to date with origin
 

@@ -131,6 +131,30 @@ class TestListEndpoints:
             data = response.json()
             assert data["results"][0]["database"] == "kgnormal"
 
+    def test_platform_chat_send_endpoint(self, client):
+        if client is None:
+            pytest.skip("client not available")
+        with patch("agent_server.backend_specialist_agent.execute", new_callable=AsyncMock) as mock_execute:
+            with patch("agent_server.frontend_specialist_agent.build_ui_payload") as mock_ui:
+                mock_execute.return_value = {
+                    "response": "platform response",
+                    "trace_steps": [{"type": "GENERATION", "agent": "A", "content": "x", "metadata": {}}],
+                }
+                mock_ui.return_value = {"cards": [], "trace_summary": {}, "entity_candidates": []}
+                response = client.post(
+                    "/platform/chat/send",
+                    json={
+                        "session_id": "s1",
+                        "message": "hello",
+                        "mode": "semantic",
+                        "workspace_id": "default",
+                    },
+                )
+                assert response.status_code == 200
+                data = response.json()
+                assert data["session_id"] == "s1"
+                assert data["assistant_message"] == "platform response"
+
 
 class TestQueryValidation:
     """Test request validation."""

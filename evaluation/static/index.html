@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Seocho Interactive Platform</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="bg-grid"></div>
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">SEOCHO PLATFORM</p>
+          <h1>Custom Interactive Chat</h1>
+        </div>
+        <div class="status" id="statusPill">Initializing</div>
+      </header>
+
+      <section class="controls">
+        <label>
+          Mode
+          <select id="modeSelect">
+            <option value="semantic">Semantic</option>
+            <option value="debate">Debate</option>
+            <option value="router">Router</option>
+          </select>
+        </label>
+        <label>
+          Workspace
+          <input id="workspaceInput" value="default" />
+        </label>
+        <label>
+          Databases (comma separated)
+          <input id="databasesInput" value="kgnormal,kgfibo" />
+        </label>
+        <button id="resetSessionBtn" class="ghost">Reset Session</button>
+      </section>
+
+      <section class="content">
+        <div class="chat-panel">
+          <div class="chat-log" id="chatLog"></div>
+          <form id="chatForm" class="composer">
+            <textarea id="chatInput" placeholder="Ask anything about your graph..." rows="2"></textarea>
+            <button type="submit" id="sendBtn">Send</button>
+          </form>
+        </div>
+
+        <aside class="side-panel">
+          <div class="panel-card">
+            <h2>Trace Summary</h2>
+            <pre id="traceSummary" class="mono">-</pre>
+          </div>
+          <div class="panel-card">
+            <h2>Entity Disambiguation</h2>
+            <div id="candidateContainer" class="candidate-list"></div>
+            <button id="rerunBtn" class="accent" disabled>Re-run With Selected Candidates</button>
+          </div>
+        </aside>
+      </section>
+    </main>
+
+    <template id="bubbleTemplate">
+      <article class="bubble">
+        <p class="role"></p>
+        <div class="text"></div>
+      </article>
+    </template>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
+

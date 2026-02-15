@@ -88,9 +88,9 @@ cp .env.example .env
 make up
 ```
 
-### 3. Open Agent Studio
+### 3. Open Custom Platform
 
-Go to **http://localhost:8501** — chat with agents and watch the trace flow in real-time.
+Go to **http://localhost:8501** — use the custom interactive chat platform (frontend + backend specialists).
 
 Use **Execution Mode** (`Router`, `Debate`, `Semantic`) to switch runtime path.
 
@@ -138,7 +138,7 @@ python scripts/ontology/build_ontology_hints.py \
 
 | Service | URL |
 |---------|-----|
-| Agent Studio | http://localhost:8501 |
+| Custom Chat Platform | http://localhost:8501 |
 | API Docs (Swagger) | http://localhost:8001/docs |
 | Neo4j Browser | http://localhost:7474 |
 
@@ -171,7 +171,7 @@ make opik-down
 
 ```mermaid
 graph TD
-    User[User] -->|Chat| UI[Agent Studio :8501]
+    User[User] -->|Chat| UI[Custom Platform :8501]
     UI -->|Toggle| Mode{Mode}
 
     Mode -->|Router| Router[Router Agent]
@@ -240,7 +240,7 @@ seocho/
 │   ├── tracing.py             #   Opik integration (opt-in)
 │   ├── ontology/              #   Ontology definitions (base, loaders)
 │   └── conf/                  #   Hydra configs (prompts, schemas)
-├── evaluation/                # Streamlit Agent Studio (PoC demo)
+├── evaluation/                # Custom frontend platform (FastAPI static app)
 ├── semantic/                  # Semantic analysis service
 ├── demos/                     # Agent and tracing demos
 ├── docs/
@@ -263,6 +263,9 @@ seocho/
 | `/run_agent_semantic` | POST | Semantic entity-resolution mode (router/LPG/RDF/answer) |
 | `/run_debate` | POST | Debate mode — all DB agents in parallel |
 | `/indexes/fulltext/ensure` | POST | Ensure fulltext index for semantic entity resolution |
+| `/platform/chat/send` | POST | Custom platform chat endpoint |
+| `/platform/chat/session/{session_id}` | GET | Read platform chat session |
+| `/platform/chat/session/{session_id}` | DELETE | Reset platform chat session |
 | `/rules/infer` | POST | Infer SHACL-like rule profile from graph payload |
 | `/rules/validate` | POST | Validate graph payload against inferred/provided rules |
 | `/rules/profiles` | POST | Save a named rule profile for a workspace |
@@ -295,6 +298,17 @@ seocho/
       "display_name": "Neo4j"
     }
   ]
+}
+```
+
+**Request body** (`/platform/chat/send`):
+```json
+{
+  "session_id": "sess_001",
+  "message": "Neo4j와 GraphRAG 연결을 설명해줘",
+  "mode": "semantic",
+  "workspace_id": "default",
+  "databases": ["kgnormal", "kgfibo"]
 }
 ```
 

@@ -2,8 +2,9 @@ import logging
 import functools
 import json
 import os
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Literal
 from dataclasses import dataclass, field
+from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Request, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -47,6 +48,7 @@ from rule_api import (
 )
 from semantic_query_flow import SemanticAgentFlow
 from fulltext_index import FulltextIndexManager
+from platform_agents import PlatformSessionStore, BackendSpecialistAgent, FrontendSpecialistAgent
 
 logger = logging.getLogger(__name__)
 
@@ -172,6 +174,9 @@ agent_factory = AgentFactory(neo4j_conn)
 faiss_manager = VectorStore(api_key=os.getenv("OPENAI_API_KEY", ""))
 semantic_agent_flow = SemanticAgentFlow(neo4j_conn)
 fulltext_index_manager = FulltextIndexManager(neo4j_conn)
+platform_session_store = PlatformSessionStore()
+backend_specialist_agent = BackendSpecialistAgent()
+frontend_specialist_agent = FrontendSpecialistAgent()
 
 # --- Tools ---
 
@@ -396,6 +401,37 @@ class FulltextIndexEnsureResponse(BaseModel):
     results: List[FulltextIndexEnsureResult]
 
 
+class PlatformChatRequest(BaseModel):
+    session_id: str = Field(default_factory=lambda: uuid4().hex)
+    message: str = Field(..., min_length=1, max_length=2000)
+    mode: Literal["router", "debate", "semantic"] = "semantic"
+    user_id: str = "user_default"
+    workspace_id: str = Field(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$")
+    databases: Optional[List[str]] = None
+    entity_overrides: Optional[List[EntityOverride]] = None
+
+
+class PlatformTurn(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class PlatformChatResponse(BaseModel):
+    session_id: str
+    mode: str
+    assistant_message: str
+    trace_steps: List[Dict[str, Any]]
+    ui_payload: Dict[str, Any]
+    runtime_payload: Dict[str, Any]
+    history: List[PlatformTurn]
+
+
+class PlatformSessionResponse(BaseModel):
+    session_id: str
+    history: List[PlatformTurn]
+
+
 def ensure_fulltext_indexes_impl(request: FulltextIndexEnsureRequest) -> FulltextIndexEnsureResponse:
     target_dbs = request.databases or db_registry.list_databases()
     resolved_dbs: List[str] = []
@@ -424,6 +460,110 @@ def ensure_fulltext_indexes_impl(request: FulltextIndexEnsureRequest) -> Fulltex
 # ------------------------------------------------------------------
 # 4. Endpoints
 # ------------------------------------------------------------------
+
+
+async def _platform_run_router(payload: Dict[str, Any]) -> AgentResponse:
+    req = QueryRequest(
+        query=payload["message"],
+        user_id=payload["user_id"],
+        workspace_id=payload["workspace_id"],
+    )
+    return await run_agent(req)
+
+
+async def _platform_run_debate(payload: Dict[str, Any]) -> DebateResponse:
+    req = QueryRequest(
+        query=payload["message"],
+        user_id=payload["user_id"],
+        workspace_id=payload["workspace_id"],
+    )
+    return await run_debate(req)
+
+
+async def _platform_run_semantic(payload: Dict[str, Any]) -> SemanticAgentResponse:
+    req = SemanticQueryRequest(
+        query=payload["message"],
+        user_id=payload["user_id"],
+        workspace_id=payload["workspace_id"],
+        databases=payload.get("databases"),
+        entity_overrides=payload.get("entity_overrides"),
+    )
+    return await run_agent_semantic(req)
+
+
+@app.post("/platform/chat/send", response_model=PlatformChatResponse)
+@track("agent_server.platform_chat_send")
+async def platform_chat_send(request: PlatformChatRequest):
+    """Custom interactive chat API for the frontend platform."""
+    try:
+        require_runtime_permission(role="user", action="run_platform", workspace_id=request.workspace_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
+    user_payload = {
+        "message": request.message,
+        "mode": request.mode,
+        "user_id": request.user_id,
+        "workspace_id": request.workspace_id,
+        "databases": request.databases,
+        "entity_overrides": request.entity_overrides,
+    }
+
+    platform_session_store.append(
+        session_id=request.session_id,
+        role="user",
+        content=request.message,
+        metadata={"mode": request.mode, "workspace_id": request.workspace_id},
+    )
+
+    try:
+        runtime_payload = await backend_specialist_agent.execute(
+            mode=request.mode,
+            router_runner=_platform_run_router,
+            debate_runner=_platform_run_debate,
+            semantic_runner=_platform_run_semantic,
+            request_payload=user_payload,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Platform execution failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Platform execution failed.")
+
+    assistant_message = str(runtime_payload.get("response", ""))
+    ui_payload = frontend_specialist_agent.build_ui_payload(mode=request.mode, runtime_payload=runtime_payload)
+
+    platform_session_store.append(
+        session_id=request.session_id,
+        role="assistant",
+        content=assistant_message,
+        metadata={"mode": request.mode, "route": runtime_payload.get("route")},
+    )
+    history = [PlatformTurn(**row) for row in platform_session_store.get(request.session_id)]
+
+    return PlatformChatResponse(
+        session_id=request.session_id,
+        mode=request.mode,
+        assistant_message=assistant_message,
+        trace_steps=runtime_payload.get("trace_steps", []),
+        ui_payload=ui_payload,
+        runtime_payload=runtime_payload,
+        history=history,
+    )
+
+
+@app.get("/platform/chat/session/{session_id}", response_model=PlatformSessionResponse)
+@track("agent_server.platform_chat_session_get")
+async def platform_chat_session_get(session_id: str):
+    history = [PlatformTurn(**row) for row in platform_session_store.get(session_id)]
+    return PlatformSessionResponse(session_id=session_id, history=history)
+
+
+@app.delete("/platform/chat/session/{session_id}", response_model=PlatformSessionResponse)
+@track("agent_server.platform_chat_session_reset")
+async def platform_chat_session_reset(session_id: str):
+    platform_session_store.clear(session_id)
+    return PlatformSessionResponse(session_id=session_id, history=[])
 
 @app.post("/run_agent", response_model=AgentResponse)
 @track("agent_server.run_agent")

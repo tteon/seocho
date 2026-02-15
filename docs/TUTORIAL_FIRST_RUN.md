@@ -46,7 +46,7 @@ docker compose ps
 Expected key endpoints:
 
 - Agent API: `http://localhost:8001/docs`
-- Agent Studio: `http://localhost:8501`
+- Custom Platform: `http://localhost:8501`
 - DozerDB Browser: `http://localhost:7474`
 
 ## 3. Smoke Test API

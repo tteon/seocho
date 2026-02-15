@@ -89,3 +89,8 @@ sharepoint/
 
 # Large exports
 kgbuild_export.*
+
+# Local scratch / nested workspaces (do not track)
+daemon/
+gnnllm/
+seocho/

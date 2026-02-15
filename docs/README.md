@@ -18,3 +18,7 @@ This directory is organized into active docs and archived references.
 
 Archived docs are moved under `docs/archive/` when no longer part of current
 operational guidance.
+
+Current archive status:
+
+- no archived docs tracked

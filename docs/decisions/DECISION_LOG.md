@@ -45,6 +45,11 @@ Each entry must link to a full ADR when impact is non-trivial.
   - standardize issue/task capture scripts
   - add sprint board and lint tooling for roadmap execution
 
+- Accepted `ADR-0007-agent-docs-baseline-refresh.md`
+  - refresh `CLAUDE.md` as primary execution contract
+  - refresh `AGENTS.md` as concise operational rules
+  - align docs with current stack and workflow guardrails
+
 ## Template
 
 Use this block for new entries:

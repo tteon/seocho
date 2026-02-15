@@ -203,7 +203,8 @@ seocho/
 │   ├── QUICKSTART.md          #   5-minute setup guide
 │   └── ROADMAP.md             #   Development roadmap
 ├── docker-compose.yml         # Core + Opik (profile: opik)
-├── CLAUDE.md                  # AI agent developer guide (11 rules)
+├── CLAUDE.md                  # AI agent execution guide (source-of-truth workflow)
+├── AGENTS.md                  # concise agent operating rules for this repo
 └── .env.example               # Environment template
 ```
 

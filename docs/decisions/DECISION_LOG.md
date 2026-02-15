@@ -35,6 +35,11 @@ Each entry must link to a full ADR when impact is non-trivial.
   - add DozerDB Cypher export API for rule profiles
   - return unsupported mapping kinds explicitly in export response
 
+- Accepted `ADR-0005-graph-model-selection-for-upload-flow.md`
+  - adopt layered graph representation for upload flow
+  - keep Owlready2 in offline ontology governance path
+  - align retrieval strategy to local/global/query-structured patterns
+
 ## Template
 
 Use this block for new entries:

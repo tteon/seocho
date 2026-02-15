@@ -6,6 +6,7 @@ This directory is organized into active docs and archived references.
 
 - `ARCHITECTURE.md`: system architecture and module map
 - `WORKFLOW.md`: end-to-end operational workflow
+- `GRAPH_MODEL_STRATEGY.md`: graph representation model choices and rollout
 - `ADD_PLAYBOOK.md`: engineering execution and landing procedure
 - `CONTEXT_GRAPH_BLUEPRINT.md`: context event model and rollout
 - `QUICKSTART.md`: setup and local run instructions

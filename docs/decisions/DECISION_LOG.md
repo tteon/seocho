@@ -64,6 +64,11 @@ Each entry must link to a full ADR when impact is non-trivial.
   - adopt 4-agent query flow (Router/LPG/RDF/AnswerGeneration)
   - standardize fulltext-first entity resolution with semantic reranking
 
+- Accepted `ADR-0011-semantic-fulltext-bootstrap-and-ontology-hint-hook.md`
+  - add `/indexes/fulltext/ensure` bootstrap endpoint
+  - consume offline ontology hints for alias/label-aware reranking
+  - expose semantic execution mode in Agent Studio
+
 ## Template
 
 Use this block for new entries:

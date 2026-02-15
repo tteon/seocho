@@ -62,6 +62,9 @@ NODE_STYLES = {
     "THOUGHT":      {"bg": "#fff3e0", "border": "1px solid #ffcc80",  "label": "Thought"},
     "GENERATION":   {"bg": "#e8f5e9", "border": "1px solid #a5d6a7",  "label": "Generation"},
     "TOOL_RESULT":  {"bg": "#f3e5f5", "border": "1px solid #ce93d8",  "label": "Tool Result"},
+    "SEMANTIC":     {"bg": "#e0f7fa", "border": "1px solid #00acc1",  "label": "Semantic"},
+    "ROUTER":       {"bg": "#ede7f6", "border": "1px solid #7e57c2",  "label": "Router"},
+    "SPECIALIST":   {"bg": "#f1f8e9", "border": "1px solid #7cb342",  "label": "Specialist"},
     "FANOUT":       {"bg": "#fff9c4", "border": "2px solid #fbc02d",  "label": "Fan-Out"},
     "DEBATE":       {"bg": "#bbdefb", "border": "2px solid #1976d2",  "label": "Agent"},
     "COLLECT":      {"bg": "#ffe0b2", "border": "2px solid #f57c00",  "label": "Collect"},
@@ -230,10 +233,14 @@ if "trace_version" not in st.session_state:
     st.session_state["trace_version"] = 0
 if "session_id" not in st.session_state:
     st.session_state["session_id"] = str(uuid.uuid4())
-if "use_debate" not in st.session_state:
-    st.session_state["use_debate"] = False
+if "query_mode" not in st.session_state:
+    st.session_state["query_mode"] = "router"
 if "selected_node" not in st.session_state:
     st.session_state["selected_node"] = None
+if "workspace_id" not in st.session_state:
+    st.session_state["workspace_id"] = "default"
+if "semantic_databases" not in st.session_state:
+    st.session_state["semantic_databases"] = "kgnormal,kgfibo"
 
 # Layout
 col1, col2 = st.columns([1, 1], gap="large")
@@ -241,12 +248,35 @@ col1, col2 = st.columns([1, 1], gap="large")
 with col1:
     st.subheader("Conversation")
 
-    # Mode toggle
-    st.session_state["use_debate"] = st.toggle(
-        "Parallel Debate Mode",
-        value=st.session_state["use_debate"],
-        help="Enable to use all DB agents in parallel (Society-of-Mind pattern).",
+    mode_map = {
+        "Router": "router",
+        "Debate": "debate",
+        "Semantic": "semantic",
+    }
+    current_mode_label = next(
+        (label for label, value in mode_map.items() if value == st.session_state["query_mode"]),
+        "Router",
     )
+    selected_mode_label = st.radio(
+        "Execution Mode",
+        options=["Router", "Debate", "Semantic"],
+        index=["Router", "Debate", "Semantic"].index(current_mode_label),
+        horizontal=True,
+        help="Router: default route, Debate: all DB agents in parallel, Semantic: entity resolution + LPG/RDF agents.",
+    )
+    st.session_state["query_mode"] = mode_map[selected_mode_label]
+
+    with st.expander("Runtime Options", expanded=False):
+        st.session_state["workspace_id"] = st.text_input(
+            "workspace_id",
+            value=st.session_state["workspace_id"],
+            help="Single-tenant MVP default is 'default'.",
+        )
+        st.session_state["semantic_databases"] = st.text_input(
+            "Semantic Databases (comma-separated)",
+            value=st.session_state["semantic_databases"],
+            help="Only used in Semantic mode.",
+        )
 
     # Chat Container
     chat_container = st.container(height=600)
@@ -271,10 +301,23 @@ with col1:
                 message_placeholder.markdown("Running...")
 
                 try:
-                    payload = {"query": prompt, "user_id": st.session_state["session_id"]}
+                    payload = {
+                        "query": prompt,
+                        "user_id": st.session_state["session_id"],
+                        "workspace_id": st.session_state["workspace_id"],
+                    }
 
-                    if st.session_state["use_debate"]:
+                    if st.session_state["query_mode"] == "debate":
                         endpoint = f"{API_URL}/run_debate"
+                    elif st.session_state["query_mode"] == "semantic":
+                        endpoint = f"{API_URL}/run_agent_semantic"
+                        dbs = [
+                            token.strip()
+                            for token in st.session_state["semantic_databases"].split(",")
+                            if token.strip()
+                        ]
+                        if dbs:
+                            payload["databases"] = dbs
                     else:
                         endpoint = f"{API_URL}/run_agent"
 
@@ -301,8 +344,10 @@ with col1:
 
 with col2:
     st.subheader("Live Agent Flow")
-    if st.session_state["use_debate"]:
+    if st.session_state["query_mode"] == "debate":
         st.caption("Parallel Debate: fan-out / internal reasoning / collect / synthesize")
+    elif st.session_state["query_mode"] == "semantic":
+        st.caption("Semantic mode: entity extract/dedup/fulltext -> router -> LPG/RDF -> answer generation")
     else:
         st.caption("Automatic visualization of agent execution.")
 

@@ -334,6 +334,7 @@ See [CLAUDE.md](CLAUDE.md) for coding rules, patterns, and module reference.
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed architecture.
 See [docs/WORKFLOW.md](docs/WORKFLOW.md) for control/data plane workflow.
 See [docs/GRAPH_MODEL_STRATEGY.md](docs/GRAPH_MODEL_STRATEGY.md) for graph representation strategy.
+See [docs/ISSUE_TASK_SYSTEM.md](docs/ISSUE_TASK_SYSTEM.md) for sprint/roadmap issue-task operations.
 See [docs/ADD_PLAYBOOK.md](docs/ADD_PLAYBOOK.md) for agent-driven delivery workflow.
 See [docs/CONTEXT_GRAPH_BLUEPRINT.md](docs/CONTEXT_GRAPH_BLUEPRINT.md) for context graph rollout.
 See [docs/decisions/DECISION_LOG.md](docs/decisions/DECISION_LOG.md) for architecture decision history.

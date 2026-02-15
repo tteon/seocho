@@ -41,6 +41,15 @@ make test / make lint / make format   # Quality gates
 make shell                            # Shell into extraction-service
 ```
 
+Issue/task operations:
+
+```bash
+scripts/pm/new-issue.sh ...      # standardized issue capture
+scripts/pm/new-task.sh ...       # standardized task capture
+scripts/pm/sprint-board.sh --sprint 2026-S03
+scripts/pm/lint-items.sh         # enforce required collaboration labels
+```
+
 ## Key Technical Details
 
 1. **Multi-Agent Architecture**: Hierarchical agent system using OpenAI Agents SDK with Router → Specialists → Supervisor pattern

@@ -40,6 +40,11 @@ Each entry must link to a full ADR when impact is non-trivial.
   - keep Owlready2 in offline ontology governance path
   - align retrieval strategy to local/global/query-structured patterns
 
+- Accepted `ADR-0006-issue-task-governance-for-sprints.md`
+  - enforce required collaboration labels on active work items
+  - standardize issue/task capture scripts
+  - add sprint board and lint tooling for roadmap execution
+
 ## Template
 
 Use this block for new entries:

@@ -69,8 +69,9 @@ Use **Execution Mode** selector:
 - `Debate`: parallel multi-agent flow
 - `Semantic`: entity extraction/fulltext resolution -> LPG/RDF specialists
 - Semantic mode includes candidate disambiguation UI:
-  - select entity candidates in right panel
-  - click `Re-run with selected entities`
+  - filter by confidence + search text
+  - pin candidates in right panel
+  - click `Apply Pinned Overrides`
 
 ### Via API
 

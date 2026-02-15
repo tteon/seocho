@@ -3,66 +3,117 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Seocho Interactive Platform</title>
+    <title>Seocho Operations Console</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
-    <div class="bg-grid"></div>
-    <main class="shell">
-      <header class="topbar">
-        <div>
-          <p class="eyebrow">SEOCHO PLATFORM</p>
-          <h1>Custom Interactive Chat</h1>
+    <main class="app-shell">
+      <aside class="rail">
+        <div class="rail-brand">
+          <div class="dot"></div>
+          <p>SEOCHO</p>
         </div>
-        <div class="status" id="statusPill">Initializing</div>
-      </header>
-
-      <section class="controls">
-        <label>
-          Mode
-          <select id="modeSelect">
-            <option value="semantic">Semantic</option>
-            <option value="debate">Debate</option>
-            <option value="router">Router</option>
-          </select>
-        </label>
-        <label>
-          Workspace
-          <input id="workspaceInput" value="default" />
-        </label>
-        <label>
-          Databases (comma separated)
-          <input id="databasesInput" value="kgnormal,kgfibo" />
-        </label>
-        <button id="resetSessionBtn" class="ghost">Reset Session</button>
-      </section>
-
-      <section class="content">
-        <div class="chat-panel">
-          <div class="chat-log" id="chatLog"></div>
-          <form id="chatForm" class="composer">
-            <textarea id="chatInput" placeholder="Ask anything about your graph..." rows="2"></textarea>
-            <button type="submit" id="sendBtn">Send</button>
-          </form>
+        <nav class="rail-nav">
+          <button class="rail-btn active" id="railSemantic" data-mode="semantic">Semantic</button>
+          <button class="rail-btn" id="railDebate" data-mode="debate">Debate</button>
+          <button class="rail-btn" id="railRouter" data-mode="router">Router</button>
+        </nav>
+        <div class="rail-foot">
+          <button id="resetSessionBtn" class="ghost">Reset Session</button>
         </div>
+      </aside>
 
-        <aside class="side-panel">
-          <div class="panel-card">
-            <h2>Trace Summary</h2>
-            <pre id="traceSummary" class="mono">-</pre>
+      <section class="shell">
+        <header class="topbar">
+          <div class="brand">
+            <p class="eyebrow">SEOCHO</p>
+            <h1>Operations Console</h1>
+            <p class="subtext" id="sessionMeta">Session</p>
           </div>
-          <div class="panel-card">
-            <h2>Entity Disambiguation</h2>
-            <div id="candidateContainer" class="candidate-list"></div>
-            <button id="rerunBtn" class="accent" disabled>Re-run With Selected Candidates</button>
+          <div class="status-wrap">
+            <div class="status" id="statusPill">Initializing</div>
           </div>
-        </aside>
+        </header>
+
+        <section class="controls">
+          <label class="control">
+            <span>Mode</span>
+            <select id="modeSelect">
+              <option value="semantic">Semantic</option>
+              <option value="debate">Debate</option>
+              <option value="router">Router</option>
+            </select>
+          </label>
+          <label class="control">
+            <span>Workspace</span>
+            <input id="workspaceInput" value="default" />
+          </label>
+          <label class="control">
+            <span>Databases</span>
+            <input id="databasesInput" value="kgnormal,kgfibo" />
+          </label>
+        </section>
+
+        <section class="content">
+          <div class="chat-panel">
+            <div class="panel-head">
+              <h2>Conversation</h2>
+            </div>
+            <div class="chat-log" id="chatLog"></div>
+            <form id="chatForm" class="composer">
+              <textarea id="chatInput" placeholder="Ask anything about your graph..." rows="2"></textarea>
+              <button type="submit" id="sendBtn">Send</button>
+            </form>
+          </div>
+
+          <aside class="side-panel">
+            <div class="panel-card">
+              <h2>Operations</h2>
+              <pre id="traceSummary" class="mono">-</pre>
+              <div class="ops-tools">
+                <input id="traceSearchInput" placeholder="Search trace..." />
+                <select id="traceTypeFilter">
+                  <option value="">All types</option>
+                </select>
+              </div>
+              <div class="ops-table-wrap">
+                <table class="ops-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Type</th>
+                      <th>Agent</th>
+                      <th>Content</th>
+                    </tr>
+                  </thead>
+                  <tbody id="traceTableBody">
+                    <tr><td colspan="4">No trace yet.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="panel-card">
+              <h2>Entity Disambiguation</h2>
+              <div class="candidate-tools">
+                <input id="candidateSearchInput" placeholder="Filter entities/candidates..." />
+                <label class="range-wrap">
+                  <span>Min score</span>
+                  <input id="candidateScoreFilter" type="range" min="0" max="10" step="0.1" value="0" />
+                  <strong id="candidateScoreValue">0.0</strong>
+                </label>
+              </div>
+              <p class="pin-count" id="candidatePinnedCount">Pinned: 0</p>
+              <div id="candidateContainer" class="candidate-list"></div>
+              <button id="rerunBtn" class="accent" disabled>Apply Pinned Overrides</button>
+            </div>
+          </aside>
+        </section>
       </section>
     </main>
 
@@ -76,4 +127,3 @@
     <script src="/static/app.js"></script>
   </body>
 </html>
-

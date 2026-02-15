@@ -54,6 +54,11 @@ Each entry must link to a full ADR when impact is non-trivial.
   - add `scripts/pm/lint-agent-docs.sh` baseline checks
   - enforce critical agent-doc stack/workflow/link markers
 
+- Accepted `ADR-0009-repository-doc-hygiene-cleanup.md`
+  - remove obsolete archived docs from git tracking
+  - update docs index archive status
+  - ignore local scratch/nested workspace directories
+
 ## Template
 
 Use this block for new entries:

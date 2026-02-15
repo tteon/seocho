@@ -217,6 +217,10 @@ seocho/
 | `/run_debate` | POST | Debate mode — all DB agents in parallel |
 | `/rules/infer` | POST | Infer SHACL-like rule profile from graph payload |
 | `/rules/validate` | POST | Validate graph payload against inferred/provided rules |
+| `/rules/profiles` | POST | Save a named rule profile for a workspace |
+| `/rules/profiles` | GET | List saved rule profiles in a workspace |
+| `/rules/profiles/{profile_id}` | GET | Read one saved rule profile |
+| `/rules/export/cypher` | POST | Export rule profile to DozerDB Cypher constraints |
 | `/databases` | GET | List registered Neo4j databases |
 | `/agents` | GET | List active DB-bound agents |
 

@@ -52,6 +52,7 @@ Primary surfaces:
 2. Ingestion and graph build
 - run extraction pipeline
 - apply SHACL-like rule inference/validation
+- save reusable rule profiles (`/rules/profiles`)
 - load graph into DozerDB
 
 3. Agent execution

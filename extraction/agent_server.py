@@ -5,7 +5,7 @@ import os
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field
 
-from fastapi import FastAPI, HTTPException, Request, Depends
+from fastapi import FastAPI, HTTPException, Request, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
@@ -30,8 +30,18 @@ from policy import require_runtime_permission
 from rule_api import (
     RuleInferRequest,
     RuleInferResponse,
+    RuleProfileCreateRequest,
+    RuleProfileCreateResponse,
+    RuleProfileGetResponse,
+    RuleProfileListResponse,
+    RuleExportCypherRequest,
+    RuleExportCypherResponse,
     RuleValidateRequest,
     RuleValidateResponse,
+    create_rule_profile,
+    read_rule_profile,
+    read_rule_profiles,
+    export_rule_profile_to_cypher,
     infer_rule_profile,
     validate_rule_profile,
 )
@@ -493,3 +503,62 @@ async def rules_validate(request: RuleValidateRequest):
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
     return validate_rule_profile(request)
+
+
+@app.post("/rules/profiles", response_model=RuleProfileCreateResponse)
+@track("agent_server.rules_profiles_create")
+async def rules_profiles_create(request: RuleProfileCreateRequest):
+    """Persist a named rule profile for the workspace."""
+    try:
+        require_runtime_permission(role="user", action="manage_rule_profiles", workspace_id=request.workspace_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    return create_rule_profile(request)
+
+
+@app.get("/rules/profiles", response_model=RuleProfileListResponse)
+@track("agent_server.rules_profiles_list")
+async def rules_profiles_list(
+    workspace_id: str = Query(default="default", regex=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$"),
+):
+    """List saved rule profiles in a workspace."""
+    try:
+        require_runtime_permission(role="user", action="manage_rule_profiles", workspace_id=workspace_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    return read_rule_profiles(workspace_id=workspace_id)
+
+
+@app.get("/rules/profiles/{profile_id}", response_model=RuleProfileGetResponse)
+@track("agent_server.rules_profiles_get")
+async def rules_profiles_get(
+    profile_id: str,
+    workspace_id: str = Query(default="default", regex=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$"),
+):
+    """Read one saved rule profile."""
+    try:
+        require_runtime_permission(role="user", action="manage_rule_profiles", workspace_id=workspace_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
+    try:
+        return read_rule_profile(workspace_id=workspace_id, profile_id=profile_id)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@app.post("/rules/export/cypher", response_model=RuleExportCypherResponse)
+@track("agent_server.rules_export_cypher")
+async def rules_export_cypher(request: RuleExportCypherRequest):
+    """Export rule profile to DozerDB-compatible Cypher constraints."""
+    try:
+        require_runtime_permission(role="user", action="export_rules", workspace_id=request.workspace_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
+    try:
+        return export_rule_profile_to_cypher(request)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))

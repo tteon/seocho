@@ -61,6 +61,7 @@ Primary surfaces:
 3. Agent execution
 - run `/run_agent` or `/run_debate`
 - for query-time entity disambiguation, run `/run_agent_semantic`
+- for custom interactive UX, run `/platform/chat/send`
 - enforce runtime policy checks
 - capture traces in Opik
 

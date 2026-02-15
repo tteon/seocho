@@ -48,7 +48,7 @@ evaluation-interface  running
 
 | Service | URL |
 |---------|-----|
-| **Agent Studio** | http://localhost:8501 |
+| **Custom Chat Platform** | http://localhost:8501 |
 | **API Docs** | http://localhost:8001/docs |
 | **Neo4j Browser** | http://localhost:7474 |
 
@@ -58,11 +58,11 @@ evaluation-interface  running
 
 ## Step 4: Your First Query
 
-### Via Agent Studio (Recommended)
+### Via Custom Platform (Recommended)
 
 1. Open http://localhost:8501
 2. Type: `What databases are available?`
-3. Watch the agent trace flow in real-time
+3. Watch trace + entity disambiguation controls in real-time
 
 Use **Execution Mode** selector:
 - `Router`: legacy single-route flow

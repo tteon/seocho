@@ -135,7 +135,8 @@ Why this path exists:
 | AgentFactory | `extraction/agent_factory.py` | DB별 전용 Agent 동적 생성 |
 | SharedMemory | `extraction/shared_memory.py` | 요청 단위 agent 간 공유 메모리 + query cache |
 | DebateOrchestrator | `extraction/debate.py` | Parallel Debate 패턴 (fan-out → collect → synthesize) |
-| Agent Server | `extraction/agent_server.py` | FastAPI endpoints (`/run_agent`, `/run_debate`) |
+| Agent Server | `extraction/agent_server.py` | FastAPI endpoints (`/run_agent`, `/run_debate`, `/run_agent_semantic`, `/platform/chat/send`) |
+| Platform Agents | `extraction/platform_agents.py` | Backend/Frontend specialist orchestration + session state |
 
 ### Observability Layer
 
@@ -148,7 +149,8 @@ Why this path exists:
 
 | Module | File | Purpose |
 |--------|------|---------|
-| Agent Studio | `evaluation/app.py` | Streamlit split-screen (chat + live trace graph) — **PoC demo용** |
+| Platform Server | `evaluation/server.py` | Custom chat frontend backend (proxy + static hosting) |
+| Platform UI | `evaluation/static/` | Interactive chat UI (trace + candidate override) |
 
 ## Three Execution Modes
 
@@ -245,15 +247,15 @@ context = bridge.render_extraction_context()
 - 온톨로지 YAML의 NodeDefinition/RelationshipDefinition을 LLM 프롬프트 변수로 변환
 - `default.yaml` 프롬프트에서 `{% if ontology_name %}` 분기로 동적 vs 레거시 프롬프트
 
-## Observability: Agent Studio vs Opik
+## Frontend Trace vs Opik
 
 두 시스템의 역할이 명확히 분리되어 있습니다:
 
-### Agent Studio (PoC Demo)
-- **목적**: 이해관계자 데모, PoC 시연, 실시간 agent flow 시각화
-- **위치**: `evaluation/app.py` (Streamlit, port 8501)
-- **trace 방식**: `_build_debate_trace()`로 수동 구성된 FANOUT/DEBATE/COLLECT/SYNTHESIS 그래프
-- **제한**: LLM 비용/latency 추적 없음, evaluation 기능 없음
+### Custom Platform (Interactive UI)
+- **목적**: 운영형 사용자 채팅 UX + disambiguation override loop
+- **위치**: `evaluation/server.py` + `evaluation/static/*` (port 8501)
+- **trace 방식**: backend가 반환한 `trace_steps`와 `ui_payload`를 실시간 렌더링
+- **기능**: semantic 후보 선택 후 override 재질의, 세션 단위 대화 히스토리
 
 ### Opik (Production Eval & Trace)
 - **목적**: 개발/디버깅/운영 모니터링, LLM evaluation, agent visualization
@@ -278,7 +280,7 @@ agent_server.run_debate                          [tags: debate-mode]
 
 각 span에 `metadata` (db_name, agent_name, phase)와 `tags`가 첨부되어 Opik UI에서 필터링/검색 가능.
 
-### Streamlit Trace Topology (PoC Demo)
+### Frontend Trace Topology
 
 ```
 FANOUT (yellow) ─┬─ DEBATE: Agent_kgnormal (blue)
@@ -329,6 +331,9 @@ conf/
 | `/run_agent_semantic` | POST | Semantic entity-resolution flow (Router/LPG/RDF/Answer) |
 | `/run_debate` | POST | Parallel debate mode |
 | `/indexes/fulltext/ensure` | POST | Ensure fulltext index exists for semantic routing |
+| `/platform/chat/send` | POST | Custom interactive platform chat endpoint |
+| `/platform/chat/session/{session_id}` | GET | Read platform session history |
+| `/platform/chat/session/{session_id}` | DELETE | Reset platform session |
 | `/databases` | GET | List registered databases |
 | `/agents` | GET | List active DB-bound agents |
 

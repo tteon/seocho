@@ -5,6 +5,7 @@ This directory is organized into active docs and archived references.
 ## Active Docs
 
 - `ARCHITECTURE.md`: system architecture and module map
+- `TUTORIAL_FIRST_RUN.md`: first end-to-end run guide
 - `WORKFLOW.md`: end-to-end operational workflow
 - `GRAPH_MODEL_STRATEGY.md`: graph representation model choices and rollout
 - `ISSUE_TASK_SYSTEM.md`: sprint/roadmap issue and task operating model

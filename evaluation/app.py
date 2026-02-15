@@ -221,6 +221,32 @@ def render_step_detail(step):
     st.markdown(f'<div class="trace-detail-box">{full_content}</div>', unsafe_allow_html=True)
 
 
+def parse_semantic_databases(raw_value: str):
+    return [token.strip() for token in raw_value.split(",") if token.strip()]
+
+
+def run_query_via_api(prompt, query_mode, workspace_id, semantic_databases, user_id, entity_overrides=None):
+    payload = {
+        "query": prompt,
+        "user_id": user_id,
+        "workspace_id": workspace_id,
+    }
+
+    if query_mode == "debate":
+        endpoint = f"{API_URL}/run_debate"
+    elif query_mode == "semantic":
+        endpoint = f"{API_URL}/run_agent_semantic"
+        dbs = parse_semantic_databases(semantic_databases)
+        if dbs:
+            payload["databases"] = dbs
+        if entity_overrides:
+            payload["entity_overrides"] = entity_overrides
+    else:
+        endpoint = f"{API_URL}/run_agent"
+
+    return requests.post(endpoint, json=payload)
+
+
 # --- Main Application ---
 st.title("Seocho Agent Studio")
 
@@ -241,6 +267,10 @@ if "workspace_id" not in st.session_state:
     st.session_state["workspace_id"] = "default"
 if "semantic_databases" not in st.session_state:
     st.session_state["semantic_databases"] = "kgnormal,kgfibo"
+if "last_prompt" not in st.session_state:
+    st.session_state["last_prompt"] = ""
+if "last_semantic_payload" not in st.session_state:
+    st.session_state["last_semantic_payload"] = None
 
 # Layout
 col1, col2 = st.columns([1, 1], gap="large")
@@ -301,27 +331,13 @@ with col1:
                 message_placeholder.markdown("Running...")
 
                 try:
-                    payload = {
-                        "query": prompt,
-                        "user_id": st.session_state["session_id"],
-                        "workspace_id": st.session_state["workspace_id"],
-                    }
-
-                    if st.session_state["query_mode"] == "debate":
-                        endpoint = f"{API_URL}/run_debate"
-                    elif st.session_state["query_mode"] == "semantic":
-                        endpoint = f"{API_URL}/run_agent_semantic"
-                        dbs = [
-                            token.strip()
-                            for token in st.session_state["semantic_databases"].split(",")
-                            if token.strip()
-                        ]
-                        if dbs:
-                            payload["databases"] = dbs
-                    else:
-                        endpoint = f"{API_URL}/run_agent"
-
-                    resp = requests.post(endpoint, json=payload)
+                    resp = run_query_via_api(
+                        prompt=prompt,
+                        query_mode=st.session_state["query_mode"],
+                        workspace_id=st.session_state["workspace_id"],
+                        semantic_databases=st.session_state["semantic_databases"],
+                        user_id=st.session_state["session_id"],
+                    )
 
                     if resp.status_code == 200:
                         data = resp.json()
@@ -336,6 +352,11 @@ with col1:
                         st.session_state["current_trace_steps"] = trace_steps
                         st.session_state["trace_version"] += 1
                         st.session_state["selected_node"] = None
+                        st.session_state["last_prompt"] = prompt
+                        if st.session_state["query_mode"] == "semantic":
+                            st.session_state["last_semantic_payload"] = data
+                        else:
+                            st.session_state["last_semantic_payload"] = None
                     else:
                         st.error(f"API Error: {resp.status_code} - {resp.text}")
 
@@ -385,3 +406,69 @@ with col2:
             st.info("Click a node in the flow graph to see its full content, tool calls, and reasoning.")
     else:
         st.info("Agent steps will appear here automatically after you send a message.")
+
+    if st.session_state["query_mode"] == "semantic" and st.session_state.get("last_semantic_payload"):
+        payload = st.session_state["last_semantic_payload"]
+        semantic_context = payload.get("semantic_context", {})
+        matches = semantic_context.get("matches", {})
+
+        st.markdown("---")
+        st.subheader("Entity Disambiguation")
+
+        if not matches:
+            st.caption("No candidate entities were produced for the last semantic query.")
+        else:
+            st.caption("Pick preferred graph entities, then rerun the same question with fixed mappings.")
+            selected_overrides = []
+
+            for entity_name, candidates in matches.items():
+                options = ["Auto (top candidate)"]
+                for item in candidates:
+                    options.append(
+                        f"{item.get('display_name', entity_name)} | db={item.get('database')} | node={item.get('node_id')} | score={item.get('final_score')}"
+                    )
+
+                selected_idx = st.selectbox(
+                    f"{entity_name}",
+                    options=range(len(options)),
+                    format_func=lambda idx: options[idx],
+                    key=f"pick_{entity_name}",
+                )
+
+                if selected_idx > 0:
+                    chosen = candidates[selected_idx - 1]
+                    selected_overrides.append(
+                        {
+                            "question_entity": entity_name,
+                            "database": chosen.get("database"),
+                            "node_id": chosen.get("node_id"),
+                            "display_name": chosen.get("display_name"),
+                            "labels": chosen.get("labels", []),
+                        }
+                    )
+
+            if st.button("Re-run with selected entities", type="secondary"):
+                prompt = st.session_state.get("last_prompt", "")
+                if not prompt:
+                    st.error("No previous semantic query found.")
+                else:
+                    with st.spinner("Re-running semantic query with overrides..."):
+                        resp = run_query_via_api(
+                            prompt=prompt,
+                            query_mode="semantic",
+                            workspace_id=st.session_state["workspace_id"],
+                            semantic_databases=st.session_state["semantic_databases"],
+                            user_id=st.session_state["session_id"],
+                            entity_overrides=selected_overrides,
+                        )
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        response_text = data.get("response", "")
+                        st.session_state["messages"].append({"role": "assistant", "content": response_text})
+                        st.session_state["current_trace_steps"] = data.get("trace_steps", [])
+                        st.session_state["trace_version"] += 1
+                        st.session_state["selected_node"] = None
+                        st.session_state["last_semantic_payload"] = data
+                        st.rerun()
+                    else:
+                        st.error(f"API Error: {resp.status_code} - {resp.text}")

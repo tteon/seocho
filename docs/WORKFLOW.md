@@ -69,6 +69,7 @@ Semantic path summary:
 - semantic layer extracts entities from question
 - ensure fulltext index exists (`/indexes/fulltext/ensure`) for target DBs
 - fulltext search resolves graph entity candidates
+- optional ontology-hint artifact generated offline via `scripts/ontology/build_ontology_hints.py`
 - dedup/disambiguation reranks candidates
 - router dispatches to LPG or RDF specialist agent
 - answer generation agent synthesizes final response

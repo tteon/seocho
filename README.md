@@ -90,7 +90,12 @@ make up
 
 ### 3. Open Custom Platform
 
-Go to **http://localhost:8501** — use the custom interactive chat platform (frontend + backend specialists).
+Go to **http://localhost:8501** — use the custom interactive operations console (frontend + backend specialists).
+
+UI highlights:
+- left navigation rail (`Semantic`, `Debate`, `Router`)
+- operations table for trace inspection (search + type filter)
+- semantic candidate panel with confidence filter and pin-based overrides
 
 Use **Execution Mode** (`Router`, `Debate`, `Semantic`) to switch runtime path.
 

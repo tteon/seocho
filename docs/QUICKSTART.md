@@ -78,6 +78,15 @@ curl -X POST http://localhost:8001/run_agent \
 curl -X POST http://localhost:8001/run_debate \
   -H "Content-Type: application/json" \
   -d '{"query": "Compare entities across all databases"}'
+
+# Semantic graph QA mode
+curl -X POST http://localhost:8001/run_agent_semantic \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query":"What is Neo4j connected to?",
+    "workspace_id":"default",
+    "databases":["kgnormal","kgfibo"]
+  }'
 ```
 
 ---

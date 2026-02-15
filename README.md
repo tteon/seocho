@@ -36,6 +36,11 @@ SEOCHO transforms unstructured data into structured knowledge graphs and provide
                          ┌── Agent_kgnormal ──┐
 User Question ─► Debate  ├── Agent_kgfibo   ──┤─► Supervisor ─► Answer
                 Orchestr. └── Agent_...      ──┘    Synthesis
+
+User Question ─► Semantic Layer(entity extract/dedup/fulltext) ─► Router
+             └──────────────────────────────────────────────────► LPG Agent
+                                                                ► RDF Agent
+                                                                ► Answer Generation Agent
 ```
 
 **Data Pipeline** turns raw text into queryable knowledge graphs:
@@ -47,6 +52,11 @@ CSV/JSON/API → Ontology-Driven Extraction → Entity Linking → Deduplication
 - Each Neo4j database gets its own agent with closure-bound tools
 - All agents answer independently via `asyncio.gather()`
 - Supervisor synthesizes a unified response
+- Optional semantic route uses 4-agent flow:
+  - `RouterAgent`
+  - `LPGAgent`
+  - `RDFAgent`
+  - `AnswerGenerationAgent`
 
 **Rule Constraints (SHACL-like)** infer validation rules from extracted graph data:
 - infer required/datatype/enum/range rules from dataset patterns
@@ -96,6 +106,15 @@ curl -X POST http://localhost:8001/run_agent \
 curl -X POST http://localhost:8001/run_debate \
   -H "Content-Type: application/json" \
   -d '{"query": "Compare financial entities across all databases"}'
+
+# Semantic graph QA mode (entity extraction + fulltext resolution)
+curl -X POST http://localhost:8001/run_agent_semantic \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "Neo4j 에서 GraphRAG 관련 entity 연결을 보여줘",
+    "workspace_id": "default",
+    "databases": ["kgnormal", "kgfibo"]
+  }'
 ```
 
 ---
@@ -142,6 +161,7 @@ graph TD
 
     Mode -->|Router| Router[Router Agent]
     Mode -->|Debate| Debate[DebateOrchestrator]
+    Mode -->|Semantic QA| Sem[Semantic Layer]
 
     subgraph Router_Mode[Router Mode]
         Router --> Graph[GraphAgent]
@@ -164,6 +184,15 @@ graph TD
         Collect --> Sup2[Supervisor Synthesis]
     end
 
+    subgraph Semantic_Mode[Semantic Agent Flow]
+        Sem --> DedupResolve[Entity Dedup + Fulltext Resolve]
+        DedupResolve --> Route2[RouterAgent]
+        Route2 --> LPG[LPGAgent]
+        Route2 --> RDF[RDFAgent]
+        LPG --> Ans[AnswerGenerationAgent]
+        RDF --> Ans
+    end
+
     subgraph Pipeline[Data Pipeline]
         DS[DataSource] --> Bridge[OntologyPromptBridge]
         Bridge --> Extract[EntityExtractor]
@@ -182,10 +211,11 @@ graph TD
 ```
 seocho/
 ├── extraction/                # Core ETL + multi-agent system
-│   ├── agent_server.py        #   FastAPI: /run_agent, /run_debate
+│   ├── agent_server.py        #   FastAPI: /run_agent, /run_debate, /run_agent_semantic
 │   ├── pipeline.py            #   Extract → Link → Dedup → Schema → Load
 │   ├── debate.py              #   Parallel Debate orchestrator
 │   ├── agent_factory.py       #   Per-DB agent creation (closure-bound tools)
+│   ├── semantic_query_flow.py #   Semantic route: entity resolve + router + LPG/RDF/Answer agents
 │   ├── shared_memory.py       #   Request-scoped agent shared memory
 │   ├── data_source.py         #   DataSource ABC (CSV, JSON, Parquet, API)
 │   ├── ontology_prompt_bridge.py  # Ontology → LLM prompt injection
@@ -215,6 +245,7 @@ seocho/
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/run_agent` | POST | Router mode — single-agent routing |
+| `/run_agent_semantic` | POST | Semantic entity-resolution mode (router/LPG/RDF/answer) |
 | `/run_debate` | POST | Debate mode — all DB agents in parallel |
 | `/rules/infer` | POST | Infer SHACL-like rule profile from graph payload |
 | `/rules/validate` | POST | Validate graph payload against inferred/provided rules |
@@ -231,6 +262,15 @@ seocho/
   "query": "What companies are in the financial ontology?",
   "user_id": "user_default",
   "workspace_id": "default"
+}
+```
+
+**Request body** (`/run_agent_semantic`):
+```json
+{
+  "query": "What is Neo4j connected to?",
+  "workspace_id": "default",
+  "databases": ["kgnormal", "kgfibo"]
 }
 ```
 

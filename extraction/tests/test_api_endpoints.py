@@ -73,6 +73,32 @@ class TestListEndpoints:
             data = response.json()
             assert data["route"] == "lpg"
 
+    def test_fulltext_ensure_endpoint(self, client):
+        if client is None:
+            pytest.skip("client not available")
+        with patch("agent_server.ensure_fulltext_indexes_impl") as mock_impl:
+            mock_impl.return_value = {
+                "results": [
+                    {
+                        "database": "kgnormal",
+                        "index_name": "entity_fulltext",
+                        "exists": True,
+                        "created": False,
+                        "state": "ONLINE",
+                        "labels": ["Entity"],
+                        "properties": ["name"],
+                        "message": "Index already exists.",
+                    }
+                ]
+            }
+            response = client.post(
+                "/indexes/fulltext/ensure",
+                json={"workspace_id": "default", "databases": ["kgnormal"]},
+            )
+            assert response.status_code == 200
+            data = response.json()
+            assert data["results"][0]["database"] == "kgnormal"
+
 
 class TestQueryValidation:
     """Test request validation."""

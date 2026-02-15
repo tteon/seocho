@@ -50,6 +50,10 @@ Each entry must link to a full ADR when impact is non-trivial.
   - refresh `AGENTS.md` as concise operational rules
   - align docs with current stack and workflow guardrails
 
+- Accepted `ADR-0008-agent-doc-lint-automation.md`
+  - add `scripts/pm/lint-agent-docs.sh` baseline checks
+  - enforce critical agent-doc stack/workflow/link markers
+
 ## Template
 
 Use this block for new entries:

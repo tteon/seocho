@@ -74,6 +74,11 @@ Each entry must link to a full ADR when impact is non-trivial.
   - add Agent Studio candidate selection + rerun loop
   - add owlready2 offline hint builder script
 
+- Accepted `ADR-0013-custom-interactive-chat-platform-replaces-streamlit.md`
+  - replace Streamlit evaluation path with custom frontend backend
+  - add `/platform/chat/*` API contracts
+  - introduce backend/frontend specialist orchestration layer
+
 ## Template
 
 Use this block for new entries:

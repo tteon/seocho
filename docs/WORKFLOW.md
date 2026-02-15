@@ -66,6 +66,7 @@ Primary surfaces:
 4. Validation and landing
 - run code and ops gates
 - run sprint label lint (`scripts/pm/lint-items.sh --sprint <id>`)
+- run agent docs lint (`scripts/pm/lint-agent-docs.sh`)
 - close issue, rebase, sync, push
 - verify branch is up to date with origin
 

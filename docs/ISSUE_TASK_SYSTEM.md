@@ -82,6 +82,7 @@ Lint active work items for required collaboration labels:
 
 ```bash
 scripts/pm/lint-items.sh
+scripts/pm/lint-agent-docs.sh
 ```
 
 ## 6. Sprint Cadence

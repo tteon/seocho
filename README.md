@@ -327,6 +327,9 @@ make test
 make lint
 make format
 
+# Agent docs baseline lint
+scripts/pm/lint-agent-docs.sh
+
 # Load sample financial data
 docker exec extraction-service python demos/data_mesh_mock.py
 ```

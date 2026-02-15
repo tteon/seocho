@@ -53,6 +53,26 @@ class TestListEndpoints:
         data = response.json()
         assert "agents" in data
 
+    def test_run_agent_semantic_endpoint(self, client):
+        if client is None:
+            pytest.skip("client not available")
+        with patch("agent_server.semantic_agent_flow.run") as mock_run:
+            mock_run.return_value = {
+                "response": "Route selected: LPG.",
+                "trace_steps": [],
+                "route": "lpg",
+                "semantic_context": {"entities": ["Neo4j"], "matches": {}, "unresolved_entities": []},
+                "lpg_result": {"mode": "lpg", "summary": "", "records": []},
+                "rdf_result": None,
+            }
+            response = client.post(
+                "/run_agent_semantic",
+                json={"query": "Tell me about Neo4j", "workspace_id": "default"},
+            )
+            assert response.status_code == 200
+            data = response.json()
+            assert data["route"] == "lpg"
+
 
 class TestQueryValidation:
     """Test request validation."""

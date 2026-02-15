@@ -45,6 +45,7 @@ from rule_api import (
     infer_rule_profile,
     validate_rule_profile,
 )
+from semantic_query_flow import SemanticAgentFlow
 
 logger = logging.getLogger(__name__)
 
@@ -144,13 +145,18 @@ class Neo4jConnector:
     def __init__(self):
         self.driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
 
-    def run_cypher(self, query: str, database: str = "neo4j") -> str:
+    def run_cypher(
+        self,
+        query: str,
+        database: str = "neo4j",
+        params: Optional[Dict[str, Any]] = None,
+    ) -> str:
         try:
             if not db_registry.is_valid(database):
                 return f"Error: Invalid database '{database}'. Valid options: {db_registry.list_databases()}"
 
             with self.driver.session(database=database) as session:
-                result = session.run(query)
+                result = session.run(query, **(params or {}))
                 data = [record.data() for record in result]
                 return json.dumps(data)
         except Exception as e:
@@ -163,6 +169,7 @@ neo4j_conn = Neo4jConnector()
 db_manager = DatabaseManager()
 agent_factory = AgentFactory(neo4j_conn)
 faiss_manager = VectorStore(api_key=os.getenv("OPENAI_API_KEY", ""))
+semantic_agent_flow = SemanticAgentFlow(neo4j_conn)
 
 # --- Tools ---
 
@@ -321,9 +328,25 @@ class QueryRequest(BaseModel):
     user_id: str = "user_default"
     workspace_id: str = Field(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$")
 
+
+class SemanticQueryRequest(QueryRequest):
+    databases: Optional[List[str]] = Field(
+        default=None,
+        description="Optional list of target databases for semantic entity resolution.",
+    )
+
+
 class AgentResponse(BaseModel):
     response: str
     trace_steps: List[Dict[str, Any]]
+
+
+class SemanticAgentResponse(AgentResponse):
+    route: str
+    semantic_context: Dict[str, Any]
+    lpg_result: Optional[Dict[str, Any]] = None
+    rdf_result: Optional[Dict[str, Any]] = None
+
 
 class DebateResponse(BaseModel):
     response: str
@@ -413,6 +436,59 @@ async def run_agent(request: QueryRequest):
     except Exception as e:
         logger.error("Agent execution failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="Agent execution failed. Check server logs for details.")
+
+
+@app.post("/run_agent_semantic", response_model=SemanticAgentResponse)
+@track("agent_server.run_agent_semantic")
+async def run_agent_semantic(request: SemanticQueryRequest):
+    """Semantic entity-resolution route for graph QA."""
+    try:
+        require_runtime_permission(role="user", action="run_agent", workspace_id=request.workspace_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
+    requested_dbs = request.databases or db_registry.list_databases()
+    valid_dbs = []
+    for db_name in requested_dbs:
+        if not db_registry.is_valid(db_name):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid database '{db_name}'. Valid options: {db_registry.list_databases()}",
+            )
+        valid_dbs.append(db_name)
+
+    if not valid_dbs:
+        raise HTTPException(status_code=400, detail="No target databases available.")
+
+    update_current_trace(
+        metadata={
+            "user_id": request.user_id,
+            "workspace_id": request.workspace_id,
+            "query": request.query[:200],
+            "databases": valid_dbs,
+        },
+        tags=["semantic-route-mode"],
+    )
+    update_current_span(
+        metadata={
+            "mode": "semantic-route",
+            "user_id": request.user_id,
+            "workspace_id": request.workspace_id,
+            "databases": valid_dbs,
+        }
+    )
+
+    try:
+        result = semantic_agent_flow.run(question=request.query, databases=valid_dbs)
+        return SemanticAgentResponse(**result)
+    except SeochoError:
+        raise
+    except Exception as e:
+        logger.error("Semantic agent execution failed: %s", e, exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Semantic agent execution failed. Check server logs for details.",
+        )
 
 
 @app.post("/run_debate", response_model=DebateResponse)

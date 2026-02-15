@@ -69,6 +69,34 @@ Primary modules:
   User Question → Router/DebateOrchestrator → AgentPool → SharedMemory → Supervisor → Answer
 ```
 
+## Query-Time Semantic Flow (New)
+
+For graph QA with hard entity disambiguation requirements:
+
+```
+User Question
+    │
+    ▼
+Semantic Layer
+- extract question entities
+- fulltext lookup on DozerDB/Neo4j
+- semantic dedup/disambiguation with label hints
+    │
+    ▼
+RouterAgent
+    ├── LPGAgent (property graph neighborhood path)
+    └── RDFAgent (RDF/ontology-oriented path)
+             │
+             ▼
+AnswerGenerationAgent (final synthesis)
+```
+
+Why this path exists:
+
+- query-time entity mapping is the hardest failure point in graph QA
+- fulltext-first lookup improves recall for imperfect user entity strings
+- semantic re-ranking + dedup reduces wrong-node selection before Cypher generation
+
 ## Module Map
 
 ### Data Ingestion Layer
@@ -144,6 +172,23 @@ User → DebateOrchestrator → [Agent_db1 ∥ Agent_db2 ∥ ... ∥ Agent_dbN] 
 - 각 agent 결과가 SharedMemory에 저장
 - Supervisor가 모든 결과를 합성
 - 에러 격리: 1개 agent 실패해도 나머지 결과로 합성
+
+### 3. Semantic Graph QA Mode (`POST /run_agent_semantic`)
+
+```
+User → SemanticLayer → RouterAgent → {LPGAgent | RDFAgent | both} → AnswerGenerationAgent
+```
+
+- 4-agent model aligned with current query-time disambiguation requirement
+- semantic layer performs:
+  - question entity extraction
+  - fulltext index candidate search
+  - contains-based fallback search
+  - lightweight semantic dedup/disambiguation
+- route policy:
+  - RDF hints (`rdf`, `owl`, `shacl`, `sparql`) → RDFAgent
+  - default → LPGAgent
+  - mixed hints → hybrid path (both agents)
 
 ## Key Patterns
 
@@ -279,6 +324,7 @@ conf/
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/run_agent` | POST | Legacy router mode |
+| `/run_agent_semantic` | POST | Semantic entity-resolution flow (Router/LPG/RDF/Answer) |
 | `/run_debate` | POST | Parallel debate mode |
 | `/databases` | GET | List registered databases |
 | `/agents` | GET | List active DB-bound agents |

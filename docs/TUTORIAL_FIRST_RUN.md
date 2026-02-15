@@ -77,6 +77,26 @@ curl -s -X POST http://localhost:8001/run_debate \
 
 If you get "No database agents available", ingest sample data first (Step 5).
 
+### 3.3 Semantic graph QA mode
+
+```bash
+curl -s -X POST http://localhost:8001/run_agent_semantic \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query":"Neo4j 에서 GraphRAG 관련 entity 연결을 보여줘",
+    "user_id":"tutorial_user",
+    "workspace_id":"default",
+    "databases":["kgnormal","kgfibo"]
+  }' | jq
+```
+
+This route runs:
+
+- question entity extraction
+- fulltext candidate lookup
+- semantic dedup/disambiguation
+- router -> LPG/RDF specialist -> answer generation
+
 ## 4. Rule Lifecycle Tutorial (Core New Feature)
 
 ## 4.1 Infer rule profile from graph payload

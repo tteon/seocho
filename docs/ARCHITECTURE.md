@@ -150,7 +150,7 @@ Why this path exists:
 |--------|------|---------|
 | Agent Studio | `evaluation/app.py` | Streamlit split-screen (chat + live trace graph) — **PoC demo용** |
 
-## Two Execution Modes
+## Three Execution Modes
 
 ### 1. Legacy Router Mode (`POST /run_agent`)
 
@@ -184,6 +184,7 @@ User → SemanticLayer → RouterAgent → {LPGAgent | RDFAgent | both} → Answ
   - question entity extraction
   - fulltext index candidate search
   - contains-based fallback search
+  - optional ontology-hint alias/label boost from offline artifact (`output/ontology_hints.json`)
   - lightweight semantic dedup/disambiguation
 - route policy:
   - RDF hints (`rdf`, `owl`, `shacl`, `sparql`) → RDFAgent
@@ -326,5 +327,6 @@ conf/
 | `/run_agent` | POST | Legacy router mode |
 | `/run_agent_semantic` | POST | Semantic entity-resolution flow (Router/LPG/RDF/Answer) |
 | `/run_debate` | POST | Parallel debate mode |
+| `/indexes/fulltext/ensure` | POST | Ensure fulltext index exists for semantic routing |
 | `/databases` | GET | List registered databases |
 | `/agents` | GET | List active DB-bound agents |

@@ -92,7 +92,7 @@ make up
 
 Go to **http://localhost:8501** — chat with agents and watch the trace flow in real-time.
 
-Toggle **"Parallel Debate Mode"** to switch between single-agent routing and multi-agent debate.
+Use **Execution Mode** (`Router`, `Debate`, `Semantic`) to switch runtime path.
 
 ### 4. Try the API
 
@@ -114,6 +114,16 @@ curl -X POST http://localhost:8001/run_agent_semantic \
     "query": "Neo4j 에서 GraphRAG 관련 entity 연결을 보여줘",
     "workspace_id": "default",
     "databases": ["kgnormal", "kgfibo"]
+  }'
+
+# Ensure fulltext index exists for semantic resolution
+curl -X POST http://localhost:8001/indexes/fulltext/ensure \
+  -H "Content-Type: application/json" \
+  -d '{
+    "workspace_id": "default",
+    "databases": ["kgnormal", "kgfibo"],
+    "index_name": "entity_fulltext",
+    "create_if_missing": true
   }'
 ```
 
@@ -247,6 +257,7 @@ seocho/
 | `/run_agent` | POST | Router mode — single-agent routing |
 | `/run_agent_semantic` | POST | Semantic entity-resolution mode (router/LPG/RDF/answer) |
 | `/run_debate` | POST | Debate mode — all DB agents in parallel |
+| `/indexes/fulltext/ensure` | POST | Ensure fulltext index for semantic entity resolution |
 | `/rules/infer` | POST | Infer SHACL-like rule profile from graph payload |
 | `/rules/validate` | POST | Validate graph payload against inferred/provided rules |
 | `/rules/profiles` | POST | Save a named rule profile for a workspace |

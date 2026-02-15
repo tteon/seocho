@@ -67,6 +67,7 @@ Primary surfaces:
 Semantic path summary:
 
 - semantic layer extracts entities from question
+- ensure fulltext index exists (`/indexes/fulltext/ensure`) for target DBs
 - fulltext search resolves graph entity candidates
 - dedup/disambiguation reranks candidates
 - router dispatches to LPG or RDF specialist agent

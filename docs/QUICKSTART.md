@@ -64,7 +64,10 @@ evaluation-interface  running
 2. Type: `What databases are available?`
 3. Watch the agent trace flow in real-time
 
-Toggle **"Parallel Debate Mode"** to use multi-agent debate.
+Use **Execution Mode** selector:
+- `Router`: legacy single-route flow
+- `Debate`: parallel multi-agent flow
+- `Semantic`: entity extraction/fulltext resolution -> LPG/RDF specialists
 
 ### Via API
 
@@ -86,6 +89,16 @@ curl -X POST http://localhost:8001/run_agent_semantic \
     "query":"What is Neo4j connected to?",
     "workspace_id":"default",
     "databases":["kgnormal","kgfibo"]
+  }'
+
+# Ensure fulltext index exists
+curl -X POST http://localhost:8001/indexes/fulltext/ensure \
+  -H "Content-Type: application/json" \
+  -d '{
+    "workspace_id":"default",
+    "databases":["kgnormal","kgfibo"],
+    "index_name":"entity_fulltext",
+    "create_if_missing":true
   }'
 ```
 

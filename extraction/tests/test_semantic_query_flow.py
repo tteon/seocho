@@ -98,3 +98,22 @@ def test_semantic_agent_flow_lpg_path():
     assert result["lpg_result"] is not None
     assert result["lpg_result"]["records"]
     assert "Route selected: LPG." in result["response"]
+
+
+def test_resolve_applies_ontology_alias_hint(tmp_path, monkeypatch):
+    hints_path = tmp_path / "ontology_hints.json"
+    hints_path.write_text(
+        json.dumps(
+            {
+                "aliases": {"neo4-j": "Neo4j"},
+                "label_keywords": {"database": ["database", "db"]},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("ONTOLOGY_HINTS_PATH", str(hints_path))
+    resolver = SemanticEntityResolver(FakeConnector())
+    result = resolver.resolve("Tell me about Neo4-j database", ["kgnormal"])
+
+    assert result["alias_resolved"]["Neo4-j"] == "Neo4j"
+    assert "database" in result["label_hints"]

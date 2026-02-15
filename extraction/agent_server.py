@@ -46,6 +46,7 @@ from rule_api import (
     validate_rule_profile,
 )
 from semantic_query_flow import SemanticAgentFlow
+from fulltext_index import FulltextIndexManager
 
 logger = logging.getLogger(__name__)
 
@@ -170,6 +171,7 @@ db_manager = DatabaseManager()
 agent_factory = AgentFactory(neo4j_conn)
 faiss_manager = VectorStore(api_key=os.getenv("OPENAI_API_KEY", ""))
 semantic_agent_flow = SemanticAgentFlow(neo4j_conn)
+fulltext_index_manager = FulltextIndexManager(neo4j_conn)
 
 # --- Tools ---
 
@@ -353,6 +355,60 @@ class DebateResponse(BaseModel):
     trace_steps: List[Dict[str, Any]]
     debate_results: List[Dict[str, Any]]
 
+
+class FulltextIndexEnsureRequest(BaseModel):
+    workspace_id: str = Field(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$")
+    databases: Optional[List[str]] = None
+    index_name: str = Field(default="entity_fulltext", pattern=r"^[A-Za-z_][A-Za-z0-9_]*$")
+    labels: List[str] = Field(
+        default_factory=lambda: ["Entity", "Company", "Person", "Organization", "Concept", "Document", "Resource"]
+    )
+    properties: List[str] = Field(
+        default_factory=lambda: ["name", "title", "id", "uri", "alias", "code", "symbol"]
+    )
+    create_if_missing: bool = True
+
+
+class FulltextIndexEnsureResult(BaseModel):
+    database: str
+    index_name: str
+    exists: bool
+    created: bool
+    state: Optional[str] = None
+    labels: List[str] = Field(default_factory=list)
+    properties: List[str] = Field(default_factory=list)
+    message: str = ""
+
+
+class FulltextIndexEnsureResponse(BaseModel):
+    results: List[FulltextIndexEnsureResult]
+
+
+def ensure_fulltext_indexes_impl(request: FulltextIndexEnsureRequest) -> FulltextIndexEnsureResponse:
+    target_dbs = request.databases or db_registry.list_databases()
+    resolved_dbs: List[str] = []
+    for db_name in target_dbs:
+        if not db_registry.is_valid(db_name):
+            raise ValueError(
+                f"Invalid database '{db_name}'. Valid options: {db_registry.list_databases()}"
+            )
+        resolved_dbs.append(db_name)
+
+    if not resolved_dbs:
+        raise ValueError("No target databases provided.")
+
+    results: List[FulltextIndexEnsureResult] = []
+    for db_name in resolved_dbs:
+        result = fulltext_index_manager.ensure_index(
+            database=db_name,
+            index_name=request.index_name,
+            labels=request.labels,
+            properties=request.properties,
+            create_if_missing=request.create_if_missing,
+        )
+        results.append(FulltextIndexEnsureResult(**result))
+    return FulltextIndexEnsureResponse(results=results)
+
 # ------------------------------------------------------------------
 # 4. Endpoints
 # ------------------------------------------------------------------
@@ -489,6 +545,24 @@ async def run_agent_semantic(request: SemanticQueryRequest):
             status_code=500,
             detail="Semantic agent execution failed. Check server logs for details.",
         )
+
+
+@app.post("/indexes/fulltext/ensure", response_model=FulltextIndexEnsureResponse)
+@track("agent_server.fulltext_index_ensure")
+async def ensure_fulltext_indexes(request: FulltextIndexEnsureRequest):
+    """Ensure a fulltext index exists for one or more databases."""
+    try:
+        require_runtime_permission(role="user", action="manage_indexes", workspace_id=request.workspace_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
+    try:
+        return ensure_fulltext_indexes_impl(request)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error("Fulltext ensure failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Fulltext ensure failed. Check server logs for details.")
 
 
 @app.post("/run_debate", response_model=DebateResponse)

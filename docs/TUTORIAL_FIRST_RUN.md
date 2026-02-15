@@ -79,6 +79,21 @@ If you get "No database agents available", ingest sample data first (Step 5).
 
 ### 3.3 Semantic graph QA mode
 
+Optionally ensure fulltext index first:
+
+```bash
+curl -s -X POST http://localhost:8001/indexes/fulltext/ensure \
+  -H "Content-Type: application/json" \
+  -d '{
+    "workspace_id":"default",
+    "databases":["kgnormal","kgfibo"],
+    "index_name":"entity_fulltext",
+    "create_if_missing":true
+  }' | jq
+```
+
+Then run semantic QA:
+
 ```bash
 curl -s -X POST http://localhost:8001/run_agent_semantic \
   -H "Content-Type: application/json" \

@@ -16,9 +16,12 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 from difflib import SequenceMatcher
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
+
+from ontology_hints import OntologyHintStore
 
 logger = logging.getLogger(__name__)
 
@@ -100,10 +103,14 @@ class SemanticEntityResolver:
         connector: Any,
         fulltext_index_hint: str = "entity_fulltext",
         candidate_limit: int = 5,
+        ontology_hint_store: Optional[OntologyHintStore] = None,
     ):
         self.connector = connector
         self.fulltext_index_hint = fulltext_index_hint
         self.candidate_limit = candidate_limit
+        self.ontology_hint_store = ontology_hint_store or OntologyHintStore(
+            path=os.getenv("ONTOLOGY_HINTS_PATH", "output/ontology_hints.json")
+        )
 
     def extract_question_entities(self, question: str) -> List[str]:
         """Extract candidate entity spans from user question."""
@@ -147,28 +154,33 @@ class SemanticEntityResolver:
         """Resolve entities for a question across one or more databases."""
         entities = self.extract_question_entities(question)
         label_hints = self._infer_label_hints(question)
+        label_hints.update(self.ontology_hint_store.infer_label_hints(question))
         fulltext_indexes = self._discover_fulltext_indexes(databases)
 
         matches: Dict[str, List[Dict[str, Any]]] = {}
         unresolved: List[str] = []
+        alias_resolved: Dict[str, str] = {}
 
         for entity in entities:
+            resolved_text = self.ontology_hint_store.resolve_alias(entity)
+            alias_resolved[entity] = resolved_text
             candidates: List[Dict[str, Any]] = []
             for db_name in databases:
                 db_candidates = self._query_fulltext_candidates(
                     db_name=db_name,
-                    entity_text=entity,
+                    entity_text=resolved_text,
                     indexes=fulltext_indexes.get(db_name, []),
                 )
                 if not db_candidates:
                     db_candidates = self._query_contains_candidates(
                         db_name=db_name,
-                        entity_text=entity,
+                        entity_text=resolved_text,
                     )
                 candidates.extend(db_candidates)
 
             ranked = self._rank_and_dedup(
                 entity_text=entity,
+                resolved_text=resolved_text,
                 candidates=candidates,
                 label_hints=label_hints,
             )
@@ -180,8 +192,10 @@ class SemanticEntityResolver:
         return {
             "entities": entities,
             "label_hints": sorted(label_hints),
+            "alias_resolved": alias_resolved,
             "matches": matches,
             "unresolved_entities": unresolved,
+            "ontology_hints": self.ontology_hint_store.to_summary(),
         }
 
     def _discover_fulltext_indexes(self, databases: Sequence[str]) -> Dict[str, List[str]]:
@@ -291,6 +305,7 @@ class SemanticEntityResolver:
     def _rank_and_dedup(
         self,
         entity_text: str,
+        resolved_text: str,
         candidates: Sequence[Dict[str, Any]],
         label_hints: Set[str],
     ) -> List[Dict[str, Any]]:
@@ -298,6 +313,7 @@ class SemanticEntityResolver:
         seen: Set[Tuple[str, Any]] = set()
 
         normalized_entity = self._normalize(entity_text)
+        normalized_resolved = self._normalize(resolved_text)
         for candidate in candidates:
             db_name = str(candidate.get("database", ""))
             node_id = candidate.get("node_id")
@@ -312,13 +328,15 @@ class SemanticEntityResolver:
             base_score = float(candidate.get("base_score", 0.0))
             label_boost = self._label_boost(candidate.get("labels", []), label_hints)
             exact_boost = 0.2 if normalized_entity == normalized_display else 0.0
-            final_score = base_score + lexical + label_boost + exact_boost
+            alias_boost = 0.12 if normalized_resolved == normalized_display else 0.0
+            final_score = base_score + lexical + label_boost + exact_boost + alias_boost
 
             ranked.append(
                 {
                     **candidate,
                     "lexical_score": round(lexical, 4),
                     "label_boost": round(label_boost, 4),
+                    "alias_boost": round(alias_boost, 4),
                     "final_score": round(final_score, 4),
                 }
             )

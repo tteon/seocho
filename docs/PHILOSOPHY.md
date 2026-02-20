@@ -27,6 +27,16 @@ This document captures the non-negotiable design philosophy for SEOCHO and how i
   - Ontology files (`.ttl`, hint artifacts, profiles) are control-plane assets with explicit versioning and rollback.
 - Observability as a product surface:
   - Opik traces are not only debugging artifacts; they are operating evidence for trust and governance.
+- Cost-and-SLO bounded orchestration:
+  - Debate/semantic paths must expose measurable latency and cost envelopes for production viability.
+- Deterministic degradation:
+  - Router/graph-agent flows require explicit fallback behavior when confidence or topology contracts are not met.
+
+## Expert Feasibility Lens
+
+For multi-role feasibility reviews (frontend/backend/architect/software engineer/DBA), use:
+
+- `docs/PHILOSOPHY_FEASIBILITY_REVIEW.md`
 
 ## Implementation Mapping
 

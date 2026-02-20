@@ -384,6 +384,7 @@ Selected long-form docs are generated there from this repo's canonical
 | [docs/BENCHMARKS.md](docs/BENCHMARKS.md) | Private finance corpus and GraphRAG-Bench evaluation tracks |
 | [docs/WORKFLOW.md](docs/WORKFLOW.md) | Operational workflow |
 | [docs/ISSUE_TASK_SYSTEM.md](docs/ISSUE_TASK_SYSTEM.md) | Sprint/task governance |
+| [docs/SHACL_GRAPHRAG_PLAYBOOK.md](docs/SHACL_GRAPHRAG_PLAYBOOK.md) | SHACL + GraphRAG playbook |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute |
 
 ## Observability

@@ -31,6 +31,8 @@ from policy import require_runtime_permission
 from rule_api import (
     RuleInferRequest,
     RuleInferResponse,
+    RuleAssessRequest,
+    RuleAssessResponse,
     RuleProfileCreateRequest,
     RuleProfileCreateResponse,
     RuleProfileGetResponse,
@@ -42,6 +44,7 @@ from rule_api import (
     create_rule_profile,
     read_rule_profile,
     read_rule_profiles,
+    assess_rule_profile,
     export_rule_profile_to_cypher,
     infer_rule_profile,
     validate_rule_profile,
@@ -829,6 +832,17 @@ async def rules_validate(request: RuleValidateRequest):
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
     return validate_rule_profile(request)
+
+
+@app.post("/rules/assess", response_model=RuleAssessResponse)
+@track("agent_server.rules_assess")
+async def rules_assess(request: RuleAssessRequest):
+    """Assess practical readiness of SHACL-like rules for runtime and DB constraints."""
+    try:
+        require_runtime_permission(role="user", action="assess_rules", workspace_id=request.workspace_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    return assess_rule_profile(request)
 
 
 @app.post("/rules/profiles", response_model=RuleProfileCreateResponse)

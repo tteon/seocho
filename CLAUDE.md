@@ -123,6 +123,7 @@ Current endpoints:
 
 - `POST /rules/infer`
 - `POST /rules/validate`
+- `POST /rules/assess`
 - `POST /rules/profiles`
 - `GET /rules/profiles`
 - `GET /rules/profiles/{profile_id}`

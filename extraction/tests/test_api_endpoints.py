@@ -175,6 +175,36 @@ class TestListEndpoints:
             data = response.json()
             assert data["results"][0]["database"] == "kgnormal"
 
+    async def test_rules_assess_endpoint(self, client, app_module):
+        with patch.object(app_module, "assess_rule_profile") as mock_assess:
+            mock_assess.return_value = {
+                "workspace_id": "default",
+                "rule_profile": {"schema_version": "rules.v1", "rules": []},
+                "shacl_like": {"schema_version": "rules.v1", "shapes": []},
+                "validation_summary": {"total_nodes": 2, "passed_nodes": 2, "failed_nodes": 0},
+                "violation_breakdown": [],
+                "export_preview": {"schema_version": "rules.v1", "statements": [], "unsupported_rules": []},
+                "practical_readiness": {
+                    "status": "ready",
+                    "score": 1.0,
+                    "pass_ratio": 1.0,
+                    "enforceable_ratio": 1.0,
+                    "failed_nodes": 0,
+                    "total_nodes": 2,
+                    "total_rules": 0,
+                    "unsupported_rules": 0,
+                    "recommendations": ["You can apply exported Cypher constraints and keep /rules/validate in ingestion CI."],
+                    "top_violations": [],
+                },
+            }
+            response = await client.post(
+                "/rules/assess",
+                json={"workspace_id": "default", "graph": {"nodes": [], "relationships": []}},
+            )
+            assert response.status_code == 200
+            data = response.json()
+            assert data["practical_readiness"]["status"] == "ready"
+
     async def test_platform_chat_send_endpoint(self, client, app_module):
         with patch.object(app_module.backend_specialist_agent, "execute", new_callable=AsyncMock) as mock_execute:
             with patch.object(app_module.frontend_specialist_agent, "build_ui_payload") as mock_ui:

@@ -196,6 +196,29 @@ curl -s -X POST http://localhost:8001/rules/export/cypher \
   }' | jq
 ```
 
+## 4.6 Assess practical SHACL-like readiness
+
+```bash
+curl -s -X POST http://localhost:8001/rules/assess \
+  -H "Content-Type: application/json" \
+  -d '{
+    "workspace_id":"default",
+    "graph":{
+      "nodes":[
+        {"id":"1","label":"Company","properties":{"name":"Acme","employees":100}},
+        {"id":"2","label":"Company","properties":{"name":"","employees":"many"}}
+      ],
+      "relationships":[]
+    }
+  }' | jq '.practical_readiness'
+```
+
+Interpretation:
+
+- `status=ready`: current payload mostly passes and many rules are exportable.
+- `status=caution`: payload quality is acceptable but governance hardening is still needed.
+- `status=blocked`: fix failing nodes first, then re-run assess.
+
 ## 5. Optional: Ingest Sample Data
 
 ```bash

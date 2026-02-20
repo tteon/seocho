@@ -24,6 +24,7 @@ from exceptions import (
     InfrastructureError,
     DataValidationError,
     PipelineError,
+    InvalidDatabaseNameError,
 )
 from middleware import RequestIDMiddleware
 from tracing import configure_opik, track, update_current_span, update_current_trace
@@ -52,6 +53,7 @@ from rule_api import (
 from semantic_query_flow import SemanticAgentFlow
 from fulltext_index import FulltextIndexManager
 from platform_agents import PlatformSessionStore, BackendSpecialistAgent, FrontendSpecialistAgent
+from runtime_ingest import RuntimeRawIngestor
 
 logger = logging.getLogger(__name__)
 
@@ -162,7 +164,7 @@ class Neo4jConnector:
                 return f"Error: Invalid database '{database}'. Valid options: {db_registry.list_databases()}"
 
             with self.driver.session(database=database) as session:
-                result = session.run(query, **(params or {}))
+                result = session.run(query, parameters=(params or {}))
                 data = [record.data() for record in result]
                 return json.dumps(data)
         except Exception as e:
@@ -180,6 +182,14 @@ fulltext_index_manager = FulltextIndexManager(neo4j_conn)
 platform_session_store = PlatformSessionStore()
 backend_specialist_agent = BackendSpecialistAgent()
 frontend_specialist_agent = FrontendSpecialistAgent()
+runtime_raw_ingestor: Optional[RuntimeRawIngestor] = None
+
+
+def get_runtime_raw_ingestor() -> RuntimeRawIngestor:
+    global runtime_raw_ingestor
+    if runtime_raw_ingestor is None:
+        runtime_raw_ingestor = RuntimeRawIngestor(db_manager=db_manager)
+    return runtime_raw_ingestor
 
 # --- Tools ---
 
@@ -435,6 +445,47 @@ class PlatformSessionResponse(BaseModel):
     history: List[PlatformTurn]
 
 
+class RawIngestRecord(BaseModel):
+    id: Optional[str] = None
+    content: str = Field(..., min_length=1, max_length=20000)
+    category: str = Field(default="general", max_length=100)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class PlatformRawIngestRequest(BaseModel):
+    workspace_id: str = Field(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$")
+    target_database: str = Field(default="kgnormal", pattern=r"^[A-Za-z][A-Za-z0-9]*$")
+    records: List[RawIngestRecord] = Field(..., min_length=1, max_length=100)
+    enable_rule_constraints: bool = True
+    create_database_if_missing: bool = True
+
+
+class RawIngestError(BaseModel):
+    record_id: str
+    error_type: str
+    message: str
+
+
+class RawIngestWarning(BaseModel):
+    record_id: str
+    warning_type: str
+    message: str
+
+
+class PlatformRawIngestResponse(BaseModel):
+    workspace_id: str
+    target_database: str
+    records_received: int
+    records_processed: int
+    records_failed: int
+    total_nodes: int
+    total_relationships: int
+    fallback_records: int = 0
+    status: str
+    warnings: List[RawIngestWarning] = Field(default_factory=list)
+    errors: List[RawIngestError] = Field(default_factory=list)
+
+
 def ensure_fulltext_indexes_impl(request: FulltextIndexEnsureRequest) -> FulltextIndexEnsureResponse:
     target_dbs = request.databases or db_registry.list_databases()
     resolved_dbs: List[str] = []
@@ -567,6 +618,31 @@ async def platform_chat_session_get(session_id: str):
 async def platform_chat_session_reset(session_id: str):
     platform_session_store.clear(session_id)
     return PlatformSessionResponse(session_id=session_id, history=[])
+
+
+@app.post("/platform/ingest/raw", response_model=PlatformRawIngestResponse)
+@track("agent_server.platform_ingest_raw")
+async def platform_ingest_raw(request: PlatformRawIngestRequest):
+    """Ingest user-provided raw text records into a target graph database."""
+    try:
+        require_runtime_permission(role="user", action="ingest_raw", workspace_id=request.workspace_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
+    try:
+        result = get_runtime_raw_ingestor().ingest_records(
+            records=[r.model_dump() for r in request.records],
+            target_database=request.target_database,
+            enable_rule_constraints=request.enable_rule_constraints,
+            create_database_if_missing=request.create_database_if_missing,
+        )
+        return PlatformRawIngestResponse(workspace_id=request.workspace_id, **result)
+    except InvalidDatabaseNameError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error("Raw ingest endpoint failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Raw ingest failed. Check server logs for details.")
+
 
 @app.post("/run_agent", response_model=AgentResponse)
 @track("agent_server.run_agent")

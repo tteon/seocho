@@ -56,6 +56,7 @@ Primary surfaces:
 
 2. Ingestion and graph build
 - run extraction pipeline
+- for interactive runtime onboarding, ingest raw text via `/platform/ingest/raw`
 - apply SHACL-like rule inference/validation
 - run readiness check with `/rules/assess` before promoting profile to governance baseline
 - save reusable rule profiles (`/rules/profiles`)

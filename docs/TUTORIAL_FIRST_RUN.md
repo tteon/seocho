@@ -227,6 +227,28 @@ docker compose exec extraction-service python demos/data_mesh_mock.py
 
 Then retry `/run_debate` and graph queries.
 
+## 5.1 Ingest your own raw records (recommended)
+
+Use the runtime ingestion endpoint:
+
+```bash
+curl -s -X POST http://localhost:8001/platform/ingest/raw \
+  -H "Content-Type: application/json" \
+  -d '{
+    "workspace_id":"default",
+    "target_database":"kgnormal",
+    "records":[
+      {"id":"raw_1","content":"ACME acquired Beta in 2024."},
+      {"id":"raw_2","content":"Beta provides risk analytics to ACME."}
+    ]
+  }' | jq
+```
+
+Then open `http://localhost:8501`, set mode to `semantic` or `debate`, and ask:
+
+- `What does ACME relate to?`
+- `Show links between ACME and Beta.`
+
 ## 6. Optional: Enable Opik Tracing
 
 ```bash

@@ -214,6 +214,55 @@ body {
   border-color: var(--accent-blue);
 }
 
+.ingest-controls {
+  padding: 0.6rem 1.5rem;
+  background-color: var(--bg-app);
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  gap: 1rem;
+  align-items: flex-end;
+}
+
+.ingest-grow {
+  flex: 1;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.ingest-grow textarea {
+  width: 100%;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  padding: 0.4rem 0.5rem;
+  border-radius: 4px;
+  font-family: var(--font-sans);
+  font-size: 0.8rem;
+  outline: none;
+  resize: vertical;
+}
+
+.ingest-grow textarea:focus {
+  border-color: var(--accent-blue);
+}
+
+#ingestBtn {
+  background: var(--accent-green);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+#ingestBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* Dual Pane Workspace */
 .content {
   flex: 1;

@@ -106,6 +106,11 @@ Each entry must link to a full ADR when impact is non-trivial.
   - standardize Go/Conditional Go/No-Go rubric with role-specific checklists
   - require architecture-significant intake to run feasibility review
 
+- Accepted `ADR-0016-runtime-raw-ingest-and-local-verification-path.md`
+  - add runtime raw ingest endpoint and UI controls for ingestion-to-chat verification
+  - add fallback extraction path for local validation when LLM extraction is unavailable
+  - make extraction host ports configurable and tighten DB routing/loading behavior
+
 ## Template
 
 Use this block for new entries:

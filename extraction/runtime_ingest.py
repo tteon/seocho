@@ -1,0 +1,211 @@
+"""
+Runtime raw-data ingestion service for interactive platform usage.
+
+This module supports ingesting user-provided raw text records through API calls,
+running extraction/linking/rule-annotation, and loading graph data into a target DB.
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+import re
+from pathlib import Path
+from types import SimpleNamespace
+from typing import Any, Dict, List, Tuple
+
+import yaml
+
+from database_manager import DatabaseManager
+from exceptions import InvalidDatabaseNameError
+
+logger = logging.getLogger(__name__)
+
+_DB_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9]*$")
+
+
+def _load_prompt_cfg() -> Any:
+    base = Path(__file__).resolve().parent / "conf" / "prompts"
+    with open(base / "default.yaml", "r", encoding="utf-8") as fp:
+        default_prompt = yaml.safe_load(fp) or {}
+    with open(base / "linking.yaml", "r", encoding="utf-8") as fp:
+        linking_prompt = yaml.safe_load(fp) or {}
+
+    return SimpleNamespace(
+        prompts=SimpleNamespace(
+            system=default_prompt.get("system", ""),
+            user=default_prompt.get("user", ""),
+        ),
+        linking_prompt=SimpleNamespace(
+            linking=linking_prompt.get("linking", ""),
+        ),
+    )
+
+
+class RuntimeRawIngestor:
+    """Runs extraction/linking pipeline for ad-hoc runtime records."""
+
+    def __init__(self, db_manager: DatabaseManager):
+        from extractor import EntityExtractor
+        from linker import EntityLinker
+        from prompt_manager import PromptManager
+
+        self._db_manager = db_manager
+        cfg = _load_prompt_cfg()
+        api_key = os.getenv("OPENAI_API_KEY", "")
+        model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+        prompt_manager = PromptManager(cfg)
+        self._extractor = EntityExtractor(prompt_manager=prompt_manager, api_key=api_key, model=model)
+        self._linker = EntityLinker(prompt_manager=prompt_manager, api_key=api_key, model=model)
+
+    def ingest_records(
+        self,
+        records: List[Dict[str, Any]],
+        target_database: str,
+        enable_rule_constraints: bool = True,
+        create_database_if_missing: bool = True,
+    ) -> Dict[str, Any]:
+        from rule_constraints import apply_rules_to_graph, infer_rules_from_graph
+
+        if not _DB_NAME_RE.match(target_database):
+            raise InvalidDatabaseNameError(
+                f"Invalid DB name '{target_database}': must be alphanumeric and start with a letter"
+            )
+
+        if create_database_if_missing:
+            self._db_manager.provision_database(target_database)
+
+        processed = 0
+        failed = 0
+        total_nodes = 0
+        total_relationships = 0
+        fallback_records = 0
+        errors: List[Dict[str, str]] = []
+        warnings: List[Dict[str, str]] = []
+
+        for idx, item in enumerate(records):
+            source_id = str(item.get("id") or f"raw_{idx}")
+            text = str(item.get("content", "")).strip()
+            category = str(item.get("category", "general")).strip() or "general"
+            if not text:
+                failed += 1
+                errors.append(
+                    {
+                        "record_id": source_id,
+                        "error_type": "ValidationError",
+                        "message": "content is empty",
+                    }
+                )
+                continue
+
+            try:
+                graph_data, used_fallback, fallback_reason = self._extract_graph(source_id, text, category)
+                if used_fallback:
+                    fallback_records += 1
+                    warnings.append(
+                        {
+                            "record_id": source_id,
+                            "warning_type": "FallbackExtraction",
+                            "message": fallback_reason,
+                        }
+                    )
+
+                if enable_rule_constraints:
+                    rules = infer_rules_from_graph(graph_data)
+                    graph_data = apply_rules_to_graph(graph_data, rules)
+
+                self._db_manager.load_data(target_database, graph_data, source_id=source_id)
+                processed += 1
+                total_nodes += len(graph_data.get("nodes", []))
+                total_relationships += len(graph_data.get("relationships", []))
+            except Exception as exc:
+                logger.error("Raw ingest failed for record '%s': %s", source_id, exc)
+                failed += 1
+                errors.append(
+                    {
+                        "record_id": source_id,
+                        "error_type": type(exc).__name__,
+                        "message": str(exc),
+                    }
+                )
+
+        return {
+            "target_database": target_database,
+            "records_received": len(records),
+            "records_processed": processed,
+            "records_failed": failed,
+            "total_nodes": total_nodes,
+            "total_relationships": total_relationships,
+            "fallback_records": fallback_records,
+            "errors": errors,
+            "warnings": warnings,
+            "status": (
+                "success_with_fallback"
+                if failed == 0 and fallback_records > 0
+                else ("success" if failed == 0 else ("partial_success" if processed > 0 else "failed"))
+            ),
+        }
+
+    def _extract_graph(self, source_id: str, text: str, category: str) -> Tuple[Dict[str, Any], bool, str]:
+        try:
+            extracted = self._extractor.extract_entities(text=text, category=category)
+            linked = self._linker.link_entities(extracted_data=extracted, category=category)
+            return linked, False, ""
+        except Exception as exc:
+            logger.warning("LLM extraction failed for '%s'; falling back to rule-based extraction: %s", source_id, exc)
+            fallback_graph = self._fallback_extract(source_id=source_id, text=text)
+            reason = f"LLM extraction/linking failed: {type(exc).__name__}"
+            return fallback_graph, True, reason
+
+    @staticmethod
+    def _fallback_extract(source_id: str, text: str) -> Dict[str, Any]:
+        # Deterministic fallback for local verification when LLM path is unavailable.
+        tokens = re.findall(r"\b[A-Z][A-Za-z0-9_-]{2,}\b", text)
+        unique_tokens: List[str] = []
+        seen = set()
+        for token in tokens:
+            key = token.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            unique_tokens.append(token)
+            if len(unique_tokens) >= 12:
+                break
+
+        doc_id = f"{source_id}_doc"
+        nodes: List[Dict[str, Any]] = [
+            {
+                "id": doc_id,
+                "label": "Document",
+                "properties": {
+                    "name": text[:80],
+                    "source_id": source_id,
+                },
+            }
+        ]
+        relationships: List[Dict[str, Any]] = []
+
+        for idx, name in enumerate(unique_tokens):
+            ent_id = f"{source_id}_ent_{idx}"
+            nodes.append(
+                {
+                    "id": ent_id,
+                    "label": "Entity",
+                    "properties": {
+                        "name": name,
+                    },
+                }
+            )
+            relationships.append(
+                {
+                    "source": doc_id,
+                    "target": ent_id,
+                    "type": "MENTIONS",
+                    "properties": {},
+                }
+            )
+
+        return {
+            "nodes": nodes,
+            "relationships": relationships,
+        }

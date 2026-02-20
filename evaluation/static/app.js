@@ -13,6 +13,9 @@
   const modeSelect = document.getElementById("modeSelect");
   const workspaceInput = document.getElementById("workspaceInput");
   const databasesInput = document.getElementById("databasesInput");
+  const ingestDbInput = document.getElementById("ingestDbInput");
+  const ingestInput = document.getElementById("ingestInput");
+  const ingestBtn = document.getElementById("ingestBtn");
   const statusPill = document.getElementById("statusPill");
   const resetSessionBtn = document.getElementById("resetSessionBtn");
   const bubbleTemplate = document.getElementById("bubbleTemplate");
@@ -92,6 +95,49 @@
       throw new Error(`${response.status} ${errText}`);
     }
 
+    const data = await response.json();
+    setStatus("Idle", "ok");
+    return data;
+  }
+
+  function buildRawRecords() {
+    if (!ingestInput) return [];
+    const lines = ingestInput.value
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+    return lines.map((line, idx) => ({
+      id: `raw_${Date.now()}_${idx}`,
+      content: line,
+      category: "general",
+      metadata: {},
+    }));
+  }
+
+  async function ingestRawRecords() {
+    const records = buildRawRecords();
+    if (!records.length) {
+      throw new Error("Add at least one non-empty line in Raw Records.");
+    }
+    const payload = {
+      workspace_id: workspaceInput.value.trim() || "default",
+      target_database: (ingestDbInput?.value || "kgnormal").trim() || "kgnormal",
+      records,
+      enable_rule_constraints: true,
+      create_database_if_missing: true,
+    };
+
+    setStatus("Ingesting Raw Data...", "busy");
+    const response = await fetch("/api/ingest/raw", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`${response.status} ${errText}`);
+    }
     const data = await response.json();
     setStatus("Idle", "ok");
     return data;
@@ -301,6 +347,39 @@
       sendBtn.disabled = false;
     }
   });
+
+  if (ingestBtn) {
+    ingestBtn.addEventListener("click", async () => {
+      ingestBtn.disabled = true;
+      try {
+        const result = await ingestRawRecords();
+        const targetDb = result.target_database || "kgnormal";
+        const dbs = parseDatabases();
+        if (!dbs.includes(targetDb)) {
+          dbs.push(targetDb);
+          databasesInput.value = dbs.join(",");
+        }
+        appendBubble(
+          "assistant",
+          [
+            `[RAW INGEST] status=${result.status}`,
+            `db=${targetDb}, processed=${result.records_processed}/${result.records_received}`,
+            `nodes=${result.total_nodes}, rels=${result.total_relationships}`,
+            `fallback=${result.fallback_records || 0}`,
+            result.records_failed > 0
+              ? `failed=${result.records_failed} (see server logs/details)`
+              : "failed=0",
+          ].join("\n")
+        );
+      } catch (err) {
+        console.error(err);
+        setStatus("Error", "error");
+        appendBubble("assistant", `Raw ingest error: ${err.message}`);
+      } finally {
+        ingestBtn.disabled = false;
+      }
+    });
+  }
 
   resetSessionBtn.addEventListener("click", async () => {
     try {

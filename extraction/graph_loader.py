@@ -29,7 +29,7 @@ class GraphLoader:
         self.driver.close()
 
     @neo4j_retry
-    def load_graph(self, graph_data: dict, source_id: str):
+    def load_graph(self, graph_data: dict, source_id: str, database: str = "neo4j"):
         """
         Loads nodes and relationships into Neo4j.
 
@@ -41,7 +41,7 @@ class GraphLoader:
             return
 
         try:
-            with self.driver.session() as session:
+            with self.driver.session(database=database) as session:
                 # 1. Load Nodes
                 for node in graph_data.get("nodes", []):
                     session.execute_write(self._create_node, node, source_id)

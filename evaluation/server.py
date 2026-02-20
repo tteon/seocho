@@ -71,6 +71,13 @@ async def api_chat_send(request: Request):
     return JSONResponse(content=data)
 
 
+@app.post("/api/ingest/raw")
+async def api_ingest_raw(request: Request):
+    payload = await request.json()
+    data = await _proxy("POST", "/platform/ingest/raw", payload=payload)
+    return JSONResponse(content=data)
+
+
 @app.get("/api/chat/session/{session_id}")
 async def api_chat_session(session_id: str):
     data = await _proxy("GET", f"/platform/chat/session/{session_id}")
@@ -81,4 +88,3 @@ async def api_chat_session(session_id: str):
 async def api_chat_session_reset(session_id: str):
     data = await _proxy("DELETE", f"/platform/chat/session/{session_id}")
     return JSONResponse(content=data)
-

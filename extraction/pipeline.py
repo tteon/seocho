@@ -200,7 +200,11 @@ class ExtractionPipeline:
         self._schema_manager.apply_schema(self.target_database, schema_path)
 
         # 9. Load Graph
-        self.graph_loader.load_graph(extracted_data, item["id"])
+        self.graph_loader.load_graph(
+            extracted_data,
+            item["id"],
+            database=self.target_database,
+        )
         logger.info("Loaded graph data for %s", item["id"])
 
     def _save_results(self, item_id: str, data: dict):

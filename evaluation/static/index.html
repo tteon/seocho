@@ -64,6 +64,19 @@
         </label>
       </section>
 
+      <section class="ingest-controls">
+        <label class="control">
+          <span>Ingest DB</span>
+          <input id="ingestDbInput" value="kgnormal" />
+        </label>
+        <label class="control ingest-grow">
+          <span>Raw Records (one line per record)</span>
+          <textarea id="ingestInput" rows="2"
+            placeholder="Example: ACME acquired Beta in 2024.\nExample: Beta provides risk analytics to ACME."></textarea>
+        </label>
+        <button id="ingestBtn" type="button">Ingest Raw</button>
+      </section>
+
       <!-- Dual Pane Interaction Area -->
       <section class="content">
         <!-- Left: Chat & Reasoning Pane -->

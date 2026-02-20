@@ -143,6 +143,29 @@ It uses LLMs to extract entities, relationships, resolves duplicates via semanti
 docker exec extraction-service python demos/data_mesh_mock.py
 ```
 
+### Or ingest your own raw text directly from the UI
+
+1. Open `http://localhost:8501`
+2. In `Ingest DB`, choose e.g. `kgnormal`
+3. Paste raw lines into `Raw Records` (one line = one record)
+4. Click `Ingest Raw`
+5. Ask questions in chat (`Semantic` or `Debate` mode) using the same DB
+
+Equivalent API:
+
+```bash
+curl -X POST http://localhost:8001/platform/ingest/raw \
+  -H "Content-Type: application/json" \
+  -d '{
+    "workspace_id":"default",
+    "target_database":"kgnormal",
+    "records":[
+      {"id":"raw1","content":"ACME acquired Beta in 2024."},
+      {"id":"raw2","content":"Beta provides risk analytics to ACME."}
+    ]
+  }'
+```
+
 ---
 
 ## Optional: Enable Opik Tracing
@@ -225,5 +248,7 @@ Edit `.env` to change default ports:
 ```bash
 NEO4J_HTTP_PORT=17474
 NEO4J_BOLT_PORT=17687
+EXTRACTION_API_PORT=18001
+EXTRACTION_NOTEBOOK_PORT=18888
 CHAT_INTERFACE_PORT=18501
 ```

@@ -491,3 +491,21 @@ body {
   border-radius: 8px;
   text-align: center;
 }
+
+/* Confident Auto-Pin Highlight */
+.confident-highlight .text {
+  border-color: rgba(63, 185, 80, 0.8) !important;
+  box-shadow: 0 0 15px rgba(63, 185, 80, 0.2);
+}
+
+/* SVG Edge Flow */
+.edge-flow-anim {
+  stroke-dasharray: 8 8;
+  animation: flowAnim 1.5s linear infinite;
+}
+
+@keyframes flowAnim {
+  to {
+    stroke-dashoffset: -16;
+  }
+}

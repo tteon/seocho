@@ -1,111 +1,120 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SEOCHO AIP Console</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap"
-      rel="stylesheet"
-    />
-    <link rel="stylesheet" href="/static/styles.css" />
-  </head>
-  <body>
-    <main class="app-shell">
-      <!-- Left Rail Navigation -->
-      <aside class="rail">
-        <div class="rail-brand">
-          <div class="dot"></div>
-          <p>SEOCHO</p>
-        </div>
-        <nav class="rail-nav">
-          <button class="rail-btn active" id="railSemantic" data-mode="semantic">Semantic</button>
-          <button class="rail-btn" id="railDebate" data-mode="debate">Debate</button>
-          <button class="rail-btn" id="railRouter" data-mode="router">Router</button>
-        </nav>
-      </aside>
 
-      <!-- Main Shell -->
-      <section class="shell">
-        <!-- Top App Bar -->
-        <header class="topbar">
-          <div class="brand-title">
-            <h1>Workflow Console</h1>
-            <span class="subtext" id="sessionMeta">Session</span>
-          </div>
-          <div class="status-wrap">
-            <button id="resetSessionBtn" style="background:transparent; border:1px solid var(--border-color); color:var(--text-muted); padding:4px 8px; border-radius:4px; font-size:0.75rem; cursor:pointer;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='var(--text-muted)'">Reset Trace</button>
-            <div class="status" id="statusPill">Initializing</div>
-          </div>
-        </header>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SEOCHO AIP Console</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
 
-        <!-- Pipeline Controls -->
-        <section class="controls">
-          <label class="control">
-            <span>Mode</span>
-            <select id="modeSelect">
-              <option value="semantic">Semantic (DAG)</option>
-              <option value="debate">Debate (Parallel)</option>
-              <option value="router">Router (Sequential)</option>
-            </select>
-          </label>
-          <label class="control">
-            <span>Workspace</span>
-            <input id="workspaceInput" value="default" />
-          </label>
-          <label class="control">
-            <span>Databases</span>
-            <input id="databasesInput" value="kgnormal,kgfibo" />
-          </label>
-        </section>
-
-        <!-- Dual Pane Interaction Area -->
-        <section class="content">
-          <!-- Left: Chat & Reasoning Pane -->
-          <div class="chat-pane">
-            <div class="chat-log" id="chatLog">
-              <div style="font-family:var(--font-mono); font-size:0.7rem; color:var(--text-muted); text-align:center;">// System Authenticated. Trace visualization ready.</div>
-            </div>
-            
-            <form id="chatForm" class="composer">
-              <textarea id="chatInput" placeholder="Awaiting query injection..." rows="3"></textarea>
-              <button type="submit" id="sendBtn">Execute Pipeline</button>
-            </form>
-          </div>
-
-          <!-- Right: AIP Workflow DAG Canvas -->
-          <div class="canvas-pane" id="dagCanvas">
-            <div class="canvas-header">Workflow Builder Live Trace Graph</div>
-            <div class="canvas-empty">
-              [ NO ACTIVE RUN ]<br/><br/>
-              Awaiting payload to render DAG Trace...
-            </div>
-            <!-- Nodes will be injected here via app.js -->
-          </div>
-        </section>
-      </section>
-    </main>
-
-    <!-- Templates -->
-    <template id="bubbleTemplate">
-      <article class="bubble">
-        <p class="role"></p>
-        <div class="text"></div>
-      </article>
-    </template>
-
-    <template id="dagNodeTemplate">
-      <div class="workflow-node">
-        <div class="node-header">
-          <span class="node-agent-name"></span>
-          <span class="node-type"></span>
-        </div>
-        <div class="node-content font-mono"></div>
+<body>
+  <main class="app-shell">
+    <!-- Left Rail Navigation -->
+    <aside class="rail">
+      <div class="rail-brand">
+        <div class="dot"></div>
+        <p>SEOCHO</p>
       </div>
-    </template>
+      <nav class="rail-nav">
+        <button class="rail-btn active" id="railSemantic" data-mode="semantic">Semantic</button>
+        <button class="rail-btn" id="railDebate" data-mode="debate">Debate</button>
+        <button class="rail-btn" id="railRouter" data-mode="router">Router</button>
+      </nav>
+    </aside>
 
-    <script src="/static/app.js"></script>
-  </body>
+    <!-- Main Shell -->
+    <section class="shell">
+      <!-- Top App Bar -->
+      <header class="topbar">
+        <div class="brand-title">
+          <h1>Workflow Console</h1>
+          <span class="subtext" id="sessionMeta">Session</span>
+        </div>
+        <div class="status-wrap">
+          <button id="resetSessionBtn"
+            style="background:transparent; border:1px solid var(--border-color); color:var(--text-muted); padding:4px 8px; border-radius:4px; font-size:0.75rem; cursor:pointer;"
+            onmouseover="this.style.color='#fff'" onmouseout="this.style.color='var(--text-muted)'">Reset Trace</button>
+          <div class="status" id="statusPill">Initializing</div>
+        </div>
+      </header>
+
+      <!-- Pipeline Controls -->
+      <section class="controls">
+        <label class="control">
+          <span>Mode</span>
+          <select id="modeSelect">
+            <option value="semantic">Semantic (DAG)</option>
+            <option value="debate">Debate (Parallel)</option>
+            <option value="router">Router (Sequential)</option>
+          </select>
+        </label>
+        <label class="control">
+          <span>Workspace</span>
+          <input id="workspaceInput" value="default" />
+        </label>
+        <label class="control">
+          <span>Databases</span>
+          <input id="databasesInput" value="kgnormal,kgfibo" />
+        </label>
+      </section>
+
+      <!-- Dual Pane Interaction Area -->
+      <section class="content">
+        <!-- Left: Chat & Reasoning Pane -->
+        <div class="chat-pane">
+          <div class="chat-log" id="chatLog">
+            <div style="font-family:var(--font-mono); font-size:0.7rem; color:var(--text-muted); text-align:center;">//
+              System Authenticated. Trace visualization ready.</div>
+          </div>
+
+          <form id="chatForm" class="composer">
+            <textarea id="chatInput" placeholder="Awaiting query injection..." rows="3"></textarea>
+            <button type="submit" id="sendBtn">Execute Pipeline</button>
+          </form>
+        </div>
+
+        <!-- Right: AIP Workflow DAG Canvas -->
+        <div class="canvas-pane" id="dagCanvas">
+          <div class="canvas-header">Workflow Builder Live Trace Graph</div>
+          <div class="canvas-empty" id="canvasEmptyState">
+            [ NO ACTIVE RUN ]<br /><br />
+            Awaiting payload to render DAG Trace...
+          </div>
+          <div id="dagScrollLayer" style="position:relative; width:100%; min-height:100%;">
+            <svg id="dagEdges"
+              style="position: absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:0;"></svg>
+            <div id="dagContainer" class="dag-container"></div>
+          </div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <!-- Templates -->
+  <template id="bubbleTemplate">
+    <article class="bubble">
+      <p class="role"></p>
+      <div class="text"></div>
+    </article>
+  </template>
+
+  <template id="dagNodeTemplate">
+    <div class="workflow-node">
+      <div class="node-header">
+        <span class="node-agent-name"></span>
+        <span class="node-type"></span>
+      </div>
+      <div class="node-content font-mono"></div>
+    </div>
+  </template>
+
+  <script src="/static/app.js"></script>
+</body>
+
 </html>

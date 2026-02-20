@@ -342,7 +342,19 @@ class SemanticEntityResolver:
             )
 
         ranked.sort(key=lambda item: item.get("final_score", 0.0), reverse=True)
-        return ranked[: self.candidate_limit]
+        top_candidates = ranked[: self.candidate_limit]
+        
+        # UI Signal: If confidence gap > 0.15, mark as safe to auto-pin
+        if len(top_candidates) > 0:
+            best_score = top_candidates[0].get("final_score", 0.0)
+            if len(top_candidates) > 1:
+                runner_up = top_candidates[1].get("final_score", 0.0)
+                gap = best_score - runner_up
+                top_candidates[0]["is_confident"] = (gap > 0.15)
+            else:
+                top_candidates[0]["is_confident"] = True
+                
+        return top_candidates
 
     def _run_query(
         self,

@@ -269,12 +269,15 @@ class DebateOrchestrator:
         step_id = 0
 
         # Fan-out node
+        fanout_node_id = f"node_fanout_{step_id}"
         steps.append({
             "id": str(step_id),
             "type": "FANOUT",
             "agent": "DebateOrchestrator",
             "content": "Parallel debate started",
             "metadata": {
+                "node_id": fanout_node_id,
+                "phase": "orchestration",
                 "agents": [r.agent_name for r in debate_results],
                 "full_content": (
                     f"Dispatching query to {len(debate_results)} agents: "
@@ -282,7 +285,6 @@ class DebateOrchestrator:
                 ),
             },
         })
-        fanout_id = str(step_id)
         step_id += 1
 
         # Each agent: DEBATE header + internal sub-steps
@@ -290,15 +292,17 @@ class DebateOrchestrator:
 
         for r in debate_results:
             # DEBATE header node
-            debate_node_id = str(step_id)
+            debate_node_id = f"node_debate_{step_id}"
             steps.append({
-                "id": debate_node_id,
+                "id": str(step_id),
                 "type": "DEBATE",
                 "agent": r.agent_name,
                 "content": r.response[:80],
                 "metadata": {
+                    "node_id": debate_node_id,
+                    "parent_id": fanout_node_id,
+                    "phase": "fan-out",
                     "db": r.db_name,
-                    "parent": fanout_id,
                     "full_content": r.response,
                 },
             })
@@ -307,19 +311,21 @@ class DebateOrchestrator:
             # Internal trace sub-steps (chained under DEBATE node)
             prev_sub_id = debate_node_id
             for ts in r.trace_steps:
-                sub_id = str(step_id)
+                sub_id = f"node_step_{step_id}"
 
                 # Map internal types to display types
                 sub_type = ts.get("type", "UNKNOWN")
                 sub_content = ts.get("content", "")
 
                 steps.append({
-                    "id": sub_id,
+                    "id": str(step_id),
                     "type": sub_type,
                     "agent": r.agent_name,
                     "content": sub_content[:120],
                     "metadata": {
-                        "parent": prev_sub_id,
+                        "node_id": sub_id,
+                        "parent_id": prev_sub_id,
+                        "phase": "fan-out",
                         "db": r.db_name,
                         "full_content": sub_content,
                         "tool_names": ts.get("tool_names", []),
@@ -331,14 +337,16 @@ class DebateOrchestrator:
             last_step_per_agent.append(prev_sub_id)
 
         # Collect node — edges come from last step of each agent branch
-        collect_id = str(step_id)
+        collect_id = f"node_collect_{step_id}"
         steps.append({
-            "id": collect_id,
+            "id": str(step_id),
             "type": "COLLECT",
             "agent": "DebateOrchestrator",
             "content": f"Collecting {len(debate_results)} results",
             "metadata": {
-                "sources": last_step_per_agent,
+                "node_id": collect_id,
+                "parent_ids": last_step_per_agent,
+                "phase": "orchestration",
                 "full_content": "All agent responses collected for supervisor synthesis.",
             },
         })
@@ -354,7 +362,9 @@ class DebateOrchestrator:
             "agent": "Supervisor",
             "content": supervisor_output[:120],
             "metadata": {
-                "parent": collect_id,
+                "node_id": f"node_synthesis_{step_id}",
+                "parent_id": collect_id,
+                "phase": "synthesis",
                 "full_content": supervisor_output,
             },
         })

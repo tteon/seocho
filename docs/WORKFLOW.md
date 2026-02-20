@@ -52,6 +52,7 @@ Primary surfaces:
   - `scripts/pm/new-issue.sh`
   - `scripts/pm/new-task.sh`
 - confirm philosophy alignment against `docs/PHILOSOPHY.md` (ontology evidence, router/graph mapping, traceability)
+- for architecture-significant work, run a panel feasibility review using `docs/PHILOSOPHY_FEASIBILITY_REVIEW.md`
 
 2. Ingestion and graph build
 - run extraction pipeline

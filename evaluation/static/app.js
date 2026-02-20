@@ -50,6 +50,14 @@
     const textEl = frag.querySelector(".text");
     el.classList.add(role);
     roleEl.textContent = role.toUpperCase();
+
+    // Add green highlight if Backend implies Confidence > 0.15 is true
+    // Note: We scan the JSON dynamically for is_confident as the response from Answer generation might mention it indirectly.
+    // However, the specification is visually highlighting candidate lists. Since candidates are hidden in DAG mode, we highlight the bubble itself if it contains confident overrides.
+    if (content.includes("is_confident")) {
+      el.classList.add("confident-highlight");
+    }
+
     textEl.textContent = content;
     chatLog.appendChild(frag);
     chatLog.scrollTop = chatLog.scrollHeight;
@@ -92,6 +100,14 @@
   function createDagNode(step) {
     const frag = dagNodeTemplate.content.cloneNode(true);
     const el = frag.querySelector(".workflow-node");
+
+    // Inject exact backend Schema Node ID
+    el.id = step.metadata?.node_id || `__fallback_${Math.random().toString(36).substr(2, 9)}`;
+
+    // Store parent references in DOM dataset for edge drawing later
+    if (step.metadata?.parent_id) el.dataset.parentId = step.metadata.parent_id;
+    if (step.metadata?.parent_ids) el.dataset.parentIds = JSON.stringify(step.metadata.parent_ids);
+
     const typeEl = frag.querySelector(".node-type");
     const nameEl = frag.querySelector(".node-agent-name");
     const contentEl = frag.querySelector(".node-content");
@@ -128,19 +144,71 @@
     return el;
   }
 
+  function drawEdges() {
+    const svg = document.getElementById("dagEdges");
+    const container = document.getElementById("dagScrollLayer");
+    if (!svg || !container) return;
+
+    svg.innerHTML = "";
+    const containerRect = container.getBoundingClientRect();
+    const nodes = document.querySelectorAll(".workflow-node");
+
+    nodes.forEach(childEl => {
+      let parentIds = [];
+      if (childEl.dataset.parentId) parentIds.push(childEl.dataset.parentId);
+      if (childEl.dataset.parentIds) {
+        try {
+          const arr = JSON.parse(childEl.dataset.parentIds);
+          parentIds = parentIds.concat(arr);
+        } catch (e) { }
+      }
+
+      parentIds.forEach(pId => {
+        const parentEl = document.getElementById(pId);
+        if (parentEl) {
+          const pRect = parentEl.getBoundingClientRect();
+          const cRect = childEl.getBoundingClientRect();
+
+          // Calculate center bottom of parent, center top of child, relative to scrolling container
+          const startX = (pRect.left + pRect.width / 2) - containerRect.left;
+          const startY = (pRect.bottom) - containerRect.top;
+          const endX = (cRect.left + cRect.width / 2) - containerRect.left;
+          const endY = (cRect.top) - containerRect.top;
+
+          if (startY > endY) return; // avoid backwards curves if not needed
+
+          const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+          // Beautiful API-style Curve
+          const curveY = (startY + endY) / 2;
+          path.setAttribute("d", `M ${startX} ${startY} C ${startX} ${curveY}, ${endX} ${curveY}, ${endX} ${endY}`);
+          path.setAttribute("stroke", "rgba(63, 185, 80, 0.35)"); // Palantir flow line
+          path.setAttribute("stroke-width", "2");
+          path.setAttribute("fill", "none");
+          // Add blueprint dash-array animation class
+          path.classList.add("edge-flow-anim");
+
+          svg.appendChild(path);
+        }
+      });
+    });
+  }
+
   function renderDag() {
-    dagCanvas.innerHTML = '<div class="canvas-header">Workflow Builder Live Trace Graph</div>';
+    const emptyState = document.getElementById("canvasEmptyState");
+    const container = document.getElementById("dagContainer");
+    const svg = document.getElementById("dagEdges");
+    if (!container) return;
 
     if (!state.lastTraceSteps || state.lastTraceSteps.length === 0) {
-      dagCanvas.innerHTML += `<div class="canvas-empty">
-        [ NO ACTIVE RUN ]<br/><br/>
-        Awaiting payload to render DAG Trace...
-      </div>`;
+      if (emptyState) emptyState.style.display = "block";
+      container.innerHTML = "";
+      if (svg) svg.innerHTML = "";
       return;
     }
 
-    const container = document.createElement("div");
-    container.className = "dag-container";
+    if (emptyState) emptyState.style.display = "none";
+    container.innerHTML = "";
+    if (svg) svg.innerHTML = "";
 
     // 1. Group steps by Phase for horizontal placement
     const tiers = {
@@ -175,35 +243,38 @@
       return tierEl;
     };
 
-    // Draw Tiers with connecting edges
+    // Draw Tiers
     const tStart = renderTier(tiers.start);
     const tPar = renderTier(tiers.parallel);
     const tEnd = renderTier(tiers.end);
 
     if (tStart) container.appendChild(tStart);
-    if (tStart && tPar) {
-      const edge = document.createElement("div");
-      edge.className = "dag-edge-down";
-      container.appendChild(edge);
-    }
     if (tPar) container.appendChild(tPar);
-    if ((tStart || tPar) && tEnd) {
-      const edge = document.createElement("div");
-      edge.className = "dag-edge-down";
-      container.appendChild(edge);
-    }
     if (tEnd) container.appendChild(tEnd);
 
-    dagCanvas.appendChild(container);
-
-    // Scroll to bottom of DAG to see synthesis
+    // Wait for DOM layout then draw exact SVG edges
     setTimeout(() => {
-      dagCanvas.scrollTop = dagCanvas.scrollHeight;
-    }, 100);
+      drawEdges();
+      // Scroll to bottom of DAG to see synthesis
+      if (dagCanvas) {
+        dagCanvas.scrollTop = dagCanvas.scrollHeight;
+      }
+    }, 150);
   }
 
   function applyResponse(data) {
-    appendBubble("assistant", data.assistant_message || "(empty response)");
+    let assistantMsg = data.assistant_message || "(empty response)";
+
+    // Inject confidence highlights text parsing directly into UI chat
+    if (data.semantic_context && data.semantic_context.matches) {
+      for (const [entity, candidates] of Object.entries(data.semantic_context.matches)) {
+        if (candidates.length > 0 && candidates[0].is_confident) {
+          assistantMsg += `\n\n[CONFIDENCE GAP DETECTED]: Auto-selecting highly confident entity resolving to '${candidates[0].display_name}'. -> is_confident:true`;
+        }
+      }
+    }
+
+    appendBubble("assistant", assistantMsg);
     state.lastTraceSteps = data.trace_steps || [];
     renderDag();
   }
@@ -249,6 +320,9 @@
   railButtons.forEach((btn) => {
     btn.addEventListener("click", () => {
       updateRailMode(btn.dataset.mode);
+      if (modeSelect.value !== btn.dataset.mode) {
+        modeSelect.value = btn.dataset.mode;
+      }
     });
   });
 
@@ -271,6 +345,13 @@
       console.warn("Could not connect to backend, UI running in fallback mode.");
     }
   }
+
+  // Redraw edges on resize
+  window.addEventListener('resize', () => {
+    if (state.lastTraceSteps && state.lastTraceSteps.length > 0) {
+      drawEdges();
+    }
+  });
 
   bootstrap();
 })();

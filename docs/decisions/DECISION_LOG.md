@@ -87,6 +87,11 @@ Each entry must link to a full ADR when impact is non-trivial.
   - stabilize API tests with `httpx.ASGITransport` and module-safe mocks
   - harden sprint lint execution with `bd --no-daemon`
 
+- Accepted SHACL-like practical readiness API addition (no ADR)
+  - add `/rules/assess` combining validation results and exportability checks
+  - provide actionable readiness status (`ready|caution|blocked`) for real rollout decisions
+  - add local demo script and practical guide documentation
+
 - Accepted docs website dispatch design (no ADR, rollout pending owner permission)
   - define docs push trigger contract (`seocho-docs-sync`) for `tteon/tteon.github.io`
   - require repository-owner credential path for workflow-scope permissions

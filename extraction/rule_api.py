@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import os
-from typing import Any, Dict, Optional
+from collections import Counter
+from typing import Any, Dict, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -79,6 +80,24 @@ class RuleExportCypherResponse(BaseModel):
     schema_version: str
     statements: list[str]
     unsupported_rules: list[Dict[str, Any]]
+
+
+class RuleAssessRequest(BaseModel):
+    workspace_id: str = Field(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$")
+    graph: Dict[str, Any]
+    rule_profile: Optional[Dict[str, Any]] = None
+    required_threshold: float = Field(default=0.98, ge=0.0, le=1.0)
+    enum_max_size: int = Field(default=20, ge=1, le=200)
+
+
+class RuleAssessResponse(BaseModel):
+    workspace_id: str
+    rule_profile: Dict[str, Any]
+    shacl_like: Dict[str, Any]
+    validation_summary: Dict[str, Any]
+    violation_breakdown: list[Dict[str, Any]]
+    export_preview: Dict[str, Any]
+    practical_readiness: Dict[str, Any]
 
 
 def _rule_profile_dir() -> str:
@@ -168,3 +187,98 @@ def export_rule_profile_to_cypher(request: RuleExportCypherRequest) -> RuleExpor
         statements=exported["statements"],
         unsupported_rules=exported["unsupported_rules"],
     )
+
+
+def assess_rule_profile(request: RuleAssessRequest) -> RuleAssessResponse:
+    if request.rule_profile:
+        ruleset = RuleSet.from_dict(request.rule_profile)
+    else:
+        ruleset = infer_rules_from_graph(
+            extracted_data=request.graph,
+            required_threshold=request.required_threshold,
+            enum_max_size=request.enum_max_size,
+        )
+
+    validated_graph = apply_rules_to_graph(request.graph, ruleset)
+    validation_summary = validated_graph.get("rule_validation_summary", {})
+    violation_breakdown = _collect_violation_breakdown(validated_graph)
+
+    exported = export_ruleset_to_cypher(ruleset.to_dict())
+    practical_readiness = _compute_practical_readiness(
+        validation_summary=validation_summary,
+        total_rules=len(ruleset.rules),
+        unsupported_count=len(exported.get("unsupported_rules", [])),
+    )
+    practical_readiness["top_violations"] = violation_breakdown[:5]
+
+    return RuleAssessResponse(
+        workspace_id=request.workspace_id,
+        rule_profile=ruleset.to_dict(),
+        shacl_like=ruleset.to_shacl_like(),
+        validation_summary=validation_summary,
+        violation_breakdown=violation_breakdown,
+        export_preview=exported,
+        practical_readiness=practical_readiness,
+    )
+
+
+def _collect_violation_breakdown(validated_graph: Dict[str, Any]) -> list[Dict[str, Any]]:
+    counter: Counter[tuple[str, str]] = Counter()
+    for node in validated_graph.get("nodes", []):
+        for violation in node.get("rule_validation", {}).get("violations", []):
+            key = (str(violation.get("rule", "unknown")), str(violation.get("property", "unknown")))
+            counter[key] += 1
+
+    items = []
+    for (rule_kind, prop), count in counter.most_common():
+        items.append({"rule": rule_kind, "property": prop, "count": count})
+    return items
+
+
+def _compute_practical_readiness(
+    validation_summary: Dict[str, Any],
+    total_rules: int,
+    unsupported_count: int,
+) -> Dict[str, Any]:
+    total_nodes = int(validation_summary.get("total_nodes", 0))
+    failed_nodes = int(validation_summary.get("failed_nodes", 0))
+    passed_nodes = max(total_nodes - failed_nodes, 0)
+
+    pass_ratio = 1.0 if total_nodes == 0 else passed_nodes / total_nodes
+    enforceable_rules = max(total_rules - unsupported_count, 0)
+    enforceable_ratio = 1.0 if total_rules == 0 else enforceable_rules / total_rules
+
+    score = round((pass_ratio * 0.65) + (enforceable_ratio * 0.35), 3)
+    status: Literal["ready", "caution", "blocked"]
+    if pass_ratio >= 0.95 and enforceable_ratio >= 0.5:
+        status = "ready"
+    elif pass_ratio >= 0.8:
+        status = "caution"
+    else:
+        status = "blocked"
+
+    recommendations: list[str] = []
+    if failed_nodes > 0:
+        recommendations.append(
+            "Fix failing nodes first: use violation_breakdown to target top offending properties."
+        )
+    if unsupported_count > 0:
+        recommendations.append(
+            "Some rules cannot be translated to DB constraints; enforce them in app-level validation."
+        )
+    if status == "ready":
+        recommendations.append(
+            "You can apply exported Cypher constraints and keep /rules/validate in ingestion CI."
+        )
+
+    return {
+        "status": status,
+        "score": score,
+        "pass_ratio": round(pass_ratio, 3),
+        "enforceable_ratio": round(enforceable_ratio, 3),
+        "failed_nodes": failed_nodes,
+        "total_nodes": total_nodes,
+        "total_rules": total_rules,
+        "unsupported_rules": unsupported_count,
+        "recommendations": recommendations,
+    }

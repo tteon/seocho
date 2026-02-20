@@ -79,6 +79,18 @@ Each entry must link to a full ADR when impact is non-trivial.
   - add `/platform/chat/*` API contracts
   - introduce backend/frontend specialist orchestration layer
 
+## 2026-02-20
+
+- Accepted reliability hardening patch (no ADR)
+  - align `Makefile` quality-gate targets with active Compose service (`extraction-service`)
+  - remove wildcard Neo4j procedure unrestricted setting from compose
+  - stabilize API tests with `httpx.ASGITransport` and module-safe mocks
+  - harden sprint lint execution with `bd --no-daemon`
+
+- Accepted docs website dispatch design (no ADR, rollout pending owner permission)
+  - define docs push trigger contract (`seocho-docs-sync`) for `tteon/tteon.github.io`
+  - require repository-owner credential path for workflow-scope permissions
+
 ## Template
 
 Use this block for new entries:

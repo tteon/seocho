@@ -29,7 +29,7 @@ else
   echo "Running issue/task collaboration lint..."
 fi
 
-issue_rows="$(bd list --json --all --limit 0)"
+issue_rows="$(bd --no-daemon list --json --all --limit 0)"
 
 ISSUE_ROWS="${issue_rows}" python3 - <<'PY' > /tmp/pm_lint_ids.txt
 import json, sys
@@ -51,7 +51,7 @@ PY
 missing=0
 while IFS= read -r issue_id; do
   [[ -z "${issue_id}" ]] && continue
-  labels_json="$(bd label list "${issue_id}" --json)"
+  labels_json="$(bd --no-daemon label list "${issue_id}" --json)"
   if [[ -n "${sprint_label}" ]]; then
     in_sprint="$(LABELS_JSON="${labels_json}" SPRINT_LABEL="${sprint_label}" python3 - <<'PY'
 import json, os

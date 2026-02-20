@@ -82,6 +82,19 @@ Semantic path summary:
 - close issue, rebase, sync, push
 - verify branch is up to date with origin
 
+Operational notes:
+
+- use `scripts/pm/lint-items.sh` with internal `bd --no-daemon` execution to avoid local daemon startup stalls.
+- current dev quality gates in `Makefile` run against `extraction-service`.
+- keep graph procedure privileges scoped (`apoc.*,n10s.*`) in `docker-compose.yml`.
+
+## Docs Website Sync
+
+- source of truth: `README.md` + `docs/*` in this repository
+- trigger design: push to `main` touching docs paths via `.github/workflows/sync-docs-website.yml`
+- action design: `repository_dispatch` (`seocho-docs-sync`) to `tteon/tteon.github.io`
+- rollout note: remote activation may be pending until repository owner applies a `workflow`-scoped token (`DOCS_SYNC_TOKEN`)
+
 5. Governance loop
 - log architecture decisions as ADRs
 - track context graph events and quality metrics

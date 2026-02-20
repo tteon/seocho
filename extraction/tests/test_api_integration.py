@@ -1,38 +1,79 @@
+"""Lightweight API integration checks."""
 
-import pytest
-from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock
-import sys
+import importlib
 import os
+import sys
+import types
+from contextlib import nullcontext
+from unittest.mock import MagicMock
 
-# Add parent to path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+import httpx
+import pytest
 
-from agent_server import app
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-client = TestClient(app)
 
-def test_run_agent_health():
-    # Basic check if endpoint exists (Method Not Allowed for GET is a good sign app is up)
-    response = client.get("/run_agent") 
-    assert response.status_code == 405 # It's a POST endpoint
-
-@patch("agent_server.Runner.run")
-def test_run_agent_flow(mock_run):
-    # Mock the Async Runner
-    mock_result = MagicMock()
-    mock_result.final_output = "Test Answer"
-    mock_result.chat_history = [
-        MagicMock(role="user", content="Hi"),
-        MagicMock(role="assistant", content="Hello", tool_calls=None)
-    ]
+@pytest.fixture(scope="module")
+def app_module():
+    mock_graph_db = MagicMock()
+    mock_graph_db.driver.return_value = MagicMock()
+    fake_neo4j = types.ModuleType("neo4j")
+    fake_neo4j.GraphDatabase = mock_graph_db
+    fake_neo4j_exceptions = types.ModuleType("neo4j.exceptions")
+    fake_neo4j_exceptions.ServiceUnavailable = RuntimeError
+    fake_neo4j_exceptions.SessionExpired = RuntimeError
+    fake_faiss = MagicMock()
+    fake_openai = types.ModuleType("openai")
+    fake_openai.OpenAI = MagicMock()
     
-    # AsyncMock for awaitable logic if needed, but TestClient handles sync wrapper usually.
-    # However, since run_agent is async, better to assume mocking return value directly 
-    # might need AsyncMock if proper integration. 
-    # For now, let's just checking specific payload validation.
-    
-    payload = {"query": "Hello", "user_id": "test_user"}
-    # Note: Real async testing with TestClient requires AsyncClient or specific handling.
-    # This is a placeholder for structure.
-    pass
+    class DummyAgent:
+        def __init__(self, *args, **kwargs):
+            self.name = kwargs.get("name", "DummyAgent")
+            self.instructions = kwargs.get("instructions", "")
+            self.tools = kwargs.get("tools", [])
+            self.handoffs = kwargs.get("handoffs", [])
+
+    class DummyRunner:
+        @staticmethod
+        async def run(*args, **kwargs):
+            return types.SimpleNamespace(final_output="", to_input_list=lambda: [])
+
+    def function_tool(func):
+        return func
+
+    class DummyRunContextWrapper:
+        pass
+
+    fake_agents = types.SimpleNamespace(
+        Agent=DummyAgent,
+        Runner=DummyRunner,
+        function_tool=function_tool,
+        RunContextWrapper=DummyRunContextWrapper,
+        trace=lambda *args, **kwargs: nullcontext(),
+    )
+
+    with pytest.MonkeyPatch().context() as mp:
+        mp.setenv("OPENAI_API_KEY", "test-key")
+        mp.setenv("OPIK_URL_OVERRIDE", "")
+        with pytest.MonkeyPatch().context() as mp_modules:
+            mp_modules.setitem(sys.modules, "neo4j", fake_neo4j)
+            mp_modules.setitem(sys.modules, "neo4j.exceptions", fake_neo4j_exceptions)
+            mp_modules.setitem(sys.modules, "faiss", fake_faiss)
+            mp_modules.setitem(sys.modules, "openai", fake_openai)
+            mp_modules.setitem(sys.modules, "agents", fake_agents)
+            import agent_server
+
+            return importlib.reload(agent_server)
+
+
+@pytest.fixture
+async def client(app_module):
+    transport = httpx.ASGITransport(app=app_module.app, raise_app_exceptions=False)
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as test_client:
+        yield test_client
+
+
+@pytest.mark.anyio
+async def test_run_agent_health(client):
+    response = await client.get("/run_agent")
+    assert response.status_code == 405

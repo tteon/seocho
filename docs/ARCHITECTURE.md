@@ -2,7 +2,7 @@
 
 ## Overview
 
-SEOCHO는 비정형 데이터를 Knowledge Graph로 변환하고, 동적으로 생성되는 DB별 Agent Pool이 Parallel Debate 패턴으로 질의에 응답하는 플랫폼입니다.
+SEOCHO transforms unstructured data into structured Knowledge Graphs. It implements an asynchronous, dynamic Agent Pool architecture leveraging a **Parallel Debate** pattern to answer complex queries against dynamically provisioned databases.
 
 Current baseline:
 
@@ -110,13 +110,11 @@ Why this path exists:
 
 ### Extraction Layer
 
-| Module | File | Purpose |
-|--------|------|---------|
-| OntologyPromptBridge | `extraction/ontology_prompt_bridge.py` | Ontology → LLM prompt variable 변환 |
-| EntityExtractor | `extraction/extractor.py` | OpenAI LLM 기반 entity/relationship extraction |
-| EntityLinker | `extraction/linker.py` | LLM 기반 entity resolution |
-| EntityDeduplicator | `extraction/deduplicator.py` | Embedding cosine similarity 기반 semantic dedup |
-| RuleConstraints | `extraction/rule_constraints.py` | SHACL-like 규칙 추론 및 노드 제약 검증 어노테이션 |
+| OntologyPromptBridge | `extraction/ontology_prompt_bridge.py` | Converts Ontology YAML definitions → LLM prompt variables |
+| EntityExtractor | `extraction/extractor.py` | OpenAI LLM-based entity and relationship extraction |
+| EntityLinker | `extraction/linker.py` | LLM-based entity resolution and canonicalization |
+| EntityDeduplicator | `extraction/deduplicator.py` | Embedding cosine similarity-based semantic deduplication |
+| RuleConstraints | `extraction/rule_constraints.py` | SHACL-like rule inference and node constraint validation annotations |
 | PromptManager | `extraction/prompt_manager.py` | Jinja2 prompt templating + history logging |
 
 ### Database Layer
@@ -132,11 +130,11 @@ Why this path exists:
 
 | Module | File | Purpose |
 |--------|------|---------|
-| AgentFactory | `extraction/agent_factory.py` | DB별 전용 Agent 동적 생성 |
-| SharedMemory | `extraction/shared_memory.py` | 요청 단위 agent 간 공유 메모리 + query cache |
-| DebateOrchestrator | `extraction/debate.py` | Parallel Debate 패턴 (fan-out → collect → synthesize) |
+| AgentFactory | `extraction/agent_factory.py` | Dynamically provisions dedicated Agents per database |
+| SharedMemory | `extraction/shared_memory.py` | Request-scoped shared memory between agents + query cache |
+| DebateOrchestrator | `extraction/debate.py` | Executes Parallel Debate pattern (fan-out → collect → synthesize) |
 | Agent Server | `extraction/agent_server.py` | FastAPI endpoints (`/run_agent`, `/run_debate`, `/run_agent_semantic`, `/platform/chat/send`) |
-| Platform Agents | `extraction/platform_agents.py` | Backend/Frontend specialist orchestration + session state |
+| Platform Agents | `extraction/platform_agents.py` | Backend/Frontend specialist orchestration + session state management |
 
 ### Observability Layer
 
@@ -160,9 +158,9 @@ Why this path exists:
 User → Router → {GraphAgent, VectorAgent, WebAgent, TableAgent} → Supervisor → Answer
 ```
 
-- 기존 정적 7-agent 파이프라인
-- Router가 1개의 specialist에 라우팅
-- Sequential handoff chain
+- Legacy static 7-agent pipeline.
+- The Router delegates the query to exactly 1 specialist agent.
+- Sequential hand-off chain execution.
 
 ### 2. Parallel Debate Mode (`POST /run_debate`)
 
@@ -170,10 +168,10 @@ User → Router → {GraphAgent, VectorAgent, WebAgent, TableAgent} → Supervis
 User → DebateOrchestrator → [Agent_db1 ∥ Agent_db2 ∥ ... ∥ Agent_dbN] → SharedMemory → Supervisor → Answer
 ```
 
-- 모든 DB agent가 `asyncio.gather()`로 병렬 실행
-- 각 agent 결과가 SharedMemory에 저장
-- Supervisor가 모든 결과를 합성
-- 에러 격리: 1개 agent 실패해도 나머지 결과로 합성
+- All database-bound agents execute concurrently via `asyncio.gather()`.
+- Each agent stores its isolated conclusion in Shared Memory.
+- A Supervisor Agent aggregates and synthesizes the final comprehensive answer.
+- Fault Isolated: If one agent fails, the Supervisor synthesizes using the remaining successful agent answers.
 
 ### 3. Semantic Graph QA Mode (`POST /run_agent_semantic`)
 
@@ -206,8 +204,8 @@ db_registry.is_valid("mydb01")         # 검증 (True)
 db_registry.list_databases()           # 사용자 DB 목록 (system/neo4j 제외)
 ```
 
-- DB명 validation: `^[A-Za-z][A-Za-z0-9]*$` (영문 시작, 영숫자만)
-- `VALID_DATABASES` (legacy set)는 `db_registry._databases`를 참조
+- DB Name Validation: `^[A-Za-z][A-Za-z0-9]*$` (Must start with a letter, alphanumeric only)
+- `VALID_DATABASES` (legacy fallback lookup) statically references `db_registry._databases`.
 
 ### AgentFactory (Closure-bound Tools)
 
@@ -216,8 +214,8 @@ factory = AgentFactory(neo4j_connector)
 agent = factory.create_db_agent("kgnormal", schema_info)
 ```
 
-- 각 agent의 `query_db` tool은 closure로 특정 DB에 바인딩
-- SharedMemory 캐시 자동 통합 (RunContextWrapper를 통해)
+- Each agent's `query_db` tool is closure-bound directly to a specific database context.
+- Automatic SharedMemory cache integration (via `RunContextWrapper`).
 
 ### SharedMemory (Request-scoped)
 
@@ -229,8 +227,8 @@ memory.put("agent_result:kgnormal", "answer text")
 memory.get_all_results()  # Supervisor용 전체 결과
 ```
 
-- 요청 당 1개 인스턴스
-- Cypher query MD5 해시 기반 캐싱
+- Request-scoped: Exactly 1 instance instantiated per API request.
+- Implements MD5 hashing on Cypher queries for rapid caching lookups.
 
 ### OntologyPromptBridge
 
@@ -244,24 +242,24 @@ context = bridge.render_extraction_context()
 # → {"entity_types": "- Organization: ...", "relationship_types": "...", "ontology_name": "FIBO"}
 ```
 
-- 온톨로지 YAML의 NodeDefinition/RelationshipDefinition을 LLM 프롬프트 변수로 변환
-- `default.yaml` 프롬프트에서 `{% if ontology_name %}` 분기로 동적 vs 레거시 프롬프트
+- Converts `NodeDefinition` and `RelationshipDefinition` from the Ontology YAML into native LLM prompt variables.
+- The `default.yaml` prompt dynamically switches between static mapping vs dynamic logic using standard `{% if ontology_name %}` templating blocks.
 
 ## Frontend Trace vs Opik
 
 두 시스템의 역할이 명확히 분리되어 있습니다:
 
 ### Custom Platform (Interactive UI)
-- **목적**: 운영형 사용자 채팅 UX + disambiguation override loop
-- **위치**: `evaluation/server.py` + `evaluation/static/*` (port 8501)
-- **trace 방식**: backend가 반환한 `trace_steps`와 `ui_payload`를 실시간 렌더링
-- **기능**: semantic 후보 선택 후 override 재질의, 세션 단위 대화 히스토리
+- **Purpose**: Interactive operational chat UX + semantic disambiguation override loop.
+- **Location**: `evaluation/server.py` + `evaluation/static/*` (listening on port 8501).
+- **Tracing**: The backend streams `trace_steps` and `ui_payload` to the frontend for real-time visualization.
+- **Capabilities**: Allows the user to select semantic candidates, trigger override re-queries, and maintains strict session-level dialog history.
 
 ### Opik (Production Eval & Trace)
-- **목적**: 개발/디버깅/운영 모니터링, LLM evaluation, agent visualization
-- **위치**: `http://localhost:5173` (opt-in: `docker compose --profile opik up -d`)
-- **trace 방식**: `@track` 데코레이터 + `wrap_openai_client` 자동 tracing → native span tree
-- **기능**: parent-child span tree, LLM 비용/latency, datasets & experiments, scoring
+- **Purpose**: Production eval, debugging, LLM scoring, and deep agent visualization.
+- **Location**: `http://localhost:5173` (opt-in via `docker compose --profile opik up -d`).
+- **Tracing**: `@track` decorators + `wrap_openai_client` trigger automated telemetry → building a native span tree.
+- **Capabilities**: Captures parent-child span trees, exact LLM costs/latency, custom datasets & experiments, and prompt scoring metrics.
 
 ### Opik Span Tree (Debate Pattern)
 
@@ -278,7 +276,7 @@ agent_server.run_debate                          [tags: debate-mode]
             └─ (OpenAI chat.completions.create)  [auto-traced]
 ```
 
-각 span에 `metadata` (db_name, agent_name, phase)와 `tags`가 첨부되어 Opik UI에서 필터링/검색 가능.
+Each individual recursive span carries heavy `metadata` (e.g., db_name, agent_name, phase) and diagnostic `tags` allowing rapid filtering and auditing within the Opik Dashboard UI.
 
 ### Frontend Trace Topology
 
@@ -292,7 +290,7 @@ FANOUT (yellow) ─┬─ DEBATE: Agent_kgnormal (blue)
                  SYNTHESIS: Supervisor (green)
 ```
 
-Edge routing은 `metadata.parent` (fan-out) 및 `metadata.sources` (collect) 기반.
+Edge routing in the UI is rendered strictly via the `metadata.parent` (for the fan-out trajectory) and `metadata.sources` (for the collection synthesis loop) properties on the payload.
 
 ## Configuration
 

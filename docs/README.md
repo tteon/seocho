@@ -7,6 +7,7 @@ Welcome to the central documentation index for SEOCHO. This directory tracks the
 - `ARCHITECTURE.md`: system architecture and module map
 - `TUTORIAL_FIRST_RUN.md`: first end-to-end run guide
 - `WORKFLOW.md`: end-to-end operational workflow
+- `PHILOSOPHY.md`: core design philosophy charter and operating principles
 - custom frontend backend: `evaluation/server.py` + `evaluation/static/*`
 - `GRAPH_MODEL_STRATEGY.md`: graph representation model choices and rollout
 - `SHACL_PRACTICAL_GUIDE.md`: practical readiness and adoption guide for SHACL-like constraints

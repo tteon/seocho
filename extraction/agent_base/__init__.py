@@ -8,7 +8,7 @@ Available Agents:
 - ToolRegistry: Central tool management
 
 Usage:
-    from extraction.agents import BaseAgent, ToolRegistry, register_tool
+    from extraction.agent_base import BaseAgent, ToolRegistry, register_tool
 """
 
 from .base import BaseAgent, AgentConfig, ToolRegistry, register_tool

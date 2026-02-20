@@ -227,6 +227,36 @@ class TestListEndpoints:
                 assert data["session_id"] == "s1"
                 assert data["assistant_message"] == "platform response"
 
+    async def test_platform_raw_ingest_endpoint(self, client, app_module):
+        mock_ingestor = MagicMock()
+        with patch.object(app_module, "get_runtime_raw_ingestor", return_value=mock_ingestor):
+            mock_ingest = mock_ingestor.ingest_records
+            mock_ingest.return_value = {
+                "target_database": "kgnormal",
+                "records_received": 2,
+                "records_processed": 2,
+                "records_failed": 0,
+                "total_nodes": 5,
+                "total_relationships": 3,
+                "status": "success",
+                "errors": [],
+            }
+            response = await client.post(
+                "/platform/ingest/raw",
+                json={
+                    "workspace_id": "default",
+                    "target_database": "kgnormal",
+                    "records": [
+                        {"id": "r1", "content": "Alpha acquires Beta."},
+                        {"id": "r2", "content": "Beta serves Alpha."},
+                    ],
+                },
+            )
+            assert response.status_code == 200
+            payload = response.json()
+            assert payload["status"] == "success"
+            assert payload["records_processed"] == 2
+
 
 class TestQueryValidation:
     """Test request validation."""

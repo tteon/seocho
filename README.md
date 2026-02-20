@@ -117,6 +117,7 @@ UI highlights:
 - left navigation rail (`Semantic`, `Debate`, `Router`)
 - operations table for trace inspection (search + type filter)
 - semantic candidate panel with confidence filter and pin-based overrides
+- raw-ingest panel (`Ingest DB`, `Raw Records`, `Ingest Raw`) for user-provided text-to-graph loading
 
 Use **Execution Mode** (`Router`, `Debate`, `Semantic`) to switch runtime path.
 
@@ -150,6 +151,18 @@ curl -X POST http://localhost:8001/indexes/fulltext/ensure \
     "databases": ["kgnormal", "kgfibo"],
     "index_name": "entity_fulltext",
     "create_if_missing": true
+  }'
+
+# Runtime raw text ingestion (one line/item can later be queried in chat UI)
+curl -X POST http://localhost:8001/platform/ingest/raw \
+  -H "Content-Type: application/json" \
+  -d '{
+    "workspace_id": "default",
+    "target_database": "kgnormal",
+    "records": [
+      {"id":"raw_1","content":"ACME acquired Beta in 2024."},
+      {"id":"raw_2","content":"Beta provides risk analytics to ACME."}
+    ]
   }'
 
 # (Optional) Build ontology hints from OWL for semantic reranking
@@ -290,6 +303,7 @@ seocho/
 | `/run_debate` | POST | Debate mode — all DB agents in parallel |
 | `/indexes/fulltext/ensure` | POST | Ensure fulltext index for semantic entity resolution |
 | `/platform/chat/send` | POST | Custom platform chat endpoint |
+| `/platform/ingest/raw` | POST | Ingest user raw text records into target graph DB |
 | `/platform/chat/session/{session_id}` | GET | Read platform chat session |
 | `/platform/chat/session/{session_id}` | DELETE | Reset platform chat session |
 | `/rules/infer` | POST | Infer SHACL-like rule profile from graph payload |

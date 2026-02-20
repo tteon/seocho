@@ -112,7 +112,7 @@ class DatabaseManager:
             raise InvalidDatabaseNameError(f"Database '{db_name}' is not registered.")
 
         loader = self._get_loader(db_name)
-        loader.load_graph(graph_data, source_id)
+        loader.load_graph(graph_data, source_id, database=db_name)
         logger.info("Loaded data for source '%s' into '%s'.", source_id, db_name)
 
     def get_schema_info(self, db_name: str) -> str:

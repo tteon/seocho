@@ -133,8 +133,9 @@ Why this path exists:
 | AgentFactory | `extraction/agent_factory.py` | Dynamically provisions dedicated Agents per database |
 | SharedMemory | `extraction/shared_memory.py` | Request-scoped shared memory between agents + query cache |
 | DebateOrchestrator | `extraction/debate.py` | Executes Parallel Debate pattern (fan-out → collect → synthesize) |
-| Agent Server | `extraction/agent_server.py` | FastAPI endpoints (`/run_agent`, `/run_debate`, `/run_agent_semantic`, `/platform/chat/send`) |
+| Agent Server | `extraction/agent_server.py` | FastAPI endpoints (`/run_agent`, `/run_debate`, `/run_agent_semantic`, `/platform/chat/send`, `/platform/ingest/raw`) |
 | Platform Agents | `extraction/platform_agents.py` | Backend/Frontend specialist orchestration + session state management |
+| Runtime Raw Ingestor | `extraction/runtime_ingest.py` | Runtime raw-text extraction/linking/rule-annotation and DB loading |
 
 ### Observability Layer
 
@@ -148,7 +149,7 @@ Why this path exists:
 | Module | File | Purpose |
 |--------|------|---------|
 | Platform Server | `evaluation/server.py` | Custom chat frontend backend (proxy + static hosting) |
-| Platform UI | `evaluation/static/` | Interactive chat UI (trace + candidate override) |
+| Platform UI | `evaluation/static/` | Interactive chat UI (trace + candidate override + raw ingest controls) |
 
 ## Three Execution Modes
 
@@ -254,6 +255,7 @@ context = bridge.render_extraction_context()
 - **Location**: `evaluation/server.py` + `evaluation/static/*` (listening on port 8501).
 - **Tracing**: The backend streams `trace_steps` and `ui_payload` to the frontend for real-time visualization.
 - **Capabilities**: Allows the user to select semantic candidates, trigger override re-queries, and maintains strict session-level dialog history.
+- **Additional capability**: Supports direct raw-text ingestion (`Ingest Raw`) before query execution.
 
 ### Opik (Production Eval & Trace)
 - **Purpose**: Production eval, debugging, LLM scoring, and deep agent visualization.
@@ -330,6 +332,7 @@ conf/
 | `/run_debate` | POST | Parallel debate mode |
 | `/indexes/fulltext/ensure` | POST | Ensure fulltext index exists for semantic routing |
 | `/platform/chat/send` | POST | Custom interactive platform chat endpoint |
+| `/platform/ingest/raw` | POST | Runtime raw record ingestion into target graph DB |
 | `/platform/chat/session/{session_id}` | GET | Read platform session history |
 | `/platform/chat/session/{session_id}` | DELETE | Reset platform session |
 | `/databases` | GET | List registered databases |

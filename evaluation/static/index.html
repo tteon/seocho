@@ -3,17 +3,18 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Seocho Operations Console</title>
+    <title>SEOCHO AIP Console</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
     <main class="app-shell">
+      <!-- Left Rail Navigation -->
       <aside class="rail">
         <div class="rail-brand">
           <div class="dot"></div>
@@ -24,30 +25,30 @@
           <button class="rail-btn" id="railDebate" data-mode="debate">Debate</button>
           <button class="rail-btn" id="railRouter" data-mode="router">Router</button>
         </nav>
-        <div class="rail-foot">
-          <button id="resetSessionBtn" class="ghost">Reset Session</button>
-        </div>
       </aside>
 
+      <!-- Main Shell -->
       <section class="shell">
+        <!-- Top App Bar -->
         <header class="topbar">
-          <div class="brand">
-            <p class="eyebrow">SEOCHO</p>
-            <h1>Operations Console</h1>
-            <p class="subtext" id="sessionMeta">Session</p>
+          <div class="brand-title">
+            <h1>Workflow Console</h1>
+            <span class="subtext" id="sessionMeta">Session</span>
           </div>
           <div class="status-wrap">
+            <button id="resetSessionBtn" style="background:transparent; border:1px solid var(--border-color); color:var(--text-muted); padding:4px 8px; border-radius:4px; font-size:0.75rem; cursor:pointer;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='var(--text-muted)'">Reset Trace</button>
             <div class="status" id="statusPill">Initializing</div>
           </div>
         </header>
 
+        <!-- Pipeline Controls -->
         <section class="controls">
           <label class="control">
             <span>Mode</span>
             <select id="modeSelect">
-              <option value="semantic">Semantic</option>
-              <option value="debate">Debate</option>
-              <option value="router">Router</option>
+              <option value="semantic">Semantic (DAG)</option>
+              <option value="debate">Debate (Parallel)</option>
+              <option value="router">Router (Sequential)</option>
             </select>
           </label>
           <label class="control">
@@ -60,68 +61,49 @@
           </label>
         </section>
 
+        <!-- Dual Pane Interaction Area -->
         <section class="content">
-          <div class="chat-panel">
-            <div class="panel-head">
-              <h2>Conversation</h2>
+          <!-- Left: Chat & Reasoning Pane -->
+          <div class="chat-pane">
+            <div class="chat-log" id="chatLog">
+              <div style="font-family:var(--font-mono); font-size:0.7rem; color:var(--text-muted); text-align:center;">// System Authenticated. Trace visualization ready.</div>
             </div>
-            <div class="chat-log" id="chatLog"></div>
+            
             <form id="chatForm" class="composer">
-              <textarea id="chatInput" placeholder="Ask anything about your graph..." rows="2"></textarea>
-              <button type="submit" id="sendBtn">Send</button>
+              <textarea id="chatInput" placeholder="Awaiting query injection..." rows="3"></textarea>
+              <button type="submit" id="sendBtn">Execute Pipeline</button>
             </form>
           </div>
 
-          <aside class="side-panel">
-            <div class="panel-card">
-              <h2>Operations</h2>
-              <pre id="traceSummary" class="mono">-</pre>
-              <div class="ops-tools">
-                <input id="traceSearchInput" placeholder="Search trace..." />
-                <select id="traceTypeFilter">
-                  <option value="">All types</option>
-                </select>
-              </div>
-              <div class="ops-table-wrap">
-                <table class="ops-table">
-                  <thead>
-                    <tr>
-                      <th>#</th>
-                      <th>Type</th>
-                      <th>Agent</th>
-                      <th>Content</th>
-                    </tr>
-                  </thead>
-                  <tbody id="traceTableBody">
-                    <tr><td colspan="4">No trace yet.</td></tr>
-                  </tbody>
-                </table>
-              </div>
+          <!-- Right: AIP Workflow DAG Canvas -->
+          <div class="canvas-pane" id="dagCanvas">
+            <div class="canvas-header">Workflow Builder Live Trace Graph</div>
+            <div class="canvas-empty">
+              [ NO ACTIVE RUN ]<br/><br/>
+              Awaiting payload to render DAG Trace...
             </div>
-            <div class="panel-card">
-              <h2>Entity Disambiguation</h2>
-              <div class="candidate-tools">
-                <input id="candidateSearchInput" placeholder="Filter entities/candidates..." />
-                <label class="range-wrap">
-                  <span>Min score</span>
-                  <input id="candidateScoreFilter" type="range" min="0" max="10" step="0.1" value="0" />
-                  <strong id="candidateScoreValue">0.0</strong>
-                </label>
-              </div>
-              <p class="pin-count" id="candidatePinnedCount">Pinned: 0</p>
-              <div id="candidateContainer" class="candidate-list"></div>
-              <button id="rerunBtn" class="accent" disabled>Apply Pinned Overrides</button>
-            </div>
-          </aside>
+            <!-- Nodes will be injected here via app.js -->
+          </div>
         </section>
       </section>
     </main>
 
+    <!-- Templates -->
     <template id="bubbleTemplate">
       <article class="bubble">
         <p class="role"></p>
         <div class="text"></div>
       </article>
+    </template>
+
+    <template id="dagNodeTemplate">
+      <div class="workflow-node">
+        <div class="node-header">
+          <span class="node-agent-name"></span>
+          <span class="node-type"></span>
+        </div>
+        <div class="node-content font-mono"></div>
+      </div>
     </template>
 
     <script src="/static/app.js"></script>

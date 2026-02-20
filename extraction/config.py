@@ -56,7 +56,7 @@ class DatabaseRegistry:
 
     def list_databases(self) -> list:
         """Return user-facing databases (excluding system DBs)."""
-        return sorted(self._databases - {"neo4j", "system"})
+        return sorted(self._databases - {"neo4j", "system", "agenttraces"})
 
 
 # Global singleton

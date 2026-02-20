@@ -29,8 +29,8 @@ services:
     build: ./extraction
     container_name: extraction-service
     ports:
-      - "8888:8888"
-      - "8001:8001"
+      - "${EXTRACTION_NOTEBOOK_PORT:-8888}:8888"
+      - "${EXTRACTION_API_PORT:-8001}:8001"
     volumes:
       - ./extraction:/app
       - ./notebooks:/app/notebooks

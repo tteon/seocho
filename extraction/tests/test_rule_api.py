@@ -1,8 +1,10 @@
 from rule_api import (
     RuleInferRequest,
+    RuleAssessRequest,
     RuleExportCypherRequest,
     RuleProfileCreateRequest,
     RuleValidateRequest,
+    assess_rule_profile,
     create_rule_profile,
     export_rule_profile_to_cypher,
     infer_rule_profile,
@@ -82,3 +84,36 @@ def test_export_rule_profile_to_cypher_from_inline_profile():
 
     assert isinstance(exported.statements, list)
     assert exported.schema_version == "rules.v1"
+
+
+def test_assess_rule_profile_includes_readiness_and_export_preview():
+    req = RuleAssessRequest(workspace_id="default", graph=_sample_graph())
+    res = assess_rule_profile(req)
+
+    assert res.workspace_id == "default"
+    assert "status" in res.practical_readiness
+    assert "score" in res.practical_readiness
+    assert "statements" in res.export_preview
+    assert "unsupported_rules" in res.export_preview
+
+
+def test_assess_rule_profile_detects_failed_nodes_with_reference_profile():
+    inferred = infer_rule_profile(RuleInferRequest(workspace_id="default", graph=_sample_graph()))
+    candidate_graph = {
+        "nodes": [
+            {"id": "1", "label": "Company", "properties": {"name": "Acme", "employees": 100}},
+            {"id": "2", "label": "Company", "properties": {"name": "", "employees": "many"}},
+        ],
+        "relationships": [],
+    }
+    assessed = assess_rule_profile(
+        RuleAssessRequest(
+            workspace_id="default",
+            graph=candidate_graph,
+            rule_profile=inferred.rule_profile,
+        )
+    )
+
+    assert assessed.validation_summary["failed_nodes"] == 1
+    assert assessed.practical_readiness["status"] == "blocked"
+    assert len(assessed.violation_breakdown) >= 1

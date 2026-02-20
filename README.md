@@ -275,6 +275,7 @@ seocho/
 | `/platform/chat/session/{session_id}` | DELETE | Reset platform chat session |
 | `/rules/infer` | POST | Infer SHACL-like rule profile from graph payload |
 | `/rules/validate` | POST | Validate graph payload against inferred/provided rules |
+| `/rules/assess` | POST | Practical readiness assessment (validation + exportability) |
 | `/rules/profiles` | POST | Save a named rule profile for a workspace |
 | `/rules/profiles` | GET | List saved rule profiles in a workspace |
 | `/rules/profiles/{profile_id}` | GET | Read one saved rule profile |
@@ -325,6 +326,20 @@ seocho/
   "workspace_id": "default",
   "graph": {
     "nodes": [{"id": "1", "label": "Company", "properties": {"name": "Acme"}}],
+    "relationships": []
+  }
+}
+```
+
+**Request body** (`/rules/assess`):
+```json
+{
+  "workspace_id": "default",
+  "graph": {
+    "nodes": [
+      {"id": "1", "label": "Company", "properties": {"name": "Acme", "employees": 100}},
+      {"id": "2", "label": "Company", "properties": {"name": "", "employees": "many"}}
+    ],
     "relationships": []
   }
 }
@@ -397,8 +412,23 @@ Generated output includes:
 - `rule_profile`: inferred rules
 - `rule_validation_summary`: pass/fail node counts
 - `nodes[*].rule_validation`: per-node violations
+- `/rules/assess.practical_readiness`: readiness status/score and actionable recommendations
 
 This is designed for later translation to SHACL/Neo4j governance flows.
+
+Practical run:
+
+```bash
+curl -s -X POST http://localhost:8001/rules/assess \
+  -H "Content-Type: application/json" \
+  -d @sample_graph_payload.json | jq '.practical_readiness'
+```
+
+Local demo script:
+
+```bash
+python scripts/rules/shacl_practical_demo.py
+```
 
 ---
 
@@ -424,6 +454,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed architecture.
 See [docs/TUTORIAL_FIRST_RUN.md](docs/TUTORIAL_FIRST_RUN.md) for first end-to-end run.
 See [docs/WORKFLOW.md](docs/WORKFLOW.md) for control/data plane workflow.
 See [docs/GRAPH_MODEL_STRATEGY.md](docs/GRAPH_MODEL_STRATEGY.md) for graph representation strategy.
+See [docs/SHACL_PRACTICAL_GUIDE.md](docs/SHACL_PRACTICAL_GUIDE.md) for practical SHACL-like rollout guidance.
 See [docs/ISSUE_TASK_SYSTEM.md](docs/ISSUE_TASK_SYSTEM.md) for sprint/roadmap issue-task operations.
 See [docs/ADD_PLAYBOOK.md](docs/ADD_PLAYBOOK.md) for agent-driven delivery workflow.
 See [docs/CONTEXT_GRAPH_BLUEPRINT.md](docs/CONTEXT_GRAPH_BLUEPRINT.md) for context graph rollout.

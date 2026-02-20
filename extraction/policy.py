@@ -30,12 +30,12 @@ class RuntimePolicyEngine:
         self._role_permissions: Dict[str, Set[str]] = {
             "admin": {
                 "run_agent", "run_debate", "read_databases", "read_agents",
-                "infer_rules", "validate_rules", "manage_rule_profiles", "export_rules",
+                "infer_rules", "validate_rules", "assess_rules", "manage_rule_profiles", "export_rules",
                 "manage_indexes", "run_platform",
             },
             "user": {
                 "run_agent", "run_debate", "read_databases", "read_agents",
-                "infer_rules", "validate_rules", "manage_rule_profiles", "export_rules",
+                "infer_rules", "validate_rules", "assess_rules", "manage_rule_profiles", "export_rules",
                 "manage_indexes", "run_platform",
             },
             "viewer": {"read_databases", "read_agents"},

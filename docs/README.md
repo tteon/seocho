@@ -9,6 +9,7 @@ Welcome to the central documentation index for SEOCHO. This directory tracks the
 - `WORKFLOW.md`: end-to-end operational workflow
 - custom frontend backend: `evaluation/server.py` + `evaluation/static/*`
 - `GRAPH_MODEL_STRATEGY.md`: graph representation model choices and rollout
+- `SHACL_PRACTICAL_GUIDE.md`: practical readiness and adoption guide for SHACL-like constraints
 - `ISSUE_TASK_SYSTEM.md`: sprint/roadmap issue and task operating model
 - `ADD_PLAYBOOK.md`: engineering execution and landing procedure
 - `CONTEXT_GRAPH_BLUEPRINT.md`: context event model and rollout

@@ -55,6 +55,7 @@ Primary surfaces:
 2. Ingestion and graph build
 - run extraction pipeline
 - apply SHACL-like rule inference/validation
+- run readiness check with `/rules/assess` before promoting profile to governance baseline
 - save reusable rule profiles (`/rules/profiles`)
 - load graph into DozerDB
 

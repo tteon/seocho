@@ -101,6 +101,11 @@ Each entry must link to a full ADR when impact is non-trivial.
   - formalize backend topology metadata as frontend DAG rendering contract
   - require philosophy alignment checks in workflow and agent implementation
 
+- Accepted `ADR-0015-philosophy-feasibility-review-framework.md`
+  - add multi-role feasibility review framework tied to philosophy charter
+  - standardize Go/Conditional Go/No-Go rubric with role-specific checklists
+  - require architecture-significant intake to run feasibility review
+
 ## Template
 
 Use this block for new entries:

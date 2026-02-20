@@ -179,3 +179,28 @@ Reference: `docs/GRAPH_MODEL_STRATEGY.md`
 - docs updated (README/docs/ADR as needed)
 - issue/task state updated
 - changes pushed to `origin/main`
+
+## 12. Commit Conventions & Website Sync
+
+### Commit Conventions (Semantic Versioning)
+We enforce STRICT Semantic Versioning style commit prefixes to keep our history clean and to fuel the automated `Updates` section of the website changelog.
+- `feat:` — New features or significant additions (e.g., `feat: Add Parallel Debate orchestrator`)
+- `fix:` — Bug fixes (e.g., `fix: Resolve FAISS index out of bounds error`)
+- `docs:` — Documentation and website changes (e.g., `docs: Update CLAUDE.md for agent collaboration`)
+- `refactor:` — Code restructuring without logic changes
+- `chore:` — Tooling, dependency, or minor configuration updates
+- `test:` — Adding or updating test suites
+
+### Automated Website Syncing
+The `seocho` primary repository acts as the source of truth for all documentation.
+Website sync is designed to run through `.github/workflows/sync-docs-website.yml` with `repository_dispatch` to `tteon.github.io`, but rollout may require repository owner credentials (`workflow`-scoped token).
+If the workflow is not yet active in the remote repository, treat docs-sync as pending owner implementation.
+
+## 13. Reliability Notes (2026-02-20)
+
+- `Makefile` quality gates must target `extraction-service` (not `engine`).
+- Neo4j/DozerDB procedure privileges must stay scoped to `apoc.*,n10s.*` (no wildcard unrestricted).
+- API/middleware tests should prefer `httpx.ASGITransport` + `AsyncClient` over `TestClient` in this repo environment.
+- When local `bd` daemon startup is unstable, run lint via non-daemon mode (`bd --no-daemon`) to avoid hanging quality gates.
+- `tteon.github.io/` can exist as a local nested workspace for website validation, but it should remain untracked by the parent `seocho` repository.
+- Pushing workflow-file changes requires a PAT with `workflow` scope (or equivalent owner permissions).

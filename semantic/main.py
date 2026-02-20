@@ -1,12 +1,16 @@
+import logging
+from typing import List
+
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import List
+
 from agent import GraphAgent
 from neo4j_client import Neo4jClient
 
 app = FastAPI()
 agent = GraphAgent()
 neo4j_client = Neo4jClient()
+logger = logging.getLogger(__name__)
 
 @app.on_event("startup")
 async def startup_event():
@@ -20,7 +24,7 @@ class Document(BaseModel):
 
 @app.post("/ingest")
 async def ingest_documents(documents: List[Document]):
-    print(f"Received {len(documents)} documents for ingestion.")
+    logger.info("Received %d documents for ingestion.", len(documents))
     try:
         for doc in documents:
             # 1. Store Document Node in Graph
@@ -35,7 +39,7 @@ async def ingest_documents(documents: List[Document]):
 
         return {"status": "success", "processed": len(documents)}
     except Exception as e:
-        print(f"Error processing documents: {e}")
+        logger.exception("Error processing documents: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.on_event("shutdown")

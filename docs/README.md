@@ -16,6 +16,13 @@ Welcome to the central documentation index for SEOCHO. This directory tracks the
 - `ROADMAP.md`: planned product/engineering milestones
 - `decisions/DECISION_LOG.md`: architecture decision history
 
+## Docs Sync Integration
+
+- `README.md` and `docs/*` changes are intended to propagate to the website via `.github/workflows/sync-docs-website.yml`.
+- The planned trigger emits `repository_dispatch` to `tteon/tteon.github.io` (`event-type: seocho-docs-sync`).
+- Remote rollout may remain pending until repository-owner credentials with `workflow` scope are applied.
+- Local `tteon.github.io/` workspace can be used for integration testing, but remains outside `seocho` tracking.
+
 ## Archive
 
 Archived docs are moved under `docs/archive/` when no longer part of current

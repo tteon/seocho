@@ -38,24 +38,24 @@ restart: ## Restart all services
 logs: ## View logs from all services
 	@docker compose logs -f --tail=100
 
-shell: ## Open shell in engine container
-	@docker compose exec engine bash
+shell: ## Open shell in extraction-service container
+	@docker compose exec extraction-service bash
 
 ##@ Development
 
 test: ## Run tests
 	@echo "🧪 Running tests..."
-	@docker compose exec engine python -m pytest tests/ -v
+	@docker compose exec extraction-service python -m pytest tests/ -v
 
 lint: ## Run linting
 	@echo "🔍 Running linting..."
-	@docker compose exec engine python -m flake8 src/ --max-line-length=88
-	@docker compose exec engine python -m black src/ --check
+	@docker compose exec extraction-service python -m flake8 . --max-line-length=88
+	@docker compose exec extraction-service python -m black . --check
 
 format: ## Format code
 	@echo "✨ Formatting code..."
-	@docker compose exec engine python -m black src/
-	@docker compose exec engine python -m isort src/
+	@docker compose exec extraction-service python -m black .
+	@docker compose exec extraction-service python -m isort .
 
 clean: ## Clean up containers and volumes
 	@echo "🧹 Cleaning up..."

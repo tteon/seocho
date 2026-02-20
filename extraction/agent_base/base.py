@@ -5,7 +5,7 @@ This module provides the foundational classes for creating custom agents.
 All agents should inherit from BaseAgent to ensure consistent behavior.
 
 Example:
-    >>> from extraction.agents.base import BaseAgent
+    >>> from extraction.agent_base.base import BaseAgent
     >>> class MyAgent(BaseAgent):
     ...     def __init__(self):
     ...         super().__init__(

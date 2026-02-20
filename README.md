@@ -14,6 +14,8 @@ SEOCHO transforms unstructured data into structured knowledge graphs and provide
 - Graph DB: **DozerDB** (fixed)
 - Tenancy: **Single-tenant MVP**, with `workspace_id` propagated for future expansion
 
+> **Note on Terminology**: SEOCHO has standardized on **DozerDB** as the primary graph database engine. However, because DozerDB is fully compatible with the Neo4j Bolt protocol and Cypher query language, you will frequently see the terms **Neo4j** and **DozerDB** used interchangeably throughout this documentation, CLI flags, and architectural diagrams.
+
 ## Planes
 
 ### Control Plane

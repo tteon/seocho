@@ -58,6 +58,13 @@ evaluation-interface  running
 
 ## Step 4: Your First Query
 
+:::note[Understanding the Execution Modes]
+SEOCHO provides multiple intelligent routing options via the UI dropdown or API endpoints.
+- **Router (Legacy)**: Fast, single-agent dispatch.
+- **Debate (Recommended)**: Fan-out parallel agent execution utilizing consensus-based Supervisor synthesis over the graph.
+- **Semantic**: Precision entity resolution and disambiguation before graph traversal.
+:::
+
 ### Via Custom Platform (Recommended)
 
 1. Open http://localhost:8501
@@ -81,10 +88,22 @@ curl -X POST http://localhost:8001/run_agent \
   -H "Content-Type: application/json" \
   -d '{"query": "What entities exist in the graph?", "user_id": "quickstart"}'
 
-# Debate mode
+# Debate mode (Parallel fan-out)
 curl -X POST http://localhost:8001/run_debate \
   -H "Content-Type: application/json" \
   -d '{"query": "Compare entities across all databases"}'
+```
+
+:::tip[Expected JSON Response]
+```json
+{
+  "answer": "Based on a parallel synthesis from 4 isolated database agents, here is the comparative analysis...\n\n### Graph Database 1 (kgnormal)\n...",
+  "status": "success",
+  "traced_agents": ["Agent_kgnormal", "Agent_kgfibo"],
+  "synthesis_latency_ms": 1450
+}
+```
+:::
 
 # Semantic graph QA mode
 curl -X POST http://localhost:8001/run_agent_semantic \
@@ -115,11 +134,14 @@ python scripts/ontology/build_ontology_hints.py \
 
 ## Step 5: Load Sample Data
 
+:::note[What does this do?]
+This script (`data_mesh_mock.py`) reads a sample dataset matching the FIBO financial domain ontology and automatically invokes the **Data Extraction Pipeline**. 
+It uses LLMs to extract entities, relationships, resolves duplicates via semantic embedding deduplication, and strictly provisions them into the `kgfibo` isolated Neo4j database partition.
+:::
+
 ```bash
 docker exec extraction-service python demos/data_mesh_mock.py
 ```
-
-This seeds Neo4j with FIBO financial domain entities.
 
 ---
 

@@ -205,3 +205,15 @@ If the workflow is not yet active in the remote repository, treat docs-sync as p
 - When local `bd` daemon startup is unstable, run lint via non-daemon mode (`bd --no-daemon`) to avoid hanging quality gates.
 - `tteon.github.io/` can exist as a local nested workspace for website validation, but it should remain untracked by the parent `seocho` repository.
 - Pushing workflow-file changes requires a PAT with `workflow` scope (or equivalent owner permissions).
+
+## 14. Philosophy Alignment
+
+All significant implementation changes should align with `docs/PHILOSOPHY.md`.
+
+Critical alignment checks:
+
+- heterogeneous-source extraction should produce ontology-governed semantics (rules + entity links), not plain unstructured outputs only.
+- graph instance lifecycle and graph-agent lifecycle should remain 1:1 unless an ADR explicitly changes this.
+- router/supervisor request allocation should be grounded in ontology-backed graph metadata.
+- backend trace topology metadata is a contract for frontend DAG rendering, not an optional hint.
+- Opik traces should preserve enough metadata to audit routing, semantic disambiguation, and synthesis paths.

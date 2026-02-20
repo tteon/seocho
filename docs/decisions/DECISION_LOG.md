@@ -96,6 +96,11 @@ Each entry must link to a full ADR when impact is non-trivial.
   - define docs push trigger contract (`seocho-docs-sync`) for `tteon/tteon.github.io`
   - require repository-owner credential path for workflow-scope permissions
 
+- Accepted `ADR-0014-seocho-philosophy-charter-and-dag-contract.md`
+  - codify SEOCHO philosophy as explicit design and operating charter
+  - formalize backend topology metadata as frontend DAG rendering contract
+  - require philosophy alignment checks in workflow and agent implementation
+
 ## Template
 
 Use this block for new entries:

@@ -16,6 +16,24 @@ SEOCHO transforms unstructured data into structured knowledge graphs and provide
 
 > **Note on Terminology**: SEOCHO has standardized on **DozerDB** as the primary graph database engine. However, because DozerDB is fully compatible with the Neo4j Bolt protocol and Cypher query language, you will frequently see the terms **Neo4j** and **DozerDB** used interchangeably throughout this documentation, CLI flags, and architectural diagrams.
 
+## Design Philosophy
+
+1. Extract domain rules and high-value semantics from heterogeneous data into a SHACL-like semantic layer.
+2. Preserve extracted data in table-first form and build ontology artifacts (`.ttl` and related files) as merge-time decision evidence.
+3. Use entity extraction/linking with ontology-aware prompting (`prompt + ontology` context to LLMs) to convert related records into graph structures.
+4. Maintain a 1:1 mapping between graph instances and graph agents.
+5. Keep router agent as default request entry, selecting graph instances that can answer user intent.
+6. Operate router/graph-agent interaction under supervisor-style orchestration, with ontology metadata driving query-to-graph allocation.
+7. Treat agent-layer telemetry as first-class data and track every flow with Opik.
+
+Additional viewpoints adopted by SEOCHO:
+
+- **Provenance-first governance**: every extracted fact and rule should remain auditable to source chunk/document.
+- **Confidence-aware control**: routing/disambiguation decisions should expose confidence and support deterministic overrides.
+- **Contract-first DAG integration**: backend emits strict topology metadata (e.g., `node_id`, `parent_id`, `parent_ids`) so frontend trace canvas renders real execution graph, not heuristic layout.
+- **Closed-loop readiness**: semantic quality is operationalized via `/rules/assess` (validation + exportability) before rule promotion.
+- **Versioned ontology lifecycle**: ontology/rule artifacts are treated as versioned control-plane assets, not ad-hoc runtime state.
+
 ## Planes
 
 ### Control Plane
@@ -54,6 +72,7 @@ CSV/JSON/API → Ontology-Driven Extraction → Entity Linking → Deduplication
 - Each Neo4j database gets its own agent with closure-bound tools
 - All agents answer independently via `asyncio.gather()`
 - Supervisor synthesizes a unified response
+- Backend emits topology metadata for DAG-grade UI trace rendering
 - Optional semantic route uses 4-agent flow:
   - `RouterAgent`
   - `LPGAgent`
@@ -453,6 +472,7 @@ See [CLAUDE.md](CLAUDE.md) for coding rules, patterns, and module reference.
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed architecture.
 See [docs/TUTORIAL_FIRST_RUN.md](docs/TUTORIAL_FIRST_RUN.md) for first end-to-end run.
 See [docs/WORKFLOW.md](docs/WORKFLOW.md) for control/data plane workflow.
+See [docs/PHILOSOPHY.md](docs/PHILOSOPHY.md) for the design philosophy charter and operating principles.
 See [docs/GRAPH_MODEL_STRATEGY.md](docs/GRAPH_MODEL_STRATEGY.md) for graph representation strategy.
 See [docs/SHACL_PRACTICAL_GUIDE.md](docs/SHACL_PRACTICAL_GUIDE.md) for practical SHACL-like rollout guidance.
 See [docs/ISSUE_TASK_SYSTEM.md](docs/ISSUE_TASK_SYSTEM.md) for sprint/roadmap issue-task operations.

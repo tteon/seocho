@@ -3,9 +3,7 @@
     sessionId: crypto.randomUUID ? crypto.randomUUID() : `sess_${Date.now()}`,
     lastPrompt: "",
     lastMode: "semantic",
-    lastCandidateGroups: [],
     lastTraceSteps: [],
-    pinnedByEntity: {},
   };
 
   const chatLog = document.getElementById("chatLog");
@@ -16,35 +14,25 @@
   const workspaceInput = document.getElementById("workspaceInput");
   const databasesInput = document.getElementById("databasesInput");
   const statusPill = document.getElementById("statusPill");
-  const traceSummary = document.getElementById("traceSummary");
-  const traceSearchInput = document.getElementById("traceSearchInput");
-  const traceTypeFilter = document.getElementById("traceTypeFilter");
-  const traceTableBody = document.getElementById("traceTableBody");
-  const candidateContainer = document.getElementById("candidateContainer");
-  const candidateSearchInput = document.getElementById("candidateSearchInput");
-  const candidateScoreFilter = document.getElementById("candidateScoreFilter");
-  const candidateScoreValue = document.getElementById("candidateScoreValue");
-  const candidatePinnedCount = document.getElementById("candidatePinnedCount");
-  const rerunBtn = document.getElementById("rerunBtn");
   const resetSessionBtn = document.getElementById("resetSessionBtn");
   const bubbleTemplate = document.getElementById("bubbleTemplate");
   const sessionMeta = document.getElementById("sessionMeta");
   const railButtons = Array.from(document.querySelectorAll(".rail-btn"));
+  const dagCanvas = document.getElementById("dagCanvas");
+  const dagNodeTemplate = document.getElementById("dagNodeTemplate");
 
   function setStatus(text, kind) {
     statusPill.textContent = text;
+    statusPill.style.color = "#fff";
     if (kind === "error") {
-      statusPill.style.background = "#fceceb";
-      statusPill.style.color = "#8c302b";
-      statusPill.style.borderColor = "#e6b2ae";
+      statusPill.style.background = "rgba(248, 81, 73, 0.2)";
+      statusPill.style.border = "1px solid rgba(248, 81, 73, 0.5)";
     } else if (kind === "busy") {
-      statusPill.style.background = "#fff3e8";
-      statusPill.style.color = "#8b4d19";
-      statusPill.style.borderColor = "#efc48f";
+      statusPill.style.background = "rgba(210, 153, 34, 0.2)";
+      statusPill.style.border = "1px solid rgba(210, 153, 34, 0.5)";
     } else {
-      statusPill.style.background = "#eaf6ef";
-      statusPill.style.color = "#1f6f45";
-      statusPill.style.borderColor = "#c4d9c9";
+      statusPill.style.background = "rgba(46, 160, 67, 0.2)";
+      statusPill.style.border = "1px solid rgba(46, 160, 67, 0.5)";
     }
   }
 
@@ -74,33 +62,17 @@
       .filter(Boolean);
   }
 
-  function previewText(value, maxLen) {
-    const text = String(value || "");
-    if (text.length <= maxLen) return text;
-    return `${text.slice(0, maxLen)}...`;
-  }
-
-  function candidateKey(candidate) {
-    return `${candidate.database}|${candidate.node_id}`;
-  }
-
-  function parseScore(value) {
-    const score = Number(value);
-    if (Number.isFinite(score)) return score;
-    return 0;
-  }
-
-  async function sendChatMessage(message, overrides) {
+  async function sendChatMessage(message) {
     const payload = {
       session_id: state.sessionId,
       message,
       mode: modeSelect.value,
       workspace_id: workspaceInput.value.trim() || "default",
       databases: parseDatabases(),
-      entity_overrides: overrides || null,
+      entity_overrides: null,
     };
 
-    setStatus("Running", "busy");
+    setStatus("Executing Workflow...", "busy");
     const response = await fetch("/api/chat/send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -113,204 +85,127 @@
     }
 
     const data = await response.json();
-    setStatus("Ready", "ok");
+    setStatus("Idle", "ok");
     return data;
   }
 
-  function renderTraceSummary(summaryObj) {
-    const entries = Object.entries(summaryObj || {});
-    if (!entries.length) {
-      traceSummary.textContent = "-";
-      return;
+  function createDagNode(step) {
+    const frag = dagNodeTemplate.content.cloneNode(true);
+    const el = frag.querySelector(".workflow-node");
+    const typeEl = frag.querySelector(".node-type");
+    const nameEl = frag.querySelector(".node-agent-name");
+    const contentEl = frag.querySelector(".node-content");
+
+    nameEl.textContent = step.agent || Object.keys(step.metadata || {})[0] || "System Agent";
+
+    // Determine Palantir styling based on step phase
+    let phaseClass = "agent";
+    let phaseLabel = "Worker";
+    const phase = step.metadata?.phase || "";
+    if (phase === "orchestration") {
+      phaseClass = "orchestrator";
+      phaseLabel = "Orchestrator";
+    } else if (phase === "synthesis" || step.agent?.includes("Supervisor")) {
+      phaseClass = "supervisor";
+      phaseLabel = "Supervisor";
+    } else if (phase === "fan-out") {
+      phaseLabel = `DB: ${step.metadata.db || "Unknown"}`;
+      phaseClass = "agent";
     }
-    const lines = entries
-      .sort((a, b) => b[1] - a[1])
-      .map(([k, v]) => `${k}: ${v}`);
-    traceSummary.textContent = lines.join("\n");
+
+    typeEl.textContent = phaseLabel;
+    typeEl.classList.add(phaseClass);
+
+    if (step.content) {
+      let preview = step.content;
+      if (preview.length > 300) preview = preview.substring(0, 300) + '...';
+      contentEl.textContent = preview;
+    } else {
+      contentEl.textContent = "// Payload empty or internal state change";
+      contentEl.style.color = "rgba(139, 148, 158, 0.5)";
+    }
+
+    return el;
   }
 
-  function syncTraceTypeFilter(steps) {
-    const current = traceTypeFilter.value;
-    const types = Array.from(new Set((steps || []).map((s) => String(s.type || "UNKNOWN")))).sort();
-    traceTypeFilter.innerHTML = "";
-    const allOpt = document.createElement("option");
-    allOpt.value = "";
-    allOpt.textContent = "All types";
-    traceTypeFilter.appendChild(allOpt);
-    types.forEach((type) => {
-      const opt = document.createElement("option");
-      opt.value = type;
-      opt.textContent = type;
-      traceTypeFilter.appendChild(opt);
-    });
-    if (types.includes(current)) {
-      traceTypeFilter.value = current;
-    }
-  }
+  function renderDag() {
+    dagCanvas.innerHTML = '<div class="canvas-header">Workflow Builder Live Trace Graph</div>';
 
-  function renderTraceTable() {
-    const searchText = (traceSearchInput.value || "").trim().toLowerCase();
-    const typeFilter = traceTypeFilter.value;
-    const rows = (state.lastTraceSteps || []).filter((step) => {
-      const matchesType = !typeFilter || String(step.type || "") === typeFilter;
-      if (!matchesType) return false;
-      if (!searchText) return true;
-      const haystack = [
-        step.type,
-        step.agent,
-        step.content,
-        JSON.stringify(step.metadata || {}),
-      ]
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(searchText);
-    });
-
-    traceTableBody.innerHTML = "";
-    if (!rows.length) {
-      const tr = document.createElement("tr");
-      const td = document.createElement("td");
-      td.colSpan = 4;
-      td.textContent = "No matching trace rows.";
-      tr.appendChild(td);
-      traceTableBody.appendChild(tr);
+    if (!state.lastTraceSteps || state.lastTraceSteps.length === 0) {
+      dagCanvas.innerHTML += `<div class="canvas-empty">
+        [ NO ACTIVE RUN ]<br/><br/>
+        Awaiting payload to render DAG Trace...
+      </div>`;
       return;
     }
 
-    rows.forEach((step, idx) => {
-      const tr = document.createElement("tr");
-      const cols = [
-        String(idx + 1),
-        String(step.type || "UNKNOWN"),
-        String(step.agent || "-"),
-        previewText(step.content || "", 120),
-      ];
-      cols.forEach((value) => {
-        const td = document.createElement("td");
-        td.textContent = value;
-        tr.appendChild(td);
-      });
-      traceTableBody.appendChild(tr);
-    });
-  }
+    const container = document.createElement("div");
+    container.className = "dag-container";
 
-  function updatePinnedStateText() {
-    const count = Object.keys(state.pinnedByEntity).length;
-    candidatePinnedCount.textContent = `Pinned: ${count}`;
-    rerunBtn.disabled = !(count > 0 && modeSelect.value === "semantic");
-  }
+    // 1. Group steps by Phase for horizontal placement
+    const tiers = {
+      start: [],     // Route/Orchestration nodes
+      parallel: [],  // Fan-out / Workers
+      end: []        // Synthesis / Supervisor
+    };
 
-  function renderCandidates() {
-    const searchText = (candidateSearchInput.value || "").trim().toLowerCase();
-    const minScore = parseScore(candidateScoreFilter.value);
-    candidateScoreValue.textContent = minScore.toFixed(1);
-
-    candidateContainer.innerHTML = "";
-    const groups = state.lastCandidateGroups || [];
-    let rendered = 0;
-
-    groups.forEach((group) => {
-      const entity = String(group.question_entity || "");
-      const candidates = Array.isArray(group.candidates) ? [...group.candidates] : [];
-      candidates.sort((a, b) => parseScore(b.score) - parseScore(a.score));
-      const filtered = candidates.filter((candidate) => {
-        const score = parseScore(candidate.score);
-        if (score < minScore) return false;
-        if (!searchText) return true;
-        const haystack = [
-          entity,
-          candidate.display_name,
-          candidate.database,
-          (candidate.labels || []).join(" "),
-          candidate.source,
-        ]
-          .join(" ")
-          .toLowerCase();
-        return haystack.includes(searchText);
-      });
-
-      if (!filtered.length) return;
-
-      rendered += 1;
-      const groupWrap = document.createElement("div");
-      groupWrap.className = "candidate-item";
-
-      const title = document.createElement("div");
-      title.className = "candidate-question";
-      title.textContent = entity;
-      groupWrap.appendChild(title);
-
-      filtered.forEach((candidate) => {
-        const row = document.createElement("div");
-        row.className = "candidate-row";
-
-        const meta = document.createElement("div");
-        meta.className = "candidate-meta";
-        const main = document.createElement("div");
-        main.className = "candidate-main";
-        main.textContent = `${candidate.display_name} (${candidate.database})`;
-        const sub = document.createElement("div");
-        sub.className = "candidate-sub";
-        sub.textContent = `node=${candidate.node_id} score=${parseScore(candidate.score).toFixed(3)} source=${candidate.source}`;
-        meta.appendChild(main);
-        meta.appendChild(sub);
-        row.appendChild(meta);
-
-        const button = document.createElement("button");
-        button.className = "pin-btn";
-        const key = candidateKey(candidate);
-        const pinned = state.pinnedByEntity[entity] && candidateKey(state.pinnedByEntity[entity]) === key;
-        button.textContent = pinned ? "Unpin" : "Pin";
-        button.classList.toggle("active", pinned);
-        button.addEventListener("click", () => {
-          const existing = state.pinnedByEntity[entity];
-          if (existing && candidateKey(existing) === key) {
-            delete state.pinnedByEntity[entity];
-          } else {
-            state.pinnedByEntity[entity] = {
-              question_entity: entity,
-              database: candidate.database,
-              node_id: candidate.node_id,
-              display_name: candidate.display_name,
-              labels: candidate.labels || [],
-            };
-          }
-          renderCandidates();
-          updatePinnedStateText();
-        });
-        row.appendChild(button);
-        groupWrap.appendChild(row);
-      });
-
-      candidateContainer.appendChild(groupWrap);
+    state.lastTraceSteps.forEach(step => {
+      const p = step.metadata?.phase || "";
+      const isSuper = step.agent?.includes("Supervisor");
+      if (p === "orchestration" || (!p && !isSuper && tiers.start.length === 0)) {
+        tiers.start.push(step);
+      } else if (p === "synthesis" || isSuper) {
+        tiers.end.push(step);
+      } else {
+        tiers.parallel.push(step);
+      }
     });
 
-    if (!rendered) {
-      const empty = document.createElement("div");
-      empty.className = "candidate-item";
-      empty.textContent = "No candidates for current filter.";
-      candidateContainer.appendChild(empty);
+    // Helper to render a tier row
+    const renderTier = (stepArray) => {
+      if (stepArray.length === 0) return null;
+      const tierEl = document.createElement("div");
+      tierEl.className = "dag-tier";
+      stepArray.forEach((step, idx) => {
+        const nodeEl = createDagNode(step);
+        // Stagger animation delay
+        nodeEl.style.animationDelay = `${idx * 0.15}s`;
+        tierEl.appendChild(nodeEl);
+      });
+      return tierEl;
+    };
+
+    // Draw Tiers with connecting edges
+    const tStart = renderTier(tiers.start);
+    const tPar = renderTier(tiers.parallel);
+    const tEnd = renderTier(tiers.end);
+
+    if (tStart) container.appendChild(tStart);
+    if (tStart && tPar) {
+      const edge = document.createElement("div");
+      edge.className = "dag-edge-down";
+      container.appendChild(edge);
     }
+    if (tPar) container.appendChild(tPar);
+    if ((tStart || tPar) && tEnd) {
+      const edge = document.createElement("div");
+      edge.className = "dag-edge-down";
+      container.appendChild(edge);
+    }
+    if (tEnd) container.appendChild(tEnd);
 
-    updatePinnedStateText();
-  }
+    dagCanvas.appendChild(container);
 
-  function collectOverrides() {
-    return Object.values(state.pinnedByEntity);
+    // Scroll to bottom of DAG to see synthesis
+    setTimeout(() => {
+      dagCanvas.scrollTop = dagCanvas.scrollHeight;
+    }, 100);
   }
 
   function applyResponse(data) {
     appendBubble("assistant", data.assistant_message || "(empty response)");
-    const uiPayload = data.ui_payload || {};
-    renderTraceSummary(uiPayload.trace_summary || {});
-
     state.lastTraceSteps = data.trace_steps || [];
-    syncTraceTypeFilter(state.lastTraceSteps);
-    renderTraceTable();
-
-    state.lastCandidateGroups = uiPayload.entity_candidates || [];
-    state.pinnedByEntity = {};
-    renderCandidates();
+    renderDag();
   }
 
   chatForm.addEventListener("submit", async (event) => {
@@ -336,38 +231,12 @@
     }
   });
 
-  rerunBtn.addEventListener("click", async () => {
-    if (!state.lastPrompt || modeSelect.value !== "semantic") return;
-    const overrides = collectOverrides();
-    if (!overrides.length) return;
-
-    appendBubble("user", `[Override re-run] ${state.lastPrompt}`);
-    rerunBtn.disabled = true;
-
-    try {
-      const data = await sendChatMessage(state.lastPrompt, overrides);
-      applyResponse(data);
-    } catch (err) {
-      console.error(err);
-      setStatus("Error", "error");
-      appendBubble("assistant", `Error: ${err.message}`);
-    } finally {
-      rerunBtn.disabled = false;
-    }
-  });
-
   resetSessionBtn.addEventListener("click", async () => {
     try {
       await fetch(`/api/chat/session/${state.sessionId}`, { method: "DELETE" });
-      chatLog.innerHTML = "";
-      candidateContainer.innerHTML = "";
-      traceSummary.textContent = "-";
+      chatLog.innerHTML = '<div style="font-family:var(--font-mono); font-size:0.7rem; color:var(--text-muted); text-align:center;">// Session reset.</div>';
       state.lastTraceSteps = [];
-      state.lastCandidateGroups = [];
-      state.pinnedByEntity = {};
-      renderTraceTable();
-      updatePinnedStateText();
-      appendBubble("assistant", "Session reset.");
+      renderDag();
     } catch (err) {
       appendBubble("assistant", `Reset failed: ${err.message}`);
     }
@@ -375,7 +244,6 @@
 
   modeSelect.addEventListener("change", () => {
     updateRailMode(modeSelect.value);
-    updatePinnedStateText();
   });
 
   railButtons.forEach((btn) => {
@@ -384,16 +252,11 @@
     });
   });
 
-  traceSearchInput.addEventListener("input", renderTraceTable);
-  traceTypeFilter.addEventListener("change", renderTraceTable);
-  candidateSearchInput.addEventListener("input", renderCandidates);
-  candidateScoreFilter.addEventListener("input", renderCandidates);
-
   async function bootstrap() {
     setStatus("Loading", "busy");
     try {
       if (sessionMeta) {
-        sessionMeta.textContent = `Session ${state.sessionId.slice(0, 8)}...`;
+        sessionMeta.textContent = `Session ${state.sessionId.slice(0, 8)}`;
       }
       const response = await fetch("/api/config");
       if (!response.ok) throw new Error(`Config error: ${response.status}`);
@@ -402,16 +265,12 @@
         databasesInput.value = cfg.databases.join(",");
       }
       updateRailMode(cfg.default_mode || "semantic");
-      setStatus("Ready", "ok");
-      renderTraceTable();
-      updatePinnedStateText();
-      appendBubble("assistant", "Operations console online.");
+      setStatus("Idle", "ok");
     } catch (err) {
-      setStatus("Error", "error");
-      appendBubble("assistant", `Failed to initialize: ${err.message}`);
+      setStatus("Offline", "error");
+      console.warn("Could not connect to backend, UI running in fallback mode.");
     }
   }
 
   bootstrap();
 })();
-

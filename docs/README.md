@@ -1,6 +1,6 @@
-# Docs Index
+# SEOCHO Documentation
 
-This directory is organized into active docs and archived references.
+Welcome to the central documentation index for SEOCHO. This directory tracks the active systems, decisions, and capabilities comprising our multi-agent platform.
 
 ## Active Docs
 

@@ -63,9 +63,9 @@ User Question ─► Semantic Layer(entity extract/dedup/fulltext) ─► Router
                                                                 ► Answer Generation Agent
 ```
 
-**Data Pipeline** turns raw text into queryable knowledge graphs:
+**Data Pipeline** turns heterogeneous raw material into queryable knowledge graphs:
 ```
-CSV/JSON/API → Ontology-Driven Extraction → Entity Linking → Deduplication → Neo4j
+PDF/CSV/JSON/Text → Parse to text → LLM 3-pass (Ontology + SHACL + Entity) → Relatedness gate + Linking → Neo4j/DozerDB
 ```
 
 **Multi-Agent Reasoning** queries those graphs in parallel:
@@ -156,15 +156,16 @@ curl -X POST http://localhost:8001/indexes/fulltext/ensure \
     "create_if_missing": true
   }'
 
-# Runtime raw text ingestion (one line/item can later be queried in chat UI)
+# Runtime raw material ingestion (text/csv/pdf records can later be queried in chat UI)
 curl -X POST http://localhost:8001/platform/ingest/raw \
   -H "Content-Type: application/json" \
   -d '{
     "workspace_id": "default",
     "target_database": "kgnormal",
     "records": [
-      {"id":"raw_1","content":"ACME acquired Beta in 2024."},
-      {"id":"raw_2","content":"Beta provides risk analytics to ACME."}
+      {"id":"raw_1","source_type":"text","content":"ACME acquired Beta in 2024."},
+      {"id":"raw_2","source_type":"csv","content":"company,partner\nBeta,ACME"},
+      {"id":"raw_3","source_type":"pdf","content_encoding":"base64","content":"<base64_pdf_payload>"}
     ]
   }'
 
@@ -308,7 +309,7 @@ seocho/
 | `/health/runtime` | GET | Runtime health (API, DozerDB reachability, Agent SDK adapter) |
 | `/health/batch` | GET | Batch/pipeline health (separate from runtime API readiness) |
 | `/platform/chat/send` | POST | Custom platform chat endpoint |
-| `/platform/ingest/raw` | POST | Ingest user raw text records into target graph DB |
+| `/platform/ingest/raw` | POST | Ingest user raw material records (`text`/`csv`/`pdf`) into target graph DB |
 | `/platform/chat/session/{session_id}` | GET | Read platform chat session |
 | `/platform/chat/session/{session_id}` | DELETE | Reset platform chat session |
 | `/rules/infer` | POST | Infer SHACL-like rule profile from graph payload |

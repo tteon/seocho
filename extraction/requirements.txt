@@ -13,6 +13,7 @@ pandas
 pyarrow
 fastparquet
 huggingface_hub
+pypdf
 faiss-cpu
 fastapi
 uvicorn

@@ -143,6 +143,11 @@ Each entry must link to a full ADR when impact is non-trivial.
   - keep dual-governance export path with existing Cypher constraints endpoint
   - infer/apply rules at runtime ingest batch scope and return inferred `rule_profile` for traceability
 
+- Accepted `ADR-0023-runtime-three-pass-semantic-ingest-and-relatedness-gate.md`
+  - add heterogeneous raw material parser layer (`text`/`csv`/`pdf`) in runtime ingest path
+  - add LLM 3-pass semantic extraction (ontology candidate -> SHACL candidate -> entity extraction)
+  - add relatedness gate for linking decisions and return semantic artifact summaries in ingest response
+
 ## Template
 
 Use this block for new entries:

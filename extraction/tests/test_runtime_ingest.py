@@ -32,8 +32,12 @@ def test_runtime_ingest_batches_rule_profile_across_multiple_records():
 
     result = ingestor.ingest_records(
         records=[
-            {"id": "r1", "content": "ACME acquired Beta in 2024."},
-            {"id": "r2", "content": "Beta serves ACME analytics."},
+            {"id": "r1", "content": "ACME acquired Beta in 2024.", "source_type": "text"},
+            {
+                "id": "r2",
+                "source_type": "csv",
+                "content": "company,partner\nBeta,ACME\nGamma,Delta\n",
+            },
         ],
         target_database="kgnormal",
         enable_rule_constraints=True,
@@ -44,6 +48,9 @@ def test_runtime_ingest_batches_rule_profile_across_multiple_records():
     assert result["records_failed"] == 0
     assert result["rule_profile"] is not None
     assert len(result["rule_profile"]["rules"]) > 0
+    assert result["semantic_artifacts"] is not None
+    assert "relatedness_summary" in result["semantic_artifacts"]
+    assert result["semantic_artifacts"]["relatedness_summary"]["total_records"] == 2
     assert db.provisioned == ["kgnormal"]
     assert len(db.loaded) == 2
     assert "rule_validation_summary" in db.loaded[0][2]

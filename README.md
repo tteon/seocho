@@ -162,6 +162,7 @@ curl -X POST http://localhost:8001/platform/ingest/raw \
   -d '{
     "workspace_id": "default",
     "target_database": "kgnormal",
+    "semantic_artifact_policy": "auto",
     "records": [
       {"id":"raw_1","source_type":"text","content":"ACME acquired Beta in 2024."},
       {"id":"raw_2","source_type":"csv","content":"company,partner\nBeta,ACME"},
@@ -460,6 +461,12 @@ Rule profiles can now be exported directly for governance rollout:
 
 - `/rules/export/cypher` for DozerDB constraints
 - `/rules/export/shacl` for SHACL-compatible Turtle + shape JSON
+
+Runtime ingest artifact policy:
+
+- `auto`: apply newly extracted ontology/SHACL candidates immediately
+- `draft_only`: store candidates as draft (`semantic_artifacts`) and do not apply to rule profile
+- `approved_only`: apply only caller-provided `approved_artifacts`
 
 Practical run:
 

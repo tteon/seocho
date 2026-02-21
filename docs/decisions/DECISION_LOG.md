@@ -148,6 +148,11 @@ Each entry must link to a full ADR when impact is non-trivial.
   - add LLM 3-pass semantic extraction (ontology candidate -> SHACL candidate -> entity extraction)
   - add relatedness gate for linking decisions and return semantic artifact summaries in ingest response
 
+- Accepted `ADR-0024-ocr-fallback-embedding-relatedness-and-artifact-approval-gate.md`
+  - add OCR fallback path for scanned PDF ingest when direct text extraction is empty
+  - extend relatedness with optional embedding score for linking decisions
+  - add semantic artifact approval policy (`auto`, `draft_only`, `approved_only`) for governance-safe rollout
+
 ## Template
 
 Use this block for new entries:

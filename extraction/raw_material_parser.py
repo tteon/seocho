@@ -112,10 +112,59 @@ def _parse_pdf_material(content: str, encoding: str) -> ParsedMaterial:
     text = "\n".join(chunk.strip() for chunk in pages if chunk and chunk.strip())
 
     if not text:
-        raise MaterialParseError("PDF text extraction returned empty content")
+        ocr_text, ocr_reason, ocr_meta = _ocr_pdf_payload(payload)
+        if ocr_text:
+            return ParsedMaterial(
+                source_type="pdf",
+                text=ocr_text,
+                metadata={"parser": "ocr_fallback", "pages": len(reader.pages), **ocr_meta},
+                warnings=[ocr_reason],
+            )
+        raise MaterialParseError(f"PDF text extraction returned empty content ({ocr_reason})")
 
     return ParsedMaterial(
         source_type="pdf",
         text=text,
         metadata={"parser": "pypdf", "pages": len(reader.pages)},
     )
+
+
+def _ocr_pdf_payload(payload: bytes) -> tuple[str, str, Dict[str, Any]]:
+    """Best-effort OCR fallback for scanned PDFs.
+
+    Uses optional dependencies (`fitz`/PyMuPDF + `pytesseract` + PIL).
+    Returns extracted text, reason string, and metadata.
+    """
+    try:
+        import fitz
+    except Exception as exc:
+        return "", f"OCR fallback unavailable: PyMuPDF import failed ({exc})", {}
+    try:
+        import pytesseract
+    except Exception as exc:
+        return "", f"OCR fallback unavailable: pytesseract import failed ({exc})", {}
+    try:
+        from PIL import Image
+    except Exception as exc:
+        return "", f"OCR fallback unavailable: Pillow import failed ({exc})", {}
+
+    try:
+        doc = fitz.open(stream=payload, filetype="pdf")
+    except Exception as exc:
+        return "", f"OCR fallback failed opening PDF ({exc})", {}
+
+    chunks: List[str] = []
+    dpi = 2.0
+    for page in doc:
+        try:
+            pix = page.get_pixmap(matrix=fitz.Matrix(dpi, dpi))
+            mode = "RGBA" if pix.alpha else "RGB"
+            image = Image.frombytes(mode, [pix.width, pix.height], pix.samples)
+            chunks.append(pytesseract.image_to_string(image) or "")
+        except Exception:
+            chunks.append("")
+
+    text = "\n".join(chunk.strip() for chunk in chunks if chunk and chunk.strip())
+    if not text:
+        return "", "OCR fallback executed but produced empty text", {"ocr_engine": "tesseract"}
+    return text, "Used OCR fallback for scanned PDF", {"ocr_engine": "tesseract"}

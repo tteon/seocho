@@ -1,10 +1,10 @@
 import base64
 import sys
-import types
 from unittest.mock import patch
 
 import pytest
 
+import raw_material_parser
 from raw_material_parser import MaterialParseError, parse_raw_material_record
 
 
@@ -45,3 +45,25 @@ def test_parse_pdf_plain_fallback_as_text():
     assert parsed.source_type == "pdf"
     assert "already extracted pdf text" in parsed.text
     assert parsed.warnings
+
+
+def test_parse_pdf_uses_ocr_fallback_when_pypdf_text_empty():
+    fake_pdf = base64.b64encode(b"dummy-pdf").decode("utf-8")
+
+    class _Page:
+        @staticmethod
+        def extract_text():
+            return ""
+
+    class _Reader:
+        def __init__(self, *_args, **_kwargs):
+            self.pages = [_Page()]
+
+    with patch.object(raw_material_parser, "_ocr_pdf_payload", return_value=("ocr text", "ocr used", {"ocr_engine": "x"})):
+        with patch.dict(sys.modules, {"pypdf": type("pypdf", (), {"PdfReader": _Reader})}):
+            parsed = parse_raw_material_record(
+                {"source_type": "pdf", "content_encoding": "base64", "content": fake_pdf}
+            )
+    assert parsed.text == "ocr text"
+    assert parsed.metadata["parser"] == "ocr_fallback"
+    assert parsed.warnings[0] == "ocr used"

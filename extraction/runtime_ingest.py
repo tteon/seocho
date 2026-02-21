@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 import re
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -34,6 +35,11 @@ class RuntimeRawIngestor:
         self._semantic_orchestrator = None
         self._llm_stack_ready = False
         self._relatedness_threshold = _env_float("RUNTIME_LINKING_RELATEDNESS_THRESHOLD", 0.2)
+        self._embedding_relatedness_threshold = _env_float("RUNTIME_LINKING_EMBED_THRESHOLD", 0.72)
+        self._embedding_enabled = _env_bool("RUNTIME_LINKING_USE_EMBEDDING", True)
+        self._embedding_model = os.getenv("RUNTIME_LINKING_EMBED_MODEL", "text-embedding-3-small")
+        self._embedding_client = None
+        self._embedding_cache: Dict[str, List[float]] = {}
 
         try:
             from extractor import EntityExtractor
@@ -54,6 +60,11 @@ class RuntimeRawIngestor:
                 model=model,
                 extractor=self._extractor,
             )
+            if self._embedding_enabled:
+                from openai import OpenAI
+                from tracing import wrap_openai_client
+
+                self._embedding_client = wrap_openai_client(OpenAI(api_key=api_key))
             self._llm_stack_ready = True
         except Exception as exc:
             logger.warning("LLM extraction stack unavailable; fallback mode only: %s", exc)
@@ -64,6 +75,8 @@ class RuntimeRawIngestor:
         target_database: str,
         enable_rule_constraints: bool = True,
         create_database_if_missing: bool = True,
+        semantic_artifact_policy: str = "auto",
+        approved_artifacts: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         from rule_constraints import RuleSet, apply_rules_to_graph, infer_rules_from_graph
 
@@ -87,6 +100,19 @@ class RuntimeRawIngestor:
         shacl_candidates: List[Dict[str, Any]] = []
         relatedness_records: List[Dict[str, Any]] = []
         known_entities = self._load_existing_entity_names(target_database)
+        artifact_policy = semantic_artifact_policy if semantic_artifact_policy in {
+            "auto",
+            "draft_only",
+            "approved_only",
+        } else "auto"
+        if artifact_policy != semantic_artifact_policy:
+            warnings.append(
+                {
+                    "record_id": "_batch",
+                    "warning_type": "ArtifactPolicyFallback",
+                    "message": f"Unknown semantic_artifact_policy '{semantic_artifact_policy}', using 'auto'.",
+                }
+            )
 
         for idx, item in enumerate(records):
             source_id = str(item.get("id") or f"raw_{idx}")
@@ -185,7 +211,21 @@ class RuntimeRawIngestor:
 
         merged_ontology = self._merge_ontology_candidates(ontology_candidates)
         merged_shacl = self._merge_shacl_candidates(shacl_candidates)
-        llm_rule_profile = self._shacl_candidates_to_rule_profile(merged_shacl)
+        active_artifacts, artifact_decision = self._resolve_semantic_artifacts(
+            policy=artifact_policy,
+            draft_ontology=merged_ontology,
+            draft_shacl=merged_shacl,
+            approved_artifacts=approved_artifacts or {},
+        )
+        if artifact_decision.get("warning"):
+            warnings.append(
+                {
+                    "record_id": "_batch",
+                    "warning_type": "ArtifactApprovalWarning",
+                    "message": str(artifact_decision["warning"]),
+                }
+            )
+        llm_rule_profile = self._shacl_candidates_to_rule_profile(active_artifacts["shacl_candidate"])
 
         ruleset = None
         if enable_rule_constraints and prepared_graphs:
@@ -249,8 +289,11 @@ class RuntimeRawIngestor:
             "fallback_records": fallback_records,
             "rule_profile": ruleset.to_dict() if ruleset is not None else None,
             "semantic_artifacts": {
-                "ontology_candidate": merged_ontology,
-                "shacl_candidate": merged_shacl,
+                "ontology_candidate": active_artifacts["ontology_candidate"],
+                "shacl_candidate": active_artifacts["shacl_candidate"],
+                "draft_ontology_candidate": merged_ontology,
+                "draft_shacl_candidate": merged_shacl,
+                "artifact_decision": artifact_decision,
                 "relatedness_summary": self._summarize_relatedness(relatedness_records),
             },
             "errors": errors,
@@ -396,18 +439,47 @@ class RuntimeRawIngestor:
 
     def _compute_relatedness(self, candidate_names: Set[str], known_entities: Set[str]) -> Dict[str, Any]:
         if not candidate_names:
-            return {"is_related": False, "score": 0.0, "overlap_count": 0, "reason": "no_candidate_entities"}
+            return {
+                "is_related": False,
+                "score": 0.0,
+                "lexical_score": 0.0,
+                "embedding_score": None,
+                "overlap_count": 0,
+                "reason": "no_candidate_entities",
+            }
         if not known_entities:
-            return {"is_related": True, "score": 1.0, "overlap_count": 0, "reason": "bootstrap_record"}
+            return {
+                "is_related": True,
+                "score": 1.0,
+                "lexical_score": 1.0,
+                "embedding_score": None,
+                "overlap_count": 0,
+                "reason": "bootstrap_record",
+            }
 
         overlap = candidate_names.intersection(known_entities)
-        score = len(overlap) / max(len(candidate_names), 1)
-        is_related = score >= self._relatedness_threshold or len(overlap) > 0
+        lexical_score = len(overlap) / max(len(candidate_names), 1)
+        embedding_score = self._compute_embedding_relatedness(candidate_names, known_entities)
+        score = max(lexical_score, embedding_score or 0.0)
+        if len(overlap) > 0:
+            reason = "overlap_detected"
+            is_related = True
+        elif embedding_score is not None and embedding_score >= self._embedding_relatedness_threshold:
+            reason = "embedding_match"
+            is_related = True
+        elif lexical_score >= self._relatedness_threshold:
+            reason = "lexical_threshold"
+            is_related = True
+        else:
+            reason = "below_threshold"
+            is_related = False
         return {
             "is_related": is_related,
             "score": round(score, 3),
+            "lexical_score": round(lexical_score, 3),
+            "embedding_score": round(embedding_score, 3) if embedding_score is not None else None,
             "overlap_count": len(overlap),
-            "reason": "overlap_detected" if overlap else "below_threshold",
+            "reason": reason,
         }
 
     def _should_run_linker(self, known_entities: Set[str], relatedness: Dict[str, Any]) -> bool:
@@ -560,12 +632,100 @@ class RuntimeRawIngestor:
         total = len(records)
         linked = sum(1 for item in records if item.get("is_related"))
         avg_score = 0.0 if total == 0 else sum(float(item.get("score", 0.0)) for item in records) / total
+        embed_available = sum(1 for item in records if item.get("embedding_score") is not None)
         return {
             "total_records": total,
             "related_records": linked,
             "unrelated_records": max(total - linked, 0),
             "average_score": round(avg_score, 3),
+            "embedding_evaluated_records": embed_available,
         }
+
+    def _compute_embedding_relatedness(self, candidate_names: Set[str], known_entities: Set[str]) -> Optional[float]:
+        if not self._embedding_enabled or self._embedding_client is None:
+            return None
+        candidate_text = " | ".join(sorted(candidate_names)[:40]).strip()
+        known_text = " | ".join(sorted(known_entities)[:120]).strip()
+        if not candidate_text or not known_text:
+            return None
+        candidate_vec = self._embed_text(candidate_text)
+        known_vec = self._embed_text(known_text)
+        if candidate_vec is None or known_vec is None:
+            return None
+        return _cosine_similarity(candidate_vec, known_vec)
+
+    def _embed_text(self, text: str) -> Optional[List[float]]:
+        key = text.strip().lower()
+        if not key:
+            return None
+        cached = self._embedding_cache.get(key)
+        if cached is not None:
+            return cached
+        if self._embedding_client is None:
+            return None
+        try:
+            response = self._embedding_client.embeddings.create(
+                input=[text],
+                model=self._embedding_model,
+            )
+            vec = response.data[0].embedding
+            self._embedding_cache[key] = vec
+            return vec
+        except Exception as exc:
+            logger.warning("Embedding relatedness skipped due to embedding error: %s", exc)
+            return None
+
+    @staticmethod
+    def _resolve_semantic_artifacts(
+        policy: str,
+        draft_ontology: Dict[str, Any],
+        draft_shacl: Dict[str, Any],
+        approved_artifacts: Dict[str, Any],
+    ) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, Any]]:
+        approved_ontology = approved_artifacts.get("ontology_candidate")
+        approved_shacl = approved_artifacts.get("shacl_candidate")
+
+        if policy == "draft_only":
+            return (
+                {"ontology_candidate": {"ontology_name": "", "classes": [], "relationships": []}, "shacl_candidate": {"shapes": []}},
+                {
+                    "policy": policy,
+                    "applied": "none",
+                    "status": "draft_pending_review",
+                    "warning": None,
+                },
+            )
+
+        if policy == "approved_only":
+            if isinstance(approved_ontology, dict) and isinstance(approved_shacl, dict):
+                return (
+                    {"ontology_candidate": approved_ontology, "shacl_candidate": approved_shacl},
+                    {
+                        "policy": policy,
+                        "applied": "approved",
+                        "status": "approved_applied",
+                        "warning": None,
+                    },
+                )
+            return (
+                {"ontology_candidate": {"ontology_name": "", "classes": [], "relationships": []}, "shacl_candidate": {"shapes": []}},
+                {
+                    "policy": policy,
+                    "applied": "none",
+                    "status": "approval_required",
+                    "warning": "approved_only policy requires approved_artifacts with ontology_candidate and shacl_candidate.",
+                },
+            )
+
+        return (
+            {"ontology_candidate": draft_ontology, "shacl_candidate": draft_shacl},
+            {
+                "policy": "auto",
+                "applied": "draft",
+                "status": "auto_applied",
+                "warning": None,
+            },
+        )
 
 
 def _env_float(name: str, default: float) -> float:
@@ -576,3 +736,27 @@ def _env_float(name: str, default: float) -> float:
         return float(raw)
     except ValueError:
         return default
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _cosine_similarity(a: List[float], b: List[float]) -> float:
+    if not a or not b or len(a) != len(b):
+        return 0.0
+    dot = 0.0
+    norm_a = 0.0
+    norm_b = 0.0
+    for x, y in zip(a, b):
+        xf = float(x)
+        yf = float(y)
+        dot += xf * yf
+        norm_a += xf * xf
+        norm_b += yf * yf
+    if norm_a <= 0.0 or norm_b <= 0.0:
+        return 0.0
+    return max(min(dot / (math.sqrt(norm_a) * math.sqrt(norm_b)), 1.0), -1.0)

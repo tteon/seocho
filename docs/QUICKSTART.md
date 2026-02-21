@@ -73,6 +73,7 @@ curl -sS -X POST http://localhost:8001/platform/ingest/raw \
   -d '{
     "workspace_id":"default",
     "target_database":"kgruntime",
+    "semantic_artifact_policy":"auto",
     "records":[
       {"id":"raw_1","source_type":"text","content":"ACME acquired Beta in 2024."},
       {"id":"raw_2","source_type":"csv","content":"company,partner\nBeta,ACME"},
@@ -86,6 +87,12 @@ Success criteria:
 - `status` is one of `success`, `success_with_fallback`, `partial_success`
 - `records_processed >= 1`
 - `semantic_artifacts` includes merged ontology/SHACL candidates and relatedness summary
+
+Artifact policy options:
+
+- `auto` (default): apply extracted semantic artifacts immediately
+- `draft_only`: keep artifacts as draft, skip applying them to rule profile
+- `approved_only`: apply only `approved_artifacts` supplied by caller
 
 ## 5. Ensure fulltext index for semantic mode
 
@@ -194,3 +201,8 @@ docker compose logs --tail=200 evaluation-interface
 ```
 
 If ports conflict, set the port env vars in `.env` and rerun `make up`.
+
+PDF OCR fallback note:
+
+- scanned PDFs require optional OCR stack (`PyMuPDF`, `pytesseract`, `Pillow`, and system `tesseract` binary)
+- if OCR stack is unavailable, PDF ingest still works for text-based PDFs via `pypdf`

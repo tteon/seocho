@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Any
 
 
-# Inline PipelineResult to avoid importing pipeline.py (which needs omegaconf)
+# Inline PipelineResult to keep this test self-contained from pipeline module imports.
 @dataclass
 class PipelineResult:
     """Aggregated result from a pipeline run."""

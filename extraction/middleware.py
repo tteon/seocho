@@ -30,6 +30,7 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next) -> Response:
         request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
         token = _request_id_var.set(request_id)
+        response: Response | None = None
 
         logger.info(
             "request_start request_id=%s method=%s path=%s",
@@ -51,5 +52,7 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
             )
             _request_id_var.reset(token)
 
+        if response is None:
+            raise RuntimeError("Request pipeline returned no response")
         response.headers["X-Request-ID"] = request_id
         return response

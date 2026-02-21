@@ -8,6 +8,12 @@ instead of duplicating os.getenv() calls across modules.
 import os
 import re
 import logging
+from dataclasses import dataclass
+from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
+
+import yaml
 
 # DozerDB connection settings (primary)
 # Keep NEO4J_* aliases for compatibility because DozerDB is Neo4j-protocol compatible.
@@ -64,6 +70,77 @@ db_registry = DatabaseRegistry()
 
 # Legacy compat — modules that import VALID_DATABASES get a view into the registry
 VALID_DATABASES = db_registry._databases
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return str(raw).strip().lower() in {"1", "true", "yes", "on"}
+
+
+@dataclass
+class PromptTemplates:
+    system: str
+    user: str
+
+
+@dataclass
+class LinkingPromptTemplates:
+    linking: str
+
+
+@dataclass
+class PipelineRuntimeConfig:
+    model: str
+    mock_data: bool
+    enable_rule_constraints: bool
+    openai_api_key: str
+    prompts: PromptTemplates
+    linking_prompt: LinkingPromptTemplates
+
+    def get(self, key: str, default: Any = None) -> Any:
+        return getattr(self, key, default)
+
+
+def _load_yaml(path: Path) -> dict:
+    if not path.exists():
+        return {}
+    with open(path, "r", encoding="utf-8") as stream:
+        payload = yaml.safe_load(stream) or {}
+    if isinstance(payload, dict):
+        return payload
+    return {}
+
+
+def load_pipeline_runtime_config(prompts_dir: Path | None = None) -> PipelineRuntimeConfig:
+    """Load pipeline config without Hydra/OmegaConf dependency."""
+    base_dir = prompts_dir or (Path(__file__).resolve().parent / "conf" / "prompts")
+    default_prompt = _load_yaml(base_dir / "default.yaml")
+    linking_prompt = _load_yaml(base_dir / "linking.yaml")
+
+    return PipelineRuntimeConfig(
+        model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+        mock_data=_env_bool("EXTRACTION_MOCK_DATA", True),
+        enable_rule_constraints=_env_bool("ENABLE_RULE_CONSTRAINTS", True),
+        openai_api_key=os.getenv("OPENAI_API_KEY", ""),
+        prompts=PromptTemplates(
+            system=str(default_prompt.get("system", "")),
+            user=str(default_prompt.get("user", "")),
+        ),
+        linking_prompt=LinkingPromptTemplates(
+            linking=str(linking_prompt.get("linking", "")),
+        ),
+    )
+
+
+def to_namespace(payload: Any) -> Any:
+    """Recursively convert dict/list payloads to attribute namespaces."""
+    if isinstance(payload, dict):
+        return SimpleNamespace(**{key: to_namespace(value) for key, value in payload.items()})
+    if isinstance(payload, list):
+        return [to_namespace(value) for value in payload]
+    return payload
 
 
 def configure_logging(level: str = "INFO") -> None:

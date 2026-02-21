@@ -4,8 +4,6 @@ import logging
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any
 
-from omegaconf import DictConfig
-
 from collector import DataCollector
 from data_source import DataSource
 from extractor import EntityExtractor
@@ -38,7 +36,7 @@ class PipelineResult:
 class ExtractionPipeline:
     def __init__(
         self,
-        cfg: DictConfig,
+        cfg: Any,
         data_source: Optional[DataSource] = None,
         ontology_path: Optional[str] = None,
         target_database: str = "kgnormal",

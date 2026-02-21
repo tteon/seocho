@@ -1,10 +1,4 @@
-defaults:
-  - schema: baseline
-  - _self_
-
-hydra:
-  run:
-    dir: outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+schema: baseline
 
 dataset:
   path: "hf://datasets/Linq-AI-Research/FinDER/data/train-00000-of-00001.parquet"

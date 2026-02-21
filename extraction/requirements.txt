@@ -6,8 +6,7 @@ pytest-asyncio>=0.21.0
 pytest-cov>=4.1.0
 requests-mock
 openai
-hydra-core
-omegaconf
+pyyaml
 jinja2
 jupyter
 pandas
@@ -18,7 +17,6 @@ faiss-cpu
 fastapi
 uvicorn
 pydantic
-hydra-core
 graphviz
 python-dotenv
 tenacity>=8.2.0

@@ -278,10 +278,10 @@ seocho/
 │   ├── ontology_prompt_bridge.py  # Ontology → LLM prompt injection
 │   ├── deduplicator.py        #   Embedding cosine-similarity dedup
 │   ├── database_manager.py    #   Neo4j DB provisioning
-│   ├── config.py              #   Centralized config + DatabaseRegistry
+│   ├── config.py              #   Centralized config + env-first YAML loaders + DatabaseRegistry
 │   ├── tracing.py             #   Opik integration (opt-in)
 │   ├── ontology/              #   Ontology definitions (base, loaders)
-│   └── conf/                  #   Hydra configs (prompts, schemas)
+│   └── conf/                  #   YAML configs (prompts, ingestion schemas)
 ├── evaluation/                # Custom frontend platform (FastAPI static app)
 ├── semantic/                  # Semantic analysis service
 ├── demos/                     # Agent and tracing demos

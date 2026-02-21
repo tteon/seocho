@@ -82,6 +82,7 @@ Semantic path summary:
 4. Validation and landing
 - run code and ops gates
 - run runtime flow smoke gate (`make e2e-smoke`) when API/UI/data-plane contracts change
+- run quickstart reproducibility check (raw ingest -> semantic/debate chat) before release notes
 - run sprint label lint (`scripts/pm/lint-items.sh --sprint <id>`)
 - run agent docs lint (`scripts/pm/lint-agent-docs.sh`)
 - close issue, rebase, sync, push
@@ -96,6 +97,11 @@ Operational notes:
 ## Docs Website Sync
 
 - source of truth: `README.md` + `docs/*` in this repository
+- publish-critical docs for seocho.blog sync:
+  - `docs/README.md`
+  - `docs/QUICKSTART.md`
+  - `docs/ARCHITECTURE.md`
+  - `docs/WORKFLOW.md`
 - trigger design: push to `main` touching docs paths via `.github/workflows/sync-docs-website.yml`
 - action design: `repository_dispatch` (`seocho-docs-sync`) to `tteon/tteon.github.io`
 - rollout note: remote activation may be pending until repository owner applies a `workflow`-scoped token (`DOCS_SYNC_TOKEN`)

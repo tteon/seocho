@@ -226,9 +226,9 @@ class SemanticEntityResolver:
         query = """
         CALL db.index.fulltext.queryNodes($index_name, $query)
         YIELD node, score
-        RETURN id(node) AS node_id,
+        RETURN elementId(node) AS node_id,
                labels(node) AS labels,
-               coalesce(node.name, node.title, node.id, node.uri, toString(id(node))) AS display_name,
+               coalesce(node.name, node.title, node.id, node.uri, elementId(node)) AS display_name,
                score
         ORDER BY score DESC
         LIMIT $limit
@@ -270,9 +270,9 @@ class SemanticEntityResolver:
         WHERE any(key IN $properties
               WHERE n[key] IS NOT NULL
                 AND toLower(toString(n[key])) CONTAINS toLower($query))
-        RETURN id(n) AS node_id,
+        RETURN elementId(n) AS node_id,
                labels(n) AS labels,
-               coalesce(n.name, n.title, n.id, n.uri, toString(id(n))) AS display_name
+               coalesce(n.name, n.title, n.id, n.uri, elementId(n)) AS display_name
         LIMIT $limit
         """
         rows = self._run_query(
@@ -480,14 +480,14 @@ class LPGAgent:
     def _neighbors_for_node(self, db_name: str, node_id: Any) -> List[Dict[str, Any]]:
         query = """
         MATCH (n)
-        WHERE id(n) = $node_id
+        WHERE elementId(n) = toString($node_id)
         OPTIONAL MATCH (n)-[r]-(m)
-        RETURN coalesce(n.name, n.title, n.id, n.uri, toString(id(n))) AS entity,
+        RETURN coalesce(n.name, n.title, n.id, n.uri, elementId(n)) AS entity,
                labels(n) AS labels,
                collect(
                  DISTINCT {
                    type: type(r),
-                   target: coalesce(m.name, m.title, m.id, m.uri, toString(id(m))),
+                   target: coalesce(m.name, m.title, m.id, m.uri, elementId(m)),
                    target_labels: labels(m)
                  }
                )[0..$limit] AS neighbors
@@ -566,7 +566,7 @@ class RDFAgent:
               WHERE n[key] IS NOT NULL
                 AND toLower(toString(n[key])) CONTAINS toLower($query))
         RETURN labels(n) AS labels,
-               coalesce(n.uri, n.name, n.title, n.id, toString(id(n))) AS resource,
+               coalesce(n.uri, n.name, n.title, n.id, elementId(n)) AS resource,
                n.name AS name
         LIMIT $limit
         """

@@ -2,6 +2,7 @@ import logging
 import functools
 import json
 import os
+from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional, Literal
 from dataclasses import dataclass, field
 from uuid import uuid4
@@ -15,6 +16,7 @@ from pydantic import BaseModel, Field
 from agents import Agent, function_tool, RunContextWrapper
 
 from config import NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD, db_registry, validate_config
+from agent_readiness import summarize_readiness
 from agents_runtime import get_agents_runtime
 from shared_memory import SharedMemory
 from agent_factory import AgentFactory
@@ -192,6 +194,14 @@ def get_runtime_raw_ingestor() -> RuntimeRawIngestor:
         runtime_raw_ingestor = RuntimeRawIngestor(db_manager=db_manager)
     return runtime_raw_ingestor
 
+
+def _utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _batch_status_file_path() -> str:
+    return os.getenv("SEOCHO_BATCH_STATUS_FILE", "/tmp/seocho_batch_status")
+
 # --- Tools ---
 
 def get_databases_impl() -> str:
@@ -353,7 +363,7 @@ class QueryRequest(BaseModel):
 class EntityOverride(BaseModel):
     question_entity: str = Field(..., min_length=1, max_length=256)
     database: str = Field(..., min_length=1, max_length=64)
-    node_id: int
+    node_id: str | int
     display_name: Optional[str] = None
     labels: List[str] = Field(default_factory=list)
 
@@ -386,6 +396,7 @@ class DebateResponse(BaseModel):
     trace_steps: List[Dict[str, Any]]
     debate_results: List[Dict[str, Any]]
     agent_statuses: List[Dict[str, str]] = Field(default_factory=list)
+    debate_state: Literal["ready", "degraded", "blocked"] = "ready"
     degraded: bool = False
 
 
@@ -446,6 +457,19 @@ class PlatformChatResponse(BaseModel):
 class PlatformSessionResponse(BaseModel):
     session_id: str
     history: List[PlatformTurn]
+
+
+class HealthComponent(BaseModel):
+    name: str
+    status: Literal["ready", "degraded", "blocked"]
+    detail: str = ""
+
+
+class HealthResponse(BaseModel):
+    scope: Literal["runtime", "batch"]
+    status: Literal["ready", "degraded", "blocked"]
+    generated_at: str
+    components: List[HealthComponent]
 
 
 class RawIngestRecord(BaseModel):
@@ -588,19 +612,25 @@ async def platform_chat_send(request: PlatformChatRequest):
         raise HTTPException(status_code=500, detail="Platform execution failed.")
 
     assistant_message = str(runtime_payload.get("response", ""))
+    runtime_control = runtime_payload.get("runtime_control", {})
+    executed_mode = str(runtime_control.get("executed_mode", request.mode))
     ui_payload = frontend_specialist_agent.build_ui_payload(mode=request.mode, runtime_payload=runtime_payload)
 
     platform_session_store.append(
         session_id=request.session_id,
         role="assistant",
         content=assistant_message,
-        metadata={"mode": request.mode, "route": runtime_payload.get("route")},
+        metadata={
+            "mode": executed_mode,
+            "requested_mode": request.mode,
+            "route": runtime_payload.get("route"),
+        },
     )
     history = [PlatformTurn(**row) for row in platform_session_store.get(request.session_id)]
 
     return PlatformChatResponse(
         session_id=request.session_id,
-        mode=request.mode,
+        mode=executed_mode,
         assistant_message=assistant_message,
         trace_steps=runtime_payload.get("trace_steps", []),
         ui_payload=ui_payload,
@@ -856,12 +886,29 @@ async def run_debate(request: QueryRequest):
 
     # Ensure agents exist for all registered databases and capture readiness status.
     agent_statuses = agent_factory.create_agents_for_all_databases(db_manager)
+    readiness = summarize_readiness(agent_statuses)
 
     all_agents = agent_factory.get_all_agents()
-    if not all_agents:
-        raise HTTPException(
-            status_code=400,
-            detail="No database agents available. Provision databases first.",
+    if readiness["debate_state"] == "blocked" or not all_agents:
+        return DebateResponse(
+            response="Debate mode is blocked: no ready graph agents are available.",
+            trace_steps=[
+                {
+                    "id": "0",
+                    "type": "SYSTEM",
+                    "agent": "DebateOrchestrator",
+                    "content": "Debate blocked due to agent readiness.",
+                    "metadata": {
+                        "debate_state": "blocked",
+                        "ready_count": readiness["ready_count"],
+                        "degraded_count": readiness["degraded_count"],
+                    },
+                }
+            ],
+            debate_results=[],
+            agent_statuses=agent_statuses,
+            debate_state="blocked",
+            degraded=True,
         )
 
     orchestrator = DebateOrchestrator(
@@ -873,13 +920,86 @@ async def run_debate(request: QueryRequest):
     try:
         result = await orchestrator.run_debate(request.query, srv_context)
         result["agent_statuses"] = agent_statuses
-        result["degraded"] = any(item.get("status") != "ready" for item in agent_statuses)
+        result["debate_state"] = readiness["debate_state"]
+        result["degraded"] = readiness["degraded"]
         return DebateResponse(**result)
     except SeochoError:
         raise
     except Exception as e:
         logger.error("Debate execution failed: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="Debate execution failed. Check server logs for details.")
+
+
+@app.get("/health/runtime", response_model=HealthResponse)
+async def runtime_health():
+    components: List[HealthComponent] = [
+        HealthComponent(name="api", status="ready", detail="agent_server reachable"),
+    ]
+
+    db_status = "ready"
+    db_detail = "DozerDB query ok"
+    db_probe = neo4j_conn.run_cypher("RETURN 1 AS ok", database="neo4j")
+    if isinstance(db_probe, str) and db_probe.startswith("Error"):
+        db_status = "blocked"
+        db_detail = db_probe
+    components.append(HealthComponent(name="dozerdb", status=db_status, detail=db_detail))
+
+    runtime_status = "ready"
+    runtime_detail = "agents runtime adapter loaded"
+    try:
+        get_agents_runtime()
+    except Exception as exc:
+        runtime_status = "degraded"
+        runtime_detail = str(exc)
+    components.append(HealthComponent(name="agents_runtime", status=runtime_status, detail=runtime_detail))
+
+    overall = "ready"
+    if any(comp.status == "blocked" for comp in components):
+        overall = "blocked"
+    elif any(comp.status == "degraded" for comp in components):
+        overall = "degraded"
+
+    return HealthResponse(
+        scope="runtime",
+        status=overall,
+        generated_at=_utc_now_iso(),
+        components=components,
+    )
+
+
+@app.get("/health/batch", response_model=HealthResponse)
+async def batch_health():
+    status_file = _batch_status_file_path()
+    batch_status = "degraded"
+    detail = f"status file not found: {status_file}"
+
+    if os.path.exists(status_file):
+        try:
+            with open(status_file, "r", encoding="utf-8") as status_stream:
+                raw = status_stream.read().strip().lower()
+        except Exception as exc:
+            raw = ""
+            detail = f"failed to read status file: {exc}"
+        if raw in {"success", "completed", "running"}:
+            batch_status = "ready"
+            detail = f"pipeline status: {raw}"
+        elif raw in {"failed", "error"}:
+            batch_status = "degraded"
+            detail = f"pipeline status: {raw}"
+        elif raw:
+            batch_status = "degraded"
+            detail = f"pipeline status: {raw}"
+
+    components = [
+        HealthComponent(name="pipeline", status=batch_status, detail=detail),
+    ]
+
+    return HealthResponse(
+        scope="batch",
+        status=batch_status,
+        generated_at=_utc_now_iso(),
+        components=components,
+    )
 
 
 @app.get("/databases")

@@ -305,6 +305,8 @@ seocho/
 | `/run_agent_semantic` | POST | Semantic entity-resolution mode (router/LPG/RDF/answer) |
 | `/run_debate` | POST | Debate mode — all DB agents in parallel |
 | `/indexes/fulltext/ensure` | POST | Ensure fulltext index for semantic entity resolution |
+| `/health/runtime` | GET | Runtime health (API, DozerDB reachability, Agent SDK adapter) |
+| `/health/batch` | GET | Batch/pipeline health (separate from runtime API readiness) |
 | `/platform/chat/send` | POST | Custom platform chat endpoint |
 | `/platform/ingest/raw` | POST | Ingest user raw text records into target graph DB |
 | `/platform/chat/session/{session_id}` | GET | Read platform chat session |
@@ -383,6 +385,7 @@ seocho/
 
 **Response** includes `response`, `trace_steps`, and (for debate) `debate_results` with per-agent answers.
 Debate responses also expose `agent_statuses` (`ready` or `degraded`) and `degraded` for partial-availability handling.
+When all debate agents are unavailable (`debate_state=blocked`), platform orchestration falls back to semantic mode.
 
 ---
 

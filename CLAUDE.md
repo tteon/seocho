@@ -153,6 +153,7 @@ Rules constraints:
 - database names must pass registry validation
 - dynamic labels/properties must be validated before Cypher interpolation
 - query tools should remain read-safe unless write mode is explicitly required
+- prefer `elementId(...)` over deprecated `id(...)` in query-time/runtime Cypher paths
 
 ## 9. Observability Requirements
 

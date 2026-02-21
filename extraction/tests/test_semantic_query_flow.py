@@ -44,7 +44,7 @@ class FakeConnector:
                 ]
             )
 
-        if "WHERE id(n) = $node_id" in query:
+        if "WHERE elementId(n) = toString($node_id)" in query:
             return json.dumps(
                 [
                     {

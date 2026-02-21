@@ -30,16 +30,19 @@ This board is the active architecture priority order.
 
 - migrate `id(node)` usage to `elementId(node)` contract-safe path
 - validate query templates against DozerDB/Neo4j deprecation warnings
+  - status: semantic query flow path migrated to `elementId` contract
 
 ### P1: Process Isolation and Health Model
 
 - separate runtime API readiness from batch/notebook pipeline readiness
 - split health checks and operational alerts by service role
+  - status: `/health/runtime` and `/health/batch` endpoints added
 
 ### P1: Agent Readiness State Machine
 
 - define `ready | degraded | blocked` for each graph agent
 - make router/supervisor allocate requests using readiness metadata
+  - status: debate runtime emits readiness state and platform fallback on `blocked`
 
 ### P2: Governance Automation
 

@@ -88,3 +88,34 @@ def test_backend_specialist_dispatches_modes():
     assert out_debate["response"] == "debate:y"
     assert out_semantic["response"] == "semantic:z"
 
+
+def test_backend_specialist_fallbacks_when_debate_blocked():
+    async def router_runner(payload):
+        return {"response": f"router:{payload['message']}", "trace_steps": []}
+
+    async def debate_runner(payload):
+        return {
+            "response": "blocked",
+            "trace_steps": [],
+            "debate_state": "blocked",
+            "agent_statuses": [{"database": "kgnormal", "status": "degraded", "reason": "down"}],
+        }
+
+    async def semantic_runner(payload):
+        return {"response": f"semantic:{payload['message']}", "trace_steps": [], "route": "lpg"}
+
+    agent = BackendSpecialistAgent()
+    out = asyncio.run(
+        agent.execute(
+            mode="debate",
+            router_runner=router_runner,
+            debate_runner=debate_runner,
+            semantic_runner=semantic_runner,
+            request_payload={"message": "fallback"},
+        )
+    )
+
+    assert out["response"] == "semantic:fallback"
+    assert out["runtime_control"]["requested_mode"] == "debate"
+    assert out["runtime_control"]["executed_mode"] == "semantic"
+    assert out["fallback_from"]["debate_state"] == "blocked"

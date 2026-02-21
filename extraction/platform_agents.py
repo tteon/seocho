@@ -56,8 +56,21 @@ class BackendSpecialistAgent:
         request_payload: Dict[str, Any],
     ) -> Dict[str, Any]:
         if mode == "debate":
-            result = await debate_runner(request_payload)
-            return self._to_payload(result)
+            debate_payload = self._to_payload(await debate_runner(request_payload))
+            if debate_payload.get("debate_state") == "blocked":
+                semantic_payload = self._to_payload(await semantic_runner(request_payload))
+                semantic_payload["runtime_control"] = {
+                    "requested_mode": "debate",
+                    "executed_mode": "semantic",
+                    "reason": "debate_blocked",
+                }
+                semantic_payload["fallback_from"] = {
+                    "mode": "debate",
+                    "debate_state": "blocked",
+                    "agent_statuses": debate_payload.get("agent_statuses", []),
+                }
+                return semantic_payload
+            return debate_payload
         if mode == "router":
             result = await router_runner(request_payload)
             return self._to_payload(result)
@@ -129,4 +142,3 @@ class FrontendSpecialistAgent:
                 }
             )
         return groups
-

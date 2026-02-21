@@ -104,23 +104,25 @@ class AgentFactory:
         """
         statuses: List[Dict[str, str]] = []
         for db_name in db_registry.list_databases():
+            try:
+                schema = db_manager.get_schema_info(db_name)
+            except Exception as exc:
+                logger.warning(
+                    "Skipping agent creation for database '%s': %s",
+                    db_name,
+                    exc,
+                )
+                self._agents.pop(db_name, None)
+                statuses.append(
+                    {
+                        "database": db_name,
+                        "status": "degraded",
+                        "reason": str(exc),
+                    }
+                )
+                continue
+
             if db_name not in self._agents:
-                try:
-                    schema = db_manager.get_schema_info(db_name)
-                except Exception as exc:
-                    logger.warning(
-                        "Skipping agent creation for database '%s': %s",
-                        db_name,
-                        exc,
-                    )
-                    statuses.append(
-                        {
-                            "database": db_name,
-                            "status": "degraded",
-                            "reason": str(exc),
-                        }
-                    )
-                    continue
                 self.create_db_agent(db_name, schema)
                 statuses.append(
                     {
@@ -134,7 +136,7 @@ class AgentFactory:
                     {
                         "database": db_name,
                         "status": "ready",
-                        "reason": "cached",
+                        "reason": "checked",
                     }
                 )
         return statuses

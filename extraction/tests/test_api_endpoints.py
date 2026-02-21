@@ -237,6 +237,92 @@ class TestListEndpoints:
             assert payload["schema_version"] == "rules.v1"
             assert isinstance(payload["shapes"], list)
 
+    async def test_semantic_artifact_draft_create_endpoint(self, client, app_module):
+        with patch.object(app_module, "create_semantic_artifact_draft") as mock_create:
+            mock_create.return_value = {
+                "workspace_id": "default",
+                "artifact_id": "sa_1",
+                "name": "draft1",
+                "status": "draft",
+                "created_at": "2026-01-01T00:00:00Z",
+                "approved_at": None,
+                "approved_by": None,
+                "approval_note": None,
+                "source_summary": {},
+                "ontology_candidate": {"ontology_name": "x", "classes": [], "relationships": []},
+                "shacl_candidate": {"shapes": []},
+            }
+            response = await client.post(
+                "/semantic/artifacts/drafts",
+                json={
+                    "workspace_id": "default",
+                    "name": "draft1",
+                    "ontology_candidate": {"ontology_name": "x", "classes": [], "relationships": []},
+                    "shacl_candidate": {"shapes": []},
+                },
+            )
+            assert response.status_code == 200
+            payload = response.json()
+            assert payload["status"] == "draft"
+
+    async def test_semantic_artifact_approve_endpoint(self, client, app_module):
+        with patch.object(app_module, "approve_semantic_artifact_draft") as mock_approve:
+            mock_approve.return_value = {
+                "workspace_id": "default",
+                "artifact_id": "sa_1",
+                "name": "draft1",
+                "status": "approved",
+                "created_at": "2026-01-01T00:00:00Z",
+                "approved_at": "2026-01-01T01:00:00Z",
+                "approved_by": "reviewer",
+                "approval_note": "ok",
+                "source_summary": {},
+                "ontology_candidate": {"ontology_name": "x", "classes": [], "relationships": []},
+                "shacl_candidate": {"shapes": []},
+            }
+            response = await client.post(
+                "/semantic/artifacts/sa_1/approve",
+                json={
+                    "workspace_id": "default",
+                    "approved_by": "reviewer",
+                    "approval_note": "ok",
+                },
+            )
+            assert response.status_code == 200
+            payload = response.json()
+            assert payload["status"] == "approved"
+
+    async def test_semantic_artifact_list_endpoint(self, client, app_module):
+        with patch.object(app_module, "read_semantic_artifacts") as mock_list:
+            mock_list.return_value = {
+                "workspace_id": "default",
+                "artifacts": [{"artifact_id": "sa_1", "status": "draft"}],
+            }
+            response = await client.get("/semantic/artifacts?workspace_id=default&status=draft")
+            assert response.status_code == 200
+            payload = response.json()
+            assert payload["artifacts"][0]["artifact_id"] == "sa_1"
+
+    async def test_semantic_artifact_get_endpoint(self, client, app_module):
+        with patch.object(app_module, "read_semantic_artifact") as mock_get:
+            mock_get.return_value = {
+                "workspace_id": "default",
+                "artifact_id": "sa_1",
+                "name": "draft1",
+                "status": "draft",
+                "created_at": "2026-01-01T00:00:00Z",
+                "approved_at": None,
+                "approved_by": None,
+                "approval_note": None,
+                "source_summary": {},
+                "ontology_candidate": {"ontology_name": "x", "classes": [], "relationships": []},
+                "shacl_candidate": {"shapes": []},
+            }
+            response = await client.get("/semantic/artifacts/sa_1?workspace_id=default")
+            assert response.status_code == 200
+            payload = response.json()
+            assert payload["artifact_id"] == "sa_1"
+
     async def test_platform_chat_send_endpoint(self, client, app_module):
         with patch.object(app_module.backend_specialist_agent, "execute", new_callable=AsyncMock) as mock_execute:
             with patch.object(app_module.frontend_specialist_agent, "build_ui_payload") as mock_ui:
@@ -309,6 +395,40 @@ class TestListEndpoints:
             payload = response.json()
             assert payload["status"] == "success"
             assert payload["records_processed"] == 2
+
+    async def test_platform_raw_ingest_with_approved_artifact_id(self, client, app_module):
+        mock_ingestor = MagicMock()
+        with patch.object(app_module, "get_runtime_raw_ingestor", return_value=mock_ingestor):
+            with patch.object(app_module, "resolve_approved_artifact_payload") as mock_resolve:
+                mock_resolve.return_value = {
+                    "ontology_candidate": {"ontology_name": "approved", "classes": [], "relationships": []},
+                    "shacl_candidate": {"shapes": []},
+                }
+                mock_ingestor.ingest_records.return_value = {
+                    "target_database": "kgnormal",
+                    "records_received": 1,
+                    "records_processed": 1,
+                    "records_failed": 0,
+                    "total_nodes": 3,
+                    "total_relationships": 1,
+                    "status": "success",
+                    "errors": [],
+                }
+                response = await client.post(
+                    "/platform/ingest/raw",
+                    json={
+                        "workspace_id": "default",
+                        "target_database": "kgnormal",
+                        "semantic_artifact_policy": "approved_only",
+                        "approved_artifact_id": "sa_approved_1",
+                        "records": [{"id": "r1", "content": "Alpha acquires Beta."}],
+                    },
+                )
+                assert response.status_code == 200
+                assert mock_resolve.call_count == 1
+                args, kwargs = mock_ingestor.ingest_records.call_args
+                assert kwargs["semantic_artifact_policy"] == "approved_only"
+                assert kwargs["approved_artifacts"]["ontology_candidate"]["ontology_name"] == "approved"
 
 
 class TestQueryValidation:

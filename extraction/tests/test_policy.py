@@ -17,12 +17,16 @@ def test_authorize_runtime_action():
     allowed_manage_index = engine.authorize(role="user", action="manage_indexes", workspace_id="default")
     allowed_platform = engine.authorize(role="user", action="run_platform", workspace_id="default")
     allowed_assess_rules = engine.authorize(role="user", action="assess_rules", workspace_id="default")
+    allowed_semantic_artifacts = engine.authorize(
+        role="user", action="manage_semantic_artifacts", workspace_id="default"
+    )
     denied = engine.authorize(role="viewer", action="run_debate", workspace_id="default")
 
     assert allowed.allowed is True
     assert allowed_manage_index.allowed is True
     assert allowed_platform.allowed is True
     assert allowed_assess_rules.allowed is True
+    assert allowed_semantic_artifacts.allowed is True
     assert denied.allowed is False
 
 

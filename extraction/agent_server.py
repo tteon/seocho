@@ -61,6 +61,17 @@ from fulltext_index import FulltextIndexManager
 from platform_agents import PlatformSessionStore, BackendSpecialistAgent, FrontendSpecialistAgent
 from runtime_ingest import RuntimeRawIngestor
 from debate import DebateOrchestrator
+from semantic_artifact_api import (
+    SemanticArtifactApproveRequest,
+    SemanticArtifactListResponse,
+    SemanticArtifactDraftCreateRequest,
+    SemanticArtifactResponse,
+    approve_semantic_artifact_draft,
+    create_semantic_artifact_draft,
+    read_semantic_artifact,
+    read_semantic_artifacts,
+    resolve_approved_artifact_payload,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -493,6 +504,7 @@ class PlatformRawIngestRequest(BaseModel):
     create_database_if_missing: bool = True
     semantic_artifact_policy: Literal["auto", "draft_only", "approved_only"] = "auto"
     approved_artifacts: Optional[Dict[str, Any]] = None
+    approved_artifact_id: Optional[str] = None
 
 
 class RawIngestError(BaseModel):
@@ -673,16 +685,27 @@ async def platform_ingest_raw(request: PlatformRawIngestRequest):
         raise HTTPException(status_code=403, detail=str(e))
 
     try:
+        resolved_approved_artifacts = request.approved_artifacts
+        if request.approved_artifact_id and not resolved_approved_artifacts:
+            resolved_approved_artifacts = resolve_approved_artifact_payload(
+                workspace_id=request.workspace_id,
+                artifact_id=request.approved_artifact_id,
+            )
+
         result = get_runtime_raw_ingestor().ingest_records(
             records=[r.model_dump() for r in request.records],
             target_database=request.target_database,
             enable_rule_constraints=request.enable_rule_constraints,
             create_database_if_missing=request.create_database_if_missing,
             semantic_artifact_policy=request.semantic_artifact_policy,
-            approved_artifacts=request.approved_artifacts,
+            approved_artifacts=resolved_approved_artifacts,
         )
         return PlatformRawIngestResponse(workspace_id=request.workspace_id, **result)
     except InvalidDatabaseNameError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error("Raw ingest endpoint failed: %s", e, exc_info=True)
@@ -1131,3 +1154,75 @@ async def rules_export_shacl(request: RuleExportShaclRequest):
         raise HTTPException(status_code=404, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/semantic/artifacts/drafts", response_model=SemanticArtifactResponse)
+@track("agent_server.semantic_artifacts_draft_create")
+async def semantic_artifacts_draft_create(request: SemanticArtifactDraftCreateRequest):
+    try:
+        require_runtime_permission(
+            role="user",
+            action="manage_semantic_artifacts",
+            workspace_id=request.workspace_id,
+        )
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    return create_semantic_artifact_draft(request)
+
+
+@app.post("/semantic/artifacts/{artifact_id}/approve", response_model=SemanticArtifactResponse)
+@track("agent_server.semantic_artifacts_approve")
+async def semantic_artifacts_approve(artifact_id: str, request: SemanticArtifactApproveRequest):
+    try:
+        require_runtime_permission(
+            role="user",
+            action="manage_semantic_artifacts",
+            workspace_id=request.workspace_id,
+        )
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    try:
+        return approve_semantic_artifact_draft(artifact_id=artifact_id, request=request)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@app.get("/semantic/artifacts", response_model=SemanticArtifactListResponse)
+@track("agent_server.semantic_artifacts_list")
+async def semantic_artifacts_list(
+    workspace_id: str = Query(default="default", regex=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$"),
+    status: Optional[str] = Query(default=None),
+):
+    try:
+        require_runtime_permission(
+            role="user",
+            action="manage_semantic_artifacts",
+            workspace_id=workspace_id,
+        )
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
+    if status is not None and status not in {"draft", "approved"}:
+        raise HTTPException(status_code=400, detail="status must be one of: draft, approved")
+    return read_semantic_artifacts(workspace_id=workspace_id, status=status)
+
+
+@app.get("/semantic/artifacts/{artifact_id}", response_model=SemanticArtifactResponse)
+@track("agent_server.semantic_artifacts_get")
+async def semantic_artifacts_get(
+    artifact_id: str,
+    workspace_id: str = Query(default="default", regex=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$"),
+):
+    try:
+        require_runtime_permission(
+            role="user",
+            action="manage_semantic_artifacts",
+            workspace_id=workspace_id,
+        )
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
+    try:
+        return read_semantic_artifact(workspace_id=workspace_id, artifact_id=artifact_id)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))

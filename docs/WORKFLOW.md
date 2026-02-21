@@ -61,6 +61,7 @@ Primary surfaces:
 - run LLM 3-pass semantic extraction (ontology candidate -> SHACL candidate -> entity graph)
 - evaluate relatedness against known entities and run linking only when relatedness gate is satisfied
 - select semantic artifact policy (`auto`, `draft_only`, `approved_only`) before rule application
+- when governance review is required, persist draft artifacts and promote via approval lifecycle API (`/semantic/artifacts/*`)
 - apply SHACL-like rule inference/validation
 - run readiness check with `/rules/assess` before promoting profile to governance baseline
 - save reusable rule profiles (`/rules/profiles`)

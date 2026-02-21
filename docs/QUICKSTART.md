@@ -94,6 +94,14 @@ Artifact policy options:
 - `draft_only`: keep artifacts as draft, skip applying them to rule profile
 - `approved_only`: apply only `approved_artifacts` supplied by caller
 
+Approval workflow (recommended for governance):
+
+1. Save draft: `POST /semantic/artifacts/drafts`
+2. Approve draft: `POST /semantic/artifacts/{artifact_id}/approve`
+3. Ingest with approved artifact:
+   - set `semantic_artifact_policy` to `approved_only`
+   - pass `approved_artifact_id` in `/platform/ingest/raw`
+
 ## 5. Ensure fulltext index for semantic mode
 
 ```bash
@@ -182,6 +190,9 @@ EXTRACTION_API_PORT=8002 CHAT_INTERFACE_PORT=8502 bash scripts/integration/e2e_r
 - Export governance artifacts:
   - Cypher constraints: `POST /rules/export/cypher`
   - SHACL-compatible Turtle: `POST /rules/export/shacl`
+- Use semantic artifact lifecycle:
+  - create draft: `POST /semantic/artifacts/drafts`
+  - approve: `POST /semantic/artifacts/{artifact_id}/approve`
 - Build ontology hints offline: `python scripts/ontology/build_ontology_hints.py ...`
 - Read extension guide: `docs/OPEN_SOURCE_PLAYBOOK.md`
 - Read first-run walkthrough: `docs/TUTORIAL_FIRST_RUN.md`

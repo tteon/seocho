@@ -153,6 +153,11 @@ Each entry must link to a full ADR when impact is non-trivial.
   - extend relatedness with optional embedding score for linking decisions
   - add semantic artifact approval policy (`auto`, `draft_only`, `approved_only`) for governance-safe rollout
 
+- Accepted `ADR-0025-semantic-artifact-draft-approval-lifecycle-api.md`
+  - add semantic artifact lifecycle endpoints for draft save/list/read/approve
+  - add server-side approved artifact resolution via `approved_artifact_id` in runtime ingest
+  - enforce dedicated permission action (`manage_semantic_artifacts`) for artifact governance operations
+
 ## Template
 
 Use this block for new entries:

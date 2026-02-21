@@ -129,6 +129,10 @@ Current endpoints:
 - `GET /rules/profiles/{profile_id}`
 - `POST /rules/export/cypher`
 - `POST /rules/export/shacl`
+- `POST /semantic/artifacts/drafts`
+- `GET /semantic/artifacts`
+- `GET /semantic/artifacts/{artifact_id}`
+- `POST /semantic/artifacts/{artifact_id}/approve`
 
 Rules constraints:
 

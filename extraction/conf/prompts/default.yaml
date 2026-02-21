@@ -20,6 +20,11 @@ system: |
   - LegalStatute (if category is legal)
   {% endif %}
 
+  {% if shacl_constraints is defined and shacl_constraints %}
+  Respect these SHACL-like constraint hints when selecting properties:
+  {{ shacl_constraints }}
+  {% endif %}
+
   Return the output in JSON format with two keys: "nodes" and "relationships".
 
   Nodes format: {"id": "unique_id", "label": "EntityType", "properties": {"name": "Entity Name", ...}}

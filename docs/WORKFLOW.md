@@ -57,6 +57,9 @@ Primary surfaces:
 2. Ingestion and graph build
 - run extraction pipeline
 - for interactive runtime onboarding, ingest raw text via `/platform/ingest/raw`
+- parse heterogeneous sources (`text`/`csv`/`pdf`) to normalized text before extraction
+- run LLM 3-pass semantic extraction (ontology candidate -> SHACL candidate -> entity graph)
+- evaluate relatedness against known entities and run linking only when relatedness gate is satisfied
 - apply SHACL-like rule inference/validation
 - run readiness check with `/rules/assess` before promoting profile to governance baseline
 - save reusable rule profiles (`/rules/profiles`)

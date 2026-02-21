@@ -478,7 +478,7 @@ class HealthResponse(BaseModel):
 
 class RawIngestRecord(BaseModel):
     id: Optional[str] = None
-    content: str = Field(..., min_length=1, max_length=20000)
+    content: str = Field(..., min_length=1, max_length=2000000)
     category: str = Field(default="general", max_length=100)
     source_type: Literal["text", "pdf", "csv"] = "text"
     content_encoding: Literal["plain", "base64"] = "plain"
@@ -491,6 +491,8 @@ class PlatformRawIngestRequest(BaseModel):
     records: List[RawIngestRecord] = Field(..., min_length=1, max_length=100)
     enable_rule_constraints: bool = True
     create_database_if_missing: bool = True
+    semantic_artifact_policy: Literal["auto", "draft_only", "approved_only"] = "auto"
+    approved_artifacts: Optional[Dict[str, Any]] = None
 
 
 class RawIngestError(BaseModel):
@@ -676,6 +678,8 @@ async def platform_ingest_raw(request: PlatformRawIngestRequest):
             target_database=request.target_database,
             enable_rule_constraints=request.enable_rule_constraints,
             create_database_if_missing=request.create_database_if_missing,
+            semantic_artifact_policy=request.semantic_artifact_policy,
+            approved_artifacts=request.approved_artifacts,
         )
         return PlatformRawIngestResponse(workspace_id=request.workspace_id, **result)
     except InvalidDatabaseNameError as e:

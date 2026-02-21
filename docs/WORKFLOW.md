@@ -60,6 +60,7 @@ Primary surfaces:
 - parse heterogeneous sources (`text`/`csv`/`pdf`) to normalized text before extraction
 - run LLM 3-pass semantic extraction (ontology candidate -> SHACL candidate -> entity graph)
 - evaluate relatedness against known entities and run linking only when relatedness gate is satisfied
+- select semantic artifact policy (`auto`, `draft_only`, `approved_only`) before rule application
 - apply SHACL-like rule inference/validation
 - run readiness check with `/rules/assess` before promoting profile to governance baseline
 - save reusable rule profiles (`/rules/profiles`)

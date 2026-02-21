@@ -12,9 +12,10 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 # OpenAI Agent SDK Imports (Local Shim)
-from agents import Agent, Runner, function_tool, RunContextWrapper, trace
+from agents import Agent, function_tool, RunContextWrapper
 
 from config import NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD, db_registry, validate_config
+from agents_runtime import get_agents_runtime
 from shared_memory import SharedMemory
 from agent_factory import AgentFactory
 from database_manager import DatabaseManager
@@ -384,6 +385,8 @@ class DebateResponse(BaseModel):
     response: str
     trace_steps: List[Dict[str, Any]]
     debate_results: List[Dict[str, Any]]
+    agent_statuses: List[Dict[str, str]] = Field(default_factory=list)
+    degraded: bool = False
 
 
 class FulltextIndexEnsureRequest(BaseModel):
@@ -672,9 +675,10 @@ async def run_agent(request: QueryRequest):
     )
 
     try:
-        with trace(f"Request {request.user_id} - {request.query[:20]}"):
-            result = await Runner.run(
-                starting_agent=agent_router,
+        agents_runtime = get_agents_runtime()
+        with agents_runtime.trace(f"Request {request.user_id} - {request.query[:20]}"):
+            result = await agents_runtime.run(
+                agent=agent_router,
                 input=request.query,
                 context=srv_context
             )
@@ -850,8 +854,8 @@ async def run_debate(request: QueryRequest):
         shared_memory=memory,
     )
 
-    # Ensure agents exist for all registered databases
-    agent_factory.create_agents_for_all_databases(db_manager)
+    # Ensure agents exist for all registered databases and capture readiness status.
+    agent_statuses = agent_factory.create_agents_for_all_databases(db_manager)
 
     all_agents = agent_factory.get_all_agents()
     if not all_agents:
@@ -868,6 +872,8 @@ async def run_debate(request: QueryRequest):
 
     try:
         result = await orchestrator.run_debate(request.query, srv_context)
+        result["agent_statuses"] = agent_statuses
+        result["degraded"] = any(item.get("status") != "ready" for item in agent_statuses)
         return DebateResponse(**result)
     except SeochoError:
         raise

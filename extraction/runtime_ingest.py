@@ -10,36 +10,15 @@ from __future__ import annotations
 import logging
 import os
 import re
-from pathlib import Path
-from types import SimpleNamespace
 from typing import Any, Dict, List, Tuple
 
-import yaml
-
+from config import load_pipeline_runtime_config
 from database_manager import DatabaseManager
 from exceptions import InvalidDatabaseNameError
 
 logger = logging.getLogger(__name__)
 
 _DB_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9]*$")
-
-
-def _load_prompt_cfg() -> Any:
-    base = Path(__file__).resolve().parent / "conf" / "prompts"
-    with open(base / "default.yaml", "r", encoding="utf-8") as fp:
-        default_prompt = yaml.safe_load(fp) or {}
-    with open(base / "linking.yaml", "r", encoding="utf-8") as fp:
-        linking_prompt = yaml.safe_load(fp) or {}
-
-    return SimpleNamespace(
-        prompts=SimpleNamespace(
-            system=default_prompt.get("system", ""),
-            user=default_prompt.get("user", ""),
-        ),
-        linking_prompt=SimpleNamespace(
-            linking=linking_prompt.get("linking", ""),
-        ),
-    )
 
 
 class RuntimeRawIngestor:
@@ -56,9 +35,9 @@ class RuntimeRawIngestor:
             from linker import EntityLinker
             from prompt_manager import PromptManager
 
-            cfg = _load_prompt_cfg()
-            api_key = os.getenv("OPENAI_API_KEY", "")
-            model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+            cfg = load_pipeline_runtime_config()
+            api_key = cfg.openai_api_key
+            model = cfg.model
             prompt_manager = PromptManager(cfg)
             self._extractor = EntityExtractor(prompt_manager=prompt_manager, api_key=api_key, model=model)
             self._linker = EntityLinker(prompt_manager=prompt_manager, api_key=api_key, model=model)

@@ -362,18 +362,19 @@ OPIK_URL=http://opik-backend:8080/api
 OPIK_PROJECT_NAME=seocho
 ```
 
-### Hydra Config (`extraction/conf/`)
+### Pipeline Config (`extraction/conf/`)
 ```
 conf/
-├── config.yaml          # Global: model, mock_data, openai_api_key
+├── config.yaml          # Reference defaults (runtime is env-first)
 ├── prompts/
 │   ├── default.yaml     # Extraction prompt (supports ontology variables)
 │   ├── linking.yaml     # Entity linking prompt
-│   └── router.yaml      # Router agent prompt
-└── schemas/
-    ├── baseline.yaml    # kgnormal schema
-    ├── fibo.yaml        # kgfibo schema
-    └── tracing.yaml     # agent_traces schema
+└── ingestion/
+    ├── config.yaml      # Ingestion dataset/openai/neo4j + schema selector
+    └── schema/
+        ├── baseline.yaml
+        ├── fibo.yaml
+        └── tracing.yaml
 ```
 
 ## API Endpoints

@@ -57,6 +57,7 @@ from semantic_query_flow import SemanticAgentFlow
 from fulltext_index import FulltextIndexManager
 from platform_agents import PlatformSessionStore, BackendSpecialistAgent, FrontendSpecialistAgent
 from runtime_ingest import RuntimeRawIngestor
+from debate import DebateOrchestrator
 
 logger = logging.getLogger(__name__)
 
@@ -874,8 +875,6 @@ async def run_debate(request: QueryRequest):
     update_current_span(
         metadata={"mode": "debate", "user_id": request.user_id, "workspace_id": request.workspace_id}
     )
-    from debate import DebateOrchestrator
-
     memory = SharedMemory()
     srv_context = ServerContext(
         user_id=request.user_id,

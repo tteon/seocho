@@ -52,6 +52,8 @@ If you changed ports in `.env`, replace `8001`/`8501` below with your configured
 ```bash
 curl -sS http://localhost:8001/databases | jq .
 curl -sS http://localhost:8501/api/config | jq .
+curl -sS http://localhost:8001/health/runtime | jq .
+curl -sS http://localhost:8001/health/batch | jq .
 ```
 
 Default URLs:

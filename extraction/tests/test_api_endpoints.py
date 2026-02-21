@@ -103,6 +103,20 @@ class TestListEndpoints:
         data = response.json()
         assert "agents" in data
 
+    async def test_runtime_health_endpoint(self, client):
+        response = await client.get("/health/runtime")
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["scope"] == "runtime"
+        assert "components" in payload
+
+    async def test_batch_health_endpoint(self, client):
+        response = await client.get("/health/batch")
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["scope"] == "batch"
+        assert payload["status"] in {"ready", "degraded", "blocked"}
+
     async def test_run_agent_semantic_endpoint(self, client, app_module):
         with patch.object(app_module.semantic_agent_flow, "run") as mock_run:
             mock_run.return_value = {
@@ -226,6 +240,27 @@ class TestListEndpoints:
                 data = response.json()
                 assert data["session_id"] == "s1"
                 assert data["assistant_message"] == "platform response"
+
+    async def test_run_debate_returns_blocked_state_when_no_ready_agents(self, client, app_module):
+        with patch.object(app_module.agent_factory, "create_agents_for_all_databases") as mock_create:
+            with patch.object(app_module.agent_factory, "get_all_agents") as mock_get_agents:
+                mock_create.return_value = [
+                    {"database": "kgfibo", "status": "degraded", "reason": "Graph not found"}
+                ]
+                mock_get_agents.return_value = {}
+                response = await client.post(
+                    "/run_debate",
+                    json={
+                        "query": "compare entities",
+                        "workspace_id": "default",
+                        "user_id": "u1",
+                    },
+                )
+                assert response.status_code == 200
+                payload = response.json()
+                assert payload["debate_state"] == "blocked"
+                assert payload["degraded"] is True
+                assert payload["debate_results"] == []
 
     async def test_platform_raw_ingest_endpoint(self, client, app_module):
         mock_ingestor = MagicMock()

@@ -66,6 +66,7 @@ Primary surfaces:
 - run `/run_agent` or `/run_debate`
 - for query-time entity disambiguation, run `/run_agent_semantic`
 - for custom interactive UX, run `/platform/chat/send`
+- monitor split health surfaces (`/health/runtime`, `/health/batch`)
 - enforce runtime policy checks
 - capture traces in Opik
 

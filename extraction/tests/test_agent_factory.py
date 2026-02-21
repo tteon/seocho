@@ -54,3 +54,26 @@ def test_create_agents_for_all_databases_skips_unavailable(monkeypatch):
         {"database": "kgnormal", "status": "ready", "reason": "created"},
         {"database": "kgfibo", "status": "degraded", "reason": "Graph not found: kgfibo"},
     ]
+
+
+def test_create_agents_for_all_databases_marks_cached_as_checked(monkeypatch):
+    monkeypatch.setattr(agent_factory, "Agent", _DummyAgent)
+    monkeypatch.setattr(agent_factory, "function_tool", lambda fn: fn)
+    monkeypatch.setattr(
+        agent_factory.db_registry,
+        "list_databases",
+        lambda: ["kgnormal"],
+    )
+
+    factory = agent_factory.AgentFactory(_DummyConnector())
+
+    class _DbManager:
+        @staticmethod
+        def get_schema_info(db_name: str) -> str:
+            return f"schema:{db_name}"
+
+    first_statuses = factory.create_agents_for_all_databases(_DbManager())
+    second_statuses = factory.create_agents_for_all_databases(_DbManager())
+
+    assert first_statuses == [{"database": "kgnormal", "status": "ready", "reason": "created"}]
+    assert second_statuses == [{"database": "kgnormal", "status": "ready", "reason": "checked"}]

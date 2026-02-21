@@ -46,17 +46,25 @@ class RuntimeRawIngestor:
     """Runs extraction/linking pipeline for ad-hoc runtime records."""
 
     def __init__(self, db_manager: DatabaseManager):
-        from extractor import EntityExtractor
-        from linker import EntityLinker
-        from prompt_manager import PromptManager
-
         self._db_manager = db_manager
-        cfg = _load_prompt_cfg()
-        api_key = os.getenv("OPENAI_API_KEY", "")
-        model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-        prompt_manager = PromptManager(cfg)
-        self._extractor = EntityExtractor(prompt_manager=prompt_manager, api_key=api_key, model=model)
-        self._linker = EntityLinker(prompt_manager=prompt_manager, api_key=api_key, model=model)
+        self._extractor = None
+        self._linker = None
+        self._llm_stack_ready = False
+
+        try:
+            from extractor import EntityExtractor
+            from linker import EntityLinker
+            from prompt_manager import PromptManager
+
+            cfg = _load_prompt_cfg()
+            api_key = os.getenv("OPENAI_API_KEY", "")
+            model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+            prompt_manager = PromptManager(cfg)
+            self._extractor = EntityExtractor(prompt_manager=prompt_manager, api_key=api_key, model=model)
+            self._linker = EntityLinker(prompt_manager=prompt_manager, api_key=api_key, model=model)
+            self._llm_stack_ready = True
+        except Exception as exc:
+            logger.warning("LLM extraction stack unavailable; fallback mode only: %s", exc)
 
     def ingest_records(
         self,
@@ -147,6 +155,12 @@ class RuntimeRawIngestor:
         }
 
     def _extract_graph(self, source_id: str, text: str, category: str) -> Tuple[Dict[str, Any], bool, str]:
+        if not self._llm_stack_ready or self._extractor is None or self._linker is None:
+            return (
+                self._fallback_extract(source_id=source_id, text=text),
+                True,
+                "LLM extraction stack unavailable",
+            )
         try:
             extracted = self._extractor.extract_entities(text=text, category=category)
             linked = self._linker.link_entities(extracted_data=extracted, category=category)

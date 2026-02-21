@@ -2,7 +2,7 @@
 
 DOCKER_COMPOSE = docker compose
 
-.PHONY: up down restart logs clean bootstrap shell test lint format help opik-up opik-down opik-logs
+.PHONY: up down restart logs clean bootstrap shell test test-integration lint format help opik-up opik-down opik-logs
 
 ##@ Development
 
@@ -46,6 +46,10 @@ shell: ## Open shell in extraction-service container
 test: ## Run tests
 	@echo "🧪 Running tests..."
 	@docker compose exec extraction-service python -m pytest tests/ -v
+
+test-integration: ## Run integration-focused extraction tests
+	@echo "🧪 Running integration tests..."
+	@docker compose exec extraction-service python -m pytest tests/test_integration_runtime_flow.py -v
 
 lint: ## Run linting
 	@echo "🔍 Running linting..."

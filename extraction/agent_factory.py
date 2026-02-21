@@ -104,5 +104,13 @@ class AgentFactory:
         """
         for db_name in db_registry.list_databases():
             if db_name not in self._agents:
-                schema = db_manager.get_schema_info(db_name)
+                try:
+                    schema = db_manager.get_schema_info(db_name)
+                except Exception as exc:
+                    logger.warning(
+                        "Skipping agent creation for database '%s': %s",
+                        db_name,
+                        exc,
+                    )
+                    continue
                 self.create_db_agent(db_name, schema)

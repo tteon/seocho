@@ -127,7 +127,7 @@ class DebateOrchestrator:
         try:
             with trace(f"Debate:{agent.name}"):
                 result = await Runner.run(
-                    agent=agent, input=query, context=context
+                    starting_agent=agent, input=query, context=context
                 )
             response_text = str(result.final_output)
             update_current_span(
@@ -171,7 +171,7 @@ class DebateOrchestrator:
         synthesis_input = self._format_for_supervisor(query, debate_results)
         with trace("Supervisor Synthesis"):
             result = await Runner.run(
-                agent=self.supervisor,
+                starting_agent=self.supervisor,
                 input=synthesis_input,
                 context=context,
             )

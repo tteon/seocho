@@ -674,7 +674,7 @@ async def run_agent(request: QueryRequest):
     try:
         with trace(f"Request {request.user_id} - {request.query[:20]}"):
             result = await Runner.run(
-                agent=agent_router,
+                starting_agent=agent_router,
                 input=request.query,
                 context=srv_context
             )

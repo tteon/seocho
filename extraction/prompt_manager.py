@@ -2,10 +2,10 @@ import json
 import os
 from datetime import datetime
 from jinja2 import Template
-from omegaconf import DictConfig
+from typing import Any
 
 class PromptManager:
-    def __init__(self, cfg: DictConfig):
+    def __init__(self, cfg: Any):
         self.cfg = cfg
         self.history_file = "prompt_history.json"
         

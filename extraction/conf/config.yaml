@@ -1,10 +1,10 @@
-defaults:
-  - prompts: default
-  - linking_prompt: linking
-  - _self_
+# Non-Hydra reference config for extraction batch runtime.
+# Runtime loading is env-first via `config.load_pipeline_runtime_config()`.
 
-
-model: gpt-3.5-turbo
+model: gpt-4o-mini
 mock_data: true
 enable_rule_constraints: true
-openai_api_key: ${oc.env:OPENAI_API_KEY}
+
+prompts:
+  extraction: conf/prompts/default.yaml
+  linking: conf/prompts/linking.yaml

@@ -15,8 +15,7 @@ dependencies = [
     "uvicorn",
     "pydantic>=2.0",
     # LLM pipeline
-    "hydra-core",
-    "omegaconf",
+    "pyyaml",
     "jinja2",
     "tenacity>=8.2.0",
     # Data handling

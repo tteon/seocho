@@ -133,6 +133,11 @@ Each entry must link to a full ADR when impact is non-trivial.
   - add split health endpoints (`/health/runtime`, `/health/batch`)
   - add readiness-state fallback from blocked debate mode to semantic mode
 
+- Accepted `ADR-0021-non-hydra-runtime-config-and-ingestion-loader.md`
+  - remove Hydra/OmegaConf from active runtime and batch execution paths
+  - standardize env-first YAML config loading in centralized `extraction/config.py`
+  - keep Opik as tracing/evaluation layer (separate concern from configuration)
+
 ## Template
 
 Use this block for new entries:

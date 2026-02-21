@@ -24,6 +24,7 @@ dependencies = [
     "fastparquet",
     "datasets",
     "huggingface_hub",
+    "pypdf",
     # Vector search
     "faiss-cpu",
     # Observability

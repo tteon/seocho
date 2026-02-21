@@ -64,7 +64,8 @@ Default URLs:
 
 ## 4. Ingest your raw data
 
-Use runtime ingest API to load text directly into a target graph database.
+Use runtime ingest API to load raw materials directly into a target graph database.
+Supported per-record `source_type` is `text`, `csv`, `pdf`.
 
 ```bash
 curl -sS -X POST http://localhost:8001/platform/ingest/raw \
@@ -73,8 +74,9 @@ curl -sS -X POST http://localhost:8001/platform/ingest/raw \
     "workspace_id":"default",
     "target_database":"kgruntime",
     "records":[
-      {"id":"raw_1","content":"ACME acquired Beta in 2024."},
-      {"id":"raw_2","content":"Beta provides risk analytics to ACME."}
+      {"id":"raw_1","source_type":"text","content":"ACME acquired Beta in 2024."},
+      {"id":"raw_2","source_type":"csv","content":"company,partner\nBeta,ACME"},
+      {"id":"raw_3","source_type":"pdf","content_encoding":"base64","content":"<base64_pdf_payload>"}
     ]
   }' | jq .
 ```
@@ -83,6 +85,7 @@ Success criteria:
 
 - `status` is one of `success`, `success_with_fallback`, `partial_success`
 - `records_processed >= 1`
+- `semantic_artifacts` includes merged ontology/SHACL candidates and relatedness summary
 
 ## 5. Ensure fulltext index for semantic mode
 

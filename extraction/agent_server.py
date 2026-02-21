@@ -480,6 +480,8 @@ class RawIngestRecord(BaseModel):
     id: Optional[str] = None
     content: str = Field(..., min_length=1, max_length=20000)
     category: str = Field(default="general", max_length=100)
+    source_type: Literal["text", "pdf", "csv"] = "text"
+    content_encoding: Literal["plain", "base64"] = "plain"
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
@@ -513,6 +515,7 @@ class PlatformRawIngestResponse(BaseModel):
     total_relationships: int
     fallback_records: int = 0
     rule_profile: Optional[Dict[str, Any]] = None
+    semantic_artifacts: Optional[Dict[str, Any]] = None
     status: str
     warnings: List[RawIngestWarning] = Field(default_factory=list)
     errors: List[RawIngestError] = Field(default_factory=list)

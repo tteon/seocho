@@ -116,6 +116,13 @@ Each entry must link to a full ADR when impact is non-trivial.
   - enforce CI workflow gate for integration-level regressions
   - add local execution target (`make e2e-smoke`) for reproducible validation
 
+## 2026-02-21
+
+- Accepted `ADR-0018-user-activation-priority-and-docs-sync-contract.md`
+  - define user activation critical path as release gate (raw ingest -> semantic/debate chat -> strict e2e)
+  - formalize architecture execution order (P0/P1/P2) for runtime reliability and governance
+  - enforce docs sync contract for seocho.blog source documents
+
 ## Template
 
 Use this block for new entries:

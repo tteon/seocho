@@ -81,6 +81,7 @@ Semantic path summary:
 
 4. Validation and landing
 - run code and ops gates
+- run runtime flow smoke gate (`make e2e-smoke`) when API/UI/data-plane contracts change
 - run sprint label lint (`scripts/pm/lint-items.sh --sprint <id>`)
 - run agent docs lint (`scripts/pm/lint-agent-docs.sh`)
 - close issue, rebase, sync, push

@@ -470,6 +470,7 @@ python scripts/rules/shacl_practical_demo.py
 ```bash
 # Run tests
 make test
+make test-integration
 
 # Lint & format
 make lint

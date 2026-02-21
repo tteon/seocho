@@ -166,7 +166,7 @@ class _FakeSession:
         if "WHERE any(key IN $properties" in compact:
             return _FakeResult([])
 
-        if "WHERE id(n) = $node_id" in compact:
+        if "WHERE elementId(n) = toString($node_id)" in compact:
             return _FakeResult([])
 
         return _FakeResult([])

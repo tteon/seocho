@@ -128,6 +128,11 @@ Each entry must link to a full ADR when impact is non-trivial.
   - expose debate agent readiness (`agent_statuses`, `degraded`) for partial availability handling
   - add contract tests for adapter and readiness behavior
 
+- Accepted `ADR-0020-p1-elementid-health-split-and-readiness-fallback.md`
+  - migrate semantic runtime queries to `elementId(...)` contract path
+  - add split health endpoints (`/health/runtime`, `/health/batch`)
+  - add readiness-state fallback from blocked debate mode to semantic mode
+
 ## Template
 
 Use this block for new entries:

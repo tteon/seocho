@@ -123,6 +123,11 @@ Each entry must link to a full ADR when impact is non-trivial.
   - formalize architecture execution order (P0/P1/P2) for runtime reliability and governance
   - enforce docs sync contract for seocho.blog source documents
 
+- Accepted `ADR-0019-agent-sdk-adapter-and-debate-readiness-contract.md`
+  - isolate Agent SDK run/trace calls behind adapter for signature compatibility
+  - expose debate agent readiness (`agent_statuses`, `degraded`) for partial availability handling
+  - add contract tests for adapter and readiness behavior
+
 ## Template
 
 Use this block for new entries:

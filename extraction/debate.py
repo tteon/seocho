@@ -11,8 +11,9 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, Dict, List
 
-from agents import Agent, Runner, trace
+from agents import Agent
 
+from agents_runtime import get_agents_runtime
 from shared_memory import SharedMemory
 from tracing import track, update_current_span, update_current_trace
 
@@ -42,10 +43,12 @@ class DebateOrchestrator:
         agents: Dict[str, Agent],
         supervisor: Agent,
         shared_memory: SharedMemory,
+        agents_runtime=None,
     ):
         self.agents = agents          # {db_name: Agent}
         self.supervisor = supervisor
         self.shared_memory = shared_memory
+        self._agents_runtime = agents_runtime or get_agents_runtime()
 
     # ------------------------------------------------------------------
     # Public API
@@ -125,9 +128,11 @@ class DebateOrchestrator:
             tags=[f"db:{db_name}", "debate-agent"],
         )
         try:
-            with trace(f"Debate:{agent.name}"):
-                result = await Runner.run(
-                    starting_agent=agent, input=query, context=context
+            with self._agents_runtime.trace(f"Debate:{agent.name}"):
+                result = await self._agents_runtime.run(
+                    agent=agent,
+                    input=query,
+                    context=context,
                 )
             response_text = str(result.final_output)
             update_current_span(
@@ -169,9 +174,9 @@ class DebateOrchestrator:
             tags=["supervisor"],
         )
         synthesis_input = self._format_for_supervisor(query, debate_results)
-        with trace("Supervisor Synthesis"):
-            result = await Runner.run(
-                starting_agent=self.supervisor,
+        with self._agents_runtime.trace("Supervisor Synthesis"):
+            result = await self._agents_runtime.run(
+                agent=self.supervisor,
                 input=synthesis_input,
                 context=context,
             )

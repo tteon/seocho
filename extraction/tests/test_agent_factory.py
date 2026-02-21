@@ -46,7 +46,11 @@ def test_create_agents_for_all_databases_skips_unavailable(monkeypatch):
                 raise RuntimeError("Graph not found: kgfibo")
             return f"schema:{db_name}"
 
-    factory.create_agents_for_all_databases(_DbManager())
+    statuses = factory.create_agents_for_all_databases(_DbManager())
 
     assert factory.list_agents() == ["kgnormal"]
     assert factory.get_agent("kgfibo") is None
+    assert statuses == [
+        {"database": "kgnormal", "status": "ready", "reason": "created"},
+        {"database": "kgfibo", "status": "degraded", "reason": "Graph not found: kgfibo"},
+    ]

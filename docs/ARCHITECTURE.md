@@ -178,6 +178,7 @@ Why this path exists:
 
 | Module | File | Purpose |
 |--------|------|---------|
+| AgentsRuntimeAdapter | `extraction/agents_runtime.py` | SDK compatibility layer for runner/trace contracts (`starting_agent` vs `agent`) |
 | AgentFactory | `extraction/agent_factory.py` | Dynamically provisions dedicated Agents per database |
 | SharedMemory | `extraction/shared_memory.py` | Request-scoped shared memory between agents + query cache |
 | DebateOrchestrator | `extraction/debate.py` | Executes Parallel Debate pattern (fan-out → collect → synthesize) |
@@ -221,6 +222,7 @@ User → DebateOrchestrator → [Agent_db1 ∥ Agent_db2 ∥ ... ∥ Agent_dbN] 
 - Each agent stores its isolated conclusion in Shared Memory.
 - A Supervisor Agent aggregates and synthesizes the final comprehensive answer.
 - Fault Isolated: If one agent fails, the Supervisor synthesizes using the remaining successful agent answers.
+- Runtime payload includes per-database readiness metadata (`agent_statuses`) and overall degraded flag (`degraded`) for safe UI/ops handling.
 
 ### 3. Semantic Graph QA Mode (`POST /run_agent_semantic`)
 

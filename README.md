@@ -88,6 +88,9 @@ CSV/JSON/API → Ontology-Driven Extraction → Entity Linking → Deduplication
 
 ## Quick Start
 
+Canonical user-onboarding path lives in `docs/QUICKSTART.md`.
+If you want to validate raw data -> graph -> semantic/debate chat end-to-end, follow that document first.
+
 ### Prerequisites
 
 - Docker & Docker Compose
@@ -495,8 +498,11 @@ See [docs/SHACL_PRACTICAL_GUIDE.md](docs/SHACL_PRACTICAL_GUIDE.md) for practical
 See [docs/ISSUE_TASK_SYSTEM.md](docs/ISSUE_TASK_SYSTEM.md) for sprint/roadmap issue-task operations.
 See [docs/ADD_PLAYBOOK.md](docs/ADD_PLAYBOOK.md) for agent-driven delivery workflow.
 See [docs/CONTEXT_GRAPH_BLUEPRINT.md](docs/CONTEXT_GRAPH_BLUEPRINT.md) for context graph rollout.
+See [docs/OPEN_SOURCE_PLAYBOOK.md](docs/OPEN_SOURCE_PLAYBOOK.md) for open-source extension patterns.
 See [docs/decisions/DECISION_LOG.md](docs/decisions/DECISION_LOG.md) for architecture decision history.
 See [docs/README.md](docs/README.md) for active-vs-archive doc map.
+
+For seocho.blog sync, keep `README.md` and `docs/*` aligned as the source of truth.
 
 ---
 

@@ -10,6 +10,54 @@ Current baseline:
 - Trace/evaluation: Opik
 - Graph backend: DozerDB (Neo4j protocol compatible)
 
+## Priority Execution Board (2026-02-21)
+
+This board is the active architecture priority order.
+
+### P0: Runtime Contract Stability
+
+- isolate OpenAI Agents SDK calls behind one adapter layer
+- enforce contract tests for runner signatures and response payload shape
+- block release when strict runtime e2e smoke fails
+
+### P0: Real-Database Agent Provisioning
+
+- only create debate agents for databases that actually exist and are reachable
+- expose degraded/partial state in runtime payload when some DB agents are skipped
+- keep routing safe when registry includes stale DB names
+
+### P1: Graph Query Durability
+
+- migrate `id(node)` usage to `elementId(node)` contract-safe path
+- validate query templates against DozerDB/Neo4j deprecation warnings
+
+### P1: Process Isolation and Health Model
+
+- separate runtime API readiness from batch/notebook pipeline readiness
+- split health checks and operational alerts by service role
+
+### P1: Agent Readiness State Machine
+
+- define `ready | degraded | blocked` for each graph agent
+- make router/supervisor allocate requests using readiness metadata
+
+### P2: Governance Automation
+
+- enforce `/rules/assess` as promotion gate for rule profile rollout
+- expand CI integration checks for ontology artifact and rule export paths
+
+## User Activation Critical Path
+
+Architecture changes are not complete unless users can run this path directly:
+
+1. ingest raw data via `/platform/ingest/raw`
+2. ensure semantic index via `/indexes/fulltext/ensure`
+3. ask semantic/debate questions via `/api/chat/send`
+4. inspect trace and runtime payload in UI
+5. pass `make e2e-smoke`
+
+This critical path is the default acceptance gate for user-facing releases.
+
 ## Control Plane vs Data Plane
 
 ### Control Plane

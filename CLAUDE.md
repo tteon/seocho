@@ -217,3 +217,36 @@ Critical alignment checks:
 - router/supervisor request allocation should be grounded in ontology-backed graph metadata.
 - backend trace topology metadata is a contract for frontend DAG rendering, not an optional hint.
 - Opik traces should preserve enough metadata to audit routing, semantic disambiguation, and synthesis paths.
+
+## 15. Architecture Priority Execution (Active)
+
+Execution order (highest first):
+
+1. runtime contract stability (SDK adapter + contract tests)
+2. real-database-only agent provisioning and degraded-state reporting
+3. graph query durability migration (`id` -> `elementId`)
+4. runtime vs batch process/health isolation
+5. agent readiness state machine for routing/supervision
+6. `/rules/assess` governance automation in promotion flows
+
+## 16. User-First Release Gate
+
+Any user-facing change must preserve a reproducible quickstart path:
+
+1. ingest raw records (`/platform/ingest/raw`)
+2. ensure fulltext (`/indexes/fulltext/ensure`)
+3. run semantic and debate chat (`/api/chat/send`)
+4. verify strict integration smoke (`make e2e-smoke`)
+
+If this path is broken, do not treat the release as complete.
+
+## 17. Documentation Sync Contract
+
+For seocho.blog sync, keep these docs current as first-class release artifacts:
+
+- `docs/README.md`
+- `docs/QUICKSTART.md`
+- `docs/ARCHITECTURE.md`
+- `docs/WORKFLOW.md`
+
+Docs updates that change user behavior or architecture intent must include a decision log update (and ADR when non-trivial).

@@ -16,12 +16,18 @@ Welcome to the central documentation index for SEOCHO. This directory tracks the
 - `ADD_PLAYBOOK.md`: engineering execution and landing procedure
 - `CONTEXT_GRAPH_BLUEPRINT.md`: context event model and rollout
 - `QUICKSTART.md`: setup and local run instructions
+- `OPEN_SOURCE_PLAYBOOK.md`: extension guide for ontology/data/agent/runtime integration
 - `ROADMAP.md`: planned product/engineering milestones
 - `decisions/DECISION_LOG.md`: architecture decision history
 
 ## Docs Sync Integration
 
 - `README.md` and `docs/*` changes are intended to propagate to the website via `.github/workflows/sync-docs-website.yml`.
+- publish-critical sync sources:
+  - `docs/README.md`
+  - `docs/QUICKSTART.md`
+  - `docs/ARCHITECTURE.md`
+  - `docs/WORKFLOW.md`
 - The planned trigger emits `repository_dispatch` to `tteon/tteon.github.io` (`event-type: seocho-docs-sync`).
 - Remote rollout may remain pending until repository-owner credentials with `workflow` scope are applied.
 - Local `tteon.github.io/` workspace can be used for integration testing, but remains outside `seocho` tracking.

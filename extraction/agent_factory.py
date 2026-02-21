@@ -96,12 +96,13 @@ class AgentFactory:
         """Return database names that have agents."""
         return list(self._agents.keys())
 
-    def create_agents_for_all_databases(self, db_manager) -> None:
+    def create_agents_for_all_databases(self, db_manager) -> List[Dict[str, str]]:
         """Convenience: create agents for every registered database.
 
         Args:
             db_manager: ``DatabaseManager`` instance (used for schema retrieval).
         """
+        statuses: List[Dict[str, str]] = []
         for db_name in db_registry.list_databases():
             if db_name not in self._agents:
                 try:
@@ -112,5 +113,28 @@ class AgentFactory:
                         db_name,
                         exc,
                     )
+                    statuses.append(
+                        {
+                            "database": db_name,
+                            "status": "degraded",
+                            "reason": str(exc),
+                        }
+                    )
                     continue
                 self.create_db_agent(db_name, schema)
+                statuses.append(
+                    {
+                        "database": db_name,
+                        "status": "ready",
+                        "reason": "created",
+                    }
+                )
+            else:
+                statuses.append(
+                    {
+                        "database": db_name,
+                        "status": "ready",
+                        "reason": "cached",
+                    }
+                )
+        return statuses

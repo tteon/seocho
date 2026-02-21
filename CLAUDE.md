@@ -229,6 +229,10 @@ Execution order (highest first):
 5. agent readiness state machine for routing/supervision
 6. `/rules/assess` governance automation in promotion flows
 
+Implementation note:
+
+- route all direct Agent SDK execution through `extraction/agents_runtime.py`; avoid calling `Runner.run` directly in feature modules.
+
 ## 16. User-First Release Gate
 
 Any user-facing change must preserve a reproducible quickstart path:

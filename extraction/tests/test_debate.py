@@ -3,7 +3,7 @@
 import os
 import sys
 import types
-from contextlib import nullcontext
+from contextlib import contextmanager, nullcontext
 
 import pytest
 
@@ -36,13 +36,16 @@ class _DummyMemory:
 
 @pytest.mark.anyio
 async def test_debate_orchestrator_uses_starting_agent(monkeypatch):
-    class _Runner:
+    class _Runtime:
         @staticmethod
-        async def run(*, starting_agent, input, context):
-            return types.SimpleNamespace(final_output=f"{starting_agent.name}:{input}", chat_history=[])
+        async def run(*, agent, input, context):
+            return types.SimpleNamespace(final_output=f"{agent.name}:{input}", chat_history=[])
 
-    monkeypatch.setattr(debate, "Runner", _Runner)
-    monkeypatch.setattr(debate, "trace", lambda *_a, **_k: nullcontext())
+        @staticmethod
+        @contextmanager
+        def trace(name: str):
+            yield
+
     monkeypatch.setattr(debate, "update_current_trace", lambda **_k: None)
     monkeypatch.setattr(debate, "update_current_span", lambda **_k: None)
 
@@ -50,6 +53,7 @@ async def test_debate_orchestrator_uses_starting_agent(monkeypatch):
         agents={"kgnormal": _DummyAgent("Agent_kgnormal")},
         supervisor=_DummyAgent("Supervisor"),
         shared_memory=_DummyMemory(),
+        agents_runtime=_Runtime(),
     )
 
     result = await orchestrator.run_debate("hello", context=types.SimpleNamespace())

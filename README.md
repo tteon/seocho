@@ -382,6 +382,7 @@ seocho/
 ```
 
 **Response** includes `response`, `trace_steps`, and (for debate) `debate_results` with per-agent answers.
+Debate responses also expose `agent_statuses` (`ready` or `degraded`) and `degraded` for partial-availability handling.
 
 ---
 

@@ -128,6 +128,7 @@ Current endpoints:
 - `GET /rules/profiles`
 - `GET /rules/profiles/{profile_id}`
 - `POST /rules/export/cypher`
+- `POST /rules/export/shacl`
 
 Rules constraints:
 

@@ -138,6 +138,11 @@ Each entry must link to a full ADR when impact is non-trivial.
   - standardize env-first YAML config loading in centralized `extraction/config.py`
   - keep Opik as tracing/evaluation layer (separate concern from configuration)
 
+- Accepted `ADR-0022-shacl-artifact-export-and-batch-rule-aggregation.md`
+  - add SHACL-compatible export endpoint (`/rules/export/shacl`) with Turtle + shape JSON
+  - keep dual-governance export path with existing Cypher constraints endpoint
+  - infer/apply rules at runtime ingest batch scope and return inferred `rule_profile` for traceability
+
 ## Template
 
 Use this block for new entries:

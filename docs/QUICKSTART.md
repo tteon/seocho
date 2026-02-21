@@ -169,6 +169,9 @@ EXTRACTION_API_PORT=8002 CHAT_INTERFACE_PORT=8502 bash scripts/integration/e2e_r
 ## 9. Next practical steps
 
 - Run SHACL-like readiness: `POST /rules/assess`
+- Export governance artifacts:
+  - Cypher constraints: `POST /rules/export/cypher`
+  - SHACL-compatible Turtle: `POST /rules/export/shacl`
 - Build ontology hints offline: `python scripts/ontology/build_ontology_hints.py ...`
 - Read extension guide: `docs/OPEN_SOURCE_PLAYBOOK.md`
 - Read first-run walkthrough: `docs/TUTORIAL_FIRST_RUN.md`

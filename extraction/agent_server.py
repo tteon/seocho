@@ -43,6 +43,8 @@ from rule_api import (
     RuleProfileListResponse,
     RuleExportCypherRequest,
     RuleExportCypherResponse,
+    RuleExportShaclRequest,
+    RuleExportShaclResponse,
     RuleValidateRequest,
     RuleValidateResponse,
     create_rule_profile,
@@ -50,6 +52,7 @@ from rule_api import (
     read_rule_profiles,
     assess_rule_profile,
     export_rule_profile_to_cypher,
+    export_rule_profile_to_shacl,
     infer_rule_profile,
     validate_rule_profile,
 )
@@ -509,6 +512,7 @@ class PlatformRawIngestResponse(BaseModel):
     total_nodes: int
     total_relationships: int
     fallback_records: int = 0
+    rule_profile: Optional[Dict[str, Any]] = None
     status: str
     warnings: List[RawIngestWarning] = Field(default_factory=list)
     errors: List[RawIngestError] = Field(default_factory=list)
@@ -1099,6 +1103,23 @@ async def rules_export_cypher(request: RuleExportCypherRequest):
 
     try:
         return export_rule_profile_to_cypher(request)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/rules/export/shacl", response_model=RuleExportShaclResponse)
+@track("agent_server.rules_export_shacl")
+async def rules_export_shacl(request: RuleExportShaclRequest):
+    """Export rule profile to SHACL-compatible artifacts."""
+    try:
+        require_runtime_permission(role="user", action="export_rules", workspace_id=request.workspace_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
+    try:
+        return export_rule_profile_to_shacl(request)
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except ValueError as e:

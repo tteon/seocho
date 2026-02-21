@@ -60,6 +60,7 @@ Primary surfaces:
 - apply SHACL-like rule inference/validation
 - run readiness check with `/rules/assess` before promoting profile to governance baseline
 - save reusable rule profiles (`/rules/profiles`)
+- export governance artifacts (`/rules/export/cypher`, `/rules/export/shacl`)
 - load graph into DozerDB
 
 3. Agent execution

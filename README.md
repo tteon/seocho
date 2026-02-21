@@ -471,6 +471,7 @@ python scripts/rules/shacl_practical_demo.py
 # Run tests
 make test
 make test-integration
+make e2e-smoke
 
 # Lint & format
 make lint

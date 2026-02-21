@@ -111,6 +111,11 @@ Each entry must link to a full ADR when impact is non-trivial.
   - add fallback extraction path for local validation when LLM extraction is unavailable
   - make extraction host ports configurable and tighten DB routing/loading behavior
 
+- Accepted `ADR-0017-runtime-e2e-smoke-gate-for-ingest-chat-flow.md`
+  - add dockerized runtime e2e smoke checks for ingest->semantic/debate chat paths
+  - enforce CI workflow gate for integration-level regressions
+  - add local execution target (`make e2e-smoke`) for reproducible validation
+
 ## Template
 
 Use this block for new entries:

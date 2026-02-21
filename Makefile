@@ -2,7 +2,7 @@
 
 DOCKER_COMPOSE = docker compose
 
-.PHONY: up down restart logs clean bootstrap shell test test-integration lint format help opik-up opik-down opik-logs
+.PHONY: up down restart logs clean bootstrap shell test test-integration e2e-smoke lint format help opik-up opik-down opik-logs
 
 ##@ Development
 
@@ -50,6 +50,10 @@ test: ## Run tests
 test-integration: ## Run integration-focused extraction tests
 	@echo "🧪 Running integration tests..."
 	@docker compose exec extraction-service python -m pytest tests/test_integration_runtime_flow.py -v
+
+e2e-smoke: ## Run dockerized runtime smoke checks (ingest + semantic + debate)
+	@echo "🧪 Running e2e smoke checks..."
+	@bash scripts/integration/e2e_runtime_smoke.sh
 
 lint: ## Run linting
 	@echo "🔍 Running linting..."

@@ -47,6 +47,8 @@ Expected services:
 
 ## 3. Verify base endpoints
 
+If you changed ports in `.env`, replace `8001`/`8501` below with your configured ports.
+
 ```bash
 curl -sS http://localhost:8001/databases | jq .
 curl -sS http://localhost:8501/api/config | jq .
@@ -146,6 +148,12 @@ What it checks end-to-end:
 - debate chat (`/api/chat/send`, mode `debate`)
 
 If `OPENAI_API_KEY` is real, debate is checked in strict pass mode.
+
+If you are running custom ports, execute the script with explicit overrides:
+
+```bash
+EXTRACTION_API_PORT=8002 CHAT_INTERFACE_PORT=8502 bash scripts/integration/e2e_runtime_smoke.sh
+```
 
 ## 8. Validate through UI
 

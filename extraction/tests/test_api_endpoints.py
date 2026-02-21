@@ -219,6 +219,24 @@ class TestListEndpoints:
             data = response.json()
             assert data["practical_readiness"]["status"] == "ready"
 
+    async def test_rules_export_shacl_endpoint(self, client, app_module):
+        with patch.object(app_module, "export_rule_profile_to_shacl") as mock_export:
+            mock_export.return_value = {
+                "workspace_id": "default",
+                "schema_version": "rules.v1",
+                "shapes": [{"shape_id": "CompanyShape", "target_class": "Company", "properties": []}],
+                "turtle": "@prefix sh: <http://www.w3.org/ns/shacl#> .\n",
+                "unsupported_rules": [],
+            }
+            response = await client.post(
+                "/rules/export/shacl",
+                json={"workspace_id": "default", "rule_profile": {"schema_version": "rules.v1", "rules": []}},
+            )
+            assert response.status_code == 200
+            payload = response.json()
+            assert payload["schema_version"] == "rules.v1"
+            assert isinstance(payload["shapes"], list)
+
     async def test_platform_chat_send_endpoint(self, client, app_module):
         with patch.object(app_module.backend_specialist_agent, "execute", new_callable=AsyncMock) as mock_execute:
             with patch.object(app_module.frontend_specialist_agent, "build_ui_payload") as mock_ui:

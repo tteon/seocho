@@ -318,6 +318,7 @@ seocho/
 | `/rules/profiles` | GET | List saved rule profiles in a workspace |
 | `/rules/profiles/{profile_id}` | GET | Read one saved rule profile |
 | `/rules/export/cypher` | POST | Export rule profile to DozerDB Cypher constraints |
+| `/rules/export/shacl` | POST | Export rule profile to SHACL-compatible artifact (Turtle + shape JSON) |
 | `/databases` | GET | List registered Neo4j databases |
 | `/agents` | GET | List active DB-bound agents |
 
@@ -454,7 +455,10 @@ Generated output includes:
 - `nodes[*].rule_validation`: per-node violations
 - `/rules/assess.practical_readiness`: readiness status/score and actionable recommendations
 
-This is designed for later translation to SHACL/Neo4j governance flows.
+Rule profiles can now be exported directly for governance rollout:
+
+- `/rules/export/cypher` for DozerDB constraints
+- `/rules/export/shacl` for SHACL-compatible Turtle + shape JSON
 
 Practical run:
 

@@ -69,6 +69,7 @@ class RuntimeRawIngestor:
         fallback_records = 0
         errors: List[Dict[str, str]] = []
         warnings: List[Dict[str, str]] = []
+        prepared_graphs: List[Tuple[str, Dict[str, Any]]] = []
 
         for idx, item in enumerate(records):
             source_id = str(item.get("id") or f"raw_{idx}")
@@ -87,26 +88,70 @@ class RuntimeRawIngestor:
 
             try:
                 graph_data, used_fallback, fallback_reason = self._extract_graph(source_id, text, category)
-                if used_fallback:
-                    fallback_records += 1
+            except Exception as exc:
+                logger.error("Raw ingest failed for record '%s': %s", source_id, exc)
+                failed += 1
+                errors.append(
+                    {
+                        "record_id": source_id,
+                        "error_type": type(exc).__name__,
+                        "message": str(exc),
+                    }
+                )
+                continue
+
+            if used_fallback:
+                fallback_records += 1
+                warnings.append(
+                    {
+                        "record_id": source_id,
+                        "warning_type": "FallbackExtraction",
+                        "message": fallback_reason,
+                    }
+                )
+            prepared_graphs.append((source_id, graph_data))
+
+        ruleset = None
+        if enable_rule_constraints and prepared_graphs:
+            try:
+                merged_graph = {"nodes": [], "relationships": []}
+                for _, graph_data in prepared_graphs:
+                    merged_graph["nodes"].extend(graph_data.get("nodes", []))
+                    merged_graph["relationships"].extend(graph_data.get("relationships", []))
+                ruleset = infer_rules_from_graph(merged_graph)
+            except Exception as exc:
+                logger.warning("Rule inference skipped for runtime ingest batch: %s", exc)
+                warnings.append(
+                    {
+                        "record_id": "_batch",
+                        "warning_type": "RuleInferenceSkipped",
+                        "message": str(exc),
+                    }
+                )
+
+        for source_id, graph_data in prepared_graphs:
+            graph_for_load = graph_data
+            if ruleset is not None:
+                try:
+                    graph_for_load = apply_rules_to_graph(graph_data, ruleset)
+                except Exception as exc:
+                    logger.warning("Rule annotation skipped for record '%s': %s", source_id, exc)
                     warnings.append(
                         {
                             "record_id": source_id,
-                            "warning_type": "FallbackExtraction",
-                            "message": fallback_reason,
+                            "warning_type": "RuleAnnotationSkipped",
+                            "message": str(exc),
                         }
                     )
+                    graph_for_load = graph_data
 
-                if enable_rule_constraints:
-                    rules = infer_rules_from_graph(graph_data)
-                    graph_data = apply_rules_to_graph(graph_data, rules)
-
-                self._db_manager.load_data(target_database, graph_data, source_id=source_id)
+            try:
+                self._db_manager.load_data(target_database, graph_for_load, source_id=source_id)
                 processed += 1
-                total_nodes += len(graph_data.get("nodes", []))
-                total_relationships += len(graph_data.get("relationships", []))
+                total_nodes += len(graph_for_load.get("nodes", []))
+                total_relationships += len(graph_for_load.get("relationships", []))
             except Exception as exc:
-                logger.error("Raw ingest failed for record '%s': %s", source_id, exc)
+                logger.error("Raw ingest load failed for record '%s': %s", source_id, exc)
                 failed += 1
                 errors.append(
                     {
@@ -124,6 +169,7 @@ class RuntimeRawIngestor:
             "total_nodes": total_nodes,
             "total_relationships": total_relationships,
             "fallback_records": fallback_records,
+            "rule_profile": ruleset.to_dict() if ruleset is not None else None,
             "errors": errors,
             "warnings": warnings,
             "status": (

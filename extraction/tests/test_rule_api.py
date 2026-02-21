@@ -2,11 +2,13 @@ from rule_api import (
     RuleInferRequest,
     RuleAssessRequest,
     RuleExportCypherRequest,
+    RuleExportShaclRequest,
     RuleProfileCreateRequest,
     RuleValidateRequest,
     assess_rule_profile,
     create_rule_profile,
     export_rule_profile_to_cypher,
+    export_rule_profile_to_shacl,
     infer_rule_profile,
     read_rule_profile,
     read_rule_profiles,
@@ -84,6 +86,20 @@ def test_export_rule_profile_to_cypher_from_inline_profile():
 
     assert isinstance(exported.statements, list)
     assert exported.schema_version == "rules.v1"
+
+
+def test_export_rule_profile_to_shacl_from_inline_profile():
+    infer_res = infer_rule_profile(RuleInferRequest(workspace_id="default", graph=_sample_graph()))
+    exported = export_rule_profile_to_shacl(
+        RuleExportShaclRequest(
+            workspace_id="default",
+            rule_profile=infer_res.rule_profile,
+        )
+    )
+
+    assert exported.schema_version == "rules.v1"
+    assert isinstance(exported.shapes, list)
+    assert "sh:NodeShape" in exported.turtle
 
 
 def test_assess_rule_profile_includes_readiness_and_export_preview():

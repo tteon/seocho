@@ -7,7 +7,7 @@ from typing import Any, Dict, Literal, Optional
 from pydantic import BaseModel, Field
 
 from rule_constraints import RuleSet, apply_rules_to_graph, infer_rules_from_graph
-from rule_export import export_ruleset_to_cypher
+from rule_export import export_ruleset_to_cypher, export_ruleset_to_shacl
 from rule_profile_store import get_rule_profile, list_rule_profiles, save_rule_profile
 
 
@@ -79,6 +79,20 @@ class RuleExportCypherResponse(BaseModel):
     workspace_id: str
     schema_version: str
     statements: list[str]
+    unsupported_rules: list[Dict[str, Any]]
+
+
+class RuleExportShaclRequest(BaseModel):
+    workspace_id: str = Field(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$")
+    profile_id: Optional[str] = None
+    rule_profile: Optional[Dict[str, Any]] = None
+
+
+class RuleExportShaclResponse(BaseModel):
+    workspace_id: str
+    schema_version: str
+    shapes: list[Dict[str, Any]]
+    turtle: str
     unsupported_rules: list[Dict[str, Any]]
 
 
@@ -185,6 +199,29 @@ def export_rule_profile_to_cypher(request: RuleExportCypherRequest) -> RuleExpor
         workspace_id=request.workspace_id,
         schema_version=exported["schema_version"],
         statements=exported["statements"],
+        unsupported_rules=exported["unsupported_rules"],
+    )
+
+
+def export_rule_profile_to_shacl(request: RuleExportShaclRequest) -> RuleExportShaclResponse:
+    if request.rule_profile:
+        profile = request.rule_profile
+    elif request.profile_id:
+        payload = get_rule_profile(
+            workspace_id=request.workspace_id,
+            profile_id=request.profile_id,
+            base_dir=_rule_profile_dir(),
+        )
+        profile = payload["rule_profile"]
+    else:
+        raise ValueError("either profile_id or rule_profile must be provided")
+
+    exported = export_ruleset_to_shacl(profile)
+    return RuleExportShaclResponse(
+        workspace_id=request.workspace_id,
+        schema_version=exported["schema_version"],
+        shapes=exported["shapes"],
+        turtle=exported["turtle"],
         unsupported_rules=exported["unsupported_rules"],
     )
 

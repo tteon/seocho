@@ -321,6 +321,10 @@ seocho/
 | `/rules/profiles/{profile_id}` | GET | Read one saved rule profile |
 | `/rules/export/cypher` | POST | Export rule profile to DozerDB Cypher constraints |
 | `/rules/export/shacl` | POST | Export rule profile to SHACL-compatible artifact (Turtle + shape JSON) |
+| `/semantic/artifacts/drafts` | POST | Save ontology/SHACL candidates as draft artifact |
+| `/semantic/artifacts` | GET | List semantic artifacts (`draft`/`approved`) |
+| `/semantic/artifacts/{artifact_id}` | GET | Read one semantic artifact |
+| `/semantic/artifacts/{artifact_id}/approve` | POST | Approve draft artifact for runtime `approved_only` policy |
 | `/databases` | GET | List registered Neo4j databases |
 | `/agents` | GET | List active DB-bound agents |
 
@@ -467,6 +471,7 @@ Runtime ingest artifact policy:
 - `auto`: apply newly extracted ontology/SHACL candidates immediately
 - `draft_only`: store candidates as draft (`semantic_artifacts`) and do not apply to rule profile
 - `approved_only`: apply only caller-provided `approved_artifacts`
+- for server-side resolution, pass `approved_artifact_id` in `/platform/ingest/raw`
 
 Practical run:
 

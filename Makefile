@@ -2,7 +2,7 @@
 
 DOCKER_COMPOSE = docker compose
 
-.PHONY: up down restart logs clean bootstrap shell test test-integration e2e-smoke lint format help opik-up opik-down opik-logs
+.PHONY: up down restart logs clean bootstrap shell test test-integration e2e-smoke lint format help opik-up opik-down opik-logs demo-raw demo-meta demo-neo4j demo-graphrag-opik demo-all
 
 ##@ Development
 
@@ -54,6 +54,21 @@ test-integration: ## Run integration-focused extraction tests
 e2e-smoke: ## Run dockerized runtime smoke checks (ingest + semantic + debate)
 	@echo "🧪 Running e2e smoke checks..."
 	@bash scripts/integration/e2e_runtime_smoke.sh
+
+demo-raw: ## Run beginner raw-data demo pipeline
+	@bash scripts/demo/pipeline_raw_data.sh
+
+demo-meta: ## Run beginner meta/artifact demo pipeline
+	@bash scripts/demo/pipeline_meta_artifact.sh
+
+demo-neo4j: ## Run beginner neo4j load/query demo pipeline
+	@bash scripts/demo/pipeline_neo4j_load.sh
+
+demo-graphrag-opik: ## Run beginner graphrag + opik demo pipeline
+	@bash scripts/demo/pipeline_graphrag_opik.sh
+
+demo-all: ## Run all beginner demo pipelines
+	@bash scripts/demo/run_beginner_pipelines.sh
 
 lint: ## Run linting
 	@echo "🔍 Running linting..."

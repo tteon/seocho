@@ -25,6 +25,7 @@ SEOCHO transforms unstructured data into structured knowledge graphs and provide
 5. Keep router agent as default request entry, selecting graph instances that can answer user intent.
 6. Operate router/graph-agent interaction under supervisor-style orchestration, with ontology metadata driving query-to-graph allocation.
 7. Treat agent-layer telemetry as first-class data and track every flow with Opik.
+8. Build a governed enterprise vocabulary layer from extraction + SHACL outputs so keyword-sensitive graph retrieval is resilient.
 
 Additional viewpoints adopted by SEOCHO:
 
@@ -33,6 +34,7 @@ Additional viewpoints adopted by SEOCHO:
 - **Contract-first DAG integration**: backend emits strict topology metadata (e.g., `node_id`, `parent_id`, `parent_ids`) so frontend trace canvas renders real execution graph, not heuristic layout.
 - **Closed-loop readiness**: semantic quality is operationalized via `/rules/assess` (validation + exportability) before rule promotion.
 - **Versioned ontology lifecycle**: ontology/rule artifacts are treated as versioned control-plane assets, not ad-hoc runtime state.
+- **Governed vocabulary access**: semantic artifacts evolve through `draft -> approved -> deprecated`, with global baseline terms plus `workspace_id`-scoped overrides.
 
 ## Planes
 
@@ -316,15 +318,16 @@ seocho/
 | `/rules/infer` | POST | Infer SHACL-like rule profile from graph payload |
 | `/rules/validate` | POST | Validate graph payload against inferred/provided rules |
 | `/rules/assess` | POST | Practical readiness assessment (validation + exportability) |
-| `/rules/profiles` | POST | Save a named rule profile for a workspace |
+| `/rules/profiles` | POST | Save a named rule profile for a workspace (durable SQLite registry) |
 | `/rules/profiles` | GET | List saved rule profiles in a workspace |
 | `/rules/profiles/{profile_id}` | GET | Read one saved rule profile |
 | `/rules/export/cypher` | POST | Export rule profile to DozerDB Cypher constraints |
 | `/rules/export/shacl` | POST | Export rule profile to SHACL-compatible artifact (Turtle + shape JSON) |
 | `/semantic/artifacts/drafts` | POST | Save ontology/SHACL candidates as draft artifact |
-| `/semantic/artifacts` | GET | List semantic artifacts (`draft`/`approved`) |
+| `/semantic/artifacts` | GET | List semantic artifacts (`draft`/`approved`/`deprecated`) |
 | `/semantic/artifacts/{artifact_id}` | GET | Read one semantic artifact |
 | `/semantic/artifacts/{artifact_id}/approve` | POST | Approve draft artifact for runtime `approved_only` policy |
+| `/semantic/artifacts/{artifact_id}/deprecate` | POST | Deprecate approved artifact to remove it from active vocabulary baseline |
 | `/databases` | GET | List registered Neo4j databases |
 | `/agents` | GET | List active DB-bound agents |
 
@@ -463,8 +466,9 @@ Generated output includes:
 
 Rule profiles can now be exported directly for governance rollout:
 
-- `/rules/export/cypher` for DozerDB constraints
+- `/rules/export/cypher` for DozerDB constraints (`required` + `datatype`) and validation query hooks (`enum` + `range`)
 - `/rules/export/shacl` for SHACL-compatible Turtle + shape JSON
+- rule profile registry persists in SQLite under `RULE_PROFILE_DIR/rule_profiles.db` (or explicit DB path), with workspace-scoped versioning/retention
 
 Runtime ingest artifact policy:
 
@@ -472,6 +476,7 @@ Runtime ingest artifact policy:
 - `draft_only`: store candidates as draft (`semantic_artifacts`) and do not apply to rule profile
 - `approved_only`: apply only caller-provided `approved_artifacts`
 - for server-side resolution, pass `approved_artifact_id` in `/platform/ingest/raw`
+- runtime ingest response also includes `vocabulary_candidate` and `draft_vocabulary_candidate`
 
 Practical run:
 
@@ -486,6 +491,15 @@ Local demo script:
 ```bash
 python scripts/rules/shacl_practical_demo.py
 ```
+
+### Enterprise Vocabulary Layer (Planned Direction)
+
+SEOCHO is extending semantic governance to a managed enterprise vocabulary layer for keyword-sensitive graph retrieval.
+
+- candidate generation: combine entity extraction/linking output with SHACL-like rule artifacts
+- lifecycle governance: manage vocabulary assets as `draft -> approved -> deprecated`
+- access model: use global approved vocabulary as default and allow `workspace_id`-scoped overrides
+- runtime behavior: keep request-path resolver lightweight (lookup/expansion only), while heavy ontology reasoning remains offline (Owlready2 path)
 
 ---
 
@@ -504,6 +518,9 @@ make format
 # Agent docs baseline lint
 scripts/pm/lint-agent-docs.sh
 
+# Install repo-managed git hooks (pre-commit bd flush guard)
+scripts/pm/install-git-hooks.sh
+
 # Load sample financial data
 docker exec extraction-service python demos/data_mesh_mock.py
 ```
@@ -511,6 +528,7 @@ docker exec extraction-service python demos/data_mesh_mock.py
 See [CLAUDE.md](CLAUDE.md) for coding rules, patterns, and module reference.
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed architecture.
 See [docs/TUTORIAL_FIRST_RUN.md](docs/TUTORIAL_FIRST_RUN.md) for first end-to-end run.
+See [docs/BEGINNER_PIPELINES_DEMO.md](docs/BEGINNER_PIPELINES_DEMO.md) for beginner-friendly 4-stage demo pipelines.
 See [docs/WORKFLOW.md](docs/WORKFLOW.md) for control/data plane workflow.
 See [docs/PHILOSOPHY.md](docs/PHILOSOPHY.md) for the design philosophy charter and operating principles.
 See [docs/PHILOSOPHY_FEASIBILITY_REVIEW.md](docs/PHILOSOPHY_FEASIBILITY_REVIEW.md) for expert-panel feasibility criteria and execution gates.
@@ -519,7 +537,7 @@ See [docs/SHACL_PRACTICAL_GUIDE.md](docs/SHACL_PRACTICAL_GUIDE.md) for practical
 See [docs/ISSUE_TASK_SYSTEM.md](docs/ISSUE_TASK_SYSTEM.md) for sprint/roadmap issue-task operations.
 See [docs/ADD_PLAYBOOK.md](docs/ADD_PLAYBOOK.md) for agent-driven delivery workflow.
 See [docs/CONTEXT_GRAPH_BLUEPRINT.md](docs/CONTEXT_GRAPH_BLUEPRINT.md) for context graph rollout.
-See [docs/OPEN_SOURCE_PLAYBOOK.md](docs/OPEN_SOURCE_PLAYBOOK.md) for open-source extension patterns.
+See [docs/OPEN_SOURCE_PLAYBOOK.md](docs/OPEN_SOURCE_PLAYBOOK.md) for structured open-source onboarding and extension workflow.
 See [docs/decisions/DECISION_LOG.md](docs/decisions/DECISION_LOG.md) for architecture decision history.
 See [docs/README.md](docs/README.md) for active-vs-archive doc map.
 
@@ -530,8 +548,8 @@ For seocho.blog sync, keep `README.md` and `docs/*` aligned as the source of tru
 ## Contributing
 
 We welcome contributions for new ontology mappings, agent tools, and pipeline enhancements.
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+Start with [CONTRIBUTING.md](CONTRIBUTING.md), then follow the onboarding checklist in [docs/OPEN_SOURCE_PLAYBOOK.md](docs/OPEN_SOURCE_PLAYBOOK.md).
 
 ## License
 
-MIT License.
+This project is licensed under the MIT License. See [LICENSE](LICENSE).

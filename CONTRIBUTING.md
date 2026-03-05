@@ -1,59 +1,92 @@
 # Contributing to SEOCHO
 
-Thank you for your interest in contributing to **SEOCHO**! We welcome contributions from the community to help make this the best scalable GraphRAG framework.
+Thank you for contributing to SEOCHO. This guide defines the minimum process for safe and reviewable changes.
 
-## 🤝 How to Contribute
+## 1. Read Before Coding
 
-### 1. Reporting Issues
-* **Bugs**: Please use the [GitHub Issues](https://github.com/tteon/seocho/issues) tracker. Describe the bug in detail, including steps to reproduce and your environment (OS, Docker version).
-* **Feature Requests**: Open an issue with the label `enhancement`. Explain the use case and how it fits into the SEOCHO architecture.
+Read these docs in order:
 
-### 2. Pull Request (PR) Process
-1. **Fork** the repository to your own GitHub account.
-2. **Clone** your fork locally:
-   ```bash
-   git clone https://github.com/<your-username>/seocho.git
-   ```
-3. **Create a Branch** for your feature or fix:
-   ```bash
-   git checkout -b feature/my-new-feature
-   # or
-   git checkout -b fix/bug-description
-   ```
-4. **Make Changes**. Keep them focused and atomic.
-5. **Test Your Changes**.
-   * Run the test suite:
-     ```bash
-     docker-compose exec extraction-service pytest tests/
-     ```
-   * Verify the UI works at `http://localhost:8501`.
-6. **Commit** with meaningful messages:
-   * Use [Conventional Commits](https://www.conventionalcommits.org/) (e.g., `feat: add new vector tool`, `fix: resolve cycle in router`).
-7. **Push** to your fork.
-8. **Open a Pull Request** against the `main` (or `graphrag-dev`) branch of the original repository.
+1. `README.md`
+2. `CLAUDE.md`
+3. `docs/WORKFLOW.md`
+4. `docs/ISSUE_TASK_SYSTEM.md`
+5. `docs/decisions/DECISION_LOG.md`
 
----
+Current baseline must remain aligned:
 
-## 💻 Coding Standards
+- OpenAI Agents SDK
+- Opik tracing/evaluation
+- DozerDB backend
+- single-tenant MVP with `workspace_id` propagation
+- Owlready2 only in offline ontology governance path
 
-### Python (Backend)
-* **Style**: We follow [PEP 8](https://peps.python.org/pep-0008/).
-* **Type Hinting**: Please use Python type hints for all function signatures.
-  ```python
-  def my_function(param: str) -> bool: ...
-  ```
-* **Async**: The Agent Server uses `asyncio`. Ensure new IO-bound tools are async-compatible where possible (or wrapped correctly).
+## 2. Work Intake
 
-### Streamlit (Frontend)
-* Keep the UI logic inside `evaluation/app.py` clean.
-* Use `st.session_state` for state management.
-* Follow the split-screen pattern (Chat Left, Graph Right).
+For core maintainers using `bd`, follow:
 
----
+```bash
+bd ready
+bd show <id>
+bd update <id> --status in_progress
+```
 
-## 🧪 Testing Requirements
-* **New Features**: Must include at least one unit test or integration test in `extraction/tests/`.
-* **Bug Fixes**: Should include a regression test ensuring the bug doesn't return.
+For new work items, use standard scripts:
 
-## 📜 License
-By contributing, you agree that your contributions will be licensed under the MIT License defined in this repository.
+```bash
+scripts/pm/new-issue.sh ...
+scripts/pm/new-task.sh ...
+```
+
+Active items (`open`, `in_progress`, `blocked`) must include:
+
+- `sev-*`, `impact-*`, `urgency-*`, `sprint-*`, `roadmap-*`, `area-*`, `kind-*`
+
+## 3. Development and PR Flow
+
+1. Fork and clone your repository copy.
+2. Create a focused branch (`feat/...`, `fix/...`, `docs/...`).
+3. Keep changes scoped and testable.
+4. Preserve runtime guardrails:
+   - propagate `workspace_id` in runtime-facing changes
+   - enforce policy checks for new endpoints/actions
+   - keep heavy ontology reasoning out of request hot path
+5. Add or update tests for changed behavior.
+6. Run focused quality gates before PR:
+   - relevant `pytest` suites
+   - `make e2e-smoke` when API/UI/runtime contracts change
+   - `scripts/pm/lint-agent-docs.sh` for docs/rules baseline
+7. Open a PR against `main` with:
+   - summary of behavior changes
+   - test evidence (commands + results)
+   - explicit note for any test gaps not run
+
+## 4. Coding Standards
+
+- use type hints on function signatures
+- use centralized config (`extraction/config.py`)
+- use logging, not `print`
+- avoid broad or hidden side effects
+- do not commit secrets or credentials
+
+Commit prefix conventions:
+
+- `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`, `test:`
+
+## 5. Documentation and ADR Rules
+
+For architecture or workflow changes:
+
+- update `README.md` and relevant docs in `docs/*`
+- add/update ADR in `docs/decisions/ADR-*.md`
+- append decision summary in `docs/decisions/DECISION_LOG.md`
+
+## 6. License and Compliance
+
+- Repository license: MIT (`LICENSE`)
+- Inbound = outbound: contributions are licensed under MIT
+- Only add third-party code/dependencies with compatible licenses
+- When adding new dependencies, include package name/version/license in PR description
+
+## 7. Security Reporting
+
+For security vulnerabilities, follow `SECURITY.md` instead of opening a public issue first.

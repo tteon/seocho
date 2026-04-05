@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=61.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "seocho"
 version = "0.1.0"
@@ -67,3 +71,9 @@ line_length = 88
 [tool.flake8]
 max-line-length = 88
 exclude = ["__pycache__", "*.pyc", ".git", "demos"]
+
+[tool.setuptools]
+packages = ["extraction", "extraction.custom_agents", "semantic", "evaluation"]
+
+[tool.setuptools.package-data]
+"*" = ["*.yaml", "*.json"]

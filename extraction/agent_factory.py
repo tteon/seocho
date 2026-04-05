@@ -8,9 +8,10 @@ Neo4j database and has tools that only query that database.
 import logging
 from typing import Dict, List, Optional
 
-from agents import Agent, function_tool, RunContextWrapper
+from agents import Agent
 
 from config import db_registry
+from custom_agents.graph_dba_agent import create_graph_dba_agent
 
 logger = logging.getLogger(__name__)
 
@@ -32,56 +33,9 @@ class AgentFactory:
     # ------------------------------------------------------------------
 
     def create_db_agent(self, db_name: str, schema_info: str) -> Agent:
-        """Create an agent bound to a specific Neo4j database.
-
-        The agent receives:
-        - ``query_db``: execute Cypher scoped to *db_name*
-        - ``get_schema``: return schema for *db_name*
-
-        Uses closures to bind *db_name* and *schema_info* at creation time.
-        """
-        connector = self.neo4j_conn
-        _db = db_name
-        _schema = schema_info
-
-        @function_tool
-        def query_db(context: RunContextWrapper, query: str) -> str:
-            """Execute a Cypher query against this agent's database."""
-            # SharedMemory cache integration (if available)
-            shared_mem = getattr(getattr(context, "context", None), "shared_memory", None)
-            if shared_mem is not None:
-                cached = shared_mem.get_cached_query(_db, query)
-                if cached is not None:
-                    return f"[CACHED] {cached}"
-
-            result = connector.run_cypher(query, database=_db)
-
-            if shared_mem is not None:
-                shared_mem.cache_query_result(_db, query, result)
-
-            return result
-
-        @function_tool
-        def get_schema() -> str:
-            """Return the schema for this agent's database."""
-            return _schema
-
-        agent = Agent(
-            name=f"Agent_{_db}",
-            instructions=(
-                f"You are a knowledge graph specialist for the '{_db}' database.\n\n"
-                f"Schema:\n{_schema}\n\n"
-                "When answering questions:\n"
-                "1. Use get_schema() to verify available node labels and relationships.\n"
-                "2. Use query_db() to execute Cypher queries against your database.\n"
-                "3. Provide factual answers based on query results.\n"
-                "4. If the question is outside your database's scope, state that clearly."
-            ),
-            tools=[query_db, get_schema],
-        )
-
-        self._agents[_db] = agent
-        logger.info("Created agent for database '%s'.", _db)
+        """Create an agent bound to a specific Neo4j database."""
+        agent = create_graph_dba_agent(db_name, schema_info, self.neo4j_conn)
+        self._agents[db_name] = agent
         return agent
 
     def get_agent(self, db_name: str) -> Optional[Agent]:

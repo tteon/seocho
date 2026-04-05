@@ -276,13 +276,13 @@ def get_schema_tool(database: str = "neo4j") -> str:
     """
     return get_schema_impl(database)
 
+from custom_agents.router_agent import create_router_agent
+from custom_agents.supervisor_agent import create_supervisor_agent
+
 # --- Agents ---
 
 # 1. Supervisor (The Collector)
-agent_supervisor = Agent(
-    name="Supervisor",
-    instructions="You are the Supervisor. Your goal is to collect the results from the active agents, summarize them, and present the final answer to the user. Do not call any tools. Just synthesize and complete."
-)
+agent_supervisor = create_supervisor_agent()
 
 # 2. Graph DBA (The Executor)
 # Forward declaration: GraphAgent defined first without handoffs, then DBA, then update GraphAgent.
@@ -353,17 +353,7 @@ agent_table = Agent(
 )
 
 # 4. Router (The Entry Point)
-agent_router = Agent(
-    name="Router",
-    instructions="""
-# Role
-You are the Router Agent. Route the user's query to the most appropriate sub-agent (Graph, Vector, Web, Table).
-
-# Output Format
-JSON object with `target_agent` and `reasoning`.
-""",
-    handoffs=[agent_table, agent_vector, agent_graph, agent_web],
-)
+agent_router = create_router_agent([agent_table, agent_vector, agent_graph, agent_web])
 
 # ------------------------------------------------------------------
 # 3. API Models

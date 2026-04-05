@@ -7,6 +7,17 @@ import os
 # Add parent to path to import tools
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+class _DummyAgent:
+    def __init__(self, *args, **kwargs):
+        pass
+
+import types
+fake_agents = types.SimpleNamespace(
+    Agent=_DummyAgent,
+    function_tool=lambda fn: fn,
+    RunContextWrapper=object,
+)
+sys.modules["agents"] = fake_agents
 
 from agent_server import get_databases_impl, get_schema_impl
 

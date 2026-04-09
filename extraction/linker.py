@@ -1,9 +1,11 @@
 import json
 import logging
 import time
+from typing import Any, Dict, Optional
+
 from openai import OpenAI
+
 from prompt_manager import PromptManager
-from jinja2 import Template
 from tracing import wrap_openai_client
 from exceptions import OpenAIAPIError, LinkingError
 from retry_utils import openai_retry
@@ -17,7 +19,12 @@ class EntityLinker:
         self.model = model
 
     @openai_retry
-    def link_entities(self, extracted_data: dict, category: str = "general") -> dict:
+    def link_entities(
+        self,
+        extracted_data: dict,
+        category: str = "general",
+        extra_context: Optional[Dict[str, Any]] = None,
+    ) -> dict:
         """
         Uses LLM to perform entity linking and resolution.
 
@@ -29,10 +36,17 @@ class EntityLinker:
         if not nodes:
             return extracted_data
 
+        context: Dict[str, Any] = {
+            "category": category,
+            "entities": json.dumps(nodes, indent=2),
+        }
+        if extra_context:
+            context.update(extra_context)
+
+        start_time = time.time()
+
         try:
-             template_str = self.prompt_manager.cfg.linking_prompt.linking
-             template = Template(template_str)
-             prompt = template.render(category=category, entities=json.dumps(nodes, indent=2))
+             prompt = self.prompt_manager.render_linking_prompt(context)
 
              response = self.client.chat.completions.create(
                 model=self.model,
@@ -48,6 +62,8 @@ class EntityLinker:
             raise OpenAIAPIError(f"OpenAI linking call failed: {e}") from e
 
         content = response.choices[0].message.content
+        latency = time.time() - start_time
+        self.prompt_manager.log_result("entity_linking", context["entities"], content, latency)
 
         try:
             linked_result = json.loads(content)

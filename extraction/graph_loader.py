@@ -29,7 +29,13 @@ class GraphLoader:
         self.driver.close()
 
     @neo4j_retry
-    def load_graph(self, graph_data: dict, source_id: str, database: str = "neo4j"):
+    def load_graph(
+        self,
+        graph_data: dict,
+        source_id: str,
+        database: str = "neo4j",
+        workspace_id: str = "default",
+    ):
         """
         Loads nodes and relationships into Neo4j.
 
@@ -44,7 +50,7 @@ class GraphLoader:
             with self.driver.session(database=database) as session:
                 # 1. Load Nodes
                 for node in graph_data.get("nodes", []):
-                    session.execute_write(self._create_node, node, source_id)
+                    session.execute_write(self._create_node, node, source_id, workspace_id)
 
                 # 2. Load Relationships
                 for rel in graph_data.get("relationships", []):
@@ -57,11 +63,12 @@ class GraphLoader:
             raise LoadError(f"Graph loading failed for source '{source_id}': {e}") from e
 
     @staticmethod
-    def _create_node(tx, node, source_id):
+    def _create_node(tx, node, source_id, workspace_id):
         label = _validate_label(node.get("label", "Entity"))
         properties = node.get("properties", {})
         properties["id"] = node["id"]
         properties["source_id"] = source_id
+        properties.setdefault("workspace_id", workspace_id)
 
         query = (
             f"MERGE (n:`{label}` {{id: $id}}) "

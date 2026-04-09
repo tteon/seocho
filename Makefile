@@ -2,12 +2,12 @@
 
 DOCKER_COMPOSE = docker compose
 
-.PHONY: up down restart logs clean bootstrap shell test test-integration e2e-smoke lint format help opik-up opik-down opik-logs demo-raw demo-meta demo-neo4j demo-graphrag-opik demo-all
+.PHONY: up down restart logs clean bootstrap shell test test-integration e2e-smoke lint format help opik-up opik-down opik-logs demo-raw demo-meta demo-neo4j demo-graphrag-opik demo-all setup-env
 
 ##@ Development
 
 help: ## Show this help message
-	@echo "Seocho - Data Lineage & GraphRAG Framework"
+	@echo "Seocho - Graph Memory & Knowledge Graph Platform"
 	@echo ""
 	@echo "Usage:"
 	@echo "  make <target>"
@@ -20,12 +20,16 @@ bootstrap: ## Bootstrap the development environment
 	@docker compose build
 	@echo "✅ Environment ready!"
 
+setup-env: ## Interactive .env setup (OpenAI key, Opik, ports)
+	@bash scripts/setup/init-env.sh
+
 up: ## Start all services
 	@echo "🐳 Starting Seocho services..."
 	@docker compose up -d
 	@echo "✅ Services started!"
-	@echo "📊 Access NeoDash: http://localhost:5005"
-	@echo "🗄️  Access Neo4j Browser: http://localhost:7474"
+	@echo "🖥️  Platform UI: http://localhost:$${CHAT_INTERFACE_PORT:-8501}"
+	@echo "🧠 Backend API Docs: http://localhost:$${EXTRACTION_API_PORT:-8001}/docs"
+	@echo "🗄️  DozerDB Browser: http://localhost:$${NEO4J_HTTP_PORT:-7474}"
 
 down: ## Stop all services
 	@echo "🛑 Stopping services..."

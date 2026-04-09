@@ -15,12 +15,13 @@ from pydantic import BaseModel, Field
 # OpenAI Agent SDK Imports (Local Shim)
 from agents import Agent, function_tool, RunContextWrapper
 
-from config import NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD, db_registry, validate_config
+from config import db_registry, graph_registry, validate_config
 from agent_readiness import summarize_readiness
 from agents_runtime import get_agents_runtime
 from shared_memory import SharedMemory
 from agent_factory import AgentFactory
 from database_manager import DatabaseManager
+from graph_connector import MultiGraphConnector
 from exceptions import (
     SeochoError,
     ConfigurationError,
@@ -59,15 +60,19 @@ from rule_api import (
 from semantic_query_flow import SemanticAgentFlow
 from fulltext_index import FulltextIndexManager
 from platform_agents import PlatformSessionStore, BackendSpecialistAgent, FrontendSpecialistAgent
+from public_memory_api import build_public_memory_router
+from memory_service import GraphMemoryService
 from runtime_ingest import RuntimeRawIngestor
 from debate import DebateOrchestrator
 from semantic_artifact_api import (
     SemanticArtifactApproveRequest,
+    SemanticArtifactDeprecateRequest,
     SemanticArtifactListResponse,
     SemanticArtifactDraftCreateRequest,
     SemanticArtifactResponse,
     approve_semantic_artifact_draft,
     create_semantic_artifact_draft,
+    deprecate_semantic_artifact_approved,
     read_semantic_artifact,
     read_semantic_artifacts,
     resolve_approved_artifact_payload,
@@ -158,7 +163,6 @@ class ServerContext:
 
 # --- Real Managers ---
 from vector_store import VectorStore
-from neo4j import GraphDatabase
 from dependencies import (
     get_neo4j_connector,
     get_database_manager,
@@ -167,27 +171,8 @@ from dependencies import (
 )
 
 
-class Neo4jConnector:
-    def __init__(self):
-        self.driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
-
-    def run_cypher(
-        self,
-        query: str,
-        database: str = "neo4j",
-        params: Optional[Dict[str, Any]] = None,
-    ) -> str:
-        try:
-            if not db_registry.is_valid(database):
-                return f"Error: Invalid database '{database}'. Valid options: {db_registry.list_databases()}"
-
-            with self.driver.session(database=database) as session:
-                result = session.run(query, parameters=(params or {}))
-                data = [record.data() for record in result]
-                return json.dumps(data)
-        except Exception as e:
-            logger.error("Error executing Cypher in '%s': %s", database, e)
-            return f"Error executing Cypher in '{database}': {e}"
+class Neo4jConnector(MultiGraphConnector):
+    """Backward-compatible alias for the multi-instance graph connector."""
 
 
 # --- Singletons ---
@@ -201,6 +186,7 @@ platform_session_store = PlatformSessionStore()
 backend_specialist_agent = BackendSpecialistAgent()
 frontend_specialist_agent = FrontendSpecialistAgent()
 runtime_raw_ingestor: Optional[RuntimeRawIngestor] = None
+memory_service: Optional[GraphMemoryService] = None
 
 
 def get_runtime_raw_ingestor() -> RuntimeRawIngestor:
@@ -210,6 +196,17 @@ def get_runtime_raw_ingestor() -> RuntimeRawIngestor:
     return runtime_raw_ingestor
 
 
+def get_memory_service() -> GraphMemoryService:
+    global memory_service
+    if memory_service is None:
+        memory_service = GraphMemoryService(
+            db_manager=db_manager,
+            runtime_raw_ingestor=get_runtime_raw_ingestor(),
+            semantic_agent_flow=semantic_agent_flow,
+        )
+    return memory_service
+
+
 def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -217,12 +214,26 @@ def _utc_now_iso() -> str:
 def _batch_status_file_path() -> str:
     return os.getenv("SEOCHO_BATCH_STATUS_FILE", "/tmp/seocho_batch_status")
 
+
+def _invalidate_semantic_vocabulary_cache() -> None:
+    try:
+        semantic_agent_flow.resolver.vocabulary_resolver.clear_cache()
+    except Exception:
+        logger.debug("Semantic vocabulary cache invalidation skipped.", exc_info=True)
+
 # --- Tools ---
 
 def get_databases_impl() -> str:
     """Returns a list of available graph databases."""
     dbs = db_registry.list_databases()
-    return f"Available Databases: {dbs}"
+    graphs = graph_registry.list_graph_ids()
+    return f"Available Graphs: {graphs}; Databases: {dbs}"
+
+
+def get_graphs_impl() -> str:
+    """Returns registered graph targets with ontology/vocabulary metadata."""
+    graphs = [target.to_public_dict() for target in graph_registry.list_graphs()]
+    return json.dumps(graphs)
 
 @functools.lru_cache(maxsize=8)
 def get_schema_impl(database: str = "neo4j") -> str:
@@ -248,6 +259,14 @@ def get_databases_tool() -> str:
     Use this to decide which database to query.
     """
     return get_databases_impl()
+
+
+@function_tool
+def get_graphs_tool() -> str:
+    """
+    Returns graph target descriptors. Use this before choosing a graph-specific agent path.
+    """
+    return get_graphs_impl()
 
 @function_tool
 def execute_cypher_tool(context: RunContextWrapper, query: str, database: str = "neo4j") -> str:
@@ -308,10 +327,8 @@ agent_graph_dba = Agent(
 
     # Capabilities & Workflow
     1. **Schema Check First**: NEVER guess the schema. Always use the provided schema information or retrieve it using `get_schema_tool(database=...)`.
-    2. **Database Selection**: You have access to multiple databases. Use `get_databases_tool()` to check availability.
-       - `kgnormal` (General/Baseline knowledge)
-       - `kgfibo` (Financial Ontology specific)
-       Check which database is requested by the context.
+    2. **Graph Selection**: You have access to multiple graph targets. Use `get_graphs_tool()` or `get_databases_tool()` to check availability.
+       Check which graph/database is requested by the context.
     3. **Execution & Retry**: Use `execute_cypher_tool(query, database=...)`.
        - If the tool returns a syntax error, analyze the error, FIX the query, and RETRY immediately.
     4. **Ontology Compliance**: When querying `kgfibo`, ensure you ONLY use node labels and relationship types defined in the FIBO ontology schema.
@@ -323,7 +340,7 @@ agent_graph_dba = Agent(
     # Output Format
     After successful execution, handoff back to 'GraphAgent' with a summary and the raw data.
     """,
-    tools=[get_databases_tool, get_schema_tool, execute_cypher_tool],
+    tools=[get_graphs_tool, get_databases_tool, get_schema_tool, execute_cypher_tool],
     handoffs=[agent_graph]
 )
 
@@ -373,6 +390,10 @@ class QueryRequest(BaseModel):
     query: str = Field(..., max_length=2000)
     user_id: str = "user_default"
     workspace_id: str = Field(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$")
+    graph_ids: Optional[List[str]] = Field(
+        default=None,
+        description="Optional list of graph IDs to target for debate/runtime routing.",
+    )
 
 
 class EntityOverride(BaseModel):
@@ -423,7 +444,7 @@ class FulltextIndexEnsureRequest(BaseModel):
         default_factory=lambda: ["Entity", "Company", "Person", "Organization", "Concept", "Document", "Resource"]
     )
     properties: List[str] = Field(
-        default_factory=lambda: ["name", "title", "id", "uri", "alias", "code", "symbol"]
+        default_factory=lambda: ["name", "title", "id", "uri", "alias", "code", "symbol", "content_preview", "content", "memory_id"]
     )
     create_if_missing: bool = True
 
@@ -449,6 +470,7 @@ class PlatformChatRequest(BaseModel):
     mode: Literal["router", "debate", "semantic"] = "semantic"
     user_id: str = "user_default"
     workspace_id: str = Field(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$")
+    graph_ids: Optional[List[str]] = None
     databases: Optional[List[str]] = None
     entity_overrides: Optional[List[EntityOverride]] = None
 
@@ -560,6 +582,14 @@ def ensure_fulltext_indexes_impl(request: FulltextIndexEnsureRequest) -> Fulltex
         results.append(FulltextIndexEnsureResult(**result))
     return FulltextIndexEnsureResponse(results=results)
 
+
+app.include_router(
+    build_public_memory_router(
+        memory_service=get_memory_service(),
+        approved_artifact_resolver=lambda **kwargs: resolve_approved_artifact_payload(**kwargs),
+    )
+)
+
 # ------------------------------------------------------------------
 # 4. Endpoints
 # ------------------------------------------------------------------
@@ -579,6 +609,7 @@ async def _platform_run_debate(payload: Dict[str, Any]) -> DebateResponse:
         query=payload["message"],
         user_id=payload["user_id"],
         workspace_id=payload["workspace_id"],
+        graph_ids=payload.get("graph_ids"),
     )
     return await run_debate(req)
 
@@ -608,6 +639,7 @@ async def platform_chat_send(request: PlatformChatRequest):
         "mode": request.mode,
         "user_id": request.user_id,
         "workspace_id": request.workspace_id,
+        "graph_ids": request.graph_ids,
         "databases": request.databases,
         "entity_overrides": request.entity_overrides,
     }
@@ -695,6 +727,7 @@ async def platform_ingest_raw(request: PlatformRawIngestRequest):
         result = get_runtime_raw_ingestor().ingest_records(
             records=[r.model_dump() for r in request.records],
             target_database=request.target_database,
+            workspace_id=request.workspace_id,
             enable_rule_constraints=request.enable_rule_constraints,
             create_database_if_missing=request.create_database_if_missing,
             semantic_artifact_policy=request.semantic_artifact_policy,
@@ -859,6 +892,7 @@ async def run_agent_semantic(request: SemanticQueryRequest):
             question=request.query,
             databases=valid_dbs,
             entity_overrides=overrides_by_entity,
+            workspace_id=request.workspace_id,
         )
         return SemanticAgentResponse(**result)
     except SeochoError:
@@ -903,11 +937,17 @@ async def run_debate(request: QueryRequest):
             "user_id": request.user_id,
             "workspace_id": request.workspace_id,
             "query": request.query[:200],
+            "graph_ids": request.graph_ids or graph_registry.list_graph_ids(),
         },
         tags=["debate-mode"],
     )
     update_current_span(
-        metadata={"mode": "debate", "user_id": request.user_id, "workspace_id": request.workspace_id}
+        metadata={
+            "mode": "debate",
+            "user_id": request.user_id,
+            "workspace_id": request.workspace_id,
+            "graph_ids": request.graph_ids or graph_registry.list_graph_ids(),
+        }
     )
     memory = SharedMemory()
     srv_context = ServerContext(
@@ -917,11 +957,24 @@ async def run_debate(request: QueryRequest):
         shared_memory=memory,
     )
 
-    # Ensure agents exist for all registered databases and capture readiness status.
-    agent_statuses = agent_factory.create_agents_for_all_databases(db_manager)
+    requested_graph_ids = request.graph_ids or graph_registry.list_graph_ids()
+    valid_graph_ids: List[str] = []
+    for graph_id in requested_graph_ids:
+        if not graph_registry.is_valid_graph(graph_id):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid graph '{graph_id}'. Valid options: {graph_registry.list_graph_ids()}",
+            )
+        valid_graph_ids.append(graph_id)
+
+    if not valid_graph_ids:
+        raise HTTPException(status_code=400, detail="No target graphs available.")
+
+    # Ensure agents exist for the requested graphs and capture readiness status.
+    agent_statuses = agent_factory.create_agents_for_graphs(valid_graph_ids, db_manager)
     readiness = summarize_readiness(agent_statuses)
 
-    all_agents = agent_factory.get_all_agents()
+    all_agents = agent_factory.get_agents_for_graphs(valid_graph_ids)
     if readiness["debate_state"] == "blocked" or not all_agents:
         return DebateResponse(
             response="Debate mode is blocked: no ready graph agents are available.",
@@ -935,6 +988,7 @@ async def run_debate(request: QueryRequest):
                         "debate_state": "blocked",
                         "ready_count": readiness["ready_count"],
                         "degraded_count": readiness["degraded_count"],
+                        "graph_ids": valid_graph_ids,
                     },
                 }
             ],
@@ -1041,6 +1095,12 @@ async def list_databases():
     return {"databases": db_registry.list_databases()}
 
 
+@app.get("/graphs")
+async def list_graphs():
+    """List registered graph targets."""
+    return {"graphs": [target.to_public_dict() for target in graph_registry.list_graphs()]}
+
+
 @app.get("/agents")
 async def list_agents():
     """List all active DB-bound agents."""
@@ -1094,7 +1154,7 @@ async def rules_profiles_create(request: RuleProfileCreateRequest):
 @app.get("/rules/profiles", response_model=RuleProfileListResponse)
 @track("agent_server.rules_profiles_list")
 async def rules_profiles_list(
-    workspace_id: str = Query(default="default", regex=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$"),
+    workspace_id: str = Query(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$"),
 ):
     """List saved rule profiles in a workspace."""
     try:
@@ -1108,7 +1168,7 @@ async def rules_profiles_list(
 @track("agent_server.rules_profiles_get")
 async def rules_profiles_get(
     profile_id: str,
-    workspace_id: str = Query(default="default", regex=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$"),
+    workspace_id: str = Query(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$"),
 ):
     """Read one saved rule profile."""
     try:
@@ -1167,7 +1227,9 @@ async def semantic_artifacts_draft_create(request: SemanticArtifactDraftCreateRe
         )
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
-    return create_semantic_artifact_draft(request)
+    payload = create_semantic_artifact_draft(request)
+    _invalidate_semantic_vocabulary_cache()
+    return payload
 
 
 @app.post("/semantic/artifacts/{artifact_id}/approve", response_model=SemanticArtifactResponse)
@@ -1182,15 +1244,38 @@ async def semantic_artifacts_approve(artifact_id: str, request: SemanticArtifact
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
     try:
-        return approve_semantic_artifact_draft(artifact_id=artifact_id, request=request)
+        payload = approve_semantic_artifact_draft(artifact_id=artifact_id, request=request)
+        _invalidate_semantic_vocabulary_cache()
+        return payload
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+@app.post("/semantic/artifacts/{artifact_id}/deprecate", response_model=SemanticArtifactResponse)
+@track("agent_server.semantic_artifacts_deprecate")
+async def semantic_artifacts_deprecate(artifact_id: str, request: SemanticArtifactDeprecateRequest):
+    try:
+        require_runtime_permission(
+            role="user",
+            action="manage_semantic_artifacts",
+            workspace_id=request.workspace_id,
+        )
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    try:
+        payload = deprecate_semantic_artifact_approved(artifact_id=artifact_id, request=request)
+        _invalidate_semantic_vocabulary_cache()
+        return payload
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.get("/semantic/artifacts", response_model=SemanticArtifactListResponse)
 @track("agent_server.semantic_artifacts_list")
 async def semantic_artifacts_list(
-    workspace_id: str = Query(default="default", regex=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$"),
+    workspace_id: str = Query(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$"),
     status: Optional[str] = Query(default=None),
 ):
     try:
@@ -1202,8 +1287,8 @@ async def semantic_artifacts_list(
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
 
-    if status is not None and status not in {"draft", "approved"}:
-        raise HTTPException(status_code=400, detail="status must be one of: draft, approved")
+    if status is not None and status not in {"draft", "approved", "deprecated"}:
+        raise HTTPException(status_code=400, detail="status must be one of: draft, approved, deprecated")
     return read_semantic_artifacts(workspace_id=workspace_id, status=status)
 
 
@@ -1211,7 +1296,7 @@ async def semantic_artifacts_list(
 @track("agent_server.semantic_artifacts_get")
 async def semantic_artifacts_get(
     artifact_id: str,
-    workspace_id: str = Query(default="default", regex=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$"),
+    workspace_id: str = Query(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$"),
 ):
     try:
         require_runtime_permission(

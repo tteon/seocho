@@ -1,0 +1,76 @@
+name: daily-codex-maintenance
+
+on:
+  schedule:
+    - cron: "15 0 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: daily-codex-maintenance
+  cancel-in-progress: false
+
+jobs:
+  codex-daily-maintenance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Create GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.SEOCHO_GITHUB_APP_ID }}
+          private-key: ${{ secrets.SEOCHO_GITHUB_APP_PRIVATE_KEY }}
+
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          fetch-depth: 0
+
+      - name: Configure git author
+        run: |
+          git config user.name "seocho-codex[bot]"
+          git config user.email "seocho-codex[bot]@users.noreply.github.com"
+
+      - name: Run Codex daily maintenance pass
+        id: run_codex
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt-file: .github/codex/prompts/daily-maintenance-pr.md
+          sandbox: workspace-write
+          safety-strategy: drop-sudo
+          effort: medium
+          allow-bots: true
+
+      - name: Open or update maintenance PR
+        id: create_pr
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          commit-message: "chore: daily Codex maintenance"
+          branch: codex/daily-maintenance
+          delete-branch: true
+          title: "chore: daily Codex maintenance"
+          draft: true
+          body: |
+            ## Daily Codex Maintenance
+
+            ${{ steps.run_codex.outputs.final-message }}
+
+            ## Automation Metadata
+            - Workflow: `${{ github.workflow }}`
+            - Run: `${{ github.run_id }}`
+            - Trigger: `${{ github.event_name }}`
+            - Actor: `${{ github.actor }}`
+
+      - name: Report PR result
+        if: always()
+        run: |
+          echo "pull-request-operation=${{ steps.create_pr.outputs.pull-request-operation }}"
+          echo "pull-request-number=${{ steps.create_pr.outputs.pull-request-number }}"

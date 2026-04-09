@@ -97,6 +97,13 @@ class TestListEndpoints:
         assert "databases" in data
         assert isinstance(data["databases"], list)
 
+    async def test_list_graphs(self, client):
+        response = await client.get("/graphs")
+        assert response.status_code == 200
+        data = response.json()
+        assert "graphs" in data
+        assert isinstance(data["graphs"], list)
+
     async def test_list_agents(self, client):
         response = await client.get("/agents")
         assert response.status_code == 200
@@ -134,6 +141,8 @@ class TestListEndpoints:
             assert response.status_code == 200
             data = response.json()
             assert data["route"] == "lpg"
+            _, kwargs = mock_run.call_args
+            assert kwargs["workspace_id"] == "default"
 
     async def test_run_agent_semantic_with_overrides(self, client, app_module):
         with patch.object(app_module.semantic_agent_flow, "run") as mock_run:
@@ -164,6 +173,8 @@ class TestListEndpoints:
             assert response.status_code == 200
             payload = response.json()
             assert "overrides_applied" in payload["semantic_context"]
+            _, kwargs = mock_run.call_args
+            assert kwargs["workspace_id"] == "default"
 
     async def test_fulltext_ensure_endpoint(self, client, app_module):
         with patch.object(app_module, "ensure_fulltext_indexes_impl") as mock_impl:
@@ -292,6 +303,37 @@ class TestListEndpoints:
             payload = response.json()
             assert payload["status"] == "approved"
 
+    async def test_semantic_artifact_deprecate_endpoint(self, client, app_module):
+        with patch.object(app_module, "deprecate_semantic_artifact_approved") as mock_deprecate:
+            mock_deprecate.return_value = {
+                "workspace_id": "default",
+                "artifact_id": "sa_1",
+                "name": "draft1",
+                "status": "deprecated",
+                "created_at": "2026-01-01T00:00:00Z",
+                "approved_at": "2026-01-01T01:00:00Z",
+                "approved_by": "reviewer",
+                "approval_note": "ok",
+                "deprecated_at": "2026-01-01T02:00:00Z",
+                "deprecated_by": "reviewer",
+                "deprecation_note": "superseded",
+                "source_summary": {},
+                "ontology_candidate": {"ontology_name": "x", "classes": [], "relationships": []},
+                "shacl_candidate": {"shapes": []},
+                "vocabulary_candidate": {"schema_version": "vocabulary.v2", "profile": "skos", "terms": []},
+            }
+            response = await client.post(
+                "/semantic/artifacts/sa_1/deprecate",
+                json={
+                    "workspace_id": "default",
+                    "deprecated_by": "reviewer",
+                    "deprecation_note": "superseded",
+                },
+            )
+            assert response.status_code == 200
+            payload = response.json()
+            assert payload["status"] == "deprecated"
+
     async def test_semantic_artifact_list_endpoint(self, client, app_module):
         with patch.object(app_module, "read_semantic_artifacts") as mock_list:
             mock_list.return_value = {
@@ -346,25 +388,48 @@ class TestListEndpoints:
                 assert data["assistant_message"] == "platform response"
 
     async def test_run_debate_returns_blocked_state_when_no_ready_agents(self, client, app_module):
-        with patch.object(app_module.agent_factory, "create_agents_for_all_databases") as mock_create:
-            with patch.object(app_module.agent_factory, "get_all_agents") as mock_get_agents:
-                mock_create.return_value = [
-                    {"database": "kgfibo", "status": "degraded", "reason": "Graph not found"}
-                ]
-                mock_get_agents.return_value = {}
+        with patch.object(app_module.graph_registry, "list_graph_ids", return_value=["kgnormal"]):
+            with patch.object(app_module.graph_registry, "is_valid_graph", return_value=True):
+                with patch.object(app_module.agent_factory, "create_agents_for_graphs") as mock_create:
+                    with patch.object(app_module.agent_factory, "get_agents_for_graphs") as mock_get_agents:
+                        mock_create.return_value = [
+                            {
+                                "graph": "kgnormal",
+                                "database": "kgnormal",
+                                "status": "degraded",
+                                "reason": "Graph not found",
+                            }
+                        ]
+                        mock_get_agents.return_value = {}
+                        response = await client.post(
+                            "/run_debate",
+                            json={
+                                "query": "compare entities",
+                                "workspace_id": "default",
+                                "user_id": "u1",
+                                "graph_ids": ["kgnormal"],
+                            },
+                        )
+                        assert response.status_code == 200
+                        payload = response.json()
+                        assert payload["debate_state"] == "blocked"
+                        assert payload["degraded"] is True
+                        assert payload["debate_results"] == []
+
+    async def test_run_debate_rejects_invalid_graph(self, client, app_module):
+        with patch.object(app_module.graph_registry, "list_graph_ids", return_value=["kgnormal"]):
+            with patch.object(app_module.graph_registry, "is_valid_graph", return_value=False):
                 response = await client.post(
                     "/run_debate",
                     json={
                         "query": "compare entities",
                         "workspace_id": "default",
                         "user_id": "u1",
+                        "graph_ids": ["missing"],
                     },
                 )
-                assert response.status_code == 200
-                payload = response.json()
-                assert payload["debate_state"] == "blocked"
-                assert payload["degraded"] is True
-                assert payload["debate_results"] == []
+                assert response.status_code == 400
+                assert "Invalid graph" in response.text
 
     async def test_platform_raw_ingest_endpoint(self, client, app_module):
         mock_ingestor = MagicMock()
@@ -427,8 +492,177 @@ class TestListEndpoints:
                 assert response.status_code == 200
                 assert mock_resolve.call_count == 1
                 args, kwargs = mock_ingestor.ingest_records.call_args
+                assert kwargs["workspace_id"] == "default"
                 assert kwargs["semantic_artifact_policy"] == "approved_only"
                 assert kwargs["approved_artifacts"]["ontology_candidate"]["ontology_name"] == "approved"
+
+    async def test_public_create_memory_endpoint(self, client, app_module):
+        with patch.object(app_module.memory_service, "create_memory") as mock_create:
+            mock_create.return_value = {
+                "memory": {
+                    "memory_id": "mem_1",
+                    "workspace_id": "default",
+                    "user_id": "user_1",
+                    "agent_id": "agent_1",
+                    "session_id": "sess_1",
+                    "content": "Alice manages Seoul retail.",
+                    "metadata": {"source": "note"},
+                    "status": "stored",
+                    "created_at": "2026-03-12T00:00:00+00:00",
+                    "updated_at": "2026-03-12T00:00:00+00:00",
+                    "database": "kgnormal",
+                },
+                "ingest_summary": {"database": "kgnormal", "entities_detected": 2, "relations_detected": 1},
+            }
+            response = await client.post(
+                "/api/memories",
+                json={
+                    "workspace_id": "default",
+                    "user_id": "user_1",
+                    "agent_id": "agent_1",
+                    "session_id": "sess_1",
+                    "content": "Alice manages Seoul retail.",
+                    "metadata": {"source": "note"},
+                },
+            )
+            assert response.status_code == 200
+            payload = response.json()
+            assert payload["memory"]["memory_id"] == "mem_1"
+            assert payload["trace_id"]
+
+    async def test_public_create_memory_resolves_approved_artifact(self, client, app_module):
+        with patch.object(app_module.memory_service, "create_memory") as mock_create:
+            with patch.object(app_module, "resolve_approved_artifact_payload") as mock_resolve:
+                mock_resolve.return_value = {
+                    "ontology_candidate": {"ontology_name": "approved", "classes": [], "relationships": []},
+                    "shacl_candidate": {"shapes": []},
+                    "vocabulary_candidate": {"schema_version": "vocabulary.v2", "profile": "skos", "terms": []},
+                }
+                mock_create.return_value = {
+                    "memory": {
+                        "memory_id": "mem_2",
+                        "workspace_id": "default",
+                        "content": "Approved memory",
+                        "metadata": {},
+                        "status": "stored",
+                        "created_at": "2026-03-12T00:00:00+00:00",
+                        "updated_at": "2026-03-12T00:00:00+00:00",
+                        "database": "kgnormal",
+                    },
+                    "ingest_summary": {"database": "kgnormal", "entities_detected": 1, "relations_detected": 0},
+                }
+                response = await client.post(
+                    "/api/memories",
+                    json={
+                        "workspace_id": "default",
+                        "content": "Approved memory",
+                        "approved_artifact_id": "sa_approved_1",
+                    },
+                )
+                assert response.status_code == 200
+                assert mock_resolve.call_count == 1
+                _, kwargs = mock_create.call_args
+                assert kwargs["approved_artifacts"]["ontology_candidate"]["ontology_name"] == "approved"
+
+    async def test_public_memory_search_endpoint(self, client, app_module):
+        with patch.object(app_module.memory_service, "search_memories") as mock_search:
+            mock_search.return_value = {
+                "results": [
+                    {
+                        "memory_id": "mem_1",
+                        "content": "Alice manages Seoul retail.",
+                        "content_preview": "Alice manages Seoul retail.",
+                        "metadata": {"source": "note"},
+                        "score": 0.93,
+                        "reasons": ["entity_match", "fulltext"],
+                        "matched_entities": ["Seoul"],
+                        "database": "kgnormal",
+                        "status": "active",
+                    }
+                ],
+                "semantic_context": {"entities": ["Seoul"], "matches": {}, "unresolved_entities": []},
+            }
+            response = await client.post(
+                "/api/memories/search",
+                json={"workspace_id": "default", "query": "Who manages Seoul retail?", "limit": 3},
+            )
+            assert response.status_code == 200
+            payload = response.json()
+            assert payload["results"][0]["memory_id"] == "mem_1"
+            assert payload["trace_id"]
+
+    async def test_public_memory_get_endpoint(self, client, app_module):
+        with patch.object(app_module.memory_service, "get_memory") as mock_get:
+            mock_get.return_value = {
+                "memory_id": "mem_1",
+                "workspace_id": "default",
+                "content": "Alice manages Seoul retail.",
+                "content_preview": "Alice manages Seoul retail.",
+                "metadata": {"source": "note"},
+                "status": "active",
+                "created_at": "2026-03-12T00:00:00+00:00",
+                "updated_at": "2026-03-12T00:00:00+00:00",
+                "database": "kgnormal",
+                "entities": [{"id": "n1", "labels": ["Person"], "name": "Alice"}],
+            }
+            response = await client.get("/api/memories/mem_1?workspace_id=default")
+            assert response.status_code == 200
+            payload = response.json()
+            assert payload["memory"]["memory_id"] == "mem_1"
+            assert payload["memory"]["entities"][0]["name"] == "Alice"
+
+    async def test_public_memory_archive_endpoint(self, client, app_module):
+        with patch.object(app_module.memory_service, "archive_memory") as mock_archive:
+            mock_archive.return_value = {
+                "memory_id": "mem_1",
+                "workspace_id": "default",
+                "database": "kgnormal",
+                "status": "archived",
+                "archived_at": "2026-03-12T01:00:00+00:00",
+                "archived_nodes": 3,
+            }
+            response = await client.delete("/api/memories/mem_1?workspace_id=default")
+            assert response.status_code == 200
+            payload = response.json()
+            assert payload["status"] == "archived"
+            assert payload["archived_nodes"] == 3
+
+    async def test_public_memory_chat_endpoint(self, client, app_module):
+        with patch.object(app_module.graph_registry, "get_graph") as mock_get_graph:
+            with patch.object(app_module.memory_service, "chat_from_memories") as mock_chat:
+                mock_get_graph.return_value = types.SimpleNamespace(database="kgnormal")
+                mock_chat.return_value = {
+                    "assistant_message": "Alice manages Seoul retail.",
+                    "memory_hits": [{"memory_id": "mem_1", "score": 0.93, "database": "kgnormal"}],
+                    "search_results": [
+                        {
+                            "memory_id": "mem_1",
+                            "content": "Alice manages Seoul retail.",
+                            "content_preview": "Alice manages Seoul retail.",
+                            "metadata": {"source": "note"},
+                            "score": 0.93,
+                            "reasons": ["entity_match"],
+                            "matched_entities": ["Seoul"],
+                            "database": "kgnormal",
+                            "status": "active",
+                        }
+                    ],
+                    "semantic_context": {"entities": ["Seoul"], "matches": {}, "unresolved_entities": []},
+                }
+                response = await client.post(
+                    "/api/chat",
+                    json={
+                        "workspace_id": "default",
+                        "message": "What do we know about Seoul retail?",
+                        "graph_ids": ["kgnormal"],
+                    },
+                )
+                assert response.status_code == 200
+                payload = response.json()
+                assert payload["assistant_message"] == "Alice manages Seoul retail."
+                assert payload["memory_hits"][0]["memory_id"] == "mem_1"
+                _, kwargs = mock_chat.call_args
+                assert kwargs["databases"] == ["kgnormal"]
 
 
 class TestQueryValidation:

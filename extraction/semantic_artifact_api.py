@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 from semantic_artifact_store import (
     approve_semantic_artifact,
+    deprecate_semantic_artifact,
     get_semantic_artifact,
     list_semantic_artifacts,
     save_semantic_artifact,
@@ -18,6 +19,7 @@ class SemanticArtifactDraftCreateRequest(BaseModel):
     name: Optional[str] = None
     ontology_candidate: Dict[str, Any]
     shacl_candidate: Dict[str, Any]
+    vocabulary_candidate: Optional[Dict[str, Any]] = None
     source_summary: Optional[Dict[str, Any]] = None
 
 
@@ -25,6 +27,12 @@ class SemanticArtifactApproveRequest(BaseModel):
     workspace_id: str = Field(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$")
     approved_by: str = Field(..., min_length=1, max_length=120)
     approval_note: Optional[str] = Field(default=None, max_length=1000)
+
+
+class SemanticArtifactDeprecateRequest(BaseModel):
+    workspace_id: str = Field(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$")
+    deprecated_by: str = Field(..., min_length=1, max_length=120)
+    deprecation_note: Optional[str] = Field(default=None, max_length=1000)
 
 
 class SemanticArtifactResponse(BaseModel):
@@ -36,9 +44,15 @@ class SemanticArtifactResponse(BaseModel):
     approved_at: Optional[str] = None
     approved_by: Optional[str] = None
     approval_note: Optional[str] = None
+    deprecated_at: Optional[str] = None
+    deprecated_by: Optional[str] = None
+    deprecation_note: Optional[str] = None
     source_summary: Dict[str, Any] = Field(default_factory=dict)
     ontology_candidate: Dict[str, Any]
     shacl_candidate: Dict[str, Any]
+    vocabulary_candidate: Dict[str, Any] = Field(
+        default_factory=lambda: {"schema_version": "vocabulary.v2", "profile": "skos", "terms": []}
+    )
 
 
 class SemanticArtifactListResponse(BaseModel):
@@ -58,6 +72,7 @@ def create_semantic_artifact_draft(
         name=request.name,
         ontology_candidate=request.ontology_candidate,
         shacl_candidate=request.shacl_candidate,
+        vocabulary_candidate=request.vocabulary_candidate,
         source_summary=request.source_summary,
         base_dir=_semantic_artifact_dir(),
     )
@@ -73,6 +88,20 @@ def approve_semantic_artifact_draft(
         artifact_id=artifact_id,
         approved_by=request.approved_by,
         approval_note=request.approval_note,
+        base_dir=_semantic_artifact_dir(),
+    )
+    return SemanticArtifactResponse(**payload)
+
+
+def deprecate_semantic_artifact_approved(
+    artifact_id: str,
+    request: SemanticArtifactDeprecateRequest,
+) -> SemanticArtifactResponse:
+    payload = deprecate_semantic_artifact(
+        workspace_id=request.workspace_id,
+        artifact_id=artifact_id,
+        deprecated_by=request.deprecated_by,
+        deprecation_note=request.deprecation_note,
         base_dir=_semantic_artifact_dir(),
     )
     return SemanticArtifactResponse(**payload)
@@ -118,4 +147,8 @@ def resolve_approved_artifact_payload(
     return {
         "ontology_candidate": payload.get("ontology_candidate", {}),
         "shacl_candidate": payload.get("shacl_candidate", {}),
+        "vocabulary_candidate": payload.get(
+            "vocabulary_candidate",
+            {"schema_version": "vocabulary.v2", "profile": "skos", "terms": []},
+        ),
     }

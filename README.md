@@ -5,18 +5,223 @@
 [![Open Source](https://img.shields.io/badge/Open%20Source-SEOCHO-blue)](https://github.com/tteon/seocho)
 [![Stack](https://img.shields.io/badge/Stack-DozerDB%20|%20FastAPI%20|%20OpenAI%20Agents-orange)]()
 
-SEOCHO transforms unstructured data into structured knowledge graphs and provides dynamic, per-database agent pools with **Parallel Debate** orchestration for multi-perspective reasoning.
+SEOCHO is for platform and data teams that want a graph-memory-style interface on top of a self-hosted knowledge graph runtime.
 
-## Current Consensus
+In 5 minutes: raw text -> graph-backed memory -> ask questions in one UI.
+
+If you want a mem0-style developer entry point, start with [docs/PYTHON_INTERFACE_QUICKSTART.md](docs/PYTHON_INTERFACE_QUICKSTART.md).
+
+When NOT to use SEOCHO:
+
+- you only need keyword/vector search and do not need relationship reasoning
+- you cannot run Docker services locally or in your target environment
+- you need fully managed SaaS instead of self-hosted runtime control
+
+## Run SEOCHO (5 Minutes)
+
+1. Create `.env` with guided setup:
+
+```bash
+make setup-env
+```
+
+`OPENAI_API_KEY` is recommended for full extraction quality.
+Without it, local fallback extraction still works for basic verification.
+
+2. Start services:
+
+```bash
+make up
+docker compose ps
+```
+
+Or use the local bootstrap CLI from the repository root:
+
+```bash
+pip install -e ".[dev]"
+seocho serve
+```
+
+If `OPENAI_API_KEY` is unset or still using the placeholder from `.env.example`, `seocho serve` injects a local fallback key so the stack can still start for basic verification.
+
+3. Open the platform UI: `http://localhost:8501`
+4. Click `Load Sample & Ask`
+
+Expected local surfaces:
+
+- UI: `http://localhost:8501`
+- backend API docs: `http://localhost:8001/docs`
+- DozerDB browser: `http://localhost:7474`
+
+If this flow succeeds, continue with [docs/QUICKSTART.md](docs/QUICKSTART.md).
+
+## Getting Started
+
+### Python Interface Quickstart
+
+SEOCHO now ships a public Python SDK and CLI on top of the runtime APIs.
+
+End-user install once the package is published:
+
+```bash
+pip install seocho
+```
+
+Repository contributor install:
+
+```bash
+pip install -e ".[dev]"
+```
+
+Quick script-style use:
+
+```python
+import seocho
+
+seocho.configure(base_url="http://localhost:8001", workspace_id="default")
+print(seocho.ask("What do you know about Alex?"))
+```
+
+Explicit client use:
+
+```python
+from seocho import Seocho
+
+seocho = Seocho()
+
+memory = seocho.add("Hi, I'm Alex. I love graph retrieval and ontology-aware reasoning.")
+print(memory.memory_id)
+
+results = seocho.search("What do you know about me?")
+print(results[0].content)
+
+answer = seocho.ask("What do you know about Alex?")
+print(answer)
+```
+
+Developer-facing runtime calls are also available in the SDK:
+
+```python
+semantic = seocho.semantic("Tell me about Neo4j", databases=["kgnormal"])
+debate = seocho.debate("Compare what each graph knows about Alex.", graph_ids=["kgnormal", "kgfinance"])
+
+print(semantic.route)
+print(debate.debate_state)
+```
+
+Use the CLI:
+
+```bash
+seocho serve
+seocho add "Alex manages the Seoul retail account."
+seocho search "Who manages the Seoul retail account?"
+seocho chat "What do you know about Alex?"
+seocho graphs
+seocho stop
+```
+
+Advanced developers can also manage semantic artifacts, local validation/diff/apply flows, and typed prompt context through the SDK/CLI. See [docs/PYTHON_INTERFACE_QUICKSTART.md](docs/PYTHON_INTERFACE_QUICKSTART.md).
+
+For the fuller walkthrough, use [docs/PYTHON_INTERFACE_QUICKSTART.md](docs/PYTHON_INTERFACE_QUICKSTART.md).
+
+To validate release artifacts locally before publishing:
+
+```bash
+pip install -e ".[dev]"
+uv build
+twine check dist/*
+```
+
+## Choose Your Track
+
+Track A - I just want to run it:
+
+- start with [docs/QUICKSTART.md](docs/QUICKSTART.md)
+- use [docs/TUTORIAL_FIRST_RUN.md](docs/TUTORIAL_FIRST_RUN.md) for manual API verification
+- use [docs/BEGINNER_PIPELINES_DEMO.md](docs/BEGINNER_PIPELINES_DEMO.md) for staged demo scripts
+
+Track B - I want to embed/extend it:
+
+- read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- read [docs/GRAPH_MEMORY_API.md](docs/GRAPH_MEMORY_API.md)
+- read [docs/GRAPH_RAG_AGENT_HANDOFF_SPEC.md](docs/GRAPH_RAG_AGENT_HANDOFF_SPEC.md)
+- use [docs/OPEN_SOURCE_PLAYBOOK.md](docs/OPEN_SOURCE_PLAYBOOK.md)
+- implement against runtime APIs in [docs/WORKFLOW.md](docs/WORKFLOW.md)
+
+## Codex Automation
+
+SEOCHO includes two scheduled Codex draft-PR workflows.
+
+- daily maintenance:
+  - workflow: `.github/workflows/daily-codex-maintenance.yml`
+  - prompt: `.github/codex/prompts/daily-maintenance-pr.md`
+  - skill: `.agents/skills/daily-maintenance-pr/SKILL.md`
+- periodic repository review:
+  - workflow: `.github/workflows/periodic-codex-review.yml`
+  - prompt: `.github/codex/prompts/periodic-review-pr.md`
+  - skill: `.agents/skills/periodic-review-pr/SKILL.md`
+
+Required repository secrets for Codex PR automation:
+
+- `OPENAI_API_KEY`
+- `SEOCHO_GITHUB_APP_ID`
+- `SEOCHO_GITHUB_APP_PRIVATE_KEY`
+
+Both workflows open or update draft PRs through a GitHub App token. They are
+review-only by design and do not auto-merge.
+
+The daily workflow stays in the small maintenance lane. The periodic review
+workflow is allowed to pick one bounded refactor or small developer-facing
+improvement, but it still uses a single draft PR branch and avoids large
+speculative features.
+
+Codex-generated PR bodies are expected to include:
+
+- `Feature`
+- `Why`
+- `Design`
+- `Expected Effect`
+- `Impact Results`
+- `Validation`
+- `Risks`
+
+## Comment-Based Merge
+
+SEOCHO can also merge a reviewed pull request from a maintainer comment.
+
+- workflow: `.github/workflows/pr-comment-merge.yml`
+- trigger: comment exactly `/go` on an open non-draft PR
+- authorization: commenter must have repository permission level `write`,
+  `maintain`, or `admin`
+- merge method: squash merge
+
+This is intended for reviewed PRs after a human decision to land them. It does
+not bypass branch protection or required checks.
+
+## Python Package Publishing
+
+SEOCHO now includes a GitHub Actions publish workflow for the Python package.
+
+- workflow: `.github/workflows/publish-python-package.yml`
+- manual smoke target: `workflow_dispatch` to `testpypi`
+- production target: `workflow_dispatch` to `pypi` or push a `v*` tag
+
+The workflow builds the package, runs `twine check`, and then publishes through
+PyPI trusted publishing. Configure the `testpypi` and `pypi` environments in
+GitHub and register this repository as a trusted publisher in each package
+index before using the publish jobs.
+
+On tag-triggered production publishes, the workflow also checks that the git
+tag matches `project.version` from `pyproject.toml`.
+
+## Product Baseline
 
 - Runtime: **OpenAI Agents SDK**
-- Trace/Eval: **Opik**
-- Graph DB: **DozerDB** (fixed)
+- Trace/Eval (optional): **Opik**
+- Graph DB (Bolt/Cypher compatible): **DozerDB**
 - Tenancy: **Single-tenant MVP**, with `workspace_id` propagated for future expansion
 
-> **Note on Terminology**: SEOCHO has standardized on **DozerDB** as the primary graph database engine. However, because DozerDB is fully compatible with the Neo4j Bolt protocol and Cypher query language, you will frequently see the terms **Neo4j** and **DozerDB** used interchangeably throughout this documentation, CLI flags, and architectural diagrams.
-
-## Design Philosophy
+## Design Philosophy (Builder Context)
 
 1. Extract domain rules and high-value semantics from heterogeneous data into a SHACL-like semantic layer.
 2. Preserve extracted data in table-first form and build ontology artifacts (`.ttl` and related files) as merge-time decision evidence.
@@ -67,11 +272,11 @@ User Question ─► Semantic Layer(entity extract/dedup/fulltext) ─► Router
 
 **Data Pipeline** turns heterogeneous raw material into queryable knowledge graphs:
 ```
-PDF/CSV/JSON/Text → Parse to text → LLM 3-pass (Ontology + SHACL + Entity) → Relatedness gate + Linking → Neo4j/DozerDB
+PDF/CSV/JSON/Text → Parse to text → LLM 3-pass (Ontology + SHACL + Entity) → Relatedness gate + Linking → DozerDB
 ```
 
 **Multi-Agent Reasoning** queries those graphs in parallel:
-- Each Neo4j database gets its own agent with closure-bound tools
+- Each graph database gets its own agent with closure-bound tools
 - All agents answer independently via `asyncio.gather()`
 - Supervisor synthesizes a unified response
 - Backend emits topology metadata for DAG-grade UI trace rendering
@@ -88,94 +293,56 @@ PDF/CSV/JSON/Text → Parse to text → LLM 3-pass (Ontology + SHACL + Entity) �
 
 ---
 
-## Quick Start
+## Run Paths
 
-Canonical user-onboarding path lives in `docs/QUICKSTART.md`.
-If you want to validate raw data -> graph -> semantic/debate chat end-to-end, follow that document first.
+Recommended onboarding order:
 
-### Prerequisites
+1. [docs/QUICKSTART.md](docs/QUICKSTART.md)
+2. [docs/TUTORIAL_FIRST_RUN.md](docs/TUTORIAL_FIRST_RUN.md)
+3. [docs/BEGINNER_PIPELINES_DEMO.md](docs/BEGINNER_PIPELINES_DEMO.md)
 
-- Docker & Docker Compose
-- OpenAI API Key
+If you want to verify the backend directly instead of using the UI first:
 
-### 1. Clone & Configure
+Store a memory:
 
 ```bash
-git clone https://github.com/tteon/seocho.git
-cd seocho
-
-cp .env.example .env
-# Edit .env — set OPENAI_API_KEY=sk-...
+curl -sS -X POST http://localhost:8001/api/memories \
+  -H "Content-Type: application/json" \
+  -d '{
+    "workspace_id":"default",
+    "content":"Alice manages the Seoul retail account.",
+    "metadata":{"source":"readme"}
+  }' | jq .
 ```
 
-### 2. Start Services
+Ask from memories:
 
 ```bash
-make up
+curl -sS -X POST http://localhost:8001/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "workspace_id":"default",
+    "message":"Who manages the Seoul retail account?"
+  }' | jq .
 ```
 
-### 3. Open Custom Platform
-
-Go to **http://localhost:8501** — use the custom interactive operations console (frontend + backend specialists).
-
-UI highlights:
-- left navigation rail (`Semantic`, `Debate`, `Router`)
-- operations table for trace inspection (search + type filter)
-- semantic candidate panel with confidence filter and pin-based overrides
-- raw-ingest panel (`Ingest DB`, `Raw Records`, `Ingest Raw`) for user-provided text-to-graph loading
-
-Use **Execution Mode** (`Router`, `Debate`, `Semantic`) to switch runtime path.
-
-### 4. Try the API
+List graph targets:
 
 ```bash
-# Router mode (single agent)
-curl -X POST http://localhost:8001/run_agent \
-  -H "Content-Type: application/json" \
-  -d '{"query": "What entities exist in the knowledge graph?"}'
+curl -sS http://localhost:8001/graphs | jq .
+```
 
-# Debate mode (all DB agents in parallel)
-curl -X POST http://localhost:8001/run_debate \
-  -H "Content-Type: application/json" \
-  -d '{"query": "Compare financial entities across all databases"}'
+Run a graph-scoped debate:
 
-# Semantic graph QA mode (entity extraction + fulltext resolution)
-curl -X POST http://localhost:8001/run_agent_semantic \
+```bash
+curl -sS -X POST http://localhost:8001/run_debate \
   -H "Content-Type: application/json" \
   -d '{
-    "query": "Neo4j 에서 GraphRAG 관련 entity 연결을 보여줘",
-    "workspace_id": "default",
-    "databases": ["kgnormal", "kgfibo"]
-  }'
-
-# Ensure fulltext index exists for semantic resolution
-curl -X POST http://localhost:8001/indexes/fulltext/ensure \
-  -H "Content-Type: application/json" \
-  -d '{
-    "workspace_id": "default",
-    "databases": ["kgnormal", "kgfibo"],
-    "index_name": "entity_fulltext",
-    "create_if_missing": true
-  }'
-
-# Runtime raw material ingestion (text/csv/pdf records can later be queried in chat UI)
-curl -X POST http://localhost:8001/platform/ingest/raw \
-  -H "Content-Type: application/json" \
-  -d '{
-    "workspace_id": "default",
-    "target_database": "kgnormal",
-    "semantic_artifact_policy": "auto",
-    "records": [
-      {"id":"raw_1","source_type":"text","content":"ACME acquired Beta in 2024."},
-      {"id":"raw_2","source_type":"csv","content":"company,partner\nBeta,ACME"},
-      {"id":"raw_3","source_type":"pdf","content_encoding":"base64","content":"<base64_pdf_payload>"}
-    ]
-  }'
-
-# (Optional) Build ontology hints from OWL for semantic reranking
-python scripts/ontology/build_ontology_hints.py \
-  --ontology ./path/to/domain.owl \
-  --output output/ontology_hints.json
+    "workspace_id":"default",
+    "user_id":"alex",
+    "query":"Compare what the baseline and finance graphs know about Alex.",
+    "graph_ids":["kgnormal","kgfibo"]
+  }' | jq .
 ```
 
 ---
@@ -186,15 +353,16 @@ python scripts/ontology/build_ontology_hints.py \
 |---------|-----|
 | Custom Chat Platform | http://localhost:8501 |
 | API Docs (Swagger) | http://localhost:8001/docs |
-| Neo4j Browser | http://localhost:7474 |
+| Public Memory API Base | http://localhost:8001 |
+| Graph DB Browser (DozerDB) | http://localhost:7474 |
 
-**Neo4j credentials**: `neo4j` / `password`
+**Graph DB credentials**: `neo4j` / `password`
 
 ---
 
-## Observability with Opik
+## Optional Observability (Opik)
 
-SEOCHO includes [Opik](https://github.com/comet-ml/opik) for LLM tracing, evaluation, and agent visualization. It runs as an opt-in Docker Compose profile:
+Use [Opik](https://github.com/comet-ml/opik) only after base onboarding succeeds. It is optional and runs as a Docker Compose profile:
 
 ```bash
 # Start with Opik
@@ -229,7 +397,7 @@ graph TD
         Router --> Vector[VectorAgent]
         Router --> Web[WebAgent]
         Graph --> DBA[GraphDBA]
-        DBA -->|Cypher| Neo4j[(Neo4j)]
+        DBA -->|Cypher| DozerDB[(DozerDB)]
         Vector -->|Search| FAISS[(FAISS)]
         DBA --> Sup1[Supervisor]
         Vector --> Sup1
@@ -260,7 +428,7 @@ graph TD
         Extract --> Link[EntityLinker]
         Link --> Dedup[EntityDeduplicator]
         Dedup --> DBM[DatabaseManager]
-        DBM -->|CREATE DB| Neo4j
+        DBM -->|CREATE DB| DozerDB
         DBM --> AF[AgentFactory]
     end
 ```
@@ -281,7 +449,7 @@ seocho/
 │   ├── data_source.py         #   DataSource ABC (CSV, JSON, Parquet, API)
 │   ├── ontology_prompt_bridge.py  # Ontology → LLM prompt injection
 │   ├── deduplicator.py        #   Embedding cosine-similarity dedup
-│   ├── database_manager.py    #   Neo4j DB provisioning
+│   ├── database_manager.py    #   DozerDB provisioning
 │   ├── config.py              #   Centralized config + env-first YAML loaders + DatabaseRegistry
 │   ├── tracing.py             #   Opik integration (opt-in)
 │   ├── ontology/              #   Ontology definitions (base, loaders)
@@ -328,7 +496,7 @@ seocho/
 | `/semantic/artifacts/{artifact_id}` | GET | Read one semantic artifact |
 | `/semantic/artifacts/{artifact_id}/approve` | POST | Approve draft artifact for runtime `approved_only` policy |
 | `/semantic/artifacts/{artifact_id}/deprecate` | POST | Deprecate approved artifact to remove it from active vocabulary baseline |
-| `/databases` | GET | List registered Neo4j databases |
+| `/databases` | GET | List registered graph databases |
 | `/agents` | GET | List active DB-bound agents |
 
 **Request body** (`/run_agent`, `/run_debate`):
@@ -343,15 +511,15 @@ seocho/
 **Request body** (`/run_agent_semantic`):
 ```json
 {
-  "query": "What is Neo4j connected to?",
+  "query": "What is DozerDB connected to?",
   "workspace_id": "default",
   "databases": ["kgnormal", "kgfibo"],
   "entity_overrides": [
     {
-      "question_entity": "Neo4j",
+      "question_entity": "DozerDB",
       "database": "kgnormal",
       "node_id": 101,
-      "display_name": "Neo4j"
+      "display_name": "DozerDB"
     }
   ]
 }
@@ -361,7 +529,7 @@ seocho/
 ```json
 {
   "session_id": "sess_001",
-  "message": "Neo4j와 GraphRAG 연결을 설명해줘",
+  "message": "DozerDB와 GraphRAG 연결을 설명해줘",
   "mode": "semantic",
   "workspace_id": "default",
   "databases": ["kgnormal", "kgfibo"]
@@ -425,14 +593,14 @@ relationships:
 
 ### Dynamic Database Provisioning
 
-Each dataset gets its own Neo4j database. Agents are auto-created per database:
+Each dataset gets its own DozerDB database. Agents are auto-created per database:
 
 ```python
 from database_manager import DatabaseManager
 
 db_manager = DatabaseManager()
 db_manager.provision_database("supplychain", ontology=my_ontology)
-# → Neo4j database "supplychain" created, schema applied, agent spawned
+# → DozerDB database "supplychain" created, schema applied, agent spawned
 ```
 
 ### Parallel Debate Pattern
@@ -535,7 +703,7 @@ See [docs/PHILOSOPHY_FEASIBILITY_REVIEW.md](docs/PHILOSOPHY_FEASIBILITY_REVIEW.m
 See [docs/GRAPH_MODEL_STRATEGY.md](docs/GRAPH_MODEL_STRATEGY.md) for graph representation strategy.
 See [docs/SHACL_PRACTICAL_GUIDE.md](docs/SHACL_PRACTICAL_GUIDE.md) for practical SHACL-like rollout guidance.
 See [docs/ISSUE_TASK_SYSTEM.md](docs/ISSUE_TASK_SYSTEM.md) for sprint/roadmap issue-task operations.
-See [docs/ADD_PLAYBOOK.md](docs/ADD_PLAYBOOK.md) for agent-driven delivery workflow.
+See [docs/BEADS_OPERATING_MODEL.md](docs/BEADS_OPERATING_MODEL.md) for task-tracked delivery workflow.
 See [docs/CONTEXT_GRAPH_BLUEPRINT.md](docs/CONTEXT_GRAPH_BLUEPRINT.md) for context graph rollout.
 See [docs/OPEN_SOURCE_PLAYBOOK.md](docs/OPEN_SOURCE_PLAYBOOK.md) for structured open-source onboarding and extension workflow.
 See [docs/decisions/DECISION_LOG.md](docs/decisions/DECISION_LOG.md) for architecture decision history.

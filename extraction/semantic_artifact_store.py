@@ -14,6 +14,7 @@ def save_semantic_artifact(
     workspace_id: str,
     ontology_candidate: Dict[str, Any],
     shacl_candidate: Dict[str, Any],
+    vocabulary_candidate: Optional[Dict[str, Any]] = None,
     name: Optional[str] = None,
     source_summary: Optional[Dict[str, Any]] = None,
     base_dir: str = DEFAULT_SEMANTIC_ARTIFACT_DIR,
@@ -32,9 +33,13 @@ def save_semantic_artifact(
         "source_summary": source_summary or {},
         "ontology_candidate": ontology_candidate,
         "shacl_candidate": shacl_candidate,
+        "vocabulary_candidate": vocabulary_candidate or {"schema_version": "vocabulary.v2", "profile": "skos", "terms": []},
         "approved_by": None,
         "approval_note": None,
         "approved_at": None,
+        "deprecated_by": None,
+        "deprecation_note": None,
+        "deprecated_at": None,
     }
 
     artifact_path = workspace_path / f"{artifact_id}.json"
@@ -78,6 +83,8 @@ def list_semantic_artifacts(
             "status": payload.get("status", "draft"),
             "approved_at": payload.get("approved_at"),
             "approved_by": payload.get("approved_by"),
+            "deprecated_at": payload.get("deprecated_at"),
+            "deprecated_by": payload.get("deprecated_by"),
         }
         if status and row["status"] != status:
             continue
@@ -105,6 +112,39 @@ def approve_semantic_artifact(
     payload["approved_by"] = approved_by
     payload["approval_note"] = approval_note
     payload["approved_at"] = _now_iso()
+    payload["deprecated_by"] = None
+    payload["deprecation_note"] = None
+    payload["deprecated_at"] = None
+
+    with artifact_path.open("w", encoding="utf-8") as fp:
+        json.dump(payload, fp, indent=2)
+    return payload
+
+
+def deprecate_semantic_artifact(
+    workspace_id: str,
+    artifact_id: str,
+    deprecated_by: str,
+    deprecation_note: Optional[str] = None,
+    base_dir: str = DEFAULT_SEMANTIC_ARTIFACT_DIR,
+) -> Dict[str, Any]:
+    artifact_path = _workspace_dir(base_dir, workspace_id) / f"{artifact_id}.json"
+    if not artifact_path.exists():
+        raise FileNotFoundError(
+            f"semantic artifact not found: workspace={workspace_id}, artifact_id={artifact_id}"
+        )
+    with artifact_path.open("r", encoding="utf-8") as fp:
+        payload = json.load(fp)
+    if payload.get("status") != "approved":
+        raise ValueError(
+            f"semantic artifact '{artifact_id}' must be approved before deprecation "
+            f"(status={payload.get('status')})"
+        )
+
+    payload["status"] = "deprecated"
+    payload["deprecated_by"] = deprecated_by
+    payload["deprecation_note"] = deprecation_note
+    payload["deprecated_at"] = _now_iso()
 
     with artifact_path.open("w", encoding="utf-8") as fp:
         json.dump(payload, fp, indent=2)

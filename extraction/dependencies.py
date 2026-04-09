@@ -7,14 +7,11 @@ Provides singleton and request-scoped dependencies for agent_server endpoints.
 import os
 import functools
 
-from config import NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD
-
-
 @functools.lru_cache(maxsize=1)
 def get_neo4j_connector():
     """Singleton Neo4jConnector provider."""
-    from agent_server import Neo4jConnector
-    return Neo4jConnector()
+    from graph_connector import MultiGraphConnector
+    return MultiGraphConnector()
 
 
 @functools.lru_cache(maxsize=1)

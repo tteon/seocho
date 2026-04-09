@@ -20,6 +20,7 @@ def test_authorize_runtime_action():
     allowed_semantic_artifacts = engine.authorize(
         role="user", action="manage_semantic_artifacts", workspace_id="default"
     )
+    allowed_memories = engine.authorize(role="user", action="manage_memories", workspace_id="default")
     denied = engine.authorize(role="viewer", action="run_debate", workspace_id="default")
 
     assert allowed.allowed is True
@@ -27,6 +28,7 @@ def test_authorize_runtime_action():
     assert allowed_platform.allowed is True
     assert allowed_assess_rules.allowed is True
     assert allowed_semantic_artifacts.allowed is True
+    assert allowed_memories.allowed is True
     assert denied.allowed is False
 
 

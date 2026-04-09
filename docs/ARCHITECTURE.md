@@ -2,7 +2,7 @@
 
 ## Overview
 
-SEOCHO transforms unstructured data into structured Knowledge Graphs. It implements an asynchronous, dynamic Agent Pool architecture leveraging a **Parallel Debate** pattern to answer complex queries against dynamically provisioned databases.
+SEOCHO transforms unstructured data into structured Knowledge Graphs. It implements an asynchronous, dynamic Agent Pool architecture leveraging a **Parallel Debate** pattern to answer complex queries against dynamically provisioned graph targets.
 
 Current baseline:
 
@@ -148,6 +148,54 @@ Why this path exists:
 - fulltext-first lookup improves recall for imperfect user entity strings
 - semantic re-ranking + dedup reduces wrong-node selection before Cypher generation
 
+## Intent-First Graph-RAG Contract (Active Direction)
+
+Semantic QA and memory-first answering should move toward an explicit
+intent-to-evidence contract:
+
+- `intent_id`
+- `required_relations`
+- `required_entity_types`
+- `focus_slots`
+- `selected_triples`
+- `slot_fills`
+- `missing_slots`
+- provenance and confidence
+
+This keeps graph retrieval accountable to answerability rather than vague local
+relevance.
+
+Primary implementation anchors:
+
+- `extraction/semantic_query_flow.py`
+- `extraction/memory_service.py`
+- `extraction/public_memory_api.py`
+- `seocho/types.py`
+
+Reference design brief: `docs/GRAPH_RAG_AGENT_HANDOFF_SPEC.md`
+
+## Enterprise Vocabulary Layer (Planned Direction)
+
+To reduce keyword brittleness in graph retrieval, SEOCHO adopts a governed vocabulary layer derived from extraction and SHACL-like artifacts.
+
+Control-plane responsibilities:
+
+- maintain vocabulary lifecycle (`draft -> approved -> deprecated`)
+- enforce approval policy and promotion gates before runtime exposure
+- manage global baseline vocabulary and workspace-scoped override policy
+
+Data-plane responsibilities:
+
+- generate vocabulary candidates from entity extraction/linking results
+- enrich candidate terms from SHACL-like rule artifacts (labels, aliases, value constraints)
+- persist artifacts for review and provenance audit
+
+Runtime contract:
+
+- resolve query terms using approved vocabulary (global baseline + `workspace_id` override)
+- apply lightweight expansion/disambiguation only in hot path
+- keep heavy ontology reasoning in offline governance path (`owlready2`)
+
 ## Module Map
 
 ### Data Ingestion Layer
@@ -173,6 +221,7 @@ Why this path exists:
 | Module | File | Purpose |
 |--------|------|---------|
 | DatabaseRegistry | `extraction/config.py` | Runtime-extensible DB name allowlist (singleton: `db_registry`) |
+| GraphRegistry | `extraction/config.py` | Graph target descriptors (`graph_id -> uri/database/ontology/vocabulary`) |
 | DatabaseManager | `extraction/database_manager.py` | DB provisioning + schema + data loading |
 | GraphLoader | `extraction/graph_loader.py` | Neo4j MERGE operations (label-validated) |
 | SchemaManager | `extraction/schema_manager.py` | Constraint/index application |
@@ -182,7 +231,7 @@ Why this path exists:
 | Module | File | Purpose |
 |--------|------|---------|
 | AgentsRuntimeAdapter | `extraction/agents_runtime.py` | SDK compatibility layer for runner/trace contracts (`starting_agent` vs `agent`) |
-| AgentFactory | `extraction/agent_factory.py` | Dynamically provisions dedicated Agents per database |
+| AgentFactory | `extraction/agent_factory.py` | Dynamically provisions dedicated Agents per graph target |
 | SharedMemory | `extraction/shared_memory.py` | Request-scoped shared memory between agents + query cache |
 | DebateOrchestrator | `extraction/debate.py` | Executes Parallel Debate pattern (fan-out → collect → synthesize) |
 | Agent Server | `extraction/agent_server.py` | FastAPI endpoints (`/run_agent`, `/run_debate`, `/run_agent_semantic`, `/platform/chat/send`, `/platform/ingest/raw`) |
@@ -261,14 +310,27 @@ db_registry.list_databases()           # 사용자 DB 목록 (system/neo4j 제�
 - DB Name Validation: `^[A-Za-z][A-Za-z0-9]*$` (Must start with a letter, alphanumeric only)
 - `VALID_DATABASES` (legacy fallback lookup) statically references `db_registry._databases`.
 
+### GraphRegistry (Control Plane)
+
+```python
+from config import graph_registry
+
+graph_registry.list_graph_ids()       # graph IDs used by debate/runtime APIs
+graph_registry.get_graph("kgfibo")    # uri/database/ontology/vocabulary descriptor
+```
+
+- Graph targets are loaded from `SEOCHO_GRAPH_REGISTRY_FILE`.
+- Each `graph_id` can point to a different Neo4j or DozerDB instance.
+- Debate mode fans out by `graph_id`, not only by database name.
+
 ### AgentFactory (Closure-bound Tools)
 
 ```python
 factory = AgentFactory(neo4j_connector)
-agent = factory.create_db_agent("kgnormal", schema_info)
+agent = factory.create_graph_agent(graph_target, schema_info)
 ```
 
-- Each agent's `query_db` tool is closure-bound directly to a specific database context.
+- Each agent's query tool is closure-bound directly to a specific graph target context.
 - Automatic SharedMemory cache integration (via `RunContextWrapper`).
 
 ### SharedMemory (Request-scoped)
@@ -357,8 +419,8 @@ NEO4J_USER=neo4j
 NEO4J_PASSWORD=password
 
 # Opik (opt-in)
-OPIK_VERSION=latest
-OPIK_URL=http://opik-backend:8080/api
+OPIK_VERSION=1.10.18
+OPIK_URL=http://opik-backend:8080
 OPIK_PROJECT_NAME=seocho
 ```
 
@@ -389,6 +451,11 @@ conf/
 | `/platform/ingest/raw` | POST | Runtime raw record ingestion into target graph DB |
 | `/platform/chat/session/{session_id}` | GET | Read platform session history |
 | `/platform/chat/session/{session_id}` | DELETE | Reset platform session |
+| `/semantic/artifacts/drafts` | POST | Save ontology/SHACL/vocabulary candidates as draft artifact |
+| `/semantic/artifacts` | GET | List semantic artifacts (`draft`/`approved`/`deprecated`) |
+| `/semantic/artifacts/{artifact_id}` | GET | Read one semantic artifact |
+| `/semantic/artifacts/{artifact_id}/approve` | POST | Promote draft artifact to approved |
+| `/semantic/artifacts/{artifact_id}/deprecate` | POST | Deprecate approved artifact for runtime vocabulary retirement |
 | `/databases` | GET | List registered databases |
 | `/agents` | GET | List active DB-bound agents |
 

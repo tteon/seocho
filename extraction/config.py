@@ -11,7 +11,7 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 import yaml
 
@@ -65,11 +65,124 @@ class DatabaseRegistry:
         return sorted(self._databases - {"neo4j", "system", "agenttraces"})
 
 
-# Global singleton
-db_registry = DatabaseRegistry()
+@dataclass(frozen=True)
+class GraphTarget:
+    graph_id: str
+    database: str
+    uri: str = NEO4J_URI
+    user: str = NEO4J_USER
+    password: str = NEO4J_PASSWORD
+    ontology_id: str = "baseline"
+    vocabulary_profile: str = "vocabulary.v2"
+    description: str = ""
+    workspace_scope: str = "default"
 
-# Legacy compat — modules that import VALID_DATABASES get a view into the registry
-VALID_DATABASES = db_registry._databases
+    def to_public_dict(self) -> Dict[str, Any]:
+        """Return a safe public descriptor without credentials."""
+        return {
+            "graph_id": self.graph_id,
+            "database": self.database,
+            "uri": self.uri,
+            "ontology_id": self.ontology_id,
+            "vocabulary_profile": self.vocabulary_profile,
+            "description": self.description,
+            "workspace_scope": self.workspace_scope,
+        }
+
+
+class GraphRegistry:
+    """Registry for graph-scoped runtime targets.
+
+    Graph IDs are the public routing identifiers used by debate/runtime APIs.
+    Each graph target can point to a different Neo4j/DozerDB instance.
+    """
+
+    def __init__(
+        self,
+        database_registry: DatabaseRegistry,
+        defaults: Optional[List[GraphTarget]] = None,
+    ):
+        self._database_registry = database_registry
+        self._graphs: Dict[str, GraphTarget] = {}
+        for target in defaults or []:
+            self.register_target(target)
+
+    def register(
+        self,
+        graph_id: str,
+        database: Optional[str] = None,
+        uri: Optional[str] = None,
+        user: Optional[str] = None,
+        password: Optional[str] = None,
+        ontology_id: Optional[str] = None,
+        vocabulary_profile: str = "vocabulary.v2",
+        description: str = "",
+        workspace_scope: str = "default",
+    ) -> GraphTarget:
+        target = GraphTarget(
+            graph_id=graph_id,
+            database=database or graph_id,
+            uri=uri or NEO4J_URI,
+            user=user or NEO4J_USER,
+            password=password or NEO4J_PASSWORD,
+            ontology_id=ontology_id or graph_id,
+            vocabulary_profile=vocabulary_profile,
+            description=description,
+            workspace_scope=workspace_scope,
+        )
+        return self.register_target(target)
+
+    def register_target(self, target: GraphTarget) -> GraphTarget:
+        if not _VALID_DB_NAME_RE.match(target.graph_id):
+            raise ValueError(
+                f"Invalid graph_id '{target.graph_id}': must be alphanumeric, start with letter"
+            )
+        if not _VALID_DB_NAME_RE.match(target.database):
+            raise ValueError(
+                f"Invalid database '{target.database}': must be alphanumeric, start with letter"
+            )
+        self._graphs[target.graph_id] = target
+        self._database_registry.register(target.database)
+        return target
+
+    def ensure_default_graph(
+        self,
+        database: str,
+        *,
+        graph_id: Optional[str] = None,
+        ontology_id: Optional[str] = None,
+        vocabulary_profile: str = "vocabulary.v2",
+        description: str = "",
+    ) -> GraphTarget:
+        resolved_graph_id = graph_id or database
+        existing = self._graphs.get(resolved_graph_id)
+        if existing is not None:
+            return existing
+        return self.register(
+            graph_id=resolved_graph_id,
+            database=database,
+            ontology_id=ontology_id or database,
+            vocabulary_profile=vocabulary_profile,
+            description=description or f"Graph target for database '{database}'.",
+        )
+
+    def get_graph(self, graph_id: str) -> Optional[GraphTarget]:
+        return self._graphs.get(graph_id)
+
+    def find_by_database(self, database: str) -> Optional[GraphTarget]:
+        for target in self._graphs.values():
+            if target.database == database:
+                return target
+        return None
+
+    def is_valid_graph(self, graph_id: str) -> bool:
+        return graph_id in self._graphs
+
+    def list_graph_ids(self) -> List[str]:
+        return sorted(self._graphs.keys())
+
+    def list_graphs(self) -> List[GraphTarget]:
+        return [self._graphs[graph_id] for graph_id in self.list_graph_ids()]
 
 
 def _env_bool(name: str, default: bool) -> bool:
@@ -111,6 +224,69 @@ def _load_yaml(path: Path) -> dict:
     if isinstance(payload, dict):
         return payload
     return {}
+
+
+def _default_graph_targets() -> List[GraphTarget]:
+    return [
+        GraphTarget(
+            graph_id="kgnormal",
+            database="kgnormal",
+            ontology_id="baseline",
+            vocabulary_profile="vocabulary.v2",
+            description="Baseline enterprise graph for general entity and relation retrieval.",
+        ),
+        GraphTarget(
+            graph_id="kgfibo",
+            database="kgfibo",
+            ontology_id="fibo",
+            vocabulary_profile="vocabulary.v2",
+            description="Financial ontology graph aligned to FIBO-style concepts.",
+        ),
+    ]
+
+
+def _load_graph_targets() -> List[GraphTarget]:
+    config_path = Path(
+        os.getenv(
+            "SEOCHO_GRAPH_REGISTRY_FILE",
+            Path(__file__).resolve().parent / "conf" / "graphs" / "default.yaml",
+        )
+    )
+    payload = _load_yaml(config_path)
+    graph_items = payload.get("graphs", [])
+    if not isinstance(graph_items, list) or not graph_items:
+        return _default_graph_targets()
+
+    targets: List[GraphTarget] = []
+    for raw in graph_items:
+        if not isinstance(raw, dict):
+            continue
+        graph_id = str(raw.get("graph_id", "")).strip()
+        database = str(raw.get("database", graph_id)).strip()
+        if not graph_id or not database:
+            continue
+        targets.append(
+            GraphTarget(
+                graph_id=graph_id,
+                database=database,
+                uri=str(raw.get("uri") or NEO4J_URI),
+                user=str(raw.get("user") or NEO4J_USER),
+                password=str(raw.get("password") or NEO4J_PASSWORD),
+                ontology_id=str(raw.get("ontology_id") or graph_id),
+                vocabulary_profile=str(raw.get("vocabulary_profile") or "vocabulary.v2"),
+                description=str(raw.get("description") or ""),
+                workspace_scope=str(raw.get("workspace_scope") or "default"),
+            )
+        )
+    return targets or _default_graph_targets()
+
+
+# Global singletons
+db_registry = DatabaseRegistry()
+graph_registry = GraphRegistry(db_registry, _load_graph_targets())
+
+# Legacy compat — modules that import VALID_DATABASES get a view into the registry
+VALID_DATABASES = db_registry._databases
 
 
 def load_pipeline_runtime_config(prompts_dir: Path | None = None) -> PipelineRuntimeConfig:

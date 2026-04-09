@@ -40,6 +40,10 @@ Required properties:
 
 ## Event Contract (JSONL)
 
+Canonical schema file:
+
+- `docs/schemas/context-event.schema.json` (`cg.v0`)
+
 ```json
 {
   "schema_version": "cg.v0",
@@ -66,6 +70,23 @@ Required event types:
 - `landing_result`
 - `run_finished`
 - `task_closed`
+
+Default JSONL sink:
+
+- `logs/context/events.jsonl`
+
+Current emitters:
+
+- `scripts/ops-check.sh`
+- `scripts/gt-land.sh`
+- inspection: `scripts/task-context-trail.sh`
+
+Quick examples:
+
+```bash
+scripts/ops-check.sh --task-id hq-m0u --rig seocho
+scripts/gt-land.sh --task-id hq-xxa --dry-run
+```
 
 ## Rollout
 

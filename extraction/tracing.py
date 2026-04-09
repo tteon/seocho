@@ -6,6 +6,7 @@ extraction pipeline works identically when Opik services are not running.
 """
 
 import logging
+import inspect
 
 from config import OPIK_ENABLED, OPIK_URL, OPIK_WORKSPACE, OPIK_PROJECT_NAME
 
@@ -21,13 +22,29 @@ def configure_opik() -> None:
         return
     try:
         import opik
+        configure_params = inspect.signature(opik.configure).parameters
+        kwargs = {}
 
-        opik.configure(
-            api_key=None,  # self-hosted, no key needed
-            url_override=OPIK_URL,
-            workspace=OPIK_WORKSPACE,
-            project_name=OPIK_PROJECT_NAME,
-        )
+        # Opik configure signature changed across releases:
+        # - legacy: url_override / project_name
+        # - current: url (project is selected via runtime context/env)
+        if "url_override" in configure_params:
+            kwargs["url_override"] = OPIK_URL
+        elif "url" in configure_params:
+            kwargs["url"] = OPIK_URL
+
+        # Newer Opik SDKs can explicitly run in self-hosted mode.
+        if "use_local" in configure_params:
+            kwargs["use_local"] = True
+        elif "api_key" in configure_params:
+            kwargs["api_key"] = None  # legacy self-hosted path
+
+        if "workspace" in configure_params:
+            kwargs["workspace"] = OPIK_WORKSPACE
+        if "project_name" in configure_params:
+            kwargs["project_name"] = OPIK_PROJECT_NAME
+
+        opik.configure(**kwargs)
         _opik_configured = True
         logger.info("Opik tracing configured: %s (project=%s)", OPIK_URL, OPIK_PROJECT_NAME)
     except Exception as exc:

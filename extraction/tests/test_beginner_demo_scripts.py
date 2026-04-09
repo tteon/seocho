@@ -8,6 +8,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS = [
+    "scripts/setup/init-env.sh",
     "scripts/demo/pipeline_raw_data.sh",
     "scripts/demo/pipeline_meta_artifact.sh",
     "scripts/demo/pipeline_neo4j_load.sh",

@@ -7,6 +7,35 @@ linking: |
   1. Analyze the entities for semantic similarity and potential duplicates (e.g., "SpaceX" and "Space Exploration Technologies Corp").
   2. For each entity, assign a "linked_id". If it maps to a well-known concept, use a standardized URN (e.g., "urn:entity:spacex"). If it is a local entity found multiple times, normalize the ID.
   3. Return the JSON with the same structure but with an added "linked_id" property for each node.
+
+  {% if ontology_name is defined and ontology_name %}
+  Ontology: {{ ontology_name }}
+  {% endif %}
+
+  {% if relationship_types is defined and relationship_types %}
+  Relationship hints:
+  {{ relationship_types }}
+  {% endif %}
+
+  {% if vocabulary_terms is defined and vocabulary_terms %}
+  Vocabulary hints:
+  {{ vocabulary_terms }}
+  {% endif %}
+
+  {% if record_metadata_json is defined and record_metadata_json %}
+  Record metadata:
+  {{ record_metadata_json }}
+  {% endif %}
+
+  {% if graph_context is defined and graph_context %}
+  Graph target metadata:
+  {{ graph_context }}
+  {% endif %}
+
+  {% if developer_instructions is defined and developer_instructions %}
+  Developer instructions:
+  {{ developer_instructions }}
+  {% endif %}
   
   Input Entities:
   {{ entities }}

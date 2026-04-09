@@ -2,9 +2,11 @@ import pytest
 
 from semantic_artifact_api import (
     SemanticArtifactApproveRequest,
+    SemanticArtifactDeprecateRequest,
     SemanticArtifactDraftCreateRequest,
     approve_semantic_artifact_draft,
     create_semantic_artifact_draft,
+    deprecate_semantic_artifact_approved,
     read_semantic_artifact,
     read_semantic_artifacts,
     resolve_approved_artifact_payload,
@@ -60,12 +62,25 @@ def test_semantic_artifact_draft_to_approval_roundtrip(tmp_path, monkeypatch):
     )
     assert approved.status == "approved"
     assert approved.approved_by == "reviewer-a"
+    assert approved.vocabulary_candidate["schema_version"] == "vocabulary.v2"
+    assert approved.vocabulary_candidate["profile"] == "skos"
 
     approved_payload = resolve_approved_artifact_payload(
         workspace_id="default",
         artifact_id=created.artifact_id,
     )
     assert approved_payload["ontology_candidate"]["ontology_name"] == "finance"
+
+    deprecated = deprecate_semantic_artifact_approved(
+        artifact_id=created.artifact_id,
+        request=SemanticArtifactDeprecateRequest(
+            workspace_id="default",
+            deprecated_by="reviewer-a",
+            deprecation_note="superseded",
+        ),
+    )
+    assert deprecated.status == "deprecated"
+    assert deprecated.deprecated_by == "reviewer-a"
 
 
 def test_resolve_approved_payload_fails_for_draft(tmp_path, monkeypatch):
@@ -80,3 +95,11 @@ def test_resolve_approved_payload_fails_for_draft(tmp_path, monkeypatch):
     )
     with pytest.raises(ValueError):
         resolve_approved_artifact_payload(workspace_id="default", artifact_id=created.artifact_id)
+    with pytest.raises(ValueError):
+        deprecate_semantic_artifact_approved(
+            artifact_id=created.artifact_id,
+            request=SemanticArtifactDeprecateRequest(
+                workspace_id="default",
+                deprecated_by="reviewer-a",
+            ),
+        )

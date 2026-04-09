@@ -263,6 +263,22 @@ body {
   cursor: not-allowed;
 }
 
+#oneClickDemoBtn {
+  background: var(--accent-blue);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+#oneClickDemoBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* Dual Pane Workspace */
 .content {
   flex: 1;

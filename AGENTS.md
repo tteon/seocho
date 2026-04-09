@@ -12,6 +12,9 @@ Before implementing:
 4. `docs/ISSUE_TASK_SYSTEM.md`
 5. `docs/decisions/DECISION_LOG.md`
 
+If the change touches semantic retrieval, public memory answering, or Graph-RAG
+behavior, also read `docs/GRAPH_RAG_AGENT_HANDOFF_SPEC.md`.
+
 ## 2. Stack Baseline (Must Match)
 
 - OpenAI Agents SDK
@@ -26,6 +29,9 @@ Before implementing:
 - create standardized work items with:
   - `scripts/pm/new-issue.sh`
   - `scripts/pm/new-task.sh`
+- exception: the scheduled daily Codex maintenance workflow may operate without
+  a dedicated `bd` item when the PR itself is the review envelope; in that case
+  the PR body must still capture scope, validation, and residual risk
 
 Active work items must include collaboration labels:
 
@@ -80,3 +86,36 @@ For architecture or workflow changes:
 - update `README.md` + relevant `docs/*`
 - record decision in ADR (`docs/decisions/ADR-*.md`)
 - append entry to `docs/decisions/DECISION_LOG.md`
+
+## 9. Codex Automation Rules
+
+- use repo-local skill `$daily-maintenance-pr` for scheduled or manual Codex
+  maintenance PR workflows
+- use repo-local skill `$periodic-review-pr` for scheduled or manual Codex
+  repository review PR workflows
+- scheduled automation prompt lives in
+  `.github/codex/prompts/daily-maintenance-pr.md`
+- periodic review prompt lives in
+  `.github/codex/prompts/periodic-review-pr.md`
+- Python package publish workflow lives in
+  `.github/workflows/publish-python-package.yml`
+- comment-based merge workflow lives in
+  `.github/workflows/pr-comment-merge.yml`
+- daily automation must stay small, reviewable, and non-destructive:
+  - no direct push to `main`
+  - no auto-merge
+  - report exact validation commands in the PR body
+- periodic review automation may consider small refactors or developer-facing
+  improvements, but must still stay draft-PR-safe:
+  - one cohesive change only
+  - no speculative large features
+  - no direct push to `main`
+  - no auto-merge
+- package publishing should prefer PyPI trusted publishing from GitHub Actions:
+  - build and `twine check` must pass before publish
+  - default manual smoke target is `testpypi`
+  - production publish may run on `v*` tags after registry setup
+- comment-based merge should stay explicitly maintainer-triggered:
+  - merge command is exactly `/go`
+  - only users with `write`, `maintain`, or `admin` permission may trigger it
+  - workflow uses squash merge

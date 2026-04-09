@@ -99,7 +99,7 @@ fi
 
 draft_ontology="$(echo "${ingest_response}" | jq -c '.semantic_artifacts.draft_ontology_candidate // {"ontology_name":"demo","classes":[],"relationships":[]}')"
 draft_shacl="$(echo "${ingest_response}" | jq -c '.semantic_artifacts.draft_shacl_candidate // {"shapes":[]}')"
-draft_vocab="$(echo "${ingest_response}" | jq -c '.semantic_artifacts.draft_vocabulary_candidate // {"schema_version":"vocabulary.v1","terms":[]}')"
+draft_vocab="$(echo "${ingest_response}" | jq -c '.semantic_artifacts.draft_vocabulary_candidate // {"schema_version":"vocabulary.v2","profile":"skos","terms":[]}')"
 artifact_name="meta_demo_${target_db}_$(date +%Y%m%d%H%M%S)"
 
 draft_payload="$({

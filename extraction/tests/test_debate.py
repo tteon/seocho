@@ -22,8 +22,9 @@ import debate
 
 
 class _DummyAgent:
-    def __init__(self, name: str):
+    def __init__(self, name: str, graph_database: str | None = None):
         self.name = name
+        self.graph_database = graph_database or name
 
 
 class _DummyMemory:
@@ -50,7 +51,7 @@ async def test_debate_orchestrator_uses_starting_agent(monkeypatch):
     monkeypatch.setattr(debate, "update_current_span", lambda **_k: None)
 
     orchestrator = debate.DebateOrchestrator(
-        agents={"kgnormal": _DummyAgent("Agent_kgnormal")},
+        agents={"graph-normal": _DummyAgent("Agent_kgnormal", graph_database="kgnormal")},
         supervisor=_DummyAgent("Supervisor"),
         shared_memory=_DummyMemory(),
         agents_runtime=_Runtime(),
@@ -61,3 +62,4 @@ async def test_debate_orchestrator_uses_starting_agent(monkeypatch):
     assert result["response"].startswith("Supervisor:Original Question: hello")
     assert "Agent_kgnormal:hello" in result["response"]
     assert result["debate_results"][0]["db"] == "kgnormal"
+    assert result["debate_results"][0]["graph"] == "graph-normal"

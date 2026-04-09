@@ -1,219 +1,206 @@
 # SEOCHO Quick Start
 
-This guide is optimized for one goal:
-raw data in -> graph build -> semantic/debate answer out.
+Goal: one successful run in under 5 minutes.
 
-## 0. Prerequisites
+This is the canonical onboarding document.
 
-- Docker + Docker Compose
-- OpenAI API key (`OPENAI_API_KEY`)
-- `jq` (for API response checks)
-- Git
+If you only read one runtime document, read this one first.
 
-## 1. Clone and configure
+If you want the mem0-style developer path instead of the UI-first path, jump to [PYTHON_INTERFACE_QUICKSTART.md](PYTHON_INTERFACE_QUICKSTART.md).
+
+## 1. Prerequisites
+
+- Docker and Docker Compose
+- `curl` and `jq` for optional API checks
+- `OPENAI_API_KEY` recommended for full extraction quality
+
+Without `OPENAI_API_KEY`, SEOCHO can still run in local fallback mode for basic verification.
+
+## 2. Setup Environment
 
 ```bash
 git clone https://github.com/tteon/seocho.git
 cd seocho
-
-cp .env.example .env
-# edit .env
-# required: OPENAI_API_KEY=sk-...
+make setup-env
 ```
 
-Optional custom ports (if defaults collide):
+`make setup-env` creates `.env` from `.env.example` and lets you:
 
-```bash
-NEO4J_HTTP_PORT=7475
-NEO4J_BOLT_PORT=7688
-EXTRACTION_API_PORT=8002
-EXTRACTION_NOTEBOOK_PORT=8890
-CHAT_INTERFACE_PORT=8502
-```
+- set `OPENAI_API_KEY`
+- optionally enable Opik
+- optionally change ports
 
-## 2. Start services
+## 3. Start Services
 
 ```bash
 make up
 docker compose ps
 ```
 
-Expected services:
-
-- `neo4j`
-- `extraction-service`
-- `semantic-service`
-- `evaluation-interface`
-
-## 3. Verify base endpoints
-
-If you changed ports in `.env`, replace `8001`/`8501` below with your configured ports.
+If you installed the local CLI and want one command instead of manual Compose:
 
 ```bash
-curl -sS http://localhost:8001/databases | jq .
-curl -sS http://localhost:8501/api/config | jq .
-curl -sS http://localhost:8001/health/runtime | jq .
-curl -sS http://localhost:8001/health/batch | jq .
+pip install -e .
+seocho serve
 ```
 
-Default URLs:
+`seocho serve` runs `docker compose up -d`, waits for `/health/runtime` and `/graphs`, and injects a fallback local `OPENAI_API_KEY` when your environment still has the example placeholder.
 
-- Platform UI: `http://localhost:8501`
-- API docs: `http://localhost:8001/docs`
-- DozerDB browser: `http://localhost:7474`
+Expected local access points:
 
-## 4. Ingest your raw data
+| Surface | URL |
+|---|---|
+| Platform UI | `http://localhost:8501` |
+| Backend API docs | `http://localhost:8001/docs` |
+| DozerDB browser | `http://localhost:7474` |
 
-Use runtime ingest API to load raw materials directly into a target graph database.
-Supported per-record `source_type` is `text`, `csv`, `pdf`.
-
-```bash
-curl -sS -X POST http://localhost:8001/platform/ingest/raw \
-  -H "Content-Type: application/json" \
-  -d '{
-    "workspace_id":"default",
-    "target_database":"kgruntime",
-    "semantic_artifact_policy":"auto",
-    "records":[
-      {"id":"raw_1","source_type":"text","content":"ACME acquired Beta in 2024."},
-      {"id":"raw_2","source_type":"csv","content":"company,partner\nBeta,ACME"},
-      {"id":"raw_3","source_type":"pdf","content_encoding":"base64","content":"<base64_pdf_payload>"}
-    ]
-  }' | jq .
-```
-
-Success criteria:
-
-- `status` is one of `success`, `success_with_fallback`, `partial_success`
-- `records_processed >= 1`
-- `semantic_artifacts` includes merged ontology/SHACL candidates and relatedness summary
-
-Artifact policy options:
-
-- `auto` (default): apply extracted semantic artifacts immediately
-- `draft_only`: keep artifacts as draft, skip applying them to rule profile
-- `approved_only`: apply only `approved_artifacts` supplied by caller
-
-Approval workflow (recommended for governance):
-
-1. Save draft: `POST /semantic/artifacts/drafts`
-2. Approve draft: `POST /semantic/artifacts/{artifact_id}/approve`
-3. Ingest with approved artifact:
-   - set `semantic_artifact_policy` to `approved_only`
-   - pass `approved_artifact_id` in `/platform/ingest/raw`
-
-## 5. Ensure fulltext index for semantic mode
-
-```bash
-curl -sS -X POST http://localhost:8001/indexes/fulltext/ensure \
-  -H "Content-Type: application/json" \
-  -d '{
-    "workspace_id":"default",
-    "databases":["kgruntime"],
-    "index_name":"entity_fulltext",
-    "create_if_missing":true
-  }' | jq .
-```
-
-## 6. Ask semantic and debate questions
-
-### 6.1 Semantic mode (API)
-
-```bash
-curl -sS -X POST http://localhost:8501/api/chat/send \
-  -H "Content-Type: application/json" \
-  -d '{
-    "session_id":"qs_semantic_1",
-    "message":"Show entities in kgruntime",
-    "mode":"semantic",
-    "workspace_id":"default",
-    "databases":["kgruntime"]
-  }' | jq '{assistant_message, route: .runtime_payload.route}'
-```
-
-Success criteria:
-
-- `assistant_message` is non-empty
-- `runtime_payload.route` is `lpg`, `rdf`, or `hybrid`
-
-### 6.2 Debate mode (API)
-
-```bash
-curl -sS -X POST http://localhost:8501/api/chat/send \
-  -H "Content-Type: application/json" \
-  -d '{
-    "session_id":"qs_debate_1",
-    "message":"Compare known entities across databases",
-    "mode":"debate",
-    "workspace_id":"default"
-  }' | jq '{assistant_message, debate_results: .runtime_payload.debate_results}'
-```
-
-Success criteria:
-
-- `assistant_message` is non-empty
-- `runtime_payload.debate_results` exists
-
-## 7. Run strict integration smoke test
-
-```bash
-make e2e-smoke
-```
-
-What it checks end-to-end:
-
-- `/platform/ingest/raw`
-- `/indexes/fulltext/ensure`
-- semantic chat (`/api/chat/send`, mode `semantic`)
-- debate chat (`/api/chat/send`, mode `debate`)
-
-If `OPENAI_API_KEY` is real, debate is checked in strict pass mode.
-
-If you are running custom ports, execute the script with explicit overrides:
-
-```bash
-EXTRACTION_API_PORT=8002 CHAT_INTERFACE_PORT=8502 bash scripts/integration/e2e_runtime_smoke.sh
-```
-
-## 8. Validate through UI
+## 4. Recommended First Success: UI Path
 
 1. Open `http://localhost:8501`
-2. Set `Ingest DB` to `kgruntime`
-3. Paste raw lines and click `Ingest Raw`
-4. Ask a question in `Semantic` mode
-5. Switch to `Debate` mode and ask the same question
-6. Compare `Trace` and result payloads
+2. In the ingest panel, leave the default database
+3. Click `Load Sample & Ask`
 
-## 9. Next practical steps
+This runs the shortest end-to-end path:
 
-- Run SHACL-like readiness: `POST /rules/assess`
-- Export governance artifacts:
-  - Cypher constraints: `POST /rules/export/cypher`
-  - SHACL-compatible Turtle: `POST /rules/export/shacl`
-- Use semantic artifact lifecycle:
-  - create draft: `POST /semantic/artifacts/drafts`
-  - approve: `POST /semantic/artifacts/{artifact_id}/approve`
-- Build ontology hints offline: `python scripts/ontology/build_ontology_hints.py ...`
-- Read extension guide: `docs/OPEN_SOURCE_PLAYBOOK.md`
-- Read first-run walkthrough: `docs/TUTORIAL_FIRST_RUN.md`
+- sample raw ingest
+- fulltext ensure
+- semantic question
+- trace rendering in the UI
 
-## Troubleshooting
+Success signals:
 
-Extraction service logs:
+- an assistant answer is rendered
+- the right-side trace/workflow panel is populated
+
+## 5. Optional First Success: Official Client / CLI Path
+
+If you want a simple local client workflow from the repository root:
 
 ```bash
+pip install -e .
+seocho serve
+seocho doctor
+seocho add "Alice manages the Seoul retail account."
+seocho search "Who manages the Seoul retail account?"
+seocho chat "What do we know about Alice?"
+```
+
+## 6. Optional First Success: Direct Backend API Path
+
+If you want to verify the memory-first backend surface directly:
+
+Create one memory:
+
+```bash
+curl -sS -X POST http://localhost:8001/api/memories \
+  -H "Content-Type: application/json" \
+  -d '{
+    "workspace_id": "default",
+    "content": "Alice manages the Seoul retail account.",
+    "metadata": {
+      "source": "quickstart_note",
+      "tags": ["account", "org"]
+    }
+  }' | jq .
+```
+
+Ask from memories:
+
+```bash
+curl -sS -X POST http://localhost:8001/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "workspace_id": "default",
+    "message": "Who manages the Seoul retail account?"
+  }' | jq .
+```
+
+Search memories:
+
+```bash
+curl -sS -X POST http://localhost:8001/api/memories/search \
+  -H "Content-Type: application/json" \
+  -d '{
+    "workspace_id": "default",
+    "query": "Seoul retail account",
+    "limit": 5
+  }' | jq .
+```
+
+List graph targets:
+
+```bash
+curl -sS http://localhost:8001/graphs | jq .
+```
+
+Run a graph-scoped debate:
+
+```bash
+curl -sS -X POST http://localhost:8001/run_debate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "workspace_id": "default",
+    "user_id": "alex",
+    "query": "Compare what the baseline and finance graphs know about Alex.",
+    "graph_ids": ["kgnormal", "kgfibo"]
+  }' | jq .
+```
+
+## 7. Multi-Instance Graph Configuration
+
+By default, SEOCHO loads graph targets from:
+
+```bash
+extraction/conf/graphs/default.yaml
+```
+
+Override it with:
+
+```bash
+export SEOCHO_GRAPH_REGISTRY_FILE=extraction/conf/graphs/default.yaml
+```
+
+Each graph target can point at a different Neo4j or DozerDB instance. That is the control plane contract used by debate-mode graph agents.
+
+## 8. If It Fails
+
+Check container and app logs:
+
+```bash
+docker compose ps
 docker compose logs --tail=200 extraction-service
+docker compose logs --tail=200 evaluation-interface
+docker compose logs --tail=200 graphrag-neo4j
 ```
 
-Chat interface logs:
+Common issues:
+
+- missing `OPENAI_API_KEY`: extraction falls back to deterministic mode
+- port collision on `8001`, `8501`, `7474`, or `7687`
+- Docker services not fully started yet
+
+Useful CLI helpers:
+
+- `seocho serve --dry-run`: print the compose command without running it
+- `seocho stop`: stop the local stack
+- `seocho stop --volumes`: stop and remove compose volumes
+
+## 9. What To Read Next
+
+After Quick Start succeeds, choose one path:
+
+- [PYTHON_INTERFACE_QUICKSTART.md](PYTHON_INTERFACE_QUICKSTART.md): mem0-style Python interface walkthrough
+- [TUTORIAL_FIRST_RUN.md](TUTORIAL_FIRST_RUN.md): deeper manual API verification
+- [BEGINNER_PIPELINES_DEMO.md](BEGINNER_PIPELINES_DEMO.md): scripted demo pipelines
+- [ARCHITECTURE.md](ARCHITECTURE.md): system architecture
+- [OPEN_SOURCE_PLAYBOOK.md](OPEN_SOURCE_PLAYBOOK.md): contributor path
+
+## 10. Optional Opik
+
+Only after the base flow works:
 
 ```bash
-docker compose logs --tail=200 evaluation-interface
+make opik-up
 ```
 
-If ports conflict, set the port env vars in `.env` and rerun `make up`.
-
-PDF OCR fallback note:
-
-- scanned PDFs require optional OCR stack (`PyMuPDF`, `pytesseract`, `Pillow`, and system `tesseract` binary)
-- if OCR stack is unavailable, PDF ingest still works for text-based PDFs via `pypdf`
+Open `http://localhost:5173`.

@@ -11,7 +11,9 @@ from __future__ import annotations
 import json
 import logging
 from typing import Any, Callable, Dict, Optional
+
 from retry_utils import openai_retry
+from semantic_context import build_dynamic_prompt_context
 from tracing import track, wrap_openai_client
 
 logger = logging.getLogger(__name__)
@@ -37,26 +39,57 @@ class SemanticPassOrchestrator:
             self._client = wrap_openai_client(OpenAI(api_key=api_key))
 
     @track("semantic_pass_orchestrator.run")
-    def run_three_pass(self, text: str, category: str) -> Dict[str, Any]:
+    def run_three_pass(
+        self,
+        text: str,
+        category: str,
+        record_metadata: Optional[Dict[str, Any]] = None,
+        source_type: str = "text",
+        approved_artifacts: Optional[Dict[str, Any]] = None,
+        graph_metadata: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         ontology_payload: Dict[str, Any] = {}
         shacl_payload: Dict[str, Any] = {}
         metadata: Dict[str, Any] = {"ontology_pass": "skipped", "shacl_pass": "skipped"}
 
         try:
-            ontology_payload = self._extract_ontology_candidate(text=text, category=category)
+            ontology_payload = self._extract_ontology_candidate(
+                text=text,
+                category=category,
+                record_metadata=record_metadata,
+                source_type=source_type,
+                approved_artifacts=approved_artifacts,
+                graph_metadata=graph_metadata,
+            )
             metadata["ontology_pass"] = "ok"
         except Exception as exc:
             metadata["ontology_pass"] = f"error:{type(exc).__name__}"
             logger.warning("Ontology candidate pass failed: %s", exc)
 
         try:
-            shacl_payload = self._extract_shacl_candidate(text=text, category=category, ontology_payload=ontology_payload)
+            shacl_payload = self._extract_shacl_candidate(
+                text=text,
+                category=category,
+                ontology_payload=ontology_payload,
+                record_metadata=record_metadata,
+                source_type=source_type,
+                approved_artifacts=approved_artifacts,
+                graph_metadata=graph_metadata,
+            )
             metadata["shacl_pass"] = "ok"
         except Exception as exc:
             metadata["shacl_pass"] = f"error:{type(exc).__name__}"
             logger.warning("SHACL candidate pass failed: %s", exc)
 
-        entity_context = self._build_entity_context(ontology_payload=ontology_payload, shacl_payload=shacl_payload)
+        entity_context = self._build_entity_context(
+            ontology_payload=ontology_payload,
+            shacl_payload=shacl_payload,
+            category=category,
+            source_type=source_type,
+            record_metadata=record_metadata,
+            approved_artifacts=approved_artifacts,
+            graph_metadata=graph_metadata,
+        )
         entity_graph = self.extractor.extract_entities(text=text, category=category, extra_context=entity_context)
 
         return {
@@ -64,83 +97,108 @@ class SemanticPassOrchestrator:
             "shacl_candidate": shacl_payload,
             "entity_graph": entity_graph,
             "metadata": metadata,
+            "prompt_context": entity_context,
         }
 
-    def _extract_ontology_candidate(self, text: str, category: str) -> Dict[str, Any]:
+    def _extract_ontology_candidate(
+        self,
+        text: str,
+        category: str,
+        record_metadata: Optional[Dict[str, Any]],
+        source_type: str,
+        approved_artifacts: Optional[Dict[str, Any]],
+        graph_metadata: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
         system_prompt = (
             "You extract ontology candidates from domain text. "
             "Return strict JSON only."
         )
-        user_prompt = (
-            "Analyze the input text and return ontology candidate JSON with keys: "
-            "ontology_name, classes, relationships. "
-            "Each class item: {name, description, properties:[{name, datatype}]}. "
-            "Each relationship item: {type, source, target, description}. "
-            f"Category: {category}\n\nText:\n{text[:12000]}"
+        prompt_context = build_dynamic_prompt_context(
+            category=category,
+            source_type=source_type,
+            approved_artifacts=approved_artifacts,
+            record_metadata=record_metadata,
+            graph_metadata=graph_metadata,
         )
+        sections = [
+            "Analyze the input text and return ontology candidate JSON with keys: ontology_name, classes, relationships.",
+            "Each class item: {name, description, aliases, broader, related, properties:[{name, datatype, description, aliases}]}.",
+            "Each relationship item: {type, source, target, description, aliases, related}.",
+            "Use aliases and SKOS-compatible vocabulary hints when visible in the text or metadata.",
+            f"Category: {category}",
+            f"Source type: {source_type}",
+        ]
+        self._append_section(sections, "Graph target metadata", prompt_context.get("graph_context", ""))
+        self._append_section(sections, "Developer instructions", prompt_context.get("developer_instructions", ""))
+        self._append_section(sections, "Ontology hints", prompt_context.get("entity_types", ""))
+        self._append_section(sections, "Relationship hints", prompt_context.get("relationship_types", ""))
+        self._append_section(sections, "Vocabulary hints", prompt_context.get("vocabulary_terms", ""))
+        self._append_section(sections, "Record metadata", prompt_context.get("record_metadata_json", ""))
+        self._append_section(sections, "Prompt guidance", prompt_context.get("ontology_context_notes", ""))
+        sections.append(f"Text:\n{text[:12000]}")
+        user_prompt = "\n\n".join(sections)
         payload = self._run_json(system_prompt, user_prompt)
         return self._normalize_ontology_payload(payload)
 
-    def _extract_shacl_candidate(self, text: str, category: str, ontology_payload: Dict[str, Any]) -> Dict[str, Any]:
+    def _extract_shacl_candidate(
+        self,
+        text: str,
+        category: str,
+        ontology_payload: Dict[str, Any],
+        record_metadata: Optional[Dict[str, Any]],
+        source_type: str,
+        approved_artifacts: Optional[Dict[str, Any]],
+        graph_metadata: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
         system_prompt = (
             "You extract SHACL-like constraints from text and ontology hints. "
             "Return strict JSON only."
         )
-        user_prompt = (
-            "Return JSON with key 'shapes'. "
-            "Each shape: {target_class, properties:[{path, constraint, params}]}. "
-            "constraint must be one of required, datatype, enum, range. "
-            f"Category: {category}\n"
-            f"Ontology hints:\n{json.dumps(ontology_payload, ensure_ascii=False)}\n\n"
-            f"Text:\n{text[:12000]}"
+        prompt_context = build_dynamic_prompt_context(
+            category=category,
+            source_type=source_type,
+            ontology_candidate=ontology_payload,
+            approved_artifacts=approved_artifacts,
+            record_metadata=record_metadata,
+            graph_metadata=graph_metadata,
         )
+        sections = [
+            "Return JSON with key 'shapes'.",
+            "Each shape: {target_class, properties:[{path, constraint, params}]}.",
+            "constraint must be one of required, datatype, enum, range.",
+            f"Category: {category}",
+            f"Source type: {source_type}",
+        ]
+        self._append_section(sections, "Graph target metadata", prompt_context.get("graph_context", ""))
+        self._append_section(sections, "Developer instructions", prompt_context.get("developer_instructions", ""))
+        self._append_section(sections, "Ontology hints", prompt_context.get("entity_types", ""))
+        self._append_section(sections, "Relationship hints", prompt_context.get("relationship_types", ""))
+        self._append_section(sections, "Vocabulary hints", prompt_context.get("vocabulary_terms", ""))
+        self._append_section(sections, "Record metadata", prompt_context.get("record_metadata_json", ""))
+        sections.append(f"Text:\n{text[:12000]}")
+        user_prompt = "\n\n".join(sections)
         payload = self._run_json(system_prompt, user_prompt)
         return self._normalize_shacl_payload(payload)
 
-    def _build_entity_context(self, ontology_payload: Dict[str, Any], shacl_payload: Dict[str, Any]) -> Dict[str, Any]:
-        classes = ontology_payload.get("classes", [])
-        rels = ontology_payload.get("relationships", [])
-        shapes = shacl_payload.get("shapes", [])
-
-        entity_lines = []
-        for item in classes:
-            name = str(item.get("name", "")).strip() or "Entity"
-            description = str(item.get("description", "")).strip()
-            properties = item.get("properties", [])
-            prop_desc = ", ".join(str(prop.get("name", "")).strip() for prop in properties if prop.get("name"))
-            text = f"- {name}"
-            if description:
-                text += f": {description}"
-            if prop_desc:
-                text += f" (properties: {prop_desc})"
-            entity_lines.append(text)
-
-        relation_lines = []
-        for rel in rels:
-            r_type = str(rel.get("type", "")).strip() or "RELATED_TO"
-            source = str(rel.get("source", "")).strip() or "Entity"
-            target = str(rel.get("target", "")).strip() or "Entity"
-            desc = str(rel.get("description", "")).strip()
-            rel_line = f"- {r_type}: {source} -> {target}"
-            if desc:
-                rel_line += f" ({desc})"
-            relation_lines.append(rel_line)
-
-        shacl_lines = []
-        for shape in shapes:
-            target_class = str(shape.get("target_class", "")).strip()
-            for prop in shape.get("properties", []):
-                path = str(prop.get("path", "")).strip()
-                constraint = str(prop.get("constraint", "")).strip()
-                if target_class and path and constraint:
-                    shacl_lines.append(f"- {target_class}.{path}: {constraint}")
-
-        return {
-            "ontology_name": str(ontology_payload.get("ontology_name", "runtime_candidate")),
-            "entity_types": "\n".join(entity_lines),
-            "relationship_types": "\n".join(relation_lines),
-            "shacl_constraints": "\n".join(shacl_lines),
-        }
+    def _build_entity_context(
+        self,
+        ontology_payload: Dict[str, Any],
+        shacl_payload: Dict[str, Any],
+        category: str,
+        source_type: str,
+        record_metadata: Optional[Dict[str, Any]],
+        approved_artifacts: Optional[Dict[str, Any]],
+        graph_metadata: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        return build_dynamic_prompt_context(
+            category=category,
+            source_type=source_type,
+            ontology_candidate=ontology_payload,
+            shacl_candidate=shacl_payload,
+            approved_artifacts=approved_artifacts,
+            record_metadata=record_metadata,
+            graph_metadata=graph_metadata,
+        )
 
     @openai_retry
     def _run_json(self, system_prompt: str, user_prompt: str) -> Dict[str, Any]:
@@ -185,12 +243,17 @@ class SemanticPassOrchestrator:
                     {
                         "name": prop_name,
                         "datatype": str(prop.get("datatype", "string")).strip() or "string",
+                        "description": str(prop.get("description", "")).strip(),
+                        "aliases": SemanticPassOrchestrator._clean_string_list(prop.get("aliases", [])),
                     }
                 )
             norm_classes.append(
                 {
                     "name": name,
                     "description": str(cls.get("description", "")).strip(),
+                    "aliases": SemanticPassOrchestrator._clean_string_list(cls.get("aliases", [])),
+                    "broader": SemanticPassOrchestrator._clean_string_list(cls.get("broader", [])),
+                    "related": SemanticPassOrchestrator._clean_string_list(cls.get("related", [])),
                     "properties": norm_props,
                 }
             )
@@ -206,6 +269,8 @@ class SemanticPassOrchestrator:
                     "source": str(rel.get("source", "")).strip(),
                     "target": str(rel.get("target", "")).strip(),
                     "description": str(rel.get("description", "")).strip(),
+                    "aliases": SemanticPassOrchestrator._clean_string_list(rel.get("aliases", [])),
+                    "related": SemanticPassOrchestrator._clean_string_list(rel.get("related", [])),
                 }
             )
 
@@ -244,3 +309,23 @@ class SemanticPassOrchestrator:
                 }
             )
         return {"shapes": normalized_shapes}
+
+    @staticmethod
+    def _clean_string_list(values: Any) -> list[str]:
+        if not isinstance(values, list):
+            return []
+        cleaned: list[str] = []
+        seen = set()
+        for value in values:
+            text = str(value).strip()
+            key = text.lower()
+            if text and key not in seen:
+                seen.add(key)
+                cleaned.append(text)
+        return cleaned
+
+    @staticmethod
+    def _append_section(lines: list[str], title: str, content: str) -> None:
+        text = str(content or "").strip()
+        if text:
+            lines.append(f"{title}:\n{text}")

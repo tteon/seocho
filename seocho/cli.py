@@ -1,0 +1,533 @@
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+from typing import Any, Dict, Iterable, Optional, Sequence
+
+from .client import Seocho
+from .exceptions import SeochoError
+from .governance import ArtifactDiff, ArtifactValidationResult
+from .local import LocalRuntimeStatus, serve_local_runtime, stop_local_runtime
+from .semantic import SemanticArtifact, SemanticArtifactSummary
+from .types import ArchiveResult, ChatResponse, GraphTarget, Memory, MemoryCreateResult, SearchResult
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="seocho", description="SEOCHO memory-first CLI")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    add_parser = subparsers.add_parser("add", help="Store one memory")
+    add_parser.add_argument("content", help="Memory text to store")
+    add_parser.add_argument("--metadata", help="JSON metadata object")
+    add_parser.add_argument("--prompt-context", help="JSON semantic prompt context override")
+    add_parser.add_argument("--approved-artifact-id", help="Approved semantic artifact to apply")
+    add_parser.add_argument("--database", help="Target database override")
+    add_parser.add_argument("--category", default="memory", help="Document category")
+    add_parser.add_argument("--source-type", default="text", help="Source type: text, csv, or pdf")
+    _add_client_options(add_parser, include_scope=True, include_json=True)
+
+    get_parser = subparsers.add_parser("get", help="Fetch one memory")
+    get_parser.add_argument("memory_id", help="Memory identifier")
+    get_parser.add_argument("--database", help="Target database override")
+    _add_client_options(get_parser, include_scope=False, include_json=True)
+
+    search_parser = subparsers.add_parser("search", help="Search memories")
+    search_parser.add_argument("query", help="Search query")
+    search_parser.add_argument("--limit", type=int, default=5, help="Max number of results")
+    search_parser.add_argument("--graph-id", action="append", dest="graph_ids", default=[], help="Graph routing hint")
+    search_parser.add_argument("--database", action="append", dest="databases", default=[], help="Database scope")
+    _add_client_options(search_parser, include_scope=True, include_json=True)
+
+    chat_parser = subparsers.add_parser("chat", help="Ask from memories")
+    chat_parser.add_argument("message", help="Question to ask")
+    chat_parser.add_argument("--limit", type=int, default=5, help="Max number of retrieval results")
+    chat_parser.add_argument("--graph-id", action="append", dest="graph_ids", default=[], help="Graph routing hint")
+    chat_parser.add_argument("--database", action="append", dest="databases", default=[], help="Database scope")
+    _add_client_options(chat_parser, include_scope=True, include_json=True)
+
+    ask_parser = subparsers.add_parser("ask", help="Alias for chat")
+    ask_parser.add_argument("message", help="Question to ask")
+    ask_parser.add_argument("--limit", type=int, default=5, help="Max number of retrieval results")
+    ask_parser.add_argument("--graph-id", action="append", dest="graph_ids", default=[], help="Graph routing hint")
+    ask_parser.add_argument("--database", action="append", dest="databases", default=[], help="Database scope")
+    _add_client_options(ask_parser, include_scope=True, include_json=True)
+
+    delete_parser = subparsers.add_parser("delete", help="Archive one memory")
+    delete_parser.add_argument("memory_id", help="Memory identifier")
+    delete_parser.add_argument("--database", help="Target database override")
+    _add_client_options(delete_parser, include_scope=False, include_json=True)
+
+    graphs_parser = subparsers.add_parser("graphs", help="List graph targets")
+    _add_client_options(graphs_parser, include_scope=False, include_json=True)
+
+    doctor_parser = subparsers.add_parser("doctor", help="Check API health and graph availability")
+    _add_client_options(doctor_parser, include_scope=False, include_json=True)
+
+    serve_parser = subparsers.add_parser("serve", help="Start the local SEOCHO docker stack")
+    serve_parser.add_argument("--project-dir", default=None, help="Repository root containing docker-compose.yml")
+    serve_parser.add_argument("--opik", action="store_true", help="Start optional Opik services too")
+    serve_parser.add_argument("--build", action="store_true", help="Rebuild images before starting")
+    serve_parser.add_argument("--no-wait", action="store_true", help="Return after docker compose starts")
+    serve_parser.add_argument("--timeout", type=float, default=90.0, help="Readiness wait timeout in seconds")
+    serve_parser.add_argument(
+        "--fallback-openai-key",
+        default="dummy-key",
+        help="Fallback OPENAI_API_KEY for local verification when no key is set",
+    )
+    serve_parser.add_argument("--dry-run", action="store_true", help="Print the compose command without running it")
+    serve_parser.add_argument("--json", dest="output_json", action="store_true", help="Emit JSON output")
+
+    stop_parser = subparsers.add_parser("stop", help="Stop the local SEOCHO docker stack")
+    stop_parser.add_argument("--project-dir", default=None, help="Repository root containing docker-compose.yml")
+    stop_parser.add_argument("--volumes", action="store_true", help="Also remove compose volumes")
+    stop_parser.add_argument("--dry-run", action="store_true", help="Print the compose command without running it")
+    stop_parser.add_argument("--json", dest="output_json", action="store_true", help="Emit JSON output")
+
+    artifacts_parser = subparsers.add_parser("artifacts", help="Manage semantic artifacts")
+    artifact_subparsers = artifacts_parser.add_subparsers(dest="artifact_command", required=True)
+
+    artifacts_list_parser = artifact_subparsers.add_parser("list", help="List semantic artifacts")
+    artifacts_list_parser.add_argument("--status", choices=["draft", "approved", "deprecated"], default=None)
+    _add_client_options(artifacts_list_parser, include_scope=False, include_json=True)
+
+    artifacts_get_parser = artifact_subparsers.add_parser("get", help="Read one semantic artifact")
+    artifacts_get_parser.add_argument("artifact_id", help="Semantic artifact identifier")
+    _add_client_options(artifacts_get_parser, include_scope=False, include_json=True)
+
+    artifacts_create_parser = artifact_subparsers.add_parser("create-draft", help="Create a draft semantic artifact")
+    artifacts_create_parser.add_argument("--artifact-file", required=True, help="Path to artifact JSON payload")
+    artifacts_create_parser.add_argument("--name", default=None, help="Override artifact name")
+    _add_client_options(artifacts_create_parser, include_scope=False, include_json=True)
+
+    artifacts_approve_parser = artifact_subparsers.add_parser("approve", help="Approve a draft semantic artifact")
+    artifacts_approve_parser.add_argument("artifact_id", help="Semantic artifact identifier")
+    artifacts_approve_parser.add_argument("--approved-by", required=True, help="Reviewer identifier")
+    artifacts_approve_parser.add_argument("--approval-note", default=None, help="Approval note")
+    _add_client_options(artifacts_approve_parser, include_scope=False, include_json=True)
+
+    artifacts_deprecate_parser = artifact_subparsers.add_parser("deprecate", help="Deprecate an approved semantic artifact")
+    artifacts_deprecate_parser.add_argument("artifact_id", help="Semantic artifact identifier")
+    artifacts_deprecate_parser.add_argument("--deprecated-by", required=True, help="Reviewer identifier")
+    artifacts_deprecate_parser.add_argument("--deprecation-note", default=None, help="Deprecation note")
+    _add_client_options(artifacts_deprecate_parser, include_scope=False, include_json=True)
+
+    artifacts_validate_parser = artifact_subparsers.add_parser("validate", help="Validate one artifact payload")
+    validate_source_group = artifacts_validate_parser.add_mutually_exclusive_group(required=True)
+    validate_source_group.add_argument("--artifact-id", dest="artifact_id", help="Semantic artifact identifier")
+    validate_source_group.add_argument("--artifact-file", dest="artifact_file", help="Artifact JSON payload path")
+    _add_client_options(artifacts_validate_parser, include_scope=False, include_json=True)
+
+    artifacts_diff_parser = artifact_subparsers.add_parser("diff", help="Diff two artifact payloads")
+    left_group = artifacts_diff_parser.add_mutually_exclusive_group(required=True)
+    left_group.add_argument("--left-artifact-id", dest="left_artifact_id", help="Left artifact identifier")
+    left_group.add_argument("--left-artifact-file", dest="left_artifact_file", help="Left artifact JSON payload path")
+    right_group = artifacts_diff_parser.add_mutually_exclusive_group(required=True)
+    right_group.add_argument("--right-artifact-id", dest="right_artifact_id", help="Right artifact identifier")
+    right_group.add_argument(
+        "--right-artifact-file",
+        dest="right_artifact_file",
+        help="Right artifact JSON payload path",
+    )
+    _add_client_options(artifacts_diff_parser, include_scope=False, include_json=True)
+
+    artifacts_apply_parser = artifact_subparsers.add_parser(
+        "apply",
+        help="Apply one approved artifact to a new memory ingest",
+    )
+    artifacts_apply_parser.add_argument("artifact_id", help="Approved semantic artifact identifier")
+    artifacts_apply_parser.add_argument("content", help="Memory text to store")
+    artifacts_apply_parser.add_argument("--metadata", help="JSON metadata object")
+    artifacts_apply_parser.add_argument("--prompt-context", help="JSON semantic prompt context override")
+    artifacts_apply_parser.add_argument("--database", help="Target database override")
+    artifacts_apply_parser.add_argument("--category", default="memory", help="Document category")
+    artifacts_apply_parser.add_argument("--source-type", default="text", help="Source type: text, csv, or pdf")
+    _add_client_options(artifacts_apply_parser, include_scope=True, include_json=True)
+
+    return parser
+
+
+def main(argv: Optional[Sequence[str]] = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(list(argv) if argv is not None else None)
+
+    client: Optional[Seocho] = None
+    if args.command not in {"serve", "stop"}:
+        client = Seocho(
+            base_url=getattr(args, "base_url", None),
+            workspace_id=getattr(args, "workspace_id", None),
+            user_id=getattr(args, "user_id", None),
+            agent_id=getattr(args, "agent_id", None),
+            session_id=getattr(args, "session_id", None),
+            timeout=getattr(args, "timeout", None),
+        )
+
+    try:
+        return _dispatch(client, args)
+    except SeochoError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    finally:
+        if client is not None:
+            client.close()
+
+
+def _dispatch(client: Optional[Seocho], args: argparse.Namespace) -> int:
+    if args.command not in {"serve", "stop"} and client is None:
+        raise SeochoError(f"{args.command} requires an initialized SEOCHO client")
+
+    if args.command == "add":
+        metadata = _parse_json_object(args.metadata, default={"source": "seocho_cli"}, field_name="--metadata")
+        prompt_context = _parse_json_object(args.prompt_context, default=None, field_name="--prompt-context")
+        created = client.add_with_details(
+            args.content,
+            metadata=metadata,
+            prompt_context=prompt_context,
+            user_id=getattr(args, "user_id", None),
+            agent_id=getattr(args, "agent_id", None),
+            session_id=getattr(args, "session_id", None),
+            approved_artifact_id=args.approved_artifact_id,
+            database=args.database,
+            category=args.category,
+            source_type=args.source_type,
+        )
+        _print_result(created, args.output_json)
+        return 0
+
+    if args.command == "get":
+        memory = client.get(args.memory_id, database=args.database)
+        _print_result(memory, args.output_json)
+        return 0
+
+    if args.command == "search":
+        results = client.search(
+            args.query,
+            limit=args.limit,
+            user_id=getattr(args, "user_id", None),
+            agent_id=getattr(args, "agent_id", None),
+            session_id=getattr(args, "session_id", None),
+            graph_ids=args.graph_ids or None,
+            databases=args.databases or None,
+        )
+        _print_search_results(results, args.output_json)
+        return 0
+
+    if args.command in {"chat", "ask"}:
+        response = client.chat(
+            args.message,
+            limit=args.limit,
+            user_id=getattr(args, "user_id", None),
+            agent_id=getattr(args, "agent_id", None),
+            session_id=getattr(args, "session_id", None),
+            graph_ids=args.graph_ids or None,
+            databases=args.databases or None,
+        )
+        _print_result(response, args.output_json)
+        return 0
+
+    if args.command == "delete":
+        result = client.delete(args.memory_id, database=args.database)
+        _print_result(result, args.output_json)
+        return 0
+
+    if args.command == "graphs":
+        graphs = client.graphs()
+        _print_graphs(graphs, args.output_json)
+        return 0
+
+    if args.command == "doctor":
+        payload = {
+            "runtime": client.health(scope="runtime"),
+            "graphs": [graph.to_dict() for graph in client.graphs()],
+        }
+        if args.output_json:
+            print(json.dumps(payload, indent=2))
+        else:
+            runtime_status = payload["runtime"].get("status", "unknown")
+            print(f"runtime: {runtime_status}")
+            print(f"graphs: {len(payload['graphs'])}")
+        return 0
+
+    if args.command == "serve":
+        status = serve_local_runtime(
+            project_dir=args.project_dir,
+            with_opik=args.opik,
+            build=args.build,
+            wait=not args.no_wait,
+            timeout=args.timeout,
+            fallback_openai_key=args.fallback_openai_key,
+            dry_run=args.dry_run,
+        )
+        _print_result(status, args.output_json)
+        return 0
+
+    if args.command == "stop":
+        status = stop_local_runtime(
+            project_dir=args.project_dir,
+            volumes=args.volumes,
+            dry_run=args.dry_run,
+        )
+        _print_result(status, args.output_json)
+        return 0
+
+    if args.command == "artifacts":
+        if client is None:
+            raise SeochoError("artifacts commands require an initialized SEOCHO client")
+        return _dispatch_artifacts(client, args)
+
+    raise SeochoError(f"Unknown command: {args.command}")
+
+
+def _dispatch_artifacts(client: Seocho, args: argparse.Namespace) -> int:
+    if args.artifact_command == "list":
+        artifacts = client.list_artifacts(status=args.status)
+        _print_artifacts(artifacts, args.output_json)
+        return 0
+
+    if args.artifact_command == "get":
+        artifact = client.get_artifact(args.artifact_id)
+        _print_result(artifact, args.output_json)
+        return 0
+
+    if args.artifact_command == "create-draft":
+        payload = _load_json_file(args.artifact_file, field_name="--artifact-file")
+        if args.name:
+            payload["name"] = args.name
+        artifact = client.create_artifact_draft(payload)
+        _print_result(artifact, args.output_json)
+        return 0
+
+    if args.artifact_command == "approve":
+        artifact = client.approve_artifact(
+            args.artifact_id,
+            approved_by=args.approved_by,
+            approval_note=args.approval_note,
+        )
+        _print_result(artifact, args.output_json)
+        return 0
+
+    if args.artifact_command == "deprecate":
+        artifact = client.deprecate_artifact(
+            args.artifact_id,
+            deprecated_by=args.deprecated_by,
+            deprecation_note=args.deprecation_note,
+        )
+        _print_result(artifact, args.output_json)
+        return 0
+
+    if args.artifact_command == "validate":
+        artifact = _resolve_artifact_argument(
+            client,
+            artifact_id=args.artifact_id,
+            artifact_file=args.artifact_file,
+        )
+        result = client.validate_artifact(artifact)
+        _print_result(result, args.output_json)
+        return 0 if result.ok else 1
+
+    if args.artifact_command == "diff":
+        left = _resolve_artifact_argument(
+            client,
+            artifact_id=args.left_artifact_id,
+            artifact_file=args.left_artifact_file,
+        )
+        right = _resolve_artifact_argument(
+            client,
+            artifact_id=args.right_artifact_id,
+            artifact_file=args.right_artifact_file,
+        )
+        diff = client.diff_artifacts(left, right)
+        _print_result(diff, args.output_json)
+        return 0
+
+    if args.artifact_command == "apply":
+        metadata = _parse_json_object(args.metadata, default={"source": "seocho_cli"}, field_name="--metadata")
+        prompt_context = _parse_json_object(args.prompt_context, default=None, field_name="--prompt-context")
+        created = client.apply_artifact(
+            args.artifact_id,
+            args.content,
+            metadata=metadata,
+            prompt_context=prompt_context,
+            database=args.database,
+            category=args.category,
+            source_type=args.source_type,
+            user_id=getattr(args, "user_id", None),
+            agent_id=getattr(args, "agent_id", None),
+            session_id=getattr(args, "session_id", None),
+        )
+        _print_result(created, args.output_json)
+        return 0
+
+    raise SeochoError(f"Unknown artifacts command: {args.artifact_command}")
+
+
+def _add_client_options(
+    parser: argparse.ArgumentParser,
+    *,
+    include_scope: bool,
+    include_json: bool,
+) -> None:
+    parser.add_argument("--base-url", default=None, help="SEOCHO API base URL")
+    parser.add_argument("--workspace-id", default=None, help="Workspace scope")
+    parser.add_argument("--timeout", type=float, default=None, help="HTTP timeout in seconds")
+    if include_scope:
+        parser.add_argument("--user-id", default=None, help="User scope")
+        parser.add_argument("--agent-id", default=None, help="Agent scope")
+        parser.add_argument("--session-id", default=None, help="Session scope")
+    if include_json:
+        parser.add_argument("--json", dest="output_json", action="store_true", help="Emit JSON output")
+
+
+def _parse_json_object(
+    raw: Optional[str],
+    *,
+    default: Optional[Dict[str, Any]],
+    field_name: str,
+) -> Optional[Dict[str, Any]]:
+    if not raw:
+        return default
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise SeochoError(f"{field_name} must be valid JSON") from exc
+    if not isinstance(payload, dict):
+        raise SeochoError(f"{field_name} must be a JSON object")
+    return payload
+
+
+def _load_json_file(path: str, *, field_name: str) -> Dict[str, Any]:
+    file_path = Path(path)
+    try:
+        raw = file_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise SeochoError(f"{field_name} could not be read: {exc}") from exc
+    return _parse_json_object(raw, default=None, field_name=field_name) or {}
+
+
+def _resolve_artifact_argument(
+    client: Seocho,
+    *,
+    artifact_id: Optional[str],
+    artifact_file: Optional[str],
+) -> Dict[str, Any] | SemanticArtifact:
+    if artifact_id:
+        return client.get_artifact(artifact_id)
+    if artifact_file:
+        return _load_json_file(artifact_file, field_name="--artifact-file")
+    raise SeochoError("artifact input is required")
+
+
+def _print_result(value: Any, output_json: bool) -> None:
+    if output_json:
+        print(json.dumps(_serialize(value), indent=2))
+        return
+
+    if isinstance(value, MemoryCreateResult):
+        memory = value.memory
+        print(f"stored {memory.memory_id} in workspace={memory.workspace_id}")
+        return
+
+    if isinstance(value, Memory):
+        print(value.content)
+        return
+
+    if isinstance(value, ChatResponse):
+        print(value.assistant_message)
+        return
+
+    if isinstance(value, ArchiveResult):
+        print(f"archived {value.memory_id} from {value.database}")
+        return
+
+    if isinstance(value, SemanticArtifact):
+        print(f"{value.artifact_id} [{value.status}] {value.name}")
+        return
+
+    if isinstance(value, ArtifactValidationResult):
+        label = "valid" if value.ok else "invalid"
+        print(f"artifact {label}: {value.summary.get('error_count', 0)} errors, {value.summary.get('warning_count', 0)} warnings")
+        for item in value.errors:
+            suffix = f" ({item.path})" if item.path else ""
+            print(f"error [{item.code}]{suffix}: {item.message}")
+        for item in value.warnings:
+            suffix = f" ({item.path})" if item.path else ""
+            print(f"warning [{item.code}]{suffix}: {item.message}")
+        return
+
+    if isinstance(value, ArtifactDiff):
+        print(f"diff {value.left_name} -> {value.right_name}")
+        for section in ("metadata", "ontology_classes", "ontology_relationships", "shacl_shapes", "vocabulary_terms"):
+            section_changes = value.changes.get(section, {})
+            for key in ("changed", "added", "removed"):
+                entries = section_changes.get(key, [])
+                if entries:
+                    print(f"{section} {key}: {', '.join(entries)}")
+        return
+
+    if isinstance(value, LocalRuntimeStatus):
+        if value.status == "dry_run":
+            print(" ".join(value.command))
+            return
+        if value.action == "serve":
+            suffix = " using fallback OPENAI_API_KEY" if value.used_fallback_openai_key else ""
+            print(f"runtime {value.status} at {value.api_url}{suffix}")
+            print(f"ui: {value.ui_url}")
+            print(f"graph: {value.graph_url}")
+            return
+        print(f"runtime {value.status} in {value.project_dir}")
+        return
+
+    print(json.dumps(_serialize(value), indent=2))
+
+
+def _print_search_results(results: Sequence[SearchResult], output_json: bool) -> None:
+    if output_json:
+        print(json.dumps([item.to_dict() for item in results], indent=2))
+        return
+
+    if not results:
+        print("no memories found")
+        return
+
+    for index, result in enumerate(results, start=1):
+        preview = result.content_preview or result.content
+        print(f"{index}. [{result.score:.2f}] {preview}")
+
+
+def _print_graphs(graphs: Iterable[GraphTarget], output_json: bool) -> None:
+    graph_list = list(graphs)
+    if output_json:
+        print(json.dumps([graph.to_dict() for graph in graph_list], indent=2))
+        return
+
+    if not graph_list:
+        print("no graph targets configured")
+        return
+
+    for graph in graph_list:
+        description = f" - {graph.description}" if graph.description else ""
+        print(f"{graph.graph_id} ({graph.database}){description}")
+
+
+def _print_artifacts(artifacts: Sequence[SemanticArtifactSummary], output_json: bool) -> None:
+    if output_json:
+        print(json.dumps([artifact.to_dict() for artifact in artifacts], indent=2))
+        return
+
+    if not artifacts:
+        print("no semantic artifacts found")
+        return
+
+    for artifact in artifacts:
+        print(f"{artifact.artifact_id} [{artifact.status}] {artifact.name or artifact.artifact_id}")
+
+
+def _serialize(value: Any) -> Any:
+    if hasattr(value, "to_dict"):
+        return value.to_dict()
+    if isinstance(value, list):
+        return [_serialize(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _serialize(item) for key, item in value.items()}
+    return value

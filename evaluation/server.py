@@ -78,6 +78,13 @@ async def api_ingest_raw(request: Request):
     return JSONResponse(content=data)
 
 
+@app.post("/api/indexes/fulltext/ensure")
+async def api_indexes_fulltext_ensure(request: Request):
+    payload = await request.json()
+    data = await _proxy("POST", "/indexes/fulltext/ensure", payload=payload)
+    return JSONResponse(content=data)
+
+
 @app.get("/api/chat/session/{session_id}")
 async def api_chat_session(session_id: str):
     data = await _proxy("GET", f"/platform/chat/session/{session_id}")

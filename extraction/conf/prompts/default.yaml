@@ -25,6 +25,36 @@ system: |
   {{ shacl_constraints }}
   {% endif %}
 
+  {% if vocabulary_terms is defined and vocabulary_terms %}
+  Use these vocabulary and SKOS-compatible term hints for canonicalization and alias handling:
+  {{ vocabulary_terms }}
+  {% endif %}
+
+  {% if record_metadata_json is defined and record_metadata_json %}
+  Source metadata:
+  {{ record_metadata_json }}
+  {% endif %}
+
+  {% if graph_context is defined and graph_context %}
+  Graph target metadata:
+  {{ graph_context }}
+  {% endif %}
+
+  {% if developer_instructions is defined and developer_instructions %}
+  Developer instructions:
+  {{ developer_instructions }}
+  {% endif %}
+
+  {% if ontology_context_notes is defined and ontology_context_notes %}
+  Extraction guidance:
+  {{ ontology_context_notes }}
+  {% endif %}
+
+  {% if entity_guidance is defined and entity_guidance %}
+  Known entity guidance:
+  {{ entity_guidance }}
+  {% endif %}
+
   Return the output in JSON format with two keys: "nodes" and "relationships".
 
   Nodes format: {"id": "unique_id", "label": "EntityType", "properties": {"name": "Entity Name", ...}}

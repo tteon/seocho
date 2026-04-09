@@ -1,0 +1,735 @@
+import os
+import sys
+from typing import Any, Dict, List, Optional
+
+import pytest
+import requests
+
+
+ROOT_DIR = os.path.join(os.path.dirname(__file__), "..", "..")
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+
+import seocho as seocho_module
+from seocho import (
+    ApprovedArtifacts,
+    EntityOverride,
+    KnownEntity,
+    OntologyCandidate,
+    OntologyClass,
+    OntologyProperty,
+    Seocho,
+    SemanticArtifactDraftInput,
+    SemanticPromptContext,
+    ShaclCandidate,
+    ShaclPropertyConstraint,
+    ShaclShape,
+    VocabularyCandidate,
+    VocabularyTerm,
+)
+from seocho.exceptions import SeochoConnectionError, SeochoHTTPError
+
+
+class _FakeResponse:
+    def __init__(
+        self,
+        *,
+        status_code: int = 200,
+        payload: Optional[Dict[str, Any]] = None,
+        text: str = "",
+    ) -> None:
+        self.status_code = status_code
+        self._payload = payload
+        self.text = text
+
+    def json(self) -> Dict[str, Any]:
+        if self._payload is None:
+            raise ValueError("no json payload")
+        return self._payload
+
+
+class _FakeSession:
+    def __init__(self, responses: List[_FakeResponse]) -> None:
+        self.responses = list(responses)
+        self.calls: List[Dict[str, Any]] = []
+        self.closed = False
+
+    def request(self, method: str, url: str, json=None, params=None, timeout=None):
+        self.calls.append(
+            {
+                "method": method,
+                "url": url,
+                "json": json,
+                "params": params,
+                "timeout": timeout,
+            }
+        )
+        if not self.responses:
+            raise AssertionError("No fake responses left")
+        return self.responses.pop(0)
+
+    def close(self) -> None:
+        self.closed = True
+
+
+def test_add_search_chat_and_graphs_use_public_api_contract():
+    session = _FakeSession(
+        [
+            _FakeResponse(
+                payload={
+                    "memory": {
+                        "memory_id": "mem_1",
+                        "workspace_id": "default",
+                        "content": "Alice manages Seoul retail.",
+                        "metadata": {"source": "sdk"},
+                        "status": "stored",
+                        "created_at": "2026-03-13T00:00:00Z",
+                        "updated_at": "2026-03-13T00:00:00Z",
+                        "database": "kgnormal",
+                    },
+                    "ingest_summary": {"records_processed": 1},
+                    "trace_id": "tr_1",
+                }
+            ),
+            _FakeResponse(
+                payload={
+                    "results": [
+                        {
+                            "memory_id": "mem_1",
+                            "content": "Alice manages Seoul retail.",
+                            "content_preview": "Alice manages Seoul retail.",
+                            "metadata": {"source": "sdk"},
+                            "score": 0.93,
+                            "reasons": ["entity_match"],
+                            "matched_entities": ["Seoul"],
+                            "database": "kgnormal",
+                            "status": "active",
+                            "evidence_bundle": {"intent_id": "responsibility_lookup"},
+                        }
+                    ],
+                    "semantic_context": {"entities": ["Seoul"]},
+                    "trace_id": "tr_2",
+                }
+            ),
+            _FakeResponse(
+                payload={
+                    "assistant_message": "Alice manages Seoul retail.",
+                    "memory_hits": [{"memory_id": "mem_1", "score": 0.93, "database": "kgnormal"}],
+                    "search_results": [
+                        {
+                            "memory_id": "mem_1",
+                            "content": "Alice manages Seoul retail.",
+                            "content_preview": "Alice manages Seoul retail.",
+                            "metadata": {"source": "sdk"},
+                            "score": 0.93,
+                            "reasons": ["entity_match"],
+                            "matched_entities": ["Seoul"],
+                            "database": "kgnormal",
+                            "status": "active",
+                            "evidence_bundle": {"intent_id": "responsibility_lookup"},
+                        }
+                    ],
+                    "semantic_context": {"entities": ["Seoul"]},
+                    "evidence_bundle": {"intent_id": "responsibility_lookup", "missing_slots": []},
+                    "trace_id": "tr_3",
+                }
+            ),
+            _FakeResponse(
+                payload={
+                    "graphs": [
+                        {
+                            "graph_id": "kgnormal",
+                            "database": "kgnormal",
+                            "uri": "bolt://neo4j:7687",
+                            "ontology_id": "baseline",
+                            "vocabulary_profile": "vocabulary.v2",
+                            "description": "Baseline graph",
+                            "workspace_scope": "default",
+                        }
+                    ]
+                }
+            ),
+        ]
+    )
+    client = Seocho(
+        base_url="http://localhost:8001",
+        workspace_id="default",
+        user_id="alex",
+        session=session,
+    )
+
+    memory = client.add("Alice manages Seoul retail.", metadata={"source": "sdk"})
+    results = client.search("Who manages Seoul retail?", graph_ids=["kgnormal"])
+    answer = client.chat("What do we know about Seoul retail?", graph_ids=["kgnormal"])
+    graphs = client.graphs()
+
+    assert memory.memory_id == "mem_1"
+    assert results[0].matched_entities == ["Seoul"]
+    assert results[0].evidence_bundle["intent_id"] == "responsibility_lookup"
+    assert answer.assistant_message == "Alice manages Seoul retail."
+    assert answer.evidence_bundle["intent_id"] == "responsibility_lookup"
+    assert graphs[0].graph_id == "kgnormal"
+
+    assert session.calls[0]["method"] == "POST"
+    assert session.calls[0]["url"] == "http://localhost:8001/api/memories"
+    assert session.calls[0]["json"]["user_id"] == "alex"
+    assert session.calls[1]["json"]["graph_ids"] == ["kgnormal"]
+    assert session.calls[2]["url"] == "http://localhost:8001/api/chat"
+    assert session.calls[3]["url"] == "http://localhost:8001/graphs"
+
+
+def test_get_delete_and_ask_return_convenience_shapes():
+    session = _FakeSession(
+        [
+            _FakeResponse(
+                payload={
+                    "memory": {
+                        "memory_id": "mem_1",
+                        "workspace_id": "default",
+                        "content": "Stored memory",
+                        "metadata": {},
+                        "status": "active",
+                        "created_at": "2026-03-13T00:00:00Z",
+                        "updated_at": "2026-03-13T00:00:00Z",
+                    },
+                    "trace_id": "tr_get",
+                }
+            ),
+            _FakeResponse(
+                payload={
+                    "assistant_message": "Stored memory",
+                    "memory_hits": [],
+                    "search_results": [],
+                    "semantic_context": {},
+                    "trace_id": "tr_chat",
+                }
+            ),
+            _FakeResponse(
+                payload={
+                    "memory_id": "mem_1",
+                    "workspace_id": "default",
+                    "database": "kgnormal",
+                    "status": "archived",
+                    "archived_at": "2026-03-13T00:00:00Z",
+                    "archived_nodes": 3,
+                    "trace_id": "tr_del",
+                }
+            ),
+        ]
+    )
+    client = Seocho(base_url="http://localhost:8001", session=session)
+
+    memory = client.get("mem_1")
+    answer = client.ask("What do we know?")
+    archived = client.delete("mem_1")
+
+    assert memory.content == "Stored memory"
+    assert answer == "Stored memory"
+    assert archived.archived_nodes == 3
+    assert session.calls[0]["params"]["workspace_id"] == "default"
+
+
+def test_http_errors_are_promoted_to_sdk_exceptions():
+    session = _FakeSession(
+        [
+            _FakeResponse(status_code=400, payload={"detail": "bad request"}),
+        ]
+    )
+    client = Seocho(session=session)
+
+    with pytest.raises(SeochoHTTPError, match="bad request"):
+        client.search("bad query")
+
+
+def test_connection_errors_are_promoted_to_sdk_exceptions(monkeypatch):
+    class _BrokenSession:
+        def request(self, *args, **kwargs):
+            raise requests.RequestException("connection refused")
+
+        def close(self) -> None:
+            return None
+
+    client = Seocho(session=_BrokenSession())
+
+    with pytest.raises(SeochoConnectionError, match="Could not reach SEOCHO"):
+        client.graphs()
+
+
+def test_add_with_details_supports_prompt_context_and_approved_artifacts():
+    session = _FakeSession(
+        [
+            _FakeResponse(
+                payload={
+                    "memory": {
+                        "memory_id": "mem_advanced",
+                        "workspace_id": "default",
+                        "content": "Advanced prompt memory",
+                        "metadata": {"source": "sdk"},
+                        "status": "stored",
+                        "created_at": "2026-03-13T00:00:00Z",
+                        "updated_at": "2026-03-13T00:00:00Z",
+                    },
+                    "ingest_summary": {"records_processed": 1},
+                    "trace_id": "tr_advanced",
+                }
+            )
+        ]
+    )
+    client = Seocho(base_url="http://localhost:8001", session=session)
+
+    client.add_with_details(
+        "Advanced prompt memory",
+        metadata={"source": "sdk"},
+        prompt_context={
+            "instructions": ["Prefer the customer ontology."],
+            "vocabulary_candidate": {"terms": [{"pref_label": "Customer"}]},
+        },
+        approved_artifact_id="sa_approved_1",
+    )
+
+    request_body = session.calls[0]["json"]
+    assert request_body["approved_artifact_id"] == "sa_approved_1"
+    assert request_body["metadata"]["semantic_prompt_context"]["instructions"] == [
+        "Prefer the customer ontology."
+    ]
+
+
+def test_add_with_details_accepts_typed_prompt_context_and_artifact_payloads():
+    session = _FakeSession(
+        [
+            _FakeResponse(
+                payload={
+                    "memory": {
+                        "memory_id": "mem_typed",
+                        "workspace_id": "default",
+                        "content": "Typed prompt memory",
+                        "metadata": {"source": "sdk"},
+                        "status": "stored",
+                        "created_at": "2026-03-13T00:00:00Z",
+                        "updated_at": "2026-03-13T00:00:00Z",
+                    },
+                    "ingest_summary": {"records_processed": 1},
+                    "trace_id": "tr_typed",
+                }
+            )
+        ]
+    )
+    client = Seocho(base_url="http://localhost:8001", session=session)
+
+    client.add_with_details(
+        "Typed prompt memory",
+        metadata={"source": "sdk"},
+        prompt_context=SemanticPromptContext(
+            instructions=["Prefer approved ontology labels."],
+            known_entities=[KnownEntity(name="ACME Holdings", label="Company")],
+            vocabulary_candidate=VocabularyCandidate(
+                terms=[VocabularyTerm(pref_label="Retail Account", alt_labels=["Account"])]
+            ),
+        ),
+        approved_artifacts=ApprovedArtifacts(
+            ontology_candidate=OntologyCandidate(
+                ontology_name="customer",
+                classes=[
+                    OntologyClass(
+                        name="RetailAccount",
+                        properties=[OntologyProperty(name="owner", datatype="string")],
+                    )
+                ],
+            ),
+            shacl_candidate=ShaclCandidate(
+                shapes=[
+                    ShaclShape(
+                        target_class="RetailAccount",
+                        properties=[ShaclPropertyConstraint(path="owner", constraint="required")],
+                    )
+                ]
+            ),
+        ),
+    )
+
+    request_body = session.calls[0]["json"]
+    assert request_body["approved_artifacts"]["ontology_candidate"]["ontology_name"] == "customer"
+    assert request_body["metadata"]["semantic_prompt_context"]["known_entities"][0]["name"] == "ACME Holdings"
+    assert request_body["metadata"]["semantic_prompt_context"]["vocabulary_candidate"]["terms"][0]["pref_label"] == "Retail Account"
+
+
+def test_artifact_client_methods_use_expert_api_surface():
+    session = _FakeSession(
+        [
+            _FakeResponse(
+                payload={
+                    "artifacts": [
+                        {
+                            "artifact_id": "sa_1",
+                            "workspace_id": "default",
+                            "name": "finance_v1",
+                            "created_at": "2026-03-13T00:00:00Z",
+                            "status": "approved",
+                            "approved_at": "2026-03-13T01:00:00Z",
+                            "approved_by": "reviewer",
+                        }
+                    ]
+                }
+            ),
+            _FakeResponse(
+                payload={
+                    "workspace_id": "default",
+                    "artifact_id": "sa_1",
+                    "name": "finance_v1",
+                    "status": "approved",
+                    "created_at": "2026-03-13T00:00:00Z",
+                    "approved_at": "2026-03-13T01:00:00Z",
+                    "approved_by": "reviewer",
+                    "source_summary": {},
+                    "ontology_candidate": {"ontology_name": "finance", "classes": [], "relationships": []},
+                    "shacl_candidate": {"shapes": []},
+                    "vocabulary_candidate": {"schema_version": "vocabulary.v2", "profile": "skos", "terms": []},
+                }
+            ),
+            _FakeResponse(
+                payload={
+                    "workspace_id": "default",
+                    "artifact_id": "sa_2",
+                    "name": "finance_v2",
+                    "status": "draft",
+                    "created_at": "2026-03-13T02:00:00Z",
+                    "source_summary": {},
+                    "ontology_candidate": {"ontology_name": "finance", "classes": [], "relationships": []},
+                    "shacl_candidate": {"shapes": []},
+                    "vocabulary_candidate": {"schema_version": "vocabulary.v2", "profile": "skos", "terms": []},
+                }
+            ),
+            _FakeResponse(
+                payload={
+                    "workspace_id": "default",
+                    "artifact_id": "sa_2",
+                    "name": "finance_v2",
+                    "status": "approved",
+                    "created_at": "2026-03-13T02:00:00Z",
+                    "approved_at": "2026-03-13T03:00:00Z",
+                    "approved_by": "reviewer",
+                    "source_summary": {},
+                    "ontology_candidate": {"ontology_name": "finance", "classes": [], "relationships": []},
+                    "shacl_candidate": {"shapes": []},
+                    "vocabulary_candidate": {"schema_version": "vocabulary.v2", "profile": "skos", "terms": []},
+                }
+            ),
+            _FakeResponse(
+                payload={
+                    "workspace_id": "default",
+                    "artifact_id": "sa_2",
+                    "name": "finance_v2",
+                    "status": "deprecated",
+                    "created_at": "2026-03-13T02:00:00Z",
+                    "deprecated_at": "2026-03-13T04:00:00Z",
+                    "deprecated_by": "reviewer",
+                    "source_summary": {},
+                    "ontology_candidate": {"ontology_name": "finance", "classes": [], "relationships": []},
+                    "shacl_candidate": {"shapes": []},
+                    "vocabulary_candidate": {"schema_version": "vocabulary.v2", "profile": "skos", "terms": []},
+                }
+            ),
+        ]
+    )
+    client = Seocho(base_url="http://localhost:8001", session=session)
+
+    draft_input = SemanticArtifactDraftInput(
+        name="finance_v2",
+        ontology_candidate=OntologyCandidate(ontology_name="finance"),
+        shacl_candidate=ShaclCandidate(),
+    )
+
+    listed = client.list_artifacts(status="approved")
+    fetched = client.get_artifact("sa_1")
+    created = client.create_artifact_draft(draft_input)
+    approved = client.approve_artifact("sa_2", approved_by="reviewer")
+    deprecated = client.deprecate_artifact("sa_2", deprecated_by="reviewer")
+
+    assert listed[0].artifact_id == "sa_1"
+    assert fetched.artifact_id == "sa_1"
+    assert created.status == "draft"
+    assert approved.status == "approved"
+    assert deprecated.status == "deprecated"
+
+    assert session.calls[0]["url"] == "http://localhost:8001/semantic/artifacts"
+    assert session.calls[0]["params"]["status"] == "approved"
+    assert session.calls[1]["url"] == "http://localhost:8001/semantic/artifacts/sa_1"
+    assert session.calls[2]["url"] == "http://localhost:8001/semantic/artifacts/drafts"
+    assert session.calls[2]["json"]["name"] == "finance_v2"
+    assert session.calls[3]["url"] == "http://localhost:8001/semantic/artifacts/sa_2/approve"
+    assert session.calls[4]["url"] == "http://localhost:8001/semantic/artifacts/sa_2/deprecate"
+
+
+def test_apply_artifact_posts_memory_with_approved_only_policy():
+    session = _FakeSession(
+        [
+            _FakeResponse(
+                payload={
+                    "memory": {
+                        "memory_id": "mem_apply",
+                        "workspace_id": "default",
+                        "content": "ACME acquired Beta in 2024.",
+                        "metadata": {"source": "sdk"},
+                        "status": "stored",
+                        "created_at": "2026-03-13T00:00:00Z",
+                        "updated_at": "2026-03-13T00:00:00Z",
+                    },
+                    "ingest_summary": {"records_processed": 1},
+                    "trace_id": "tr_apply",
+                }
+            )
+        ]
+    )
+    client = Seocho(base_url="http://localhost:8001", session=session)
+
+    created = client.apply_artifact(
+        "sa_approved_finance_v1",
+        "ACME acquired Beta in 2024.",
+        metadata={"source": "sdk"},
+    )
+
+    assert created.memory.memory_id == "mem_apply"
+    request_body = session.calls[0]["json"]
+    assert request_body["approved_artifact_id"] == "sa_approved_finance_v1"
+    assert request_body["semantic_artifact_policy"] == "approved_only"
+
+
+def test_validate_and_diff_artifact_helpers_are_available_locally():
+    client = Seocho()
+
+    valid = client.validate_artifact(
+        SemanticArtifactDraftInput(
+            name="finance_v1",
+            ontology_candidate=OntologyCandidate(
+                ontology_name="finance",
+                classes=[OntologyClass(name="Company")],
+            ),
+            shacl_candidate=ShaclCandidate(
+                shapes=[ShaclShape(target_class="Company")]
+            ),
+            vocabulary_candidate=VocabularyCandidate(
+                terms=[VocabularyTerm(pref_label="Issuer")]
+            ),
+        )
+    )
+    invalid = client.validate_artifact(
+        {
+            "name": "broken",
+            "ontology_candidate": {"ontology_name": "", "classes": [{"name": ""}], "relationships": []},
+            "shacl_candidate": {"shapes": [{"target_class": "", "properties": []}]},
+            "vocabulary_candidate": {"schema_version": "vocabulary.v2", "profile": "skos", "terms": [{"pref_label": ""}]},
+        }
+    )
+    diff = client.diff_artifacts(
+        {
+            "name": "finance_v1",
+            "ontology_candidate": {"ontology_name": "finance", "classes": [{"name": "Company"}], "relationships": []},
+            "shacl_candidate": {"shapes": [{"target_class": "Company", "properties": []}]},
+            "vocabulary_candidate": {"schema_version": "vocabulary.v2", "profile": "skos", "terms": [{"pref_label": "Issuer"}]},
+        },
+        {
+            "name": "finance_v2",
+            "ontology_candidate": {
+                "ontology_name": "finance",
+                "classes": [{"name": "Company"}, {"name": "Subsidiary"}],
+                "relationships": [{"type": "OWNS", "source": "Company", "target": "Subsidiary"}],
+            },
+            "shacl_candidate": {
+                "shapes": [
+                    {"target_class": "Company", "properties": []},
+                    {"target_class": "Subsidiary", "properties": []},
+                ]
+            },
+            "vocabulary_candidate": {
+                "schema_version": "vocabulary.v2",
+                "profile": "skos",
+                "terms": [{"pref_label": "Issuer"}, {"pref_label": "Subsidiary"}],
+            },
+        },
+    )
+
+    assert valid.ok is True
+    assert invalid.ok is False
+    assert any(item.code == "ontology.class_name_missing" for item in invalid.errors)
+    assert diff.summary["classes_added"] == 1
+    assert diff.summary["relationships_added"] == 1
+    assert diff.summary["terms_added"] == 1
+
+
+def test_runtime_client_methods_cover_semantic_debate_platform_and_admin_surfaces():
+    session = _FakeSession(
+        [
+            _FakeResponse(
+                payload={
+                    "response": "router answer",
+                    "trace_steps": [{"type": "GENERATION"}],
+                }
+            ),
+            _FakeResponse(
+                payload={
+                    "response": "semantic answer",
+                    "trace_steps": [{"type": "SEMANTIC"}],
+                    "route": "lpg",
+                    "semantic_context": {
+                        "entities": ["Neo4j"],
+                        "matches": {"Neo4j": [{"database": "kgnormal"}]},
+                        "unresolved_entities": [],
+                    },
+                    "lpg_result": {"records": []},
+                    "rdf_result": None,
+                }
+            ),
+            _FakeResponse(
+                payload={
+                    "response": "debate answer",
+                    "trace_steps": [{"type": "SYSTEM"}],
+                    "debate_results": [{"graph": "kgnormal", "response": "agent answer"}],
+                    "agent_statuses": [{"graph": "kgnormal", "status": "ready", "reason": "checked"}],
+                    "debate_state": "ready",
+                    "degraded": False,
+                }
+            ),
+            _FakeResponse(
+                payload={
+                    "session_id": "s1",
+                    "mode": "debate",
+                    "assistant_message": "platform answer",
+                    "trace_steps": [{"type": "GENERATION"}],
+                    "ui_payload": {"cards": []},
+                    "runtime_payload": {"response": "platform answer", "debate_state": "ready"},
+                    "history": [
+                        {"role": "user", "content": "hello", "metadata": {}},
+                        {"role": "assistant", "content": "platform answer", "metadata": {}},
+                    ],
+                }
+            ),
+            _FakeResponse(
+                payload={
+                    "session_id": "s1",
+                    "history": [{"role": "user", "content": "hello", "metadata": {}}],
+                }
+            ),
+            _FakeResponse(
+                payload={
+                    "session_id": "s1",
+                    "history": [],
+                }
+            ),
+            _FakeResponse(
+                payload={
+                    "workspace_id": "default",
+                    "target_database": "kgnormal",
+                    "records_received": 1,
+                    "records_processed": 1,
+                    "records_failed": 0,
+                    "total_nodes": 3,
+                    "total_relationships": 1,
+                    "status": "success",
+                    "warnings": [],
+                    "errors": [],
+                }
+            ),
+            _FakeResponse(payload={"databases": ["kgnormal", "kgfinance"]}),
+            _FakeResponse(payload={"agents": ["kgnormal", "kgfinance"]}),
+            _FakeResponse(
+                payload={
+                    "results": [
+                        {
+                            "database": "kgnormal",
+                            "index_name": "entity_fulltext",
+                            "exists": True,
+                            "created": False,
+                            "state": "ONLINE",
+                            "labels": ["Entity"],
+                            "properties": ["name"],
+                            "message": "ok",
+                        }
+                    ]
+                }
+            ),
+        ]
+    )
+    client = Seocho(base_url="http://localhost:8001", workspace_id="default", user_id="alex", session=session)
+
+    routed = client.router("hello")
+    semantic = client.semantic(
+        "Tell me about Neo4j",
+        databases=["kgnormal"],
+        entity_overrides=[EntityOverride(question_entity="Neo4j", database="kgnormal", node_id=1)],
+    )
+    debated = client.debate("Compare graphs", graph_ids=["kgnormal"])
+    platform = client.platform_chat("hello", mode="debate", session_id="s1", graph_ids=["kgnormal"])
+    history = client.session_history("s1")
+    reset = client.reset_session("s1")
+    ingested = client.raw_ingest(
+        [{"id": "r1", "content": "Alpha acquired Beta."}],
+        target_database="kgnormal",
+    )
+    databases = client.databases()
+    agents = client.agents()
+    fulltext = client.ensure_fulltext_indexes(databases=["kgnormal"])
+
+    assert routed.response == "router answer"
+    assert semantic.route == "lpg"
+    assert semantic.semantic_context["entities"] == ["Neo4j"]
+    assert debated.debate_results[0]["graph"] == "kgnormal"
+    assert platform.history[1].content == "platform answer"
+    assert history.history[0].role == "user"
+    assert reset.history == []
+    assert ingested.records_processed == 1
+    assert databases == ["kgnormal", "kgfinance"]
+    assert agents == ["kgnormal", "kgfinance"]
+    assert fulltext.results[0].database == "kgnormal"
+
+    assert session.calls[0]["url"] == "http://localhost:8001/run_agent"
+    assert session.calls[1]["url"] == "http://localhost:8001/run_agent_semantic"
+    assert session.calls[1]["json"]["entity_overrides"][0]["question_entity"] == "Neo4j"
+    assert session.calls[2]["url"] == "http://localhost:8001/run_debate"
+    assert session.calls[3]["url"] == "http://localhost:8001/platform/chat/send"
+    assert session.calls[6]["url"] == "http://localhost:8001/platform/ingest/raw"
+    assert session.calls[9]["url"] == "http://localhost:8001/indexes/fulltext/ensure"
+
+
+def test_module_level_convenience_api_uses_configured_default_client():
+    session = _FakeSession(
+        [
+            _FakeResponse(
+                payload={
+                    "assistant_message": "Stored memory",
+                    "memory_hits": [],
+                    "search_results": [],
+                    "semantic_context": {},
+                    "trace_id": "tr_chat",
+                }
+            ),
+            _FakeResponse(
+                payload={
+                    "response": "debate answer",
+                    "trace_steps": [],
+                    "debate_results": [],
+                    "agent_statuses": [],
+                    "debate_state": "blocked",
+                    "degraded": True,
+                }
+            ),
+            _FakeResponse(payload={"databases": ["kgnormal"]}),
+        ]
+    )
+
+    seocho_module.close()
+    seocho_module.configure(
+        base_url="http://localhost:8001",
+        workspace_id="default",
+        user_id="alex",
+        session=session,
+    )
+    try:
+        answer = seocho_module.ask("What do we know?")
+        debate = seocho_module.debate("Compare graphs")
+        databases = seocho_module.databases()
+    finally:
+        seocho_module.close()
+
+    assert answer == "Stored memory"
+    assert debate.debate_state == "blocked"
+    assert databases == ["kgnormal"]

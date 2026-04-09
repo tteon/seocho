@@ -102,11 +102,18 @@ services:
       - graphrag-net
 
   opik-redis:
-    image: redis:7.2.4-alpine
+    image: redis:7.2.4-alpine3.19
     container_name: opik-redis
     profiles: ["opik"]
+    command: redis-server --requirepass ${OPIK_REDIS_PASSWORD:-opik}
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${OPIK_REDIS_PASSWORD:-opik}", "ping"]
+      interval: 2s
+      timeout: 4s
+      retries: 20
+      start_period: 30s
     networks:
       - graphrag-net
 
@@ -133,13 +140,19 @@ services:
       - "9000:9000"
     volumes:
       - ./data/opik/clickhouse:/var/lib/clickhouse
+      - ./opik/clickhouse_config/additional_config.xml:/etc/clickhouse-server/config.d/additional_config.xml:ro
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8123/ping"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
     depends_on:
       - opik-zookeeper
     networks:
       - graphrag-net
 
   opik-minio:
-    image: minio/minio
+    image: minio/minio:RELEASE.2025-03-12T18-04-18Z
     container_name: opik-minio
     profiles: ["opik"]
     environment:
@@ -155,7 +168,7 @@ services:
       - graphrag-net
 
   opik-minio-init:
-    image: minio/mc
+    image: minio/mc:RELEASE.2025-03-12T17-29-24Z
     container_name: opik-minio-init
     profiles: ["opik"]
     entrypoint: >
@@ -173,62 +186,80 @@ services:
       - graphrag-net
 
   opik-backend:
-    image: ghcr.io/comet-ml/opik/opik-backend:${OPIK_VERSION:-latest}
+    image: ghcr.io/comet-ml/opik/opik-backend:${OPIK_VERSION:-1.10.18}
     container_name: opik-backend
     profiles: ["opik"]
+    command: [ "bash", "-c", "./run_db_migrations.sh && ./entrypoint.sh" ]
     environment:
-      STATE_DB_URL: jdbc:mysql://opik-mysql:3306/opik
+      STATE_DB_PROTOCOL: "jdbc:mysql://"
+      STATE_DB_URL: "opik-mysql:3306/opik?createDatabaseIfNotExist=true&rewriteBatchedStatements=true"
+      STATE_DB_DATABASE_NAME: opik
       STATE_DB_USER: opik
       STATE_DB_PASS: ${OPIK_MYSQL_PASSWORD:-opik}
+      ANALYTICS_DB_MIGRATIONS_URL: "jdbc:clickhouse://opik-clickhouse:8123"
+      ANALYTICS_DB_MIGRATIONS_USER: ${OPIK_CH_USER:-opik}
+      ANALYTICS_DB_MIGRATIONS_PASS: ${OPIK_CH_PASSWORD:-opik}
       ANALYTICS_DB_PROTOCOL: HTTP
       ANALYTICS_DB_HOST: opik-clickhouse
       ANALYTICS_DB_PORT: 8123
       ANALYTICS_DB_USERNAME: ${OPIK_CH_USER:-opik}
-      ANALYTICS_DB_PASSWORD: ${OPIK_CH_PASSWORD:-opik}
+      ANALYTICS_DB_PASS: ${OPIK_CH_PASSWORD:-opik}
       ANALYTICS_DB_DATABASE_NAME: opik
-      REDIS_URL: redis://opik-redis:6379
-      MINIO_URL: http://opik-minio:9000
-      MINIO_ACCESS_KEY: ${OPIK_MINIO_USER:-opik}
-      MINIO_SECRET_KEY: ${OPIK_MINIO_PASSWORD:-opikopik}
-      MINIO_BUCKET: opik
+      REDIS_URL: redis://:${OPIK_REDIS_PASSWORD:-opik}@opik-redis:6379/
+      AWS_ACCESS_KEY_ID: ${OPIK_MINIO_USER:-opik}
+      AWS_SECRET_ACCESS_KEY: ${OPIK_MINIO_PASSWORD:-opikopik}
+      IS_MINIO: "true"
+      S3_URL: http://opik-minio:9000
+      PYTHON_EVALUATOR_URL: http://opik-python-backend:8000
+      JAVA_OPTS: "-Dliquibase.propertySubstitutionEnabled=true -XX:+UseG1GC -XX:MaxRAMPercentage=80.0"
     ports:
       - "8080:8080"
       - "3003:3003"
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/health-check" ]
+      interval: 2s
+      timeout: 10s
+      retries: 120
+      start_period: 3s
     depends_on:
       opik-mysql:
         condition: service_healthy
       opik-clickhouse:
-        condition: service_started
+        condition: service_healthy
       opik-redis:
-        condition: service_started
+        condition: service_healthy
       opik-minio-init:
         condition: service_completed_successfully
     networks:
       - graphrag-net
 
   opik-python-backend:
-    image: ghcr.io/comet-ml/opik/opik-python-backend:${OPIK_VERSION:-latest}
+    image: ghcr.io/comet-ml/opik/opik-python-backend:${OPIK_VERSION:-1.10.18}
     container_name: opik-python-backend
     profiles: ["opik"]
+    privileged: true
     environment:
-      OPIK_BASE_URL: http://opik-backend:8080/api
+      OPIK_URL_OVERRIDE: http://opik-backend:8080
+      REDIS_URL: redis://:${OPIK_REDIS_PASSWORD:-opik}@opik-redis:6379/0
+      OPIK_VERSION: ${OPIK_VERSION:-1.10.18}
+      PYTHON_CODE_EXECUTOR_STRATEGY: process
     ports:
       - "8000:8000"
     depends_on:
-      - opik-backend
+      opik-backend:
+        condition: service_healthy
     networks:
       - graphrag-net
 
   opik-frontend:
-    image: ghcr.io/comet-ml/opik/opik-frontend:${OPIK_VERSION:-latest}
+    image: ghcr.io/comet-ml/opik/opik-frontend:${OPIK_VERSION:-1.10.18}
     container_name: opik-frontend
     profiles: ["opik"]
-    environment:
-      OPIK_BASE_URL: http://opik-backend:8080/api
     ports:
       - "5173:5173"
     depends_on:
-      - opik-backend
+      opik-backend:
+        condition: service_healthy
     networks:
       - graphrag-net
 

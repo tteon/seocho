@@ -25,7 +25,7 @@ Primary surfaces:
 - `extraction/agent_server.py`
 - `extraction/policy.py`
 - `docs/decisions/`
-- `docs/ADD_PLAYBOOK.md`
+- `docs/BEADS_OPERATING_MODEL.md`
 
 ## Data Plane
 
@@ -48,11 +48,16 @@ Primary surfaces:
 1. Intake
 - define issue scope and acceptance criteria
 - assign `workspace_id`
+- fill or update the relevant `docs/*` sections using the `DEV-*` prefixes defined in `docs/DEVELOPER_INPUT_CONVENTIONS.md`
+- mark any blocker that should stop implementation as `DEV-INPUT-REQUIRED`
 - capture work item using standardized scripts:
   - `scripts/pm/new-issue.sh`
   - `scripts/pm/new-task.sh`
+- for semantic retrieval or graph-grounded answer work, align the change with
+  `docs/GRAPH_RAG_AGENT_HANDOFF_SPEC.md`
 - confirm philosophy alignment against `docs/PHILOSOPHY.md` (ontology evidence, router/graph mapping, traceability)
 - for architecture-significant work, run a panel feasibility review using `docs/PHILOSOPHY_FEASIBILITY_REVIEW.md`
+- before coding, have the agent restate the active `DEV-DECISION`, `DEV-CONSTRAINT`, `DEV-API-CONTRACT`, and `DEV-ACCEPTANCE` lines it will implement
 
 2. Ingestion and graph build
 - run extraction pipeline
@@ -64,7 +69,7 @@ Primary surfaces:
 - when governance review is required, persist draft artifacts and promote via approval lifecycle API (`/semantic/artifacts/*`)
 - apply SHACL-like rule inference/validation
 - run readiness check with `/rules/assess` before promoting profile to governance baseline
-- save reusable rule profiles (`/rules/profiles`)
+- save reusable rule profiles (`/rules/profiles`) in durable registry (`RULE_PROFILE_DIR/rule_profiles.db`)
 - export governance artifacts (`/rules/export/cypher`, `/rules/export/shacl`)
 - load graph into DozerDB
 
@@ -90,6 +95,7 @@ Semantic path summary:
 - run code and ops gates
 - run runtime flow smoke gate (`make e2e-smoke`) when API/UI/data-plane contracts change
 - run quickstart reproducibility check (raw ingest -> semantic/debate chat) before release notes
+- optional one-command landing wrapper: `scripts/land.sh --task-id <id> --fix --pull --push`
 - run sprint label lint (`scripts/pm/lint-items.sh --sprint <id>`)
 - run agent docs lint (`scripts/pm/lint-agent-docs.sh`)
 - close issue, rebase, sync, push
@@ -113,7 +119,77 @@ Operational notes:
 - action design: `repository_dispatch` (`seocho-docs-sync`) to `tteon/tteon.github.io`
 - rollout note: remote activation may be pending until repository owner applies a `workflow`-scoped token (`DOCS_SYNC_TOKEN`)
 
-5. Governance loop
+5. Daily Codex Maintenance Automation
+
+- workflow: `.github/workflows/daily-codex-maintenance.yml`
+- cadence: daily at `00:15 UTC` (`09:15 Asia/Seoul`) plus `workflow_dispatch`
+- required secrets:
+  - `OPENAI_API_KEY`
+  - `SEOCHO_GITHUB_APP_ID`
+  - `SEOCHO_GITHUB_APP_PRIVATE_KEY`
+- prompt contract: `.github/codex/prompts/daily-maintenance-pr.md`
+- skill contract: `.agents/skills/daily-maintenance-pr/SKILL.md`
+- operating rule: open or update a small draft PR only; no direct push to
+  `main`, no auto-merge
+- PR body contract:
+  - `Feature`
+  - `Why`
+  - `Design`
+  - `Expected Effect`
+  - `Impact Results`
+  - `Validation`
+  - `Risks`
+
+6. Periodic Codex Review Automation
+
+- workflow: `.github/workflows/periodic-codex-review.yml`
+- cadence: weekly on Monday at `00:45 UTC` (`09:45 Asia/Seoul`) plus
+  `workflow_dispatch`
+- required secrets:
+  - `OPENAI_API_KEY`
+  - `SEOCHO_GITHUB_APP_ID`
+  - `SEOCHO_GITHUB_APP_PRIVATE_KEY`
+- prompt contract: `.github/codex/prompts/periodic-review-pr.md`
+- skill contract: `.agents/skills/periodic-review-pr/SKILL.md`
+- operating rule: open or update one draft PR for a single bounded refactor,
+  SDK improvement, packaging hardening, or related reviewable change; no direct
+  push to `main`, no auto-merge
+- PR body contract:
+  - `Feature`
+  - `Why`
+  - `Design`
+  - `Expected Effect`
+  - `Impact Results`
+  - `Validation`
+  - `Risks`
+
+7. Python Package Publish Automation
+
+- workflow: `.github/workflows/publish-python-package.yml`
+- trigger:
+  - manual `workflow_dispatch` to `testpypi` or `pypi`
+  - automatic on `v*` tags for production publish
+- build gate:
+  - `python -m build`
+  - `python -m twine check dist/*`
+- publish contract:
+  - prefer PyPI trusted publishing through GitHub environments `testpypi` and
+    `pypi`
+  - configure trusted publisher registration before production publish
+  - on tag pushes, require `v<project.version>` to match `pyproject.toml`
+
+8. Comment-Based Merge Automation
+
+- workflow: `.github/workflows/pr-comment-merge.yml`
+- trigger: `issue_comment` on PRs with command exactly `/go`
+- authorization:
+  - commenter must have repository permission `write`, `maintain`, or `admin`
+- merge behavior:
+  - PR must be open and not draft
+  - merge method is `squash`
+  - branch protection and required checks still apply
+
+9. Governance loop
 - log architecture decisions as ADRs
 - track context graph events and quality metrics
 - schedule follow-up issues for unresolved risks

@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 class DebateResult:
     """Result from a single agent in the debate."""
     agent_name: str
+    graph_id: str
     db_name: str
     response: str
     trace_steps: List[Dict[str, Any]] = field(default_factory=list)
@@ -45,7 +46,7 @@ class DebateOrchestrator:
         shared_memory: SharedMemory,
         agents_runtime=None,
     ):
-        self.agents = agents          # {db_name: Agent}
+        self.agents = agents          # {graph_id: Agent}
         self.supervisor = supervisor
         self.shared_memory = shared_memory
         self._agents_runtime = agents_runtime or get_agents_runtime()
@@ -61,7 +62,7 @@ class DebateOrchestrator:
         """Execute full debate cycle: fan-out → collect → synthesise."""
 
         agent_names = [a.name for a in self.agents.values()]
-        db_names = list(self.agents.keys())
+        graph_ids = list(self.agents.keys())
         update_current_trace(
             metadata={"query": query[:200], "mode": "parallel_debate"},
             tags=["debate"],
@@ -71,21 +72,21 @@ class DebateOrchestrator:
                 "phase": "orchestration",
                 "agent_count": len(self.agents),
                 "agent_names": agent_names,
-                "db_names": db_names,
+                "graph_ids": graph_ids,
             },
         )
 
         # 1. Parallel execution (fan-out)
         tasks = [
-            self._run_single_agent(db_name, agent, query, context)
-            for db_name, agent in self.agents.items()
+            self._run_single_agent(graph_id, agent, query, context)
+            for graph_id, agent in self.agents.items()
         ]
         debate_results: List[DebateResult] = await asyncio.gather(*tasks)
 
         # 2. Store results in shared memory (collect)
         for result in debate_results:
             self.shared_memory.put(
-                f"agent_result:{result.db_name}", result.response
+                f"agent_result:{result.graph_id}", result.response
             )
 
         # 3. Synthesise with Supervisor
@@ -104,6 +105,7 @@ class DebateOrchestrator:
             "debate_results": [
                 {
                     "agent": r.agent_name,
+                    "graph": r.graph_id,
                     "db": r.db_name,
                     "response": r.response,
                 }
@@ -117,15 +119,15 @@ class DebateOrchestrator:
 
     @track("debate.run_single_agent")
     async def _run_single_agent(
-        self, db_name: str, agent: Agent, query: str, context: Any
+        self, graph_id: str, agent: Agent, query: str, context: Any
     ) -> DebateResult:
         update_current_span(
             metadata={
                 "phase": "fan-out",
-                "db_name": db_name,
+                "graph_id": graph_id,
                 "agent_name": agent.name,
             },
-            tags=[f"db:{db_name}", "debate-agent"],
+            tags=[f"graph:{graph_id}", "debate-agent"],
         )
         try:
             with self._agents_runtime.trace(f"Debate:{agent.name}"):
@@ -140,7 +142,8 @@ class DebateOrchestrator:
             )
             return DebateResult(
                 agent_name=agent.name,
-                db_name=db_name,
+                graph_id=graph_id,
+                db_name=str(getattr(agent, "graph_database", graph_id)),
                 response=response_text,
                 trace_steps=self._extract_trace(result),
             )
@@ -152,7 +155,8 @@ class DebateOrchestrator:
             )
             return DebateResult(
                 agent_name=agent.name,
-                db_name=db_name,
+                graph_id=graph_id,
+                db_name=str(getattr(agent, "graph_database", graph_id)),
                 response=f"Error: {e}",
                 trace_steps=[],
             )
@@ -196,7 +200,7 @@ class DebateOrchestrator:
         parts = [f"Original Question: {query}\n\nAgent Responses:\n"]
         for r in results:
             parts.append(
-                f"--- {r.agent_name} ({r.db_name}) ---\n{r.response}\n"
+                f"--- {r.agent_name} (graph={r.graph_id}, database={r.db_name}) ---\n{r.response}\n"
             )
         parts.append(
             "\nSynthesize these responses into a single, coherent answer. "
@@ -307,6 +311,7 @@ class DebateOrchestrator:
                     "node_id": debate_node_id,
                     "parent_id": fanout_node_id,
                     "phase": "fan-out",
+                    "graph": r.graph_id,
                     "db": r.db_name,
                     "full_content": r.response,
                 },
@@ -331,6 +336,7 @@ class DebateOrchestrator:
                         "node_id": sub_id,
                         "parent_id": prev_sub_id,
                         "phase": "fan-out",
+                        "graph": r.graph_id,
                         "db": r.db_name,
                         "full_content": sub_content,
                         "tool_names": ts.get("tool_names", []),

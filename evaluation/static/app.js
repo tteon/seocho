@@ -16,6 +16,7 @@
   const ingestDbInput = document.getElementById("ingestDbInput");
   const ingestInput = document.getElementById("ingestInput");
   const ingestBtn = document.getElementById("ingestBtn");
+  const oneClickDemoBtn = document.getElementById("oneClickDemoBtn");
   const statusPill = document.getElementById("statusPill");
   const resetSessionBtn = document.getElementById("resetSessionBtn");
   const bubbleTemplate = document.getElementById("bubbleTemplate");
@@ -141,6 +142,83 @@
     const data = await response.json();
     setStatus("Idle", "ok");
     return data;
+  }
+
+  async function ensureFulltextIndex(targetDb) {
+    const payload = {
+      workspace_id: workspaceInput.value.trim() || "default",
+      databases: [targetDb],
+      index_name: "entity_fulltext",
+      create_if_missing: true,
+    };
+    const response = await fetch("/api/indexes/fulltext/ensure", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`fulltext ensure failed: ${response.status} ${errText}`);
+    }
+    const data = await response.json();
+    if (!data.results || !data.results.length) {
+      throw new Error("fulltext ensure returned empty result");
+    }
+    return data;
+  }
+
+  function troubleshootingHint() {
+    return [
+      "Troubleshooting quick commands:",
+      "- docker compose logs --tail=200 extraction-service",
+      "- docker compose logs --tail=200 evaluation-interface",
+      "- docker compose ps",
+    ].join("\n");
+  }
+
+  async function runOneClickDemo() {
+    const targetDb = (ingestDbInput?.value || "kgdemo_ui").trim() || "kgdemo_ui";
+    if (!ingestInput.value.trim()) {
+      ingestInput.value = [
+        "ACME acquired Beta in 2024.",
+        "Beta provides graph analytics to ACME.",
+        "Gamma supplies infrastructure to Beta.",
+      ].join("\n");
+    }
+
+    appendBubble(
+      "assistant",
+      [
+        `[ONE-CLICK DEMO] starting`,
+        `workspace=${workspaceInput.value.trim() || "default"}, db=${targetDb}`,
+        "step1: ingest sample records",
+      ].join("\n")
+    );
+
+    const ingestResult = await ingestRawRecords();
+    if (ingestResult.target_database && !parseDatabases().includes(ingestResult.target_database)) {
+      const dbs = parseDatabases();
+      dbs.push(ingestResult.target_database);
+      databasesInput.value = dbs.join(",");
+    }
+
+    appendBubble(
+      "assistant",
+      [
+        `[ONE-CLICK DEMO] step2: ensure fulltext index`,
+        `ingest_status=${ingestResult.status}`,
+      ].join("\n")
+    );
+
+    await ensureFulltextIndex(targetDb);
+
+    modeSelect.value = "semantic";
+    updateRailMode("semantic");
+    const question = `Show the main entities and relationships in ${targetDb}.`;
+
+    appendBubble("assistant", `[ONE-CLICK DEMO] step3: ask semantic question\nquestion=${question}`);
+    const data = await sendChatMessage(question);
+    applyResponse(data);
   }
 
   function createDagNode(step) {
@@ -377,6 +455,29 @@
         appendBubble("assistant", `Raw ingest error: ${err.message}`);
       } finally {
         ingestBtn.disabled = false;
+      }
+    });
+  }
+
+  if (oneClickDemoBtn) {
+    oneClickDemoBtn.addEventListener("click", async () => {
+      oneClickDemoBtn.disabled = true;
+      if (ingestBtn) ingestBtn.disabled = true;
+      try {
+        await runOneClickDemo();
+      } catch (err) {
+        console.error(err);
+        setStatus("Error", "error");
+        appendBubble(
+          "assistant",
+          [
+            `[ONE-CLICK DEMO] failed: ${err.message}`,
+            troubleshootingHint(),
+          ].join("\n\n")
+        );
+      } finally {
+        oneClickDemoBtn.disabled = false;
+        if (ingestBtn) ingestBtn.disabled = false;
       }
     });
   }

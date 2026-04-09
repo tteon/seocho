@@ -1,51 +1,66 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "seocho"
 version = "0.1.0"
-description = "Agent-Driven Knowledge Graph Platform"
-readme = "README.md"
+description = "Developer-friendly Python SDK for the SEOCHO graph-memory runtime"
+readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.11"
+license = "MIT"
+authors = [
+    { name = "SEOCHO contributors" },
+]
+keywords = ["agents", "knowledge-graph", "graphrag", "memory", "sdk", "seocho"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+urls = { Homepage = "https://github.com/tteon/seocho", Repository = "https://github.com/tteon/seocho", Issues = "https://github.com/tteon/seocho/issues" }
 dependencies = [
-    # Neo4j
-    "neo4j",
-    # OpenAI
-    "openai",
-    "openai-agents",
-    # FastAPI server
-    "fastapi",
-    "uvicorn",
-    "pydantic>=2.0",
-    # LLM pipeline
-    "pyyaml",
-    "jinja2",
-    "tenacity>=8.2.0",
-    # Data handling
-    "pandas",
-    "pyarrow",
-    "fastparquet",
-    "datasets",
-    "huggingface_hub",
-    "pypdf",
-    # Vector search
-    "faiss-cpu",
-    # Observability
-    "opik",
-    # Utilities
     "requests",
     "python-dotenv",
-    "graphviz",
-    "numpy",
 ]
+
+[project.scripts]
+seocho = "seocho.cli:main"
 
 [project.optional-dependencies]
 dev = [
+    "datasets",
+    "faiss-cpu",
+    "fastapi",
+    "fastparquet",
+    "build",
     "pytest>=7.0",
     "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.1.0",
     "httpx>=0.25.0",
     "requests-mock",
+    "twine",
+    "graphviz",
+    "huggingface_hub",
+    "jinja2",
     "flake8",
     "black",
     "isort",
+    "neo4j",
+    "numpy",
+    "openai",
+    "openai-agents",
+    "opik",
+    "pandas",
+    "pyarrow",
+    "pydantic>=2.0",
+    "pypdf",
+    "pyyaml",
+    "tenacity>=8.2.0",
+    "uvicorn",
 ]
 notebook = [
     "jupyter",
@@ -67,3 +82,9 @@ line_length = 88
 [tool.flake8]
 max-line-length = 88
 exclude = ["__pycache__", "*.pyc", ".git", "demos"]
+
+[tool.setuptools.packages.find]
+include = ["seocho*"]
+
+[tool.setuptools.package-data]
+seocho = ["py.typed"]

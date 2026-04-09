@@ -1,0 +1,63 @@
+#!/usr/bin/env sh
+set -eu
+
+# Repo-managed bd flush hook.
+# Uses explicit --db path + --no-daemon to avoid workspace/prefix mismatch.
+
+if ! command -v bd >/dev/null 2>&1; then
+  exit 0
+fi
+
+if ! command -v git >/dev/null 2>&1; then
+  exit 0
+fi
+
+if ! git rev-parse --git-dir >/dev/null 2>&1; then
+  exit 0
+fi
+
+WORKTREE_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+GIT_COMMON_DIR="$(git rev-parse --git-common-dir 2>/dev/null || true)"
+MAIN_ROOT=""
+
+if [ -n "${GIT_COMMON_DIR}" ]; then
+  MAIN_ROOT="$(cd "${GIT_COMMON_DIR}/.." >/dev/null 2>&1 && pwd)"
+fi
+
+BEADS_DIR=""
+if [ -n "${MAIN_ROOT}" ] && [ -d "${MAIN_ROOT}/.beads" ]; then
+  BEADS_DIR="${MAIN_ROOT}/.beads"
+elif [ -d "${WORKTREE_ROOT}/.beads" ]; then
+  BEADS_DIR="${WORKTREE_ROOT}/.beads"
+fi
+
+if [ -z "${BEADS_DIR}" ]; then
+  exit 0
+fi
+
+# Skip Dolt backend.
+if [ -f "${BEADS_DIR}/metadata.json" ] && grep -q '"backend"[[:space:]]*:[[:space:]]*"dolt"' "${BEADS_DIR}/metadata.json" 2>/dev/null; then
+  exit 0
+fi
+
+DB_PATH="${BEADS_DIR}/beads.db"
+if [ -f "${DB_PATH}" ]; then
+  if ! bd --no-daemon sync --flush-only --db "${DB_PATH}" >/dev/null 2>&1; then
+    echo "Error: bd flush failed (explicit DB mode)." >&2
+    echo "Run: bd --no-daemon sync --flush-only --db \"${DB_PATH}\"" >&2
+    exit 1
+  fi
+else
+  if ! bd --no-daemon sync --flush-only >/dev/null 2>&1; then
+    echo "Error: bd flush failed." >&2
+    echo "Run: bd --no-daemon sync --flush-only" >&2
+    exit 1
+  fi
+fi
+
+# Stage issues.jsonl only in same working tree.
+if [ -f "${WORKTREE_ROOT}/.beads/issues.jsonl" ]; then
+  git -C "${WORKTREE_ROOT}" add .beads/issues.jsonl >/dev/null 2>&1 || true
+fi
+
+exit 0

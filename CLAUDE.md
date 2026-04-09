@@ -39,7 +39,7 @@ Primary surfaces:
 - `extraction/agent_server.py`
 - `extraction/policy.py`
 - `docs/decisions/*`
-- `docs/ADD_PLAYBOOK.md`
+- `docs/BEADS_OPERATING_MODEL.md`
 
 ## Data Plane
 
@@ -136,8 +136,8 @@ Current endpoints:
 
 Rules constraints:
 
-- `required` maps to Cypher constraints
-- unsupported mappings (`datatype`, `enum`, `range`) must be explicit in response
+- `required` and `datatype` map to Cypher constraints
+- `enum` and `range` are returned with fallback `validation_query` hooks in `unsupported_rules`
 
 ## 6.3 Owlready2 Boundary
 

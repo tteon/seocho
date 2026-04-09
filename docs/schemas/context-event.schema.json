@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://seocho.dev/schemas/context-event/cg.v0",
+  "title": "SEOCHO Context Event",
+  "description": "Canonical JSON event schema for context-graph trace records.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "event_id",
+    "task_id",
+    "run_id",
+    "event_type",
+    "timestamp",
+    "scope",
+    "payload",
+    "source_ref"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "cg.v0"
+    },
+    "event_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^evt_[A-Za-z0-9_.:-]+$"
+    },
+    "task_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "event_type": {
+      "type": "string",
+      "enum": [
+        "task_claimed",
+        "run_started",
+        "artifact_changed",
+        "gate_result",
+        "landing_result",
+        "run_finished",
+        "task_closed"
+      ]
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "scope": {
+      "type": "string",
+      "minLength": 1
+    },
+    "payload": {
+      "type": "object"
+    },
+    "source_ref": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

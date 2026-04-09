@@ -1,0 +1,11 @@
+graphs:
+  - graph_id: kgnormal
+    database: kgnormal
+    ontology_id: baseline
+    vocabulary_profile: vocabulary.v2
+    description: Baseline enterprise graph for general entity extraction and retrieval.
+  - graph_id: kgfibo
+    database: kgfibo
+    ontology_id: fibo
+    vocabulary_profile: vocabulary.v2
+    description: Financial ontology graph for FIBO-aligned concepts and reasoning.

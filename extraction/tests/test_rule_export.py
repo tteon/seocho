@@ -35,6 +35,47 @@ def test_export_unsupported_rule_kind_marked():
     assert out["statements"] == []
     assert len(out["unsupported_rules"]) == 1
     assert out["unsupported_rules"][0]["kind"] == "range"
+    assert "validation_query" in out["unsupported_rules"][0]
+    assert "MATCH (n:Company)" in out["unsupported_rules"][0]["validation_query"]
+
+
+def test_export_datatype_rule_to_cypher_type_constraint():
+    profile = {
+        "schema_version": "rules.v1",
+        "rules": [
+            {
+                "label": "Company",
+                "property_name": "employees",
+                "kind": "datatype",
+                "params": {"datatype": "integer"},
+            }
+        ],
+    }
+    out = export_ruleset_to_cypher(profile)
+    assert len(out["statements"]) == 1
+    assert "IS :: INTEGER" in out["statements"][0]
+    assert out["unsupported_rules"] == []
+
+
+def test_export_enum_rule_has_validation_query_hook():
+    profile = {
+        "schema_version": "rules.v1",
+        "rules": [
+            {
+                "label": "Company",
+                "property_name": "tier",
+                "kind": "enum",
+                "params": {"allowedValues": ["gold", "silver"]},
+            }
+        ],
+    }
+    out = export_ruleset_to_cypher(profile)
+    assert out["statements"] == []
+    assert len(out["unsupported_rules"]) == 1
+    unsupported = out["unsupported_rules"][0]
+    assert unsupported["kind"] == "enum"
+    assert "validation_query" in unsupported
+    assert "NOT n.tier IN ['gold', 'silver']" in unsupported["validation_query"]
 
 
 def test_export_ruleset_to_shacl_turtle_contains_constraints():

@@ -307,6 +307,83 @@ class Seocho:
             on_progress=on_progress,
         )
 
+    def index_file(
+        self,
+        path: str,
+        *,
+        database: str = "neo4j",
+        category: str = "file",
+        force: bool = False,
+    ) -> Dict[str, Any]:
+        """Index a single file (.txt, .md, .csv, .json, .jsonl).
+
+        Reads the file, extracts entities using ontology-aware prompts,
+        validates, and writes to the graph.  Tracks file changes so
+        re-running on the same file is a no-op unless the file changed
+        or ``force=True``.
+
+        Parameters
+        ----------
+        path:
+            Path to the file.
+        force:
+            Re-index even if the file hasn't changed.
+
+        Returns
+        -------
+        Dict with ``path``, ``status``, ``records_found``, ``indexing``
+        details.  Only available in local mode.
+        """
+        if not self._local_mode:
+            raise RuntimeError("index_file() requires local engine mode")
+        from .file_indexer import FileIndexer
+        indexer = FileIndexer(self._engine._indexing, database=database, category=category)
+        result = indexer.index_file(path, database=database, category=category, force=force)
+        return result.to_dict()
+
+    def index_directory(
+        self,
+        directory: str,
+        *,
+        database: str = "neo4j",
+        category: str = "file",
+        recursive: bool = True,
+        force: bool = False,
+        on_file: Optional[Any] = None,
+    ) -> Dict[str, Any]:
+        """Index all supported files in a directory.
+
+        Scans for ``.txt``, ``.md``, ``.csv``, ``.json``, ``.jsonl``
+        files and indexes each one.  Tracks which files have been
+        indexed previously — unchanged files are skipped automatically.
+
+        Parameters
+        ----------
+        directory:
+            Path to the directory.
+        recursive:
+            Scan subdirectories.
+        force:
+            Re-index all files regardless of change status.
+        on_file:
+            Progress callback ``(file_path, current, total)``.
+
+        Returns
+        -------
+        Dict with ``files_found``, ``files_indexed``, ``files_skipped``,
+        ``files_failed``, ``files_unchanged``, and per-file results.
+        Only available in local mode.
+        """
+        if not self._local_mode:
+            raise RuntimeError("index_directory() requires local engine mode")
+        from .file_indexer import FileIndexer
+        indexer = FileIndexer(self._engine._indexing, database=database, category=category)
+        result = indexer.index_directory(
+            directory, database=database, category=category,
+            recursive=recursive, force=force, on_file=on_file,
+        )
+        return result.to_dict()
+
     def reindex(
         self,
         source_id: str,

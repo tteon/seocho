@@ -182,23 +182,25 @@ class IndexingPipeline:
 
     Orchestrates: chunk → extract → validate → dedup → write.
 
-    Parameters
-    ----------
-    ontology:
-        The ontology driving extraction and validation.
-    graph_store:
-        Target graph database.
-    llm:
-        LLM backend for extraction and linking.
-    workspace_id:
-        Tenant scope.
-    strict_validation:
-        If True, reject chunks that fail SHACL validation instead of
-        writing them with warnings.
-    max_chunk_chars:
-        Maximum characters per chunk for long documents.
-    enable_dedup:
-        Check content hash before indexing to skip duplicates.
+    **Callbacks** (Open-Closed Principle): Inject your logic at any
+    pipeline stage without modifying source code::
+
+        def my_filter(nodes, relationships):
+            # Remove nodes without a name
+            nodes = [n for n in nodes if n["properties"].get("name")]
+            return nodes, relationships
+
+        pipeline = IndexingPipeline(
+            ontology=onto, graph_store=store, llm=llm,
+            on_after_extract=my_filter,
+        )
+
+    Available callbacks:
+
+    - ``on_after_extract(nodes, rels) → (nodes, rels)``
+    - ``on_after_validate(nodes, rels, errors) → (nodes, rels, errors)``
+    - ``on_before_write(nodes, rels) → (nodes, rels)``
+    - ``on_after_write(nodes, rels, summary) → None``
     """
 
     def __init__(
@@ -211,6 +213,10 @@ class IndexingPipeline:
         strict_validation: bool = False,
         max_chunk_chars: int = 6000,
         enable_dedup: bool = True,
+        on_after_extract: Optional[Callable] = None,
+        on_after_validate: Optional[Callable] = None,
+        on_before_write: Optional[Callable] = None,
+        on_after_write: Optional[Callable] = None,
     ) -> None:
         from seocho.ontology import Ontology
         from .prompt_strategy import ExtractionStrategy, LinkingStrategy
@@ -223,6 +229,12 @@ class IndexingPipeline:
         self.max_chunk_chars = max_chunk_chars
         self.enable_dedup = enable_dedup
         self._seen_hashes: set = set()
+
+        # Callbacks
+        self.on_after_extract = on_after_extract
+        self.on_after_validate = on_after_validate
+        self.on_before_write = on_before_write
+        self.on_after_write = on_after_write
 
         self._extraction = ExtractionStrategy(ontology)
         self._linking = LinkingStrategy(ontology)
@@ -300,8 +312,17 @@ class IndexingPipeline:
                 result.skipped_chunks += 1
                 continue
 
+            # --- Callback: on_after_extract ---
+            if self.on_after_extract:
+                nodes, rels = self.on_after_extract(nodes, rels)
+
             # Validate with SHACL
             errors = self.ontology.validate_with_shacl(extracted)
+
+            # --- Callback: on_after_validate ---
+            if self.on_after_validate:
+                nodes, rels, errors = self.on_after_validate(nodes, rels, errors)
+
             if errors:
                 result.validation_errors.extend(errors)
                 if self.strict_validation:
@@ -333,6 +354,10 @@ class IndexingPipeline:
         # Cross-chunk dedup: merge nodes with same label+name
         all_nodes = self._cross_chunk_dedup(all_nodes)
 
+        # --- Callback: on_before_write ---
+        if self.on_before_write:
+            all_nodes, all_rels = self.on_before_write(all_nodes, all_rels)
+
         # Write to graph
         if all_nodes or all_rels:
             try:
@@ -345,6 +370,11 @@ class IndexingPipeline:
                 result.total_nodes = summary.get("nodes_created", 0)
                 result.total_relationships = summary.get("relationships_created", 0)
                 result.write_errors = summary.get("errors", [])
+
+                # --- Callback: on_after_write ---
+                if self.on_after_write:
+                    self.on_after_write(all_nodes, all_rels, summary)
+
             except Exception as exc:
                 result.write_errors.append(str(exc))
 

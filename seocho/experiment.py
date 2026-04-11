@@ -1,34 +1,41 @@
 """
-Experiment runner — compare different configurations side by side.
+Experiment workbench — explore parameter combinations to find optimal
+extraction and query settings.
 
-Run the same input through two different setups (ontology, model, chunk
-size, etc.) and see a structured diff of the results.
+Quick start::
 
-Usage::
+    from seocho.experiment import Workbench
 
-    from seocho.experiment import ExperimentRunner
+    wb = Workbench(input_texts=["Samsung CEO Jay Y. Lee met NVIDIA's Jensen Huang."])
+    wb.vary("ontology", ["schema_v1.jsonld", "schema_v2.jsonld"])
+    wb.vary("model", ["gpt-4o", "gpt-4o-mini"])
+    wb.vary("chunk_size", [4000, 8000])
 
-    runner = ExperimentRunner(graph_store=store)
-    result_a = runner.run(ontology=onto_v1, llm=llm_4o, text="...")
-    result_b = runner.run(ontology=onto_v2, llm=llm_mini, text="...")
+    results = wb.run_all()              # 2 x 2 x 2 = 8 runs
+    print(results.best_by("extraction_score"))
+    print(results.leaderboard())
+    results.save("./experiments/run_001")
+
+Also includes the simpler pairwise compare from earlier::
+
+    runner = ExperimentRunner()
     diff = runner.compare(result_a, result_b)
-    print(diff)
-
-CLI::
-
-    seocho compare \\
-      --config-a schema_v1.jsonld --config-b schema_v2.jsonld \\
-      --input "Samsung CEO Jay Y. Lee..."
 """
 
 from __future__ import annotations
 
+import itertools
 import json
+import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional, Sequence, Union
 
 from .ontology import Ontology
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -44,6 +51,8 @@ class ExperimentResult:
     extraction_score: float = 0.0
     validation_errors: List[str] = field(default_factory=list)
     elapsed_seconds: float = 0.0
+    params: Dict[str, Any] = field(default_factory=dict)  # all varied parameters
+    usage: Dict[str, int] = field(default_factory=dict)  # LLM token usage
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -55,6 +64,8 @@ class ExperimentResult:
             "extraction_score": round(self.extraction_score, 3),
             "validation_errors": len(self.validation_errors),
             "elapsed_seconds": round(self.elapsed_seconds, 2),
+            "params": self.params,
+            "usage": self.usage,
         }
 
 
@@ -197,3 +208,334 @@ class ExperimentRunner:
             relationship_diff=rel_diff,
             score_diff=result_b.extraction_score - result_a.extraction_score,
         )
+
+
+# ======================================================================
+# Workbench — multi-axis parameter exploration
+# ======================================================================
+
+
+class WorkbenchResults:
+    """Collection of experiment results with analysis methods."""
+
+    def __init__(self, results: List[ExperimentResult]) -> None:
+        self.results = results
+
+    def __len__(self) -> int:
+        return len(self.results)
+
+    def __iter__(self):
+        return iter(self.results)
+
+    def best_by(self, metric: str = "extraction_score") -> ExperimentResult:
+        """Return the result with the highest value for the given metric."""
+        return max(self.results, key=lambda r: getattr(r, metric, 0))
+
+    def worst_by(self, metric: str = "extraction_score") -> ExperimentResult:
+        """Return the result with the lowest value for the given metric."""
+        return min(self.results, key=lambda r: getattr(r, metric, 0))
+
+    def sorted_by(self, metric: str = "extraction_score", reverse: bool = True) -> List[ExperimentResult]:
+        """Return results sorted by metric."""
+        return sorted(self.results, key=lambda r: getattr(r, metric, 0), reverse=reverse)
+
+    def leaderboard(self, metric: str = "extraction_score", top_n: int = 10) -> str:
+        """Human-readable leaderboard."""
+        ranked = self.sorted_by(metric)[:top_n]
+        lines = [
+            f"{'#':>3s}  {'Score':>8s}  {'Nodes':>6s}  {'Rels':>5s}  {'Errors':>6s}  {'Time':>6s}  Config",
+            f"{'─' * 70}",
+        ]
+        for i, r in enumerate(ranked, 1):
+            params_str = " | ".join(f"{k}={v}" for k, v in r.params.items())
+            lines.append(
+                f"{i:3d}  {r.extraction_score:8.1%}  {len(r.nodes):6d}  "
+                f"{len(r.relationships):5d}  {len(r.validation_errors):6d}  "
+                f"{r.elapsed_seconds:5.1f}s  {params_str}"
+            )
+        return "\n".join(lines)
+
+    def to_dicts(self) -> List[Dict[str, Any]]:
+        """All results as list of dicts."""
+        return [r.to_dict() for r in self.results]
+
+    def to_dataframe(self) -> Any:
+        """Convert to pandas DataFrame (requires pandas)."""
+        try:
+            import pandas as pd
+        except ImportError:
+            raise ImportError("to_dataframe() requires pandas: pip install pandas")
+
+        rows = []
+        for r in self.results:
+            row = {
+                "ontology": r.ontology_name,
+                "model": r.model,
+                "nodes": len(r.nodes),
+                "relationships": len(r.relationships),
+                "score": r.extraction_score,
+                "errors": len(r.validation_errors),
+                "time_s": r.elapsed_seconds,
+                **r.params,
+            }
+            if r.usage:
+                row["tokens"] = r.usage.get("total_tokens", 0)
+            rows.append(row)
+        return pd.DataFrame(rows)
+
+    def save(self, path: Union[str, Path]) -> Path:
+        """Save results to a directory."""
+        return ExperimentRegistry.save(self, path)
+
+
+class ExperimentRegistry:
+    """Persists experiment results to disk."""
+
+    @staticmethod
+    def save(results: WorkbenchResults, path: Union[str, Path]) -> Path:
+        out = Path(path)
+        out.mkdir(parents=True, exist_ok=True)
+
+        # Config + results
+        data = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "total_runs": len(results),
+            "results": results.to_dicts(),
+        }
+        (out / "results.json").write_text(json.dumps(data, indent=2, default=str))
+
+        # Best run
+        if results.results:
+            best = results.best_by("extraction_score")
+            (out / "best_run.json").write_text(json.dumps(best.to_dict(), indent=2, default=str))
+
+        # Human summary
+        (out / "summary.md").write_text(
+            f"# Experiment Results\n\n"
+            f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n"
+            f"Total runs: {len(results)}\n\n"
+            f"## Leaderboard\n\n```\n{results.leaderboard()}\n```\n"
+        )
+
+        return out
+
+    @staticmethod
+    def load(path: Union[str, Path]) -> WorkbenchResults:
+        """Load results from a saved experiment directory."""
+        results_file = Path(path) / "results.json"
+        data = json.loads(results_file.read_text())
+        results = []
+        for r in data.get("results", []):
+            results.append(ExperimentResult(
+                config_name=r.get("config_name", ""),
+                ontology_name=r.get("ontology_name", ""),
+                model=r.get("model", ""),
+                extraction_score=r.get("extraction_score", 0.0),
+                elapsed_seconds=r.get("elapsed_seconds", 0.0),
+                params=r.get("params", {}),
+                usage=r.get("usage", {}),
+            ))
+        return WorkbenchResults(results)
+
+
+class Workbench:
+    """Multi-axis parameter exploration for extraction and query settings.
+
+    Define axes to vary, then run all combinations::
+
+        wb = Workbench(input_texts=["Samsung CEO..."])
+        wb.vary("ontology", ["v1.jsonld", "v2.jsonld"])
+        wb.vary("model", ["gpt-4o", "gpt-4o-mini"])
+        wb.vary("chunk_size", [4000, 8000])
+        wb.vary("temperature", [0.0, 0.2])
+        wb.vary("strict_validation", [True, False])
+
+        results = wb.run_all()  # 2*2*2*2*2 = 32 runs
+        print(results.leaderboard())
+
+    Axes you can vary:
+
+    - ``ontology``: list of JSON-LD/YAML file paths or Ontology objects
+    - ``model``: LLM model names
+    - ``chunk_size``: max chars per chunk
+    - ``temperature``: LLM temperature
+    - ``strict_validation``: True/False
+    - ``prompt_template``: custom system prompt strings
+    - Any custom key (passed through to params)
+    """
+
+    BUILTIN_AXES = {"ontology", "model", "chunk_size", "temperature", "strict_validation", "prompt_template"}
+
+    def __init__(
+        self,
+        input_texts: Optional[List[str]] = None,
+        input_dir: Optional[str] = None,
+    ) -> None:
+        self._input_texts = input_texts or []
+        self._input_dir = input_dir
+        self._axes: Dict[str, List[Any]] = {}
+        self._on_run: Optional[Callable] = None
+
+        # Load input from directory if provided
+        if input_dir and not input_texts:
+            from pathlib import Path as P
+            d = P(input_dir)
+            for f in sorted(d.glob("*.txt")) + sorted(d.glob("*.md")):
+                self._input_texts.append(f.read_text(encoding="utf-8", errors="replace"))
+
+    def vary(self, axis: str, values: List[Any]) -> "Workbench":
+        """Define an axis to vary.
+
+        Parameters
+        ----------
+        axis:
+            Parameter name (e.g. "ontology", "model", "chunk_size").
+        values:
+            List of values to try for this axis.
+
+        Returns self for chaining.
+        """
+        self._axes[axis] = list(values)
+        return self
+
+    def on_run(self, callback: Callable) -> "Workbench":
+        """Set a callback for each run: ``callback(run_index, total, params)``."""
+        self._on_run = callback
+        return self
+
+    @property
+    def total_combinations(self) -> int:
+        """Number of runs that run_all() will execute."""
+        if not self._axes:
+            return 0
+        count = 1
+        for values in self._axes.values():
+            count *= len(values)
+        return count * max(len(self._input_texts), 1)
+
+    def run_all(self, **kwargs: Any) -> WorkbenchResults:
+        """Execute all parameter combinations and return results.
+
+        Each combination is run on each input text.
+        """
+        if not self._axes:
+            raise ValueError("No axes defined. Call wb.vary(...) first.")
+
+        axis_names = list(self._axes.keys())
+        axis_values = list(self._axes.values())
+        combinations = list(itertools.product(*axis_values))
+        total = len(combinations) * max(len(self._input_texts), 1)
+
+        all_results: List[ExperimentResult] = []
+        run_idx = 0
+
+        for combo in combinations:
+            params = dict(zip(axis_names, combo))
+
+            for text in (self._input_texts or [""]):
+                run_idx += 1
+                if self._on_run:
+                    self._on_run(run_idx, total, params)
+
+                result = self._run_single(params, text, **kwargs)
+                all_results.append(result)
+
+        return WorkbenchResults(all_results)
+
+    def _run_single(self, params: Dict[str, Any], text: str, **kwargs: Any) -> ExperimentResult:
+        """Execute one parameter combination."""
+        from .query.strategy import ExtractionStrategy
+
+        # Resolve ontology
+        ontology = self._resolve_ontology(params.get("ontology"))
+        if ontology is None:
+            return ExperimentResult(
+                config_name="error",
+                params=params,
+                validation_errors=["No ontology provided or resolved"],
+            )
+
+        # Resolve LLM
+        model = params.get("model", "gpt-4o")
+        temperature = params.get("temperature", 0.0)
+        llm = self._resolve_llm(model)
+
+        # Resolve pipeline params
+        chunk_size = params.get("chunk_size", 6000)
+        strict = params.get("strict_validation", False)
+        prompt_template = params.get("prompt_template")
+
+        # Build extraction strategy
+        strategy = ExtractionStrategy(ontology)
+
+        # Chunk if needed
+        from .index.pipeline import chunk_text
+        chunks = chunk_text(text, max_chars=chunk_size) if text else [""]
+
+        start = time.time()
+        all_nodes: List[Dict] = []
+        all_rels: List[Dict] = []
+        total_usage: Dict[str, int] = {}
+
+        for chunk in chunks:
+            system, user = strategy.render(chunk)
+            if prompt_template:
+                system = prompt_template
+
+            response = llm.complete(
+                system=system, user=user,
+                temperature=temperature,
+                response_format={"type": "json_object"},
+            )
+
+            # Track usage
+            if response.usage:
+                for k, v in response.usage.items():
+                    total_usage[k] = total_usage.get(k, 0) + v
+
+            try:
+                extracted = response.json()
+            except (json.JSONDecodeError, ValueError):
+                continue
+
+            all_nodes.extend(extracted.get("nodes", []))
+            all_rels.extend(extracted.get("relationships", []))
+
+        elapsed = time.time() - start
+
+        # Score
+        data = {"nodes": all_nodes, "relationships": all_rels}
+        scores = ontology.score_extraction(data)
+        errors = ontology.validate_with_shacl(data) if strict else []
+
+        return ExperimentResult(
+            config_name=f"{ontology.name}/{model}",
+            ontology_name=ontology.name,
+            model=model,
+            input_text=text[:100],
+            nodes=all_nodes,
+            relationships=all_rels,
+            extraction_score=scores.get("overall", 0.0),
+            validation_errors=errors,
+            elapsed_seconds=elapsed,
+            params=params,
+            usage=total_usage,
+        )
+
+    def _resolve_ontology(self, value: Any) -> Optional[Ontology]:
+        """Resolve ontology from file path or object."""
+        if isinstance(value, Ontology):
+            return value
+        if isinstance(value, (str, Path)):
+            p = Path(value)
+            if p.exists():
+                if p.suffix in (".yaml", ".yml"):
+                    return Ontology.from_yaml(p)
+                return Ontology.from_jsonld(p)
+        return None
+
+    @staticmethod
+    def _resolve_llm(model: str) -> Any:
+        """Create LLM backend for a model name."""
+        from .store.llm import OpenAIBackend
+        return OpenAIBackend(model=model)

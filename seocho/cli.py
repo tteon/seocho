@@ -199,10 +199,19 @@ def build_parser() -> argparse.ArgumentParser:
     compare_parser.add_argument("--model-b", default=None, help="LLM model for config B (default: same as A)")
     compare_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
 
+    experiment_parser = subparsers.add_parser("experiment", help="Run multi-axis parameter exploration")
+    experiment_parser.add_argument("--input", required=True, help="Input text, @file, or directory path")
+    experiment_parser.add_argument("--ontology", action="append", default=[], help="Ontology files to vary (repeat for multiple)")
+    experiment_parser.add_argument("--model", action="append", default=[], help="LLM models to vary")
+    experiment_parser.add_argument("--chunk-size", type=int, action="append", default=[], dest="chunk_sizes", help="Chunk sizes to vary")
+    experiment_parser.add_argument("--temperature", type=float, action="append", default=[], dest="temperatures", help="Temperatures to vary")
+    experiment_parser.add_argument("--output", default=None, help="Save results to this directory")
+    experiment_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
+
     return parser
 
 
-LOCAL_COMMANDS = {"init", "index", "local-ask", "status", "compare"}
+LOCAL_COMMANDS = {"init", "index", "local-ask", "status", "compare", "experiment"}
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
@@ -629,6 +638,8 @@ def _dispatch_local(args: argparse.Namespace) -> int:
         return _cmd_status(args)
     if args.command == "compare":
         return _cmd_compare(args)
+    if args.command == "experiment":
+        return _cmd_experiment(args)
     raise SeochoError(f"Unknown local command: {args.command}")
 
 
@@ -893,5 +904,60 @@ def _cmd_compare(args: argparse.Namespace) -> int:
     else:
         print()
         print(comparison.summary())
+
+    return 0
+
+
+def _cmd_experiment(args: argparse.Namespace) -> int:
+    """Run multi-axis experiment exploration."""
+    from .experiment import Workbench
+
+    # Resolve input
+    input_arg = args.input
+    input_texts: List[str] = []
+    input_dir: Optional[str] = None
+
+    if Path(input_arg).is_dir():
+        input_dir = input_arg
+    elif input_arg.startswith("@"):
+        fpath = Path(input_arg[1:])
+        if fpath.exists():
+            input_texts = [fpath.read_text(encoding="utf-8")]
+        else:
+            print(f"File not found: {fpath}", file=sys.stderr)
+            return 1
+    else:
+        input_texts = [input_arg]
+
+    wb = Workbench(input_texts=input_texts, input_dir=input_dir)
+
+    # Register axes
+    if args.ontology:
+        wb.vary("ontology", args.ontology)
+    if args.model:
+        wb.vary("model", args.model)
+    if args.chunk_sizes:
+        wb.vary("chunk_size", args.chunk_sizes)
+    if args.temperatures:
+        wb.vary("temperature", args.temperatures)
+
+    if wb.total_combinations == 0:
+        print("No axes defined. Use --ontology, --model, --chunk-size, --temperature", file=sys.stderr)
+        return 1
+
+    print(f"Running {wb.total_combinations} experiment combinations...")
+    wb.on_run(lambda i, t, p: print(f"  [{i}/{t}] {' | '.join(f'{k}={v}' for k, v in p.items())}"))
+
+    results = wb.run_all()
+
+    if getattr(args, "output_json", False):
+        print(json.dumps(results.to_dicts(), indent=2))
+    else:
+        print()
+        print(results.leaderboard())
+
+    if args.output:
+        saved = results.save(args.output)
+        print(f"\nResults saved to {saved}/")
 
     return 0

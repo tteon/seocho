@@ -1,0 +1,221 @@
+{
+  "nodes": [
+    {
+      "id": "1",
+      "label": "Organization",
+      "properties": {
+        "name": "Tesla, Inc.",
+        "linked_id": "urn:entity:tesla"
+      },
+      "rule_validation": {
+        "status": "pass",
+        "violations": []
+      }
+    },
+    {
+      "id": "2",
+      "label": "Location",
+      "properties": {
+        "name": "Austin, Texas",
+        "linked_id": "urn:entity:austin_texas"
+      },
+      "rule_validation": {
+        "status": "pass",
+        "violations": []
+      }
+    },
+    {
+      "id": "3",
+      "label": "Concept",
+      "properties": {
+        "name": "electric vehicle",
+        "linked_id": "urn:entity:electric_vehicle"
+      },
+      "rule_validation": {
+        "status": "pass",
+        "violations": []
+      }
+    },
+    {
+      "id": "4",
+      "label": "Concept",
+      "properties": {
+        "name": "clean energy",
+        "linked_id": "urn:entity:clean_energy"
+      },
+      "rule_validation": {
+        "status": "pass",
+        "violations": []
+      }
+    }
+  ],
+  "relationships": [],
+  "rule_profile": {
+    "schema_version": "rules.v1",
+    "rules": [
+      {
+        "label": "Organization",
+        "property_name": "name",
+        "kind": "required",
+        "params": {
+          "minCount": 1
+        }
+      },
+      {
+        "label": "Organization",
+        "property_name": "name",
+        "kind": "datatype",
+        "params": {
+          "datatype": "string"
+        }
+      },
+      {
+        "label": "Organization",
+        "property_name": "name",
+        "kind": "enum",
+        "params": {
+          "allowedValues": [
+            "Tesla, Inc."
+          ]
+        }
+      },
+      {
+        "label": "Organization",
+        "property_name": "linked_id",
+        "kind": "required",
+        "params": {
+          "minCount": 1
+        }
+      },
+      {
+        "label": "Organization",
+        "property_name": "linked_id",
+        "kind": "datatype",
+        "params": {
+          "datatype": "string"
+        }
+      },
+      {
+        "label": "Organization",
+        "property_name": "linked_id",
+        "kind": "enum",
+        "params": {
+          "allowedValues": [
+            "urn:entity:tesla"
+          ]
+        }
+      },
+      {
+        "label": "Location",
+        "property_name": "name",
+        "kind": "required",
+        "params": {
+          "minCount": 1
+        }
+      },
+      {
+        "label": "Location",
+        "property_name": "name",
+        "kind": "datatype",
+        "params": {
+          "datatype": "string"
+        }
+      },
+      {
+        "label": "Location",
+        "property_name": "name",
+        "kind": "enum",
+        "params": {
+          "allowedValues": [
+            "Austin, Texas"
+          ]
+        }
+      },
+      {
+        "label": "Location",
+        "property_name": "linked_id",
+        "kind": "required",
+        "params": {
+          "minCount": 1
+        }
+      },
+      {
+        "label": "Location",
+        "property_name": "linked_id",
+        "kind": "datatype",
+        "params": {
+          "datatype": "string"
+        }
+      },
+      {
+        "label": "Location",
+        "property_name": "linked_id",
+        "kind": "enum",
+        "params": {
+          "allowedValues": [
+            "urn:entity:austin_texas"
+          ]
+        }
+      },
+      {
+        "label": "Concept",
+        "property_name": "name",
+        "kind": "required",
+        "params": {
+          "minCount": 1
+        }
+      },
+      {
+        "label": "Concept",
+        "property_name": "name",
+        "kind": "datatype",
+        "params": {
+          "datatype": "string"
+        }
+      },
+      {
+        "label": "Concept",
+        "property_name": "name",
+        "kind": "enum",
+        "params": {
+          "allowedValues": [
+            "electric vehicle",
+            "clean energy"
+          ]
+        }
+      },
+      {
+        "label": "Concept",
+        "property_name": "linked_id",
+        "kind": "required",
+        "params": {
+          "minCount": 1
+        }
+      },
+      {
+        "label": "Concept",
+        "property_name": "linked_id",
+        "kind": "datatype",
+        "params": {
+          "datatype": "string"
+        }
+      },
+      {
+        "label": "Concept",
+        "property_name": "linked_id",
+        "kind": "enum",
+        "params": {
+          "allowedValues": [
+            "urn:entity:electric_vehicle",
+            "urn:entity:clean_energy"
+          ]
+        }
+      }
+    ]
+  },
+  "rule_validation_summary": {
+    "total_nodes": 4,
+    "failed_nodes": 0,
+    "passed_nodes": 4
+  }
+}

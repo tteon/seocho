@@ -1,0 +1,285 @@
+{
+  "nodes": [
+    {
+      "id": "1",
+      "label": "Organization",
+      "properties": {
+        "name": "Apple",
+        "linked_id": "urn:entity:apple"
+      },
+      "rule_validation": {
+        "status": "pass",
+        "violations": []
+      }
+    },
+    {
+      "id": "2",
+      "label": "FinancialMetric",
+      "properties": {
+        "name": "financial results",
+        "linked_id": "urn:entity:financial_results"
+      },
+      "rule_validation": {
+        "status": "pass",
+        "violations": []
+      }
+    },
+    {
+      "id": "3",
+      "label": "Concept",
+      "properties": {
+        "name": "fiscal quarter",
+        "linked_id": "urn:entity:fiscal_quarter"
+      },
+      "rule_validation": {
+        "status": "pass",
+        "violations": []
+      }
+    },
+    {
+      "id": "4",
+      "label": "Location",
+      "properties": {
+        "name": "USA",
+        "linked_id": "urn:entity:usa"
+      },
+      "rule_validation": {
+        "status": "pass",
+        "violations": []
+      }
+    },
+    {
+      "id": "5",
+      "label": "Concept",
+      "properties": {
+        "name": "September 30, 2023",
+        "linked_id": "urn:entity:september_30_2023"
+      },
+      "rule_validation": {
+        "status": "pass",
+        "violations": []
+      }
+    }
+  ],
+  "relationships": [],
+  "rule_profile": {
+    "schema_version": "rules.v1",
+    "rules": [
+      {
+        "label": "Organization",
+        "property_name": "name",
+        "kind": "required",
+        "params": {
+          "minCount": 1
+        }
+      },
+      {
+        "label": "Organization",
+        "property_name": "name",
+        "kind": "datatype",
+        "params": {
+          "datatype": "string"
+        }
+      },
+      {
+        "label": "Organization",
+        "property_name": "name",
+        "kind": "enum",
+        "params": {
+          "allowedValues": [
+            "Apple"
+          ]
+        }
+      },
+      {
+        "label": "Organization",
+        "property_name": "linked_id",
+        "kind": "required",
+        "params": {
+          "minCount": 1
+        }
+      },
+      {
+        "label": "Organization",
+        "property_name": "linked_id",
+        "kind": "datatype",
+        "params": {
+          "datatype": "string"
+        }
+      },
+      {
+        "label": "Organization",
+        "property_name": "linked_id",
+        "kind": "enum",
+        "params": {
+          "allowedValues": [
+            "urn:entity:apple"
+          ]
+        }
+      },
+      {
+        "label": "FinancialMetric",
+        "property_name": "name",
+        "kind": "required",
+        "params": {
+          "minCount": 1
+        }
+      },
+      {
+        "label": "FinancialMetric",
+        "property_name": "name",
+        "kind": "datatype",
+        "params": {
+          "datatype": "string"
+        }
+      },
+      {
+        "label": "FinancialMetric",
+        "property_name": "name",
+        "kind": "enum",
+        "params": {
+          "allowedValues": [
+            "financial results"
+          ]
+        }
+      },
+      {
+        "label": "FinancialMetric",
+        "property_name": "linked_id",
+        "kind": "required",
+        "params": {
+          "minCount": 1
+        }
+      },
+      {
+        "label": "FinancialMetric",
+        "property_name": "linked_id",
+        "kind": "datatype",
+        "params": {
+          "datatype": "string"
+        }
+      },
+      {
+        "label": "FinancialMetric",
+        "property_name": "linked_id",
+        "kind": "enum",
+        "params": {
+          "allowedValues": [
+            "urn:entity:financial_results"
+          ]
+        }
+      },
+      {
+        "label": "Concept",
+        "property_name": "name",
+        "kind": "required",
+        "params": {
+          "minCount": 1
+        }
+      },
+      {
+        "label": "Concept",
+        "property_name": "name",
+        "kind": "datatype",
+        "params": {
+          "datatype": "string"
+        }
+      },
+      {
+        "label": "Concept",
+        "property_name": "name",
+        "kind": "enum",
+        "params": {
+          "allowedValues": [
+            "fiscal quarter",
+            "September 30, 2023"
+          ]
+        }
+      },
+      {
+        "label": "Concept",
+        "property_name": "linked_id",
+        "kind": "required",
+        "params": {
+          "minCount": 1
+        }
+      },
+      {
+        "label": "Concept",
+        "property_name": "linked_id",
+        "kind": "datatype",
+        "params": {
+          "datatype": "string"
+        }
+      },
+      {
+        "label": "Concept",
+        "property_name": "linked_id",
+        "kind": "enum",
+        "params": {
+          "allowedValues": [
+            "urn:entity:fiscal_quarter",
+            "urn:entity:september_30_2023"
+          ]
+        }
+      },
+      {
+        "label": "Location",
+        "property_name": "name",
+        "kind": "required",
+        "params": {
+          "minCount": 1
+        }
+      },
+      {
+        "label": "Location",
+        "property_name": "name",
+        "kind": "datatype",
+        "params": {
+          "datatype": "string"
+        }
+      },
+      {
+        "label": "Location",
+        "property_name": "name",
+        "kind": "enum",
+        "params": {
+          "allowedValues": [
+            "USA"
+          ]
+        }
+      },
+      {
+        "label": "Location",
+        "property_name": "linked_id",
+        "kind": "required",
+        "params": {
+          "minCount": 1
+        }
+      },
+      {
+        "label": "Location",
+        "property_name": "linked_id",
+        "kind": "datatype",
+        "params": {
+          "datatype": "string"
+        }
+      },
+      {
+        "label": "Location",
+        "property_name": "linked_id",
+        "kind": "enum",
+        "params": {
+          "allowedValues": [
+            "urn:entity:usa"
+          ]
+        }
+      }
+    ]
+  },
+  "rule_validation_summary": {
+    "total_nodes": 5,
+    "failed_nodes": 0,
+    "passed_nodes": 5
+  }
+}

@@ -1,0 +1,221 @@
+{
+  "nodes": [
+    {
+      "id": "1",
+      "label": "Organization",
+      "properties": {
+        "name": "SpaceX",
+        "linked_id": "urn:entity:spacex"
+      },
+      "rule_validation": {
+        "status": "pass",
+        "violations": []
+      }
+    },
+    {
+      "id": "2",
+      "label": "Person",
+      "properties": {
+        "name": "Elon Musk",
+        "linked_id": "urn:entity:elon_musk"
+      },
+      "rule_validation": {
+        "status": "pass",
+        "violations": []
+      }
+    },
+    {
+      "id": "3",
+      "label": "Concept",
+      "properties": {
+        "name": "rockets",
+        "linked_id": "urn:entity:rockets"
+      },
+      "rule_validation": {
+        "status": "pass",
+        "violations": []
+      }
+    },
+    {
+      "id": "4",
+      "label": "Concept",
+      "properties": {
+        "name": "spacecraft",
+        "linked_id": "urn:entity:spacecraft"
+      },
+      "rule_validation": {
+        "status": "pass",
+        "violations": []
+      }
+    }
+  ],
+  "relationships": [],
+  "rule_profile": {
+    "schema_version": "rules.v1",
+    "rules": [
+      {
+        "label": "Organization",
+        "property_name": "name",
+        "kind": "required",
+        "params": {
+          "minCount": 1
+        }
+      },
+      {
+        "label": "Organization",
+        "property_name": "name",
+        "kind": "datatype",
+        "params": {
+          "datatype": "string"
+        }
+      },
+      {
+        "label": "Organization",
+        "property_name": "name",
+        "kind": "enum",
+        "params": {
+          "allowedValues": [
+            "SpaceX"
+          ]
+        }
+      },
+      {
+        "label": "Organization",
+        "property_name": "linked_id",
+        "kind": "required",
+        "params": {
+          "minCount": 1
+        }
+      },
+      {
+        "label": "Organization",
+        "property_name": "linked_id",
+        "kind": "datatype",
+        "params": {
+          "datatype": "string"
+        }
+      },
+      {
+        "label": "Organization",
+        "property_name": "linked_id",
+        "kind": "enum",
+        "params": {
+          "allowedValues": [
+            "urn:entity:spacex"
+          ]
+        }
+      },
+      {
+        "label": "Person",
+        "property_name": "name",
+        "kind": "required",
+        "params": {
+          "minCount": 1
+        }
+      },
+      {
+        "label": "Person",
+        "property_name": "name",
+        "kind": "datatype",
+        "params": {
+          "datatype": "string"
+        }
+      },
+      {
+        "label": "Person",
+        "property_name": "name",
+        "kind": "enum",
+        "params": {
+          "allowedValues": [
+            "Elon Musk"
+          ]
+        }
+      },
+      {
+        "label": "Person",
+        "property_name": "linked_id",
+        "kind": "required",
+        "params": {
+          "minCount": 1
+        }
+      },
+      {
+        "label": "Person",
+        "property_name": "linked_id",
+        "kind": "datatype",
+        "params": {
+          "datatype": "string"
+        }
+      },
+      {
+        "label": "Person",
+        "property_name": "linked_id",
+        "kind": "enum",
+        "params": {
+          "allowedValues": [
+            "urn:entity:elon_musk"
+          ]
+        }
+      },
+      {
+        "label": "Concept",
+        "property_name": "name",
+        "kind": "required",
+        "params": {
+          "minCount": 1
+        }
+      },
+      {
+        "label": "Concept",
+        "property_name": "name",
+        "kind": "datatype",
+        "params": {
+          "datatype": "string"
+        }
+      },
+      {
+        "label": "Concept",
+        "property_name": "name",
+        "kind": "enum",
+        "params": {
+          "allowedValues": [
+            "rockets",
+            "spacecraft"
+          ]
+        }
+      },
+      {
+        "label": "Concept",
+        "property_name": "linked_id",
+        "kind": "required",
+        "params": {
+          "minCount": 1
+        }
+      },
+      {
+        "label": "Concept",
+        "property_name": "linked_id",
+        "kind": "datatype",
+        "params": {
+          "datatype": "string"
+        }
+      },
+      {
+        "label": "Concept",
+        "property_name": "linked_id",
+        "kind": "enum",
+        "params": {
+          "allowedValues": [
+            "urn:entity:rockets",
+            "urn:entity:spacecraft"
+          ]
+        }
+      }
+    ]
+  },
+  "rule_validation_summary": {
+    "total_nodes": 4,
+    "failed_nodes": 0,
+    "passed_nodes": 4
+  }
+}

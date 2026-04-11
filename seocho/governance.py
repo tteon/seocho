@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping
 
 from .semantic import SemanticArtifact, SemanticArtifactDraftInput
-from .types import JsonSerializable
+from .models import JsonSerializable
 
 _DEFAULT_VOCABULARY = {
     "schema_version": "vocabulary.v2",

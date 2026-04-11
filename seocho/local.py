@@ -11,7 +11,7 @@ import requests
 from dotenv import dotenv_values
 
 from .exceptions import SeochoConnectionError, SeochoError
-from .types import JsonSerializable
+from .models import JsonSerializable
 
 DEFAULT_API_PORT = "8001"
 DEFAULT_UI_PORT = "8501"

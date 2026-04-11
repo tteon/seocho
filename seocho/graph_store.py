@@ -99,6 +99,30 @@ class GraphStore(ABC):
         property keys)."""
 
     @abstractmethod
+    def delete_by_source(
+        self,
+        source_id: str,
+        *,
+        database: str = "neo4j",
+    ) -> Dict[str, Any]:
+        """Delete all nodes and relationships created by a given source_id.
+
+        Returns summary with ``nodes_deleted``, ``relationships_deleted``.
+        """
+
+    @abstractmethod
+    def count_by_source(
+        self,
+        source_id: str,
+        *,
+        database: str = "neo4j",
+    ) -> Dict[str, int]:
+        """Count nodes and relationships for a source_id.
+
+        Returns ``{"nodes": N, "relationships": N}``.
+        """
+
+    @abstractmethod
     def close(self) -> None:
         """Release all resources (drivers, connections)."""
 
@@ -241,6 +265,62 @@ class Neo4jGraphStore(GraphStore):
             "relationship_types": rel_types,
             "property_keys": prop_keys,
         }
+
+    def delete_by_source(
+        self,
+        source_id: str,
+        *,
+        database: str = "neo4j",
+    ) -> Dict[str, Any]:
+        summary = {"nodes_deleted": 0, "relationships_deleted": 0, "errors": []}
+
+        with self._driver.session(database=database) as session:
+            # Delete relationships first (they reference nodes)
+            try:
+                result = session.run(
+                    "MATCH ()-[r]->() WHERE r._source_id = $sid "
+                    "WITH r LIMIT 10000 DELETE r RETURN count(r) AS cnt",
+                    sid=source_id,
+                )
+                record = result.single()
+                summary["relationships_deleted"] = record["cnt"] if record else 0
+            except Exception as exc:
+                summary["errors"].append(f"Rel delete: {exc}")
+
+            # Delete orphaned nodes from this source
+            try:
+                result = session.run(
+                    "MATCH (n) WHERE n._source_id = $sid "
+                    "WITH n LIMIT 10000 DETACH DELETE n RETURN count(n) AS cnt",
+                    sid=source_id,
+                )
+                record = result.single()
+                summary["nodes_deleted"] = record["cnt"] if record else 0
+            except Exception as exc:
+                summary["errors"].append(f"Node delete: {exc}")
+
+        return summary
+
+    def count_by_source(
+        self,
+        source_id: str,
+        *,
+        database: str = "neo4j",
+    ) -> Dict[str, int]:
+        with self._driver.session(database=database) as session:
+            node_result = session.run(
+                "MATCH (n) WHERE n._source_id = $sid RETURN count(n) AS cnt",
+                sid=source_id,
+            )
+            node_count = node_result.single()["cnt"]
+
+            rel_result = session.run(
+                "MATCH ()-[r]->() WHERE r._source_id = $sid RETURN count(r) AS cnt",
+                sid=source_id,
+            )
+            rel_count = rel_result.single()["cnt"]
+
+        return {"nodes": node_count, "relationships": rel_count}
 
     def close(self) -> None:
         self._driver.close()

@@ -234,6 +234,47 @@ class Seocho:
             databases=databases,
         ).assistant_message
 
+    def add_batch(
+        self,
+        documents: Sequence[str],
+        *,
+        database: str = "neo4j",
+        category: str = "general",
+        metadata: Optional[Dict[str, Any]] = None,
+        strict_validation: bool = False,
+        on_progress: Optional[Any] = None,
+    ) -> Dict[str, Any]:
+        """Index multiple documents with chunking, validation, and dedup.
+
+        Each document is automatically chunked if too long, extracted
+        with ontology-aware prompts, validated against SHACL, and
+        written to the graph. Duplicate content is detected and skipped.
+
+        Parameters
+        ----------
+        documents:
+            List of document texts.
+        database:
+            Target database.
+        strict_validation:
+            If True, chunks failing SHACL are rejected (not written).
+        on_progress:
+            Optional callback ``(doc_index, total_docs)``.
+
+        Returns
+        -------
+        Summary dict with per-document results.
+
+        Only available in local mode.
+        """
+        if not self._local_mode:
+            raise RuntimeError("add_batch() requires local engine mode")
+        return self._engine.add_batch(
+            documents, database=database, category=category,
+            metadata=metadata, strict_validation=strict_validation,
+            on_progress=on_progress,
+        )
+
     def extract(
         self,
         content: str,
@@ -1203,7 +1244,7 @@ class ExecutionPlanBuilder:
 class _LocalEngine:
     """Internal orchestrator for local engine mode.
 
-    Wires together Ontology → PromptStrategy → LLM → GraphStore.
+    Wires together Ontology → IndexingPipeline → QueryStrategy → GraphStore.
     """
 
     def __init__(
@@ -1214,6 +1255,7 @@ class _LocalEngine:
         llm: Any,  # LLMBackend
         workspace_id: str,
     ) -> None:
+        from .indexing import IndexingPipeline
         from .ontology import Ontology
         from .prompt_strategy import ExtractionStrategy, LinkingStrategy, QueryStrategy
 
@@ -1222,7 +1264,13 @@ class _LocalEngine:
         self.llm = llm
         self.workspace_id = workspace_id
 
-        # Pre-build strategies
+        # Indexing pipeline (handles chunking, extraction, validation, dedup, write)
+        self._indexing = IndexingPipeline(
+            ontology=ontology, graph_store=graph_store,
+            llm=llm, workspace_id=workspace_id,
+        )
+
+        # Pre-build strategies (for extract-only and query)
         self._extraction = ExtractionStrategy(ontology)
         self._linking = LinkingStrategy(ontology)
         self._query = QueryStrategy(ontology)
@@ -1234,57 +1282,68 @@ class _LocalEngine:
         database: str = "neo4j",
         category: str = "memory",
         metadata: Optional[Dict[str, Any]] = None,
+        strict_validation: bool = False,
     ) -> Memory:
-        """Extract → Link → Write pipeline."""
-        import uuid
+        """Chunk → Extract → Validate → Link → Write pipeline.
 
-        # 1. Extract entities/relationships
-        extraction = self.extract(content, category=category, metadata=metadata)
-        nodes = extraction.get("nodes", [])
-        relationships = extraction.get("relationships", [])
-
-        # 2. Link (deduplicate) entities
-        if nodes:
-            linked = self._link(nodes, relationships, category=category)
-            nodes = linked.get("nodes", nodes)
-            relationships = linked.get("relationships", relationships)
-
-        # 3. Validate against ontology
-        validation_errors = self.ontology.validate_extraction(extraction)
-        if validation_errors:
-            logger.warning("Extraction validation warnings: %s", validation_errors)
-
-        # 4. Write to graph
-        source_id = str(uuid.uuid4())
-        summary = self.graph_store.write(
-            nodes,
-            relationships,
+        Delegates to :class:`~seocho.indexing.IndexingPipeline` which
+        handles automatic chunking for long documents, SHACL validation,
+        cross-chunk deduplication, and content-hash dedup.
+        """
+        self._indexing.strict_validation = strict_validation
+        result = self._indexing.index(
+            content,
             database=database,
-            workspace_id=self.workspace_id,
-            source_id=source_id,
+            category=category,
+            metadata=metadata,
         )
 
-        memory_id = source_id
         return Memory(
-            memory_id=memory_id,
+            memory_id=result.source_id,
             workspace_id=self.workspace_id,
-            content=content,
+            content=content[:500],
             metadata={
                 "category": category,
-                "nodes_created": summary.get("nodes_created", 0),
-                "relationships_created": summary.get("relationships_created", 0),
-                "extraction_errors": summary.get("errors", []),
+                "nodes_created": result.total_nodes,
+                "relationships_created": result.total_relationships,
+                "chunks_processed": result.chunks_processed,
+                "validation_errors": result.validation_errors,
+                "write_errors": result.write_errors,
+                "skipped_chunks": result.skipped_chunks,
+                "deduplicated": result.deduplicated,
                 **(metadata or {}),
             },
-            status="active",
+            status="active" if result.ok else "failed",
             database=database,
             category=category,
             source_type="text",
-            entities=[
-                {"id": n.get("id"), "label": n.get("label")}
-                for n in nodes
-            ],
         )
+
+    def add_batch(
+        self,
+        documents: Sequence[str],
+        *,
+        database: str = "neo4j",
+        category: str = "general",
+        metadata: Optional[Dict[str, Any]] = None,
+        strict_validation: bool = False,
+        on_progress: Optional[Any] = None,
+    ) -> Dict[str, Any]:
+        """Index multiple documents with progress tracking.
+
+        Returns a summary dict with per-document results.
+        """
+        from .indexing import BatchIndexingResult
+
+        self._indexing.strict_validation = strict_validation
+        batch_result = self._indexing.index_batch(
+            documents,
+            database=database,
+            category=category,
+            metadata=metadata,
+            on_document=on_progress,
+        )
+        return batch_result.to_dict()
 
     def extract(
         self,

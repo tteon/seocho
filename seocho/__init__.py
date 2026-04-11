@@ -33,6 +33,7 @@ from .api import (
 from .client import AsyncSeocho, ExecutionPlanBuilder, Seocho
 from .exceptions import SeochoConnectionError, SeochoError, SeochoHTTPError
 from .governance import ArtifactDiff, ArtifactValidationMessage, ArtifactValidationResult
+from .indexing import BatchIndexingResult, IndexingResult
 from .local import LocalRuntimeStatus
 from .ontology import Cardinality, NodeDef, Ontology, P, PropertyType, RelDef
 from .semantic import (

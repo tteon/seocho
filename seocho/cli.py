@@ -47,11 +47,19 @@ def build_parser() -> argparse.ArgumentParser:
     chat_parser.add_argument("--database", action="append", dest="databases", default=[], help="Database scope")
     _add_client_options(chat_parser, include_scope=True, include_json=True)
 
-    ask_parser = subparsers.add_parser("ask", help="Alias for chat")
+    ask_parser = subparsers.add_parser("ask", help="Ask a question (auto-detects local or server mode)")
     ask_parser.add_argument("message", help="Question to ask")
     ask_parser.add_argument("--limit", type=int, default=5, help="Max number of retrieval results")
     ask_parser.add_argument("--graph-id", action="append", dest="graph_ids", default=[], help="Graph routing hint")
     ask_parser.add_argument("--database", action="append", dest="databases", default=[], help="Database scope")
+    ask_parser.add_argument("--local", action="store_true", help="Use local engine (no server needed)")
+    ask_parser.add_argument("--schema", default="schema.jsonld", help="Ontology file (local mode)")
+    ask_parser.add_argument("--neo4j-uri", default="bolt://localhost:7687", help="Neo4j URI (local mode)")
+    ask_parser.add_argument("--neo4j-user", default="neo4j", help="Neo4j user (local mode)")
+    ask_parser.add_argument("--neo4j-password", default="password", help="Neo4j password (local mode)")
+    ask_parser.add_argument("--model", default="gpt-4o", help="OpenAI model (local mode)")
+    ask_parser.add_argument("--reasoning", action="store_true", help="Enable reasoning mode (local mode)")
+    ask_parser.add_argument("--repair-budget", type=int, default=2, help="Max repair attempts (local mode)")
     _add_client_options(ask_parser, include_scope=True, include_json=True)
 
     delete_parser = subparsers.add_parser("delete", help="Archive one memory")
@@ -186,7 +194,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-LOCAL_COMMANDS = {"init", "index", "local-ask", "status"}
+LOCAL_COMMANDS = {"init", "index", "local-ask", "status"}  # local-ask kept for backward compat
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
@@ -263,6 +271,21 @@ def _dispatch(client: Optional[Seocho], args: argparse.Namespace) -> int:
         return 0
 
     if args.command in {"chat", "ask"}:
+        # Auto-detect local mode
+        if args.command == "ask" and getattr(args, "local", False):
+            local_client = _build_local_client(args)
+            try:
+                answer = local_client.ask(
+                    args.message,
+                    database=args.databases[0] if args.databases else "neo4j",
+                    reasoning_mode=getattr(args, "reasoning", False),
+                    repair_budget=getattr(args, "repair_budget", 2),
+                )
+                print(answer)
+            finally:
+                local_client.close()
+            return 0
+
         response = client.chat(
             args.message,
             limit=args.limit,
@@ -657,20 +680,26 @@ def _cmd_init(args: argparse.Namespace) -> int:
 
     ontology = Ontology(name=name, nodes=nodes, relationships=relationships)
 
-    # Save
+    # Save ontology
     output = args.output
     if args.format == "yaml" or output.endswith(".yaml") or output.endswith(".yml"):
         ontology.to_yaml(output)
     else:
         ontology.to_jsonld(output)
 
-    print()
+    # Save project config (.seocho.toml)
+    from .config_file import write_config
+    config_path = Path(".seocho.toml")
+    if not config_path.exists():
+        write_config(config_path, schema=output, database=name)
+        print(f"Project config saved to .seocho.toml")
+
     print(f"Ontology saved to {output}")
     print(f"  {len(nodes)} entity types, {len(relationships)} relationships")
     print()
     print("Next steps:")
-    print(f"  seocho index ./your_data/ --schema {output}")
-    print(f"  seocho local-ask 'your question here' --schema {output}")
+    print(f"  seocho index ./your_data/")
+    print(f"  seocho ask --local 'your question here'")
     return 0
 
 
@@ -687,13 +716,22 @@ def _load_local_ontology(schema_path: str) -> Any:
 
 
 def _build_local_client(args: argparse.Namespace) -> Seocho:
-    """Build a local-mode Seocho client from CLI args."""
+    """Build a local-mode Seocho client from CLI args + .seocho.toml defaults."""
+    from .config_file import get_default, load_config
     from .store.graph import Neo4jGraphStore
     from .store.llm import OpenAIBackend
 
-    ontology = _load_local_ontology(args.schema)
-    store = Neo4jGraphStore(args.neo4j_uri, args.neo4j_user, args.neo4j_password)
-    llm = OpenAIBackend(model=args.model)
+    cfg = load_config()
+
+    schema = getattr(args, "schema", None) or get_default(cfg, "project", "schema", "schema.jsonld")
+    neo4j_uri = getattr(args, "neo4j_uri", None) or get_default(cfg, "neo4j", "uri", "bolt://localhost:7687")
+    neo4j_user = getattr(args, "neo4j_user", None) or get_default(cfg, "neo4j", "user", "neo4j")
+    neo4j_password = getattr(args, "neo4j_password", None) or get_default(cfg, "neo4j", "password", "password")
+    model = getattr(args, "model", None) or get_default(cfg, "llm", "model", "gpt-4o")
+
+    ontology = _load_local_ontology(schema)
+    store = Neo4jGraphStore(neo4j_uri, neo4j_user, neo4j_password)
+    llm = OpenAIBackend(model=model)
     return Seocho(ontology=ontology, graph_store=store, llm=llm)
 
 

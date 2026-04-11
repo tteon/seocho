@@ -838,6 +838,21 @@ class Ontology:
         """Produce denorm entries for one relationship definition."""
         entries: List[Dict[str, Any]] = []
 
+        # Self-referential relationships are never safe to embed —
+        # they create ambiguous field names (e.g. person_name from which person?)
+        if rd.source == rd.target:
+            entries.append({
+                "_source_label": rd.source,
+                "via": rtype,
+                "target": rd.target,
+                "direction": "outgoing",
+                "cardinality": rd.cardinality,
+                "safe": False,
+                "fields": {},
+                "reason": f"Self-referential ({rd.source}->{rd.target}) — cannot embed",
+            })
+            return entries
+
         safe_outgoing = rd.cardinality in ("MANY_TO_ONE", "ONE_TO_ONE")
         safe_incoming = rd.cardinality in ("ONE_TO_MANY", "ONE_TO_ONE")
 

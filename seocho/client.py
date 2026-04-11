@@ -221,7 +221,7 @@ class Seocho:
         if self._local_mode:
             return self._engine.ask(
                 message,
-                database=database or (databases[0] if databases else "neo4j"),
+                database=database or (databases[0] if databases and len(databases) > 0 else "neo4j"),
             )
 
         return self.chat(
@@ -1308,7 +1308,10 @@ class _LocalEngine:
             result = response.json()
         except (json.JSONDecodeError, ValueError):
             logger.error("LLM returned non-JSON extraction response: %s", response.text[:200])
-            result = {"nodes": [], "relationships": []}
+            result = {"nodes": [], "relationships": [], "_extraction_failed": True}
+
+        if not result.get("nodes") and not result.get("relationships"):
+            logger.warning("Extraction produced no entities or relationships from input text")
 
         return result
 

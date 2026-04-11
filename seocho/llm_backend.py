@@ -103,6 +103,7 @@ class OpenAIBackend(LLMBackend):
         model: str = "gpt-4o",
         api_key: Optional[str] = None,
         base_url: Optional[str] = None,
+        timeout: float = 120.0,
     ) -> None:
         try:
             import openai
@@ -112,7 +113,7 @@ class OpenAIBackend(LLMBackend):
                 "Install it with: pip install openai"
             ) from exc
 
-        kwargs: Dict[str, Any] = {}
+        kwargs: Dict[str, Any] = {"timeout": timeout}
         if api_key:
             kwargs["api_key"] = api_key
         if base_url:

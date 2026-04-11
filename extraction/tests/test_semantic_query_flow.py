@@ -159,6 +159,46 @@ def test_semantic_agent_flow_reasoning_mode_repairs_initially_insufficient_query
     assert result["lpg_result"]["records"]
 
 
+def test_semantic_agent_flow_emits_support_strategy_and_run_metadata(tmp_path, monkeypatch):
+    registry_path = tmp_path / "semantic_runs.jsonl"
+    monkeypatch.setenv("SEOCHO_RUN_METADATA_PATH", str(registry_path))
+    flow = SemanticAgentFlow(FakeConnector())
+
+    result = flow.run("What is Neo4j connected to?", ["kgnormal"])
+
+    assert result["support_assessment"]["status"] == "supported"
+    assert result["strategy_decision"]["executed_mode"] == "semantic_direct"
+    assert result["evidence_bundle"]["schema_version"] == "evidence_bundle.v2"
+    assert result["evidence_bundle"]["grounded_slots"]
+    assert result["run_metadata"]["recorded"] is True
+    assert registry_path.exists()
+
+    lines = registry_path.read_text(encoding="utf-8").strip().splitlines()
+    assert len(lines) == 1
+    record = json.loads(lines[0])
+    assert record["route"] == "lpg"
+    assert record["intent_id"] == "relationship_lookup"
+
+
+def test_semantic_agent_flow_recommends_advanced_for_multi_graph_insufficient_result():
+    flow = SemanticAgentFlow(FakeConnector())
+
+    result = flow.run("What is Neo4j related to GraphRAG?", ["kgnormal", "kgfibo"])
+
+    assert result["lpg_result"]["summary"].startswith("No grounded LPG result satisfied")
+    assert result["strategy_decision"]["advanced_debate_recommended"] is True
+    assert result["strategy_decision"]["next_mode_hint"] == "advanced"
+
+
+def test_semantic_agent_flow_recommends_reasoning_mode_before_advanced_on_single_graph():
+    flow = SemanticAgentFlow(FakeConnector())
+
+    result = flow.run("What is Neo4j related to GraphRAG?", ["kgnormal"])
+
+    assert result["support_assessment"]["supported"] is False
+    assert result["strategy_decision"]["next_mode_hint"] == "reasoning_mode"
+
+
 def test_resolve_applies_ontology_alias_hint(tmp_path, monkeypatch):
     hints_path = tmp_path / "ontology_hints.json"
     hints_path.write_text(

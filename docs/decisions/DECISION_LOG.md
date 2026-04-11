@@ -223,6 +223,13 @@ Each entry must link to a full ADR when impact is non-trivial.
   - require `write`/`maintain`/`admin` permission before merge automation runs
   - keep branch protection and required checks as the final merge gate
 
+## 2026-04-11
+
+- Accepted `ADR-0037-semantic-support-validation-and-strategy-metadata-contract.md`
+  - emit explicit semantic `support_assessment`, `strategy_decision`, and `run_metadata`
+  - upgrade runtime grounding payloads to `evidence_bundle.v2`
+  - keep debate as an opt-in advanced path while making escalation recommendations explicit
+
 ## Template
 
 Use this block for new entries:

@@ -207,6 +207,30 @@ class TestListEndpoints:
             assert kwargs["reasoning_mode"] is True
             assert kwargs["repair_budget"] == 2
 
+    async def test_run_agent_semantic_endpoint_returns_support_and_strategy_metadata(self, client, app_module):
+        with patch.object(app_module.semantic_agent_flow, "run") as mock_run:
+            mock_run.return_value = {
+                "response": "Route selected: LPG.",
+                "trace_steps": [],
+                "route": "lpg",
+                "semantic_context": {"entities": ["Neo4j"]},
+                "lpg_result": {"records": [{"target_entity": "Cypher"}]},
+                "rdf_result": None,
+                "support_assessment": {"status": "supported", "reason": "sufficient"},
+                "strategy_decision": {"executed_mode": "semantic_direct"},
+                "run_metadata": {"run_id": "run_123", "recorded": True},
+                "evidence_bundle": {"intent_id": "relationship_lookup", "grounded_slots": ["target_entity"]},
+            }
+            response = await client.post(
+                "/run_agent_semantic",
+                json={"query": "Tell me about Neo4j", "workspace_id": "default"},
+            )
+            assert response.status_code == 200
+            payload = response.json()
+            assert payload["support_assessment"]["status"] == "supported"
+            assert payload["strategy_decision"]["executed_mode"] == "semantic_direct"
+            assert payload["run_metadata"]["run_id"] == "run_123"
+
     async def test_fulltext_ensure_endpoint(self, client, app_module):
         with patch.object(app_module, "ensure_fulltext_indexes_impl") as mock_impl:
             mock_impl.return_value = {

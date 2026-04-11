@@ -93,7 +93,7 @@ Use these when changing a specific subsystem or workflow:
 
 ## Docs Sync Integration
 
-- `README.md` and `docs/*` changes are intended to propagate to the website via `.github/workflows/sync-docs-website.yml`.
+- `README.md` and selected `docs/*` pages are the source material for website docs.
 - publish-critical sync sources:
   - `docs/README.md`
   - `docs/QUICKSTART.md`
@@ -101,9 +101,10 @@ Use these when changing a specific subsystem or workflow:
   - `docs/PYTHON_INTERFACE_QUICKSTART.md`
   - `docs/ARCHITECTURE.md`
   - `docs/WORKFLOW.md`
-- The planned trigger emits `repository_dispatch` to `tteon/tteon.github.io` (`event-type: seocho-docs-sync`).
-- Remote rollout may remain pending until repository-owner credentials with `workflow` scope are applied.
-- Local `tteon.github.io/` workspace can be used for integration testing, but remains outside `seocho` tracking.
+- Website updates are currently maintained directly in the local `tteon.github.io/`
+  workspace and validated there with `npm run build`.
+- `tteon.github.io/scripts/sync.mjs` may be used as a local helper, but no repo-side
+  automatic sync workflow is currently enforced.
 
 ## Archive
 

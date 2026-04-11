@@ -116,10 +116,10 @@ curl -sS -X POST http://localhost:8001/run_agent_semantic \
   }' | jq .
 ```
 
-### 3.4 Run platform chat through the UI proxy
+### 3.4 Run platform chat through the backend endpoint
 
 ```bash
-curl -sS -X POST http://localhost:8501/api/chat/send \
+curl -sS -X POST http://localhost:8001/platform/chat/send \
   -H "Content-Type: application/json" \
   -d '{
     "session_id":"tutorial_chat_1",

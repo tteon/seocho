@@ -70,6 +70,7 @@ from .models import (
     ReasoningPolicy,
     SearchResponse,
     SearchResult,
+    SemanticRunRecord,
     SemanticRunResponse,
 )
 
@@ -905,6 +906,29 @@ class Seocho:
 
     def health(self, *, scope: str = "runtime") -> Dict[str, Any]:
         return self._request_json("GET", f"/health/{scope}")
+
+    def semantic_runs(
+        self,
+        *,
+        limit: int = 20,
+        route: Optional[str] = None,
+        intent_id: Optional[str] = None,
+    ) -> List[SemanticRunRecord]:
+        params: Dict[str, Any] = {
+            "workspace_id": self.workspace_id,
+            "limit": max(1, int(limit or 20)),
+        }
+        if route:
+            params["route"] = route
+        if intent_id:
+            params["intent_id"] = intent_id
+        payload = self._request_json("GET", "/semantic/runs", params=params)
+        return [SemanticRunRecord.from_dict(item) for item in payload.get("runs", [])]
+
+    def semantic_run(self, run_id: str) -> SemanticRunRecord:
+        params: Dict[str, Any] = {"workspace_id": self.workspace_id}
+        payload = self._request_json("GET", f"/semantic/runs/{run_id}", params=params)
+        return SemanticRunRecord.from_dict(payload)
 
     def ensure_fulltext_indexes(
         self,
@@ -1857,6 +1881,23 @@ class AsyncSeocho:
 
     async def health(self, *, scope: str = "runtime") -> Dict[str, Any]:
         return await asyncio.to_thread(self._client.health, scope=scope)
+
+    async def semantic_runs(
+        self,
+        *,
+        limit: int = 20,
+        route: Optional[str] = None,
+        intent_id: Optional[str] = None,
+    ) -> List[SemanticRunRecord]:
+        return await asyncio.to_thread(
+            self._client.semantic_runs,
+            limit=limit,
+            route=route,
+            intent_id=intent_id,
+        )
+
+    async def semantic_run(self, run_id: str) -> SemanticRunRecord:
+        return await asyncio.to_thread(self._client.semantic_run, run_id)
 
     async def ensure_fulltext_indexes(self, **kwargs: Any) -> FulltextIndexResponse:
         return await asyncio.to_thread(self._client.ensure_fulltext_indexes, **kwargs)

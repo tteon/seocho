@@ -231,6 +231,60 @@ class TestListEndpoints:
             assert payload["strategy_decision"]["executed_mode"] == "semantic_direct"
             assert payload["run_metadata"]["run_id"] == "run_123"
 
+    async def test_semantic_runs_list_endpoint(self, client, app_module):
+        with patch.object(app_module, "list_semantic_runs") as mock_list:
+            mock_list.return_value = [
+                {
+                    "run_id": "run_123",
+                    "workspace_id": "default",
+                    "timestamp": "2026-04-11T10:00:00Z",
+                    "route": "lpg",
+                    "intent_id": "relationship_lookup",
+                    "query_preview": "What is Neo4j connected to?",
+                    "support_status": "supported",
+                    "support_reason": "sufficient",
+                    "support_coverage": 1.0,
+                    "lpg_record_count": 1,
+                    "rdf_record_count": 0,
+                    "response_preview": "Neo4j uses Cypher.",
+                }
+            ]
+            response = await client.get("/semantic/runs", params={"workspace_id": "default", "route": "lpg"})
+            assert response.status_code == 200
+            payload = response.json()
+            assert payload["runs"][0]["run_id"] == "run_123"
+            _, kwargs = mock_list.call_args
+            assert kwargs["workspace_id"] == "default"
+            assert kwargs["route"] == "lpg"
+
+    async def test_semantic_run_get_endpoint(self, client, app_module):
+        with patch.object(app_module, "get_semantic_run") as mock_get:
+            mock_get.return_value = {
+                "run_id": "run_123",
+                "workspace_id": "default",
+                "timestamp": "2026-04-11T10:00:00Z",
+                "route": "lpg",
+                "intent_id": "relationship_lookup",
+                "query_preview": "What is Neo4j connected to?",
+                "support_status": "supported",
+                "support_reason": "sufficient",
+                "support_coverage": 1.0,
+                "support_assessment": {"status": "supported"},
+                "strategy_decision": {"executed_mode": "semantic_direct"},
+                "reasoning": {"requested": False},
+                "evidence_summary": {"grounded_slots": ["target_entity"]},
+                "lpg_record_count": 1,
+                "rdf_record_count": 0,
+                "response_preview": "Neo4j uses Cypher.",
+            }
+            response = await client.get("/semantic/runs/run_123", params={"workspace_id": "default"})
+            assert response.status_code == 200
+            payload = response.json()
+            assert payload["run_id"] == "run_123"
+            _, kwargs = mock_get.call_args
+            assert kwargs["workspace_id"] == "default"
+            assert kwargs["run_id"] == "run_123"
+
     async def test_fulltext_ensure_endpoint(self, client, app_module):
         with patch.object(app_module, "ensure_fulltext_indexes_impl") as mock_impl:
             mock_impl.return_value = {

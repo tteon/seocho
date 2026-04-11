@@ -957,3 +957,68 @@ def test_semantic_response_exposes_support_strategy_run_and_evidence_helpers():
     assert result.strategy.executed_mode == "semantic_direct"
     assert result.run_record.run_id == "run_123"
     assert result.evidence.graph_id == "kgnormal"
+
+
+def test_semantic_run_registry_endpoints_return_typed_records():
+    session = _FakeSession(
+        [
+            _FakeResponse(
+                payload={
+                    "runs": [
+                        {
+                            "run_id": "run_123",
+                            "workspace_id": "default",
+                            "timestamp": "2026-04-11T10:00:00Z",
+                            "route": "lpg",
+                            "intent_id": "relationship_lookup",
+                            "query_preview": "What is Neo4j connected to?",
+                            "support_status": "supported",
+                            "support_reason": "sufficient",
+                            "support_coverage": 1.0,
+                            "response_preview": "Neo4j uses Cypher.",
+                        }
+                    ]
+                }
+            ),
+            _FakeResponse(
+                payload={
+                    "run_id": "run_123",
+                    "workspace_id": "default",
+                    "timestamp": "2026-04-11T10:00:00Z",
+                    "route": "lpg",
+                    "intent_id": "relationship_lookup",
+                    "query_preview": "What is Neo4j connected to?",
+                    "support_status": "supported",
+                    "support_reason": "sufficient",
+                    "support_coverage": 1.0,
+                    "support_assessment": {
+                        "intent_id": "relationship_lookup",
+                        "supported": True,
+                        "status": "supported",
+                        "reason": "sufficient",
+                        "coverage": 1.0,
+                    },
+                    "strategy_decision": {
+                        "executed_mode": "semantic_direct",
+                        "support_status": "supported",
+                    },
+                    "reasoning": {"requested": False},
+                    "evidence_summary": {"grounded_slots": ["source_entity", "target_entity"]},
+                    "lpg_record_count": 1,
+                    "rdf_record_count": 0,
+                    "response_preview": "Neo4j uses Cypher.",
+                }
+            ),
+        ]
+    )
+    client = Seocho(base_url="http://localhost:8001", session=session)
+
+    rows = client.semantic_runs(limit=10, route="lpg")
+    record = client.semantic_run("run_123")
+
+    assert rows[0].run_id == "run_123"
+    assert rows[0].support.supported is True
+    assert record.strategy.executed_mode == "semantic_direct"
+    assert session.calls[0]["url"] == "http://localhost:8001/semantic/runs"
+    assert session.calls[0]["params"]["route"] == "lpg"
+    assert session.calls[1]["url"] == "http://localhost:8001/semantic/runs/run_123"

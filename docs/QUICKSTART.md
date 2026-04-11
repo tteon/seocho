@@ -116,6 +116,9 @@ print(semantic.response)
 print(semantic.semantic_context["reasoning"])
 print(semantic.support.status)
 print(semantic.strategy.next_mode_hint)
+
+recent = client.semantic_runs(limit=5, route="lpg")
+print(recent[0].run_id)
 ```
 
 ## 7. Use Debate Only as an Advanced Mode
@@ -134,13 +137,19 @@ print(advanced.debate_state)
 Stay on the semantic path first. Inspect `semantic.support`, `semantic.strategy`,
 and `semantic.evidence` before reaching for debate.
 
-## 8. Validate the Runtime
+## 8. Inspect Runtime Semantic History
+
+```bash
+curl -sS "http://localhost:8001/semantic/runs?workspace_id=default&limit=5&route=lpg" | jq .
+```
+
+## 9. Validate the Runtime
 
 ```bash
 make e2e-smoke
 ```
 
-## 9. Troubleshooting
+## 10. Troubleshooting
 
 Check service state:
 

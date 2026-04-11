@@ -28,9 +28,18 @@ from .api import (
     router,
     search,
     semantic,
+    semantic_run,
+    semantic_runs,
     session_history,
 )
 from .client import AsyncSeocho, ExecutionPlanBuilder, Seocho
+from .evaluation import (
+    EvaluationBaselineResult,
+    EvaluationCaseResult,
+    EvaluationMatrixSummary,
+    ManualGoldCase,
+    SemanticEvaluationHarness,
+)
 from .exceptions import SeochoConnectionError, SeochoError, SeochoHTTPError
 from .governance import ArtifactDiff, ArtifactValidationMessage, ArtifactValidationResult
 from .indexing import BatchIndexingResult, IndexingResult
@@ -76,6 +85,7 @@ from .models import (
     ReasoningPolicy,
     SearchResponse,
     SearchResult,
+    SemanticRunRecord,
     SemanticRunResponse,
     RunMetadata,
     StrategyDecision,
@@ -147,9 +157,16 @@ __all__ = [
     "RunMetadata",
     "SearchResponse",
     "SearchResult",
+    "SemanticRunRecord",
     "SemanticRunResponse",
     "StrategyDecision",
     "SupportAssessment",
+    # --- Evaluation ---
+    "EvaluationBaselineResult",
+    "EvaluationCaseResult",
+    "EvaluationMatrixSummary",
+    "ManualGoldCase",
+    "SemanticEvaluationHarness",
     # --- Module-level convenience functions ---
     "__version__",
     "add",
@@ -179,5 +196,7 @@ __all__ = [
     "router",
     "search",
     "semantic",
+    "semantic_run",
+    "semantic_runs",
     "session_history",
 ]

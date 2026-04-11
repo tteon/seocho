@@ -94,7 +94,6 @@ Most feature work should stay inside:
 - `pyproject.toml`
 - `Makefile`
 - `scripts/land.sh`
-- `.github/workflows/*`
 
 These affect everyone and may have repo-wide consequences.
 

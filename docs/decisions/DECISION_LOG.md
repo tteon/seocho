@@ -233,6 +233,10 @@ Each entry must link to a full ADR when impact is non-trivial.
   - replace ad hoc semantic run output with a SQLite-backed queryable registry
   - add SDK-level manual-gold evaluation over question/reference/semantic baselines
   - add deterministic profile packages and disagreement-aware advanced recommendations
+- Accepted `ADR-0039-remove-broken-repo-github-actions.md`
+  - remove all repository-local GitHub Actions workflows for now
+  - make local validation the active delivery path again
+  - require any future repo automation to return through a fresh ADR and working rollout
 
 ## Template
 

@@ -120,77 +120,17 @@ Operational notes:
 - `tteon.github.io/scripts/sync.mjs` can be used as a local helper when syncing
   selected docs, but no repo-side automatic sync workflow is currently enforced
 
-5. Daily Codex Maintenance Automation
+5. GitHub Automation Status
 
-- workflow: `.github/workflows/daily-codex-maintenance.yml`
-- cadence: daily at `00:15 UTC` (`09:15 Asia/Seoul`) plus `workflow_dispatch`
-- required secrets:
-  - `OPENAI_API_KEY`
-  - `SEOCHO_GITHUB_APP_ID`
-  - `SEOCHO_GITHUB_APP_PRIVATE_KEY`
-- prompt contract: `.github/codex/prompts/daily-maintenance-pr.md`
-- skill contract: `.agents/skills/daily-maintenance-pr/SKILL.md`
-- operating rule: open or update a small draft PR only; no direct push to
-  `main`, no auto-merge
-- PR body contract:
-  - `Feature`
-  - `Why`
-  - `Design`
-  - `Expected Effect`
-  - `Impact Results`
-  - `Validation`
-  - `Risks`
+- this repository currently has no active GitHub Actions workflows
+- validate locally before landing
+- if package publishing is needed, run local build validation first:
+  - `uv build`
+  - `twine check dist/*`
+- if periodic maintenance or review automation is needed later, reintroduce it
+  with a new ADR rather than assuming old workflow files still exist
 
-6. Periodic Codex Review Automation
-
-- workflow: `.github/workflows/periodic-codex-review.yml`
-- cadence: weekly on Monday at `00:45 UTC` (`09:45 Asia/Seoul`) plus
-  `workflow_dispatch`
-- required secrets:
-  - `OPENAI_API_KEY`
-  - `SEOCHO_GITHUB_APP_ID`
-  - `SEOCHO_GITHUB_APP_PRIVATE_KEY`
-- prompt contract: `.github/codex/prompts/periodic-review-pr.md`
-- skill contract: `.agents/skills/periodic-review-pr/SKILL.md`
-- operating rule: open or update one draft PR for a single bounded refactor,
-  SDK improvement, packaging hardening, or related reviewable change; no direct
-  push to `main`, no auto-merge
-- PR body contract:
-  - `Feature`
-  - `Why`
-  - `Design`
-  - `Expected Effect`
-  - `Impact Results`
-  - `Validation`
-  - `Risks`
-
-7. Python Package Publish Automation
-
-- workflow: `.github/workflows/publish-python-package.yml`
-- trigger:
-  - manual `workflow_dispatch` to `testpypi` or `pypi`
-  - automatic on `v*` tags for production publish
-- build gate:
-  - `python -m build`
-  - `python -m twine check dist/*`
-- publish contract:
-  - prefer PyPI trusted publishing through GitHub environments `testpypi` and
-    `pypi`
-  - configure trusted publisher registration before production publish
-  - on tag pushes, require `v<project.version>` to match `pyproject.toml`
-
-8. Comment-Based Merge Automation
-
-- workflow: `.github/workflows/pr-comment-merge.yml`
-- trigger: `issue_comment` on PRs with command exactly `/go`
-- authorization:
-  - commenter must have repository permission `write`, `maintain`, or `admin`
-- merge behavior:
-  - PR must be open and not draft
-  - merge method is `squash`
-  - branch protection and required checks still apply
-
-9. Governance loop
+6. Governance loop
 - log architecture decisions as ADRs
 - track context graph events and quality metrics
 - schedule follow-up issues for unresolved risks

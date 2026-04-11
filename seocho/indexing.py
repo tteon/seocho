@@ -424,3 +424,79 @@ class IndexingPipeline:
                 deduped.append(node)
 
         return deduped
+
+    # ------------------------------------------------------------------
+    # Incremental indexing
+    # ------------------------------------------------------------------
+
+    def reindex(
+        self,
+        source_id: str,
+        content: str,
+        *,
+        database: str = "neo4j",
+        category: str = "general",
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> IndexingResult:
+        """Re-index a document: delete old data, then index fresh.
+
+        Parameters
+        ----------
+        source_id:
+            The source_id of the previously indexed document.
+        content:
+            The (possibly updated) document text.
+        database:
+            Target database.
+        category:
+            Document category.
+        metadata:
+            Additional metadata.
+
+        Returns
+        -------
+        IndexingResult for the new indexing pass.
+        """
+        # 1. Remove old data
+        delete_summary = self.delete_source(source_id, database=database)
+        logger.info(
+            "Reindex: deleted %d nodes, %d rels for source_id=%s",
+            delete_summary.get("nodes_deleted", 0),
+            delete_summary.get("relationships_deleted", 0),
+            source_id,
+        )
+
+        # 2. Remove from dedup cache (allow re-indexing same content)
+        h = content_hash(content)
+        self._seen_hashes.discard(h)
+
+        # 3. Index fresh
+        result = self.index(
+            content,
+            database=database,
+            category=category,
+            metadata=metadata,
+        )
+        result.source_id = source_id  # preserve original source_id
+        return result
+
+    def delete_source(
+        self,
+        source_id: str,
+        *,
+        database: str = "neo4j",
+    ) -> Dict[str, Any]:
+        """Delete all graph data associated with a source_id.
+
+        Parameters
+        ----------
+        source_id:
+            The provenance identifier to remove.
+        database:
+            Target database.
+
+        Returns
+        -------
+        Summary with ``nodes_deleted``, ``relationships_deleted``.
+        """
+        return self.graph_store.delete_by_source(source_id, database=database)

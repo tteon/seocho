@@ -59,6 +59,7 @@ from .models import (
     ArchiveResult,
     ChatResponse,
     DebateRunResponse,
+    EvidenceBundle,
     EntityOverride,
     ExecutionPlan,
     ExecutionResult,
@@ -76,6 +77,9 @@ from .models import (
     SearchResponse,
     SearchResult,
     SemanticRunResponse,
+    RunMetadata,
+    StrategyDecision,
+    SupportAssessment,
 )
 
 try:
@@ -124,6 +128,7 @@ __all__ = [
     "ArchiveResult",
     "ChatResponse",
     "DebateRunResponse",
+    "EvidenceBundle",
     "EntityOverride",
     "ExecutionPlan",
     "ExecutionResult",
@@ -139,9 +144,12 @@ __all__ = [
     "RawIngestResult",
     "RawIngestWarning",
     "ReasoningPolicy",
+    "RunMetadata",
     "SearchResponse",
     "SearchResult",
     "SemanticRunResponse",
+    "StrategyDecision",
+    "SupportAssessment",
     # --- Module-level convenience functions ---
     "__version__",
     "add",

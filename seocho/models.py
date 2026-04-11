@@ -306,6 +306,126 @@ class ExecutionResult(JsonSerializable):
 
 
 @dataclass(slots=True)
+class SupportAssessment(JsonSerializable):
+    intent_id: str = ""
+    supported: bool = False
+    status: str = ""
+    reason: str = ""
+    graph_id: str = ""
+    database: str = ""
+    coverage: float = 0.0
+    confidence: float = 0.0
+    required_relations: List[str] = field(default_factory=list)
+    matched_relations: List[str] = field(default_factory=list)
+    required_entity_types: List[str] = field(default_factory=list)
+    matched_entity_types: List[str] = field(default_factory=list)
+    focus_slots: List[str] = field(default_factory=list)
+    grounded_slots: List[str] = field(default_factory=list)
+    missing_slots: List[str] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, payload: Dict[str, Any]) -> "SupportAssessment":
+        return cls(
+            intent_id=str(payload.get("intent_id", "")),
+            supported=bool(payload.get("supported", False)),
+            status=str(payload.get("status", "")),
+            reason=str(payload.get("reason", "")),
+            graph_id=str(payload.get("graph_id", "")),
+            database=str(payload.get("database", "")),
+            coverage=float(payload.get("coverage", 0.0) or 0.0),
+            confidence=float(payload.get("confidence", 0.0) or 0.0),
+            required_relations=[str(item) for item in payload.get("required_relations", [])],
+            matched_relations=[str(item) for item in payload.get("matched_relations", [])],
+            required_entity_types=[str(item) for item in payload.get("required_entity_types", [])],
+            matched_entity_types=[str(item) for item in payload.get("matched_entity_types", [])],
+            focus_slots=[str(item) for item in payload.get("focus_slots", [])],
+            grounded_slots=[str(item) for item in payload.get("grounded_slots", [])],
+            missing_slots=[str(item) for item in payload.get("missing_slots", [])],
+        )
+
+
+@dataclass(slots=True)
+class StrategyDecision(JsonSerializable):
+    requested_mode: str = ""
+    initial_mode: str = ""
+    executed_mode: str = ""
+    reasoning_mode_requested: bool = False
+    repair_budget: int = 0
+    support_status: str = ""
+    reason: str = ""
+    advanced_debate_recommended: bool = False
+    self_reflection_used: bool = False
+    next_mode_hint: Optional[str] = None
+    sdk_hint: Optional[str] = None
+
+    @classmethod
+    def from_dict(cls, payload: Dict[str, Any]) -> "StrategyDecision":
+        return cls(
+            requested_mode=str(payload.get("requested_mode", "")),
+            initial_mode=str(payload.get("initial_mode", "")),
+            executed_mode=str(payload.get("executed_mode", "")),
+            reasoning_mode_requested=bool(payload.get("reasoning_mode_requested", False)),
+            repair_budget=int(payload.get("repair_budget", 0) or 0),
+            support_status=str(payload.get("support_status", "")),
+            reason=str(payload.get("reason", "")),
+            advanced_debate_recommended=bool(payload.get("advanced_debate_recommended", False)),
+            self_reflection_used=bool(payload.get("self_reflection_used", False)),
+            next_mode_hint=str(payload.get("next_mode_hint", "")).strip() or None,
+            sdk_hint=str(payload.get("sdk_hint", "")).strip() or None,
+        )
+
+
+@dataclass(slots=True)
+class RunMetadata(JsonSerializable):
+    run_id: str = ""
+    recorded: bool = False
+    registry_path: str = ""
+    timestamp: str = ""
+
+    @classmethod
+    def from_dict(cls, payload: Dict[str, Any]) -> "RunMetadata":
+        return cls(
+            run_id=str(payload.get("run_id", "")),
+            recorded=bool(payload.get("recorded", False)),
+            registry_path=str(payload.get("registry_path", "")),
+            timestamp=str(payload.get("timestamp", "")),
+        )
+
+
+@dataclass(slots=True)
+class EvidenceBundle(JsonSerializable):
+    intent_id: str = ""
+    focus_slots: List[str] = field(default_factory=list)
+    grounded_slots: List[str] = field(default_factory=list)
+    missing_slots: List[str] = field(default_factory=list)
+    slot_fills: Dict[str, Any] = field(default_factory=dict)
+    selected_triples: List[Dict[str, Any]] = field(default_factory=list)
+    provenance: List[Dict[str, Any]] = field(default_factory=list)
+    confidence: float = 0.0
+    coverage: float = 0.0
+    database: str = ""
+    graph_id: str = ""
+    support_assessment: Dict[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def from_dict(cls, payload: Dict[str, Any]) -> "EvidenceBundle":
+        return cls(
+            intent_id=str(payload.get("intent_id", "")),
+            focus_slots=[str(item) for item in payload.get("focus_slots", [])],
+            grounded_slots=[str(item) for item in payload.get("grounded_slots", [])],
+            missing_slots=[str(item) for item in payload.get("missing_slots", [])],
+            slot_fills=dict(payload.get("slot_fills", {})),
+            selected_triples=list(payload.get("selected_triples", [])),
+            provenance=list(payload.get("provenance", [])),
+            confidence=float(payload.get("confidence", 0.0) or 0.0),
+            coverage=float(payload.get("coverage", 0.0) or 0.0),
+            database=str(payload.get("database", "")),
+            graph_id=str(payload.get("graph_id", "")),
+            support_assessment=dict(payload.get("support_assessment", {})),
+        )
+
+
+@dataclass(slots=True)
 class AgentRunResponse(JsonSerializable):
     response: str
     trace_steps: List[Dict[str, Any]] = field(default_factory=list)
@@ -345,6 +465,10 @@ class SemanticRunResponse(JsonSerializable):
     semantic_context: Dict[str, Any] = field(default_factory=dict)
     lpg_result: Optional[Dict[str, Any]] = None
     rdf_result: Optional[Dict[str, Any]] = None
+    support_assessment: Dict[str, Any] = field(default_factory=dict)
+    strategy_decision: Dict[str, Any] = field(default_factory=dict)
+    run_metadata: Dict[str, Any] = field(default_factory=dict)
+    evidence_bundle: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, payload: Dict[str, Any]) -> "SemanticRunResponse":
@@ -355,7 +479,31 @@ class SemanticRunResponse(JsonSerializable):
             semantic_context=dict(payload.get("semantic_context", {})),
             lpg_result=payload.get("lpg_result"),
             rdf_result=payload.get("rdf_result"),
+            support_assessment=dict(payload.get("support_assessment", {})),
+            strategy_decision=dict(payload.get("strategy_decision", {})),
+            run_metadata=dict(payload.get("run_metadata", {})),
+            evidence_bundle=dict(payload.get("evidence_bundle", {})),
         )
+
+    @property
+    def support(self) -> SupportAssessment:
+        payload = self.support_assessment or self.semantic_context.get("support_assessment", {})
+        return SupportAssessment.from_dict(payload if isinstance(payload, dict) else {})
+
+    @property
+    def strategy(self) -> StrategyDecision:
+        payload = self.strategy_decision or self.semantic_context.get("strategy_decision", {})
+        return StrategyDecision.from_dict(payload if isinstance(payload, dict) else {})
+
+    @property
+    def run_record(self) -> RunMetadata:
+        payload = self.run_metadata or self.semantic_context.get("run_metadata", {})
+        return RunMetadata.from_dict(payload if isinstance(payload, dict) else {})
+
+    @property
+    def evidence(self) -> EvidenceBundle:
+        payload = self.evidence_bundle or self.semantic_context.get("evidence_bundle_preview", {})
+        return EvidenceBundle.from_dict(payload if isinstance(payload, dict) else {})
 
 
 @dataclass(slots=True)

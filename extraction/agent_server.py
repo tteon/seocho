@@ -455,6 +455,10 @@ class SemanticAgentResponse(AgentResponse):
     semantic_context: Dict[str, Any]
     lpg_result: Optional[Dict[str, Any]] = None
     rdf_result: Optional[Dict[str, Any]] = None
+    support_assessment: Dict[str, Any] = Field(default_factory=dict)
+    strategy_decision: Dict[str, Any] = Field(default_factory=dict)
+    run_metadata: Dict[str, Any] = Field(default_factory=dict)
+    evidence_bundle: Dict[str, Any] = Field(default_factory=dict)
 
 
 class DebateResponse(BaseModel):

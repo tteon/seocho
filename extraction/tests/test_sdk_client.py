@@ -893,3 +893,67 @@ def test_execution_plan_builder_passes_semantic_repair_budget():
     assert result.route == "lpg"
     assert session.calls[1]["json"]["reasoning_mode"] is True
     assert session.calls[1]["json"]["repair_budget"] == 2
+
+
+def test_semantic_response_exposes_support_strategy_run_and_evidence_helpers():
+    session = _FakeSession(
+        [
+            _FakeResponse(
+                payload={
+                    "response": "semantic answer",
+                    "trace_steps": [{"type": "SEMANTIC"}],
+                    "route": "lpg",
+                    "semantic_context": {
+                        "entities": ["Neo4j"],
+                        "support_assessment": {"intent_id": "relationship_lookup", "status": "supported"},
+                    },
+                    "lpg_result": {"records": [{"target_entity": "Cypher"}]},
+                    "rdf_result": None,
+                    "support_assessment": {
+                        "intent_id": "relationship_lookup",
+                        "supported": True,
+                        "status": "supported",
+                        "reason": "sufficient",
+                        "graph_id": "kgnormal",
+                        "database": "kgnormal",
+                        "coverage": 1.0,
+                        "grounded_slots": ["source_entity", "target_entity", "relation_paths"],
+                        "missing_slots": [],
+                    },
+                    "strategy_decision": {
+                        "requested_mode": "semantic",
+                        "initial_mode": "semantic_direct",
+                        "executed_mode": "semantic_direct",
+                        "support_status": "supported",
+                        "reason": "intent support is available for the selected graph scope",
+                    },
+                    "run_metadata": {
+                        "run_id": "run_123",
+                        "recorded": True,
+                        "registry_path": "/tmp/seocho/semantic_run_registry.jsonl",
+                        "timestamp": "2026-04-11T10:00:00Z",
+                    },
+                    "evidence_bundle": {
+                        "intent_id": "relationship_lookup",
+                        "focus_slots": ["source_entity", "target_entity", "relation_paths"],
+                        "grounded_slots": ["source_entity", "target_entity", "relation_paths"],
+                        "missing_slots": [],
+                        "slot_fills": {"source_entity": "Neo4j", "target_entity": "Cypher"},
+                        "selected_triples": [{"source": "Neo4j", "relation": "USES", "target": "Cypher"}],
+                        "confidence": 0.99,
+                        "coverage": 1.0,
+                        "database": "kgnormal",
+                        "graph_id": "kgnormal",
+                    },
+                }
+            )
+        ]
+    )
+    client = Seocho(base_url="http://localhost:8001", session=session)
+
+    result = client.semantic("What is Neo4j connected to?", databases=["kgnormal"])
+
+    assert result.support.supported is True
+    assert result.strategy.executed_mode == "semantic_direct"
+    assert result.run_record.run_id == "run_123"
+    assert result.evidence.graph_id == "kgnormal"

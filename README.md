@@ -115,6 +115,9 @@ advanced = seocho.advanced(
 )
 
 print(semantic.route)
+print(semantic.support.status)
+print(semantic.strategy.executed_mode)
+print(semantic.evidence.grounded_slots)
 print(advanced.debate_state)
 ```
 
@@ -122,6 +125,7 @@ Recommended execution order:
 
 - `ask` / `chat` for memory-first use
 - `semantic` for graph-grounded retrieval
+- inspect `support` / `strategy` / `evidence` before escalating
 - `reasoning_mode=True` before reaching for debate
 - `advanced()` only for explicit multi-agent comparison
 

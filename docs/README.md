@@ -72,24 +72,15 @@ Use these when changing a specific subsystem or workflow:
 - `../LICENSE`: repository license (MIT)
 - `../SECURITY.md`: vulnerability reporting process
 
-## Codex Automation Surfaces
+## Local Automation References
 
-- `../.agents/skills/daily-maintenance-pr/SKILL.md`: repo-local skill for
-  small scheduled maintenance PRs
-- `../.agents/skills/periodic-review-pr/SKILL.md`: repo-local skill for
-  scheduled repository review and refactor PRs
-- `../.github/codex/prompts/daily-maintenance-pr.md`: Codex prompt used by the
-  scheduled maintenance workflow
-- `../.github/codex/prompts/periodic-review-pr.md`: Codex prompt used by the
-  periodic review workflow
-- `../.github/workflows/daily-codex-maintenance.yml`: daily GitHub App PR
-  automation
-- `../.github/workflows/periodic-codex-review.yml`: periodic GitHub App review
-  PR automation
-- `../.github/workflows/publish-python-package.yml`: Python package build and
-  publish workflow for TestPyPI/PyPI
-- `../.github/workflows/pr-comment-merge.yml`: maintainer-triggered `/go`
-  squash merge workflow
+- `../.agents/skills/daily-maintenance-pr/SKILL.md`: local skill reference for
+  bounded maintenance work
+- `../.agents/skills/periodic-review-pr/SKILL.md`: local skill reference for
+  bounded review/refactor work
+- `../.github/codex/prompts/daily-maintenance-pr.md`: local prompt reference
+- `../.github/codex/prompts/periodic-review-pr.md`: local prompt reference
+- repo-side GitHub Actions automation is currently disabled
 
 ## Docs Sync Integration
 

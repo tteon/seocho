@@ -87,35 +87,10 @@ For architecture or workflow changes:
 - record decision in ADR (`docs/decisions/ADR-*.md`)
 - append entry to `docs/decisions/DECISION_LOG.md`
 
-## 9. Codex Automation Rules
+## 9. GitHub Automation Status
 
-- use repo-local skill `$daily-maintenance-pr` for scheduled or manual Codex
-  maintenance PR workflows
-- use repo-local skill `$periodic-review-pr` for scheduled or manual Codex
-  repository review PR workflows
-- scheduled automation prompt lives in
-  `.github/codex/prompts/daily-maintenance-pr.md`
-- periodic review prompt lives in
-  `.github/codex/prompts/periodic-review-pr.md`
-- Python package publish workflow lives in
-  `.github/workflows/publish-python-package.yml`
-- comment-based merge workflow lives in
-  `.github/workflows/pr-comment-merge.yml`
-- daily automation must stay small, reviewable, and non-destructive:
-  - no direct push to `main`
-  - no auto-merge
-  - report exact validation commands in the PR body
-- periodic review automation may consider small refactors or developer-facing
-  improvements, but must still stay draft-PR-safe:
-  - one cohesive change only
-  - no speculative large features
-  - no direct push to `main`
-  - no auto-merge
-- package publishing should prefer PyPI trusted publishing from GitHub Actions:
-  - build and `twine check` must pass before publish
-  - default manual smoke target is `testpypi`
-  - production publish may run on `v*` tags after registry setup
-- comment-based merge should stay explicitly maintainer-triggered:
-  - merge command is exactly `/go`
-  - only users with `write`, `maintain`, or `admin` permission may trigger it
-  - workflow uses squash merge
+- this repository currently has no active GitHub Actions workflows
+- do not assume CI, scheduled Codex PR automation, comment-triggered merge, or
+  package publishing automation exists
+- validate changes locally before landing
+- push target remains `main`

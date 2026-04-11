@@ -195,71 +195,20 @@ Track B - I want to embed/extend it:
 - use [docs/OPEN_SOURCE_PLAYBOOK.md](docs/OPEN_SOURCE_PLAYBOOK.md)
 - implement against runtime APIs in [docs/WORKFLOW.md](docs/WORKFLOW.md)
 
-## Codex Automation
+## GitHub Automation Status
 
-SEOCHO includes two scheduled Codex draft-PR workflows.
+This repository currently has no active GitHub Actions workflows.
 
-- daily maintenance:
-  - workflow: `.github/workflows/daily-codex-maintenance.yml`
-  - prompt: `.github/codex/prompts/daily-maintenance-pr.md`
-  - skill: `.agents/skills/daily-maintenance-pr/SKILL.md`
-- periodic repository review:
-  - workflow: `.github/workflows/periodic-codex-review.yml`
-  - prompt: `.github/codex/prompts/periodic-review-pr.md`
-  - skill: `.agents/skills/periodic-review-pr/SKILL.md`
+- do not assume CI or scheduled Codex PR automation exists
+- do not assume `/go` comment-based merge exists
+- do not assume package publishing automation exists
 
-Required repository secrets for Codex PR automation:
+Local validation is the required path. Typical release validation is still:
 
-- `OPENAI_API_KEY`
-- `SEOCHO_GITHUB_APP_ID`
-- `SEOCHO_GITHUB_APP_PRIVATE_KEY`
-
-Both workflows open or update draft PRs through a GitHub App token. They are
-review-only by design and do not auto-merge.
-
-The daily workflow stays in the small maintenance lane. The periodic review
-workflow is allowed to pick one bounded refactor or small developer-facing
-improvement, but it still uses a single draft PR branch and avoids large
-speculative features.
-
-Codex-generated PR bodies are expected to include:
-
-- `Feature`
-- `Why`
-- `Design`
-- `Expected Effect`
-- `Impact Results`
-- `Validation`
-- `Risks`
-
-## Comment-Based Merge
-
-SEOCHO can also merge a reviewed pull request from a maintainer comment.
-
-- workflow: `.github/workflows/pr-comment-merge.yml`
-- trigger: comment exactly `/go` on an open non-draft PR
-- authorization: commenter must have repository permission level `write`,
-  `maintain`, or `admin`
-- merge method: squash merge
-
-This is intended for reviewed PRs after a human decision to land them. It does
-not bypass branch protection or required checks.
-
-## Python Package Publishing
-
-SEOCHO now includes a GitHub Actions publish workflow for the Python package.
-
-- workflow: `.github/workflows/publish-python-package.yml`
-- manual smoke target: `workflow_dispatch` to `testpypi`
-- production target: `workflow_dispatch` to `pypi` or push a `v*` tag
-
-The workflow builds the package, runs `twine check`, and then publishes through
-PyPI trusted publishing. Configure the `testpypi` and `pypi` environments in
-GitHub and register this repository as a trusted publisher in each package
-index before using the publish jobs.
-
-On tag-triggered production publishes, the workflow also checks that the git
-tag matches `project.version` from `pyproject.toml`.
+```bash
+uv build
+twine check dist/*
+```
 
 ## Product Baseline
 

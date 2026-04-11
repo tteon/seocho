@@ -143,6 +143,8 @@ class TestListEndpoints:
             assert data["route"] == "lpg"
             _, kwargs = mock_run.call_args
             assert kwargs["workspace_id"] == "default"
+            assert kwargs["reasoning_mode"] is False
+            assert kwargs["repair_budget"] == 0
 
     async def test_run_agent_semantic_with_overrides(self, client, app_module):
         with patch.object(app_module.semantic_agent_flow, "run") as mock_run:
@@ -175,6 +177,35 @@ class TestListEndpoints:
             assert "overrides_applied" in payload["semantic_context"]
             _, kwargs = mock_run.call_args
             assert kwargs["workspace_id"] == "default"
+
+    async def test_run_agent_semantic_endpoint_passes_reasoning_mode(self, client, app_module):
+        with patch.object(app_module.semantic_agent_flow, "run") as mock_run:
+            mock_run.return_value = {
+                "response": "Route selected: LPG.",
+                "trace_steps": [],
+                "route": "lpg",
+                "semantic_context": {
+                    "entities": ["Neo4j"],
+                    "matches": {},
+                    "unresolved_entities": [],
+                    "reasoning": {"requested": True, "attempt_count": 2, "terminal_reason": "sufficient"},
+                },
+                "lpg_result": {"mode": "lpg", "summary": "", "records": []},
+                "rdf_result": None,
+            }
+            response = await client.post(
+                "/run_agent_semantic",
+                json={
+                    "query": "Tell me about Neo4j",
+                    "workspace_id": "default",
+                    "reasoning_mode": True,
+                    "repair_budget": 2,
+                },
+            )
+            assert response.status_code == 200
+            _, kwargs = mock_run.call_args
+            assert kwargs["reasoning_mode"] is True
+            assert kwargs["repair_budget"] == 2
 
     async def test_fulltext_ensure_endpoint(self, client, app_module):
         with patch.object(app_module, "ensure_fulltext_indexes_impl") as mock_impl:

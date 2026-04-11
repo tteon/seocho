@@ -172,6 +172,7 @@ class ReasoningPolicy(JsonSerializable):
     max_steps: Optional[int] = None
     tool_budget: Optional[int] = None
     require_grounded_evidence: bool = True
+    repair_budget: int = 0
     fallback_style: Optional[Literal["direct", "react", "debate"]] = None
 
     def normalized_style(self) -> Literal["direct", "react", "debate"]:
@@ -257,6 +258,23 @@ class ExecutionResult(JsonSerializable):
     router_result: Optional["AgentRunResponse"] = None
     semantic_result: Optional["SemanticRunResponse"] = None
     debate_result: Optional["DebateRunResponse"] = None
+
+    def _delegated_result(
+        self,
+    ) -> Optional["AgentRunResponse | SemanticRunResponse | DebateRunResponse"]:
+        if self.runtime_mode == "semantic":
+            return self.semantic_result
+        if self.runtime_mode == "debate":
+            return self.debate_result
+        if self.runtime_mode == "router":
+            return self.router_result
+        return None
+
+    def __getattr__(self, name: str) -> Any:
+        delegated = self._delegated_result()
+        if delegated is not None and hasattr(delegated, name):
+            return getattr(delegated, name)
+        raise AttributeError(f"{type(self).__name__!s} object has no attribute {name!r}")
 
     @classmethod
     def from_run_result(

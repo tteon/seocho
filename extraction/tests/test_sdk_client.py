@@ -14,6 +14,7 @@ import seocho as seocho_module
 from seocho import (
     ApprovedArtifacts,
     EntityOverride,
+    GraphRef,
     KnownEntity,
     OntologyCandidate,
     OntologyClass,
@@ -656,6 +657,8 @@ def test_runtime_client_methods_cover_semantic_debate_platform_and_admin_surface
         "Tell me about Neo4j",
         databases=["kgnormal"],
         entity_overrides=[EntityOverride(question_entity="Neo4j", database="kgnormal", node_id=1)],
+        reasoning_mode=True,
+        repair_budget=2,
     )
     debated = client.debate("Compare graphs", graph_ids=["kgnormal"])
     platform = client.platform_chat("hello", mode="debate", session_id="s1", graph_ids=["kgnormal"])
@@ -684,6 +687,8 @@ def test_runtime_client_methods_cover_semantic_debate_platform_and_admin_surface
     assert session.calls[0]["url"] == "http://localhost:8001/run_agent"
     assert session.calls[1]["url"] == "http://localhost:8001/run_agent_semantic"
     assert session.calls[1]["json"]["entity_overrides"][0]["question_entity"] == "Neo4j"
+    assert session.calls[1]["json"]["reasoning_mode"] is True
+    assert session.calls[1]["json"]["repair_budget"] == 2
     assert session.calls[2]["url"] == "http://localhost:8001/run_debate"
     assert session.calls[3]["url"] == "http://localhost:8001/platform/chat/send"
     assert session.calls[6]["url"] == "http://localhost:8001/platform/ingest/raw"
@@ -758,3 +763,133 @@ def test_advanced_alias_uses_debate_endpoint_directly():
     assert result.debate_state == "ready"
     assert session.calls[0]["url"] == "http://localhost:8001/run_debate"
     assert session.calls[0]["json"]["graph_ids"] == ["kgnormal"]
+
+
+def test_semantic_accepts_graph_ids_and_resolves_them_to_databases():
+    session = _FakeSession(
+        [
+            _FakeResponse(
+                payload={
+                    "graphs": [
+                        {
+                            "graph_id": "kgnormal",
+                            "database": "kgnormal",
+                            "uri": "bolt://neo4j:7687",
+                            "ontology_id": "baseline",
+                            "vocabulary_profile": "vocabulary.v2",
+                            "description": "Baseline graph",
+                            "workspace_scope": "default",
+                        }
+                    ]
+                }
+            ),
+            _FakeResponse(
+                payload={
+                    "response": "semantic answer",
+                    "trace_steps": [{"type": "SEMANTIC"}],
+                    "route": "lpg",
+                    "semantic_context": {"entities": ["Seoul"]},
+                    "lpg_result": {"records": []},
+                    "rdf_result": None,
+                }
+            ),
+        ]
+    )
+    client = Seocho(base_url="http://localhost:8001", session=session)
+
+    result = client.semantic("Who manages Seoul retail?", graph_ids=[GraphRef(graph_id="kgnormal")])
+
+    assert result.route == "lpg"
+    assert session.calls[0]["url"] == "http://localhost:8001/graphs"
+    assert session.calls[1]["url"] == "http://localhost:8001/run_agent_semantic"
+    assert session.calls[1]["json"]["databases"] == ["kgnormal"]
+
+
+def test_execution_plan_builder_defaults_to_semantic_and_advanced_remains_explicit():
+    session = _FakeSession(
+        [
+            _FakeResponse(
+                payload={
+                    "graphs": [
+                        {
+                            "graph_id": "kgnormal",
+                            "database": "kgnormal",
+                            "uri": "bolt://neo4j:7687",
+                            "ontology_id": "baseline",
+                            "vocabulary_profile": "vocabulary.v2",
+                            "description": "Baseline graph",
+                            "workspace_scope": "default",
+                        }
+                    ]
+                }
+            ),
+            _FakeResponse(
+                payload={
+                    "response": "semantic answer",
+                    "trace_steps": [{"type": "SEMANTIC"}],
+                    "route": "lpg",
+                    "semantic_context": {"entities": ["Alex"]},
+                    "lpg_result": {"records": []},
+                    "rdf_result": None,
+                }
+            ),
+            _FakeResponse(
+                payload={
+                    "response": "advanced debate answer",
+                    "trace_steps": [],
+                    "debate_results": [{"graph": "kgnormal", "response": "A"}],
+                    "agent_statuses": [{"graph": "kgnormal", "status": "ready"}],
+                    "debate_state": "ready",
+                    "degraded": False,
+                }
+            ),
+        ]
+    )
+    client = Seocho(base_url="http://localhost:8001", session=session)
+
+    semantic_result = client.plan("What do you know about Alex?").on_graph("kgnormal").run()
+    advanced_result = client.plan("Hard graph question").on_graph("kgnormal").advanced().run()
+
+    assert semantic_result.route == "lpg"
+    assert advanced_result.debate_state == "ready"
+    assert session.calls[1]["url"] == "http://localhost:8001/run_agent_semantic"
+    assert session.calls[2]["url"] == "http://localhost:8001/run_debate"
+
+
+def test_execution_plan_builder_passes_semantic_repair_budget():
+    session = _FakeSession(
+        [
+            _FakeResponse(
+                payload={
+                    "graphs": [
+                        {
+                            "graph_id": "kgnormal",
+                            "database": "kgnormal",
+                            "uri": "bolt://neo4j:7687",
+                            "ontology_id": "baseline",
+                            "vocabulary_profile": "vocabulary.v2",
+                            "description": "Baseline graph",
+                            "workspace_scope": "default",
+                        }
+                    ]
+                }
+            ),
+            _FakeResponse(
+                payload={
+                    "response": "semantic answer",
+                    "trace_steps": [{"type": "SEMANTIC"}],
+                    "route": "lpg",
+                    "semantic_context": {"entities": ["Alex"], "reasoning": {"requested": True, "attempt_count": 2}},
+                    "lpg_result": {"records": []},
+                    "rdf_result": None,
+                }
+            ),
+        ]
+    )
+    client = Seocho(base_url="http://localhost:8001", session=session)
+
+    result = client.plan("What do you know about Alex?").on_graph("kgnormal").with_repair_budget(2).run()
+
+    assert result.route == "lpg"
+    assert session.calls[1]["json"]["reasoning_mode"] is True
+    assert session.calls[1]["json"]["repair_budget"] == 2

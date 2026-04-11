@@ -455,20 +455,48 @@ class Seocho:
         """Run the graph-scoped tool-using router path."""
         return self.router(query, user_id=user_id, graph_ids=graph_ids)
 
+    def advanced(
+        self,
+        query: str,
+        *,
+        user_id: Optional[str] = None,
+        graph_ids: Optional[Sequence[GraphRef | GraphTarget | Dict[str, Any] | str]] = None,
+    ) -> DebateRunResponse:
+        """Run the explicit advanced multi-agent debate path."""
+        return self.debate(query, user_id=user_id, graph_ids=graph_ids)
+
     def semantic(
         self,
         query: str,
         *,
         user_id: Optional[str] = None,
-        graph_ids: Optional[Sequence[str]] = None,
+        graph_ids: Optional[Sequence[GraphRef | GraphTarget | Dict[str, Any] | str]] = None,
         databases: Optional[Sequence[str]] = None,
         entity_overrides: Optional[Sequence[EntityOverride | Dict[str, Any]]] = None,
+        reasoning_mode: bool = False,
+        repair_budget: int = 0,
     ) -> SemanticRunResponse:
-        body = self._query_payload(query=query, user_id=user_id, graph_ids=graph_ids)
-        if databases:
-            body["databases"] = list(databases)
+        resolved_graph_ids: Optional[List[str]] = None
+        resolved_databases = [str(item).strip() for item in databases or [] if str(item).strip()]
+        if graph_ids:
+            plain_graph_ids = [str(item).strip() for item in graph_ids if isinstance(item, str) and str(item).strip()]
+            if len(plain_graph_ids) == len(graph_ids):
+                resolved_graph_ids = plain_graph_ids
+            else:
+                inline_targets = [self._coerce_graph_ref(item) for item in graph_ids]
+                resolved_targets = inline_targets if all(target.database for target in inline_targets) else self.resolve_graphs(*graph_ids)
+                resolved_graph_ids = [target.graph_id for target in resolved_targets if target.graph_id]
+                if not resolved_databases:
+                    resolved_databases = [target.database for target in resolved_targets if target.database]
+        body = self._query_payload(query=query, user_id=user_id, graph_ids=resolved_graph_ids)
+        if resolved_databases:
+            body["databases"] = resolved_databases
         if entity_overrides:
             body["entity_overrides"] = self._serialize_entity_overrides(entity_overrides)
+        if reasoning_mode:
+            body["reasoning_mode"] = True
+        if repair_budget > 0:
+            body["repair_budget"] = int(repair_budget)
         payload = self._request_json("POST", "/run_agent_semantic", json_body=body)
         return SemanticRunResponse.from_dict(payload)
 
@@ -477,9 +505,18 @@ class Seocho:
         query: str,
         *,
         user_id: Optional[str] = None,
-        graph_ids: Optional[Sequence[str]] = None,
+        graph_ids: Optional[Sequence[GraphRef | GraphTarget | Dict[str, Any] | str]] = None,
     ) -> DebateRunResponse:
-        body = self._query_payload(query=query, user_id=user_id, graph_ids=graph_ids)
+        resolved_graph_ids: Optional[List[str]] = None
+        if graph_ids:
+            plain_graph_ids = [str(item).strip() for item in graph_ids if isinstance(item, str) and str(item).strip()]
+            if len(plain_graph_ids) == len(graph_ids):
+                resolved_graph_ids = plain_graph_ids
+            else:
+                inline_targets = [self._coerce_graph_ref(item) for item in graph_ids]
+                resolved_targets = inline_targets if all(target.database for target in inline_targets) else self.resolve_graphs(*graph_ids)
+                resolved_graph_ids = [target.graph_id for target in resolved_targets if target.graph_id]
+        body = self._query_payload(query=query, user_id=user_id, graph_ids=resolved_graph_ids)
         payload = self._request_json("POST", "/run_debate", json_body=body)
         return DebateRunResponse.from_dict(payload)
 
@@ -510,10 +547,10 @@ class Seocho:
             return self._execute_local_plan(resolved_plan)
 
         if style == "debate":
-            debate_result = self.debate(
+            debate_result = self.advanced(
                 resolved_plan.query,
                 user_id=resolved_plan.user_id,
-                graph_ids=resolved_plan.graph_ids or None,
+                graph_ids=resolved_plan.targets or None,
             )
             return ExecutionResult.from_run_result(
                 requested_style="debate",
@@ -538,9 +575,11 @@ class Seocho:
         semantic_result = self.semantic(
             resolved_plan.query,
             user_id=resolved_plan.user_id,
-            graph_ids=resolved_plan.graph_ids or None,
+            graph_ids=resolved_plan.targets or None,
             databases=resolved_plan.databases or None,
             entity_overrides=resolved_plan.entity_overrides or None,
+            reasoning_mode=resolved_plan.reasoning.repair_budget > 0,
+            repair_budget=resolved_plan.reasoning.repair_budget,
         )
         return ExecutionResult.from_run_result(
             requested_style="direct",
@@ -1036,6 +1075,7 @@ class ExecutionPlanBuilder:
         max_steps: Optional[int] = None,
         tool_budget: Optional[int] = None,
         require_grounded_evidence: bool = True,
+        repair_budget: Optional[int] = None,
         fallback_style: Optional[str] = None,
     ) -> "ExecutionPlanBuilder":
         self._reasoning = ReasoningPolicy(
@@ -1043,6 +1083,11 @@ class ExecutionPlanBuilder:
             max_steps=max_steps,
             tool_budget=tool_budget,
             require_grounded_evidence=require_grounded_evidence,
+            repair_budget=(
+                self._reasoning.repair_budget
+                if repair_budget is None
+                else max(0, int(repair_budget))
+            ),
             fallback_style=(str(fallback_style).strip().lower() or None) if fallback_style else None,
         )
         self._reasoning.normalized_style()
@@ -1082,6 +1127,32 @@ class ExecutionPlanBuilder:
             require_grounded_evidence=require_grounded_evidence,
             fallback_style=fallback_style,
         )
+
+    def advanced(
+        self,
+        *,
+        max_steps: Optional[int] = None,
+        tool_budget: Optional[int] = None,
+        require_grounded_evidence: bool = True,
+        fallback_style: Optional[str] = None,
+    ) -> "ExecutionPlanBuilder":
+        return self.debate(
+            max_steps=max_steps,
+            tool_budget=tool_budget,
+            require_grounded_evidence=require_grounded_evidence,
+            fallback_style=fallback_style,
+        )
+
+    def with_repair_budget(self, repair_budget: int) -> "ExecutionPlanBuilder":
+        self._reasoning = ReasoningPolicy(
+            style=self._reasoning.normalized_style(),
+            max_steps=self._reasoning.max_steps,
+            tool_budget=self._reasoning.tool_budget,
+            require_grounded_evidence=self._reasoning.require_grounded_evidence,
+            repair_budget=max(0, int(repair_budget)),
+            fallback_style=self._reasoning.fallback_style,
+        )
+        return self
 
     def with_entity_overrides(
         self,
@@ -1365,6 +1436,9 @@ class AsyncSeocho:
 
     async def react(self, query: str, **kwargs: Any) -> AgentRunResponse:
         return await asyncio.to_thread(self._client.react, query, **kwargs)
+
+    async def advanced(self, query: str, **kwargs: Any) -> DebateRunResponse:
+        return await asyncio.to_thread(self._client.advanced, query, **kwargs)
 
     async def semantic(self, query: str, **kwargs: Any) -> SemanticRunResponse:
         return await asyncio.to_thread(self._client.semantic, query, **kwargs)

@@ -307,6 +307,57 @@ class Seocho:
             on_progress=on_progress,
         )
 
+    def reindex(
+        self,
+        source_id: str,
+        content: str,
+        *,
+        database: str = "neo4j",
+        category: str = "general",
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Re-index a document: remove old graph data, then index fresh.
+
+        Use this when the source content has changed and you want to
+        update the knowledge graph without creating duplicates.
+
+        Parameters
+        ----------
+        source_id:
+            The source_id returned from the original ``add()`` call
+            (available in ``Memory.memory_id``).
+        content:
+            The updated document text.
+
+        Only available in local mode.
+        """
+        if not self._local_mode:
+            raise RuntimeError("reindex() requires local engine mode")
+        result = self._engine._indexing.reindex(
+            source_id, content,
+            database=database, category=category, metadata=metadata,
+        )
+        return result.to_dict()
+
+    def delete_source(
+        self,
+        source_id: str,
+        *,
+        database: str = "neo4j",
+    ) -> Dict[str, Any]:
+        """Remove all graph data from a previously indexed source.
+
+        Parameters
+        ----------
+        source_id:
+            The source_id to remove (``Memory.memory_id``).
+
+        Only available in local mode.
+        """
+        if not self._local_mode:
+            raise RuntimeError("delete_source() requires local engine mode")
+        return self._engine._indexing.delete_source(source_id, database=database)
+
     def extract(
         self,
         content: str,

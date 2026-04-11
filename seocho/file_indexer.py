@@ -8,6 +8,7 @@ from seocho.index.file_reader import (  # noqa: F401
     read_csv_file,
     read_json_file,
     read_jsonl_file,
+    read_pdf_file,
     read_text_file,
 )
 

@@ -69,12 +69,23 @@ Primary surfaces:
    - `scripts/pm/new-issue.sh`
    - `scripts/pm/new-task.sh`
 
+Tracking and notes split:
+
+- `.beads` is the canonical tracker for code-task progress, status changes,
+  blockers, and landing state
+- `/home/hadry/my_local_work/obsidian/seocho` is the default home for internal
+  design notes, failure analysis, experiment logs, and feature ideation
+- repo docs should stay reserved for contracts and instructions that must ship
+  with the repository
+
 ## 4.2 During Implementation
 
 - keep scope tight to one issue/feature slice
 - preserve `workspace_id` in new runtime-facing contracts
 - add/adjust tests for modified behavior
-- update docs for user-visible changes
+- update repo docs only for user-visible or operator-visible contract changes
+- prefer Obsidian notes over repo docs for working analysis and speculative
+  design thinking
 
 ## 4.3 Before Landing
 
@@ -260,3 +271,8 @@ For seocho.blog sync, keep these docs current as first-class release artifacts:
 - `docs/WORKFLOW.md`
 
 Docs updates that change user behavior or architecture intent must include a decision log update (and ADR when non-trivial).
+
+Do not treat repo docs as the default notebook for implementation thinking.
+Internal notes should normally go under
+`/home/hadry/my_local_work/obsidian/seocho`, while `.beads` remains the source
+of truth for task progress.

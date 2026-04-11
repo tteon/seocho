@@ -3,6 +3,27 @@
 This file is the lightweight index of architecture/product decisions.
 Each entry must link to a full ADR when impact is non-trivial.
 
+## 2026-03-12
+
+- Accepted `ADR-0028-graph-registry-and-multi-instance-debate-runtime.md`
+  - add graph-scoped registry descriptors (`graph_id -> uri/database/ontology/vocabulary`)
+  - support one OpenAI Agents SDK specialist per graph target, including multi-instance Neo4j routing
+  - expose `GET /graphs` and `graph_ids`-based debate scoping as the runtime contract
+
+- Accepted `ADR-0027-public-graph-memory-facade-and-document-intake-contract.md`
+  - expose memory-first public APIs on top of SEOCHO runtime
+  - standardize runtime provenance around `Document` nodes with shared `memory_id`
+  - adopt SKOS-compatible `vocabulary.v2` artifacts for runtime vocabulary exchange
+  - require `DEV-*` document prefixes as the coding-agent intake contract
+
+## 2026-03-02
+
+- Accepted `ADR-0026-enterprise-vocabulary-layer-global-access.md`
+  - derive governed vocabulary candidates from entity extraction/linking and SHACL-like artifacts
+  - expose global approved vocabulary with `workspace_id`-scoped override resolution
+  - align lifecycle with semantic governance (`draft -> approved -> deprecated`)
+  - keep heavy ontology reasoning offline (`owlready2` path), with lightweight runtime lookup/expansion only
+
 ## 2026-02-14
 
 - Accepted `ADR-0001-aip-platform-baseline.md`
@@ -157,6 +178,50 @@ Each entry must link to a full ADR when impact is non-trivial.
   - add semantic artifact lifecycle endpoints for draft save/list/read/approve
   - add server-side approved artifact resolution via `approved_artifact_id` in runtime ingest
   - enforce dedicated permission action (`manage_semantic_artifacts`) for artifact governance operations
+
+## 2026-03-13
+
+- Accepted `ADR-0030-local-bootstrap-cli-and-artifact-governance-helpers.md`
+  - add `seocho serve` and `seocho stop` as repository-local bootstrap commands
+  - allow fallback local `OPENAI_API_KEY` injection when env values are missing or still placeholders
+  - add local semantic artifact `validate` / `diff` / `apply` helpers in the SDK and CLI
+
+- Accepted `ADR-0029-typed-semantic-prompt-context-and-artifact-expert-surface.md`
+  - add typed SDK models for semantic prompt context and approved artifact payloads
+  - expose semantic artifact lifecycle operations in the official SDK and CLI
+  - standardize runtime prompt precedence as graph metadata -> approved artifacts -> request overrides -> runtime drafts
+
+- Accepted durable rule profile registry migration (no ADR)
+  - replace filesystem JSON profile store with SQLite registry (`RULE_PROFILE_DIR/rule_profiles.db` by default)
+  - add workspace-scoped `profile_version` sequencing and retention cap (`RULE_PROFILE_RETENTION_MAX`)
+  - keep compatibility by importing legacy JSON profiles on first workspace access
+
+## 2026-04-09
+
+- Accepted `ADR-0031-intent-first-graph-rag-evidence-bundle-contract.md`
+  - move semantic graph answering toward `intent_id -> evidence bundle -> grounded answer`
+  - define answerability in terms of required relations, entity types, and slot fills
+  - require missing-slot visibility and fixed-answerer evaluation fairness
+
+- Accepted `ADR-0032-daily-codex-github-app-maintenance-workflow.md`
+  - add repo-local Codex skill + prompt for daily maintenance PR generation
+  - run scheduled Codex automation in GitHub Actions with a GitHub App token
+  - keep the automation review-first with draft PRs and no direct push to `main`
+
+- Accepted `ADR-0033-public-python-sdk-and-pip-distribution-contract.md`
+  - broaden the public Python package from memory-only helpers to full runtime SDK surfaces
+  - add module-level convenience API (`seocho.ask`, `seocho.chat`, `seocho.debate`, `seocho.configure`)
+  - make default package dependencies lightweight for public `pip install` usage
+
+- Accepted `ADR-0034-python-package-publish-and-periodic-codex-review-workflows.md`
+  - add GitHub Actions publish flow for TestPyPI/PyPI with build and `twine check`
+  - add a separate periodic Codex draft-PR workflow for bounded refactors and small improvements
+  - keep scheduled improvement automation review-first with no direct push to `main`
+
+- Accepted `ADR-0035-comment-triggered-maintainer-merge-workflow.md`
+  - add `/go` comment-triggered squash merge workflow for reviewed PRs
+  - require `write`/`maintain`/`admin` permission before merge automation runs
+  - keep branch protection and required checks as the final merge gate
 
 ## Template
 

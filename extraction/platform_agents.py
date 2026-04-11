@@ -2,7 +2,7 @@
 Specialized agents for custom interactive chat platform orchestration.
 
 BackendSpecialistAgent:
-- orchestrates execution mode dispatch (router/debate/semantic)
+- orchestrates execution mode dispatch (router/react/debate/semantic)
 
 FrontendSpecialistAgent:
 - shapes runtime output into UI-friendly cards, trace summary, and entity candidates
@@ -71,7 +71,7 @@ class BackendSpecialistAgent:
                 }
                 return semantic_payload
             return debate_payload
-        if mode == "router":
+        if mode in {"router", "react"}:
             result = await router_runner(request_payload)
             return self._to_payload(result)
         result = await semantic_runner(request_payload)

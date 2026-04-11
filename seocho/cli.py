@@ -11,7 +11,7 @@ from .exceptions import SeochoError
 from .governance import ArtifactDiff, ArtifactValidationResult
 from .local import LocalRuntimeStatus, serve_local_runtime, stop_local_runtime
 from .semantic import SemanticArtifact, SemanticArtifactSummary
-from .types import ArchiveResult, ChatResponse, GraphTarget, Memory, MemoryCreateResult, SearchResult
+from .models import ArchiveResult, ChatResponse, GraphTarget, Memory, MemoryCreateResult, SearchResult
 
 
 def build_parser() -> argparse.ArgumentParser:

@@ -145,12 +145,61 @@ def build_parser() -> argparse.ArgumentParser:
     artifacts_apply_parser.add_argument("--source-type", default="text", help="Source type: text, csv, or pdf")
     _add_client_options(artifacts_apply_parser, include_scope=True, include_json=True)
 
+    # --- Local-mode commands (no server needed) ---
+
+    init_parser = subparsers.add_parser("init", help="Create a new ontology interactively")
+    init_parser.add_argument("--output", default="schema.jsonld", help="Output file (default: schema.jsonld)")
+    init_parser.add_argument("--format", choices=["jsonld", "yaml"], default="jsonld", help="Output format")
+
+    index_parser = subparsers.add_parser("index", help="Index files from a directory into the graph")
+    index_parser.add_argument("path", help="File or directory to index")
+    index_parser.add_argument("--database", default="neo4j", help="Target database")
+    index_parser.add_argument("--schema", default="schema.jsonld", help="Ontology file (JSON-LD or YAML)")
+    index_parser.add_argument("--neo4j-uri", default="bolt://localhost:7687", help="Neo4j/DozerDB URI")
+    index_parser.add_argument("--neo4j-user", default="neo4j", help="Neo4j user")
+    index_parser.add_argument("--neo4j-password", default="password", help="Neo4j password")
+    index_parser.add_argument("--model", default="gpt-4o", help="OpenAI model for extraction")
+    index_parser.add_argument("--force", action="store_true", help="Re-index even if unchanged")
+    index_parser.add_argument("--recursive", action="store_true", default=True, help="Scan subdirectories")
+    index_parser.add_argument("--strict", action="store_true", help="Reject data that fails SHACL validation")
+    index_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
+
+    local_ask_parser = subparsers.add_parser("local-ask", help="Ask a question against local graph (no server)")
+    local_ask_parser.add_argument("question", help="Question to ask")
+    local_ask_parser.add_argument("--database", default="neo4j", help="Target database")
+    local_ask_parser.add_argument("--schema", default="schema.jsonld", help="Ontology file")
+    local_ask_parser.add_argument("--neo4j-uri", default="bolt://localhost:7687", help="Neo4j URI")
+    local_ask_parser.add_argument("--neo4j-user", default="neo4j", help="Neo4j user")
+    local_ask_parser.add_argument("--neo4j-password", default="password", help="Neo4j password")
+    local_ask_parser.add_argument("--model", default="gpt-4o", help="OpenAI model")
+    local_ask_parser.add_argument("--reasoning", action="store_true", help="Enable reasoning mode (auto-retry)")
+    local_ask_parser.add_argument("--repair-budget", type=int, default=2, help="Max repair attempts")
+
+    status_parser = subparsers.add_parser("status", help="Show graph database status")
+    status_parser.add_argument("--database", default="neo4j", help="Target database")
+    status_parser.add_argument("--schema", default="schema.jsonld", help="Ontology file")
+    status_parser.add_argument("--neo4j-uri", default="bolt://localhost:7687", help="Neo4j URI")
+    status_parser.add_argument("--neo4j-user", default="neo4j", help="Neo4j user")
+    status_parser.add_argument("--neo4j-password", default="password", help="Neo4j password")
+    status_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
+
     return parser
+
+
+LOCAL_COMMANDS = {"init", "index", "local-ask", "status"}
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
+
+    # Local-mode commands don't need HTTP client
+    if args.command in LOCAL_COMMANDS:
+        try:
+            return _dispatch_local(args)
+        except (SeochoError, Exception) as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
 
     client: Optional[Seocho] = None
     if args.command not in {"serve", "stop"}:
@@ -531,3 +580,228 @@ def _serialize(value: Any) -> Any:
     if isinstance(value, dict):
         return {key: _serialize(item) for key, item in value.items()}
     return value
+
+
+# ======================================================================
+# Local-mode command handlers
+# ======================================================================
+
+
+def _dispatch_local(args: argparse.Namespace) -> int:
+    if args.command == "init":
+        return _cmd_init(args)
+    if args.command == "index":
+        return _cmd_index(args)
+    if args.command == "local-ask":
+        return _cmd_local_ask(args)
+    if args.command == "status":
+        return _cmd_status(args)
+    raise SeochoError(f"Unknown local command: {args.command}")
+
+
+def _cmd_init(args: argparse.Namespace) -> int:
+    """Interactive ontology creation."""
+    from .ontology import NodeDef, Ontology, P, RelDef
+
+    print("SEOCHO Ontology Setup")
+    print("=" * 40)
+
+    name = input("Domain name (e.g. news, finance, hr): ").strip() or "my_domain"
+    print()
+
+    # Collect node types
+    print("Define entity types (empty line to finish):")
+    nodes: Dict[str, NodeDef] = {}
+    while True:
+        label = input("  Entity type (e.g. Person, Company): ").strip()
+        if not label:
+            break
+        label = label[0].upper() + label[1:] if label else label
+        desc = input(f"  Description for {label}: ").strip()
+        props_input = input(f"  Properties for {label} (comma-separated, e.g. name,age,role): ").strip()
+        props: Dict[str, P] = {}
+        if props_input:
+            for i, pname in enumerate(props_input.split(",")):
+                pname = pname.strip()
+                if not pname:
+                    continue
+                # First property is unique by default
+                props[pname] = P(str, unique=(i == 0))
+        else:
+            props["name"] = P(str, unique=True)
+        nodes[label] = NodeDef(description=desc, properties=props)
+        print(f"  Added: {label} ({len(props)} properties)")
+        print()
+
+    if not nodes:
+        print("At least one entity type is required.")
+        return 1
+
+    # Collect relationships
+    print()
+    print("Define relationships (empty line to finish):")
+    relationships: Dict[str, RelDef] = {}
+    node_labels = list(nodes.keys())
+    while True:
+        rtype = input("  Relationship type (e.g. WORKS_AT, FOUNDED): ").strip().upper().replace(" ", "_")
+        if not rtype:
+            break
+        print(f"  Available entities: {', '.join(node_labels)}")
+        source = input(f"  Source entity for {rtype}: ").strip()
+        target = input(f"  Target entity for {rtype}: ").strip()
+        if source not in nodes or target not in nodes:
+            print(f"  Warning: {source} or {target} not in defined entities, adding anyway")
+        relationships[rtype] = RelDef(source=source, target=target)
+        print(f"  Added: ({source})-[:{rtype}]->({target})")
+        print()
+
+    ontology = Ontology(name=name, nodes=nodes, relationships=relationships)
+
+    # Save
+    output = args.output
+    if args.format == "yaml" or output.endswith(".yaml") or output.endswith(".yml"):
+        ontology.to_yaml(output)
+    else:
+        ontology.to_jsonld(output)
+
+    print()
+    print(f"Ontology saved to {output}")
+    print(f"  {len(nodes)} entity types, {len(relationships)} relationships")
+    print()
+    print("Next steps:")
+    print(f"  seocho index ./your_data/ --schema {output}")
+    print(f"  seocho local-ask 'your question here' --schema {output}")
+    return 0
+
+
+def _load_local_ontology(schema_path: str) -> Any:
+    """Load ontology from file."""
+    from .ontology import Ontology
+
+    path = Path(schema_path)
+    if not path.exists():
+        raise SeochoError(f"Schema file not found: {schema_path}\nRun 'seocho init' to create one.")
+    if path.suffix in (".yaml", ".yml"):
+        return Ontology.from_yaml(path)
+    return Ontology.from_jsonld(path)
+
+
+def _build_local_client(args: argparse.Namespace) -> Seocho:
+    """Build a local-mode Seocho client from CLI args."""
+    from .store.graph import Neo4jGraphStore
+    from .store.llm import OpenAIBackend
+
+    ontology = _load_local_ontology(args.schema)
+    store = Neo4jGraphStore(args.neo4j_uri, args.neo4j_user, args.neo4j_password)
+    llm = OpenAIBackend(model=args.model)
+    return Seocho(ontology=ontology, graph_store=store, llm=llm)
+
+
+def _cmd_index(args: argparse.Namespace) -> int:
+    """Index files or directory."""
+    client = _build_local_client(args)
+    path = Path(args.path)
+
+    try:
+        if path.is_dir():
+            result = client.index_directory(
+                str(path),
+                database=args.database,
+                recursive=args.recursive,
+                force=args.force,
+                on_file=lambda f, i, t: print(f"  [{i+1}/{t}] {Path(f).name}") if not getattr(args, "output_json", False) else None,
+            )
+            if getattr(args, "output_json", False):
+                print(json.dumps(result, indent=2))
+            else:
+                print()
+                print(f"Indexed {result['files_indexed']} files")
+                if result["files_unchanged"]:
+                    print(f"  {result['files_unchanged']} unchanged (skipped)")
+                if result["files_skipped"]:
+                    print(f"  {result['files_skipped']} skipped (unsupported or empty)")
+                if result["files_failed"]:
+                    print(f"  {result['files_failed']} failed")
+        elif path.is_file():
+            result = client.index_file(
+                str(path),
+                database=args.database,
+                force=args.force,
+            )
+            if getattr(args, "output_json", False):
+                print(json.dumps(result, indent=2))
+            else:
+                print(f"{result['status']}: {path.name}")
+                if result.get("indexing"):
+                    idx = result["indexing"]
+                    print(f"  nodes: {idx.get('total_nodes', 0)}, relationships: {idx.get('total_relationships', 0)}")
+        else:
+            print(f"Path not found: {path}", file=sys.stderr)
+            return 1
+    finally:
+        client.close()
+
+    return 0
+
+
+def _cmd_local_ask(args: argparse.Namespace) -> int:
+    """Ask a question against local graph."""
+    client = _build_local_client(args)
+
+    try:
+        answer = client.ask(
+            args.question,
+            database=args.database,
+            reasoning_mode=args.reasoning,
+            repair_budget=args.repair_budget,
+        )
+        print(answer)
+    finally:
+        client.close()
+
+    return 0
+
+
+def _cmd_status(args: argparse.Namespace) -> int:
+    """Show graph database status."""
+    from .store.graph import Neo4jGraphStore
+
+    ontology = _load_local_ontology(args.schema)
+    store = Neo4jGraphStore(args.neo4j_uri, args.neo4j_user, args.neo4j_password)
+
+    try:
+        schema = store.get_schema(database=args.database)
+        node_count = store.query(
+            "MATCH (n) RETURN count(n) AS cnt",
+            database=args.database,
+        )
+        rel_count = store.query(
+            "MATCH ()-[r]->() RETURN count(r) AS cnt",
+            database=args.database,
+        )
+
+        status = {
+            "database": args.database,
+            "labels": schema.get("labels", []),
+            "relationship_types": schema.get("relationship_types", []),
+            "total_nodes": node_count[0]["cnt"] if node_count else 0,
+            "total_relationships": rel_count[0]["cnt"] if rel_count else 0,
+            "ontology": ontology.name,
+            "ontology_nodes": len(ontology.nodes),
+            "ontology_relationships": len(ontology.relationships),
+        }
+
+        if getattr(args, "output_json", False):
+            print(json.dumps(status, indent=2))
+        else:
+            print(f"Database: {status['database']}")
+            print(f"  Nodes: {status['total_nodes']} ({', '.join(status['labels']) or 'none'})")
+            print(f"  Relationships: {status['total_relationships']} ({', '.join(status['relationship_types']) or 'none'})")
+            print(f"  Ontology: {status['ontology']} ({status['ontology_nodes']} types, {status['ontology_relationships']} rels)")
+    except Exception as exc:
+        print(f"Could not connect to database: {exc}", file=sys.stderr)
+        return 1
+    finally:
+        store.close()
+
+    return 0

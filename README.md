@@ -119,6 +119,9 @@ print(semantic.support.status)
 print(semantic.strategy.executed_mode)
 print(semantic.evidence.grounded_slots)
 print(advanced.debate_state)
+
+recent_runs = seocho.semantic_runs(limit=5, route="lpg")
+print(recent_runs[0].run_id)
 ```
 
 Recommended execution order:
@@ -128,6 +131,28 @@ Recommended execution order:
 - inspect `support` / `strategy` / `evidence` before escalating
 - `reasoning_mode=True` before reaching for debate
 - `advanced()` only for explicit multi-agent comparison
+
+For developer evaluation and regression checks:
+
+```python
+from seocho import ManualGoldCase, SemanticEvaluationHarness
+
+harness = SemanticEvaluationHarness(seocho)
+summary = harness.run_matrix(
+    [
+        ManualGoldCase(
+            case_id="neo4j-1",
+            question="What is Neo4j connected to?",
+            graph_ids=["kgnormal"],
+            expected_intent_id="relationship_lookup",
+            required_slots={"source_entity": "Neo4j", "target_entity": "Cypher"},
+            preferred_relations=["USES"],
+        )
+    ]
+)
+
+print(summary.aggregate_metrics["semantic_repair"]["required_answer_slot_coverage_manual"])
+```
 
 Use the CLI:
 

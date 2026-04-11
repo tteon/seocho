@@ -77,6 +77,7 @@ from semantic_artifact_api import (
     read_semantic_artifacts,
     resolve_approved_artifact_payload,
 )
+from semantic_run_store import get_semantic_run, list_semantic_runs
 
 logger = logging.getLogger(__name__)
 
@@ -459,6 +460,29 @@ class SemanticAgentResponse(AgentResponse):
     strategy_decision: Dict[str, Any] = Field(default_factory=dict)
     run_metadata: Dict[str, Any] = Field(default_factory=dict)
     evidence_bundle: Dict[str, Any] = Field(default_factory=dict)
+
+
+class SemanticRunRecordResponse(BaseModel):
+    run_id: str
+    workspace_id: str
+    timestamp: str
+    route: str
+    intent_id: str
+    query_preview: str
+    support_status: str = ""
+    support_reason: str = ""
+    support_coverage: float = 0.0
+    support_assessment: Dict[str, Any] = Field(default_factory=dict)
+    strategy_decision: Dict[str, Any] = Field(default_factory=dict)
+    reasoning: Dict[str, Any] = Field(default_factory=dict)
+    evidence_summary: Dict[str, Any] = Field(default_factory=dict)
+    lpg_record_count: int = 0
+    rdf_record_count: int = 0
+    response_preview: str = ""
+
+
+class SemanticRunRecordListResponse(BaseModel):
+    runs: List[SemanticRunRecordResponse] = Field(default_factory=list)
 
 
 class DebateResponse(BaseModel):
@@ -939,6 +963,57 @@ async def run_agent_semantic(request: SemanticQueryRequest):
             status_code=500,
             detail="Semantic agent execution failed. Check server logs for details.",
         )
+
+
+@app.get("/semantic/runs", response_model=SemanticRunRecordListResponse)
+@track("agent_server.semantic_runs_list")
+async def semantic_runs_list(
+    workspace_id: str = Query(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$"),
+    limit: int = Query(default=20, ge=1, le=200),
+    route: Optional[str] = Query(default=None),
+    intent_id: Optional[str] = Query(default=None),
+):
+    try:
+        require_runtime_permission(role="user", action="run_agent", workspace_id=workspace_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
+    try:
+        rows = list_semantic_runs(
+            workspace_id=workspace_id,
+            limit=limit,
+            route=route,
+            intent_id=intent_id,
+        )
+        return SemanticRunRecordListResponse(runs=[SemanticRunRecordResponse(**row) for row in rows])
+    except SeochoError:
+        raise
+    except Exception as e:
+        logger.error("Semantic run list failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Semantic run list failed. Check server logs for details.")
+
+
+@app.get("/semantic/runs/{run_id}", response_model=SemanticRunRecordResponse)
+@track("agent_server.semantic_runs_get")
+async def semantic_runs_get(
+    run_id: str,
+    workspace_id: str = Query(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$"),
+):
+    try:
+        require_runtime_permission(role="user", action="run_agent", workspace_id=workspace_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
+    try:
+        payload = get_semantic_run(workspace_id=workspace_id, run_id=run_id)
+        return SemanticRunRecordResponse(**payload)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except SeochoError:
+        raise
+    except Exception as e:
+        logger.error("Semantic run lookup failed: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Semantic run lookup failed. Check server logs for details.")
 
 
 @app.post("/indexes/fulltext/ensure", response_model=FulltextIndexEnsureResponse)

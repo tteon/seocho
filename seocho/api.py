@@ -23,6 +23,7 @@ from .models import (
     RawIngestResult,
     ReasoningPolicy,
     SearchResult,
+    SemanticRunRecord,
     SemanticRunResponse,
 )
 
@@ -113,6 +114,19 @@ def execute(plan: ExecutionPlan | Dict[str, Any]) -> ExecutionResult:
 
 def semantic(query: str, **kwargs: Any) -> SemanticRunResponse:
     return get_client().semantic(query, **kwargs)
+
+
+def semantic_runs(
+    *,
+    limit: int = 20,
+    route: Optional[str] = None,
+    intent_id: Optional[str] = None,
+) -> List[SemanticRunRecord]:
+    return get_client().semantic_runs(limit=limit, route=route, intent_id=intent_id)
+
+
+def semantic_run(run_id: str) -> SemanticRunRecord:
+    return get_client().semantic_run(run_id)
 
 
 def debate(query: str, **kwargs: Any) -> DebateRunResponse:

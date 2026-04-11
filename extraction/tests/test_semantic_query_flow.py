@@ -7,6 +7,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from semantic_query_flow import QueryRouterAgent, SemanticAgentFlow, SemanticEntityResolver
 from semantic_artifact_store import approve_semantic_artifact, save_semantic_artifact
+from semantic_run_store import get_semantic_run, list_semantic_runs
 
 
 class FakeConnector:
@@ -160,8 +161,8 @@ def test_semantic_agent_flow_reasoning_mode_repairs_initially_insufficient_query
 
 
 def test_semantic_agent_flow_emits_support_strategy_and_run_metadata(tmp_path, monkeypatch):
-    registry_path = tmp_path / "semantic_runs.jsonl"
-    monkeypatch.setenv("SEOCHO_RUN_METADATA_PATH", str(registry_path))
+    registry_path = tmp_path / "semantic_runs.db"
+    monkeypatch.setenv("SEOCHO_SEMANTIC_METADATA_DB", str(registry_path))
     flow = SemanticAgentFlow(FakeConnector())
 
     result = flow.run("What is Neo4j connected to?", ["kgnormal"])
@@ -173,9 +174,10 @@ def test_semantic_agent_flow_emits_support_strategy_and_run_metadata(tmp_path, m
     assert result["run_metadata"]["recorded"] is True
     assert registry_path.exists()
 
-    lines = registry_path.read_text(encoding="utf-8").strip().splitlines()
-    assert len(lines) == 1
-    record = json.loads(lines[0])
+    rows = list_semantic_runs("default", base_dir=str(registry_path))
+    assert len(rows) == 1
+    record = get_semantic_run("default", result["run_metadata"]["run_id"], base_dir=str(registry_path))
+    assert rows[0]["run_id"] == result["run_metadata"]["run_id"]
     assert record["route"] == "lpg"
     assert record["intent_id"] == "relationship_lookup"
 
@@ -197,6 +199,15 @@ def test_semantic_agent_flow_recommends_reasoning_mode_before_advanced_on_single
 
     assert result["support_assessment"]["supported"] is False
     assert result["strategy_decision"]["next_mode_hint"] == "reasoning_mode"
+
+
+def test_semantic_agent_flow_emits_deterministic_profile_metadata():
+    flow = SemanticAgentFlow(FakeConnector())
+
+    result = flow.run("Who manages Seoul retail?", ["kgnormal"])
+
+    assert result["evidence_bundle"]["deterministic_profile"]["profile_id"] == "baseline.responsibility.v1"
+    assert result["evidence_bundle"]["reasoning"]["profile_id"] == "baseline.responsibility.v1"
 
 
 def test_resolve_applies_ontology_alias_hint(tmp_path, monkeypatch):

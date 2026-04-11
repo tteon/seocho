@@ -228,6 +228,9 @@ advanced = seocho.advanced(
     graph_ids=["kgnormal", "kgfibo"],
 )
 print(advanced.debate_state)
+
+recent_runs = seocho.semantic_runs(limit=5, route="lpg")
+print(recent_runs[0].run_id)
 ```
 
 ## 11. Async API
@@ -247,7 +250,60 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-## 12. CLI Equivalents
+## 12. Inspect Semantic Run History
+
+The runtime now keeps a SQLite-backed semantic run registry outside the graph
+store. You can inspect it from the SDK without touching internal files.
+
+```python
+recent_runs = client.semantic_runs(limit=10, route="lpg")
+print(recent_runs[0].run_id)
+print(recent_runs[0].support.status)
+
+run_record = client.semantic_run(recent_runs[0].run_id)
+print(run_record.strategy.executed_mode)
+print(run_record.evidence_summary)
+```
+
+## 13. Run Manual-Gold Evaluation
+
+Use the SDK evaluation harness when you want a small regression matrix over
+`question_only`, `reference_only`, `semantic_direct`, and `semantic_repair`.
+
+```python
+from seocho import ManualGoldCase, SemanticEvaluationHarness
+
+harness = SemanticEvaluationHarness(client)
+summary = harness.run_matrix(
+    [
+        ManualGoldCase(
+            case_id="neo4j-1",
+            question="What is Neo4j connected to?",
+            graph_ids=["kgnormal"],
+            expected_intent_id="relationship_lookup",
+            required_slots={
+                "source_entity": "Neo4j",
+                "target_entity": "Cypher",
+                "relation_paths": "USES",
+            },
+            preferred_relations=["USES"],
+            repair_budget=2,
+        )
+    ]
+)
+
+print(summary.aggregate_metrics["semantic_direct"])
+print(summary.aggregate_metrics["semantic_repair"])
+```
+
+These metrics are intentionally narrow:
+
+- `intent_match_rate`
+- `support_rate`
+- `required_answer_slot_coverage_manual`
+- `preferred_evidence_hit_rate`
+
+## 14. CLI Equivalents
 
 ```bash
 seocho serve
@@ -258,7 +314,7 @@ seocho graphs
 seocho stop
 ```
 
-## 13. Mental Model
+## 15. Mental Model
 
 Use this decision rule:
 
@@ -267,7 +323,7 @@ Use this decision rule:
 3. Add `reasoning_mode=True` before reaching for debate.
 4. Use `advanced()` only when you explicitly want multi-agent comparison.
 
-## 13. Read Next
+## 16. Read Next
 
 - `APPLY_YOUR_DATA.md`
 - `QUICKSTART.md`

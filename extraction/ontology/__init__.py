@@ -1,32 +1,23 @@
 """
-SEOCHO Ontology Module
+SEOCHO Ontology Module — Bridge to canonical seocho.ontology.
 
-Provides ontology management for knowledge graph schema definition.
+The canonical ontology implementation lives in ``seocho/ontology.py``.
+This module provides backward-compatible aliases so existing
+``extraction/`` code continues to work without changes.
 
-Supported Formats:
-- YAML (native)
-- OWL/RDF (via loaders)
+Usage (unchanged)::
 
-Usage:
     from extraction.ontology import Ontology
-    
-    # Load from YAML
     ontology = Ontology.from_yaml("schema.yaml")
-    
-    # Validate
-    errors = ontology.validate()
-    
-    # Apply to Neo4j
-    ontology.apply_to_neo4j(driver, database="kgnormal")
 """
 
-from .base import (
-    Ontology,
-    NodeDefinition,
-    RelationshipDefinition,
-    PropertyDefinition,
-    PropertyType,
+from seocho.ontology import (
     ConstraintType,
+    NodeDef as NodeDefinition,
+    Ontology,
+    P as PropertyDefinition,
+    PropertyType,
+    RelDef as RelationshipDefinition,
 )
 
 __all__ = [

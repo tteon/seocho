@@ -120,17 +120,66 @@ Operational notes:
 - `tteon.github.io/scripts/sync.mjs` can be used as a local helper when syncing
   selected docs, but no repo-side automatic sync workflow is currently enforced
 
-5. GitHub Automation Status
+5. Basic CI
 
-- this repository currently has no active GitHub Actions workflows
-- validate locally before landing
-- if package publishing is needed, run local build validation first:
-  - `uv build`
-  - `twine check dist/*`
-- if periodic maintenance or review automation is needed later, reintroduce it
-  with a new ADR rather than assuming old workflow files still exist
+- workflow: `.github/workflows/ci-basic.yml`
+- canonical local command: `bash scripts/ci/run_basic_ci.sh`
+- current scope:
+  - semantic/runtime/SDK `py_compile`
+  - focused semantic/runtime/SDK pytest
+  - `git diff --check`
+  - `scripts/pm/lint-agent-docs.sh`
 
-6. Governance loop
+6. Daily Codex Maintenance Automation
+
+- workflow: `.github/workflows/daily-codex-maintenance.yml`
+- cadence: daily at `00:15 UTC` (`09:15 Asia/Seoul`) plus `workflow_dispatch`
+- required secrets:
+  - `OPENAI_API_KEY`
+  - `SEOCHO_GITHUB_APP_ID`
+  - `SEOCHO_GITHUB_APP_PRIVATE_KEY`
+- prompt contract: `.github/codex/prompts/daily-maintenance-pr.md`
+- skill contract: `.agents/skills/daily-maintenance-pr/SKILL.md`
+- PR contract:
+  - draft PR only
+  - branch `codex/daily-maintenance`
+  - run `bash scripts/ci/run_basic_ci.sh` before creating/updating the PR
+  - PR body must include `Feature`, `Why`, `Design`, `Expected Effect`,
+    `Impact Results`, `Validation`, and `Risks`
+  - no direct push to `main`
+
+7. Periodic Codex Review Automation
+
+- workflow: `.github/workflows/periodic-codex-review.yml`
+- cadence: weekly on Monday at `00:45 UTC` (`09:45 Asia/Seoul`) plus
+  `workflow_dispatch`
+- required secrets:
+  - `OPENAI_API_KEY`
+  - `SEOCHO_GITHUB_APP_ID`
+  - `SEOCHO_GITHUB_APP_PRIVATE_KEY`
+- prompt contract: `.github/codex/prompts/periodic-review-pr.md`
+- skill contract: `.agents/skills/periodic-review-pr/SKILL.md`
+- PR contract:
+  - draft PR only
+  - branch `codex/periodic-review`
+  - run `bash scripts/ci/run_basic_ci.sh` before creating/updating the PR
+  - PR body must include `Feature`, `Why`, `Design`, `Expected Effect`,
+    `Impact Results`, `Validation`, and `Risks`
+  - no direct push to `main`
+
+8. Comment-Based Merge Automation
+
+- workflow: `.github/workflows/pr-comment-merge.yml`
+- trigger: `issue_comment` on PRs with command exactly `/go`
+- authorization:
+  - commenter must have repository permission `write`, `maintain`, or `admin`
+- merge behavior:
+  - PR must be open and not draft
+  - PR merge state must be `CLEAN`
+  - merge method is `squash` with branch deletion
+  - maintainers should mark automation PRs ready for review before `/go`
+
+9. Governance loop
 - log architecture decisions as ADRs
 - track context graph events and quality metrics
 - schedule follow-up issues for unresolved risks

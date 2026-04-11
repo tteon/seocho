@@ -221,7 +221,11 @@ Do not assume repo-side GitHub Actions automation for docs sync.
 - API/middleware tests should prefer `httpx.ASGITransport` + `AsyncClient` over `TestClient` in this repo environment.
 - When local `bd` daemon startup is unstable, run lint via non-daemon mode (`bd --no-daemon`) to avoid hanging quality gates.
 - `tteon.github.io/` can exist as a local nested workspace for website validation, but it should remain untracked by the parent `seocho` repository.
-- This repository currently runs without repo-side GitHub Actions automation; local validation is the required path.
+- Repo-side automation is intentionally narrow:
+  - `.github/workflows/ci-basic.yml` is the required GitHub check surface
+  - Codex PR automation is limited to bounded daily/periodic draft PR workflows
+  - automation PRs must keep the `Feature/Why/Design/Expected Effect/Impact Results/Validation/Risks` structure
+  - `/go` merge is maintainer-triggered and should not replace review judgment
 
 ## 14. Philosophy Alignment
 

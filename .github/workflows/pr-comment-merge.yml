@@ -1,0 +1,67 @@
+name: Maintainer Comment Merge
+
+on:
+  issue_comment:
+    types:
+      - created
+
+jobs:
+  merge:
+    if: github.event.issue.pull_request != null && github.event.comment.body == '/go'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Check commenter permission
+        id: permission
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const permission = await github.rest.repos.getCollaboratorPermissionLevel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              username: context.payload.comment.user.login,
+            });
+            const allowed = ["admin", "maintain", "write"].includes(permission.data.permission);
+            core.setOutput("allowed", allowed ? "true" : "false");
+            core.setOutput("permission", permission.data.permission);
+
+      - name: Stop if commenter is not allowed
+        if: steps.permission.outputs.allowed != 'true'
+        run: |
+          echo "Commenter permission is ${{ steps.permission.outputs.permission }}; refusing merge."
+          exit 1
+
+      - name: Check PR merge state
+        id: pr_state
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+        shell: bash
+        run: |
+          state="$(gh pr view "$PR_NUMBER" --json state --jq '.state')"
+          draft="$(gh pr view "$PR_NUMBER" --json isDraft --jq '.isDraft')"
+          merge_state="$(gh pr view "$PR_NUMBER" --json mergeStateStatus --jq '.mergeStateStatus')"
+          echo "state=$state" >> "$GITHUB_OUTPUT"
+          echo "draft=$draft" >> "$GITHUB_OUTPUT"
+          echo "merge_state=$merge_state" >> "$GITHUB_OUTPUT"
+          if [ "$state" != "OPEN" ]; then
+            echo "PR is not open." >&2
+            exit 1
+          fi
+          if [ "$draft" = "true" ]; then
+            echo "PR is still draft." >&2
+            exit 1
+          fi
+          if [ "$merge_state" != "CLEAN" ]; then
+            echo "PR merge state is $merge_state; expected CLEAN." >&2
+            exit 1
+          fi
+
+      - name: Squash merge PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+        run: gh pr merge "$PR_NUMBER" --squash --delete-branch

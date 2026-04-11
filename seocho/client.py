@@ -149,6 +149,26 @@ class Seocho:
             self._session = session or requests.Session()
 
         self._graph_catalog_cache: Optional[Dict[str, GraphTarget]] = None
+        self._ontology_registry: Dict[str, Any] = {}  # database -> Ontology
+
+    def register_ontology(self, database: str, ontology: Any) -> None:
+        """Bind a specific ontology to a database.
+
+        When ``add()`` or ``ask()`` targets this database, the
+        registered ontology is used instead of the default.
+
+        Parameters
+        ----------
+        database:
+            Target database name.
+        ontology:
+            The :class:`~seocho.ontology.Ontology` for this database.
+        """
+        self._ontology_registry[database] = ontology
+
+    def get_ontology(self, database: str) -> Any:
+        """Get the ontology for a database (registered or default)."""
+        return self._ontology_registry.get(database, self.ontology)
 
     # ------------------------------------------------------------------
     # Core API — works in both modes
@@ -178,11 +198,13 @@ class Seocho:
         In HTTP mode: sends to the SEOCHO server.
         """
         if self._local_mode:
+            db = database or "neo4j"
             return self._engine.add(
                 content,
-                database=database or "neo4j",
+                database=db,
                 category=category,
                 metadata=metadata,
+                ontology_override=self._ontology_registry.get(db),
             )
 
         payload = self.add_with_details(
@@ -212,18 +234,26 @@ class Seocho:
         graph_ids: Optional[Sequence[str]] = None,
         databases: Optional[Sequence[str]] = None,
         database: Optional[str] = None,
+        reasoning_mode: bool = False,
+        repair_budget: int = 0,
     ) -> str:
         """Ask a natural-language question against the knowledge graph.
 
         In local mode: generates ontology-aware Cypher, executes it,
-        and synthesizes an answer.
+        and synthesizes an answer.  With ``reasoning_mode=True``,
+        automatically retries with relaxed queries when results are
+        empty (up to ``repair_budget`` attempts).
 
         In HTTP mode: delegates to the SEOCHO chat endpoint.
         """
         if self._local_mode:
+            db = database or (databases[0] if databases and len(databases) > 0 else "neo4j")
             return self._engine.ask(
                 message,
-                database=database or (databases[0] if databases and len(databases) > 0 else "neo4j"),
+                database=db,
+                reasoning_mode=reasoning_mode,
+                repair_budget=repair_budget,
+                ontology_override=self._ontology_registry.get(db),
             )
 
         return self.chat(
@@ -1317,15 +1347,31 @@ class _LocalEngine:
         category: str = "memory",
         metadata: Optional[Dict[str, Any]] = None,
         strict_validation: bool = False,
+        ontology_override: Optional[Any] = None,
     ) -> Memory:
         """Chunk → Extract → Validate → Link → Write pipeline.
 
         Delegates to :class:`~seocho.indexing.IndexingPipeline` which
         handles automatic chunking for long documents, SHACL validation,
         cross-chunk deduplication, and content-hash dedup.
+
+        If ``ontology_override`` is provided, it is used instead of the
+        default ontology (for multi-ontology per database support).
         """
-        self._indexing.strict_validation = strict_validation
-        result = self._indexing.index(
+        pipeline = self._indexing
+        if ontology_override is not None:
+            from .indexing import IndexingPipeline
+            pipeline = IndexingPipeline(
+                ontology=ontology_override,
+                graph_store=self.graph_store,
+                llm=self.llm,
+                workspace_id=self.workspace_id,
+                strict_validation=strict_validation,
+            )
+        else:
+            pipeline.strict_validation = strict_validation
+
+        result = pipeline.index(
             content,
             database=database,
             category=category,
@@ -1408,55 +1454,170 @@ class _LocalEngine:
 
         return result
 
-    def ask(self, question: str, *, database: str = "neo4j") -> str:
-        """Ontology-aware query: generate Cypher → execute → synthesize answer."""
-        # 1. Generate Cypher from question using ontology context
-        schema_info = {}
+    def ask(
+        self,
+        question: str,
+        *,
+        database: str = "neo4j",
+        reasoning_mode: bool = False,
+        repair_budget: int = 0,
+        ontology_override: Optional[Any] = None,
+    ) -> str:
+        """Ontology-aware query: generate Cypher → execute → synthesize answer.
+
+        Parameters
+        ----------
+        question:
+            Natural-language question.
+        database:
+            Target database.
+        reasoning_mode:
+            If True, inspect query results and attempt repair when
+            results are empty or insufficient (up to ``repair_budget``
+            retries with progressively relaxed queries).
+        repair_budget:
+            Maximum number of repair attempts (only used when
+            ``reasoning_mode=True``).  Each attempt costs one LLM call
+            for query generation + one Cypher execution.
+        """
+        # Use database-specific ontology if registered
+        active_ontology = ontology_override or self.ontology
+        if ontology_override is not None:
+            from .prompt_strategy import QueryStrategy
+            self._query = QueryStrategy(active_ontology)
+
+        schema_info = self._get_schema_info(database)
+        self._query.schema_info = schema_info
+
+        # --- First attempt ---
+        cypher, params, error = self._generate_cypher(question)
+        if error:
+            return error
+
+        records, exec_error = self._execute_cypher(cypher, params, database)
+        if exec_error:
+            return exec_error
+
+        # --- Reasoning mode: repair if results insufficient ---
+        attempts = []
+        if reasoning_mode and repair_budget > 0 and not records:
+            attempts.append({"cypher": cypher, "result_count": 0, "error": None})
+
+            for attempt_num in range(repair_budget):
+                repair_cypher, repair_params, repair_error = self._generate_repair_query(
+                    question, attempts, schema_info,
+                )
+                if repair_error or not repair_cypher:
+                    break
+
+                repair_records, repair_exec_error = self._execute_cypher(
+                    repair_cypher, repair_params, database,
+                )
+                attempts.append({
+                    "cypher": repair_cypher,
+                    "result_count": len(repair_records) if repair_records else 0,
+                    "error": repair_exec_error,
+                })
+
+                if repair_records:
+                    records = repair_records
+                    cypher = repair_cypher
+                    break
+
+        # --- Synthesize answer ---
+        reasoning_trace = None
+        if reasoning_mode and attempts:
+            reasoning_trace = json.dumps(attempts, default=str)
+
+        system_ans, user_ans = self._query.render_answer(
+            question, json.dumps(records, default=str),
+        )
+        if reasoning_trace:
+            user_ans += f"\n\nReasoning trace (query attempts):\n{reasoning_trace}"
+
+        answer_response = self.llm.complete(
+            system=system_ans, user=user_ans, temperature=0.1,
+        )
+        return answer_response.text
+
+    def _get_schema_info(self, database: str) -> Dict[str, Any]:
         try:
             schema = self.graph_store.get_schema(database=database)
-            schema_info = {
+            return {
                 "node_labels": ", ".join(schema.get("labels", [])),
                 "relationship_types": ", ".join(schema.get("relationship_types", [])),
             }
         except Exception:
-            pass
-        self._query.schema_info = schema_info
+            return {}
 
+    def _generate_cypher(self, question: str) -> tuple:
+        """Returns (cypher, params, error_message_or_None)."""
         system, user = self._query.render(question)
         response = self.llm.complete(
-            system=system,
-            user=user,
+            system=system, user=user,
             temperature=0.0,
             response_format={"type": "json_object"},
         )
-
         try:
-            query_plan = response.json()
+            plan = response.json()
         except (json.JSONDecodeError, ValueError):
             logger.error("LLM returned non-JSON query plan: %s", response.text[:200])
-            return "I could not generate a valid query for your question."
+            return "", {}, "I could not generate a valid query for your question."
 
-        cypher = query_plan.get("cypher", "")
-        params = query_plan.get("params", {})
-
+        cypher = plan.get("cypher", "")
+        params = plan.get("params", {})
         if not cypher:
-            return "I could not determine how to query the graph for your question."
+            return "", {}, "I could not determine how to query the graph for your question."
+        return cypher, params, None
 
-        # 2. Execute Cypher
+    def _execute_cypher(self, cypher: str, params: Dict, database: str) -> tuple:
+        """Returns (records, error_message_or_None)."""
         try:
             records = self.graph_store.query(cypher, params=params, database=database)
+            return records, None
         except Exception as exc:
             logger.error("Cypher execution failed: %s — query: %s", exc, cypher)
-            return f"The query could not be executed: {exc}"
+            return [], f"The query could not be executed: {exc}"
 
-        # 3. Synthesize answer from results
-        system_ans, user_ans = self._query.render_answer(question, json.dumps(records, default=str))
-        answer_response = self.llm.complete(
-            system=system_ans,
-            user=user_ans,
-            temperature=0.1,
+    def _generate_repair_query(
+        self,
+        question: str,
+        attempts: List[Dict],
+        schema_info: Dict[str, Any],
+    ) -> tuple:
+        """Generate a repaired Cypher query based on previous failed attempts."""
+        ctx = self.ontology.to_query_context()
+        attempts_summary = "\n".join(
+            f"  Attempt {i+1}: {a['cypher'][:100]}... → {a['result_count']} results"
+            + (f" (error: {a['error']})" if a.get("error") else "")
+            for i, a in enumerate(attempts)
         )
-        return answer_response.text
+
+        system = (
+            "You are a knowledge graph query repair agent.\n"
+            f"Working with ontology \"{ctx['ontology_name']}\".\n\n"
+            f"--- Graph Schema ---\n{ctx['graph_schema']}\n\n"
+            f"The previous queries returned no results:\n{attempts_summary}\n\n"
+            "Generate a RELAXED alternative query that:\n"
+            "- Uses broader match patterns (CONTAINS instead of exact match)\n"
+            "- Tries alternative relationship paths\n"
+            "- Removes overly specific filters\n"
+            "- Falls back to listing available entities if all else fails\n\n"
+            "Return JSON: {\"cypher\": \"...\", \"params\": {...}, \"strategy\": \"...\"}"
+        )
+        user = f"Original question: {question}"
+
+        response = self.llm.complete(
+            system=system, user=user,
+            temperature=0.2,
+            response_format={"type": "json_object"},
+        )
+        try:
+            plan = response.json()
+        except (json.JSONDecodeError, ValueError):
+            return "", {}, "Repair query generation failed"
+
+        return plan.get("cypher", ""), plan.get("params", {}), None
 
     def _link(
         self,

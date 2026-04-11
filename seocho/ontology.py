@@ -1236,6 +1236,128 @@ class Ontology:
 
         return errors
 
+    def score_extraction(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Score the quality of extracted graph data against this ontology.
+
+        Returns a dict with per-node scores, per-relationship scores,
+        and an overall confidence score (0.0–1.0).
+
+        Scoring criteria:
+
+        - **Label match**: Is the node label in the ontology? (0 or 1)
+        - **Property completeness**: How many required/unique properties
+          are filled? (0.0–1.0)
+        - **Type correctness**: Do filled properties match expected types?
+        - **Relationship validity**: Is the rel type known? Are source/target
+          labels correct?
+
+        Parameters
+        ----------
+        data:
+            Dict with ``"nodes"`` and ``"relationships"`` lists.
+
+        Returns
+        -------
+        Dict with ``"nodes"``, ``"relationships"``, ``"overall"`` scores::
+
+            {
+              "overall": 0.85,
+              "nodes": [
+                {"id": "p1", "label": "Person", "score": 0.9, "details": {...}},
+              ],
+              "relationships": [
+                {"source": "p1", "target": "c1", "type": "WORKS_AT", "score": 1.0},
+              ],
+            }
+        """
+        node_scores: List[Dict[str, Any]] = []
+        rel_scores: List[Dict[str, Any]] = []
+
+        for node in data.get("nodes", []):
+            nid = node.get("id", "")
+            label = node.get("label", "")
+            props = node.get("properties", {})
+
+            score_parts: Dict[str, float] = {}
+
+            # Label match
+            if label in self.nodes:
+                score_parts["label_match"] = 1.0
+                nd = self.nodes[label]
+
+                # Property completeness
+                required = nd.required_properties
+                if required:
+                    filled = sum(1 for r in required if r in props and props[r])
+                    score_parts["property_completeness"] = filled / len(required)
+                else:
+                    score_parts["property_completeness"] = 1.0
+
+                # Type correctness
+                type_checks = 0
+                type_correct = 0
+                for pname, p in nd.properties.items():
+                    if pname in props and props[pname] is not None:
+                        type_checks += 1
+                        val = props[pname]
+                        if p.property_type.value == "INTEGER" and isinstance(val, (int, float)):
+                            type_correct += 1
+                        elif p.property_type.value == "FLOAT" and isinstance(val, (int, float)):
+                            type_correct += 1
+                        elif p.property_type.value == "BOOLEAN" and isinstance(val, bool):
+                            type_correct += 1
+                        elif p.property_type.value == "STRING" and isinstance(val, str):
+                            type_correct += 1
+                        elif p.property_type.value in ("DATETIME", "DATE") and isinstance(val, str):
+                            type_correct += 1
+                        else:
+                            type_correct += 0.5  # partial credit for other types
+                score_parts["type_correctness"] = (
+                    type_correct / type_checks if type_checks > 0 else 1.0
+                )
+            elif label == "Entity":
+                score_parts["label_match"] = 0.5
+                score_parts["property_completeness"] = 0.5
+                score_parts["type_correctness"] = 0.5
+            else:
+                score_parts["label_match"] = 0.0
+                score_parts["property_completeness"] = 0.0
+                score_parts["type_correctness"] = 0.0
+
+            node_score = sum(score_parts.values()) / len(score_parts) if score_parts else 0.0
+            node_scores.append({
+                "id": nid,
+                "label": label,
+                "score": round(node_score, 3),
+                "details": score_parts,
+            })
+
+        for rel in data.get("relationships", []):
+            rtype = rel.get("type", "")
+            src = rel.get("source", "")
+            tgt = rel.get("target", "")
+
+            if rtype in self.relationships:
+                rel_score = 1.0
+            else:
+                rel_score = 0.0
+
+            rel_scores.append({
+                "source": src,
+                "target": tgt,
+                "type": rtype,
+                "score": rel_score,
+            })
+
+        all_scores = [n["score"] for n in node_scores] + [r["score"] for r in rel_scores]
+        overall = sum(all_scores) / len(all_scores) if all_scores else 0.0
+
+        return {
+            "overall": round(overall, 3),
+            "nodes": node_scores,
+            "relationships": rel_scores,
+        }
+
     # ------------------------------------------------------------------
     # Label safety
     # ------------------------------------------------------------------

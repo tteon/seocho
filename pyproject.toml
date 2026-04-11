@@ -7,7 +7,7 @@ name = "seocho"
 version = "0.1.0"
 description = "Developer-friendly Python SDK for the SEOCHO graph-memory runtime"
 readme = { file = "README.md", content-type = "text/markdown" }
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 license = "MIT"
 authors = [
     { name = "SEOCHO contributors" },

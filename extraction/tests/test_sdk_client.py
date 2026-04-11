@@ -733,3 +733,28 @@ def test_module_level_convenience_api_uses_configured_default_client():
     assert answer == "Stored memory"
     assert debate.debate_state == "blocked"
     assert databases == ["kgnormal"]
+
+
+
+def test_advanced_alias_uses_debate_endpoint_directly():
+    session = _FakeSession(
+        [
+            _FakeResponse(
+                payload={
+                    "response": "advanced debate answer",
+                    "trace_steps": [],
+                    "debate_results": [{"graph": "kgnormal", "response": "A"}],
+                    "agent_statuses": [{"graph": "kgnormal", "status": "ready"}],
+                    "debate_state": "ready",
+                    "degraded": False,
+                }
+            )
+        ]
+    )
+    client = Seocho(base_url="http://localhost:8001", session=session)
+
+    result = client.advanced("Hard graph question", graph_ids=["kgnormal"])
+
+    assert result.debate_state == "ready"
+    assert session.calls[0]["url"] == "http://localhost:8001/run_debate"
+    assert session.calls[0]["json"]["graph_ids"] == ["kgnormal"]

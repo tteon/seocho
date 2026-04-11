@@ -57,3 +57,22 @@ async def test_adapter_propagates_non_signature_typeerror():
 
     with pytest.raises(TypeError, match="boom"):
         await runtime.run(agent="a3", input="x", context={})
+
+
+@pytest.mark.anyio
+async def test_adapter_passes_max_turns_when_runner_supports_it():
+    class _Runner:
+        @staticmethod
+        async def run(*, starting_agent, input, context, max_turns):
+            return {
+                "agent": starting_agent,
+                "input": input,
+                "context": context,
+                "max_turns": max_turns,
+            }
+
+    runtime = agents_runtime.AgentsRuntimeAdapter(runner_cls=_Runner, trace_fn=lambda *_a, **_k: nullcontext())
+    result = await runtime.run(agent="a4", input="bounded", context={}, max_turns=5)
+
+    assert result["agent"] == "a4"
+    assert result["max_turns"] == 5

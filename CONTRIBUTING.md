@@ -1,92 +1,114 @@
 # Contributing to SEOCHO
 
-Thank you for contributing to SEOCHO. This guide defines the minimum process for safe and reviewable changes.
+Welcome. This guide gets you from zero to your first PR.
 
-## 1. Read Before Coding
-
-Read these docs in order:
-
-1. `README.md`
-2. `CLAUDE.md`
-3. `docs/WORKFLOW.md`
-4. `docs/ISSUE_TASK_SYSTEM.md`
-5. `docs/decisions/DECISION_LOG.md`
-
-Current baseline must remain aligned:
-
-- OpenAI Agents SDK
-- Opik tracing/evaluation
-- DozerDB backend
-- single-tenant MVP with `workspace_id` propagation
-- Owlready2 only in offline ontology governance path
-
-## 2. Work Intake
-
-For core maintainers using `bd`, follow:
+## Quick Setup
 
 ```bash
-bd ready
-bd show <id>
-bd update <id> --status in_progress
+git clone git@github.com:tteon/seocho.git
+cd seocho
+pip install -e ".[dev]"
+python -m pytest seocho/tests/ -q   # 87 tests, should pass in <1s
 ```
 
-For new work items, use standard scripts:
+## Where to Look
+
+The SDK is split into three domain packages. **The directory name tells you what it does.**
+
+```
+seocho/
+├── index/              ← Data Plane: putting data IN
+│   ├── pipeline.py     ← chunking → extract → validate → write
+│   └── file_reader.py  ← read .txt/.csv/.json/.jsonl files
+│
+├── query/              ← Control Plane: getting data OUT
+│   └── strategy.py     ← ontology → LLM prompt generation
+│
+├── store/              ← Storage backends
+│   ├── graph.py        ← Neo4j/DozerDB (write + query)
+│   ├── vector.py       ← FAISS similarity search
+│   └── llm.py          ← OpenAI completions
+│
+├── ontology.py         ← Schema definition (shared across all planes)
+├── client.py           ← Seocho class (unified interface)
+├── models.py           ← Shared response types
+└── tests/              ← SDK test suite
+```
+
+### I want to...
+
+| Goal | Start here |
+|------|-----------|
+| Improve entity extraction quality | `seocho/index/pipeline.py` |
+| Add a new file format (e.g. PDF) | `seocho/index/file_reader.py` |
+| Improve Cypher generation | `seocho/query/strategy.py` |
+| Add a new graph database backend | `seocho/store/graph.py` |
+| Add a new LLM provider | `seocho/store/llm.py` |
+| Extend ontology features | `seocho/ontology.py` |
+| Fix a bug in the HTTP client | `seocho/client.py` |
+
+## Running Tests
 
 ```bash
-scripts/pm/new-issue.sh ...
-scripts/pm/new-task.sh ...
+# SDK tests (fast, no external dependencies)
+python -m pytest seocho/tests/ -v
+
+# Server-side tests (need extraction/ dependencies)
+python -m pytest extraction/tests/ -v
 ```
 
-Active items (`open`, `in_progress`, `blocked`) must include:
+## Commit Conventions
 
-- `sev-*`, `impact-*`, `urgency-*`, `sprint-*`, `roadmap-*`, `area-*`, `kind-*`
+We use strict semantic versioning prefixes:
 
-## 3. Development and PR Flow
+| Prefix | When |
+|--------|------|
+| `feat:` | New feature or significant addition |
+| `fix:` | Bug fix |
+| `refactor:` | Code restructuring, no behavior change |
+| `docs:` | Documentation only |
+| `test:` | Adding or updating tests |
+| `chore:` | Tooling, deps, config |
 
-1. Fork and clone your repository copy.
-2. Create a focused branch (`feat/...`, `fix/...`, `docs/...`).
-3. Keep changes scoped and testable.
-4. Preserve runtime guardrails:
-   - propagate `workspace_id` in runtime-facing changes
-   - enforce policy checks for new endpoints/actions
-   - keep heavy ontology reasoning out of request hot path
-5. Add or update tests for changed behavior.
-6. Run focused quality gates before PR:
-   - relevant `pytest` suites
-   - `make e2e-smoke` when API/UI/runtime contracts change
-   - `scripts/pm/lint-agent-docs.sh` for docs/rules baseline
-7. Open a PR against `main` with:
-   - summary of behavior changes
-   - test evidence (commands + results)
-   - explicit note for any test gaps not run
+Example: `feat: add PDF support to file indexer`
 
-## 4. Coding Standards
+## PR Process
 
-- use type hints on function signatures
-- use centralized config (`extraction/config.py`)
-- use logging, not `print`
-- avoid broad or hidden side effects
-- do not commit secrets or credentials
+1. Fork the repo
+2. Create a feature branch: `git checkout -b feat/my-feature`
+3. Make your changes
+4. Run tests: `python -m pytest seocho/tests/ -q`
+5. Commit with conventional prefix
+6. Push and open a PR against `main`
 
-Commit prefix conventions:
+PRs are reviewed by Claude (automated weekly) and maintainers.
 
-- `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`, `test:`
+## Architecture
 
-## 5. Documentation and ADR Rules
+Two planes, one ontology:
 
-For architecture or workflow changes:
+```
+                    Ontology (seocho/ontology.py)
+                         │
+              ┌──────────┴──────────┐
+              ▼                     ▼
+         Data Plane            Control Plane
+        (seocho/index/)       (seocho/query/)
+              │                     │
+              ▼                     ▼
+         seocho/store/         seocho/store/
+        (graph write)          (graph query)
+```
 
-- update `README.md` and relevant docs in `docs/*`
-- add/update ADR in `docs/decisions/ADR-*.md`
-- append decision summary in `docs/decisions/DECISION_LOG.md`
+- **Data Plane**: file reading → chunking → LLM extraction → SHACL validation → entity dedup → graph write
+- **Control Plane**: prompt strategy → Cypher generation → answer synthesis → reasoning repair
+- **Ontology**: shared — drives extraction prompts AND query prompts
 
-## 6. License and Compliance
+## Key Design Decisions
 
-- Repository license: MIT (`LICENSE`)
-- Inbound = outbound: contributions are licensed under MIT
-- Only add third-party code/dependencies with compatible licenses
-- When adding new dependencies, include package name/version/license in PR description
+- JSON-LD is the canonical ontology storage format
+- SHACL shapes are derived (never hand-written)
+- Denormalization safety is determined by relationship cardinality
+- `seocho/ontology.py` is the single source of truth (extraction/ uses a bridge)
 
-## 7. Security Reporting
-
-For security vulnerabilities, follow `SECURITY.md` instead of opening a public issue first.
+See `docs/decisions/DECISION_LOG.md` for all ADRs.

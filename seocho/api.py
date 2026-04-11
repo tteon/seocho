@@ -3,7 +3,7 @@ from __future__ import annotations
 from threading import RLock
 from typing import Any, Dict, List, Optional, Sequence
 
-from .client import Seocho
+from .client import ExecutionPlanBuilder, Seocho
 from .semantic import ApprovedArtifacts
 from .types import (
     AgentRunResponse,
@@ -11,13 +11,17 @@ from .types import (
     ChatResponse,
     DebateRunResponse,
     EntityOverride,
+    ExecutionPlan,
+    ExecutionResult,
     FulltextIndexResponse,
+    GraphRef,
     GraphTarget,
     Memory,
     MemoryCreateResult,
     PlatformChatResponse,
     PlatformSessionResponse,
     RawIngestResult,
+    ReasoningPolicy,
     SearchResult,
     SemanticRunResponse,
 )
@@ -89,6 +93,18 @@ def delete(memory_id: str, **kwargs: Any) -> ArchiveResult:
 
 def router(query: str, **kwargs: Any) -> AgentRunResponse:
     return get_client().router(query, **kwargs)
+
+
+def react(query: str, **kwargs: Any) -> AgentRunResponse:
+    return get_client().react(query, **kwargs)
+
+
+def plan(query: str, **kwargs: Any) -> ExecutionPlanBuilder:
+    return get_client().plan(query, **kwargs)
+
+
+def execute(plan: ExecutionPlan | Dict[str, Any]) -> ExecutionResult:
+    return get_client().execute(plan)
 
 
 def semantic(query: str, **kwargs: Any) -> SemanticRunResponse:

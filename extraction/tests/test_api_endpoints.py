@@ -684,3 +684,21 @@ class TestQueryValidation:
 
         with pytest.raises(ValidationError):
             QueryRequest()
+
+
+    def test_execute_cypher_tool_enforces_tool_budget(self, app_module):
+        wrapper = types.SimpleNamespace(
+            context=app_module.ServerContext(
+                user_id="user_default",
+                allowed_databases=["kgnormal"],
+                tool_budget=1,
+            )
+        )
+
+        with patch.object(app_module.neo4j_conn, "run_cypher", return_value='[{"ok": 1}]') as mock_run:
+            first = app_module.execute_cypher_tool(wrapper, "RETURN 1", database="kgnormal")
+            second = app_module.execute_cypher_tool(wrapper, "RETURN 1", database="kgnormal")
+
+        assert first == '[{"ok": 1}]'
+        assert "Tool budget exhausted" in second
+        mock_run.assert_called_once_with("RETURN 1", database="kgnormal")

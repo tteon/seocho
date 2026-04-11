@@ -29,7 +29,7 @@ require_pattern() {
   local file="$1"
   local pattern="$2"
   local description="$3"
-  if ! rg -n --fixed-strings "${pattern}" "${file}" >/dev/null 2>&1; then
+  if ! grep -qF "${pattern}" "${file}" 2>/dev/null; then
     echo "Missing '${description}' in ${file}"
     missing=1
   fi

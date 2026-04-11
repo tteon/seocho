@@ -19,8 +19,11 @@ import logging
 import os
 import re
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from difflib import SequenceMatcher
+from hashlib import sha1
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
+from uuid import uuid4
 
 from config import graph_registry
 from ontology_hints import OntologyHintStore
@@ -206,6 +209,7 @@ def build_evidence_bundle(
     matched_entities: Optional[Sequence[str]] = None,
     reasons: Optional[Sequence[str]] = None,
     score: Optional[float] = None,
+    support_assessment: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     intent = semantic_context.get("intent")
     if not isinstance(intent, dict) or not intent.get("intent_id"):
@@ -282,6 +286,11 @@ def build_evidence_bundle(
         slot_fills["supporting_fact"] = preview
 
     missing_slots = [slot for slot in focus_slots if slot not in slot_fills]
+    grounded_slots = [slot for slot in focus_slots if slot in slot_fills]
+    coverage = round(
+        len(grounded_slots) / max(1, len(focus_slots)),
+        4,
+    ) if focus_slots else 1.0
 
     confidence = 0.0
     if score is not None:
@@ -311,6 +320,7 @@ def build_evidence_bundle(
             )
 
     return {
+        "schema_version": "evidence_bundle.v2",
         "intent_id": str(intent.get("intent_id", "")).strip(),
         "required_relations": list(intent.get("required_relations", [])),
         "required_entity_types": list(intent.get("required_entity_types", [])),
@@ -318,9 +328,12 @@ def build_evidence_bundle(
         "candidate_entities": candidate_entities,
         "selected_triples": selected_triples,
         "slot_fills": slot_fills,
+        "grounded_slots": grounded_slots,
         "missing_slots": missing_slots,
         "provenance": provenance,
         "confidence": round(confidence, 4),
+        "coverage": coverage,
+        "support_assessment": dict(support_assessment or {}),
     }
 
 
@@ -798,6 +811,398 @@ class QueryInsufficiencyClassifier:
         )
 
 
+class IntentSupportValidator:
+    """Estimate whether a graph target can likely satisfy the requested intent."""
+
+    def assess_candidate(
+        self,
+        *,
+        question_entity: str,
+        candidate: Dict[str, Any],
+        intent: Dict[str, Any],
+        constraint_slice: Dict[str, Any],
+        preview_bundle: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        required_relations = [
+            str(item).strip()
+            for item in intent.get("required_relations", [])
+            if str(item).strip()
+        ]
+        required_entity_types = [
+            str(item).strip()
+            for item in intent.get("required_entity_types", [])
+            if str(item).strip()
+        ]
+        focus_slots = [
+            str(item).strip()
+            for item in intent.get("focus_slots", [])
+            if str(item).strip()
+        ]
+        preview_bundle = preview_bundle if isinstance(preview_bundle, dict) else {}
+
+        candidate_labels = [
+            str(label).strip()
+            for label in candidate.get("labels", [])
+            if str(label).strip()
+        ]
+        allowed_relationship_types = [
+            str(item).strip()
+            for item in constraint_slice.get("allowed_relationship_types", [])
+            if str(item).strip()
+        ]
+
+        matched_relations = self._matched_relations(required_relations, constraint_slice)
+        non_generic_entity_types = [
+            item for item in required_entity_types
+            if _normalize_symbol(item) not in {"", "entity"}
+        ]
+        matched_entity_types = self._matched_entity_types(non_generic_entity_types, candidate_labels)
+
+        grounded_slots = set()
+        if question_entity or candidate.get("display_name"):
+            grounded_slots.add("target_entity")
+        if len(preview_bundle.get("candidate_entities", [])) > 1:
+            grounded_slots.add("source_entity")
+
+        relation_coverage = 1.0
+        if required_relations:
+            relation_coverage = len(matched_relations) / max(1, len(required_relations))
+
+        entity_type_coverage = 1.0
+        if non_generic_entity_types:
+            entity_type_coverage = len(matched_entity_types) / max(1, len(non_generic_entity_types))
+
+        slot_coverage = 1.0
+        if focus_slots:
+            slot_coverage = len(grounded_slots & set(focus_slots)) / max(1, len(focus_slots))
+
+        if required_relations:
+            coverage = (0.35 * slot_coverage) + (0.35 * relation_coverage) + (0.30 * entity_type_coverage)
+        else:
+            coverage = (0.70 * slot_coverage) + (0.30 * entity_type_coverage)
+        coverage = round(min(1.0, coverage), 4)
+
+        reason = "supported"
+        status = "supported"
+        if not candidate.get("node_id"):
+            reason = "no_candidate_node"
+            status = "unsupported"
+        elif required_relations and not matched_relations and constraint_slice.get("constraint_strength") == "semantic_layer":
+            reason = "missing_required_relation_support"
+            status = "partial"
+        elif non_generic_entity_types and not matched_entity_types:
+            reason = "entity_type_mismatch"
+            status = "partial"
+        elif coverage < 0.45:
+            reason = "low_support_coverage"
+            status = "partial"
+
+        supported = status == "supported"
+        missing_slots = [slot for slot in focus_slots if slot not in grounded_slots]
+        return {
+            "schema_version": "intent_support.v1",
+            "intent_id": str(intent.get("intent_id", "")).strip(),
+            "question_entity": question_entity,
+            "display_name": str(candidate.get("display_name") or question_entity).strip(),
+            "graph_id": str(constraint_slice.get("graph_id", "")).strip(),
+            "database": str(candidate.get("database") or constraint_slice.get("database") or "").strip(),
+            "constraint_strength": str(constraint_slice.get("constraint_strength", "")).strip(),
+            "supported": supported,
+            "status": status,
+            "reason": reason,
+            "coverage": coverage,
+            "confidence": round(float(candidate.get("final_score", 0.0) or 0.0), 4),
+            "required_relations": required_relations,
+            "matched_relations": matched_relations,
+            "required_entity_types": required_entity_types,
+            "matched_entity_types": matched_entity_types,
+            "focus_slots": focus_slots,
+            "grounded_slots": sorted(grounded_slots & set(focus_slots)),
+            "missing_slots": missing_slots,
+        }
+
+    def finalize_runtime_support(
+        self,
+        *,
+        preflight: Optional[Dict[str, Any]],
+        intent: Dict[str, Any],
+        bundle: Dict[str, Any],
+        assessment: InsufficiencyAssessment,
+        plan: CypherPlan,
+        constraint_slice: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        focus_slots = [
+            str(item).strip()
+            for item in intent.get("focus_slots", [])
+            if str(item).strip()
+        ]
+        grounded_slots = {
+            str(item).strip()
+            for item in bundle.get("grounded_slots", [])
+            if str(item).strip()
+        }
+        selected_triples = bundle.get("selected_triples", [])
+        matched_relations = []
+        for triple in selected_triples:
+            if not isinstance(triple, dict):
+                continue
+            relation = str(triple.get("relation", "")).strip()
+            if relation and relation not in matched_relations:
+                matched_relations.append(relation)
+
+        coverage = round(
+            len(grounded_slots & set(focus_slots)) / max(1, len(focus_slots)),
+            4,
+        ) if focus_slots else 1.0
+
+        support = dict(preflight or {})
+        support.update(
+            {
+                "schema_version": "intent_support.v1",
+                "intent_id": str(intent.get("intent_id", "")).strip(),
+                "graph_id": str(constraint_slice.get("graph_id", "")).strip(),
+                "database": plan.database,
+                "supported": assessment.sufficient,
+                "status": "supported" if assessment.sufficient else ("partial" if grounded_slots else "unsupported"),
+                "reason": assessment.reason,
+                "coverage": coverage,
+                "matched_relations": matched_relations,
+                "focus_slots": focus_slots,
+                "grounded_slots": sorted(grounded_slots & set(focus_slots)),
+                "missing_slots": list(assessment.missing_slots),
+                "row_count": assessment.row_count,
+                "selected_triple_count": len(selected_triples),
+            }
+        )
+        return support
+
+    @staticmethod
+    def empty_assessment(intent: Dict[str, Any]) -> Dict[str, Any]:
+        focus_slots = [
+            str(item).strip()
+            for item in intent.get("focus_slots", [])
+            if str(item).strip()
+        ]
+        return {
+            "schema_version": "intent_support.v1",
+            "intent_id": str(intent.get("intent_id", "")).strip(),
+            "supported": False,
+            "status": "unsupported",
+            "reason": "no_entity_match",
+            "coverage": 0.0,
+            "confidence": 0.0,
+            "required_relations": [
+                str(item).strip()
+                for item in intent.get("required_relations", [])
+                if str(item).strip()
+            ],
+            "matched_relations": [],
+            "required_entity_types": [
+                str(item).strip()
+                for item in intent.get("required_entity_types", [])
+                if str(item).strip()
+            ],
+            "matched_entity_types": [],
+            "focus_slots": focus_slots,
+            "grounded_slots": [],
+            "missing_slots": focus_slots,
+        }
+
+    @staticmethod
+    def _matched_relations(required_relations: Sequence[str], constraint_slice: Dict[str, Any]) -> List[str]:
+        allowed_lookup = {
+            _normalize_symbol(item): str(item).strip()
+            for item in constraint_slice.get("allowed_relationship_types", [])
+            if str(item).strip()
+        }
+        matched: List[str] = []
+        for relation in required_relations:
+            normalized = _normalize_symbol(relation)
+            if normalized and normalized in allowed_lookup:
+                matched.append(allowed_lookup[normalized])
+        return matched
+
+    @staticmethod
+    def _matched_entity_types(required_entity_types: Sequence[str], candidate_labels: Sequence[str]) -> List[str]:
+        label_lookup = {
+            _normalize_symbol(item): str(item).strip()
+            for item in candidate_labels
+            if str(item).strip()
+        }
+        matched: List[str] = []
+        for entity_type in required_entity_types:
+            normalized = _normalize_symbol(entity_type)
+            if normalized and normalized in label_lookup:
+                matched.append(label_lookup[normalized])
+        return matched
+
+
+class ExecutionStrategyChooser:
+    """Choose and summarize semantic execution strategy."""
+
+    def choose_initial(
+        self,
+        *,
+        route: str,
+        reasoning_mode: bool,
+        repair_budget: int,
+        support_assessment: Dict[str, Any],
+        graph_count: int,
+    ) -> Dict[str, Any]:
+        support_status = str(support_assessment.get("status", "unsupported")).strip() or "unsupported"
+        if route == "rdf":
+            initial_mode = "rdf"
+            reason = "question matched RDF-oriented cues"
+        elif reasoning_mode or repair_budget > 0:
+            initial_mode = "semantic_repair"
+            reason = "bounded repair was explicitly requested"
+        elif support_status == "supported":
+            initial_mode = "semantic_direct"
+            reason = "intent support is available for the selected graph scope"
+        elif graph_count > 1:
+            initial_mode = "semantic_direct"
+            reason = "starting with the cheapest grounded path before recommending advanced review"
+        else:
+            initial_mode = "semantic_direct"
+            reason = "starting with a lightweight semantic pass"
+
+        return {
+            "schema_version": "strategy_decision.v1",
+            "requested_mode": "semantic",
+            "initial_mode": initial_mode,
+            "executed_mode": initial_mode,
+            "reasoning_mode_requested": bool(reasoning_mode),
+            "repair_budget": max(0, int(repair_budget or 0)),
+            "support_status": support_status,
+            "reason": reason,
+            "advanced_debate_recommended": False,
+            "self_reflection_used": False,
+            "next_mode_hint": None,
+            "sdk_hint": None,
+        }
+
+    def finalize(
+        self,
+        *,
+        initial_decision: Dict[str, Any],
+        route: str,
+        graph_count: int,
+        support_assessment: Dict[str, Any],
+        reasoning: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        decision = dict(initial_decision or {})
+        reasoning = reasoning if isinstance(reasoning, dict) else {}
+        support_status = str(support_assessment.get("status", "unsupported")).strip() or "unsupported"
+        self_reflection_used = bool(reasoning.get("self_reflection_used", False))
+
+        if route == "rdf":
+            executed_mode = "rdf"
+        elif route == "hybrid":
+            executed_mode = "hybrid"
+        elif self_reflection_used:
+            executed_mode = "semantic_self_reflect"
+        elif reasoning.get("requested"):
+            executed_mode = "semantic_repair"
+        else:
+            executed_mode = "semantic_direct"
+
+        next_mode_hint = None
+        sdk_hint = None
+        advanced_debate_recommended = False
+        if not support_assessment.get("supported", False):
+            if graph_count > 1:
+                advanced_debate_recommended = True
+                next_mode_hint = "advanced"
+                sdk_hint = "Use client.plan(...).advanced().run() for an explicit cross-graph debate."
+            elif not reasoning.get("requested"):
+                next_mode_hint = "reasoning_mode"
+                sdk_hint = "Use client.plan(...).with_repair_budget(2).run() to allow bounded repair."
+            else:
+                next_mode_hint = "entity_override_or_semantic_artifact"
+                sdk_hint = "Add entity overrides or improve approved semantic artifacts for this graph."
+
+        decision.update(
+            {
+                "executed_mode": executed_mode,
+                "support_status": support_status,
+                "advanced_debate_recommended": advanced_debate_recommended,
+                "self_reflection_used": self_reflection_used,
+                "next_mode_hint": next_mode_hint,
+                "sdk_hint": sdk_hint,
+            }
+        )
+        return decision
+
+
+class RunMetadataRegistry:
+    """Persist a lightweight semantic execution registry outside the graph store."""
+
+    def __init__(self, path: Optional[str] = None) -> None:
+        default_path = os.getenv(
+            "SEOCHO_RUN_METADATA_PATH",
+            "/tmp/seocho/semantic_run_registry.jsonl",
+        )
+        self.path = path or default_path
+
+    def record_run(
+        self,
+        *,
+        question: str,
+        workspace_id: str,
+        route: str,
+        semantic_context: Dict[str, Any],
+        lpg_result: Optional[Dict[str, Any]],
+        rdf_result: Optional[Dict[str, Any]],
+        response: str,
+    ) -> Dict[str, Any]:
+        timestamp = datetime.now(timezone.utc).isoformat()
+        run_id = f"run_{uuid4().hex}"
+        evidence_bundle = semantic_context.get("evidence_bundle_preview", {})
+        support_assessment = semantic_context.get("support_assessment", {})
+        strategy_decision = semantic_context.get("strategy_decision", {})
+        record = {
+            "schema_version": "semantic_run_registry.v1",
+            "run_id": run_id,
+            "timestamp": timestamp,
+            "workspace_id": workspace_id,
+            "query_preview": question[:240],
+            "query_hash": sha1(question.encode("utf-8")).hexdigest(),
+            "route": route,
+            "intent_id": str(semantic_context.get("intent", {}).get("intent_id", "")).strip(),
+            "support_assessment": support_assessment,
+            "strategy_decision": strategy_decision,
+            "reasoning": semantic_context.get("reasoning", {}),
+            "evidence_summary": {
+                "grounded_slots": list(evidence_bundle.get("grounded_slots", [])),
+                "missing_slots": list(evidence_bundle.get("missing_slots", [])),
+                "selected_triple_count": len(evidence_bundle.get("selected_triples", [])),
+                "confidence": float(evidence_bundle.get("confidence", 0.0) or 0.0),
+            },
+            "lpg_record_count": len((lpg_result or {}).get("records", [])),
+            "rdf_record_count": len((rdf_result or {}).get("records", [])),
+            "response_preview": response[:240],
+        }
+
+        try:
+            parent = os.path.dirname(self.path)
+            if parent:
+                os.makedirs(parent, exist_ok=True)
+            with open(self.path, "a", encoding="utf-8") as handle:
+                handle.write(json.dumps(record, ensure_ascii=True) + "\n")
+            recorded = True
+        except Exception:
+            recorded = False
+            logger.warning("Failed to persist semantic run metadata.", exc_info=True)
+
+        return {
+            "schema_version": "semantic_run_registry.v1",
+            "run_id": run_id,
+            "recorded": recorded,
+            "registry_path": self.path,
+            "timestamp": timestamp,
+        }
+
+
 class SemanticEntityResolver:
     """Resolve question entities against graph entities."""
 
@@ -1175,6 +1580,69 @@ class LPGAgent:
         self.constraint_builder = SemanticConstraintSliceBuilder()
         self.validator = CypherQueryValidator()
         self.classifier = QueryInsufficiencyClassifier()
+        self.support_validator = IntentSupportValidator()
+
+    def preview_support(
+        self,
+        semantic_context: Dict[str, Any],
+        constraint_slices: Dict[str, Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        intent = semantic_context.get("intent", {})
+        preview_bundle = semantic_context.get("evidence_bundle_preview", {})
+        ranked_matches: List[Dict[str, Any]] = []
+        support_candidates: List[Dict[str, Any]] = []
+
+        for question_entity, candidates in semantic_context.get("matches", {}).items():
+            if not isinstance(candidates, list):
+                continue
+            for candidate in candidates[:2]:
+                if not isinstance(candidate, dict):
+                    continue
+                db_name = str(candidate.get("database", "")).strip()
+                if not db_name:
+                    continue
+                constraint_slice = constraint_slices.get(db_name, {})
+                support = self.support_validator.assess_candidate(
+                    question_entity=question_entity,
+                    candidate=candidate,
+                    intent=intent,
+                    constraint_slice=constraint_slice,
+                    preview_bundle=preview_bundle,
+                )
+                annotated = dict(candidate)
+                annotated["question_entity"] = question_entity
+                annotated["support_assessment"] = support
+                ranked_matches.append(annotated)
+                support_candidates.append(support)
+
+        ranked_matches.sort(
+            key=lambda item: (
+                bool(item.get("support_assessment", {}).get("supported")),
+                float(item.get("support_assessment", {}).get("coverage", 0.0) or 0.0),
+                float(item.get("final_score", 0.0) or 0.0),
+            ),
+            reverse=True,
+        )
+        support_candidates.sort(
+            key=lambda item: (
+                bool(item.get("supported")),
+                float(item.get("coverage", 0.0) or 0.0),
+                float(item.get("confidence", 0.0) or 0.0),
+            ),
+            reverse=True,
+        )
+
+        semantic_context["support_candidates"] = support_candidates[:6]
+        semantic_context["preflight_support_assessment"] = (
+            support_candidates[0]
+            if support_candidates
+            else self.support_validator.empty_assessment(intent)
+        )
+        semantic_context.setdefault(
+            "support_assessment",
+            semantic_context["preflight_support_assessment"],
+        )
+        return ranked_matches[:6]
 
     def run(
         self,
@@ -1186,8 +1654,12 @@ class LPGAgent:
         reasoning_mode: bool = False,
         repair_budget: int = 0,
         constraint_slices: Optional[Dict[str, Dict[str, Any]]] = None,
+        ranked_matches: Optional[Sequence[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
-        top_matches = self._top_entity_matches(semantic_context)
+        top_matches = list(ranked_matches) if ranked_matches is not None else self._top_entity_matches(
+            semantic_context,
+            constraint_slices or {},
+        )
         if not top_matches:
             return {
                 "mode": "lpg",
@@ -1198,7 +1670,10 @@ class LPGAgent:
                     "repair_budget": max(0, int(repair_budget or 0)),
                     "attempt_count": 0,
                     "repair_trace": [],
+                    "self_reflection_used": False,
                 },
+                "support_assessment": semantic_context.get("support_assessment", {}),
+                "execution_strategy": semantic_context.get("strategy_decision", {}),
             }
 
         constraint_slices = constraint_slices or self.constraint_builder.build_for_databases(
@@ -1209,6 +1684,7 @@ class LPGAgent:
         repair_trace: List[Dict[str, Any]] = []
         best_assessment: Optional[InsufficiencyAssessment] = None
         best_bundle: Optional[Dict[str, Any]] = None
+        best_support_assessment: Optional[Dict[str, Any]] = None
         selected_constraint_slice: Optional[Dict[str, Any]] = None
         attempt_limit = 1 + max(0, int(repair_budget or 0)) if reasoning_mode else 1
 
@@ -1236,9 +1712,20 @@ class LPGAgent:
             ) or execution["assessment"].row_count > best_assessment.row_count:
                 best_assessment = execution["assessment"]
                 best_bundle = execution["evidence_bundle"]
+                best_support_assessment = execution["support_assessment"]
                 selected_constraint_slice = constraint_slice
             if execution["assessment"].sufficient:
                 break
+
+        unique_anchors = {
+            (
+                str(item.get("database", "")).strip(),
+                str(item.get("anchor_entity", "")).strip(),
+            )
+            for item in repair_trace
+            if str(item.get("anchor_entity", "")).strip()
+        }
+        self_reflection_used = len(unique_anchors) > 1
 
         if not records:
             summary = "No grounded LPG result satisfied the semantic-layer constraints. Returned label distribution."
@@ -1252,6 +1739,7 @@ class LPGAgent:
                     "attempt_count": len(repair_trace),
                     "repair_trace": repair_trace,
                     "constraint_slice": self._summarize_constraint_slice(selected_constraint_slice),
+                    "self_reflection_used": self_reflection_used,
                     "insufficiency": (
                         {
                             "reason": best_assessment.reason,
@@ -1263,6 +1751,8 @@ class LPGAgent:
                     ),
                 },
                 "evidence_bundle": best_bundle or semantic_context.get("evidence_bundle_preview", {}),
+                "support_assessment": best_support_assessment or semantic_context.get("support_assessment", {}),
+                "execution_strategy": semantic_context.get("strategy_decision", {}),
             }
 
         best_reason = best_assessment.reason if best_assessment is not None else "sufficient"
@@ -1281,20 +1771,20 @@ class LPGAgent:
                 "repair_trace": repair_trace,
                 "constraint_slice": self._summarize_constraint_slice(selected_constraint_slice),
                 "terminal_reason": best_reason,
+                "self_reflection_used": self_reflection_used,
             },
             "evidence_bundle": best_bundle or semantic_context.get("evidence_bundle_preview", {}),
+            "support_assessment": best_support_assessment or semantic_context.get("support_assessment", {}),
+            "execution_strategy": semantic_context.get("strategy_decision", {}),
         }
 
-    def _top_entity_matches(self, semantic_context: Dict[str, Any]) -> List[Dict[str, Any]]:
-        pairs: List[Dict[str, Any]] = []
-        for entity, candidates in semantic_context.get("matches", {}).items():
-            if not candidates:
-                continue
-            best = dict(candidates[0])
-            best["question_entity"] = entity
-            pairs.append(best)
-        pairs.sort(key=lambda item: item.get("final_score", 0.0), reverse=True)
-        return pairs[:3]
+    def _top_entity_matches(
+        self,
+        semantic_context: Dict[str, Any],
+        constraint_slices: Dict[str, Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        ranked_matches = self.preview_support(semantic_context, constraint_slices)
+        return ranked_matches[:3]
 
     def _execute_with_repair(
         self,
@@ -1370,6 +1860,15 @@ class LPGAgent:
                 assessment=assessment,
                 constraint_slice=constraint_slice,
             )
+            support_assessment = self.support_validator.finalize_runtime_support(
+                preflight=anchor_match.get("support_assessment"),
+                intent=intent,
+                bundle=evidence_bundle,
+                assessment=assessment,
+                plan=plan,
+                constraint_slice=constraint_slice,
+            )
+            evidence_bundle["support_assessment"] = support_assessment
             repair_trace.append(
                 {
                     "strategy": strategy,
@@ -1381,6 +1880,8 @@ class LPGAgent:
                     "sufficient": assessment.sufficient,
                     "reason": assessment.reason,
                     "missing_slots": list(assessment.missing_slots),
+                    "support_status": support_assessment.get("status"),
+                    "coverage": support_assessment.get("coverage"),
                     "validation": {
                         "labels": validation["labels"],
                         "relation_types": validation["relation_types"],
@@ -1399,6 +1900,7 @@ class LPGAgent:
             "repair_trace": repair_trace,
             "assessment": last_assessment,
             "evidence_bundle": last_bundle,
+            "support_assessment": last_bundle.get("support_assessment", anchor_match.get("support_assessment", {})),
         }
 
     @staticmethod
@@ -1668,7 +2170,12 @@ class LPGAgent:
         focus_slots = [str(slot).strip() for slot in intent.get("focus_slots", []) if str(slot).strip()]
         bundle["slot_fills"] = slot_fills
         bundle["selected_triples"] = selected_triples[:10]
+        bundle["grounded_slots"] = [slot for slot in focus_slots if slot in slot_fills]
         bundle["missing_slots"] = [slot for slot in focus_slots if slot not in slot_fills]
+        bundle["coverage"] = round(
+            len(bundle["grounded_slots"]) / max(1, len(focus_slots)),
+            4,
+        ) if focus_slots else 1.0
         bundle["database"] = plan.database
         bundle["graph_id"] = constraint_slice.get("graph_id")
         bundle["reasoning"] = {
@@ -1817,6 +2324,8 @@ class AnswerGenerationAgent:
         unresolved = semantic_context.get("unresolved_entities", [])
         intent = semantic_context.get("intent", {})
         evidence_bundle = semantic_context.get("evidence_bundle_preview", {})
+        support_assessment = semantic_context.get("support_assessment", {})
+        strategy_decision = semantic_context.get("strategy_decision", {})
 
         lines = [f"Route selected: {route.upper()}."]
         if intent.get("intent_id"):
@@ -1825,6 +2334,12 @@ class AnswerGenerationAgent:
             lines.append(f"Extracted entities: {', '.join(entities)}.")
         if unresolved:
             lines.append(f"Unresolved entities: {', '.join(unresolved)}.")
+        if support_assessment.get("status"):
+            lines.append(
+                f"Support status: {support_assessment['status']} ({support_assessment.get('reason', 'unspecified')})."
+            )
+        if evidence_bundle.get("grounded_slots"):
+            lines.append(f"Grounded slots: {', '.join(evidence_bundle['grounded_slots'])}.")
         if evidence_bundle.get("missing_slots"):
             lines.append(f"Missing slots: {', '.join(evidence_bundle['missing_slots'])}.")
         reasoning = semantic_context.get("reasoning", {})
@@ -1834,6 +2349,10 @@ class AnswerGenerationAgent:
             )
             if reasoning.get("terminal_reason"):
                 lines.append(f"Reasoning terminal state: {reasoning['terminal_reason']}.")
+        if strategy_decision.get("advanced_debate_recommended"):
+            lines.append("Advanced debate is recommended if you want a cross-graph comparison.")
+        elif strategy_decision.get("next_mode_hint") == "reasoning_mode":
+            lines.append("A bounded repair retry is recommended for a stronger retrieval attempt.")
 
         if lpg_result and lpg_result.get("records"):
             lines.append(f"LPG records: {len(lpg_result['records'])}.")
@@ -1855,6 +2374,8 @@ class SemanticAgentFlow:
         self.rdf_agent = RDFAgent(connector)
         self.answer_agent = AnswerGenerationAgent()
         self.constraint_builder = SemanticConstraintSliceBuilder()
+        self.strategy_chooser = ExecutionStrategyChooser()
+        self.run_registry = RunMetadataRegistry()
 
     def run(
         self,
@@ -1879,6 +2400,7 @@ class SemanticAgentFlow:
             }
         }
         self._apply_entity_overrides(semantic_context, entity_overrides or {})
+        support_ranked_matches = self.lpg_agent.preview_support(semantic_context, constraint_slices)
         trace_steps.append(
             {
                 "id": "0",
@@ -1893,18 +2415,38 @@ class SemanticAgentFlow:
                     ),
                     "reasoning_mode": reasoning_mode,
                     "repair_budget": max(0, int(repair_budget or 0)),
+                    "support_status": semantic_context.get("preflight_support_assessment", {}).get("status"),
                 },
             }
         )
 
         route = self.router.route(question)
+        semantic_context["strategy_decision"] = self.strategy_chooser.choose_initial(
+            route=route,
+            reasoning_mode=reasoning_mode,
+            repair_budget=repair_budget,
+            support_assessment=semantic_context.get("preflight_support_assessment", {}),
+            graph_count=len(databases),
+        )
         trace_steps.append(
             {
                 "id": "1",
                 "type": "ROUTER",
                 "agent": "RouterAgent",
                 "content": f"Question routed to {route}.",
-                "metadata": {"route": route},
+                "metadata": {
+                    "route": route,
+                    "initial_mode": semantic_context["strategy_decision"].get("initial_mode"),
+                },
+            }
+        )
+        trace_steps.append(
+            {
+                "id": "2",
+                "type": "STRATEGY",
+                "agent": "StrategyChooser",
+                "content": semantic_context["strategy_decision"].get("reason", ""),
+                "metadata": semantic_context["strategy_decision"],
             }
         )
 
@@ -1920,14 +2462,17 @@ class SemanticAgentFlow:
                 reasoning_mode=reasoning_mode,
                 repair_budget=repair_budget,
                 constraint_slices=constraint_slices,
+                ranked_matches=support_ranked_matches,
             )
             if isinstance(lpg_result.get("evidence_bundle"), dict):
                 semantic_context["evidence_bundle_preview"] = lpg_result["evidence_bundle"]
             if isinstance(lpg_result.get("reasoning"), dict):
                 semantic_context["reasoning"] = lpg_result["reasoning"]
+            if isinstance(lpg_result.get("support_assessment"), dict):
+                semantic_context["support_assessment"] = lpg_result["support_assessment"]
             trace_steps.append(
                 {
-                    "id": "2",
+                    "id": "3",
                     "type": "SPECIALIST",
                     "agent": "LPGAgent",
                     "content": lpg_result.get("summary", ""),
@@ -1937,6 +2482,7 @@ class SemanticAgentFlow:
                             lpg_result.get("reasoning", {}).get("attempt_count", 0)
                         ),
                         "terminal_reason": lpg_result.get("reasoning", {}).get("terminal_reason"),
+                        "support_status": lpg_result.get("support_assessment", {}).get("status"),
                     },
                 }
             )
@@ -1945,13 +2491,21 @@ class SemanticAgentFlow:
             rdf_result = self.rdf_agent.run(question, databases, semantic_context)
             trace_steps.append(
                 {
-                    "id": "3",
+                    "id": "4",
                     "type": "SPECIALIST",
                     "agent": "RDFAgent",
                     "content": rdf_result.get("summary", ""),
                     "metadata": {"records": len(rdf_result.get("records", []))},
                 }
             )
+
+        semantic_context["strategy_decision"] = self.strategy_chooser.finalize(
+            initial_decision=semantic_context.get("strategy_decision", {}),
+            route=route,
+            graph_count=len(databases),
+            support_assessment=semantic_context.get("support_assessment", {}),
+            reasoning=semantic_context.get("reasoning"),
+        )
 
         response = self.answer_agent.synthesize(
             question=question,
@@ -1960,13 +2514,25 @@ class SemanticAgentFlow:
             lpg_result=lpg_result,
             rdf_result=rdf_result,
         )
+        semantic_context["run_metadata"] = self.run_registry.record_run(
+            question=question,
+            workspace_id=workspace_id,
+            route=route,
+            semantic_context=semantic_context,
+            lpg_result=lpg_result,
+            rdf_result=rdf_result,
+            response=response,
+        )
         trace_steps.append(
             {
-                "id": "4",
+                "id": "5",
                 "type": "GENERATION",
                 "agent": "AnswerGenerationAgent",
                 "content": response,
-                "metadata": {},
+                "metadata": {
+                    "support_status": semantic_context.get("support_assessment", {}).get("status"),
+                    "next_mode_hint": semantic_context.get("strategy_decision", {}).get("next_mode_hint"),
+                },
             }
         )
 
@@ -1977,6 +2543,10 @@ class SemanticAgentFlow:
             "semantic_context": semantic_context,
             "lpg_result": lpg_result,
             "rdf_result": rdf_result,
+            "support_assessment": semantic_context.get("support_assessment", {}),
+            "strategy_decision": semantic_context.get("strategy_decision", {}),
+            "run_metadata": semantic_context.get("run_metadata", {}),
+            "evidence_bundle": semantic_context.get("evidence_bundle_preview", {}),
         }
 
     @staticmethod
@@ -2030,3 +2600,8 @@ class SemanticAgentFlow:
         semantic_context["unresolved_entities"] = sorted(unresolved)
         if applied:
             semantic_context["overrides_applied"] = applied
+            semantic_context["evidence_bundle_preview"] = build_evidence_bundle(
+                question="",
+                semantic_context=semantic_context,
+                matched_entities=semantic_context.get("entities", []),
+            )

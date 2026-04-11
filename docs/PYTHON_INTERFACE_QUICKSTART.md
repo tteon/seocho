@@ -107,7 +107,10 @@ semantic = client.semantic(
 
 print(semantic.route)
 print(semantic.response)
-print(semantic.semantic_context["evidence_bundle_preview"])
+print(semantic.support.status)
+print(semantic.evidence.grounded_slots)
+print(semantic.evidence.missing_slots)
+print(semantic.run_record.run_id)
 ```
 
 ## 6. Turn On Repair When the Query Is Hard
@@ -125,7 +128,9 @@ semantic = client.semantic(
 
 print(semantic.route)
 print(semantic.semantic_context["reasoning"])
-print(semantic.semantic_context["evidence_bundle_preview"])
+print(semantic.strategy.executed_mode)
+print(semantic.strategy.next_mode_hint)
+print(semantic.evidence.missing_slots)
 ```
 
 What `reasoning_mode` does:
@@ -148,6 +153,8 @@ result = (
 )
 
 print(result.route)
+print(result.support.status)
+print(result.strategy.executed_mode)
 ```
 
 Mode selection rules:
@@ -155,6 +162,7 @@ Mode selection rules:
 - `plan(...).run()` defaults to semantic execution
 - `plan(...).react()` uses graph-scoped single-agent routing
 - `plan(...).advanced()` or `plan(...).debate()` uses explicit debate mode
+- `result.strategy.advanced_debate_recommended` tells you when debate is worth trying
 
 ## 8. Use Advanced Mode Only When You Really Need Debate
 

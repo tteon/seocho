@@ -114,6 +114,8 @@ semantic = client.semantic(
 
 print(semantic.response)
 print(semantic.semantic_context["reasoning"])
+print(semantic.support.status)
+print(semantic.strategy.next_mode_hint)
 ```
 
 ## 7. Use Debate Only as an Advanced Mode
@@ -128,6 +130,9 @@ advanced = client.advanced(
 
 print(advanced.debate_state)
 ```
+
+Stay on the semantic path first. Inspect `semantic.support`, `semantic.strategy`,
+and `semantic.evidence` before reaching for debate.
 
 ## 8. Validate the Runtime
 

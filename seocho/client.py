@@ -51,7 +51,7 @@ from .semantic import (
     SemanticPromptContext,
     serialize_optional_mapping,
 )
-from .types import (
+from .models import (
     AgentRunResponse,
     ArchiveResult,
     ChatResponse,
@@ -109,6 +109,7 @@ class Seocho:
         ontology: Optional[Any] = None,  # seocho.ontology.Ontology
         graph_store: Optional[Any] = None,  # seocho.graph_store.GraphStore
         llm: Optional[Any] = None,  # seocho.llm_backend.LLMBackend
+        vector_store: Optional[Any] = None,  # seocho.vector_store.VectorStore
         # --- HTTP client mode ---
         base_url: Optional[str] = None,
         workspace_id: Optional[str] = None,
@@ -128,6 +129,7 @@ class Seocho:
         self.ontology = ontology
         self.graph_store = graph_store
         self.llm = llm
+        self.vector_store = vector_store
 
         # Determine mode
         self._local_mode = ontology is not None and graph_store is not None and llm is not None
@@ -314,6 +316,38 @@ class Seocho:
         if not self._local_mode:
             raise RuntimeError("ensure_constraints() requires local engine mode")
         return self.graph_store.ensure_constraints(self.ontology, database=database)
+
+    def search_similar(
+        self,
+        query: str,
+        *,
+        limit: int = 5,
+    ) -> List[Dict[str, Any]]:
+        """Find documents similar to query text using vector embeddings.
+
+        Requires a ``vector_store`` to be provided at construction.
+
+        Parameters
+        ----------
+        query:
+            The text to search for similar documents.
+        limit:
+            Maximum number of results.
+
+        Returns
+        -------
+        List of dicts with ``id``, ``text``, ``score``, ``metadata``.
+        """
+        if self.vector_store is None:
+            raise RuntimeError(
+                "search_similar() requires a vector_store. "
+                "Provide one at construction: Seocho(vector_store=vs, ...)"
+            )
+        results = self.vector_store.search(query, limit=limit)
+        return [
+            {"id": r.id, "text": r.text, "score": r.score, "metadata": r.metadata}
+            for r in results
+        ]
 
     # ------------------------------------------------------------------
     # HTTP-mode methods (backward compatible)

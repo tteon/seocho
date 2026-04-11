@@ -35,6 +35,7 @@ from .exceptions import SeochoConnectionError, SeochoError, SeochoHTTPError
 from .governance import ArtifactDiff, ArtifactValidationMessage, ArtifactValidationResult
 from .indexing import BatchIndexingResult, IndexingResult
 from .local import LocalRuntimeStatus
+from .vector_store import VectorSearchResult
 from .ontology import Cardinality, NodeDef, Ontology, P, PropertyType, RelDef
 from .semantic import (
     ApprovedArtifacts,
@@ -53,7 +54,7 @@ from .semantic import (
     VocabularyCandidate,
     VocabularyTerm,
 )
-from .types import (
+from .models import (
     AgentRunResponse,
     ArchiveResult,
     ChatResponse,

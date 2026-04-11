@@ -21,10 +21,23 @@ The strategies are designed to be composable::
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 from .ontology import Ontology
+
+
+def _sanitize_prompt_value(value: Any) -> str:
+    """Sanitize a user-provided value before inserting into a prompt.
+
+    Strips control characters and truncates to prevent prompt injection.
+    """
+    text = str(value)
+    text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", text)
+    if len(text) > 2000:
+        text = text[:2000] + "... (truncated)"
+    return text
 
 
 # ---------------------------------------------------------------------------
@@ -113,7 +126,7 @@ class ExtractionStrategy(PromptStrategy):
         metadata = kwargs.get("metadata")
         if metadata:
             parts.append("")
-            parts.append(f"Source metadata: {metadata}")
+            parts.append(f"Source metadata: {_sanitize_prompt_value(metadata)}")
 
         parts.append("")
         parts.append(
@@ -184,7 +197,7 @@ class QueryStrategy(PromptStrategy):
             parts.append("")
             parts.append("--- Live Schema Stats ---")
             for k, v in self.schema_info.items():
-                parts.append(f"- {k}: {v}")
+                parts.append(f"- {_sanitize_prompt_value(k)}: {_sanitize_prompt_value(v)}")
 
         if self.vocabulary_terms:
             parts.append("")

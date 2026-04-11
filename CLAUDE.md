@@ -209,10 +209,10 @@ We enforce STRICT Semantic Versioning style commit prefixes to keep our history 
 - `chore:` — Tooling, dependency, or minor configuration updates
 - `test:` — Adding or updating test suites
 
-### Automated Website Syncing
-The `seocho` primary repository acts as the source of truth for all documentation.
-Website sync is designed to run through `.github/workflows/sync-docs-website.yml` with `repository_dispatch` to `tteon.github.io`, but rollout may require repository owner credentials (`workflow`-scoped token).
-If the workflow is not yet active in the remote repository, treat docs-sync as pending owner implementation.
+### Website Syncing
+The `seocho` primary repository acts as the source of truth for core docs.
+Website sync is handled manually in the local `tteon.github.io` workspace.
+Do not assume repo-side GitHub Actions automation for docs sync.
 
 ## 13. Reliability Notes (2026-02-20)
 
@@ -221,7 +221,7 @@ If the workflow is not yet active in the remote repository, treat docs-sync as p
 - API/middleware tests should prefer `httpx.ASGITransport` + `AsyncClient` over `TestClient` in this repo environment.
 - When local `bd` daemon startup is unstable, run lint via non-daemon mode (`bd --no-daemon`) to avoid hanging quality gates.
 - `tteon.github.io/` can exist as a local nested workspace for website validation, but it should remain untracked by the parent `seocho` repository.
-- Pushing workflow-file changes requires a PAT with `workflow` scope (or equivalent owner permissions).
+- This repository currently runs without repo-side GitHub Actions automation; local validation is the required path.
 
 ## 14. Philosophy Alignment
 

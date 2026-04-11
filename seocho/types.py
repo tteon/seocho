@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional, Sequence
 
 
 @dataclass(slots=True)
@@ -130,6 +130,161 @@ class GraphTarget(JsonSerializable):
     @classmethod
     def from_dict(cls, payload: Dict[str, Any]) -> "GraphTarget":
         return cls(**payload)
+
+
+@dataclass(slots=True)
+class GraphRef(JsonSerializable):
+    graph_id: str
+    database: Optional[str] = None
+    ontology_id: Optional[str] = None
+    vocabulary_profile: Optional[str] = None
+    description: str = ""
+    workspace_scope: str = "default"
+
+    @classmethod
+    def from_dict(cls, payload: Dict[str, Any]) -> "GraphRef":
+        return cls(
+            graph_id=str(payload.get("graph_id", "")).strip(),
+            database=str(payload.get("database", "")).strip() or None,
+            ontology_id=str(payload.get("ontology_id", "")).strip() or None,
+            vocabulary_profile=str(payload.get("vocabulary_profile", "")).strip() or None,
+            description=str(payload.get("description", "")),
+            workspace_scope=str(payload.get("workspace_scope", "default") or "default"),
+        )
+
+    @classmethod
+    def from_graph_target(cls, payload: "GraphTarget | Dict[str, Any]") -> "GraphRef":
+        if isinstance(payload, GraphTarget):
+            return cls(
+                graph_id=payload.graph_id,
+                database=payload.database,
+                ontology_id=payload.ontology_id,
+                vocabulary_profile=payload.vocabulary_profile,
+                description=payload.description,
+                workspace_scope=payload.workspace_scope,
+            )
+        return cls.from_dict(payload)
+
+
+@dataclass(slots=True)
+class ReasoningPolicy(JsonSerializable):
+    style: Literal["direct", "react", "debate"] = "direct"
+    max_steps: Optional[int] = None
+    tool_budget: Optional[int] = None
+    require_grounded_evidence: bool = True
+    fallback_style: Optional[Literal["direct", "react", "debate"]] = None
+
+    def normalized_style(self) -> Literal["direct", "react", "debate"]:
+        normalized = str(self.style or "direct").strip().lower()
+        if normalized not in {"direct", "react", "debate"}:
+            raise ValueError(
+                f"Unsupported reasoning style '{self.style}'. "
+                "Expected one of: direct, react, debate."
+            )
+        return normalized  # type: ignore[return-value]
+
+
+@dataclass(slots=True)
+class ExecutionPlan(JsonSerializable):
+    query: str
+    targets: List[GraphRef] = field(default_factory=list)
+    reasoning: ReasoningPolicy = field(default_factory=ReasoningPolicy)
+    entity_overrides: List["EntityOverride"] = field(default_factory=list)
+    user_id: Optional[str] = None
+    session_id: Optional[str] = None
+    workspace_id: Optional[str] = None
+    ontology_ids: List[str] = field(default_factory=list)
+    vocabulary_profiles: List[str] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, payload: Dict[str, Any]) -> "ExecutionPlan":
+        reasoning_payload = payload.get("reasoning", {})
+        entity_override_payload = payload.get("entity_overrides", [])
+        return cls(
+            query=str(payload.get("query", "")),
+            targets=[
+                GraphRef.from_dict(item)
+                for item in payload.get("targets", [])
+                if isinstance(item, dict)
+            ],
+            reasoning=(
+                reasoning_payload
+                if isinstance(reasoning_payload, ReasoningPolicy)
+                else ReasoningPolicy(**reasoning_payload)
+                if isinstance(reasoning_payload, dict)
+                else ReasoningPolicy()
+            ),
+            entity_overrides=[
+                item
+                if isinstance(item, EntityOverride)
+                else EntityOverride.from_dict(item)
+                for item in entity_override_payload
+                if isinstance(item, (dict, EntityOverride))
+            ],
+            user_id=str(payload.get("user_id", "")).strip() or None,
+            session_id=str(payload.get("session_id", "")).strip() or None,
+            workspace_id=str(payload.get("workspace_id", "")).strip() or None,
+            ontology_ids=[
+                str(item).strip()
+                for item in payload.get("ontology_ids", [])
+                if str(item).strip()
+            ],
+            vocabulary_profiles=[
+                str(item).strip()
+                for item in payload.get("vocabulary_profiles", [])
+                if str(item).strip()
+            ],
+        )
+
+    @property
+    def graph_ids(self) -> List[str]:
+        return [target.graph_id for target in self.targets if target.graph_id]
+
+    @property
+    def databases(self) -> List[str]:
+        return [target.database for target in self.targets if target.database]
+
+
+@dataclass(slots=True)
+class ExecutionResult(JsonSerializable):
+    requested_style: Literal["direct", "react", "debate"]
+    runtime_mode: Literal["semantic", "router", "debate"]
+    response: str
+    resolved_targets: List[GraphRef] = field(default_factory=list)
+    graph_ids: List[str] = field(default_factory=list)
+    databases: List[str] = field(default_factory=list)
+    trace_steps: List[Dict[str, Any]] = field(default_factory=list)
+    router_result: Optional["AgentRunResponse"] = None
+    semantic_result: Optional["SemanticRunResponse"] = None
+    debate_result: Optional["DebateRunResponse"] = None
+
+    @classmethod
+    def from_run_result(
+        cls,
+        *,
+        requested_style: Literal["direct", "react", "debate"],
+        runtime_mode: Literal["semantic", "router", "debate"],
+        resolved_targets: Sequence[GraphRef],
+        result: "AgentRunResponse | SemanticRunResponse | DebateRunResponse",
+    ) -> "ExecutionResult":
+        graph_ids = [target.graph_id for target in resolved_targets if target.graph_id]
+        databases = [target.database for target in resolved_targets if target.database]
+        payload = cls(
+            requested_style=requested_style,
+            runtime_mode=runtime_mode,
+            response=str(getattr(result, "response", "")),
+            resolved_targets=list(resolved_targets),
+            graph_ids=graph_ids,
+            databases=databases,
+            trace_steps=list(getattr(result, "trace_steps", [])),
+        )
+        if runtime_mode == "semantic" and isinstance(result, SemanticRunResponse):
+            payload.semantic_result = result
+        elif runtime_mode == "debate" and isinstance(result, DebateRunResponse):
+            payload.debate_result = result
+        elif runtime_mode == "router" and isinstance(result, AgentRunResponse):
+            payload.router_result = result
+        return payload
 
 
 @dataclass(slots=True)

@@ -31,6 +31,22 @@ dependencies = [
 seocho = "seocho.cli:main"
 
 [project.optional-dependencies]
+ci = [
+    "faiss-cpu",
+    "fastapi",
+    "neo4j",
+    "numpy",
+    "openai",
+    "openai-agents",
+    "opik",
+    "pydantic>=2.0",
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21.0",
+    "pyyaml",
+    "httpx>=0.25.0",
+    "tenacity>=8.2.0",
+    "uvicorn",
+]
 dev = [
     "datasets",
     "faiss-cpu",

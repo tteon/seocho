@@ -87,10 +87,30 @@ For architecture or workflow changes:
 - record decision in ADR (`docs/decisions/ADR-*.md`)
 - append entry to `docs/decisions/DECISION_LOG.md`
 
-## 9. GitHub Automation Status
+## 9. GitHub Automation Rules
 
-- this repository currently has no active GitHub Actions workflows
-- do not assume CI, scheduled Codex PR automation, comment-triggered merge, or
-  package publishing automation exists
-- validate changes locally before landing
-- push target remains `main`
+- basic CI workflow lives in `.github/workflows/ci-basic.yml`
+- the local command behind basic CI is `bash scripts/ci/run_basic_ci.sh`
+- use repo-local skill `$daily-maintenance-pr` for scheduled or manual Codex
+  maintenance PR workflows
+- use repo-local skill `$periodic-review-pr` for scheduled or manual Codex
+  repository review PR workflows
+- scheduled automation prompts live in:
+  - `.github/codex/prompts/daily-maintenance-pr.md`
+  - `.github/codex/prompts/periodic-review-pr.md`
+- scheduled Codex workflows live in:
+  - `.github/workflows/daily-codex-maintenance.yml`
+  - `.github/workflows/periodic-codex-review.yml`
+- comment-based merge workflow lives in
+  `.github/workflows/pr-comment-merge.yml`
+- scheduled automation must stay small, reviewable, and non-destructive:
+  - no direct push to `main`
+  - no auto-merge
+  - one cohesive change only
+  - PR body must include `Feature`, `Why`, `Design`, `Expected Effect`,
+    `Impact Results`, `Validation`, and `Risks`
+- comment-based merge should stay explicitly maintainer-triggered:
+  - merge command is exactly `/go`
+  - only users with `write`, `maintain`, or `admin` permission may trigger it
+  - workflow uses squash merge
+  - workflow expects PR merge state `CLEAN`

@@ -22,7 +22,9 @@ Execution rules:
 
 - Read the current repo state first.
 - Keep edits minimal and intentional.
-- Run focused validation for the touched behavior only.
+- Run `bash scripts/ci/run_basic_ci.sh` when the touched behavior falls inside
+  the repository basic CI surface; otherwise run the narrowest relevant subset
+  and report it.
 - Do not commit, push, open a browser, or merge anything.
 
 Final response format:

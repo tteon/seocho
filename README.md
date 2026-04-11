@@ -195,20 +195,78 @@ Track B - I want to embed/extend it:
 - use [docs/OPEN_SOURCE_PLAYBOOK.md](docs/OPEN_SOURCE_PLAYBOOK.md)
 - implement against runtime APIs in [docs/WORKFLOW.md](docs/WORKFLOW.md)
 
-## GitHub Automation Status
+## Basic CI
 
-This repository currently has no active GitHub Actions workflows.
+SEOCHO keeps the required GitHub check surface intentionally small.
 
-- do not assume CI or scheduled Codex PR automation exists
-- do not assume `/go` comment-based merge exists
-- do not assume package publishing automation exists
+- workflow: `.github/workflows/ci-basic.yml`
+- local command: `bash scripts/ci/run_basic_ci.sh`
+- trigger: `push`, `pull_request`, `workflow_dispatch`
 
-Local validation is the required path. Typical release validation is still:
+Current basic CI covers:
 
-```bash
-uv build
-twine check dist/*
-```
+- core `py_compile` over the semantic/runtime SDK surface
+- focused semantic/runtime/SDK pytest suites
+- `git diff --check`
+- `scripts/pm/lint-agent-docs.sh`
+
+If a change breaks this workflow, fix the command in `scripts/ci/run_basic_ci.sh`
+first and keep GitHub Actions as a thin wrapper.
+
+## Codex Automation
+
+SEOCHO includes two bounded Codex draft-PR workflows on top of the basic CI
+surface.
+
+- daily maintenance:
+  - workflow: `.github/workflows/daily-codex-maintenance.yml`
+  - prompt: `.github/codex/prompts/daily-maintenance-pr.md`
+  - skill: `.agents/skills/daily-maintenance-pr/SKILL.md`
+  - branch: `codex/daily-maintenance`
+- periodic repository review:
+  - workflow: `.github/workflows/periodic-codex-review.yml`
+  - prompt: `.github/codex/prompts/periodic-review-pr.md`
+  - skill: `.agents/skills/periodic-review-pr/SKILL.md`
+  - branch: `codex/periodic-review`
+
+Required repository secrets for Codex PR automation:
+
+- `OPENAI_API_KEY`
+- `SEOCHO_GITHUB_APP_ID`
+- `SEOCHO_GITHUB_APP_PRIVATE_KEY`
+
+Required GitHub App repository permissions:
+
+- `Contents`: read and write
+- `Pull requests`: read and write
+
+Both workflows:
+
+- use `openai/codex-action`
+- create or update draft PRs only
+- run `bash scripts/ci/run_basic_ci.sh` before opening/updating a PR
+- avoid direct push to `main`
+- keep the PR body in this structure:
+  - `Feature`
+  - `Why`
+  - `Design`
+  - `Expected Effect`
+  - `Impact Results`
+  - `Validation`
+  - `Risks`
+
+## Comment-Based Merge
+
+Reviewed PRs can be landed with a maintainer comment.
+
+- workflow: `.github/workflows/pr-comment-merge.yml`
+- trigger: comment exactly `/go` on an open non-draft PR
+- authorization: commenter must have repository permission level `write`,
+  `maintain`, or `admin`
+- merge gate: workflow requires PR merge state `CLEAN`
+- merge method: squash merge with branch deletion
+
+This is a maintainer shortcut after review, not a substitute for review.
 
 ## Product Baseline
 

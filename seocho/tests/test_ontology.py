@@ -215,6 +215,85 @@ class TestSHACL:
 
 
 # ---------------------------------------------------------------------------
+# Confidence scoring
+# ---------------------------------------------------------------------------
+
+class TestConfidenceScoring:
+    def test_perfect_extraction(self, simple_ontology):
+        data = {
+            "nodes": [
+                {"id": "p1", "label": "Person", "properties": {"name": "Alice", "age": 30}},
+                {"id": "c1", "label": "Company", "properties": {"name": "Acme", "ticker": "ACM"}},
+            ],
+            "relationships": [
+                {"source": "p1", "target": "c1", "type": "WORKS_AT"},
+            ],
+        }
+        scores = simple_ontology.score_extraction(data)
+        assert scores["overall"] >= 0.9
+        assert all(n["score"] >= 0.9 for n in scores["nodes"])
+        assert all(r["score"] == 1.0 for r in scores["relationships"])
+
+    def test_unknown_label_low_score(self, simple_ontology):
+        data = {
+            "nodes": [{"id": "x", "label": "FakeType", "properties": {}}],
+            "relationships": [],
+        }
+        scores = simple_ontology.score_extraction(data)
+        assert scores["nodes"][0]["score"] == 0.0
+        assert scores["nodes"][0]["details"]["label_match"] == 0.0
+
+    def test_missing_required_lowers_score(self, simple_ontology):
+        data = {
+            "nodes": [{"id": "p1", "label": "Person", "properties": {}}],
+            "relationships": [],
+        }
+        scores = simple_ontology.score_extraction(data)
+        assert scores["nodes"][0]["details"]["property_completeness"] == 0.0
+        assert scores["nodes"][0]["score"] < 0.7
+
+    def test_unknown_rel_zero_score(self, simple_ontology):
+        data = {
+            "nodes": [],
+            "relationships": [{"source": "a", "target": "b", "type": "FAKE_REL"}],
+        }
+        scores = simple_ontology.score_extraction(data)
+        assert scores["relationships"][0]["score"] == 0.0
+
+    def test_entity_fallback_partial_score(self, simple_ontology):
+        data = {
+            "nodes": [{"id": "e1", "label": "Entity", "properties": {"name": "Fallback"}}],
+            "relationships": [],
+        }
+        scores = simple_ontology.score_extraction(data)
+        assert 0.3 < scores["nodes"][0]["score"] < 0.8
+
+    def test_empty_data(self, simple_ontology):
+        scores = simple_ontology.score_extraction({"nodes": [], "relationships": []})
+        assert scores["overall"] == 0.0
+        assert scores["nodes"] == []
+        assert scores["relationships"] == []
+
+    def test_score_structure(self, simple_ontology):
+        data = {
+            "nodes": [{"id": "p1", "label": "Person", "properties": {"name": "Alice"}}],
+            "relationships": [],
+        }
+        scores = simple_ontology.score_extraction(data)
+        assert "overall" in scores
+        assert "nodes" in scores
+        assert "relationships" in scores
+        assert "details" in scores["nodes"][0]
+        assert "label_match" in scores["nodes"][0]["details"]
+
+
+class TestValidation:
+    def test_validate_missing_source(self):
+        errors = simple_ontology.validate_with_shacl(data)
+        assert errors == []
+
+
+# ---------------------------------------------------------------------------
 # Denormalization
 # ---------------------------------------------------------------------------
 

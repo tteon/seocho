@@ -191,10 +191,18 @@ def build_parser() -> argparse.ArgumentParser:
     status_parser.add_argument("--neo4j-password", default="password", help="Neo4j password")
     status_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
 
+    compare_parser = subparsers.add_parser("compare", help="Compare two configs/models side by side")
+    compare_parser.add_argument("input_text", help="Text to extract from (or file path with @)")
+    compare_parser.add_argument("--config-a", required=True, help="First ontology file (JSON-LD or YAML)")
+    compare_parser.add_argument("--config-b", required=True, help="Second ontology file")
+    compare_parser.add_argument("--model-a", default="gpt-4o", help="LLM model for config A")
+    compare_parser.add_argument("--model-b", default=None, help="LLM model for config B (default: same as A)")
+    compare_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
+
     return parser
 
 
-LOCAL_COMMANDS = {"init", "index", "local-ask", "status"}  # local-ask kept for backward compat
+LOCAL_COMMANDS = {"init", "index", "local-ask", "status", "compare"}
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
@@ -619,6 +627,8 @@ def _dispatch_local(args: argparse.Namespace) -> int:
         return _cmd_local_ask(args)
     if args.command == "status":
         return _cmd_status(args)
+    if args.command == "compare":
+        return _cmd_compare(args)
     raise SeochoError(f"Unknown local command: {args.command}")
 
 
@@ -841,5 +851,47 @@ def _cmd_status(args: argparse.Namespace) -> int:
         return 1
     finally:
         store.close()
+
+    return 0
+
+
+def _cmd_compare(args: argparse.Namespace) -> int:
+    """Compare two ontology/model configs on the same input."""
+    from .experiment import ExperimentRunner
+    from .store.llm import OpenAIBackend
+
+    # Read input
+    input_text = args.input_text
+    if input_text.startswith("@"):
+        fpath = Path(input_text[1:])
+        if not fpath.exists():
+            print(f"File not found: {fpath}", file=sys.stderr)
+            return 1
+        input_text = fpath.read_text(encoding="utf-8")
+
+    onto_a = _load_local_ontology(args.config_a)
+    onto_b = _load_local_ontology(args.config_b)
+
+    model_a = args.model_a
+    model_b = args.model_b or model_a
+
+    llm_a = OpenAIBackend(model=model_a)
+    llm_b = OpenAIBackend(model=model_b) if model_b != model_a else llm_a
+
+    runner = ExperimentRunner()
+
+    print(f"Running config A ({onto_a.name}, {model_a})...")
+    result_a = runner.run(ontology=onto_a, llm=llm_a, text=input_text, config_name="A")
+
+    print(f"Running config B ({onto_b.name}, {model_b})...")
+    result_b = runner.run(ontology=onto_b, llm=llm_b, text=input_text, config_name="B")
+
+    comparison = runner.compare(result_a, result_b)
+
+    if getattr(args, "output_json", False):
+        print(json.dumps(comparison.to_dict(), indent=2))
+    else:
+        print()
+        print(comparison.summary())
 
     return 0

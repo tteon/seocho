@@ -49,15 +49,45 @@ class FakeConnector:
                 ]
             )
 
-        if "WHERE elementId(n) = toString($node_id)" in query:
+        if "AS source_entity" in query and "AS relation_type" in query:
+            if params.get("target_hint"):
+                return json.dumps([])
             return json.dumps(
                 [
                     {
-                        "entity": "Neo4j",
-                        "labels": ["Database"],
+                        "source_entity": "Neo4j",
+                        "relation_type": "USES",
+                        "target_entity": "Cypher",
+                        "target_labels": ["Language"],
+                        "supporting_fact": "Neo4j uses Cypher.",
+                    }
+                ]
+            )
+
+        if "AS owner_or_operator" in query:
+            return json.dumps(
+                [
+                    {
+                        "owner_or_operator": "Alex",
+                        "relation_type": "MANAGES",
+                        "target_entity": "Seoul Retail",
+                        "owner_labels": ["Person"],
+                        "target_labels": ["Account"],
+                        "supporting_fact": "Alex manages Seoul Retail.",
+                    }
+                ]
+            )
+
+        if "properties(n) AS properties" in query:
+            return json.dumps(
+                [
+                    {
+                        "target_entity": "Neo4j",
+                        "properties": {"name": "Neo4j", "category": "Database"},
                         "neighbors": [
-                            {"type": "USES", "target": "Cypher", "target_labels": ["Language"]}
+                            {"relation": "USES", "target": "Cypher", "target_labels": ["Language"]}
                         ],
+                        "supporting_fact": "Neo4j is a graph database.",
                     }
                 ]
             )
@@ -106,11 +136,27 @@ def test_semantic_agent_flow_lpg_path():
     assert result["route"] == "lpg"
     assert result["semantic_context"]["entities"]
     assert result["semantic_context"]["intent"]["intent_id"] == "relationship_lookup"
-    assert "relation_paths" in result["semantic_context"]["evidence_bundle_preview"]["missing_slots"]
+    assert result["semantic_context"]["evidence_bundle_preview"]["slot_fills"]["relation_paths"] == ["USES"]
     assert result["lpg_result"] is not None
     assert result["lpg_result"]["records"]
     assert "Route selected: LPG." in result["response"]
     assert "Intent: relationship_lookup." in result["response"]
+
+
+def test_semantic_agent_flow_reasoning_mode_repairs_initially_insufficient_query():
+    flow = SemanticAgentFlow(FakeConnector())
+    result = flow.run(
+        "What is Neo4j related to GraphRAG?",
+        ["kgnormal"],
+        reasoning_mode=True,
+        repair_budget=2,
+    )
+
+    reasoning = result["semantic_context"]["reasoning"]
+    assert reasoning["requested"] is True
+    assert reasoning["attempt_count"] >= 2
+    assert reasoning["terminal_reason"] == "sufficient"
+    assert result["lpg_result"]["records"]
 
 
 def test_resolve_applies_ontology_alias_hint(tmp_path, monkeypatch):

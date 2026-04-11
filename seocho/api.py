@@ -99,6 +99,10 @@ def react(query: str, **kwargs: Any) -> AgentRunResponse:
     return get_client().react(query, **kwargs)
 
 
+def advanced(query: str, **kwargs: Any) -> DebateRunResponse:
+    return get_client().advanced(query, **kwargs)
+
+
 def plan(query: str, **kwargs: Any) -> ExecutionPlanBuilder:
     return get_client().plan(query, **kwargs)
 

@@ -152,10 +152,24 @@ class ServerContext:
     trace_path: List[str] = field(default_factory=list)
     last_query: str = ""
     shared_memory: Optional[SharedMemory] = None
+    allowed_databases: List[str] = field(default_factory=list)
+    tool_budget: int = 4
+    tool_invocations: int = 0
 
     def log_activity(self, agent_name: str):
         if not self.trace_path or self.trace_path[-1] != agent_name:
             self.trace_path.append(agent_name)
+
+    def can_query_database(self, database: str) -> bool:
+        if not self.allowed_databases:
+            return True
+        return database in self.allowed_databases
+
+    def consume_tool_budget(self) -> bool:
+        if self.tool_invocations >= self.tool_budget:
+            return False
+        self.tool_invocations += 1
+        return True
 
 # ------------------------------------------------------------------
 # 2. Tools & Agents Definition
@@ -274,6 +288,12 @@ def execute_cypher_tool(context: RunContextWrapper, query: str, database: str = 
     Executes a Cypher query against the specified database.
     database: The name of the database to query (e.g., 'kgnormal', 'kgfibo'). Default is 'neo4j'.
     """
+    server_context = getattr(context, "context", None)
+    if isinstance(server_context, ServerContext):
+        if not server_context.can_query_database(database):
+            return f"Database '{database}' is outside the allowed graph scope."
+        if not server_context.consume_tool_budget():
+            return "Tool budget exhausted for this request."
     return neo4j_conn.run_cypher(query, database=database)
 
 @function_tool
@@ -412,6 +432,16 @@ class SemanticQueryRequest(QueryRequest):
     entity_overrides: Optional[List[EntityOverride]] = Field(
         default=None,
         description="Optional fixed entity mapping from UI-assisted disambiguation.",
+    )
+    reasoning_mode: bool = Field(
+        default=False,
+        description="Enable bounded semantic repair loop when constrained retrieval is insufficient.",
+    )
+    repair_budget: int = Field(
+        default=0,
+        ge=0,
+        le=5,
+        description="Maximum number of additional constrained retrieval repair attempts.",
     )
 
 
@@ -893,6 +923,8 @@ async def run_agent_semantic(request: SemanticQueryRequest):
             databases=valid_dbs,
             entity_overrides=overrides_by_entity,
             workspace_id=request.workspace_id,
+            reasoning_mode=request.reasoning_mode,
+            repair_budget=request.repair_budget,
         )
         return SemanticAgentResponse(**result)
     except SeochoError:

@@ -22,7 +22,18 @@ from dataclasses import dataclass
 from difflib import SequenceMatcher
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
+from config import graph_registry
 from ontology_hints import OntologyHintStore
+from semantic_artifact_store import (
+    DEFAULT_SEMANTIC_ARTIFACT_DIR,
+    get_semantic_artifact,
+    list_semantic_artifacts,
+)
+from semantic_context import (
+    _merge_ontology_candidates,
+    _merge_shacl_candidates,
+    _merge_vocabulary_candidates,
+)
 from semantic_vocabulary import ManagedVocabularyResolver
 
 logger = logging.getLogger(__name__)
@@ -86,6 +97,31 @@ STOPWORDS = {
 }
 
 ENTITY_PROPERTIES = ("name", "title", "id", "uri", "code", "symbol", "alias", "content_preview", "content", "memory_id")
+
+COMMON_ALLOWED_PROPERTIES = {
+    *ENTITY_PROPERTIES,
+    "workspace_id",
+    "status",
+    "description",
+    "summary",
+    "type",
+    "value",
+    "created_at",
+    "updated_at",
+}
+
+FORBIDDEN_CYPHER_TOKENS = (
+    " CREATE ",
+    " MERGE ",
+    " DELETE ",
+    " DETACH ",
+    " SET ",
+    " REMOVE ",
+    " DROP ",
+    " LOAD CSV ",
+    " CALL DBMS",
+    " CALL GDS",
+)
 
 QUESTION_LABEL_HINTS = {
     "company": {"company", "organization", "org", "enterprise", "firm"},
@@ -306,6 +342,460 @@ def _first_entity_with_labels(entities: Sequence[Dict[str, Any]], normalized_tar
             if entity_name:
                 return entity_name
     return ""
+
+
+def _normalize_symbol(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", str(value).lower())
+
+
+def _slugify_symbol(value: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", str(value).lower()).strip("-")
+    return slug or "term"
+
+
+def _parse_cypher_rows(raw: Any) -> List[Dict[str, Any]]:
+    if isinstance(raw, str) and raw.startswith("Error"):
+        return []
+    try:
+        parsed = json.loads(raw)
+    except Exception:
+        return []
+    return parsed if isinstance(parsed, list) else []
+
+
+@dataclass(frozen=True)
+class CypherPlan:
+    database: str
+    query: str
+    params: Dict[str, Any]
+    strategy: str
+    anchor_entity: str
+    anchor_label: str = ""
+    relation_types: Tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class InsufficiencyAssessment:
+    sufficient: bool
+    reason: str
+    missing_slots: Tuple[str, ...]
+    row_count: int
+    filled_slots: Tuple[str, ...] = ()
+
+
+class SemanticConstraintSliceBuilder:
+    """Build a lightweight semantic-layer slice for deterministic query generation."""
+
+    def __init__(
+        self,
+        *,
+        artifact_base_dir: Optional[str] = None,
+        global_workspace_id: Optional[str] = None,
+    ) -> None:
+        self.artifact_base_dir = artifact_base_dir or os.getenv(
+            "SEMANTIC_ARTIFACT_DIR",
+            DEFAULT_SEMANTIC_ARTIFACT_DIR,
+        )
+        self.global_workspace_id = (
+            global_workspace_id
+            or os.getenv("VOCABULARY_GLOBAL_WORKSPACE_ID", "global").strip()
+            or "global"
+        )
+
+    def build_for_databases(
+        self,
+        databases: Sequence[str],
+        *,
+        workspace_id: str,
+    ) -> Dict[str, Dict[str, Any]]:
+        return {
+            str(database): self.build_for_database(str(database), workspace_id=workspace_id)
+            for database in databases
+        }
+
+    def build_for_database(self, database: str, *, workspace_id: str) -> Dict[str, Any]:
+        graph_target = graph_registry.find_by_database(database)
+        graph_id = graph_target.graph_id if graph_target is not None else database
+        ontology_id = (
+            str(graph_target.ontology_id).strip()
+            if graph_target is not None and str(graph_target.ontology_id).strip()
+            else database
+        )
+        vocabulary_profile = (
+            str(graph_target.vocabulary_profile).strip()
+            if graph_target is not None and str(graph_target.vocabulary_profile).strip()
+            else "vocabulary.v2"
+        )
+
+        artifact_payloads = self._load_matching_artifacts(
+            workspace_id=workspace_id,
+            ontology_id=ontology_id,
+            graph_id=graph_id,
+            database=database,
+        )
+        ontology_candidate = _merge_ontology_candidates(
+            [payload.get("ontology_candidate") for payload in artifact_payloads]
+        )
+        shacl_candidate = _merge_shacl_candidates(
+            [payload.get("shacl_candidate") for payload in artifact_payloads]
+        )
+        vocabulary_candidate = _merge_vocabulary_candidates(
+            [payload.get("vocabulary_candidate") for payload in artifact_payloads]
+        )
+
+        allowed_labels = sorted(
+            {
+                str(item.get("name", "")).strip()
+                for item in ontology_candidate.get("classes", [])
+                if isinstance(item, dict) and str(item.get("name", "")).strip()
+            }
+        )
+        allowed_relationship_types = sorted(
+            {
+                str(item.get("type", "")).strip()
+                for item in ontology_candidate.get("relationships", [])
+                if isinstance(item, dict) and str(item.get("type", "")).strip()
+            }
+        )
+        allowed_properties = set(COMMON_ALLOWED_PROPERTIES)
+        for cls in ontology_candidate.get("classes", []):
+            if not isinstance(cls, dict):
+                continue
+            for prop in cls.get("properties", []):
+                if not isinstance(prop, dict):
+                    continue
+                prop_name = str(prop.get("name", "")).strip()
+                if prop_name:
+                    allowed_properties.add(prop_name)
+        for shape in shacl_candidate.get("shapes", []):
+            if not isinstance(shape, dict):
+                continue
+            for prop in shape.get("properties", []):
+                if not isinstance(prop, dict):
+                    continue
+                path = str(prop.get("path", "")).strip()
+                if path:
+                    allowed_properties.add(path)
+
+        return {
+            "graph_id": graph_id,
+            "database": database,
+            "ontology_id": ontology_id,
+            "vocabulary_profile": vocabulary_profile,
+            "artifact_ids": [
+                str(payload.get("artifact_id", "")).strip()
+                for payload in artifact_payloads
+                if str(payload.get("artifact_id", "")).strip()
+            ],
+            "ontology_candidate": ontology_candidate,
+            "shacl_candidate": shacl_candidate,
+            "vocabulary_candidate": vocabulary_candidate,
+            "allowed_labels": allowed_labels,
+            "allowed_relationship_types": allowed_relationship_types,
+            "allowed_properties": sorted(allowed_properties),
+            "relation_aliases": self._build_relation_aliases(ontology_candidate),
+            "label_aliases": self._build_label_aliases(ontology_candidate, vocabulary_candidate),
+            "json_ld_context": self._build_json_ld_context(
+                ontology_id=ontology_id,
+                ontology_candidate=ontology_candidate,
+                vocabulary_candidate=vocabulary_candidate,
+            ),
+            "constraint_strength": (
+                "semantic_layer"
+                if artifact_payloads
+                else "graph_metadata_only"
+            ),
+        }
+
+    def _load_matching_artifacts(
+        self,
+        *,
+        workspace_id: str,
+        ontology_id: str,
+        graph_id: str,
+        database: str,
+    ) -> List[Dict[str, Any]]:
+        candidates: List[Dict[str, Any]] = []
+        for current_workspace in {self.global_workspace_id, workspace_id}:
+            approved_rows = list_semantic_artifacts(
+                workspace_id=current_workspace,
+                status="approved",
+                base_dir=self.artifact_base_dir,
+            )
+            for row in approved_rows:
+                artifact_id = str(row.get("artifact_id", "")).strip()
+                if not artifact_id:
+                    continue
+                try:
+                    payload = get_semantic_artifact(
+                        workspace_id=current_workspace,
+                        artifact_id=artifact_id,
+                        base_dir=self.artifact_base_dir,
+                    )
+                except FileNotFoundError:
+                    continue
+                if not self._artifact_matches(
+                    payload,
+                    ontology_id=ontology_id,
+                    graph_id=graph_id,
+                    database=database,
+                ):
+                    continue
+                candidates.append(payload)
+        candidates.sort(
+            key=lambda payload: (
+                str(payload.get("approved_at") or ""),
+                str(payload.get("created_at") or ""),
+                str(payload.get("artifact_id") or ""),
+            )
+        )
+        return candidates
+
+    @staticmethod
+    def _artifact_matches(
+        payload: Dict[str, Any],
+        *,
+        ontology_id: str,
+        graph_id: str,
+        database: str,
+    ) -> bool:
+        ontology_candidate = payload.get("ontology_candidate", {})
+        ontology_name = str(ontology_candidate.get("ontology_name", "")).strip()
+        artifact_name = str(payload.get("name", "")).strip()
+
+        normalized_targets = {
+            _normalize_symbol(ontology_id),
+            _normalize_symbol(graph_id),
+            _normalize_symbol(database),
+        }
+        normalized_targets.discard("")
+        normalized_candidates = {
+            _normalize_symbol(ontology_name),
+            _normalize_symbol(artifact_name),
+        }
+        normalized_candidates.discard("")
+        if not normalized_targets:
+            return True
+        if normalized_targets & normalized_candidates:
+            return True
+        return False
+
+    @staticmethod
+    def _build_relation_aliases(ontology_candidate: Dict[str, Any]) -> Dict[str, str]:
+        aliases: Dict[str, str] = {}
+        for rel in ontology_candidate.get("relationships", []):
+            if not isinstance(rel, dict):
+                continue
+            relation_type = str(rel.get("type", "")).strip()
+            if not relation_type:
+                continue
+            for candidate in [relation_type, *rel.get("aliases", []), *rel.get("related", [])]:
+                normalized = _normalize_symbol(candidate)
+                if normalized:
+                    aliases[normalized] = relation_type
+        return aliases
+
+    @staticmethod
+    def _build_label_aliases(
+        ontology_candidate: Dict[str, Any],
+        vocabulary_candidate: Dict[str, Any],
+    ) -> Dict[str, str]:
+        aliases: Dict[str, str] = {}
+        for cls in ontology_candidate.get("classes", []):
+            if not isinstance(cls, dict):
+                continue
+            canonical = str(cls.get("name", "")).strip()
+            if not canonical:
+                continue
+            for candidate in [canonical, *cls.get("aliases", []), *cls.get("related", [])]:
+                normalized = _normalize_symbol(candidate)
+                if normalized:
+                    aliases[normalized] = canonical
+
+        for term in vocabulary_candidate.get("terms", []):
+            if not isinstance(term, dict):
+                continue
+            canonical = str(
+                term.get("canonical")
+                or term.get("pref_label")
+                or term.get("name")
+                or ""
+            ).strip()
+            if not canonical:
+                continue
+            for candidate in [
+                canonical,
+                *term.get("aliases", []),
+                *term.get("alt_labels", []),
+                *term.get("hidden_labels", []),
+            ]:
+                normalized = _normalize_symbol(candidate)
+                if normalized:
+                    aliases[normalized] = canonical
+        return aliases
+
+    @staticmethod
+    def _build_json_ld_context(
+        *,
+        ontology_id: str,
+        ontology_candidate: Dict[str, Any],
+        vocabulary_candidate: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        base = f"seocho://semantic/{_slugify_symbol(ontology_id)}/"
+        context: Dict[str, Any] = {"@vocab": base}
+
+        def register(term: str, iri: Optional[str] = None) -> None:
+            term_text = str(term).strip()
+            if not term_text:
+                return
+            context[term_text] = iri or f"{base}{_slugify_symbol(term_text)}"
+
+        for cls in ontology_candidate.get("classes", []):
+            if not isinstance(cls, dict):
+                continue
+            register(cls.get("name", ""))
+            for alias in cls.get("aliases", []):
+                register(alias)
+        for rel in ontology_candidate.get("relationships", []):
+            if not isinstance(rel, dict):
+                continue
+            register(rel.get("type", ""))
+            for alias in rel.get("aliases", []):
+                register(alias)
+        for term in vocabulary_candidate.get("terms", []):
+            if not isinstance(term, dict):
+                continue
+            iri = str(term.get("uri") or term.get("id") or "").strip() or None
+            register(term.get("pref_label") or term.get("canonical") or term.get("name"), iri)
+            for alias in [*term.get("alt_labels", []), *term.get("hidden_labels", []), *term.get("aliases", [])]:
+                register(alias, iri)
+        return context
+
+
+class CypherQueryValidator:
+    """Validate constrained Cypher plans before execution."""
+
+    def validate(self, plan: CypherPlan, constraint_slice: Dict[str, Any]) -> Dict[str, Any]:
+        normalized_query = " " + re.sub(r"\s+", " ", plan.query.upper()) + " "
+        violations: List[str] = []
+        if "$node_id" not in plan.query:
+            violations.append("missing_node_binding")
+        if "RETURN" not in normalized_query:
+            violations.append("missing_return_clause")
+        for token in FORBIDDEN_CYPHER_TOKENS:
+            if token in normalized_query:
+                violations.append(f"forbidden_token:{token.strip().lower().replace(' ', '_')}")
+
+        labels = {
+            match
+            for match in re.findall(r"\([^)]+:([A-Za-z_][A-Za-z0-9_]*)", plan.query)
+            if match
+        }
+        relation_types = {
+            match
+            for match in re.findall(r"\[[^\]]*:\s*([A-Za-z_][A-Za-z0-9_]*)", plan.query)
+            if match
+        }
+        properties = {
+            match
+            for match in re.findall(r"[A-Za-z_][A-Za-z0-9_]*\.([A-Za-z_][A-Za-z0-9_]*)", plan.query)
+            if match
+        }
+
+        allowed_labels = set(constraint_slice.get("allowed_labels", []))
+        if allowed_labels and labels - allowed_labels:
+            violations.append(
+                "unknown_labels:" + ",".join(sorted(labels - allowed_labels))
+            )
+
+        allowed_relationship_types = set(constraint_slice.get("allowed_relationship_types", []))
+        if allowed_relationship_types and relation_types - allowed_relationship_types:
+            violations.append(
+                "unknown_relationship_types:" + ",".join(sorted(relation_types - allowed_relationship_types))
+            )
+
+        allowed_properties = set(constraint_slice.get("allowed_properties", []))
+        if allowed_properties and properties - allowed_properties:
+            violations.append(
+                "unknown_properties:" + ",".join(sorted(properties - allowed_properties))
+            )
+
+        return {
+            "ok": not violations,
+            "violations": violations,
+            "labels": sorted(labels),
+            "relation_types": sorted(relation_types),
+            "properties": sorted(properties),
+        }
+
+
+class QueryInsufficiencyClassifier:
+    """Classify whether executed graph retrieval filled the requested slots."""
+
+    def assess(self, intent: Dict[str, Any], rows: Sequence[Dict[str, Any]]) -> InsufficiencyAssessment:
+        focus_slots = [
+            str(slot).strip()
+            for slot in intent.get("focus_slots", [])
+            if str(slot).strip()
+        ]
+        row_count = len(rows)
+        if row_count == 0:
+            return InsufficiencyAssessment(
+                sufficient=False,
+                reason="empty_result",
+                missing_slots=tuple(focus_slots),
+                row_count=0,
+            )
+
+        filled_slots: Set[str] = set()
+        intent_id = str(intent.get("intent_id", "")).strip()
+        for row in rows:
+            if row.get("source_entity"):
+                filled_slots.add("source_entity")
+            if row.get("target_entity"):
+                filled_slots.add("target_entity")
+            if row.get("relation_type") or row.get("relation_paths"):
+                filled_slots.add("relation_paths")
+            if row.get("owner_or_operator"):
+                filled_slots.add("owner_or_operator")
+            if row.get("supporting_fact") or row.get("properties") or row.get("neighbors"):
+                filled_slots.add("supporting_fact")
+
+        if intent_id == "relationship_lookup":
+            if not any(row.get("relation_type") for row in rows):
+                return InsufficiencyAssessment(
+                    sufficient=False,
+                    reason="missing_relation_path",
+                    missing_slots=tuple(slot for slot in focus_slots if slot not in filled_slots or slot == "relation_paths"),
+                    row_count=row_count,
+                    filled_slots=tuple(sorted(filled_slots)),
+                )
+        if intent_id == "responsibility_lookup":
+            if not any(row.get("owner_or_operator") for row in rows):
+                return InsufficiencyAssessment(
+                    sufficient=False,
+                    reason="missing_owner_or_operator",
+                    missing_slots=tuple(slot for slot in focus_slots if slot not in filled_slots or slot == "owner_or_operator"),
+                    row_count=row_count,
+                    filled_slots=tuple(sorted(filled_slots)),
+                )
+
+        missing_slots = tuple(slot for slot in focus_slots if slot not in filled_slots)
+        if missing_slots:
+            return InsufficiencyAssessment(
+                sufficient=False,
+                reason="partial_slot_fill",
+                missing_slots=missing_slots,
+                row_count=row_count,
+                filled_slots=tuple(sorted(filled_slots)),
+            )
+        return InsufficiencyAssessment(
+            sufficient=True,
+            reason="sufficient",
+            missing_slots=(),
+            row_count=row_count,
+            filled_slots=tuple(sorted(filled_slots)),
+        )
 
 
 class SemanticEntityResolver:
@@ -677,17 +1167,25 @@ class QueryRouterAgent:
 
 
 class LPGAgent:
-    """LPG query agent with entity-aware neighborhood lookups."""
+    """LPG query agent with semantic-layer-constrained Cypher planning."""
 
     def __init__(self, connector: Any, result_limit: int = 20):
         self.connector = connector
         self.result_limit = result_limit
+        self.constraint_builder = SemanticConstraintSliceBuilder()
+        self.validator = CypherQueryValidator()
+        self.classifier = QueryInsufficiencyClassifier()
 
     def run(
         self,
         question: str,
         databases: Sequence[str],
         semantic_context: Dict[str, Any],
+        *,
+        workspace_id: str = "default",
+        reasoning_mode: bool = False,
+        repair_budget: int = 0,
+        constraint_slices: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         top_matches = self._top_entity_matches(semantic_context)
         if not top_matches:
@@ -695,27 +1193,97 @@ class LPGAgent:
                 "mode": "lpg",
                 "summary": "No resolved entity. Returned graph label distribution.",
                 "records": self._label_distribution(databases),
+                "reasoning": {
+                    "requested": reasoning_mode,
+                    "repair_budget": max(0, int(repair_budget or 0)),
+                    "attempt_count": 0,
+                    "repair_trace": [],
+                },
             }
 
+        constraint_slices = constraint_slices or self.constraint_builder.build_for_databases(
+            databases,
+            workspace_id=workspace_id,
+        )
         records: List[Dict[str, Any]] = []
+        repair_trace: List[Dict[str, Any]] = []
+        best_assessment: Optional[InsufficiencyAssessment] = None
+        best_bundle: Optional[Dict[str, Any]] = None
+        selected_constraint_slice: Optional[Dict[str, Any]] = None
+        attempt_limit = 1 + max(0, int(repair_budget or 0)) if reasoning_mode else 1
+
         for item in top_matches:
-            db_raw = item.get("database")
+            db_name = str(item.get("database", "")).strip()
             node_id = item.get("node_id")
-            if db_raw is None or node_id is None:
+            if not db_name or node_id is None:
                 continue
-            db_name = str(db_raw)
-            rows = self._neighbors_for_node(db_name, node_id)
-            for row in rows:
-                records.append(
-                    {
-                        "database": db_name,
-                        "entity": row.get("entity"),
-                        "labels": row.get("labels", []),
-                        "neighbors": row.get("neighbors", []),
-                    }
-                )
-        summary = "Resolved entities were expanded through LPG neighborhoods."
-        return {"mode": "lpg", "summary": summary, "records": records}
+            constraint_slice = constraint_slices.get(db_name) or self.constraint_builder.build_for_database(
+                db_name,
+                workspace_id=workspace_id,
+            )
+            execution = self._execute_with_repair(
+                question=question,
+                semantic_context=semantic_context,
+                anchor_match=item,
+                constraint_slice=constraint_slice,
+                attempt_limit=attempt_limit,
+            )
+            repair_trace.extend(execution["repair_trace"])
+            if execution["records"]:
+                records.extend(execution["records"])
+            if best_assessment is None or (
+                execution["assessment"].sufficient and not best_assessment.sufficient
+            ) or execution["assessment"].row_count > best_assessment.row_count:
+                best_assessment = execution["assessment"]
+                best_bundle = execution["evidence_bundle"]
+                selected_constraint_slice = constraint_slice
+            if execution["assessment"].sufficient:
+                break
+
+        if not records:
+            summary = "No grounded LPG result satisfied the semantic-layer constraints. Returned label distribution."
+            return {
+                "mode": "lpg",
+                "summary": summary,
+                "records": self._label_distribution(databases),
+                "reasoning": {
+                    "requested": reasoning_mode,
+                    "repair_budget": max(0, int(repair_budget or 0)),
+                    "attempt_count": len(repair_trace),
+                    "repair_trace": repair_trace,
+                    "constraint_slice": self._summarize_constraint_slice(selected_constraint_slice),
+                    "insufficiency": (
+                        {
+                            "reason": best_assessment.reason,
+                            "missing_slots": list(best_assessment.missing_slots),
+                            "row_count": best_assessment.row_count,
+                        }
+                        if best_assessment is not None
+                        else {"reason": "no_executable_plan", "missing_slots": [], "row_count": 0}
+                    ),
+                },
+                "evidence_bundle": best_bundle or semantic_context.get("evidence_bundle_preview", {}),
+            }
+
+        best_reason = best_assessment.reason if best_assessment is not None else "sufficient"
+        if reasoning_mode and len(repair_trace) > len(top_matches):
+            summary = "Reasoning mode repaired an initially insufficient constrained Cypher plan."
+        else:
+            summary = "Resolved entities were expanded through semantic-layer-constrained LPG queries."
+        return {
+            "mode": "lpg",
+            "summary": summary,
+            "records": records,
+            "reasoning": {
+                "requested": reasoning_mode,
+                "repair_budget": max(0, int(repair_budget or 0)),
+                "attempt_count": len(repair_trace),
+                "repair_trace": repair_trace,
+                "constraint_slice": self._summarize_constraint_slice(selected_constraint_slice),
+                "terminal_reason": best_reason,
+            },
+            "evidence_bundle": best_bundle or semantic_context.get("evidence_bundle_preview", {}),
+        }
 
     def _top_entity_matches(self, semantic_context: Dict[str, Any]) -> List[Dict[str, Any]]:
         pairs: List[Dict[str, Any]] = []
@@ -728,34 +1296,409 @@ class LPGAgent:
         pairs.sort(key=lambda item: item.get("final_score", 0.0), reverse=True)
         return pairs[:3]
 
-    def _neighbors_for_node(self, db_name: str, node_id: Any) -> List[Dict[str, Any]]:
-        query = """
-        MATCH (n)
+    def _execute_with_repair(
+        self,
+        *,
+        question: str,
+        semantic_context: Dict[str, Any],
+        anchor_match: Dict[str, Any],
+        constraint_slice: Dict[str, Any],
+        attempt_limit: int,
+    ) -> Dict[str, Any]:
+        intent = semantic_context.get("intent", {})
+        records: List[Dict[str, Any]] = []
+        repair_trace: List[Dict[str, Any]] = []
+        last_assessment = InsufficiencyAssessment(
+            sufficient=False,
+            reason="no_attempts",
+            missing_slots=tuple(intent.get("focus_slots", [])),
+            row_count=0,
+        )
+        last_bundle = semantic_context.get("evidence_bundle_preview", {})
+
+        for strategy in self._strategy_sequence(attempt_limit):
+            plan = self._build_plan(
+                question=question,
+                semantic_context=semantic_context,
+                anchor_match=anchor_match,
+                intent=intent,
+                constraint_slice=constraint_slice,
+                strategy=strategy,
+            )
+            validation = self.validator.validate(plan, constraint_slice)
+            if not validation["ok"]:
+                repair_trace.append(
+                    {
+                        "strategy": strategy,
+                        "database": plan.database,
+                        "anchor_entity": plan.anchor_entity,
+                        "status": "invalid",
+                        "violations": validation["violations"],
+                    }
+                )
+                last_assessment = InsufficiencyAssessment(
+                    sufficient=False,
+                    reason="validation_failed",
+                    missing_slots=tuple(intent.get("focus_slots", [])),
+                    row_count=0,
+                )
+                continue
+
+            raw = self.connector.run_cypher(
+                query=plan.query,
+                database=plan.database,
+                params=plan.params,
+            )
+            rows = _parse_cypher_rows(raw)
+            annotated_rows = [
+                {
+                    "database": plan.database,
+                    "graph_id": constraint_slice.get("graph_id"),
+                    "strategy": strategy,
+                    **row,
+                }
+                for row in rows
+                if isinstance(row, dict)
+            ]
+            assessment = self.classifier.assess(intent, annotated_rows)
+            evidence_bundle = self._build_runtime_evidence_bundle(
+                question=question,
+                semantic_context=semantic_context,
+                intent=intent,
+                rows=annotated_rows,
+                plan=plan,
+                assessment=assessment,
+                constraint_slice=constraint_slice,
+            )
+            repair_trace.append(
+                {
+                    "strategy": strategy,
+                    "database": plan.database,
+                    "graph_id": constraint_slice.get("graph_id"),
+                    "anchor_entity": plan.anchor_entity,
+                    "relation_types": list(plan.relation_types),
+                    "row_count": assessment.row_count,
+                    "sufficient": assessment.sufficient,
+                    "reason": assessment.reason,
+                    "missing_slots": list(assessment.missing_slots),
+                    "validation": {
+                        "labels": validation["labels"],
+                        "relation_types": validation["relation_types"],
+                    },
+                }
+            )
+            if annotated_rows:
+                records = annotated_rows
+            last_assessment = assessment
+            last_bundle = evidence_bundle
+            if assessment.sufficient:
+                break
+
+        return {
+            "records": records,
+            "repair_trace": repair_trace,
+            "assessment": last_assessment,
+            "evidence_bundle": last_bundle,
+        }
+
+    @staticmethod
+    def _strategy_sequence(attempt_limit: int) -> List[str]:
+        ordered = ["strict", "ontology_relaxed", "graph_broad"]
+        return ordered[: max(1, attempt_limit)]
+
+    def _build_plan(
+        self,
+        *,
+        question: str,
+        semantic_context: Dict[str, Any],
+        anchor_match: Dict[str, Any],
+        intent: Dict[str, Any],
+        constraint_slice: Dict[str, Any],
+        strategy: str,
+    ) -> CypherPlan:
+        database = str(anchor_match.get("database", "")).strip()
+        node_id = anchor_match.get("node_id")
+        anchor_entity = str(anchor_match.get("display_name") or anchor_match.get("question_entity") or "").strip()
+        anchor_label = self._pick_anchor_label(anchor_match, constraint_slice, strategy)
+        relation_types = self._resolve_relation_types(question, intent, constraint_slice, strategy)
+        target_hint = self._secondary_entity_hint(semantic_context, anchor_match) if strategy == "strict" else ""
+        intent_id = str(intent.get("intent_id", "")).strip()
+
+        if intent_id == "relationship_lookup":
+            query = self._relationship_query(anchor_label=anchor_label, relation_types=relation_types)
+            params = {
+                "node_id": node_id,
+                "limit": self.result_limit,
+                "target_hint": target_hint,
+            }
+        elif intent_id == "responsibility_lookup":
+            query = self._responsibility_query(anchor_label=anchor_label, relation_types=relation_types)
+            params = {"node_id": node_id, "limit": self.result_limit}
+        else:
+            query = self._entity_summary_query(anchor_label=anchor_label)
+            params = {"node_id": node_id, "limit": self.result_limit}
+
+        return CypherPlan(
+            database=database,
+            query=query,
+            params=params,
+            strategy=strategy,
+            anchor_entity=anchor_entity,
+            anchor_label=anchor_label,
+            relation_types=tuple(relation_types),
+        )
+
+    def _resolve_relation_types(
+        self,
+        question: str,
+        intent: Dict[str, Any],
+        constraint_slice: Dict[str, Any],
+        strategy: str,
+    ) -> List[str]:
+        allowed_relationship_types = [
+            str(item).strip()
+            for item in constraint_slice.get("allowed_relationship_types", [])
+            if str(item).strip()
+        ]
+        allowed_lookup = {_normalize_symbol(item): item for item in allowed_relationship_types}
+        alias_lookup = {
+            _normalize_symbol(alias): relation_type
+            for alias, relation_type in constraint_slice.get("relation_aliases", {}).items()
+        }
+        normalized_question = _normalize_symbol(question)
+        matched_relations = [
+            relation_type
+            for alias, relation_type in alias_lookup.items()
+            if alias and alias in normalized_question
+        ]
+        required_relations = [
+            str(item).strip()
+            for item in intent.get("required_relations", [])
+            if str(item).strip()
+        ]
+
+        if strategy == "graph_broad":
+            return []
+
+        candidates = matched_relations + required_relations
+        normalized_candidates = {_normalize_symbol(item): item for item in candidates if item}
+        if strategy == "ontology_relaxed" and allowed_relationship_types:
+            return allowed_relationship_types[:8]
+        if not allowed_relationship_types:
+            return list(dict.fromkeys(normalized_candidates.values()))
+
+        constrained = [
+            allowed_lookup[key]
+            for key in normalized_candidates
+            if key in allowed_lookup
+        ]
+        return list(dict.fromkeys(constrained))
+
+    @staticmethod
+    def _pick_anchor_label(
+        anchor_match: Dict[str, Any],
+        constraint_slice: Dict[str, Any],
+        strategy: str,
+    ) -> str:
+        if strategy == "graph_broad":
+            return ""
+        allowed_labels = set(constraint_slice.get("allowed_labels", []))
+        labels = [
+            str(label).strip()
+            for label in anchor_match.get("labels", [])
+            if str(label).strip()
+        ]
+        if not labels:
+            return ""
+        if not allowed_labels:
+            return labels[0]
+        for label in labels:
+            if label in allowed_labels:
+                return label
+        return ""
+
+    @staticmethod
+    def _secondary_entity_hint(
+        semantic_context: Dict[str, Any],
+        anchor_match: Dict[str, Any],
+    ) -> str:
+        anchor_name = str(anchor_match.get("display_name") or anchor_match.get("question_entity") or "").strip()
+        for entity, candidates in semantic_context.get("matches", {}).items():
+            if not candidates:
+                continue
+            display_name = str(candidates[0].get("display_name") or entity).strip()
+            if display_name and display_name != anchor_name:
+                return display_name
+        return ""
+
+    @staticmethod
+    def _relationship_query(*, anchor_label: str, relation_types: Sequence[str]) -> str:
+        label_clause = f":{anchor_label}" if anchor_label else ""
+        relation_clause = (
+            ":" + "|".join(relation_types)
+            if relation_types
+            else ""
+        )
+        return f"""
+        MATCH (n{label_clause})
+        WHERE elementId(n) = toString($node_id)
+        OPTIONAL MATCH (n)-[r{relation_clause}]-(m)
+        WHERE $target_hint = ''
+           OR toLower(coalesce(m.name, m.title, m.id, m.uri, elementId(m))) CONTAINS toLower($target_hint)
+        RETURN coalesce(n.name, n.title, n.id, n.uri, elementId(n)) AS source_entity,
+               type(r) AS relation_type,
+               coalesce(m.name, m.title, m.id, m.uri, elementId(m)) AS target_entity,
+               labels(m) AS target_labels,
+               coalesce(m.content_preview, m.description, '') AS supporting_fact
+        ORDER BY target_entity
+        LIMIT $limit
+        """
+
+    @staticmethod
+    def _responsibility_query(*, anchor_label: str, relation_types: Sequence[str]) -> str:
+        label_clause = f":{anchor_label}" if anchor_label else ""
+        relation_clause = (
+            ":" + "|".join(relation_types)
+            if relation_types
+            else ""
+        )
+        return f"""
+        MATCH (target{label_clause})
+        WHERE elementId(target) = toString($node_id)
+        OPTIONAL MATCH (counterparty)-[r{relation_clause}]-(target)
+        RETURN coalesce(counterparty.name, counterparty.title, counterparty.id, counterparty.uri, elementId(counterparty)) AS owner_or_operator,
+               type(r) AS relation_type,
+               coalesce(target.name, target.title, target.id, target.uri, elementId(target)) AS target_entity,
+               labels(counterparty) AS owner_labels,
+               labels(target) AS target_labels,
+               coalesce(counterparty.content_preview, counterparty.description, '') AS supporting_fact
+        ORDER BY owner_or_operator
+        LIMIT $limit
+        """
+
+    @staticmethod
+    def _entity_summary_query(*, anchor_label: str) -> str:
+        label_clause = f":{anchor_label}" if anchor_label else ""
+        return f"""
+        MATCH (n{label_clause})
         WHERE elementId(n) = toString($node_id)
         OPTIONAL MATCH (n)-[r]-(m)
-        RETURN coalesce(n.name, n.title, n.id, n.uri, elementId(n)) AS entity,
-               labels(n) AS labels,
+        RETURN coalesce(n.name, n.title, n.id, n.uri, elementId(n)) AS target_entity,
+               properties(n) AS properties,
                collect(
-                 DISTINCT {
-                   type: type(r),
+                 DISTINCT {{
+                   relation: type(r),
                    target: coalesce(m.name, m.title, m.id, m.uri, elementId(m)),
                    target_labels: labels(m)
-                 }
-               )[0..$limit] AS neighbors
+                 }}
+               )[0..$limit] AS neighbors,
+               coalesce(n.content_preview, n.description, n.content, '') AS supporting_fact
         LIMIT 1
         """
-        raw = self.connector.run_cypher(
-            query=query,
-            database=db_name,
-            params={"node_id": node_id, "limit": self.result_limit},
+
+    def _build_runtime_evidence_bundle(
+        self,
+        *,
+        question: str,
+        semantic_context: Dict[str, Any],
+        intent: Dict[str, Any],
+        rows: Sequence[Dict[str, Any]],
+        plan: CypherPlan,
+        assessment: InsufficiencyAssessment,
+        constraint_slice: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        bundle = build_evidence_bundle(
+            question=question,
+            semantic_context=semantic_context,
+            matched_entities=semantic_context.get("entities", []),
         )
-        try:
-            parsed = json.loads(raw)
-        except Exception:
-            return []
-        if isinstance(parsed, list):
-            return parsed
-        return []
+        slot_fills = dict(bundle.get("slot_fills", {}))
+        selected_triples: List[Dict[str, Any]] = []
+
+        for row in rows[: self.result_limit]:
+            relation_type = str(row.get("relation_type", "")).strip()
+            if row.get("source_entity") and row.get("target_entity") and relation_type:
+                slot_fills["source_entity"] = row.get("source_entity")
+                slot_fills["target_entity"] = row.get("target_entity")
+                slot_fills["relation_paths"] = [relation_type]
+                if row.get("supporting_fact"):
+                    slot_fills["supporting_fact"] = row.get("supporting_fact")
+                selected_triples.append(
+                    {
+                        "source": row.get("source_entity"),
+                        "relation": relation_type,
+                        "target": row.get("target_entity"),
+                        "target_labels": row.get("target_labels", []),
+                    }
+                )
+            if row.get("owner_or_operator"):
+                slot_fills["owner_or_operator"] = row.get("owner_or_operator")
+                slot_fills["target_entity"] = row.get("target_entity")
+                if relation_type:
+                    slot_fills["relation_paths"] = [relation_type]
+                if row.get("supporting_fact"):
+                    slot_fills["supporting_fact"] = row.get("supporting_fact")
+                selected_triples.append(
+                    {
+                        "source": row.get("owner_or_operator"),
+                        "relation": relation_type or "RELATED_TO",
+                        "target": row.get("target_entity"),
+                        "target_labels": row.get("target_labels", []),
+                    }
+                )
+            if row.get("target_entity") and (row.get("properties") or row.get("neighbors")):
+                slot_fills["target_entity"] = row.get("target_entity")
+                if row.get("supporting_fact"):
+                    slot_fills["supporting_fact"] = row.get("supporting_fact")
+                for neighbor in row.get("neighbors", [])[:5] if isinstance(row.get("neighbors"), list) else []:
+                    if not isinstance(neighbor, dict):
+                        continue
+                    relation = str(neighbor.get("relation", "")).strip()
+                    target = str(neighbor.get("target", "")).strip()
+                    if relation and target:
+                        selected_triples.append(
+                            {
+                                "source": row.get("target_entity"),
+                                "relation": relation,
+                                "target": target,
+                                "target_labels": neighbor.get("target_labels", []),
+                            }
+                        )
+
+        focus_slots = [str(slot).strip() for slot in intent.get("focus_slots", []) if str(slot).strip()]
+        bundle["slot_fills"] = slot_fills
+        bundle["selected_triples"] = selected_triples[:10]
+        bundle["missing_slots"] = [slot for slot in focus_slots if slot not in slot_fills]
+        bundle["database"] = plan.database
+        bundle["graph_id"] = constraint_slice.get("graph_id")
+        bundle["reasoning"] = {
+            "strategy": plan.strategy,
+            "anchor_entity": plan.anchor_entity,
+            "anchor_label": plan.anchor_label,
+            "relation_types": list(plan.relation_types),
+            "assessment": {
+                "sufficient": assessment.sufficient,
+                "reason": assessment.reason,
+                "missing_slots": list(assessment.missing_slots),
+                "row_count": assessment.row_count,
+            },
+        }
+        return bundle
+
+    @staticmethod
+    def _summarize_constraint_slice(constraint_slice: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        if not isinstance(constraint_slice, dict):
+            return {}
+        return {
+            "graph_id": constraint_slice.get("graph_id"),
+            "database": constraint_slice.get("database"),
+            "ontology_id": constraint_slice.get("ontology_id"),
+            "constraint_strength": constraint_slice.get("constraint_strength"),
+            "artifact_ids": list(constraint_slice.get("artifact_ids", [])),
+            "label_count": len(constraint_slice.get("allowed_labels", [])),
+            "relationship_count": len(constraint_slice.get("allowed_relationship_types", [])),
+            "property_count": len(constraint_slice.get("allowed_properties", [])),
+        }
 
     def _label_distribution(self, databases: Sequence[str]) -> List[Dict[str, Any]]:
         query = """
@@ -884,6 +1827,13 @@ class AnswerGenerationAgent:
             lines.append(f"Unresolved entities: {', '.join(unresolved)}.")
         if evidence_bundle.get("missing_slots"):
             lines.append(f"Missing slots: {', '.join(evidence_bundle['missing_slots'])}.")
+        reasoning = semantic_context.get("reasoning", {})
+        if reasoning.get("requested"):
+            lines.append(
+                f"Reasoning mode used {int(reasoning.get('attempt_count', 0))} retrieval attempt(s)."
+            )
+            if reasoning.get("terminal_reason"):
+                lines.append(f"Reasoning terminal state: {reasoning['terminal_reason']}.")
 
         if lpg_result and lpg_result.get("records"):
             lines.append(f"LPG records: {len(lpg_result['records'])}.")
@@ -904,6 +1854,7 @@ class SemanticAgentFlow:
         self.lpg_agent = LPGAgent(connector)
         self.rdf_agent = RDFAgent(connector)
         self.answer_agent = AnswerGenerationAgent()
+        self.constraint_builder = SemanticConstraintSliceBuilder()
 
     def run(
         self,
@@ -911,10 +1862,22 @@ class SemanticAgentFlow:
         databases: Sequence[str],
         entity_overrides: Optional[Dict[str, Dict[str, Any]]] = None,
         workspace_id: str = "default",
+        reasoning_mode: bool = False,
+        repair_budget: int = 0,
     ) -> Dict[str, Any]:
         trace_steps: List[Dict[str, Any]] = []
 
         semantic_context = self.resolver.resolve(question, databases, workspace_id=workspace_id)
+        constraint_slices = self.constraint_builder.build_for_databases(
+            databases,
+            workspace_id=workspace_id,
+        )
+        semantic_context["semantic_layer"] = {
+            "databases": {
+                database: LPGAgent._summarize_constraint_slice(constraint_slice)
+                for database, constraint_slice in constraint_slices.items()
+            }
+        }
         self._apply_entity_overrides(semantic_context, entity_overrides or {})
         trace_steps.append(
             {
@@ -928,6 +1891,8 @@ class SemanticAgentFlow:
                     "overrides_applied": sorted(
                         list(semantic_context.get("overrides_applied", {}).keys())
                     ),
+                    "reasoning_mode": reasoning_mode,
+                    "repair_budget": max(0, int(repair_budget or 0)),
                 },
             }
         )
@@ -947,14 +1912,32 @@ class SemanticAgentFlow:
         rdf_result: Optional[Dict[str, Any]] = None
 
         if route in {"lpg", "hybrid"}:
-            lpg_result = self.lpg_agent.run(question, databases, semantic_context)
+            lpg_result = self.lpg_agent.run(
+                question,
+                databases,
+                semantic_context,
+                workspace_id=workspace_id,
+                reasoning_mode=reasoning_mode,
+                repair_budget=repair_budget,
+                constraint_slices=constraint_slices,
+            )
+            if isinstance(lpg_result.get("evidence_bundle"), dict):
+                semantic_context["evidence_bundle_preview"] = lpg_result["evidence_bundle"]
+            if isinstance(lpg_result.get("reasoning"), dict):
+                semantic_context["reasoning"] = lpg_result["reasoning"]
             trace_steps.append(
                 {
                     "id": "2",
                     "type": "SPECIALIST",
                     "agent": "LPGAgent",
                     "content": lpg_result.get("summary", ""),
-                    "metadata": {"records": len(lpg_result.get("records", []))},
+                    "metadata": {
+                        "records": len(lpg_result.get("records", [])),
+                        "reasoning_attempts": int(
+                            lpg_result.get("reasoning", {}).get("attempt_count", 0)
+                        ),
+                        "terminal_reason": lpg_result.get("reasoning", {}).get("terminal_reason"),
+                    },
                 }
             )
 

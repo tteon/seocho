@@ -1,6 +1,7 @@
 from importlib.metadata import PackageNotFoundError, version
 
 from .api import (
+    advanced,
     add,
     add_with_details,
     agents,
@@ -143,6 +144,7 @@ __all__ = [
     "__version__",
     "add",
     "add_with_details",
+    "advanced",
     "agents",
     "apply_artifact",
     "ask",

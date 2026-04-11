@@ -10,6 +10,7 @@ SEOCHO is for platform and data teams that want a graph-memory-style interface o
 In 5 minutes: raw text -> graph-backed memory -> ask questions in one UI.
 
 If you want a mem0-style developer entry point, start with [docs/PYTHON_INTERFACE_QUICKSTART.md](docs/PYTHON_INTERFACE_QUICKSTART.md).
+If your question is "how do I put my own data into this?", go straight to [docs/APPLY_YOUR_DATA.md](docs/APPLY_YOUR_DATA.md).
 
 When NOT to use SEOCHO:
 
@@ -102,12 +103,27 @@ print(answer)
 Developer-facing runtime calls are also available in the SDK:
 
 ```python
-semantic = seocho.semantic("Tell me about Neo4j", databases=["kgnormal"])
-debate = seocho.debate("Compare what each graph knows about Alex.", graph_ids=["kgnormal", "kgfinance"])
+semantic = seocho.semantic(
+    "Tell me about Neo4j",
+    graph_ids=["kgnormal"],
+    reasoning_mode=True,
+    repair_budget=2,
+)
+advanced = seocho.advanced(
+    "Compare what each graph knows about Alex.",
+    graph_ids=["kgnormal", "kgfinance"],
+)
 
 print(semantic.route)
-print(debate.debate_state)
+print(advanced.debate_state)
 ```
+
+Recommended execution order:
+
+- `ask` / `chat` for memory-first use
+- `semantic` for graph-grounded retrieval
+- `reasoning_mode=True` before reaching for debate
+- `advanced()` only for explicit multi-agent comparison
 
 Use the CLI:
 
@@ -123,6 +139,7 @@ seocho stop
 Advanced developers can also manage semantic artifacts, local validation/diff/apply flows, and typed prompt context through the SDK/CLI. See [docs/PYTHON_INTERFACE_QUICKSTART.md](docs/PYTHON_INTERFACE_QUICKSTART.md).
 
 For the fuller walkthrough, use [docs/PYTHON_INTERFACE_QUICKSTART.md](docs/PYTHON_INTERFACE_QUICKSTART.md).
+For the shortest bring-your-own-data path, use [docs/APPLY_YOUR_DATA.md](docs/APPLY_YOUR_DATA.md).
 
 To validate release artifacts locally before publishing:
 
@@ -137,6 +154,7 @@ twine check dist/*
 Track A - I just want to run it:
 
 - start with [docs/QUICKSTART.md](docs/QUICKSTART.md)
+- use [docs/APPLY_YOUR_DATA.md](docs/APPLY_YOUR_DATA.md) to ingest your own records
 - use [docs/TUTORIAL_FIRST_RUN.md](docs/TUTORIAL_FIRST_RUN.md) for manual API verification
 - use [docs/BEGINNER_PIPELINES_DEMO.md](docs/BEGINNER_PIPELINES_DEMO.md) for staged demo scripts
 

@@ -1,22 +1,24 @@
 # SEOCHO Quick Start
 
-Goal: one successful run in under 5 minutes.
+Goal: one successful local run in under 5 minutes.
 
-This is the canonical onboarding document.
+If you only read one runtime document first, read this one.
 
-If you only read one runtime document, read this one first.
-
-If you want the mem0-style developer path instead of the UI-first path, jump to [PYTHON_INTERFACE_QUICKSTART.md](PYTHON_INTERFACE_QUICKSTART.md).
+If you want the Python SDK path immediately, continue with
+`docs/PYTHON_INTERFACE_QUICKSTART.md`.
+If you want the bring-your-own-data path immediately, continue with
+`docs/APPLY_YOUR_DATA.md`.
 
 ## 1. Prerequisites
 
 - Docker and Docker Compose
+- `OPENAI_API_KEY` recommended
 - `curl` and `jq` for optional API checks
-- `OPENAI_API_KEY` recommended for full extraction quality
 
-Without `OPENAI_API_KEY`, SEOCHO can still run in local fallback mode for basic verification.
+Without `OPENAI_API_KEY`, SEOCHO can still boot in local fallback mode for
+basic verification.
 
-## 2. Setup Environment
+## 2. Setup
 
 ```bash
 git clone https://github.com/tteon/seocho.git
@@ -24,183 +26,135 @@ cd seocho
 make setup-env
 ```
 
-`make setup-env` creates `.env` from `.env.example` and lets you:
-
-- set `OPENAI_API_KEY`
-- optionally enable Opik
-- optionally change ports
-
-## 3. Start Services
+## 3. Start the Runtime
 
 ```bash
 make up
 docker compose ps
 ```
 
-If you installed the local CLI and want one command instead of manual Compose:
+Or through the local CLI:
 
 ```bash
-pip install -e .
+pip install -e ".[dev]"
 seocho serve
 ```
 
-`seocho serve` runs `docker compose up -d`, waits for `/health/runtime` and `/graphs`, and injects a fallback local `OPENAI_API_KEY` when your environment still has the example placeholder.
+Expected local surfaces:
 
-Expected local access points:
+- Platform UI: `http://localhost:8501`
+- Backend API docs: `http://localhost:8001/docs`
+- DozerDB browser: `http://localhost:7474`
 
-| Surface | URL |
-|---|---|
-| Platform UI | `http://localhost:8501` |
-| Backend API docs | `http://localhost:8001/docs` |
-| DozerDB browser | `http://localhost:7474` |
-
-## 4. Recommended First Success: UI Path
+## 4. First Success: UI Path
 
 1. Open `http://localhost:8501`
-2. In the ingest panel, leave the default database
-3. Click `Load Sample & Ask`
+2. Use the ingest panel or click the sample flow
+3. Ask a semantic question
 
-This runs the shortest end-to-end path:
+The default product path is:
 
-- sample raw ingest
-- fulltext ensure
-- semantic question
-- trace rendering in the UI
+- ingest data
+- run semantic retrieval
+- use bounded repair only when needed
+- reserve debate for explicit advanced use
 
-Success signals:
+## 5. First Success: Direct API Path
 
-- an assistant answer is rendered
-- the right-side trace/workflow panel is populated
-
-## 5. Optional First Success: Official Client / CLI Path
-
-If you want a simple local client workflow from the repository root:
+Ingest two records:
 
 ```bash
-pip install -e .
-seocho serve
-seocho doctor
-seocho add "Alice manages the Seoul retail account."
-seocho search "Who manages the Seoul retail account?"
-seocho chat "What do we know about Alice?"
-```
-
-## 6. Optional First Success: Direct Backend API Path
-
-If you want to verify the memory-first backend surface directly:
-
-Create one memory:
-
-```bash
-curl -sS -X POST http://localhost:8001/api/memories \
+curl -sS -X POST http://localhost:8001/platform/ingest/raw \
   -H "Content-Type: application/json" \
   -d '{
     "workspace_id": "default",
-    "content": "Alice manages the Seoul retail account.",
-    "metadata": {
-      "source": "quickstart_note",
-      "tags": ["account", "org"]
-    }
+    "target_database": "kgruntime",
+    "records": [
+      {"id": "r1", "content": "ACME acquired Beta in 2024."},
+      {"id": "r2", "content": "Beta provides risk analytics to ACME."}
+    ]
   }' | jq .
 ```
 
-Ask from memories:
+Ask through the semantic endpoint:
 
 ```bash
-curl -sS -X POST http://localhost:8001/api/chat \
+curl -sS -X POST http://localhost:8001/run_agent_semantic \
   -H "Content-Type: application/json" \
   -d '{
     "workspace_id": "default",
-    "message": "Who manages the Seoul retail account?"
-  }' | jq .
+    "query": "What is ACME related to?",
+    "databases": ["kgruntime"],
+    "reasoning_mode": true,
+    "repair_budget": 2
+  }' | jq '{route, response, reasoning: .semantic_context.reasoning}'
 ```
 
-Search memories:
+## 6. First Success: Python SDK Path
+
+```python
+from seocho import Seocho
+
+client = Seocho(base_url="http://localhost:8001", workspace_id="default")
+
+client.raw_ingest(
+    [
+        {"id": "r1", "content": "ACME acquired Beta in 2024."},
+        {"id": "r2", "content": "Beta provides risk analytics to ACME."},
+    ],
+    target_database="kgruntime",
+)
+
+semantic = client.semantic(
+    "What is ACME related to?",
+    databases=["kgruntime"],
+    reasoning_mode=True,
+    repair_budget=2,
+)
+
+print(semantic.response)
+print(semantic.semantic_context["reasoning"])
+```
+
+## 7. Use Debate Only as an Advanced Mode
+
+If you explicitly want cross-graph comparison:
+
+```python
+advanced = client.advanced(
+    "Compare what each graph knows about ACME.",
+    graph_ids=["kgnormal", "kgfibo"],
+)
+
+print(advanced.debate_state)
+```
+
+## 8. Validate the Runtime
 
 ```bash
-curl -sS -X POST http://localhost:8001/api/memories/search \
-  -H "Content-Type: application/json" \
-  -d '{
-    "workspace_id": "default",
-    "query": "Seoul retail account",
-    "limit": 5
-  }' | jq .
+make e2e-smoke
 ```
 
-List graph targets:
+## 9. Troubleshooting
 
-```bash
-curl -sS http://localhost:8001/graphs | jq .
-```
-
-Run a graph-scoped debate:
-
-```bash
-curl -sS -X POST http://localhost:8001/run_debate \
-  -H "Content-Type: application/json" \
-  -d '{
-    "workspace_id": "default",
-    "user_id": "alex",
-    "query": "Compare what the baseline and finance graphs know about Alex.",
-    "graph_ids": ["kgnormal", "kgfibo"]
-  }' | jq .
-```
-
-## 7. Multi-Instance Graph Configuration
-
-By default, SEOCHO loads graph targets from:
-
-```bash
-extraction/conf/graphs/default.yaml
-```
-
-Override it with:
-
-```bash
-export SEOCHO_GRAPH_REGISTRY_FILE=extraction/conf/graphs/default.yaml
-```
-
-Each graph target can point at a different Neo4j or DozerDB instance. That is the control plane contract used by debate-mode graph agents.
-
-## 8. If It Fails
-
-Check container and app logs:
+Check service state:
 
 ```bash
 docker compose ps
 docker compose logs --tail=200 extraction-service
 docker compose logs --tail=200 evaluation-interface
-docker compose logs --tail=200 graphrag-neo4j
 ```
 
 Common issues:
 
-- missing `OPENAI_API_KEY`: extraction falls back to deterministic mode
+- `OPENAI_API_KEY` missing or placeholder only
 - port collision on `8001`, `8501`, `7474`, or `7687`
-- Docker services not fully started yet
+- graph database not ready yet
 
-Useful CLI helpers:
+## 10. Read Next
 
-- `seocho serve --dry-run`: print the compose command without running it
-- `seocho stop`: stop the local stack
-- `seocho stop --volumes`: stop and remove compose volumes
-
-## 9. What To Read Next
-
-After Quick Start succeeds, choose one path:
-
-- [PYTHON_INTERFACE_QUICKSTART.md](PYTHON_INTERFACE_QUICKSTART.md): mem0-style Python interface walkthrough
-- [TUTORIAL_FIRST_RUN.md](TUTORIAL_FIRST_RUN.md): deeper manual API verification
-- [BEGINNER_PIPELINES_DEMO.md](BEGINNER_PIPELINES_DEMO.md): scripted demo pipelines
-- [ARCHITECTURE.md](ARCHITECTURE.md): system architecture
-- [OPEN_SOURCE_PLAYBOOK.md](OPEN_SOURCE_PLAYBOOK.md): contributor path
-
-## 10. Optional Opik
-
-Only after the base flow works:
-
-```bash
-make opik-up
-```
-
-Open `http://localhost:5173`.
+- `docs/PYTHON_INTERFACE_QUICKSTART.md`
+- `docs/APPLY_YOUR_DATA.md`
+- `docs/TUTORIAL_FIRST_RUN.md`
+- `docs/BEGINNER_PIPELINES_DEMO.md`
+- `docs/ARCHITECTURE.md`

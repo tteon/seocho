@@ -8,6 +8,7 @@ Read these first unless you already know exactly which area you need:
 
 - `QUICKSTART.md`: shortest local success path
 - `PYTHON_INTERFACE_QUICKSTART.md`: public Python SDK and pip-install path
+- `APPLY_YOUR_DATA.md`: how to ingest your own records and query them safely
 - `WORKFLOW.md`: canonical operational workflow
 - `PRD_MVP.md`: current product scope and MVP contract
 - `GRAPH_MEMORY_API.md`: target public memory-first API
@@ -25,17 +26,25 @@ Use this path if you are new to the repository:
 
 1. `QUICKSTART.md`
 2. `PYTHON_INTERFACE_QUICKSTART.md`
-3. `TUTORIAL_FIRST_RUN.md`
-4. `BEGINNER_PIPELINES_DEMO.md`
-5. `OPEN_SOURCE_PLAYBOOK.md`
+3. `APPLY_YOUR_DATA.md`
+4. `TUTORIAL_FIRST_RUN.md`
+5. `BEGINNER_PIPELINES_DEMO.md`
+6. `OPEN_SOURCE_PLAYBOOK.md`
 
 Role split:
 
 - `QUICKSTART.md` is the shortest successful run
 - `PYTHON_INTERFACE_QUICKSTART.md` is the public Python SDK quickstart
+- `APPLY_YOUR_DATA.md` is the bring-your-own-data ingestion and query guide
 - `TUTORIAL_FIRST_RUN.md` is the manual API verification path
 - `BEGINNER_PIPELINES_DEMO.md` is the scripted demo path
 - `OPEN_SOURCE_PLAYBOOK.md` is the contributor path
+
+Current developer-facing execution order:
+
+1. semantic layer first
+2. bounded repair when slot fill is insufficient
+3. explicit advanced debate only when cross-graph comparison is required
 
 ## Specialized Reference Docs
 
@@ -88,6 +97,8 @@ Use these when changing a specific subsystem or workflow:
 - publish-critical sync sources:
   - `docs/README.md`
   - `docs/QUICKSTART.md`
+  - `docs/APPLY_YOUR_DATA.md`
+  - `docs/PYTHON_INTERFACE_QUICKSTART.md`
   - `docs/ARCHITECTURE.md`
   - `docs/WORKFLOW.md`
 - The planned trigger emits `repository_dispatch` to `tteon/tteon.github.io` (`event-type: seocho-docs-sync`).

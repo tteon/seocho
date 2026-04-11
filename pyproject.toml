@@ -81,6 +81,9 @@ dev = [
 notebook = [
     "jupyter",
 ]
+pdf = [
+    "opendataloader-pdf",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["extraction/tests"]

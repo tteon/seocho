@@ -43,7 +43,7 @@ from .pipeline import IndexingPipeline, IndexingResult
 logger = logging.getLogger(__name__)
 
 # Supported extensions
-SUPPORTED_EXTENSIONS = {".txt", ".md", ".csv", ".json", ".jsonl"}
+SUPPORTED_EXTENSIONS = {".txt", ".md", ".csv", ".json", ".jsonl", ".pdf"}
 
 
 @dataclass
@@ -249,12 +249,71 @@ def read_jsonl_file(path: Path) -> List[Dict[str, Any]]:
     return records
 
 
+def read_pdf_file(path: Path) -> List[Dict[str, Any]]:
+    """Read a .pdf file using opendataloader-pdf.
+
+    Converts PDF to markdown, then treats each page as a document.
+    Requires ``pip install opendataloader-pdf``.
+    """
+    try:
+        import opendataloader_pdf
+    except ImportError:
+        logger.error(
+            "PDF support requires opendataloader-pdf. "
+            "Install with: pip install opendataloader-pdf"
+        )
+        return []
+
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmpdir:
+        try:
+            opendataloader_pdf.convert(
+                input_path=[str(path)],
+                output_dir=tmpdir,
+                format="markdown",
+            )
+        except Exception as exc:
+            logger.error("PDF conversion failed for %s: %s", path, exc)
+            return []
+
+        # Read all generated markdown files
+        records: List[Dict[str, Any]] = []
+        output_dir = Path(tmpdir)
+        for md_file in sorted(output_dir.rglob("*.md")):
+            text = md_file.read_text(encoding="utf-8", errors="replace").strip()
+            if text:
+                records.append({
+                    "content": text,
+                    "metadata": {
+                        "source_file": str(path),
+                        "format": ".pdf",
+                        "converted_from": md_file.name,
+                    },
+                })
+
+        # Fallback: if no markdown files, try reading .txt output
+        if not records:
+            for txt_file in sorted(output_dir.rglob("*.txt")):
+                text = txt_file.read_text(encoding="utf-8", errors="replace").strip()
+                if text:
+                    records.append({
+                        "content": text,
+                        "metadata": {"source_file": str(path), "format": ".pdf"},
+                    })
+
+        if not records:
+            logger.warning("PDF conversion produced no output for %s", path)
+
+        return records
+
+
 FILE_READERS = {
     ".txt": read_text_file,
     ".md": read_text_file,
     ".csv": read_csv_file,
     ".json": read_json_file,
     ".jsonl": read_jsonl_file,
+    ".pdf": read_pdf_file,
 }
 
 

@@ -237,6 +237,11 @@ Each entry must link to a full ADR when impact is non-trivial.
   - remove all repository-local GitHub Actions workflows for now
   - make local validation the active delivery path again
   - require any future repo automation to return through a fresh ADR and working rollout
+- Accepted `ADR-0040-working-basic-ci-and-codex-pr-automation.md`
+  - restore a narrow working `ci-basic.yml` backed by `scripts/ci/run_basic_ci.sh`
+  - restore bounded daily/periodic Codex draft PR workflows on top of that CI
+  - restore maintainer-triggered `/go` squash merge gated on clean PR state
+  - require a fixed PR body contract for automation-generated maintenance/review PRs
 
 ## Template
 

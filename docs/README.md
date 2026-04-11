@@ -72,15 +72,29 @@ Use these when changing a specific subsystem or workflow:
 - `../LICENSE`: repository license (MIT)
 - `../SECURITY.md`: vulnerability reporting process
 
-## Local Automation References
+## Automation References
 
-- `../.agents/skills/daily-maintenance-pr/SKILL.md`: local skill reference for
+- `../scripts/ci/run_basic_ci.sh`: canonical local command behind the repo
+  basic CI workflow
+- `../scripts/ci/create_or_update_bot_pr.sh`: canonical PR publication helper
+  for scheduled Codex automation
+- `../scripts/ci/validate_pr_body.sh`: enforces the required automation PR body
+  headings before publication
+- `../.agents/skills/daily-maintenance-pr/SKILL.md`: repo-local skill for
   bounded maintenance work
-- `../.agents/skills/periodic-review-pr/SKILL.md`: local skill reference for
+- `../.agents/skills/periodic-review-pr/SKILL.md`: repo-local skill for
   bounded review/refactor work
-- `../.github/codex/prompts/daily-maintenance-pr.md`: local prompt reference
-- `../.github/codex/prompts/periodic-review-pr.md`: local prompt reference
-- repo-side GitHub Actions automation is currently disabled
+- `../.github/codex/prompts/daily-maintenance-pr.md`: prompt for daily Codex
+  maintenance
+- `../.github/codex/prompts/periodic-review-pr.md`: prompt for periodic Codex
+  review
+- `../.github/workflows/ci-basic.yml`: minimal required GitHub check surface
+- `../.github/workflows/daily-codex-maintenance.yml`: scheduled Codex draft-PR
+  maintenance workflow
+- `../.github/workflows/periodic-codex-review.yml`: scheduled Codex draft-PR
+  review workflow
+- `../.github/workflows/pr-comment-merge.yml`: maintainer-triggered `/go`
+  squash merge workflow
 
 ## Docs Sync Integration
 

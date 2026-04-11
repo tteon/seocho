@@ -1,0 +1,40 @@
+name: Basic CI
+
+on:
+  push:
+    branches:
+      - main
+      - "codex/**"
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: basic-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  basic:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        run: python -m pip install --upgrade uv
+
+      - name: Sync CI dependencies
+        env:
+          UV_CACHE_DIR: /tmp/uv-cache
+        run: uv sync --extra ci
+
+      - name: Run basic checks
+        env:
+          UV_CACHE_DIR: /tmp/uv-cache
+        run: bash scripts/ci/run_basic_ci.sh

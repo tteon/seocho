@@ -357,6 +357,7 @@ class StrategyDecision(JsonSerializable):
     self_reflection_used: bool = False
     next_mode_hint: Optional[str] = None
     sdk_hint: Optional[str] = None
+    cross_graph_analysis: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, payload: Dict[str, Any]) -> "StrategyDecision":
@@ -372,6 +373,7 @@ class StrategyDecision(JsonSerializable):
             self_reflection_used=bool(payload.get("self_reflection_used", False)),
             next_mode_hint=str(payload.get("next_mode_hint", "")).strip() or None,
             sdk_hint=str(payload.get("sdk_hint", "")).strip() or None,
+            cross_graph_analysis=dict(payload.get("cross_graph_analysis", {})),
         )
 
 
@@ -406,6 +408,8 @@ class EvidenceBundle(JsonSerializable):
     database: str = ""
     graph_id: str = ""
     support_assessment: Dict[str, Any] = field(default_factory=dict)
+    deterministic_profile: Dict[str, Any] = field(default_factory=dict)
+    reasoning: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, payload: Dict[str, Any]) -> "EvidenceBundle":
@@ -422,6 +426,8 @@ class EvidenceBundle(JsonSerializable):
             database=str(payload.get("database", "")),
             graph_id=str(payload.get("graph_id", "")),
             support_assessment=dict(payload.get("support_assessment", {})),
+            deterministic_profile=dict(payload.get("deterministic_profile", {})),
+            reasoning=dict(payload.get("reasoning", {})),
         )
 
 
@@ -504,6 +510,63 @@ class SemanticRunResponse(JsonSerializable):
     def evidence(self) -> EvidenceBundle:
         payload = self.evidence_bundle or self.semantic_context.get("evidence_bundle_preview", {})
         return EvidenceBundle.from_dict(payload if isinstance(payload, dict) else {})
+
+
+@dataclass(slots=True)
+class SemanticRunRecord(JsonSerializable):
+    run_id: str
+    workspace_id: str
+    timestamp: str
+    route: str
+    intent_id: str
+    query_preview: str
+    support_status: str = ""
+    support_reason: str = ""
+    support_coverage: float = 0.0
+    support_assessment: Dict[str, Any] = field(default_factory=dict)
+    strategy_decision: Dict[str, Any] = field(default_factory=dict)
+    reasoning: Dict[str, Any] = field(default_factory=dict)
+    evidence_summary: Dict[str, Any] = field(default_factory=dict)
+    lpg_record_count: int = 0
+    rdf_record_count: int = 0
+    response_preview: str = ""
+
+    @classmethod
+    def from_dict(cls, payload: Dict[str, Any]) -> "SemanticRunRecord":
+        return cls(
+            run_id=str(payload.get("run_id", "")),
+            workspace_id=str(payload.get("workspace_id", "")),
+            timestamp=str(payload.get("timestamp", "")),
+            route=str(payload.get("route", "")),
+            intent_id=str(payload.get("intent_id", "")),
+            query_preview=str(payload.get("query_preview", "")),
+            support_status=str(payload.get("support_status", "")),
+            support_reason=str(payload.get("support_reason", "")),
+            support_coverage=float(payload.get("support_coverage", 0.0) or 0.0),
+            support_assessment=dict(payload.get("support_assessment", {})),
+            strategy_decision=dict(payload.get("strategy_decision", {})),
+            reasoning=dict(payload.get("reasoning", {})),
+            evidence_summary=dict(payload.get("evidence_summary", {})),
+            lpg_record_count=int(payload.get("lpg_record_count", 0) or 0),
+            rdf_record_count=int(payload.get("rdf_record_count", 0) or 0),
+            response_preview=str(payload.get("response_preview", "")),
+        )
+
+    @property
+    def support(self) -> SupportAssessment:
+        if self.support_assessment:
+            return SupportAssessment.from_dict(self.support_assessment)
+        return SupportAssessment(
+            intent_id=self.intent_id,
+            status=self.support_status,
+            reason=self.support_reason,
+            coverage=self.support_coverage,
+            supported=self.support_status == "supported",
+        )
+
+    @property
+    def strategy(self) -> StrategyDecision:
+        return StrategyDecision.from_dict(self.strategy_decision)
 
 
 @dataclass(slots=True)

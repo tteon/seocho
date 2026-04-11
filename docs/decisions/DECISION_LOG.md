@@ -229,6 +229,10 @@ Each entry must link to a full ADR when impact is non-trivial.
   - emit explicit semantic `support_assessment`, `strategy_decision`, and `run_metadata`
   - upgrade runtime grounding payloads to `evidence_bundle.v2`
   - keep debate as an opt-in advanced path while making escalation recommendations explicit
+- Accepted `ADR-0038-semantic-registry-evaluation-and-profile-packages.md`
+  - replace ad hoc semantic run output with a SQLite-backed queryable registry
+  - add SDK-level manual-gold evaluation over question/reference/semantic baselines
+  - add deterministic profile packages and disagreement-aware advanced recommendations
 
 ## Template
 

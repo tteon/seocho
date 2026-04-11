@@ -27,6 +27,12 @@ from uuid import uuid4
 
 from config import graph_registry
 from ontology_hints import OntologyHintStore
+from semantic_profile_packages import (
+    SemanticProfilePackage,
+    apply_profile_relation_priority,
+    select_semantic_profile_package,
+)
+from semantic_run_store import save_semantic_run
 from semantic_artifact_store import (
     DEFAULT_SEMANTIC_ARTIFACT_DIR,
     get_semantic_artifact,
@@ -385,6 +391,8 @@ class CypherPlan:
     anchor_entity: str
     anchor_label: str = ""
     relation_types: Tuple[str, ...] = ()
+    profile_id: str = ""
+    query_kind: str = ""
 
 
 @dataclass(frozen=True)
@@ -1048,8 +1056,10 @@ class ExecutionStrategyChooser:
         repair_budget: int,
         support_assessment: Dict[str, Any],
         graph_count: int,
+        cross_graph_analysis: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         support_status = str(support_assessment.get("status", "unsupported")).strip() or "unsupported"
+        cross_graph_analysis = cross_graph_analysis if isinstance(cross_graph_analysis, dict) else {}
         if route == "rdf":
             initial_mode = "rdf"
             reason = "question matched RDF-oriented cues"
@@ -1059,6 +1069,9 @@ class ExecutionStrategyChooser:
         elif support_status == "supported":
             initial_mode = "semantic_direct"
             reason = "intent support is available for the selected graph scope"
+        elif graph_count > 1 and cross_graph_analysis.get("recommended_advanced"):
+            initial_mode = "semantic_direct"
+            reason = "cross-graph disagreement is detectable, but semantic mode stays the first pass"
         elif graph_count > 1:
             initial_mode = "semantic_direct"
             reason = "starting with the cheapest grounded path before recommending advanced review"
@@ -1079,6 +1092,7 @@ class ExecutionStrategyChooser:
             "self_reflection_used": False,
             "next_mode_hint": None,
             "sdk_hint": None,
+            "cross_graph_analysis": cross_graph_analysis,
         }
 
     def finalize(
@@ -1089,9 +1103,11 @@ class ExecutionStrategyChooser:
         graph_count: int,
         support_assessment: Dict[str, Any],
         reasoning: Optional[Dict[str, Any]],
+        cross_graph_analysis: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         decision = dict(initial_decision or {})
         reasoning = reasoning if isinstance(reasoning, dict) else {}
+        cross_graph_analysis = cross_graph_analysis if isinstance(cross_graph_analysis, dict) else {}
         support_status = str(support_assessment.get("status", "unsupported")).strip() or "unsupported"
         self_reflection_used = bool(reasoning.get("self_reflection_used", False))
 
@@ -1109,7 +1125,11 @@ class ExecutionStrategyChooser:
         next_mode_hint = None
         sdk_hint = None
         advanced_debate_recommended = False
-        if not support_assessment.get("supported", False):
+        if cross_graph_analysis.get("recommended_advanced"):
+            advanced_debate_recommended = True
+            next_mode_hint = "advanced"
+            sdk_hint = "Use client.plan(...).advanced().run() when graph scopes disagree materially."
+        elif not support_assessment.get("supported", False):
             if graph_count > 1:
                 advanced_debate_recommended = True
                 next_mode_hint = "advanced"
@@ -1129,6 +1149,7 @@ class ExecutionStrategyChooser:
                 "self_reflection_used": self_reflection_used,
                 "next_mode_hint": next_mode_hint,
                 "sdk_hint": sdk_hint,
+                "cross_graph_analysis": cross_graph_analysis,
             }
         )
         return decision
@@ -1138,9 +1159,10 @@ class RunMetadataRegistry:
     """Persist a lightweight semantic execution registry outside the graph store."""
 
     def __init__(self, path: Optional[str] = None) -> None:
-        default_path = os.getenv(
-            "SEOCHO_RUN_METADATA_PATH",
-            "/tmp/seocho/semantic_run_registry.jsonl",
+        default_path = (
+            os.getenv("SEOCHO_SEMANTIC_METADATA_DB")
+            or os.getenv("SEOCHO_RUN_METADATA_PATH")
+            or "outputs/semantic_metadata"
         )
         self.path = path or default_path
 
@@ -1184,21 +1206,18 @@ class RunMetadataRegistry:
         }
 
         try:
-            parent = os.path.dirname(self.path)
-            if parent:
-                os.makedirs(parent, exist_ok=True)
-            with open(self.path, "a", encoding="utf-8") as handle:
-                handle.write(json.dumps(record, ensure_ascii=True) + "\n")
+            stored = save_semantic_run(record, base_dir=self.path)
             recorded = True
         except Exception:
             recorded = False
+            stored = {"db_path": self.path}
             logger.warning("Failed to persist semantic run metadata.", exc_info=True)
 
         return {
             "schema_version": "semantic_run_registry.v1",
             "run_id": run_id,
             "recorded": recorded,
-            "registry_path": self.path,
+            "registry_path": str(stored.get("db_path", self.path)),
             "timestamp": timestamp,
         }
 
@@ -1642,7 +1661,80 @@ class LPGAgent:
             "support_assessment",
             semantic_context["preflight_support_assessment"],
         )
+        semantic_context["cross_graph_analysis"] = self._summarize_cross_graph_support(ranked_matches)
         return ranked_matches[:6]
+
+    @staticmethod
+    def _summarize_cross_graph_support(
+        ranked_matches: Sequence[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        best_by_database: Dict[str, Dict[str, Any]] = {}
+        for item in ranked_matches:
+            database = str(item.get("database", "")).strip()
+            if not database or database in best_by_database:
+                continue
+            best_by_database[database] = item
+
+        if len(best_by_database) <= 1:
+            return {
+                "graph_count": len(best_by_database),
+                "compared_databases": sorted(best_by_database),
+                "recommended_advanced": False,
+                "reason": "",
+                "support_variance": 0.0,
+                "entity_disagreement": False,
+                "relation_disagreement": False,
+                "support_mismatch": False,
+            }
+
+        supports = [
+            float(item.get("support_assessment", {}).get("coverage", 0.0) or 0.0)
+            for item in best_by_database.values()
+        ]
+        entity_names = {
+            str(item.get("display_name") or item.get("question_entity") or "").strip().lower()
+            for item in best_by_database.values()
+            if str(item.get("display_name") or item.get("question_entity") or "").strip()
+        }
+        relation_sets = {
+            tuple(
+                sorted(
+                    str(rel).strip()
+                    for rel in item.get("support_assessment", {}).get("matched_relations", [])
+                    if str(rel).strip()
+                )
+            )
+            for item in best_by_database.values()
+        }
+        support_statuses = {
+            str(item.get("support_assessment", {}).get("status", "")).strip()
+            for item in best_by_database.values()
+            if str(item.get("support_assessment", {}).get("status", "")).strip()
+        }
+        support_variance = round(max(supports) - min(supports), 4) if supports else 0.0
+        entity_disagreement = len(entity_names) > 1
+        relation_disagreement = len(relation_sets) > 1
+        support_mismatch = len(support_statuses) > 1 or support_variance >= 0.35
+        recommended_advanced = entity_disagreement or relation_disagreement or support_mismatch
+        if entity_disagreement:
+            reason = "graph scopes resolve different anchor entities"
+        elif relation_disagreement:
+            reason = "graph scopes support different relation paths"
+        elif support_mismatch:
+            reason = "graph scopes show materially different support levels"
+        else:
+            reason = ""
+
+        return {
+            "graph_count": len(best_by_database),
+            "compared_databases": sorted(best_by_database),
+            "recommended_advanced": recommended_advanced,
+            "reason": reason,
+            "support_variance": support_variance,
+            "entity_disagreement": entity_disagreement,
+            "relation_disagreement": relation_disagreement,
+            "support_mismatch": support_mismatch,
+        }
 
     def run(
         self,
@@ -1922,9 +2014,20 @@ class LPGAgent:
         node_id = anchor_match.get("node_id")
         anchor_entity = str(anchor_match.get("display_name") or anchor_match.get("question_entity") or "").strip()
         anchor_label = self._pick_anchor_label(anchor_match, constraint_slice, strategy)
-        relation_types = self._resolve_relation_types(question, intent, constraint_slice, strategy)
         target_hint = self._secondary_entity_hint(semantic_context, anchor_match) if strategy == "strict" else ""
         intent_id = str(intent.get("intent_id", "")).strip()
+        profile_package = (
+            select_semantic_profile_package(intent_id=intent_id, constraint_slice=constraint_slice)
+            if strategy != "graph_broad"
+            else None
+        )
+        relation_types = self._resolve_relation_types(
+            question,
+            intent,
+            constraint_slice,
+            strategy,
+            profile_package=profile_package,
+        )
 
         if intent_id == "relationship_lookup":
             query = self._relationship_query(anchor_label=anchor_label, relation_types=relation_types)
@@ -1948,6 +2051,8 @@ class LPGAgent:
             anchor_entity=anchor_entity,
             anchor_label=anchor_label,
             relation_types=tuple(relation_types),
+            profile_id=profile_package.profile_id if profile_package else "",
+            query_kind=profile_package.query_kind if profile_package else intent_id,
         )
 
     def _resolve_relation_types(
@@ -1956,6 +2061,7 @@ class LPGAgent:
         intent: Dict[str, Any],
         constraint_slice: Dict[str, Any],
         strategy: str,
+        profile_package: Optional[SemanticProfilePackage] = None,
     ) -> List[str]:
         allowed_relationship_types = [
             str(item).strip()
@@ -1994,7 +2100,11 @@ class LPGAgent:
             for key in normalized_candidates
             if key in allowed_lookup
         ]
-        return list(dict.fromkeys(constrained))
+        return apply_profile_relation_priority(
+            package=profile_package,
+            relation_types=list(dict.fromkeys(constrained)),
+            constraint_slice=constraint_slice,
+        )
 
     @staticmethod
     def _pick_anchor_label(
@@ -2178,11 +2288,18 @@ class LPGAgent:
         ) if focus_slots else 1.0
         bundle["database"] = plan.database
         bundle["graph_id"] = constraint_slice.get("graph_id")
+        if plan.profile_id:
+            bundle["deterministic_profile"] = {
+                "profile_id": plan.profile_id,
+                "query_kind": plan.query_kind,
+            }
         bundle["reasoning"] = {
             "strategy": plan.strategy,
             "anchor_entity": plan.anchor_entity,
             "anchor_label": plan.anchor_label,
             "relation_types": list(plan.relation_types),
+            "profile_id": plan.profile_id,
+            "query_kind": plan.query_kind,
             "assessment": {
                 "sufficient": assessment.sufficient,
                 "reason": assessment.reason,
@@ -2427,6 +2544,7 @@ class SemanticAgentFlow:
             repair_budget=repair_budget,
             support_assessment=semantic_context.get("preflight_support_assessment", {}),
             graph_count=len(databases),
+            cross_graph_analysis=semantic_context.get("cross_graph_analysis"),
         )
         trace_steps.append(
             {
@@ -2505,6 +2623,7 @@ class SemanticAgentFlow:
             graph_count=len(databases),
             support_assessment=semantic_context.get("support_assessment", {}),
             reasoning=semantic_context.get("reasoning"),
+            cross_graph_analysis=semantic_context.get("cross_graph_analysis"),
         )
 
         response = self.answer_agent.synthesize(

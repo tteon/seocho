@@ -115,9 +115,10 @@ Operational notes:
   - `docs/QUICKSTART.md`
   - `docs/ARCHITECTURE.md`
   - `docs/WORKFLOW.md`
-- trigger design: push to `main` touching docs paths via `.github/workflows/sync-docs-website.yml`
-- action design: `repository_dispatch` (`seocho-docs-sync`) to `tteon/tteon.github.io`
-- rollout note: remote activation may be pending until repository owner applies a `workflow`-scoped token (`DOCS_SYNC_TOKEN`)
+- website updates are currently maintained directly in the `tteon.github.io/`
+  workspace and validated there with `npm run build`
+- `tteon.github.io/scripts/sync.mjs` can be used as a local helper when syncing
+  selected docs, but no repo-side automatic sync workflow is currently enforced
 
 5. Daily Codex Maintenance Automation
 

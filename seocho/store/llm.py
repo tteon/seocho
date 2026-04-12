@@ -110,6 +110,14 @@ def _resolve_client_kwargs(
 
 def _wrap_with_opik(client: Any) -> Any:
     try:
+        from ..tracing import is_backend_enabled
+
+        if not is_backend_enabled("opik"):
+            return client
+    except Exception:
+        return client
+
+    try:
         from opik.integrations.openai import track_openai
 
         return track_openai(client)

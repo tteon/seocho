@@ -18,7 +18,7 @@ behavior, also read `docs/GRAPH_RAG_AGENT_HANDOFF_SPEC.md`.
 ## 2. Stack Baseline (Must Match)
 
 - OpenAI Agents SDK
-- Opik tracing/evaluation
+- vendor-neutral tracing contract with Opik as the preferred team backend
 - DozerDB backend
 - single-tenant MVP with `workspace_id` propagated
 - Owlready2 only in offline ontology governance path

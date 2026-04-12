@@ -1,5 +1,10 @@
 # ADR-0014: SEOCHO Philosophy Charter and DAG Trace Contract
 
+Note: the observability wording in this ADR was superseded by
+`ADR-0045-vendor-neutral-tracing-and-explicit-opik-opt-in.md`. The current
+trace contract is vendor-neutral, with JSONL as the canonical artifact and
+Opik as the preferred team exporter.
+
 - Date: 2026-02-20
 - Status: Accepted
 

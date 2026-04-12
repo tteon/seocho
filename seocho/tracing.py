@@ -6,14 +6,17 @@ Multiple backends supported::
 
     from seocho.tracing import enable_tracing
 
-    # Opik (hosted or self-hosted)
-    enable_tracing(backend="opik", project_name="my-project")
+    # Disable tracing explicitly
+    enable_tracing(backend="none")
 
-    # Raw JSON lines file (no dependencies)
+    # Raw JSON lines file (canonical neutral artifact)
     enable_tracing(backend="jsonl", output="./traces/seocho.jsonl")
 
     # Console output (debugging)
     enable_tracing(backend="console")
+
+    # Opik exporter (hosted or self-hosted)
+    enable_tracing(backend="opik", project_name="my-project")
 
     # Multiple backends at once
     enable_tracing(backend=["opik", "jsonl"], output="./traces/seocho.jsonl")
@@ -39,8 +42,14 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Union
 
 logger = logging.getLogger(__name__)
 
+TRACE_BACKEND_ENV = "SEOCHO_TRACE_BACKEND"
+TRACE_JSONL_PATH_ENV = "SEOCHO_TRACE_JSONL_PATH"
+TRACE_OPIK_MODE_ENV = "SEOCHO_TRACE_OPIK_MODE"
+_VALID_BACKEND_NAMES = {"none", "console", "jsonl", "opik"}
+
 # Module-level state
 _BACKENDS: List["TracingBackend"] = []
+_BACKEND_NAMES: List[str] = []
 
 
 # ======================================================================
@@ -93,6 +102,7 @@ class OpikBackend(TracingBackend):
         workspace: Optional[str] = None,
         project_name: Optional[str] = None,
         api_key: Optional[str] = None,
+        mode: Optional[str] = None,
     ) -> None:
         try:
             import opik as _opik
@@ -100,10 +110,21 @@ class OpikBackend(TracingBackend):
         except ImportError:
             raise ImportError("OpikBackend requires opik: pip install opik")
 
+        self._url = url or os.getenv("OPIK_URL_OVERRIDE", "") or os.getenv("OPIK_URL", "")
+        self._workspace = workspace or os.getenv("OPIK_WORKSPACE", "")
         self._project = project_name or os.getenv("OPIK_PROJECT_NAME", "seocho-sdk")
         self._api_key = api_key or os.getenv("OPIK_API_KEY", "")
+        self._mode = str(
+            mode
+            or os.getenv(TRACE_OPIK_MODE_ENV, "")
+            or ("self_host" if self._url else "hosted")
+        ).strip().lower()
 
-        # Set project name via env (avoids configure() conflicts)
+        # Set env vars so the SDK client can resolve hosted vs self-hosted config
+        if self._url:
+            os.environ["OPIK_URL_OVERRIDE"] = self._url
+        if self._workspace:
+            os.environ["OPIK_WORKSPACE"] = self._workspace
         os.environ["OPIK_PROJECT_NAME"] = self._project
         if self._api_key:
             os.environ["OPIK_API_KEY"] = self._api_key
@@ -225,6 +246,66 @@ _BACKEND_MAP = {
 }
 
 
+def _normalized_backend_names(
+    backend: Union[str, TracingBackend, List[Union[str, TracingBackend]]],
+) -> List[str]:
+    items = backend if isinstance(backend, list) else [backend]
+    normalized: List[str] = []
+    for item in items:
+        if not isinstance(item, str):
+            continue
+        for raw_name in str(item).split(","):
+            name = raw_name.strip().lower()
+            if not name or name == "none":
+                continue
+            if name in _VALID_BACKEND_NAMES and name not in normalized:
+                normalized.append(name)
+    return normalized
+
+
+def current_backend_names() -> List[str]:
+    """Return the active built-in backend names."""
+    return list(_BACKEND_NAMES)
+
+
+def is_backend_enabled(name: str) -> bool:
+    """Return True when the given built-in backend is active."""
+    normalized = str(name).strip().lower()
+    return normalized in _BACKEND_NAMES
+
+
+def configure_tracing_from_env() -> bool:
+    """Enable tracing from the repository's env contract.
+
+    Supported values for ``SEOCHO_TRACE_BACKEND``:
+    ``none | console | jsonl | opik``.
+    """
+    backend_name = str(os.getenv(TRACE_BACKEND_ENV, "none") or "none").strip().lower()
+    if backend_name not in _VALID_BACKEND_NAMES:
+        logger.warning(
+            "Unsupported %s=%s; expected one of %s. Tracing disabled.",
+            TRACE_BACKEND_ENV,
+            backend_name,
+            ", ".join(sorted(_VALID_BACKEND_NAMES)),
+        )
+        disable_tracing()
+        return False
+
+    if backend_name == "none":
+        disable_tracing()
+        return False
+
+    return enable_tracing(
+        backend=backend_name,
+        output=os.getenv(TRACE_JSONL_PATH_ENV) or "./traces/seocho.jsonl",
+        url=os.getenv("OPIK_URL_OVERRIDE", "") or os.getenv("OPIK_URL", ""),
+        workspace=os.getenv("OPIK_WORKSPACE", ""),
+        project_name=os.getenv("OPIK_PROJECT_NAME", ""),
+        api_key=os.getenv("OPIK_API_KEY", ""),
+        opik_mode=os.getenv(TRACE_OPIK_MODE_ENV, "") or None,
+    )
+
+
 def enable_tracing(
     *,
     backend: Union[str, TracingBackend, List[Union[str, TracingBackend]]] = "console",
@@ -233,6 +314,7 @@ def enable_tracing(
     workspace: Optional[str] = None,
     project_name: Optional[str] = None,
     api_key: Optional[str] = None,
+    opik_mode: Optional[str] = None,
 ) -> bool:
     """Enable tracing with one or more backends.
 
@@ -240,6 +322,7 @@ def enable_tracing(
     ----------
     backend:
         Backend name(s) or instance(s):
+        - ``"none"`` — disable tracing
         - ``"opik"`` — Opik hosted/self-hosted
         - ``"jsonl"`` — raw JSON lines file
         - ``"console"`` — stdout
@@ -249,13 +332,21 @@ def enable_tracing(
         File path for JSONL backend.
     url, workspace, project_name:
         Opik-specific configuration.
+    opik_mode:
+        ``"hosted"`` or ``"self_host"``. Used only for the Opik backend.
 
     Returns True if at least one backend was enabled.
     """
-    global _BACKENDS
+    global _BACKENDS, _BACKEND_NAMES
 
     backends_input = backend if isinstance(backend, list) else [backend]
     new_backends: List[TracingBackend] = []
+    requested_backend_names = _normalized_backend_names(backend)
+    active_backend_names: List[str] = []
+
+    if not requested_backend_names and all(isinstance(item, str) for item in backends_input):
+        disable_tracing()
+        return False
 
     for b in backends_input:
         if isinstance(b, TracingBackend):
@@ -268,17 +359,24 @@ def enable_tracing(
                     new_backends.append(OpikBackend(
                         url=url, workspace=workspace,
                         project_name=project_name, api_key=api_key,
+                        mode=opik_mode,
                     ))
+                    active_backend_names.append("opik")
                 elif b == "jsonl":
                     new_backends.append(JSONLBackend(output=output or "./traces/seocho.jsonl"))
+                    active_backend_names.append("jsonl")
                 elif b == "console":
                     new_backends.append(ConsoleBackend())
+                    active_backend_names.append("console")
+                elif b == "none":
+                    continue
                 else:
                     logger.warning("Unknown tracing backend: %s", b)
             except Exception as exc:
                 logger.warning("Failed to init backend %s: %s", b, exc)
 
     _BACKENDS = new_backends
+    _BACKEND_NAMES = active_backend_names
     if new_backends:
         names = [type(b).__name__ for b in new_backends]
         logger.info("Tracing enabled: %s", ", ".join(names))
@@ -293,24 +391,26 @@ def flush_tracing() -> None:
                 b.flush()
             except Exception:
                 pass
-    # Also flush opik global tracker if available
-    try:
-        import opik
-        opik.flush_tracker()
-    except Exception:
-        pass
+    if is_backend_enabled("opik"):
+        try:
+            import opik
+
+            opik.flush_tracker()
+        except Exception:
+            pass
 
 
 def disable_tracing() -> None:
     """Flush and disable all tracing backends."""
     flush_tracing()
-    global _BACKENDS
+    global _BACKENDS, _BACKEND_NAMES
     for b in _BACKENDS:
         try:
             b.close()
         except Exception:
             pass
     _BACKENDS = []
+    _BACKEND_NAMES = []
 
 
 def is_tracing_enabled() -> bool:

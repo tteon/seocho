@@ -37,7 +37,7 @@ def make_extract_entities_tool(ontology: Any, llm: Any, extraction_prompt: Any =
     from agents import function_tool
     from .query.strategy import ExtractionStrategy
 
-    strategy = ExtractionStrategy(ontology, prompt_template=extraction_prompt)
+    strategy = ExtractionStrategy(ontology, extraction_prompt=extraction_prompt)
 
     @function_tool
     def extract_entities(text: str, category: str = "general") -> str:

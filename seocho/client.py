@@ -1613,7 +1613,7 @@ class _LocalEngine:
         self._indexing._max_retries = self.agent_config.extraction_max_retries
 
         # Pre-build strategies (for extract-only and query)
-        self._extraction = ExtractionStrategy(ontology, prompt_template=extraction_prompt)
+        self._extraction = ExtractionStrategy(ontology, extraction_prompt=extraction_prompt)
         self._linking = LinkingStrategy(ontology)
         self._query = QueryStrategy(ontology)
 

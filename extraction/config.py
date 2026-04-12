@@ -67,17 +67,38 @@ class DatabaseRegistry:
         return sorted(self._databases - {"neo4j", "system", "agenttraces"})
 
 
+def _current_neo4j_uri() -> str:
+    return os.getenv("DOZERDB_URI", os.getenv("NEO4J_URI", "bolt://localhost:7687"))
+
+
+def _current_neo4j_user() -> str:
+    return os.getenv("DOZERDB_USER", os.getenv("NEO4J_USER", "neo4j"))
+
+
+def _current_neo4j_password() -> str:
+    return os.getenv("DOZERDB_PASSWORD", os.getenv("NEO4J_PASSWORD", "password"))
+
+
 @dataclass(frozen=True)
 class GraphTarget:
     graph_id: str
     database: str
-    uri: str = NEO4J_URI
-    user: str = NEO4J_USER
-    password: str = NEO4J_PASSWORD
+    uri: str = ""
+    user: str = ""
+    password: str = ""
     ontology_id: str = "baseline"
     vocabulary_profile: str = "vocabulary.v2"
     description: str = ""
     workspace_scope: str = "default"
+
+    def __post_init__(self) -> None:
+        # Resolve env vars at instantiation, not import time
+        if not self.uri:
+            object.__setattr__(self, "uri", _current_neo4j_uri())
+        if not self.user:
+            object.__setattr__(self, "user", _current_neo4j_user())
+        if not self.password:
+            object.__setattr__(self, "password", _current_neo4j_password())
 
     def to_public_dict(self) -> Dict[str, Any]:
         """Return a safe public descriptor without credentials."""

@@ -240,7 +240,7 @@ class IndexingPipeline:
         self.on_before_write = on_before_write
         self.on_after_write = on_after_write
 
-        self._extraction = ExtractionStrategy(ontology, prompt_template=extraction_prompt)
+        self._extraction = ExtractionStrategy(ontology, extraction_prompt=extraction_prompt)
         self._linking = LinkingStrategy(ontology)
 
     def _normalize_extraction_payload(self, extracted: Dict[str, Any]) -> Dict[str, Any]:

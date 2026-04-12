@@ -216,6 +216,13 @@ class Session:
             )
         return self._pipeline_engine
 
+    @property
+    def _execution_mode(self) -> str:
+        """Resolve execution mode from agent_config."""
+        if self.agent_config is not None:
+            return getattr(self.agent_config, 'execution_mode', 'pipeline')
+        return 'pipeline'
+
     def add(
         self,
         content: str,
@@ -223,12 +230,14 @@ class Session:
         database: Optional[str] = None,
         category: str = "general",
         metadata: Optional[Dict[str, Any]] = None,
-        use_agent: bool = True,
     ) -> Dict[str, Any]:
-        """Index content through the indexing agent.
+        """Index content into the knowledge graph.
 
-        The agent decides the flow: extract → score → validate → link → write.
-        If quality is low, the agent re-extracts automatically.
+        Execution depends on ``agent_config.execution_mode``:
+
+        - ``"pipeline"`` (default) — deterministic pipeline, no LLM reasoning about flow
+        - ``"agent"`` — LLM agent with tool use (extract/validate/score/write)
+        - ``"supervisor"`` — supervisor routes automatically
 
         Parameters
         ----------
@@ -240,8 +249,6 @@ class Session:
             Document category for prompt selection.
         metadata:
             Additional metadata.
-        use_agent:
-            If False, fall back to direct pipeline (no agent reasoning).
 
         Returns
         -------
@@ -253,9 +260,11 @@ class Session:
         db = database or self.database
         start = time.time()
 
-        if use_agent:
+        mode = self._execution_mode
+        if mode == "agent":
             result = self._add_via_agent(content, db, category, metadata)
         else:
+            # "pipeline" and "supervisor" both use deterministic pipeline for add()
             result = self._add_via_pipeline(content, db, category, metadata)
 
         elapsed = time.time() - start
@@ -303,10 +312,11 @@ class Session:
         *,
         database: Optional[str] = None,
     ) -> str:
-        """Send any message — the supervisor routes automatically.
+        """Send a message through the supervisor agent (hand-off mode).
 
-        No need to choose between ``add()`` and ``ask()``.  The
-        supervisor agent decides based on the message content.
+        Requires ``execution_mode="supervisor"`` and ``handoff=True``
+        in :class:`~seocho.agent_config.AgentConfig`.  The supervisor
+        routes to IndexingAgent or QueryAgent based on the message.
 
         Parameters
         ----------
@@ -315,11 +325,15 @@ class Session:
         database:
             Target database.
 
-        Returns
-        -------
-        The agent's response string.
+        Raises
+        ------
+        RuntimeError
+            If handoff is not enabled in the agent config.
 
         Example::
+
+            config = AgentConfig(execution_mode="supervisor", handoff=True)
+            s = Seocho(ontology=onto, graph_store=store, llm=llm, agent_config=config)
 
             with s.session("analysis") as sess:
                 sess.run("Samsung CEO is Jay Y. Lee")  # → IndexingAgent
@@ -327,6 +341,21 @@ class Session:
         """
         if self._closed:
             raise RuntimeError("Session is closed")
+
+        # Explicit check — handoff must be opted in
+        cfg = self.agent_config
+        handoff_enabled = (
+            cfg is not None
+            and getattr(cfg, 'execution_mode', 'pipeline') == 'supervisor'
+            and getattr(cfg, 'handoff', False)
+        )
+        if not handoff_enabled:
+            raise RuntimeError(
+                "run() requires explicit opt-in: "
+                "AgentConfig(execution_mode='supervisor', handoff=True). "
+                "Use add() for indexing and ask() for querying, "
+                "or set the 'supervisor' preset."
+            )
 
         db = database or self.database
         start = time.time()
@@ -336,23 +365,7 @@ class Session:
             context_msg = f"\n\n[Session context: {self.context.summary()}]"
 
         full_message = f"{message}{context_msg}\n[Target database: {db}]"
-
-        try:
-            result_text = self._run_via_supervisor(full_message, db)
-        except Exception as exc:
-            logger.warning("Supervisor failed, auto-detecting: %s", exc)
-            is_question = "?" in message or any(
-                w in message.lower()
-                for w in ["who", "what", "where", "when", "how", "why", "list", "find", "show"]
-            )
-            if is_question:
-                result_text = self.ask(message, database=database, use_agent=False)
-            else:
-                r = self.add(message, database=database, use_agent=False)
-                result_text = (
-                    f"Indexed: {r.get('nodes_created', 0)} nodes, "
-                    f"{r.get('relationships_created', 0)} relationships"
-                )
+        result_text = self._run_via_supervisor(full_message, db)
 
         elapsed = time.time() - start
 
@@ -362,7 +375,7 @@ class Session:
                 input_data={"message": message[:200], "database": db},
                 output_data={"response_preview": result_text[:300]},
                 metadata={"elapsed_seconds": round(elapsed, 2)},
-                tags=["supervisor"],
+                tags=["supervisor", "handoff"],
             )
 
         return result_text
@@ -394,7 +407,6 @@ class Session:
         *,
         database: Optional[str] = None,
         reasoning_mode: bool = True,
-        use_agent: bool = True,
     ) -> str:
         """Ask a question through the query agent.
 
@@ -410,9 +422,6 @@ class Session:
             Target database.
         reasoning_mode:
             Enable automatic query repair.
-        use_agent:
-            If False, fall back to direct pipeline.
-
         Returns
         -------
         The synthesized answer string.
@@ -431,7 +440,8 @@ class Session:
                 f"[Target database: {db}]"
             )
 
-        if use_agent:
+        mode = self._execution_mode
+        if mode == "agent":
             query_result = self._ask_via_agent(question + context_msg, db)
         else:
             query_result = self._ask_via_pipeline(question, db, reasoning_mode)

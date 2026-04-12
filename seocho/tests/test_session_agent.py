@@ -246,7 +246,7 @@ class TestSession:
             database="testdb",
         )
 
-        result = sess.add("Samsung is a company.", use_agent=False)
+        result = sess.add("Samsung is a company.", )
         assert result["ok"] is True
         assert result["mode"] == "pipeline"
         assert result["degraded"] is False
@@ -269,7 +269,7 @@ class TestSession:
             name="test", ontology=onto, graph_store=store, llm=llm,
             database="testdb",
         )
-        answer = sess.ask("What industry is TestCorp in?", use_agent=False)
+        answer = sess.ask("What industry is TestCorp in?", )
         assert "TestCorp" in answer or "Tech" in answer
         assert sess.context.queries[0]["mode"] == "pipeline"
         assert sess.context.queries[0]["degraded"] is False
@@ -293,12 +293,14 @@ class TestSession:
         monkeypatch.setattr(Session, "_get_indexing_agent", lambda self: object())
         monkeypatch.setattr(Session, "_get_pipeline_engine", lambda self: FakePipelineEngine())
 
+        from seocho.agent_config import AgentConfig
         sess = Session(
             name="fallback-add", ontology=onto, graph_store=store, llm=llm,
             database="testdb",
+            agent_config=AgentConfig(execution_mode="agent"),
         )
 
-        result = sess.add("Samsung is a company.", use_agent=True)
+        result = sess.add("Samsung is a company.")
         assert result["mode"] == "pipeline"
         assert result["degraded"] is True
         assert result["fallback_from"] == "agent"
@@ -325,12 +327,14 @@ class TestSession:
         monkeypatch.setattr(Session, "_get_query_agent", lambda self: object())
         monkeypatch.setattr(Session, "_get_pipeline_engine", lambda self: FakePipelineEngine())
 
+        from seocho.agent_config import AgentConfig
         sess = Session(
             name="fallback-query", ontology=onto, graph_store=store, llm=llm,
             database="testdb",
+            agent_config=AgentConfig(execution_mode="agent"),
         )
 
-        answer = sess.ask("What industry is TestCorp in?", use_agent=True)
+        answer = sess.ask("What industry is TestCorp in?")
         assert "pipeline answer" in answer
         assert sess.context.queries[0]["mode"] == "pipeline"
         assert sess.context.queries[0]["degraded"] is True
@@ -350,8 +354,8 @@ class TestSession:
             database="testdb",
         )
 
-        sess.add("Doc 1", use_agent=False)
-        sess.add("Doc 2", use_agent=False)
+        sess.add("Doc 1", )
+        sess.add("Doc 2", )
         assert len(sess.context.indexed_sources) == 2
 
         summary = sess.context.summary()
@@ -368,14 +372,14 @@ class TestSession:
             name="closing", ontology=onto, graph_store=store, llm=llm,
             database="testdb",
         )
-        sess.add("Some text", use_agent=False)
+        sess.add("Some text", )
         summary = sess.close()
         assert summary["session_id"] == sess.session_id
         assert summary["indexed_documents"] == 1
 
         # Can't use after close
         with pytest.raises(RuntimeError, match="closed"):
-            sess.add("more", use_agent=False)
+            sess.add("more", )
 
     def test_session_context_manager(self):
         onto = _make_test_ontology()
@@ -388,7 +392,7 @@ class TestSession:
             name="ctx", ontology=onto, graph_store=store, llm=llm,
             database="testdb",
         ) as sess:
-            sess.add("text", use_agent=False)
+            sess.add("text", )
             assert not sess._closed
 
         assert sess._closed

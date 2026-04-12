@@ -352,21 +352,25 @@ class Neo4jGraphStore(GraphStore):
         return summary
 
     def get_schema(self, *, database: str = "neo4j") -> Dict[str, Any]:
-        with self._driver.session(database=database) as session:
-            labels_result = session.run("CALL db.labels()")
-            labels = [r["label"] for r in labels_result]
+        try:
+            with self._driver.session(database=database) as session:
+                labels_result = session.run("CALL db.labels()")
+                labels = [r["label"] for r in labels_result]
 
-            rel_types_result = session.run("CALL db.relationshipTypes()")
-            rel_types = [r["relationshipType"] for r in rel_types_result]
+                rel_types_result = session.run("CALL db.relationshipTypes()")
+                rel_types = [r["relationshipType"] for r in rel_types_result]
 
-            props_result = session.run("CALL db.propertyKeys()")
-            prop_keys = [r["propertyKey"] for r in props_result]
+                props_result = session.run("CALL db.propertyKeys()")
+                prop_keys = [r["propertyKey"] for r in props_result]
 
-        return {
-            "labels": labels,
-            "relationship_types": rel_types,
-            "property_keys": prop_keys,
-        }
+            return {
+                "labels": labels,
+                "relationship_types": rel_types,
+                "property_keys": prop_keys,
+            }
+        except Exception as exc:
+            logger.warning("get_schema failed for database '%s': %s", database, exc)
+            return {"labels": [], "relationship_types": [], "property_keys": []}
 
     def delete_by_source(
         self,

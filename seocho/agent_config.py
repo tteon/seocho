@@ -190,6 +190,21 @@ class AgentConfig:
         - ``"lpg_only"`` — always use Cypher
         - ``"rdf_only"`` — always use SPARQL
 
+    Agent execution:
+
+    execution_mode:
+        How add()/ask() are executed.
+        - ``"pipeline"`` — direct deterministic pipeline (default, no LLM reasoning about flow)
+        - ``"agent"`` — LLM agent with tool use (extract/validate/score/write)
+        - ``"supervisor"`` — supervisor routes to indexing or query agent (hand-off)
+    handoff:
+        Enable sub-agent hand-off via ``session.run()``.
+        Only effective when ``execution_mode="supervisor"``.
+    reasoning_mode:
+        Enable automatic query repair on empty results.
+    repair_budget:
+        Max repair attempts.
+
     Advanced (strategy injection):
 
     custom_indexing_strategy:
@@ -213,6 +228,10 @@ class AgentConfig:
     repair_budget: int = 2
     routing: str = "auto"
 
+    # --- Agent execution ---
+    execution_mode: str = "pipeline"  # "pipeline", "agent", "supervisor"
+    handoff: bool = False  # enable sub-agent hand-off (requires execution_mode="supervisor")
+
     # --- Advanced: strategy injection ---
     custom_indexing_strategy: Optional[IndexingStrategy] = None
     custom_query_strategy: Optional[QueryAgentStrategy] = None
@@ -232,6 +251,8 @@ class AgentConfig:
             "reasoning_mode": self.reasoning_mode,
             "repair_budget": self.repair_budget,
             "routing": self.routing,
+            "execution_mode": self.execution_mode,
+            "handoff": self.handoff,
             "has_custom_indexing": self.custom_indexing_strategy is not None,
             "has_custom_query": self.custom_query_strategy is not None,
         }
@@ -271,6 +292,25 @@ AGENT_PRESETS: Dict[str, AgentConfig] = {
         reasoning_mode=True,
         repair_budget=3,
         answer_style="evidence",
+    ),
+
+    "agent": AgentConfig(
+        extraction_quality_threshold=0.7,
+        extraction_retry_on_low_quality=True,
+        validation_on_fail="retry",
+        reasoning_mode=True,
+        repair_budget=2,
+        execution_mode="agent",
+    ),
+
+    "supervisor": AgentConfig(
+        extraction_quality_threshold=0.7,
+        extraction_retry_on_low_quality=True,
+        validation_on_fail="retry",
+        reasoning_mode=True,
+        repair_budget=2,
+        execution_mode="supervisor",
+        handoff=True,
     ),
 }
 

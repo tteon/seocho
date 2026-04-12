@@ -33,8 +33,9 @@ OPIK_WORKSPACE = os.getenv("OPIK_WORKSPACE", "default")
 OPIK_PROJECT_NAME = os.getenv("OPIK_PROJECT_NAME", "seocho")
 OPIK_ENABLED = bool(OPIK_URL)
 
-# DB name validation: alphanumeric only, must start with a letter
-_VALID_DB_NAME_RE = re.compile(r'^[A-Za-z][A-Za-z0-9]*$')
+# DB name validation: Neo4j 5 rules — lowercase alphanumeric, 3-63 chars.
+# Aligned with seocho/store/graph.py to prevent SDK/server mismatches.
+_VALID_DB_NAME_RE = re.compile(r'^[a-z][a-z0-9]{2,62}$')
 
 
 class DatabaseRegistry:

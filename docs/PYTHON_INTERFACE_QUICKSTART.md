@@ -440,7 +440,79 @@ Use this decision rule:
 3. Add `reasoning_mode=True` before reaching for debate.
 4. Use `advanced()` only when you explicitly want multi-agent comparison.
 
-## 16. Read Next
+## 16. Agent-Level Sessions
+
+Sessions maintain context across indexing and querying operations.
+Three execution modes are available via ``AgentConfig``:
+
+```python
+from seocho import Seocho, Ontology, AgentConfig, RoutingPolicy, AGENT_PRESETS
+
+# Pipeline mode (default) — deterministic, no LLM reasoning about flow
+s = Seocho(ontology=onto, graph_store=store, llm=llm)
+
+with s.session("analysis") as sess:
+    sess.add("Samsung CEO Jay Y. Lee reported $234B revenue.")
+    sess.add("Apple CEO Tim Cook reported $383B revenue.")
+    # QueryAgent sees structured context: entities + relationships
+    answer = sess.ask("Compare Samsung and Apple revenue")
+```
+
+### Agent mode (LLM decides tool execution order)
+
+```python
+s = Seocho(
+    ontology=onto, graph_store=store, llm=llm,
+    agent_config=AgentConfig(execution_mode="agent"),
+)
+```
+
+### Supervisor with hand-off (explicit opt-in)
+
+```python
+s = Seocho(
+    ontology=onto, graph_store=store, llm=llm,
+    agent_config=AgentConfig(
+        execution_mode="supervisor",
+        handoff=True,
+        routing_policy=RoutingPolicy.thorough(),
+    ),
+)
+
+with s.session("auto") as sess:
+    sess.run("Samsung CEO is Jay Y. Lee")    # → IndexingAgent
+    sess.run("Who is Samsung's CEO?")        # → QueryAgent
+```
+
+### Routing policy presets
+
+| Preset | Latency | Tokens | Quality | Use when |
+|--------|---------|--------|---------|----------|
+| `RoutingPolicy.fast()` | 70% | 20% | 10% | Speed matters most |
+| `RoutingPolicy.balanced()` | 33% | 33% | 34% | General use |
+| `RoutingPolicy.thorough()` | 10% | 10% | 80% | Accuracy matters most |
+
+## 17. Ontology Merge
+
+Combine two ontologies when integrating new domains:
+
+```python
+finance = Ontology.from_jsonld("finance.jsonld")
+legal = Ontology.from_jsonld("legal.jsonld")
+
+# Union: combine properties from both
+combined = finance.merge(legal)
+# → Company has revenue (finance) + jurisdiction (legal)
+
+# Strict: raise on type conflicts
+combined = finance.merge(legal, strategy="strict")
+
+combined.to_jsonld("combined.jsonld")
+```
+
+Strategies: ``union`` (default), ``left_wins``, ``right_wins``, ``strict``.
+
+## 18. Read Next
 
 - `APPLY_YOUR_DATA.md`
 - `QUICKSTART.md`

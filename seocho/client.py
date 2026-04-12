@@ -1789,6 +1789,21 @@ class _LocalEngine:
         if exec_error:
             return exec_error
 
+        # --- Auto-fallback to neighbors if relationship/entity lookup returns empty ---
+        if not records and intent_data.get("intent") in ("relationship_lookup", "entity_lookup"):
+            from .query.cypher_builder import CypherBuilder
+            fb_builder = CypherBuilder(active_ontology)
+            fb_cypher, fb_params = fb_builder.build(
+                intent="neighbors",
+                anchor_entity=intent_data.get("anchor_entity", ""),
+                anchor_label=intent_data.get("anchor_label", ""),
+                workspace_id=self.workspace_id,
+            )
+            fb_records, _ = self._execute_cypher(fb_cypher, fb_params, database)
+            if fb_records:
+                records = fb_records
+                cypher = fb_cypher
+
         # --- Reasoning mode: repair if results insufficient ---
         attempts = []
         if reasoning_mode and repair_budget > 0 and not records:
@@ -1815,6 +1830,21 @@ class _LocalEngine:
                     cypher = repair_cypher
                     break
 
+        # --- Vector hybrid fallback: if Cypher returns nothing, try vector search ---
+        vector_context = ""
+        if not records and hasattr(self, '_vector_store') and self._vector_store is not None:
+            try:
+                from .vector_store import VectorStore
+                vs = self._vector_store
+                if hasattr(vs, 'search'):
+                    vresults = vs.search(question, limit=3)
+                    if vresults:
+                        vector_context = "\n".join(
+                            f"[Vector result] {r.text[:300]}" for r in vresults
+                        )
+            except Exception:
+                pass
+
         deterministic_answer = self._build_deterministic_answer(question, records, intent_data)
         if deterministic_answer:
             return deterministic_answer
@@ -1829,6 +1859,8 @@ class _LocalEngine:
         )
         if reasoning_trace:
             user_ans += f"\n\nReasoning trace (query attempts):\n{reasoning_trace}"
+        if vector_context:
+            user_ans += f"\n\nAdditional context from vector search:\n{vector_context}"
 
         answer_response = self.llm.complete(
             system=system_ans, user=user_ans, temperature=0.1,

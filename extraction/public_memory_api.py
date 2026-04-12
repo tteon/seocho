@@ -8,6 +8,13 @@ from pydantic import BaseModel, Field
 from config import graph_registry
 from middleware import get_request_id
 from policy import require_runtime_permission
+from seocho.runtime_contract import (
+    DATABASE_NAME_PATTERN,
+    RuntimePath,
+    SEMANTIC_ARTIFACT_POLICY_PATTERN,
+    SOURCE_TYPE_PATTERN,
+    WORKSPACE_ID_PATTERN,
+)
 
 
 class MemoryResource(BaseModel):
@@ -29,17 +36,17 @@ class MemoryResource(BaseModel):
 
 
 class MemoryCreateRequest(BaseModel):
-    workspace_id: str = Field(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$")
+    workspace_id: str = Field(default="default", pattern=WORKSPACE_ID_PATTERN)
     memory_id: Optional[str] = None
     user_id: Optional[str] = Field(default=None, max_length=120)
     agent_id: Optional[str] = Field(default=None, max_length=120)
     session_id: Optional[str] = Field(default=None, max_length=120)
     content: str = Field(..., min_length=1, max_length=2_000_000)
     metadata: Dict[str, Any] = Field(default_factory=dict)
-    database: Optional[str] = Field(default=None, pattern=r"^[A-Za-z][A-Za-z0-9]*$")
+    database: Optional[str] = Field(default=None, pattern=DATABASE_NAME_PATTERN)
     category: str = Field(default="memory", max_length=100)
-    source_type: str = Field(default="text", pattern=r"^(text|csv|pdf)$")
-    semantic_artifact_policy: str = Field(default="auto", pattern=r"^(auto|draft_only|approved_only)$")
+    source_type: str = Field(default="text", pattern=SOURCE_TYPE_PATTERN)
+    semantic_artifact_policy: str = Field(default="auto", pattern=SEMANTIC_ARTIFACT_POLICY_PATTERN)
     approved_artifacts: Optional[Dict[str, Any]] = None
     approved_artifact_id: Optional[str] = None
 
@@ -49,23 +56,23 @@ class MemoryBatchItem(BaseModel):
     content: str = Field(..., min_length=1, max_length=2_000_000)
     metadata: Dict[str, Any] = Field(default_factory=dict)
     category: str = Field(default="memory", max_length=100)
-    source_type: str = Field(default="text", pattern=r"^(text|csv|pdf)$")
+    source_type: str = Field(default="text", pattern=SOURCE_TYPE_PATTERN)
 
 
 class MemoryBatchCreateRequest(BaseModel):
-    workspace_id: str = Field(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$")
+    workspace_id: str = Field(default="default", pattern=WORKSPACE_ID_PATTERN)
     user_id: Optional[str] = Field(default=None, max_length=120)
     agent_id: Optional[str] = Field(default=None, max_length=120)
     session_id: Optional[str] = Field(default=None, max_length=120)
     items: List[MemoryBatchItem] = Field(..., min_length=1, max_length=100)
-    database: Optional[str] = Field(default=None, pattern=r"^[A-Za-z][A-Za-z0-9]*$")
-    semantic_artifact_policy: str = Field(default="auto", pattern=r"^(auto|draft_only|approved_only)$")
+    database: Optional[str] = Field(default=None, pattern=DATABASE_NAME_PATTERN)
+    semantic_artifact_policy: str = Field(default="auto", pattern=SEMANTIC_ARTIFACT_POLICY_PATTERN)
     approved_artifacts: Optional[Dict[str, Any]] = None
     approved_artifact_id: Optional[str] = None
 
 
 class MemorySearchRequest(BaseModel):
-    workspace_id: str = Field(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$")
+    workspace_id: str = Field(default="default", pattern=WORKSPACE_ID_PATTERN)
     query: str = Field(..., min_length=1, max_length=2000)
     limit: int = Field(default=5, ge=1, le=20)
     user_id: Optional[str] = Field(default=None, max_length=120)
@@ -122,7 +129,7 @@ class MemoryArchiveResponse(BaseModel):
 
 
 class MemoryChatRequest(BaseModel):
-    workspace_id: str = Field(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$")
+    workspace_id: str = Field(default="default", pattern=WORKSPACE_ID_PATTERN)
     message: str = Field(..., min_length=1, max_length=2000)
     limit: int = Field(default=5, ge=1, le=20)
     user_id: Optional[str] = Field(default=None, max_length=120)
@@ -182,7 +189,7 @@ def build_public_memory_router(
                 resolved.append(target.database)
         return resolved or None
 
-    @router.post("/api/memories", response_model=MemoryCreateResponse)
+    @router.post(RuntimePath.API_MEMORIES, response_model=MemoryCreateResponse)
     async def create_memory(request: MemoryCreateRequest) -> MemoryCreateResponse:
         try:
             require_runtime_permission(role="user", action="manage_memories", workspace_id=request.workspace_id)
@@ -216,7 +223,7 @@ def build_public_memory_router(
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    @router.post("/api/memories/batch", response_model=MemoryBatchCreateResponse)
+    @router.post(RuntimePath.API_MEMORIES_BATCH, response_model=MemoryBatchCreateResponse)
     async def create_memory_batch(request: MemoryBatchCreateRequest) -> MemoryBatchCreateResponse:
         try:
             require_runtime_permission(role="user", action="manage_memories", workspace_id=request.workspace_id)
@@ -246,11 +253,11 @@ def build_public_memory_router(
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    @router.get("/api/memories/{memory_id}", response_model=MemoryGetResponse)
+    @router.get(RuntimePath.API_MEMORY, response_model=MemoryGetResponse)
     async def get_memory(
         memory_id: str,
-        workspace_id: str = Query(..., pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$"),
-        database: Optional[str] = Query(default=None, pattern=r"^[A-Za-z][A-Za-z0-9]*$"),
+        workspace_id: str = Query(..., pattern=WORKSPACE_ID_PATTERN),
+        database: Optional[str] = Query(default=None, pattern=DATABASE_NAME_PATTERN),
     ) -> MemoryGetResponse:
         try:
             require_runtime_permission(role="user", action="manage_memories", workspace_id=workspace_id)
@@ -261,7 +268,7 @@ def build_public_memory_router(
         except PermissionError as exc:
             raise HTTPException(status_code=403, detail=str(exc)) from exc
 
-    @router.post("/api/memories/search", response_model=MemorySearchResponse)
+    @router.post(RuntimePath.API_MEMORIES_SEARCH, response_model=MemorySearchResponse)
     async def search_memories(request: MemorySearchRequest) -> MemorySearchResponse:
         try:
             require_runtime_permission(role="user", action="manage_memories", workspace_id=request.workspace_id)
@@ -287,11 +294,11 @@ def build_public_memory_router(
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    @router.delete("/api/memories/{memory_id}", response_model=MemoryArchiveResponse)
+    @router.delete(RuntimePath.API_MEMORY, response_model=MemoryArchiveResponse)
     async def archive_memory(
         memory_id: str,
-        workspace_id: str = Query(..., pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$"),
-        database: Optional[str] = Query(default=None, pattern=r"^[A-Za-z][A-Za-z0-9]*$"),
+        workspace_id: str = Query(..., pattern=WORKSPACE_ID_PATTERN),
+        database: Optional[str] = Query(default=None, pattern=DATABASE_NAME_PATTERN),
     ) -> MemoryArchiveResponse:
         try:
             require_runtime_permission(role="user", action="manage_memories", workspace_id=workspace_id)
@@ -306,7 +313,7 @@ def build_public_memory_router(
         except PermissionError as exc:
             raise HTTPException(status_code=403, detail=str(exc)) from exc
 
-    @router.post("/api/chat", response_model=MemoryChatResponse)
+    @router.post(RuntimePath.API_CHAT, response_model=MemoryChatResponse)
     async def chat_from_memories(request: MemoryChatRequest) -> MemoryChatResponse:
         try:
             require_runtime_permission(role="user", action="manage_memories", workspace_id=request.workspace_id)

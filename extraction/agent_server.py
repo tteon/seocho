@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import functools
 import json
@@ -33,6 +34,12 @@ from exceptions import (
 from middleware import RequestIDMiddleware
 from tracing import configure_opik, track, update_current_span, update_current_trace
 from policy import require_runtime_permission
+from seocho.runtime_contract import (
+    DATABASE_NAME_PATTERN,
+    INDEX_NAME_PATTERN,
+    RuntimePath,
+    WORKSPACE_ID_PATTERN,
+)
 from rule_api import (
     RuleInferRequest,
     RuleInferResponse,
@@ -414,7 +421,7 @@ JSON object with `target_agent` and `reasoning`.
 class QueryRequest(BaseModel):
     query: str = Field(..., max_length=2000)
     user_id: str = "user_default"
-    workspace_id: str = Field(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$")
+    workspace_id: str = Field(default="default", pattern=WORKSPACE_ID_PATTERN)
     graph_ids: Optional[List[str]] = Field(
         default=None,
         description="Optional list of graph IDs to target for debate/runtime routing.",
@@ -499,9 +506,9 @@ class DebateResponse(BaseModel):
 
 
 class FulltextIndexEnsureRequest(BaseModel):
-    workspace_id: str = Field(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$")
+    workspace_id: str = Field(default="default", pattern=WORKSPACE_ID_PATTERN)
     databases: Optional[List[str]] = None
-    index_name: str = Field(default="entity_fulltext", pattern=r"^[A-Za-z_][A-Za-z0-9_]*$")
+    index_name: str = Field(default="entity_fulltext", pattern=INDEX_NAME_PATTERN)
     labels: List[str] = Field(
         default_factory=lambda: ["Entity", "Company", "Person", "Organization", "Concept", "Document", "Resource"]
     )
@@ -531,7 +538,7 @@ class PlatformChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=2000)
     mode: Literal["router", "debate", "semantic"] = "semantic"
     user_id: str = "user_default"
-    workspace_id: str = Field(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$")
+    workspace_id: str = Field(default="default", pattern=WORKSPACE_ID_PATTERN)
     graph_ids: Optional[List[str]] = None
     databases: Optional[List[str]] = None
     entity_overrides: Optional[List[EntityOverride]] = None
@@ -581,8 +588,8 @@ class RawIngestRecord(BaseModel):
 
 
 class PlatformRawIngestRequest(BaseModel):
-    workspace_id: str = Field(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$")
-    target_database: str = Field(default="kgnormal", pattern=r"^[A-Za-z][A-Za-z0-9]*$")
+    workspace_id: str = Field(default="default", pattern=WORKSPACE_ID_PATTERN)
+    target_database: str = Field(default="kgnormal", pattern=DATABASE_NAME_PATTERN)
     records: List[RawIngestRecord] = Field(..., min_length=1, max_length=100)
     enable_rule_constraints: bool = True
     create_database_if_missing: bool = True
@@ -687,7 +694,7 @@ async def _platform_run_semantic(payload: Dict[str, Any]) -> SemanticAgentRespon
     return await run_agent_semantic(req)
 
 
-@app.post("/platform/chat/send", response_model=PlatformChatResponse)
+@app.post(RuntimePath.PLATFORM_CHAT_SEND, response_model=PlatformChatResponse)
 @track("agent_server.platform_chat_send")
 async def platform_chat_send(request: PlatformChatRequest):
     """Custom interactive chat API for the frontend platform."""
@@ -755,21 +762,21 @@ async def platform_chat_send(request: PlatformChatRequest):
     )
 
 
-@app.get("/platform/chat/session/{session_id}", response_model=PlatformSessionResponse)
+@app.get(RuntimePath.PLATFORM_CHAT_SESSION, response_model=PlatformSessionResponse)
 @track("agent_server.platform_chat_session_get")
 async def platform_chat_session_get(session_id: str):
     history = [PlatformTurn(**row) for row in platform_session_store.get(session_id)]
     return PlatformSessionResponse(session_id=session_id, history=history)
 
 
-@app.delete("/platform/chat/session/{session_id}", response_model=PlatformSessionResponse)
+@app.delete(RuntimePath.PLATFORM_CHAT_SESSION, response_model=PlatformSessionResponse)
 @track("agent_server.platform_chat_session_reset")
 async def platform_chat_session_reset(session_id: str):
     platform_session_store.clear(session_id)
     return PlatformSessionResponse(session_id=session_id, history=[])
 
 
-@app.post("/platform/ingest/raw", response_model=PlatformRawIngestResponse)
+@app.post(RuntimePath.PLATFORM_INGEST_RAW, response_model=PlatformRawIngestResponse)
 @track("agent_server.platform_ingest_raw")
 async def platform_ingest_raw(request: PlatformRawIngestRequest):
     """Ingest user-provided raw text records into a target graph database."""
@@ -786,7 +793,9 @@ async def platform_ingest_raw(request: PlatformRawIngestRequest):
                 artifact_id=request.approved_artifact_id,
             )
 
-        result = get_runtime_raw_ingestor().ingest_records(
+        ingestor = get_runtime_raw_ingestor()
+        result = await asyncio.to_thread(
+            ingestor.ingest_records,
             records=[r.model_dump() for r in request.records],
             target_database=request.target_database,
             workspace_id=request.workspace_id,
@@ -807,7 +816,7 @@ async def platform_ingest_raw(request: PlatformRawIngestRequest):
         raise HTTPException(status_code=500, detail="Raw ingest failed. Check server logs for details.")
 
 
-@app.post("/run_agent", response_model=AgentResponse)
+@app.post(RuntimePath.RUN_AGENT, response_model=AgentResponse)
 @track("agent_server.run_agent")
 async def run_agent(request: QueryRequest):
     """Legacy single-router endpoint."""
@@ -889,7 +898,7 @@ async def run_agent(request: QueryRequest):
         raise HTTPException(status_code=500, detail="Agent execution failed. Check server logs for details.")
 
 
-@app.post("/run_agent_semantic", response_model=SemanticAgentResponse)
+@app.post(RuntimePath.RUN_AGENT_SEMANTIC, response_model=SemanticAgentResponse)
 @track("agent_server.run_agent_semantic")
 async def run_agent_semantic(request: SemanticQueryRequest):
     """Semantic entity-resolution route for graph QA."""
@@ -950,7 +959,8 @@ async def run_agent_semantic(request: SemanticQueryRequest):
     )
 
     try:
-        result = semantic_agent_flow.run(
+        result = await asyncio.to_thread(
+            semantic_agent_flow.run,
             question=request.query,
             databases=valid_dbs,
             entity_overrides=overrides_by_entity,
@@ -969,10 +979,10 @@ async def run_agent_semantic(request: SemanticQueryRequest):
         )
 
 
-@app.get("/semantic/runs", response_model=SemanticRunRecordListResponse)
+@app.get(RuntimePath.SEMANTIC_RUNS, response_model=SemanticRunRecordListResponse)
 @track("agent_server.semantic_runs_list")
 async def semantic_runs_list(
-    workspace_id: str = Query(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$"),
+    workspace_id: str = Query(default="default", pattern=WORKSPACE_ID_PATTERN),
     limit: int = Query(default=20, ge=1, le=200),
     route: Optional[str] = Query(default=None),
     intent_id: Optional[str] = Query(default=None),
@@ -997,11 +1007,11 @@ async def semantic_runs_list(
         raise HTTPException(status_code=500, detail="Semantic run list failed. Check server logs for details.")
 
 
-@app.get("/semantic/runs/{run_id}", response_model=SemanticRunRecordResponse)
+@app.get(RuntimePath.SEMANTIC_RUN, response_model=SemanticRunRecordResponse)
 @track("agent_server.semantic_runs_get")
 async def semantic_runs_get(
     run_id: str,
-    workspace_id: str = Query(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$"),
+    workspace_id: str = Query(default="default", pattern=WORKSPACE_ID_PATTERN),
 ):
     try:
         require_runtime_permission(role="user", action="run_agent", workspace_id=workspace_id)
@@ -1020,7 +1030,7 @@ async def semantic_runs_get(
         raise HTTPException(status_code=500, detail="Semantic run lookup failed. Check server logs for details.")
 
 
-@app.post("/indexes/fulltext/ensure", response_model=FulltextIndexEnsureResponse)
+@app.post(RuntimePath.INDEXES_FULLTEXT_ENSURE, response_model=FulltextIndexEnsureResponse)
 @track("agent_server.fulltext_index_ensure")
 async def ensure_fulltext_indexes(request: FulltextIndexEnsureRequest):
     """Ensure a fulltext index exists for one or more databases."""
@@ -1038,7 +1048,7 @@ async def ensure_fulltext_indexes(request: FulltextIndexEnsureRequest):
         raise HTTPException(status_code=500, detail="Fulltext ensure failed. Check server logs for details.")
 
 
-@app.post("/run_debate", response_model=DebateResponse)
+@app.post(RuntimePath.RUN_DEBATE, response_model=DebateResponse)
 @track("agent_server.run_debate")
 async def run_debate(request: QueryRequest):
     """Parallel Debate endpoint: all DB agents answer in parallel, Supervisor synthesises."""
@@ -1132,7 +1142,7 @@ async def run_debate(request: QueryRequest):
         raise HTTPException(status_code=500, detail="Debate execution failed. Check server logs for details.")
 
 
-@app.get("/health/runtime", response_model=HealthResponse)
+@app.get(RuntimePath.HEALTH_RUNTIME, response_model=HealthResponse)
 async def runtime_health():
     components: List[HealthComponent] = [
         HealthComponent(name="api", status="ready", detail="agent_server reachable"),
@@ -1169,7 +1179,7 @@ async def runtime_health():
     )
 
 
-@app.get("/health/batch", response_model=HealthResponse)
+@app.get(RuntimePath.HEALTH_BATCH, response_model=HealthResponse)
 async def batch_health():
     status_file = _batch_status_file_path()
     batch_status = "degraded"
@@ -1204,19 +1214,19 @@ async def batch_health():
     )
 
 
-@app.get("/databases")
+@app.get(RuntimePath.DATABASES)
 async def list_databases():
     """List all registered databases."""
     return {"databases": db_registry.list_databases()}
 
 
-@app.get("/graphs")
+@app.get(RuntimePath.GRAPHS)
 async def list_graphs():
     """List registered graph targets."""
     return {"graphs": [target.to_public_dict() for target in graph_registry.list_graphs()]}
 
 
-@app.get("/agents")
+@app.get(RuntimePath.AGENTS)
 async def list_agents():
     """List all active DB-bound agents."""
     return {"agents": agent_factory.list_agents()}
@@ -1269,7 +1279,7 @@ async def rules_profiles_create(request: RuleProfileCreateRequest):
 @app.get("/rules/profiles", response_model=RuleProfileListResponse)
 @track("agent_server.rules_profiles_list")
 async def rules_profiles_list(
-    workspace_id: str = Query(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$"),
+    workspace_id: str = Query(default="default", pattern=WORKSPACE_ID_PATTERN),
 ):
     """List saved rule profiles in a workspace."""
     try:
@@ -1283,7 +1293,7 @@ async def rules_profiles_list(
 @track("agent_server.rules_profiles_get")
 async def rules_profiles_get(
     profile_id: str,
-    workspace_id: str = Query(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$"),
+    workspace_id: str = Query(default="default", pattern=WORKSPACE_ID_PATTERN),
 ):
     """Read one saved rule profile."""
     try:
@@ -1390,7 +1400,7 @@ async def semantic_artifacts_deprecate(artifact_id: str, request: SemanticArtifa
 @app.get("/semantic/artifacts", response_model=SemanticArtifactListResponse)
 @track("agent_server.semantic_artifacts_list")
 async def semantic_artifacts_list(
-    workspace_id: str = Query(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$"),
+    workspace_id: str = Query(default="default", pattern=WORKSPACE_ID_PATTERN),
     status: Optional[str] = Query(default=None),
 ):
     try:
@@ -1411,7 +1421,7 @@ async def semantic_artifacts_list(
 @track("agent_server.semantic_artifacts_get")
 async def semantic_artifacts_get(
     artifact_id: str,
-    workspace_id: str = Query(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$"),
+    workspace_id: str = Query(default="default", pattern=WORKSPACE_ID_PATTERN),
 ):
     try:
         require_runtime_permission(

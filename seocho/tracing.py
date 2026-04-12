@@ -71,7 +71,20 @@ class TracingBackend(ABC):
 # ======================================================================
 
 class OpikBackend(TracingBackend):
-    """Opik tracing backend."""
+    """Opik tracing backend — follows icml2026 verified patterns.
+
+    Relies on ``~/.opik.config`` for workspace/url configuration.
+    Does NOT call ``opik.configure()`` to avoid config conflicts.
+
+    Set these in ``~/.opik.config``::
+
+        [opik]
+        url_override = https://www.comet.com/opik/api/
+        workspace = your_workspace
+        api_key = your_api_key
+
+    Or via env vars: ``OPIK_API_KEY``, ``OPIK_PROJECT_NAME``.
+    """
 
     def __init__(
         self,
@@ -87,28 +100,18 @@ class OpikBackend(TracingBackend):
         except ImportError:
             raise ImportError("OpikBackend requires opik: pip install opik")
 
-        self._url = url or os.getenv("OPIK_URL", os.getenv("OPIK_URL_OVERRIDE", ""))
-        self._workspace = workspace or os.getenv("OPIK_WORKSPACE", "default")
         self._project = project_name or os.getenv("OPIK_PROJECT_NAME", "seocho-sdk")
         self._api_key = api_key or os.getenv("OPIK_API_KEY", "")
 
-        try:
-            # Configure Opik (supports both cloud and self-hosted)
-            kwargs: Dict[str, Any] = {}
-            if self._api_key:
-                kwargs["api_key"] = self._api_key
-            if self._url:
-                kwargs["url_override"] = self._url
-            if self._workspace and self._workspace != "default":
-                kwargs["workspace"] = self._workspace
+        # Set project name via env (avoids configure() conflicts)
+        os.environ["OPIK_PROJECT_NAME"] = self._project
+        if self._api_key:
+            os.environ["OPIK_API_KEY"] = self._api_key
 
-            self._opik.configure(
-                project_name=self._project,
-                **kwargs,
-            )
-            self._client = True  # configured via global state
+        try:
+            self._client = self._opik.Opik(project_name=self._project)
         except Exception as exc:
-            logger.warning("Opik configure failed: %s", exc)
+            logger.warning("Opik client init failed: %s", exc)
             self._client = None
 
     def log_span(
@@ -123,30 +126,28 @@ class OpikBackend(TracingBackend):
         if self._client is None:
             return
         try:
-            # Use opik.track as a function call for cloud compatibility
-            self._opik.track(
+            trace = self._client.trace(
                 name=name,
                 input=input_data or {},
                 output=output_data or {},
                 metadata=metadata or {},
                 tags=tags or [],
             )
-        except AttributeError:
-            # Fallback: try direct trace logging
-            try:
-                trace = self._opik.Opik().trace(name=name)
-                trace.span(
-                    name=name,
-                    input=input_data or {},
-                    output=output_data or {},
-                    metadata=metadata or {},
-                    tags=tags or [],
-                )
-                trace.end()
-            except Exception:
-                pass
+            trace.end()
         except Exception as exc:
-            logger.debug("Opik log failed: %s", exc)
+            logger.debug("Opik trace failed: %s", exc)
+
+    def flush(self) -> None:
+        """Flush pending traces to Opik cloud."""
+        if self._client is None:
+            return
+        try:
+            self._client.flush()
+        except Exception:
+            pass
+
+    def close(self) -> None:
+        self.flush()
 
 
 class JSONLBackend(TracingBackend):
@@ -284,8 +285,25 @@ def enable_tracing(
     return len(new_backends) > 0
 
 
+def flush_tracing() -> None:
+    """Flush all pending traces to backends."""
+    for b in _BACKENDS:
+        if hasattr(b, "flush"):
+            try:
+                b.flush()
+            except Exception:
+                pass
+    # Also flush opik global tracker if available
+    try:
+        import opik
+        opik.flush_tracker()
+    except Exception:
+        pass
+
+
 def disable_tracing() -> None:
-    """Disable all tracing backends."""
+    """Flush and disable all tracing backends."""
+    flush_tracing()
     global _BACKENDS
     for b in _BACKENDS:
         try:

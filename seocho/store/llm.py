@@ -118,9 +118,23 @@ class OpenAIBackend(LLMBackend):
             kwargs["api_key"] = api_key
         if base_url:
             kwargs["base_url"] = base_url
-        self._client = openai.OpenAI(**kwargs)
-        self._async_client = openai.AsyncOpenAI(**kwargs)
+        client = openai.OpenAI(**kwargs)
+        async_client = openai.AsyncOpenAI(**kwargs)
+
+        # Wrap with Opik auto-tracing if available (icml2026 pattern)
+        try:
+            from opik.integrations.openai import track_openai
+            client = track_openai(client)
+            async_client = track_openai(async_client)
+        except ImportError:
+            pass
+        except Exception:
+            pass
+
+        self._client = client
+        self._async_client = async_client
         self.model = model
+        self._base_url = base_url or ""
 
     def complete(
         self,

@@ -34,6 +34,7 @@ from .api import (
 )
 from .agent_config import AGENT_PRESETS, AgentConfig, IndexingStrategy, QueryAgentStrategy
 from .client import AsyncSeocho, ExecutionPlanBuilder, Seocho
+from .http_runtime import create_bundle_runtime_app
 from .evaluation import (
     EvaluationBaselineResult,
     EvaluationCaseResult,
@@ -46,7 +47,16 @@ from .governance import ArtifactDiff, ArtifactValidationMessage, ArtifactValidat
 from .indexing import BatchIndexingResult, IndexingResult
 from .local import LocalRuntimeStatus
 from .ontology import Cardinality, NodeDef, Ontology, P, PropertyType, RelDef
-from .tracing import disable_tracing, enable_tracing, is_tracing_enabled
+from .tracing import disable_tracing, enable_tracing, flush_tracing, is_tracing_enabled
+from .runtime_bundle import (
+    PortablePromptTemplate,
+    RuntimeBundle,
+    RuntimeGraphBinding,
+    RuntimeGraphStoreConfig,
+    RuntimeLLMConfig,
+    build_runtime_bundle,
+    create_client_from_runtime_bundle,
+)
 from .vector_store import VectorSearchResult
 from .semantic import (
     ApprovedArtifacts,
@@ -111,6 +121,11 @@ __all__ = [
     "Seocho",
     "AsyncSeocho",
     "ExecutionPlanBuilder",
+    "RuntimeBundle",
+    "RuntimeGraphBinding",
+    "RuntimeGraphStoreConfig",
+    "RuntimeLLMConfig",
+    "PortablePromptTemplate",
     # --- Exceptions ---
     "SeochoError",
     "SeochoConnectionError",
@@ -201,4 +216,7 @@ __all__ = [
     "semantic_run",
     "semantic_runs",
     "session_history",
+    "build_runtime_bundle",
+    "create_bundle_runtime_app",
+    "create_client_from_runtime_bundle",
 ]

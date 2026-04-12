@@ -215,12 +215,16 @@ class Ontology:
         *,
         version: str = "1.0.0",
         description: str = "",
+        graph_model: str = "lpg",  # "lpg", "rdf", "hybrid"
+        namespace: str = "",  # RDF namespace URI (e.g. "https://schema.org/")
         nodes: Optional[Dict[str, NodeDef]] = None,
         relationships: Optional[Dict[str, RelDef]] = None,
     ) -> None:
         self.name = name
         self.version = version
         self.description = description
+        self.graph_model = graph_model
+        self.namespace = namespace
         self.nodes: Dict[str, NodeDef] = dict(nodes or {})
         self.relationships: Dict[str, RelDef] = dict(relationships or {})
         self._allowed_labels: Set[str] = set(self.nodes.keys())
@@ -312,6 +316,8 @@ class Ontology:
             name=data.get("graph_type") or data.get("name") or "Unnamed",
             version=data.get("version", "1.0.0"),
             description=data.get("description", ""),
+            graph_model=data.get("graph_model", "lpg"),
+            namespace=data.get("namespace", ""),
             nodes=nodes,
             relationships=rels,
         )
@@ -368,13 +374,17 @@ class Ontology:
                 rel_entry["properties"] = rp
             rels_out[rtype] = rel_entry
 
-        return {
+        result: Dict[str, Any] = {
             "graph_type": self.name,
             "version": self.version,
             "description": self.description,
-            "nodes": nodes_out,
-            "relationships": rels_out,
+            "graph_model": self.graph_model,
         }
+        if self.namespace:
+            result["namespace"] = self.namespace
+        result["nodes"] = nodes_out
+        result["relationships"] = rels_out
+        return result
 
     def to_yaml(self, path: Union[str, Path]) -> None:
         """Export ontology to a YAML file."""
@@ -490,6 +500,8 @@ class Ontology:
             name=data.get("name") or data.get("graph_type") or "Unnamed",
             version=data.get("version", "1.0.0"),
             description=data.get("description", ""),
+            graph_model=data.get("graph_model", "lpg"),
+            namespace=data.get("namespace", ""),
             nodes=nodes,
             relationships=rels,
         )

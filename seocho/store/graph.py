@@ -167,7 +167,13 @@ class Neo4jGraphStore(GraphStore):
         database: str = "neo4j",
         workspace_id: str = "default",
         source_id: str = "",
+        triples: Optional[Sequence[Dict[str, Any]]] = None,
+        graph_model: str = "lpg",
     ) -> Dict[str, Any]:
+        # RDF mode: write triples via n10s
+        if graph_model == "rdf" and triples:
+            return self._write_rdf(triples, database=database, source_id=source_id)
+
         summary = {"nodes_created": 0, "relationships_created": 0, "errors": []}
 
         with self._driver.session(database=database) as session:
@@ -321,6 +327,90 @@ class Neo4jGraphStore(GraphStore):
             rel_count = rel_result.single()["cnt"]
 
         return {"nodes": node_count, "relationships": rel_count}
+
+    def _write_rdf(
+        self,
+        triples: Sequence[Dict[str, Any]],
+        *,
+        database: str = "neo4j",
+        source_id: str = "",
+    ) -> Dict[str, Any]:
+        """Write RDF triples via n10s (neosemantics).
+
+        Each triple is ``{"subject": "uri", "predicate": "pred", "object": "uri_or_literal"}``.
+        Converts to Turtle format and uses ``n10s.rdf.import.inline()``.
+        """
+        summary = {"nodes_created": 0, "relationships_created": 0, "triples_imported": 0, "errors": []}
+
+        if not triples:
+            return summary
+
+        # Build Turtle string from triples
+        turtle_lines = ["@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> ."]
+        for t in triples:
+            subj = t.get("subject", "")
+            pred = t.get("predicate", "")
+            obj = t.get("object", "")
+            if not subj or not pred or not obj:
+                continue
+
+            # Determine if object is a URI or literal
+            if obj.startswith("http") or obj.startswith("urn:") or ":" in obj.split("/")[0]:
+                turtle_lines.append(f"<{subj}> <{pred}> <{obj}> .")
+            else:
+                # Escape quotes in literals
+                escaped = obj.replace('"', '\\"')
+                turtle_lines.append(f'<{subj}> <{pred}> "{escaped}" .')
+
+        turtle_str = "\n".join(turtle_lines)
+
+        with self._driver.session(database=database) as session:
+            try:
+                # First ensure n10s is configured
+                try:
+                    session.run("CALL n10s.graphconfig.show.n10sConfig()")
+                except Exception:
+                    # Init n10s config if not already done
+                    try:
+                        session.run(
+                            "CALL n10s.graphconfig.init("
+                            "{handleVocabUris: 'MAP', handleMultival: 'ARRAY'})"
+                        )
+                    except Exception as init_exc:
+                        summary["errors"].append(f"n10s init: {init_exc}")
+
+                # Import triples
+                result = session.run(
+                    "CALL n10s.rdf.import.inline($rdf, 'Turtle')",
+                    rdf=turtle_str,
+                )
+                record = result.single()
+                if record:
+                    summary["triples_imported"] = record.get("triplesLoaded", 0)
+                    summary["nodes_created"] = record.get("triplesParsed", 0)
+                    if record.get("extraInfo"):
+                        summary["errors"].append(str(record["extraInfo"]))
+
+            except Exception as exc:
+                summary["errors"].append(f"n10s import: {exc}")
+
+                # Fallback: write as LPG nodes if n10s not available
+                logger.warning("n10s not available, falling back to LPG write for triples")
+                for t in triples:
+                    subj = t.get("subject", "")
+                    pred = t.get("predicate", "")
+                    obj = t.get("object", "")
+                    if pred == "rdf:type" or pred.endswith("#type"):
+                        try:
+                            session.run(
+                                "MERGE (n:Resource {uri: $uri}) SET n._source_id = $sid",
+                                uri=subj, sid=source_id,
+                            )
+                            summary["nodes_created"] += 1
+                        except Exception:
+                            pass
+
+        return summary
 
     def close(self) -> None:
         self._driver.close()

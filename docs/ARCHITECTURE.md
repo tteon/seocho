@@ -196,6 +196,13 @@ Runtime contract:
 - apply lightweight expansion/disambiguation only in hot path
 - keep heavy ontology reasoning in offline governance path (`owlready2`)
 
+Offline ontology governance operators should prefer the SDK CLI surface:
+
+- `seocho ontology check --schema schema.jsonld`
+- `seocho ontology export --schema schema.jsonld --format shacl --output shacl.json`
+- `seocho ontology diff --left old.jsonld --right new.jsonld`
+- `seocho ontology inspect-owl --source ontology.owl`
+
 ## Module Map
 
 ### Data Ingestion Layer

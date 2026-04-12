@@ -83,6 +83,9 @@ dev = [
 notebook = [
     "jupyter",
 ]
+ontology = [
+    "owlready2",
+]
 pdf = [
     "opendataloader-pdf",
 ]

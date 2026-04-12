@@ -225,6 +225,10 @@ Each entry must link to a full ADR when impact is non-trivial.
 
 ## 2026-04-11
 
+- Accepted `ADR-0036-documentation-consistency-ci-contract.md`
+  - add repo-side docs contract checks for active source documentation
+  - keep website docs quality and mirrored-doc drift checks split into the website repo
+  - reject stale runtime endpoint examples and stale sync wording before publish
 - Accepted `ADR-0037-semantic-support-validation-and-strategy-metadata-contract.md`
   - emit explicit semantic `support_assessment`, `strategy_decision`, and `run_metadata`
   - upgrade runtime grounding payloads to `evidence_bundle.v2`

@@ -213,6 +213,18 @@ Current basic CI covers:
 If a change breaks this workflow, fix the command in `scripts/ci/run_basic_ci.sh`
 first and keep GitHub Actions as a thin wrapper.
 
+## Docs Consistency CI
+
+Documentation drift is checked separately from the runtime-oriented basic CI.
+
+- workflow: `.github/workflows/docs-consistency.yml`
+- local command: `bash scripts/ci/check-doc-contracts.sh`
+- scope:
+  - required source docs exist in the repository
+  - stale runtime endpoint examples are rejected
+  - stale docs-sync wording is rejected
+  - current website sync contract stays aligned with `tteon.github.io`
+
 ## Codex Automation
 
 SEOCHO includes two bounded Codex draft-PR workflows on top of the basic CI

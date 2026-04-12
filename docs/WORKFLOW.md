@@ -113,12 +113,21 @@ Operational notes:
 - publish-critical docs for seocho.blog sync:
   - `docs/README.md`
   - `docs/QUICKSTART.md`
+  - `docs/APPLY_YOUR_DATA.md`
+  - `docs/PYTHON_INTERFACE_QUICKSTART.md`
   - `docs/ARCHITECTURE.md`
   - `docs/WORKFLOW.md`
-- website updates are currently maintained directly in the `tteon.github.io/`
-  workspace and validated there with `npm run build`
+- repo-side source-doc contract is checked by `.github/workflows/docs-consistency.yml`
+  using `bash scripts/ci/check-doc-contracts.sh`
+- website updates are maintained directly in the `tteon.github.io/` workspace
+- website validation currently includes:
+  - `npm run check:sync`
+  - `bash scripts/check-doc-quality.sh`
+  - `npm run build`
+  - `bash scripts/check-built-links.sh`
 - `tteon.github.io/scripts/sync.mjs` can be used as a local helper when syncing
-  selected docs, but no repo-side automatic sync workflow is currently enforced
+  selected docs, but mirrored pages are still reviewable content, not a blind
+  publish target
 
 5. Basic CI
 

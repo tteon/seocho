@@ -1662,6 +1662,9 @@ class _LocalEngine:
         if repair_budget is None:
             repair_budget = self.agent_config.repair_budget
 
+        import time as _time
+        _query_start = _time.time()
+
         schema_info = self._get_schema_info(database)
         self._query.schema_info = schema_info
 
@@ -1714,6 +1717,24 @@ class _LocalEngine:
         answer_response = self.llm.complete(
             system=system_ans, user=user_ans, temperature=0.1,
         )
+
+        # --- Query tracing ---
+        _query_elapsed = _time.time() - _query_start
+        try:
+            from .tracing import log_query, is_tracing_enabled
+            if is_tracing_enabled():
+                log_query(
+                    question=question,
+                    ontology_name=active_ontology.name,
+                    model=getattr(self.llm, "model", "unknown"),
+                    cypher=cypher,
+                    result_count=len(records) if records else 0,
+                    reasoning_attempts=len(attempts) if reasoning_mode and attempts else 0,
+                    elapsed_seconds=_query_elapsed,
+                )
+        except Exception:
+            pass
+
         return answer_response.text
 
     def _get_schema_info(self, database: str) -> Dict[str, Any]:

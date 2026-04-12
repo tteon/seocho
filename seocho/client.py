@@ -112,6 +112,7 @@ class Seocho:
         llm: Optional[Any] = None,  # seocho.llm_backend.LLMBackend
         vector_store: Optional[Any] = None,  # seocho.vector_store.VectorStore
         extraction_prompt: Optional[Any] = None,  # seocho.query.PromptTemplate
+        agent_config: Optional[Any] = None,  # seocho.agent_config.AgentConfig
         # --- HTTP client mode ---
         base_url: Optional[str] = None,
         workspace_id: Optional[str] = None,
@@ -134,6 +135,12 @@ class Seocho:
         self.vector_store = vector_store
         self.extraction_prompt = extraction_prompt
 
+        # Agent config
+        if agent_config is None:
+            from .agent_config import AgentConfig
+            agent_config = AgentConfig()
+        self.agent_config = agent_config
+
         # Determine mode
         self._local_mode = ontology is not None and graph_store is not None and llm is not None
 
@@ -144,6 +151,7 @@ class Seocho:
                 llm=llm,
                 workspace_id=self.workspace_id,
                 extraction_prompt=extraction_prompt,
+                agent_config=agent_config,
             )
             self._session = session or requests.Session()
             self.base_url = ""
@@ -1474,7 +1482,9 @@ class _LocalEngine:
         llm: Any,  # LLMBackend
         workspace_id: str,
         extraction_prompt: Optional[Any] = None,  # PromptTemplate
+        agent_config: Optional[Any] = None,  # AgentConfig
     ) -> None:
+        from .agent_config import AgentConfig
         from .indexing import IndexingPipeline
         from .ontology import Ontology
         from .prompt_strategy import ExtractionStrategy, LinkingStrategy, QueryStrategy
@@ -1483,6 +1493,7 @@ class _LocalEngine:
         self.graph_store = graph_store
         self.llm = llm
         self.workspace_id = workspace_id
+        self.agent_config: AgentConfig = agent_config or AgentConfig()
 
         # Indexing pipeline (handles chunking, extraction, validation, dedup, write)
         self._indexing = IndexingPipeline(
@@ -1615,11 +1626,14 @@ class _LocalEngine:
         question: str,
         *,
         database: str = "neo4j",
-        reasoning_mode: bool = False,
-        repair_budget: int = 0,
+        reasoning_mode: Optional[bool] = None,
+        repair_budget: Optional[int] = None,
         ontology_override: Optional[Any] = None,
     ) -> str:
         """Ontology-aware query: generate Cypher → execute → synthesize answer.
+
+        If ``reasoning_mode`` or ``repair_budget`` are not provided,
+        defaults from ``agent_config`` are used.
 
         Parameters
         ----------
@@ -1641,6 +1655,12 @@ class _LocalEngine:
         if ontology_override is not None:
             from .prompt_strategy import QueryStrategy
             self._query = QueryStrategy(active_ontology)
+
+        # Apply agent_config defaults
+        if reasoning_mode is None:
+            reasoning_mode = self.agent_config.reasoning_mode
+        if repair_budget is None:
+            repair_budget = self.agent_config.repair_budget
 
         schema_info = self._get_schema_info(database)
         self._query.schema_info = schema_info

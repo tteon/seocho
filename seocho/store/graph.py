@@ -238,6 +238,10 @@ class Neo4jGraphStore(GraphStore):
         triples: Optional[Sequence[Dict[str, Any]]] = None,
         graph_model: str = "lpg",
     ) -> Dict[str, Any]:
+        # Validate database name (skip for default 'neo4j')
+        if database != "neo4j":
+            validate_database_name(database)
+
         # RDF mode: write triples via n10s
         if graph_model == "rdf" and triples:
             return self._write_rdf(triples, database=database, source_id=source_id)
@@ -300,6 +304,8 @@ class Neo4jGraphStore(GraphStore):
         params: Optional[Dict[str, Any]] = None,
         database: str = "neo4j",
     ) -> List[Dict[str, Any]]:
+        if database != "neo4j":
+            validate_database_name(database)
         with self._driver.session(database=database) as session:
             result = session.run(cypher, parameters=params or {})
             return [record.data() for record in result]

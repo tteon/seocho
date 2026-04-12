@@ -217,6 +217,16 @@ class OpenAICompatibleBackend(LLMBackend):
         self._client = client
         self._async_client = async_client
 
+    def _safe_temperature(self, temperature: float) -> float:
+        """Clamp temperature for providers with restrictions.
+
+        Kimi K2.5 only accepts temperature=1.  Rather than patching
+        every call-site, we enforce the constraint here.
+        """
+        if self.provider == "kimi":
+            return 1.0
+        return temperature
+
     def complete(
         self,
         *,
@@ -233,14 +243,24 @@ class OpenAICompatibleBackend(LLMBackend):
         kwargs: Dict[str, Any] = {
             "model": self.model,
             "messages": messages,
-            "temperature": temperature,
+            "temperature": self._safe_temperature(temperature),
         }
         if max_tokens is not None:
             kwargs["max_tokens"] = max_tokens
         if response_format is not None:
             kwargs["response_format"] = response_format
 
-        resp = self._client.chat.completions.create(**kwargs)
+        try:
+            resp = self._client.chat.completions.create(**kwargs)
+        except Exception:
+            # Fallback: some providers don't support response_format
+            if response_format is not None:
+                kwargs.pop("response_format", None)
+                if "Return ONLY valid JSON" not in system:
+                    kwargs["messages"][0]["content"] = system + "\n\nReturn ONLY valid JSON."
+                resp = self._client.chat.completions.create(**kwargs)
+            else:
+                raise
         return self._build_response(resp)
 
     async def acomplete(
@@ -259,14 +279,23 @@ class OpenAICompatibleBackend(LLMBackend):
         kwargs: Dict[str, Any] = {
             "model": self.model,
             "messages": messages,
-            "temperature": temperature,
+            "temperature": self._safe_temperature(temperature),
         }
         if max_tokens is not None:
             kwargs["max_tokens"] = max_tokens
         if response_format is not None:
             kwargs["response_format"] = response_format
 
-        resp = await self._async_client.chat.completions.create(**kwargs)
+        try:
+            resp = await self._async_client.chat.completions.create(**kwargs)
+        except Exception:
+            if response_format is not None:
+                kwargs.pop("response_format", None)
+                if "Return ONLY valid JSON" not in system:
+                    kwargs["messages"][0]["content"] = system + "\n\nReturn ONLY valid JSON."
+                resp = await self._async_client.chat.completions.create(**kwargs)
+            else:
+                raise
         return self._build_response(resp)
 
     def embed(

@@ -425,7 +425,8 @@ class Session:
 
     def _parse_indexing_result(self, agent_output: str, original_text: str) -> Dict[str, Any]:
         """Parse the agent's final output into a structured result."""
-        # Try to extract structured data from agent's response
+        import re
+
         result = {
             "source_id": str(uuid.uuid4()),
             "nodes_created": 0,
@@ -438,15 +439,29 @@ class Session:
         if not agent_output:
             return result
 
-        # Look for numbers in agent output
-        import re
-        nodes_match = re.search(r"(\d+)\s*node", agent_output, re.IGNORECASE)
-        rels_match = re.search(r"(\d+)\s*(?:relationship|edge|rel)", agent_output, re.IGNORECASE)
+        # Try to find JSON in the agent output (tool results often contain it)
+        json_patterns = re.findall(r'\{[^{}]*"nodes_written"\s*:\s*(\d+)[^{}]*\}', agent_output)
+        if json_patterns:
+            result["nodes_created"] = int(json_patterns[-1])
 
-        if nodes_match:
-            result["nodes_created"] = int(nodes_match.group(1))
-        if rels_match:
-            result["relationships_created"] = int(rels_match.group(1))
+        json_rels = re.findall(r'\{[^{}]*"relationships_written"\s*:\s*(\d+)[^{}]*\}', agent_output)
+        if json_rels:
+            result["relationships_created"] = int(json_rels[-1])
+
+        # Fallback: look for natural language mentions
+        if result["nodes_created"] == 0:
+            nodes_match = re.search(r"(\d+)\s*node", agent_output, re.IGNORECASE)
+            if nodes_match:
+                result["nodes_created"] = int(nodes_match.group(1))
+
+        if result["relationships_created"] == 0:
+            rels_match = re.search(r"(\d+)\s*(?:relationship|edge|rel)", agent_output, re.IGNORECASE)
+            if rels_match:
+                result["relationships_created"] = int(rels_match.group(1))
+
+        # Check for error indicators
+        if "error" in agent_output.lower() and result["nodes_created"] == 0:
+            result["ok"] = False
 
         return result
 

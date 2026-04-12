@@ -218,6 +218,14 @@ Each entry must link to a full ADR when impact is non-trivial.
   - add a separate periodic Codex draft-PR workflow for bounded refactors and small improvements
   - keep scheduled improvement automation review-first with no direct push to `main`
 
+## 2026-04-13
+
+- Accepted `ADR-0046-core-compose-stack-and-onboarding-artifact-contract.md`
+  - default local compose stack is `neo4j + extraction-service + evaluation-interface`
+  - move standalone `semantic-service` to an explicit legacy profile
+  - require onboarding docs to distinguish HTTP client vs local engine vs local runtime modes
+  - document local ontology, graph, rule, semantic-artifact, and trace file locations
+
 ## 2026-04-12
 
 - Accepted `ADR-0045-vendor-neutral-tracing-and-explicit-opik-opt-in.md`

@@ -18,6 +18,12 @@ If you want the bring-your-own-data path immediately, continue with
 Without `OPENAI_API_KEY`, SEOCHO can still boot in local fallback mode for
 basic verification.
 
+Important:
+
+- `pip install seocho` alone does not provision DozerDB/Neo4j for you.
+- local runtime success still depends on the graph backend being reachable.
+- `make up` starts the core local stack, not every legacy service in the repo.
+
 ## 2. Setup
 
 ```bash
@@ -40,11 +46,23 @@ pip install -e ".[dev]"
 seocho serve
 ```
 
+The default core stack is:
+
+- `neo4j`
+- `extraction-service`
+- `evaluation-interface`
+
 Expected local surfaces:
 
 - Platform UI: `http://localhost:8501`
 - Backend API docs: `http://localhost:8001/docs`
 - DozerDB browser: `http://localhost:7474`
+
+If you need the old standalone `semantic-service`, start it explicitly:
+
+```bash
+docker compose --profile legacy-semantic up -d semantic-service
+```
 
 ## 4. First Success: UI Path
 
@@ -165,7 +183,21 @@ Common issues:
 - port collision on `8001`, `8501`, `7474`, or `7687`
 - graph database not ready yet
 
-## 10. Read Next
+## 11. Know Where Your Files Go
+
+The main local locations are:
+
+- ontology file: usually `schema.jsonld`
+- local graph data: `data/neo4j/`
+- semantic artifacts: `outputs/semantic_artifacts/`
+- rule profile registry: `outputs/rule_profiles/rule_profiles.db`
+- semantic run metadata: `outputs/semantic_metadata/`
+- JSONL tracing: path from `SEOCHO_TRACE_JSONL_PATH`
+
+See [FILES_AND_ARTIFACTS.md](FILES_AND_ARTIFACTS.md) for the full map and
+inspection commands.
+
+## 12. Read Next
 
 - `docs/PYTHON_INTERFACE_QUICKSTART.md`
 - `docs/APPLY_YOUR_DATA.md`

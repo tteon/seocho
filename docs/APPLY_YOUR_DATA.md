@@ -11,6 +11,15 @@ operations:
 This document is the shortest path from "I have data" to "I can query it
 through the SDK and API."
 
+Before you start, know the main local locations:
+
+- ontology file: usually `schema.jsonld`
+- local graph data: `data/neo4j/`
+- semantic artifacts: `outputs/semantic_artifacts/`
+- rule profile registry: `outputs/rule_profiles/rule_profiles.db`
+
+See `FILES_AND_ARTIFACTS.md` if you want the full map and inspection commands.
+
 ## 1. Pick an Ingestion Path
 
 Use `add(...)` when you have one small piece of text and want the memory-style

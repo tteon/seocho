@@ -2,7 +2,7 @@
 
 DOCKER_COMPOSE = docker compose
 
-.PHONY: up down restart logs clean bootstrap shell test test-integration e2e-smoke lint format help opik-up opik-down opik-logs demo-raw demo-meta demo-neo4j demo-graphrag-opik demo-all setup-env
+.PHONY: up up-legacy-semantic down restart logs clean bootstrap shell test test-integration e2e-smoke lint format help opik-up opik-down opik-logs demo-raw demo-meta demo-neo4j demo-graphrag-opik demo-all setup-env
 
 ##@ Development
 
@@ -23,13 +23,19 @@ bootstrap: ## Bootstrap the development environment
 setup-env: ## Interactive .env setup (OpenAI key, Opik, ports)
 	@bash scripts/setup/init-env.sh
 
-up: ## Start all services
-	@echo "🐳 Starting Seocho services..."
+up: ## Start core local stack (DozerDB + extraction API + platform UI)
+	@echo "🐳 Starting Seocho core local stack..."
 	@docker compose up -d
 	@echo "✅ Services started!"
 	@echo "🖥️  Platform UI: http://localhost:$${CHAT_INTERFACE_PORT:-8501}"
 	@echo "🧠 Backend API Docs: http://localhost:$${EXTRACTION_API_PORT:-8001}/docs"
 	@echo "🗄️  DozerDB Browser: http://localhost:$${NEO4J_HTTP_PORT:-7474}"
+	@echo "ℹ️  Legacy semantic-service is opt-in: docker compose --profile legacy-semantic up -d semantic-service"
+
+up-legacy-semantic: ## Start the legacy semantic-service profile too
+	@echo "🐳 Starting Seocho core stack with legacy semantic-service..."
+	@docker compose --profile legacy-semantic up -d
+	@echo "✅ Legacy semantic-service started."
 
 down: ## Stop all services
 	@echo "🛑 Stopping services..."

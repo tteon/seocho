@@ -14,23 +14,31 @@ If your first question is how to load your own records safely, read
 
 ## 1. Install
 
-Published package:
+Pick the mode first:
+
+- HTTP client mode only:
 
 ```bash
 pip install seocho
 ```
 
-Optional offline ontology governance tooling:
+- local SDK engine or local CLI authoring:
+
+```bash
+pip install -e ".[dev]"
+```
+
+- offline ontology governance helpers:
 
 ```bash
 pip install "seocho[ontology]"
 ```
 
-Repository development install:
+Important:
 
-```bash
-pip install -e ".[dev]"
-```
+- `pip install seocho` is enough for remote HTTP client mode.
+- local engine mode requires a real graph backend and local-mode dependencies.
+- the current documented local-engine install is `.[dev]`; the thin base package is not the right install path for direct `Neo4jGraphStore(...)` workflows.
 
 If you are iterating on schema evolution, use the offline governance CLI:
 
@@ -47,6 +55,13 @@ Recommendation:
 
 ## 2. Configure
 
+You have two primary SDK shapes:
+
+| Mode | Constructor | When to use it |
+|------|-------------|----------------|
+| HTTP client | `Seocho(base_url="http://localhost:8001", workspace_id="default")` | consume a running SEOCHO runtime |
+| Local engine | `Seocho(ontology=..., graph_store=..., llm=...)` | SDK authoring, experiments, direct graph access |
+
 Fastest script-style setup:
 
 ```python
@@ -62,6 +77,32 @@ from seocho import Seocho
 
 client = Seocho(base_url="http://localhost:8001", workspace_id="default")
 ```
+
+Important parameters:
+
+- `base_url`: root URL of the running SEOCHO runtime
+- `workspace_id`: required logical scope for runtime-facing data and queries
+- `user_id`, `agent_id`, `session_id`: optional scope fields for memory/runtime tracing
+
+Local engine example:
+
+```python
+from seocho import Seocho, Ontology
+from seocho.store import Neo4jGraphStore, OpenAIBackend
+
+client = Seocho(
+    ontology=Ontology(name="demo"),
+    graph_store=Neo4jGraphStore("bolt://localhost:7687", "neo4j", "password"),
+    llm=OpenAIBackend(model="gpt-4o"),
+    workspace_id="default",
+)
+```
+
+Local-mode constructor parameters you should understand:
+
+- `graph_store`: Bolt-backed DozerDB/Neo4j connection used by the SDK
+- `llm`: OpenAI-compatible extraction/query backend
+- `ontology`: schema contract that drives extraction, validation, and query generation
 
 ## 3. Put Your Data In
 
@@ -158,6 +199,15 @@ What `reasoning_mode` does:
 - validates constrained Cypher before execution
 - retries with a small repair budget when slot fill is insufficient
 - avoids jumping straight to multi-agent debate
+
+Parameter guidance:
+
+- `reasoning_mode=False`: fastest default path
+- `reasoning_mode=True`: enable bounded semantic repair for harder questions
+- `repair_budget=0`: no retry
+- `repair_budget=1..2`: practical default for hard graph questions
+- `graph_ids=[...]`: preferred public routing key when you know the graph target
+- `databases=[...]`: physical database scope when you are working at DB level
 
 ## 7. Use the Builder Surface
 
@@ -512,7 +562,29 @@ combined.to_jsonld("combined.jsonld")
 
 Strategies: ``union`` (default), ``left_wins``, ``right_wins``, ``strict``.
 
-## 18. Read Next
+## 18. Where Ontology And Runtime Files Live
+
+Common locations:
+
+- default ontology file in CLI examples: `schema.jsonld`
+- local graph state for docker stack: `data/neo4j/`
+- semantic artifact store: `outputs/semantic_artifacts/`
+- rule profile registry: `outputs/rule_profiles/rule_profiles.db`
+- semantic run metadata: `outputs/semantic_metadata/`
+- trace file path: `SEOCHO_TRACE_JSONL_PATH`
+
+Use these commands to inspect them directly:
+
+```bash
+seocho ontology check --schema schema.jsonld
+seocho ontology export --schema schema.jsonld --format shacl --output shacl.json
+seocho artifacts list --status approved
+curl -sS "http://localhost:8001/semantic/artifacts?workspace_id=default" | jq .
+```
+
+See `FILES_AND_ARTIFACTS.md` for the full map.
+
+## 19. Read Next
 
 - `APPLY_YOUR_DATA.md`
 - `QUICKSTART.md`

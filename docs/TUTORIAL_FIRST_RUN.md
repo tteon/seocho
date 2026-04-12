@@ -20,6 +20,32 @@ Expected:
 - platform UI proxy reachable on `8501`
 - DozerDB reachable on `7474`
 
+Current default compose stack:
+
+- `neo4j`
+- `extraction-service`
+- `evaluation-interface`
+
+The legacy standalone `semantic-service` is not required for this tutorial. If
+you explicitly need it for compatibility checks:
+
+```bash
+docker compose --profile legacy-semantic up -d semantic-service
+```
+
+## 1.1 Know where your local state lives
+
+Before debugging the APIs, know the main paths:
+
+- ontology file: usually `schema.jsonld`
+- graph data: `data/neo4j/`
+- semantic artifacts: `outputs/semantic_artifacts/`
+- rule profile registry: `outputs/rule_profiles/rule_profiles.db`
+- semantic metadata: `outputs/semantic_metadata/`
+- traces: path from `SEOCHO_TRACE_JSONL_PATH`
+
+If you need direct inspection commands, use [FILES_AND_ARTIFACTS.md](FILES_AND_ARTIFACTS.md).
+
 ## 2. Verify The Public Graph-Memory API
 
 ### 2.1 Store one memory

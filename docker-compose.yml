@@ -1,7 +1,5 @@
-version: '3.8'
-
 services:
-  # --- Graph Storage ---
+  # --- Core Local Stack: graph DB + runtime API + thin UI proxy ---
   neo4j:
     image: graphstack/dozerdb:5.26.3.0
     container_name: graphrag-neo4j
@@ -57,6 +55,7 @@ services:
   semantic-service:
     build: ./semantic
     container_name: semantic-service
+    profiles: ["legacy-semantic"]
     volumes:
       - ./semantic:/app
     environment:
@@ -80,11 +79,9 @@ services:
       - ./evaluation:/app
     environment:
       - EXTRACTION_SERVICE_URL=http://extraction-service:8001
-      - SEMANTIC_SERVICE_URL=http://semantic-service:8000
       - OPENAI_API_KEY=${OPENAI_API_KEY}
     depends_on:
       - extraction-service
-      - semantic-service
     networks:
       - graphrag-net
 

@@ -2,7 +2,7 @@ name: "fibo"
 
 # Using label 'kgfibo' or similar if we had separate DNS. 
 # For now we use the same URI but we can override it if the user adds the container.
-neo4j_uri_override: "bolt://neo4j:7687" 
+neo4j_uri_override: "${oc.env:NEO4J_URI,bolt://localhost:7687}"
 
 prompts:
   extraction: |

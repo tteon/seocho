@@ -282,9 +282,13 @@ class IndexingPipeline:
             self._seen_hashes.add(h)
 
         # Chunk
+        import time as _time
+        _pipeline_start = _time.time()
+
         chunks = chunk_text(content, max_chars=self.max_chunk_chars)
         all_nodes: List[Dict[str, Any]] = []
         all_rels: List[Dict[str, Any]] = []
+        _total_usage: Dict[str, int] = {}
 
         for i, chunk in enumerate(chunks):
             if on_chunk:
@@ -300,6 +304,10 @@ class IndexingPipeline:
                     response_format={"type": "json_object"},
                 )
                 extracted = response.json()
+                # Collect token usage
+                if hasattr(response, 'usage') and response.usage:
+                    for k, v in response.usage.items():
+                        _total_usage[k] = _total_usage.get(k, 0) + v
             except Exception as exc:
                 logger.error("Extraction failed for chunk %d: %s", i, exc)
                 result.skipped_chunks += 1
@@ -378,19 +386,30 @@ class IndexingPipeline:
             except Exception as exc:
                 result.write_errors.append(str(exc))
 
-        # --- Opik tracing ---
+        # --- Compute extraction score ---
+        _pipeline_elapsed = _time.time() - _pipeline_start
+        _score = 0.0
+        if all_nodes or all_rels:
+            try:
+                _scores = self.ontology.score_extraction({"nodes": all_nodes, "relationships": all_rels})
+                _score = _scores.get("overall", 0.0)
+            except Exception:
+                pass
+
+        # --- Tracing ---
         try:
             from seocho.tracing import log_extraction, is_tracing_enabled
             if is_tracing_enabled():
                 log_extraction(
                     text_preview=content[:200] if content else "",
                     ontology_name=self.ontology.name,
-                    model="sdk-pipeline",
+                    model=getattr(self.llm, "model", "unknown"),
                     nodes_count=result.total_nodes,
                     relationships_count=result.total_relationships,
-                    score=0.0,
+                    score=_score,
                     validation_errors=len(result.validation_errors),
-                    elapsed_seconds=0.0,
+                    elapsed_seconds=_pipeline_elapsed,
+                    metadata={"usage": _total_usage} if _total_usage else None,
                 )
         except Exception:
             pass

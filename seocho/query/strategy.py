@@ -41,6 +41,135 @@ def _sanitize_prompt_value(value: Any) -> str:
 
 
 # ---------------------------------------------------------------------------
+# PromptTemplate — user-customizable prompt structure
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class PromptTemplate:
+    """User-defined prompt template with Jinja2-style ``{{variable}}`` placeholders.
+
+    Available variables (auto-injected from ontology):
+
+    - ``{{ontology_name}}`` — ontology name
+    - ``{{entity_types}}`` — formatted list of node types + properties
+    - ``{{relationship_types}}`` — formatted relationship listing
+    - ``{{constraints_summary}}`` — property constraints
+    - ``{{graph_schema}}`` — full schema block (query mode)
+    - ``{{query_hints}}`` — constraint-derived hints (query mode)
+    - ``{{text}}`` — input text (user prompt)
+
+    Example::
+
+        custom = PromptTemplate(
+            system="You are a FIBO expert. Extract financial entities.\\n{{entity_types}}",
+            user="Document:\\n{{text}}",
+        )
+        s = Seocho(ontology=onto, graph_store=store, llm=llm,
+                   extraction_prompt=custom)
+    """
+
+    system: str
+    user: str = "{{text}}"
+
+    def render(self, context: Dict[str, str], text: str) -> tuple[str, str]:
+        """Render template with context variables."""
+        system = self.system
+        user = self.user
+        for key, value in context.items():
+            system = system.replace("{{" + key + "}}", str(value))
+            user = user.replace("{{" + key + "}}", str(value))
+        system = system.replace("{{text}}", text)
+        user = user.replace("{{text}}", text)
+        return system, user
+
+
+# ---------------------------------------------------------------------------
+# Preset prompts for common domains
+# ---------------------------------------------------------------------------
+
+PRESET_PROMPTS: Dict[str, PromptTemplate] = {
+    "general": PromptTemplate(
+        system=(
+            "You are an expert entity extraction system.\n"
+            'You are working with the "{{ontology_name}}" ontology.\n\n'
+            "Extract entities of the following types:\n{{entity_types}}\n\n"
+            "Extract relationships of the following types:\n{{relationship_types}}\n\n"
+            "{{constraints_summary}}\n\n"
+            'Return JSON with "nodes" and "relationships" keys.\n'
+            'Nodes: {"id": "unique_id", "label": "EntityType", "properties": {"name": "..."}}\n'
+            'Relationships: {"source": "id", "target": "id", "type": "TYPE", "properties": {}}'
+        ),
+        user="Text to extract:\n{{text}}",
+    ),
+    "finance": PromptTemplate(
+        system=(
+            "You are a financial domain expert specializing in the Financial Industry Business Ontology (FIBO).\n"
+            'Working with the "{{ontology_name}}" ontology.\n\n'
+            "Extract financial entities of these types:\n{{entity_types}}\n\n"
+            "Extract financial relationships:\n{{relationship_types}}\n\n"
+            "Pay special attention to:\n"
+            "- Company names, tickers, and legal entity identifiers\n"
+            "- Financial metrics (revenue, assets, liabilities) with exact values\n"
+            "- Regulatory references (GAAP, IFRS, SEC filings)\n"
+            "- Temporal context (fiscal year, quarter, date)\n\n"
+            "{{constraints_summary}}\n\n"
+            'Return JSON with "nodes" and "relationships" keys.'
+        ),
+        user="Financial document:\n{{text}}",
+    ),
+    "legal": PromptTemplate(
+        system=(
+            "You are a legal domain expert.\n"
+            'Working with the "{{ontology_name}}" ontology.\n\n'
+            "Extract legal entities:\n{{entity_types}}\n\n"
+            "Extract legal relationships:\n{{relationship_types}}\n\n"
+            "Pay special attention to:\n"
+            "- Parties (plaintiff, defendant, counsel)\n"
+            "- Statutes, regulations, and case citations\n"
+            "- Contractual obligations and clauses\n"
+            "- Dates, deadlines, and jurisdictions\n\n"
+            "{{constraints_summary}}\n\n"
+            'Return JSON with "nodes" and "relationships" keys.'
+        ),
+        user="Legal document:\n{{text}}",
+    ),
+    "medical": PromptTemplate(
+        system=(
+            "You are a medical domain expert.\n"
+            'Working with the "{{ontology_name}}" ontology.\n\n'
+            "Extract medical entities:\n{{entity_types}}\n\n"
+            "Extract medical relationships:\n{{relationship_types}}\n\n"
+            "Pay special attention to:\n"
+            "- Drug names (generic and brand)\n"
+            "- Symptoms, conditions, and diagnoses\n"
+            "- Dosages, interactions, and contraindications\n"
+            "- Clinical trial identifiers and outcomes\n\n"
+            "{{constraints_summary}}\n\n"
+            'Return JSON with "nodes" and "relationships" keys.'
+        ),
+        user="Medical document:\n{{text}}",
+    ),
+    "research": PromptTemplate(
+        system=(
+            "You are an academic research extraction expert.\n"
+            'Working with the "{{ontology_name}}" ontology.\n\n'
+            "Extract research entities:\n{{entity_types}}\n\n"
+            "Extract relationships:\n{{relationship_types}}\n\n"
+            "Pay special attention to:\n"
+            "- Authors, affiliations, and institutions\n"
+            "- Methods, algorithms, and techniques\n"
+            "- Datasets, benchmarks, and metrics with values\n"
+            "- Citations and cross-references\n\n"
+            "{{constraints_summary}}\n\n"
+            'Return JSON with "nodes" and "relationships" keys.'
+        ),
+        user="Research paper:\n{{text}}",
+    ),
+}
+
+
+# ---------------------------------------------------------------------------
 # Base
 # ---------------------------------------------------------------------------
 
@@ -64,15 +193,19 @@ class PromptStrategy:
 class ExtractionStrategy(PromptStrategy):
     """Generates prompts for entity/relationship extraction (graph indexing).
 
-    The system prompt contains:
-    - Ontology identity (name, description)
-    - Node type listing with properties and constraints
-    - Relationship listing with cardinality
-    - SHACL constraint hints (when provided)
-    - Vocabulary hints (when provided)
-    - Expected JSON output schema
+    Accepts an optional ``prompt_template`` for full customization::
 
-    The user prompt contains the text to extract from.
+        from seocho.query import ExtractionStrategy, PromptTemplate, PRESET_PROMPTS
+
+        # Custom template
+        ext = ExtractionStrategy(ontology, prompt_template=PromptTemplate(
+            system="You are a FIBO expert.\\n{{entity_types}}",
+        ))
+
+        # Domain preset
+        ext = ExtractionStrategy(ontology, prompt_template=PRESET_PROMPTS["finance"])
+
+    If no template is provided, the default general-purpose prompt is used.
     """
 
     def __init__(
@@ -83,15 +216,22 @@ class ExtractionStrategy(PromptStrategy):
         shacl_constraints: Optional[str] = None,
         vocabulary_terms: Optional[str] = None,
         developer_instructions: Optional[str] = None,
+        prompt_template: Optional[PromptTemplate] = None,
     ) -> None:
         super().__init__(ontology)
         self.category = category
         self.shacl_constraints = shacl_constraints
         self.vocabulary_terms = vocabulary_terms
         self.developer_instructions = developer_instructions
+        self.prompt_template = prompt_template
 
     def render(self, text: str, **kwargs: Any) -> tuple[str, str]:
         ctx = self.ontology.to_extraction_context()
+
+        # If user provided a custom template, use it
+        if self.prompt_template is not None:
+            return self.prompt_template.render(ctx, text)
+
         parts: List[str] = []
 
         parts.append("You are an expert entity extraction system.")

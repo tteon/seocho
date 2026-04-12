@@ -1,5 +1,10 @@
 # ADR-0001: AIP Platform Baseline
 
+Note: the observability wording in this ADR was superseded by
+`ADR-0045-vendor-neutral-tracing-and-explicit-opik-opt-in.md`. The current
+runtime trace contract is vendor-neutral, with Opik preferred for team
+observability rather than mandatory.
+
 - Status: Accepted
 - Date: 2026-02-14
 - Deciders: SEOCHO team

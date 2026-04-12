@@ -10,6 +10,7 @@ from seocho.store.llm import (
     create_embedding_backend,
     create_llm_backend,
 )
+from seocho.tracing import disable_tracing
 
 
 class _FakeChatCompletions:
@@ -44,6 +45,13 @@ def fake_openai(monkeypatch: pytest.MonkeyPatch) -> None:
     module.OpenAI = _FakeOpenAIClient
     module.AsyncOpenAI = _FakeOpenAIClient
     monkeypatch.setitem(sys.modules, "openai", module)
+
+
+@pytest.fixture(autouse=True)
+def reset_tracing_state() -> None:
+    disable_tracing()
+    yield
+    disable_tracing()
 
 
 @pytest.mark.parametrize(
@@ -138,3 +146,60 @@ def test_agents_sdk_helpers_build_model_provider_and_run_config(
     assert sdk_provider.kwargs["base_url"] == "https://api.moonshot.ai/v1"
     assert sdk_provider.kwargs["use_responses"] is False
     assert run_config.model.model == "kimi-k2.5"
+
+
+def test_openai_clients_are_not_opik_wrapped_without_explicit_backend(
+    fake_openai: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = []
+
+    opik_module = ModuleType("opik")
+    integrations_module = ModuleType("opik.integrations")
+    openai_integration_module = ModuleType("opik.integrations.openai")
+
+    def track_openai(client):
+        calls.append(client)
+        return client
+
+    openai_integration_module.track_openai = track_openai
+    monkeypatch.setitem(sys.modules, "opik", opik_module)
+    monkeypatch.setitem(sys.modules, "opik.integrations", integrations_module)
+    monkeypatch.setitem(sys.modules, "opik.integrations.openai", openai_integration_module)
+    monkeypatch.setenv("OPENAI_API_KEY", "openai-secret")
+
+    create_llm_backend(provider="openai")
+
+    assert calls == []
+
+
+def test_openai_clients_are_wrapped_only_when_opik_backend_is_enabled(
+    fake_openai: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = []
+
+    opik_module = ModuleType("opik")
+    integrations_module = ModuleType("opik.integrations")
+    openai_integration_module = ModuleType("opik.integrations.openai")
+
+    def track_openai(client):
+        client.opik_wrapped = True
+        calls.append(client)
+        return client
+
+    openai_integration_module.track_openai = track_openai
+    monkeypatch.setitem(sys.modules, "opik", opik_module)
+    monkeypatch.setitem(sys.modules, "opik.integrations", integrations_module)
+    monkeypatch.setitem(sys.modules, "opik.integrations.openai", openai_integration_module)
+    monkeypatch.setenv("OPENAI_API_KEY", "openai-secret")
+
+    import seocho.tracing as tracing
+
+    monkeypatch.setattr(tracing, "is_backend_enabled", lambda name: name == "opik")
+
+    backend = create_llm_backend(provider="openai")
+
+    assert len(calls) == 2
+    assert getattr(backend._client, "opik_wrapped", False) is True
+    assert getattr(backend._async_client, "opik_wrapped", False) is True

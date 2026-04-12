@@ -47,7 +47,8 @@ The internal architecture may still use:
 
 - OpenAI Agents SDK
 - DozerDB
-- Opik
+- vendor-neutral tracing (`none|console|jsonl|opik`)
+- Opik as an optional team observability backend
 - SHACL-like rule inference
 - approved semantic artifacts and vocabulary resolution
 

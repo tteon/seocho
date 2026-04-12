@@ -27,7 +27,7 @@ By the end of onboarding, a contributor should be able to:
 - read in order: `README.md` -> `CLAUDE.md` -> `docs/WORKFLOW.md` -> `docs/ISSUE_TASK_SYSTEM.md` -> `docs/decisions/DECISION_LOG.md`
 - validate stack assumptions:
   - OpenAI Agents SDK
-  - Opik tracing/evaluation
+  - vendor-neutral tracing/evaluation with Opik as the preferred team backend
   - DozerDB backend
   - single-tenant with `workspace_id` propagation
   - Owlready2 only in offline ontology path

@@ -146,7 +146,7 @@ Do not violate these without an explicit architecture decision:
 
 - OpenAI Agents SDK remains the agent runtime baseline
 - DozerDB remains the graph backend baseline
-- Opik remains the tracing baseline
+- vendor-neutral tracing remains the contract baseline, with Opik preferred for team observability
 - `workspace_id` remains part of runtime-facing contracts
 - heavy ontology reasoning stays outside request hot paths
 - runtime policy checks remain enforced for new actions

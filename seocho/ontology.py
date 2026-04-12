@@ -1669,6 +1669,102 @@ class Ontology:
         )
 
     # ------------------------------------------------------------------
+    # Migration
+    # ------------------------------------------------------------------
+
+    def migration_plan(self, new_ontology: "Ontology") -> Dict[str, Any]:
+        """Compute a migration plan from this ontology to a new version.
+
+        Returns Cypher statements needed to transform existing graph
+        data to match the new ontology schema.
+
+        Parameters
+        ----------
+        new_ontology:
+            The target ontology to migrate to.
+
+        Returns
+        -------
+        Dict with ``renames``, ``additions``, ``removals``, and
+        ``cypher_statements`` (ready to execute).
+
+        Example::
+
+            plan = old_onto.migration_plan(new_onto)
+            print(plan["summary"])
+            for stmt in plan["cypher_statements"]:
+                graph_store.query(stmt["cypher"])  # dry_run first!
+        """
+        plan: Dict[str, Any] = {
+            "from_version": self.version,
+            "to_version": new_ontology.version,
+            "renames": [],
+            "additions": [],
+            "removals": [],
+            "cypher_statements": [],
+            "breaking": False,
+        }
+
+        old_labels = set(self.nodes.keys())
+        new_labels = set(new_ontology.nodes.keys())
+
+        # Added node types
+        for label in sorted(new_labels - old_labels):
+            plan["additions"].append({"type": "node", "label": label})
+
+        # Removed node types (breaking)
+        for label in sorted(old_labels - new_labels):
+            plan["removals"].append({"type": "node", "label": label})
+            plan["breaking"] = True
+            plan["cypher_statements"].append({
+                "description": f"Remove all :{label} nodes",
+                "cypher": f"MATCH (n:{label}) DETACH DELETE n",
+                "breaking": True,
+            })
+
+        # Changed node types (property changes)
+        for label in sorted(old_labels & new_labels):
+            old_props = set(self.nodes[label].properties.keys())
+            new_props = set(new_ontology.nodes[label].properties.keys())
+
+            for prop in sorted(new_props - old_props):
+                plan["additions"].append({"type": "property", "label": label, "property": prop})
+
+            for prop in sorted(old_props - new_props):
+                plan["removals"].append({"type": "property", "label": label, "property": prop})
+                plan["cypher_statements"].append({
+                    "description": f"Remove property {prop} from :{label}",
+                    "cypher": f"MATCH (n:{label}) REMOVE n.`{prop}`",
+                    "breaking": False,
+                })
+
+        # Relationship changes
+        old_rels = set(self.relationships.keys())
+        new_rels = set(new_ontology.relationships.keys())
+
+        for rtype in sorted(new_rels - old_rels):
+            plan["additions"].append({"type": "relationship", "relationship": rtype})
+
+        for rtype in sorted(old_rels - new_rels):
+            plan["removals"].append({"type": "relationship", "relationship": rtype})
+            plan["breaking"] = True
+            plan["cypher_statements"].append({
+                "description": f"Remove all [{rtype}] relationships",
+                "cypher": f"MATCH ()-[r:{rtype}]->() DELETE r",
+                "breaking": True,
+            })
+
+        plan["summary"] = (
+            f"Migration {self.version} → {new_ontology.version}: "
+            f"{len(plan['additions'])} additions, "
+            f"{len(plan['removals'])} removals, "
+            f"{len(plan['cypher_statements'])} Cypher statements"
+            + (" (BREAKING)" if plan["breaking"] else "")
+        )
+
+        return plan
+
+    # ------------------------------------------------------------------
     # Dunder
     # ------------------------------------------------------------------
 

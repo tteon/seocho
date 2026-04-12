@@ -87,7 +87,24 @@ For architecture or workflow changes:
 - record decision in ADR (`docs/decisions/ADR-*.md`)
 - append entry to `docs/decisions/DECISION_LOG.md`
 
-## 9. GitHub Automation Rules
+## 9. Automation Roles
+
+- Codex is the primary PR author for bounded work in this repo:
+  - `feature-improvement`: one small developer-facing improvement
+  - `refactor`: one maintainability improvement with no intended behavior change
+  - `e2e-investigation`: reproduce one concrete issue, add focused regression
+    coverage, and apply the smallest viable fix
+- Jules is PR-fixer-first:
+  - repair failing CI on an existing PR
+  - keep scope narrow and directly related to the failing checks
+  - do not originate broad feature, refactor, or architecture work unless
+    explicitly asked
+- Human maintainers remain the merge gate:
+  - review scope and validation
+  - move draft PRs to review-ready state
+  - trigger merge explicitly
+
+## 10. GitHub Automation Rules
 
 - basic CI workflow lives in `.github/workflows/ci-basic.yml`
 - the local command behind basic CI is `bash scripts/ci/run_basic_ci.sh`
@@ -107,8 +124,16 @@ For architecture or workflow changes:
   - no direct push to `main`
   - no auto-merge
   - one cohesive change only
+  - choose exactly one Codex lane: `feature-improvement`, `refactor`, or
+    `e2e-investigation`
   - PR body must include `Feature`, `Why`, `Design`, `Expected Effect`,
     `Impact Results`, `Validation`, and `Risks`
+- Jules should treat existing PRs as the primary unit of work:
+  - fix only failing GitHub Actions checks and closely related narrow issues
+  - preserve the current PR intent
+  - avoid semantic retrieval, ontology policy, routing policy, tracing contract,
+    or multi-agent behavior changes unless the PR already targets that exact
+    area
 - comment-based merge should stay explicitly maintainer-triggered:
   - merge command is exactly `/go`
   - only users with `write`, `maintain`, or `admin` permission may trigger it

@@ -1,0 +1,48 @@
+{
+  "timestamp": "2026-04-12T19:32:44",
+  "results": [
+    {
+      "combo": "fibo_base/default/strict=False",
+      "ontology": "fibo_base",
+      "agent": "default",
+      "strict_validation": false,
+      "nodes_total": 15,
+      "rels_total": 11,
+      "index_success": 3,
+      "index_failed": 0,
+      "query_answered": 3,
+      "query_empty": 0,
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    },
+    {
+      "combo": "fibo_plus/strict/strict=True",
+      "ontology": "fibo_plus",
+      "agent": "strict",
+      "strict_validation": true,
+      "nodes_total": 0,
+      "rels_total": 0,
+      "index_success": 0,
+      "index_failed": 3,
+      "query_answered": 0,
+      "query_empty": 3,
+      "scores": []
+    },
+    {
+      "combo": "fibo_minus/research/strict=False",
+      "ontology": "fibo_minus",
+      "agent": "research",
+      "strict_validation": false,
+      "nodes_total": 0,
+      "rels_total": 0,
+      "index_success": 0,
+      "index_failed": 3,
+      "query_answered": 0,
+      "query_empty": 3,
+      "scores": []
+    }
+  ]
+}

@@ -166,6 +166,49 @@ PRESET_PROMPTS: Dict[str, PromptTemplate] = {
         ),
         user="Research paper:\n{{text}}",
     ),
+
+    # --- RDF-aware presets ---
+
+    "rdf_general": PromptTemplate(
+        system=(
+            "You are an RDF knowledge graph extraction expert.\n"
+            'Working with the "{{ontology_name}}" ontology.\n\n'
+            "Extract entities as RDF resources. Every entity MUST have a URI.\n"
+            "Use the namespace prefix for URIs when possible.\n\n"
+            "Known entity types:\n{{entity_types}}\n\n"
+            "Known relationship types:\n{{relationship_types}}\n\n"
+            "Return JSON with TWO keys:\n"
+            '  "nodes": [{"id": "uri:...", "label": "Type", "properties": {"uri": "...", "name": "..."}}]\n'
+            '  "triples": [{"subject": "uri:...", "predicate": "rdf:type", "object": "schema:Type"},\n'
+            '              {"subject": "uri:...", "predicate": "schema:name", "object": "literal value"}]\n\n'
+            "Rules for RDF extraction:\n"
+            "- Every entity gets a URI (use urn:entity:<normalized_name> if no standard URI)\n"
+            "- Properties become separate triples (subject, predicate=property_name, object=value)\n"
+            "- Relationships become triples (subject=source_uri, predicate=rel_type, object=target_uri)\n"
+            "- Include rdf:type triples for all entities\n"
+            "- Use sameAs property to link to standard vocabulary URIs where known\n"
+        ),
+        user="Text to extract as RDF triples:\n{{text}}",
+    ),
+
+    "rdf_fibo": PromptTemplate(
+        system=(
+            "You are a FIBO (Financial Industry Business Ontology) RDF extraction expert.\n"
+            'Working with the "{{ontology_name}}" ontology.\n\n'
+            "Extract financial entities as RDF resources following FIBO conventions.\n\n"
+            "Known entity types:\n{{entity_types}}\n\n"
+            "Known relationship types:\n{{relationship_types}}\n\n"
+            "FIBO conventions:\n"
+            "- Use FIBO namespace prefixes (fibo-fnd:, fibo-be:, fibo-sec:)\n"
+            "- Organizations get LEI or FIGI identifiers as URIs when available\n"
+            "- Financial instruments reference SEC/ISIN identifiers\n"
+            "- Regulatory references link to specific regulation URIs\n\n"
+            "Return JSON with:\n"
+            '  "nodes": [{"id": "uri", "label": "Type", "properties": {"uri": "...", "name": "..."}}]\n'
+            '  "triples": [{"subject": "uri", "predicate": "predicate", "object": "uri_or_literal"}]\n'
+        ),
+        user="Financial document (extract as FIBO RDF):\n{{text}}",
+    ),
 }
 
 
@@ -387,6 +430,89 @@ class QueryStrategy(PromptStrategy):
             f"Question: {question}\n\n"
             f"Query results:\n{cypher_result}"
         )
+        return system, user
+
+
+# ---------------------------------------------------------------------------
+# RDF Query — n10s Cypher generation
+# ---------------------------------------------------------------------------
+
+
+class RDFQueryStrategy(PromptStrategy):
+    """Generates n10s-aware Cypher for RDF mode queries.
+
+    When the ontology uses ``graph_model="rdf"``, this strategy generates
+    Cypher that works with n10s (neosemantics) prefixed relationships
+    and URI-based node lookups.
+
+    n10s stores RDF triples as:
+    - Nodes with ``uri`` property and label = RDF class
+    - Relationships with prefixed names (e.g. ``schema__worksFor``)
+    """
+
+    def __init__(
+        self,
+        ontology: Ontology,
+        *,
+        schema_info: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        super().__init__(ontology)
+        self.schema_info = schema_info or {}
+
+    def render(self, question: str, **kwargs: Any) -> tuple[str, str]:
+        ctx = self.ontology.to_query_context()
+        ns = self.ontology.namespace or "https://schema.org/"
+
+        parts: List[str] = []
+        parts.append("You are an RDF knowledge graph query agent using Neo4j + n10s (neosemantics).")
+        parts.append("")
+        parts.append("IMPORTANT n10s conventions:")
+        parts.append(f"- Namespace: {ns}")
+        parts.append("- Nodes have a `uri` property (globally unique identifier)")
+        parts.append("- RDF classes become Neo4j labels (e.g. schema:Person → :Person)")
+        parts.append("- RDF properties become Neo4j relationship types with prefix")
+        parts.append("  (e.g. schema:worksFor → :schema__worksFor)")
+        parts.append("- Literal properties are stored directly on nodes")
+        parts.append("- Use `n10s.rdf.getNodeByUri($uri)` to look up by URI")
+        parts.append("")
+        parts.append("--- Graph Schema ---")
+        parts.append(ctx["graph_schema"])
+
+        if ctx.get("query_hints"):
+            parts.append("")
+            parts.append("--- Query Hints ---")
+            parts.append(ctx["query_hints"])
+
+        if self.schema_info:
+            parts.append("")
+            parts.append("--- Live Schema Stats ---")
+            for k, v in self.schema_info.items():
+                parts.append(f"- {_sanitize_prompt_value(k)}: {_sanitize_prompt_value(v)}")
+
+        parts.append("")
+        parts.append(
+            "Generate n10s-compatible Cypher. Use uri-based lookups where possible.\n"
+            "For relationship matching, use the prefixed form (namespace__property).\n\n"
+            "Return JSON:\n"
+            '  "cypher": the Cypher query string\n'
+            '  "params": dict of parameters\n'
+            '  "explanation": brief explanation'
+        )
+
+        system = "\n".join(parts)
+        user = f"Question: {question}"
+        return system, user
+
+    def render_answer(self, question: str, cypher_result: Any, **kwargs: Any) -> tuple[str, str]:
+        ctx = self.ontology.to_query_context()
+        parts: List[str] = []
+        parts.append("You are an RDF knowledge graph answer agent.")
+        parts.append(f'Working with the "{ctx["ontology_name"]}" RDF graph.')
+        parts.append("Node types: " + ctx["node_types"])
+        parts.append("Produce a clear factual answer from the query results.")
+
+        system = "\n".join(parts)
+        user = f"Question: {question}\n\nQuery results:\n{cypher_result}"
         return system, user
 
 

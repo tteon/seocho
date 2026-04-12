@@ -17,6 +17,7 @@ from .strategy import (
     PromptStrategy,
     PromptTemplate,
     QueryStrategy,
+    RDFQueryStrategy,
 )
 
 __all__ = [

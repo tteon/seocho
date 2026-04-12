@@ -482,11 +482,24 @@ class Workbench:
         for chunk in chunks:
             system, user = strategy.render(chunk)
 
-            response = llm.complete(
-                system=system, user=user,
-                temperature=temperature,
-                response_format={"type": "json_object"},
-            )
+            # Some models (e.g. kimi-k2.5) only accept temperature=1
+            safe_temp = temperature
+            if hasattr(llm, 'model') and 'kimi' in getattr(llm, 'model', '').lower():
+                safe_temp = 1.0
+
+            try:
+                response = llm.complete(
+                    system=system, user=user,
+                    temperature=safe_temp,
+                    response_format={"type": "json_object"},
+                )
+            except Exception:
+                # Fallback: some models don't support response_format
+                response = llm.complete(
+                    system=system + "\n\nReturn ONLY valid JSON.",
+                    user=user,
+                    temperature=safe_temp,
+                )
 
             # Track usage
             if response.usage:

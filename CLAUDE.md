@@ -222,8 +222,9 @@ Do not assume repo-side GitHub Actions automation for docs sync.
 - When local `bd` daemon startup is unstable, run lint via non-daemon mode (`bd --no-daemon`) to avoid hanging quality gates.
 - `tteon.github.io/` can exist as a local nested workspace for website validation, but it should remain untracked by the parent `seocho` repository.
 - Repo-side automation is intentionally narrow:
-  - `.github/workflows/ci-basic.yml` is the required GitHub check surface
-  - Codex PR automation is limited to bounded daily/periodic draft PR workflows
+  - `.github/workflows/ci.yml` is the required GitHub PR check surface
+  - `.github/workflows/nightly-e2e-smoke.yml` is the nightly runtime smoke surface
+  - local Codex CLI lane runners are the primary automation path for feature, refactor, and E2E PR creation
   - automation PRs must keep the `Feature/Why/Design/Expected Effect/Impact Results/Validation/Risks` structure
   - `/go` merge is maintainer-triggered and should not replace review judgment
 

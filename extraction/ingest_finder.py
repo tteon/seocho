@@ -94,7 +94,6 @@ def call_openai_for_json(prompt_text, json_schema, model="gpt-4o"):
     """
     Calls OpenAI API with Strict Structured Outputs.
     """
-    global client
     try:
         schema_dict = json_schema if isinstance(json_schema, dict) else {}
 

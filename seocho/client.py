@@ -37,7 +37,7 @@ import json
 import logging
 import os
 import re
-from typing import Any, Dict, List, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
 from urllib.parse import urljoin
 
 import requests
@@ -75,6 +75,9 @@ from .models import (
     SemanticRunResponse,
 )
 from .runtime_bundle import RuntimeBundle, build_runtime_bundle, create_client_from_runtime_bundle
+
+if TYPE_CHECKING:
+    from .session import Session
 
 logger = logging.getLogger(__name__)
 _FOUR_DIGIT_YEAR_RE = re.compile(r"\b(20\d{2})\b")

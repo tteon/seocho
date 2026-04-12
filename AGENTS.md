@@ -29,9 +29,9 @@ behavior, also read `docs/GRAPH_RAG_AGENT_HANDOFF_SPEC.md`.
 - create standardized work items with:
   - `scripts/pm/new-issue.sh`
   - `scripts/pm/new-task.sh`
-- exception: the scheduled daily Codex maintenance workflow may operate without
-  a dedicated `bd` item when the PR itself is the review envelope; in that case
-  the PR body must still capture scope, validation, and residual risk
+- exception: a local Codex CLI lane run may operate without a dedicated `bd`
+  item when the PR itself is the review envelope; in that case the PR body must
+  still capture scope, validation, and residual risk
 
 Active work items must include collaboration labels:
 
@@ -104,23 +104,27 @@ For architecture or workflow changes:
   - move draft PRs to review-ready state
   - trigger merge explicitly
 
-## 10. GitHub Automation Rules
+## 10. Automation Rules
 
-- basic CI workflow lives in `.github/workflows/ci-basic.yml`
-- the local command behind basic CI is `bash scripts/ci/run_basic_ci.sh`
-- use repo-local skill `$daily-maintenance-pr` for scheduled or manual Codex
-  maintenance PR workflows
-- use repo-local skill `$periodic-review-pr` for scheduled or manual Codex
-  repository review PR workflows
-- scheduled automation prompts live in:
-  - `.github/codex/prompts/daily-maintenance-pr.md`
-  - `.github/codex/prompts/periodic-review-pr.md`
-- scheduled Codex workflows live in:
-  - `.github/workflows/daily-codex-maintenance.yml`
-  - `.github/workflows/periodic-codex-review.yml`
-- comment-based merge workflow lives in
-  `.github/workflows/pr-comment-merge.yml`
-- scheduled automation must stay small, reviewable, and non-destructive:
+- canonical GitHub PR CI workflow lives in `.github/workflows/ci.yml`
+- `.github/workflows/ci-basic.yml` is legacy/manual only
+- nightly runtime smoke workflow lives in
+  `.github/workflows/nightly-e2e-smoke.yml`
+- fast local validation command remains `bash scripts/ci/run_basic_ci.sh`
+- local Codex CLI lanes are the primary PR authoring path:
+  - `scripts/codex/run_feature_improvement.sh`
+  - `scripts/codex/run_refactor.sh`
+  - `scripts/codex/run_e2e_investigation.sh`
+- local Codex CLI lane prompts live in:
+  - `scripts/codex/prompts/feature-improvement-pr.md`
+  - `scripts/codex/prompts/refactor-pr.md`
+  - `scripts/codex/prompts/e2e-investigation-pr.md`
+- repo-local lane skills live in:
+  - `.agents/skills/feature-improvement-pr/SKILL.md`
+  - `.agents/skills/refactor-pr/SKILL.md`
+  - `.agents/skills/e2e-investigation-pr/SKILL.md`
+- local Codex automation must stay small, reviewable, and non-destructive:
+  - run from a dedicated clean clone on `main`
   - no direct push to `main`
   - no auto-merge
   - one cohesive change only
@@ -134,7 +138,7 @@ For architecture or workflow changes:
   - avoid semantic retrieval, ontology policy, routing policy, tracing contract,
     or multi-agent behavior changes unless the PR already targets that exact
     area
-- comment-based merge should stay explicitly maintainer-triggered:
+- comment-based merge stays explicitly maintainer-triggered:
   - merge command is exactly `/go`
   - only users with `write`, `maintain`, or `admin` permission may trigger it
   - workflow uses squash merge

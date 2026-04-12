@@ -220,6 +220,11 @@ Each entry must link to a full ADR when impact is non-trivial.
 
 ## 2026-04-12
 
+- Accepted `ADR-0046-pr-based-ci-nightly-smoke-and-local-codex-cli-lanes.md`
+  - make `.github/workflows/ci.yml` the canonical PR CI surface
+  - add `.github/workflows/nightly-e2e-smoke.yml` as the deterministic runtime smoke gate
+  - replace GitHub-side Codex workflows with local Codex CLI lane runners and repo-local lane skills
+
 - Accepted `ADR-0045-vendor-neutral-tracing-and-explicit-opik-opt-in.md`
   - define the runtime tracing contract as `none|console|jsonl|opik`
   - treat JSONL as the canonical neutral trace artifact and Opik as the preferred team backend

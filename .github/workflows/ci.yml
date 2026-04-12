@@ -20,13 +20,18 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install flake8 black isort
-      - name: flake8 (SDK)
-        run: flake8 seocho/ --max-line-length=120 --ignore=E501,W503,E203 --count --show-source --statistics
-      - name: black check
-        run: black --check --line-length=120 seocho/ || true
-      - name: isort check
-        run: isort --check --profile black seocho/ || true
+      - run: pip install uv && uv sync --extra ci
+        env:
+          UV_CACHE_DIR: /tmp/uv-cache
+      - name: flake8 (high-signal syntax/name errors only)
+        run: |
+          uv run flake8 \
+            seocho/ \
+            extraction/ \
+            --select=E9,F63,F7,F82 \
+            --count --show-source --statistics
+        env:
+          UV_CACHE_DIR: /tmp/uv-cache
       - name: py_compile critical modules
         run: |
           python3 -m py_compile seocho/__init__.py

@@ -186,6 +186,24 @@ onto = Ontology(name="fibo", graph_model="rdf",
 | [docs/WORKFLOW.md](docs/WORKFLOW.md) | Operational workflow |
 | [docs/ISSUE_TASK_SYSTEM.md](docs/ISSUE_TASK_SYSTEM.md) | Sprint/task governance |
 
+## Automation Model
+
+- GitHub CI is deterministic:
+  - `.github/workflows/ci.yml` for PR checks
+  - `.github/workflows/nightly-e2e-smoke.yml` for scheduled runtime smoke
+- Codex CLI is the bounded PR author:
+  - `scripts/codex/run_feature_improvement.sh`
+  - `scripts/codex/run_refactor.sh`
+  - `scripts/codex/run_e2e_investigation.sh`
+- Jules is PR-fixer-first:
+  - fix failing CI on existing PRs
+  - keep scope narrow
+  - do not widen into architecture work
+- Maintainers remain the merge gate:
+  - review the draft PR
+  - mark it ready for review
+  - merge with `/go`
+
 ## Observability Modes
 
 - `none`: no tracing; smallest surface and lowest data retention risk.

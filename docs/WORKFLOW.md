@@ -132,49 +132,63 @@ Operational notes:
   selected docs, but mirrored pages are still reviewable content, not a blind
   publish target
 
-5. Basic CI
+5. PR CI and Local Fast Gate
 
-- workflow: `.github/workflows/ci-basic.yml`
-- canonical local command: `bash scripts/ci/run_basic_ci.sh`
-- current scope:
-  - semantic/runtime/SDK `py_compile`
-  - focused semantic/runtime/SDK pytest
-  - `git diff --check`
-  - `scripts/pm/lint-agent-docs.sh`
+- canonical GitHub PR workflow: `.github/workflows/ci.yml`
+- trigger:
+  - `push` on `main`
+  - `pull_request` targeting `main`
+  - `workflow_dispatch`
+- GitHub jobs:
+  - `lint`
+  - `sdk-tests`
+  - `server-tests`
+  - `docs`
+- local fast gate for authoring and bounded automation:
+  - `bash scripts/ci/run_basic_ci.sh`
+- `.github/workflows/ci-basic.yml` remains as a legacy/manual compatibility
+  surface only and is not the canonical PR gate
 
-6. Daily Codex Maintenance Automation
+6. Nightly Runtime Smoke
 
-- workflow: `.github/workflows/daily-codex-maintenance.yml`
-- cadence: daily at `00:15 UTC` (`09:15 Asia/Seoul`) plus `workflow_dispatch`
-- required secrets:
-  - `OPENAI_API_KEY`
-  - `SEOCHO_GITHUB_APP_ID`
-  - `SEOCHO_GITHUB_APP_PRIVATE_KEY`
-- prompt contract: `.github/codex/prompts/daily-maintenance-pr.md`
-- skill contract: `.agents/skills/daily-maintenance-pr/SKILL.md`
-- PR contract:
-  - draft PR only
-  - branch `codex/daily-maintenance`
-  - run `bash scripts/ci/run_basic_ci.sh` before creating/updating the PR
-  - PR body must include `Feature`, `Why`, `Design`, `Expected Effect`,
-    `Impact Results`, `Validation`, and `Risks`
-  - no direct push to `main`
-
-7. Periodic Codex Review Automation
-
-- workflow: `.github/workflows/periodic-codex-review.yml`
-- cadence: weekly on Monday at `00:45 UTC` (`09:45 Asia/Seoul`) plus
+- workflow: `.github/workflows/nightly-e2e-smoke.yml`
+- cadence: nightly at `12:00 UTC` (`21:00 Asia/Seoul`) plus
   `workflow_dispatch`
-- required secrets:
-  - `OPENAI_API_KEY`
-  - `SEOCHO_GITHUB_APP_ID`
-  - `SEOCHO_GITHUB_APP_PRIVATE_KEY`
-- prompt contract: `.github/codex/prompts/periodic-review-pr.md`
-- skill contract: `.agents/skills/periodic-review-pr/SKILL.md`
-- PR contract:
-  - draft PR only
-  - branch `codex/periodic-review`
-  - run `bash scripts/ci/run_basic_ci.sh` before creating/updating the PR
+- contract:
+  - boot dockerized runtime stack
+  - run `make e2e-smoke`
+  - collect compose logs on failure
+  - tear down the stack on completion
+- purpose:
+  - keep runtime smoke deterministic and separate from PR authoring
+  - provide a concrete trigger for the `e2e-investigation` Codex lane when it
+    fails
+
+7. Local Codex CLI PR Lanes
+
+- Codex does not run inside GitHub Actions in this repository
+- local Codex CLI is the primary PR authoring path for bounded automation
+- supported lanes:
+  - `feature-improvement`
+  - `refactor`
+  - `e2e-investigation`
+- local runners:
+  - `scripts/codex/run_feature_improvement.sh`
+  - `scripts/codex/run_refactor.sh`
+  - `scripts/codex/run_e2e_investigation.sh`
+- prompt contracts:
+  - `scripts/codex/prompts/feature-improvement-pr.md`
+  - `scripts/codex/prompts/refactor-pr.md`
+  - `scripts/codex/prompts/e2e-investigation-pr.md`
+- skill contracts:
+  - `.agents/skills/feature-improvement-pr/SKILL.md`
+  - `.agents/skills/refactor-pr/SKILL.md`
+  - `.agents/skills/e2e-investigation-pr/SKILL.md`
+- operating rules:
+  - run from a dedicated clean clone on `main`
+  - create or update one draft PR only
+  - keep one cohesive change per PR
+  - run lane-appropriate validation before publication
   - PR body must include `Feature`, `Why`, `Design`, `Expected Effect`,
     `Impact Results`, `Validation`, and `Risks`
   - no direct push to `main`

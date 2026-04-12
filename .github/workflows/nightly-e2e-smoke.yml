@@ -1,0 +1,41 @@
+name: Nightly E2E Smoke
+
+on:
+  schedule:
+    - cron: "0 12 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: nightly-e2e-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      contents: read
+    env:
+      OPENAI_API_KEY: dummy-key
+      SEOCHO_TRACE_BACKEND: none
+      EXTRACTION_API_PORT: 8001
+      CHAT_INTERFACE_PORT: 8501
+      NEO4J_HTTP_PORT: 7474
+      NEO4J_BOLT_PORT: 7687
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Start runtime stack
+        run: docker compose up -d --build neo4j extraction-service semantic-service evaluation-interface
+
+      - name: Run runtime smoke
+        run: make e2e-smoke
+
+      - name: Capture compose logs on failure
+        if: failure()
+        run: docker compose logs --tail=200
+
+      - name: Tear down runtime stack
+        if: always()
+        run: docker compose down -v --remove-orphans

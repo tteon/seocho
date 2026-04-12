@@ -44,10 +44,41 @@ git push -u origin feat/my-feature
 
 | Check | What it does |
 |-------|-------------|
-| **lint** | flake8 + py_compile on SDK modules |
+| **lint** | high-signal flake8 (syntax/undefined-name class) + py_compile |
 | **sdk-tests** | `seocho/tests/` on Python 3.10, 3.11, 3.12 |
 | **server-tests** | `extraction/tests/` on Python 3.11 |
 | **docs** | Doc contract + agent doc lint |
+
+### Nightly integration smoke
+
+- `.github/workflows/nightly-e2e-smoke.yml` runs the dockerized runtime smoke path
+- it validates `make e2e-smoke` against the platform stack on a schedule or by manual dispatch
+- when the smoke job fails, treat that as input for the `e2e-investigation` Codex lane
+
+## Local Codex CLI Automation
+
+Codex authors bounded draft PRs from a local clean clone. GitHub Actions does
+not run Codex directly.
+
+Available lanes:
+
+```bash
+scripts/codex/run_feature_improvement.sh
+scripts/codex/run_refactor.sh
+scripts/codex/run_e2e_investigation.sh
+```
+
+Rules:
+
+- run from a clean clone checked out to `main`
+- each run opens or updates one draft PR only
+- each run must choose exactly one lane
+- PR bodies must include `Feature`, `Why`, `Design`, `Expected Effect`,
+  `Impact Results`, `Validation`, and `Risks`
+- CI remains deterministic; Codex is the PR author, not the CI gate
+
+Jules should treat those PRs as the primary unit of work and only repair
+failing CI or directly related narrow issues.
 
 ### Merging
 

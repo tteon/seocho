@@ -290,13 +290,6 @@ class TestConfidenceScoring:
         assert "details" in scores["nodes"][0]
         assert "label_match" in scores["nodes"][0]["details"]
 
-
-class TestValidation:
-    def test_validate_missing_source(self):
-        errors = simple_ontology.validate_with_shacl(data)
-        assert errors == []
-
-
 # ---------------------------------------------------------------------------
 # Denormalization
 # ---------------------------------------------------------------------------

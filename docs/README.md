@@ -75,25 +75,27 @@ Use these when changing a specific subsystem or workflow:
 
 ## Automation References
 
-- `../scripts/ci/run_basic_ci.sh`: canonical local command behind the repo
-  basic CI workflow
+- `../scripts/ci/run_basic_ci.sh`: fast local validation gate for automation
+  authoring and focused checks
 - `../scripts/ci/create_or_update_bot_pr.sh`: canonical PR publication helper
-  for scheduled Codex automation
+  for local Codex CLI automation
 - `../scripts/ci/validate_pr_body.sh`: enforces the required automation PR body
   headings before publication
-- `../.agents/skills/daily-maintenance-pr/SKILL.md`: repo-local skill for
-  bounded maintenance work
-- `../.agents/skills/periodic-review-pr/SKILL.md`: repo-local skill for
-  bounded review/refactor work
-- `../.github/codex/prompts/daily-maintenance-pr.md`: prompt for daily Codex
-  maintenance
-- `../.github/codex/prompts/periodic-review-pr.md`: prompt for periodic Codex
-  review
-- `../.github/workflows/ci-basic.yml`: minimal required GitHub check surface
-- `../.github/workflows/daily-codex-maintenance.yml`: scheduled Codex draft-PR
-  maintenance workflow
-- `../.github/workflows/periodic-codex-review.yml`: scheduled Codex draft-PR
-  review workflow
+- `../scripts/codex/run_feature_improvement.sh`: local Codex CLI feature lane
+- `../scripts/codex/run_refactor.sh`: local Codex CLI refactor lane
+- `../scripts/codex/run_e2e_investigation.sh`: local Codex CLI E2E lane
+- `../scripts/codex/prompts/feature-improvement-pr.md`: feature lane prompt
+- `../scripts/codex/prompts/refactor-pr.md`: refactor lane prompt
+- `../scripts/codex/prompts/e2e-investigation-pr.md`: E2E lane prompt
+- `../.agents/skills/feature-improvement-pr/SKILL.md`: repo-local skill for
+  bounded feature work
+- `../.agents/skills/refactor-pr/SKILL.md`: repo-local skill for bounded
+  maintainability work
+- `../.agents/skills/e2e-investigation-pr/SKILL.md`: repo-local skill for
+  runtime failure investigation
+- `../.github/workflows/ci.yml`: canonical GitHub PR check surface
+- `../.github/workflows/ci-basic.yml`: legacy/manual compatibility workflow
+- `../.github/workflows/nightly-e2e-smoke.yml`: scheduled runtime smoke gate
 - `../.github/workflows/pr-comment-merge.yml`: maintainer-triggered `/go`
   squash merge workflow
 

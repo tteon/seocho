@@ -41,14 +41,87 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
+class EntityRecord:
+    """A single entity extracted and written during the session."""
+
+    label: str
+    name: str
+    properties: Dict[str, Any] = field(default_factory=dict)
+    source_id: str = ""
+    database: str = ""
+
+
+@dataclass
+class RelationshipRecord:
+    """A single relationship extracted and written during the session."""
+
+    source: str
+    relationship_type: str
+    target: str
+    properties: Dict[str, Any] = field(default_factory=dict)
+    source_id: str = ""
+
+
+@dataclass
 class SessionContext:
-    """Tracks what has been indexed and queried in this session."""
+    """Structured context cache for the session.
+
+    Tracks entities, relationships, and operations so that:
+    - Sub-agents receive precise context (not just text summaries)
+    - Repeated queries can be answered from cache
+    - Token usage is minimized (structured data instead of full history)
+    """
 
     indexed_sources: List[Dict[str, Any]] = field(default_factory=list)
-    indexed_entities: List[str] = field(default_factory=list)
     queries: List[Dict[str, Any]] = field(default_factory=list)
     total_nodes: int = 0
     total_relationships: int = 0
+
+    # --- Structured entity/relationship cache ---
+    entities: Dict[str, EntityRecord] = field(default_factory=dict)
+    relationships: List[RelationshipRecord] = field(default_factory=list)
+    _query_cache: Dict[str, str] = field(default_factory=dict)
+
+    def register_entities(self, nodes: List[Dict[str, Any]], source_id: str = "", database: str = "") -> None:
+        """Register extracted entities into the structured cache."""
+        for node in nodes:
+            if not isinstance(node, dict):
+                continue
+            label = node.get("label", "")
+            props = node.get("properties", {})
+            name = props.get("name", node.get("id", ""))
+            if not name:
+                continue
+            key = f"{label}::{name}".lower()
+            self.entities[key] = EntityRecord(
+                label=label,
+                name=str(name),
+                properties=props,
+                source_id=source_id,
+                database=database,
+            )
+
+    def register_relationships(self, rels: List[Dict[str, Any]], source_id: str = "") -> None:
+        """Register extracted relationships into the structured cache."""
+        for rel in rels:
+            if not isinstance(rel, dict):
+                continue
+            self.relationships.append(RelationshipRecord(
+                source=str(rel.get("source", "")),
+                relationship_type=str(rel.get("type", rel.get("relationship_type", ""))),
+                target=str(rel.get("target", "")),
+                properties=rel.get("properties", {}),
+                source_id=source_id,
+            ))
+
+    def cache_query(self, question: str, answer: str) -> None:
+        """Cache a query result for deduplication."""
+        key = question.strip().lower()
+        self._query_cache[key] = answer
+
+    def get_cached_answer(self, question: str) -> Optional[str]:
+        """Return cached answer if available."""
+        return self._query_cache.get(question.strip().lower())
 
     def add_indexing(
         self,
@@ -100,11 +173,42 @@ class SessionContext:
         """Human-readable summary of what happened in this session."""
         parts = [f"Session indexed {len(self.indexed_sources)} document(s): "
                  f"{self.total_nodes} nodes, {self.total_relationships} relationships."]
-        if self.indexed_entities:
-            parts.append(f"Key entities: {', '.join(self.indexed_entities[:10])}")
+        if self.entities:
+            entity_names = [e.name for e in list(self.entities.values())[:10]]
+            parts.append(f"Key entities: {', '.join(entity_names)}")
         if self.queries:
             parts.append(f"Answered {len(self.queries)} question(s).")
         return " ".join(parts)
+
+    def to_agent_context(self, max_entities: int = 30) -> str:
+        """Build a structured context string for sub-agent prompts.
+
+        Unlike ``summary()`` which is human-readable, this returns
+        structured entity/relationship data that helps the agent
+        make accurate queries without scanning full history.
+        """
+        lines: List[str] = []
+
+        if self.entities:
+            lines.append("=== Known Entities ===")
+            for i, (key, e) in enumerate(self.entities.items()):
+                if i >= max_entities:
+                    lines.append(f"  ... and {len(self.entities) - max_entities} more")
+                    break
+                props_str = ", ".join(f"{k}={v}" for k, v in list(e.properties.items())[:5])
+                lines.append(f"  [{e.label}] {e.name} ({props_str})")
+
+        if self.relationships:
+            lines.append("=== Known Relationships ===")
+            for r in self.relationships[:30]:
+                lines.append(f"  {r.source} -[{r.relationship_type}]-> {r.target}")
+
+        if self.queries:
+            lines.append(f"=== Previous Queries ({len(self.queries)}) ===")
+            for q in self.queries[-5:]:
+                lines.append(f"  Q: {q['question'][:100]}")
+
+        return "\n".join(lines) if lines else ""
 
 
 class Session:
@@ -284,6 +388,12 @@ class Session:
             fallback_reason=str(result.get("fallback_reason", "")),
         )
 
+        # Register extracted entities/relationships in structured cache
+        if "extracted_nodes" in result:
+            self.context.register_entities(result["extracted_nodes"], source_id, db)
+        if "extracted_relationships" in result:
+            self.context.register_relationships(result["extracted_relationships"], source_id)
+
         # Trace
         if self._trace:
             self._trace.log_span(
@@ -360,11 +470,11 @@ class Session:
         db = database or self.database
         start = time.time()
 
-        context_msg = ""
-        if self.context.indexed_sources:
-            context_msg = f"\n\n[Session context: {self.context.summary()}]"
+        # Pass structured context (entities/relationships), not full history
+        agent_ctx = self.context.to_agent_context()
+        context_block = f"\n\n{agent_ctx}" if agent_ctx else ""
 
-        full_message = f"{message}{context_msg}\n[Target database: {db}]"
+        full_message = f"{message}{context_block}\n[Target database: {db}]"
         result_text = self._run_via_supervisor(full_message, db)
 
         elapsed = time.time() - start
@@ -432,15 +542,18 @@ class Session:
             raise RuntimeError("Session is closed")
 
         db = database or self.database
+
+        # Check query cache first
+        cached = self.context.get_cached_answer(question)
+        if cached is not None:
+            self.context.add_query(question, cached, mode="cache")
+            return cached
+
         start = time.time()
 
-        # Build context message for the agent
-        context_msg = ""
-        if self.context.indexed_sources:
-            context_msg = (
-                f"\n\n[Session context: {self.context.summary()}]\n"
-                f"[Target database: {db}]"
-            )
+        # Pass structured context (entities, not history)
+        agent_ctx = self.context.to_agent_context()
+        context_msg = f"\n\n{agent_ctx}\n[Target database: {db}]" if agent_ctx else ""
 
         mode = self._execution_mode
         if mode == "agent":
@@ -459,6 +572,7 @@ class Session:
             fallback_from=str(query_result.get("fallback_from", "")),
             fallback_reason=str(query_result.get("fallback_reason", "")),
         )
+        self.context.cache_query(question, answer)
 
         # Trace
         if self._trace:
@@ -546,6 +660,17 @@ class Session:
     ) -> Dict[str, Any]:
         """Direct pipeline fallback (no agent reasoning)."""
         pipeline = self._get_pipeline_engine()
+
+        # Extract first (for context cache), then add normally
+        extracted_nodes: List[Dict] = []
+        extracted_rels: List[Dict] = []
+        try:
+            extracted = pipeline.extract(content, category=category, metadata=metadata)
+            extracted_nodes = extracted.get("nodes", [])
+            extracted_rels = extracted.get("relationships", [])
+        except Exception:
+            pass  # extraction for cache is best-effort
+
         memory = pipeline.add(
             content,
             database=database,
@@ -564,6 +689,8 @@ class Session:
             "degraded": False,
             "fallback_from": "",
             "fallback_reason": "",
+            "extracted_nodes": extracted_nodes,
+            "extracted_relationships": extracted_rels,
         }
 
     def _ask_via_pipeline(self, question: str, database: str, reasoning_mode: bool) -> Dict[str, Any]:

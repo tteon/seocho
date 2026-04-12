@@ -2,15 +2,25 @@
 
 Welcome to the central documentation index for SEOCHO. This directory tracks the active systems, decisions, and capabilities comprising our multi-agent platform.
 
+## Documentation Surfaces
+
+SEOCHO is easiest to understand if you separate three surfaces:
+
+- GitHub `README.md`: fastest product overview and install path choice
+- `docs/*`: operational guides, ontology workflow, runtime files, and system
+  contracts
+- website docs and SDK pages: public onboarding and mirrored developer guides
+
 ## Canonical Start Docs
 
 Read these first unless you already know exactly which area you need:
 
-- `QUICKSTART.md`: shortest local success path
-- `PYTHON_INTERFACE_QUICKSTART.md`: public Python SDK and pip-install path
-- `APPLY_YOUR_DATA.md`: how to ingest your own records and query them safely
-- `FILES_AND_ARTIFACTS.md`: where ontology, rule, trace, and runtime files live
-- `WORKFLOW.md`: canonical operational workflow
+- [WHY_SEOCHO.md](WHY_SEOCHO.md): product positioning and ontology-first value proposition
+- [QUICKSTART.md](QUICKSTART.md): shortest local success path
+- [PYTHON_INTERFACE_QUICKSTART.md](PYTHON_INTERFACE_QUICKSTART.md): public Python SDK and pip-install path
+- [APPLY_YOUR_DATA.md](APPLY_YOUR_DATA.md): how to ingest your own records and query them safely
+- [FILES_AND_ARTIFACTS.md](FILES_AND_ARTIFACTS.md): where ontology, rule, trace, and runtime files live
+- [WORKFLOW.md](WORKFLOW.md): canonical operational workflow
 - `PRD_MVP.md`: current product scope and MVP contract
 - `GRAPH_MEMORY_API.md`: target public memory-first API
 - `GRAPH_RAG_AGENT_HANDOFF_SPEC.md`: intent-first graph answer contract
@@ -25,23 +35,25 @@ Read these first unless you already know exactly which area you need:
 
 Use this path if you are new to the repository:
 
-1. `QUICKSTART.md`
-2. `PYTHON_INTERFACE_QUICKSTART.md`
-3. `APPLY_YOUR_DATA.md`
-4. `FILES_AND_ARTIFACTS.md`
-5. `TUTORIAL_FIRST_RUN.md`
-6. `BEGINNER_PIPELINES_DEMO.md`
-7. `OPEN_SOURCE_PLAYBOOK.md`
+1. [WHY_SEOCHO.md](WHY_SEOCHO.md)
+2. [QUICKSTART.md](QUICKSTART.md)
+3. [PYTHON_INTERFACE_QUICKSTART.md](PYTHON_INTERFACE_QUICKSTART.md)
+4. [APPLY_YOUR_DATA.md](APPLY_YOUR_DATA.md)
+5. [FILES_AND_ARTIFACTS.md](FILES_AND_ARTIFACTS.md)
+6. [TUTORIAL_FIRST_RUN.md](TUTORIAL_FIRST_RUN.md)
+7. `BEGINNER_PIPELINES_DEMO.md`
+8. [OPEN_SOURCE_PLAYBOOK.md](OPEN_SOURCE_PLAYBOOK.md)
 
 Role split:
 
-- `QUICKSTART.md` is the shortest successful run
-- `PYTHON_INTERFACE_QUICKSTART.md` is the public Python SDK quickstart
-- `APPLY_YOUR_DATA.md` is the bring-your-own-data ingestion and query guide
-- `FILES_AND_ARTIFACTS.md` explains where ontology and runtime artifacts live
-- `TUTORIAL_FIRST_RUN.md` is the manual API verification path
+- [WHY_SEOCHO.md](WHY_SEOCHO.md) explains why SEOCHO is ontology-first instead of generic memory-first
+- [QUICKSTART.md](QUICKSTART.md) is the shortest successful run
+- [PYTHON_INTERFACE_QUICKSTART.md](PYTHON_INTERFACE_QUICKSTART.md) is the public Python SDK quickstart
+- [APPLY_YOUR_DATA.md](APPLY_YOUR_DATA.md) is the bring-your-own-data ingestion and query guide
+- [FILES_AND_ARTIFACTS.md](FILES_AND_ARTIFACTS.md) explains where ontology and runtime artifacts live
+- [TUTORIAL_FIRST_RUN.md](TUTORIAL_FIRST_RUN.md) is the manual API verification path
 - `BEGINNER_PIPELINES_DEMO.md` is the scripted demo path
-- `OPEN_SOURCE_PLAYBOOK.md` is the contributor path
+- [OPEN_SOURCE_PLAYBOOK.md](OPEN_SOURCE_PLAYBOOK.md) is the contributor path
 
 Current developer-facing execution order:
 
@@ -104,12 +116,13 @@ Use these when changing a specific subsystem or workflow:
 
 - `README.md` and selected `docs/*` pages are the source material for website docs.
 - publish-critical sync sources:
+  - `docs/WHY_SEOCHO.md`
   - `docs/README.md`
   - `docs/QUICKSTART.md`
   - `docs/APPLY_YOUR_DATA.md`
-- `docs/PYTHON_INTERFACE_QUICKSTART.md`
-- `docs/ARCHITECTURE.md`
-- `docs/WORKFLOW.md`
+  - `docs/PYTHON_INTERFACE_QUICKSTART.md`
+  - `docs/ARCHITECTURE.md`
+  - `docs/WORKFLOW.md`
 - Website updates are currently maintained directly in the local `tteon.github.io/`
   workspace.
 - Repo-side docs consistency checks now run in `.github/workflows/docs-consistency.yml`

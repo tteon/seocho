@@ -1,12 +1,31 @@
 # SEOCHO
 
-**Ontology-driven knowledge graph library for Python**
+**Ontology-first graph memory for agents**
 
 [![PyPI](https://img.shields.io/pypi/v/seocho)](https://pypi.org/project/seocho/)
 [![Tests](https://img.shields.io/badge/tests-139%20passed-green)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Define your schema once — it drives extraction, querying, validation, and graph-governance artifacts from one contract.
+Define your ontology once. SEOCHO uses that one contract to drive extraction,
+query planning, validation, graph constraints, and runtime semantic artifacts.
+
+## Why SEOCHO
+
+Most memory libraries optimize for the fastest generic demo. SEOCHO optimizes
+for graph-native teams that need a stronger contract between ontology, runtime,
+and agent behavior.
+
+- ontology-first, not prompt-first
+- graph-native, not vector-only
+- governed artifacts, not ad hoc schema drift
+- local SDK authoring and runtime consumption on one contract
+
+Start here:
+
+- [Why SEOCHO](docs/WHY_SEOCHO.md)
+- [Quickstart](docs/QUICKSTART.md)
+- [Python SDK Quickstart](docs/PYTHON_INTERFACE_QUICKSTART.md)
+- [Files and Artifacts](docs/FILES_AND_ARTIFACTS.md)
 
 ## Install
 

@@ -9,7 +9,7 @@ dataset:
   sample_size: 10
 
 neo4j:
-  uri: "bolt://neo4j:7687" # Default to main container. Override in schema if needed.
+  uri: "${oc.env:NEO4J_URI,bolt://localhost:7687}"
   user: "${oc.env:NEO4J_USER,neo4j}"
   password: "${oc.env:NEO4J_PASSWORD,password}"
 

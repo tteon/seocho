@@ -1,0 +1,13 @@
+timestamp,name,model,input_tokens,output_tokens,total_tokens,nodes,relationships,score,validation_errors,result_count,reasoning_attempts,elapsed_seconds
+2026-04-12T10:31:15.804356+00:00,sdk.extraction,gpt-4o-mini,303,477,780,8,6,0.429,8,,,24.86
+2026-04-12T10:31:22.857032+00:00,sdk.extraction,gpt-4o-mini,283,190,473,3,2,0.4,3,,,7.05
+2026-04-12T10:31:31.915675+00:00,sdk.extraction,gpt-4o-mini,287,242,529,4,3,0.429,4,,,9.06
+2026-04-12T10:31:37.317244+00:00,sdk.query,gpt-4o-mini,,,,,,,,2,3,5.4
+2026-04-12T10:31:39.078002+00:00,sdk.query,gpt-4o-mini,,,,,,,,1,0,1.76
+2026-04-12T10:31:42.637077+00:00,sdk.query,gpt-4o-mini,,,,,,,,3,2,3.56
+2026-04-12T10:31:56.099111+00:00,sdk.extraction,gpt-4o-mini,527,432,959,0,0,0.455,6,,,13.46
+2026-04-12T10:32:03.081776+00:00,sdk.extraction,gpt-4o-mini,507,187,694,0,0,0.4,3,,,6.98
+2026-04-12T10:32:10.708339+00:00,sdk.extraction,gpt-4o-mini,511,250,761,0,0,0.0,7,,,7.63
+2026-04-12T10:32:24.635177+00:00,sdk.extraction,gpt-4o-mini,226,269,495,0,0,0.333,6,,,10.96
+2026-04-12T10:32:31.295359+00:00,sdk.extraction,gpt-4o-mini,206,178,384,0,0,0.4,3,,,6.66
+2026-04-12T10:32:41.409087+00:00,sdk.extraction,gpt-4o-mini,210,252,462,0,0,0.444,5,,,10.11

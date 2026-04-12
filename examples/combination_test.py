@@ -164,7 +164,6 @@ def main(quick: bool = False):
                 doc["text"],
                 database=DB,
                 category=doc["category"],
-                strict_validation=strict,  # Feature 1: SHACL strict
             )
             nodes = mem.metadata.get("nodes_created", 0)
             rels = mem.metadata.get("relationships_created", 0)

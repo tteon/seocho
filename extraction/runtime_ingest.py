@@ -81,6 +81,30 @@ class RuntimeRawIngestor:
         semantic_artifact_policy: str = "auto",
         approved_artifacts: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
+        """Ingest raw records through the full extraction pipeline.
+
+        Runs parse → semantic extraction → entity linking → rule annotation →
+        graph load for each record.
+
+        Args:
+            records: Raw record dicts, each with at least ``content`` and
+                optionally ``id``, ``category``, ``source_type``, ``metadata``.
+            target_database: DozerDB database to load extracted graphs into.
+            workspace_id: Workspace scope propagated to all graph properties.
+            enable_rule_constraints: Infer and apply SHACL-like rules to nodes.
+            create_database_if_missing: Provision the DB if it does not exist.
+            semantic_artifact_policy: ``'auto'`` (apply drafts), ``'draft_only'``
+                (defer approval), or ``'approved_only'`` (require approved artifacts).
+            approved_artifacts: Pre-approved ontology/SHACL payload to use.
+
+        Returns:
+            Summary dict with ``records_processed``, ``records_failed``,
+            ``rule_profile``, ``semantic_artifacts``, ``errors``, ``warnings``,
+            and ``status``.
+
+        Raises:
+            InvalidDatabaseNameError: If *target_database* fails name validation.
+        """
         from rule_constraints import RuleSet, apply_rules_to_graph, infer_rules_from_graph
 
         if not _DB_NAME_RE.match(target_database):
@@ -164,7 +188,6 @@ class RuntimeRawIngestor:
                 parser_metadata=parsed.metadata,
                 user_metadata=user_metadata,
             )
-
             try:
                 graph_data, used_fallback, fallback_reason = self._extract_graph(
                     source_id=source_id,

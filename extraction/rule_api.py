@@ -12,106 +12,134 @@ from rule_profile_store import get_rule_profile, list_rule_profiles, save_rule_p
 
 
 class RuleInferRequest(BaseModel):
-    workspace_id: str = Field(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$")
-    graph: Dict[str, Any]
-    required_threshold: float = Field(default=0.98, ge=0.0, le=1.0)
-    enum_max_size: int = Field(default=20, ge=1, le=200)
+    """Infer SHACL-like constraints from an extracted graph."""
+
+    workspace_id: str = Field(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$", description="Workspace scope.")
+    graph: Dict[str, Any] = Field(description="Extracted graph data with 'nodes' and 'relationships' arrays.")
+    required_threshold: float = Field(default=0.98, ge=0.0, le=1.0, description="Minimum property completeness ratio to infer a 'required' rule.")
+    enum_max_size: int = Field(default=20, ge=1, le=200, description="Maximum distinct values to infer an 'enum' constraint.")
 
 
 class RuleInferResponse(BaseModel):
-    workspace_id: str
-    rule_profile: Dict[str, Any]
-    shacl_like: Dict[str, Any]
+    """Inferred rule profile and SHACL-like shape document."""
+
+    workspace_id: str = Field(description="Workspace scope.")
+    rule_profile: Dict[str, Any] = Field(description="Inferred rules in internal format (schema_version + rules array).")
+    shacl_like: Dict[str, Any] = Field(description="SHACL-inspired shape document for human review.")
 
 
 class RuleValidateRequest(BaseModel):
-    workspace_id: str = Field(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$")
-    graph: Dict[str, Any]
-    rule_profile: Optional[Dict[str, Any]] = None
-    required_threshold: float = Field(default=0.98, ge=0.0, le=1.0)
-    enum_max_size: int = Field(default=20, ge=1, le=200)
+    """Validate an extracted graph against a rule profile."""
+
+    workspace_id: str = Field(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$", description="Workspace scope.")
+    graph: Dict[str, Any] = Field(description="Extracted graph data to validate.")
+    rule_profile: Optional[Dict[str, Any]] = Field(default=None, description="Rule profile to validate against; inferred from graph if omitted.")
+    required_threshold: float = Field(default=0.98, ge=0.0, le=1.0, description="Completeness threshold for 'required' rule inference.")
+    enum_max_size: int = Field(default=20, ge=1, le=200, description="Max distinct values for 'enum' rule inference.")
 
 
 class RuleValidateResponse(BaseModel):
-    workspace_id: str
-    graph: Dict[str, Any]
-    rule_profile: Dict[str, Any]
-    validation_summary: Dict[str, Any]
+    """Validation results with annotated graph and summary."""
+
+    workspace_id: str = Field(description="Workspace scope.")
+    graph: Dict[str, Any] = Field(description="Graph with per-node rule_validation annotations.")
+    rule_profile: Dict[str, Any] = Field(description="Rule profile used for validation.")
+    validation_summary: Dict[str, Any] = Field(description="Aggregate counts: total_nodes, passed_nodes, failed_nodes.")
 
 
 class RuleProfileCreateRequest(BaseModel):
-    workspace_id: str = Field(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$")
-    name: Optional[str] = None
-    rule_profile: Dict[str, Any]
+    """Persist a rule profile for reuse."""
+
+    workspace_id: str = Field(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$", description="Workspace scope.")
+    name: Optional[str] = Field(default=None, description="Human-readable profile name; auto-generated if omitted.")
+    rule_profile: Dict[str, Any] = Field(description="Rule profile payload to persist.")
 
 
 class RuleProfileCreateResponse(BaseModel):
-    workspace_id: str
-    profile_id: str
-    name: str
-    created_at: str
-    schema_version: str
-    rule_count: int
+    """Confirmation of a newly created rule profile."""
+
+    workspace_id: str = Field(description="Workspace scope.")
+    profile_id: str = Field(description="Unique identifier for the saved profile.")
+    name: str = Field(description="Profile display name.")
+    created_at: str = Field(description="ISO-8601 creation timestamp.")
+    schema_version: str = Field(description="Rule schema version (e.g. 'rules.v1').")
+    rule_count: int = Field(description="Number of rules in the profile.")
 
 
 class RuleProfileGetResponse(BaseModel):
-    workspace_id: str
-    profile_id: str
-    name: str
-    created_at: str
-    schema_version: str
-    rule_count: int
-    rule_profile: Dict[str, Any]
+    """Full rule profile with metadata."""
+
+    workspace_id: str = Field(description="Workspace scope.")
+    profile_id: str = Field(description="Profile identifier.")
+    name: str = Field(description="Profile display name.")
+    created_at: str = Field(description="ISO-8601 creation timestamp.")
+    schema_version: str = Field(description="Rule schema version.")
+    rule_count: int = Field(description="Number of rules.")
+    rule_profile: Dict[str, Any] = Field(description="Full rule profile payload.")
 
 
 class RuleProfileListResponse(BaseModel):
-    workspace_id: str
-    profiles: list[Dict[str, Any]]
+    """List of available rule profiles."""
+
+    workspace_id: str = Field(description="Workspace scope.")
+    profiles: list[Dict[str, Any]] = Field(description="Summary metadata for each profile.")
 
 
 class RuleExportCypherRequest(BaseModel):
-    workspace_id: str = Field(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$")
-    profile_id: Optional[str] = None
-    rule_profile: Optional[Dict[str, Any]] = None
+    """Export a rule profile as Neo4j/DozerDB Cypher constraint statements."""
+
+    workspace_id: str = Field(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$", description="Workspace scope.")
+    profile_id: Optional[str] = Field(default=None, description="Profile ID to export; required if rule_profile is omitted.")
+    rule_profile: Optional[Dict[str, Any]] = Field(default=None, description="Inline rule profile; used if profile_id is omitted.")
 
 
 class RuleExportCypherResponse(BaseModel):
-    workspace_id: str
-    schema_version: str
-    statements: list[str]
-    unsupported_rules: list[Dict[str, Any]]
+    """Cypher constraint export result."""
+
+    workspace_id: str = Field(description="Workspace scope.")
+    schema_version: str = Field(description="Rule schema version.")
+    statements: list[str] = Field(description="Executable Cypher constraint statements.")
+    unsupported_rules: list[Dict[str, Any]] = Field(description="Rules that cannot be expressed as Cypher constraints.")
 
 
 class RuleExportShaclRequest(BaseModel):
-    workspace_id: str = Field(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$")
-    profile_id: Optional[str] = None
-    rule_profile: Optional[Dict[str, Any]] = None
+    """Export a rule profile as SHACL shapes (JSON + Turtle)."""
+
+    workspace_id: str = Field(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$", description="Workspace scope.")
+    profile_id: Optional[str] = Field(default=None, description="Profile ID to export.")
+    rule_profile: Optional[Dict[str, Any]] = Field(default=None, description="Inline rule profile.")
 
 
 class RuleExportShaclResponse(BaseModel):
-    workspace_id: str
-    schema_version: str
-    shapes: list[Dict[str, Any]]
-    turtle: str
-    unsupported_rules: list[Dict[str, Any]]
+    """SHACL shape export result."""
+
+    workspace_id: str = Field(description="Workspace scope.")
+    schema_version: str = Field(description="Rule schema version.")
+    shapes: list[Dict[str, Any]] = Field(description="SHACL-like shape documents (JSON).")
+    turtle: str = Field(description="SHACL shapes serialized as Turtle RDF.")
+    unsupported_rules: list[Dict[str, Any]] = Field(description="Rules that cannot be expressed as SHACL shapes.")
 
 
 class RuleAssessRequest(BaseModel):
-    workspace_id: str = Field(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$")
-    graph: Dict[str, Any]
-    rule_profile: Optional[Dict[str, Any]] = None
-    required_threshold: float = Field(default=0.98, ge=0.0, le=1.0)
-    enum_max_size: int = Field(default=20, ge=1, le=200)
+    """Full assessment: infer + validate + export preview."""
+
+    workspace_id: str = Field(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$", description="Workspace scope.")
+    graph: Dict[str, Any] = Field(description="Extracted graph data to assess.")
+    rule_profile: Optional[Dict[str, Any]] = Field(default=None, description="Rule profile to assess against; inferred if omitted.")
+    required_threshold: float = Field(default=0.98, ge=0.0, le=1.0, description="Completeness threshold for 'required' rules.")
+    enum_max_size: int = Field(default=20, ge=1, le=200, description="Max distinct values for 'enum' rules.")
 
 
 class RuleAssessResponse(BaseModel):
-    workspace_id: str
-    rule_profile: Dict[str, Any]
-    shacl_like: Dict[str, Any]
-    validation_summary: Dict[str, Any]
-    violation_breakdown: list[Dict[str, Any]]
-    export_preview: Dict[str, Any]
-    practical_readiness: Dict[str, Any]
+    """Comprehensive rule assessment with export readiness."""
+
+    workspace_id: str = Field(description="Workspace scope.")
+    rule_profile: Dict[str, Any] = Field(description="Rule profile used for assessment.")
+    shacl_like: Dict[str, Any] = Field(description="SHACL-like shape document.")
+    validation_summary: Dict[str, Any] = Field(description="Aggregate validation counts.")
+    violation_breakdown: list[Dict[str, Any]] = Field(description="Per-rule violation details.")
+    export_preview: Dict[str, Any] = Field(description="Preview of Cypher and SHACL exports.")
+    practical_readiness: Dict[str, Any] = Field(description="Readiness verdict for production promotion.")
 
 
 def _rule_profile_dir() -> str:

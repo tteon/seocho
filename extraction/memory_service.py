@@ -45,6 +45,29 @@ class GraphMemoryService:
         semantic_artifact_policy: str = "auto",
         approved_artifacts: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
+        """Store a single memory record, extracting entities into the graph.
+
+        Args:
+            workspace_id: Workspace scope for tenant isolation.
+            content: Raw text content of the memory.
+            metadata: Arbitrary key-value metadata to attach.
+            memory_id: Explicit ID; auto-generated (``mem_<hex>``) if omitted.
+            user_id: Originating user identity.
+            agent_id: Originating agent identity.
+            session_id: Session context for grouping related memories.
+            database: Target DozerDB database; falls back to ``PUBLIC_MEMORY_DATABASE``.
+            category: Data category for prompt routing (default ``'memory'``).
+            source_type: Content format (``'text'``, ``'pdf'``, ``'csv'``).
+            semantic_artifact_policy: Artifact promotion policy.
+            approved_artifacts: Pre-approved ontology/SHACL payload.
+
+        Returns:
+            Dict with ``memory`` (stored record metadata) and ``ingest_summary``
+            (entity/relation counts, warnings).
+
+        Raises:
+            ValueError: If the underlying ingest pipeline processes zero records.
+        """
         created_at = _utc_now_iso()
         resolved_memory_id = str(memory_id or f"mem_{uuid4().hex}")
         record_metadata = self._build_record_metadata(
@@ -110,6 +133,14 @@ class GraphMemoryService:
         semantic_artifact_policy: str = "auto",
         approved_artifacts: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
+        """Batch-store multiple memory records in a single ingestion call.
+
+        Each item in *items* should contain ``content`` and optionally
+        ``memory_id``, ``category``, ``source_type``, and ``metadata``.
+
+        Returns:
+            Dict with ``memories`` list and ``ingest_summary``.
+        """
         target_database = database or self.default_database
         created_at = _utc_now_iso()
         records: List[Dict[str, Any]] = []
@@ -180,6 +211,10 @@ class GraphMemoryService:
         workspace_id: str,
         database: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
+        """Retrieve a single memory by ID, searching across candidate databases.
+
+        Returns ``None`` if the memory is not found.
+        """
         for db_name in self._candidate_databases(database):
             row = self._get_memory_row(db_name, memory_id, workspace_id)
             if row is None:
@@ -198,6 +233,15 @@ class GraphMemoryService:
         session_id: Optional[str] = None,
         databases: Optional[Sequence[str]] = None,
     ) -> Dict[str, Any]:
+        """Search memories using the semantic entity-resolution flow.
+
+        Performs fulltext + semantic entity lookup across candidate databases,
+        then enriches results with full memory content.
+
+        Returns:
+            Dict with ``memories`` (ranked results) and ``semantic_context``
+            (entity resolution metadata).
+        """
         candidate_dbs = self._candidate_databases_from_list(databases)
         semantic_context = self.semantic_agent_flow.resolver.resolve(
             question=query,
@@ -299,6 +343,11 @@ class GraphMemoryService:
         workspace_id: str,
         database: Optional[str] = None,
     ) -> Dict[str, Any]:
+        """Soft-archive a memory by setting its status to ``'archived'``.
+
+        Raises:
+            FileNotFoundError: If the memory is not found in any candidate database.
+        """
         archived_at = _utc_now_iso()
         for db_name in self._candidate_databases(database):
             count = self._archive_memory_in_db(db_name, memory_id, workspace_id, archived_at)
@@ -324,6 +373,11 @@ class GraphMemoryService:
         session_id: Optional[str] = None,
         databases: Optional[Sequence[str]] = None,
     ) -> Dict[str, Any]:
+        """Search memories and synthesize a natural-language answer.
+
+        Combines :meth:`search_memories` with LLM-based answer generation,
+        returning the assistant response alongside the evidence used.
+        """
         search_payload = self.search_memories(
             workspace_id=workspace_id,
             query=message,

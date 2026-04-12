@@ -1815,6 +1815,7 @@ class ExecutionPlanBuilder:
         user_id: Optional[str] = None,
         session_id: Optional[str] = None,
     ) -> None:
+        """Initialize the builder with a client, query, and optional scope."""
         self._client = client
         self._query = query
         self._targets: List[GraphRef] = []
@@ -1826,9 +1827,11 @@ class ExecutionPlanBuilder:
         self._session_id = session_id
 
     def on_graph(self, graph: GraphRef | GraphTarget | Dict[str, Any] | str) -> "ExecutionPlanBuilder":
+        """Target a single graph for execution."""
         return self.on_graphs(graph)
 
     def on_graphs(self, *graphs: GraphRef | GraphTarget | Dict[str, Any] | str) -> "ExecutionPlanBuilder":
+        """Target one or more graphs for execution."""
         for graph in graphs:
             if isinstance(graph, (list, tuple)):
                 for item in graph:
@@ -1838,10 +1841,12 @@ class ExecutionPlanBuilder:
         return self
 
     def with_ontology(self, *ontology_ids: str) -> "ExecutionPlanBuilder":
+        """Filter target graphs by ontology ID."""
         self._ontology_ids = [str(item).strip() for item in ontology_ids if str(item).strip()]
         return self
 
     def with_vocabulary(self, *vocabulary_profiles: str) -> "ExecutionPlanBuilder":
+        """Filter target graphs by vocabulary profile."""
         self._vocabulary_profiles = [
             str(item).strip() for item in vocabulary_profiles if str(item).strip()
         ]
@@ -1857,6 +1862,16 @@ class ExecutionPlanBuilder:
         repair_budget: Optional[int] = None,
         fallback_style: Optional[str] = None,
     ) -> "ExecutionPlanBuilder":
+        """Set the reasoning policy for query execution.
+
+        Args:
+            style: Reasoning style (``"direct"``, ``"react"``, or ``"debate"``).
+            max_steps: Maximum reasoning steps for react/debate.
+            tool_budget: Maximum tool calls allowed.
+            require_grounded_evidence: Require graph-grounded evidence in the answer.
+            repair_budget: Maximum query repair attempts on empty results.
+            fallback_style: Style to fall back to if the primary style fails.
+        """
         self._reasoning = ReasoningPolicy(
             style=str(style).strip().lower() or "direct",
             max_steps=max_steps,
@@ -1873,6 +1888,7 @@ class ExecutionPlanBuilder:
         return self
 
     def direct(self) -> "ExecutionPlanBuilder":
+        """Use direct (single-pass) reasoning style."""
         return self.with_reasoning(style="direct")
 
     def react(
@@ -1883,6 +1899,7 @@ class ExecutionPlanBuilder:
         require_grounded_evidence: bool = True,
         fallback_style: Optional[str] = None,
     ) -> "ExecutionPlanBuilder":
+        """Use the runtime's react-style reasoning policy."""
         return self.with_reasoning(
             style="react",
             max_steps=max_steps,
@@ -1899,6 +1916,7 @@ class ExecutionPlanBuilder:
         require_grounded_evidence: bool = True,
         fallback_style: Optional[str] = None,
     ) -> "ExecutionPlanBuilder":
+        """Use multi-agent debate reasoning style."""
         return self.with_reasoning(
             style="debate",
             max_steps=max_steps,
@@ -1915,6 +1933,7 @@ class ExecutionPlanBuilder:
         require_grounded_evidence: bool = True,
         fallback_style: Optional[str] = None,
     ) -> "ExecutionPlanBuilder":
+        """Alias for :meth:`debate` reasoning style."""
         return self.debate(
             max_steps=max_steps,
             tool_budget=tool_budget,
@@ -1923,6 +1942,7 @@ class ExecutionPlanBuilder:
         )
 
     def with_repair_budget(self, repair_budget: int) -> "ExecutionPlanBuilder":
+        """Set the maximum number of query repair attempts on empty results."""
         self._reasoning = ReasoningPolicy(
             style=self._reasoning.normalized_style(),
             max_steps=self._reasoning.max_steps,
@@ -1937,6 +1957,7 @@ class ExecutionPlanBuilder:
         self,
         *entity_overrides: EntityOverride | Dict[str, Any],
     ) -> "ExecutionPlanBuilder":
+        """Provide entity disambiguation overrides for the query."""
         flattened: List[EntityOverride | Dict[str, Any]] = []
         for item in entity_overrides:
             if isinstance(item, (list, tuple)):
@@ -1950,14 +1971,21 @@ class ExecutionPlanBuilder:
         return self
 
     def for_user(self, user_id: str) -> "ExecutionPlanBuilder":
+        """Set the user ID for this execution plan."""
         self._user_id = user_id
         return self
 
     def in_session(self, session_id: str) -> "ExecutionPlanBuilder":
+        """Set the session ID for this execution plan."""
         self._session_id = session_id
         return self
 
     def build(self) -> ExecutionPlan:
+        """Build the execution plan without running it.
+
+        Returns:
+            An :class:`ExecutionPlan` ready for :meth:`Seocho.execute`.
+        """
         return ExecutionPlan(
             query=self._query,
             targets=list(self._targets),
@@ -1971,6 +1999,11 @@ class ExecutionPlanBuilder:
         )
 
     def run(self) -> ExecutionResult:
+        """Build and execute the plan in one step.
+
+        Returns:
+            An :class:`ExecutionResult` with the answer and execution metadata.
+        """
         return self._client.execute(self.build())
 
 
@@ -2642,81 +2675,107 @@ class AsyncSeocho:
     """Async wrapper around the sync client for notebook and app usage."""
 
     def __init__(self, **kwargs: Any) -> None:
+        """Initialize the async client. Accepts the same arguments as :class:`Seocho`."""
         self._client = Seocho(**kwargs)
 
     async def add(self, content: str, **kwargs: Any) -> Memory:
+        """Async version of :meth:`Seocho.add`."""
         return await asyncio.to_thread(self._client.add, content, **kwargs)
 
     async def add_with_details(self, content: str, **kwargs: Any) -> MemoryCreateResult:
+        """Async version of :meth:`Seocho.add_with_details`."""
         return await asyncio.to_thread(self._client.add_with_details, content, **kwargs)
 
     async def apply_artifact(self, artifact_id: str, content: str, **kwargs: Any) -> MemoryCreateResult:
+        """Async version of :meth:`Seocho.apply_artifact`."""
         return await asyncio.to_thread(self._client.apply_artifact, artifact_id, content, **kwargs)
 
     async def get(self, memory_id: str, **kwargs: Any) -> Memory:
+        """Async version of :meth:`Seocho.get`."""
         return await asyncio.to_thread(self._client.get, memory_id, **kwargs)
 
     async def search(self, query: str, **kwargs: Any) -> List[SearchResult]:
+        """Async version of :meth:`Seocho.search`."""
         return await asyncio.to_thread(self._client.search, query, **kwargs)
 
     async def search_with_context(self, query: str, **kwargs: Any) -> SearchResponse:
+        """Async version of :meth:`Seocho.search_with_context`."""
         return await asyncio.to_thread(self._client.search_with_context, query, **kwargs)
 
     async def ask(self, message: str, **kwargs: Any) -> str:
+        """Async version of :meth:`Seocho.ask`."""
         return await asyncio.to_thread(self._client.ask, message, **kwargs)
 
     async def chat(self, message: str, **kwargs: Any) -> ChatResponse:
+        """Async version of :meth:`Seocho.chat`."""
         return await asyncio.to_thread(self._client.chat, message, **kwargs)
 
     async def delete(self, memory_id: str, **kwargs: Any) -> ArchiveResult:
+        """Async version of :meth:`Seocho.delete`."""
         return await asyncio.to_thread(self._client.delete, memory_id, **kwargs)
 
     async def extract(self, content: str, **kwargs: Any) -> Dict[str, Any]:
+        """Async version of :meth:`Seocho.extract`."""
         return await asyncio.to_thread(self._client.extract, content, **kwargs)
 
     async def query(self, cypher: str, **kwargs: Any) -> List[Dict[str, Any]]:
+        """Async version of :meth:`Seocho.query`."""
         return await asyncio.to_thread(self._client.query, cypher, **kwargs)
 
     async def router(self, query: str, **kwargs: Any) -> AgentRunResponse:
+        """Async version of :meth:`Seocho.router`."""
         return await asyncio.to_thread(self._client.router, query, **kwargs)
 
     async def react(self, query: str, **kwargs: Any) -> AgentRunResponse:
+        """Async version of :meth:`Seocho.react`."""
         return await asyncio.to_thread(self._client.react, query, **kwargs)
 
     async def advanced(self, query: str, **kwargs: Any) -> DebateRunResponse:
+        """Async version of :meth:`Seocho.advanced`."""
         return await asyncio.to_thread(self._client.advanced, query, **kwargs)
 
     async def semantic(self, query: str, **kwargs: Any) -> SemanticRunResponse:
+        """Async version of :meth:`Seocho.semantic`."""
         return await asyncio.to_thread(self._client.semantic, query, **kwargs)
 
     async def debate(self, query: str, **kwargs: Any) -> DebateRunResponse:
+        """Async version of :meth:`Seocho.debate`."""
         return await asyncio.to_thread(self._client.debate, query, **kwargs)
 
     async def execute(self, plan: ExecutionPlan | Dict[str, Any]) -> ExecutionResult:
+        """Async version of :meth:`Seocho.execute`."""
         return await asyncio.to_thread(self._client.execute, plan)
 
     async def platform_chat(self, message: str, **kwargs: Any) -> PlatformChatResponse:
+        """Async version of :meth:`Seocho.platform_chat`."""
         return await asyncio.to_thread(self._client.platform_chat, message, **kwargs)
 
     async def session_history(self, session_id: str) -> PlatformSessionResponse:
+        """Async version of :meth:`Seocho.session_history`."""
         return await asyncio.to_thread(self._client.session_history, session_id)
 
     async def reset_session(self, session_id: str) -> PlatformSessionResponse:
+        """Async version of :meth:`Seocho.reset_session`."""
         return await asyncio.to_thread(self._client.reset_session, session_id)
 
     async def raw_ingest(self, records: Sequence[Dict[str, Any]], **kwargs: Any) -> RawIngestResult:
+        """Async version of :meth:`Seocho.raw_ingest`."""
         return await asyncio.to_thread(self._client.raw_ingest, records, **kwargs)
 
     async def graphs(self) -> List[GraphTarget]:
+        """Async version of :meth:`Seocho.graphs`."""
         return await asyncio.to_thread(self._client.graphs)
 
     async def databases(self) -> List[str]:
+        """Async version of :meth:`Seocho.databases`."""
         return await asyncio.to_thread(self._client.databases)
 
     async def agents(self) -> List[str]:
+        """Async version of :meth:`Seocho.agents`."""
         return await asyncio.to_thread(self._client.agents)
 
     async def health(self, *, scope: str = "runtime") -> Dict[str, Any]:
+        """Async version of :meth:`Seocho.health`."""
         return await asyncio.to_thread(self._client.health, scope=scope)
 
     async def semantic_runs(
@@ -2726,6 +2785,7 @@ class AsyncSeocho:
         route: Optional[str] = None,
         intent_id: Optional[str] = None,
     ) -> List[SemanticRunRecord]:
+        """Async version of :meth:`Seocho.semantic_runs`."""
         return await asyncio.to_thread(
             self._client.semantic_runs,
             limit=limit,
@@ -2734,21 +2794,26 @@ class AsyncSeocho:
         )
 
     async def semantic_run(self, run_id: str) -> SemanticRunRecord:
+        """Async version of :meth:`Seocho.semantic_run`."""
         return await asyncio.to_thread(self._client.semantic_run, run_id)
 
     async def ensure_fulltext_indexes(self, **kwargs: Any) -> FulltextIndexResponse:
+        """Async version of :meth:`Seocho.ensure_fulltext_indexes`."""
         return await asyncio.to_thread(self._client.ensure_fulltext_indexes, **kwargs)
 
     async def list_artifacts(self, *, status: Optional[str] = None) -> List[SemanticArtifactSummary]:
+        """Async version of :meth:`Seocho.list_artifacts`."""
         return await asyncio.to_thread(self._client.list_artifacts, status=status)
 
     async def get_artifact(self, artifact_id: str) -> SemanticArtifact:
+        """Async version of :meth:`Seocho.get_artifact`."""
         return await asyncio.to_thread(self._client.get_artifact, artifact_id)
 
     async def create_artifact_draft(
         self,
         draft: SemanticArtifactDraftInput | Dict[str, Any],
     ) -> SemanticArtifact:
+        """Async version of :meth:`Seocho.create_artifact_draft`."""
         return await asyncio.to_thread(self._client.create_artifact_draft, draft)
 
     async def approve_artifact(
@@ -2758,6 +2823,7 @@ class AsyncSeocho:
         approved_by: str,
         approval_note: Optional[str] = None,
     ) -> SemanticArtifact:
+        """Async version of :meth:`Seocho.approve_artifact`."""
         return await asyncio.to_thread(
             self._client.approve_artifact,
             artifact_id,
@@ -2772,6 +2838,7 @@ class AsyncSeocho:
         deprecated_by: str,
         deprecation_note: Optional[str] = None,
     ) -> SemanticArtifact:
+        """Async version of :meth:`Seocho.deprecate_artifact`."""
         return await asyncio.to_thread(
             self._client.deprecate_artifact,
             artifact_id,
@@ -2783,6 +2850,7 @@ class AsyncSeocho:
         self,
         artifact: SemanticArtifact | SemanticArtifactDraftInput | Dict[str, Any],
     ) -> ArtifactValidationResult:
+        """Async version of :meth:`Seocho.validate_artifact`."""
         return await asyncio.to_thread(self._client.validate_artifact, artifact)
 
     async def diff_artifacts(
@@ -2790,7 +2858,9 @@ class AsyncSeocho:
         left: SemanticArtifact | SemanticArtifactDraftInput | Dict[str, Any],
         right: SemanticArtifact | SemanticArtifactDraftInput | Dict[str, Any],
     ) -> ArtifactDiff:
+        """Async version of :meth:`Seocho.diff_artifacts`."""
         return await asyncio.to_thread(self._client.diff_artifacts, left, right)
 
     async def aclose(self) -> None:
+        """Async version of :meth:`Seocho.close`."""
         await asyncio.to_thread(self._client.close)

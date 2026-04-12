@@ -378,6 +378,23 @@ class IndexingPipeline:
             except Exception as exc:
                 result.write_errors.append(str(exc))
 
+        # --- Opik tracing ---
+        try:
+            from seocho.tracing import log_extraction, is_tracing_enabled
+            if is_tracing_enabled():
+                log_extraction(
+                    text_preview=content[:200] if content else "",
+                    ontology_name=self.ontology.name,
+                    model="sdk-pipeline",
+                    nodes_count=result.total_nodes,
+                    relationships_count=result.total_relationships,
+                    score=0.0,
+                    validation_errors=len(result.validation_errors),
+                    elapsed_seconds=0.0,
+                )
+        except Exception:
+            pass
+
         return result
 
     def index_batch(

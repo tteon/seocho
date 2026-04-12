@@ -508,7 +508,7 @@ class Workbench:
         scores = ontology.score_extraction(data)
         errors = ontology.validate_with_shacl(data) if strict else []
 
-        return ExperimentResult(
+        result = ExperimentResult(
             config_name=f"{ontology.name}/{model}",
             ontology_name=ontology.name,
             model=model,
@@ -521,6 +521,23 @@ class Workbench:
             params=params,
             usage=total_usage,
         )
+
+        # --- Opik tracing ---
+        try:
+            from .tracing import log_experiment_run, is_tracing_enabled
+            if is_tracing_enabled():
+                log_experiment_run(
+                    params=params,
+                    score=result.extraction_score,
+                    nodes_count=len(all_nodes),
+                    relationships_count=len(all_rels),
+                    elapsed_seconds=elapsed,
+                    usage=total_usage,
+                )
+        except Exception:
+            pass
+
+        return result
 
     def _resolve_ontology(self, value: Any) -> Optional[Ontology]:
         """Resolve ontology from file path or object."""

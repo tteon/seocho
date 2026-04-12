@@ -1,0 +1,82 @@
+[
+  {
+    "id": "finder_001",
+    "text": "PTC Inc. reported total revenue of $2.1 billion for fiscal year 2023, representing a 10% increase from $1.9 billion in the prior year. The company's recurring revenue grew 23% year-over-year, driven by strong demand for its SaaS offerings. Operating income improved to $310 million from $245 million in 2022.",
+    "question": "What was PTC's revenue growth in fiscal 2023?",
+    "expected_answer": "PTC reported total revenue of $2.1 billion in fiscal 2023, a 10% increase from $1.9 billion in the prior year.",
+    "category": "Financials",
+    "reasoning_type": "Subtraction"
+  },
+  {
+    "id": "finder_002",
+    "text": "Brown & Brown Inc. is an independent insurance intermediary headquartered in Daytona Beach, Florida. The company operates through four segments: Retail, National Programs, Wholesale Brokerage, and Services. For the year ended December 31, 2022, net income was $766.9 million compared to $617.5 million in 2021.",
+    "question": "What are Brown & Brown's business segments?",
+    "expected_answer": "Brown & Brown operates through four segments: Retail, National Programs, Wholesale Brokerage, and Services.",
+    "category": "Company Overview",
+    "reasoning_type": "Qualitative"
+  },
+  {
+    "id": "finder_003",
+    "text": "Alphabet Inc. maintains its principal executive offices at 1600 Amphitheatre Parkway, Mountain View, California. Google LLC is a wholly-owned subsidiary of Alphabet. The board of directors includes Sundar Pichai as CEO, Ruth Porat as CFO, and John Hennessy as Chairman. The company has approximately 186,779 full-time employees.",
+    "question": "Who are the key executives at Alphabet?",
+    "expected_answer": "Key executives include Sundar Pichai as CEO, Ruth Porat as CFO, and John Hennessy as Chairman of the board.",
+    "category": "Governance",
+    "reasoning_type": "Qualitative"
+  },
+  {
+    "id": "finder_004",
+    "text": "Tesla Inc. recorded automotive revenue of $71.5 billion in 2022, up from $47.2 billion in 2021. The company delivered 1.31 million vehicles in 2022 compared to 936,000 in the prior year. Average selling price per vehicle decreased from approximately $50,400 to $54,600.",
+    "question": "How many vehicles did Tesla deliver in 2022 vs 2021?",
+    "expected_answer": "Tesla delivered 1.31 million vehicles in 2022 compared to 936,000 in 2021.",
+    "category": "Financials",
+    "reasoning_type": "Compositional"
+  },
+  {
+    "id": "finder_005",
+    "text": "Microsoft Corporation faces various legal proceedings and claims. In June 2022, the European Commission opened an antitrust investigation into Microsoft's bundling of Teams with Office 365. The company also faces ongoing litigation related to the LinkedIn acquisition and various patent infringement claims.",
+    "question": "What legal issues does Microsoft face?",
+    "expected_answer": "Microsoft faces an EU antitrust investigation into Teams bundling with Office 365, ongoing LinkedIn acquisition litigation, and various patent infringement claims.",
+    "category": "Legal",
+    "reasoning_type": "Qualitative"
+  },
+  {
+    "id": "finder_006",
+    "text": "NVIDIA Corporation reported data center revenue of $15.0 billion in fiscal 2024, up 217% from $4.7 billion in fiscal 2023. Gaming revenue was $10.4 billion, up 15%. The company's gross margin expanded to 72.7% from 56.9%, driven by strong demand for AI accelerator chips including the H100 and A100 product lines.",
+    "question": "What drove NVIDIA's gross margin expansion?",
+    "expected_answer": "NVIDIA's gross margin expanded to 72.7% from 56.9%, driven by strong demand for AI accelerator chips including the H100 and A100 product lines.",
+    "category": "Financials",
+    "reasoning_type": "Qualitative"
+  },
+  {
+    "id": "finder_007",
+    "text": "Apple Inc. recognized revenue of $383.3 billion for fiscal year 2023. The company repurchased $77.6 billion of common stock and paid $15.0 billion in dividends during the year. Total shareholder return including dividends was approximately 48.9% for the fiscal year.",
+    "question": "What was Apple's total shareholder return in fiscal 2023?",
+    "expected_answer": "Apple's total shareholder return including dividends was approximately 48.9% for the fiscal year 2023.",
+    "category": "Shareholder Return",
+    "reasoning_type": "Qualitative"
+  },
+  {
+    "id": "finder_008",
+    "text": "Amazon.com Inc. identifies key risk factors including dependence on third-party sellers, regulatory challenges in multiple jurisdictions, cybersecurity threats to customer data, significant capital expenditure requirements for AWS infrastructure, and competition in e-commerce and cloud computing markets.",
+    "question": "What are Amazon's key risk factors?",
+    "expected_answer": "Amazon's key risks include dependence on third-party sellers, regulatory challenges, cybersecurity threats, significant capex for AWS, and competition in e-commerce and cloud.",
+    "category": "Risk",
+    "reasoning_type": "Qualitative"
+  },
+  {
+    "id": "finder_009",
+    "text": "JPMorgan Chase & Co. reported net interest income of $87.1 billion in 2023, up from $66.7 billion in 2022. The provision for credit losses was $9.8 billion. The firm's Basel III common equity tier 1 capital ratio was 15.0%. Total assets under management were $3.4 trillion.",
+    "question": "What was JPMorgan's net interest income growth?",
+    "expected_answer": "JPMorgan reported net interest income of $87.1 billion in 2023, up from $66.7 billion in 2022.",
+    "category": "Financials",
+    "reasoning_type": "Subtraction"
+  },
+  {
+    "id": "finder_010",
+    "text": "Meta Platforms adopted ASC 842 for lease accounting and uses the fair value method for stock-based compensation under ASC 718. The company capitalizes internally developed software costs when the preliminary project stage is complete. Goodwill of $20.3 billion is tested annually for impairment.",
+    "question": "What accounting standards does Meta follow for stock compensation?",
+    "expected_answer": "Meta uses the fair value method for stock-based compensation under ASC 718.",
+    "category": "Accounting",
+    "reasoning_type": "Qualitative"
+  }
+]

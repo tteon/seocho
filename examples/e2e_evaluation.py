@@ -3,18 +3,20 @@
 SEOCHO E2E Evaluation with FinDER Dataset + Opik Tracing
 
 This script:
-1. Loads FinDER sample data
+1. Loads FinDER sample data or the gated Hugging Face FinDER dataset
 2. Indexes into separate LPG and RDF databases (Neo4j naming convention)
 3. Queries both and compares answers
 4. Evaluates quality via Opik experiment
 
 Usage:
     python examples/e2e_evaluation.py
+    python examples/e2e_evaluation.py --dataset-source hf --split 'train[:5]'
 
 Requires:
     - Neo4j/DozerDB running on bolt://localhost:7687
     - OPENAI_API_KEY in .env
     - OPIK_API_KEY in .env (optional, for Opik cloud)
+    - HF_TOKEN in .env when using `--dataset-source hf`
 
 Neo4j database naming convention:
     - lowercase only, no hyphens, no underscores
@@ -23,11 +25,13 @@ Neo4j database naming convention:
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import sys
 import time
 from pathlib import Path
+from urllib.parse import urlparse, urlunparse
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -40,17 +44,88 @@ load_dotenv()
 # Configuration
 # ---------------------------------------------------------------------------
 
-LPG_DATABASE = "finderlpg"
-RDF_DATABASE = "finderrdf"
+# Use default database to avoid Neo4j routing/DNS issues
+# LPG and RDF data are separated by node labels, not databases
+LPG_DATABASE = "neo4j"
+RDF_DATABASE = "neo4j"
+# Allow host-side fallback when .env uses the Docker-internal `neo4j` hostname.
 NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
 NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "password")
 MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 OPIK_PROJECT = os.getenv("OPIK_PROJECT_NAME", "seocho-opik-test")
+OPIK_WORKSPACE = os.getenv("OPIK_WORKSPACE", "tteon").strip('"')
 DATASET_PATH = Path(__file__).parent / "datasets" / "finder_sample.json"
+HF_DATASET_ID = "Linq-AI-Research/FinDER"
+HF_SPLIT = "train[:10]"
 
 
-def main():
+def _resolve_host_neo4j_uri(uri: str) -> str:
+    """Convert Docker-internal neo4j hostnames to localhost for host-side runs."""
+    parsed = urlparse(uri)
+    if parsed.hostname != "neo4j":
+        return uri
+
+    fallback_port = parsed.port or int(os.getenv("NEO4J_BOLT_PORT", "7687"))
+    rewritten = parsed._replace(netloc=f"localhost:{fallback_port}")
+    resolved = urlunparse(rewritten)
+    print(f"Neo4j URI rewrite: {uri} -> {resolved}")
+    return resolved
+
+
+def _load_dataset(dataset_source: str, split: str):
+    if dataset_source == "sample":
+        print(f"\nLoading dataset: {DATASET_PATH}")
+        with open(DATASET_PATH) as f:
+            dataset = json.load(f)
+        print(f"  {len(dataset)} sample documents loaded")
+        return dataset
+
+    if dataset_source == "hf":
+        from datasets import load_dataset
+
+        hf_token = os.getenv("HF_TOKEN", "").strip()
+        if hf_token and not os.getenv("HUGGINGFACE_HUB_TOKEN"):
+            os.environ["HUGGINGFACE_HUB_TOKEN"] = hf_token
+
+        print(f"\nLoading Hugging Face dataset: {HF_DATASET_ID} ({split})")
+        dataset = load_dataset(HF_DATASET_ID, split=split)
+        rows = [dict(row) for row in dataset]
+        print(f"  {len(rows)} HF documents loaded")
+        return rows
+
+    raise ValueError(f"Unsupported dataset source: {dataset_source}")
+
+
+def _normalize_record(record: dict) -> dict:
+    """Unify the local sample and gated HF FinDER formats."""
+    if "question" in record:
+        return {
+            "id": record["id"],
+            "context_text": record["text"],
+            "question": record["question"],
+            "expected_answer": record.get("expected_answer", ""),
+            "category": record["category"],
+            "raw_reasoning_type": record.get("reasoning_type"),
+        }
+
+    references = record.get("references", [])
+    if isinstance(references, list):
+        context_text = "\n".join(str(item) for item in references)
+    else:
+        context_text = str(references)
+
+    return {
+        "id": record.get("_id", "unknown"),
+        "context_text": context_text,
+        "question": record["text"],
+        "expected_answer": record.get("answer", ""),
+        "category": record["category"],
+        "raw_reasoning_type": record.get("type") or record.get("reasoning"),
+    }
+
+
+def main(dataset_source: str = "sample", split: str = HF_SPLIT):
     print("=" * 70)
     print("SEOCHO E2E Evaluation — FinDER Dataset")
     print("=" * 70)
@@ -63,20 +138,17 @@ def main():
         if api_key:
             opik.configure(
                 api_key=api_key,
-                workspace="tteon",
-                project_name=OPIK_PROJECT,
+                workspace=OPIK_WORKSPACE,
                 force=True,
             )
             opik_enabled = True
-            print(f"Opik: enabled (project={OPIK_PROJECT})")
+            print(f"Opik: enabled (workspace={OPIK_WORKSPACE}, project={OPIK_PROJECT})")
     except Exception as exc:
         print(f"Opik: disabled ({exc})")
 
     # --- Load dataset ---
-    print(f"\nLoading dataset: {DATASET_PATH}")
-    with open(DATASET_PATH) as f:
-        dataset = json.load(f)
-    print(f"  {len(dataset)} documents loaded")
+    dataset = _load_dataset(dataset_source=dataset_source, split=split)
+    normalized_dataset = [_normalize_record(item) for item in dataset]
 
     # --- Setup SDK ---
     from seocho import Ontology, NodeDef, RelDef, P, Seocho
@@ -134,7 +206,8 @@ def main():
         },
     )
 
-    store = Neo4jGraphStore(NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD)
+    resolved_neo4j_uri = _resolve_host_neo4j_uri(NEO4J_URI)
+    store = Neo4jGraphStore(resolved_neo4j_uri, NEO4J_USER, NEO4J_PASSWORD)
     llm = OpenAIBackend(model=MODEL)
 
     # Verify databases exist
@@ -155,17 +228,17 @@ def main():
     lpg_results = []
     rdf_results = []
 
-    for i, doc in enumerate(dataset):
-        print(f"\n  [{i+1}/{len(dataset)}] {doc['id']}: {doc['text'][:60]}...")
+    for i, doc in enumerate(normalized_dataset):
+        print(f"\n  [{i+1}/{len(normalized_dataset)}] {doc['id']}: {doc['question'][:60]}...")
 
         # LPG indexing
         if opik_enabled:
             @opik.track(name="e2e.index.lpg", project_name=OPIK_PROJECT)
             def _index_lpg(text):
                 return lpg_client.add(text, database=LPG_DATABASE, category=doc["category"])
-            mem_lpg = _index_lpg(doc["text"])
+            mem_lpg = _index_lpg(doc["context_text"])
         else:
-            mem_lpg = lpg_client.add(doc["text"], database=LPG_DATABASE, category=doc["category"])
+            mem_lpg = lpg_client.add(doc["context_text"], database=LPG_DATABASE, category=doc["category"])
 
         lpg_results.append({
             "id": doc["id"],
@@ -180,9 +253,9 @@ def main():
             @opik.track(name="e2e.index.rdf", project_name=OPIK_PROJECT)
             def _index_rdf(text):
                 return rdf_client.add(text, database=RDF_DATABASE, category=doc["category"])
-            mem_rdf = _index_rdf(doc["text"])
+            mem_rdf = _index_rdf(doc["context_text"])
         else:
-            mem_rdf = rdf_client.add(doc["text"], database=RDF_DATABASE, category=doc["category"])
+            mem_rdf = rdf_client.add(doc["context_text"], database=RDF_DATABASE, category=doc["category"])
 
         rdf_results.append({
             "id": doc["id"],
@@ -199,23 +272,23 @@ def main():
 
     query_results = []
 
-    for doc in dataset:
+    for doc in normalized_dataset:
         q = doc["question"]
         print(f"\n  Q: {q}")
 
         if opik_enabled:
             @opik.track(name="e2e.query.lpg", project_name=OPIK_PROJECT)
             def _query_lpg(question):
-                return lpg_client.ask(question, database=LPG_DATABASE)
+                return lpg_client.ask(question, database=LPG_DATABASE, reasoning_mode=True, repair_budget=1)
             lpg_answer = _query_lpg(q)
 
             @opik.track(name="e2e.query.rdf", project_name=OPIK_PROJECT)
             def _query_rdf(question):
-                return rdf_client.ask(question, database=RDF_DATABASE)
+                return rdf_client.ask(question, database=RDF_DATABASE, reasoning_mode=True, repair_budget=1)
             rdf_answer = _query_rdf(q)
         else:
-            lpg_answer = lpg_client.ask(q, database=LPG_DATABASE)
-            rdf_answer = rdf_client.ask(q, database=RDF_DATABASE)
+            lpg_answer = lpg_client.ask(q, database=LPG_DATABASE, reasoning_mode=True, repair_budget=1)
+            rdf_answer = rdf_client.ask(q, database=RDF_DATABASE, reasoning_mode=True, repair_budget=1)
 
         query_results.append({
             "id": doc["id"],
@@ -255,6 +328,8 @@ def main():
             "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
             "lpg_database": LPG_DATABASE,
             "rdf_database": RDF_DATABASE,
+            "dataset_source": dataset_source,
+            "dataset_count": len(normalized_dataset),
             "model": MODEL,
             "indexing": {"lpg": lpg_results, "rdf": rdf_results},
             "queries": query_results,
@@ -293,4 +368,17 @@ def _ensure_database(store, db_name: str) -> None:
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Run a small FinDER E2E evaluation against SEOCHO.")
+    parser.add_argument(
+        "--dataset-source",
+        choices=("sample", "hf"),
+        default=os.getenv("FINDER_DATASET_SOURCE", "sample"),
+        help="Use the local sample dataset or the gated Hugging Face FinDER dataset.",
+    )
+    parser.add_argument(
+        "--split",
+        default=os.getenv("FINDER_HF_SPLIT", HF_SPLIT),
+        help="Hugging Face split/slice expression, e.g. 'train[:5]'. Ignored for sample mode.",
+    )
+    args = parser.parse_args()
+    main(dataset_source=args.dataset_source, split=args.split)

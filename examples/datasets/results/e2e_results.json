@@ -1,0 +1,36 @@
+{
+  "timestamp": "2026-04-12T19:03:20",
+  "lpg_database": "neo4j",
+  "rdf_database": "neo4j",
+  "dataset_source": "hf",
+  "dataset_count": 1,
+  "model": "gpt-4o-mini",
+  "indexing": {
+    "lpg": [
+      {
+        "id": "b33fcee7",
+        "nodes": 4,
+        "rels": 9,
+        "status": "active"
+      }
+    ],
+    "rdf": [
+      {
+        "id": "b33fcee7",
+        "nodes": 7,
+        "rels": 6,
+        "status": "active"
+      }
+    ]
+  },
+  "queries": [
+    {
+      "id": "b33fcee7",
+      "question": "Delta in CBOE Data & Access Solutions rev from 2021-23.",
+      "expected": "The Data and Access Solutions revenue increased by $111.5 million from 2021 to 2023, calculated as 539.2 million minus 427.7 million.",
+      "lpg_answer": "There are no available results regarding Delta in CBOE Data & Access Solutions revenue from 2021 to 2023.",
+      "rdf_answer": "There are no available results regarding the revenue of CBOE Data & Access Solutions from 2021 to 2023.",
+      "category": "Financials"
+    }
+  ]
+}

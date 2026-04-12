@@ -32,7 +32,10 @@ from .api import (
     semantic_runs,
     session_history,
 )
-from .agent_config import AGENT_PRESETS, AgentConfig, IndexingStrategy, QueryAgentStrategy
+from .agent_config import (
+    AGENT_PRESETS, AgentConfig, EnsembleExtractionStrategy,
+    IndexingStrategy, ParallelExtractionStrategy, QueryAgentStrategy,
+)
 from .client import AsyncSeocho, ExecutionPlanBuilder, Seocho
 from .http_runtime import create_bundle_runtime_app
 from .evaluation import (

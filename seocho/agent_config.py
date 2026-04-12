@@ -40,8 +40,12 @@ Two levels of customization:
 
 from __future__ import annotations
 
+import json
+import logging
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 
 # ======================================================================
@@ -269,3 +273,153 @@ AGENT_PRESETS: Dict[str, AgentConfig] = {
         answer_style="evidence",
     ),
 }
+
+
+# ======================================================================
+# Multi-agent extraction strategies
+# ======================================================================
+
+
+class ParallelExtractionStrategy(IndexingStrategy):
+    """Run extraction with multiple LLM backends in parallel, merge results.
+
+    All models extract from the same text. Results are union-merged:
+    nodes from all models are combined, duplicates removed by label+name.
+
+    Usage::
+
+        from seocho import AgentConfig
+        from seocho.agent_config import ParallelExtractionStrategy
+        from seocho.store import OpenAIBackend
+
+        strategy = ParallelExtractionStrategy(
+            models=[
+                OpenAIBackend(model="gpt-4o"),
+                OpenAIBackend(model="gpt-4o-mini"),
+            ],
+        )
+        config = AgentConfig(custom_indexing_strategy=strategy)
+    """
+
+    def __init__(self, models: Optional[List[Any]] = None) -> None:
+        self.models = models or []
+        self._extra_results: List[Dict[str, Any]] = []
+
+    def extract_parallel(self, text: str, ontology: Any, primary_result: Dict[str, Any]) -> Dict[str, Any]:
+        """Run extraction on additional models and merge with primary result."""
+        from .query.strategy import ExtractionStrategy
+
+        all_nodes = list(primary_result.get("nodes", []))
+        all_rels = list(primary_result.get("relationships", []))
+
+        for model_backend in self.models:
+            try:
+                strategy = ExtractionStrategy(ontology)
+                system, user = strategy.render(text)
+                response = model_backend.complete(
+                    system=system, user=user,
+                    temperature=0.0,
+                    response_format={"type": "json_object"},
+                )
+                extra = response.json()
+                all_nodes.extend(extra.get("nodes", []))
+                all_rels.extend(extra.get("relationships", []))
+            except Exception as exc:
+                logger.warning("Parallel model failed: %s", exc)
+
+        # Deduplicate nodes by label+name
+        merged_nodes = _dedup_nodes(all_nodes)
+        return {"nodes": merged_nodes, "relationships": all_rels}
+
+    def post_extract(self, nodes, relationships, score, ontology):
+        return nodes, relationships, True
+
+
+class EnsembleExtractionStrategy(IndexingStrategy):
+    """Run extraction with multiple models, keep only nodes agreed by majority.
+
+    Each model extracts independently. A node is kept only if at least
+    ``threshold`` fraction of models produced it (by label+name match).
+
+    Usage::
+
+        strategy = EnsembleExtractionStrategy(
+            models=[model_a, model_b, model_c],
+            threshold=0.5,  # keep if >= 50% of models agree
+        )
+    """
+
+    def __init__(
+        self,
+        models: Optional[List[Any]] = None,
+        threshold: float = 0.5,
+    ) -> None:
+        self.models = models or []
+        self.threshold = threshold
+
+    def extract_ensemble(self, text: str, ontology: Any) -> Dict[str, Any]:
+        """Run all models and vote on nodes."""
+        from .query.strategy import ExtractionStrategy
+
+        all_extractions: List[Dict[str, Any]] = []
+        for model_backend in self.models:
+            try:
+                strategy = ExtractionStrategy(ontology)
+                system, user = strategy.render(text)
+                response = model_backend.complete(
+                    system=system, user=user,
+                    temperature=0.0,
+                    response_format={"type": "json_object"},
+                )
+                all_extractions.append(response.json())
+            except Exception as exc:
+                logger.warning("Ensemble model failed: %s", exc)
+
+        if not all_extractions:
+            return {"nodes": [], "relationships": []}
+
+        # Vote: count how many models produced each node (by label+name)
+        node_votes: Dict[str, int] = {}
+        node_map: Dict[str, Dict] = {}
+        for ext in all_extractions:
+            for node in ext.get("nodes", []):
+                key = _node_key(node)
+                node_votes[key] = node_votes.get(key, 0) + 1
+                node_map[key] = node  # keep latest version
+
+        min_votes = max(1, int(len(all_extractions) * self.threshold))
+        kept_nodes = [
+            node_map[key] for key, votes in node_votes.items()
+            if votes >= min_votes
+        ]
+
+        # Relationships: keep all unique ones
+        all_rels = []
+        seen_rels = set()
+        for ext in all_extractions:
+            for rel in ext.get("relationships", []):
+                rkey = f"{rel.get('source')}-{rel.get('type')}-{rel.get('target')}"
+                if rkey not in seen_rels:
+                    seen_rels.add(rkey)
+                    all_rels.append(rel)
+
+        return {"nodes": kept_nodes, "relationships": all_rels}
+
+    def post_extract(self, nodes, relationships, score, ontology):
+        return nodes, relationships, True
+
+
+def _node_key(node: Dict) -> str:
+    """Create a dedup key for a node."""
+    label = node.get("label", "")
+    name = node.get("properties", {}).get("name", node.get("id", ""))
+    return f"{label}::{name}".lower()
+
+
+def _dedup_nodes(nodes: List[Dict]) -> List[Dict]:
+    """Remove duplicate nodes by label+name, keeping the last one."""
+    seen: Dict[str, Dict] = {}
+    for node in nodes:
+        key = _node_key(node)
+        seen[key] = node
+    return list(seen.values())

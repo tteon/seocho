@@ -707,6 +707,262 @@ class Ontology:
             "shapes": shapes,
         }
 
+    def to_ontology_candidate(self) -> Any:
+        """Convert this ontology into the typed runtime ontology artifact."""
+        from .semantic import (
+            OntologyCandidate,
+            OntologyClass,
+            OntologyProperty,
+            OntologyRelationship,
+        )
+
+        classes = [
+            OntologyClass(
+                name=label,
+                description=node.description,
+                aliases=list(node.aliases),
+                broader=list(node.broader),
+                properties=[
+                    OntologyProperty(
+                        name=prop_name,
+                        datatype=prop.property_type.value.lower(),
+                        description=prop.description,
+                        aliases=list(prop.aliases),
+                    )
+                    for prop_name, prop in node.properties.items()
+                ],
+            )
+            for label, node in self.nodes.items()
+        ]
+
+        relationships = [
+            OntologyRelationship(
+                type=rel_type,
+                source=rel.source,
+                target=rel.target,
+                description=rel.description,
+                aliases=list(rel.aliases),
+                related=[name for name in (rel.source, rel.target) if name and name != "Any"],
+            )
+            for rel_type, rel in self.relationships.items()
+        ]
+
+        return OntologyCandidate(
+            ontology_name=self.name,
+            classes=classes,
+            relationships=relationships,
+        )
+
+    def to_shacl_candidate(self) -> Any:
+        """Convert derived SHACL output into the typed runtime artifact shape."""
+        from .semantic import ShaclCandidate, ShaclPropertyConstraint, ShaclShape
+
+        shapes: List[ShaclShape] = []
+        for shape_payload in self.to_shacl().get("shapes", []):
+            target_class = str(shape_payload.get("targetClass", "")).removeprefix("seocho:")
+            constraints: List[ShaclPropertyConstraint] = []
+            for prop in shape_payload.get("properties", []):
+                path = str(prop.get("path", "")).removeprefix("seocho:")
+                if not path:
+                    continue
+
+                if "minCount" in prop:
+                    constraints.append(
+                        ShaclPropertyConstraint(
+                            path=path,
+                            constraint="minCount",
+                            params={"value": prop["minCount"]},
+                        )
+                    )
+                if "maxCount" in prop:
+                    constraints.append(
+                        ShaclPropertyConstraint(
+                            path=path,
+                            constraint="maxCount",
+                            params={"value": prop["maxCount"]},
+                        )
+                    )
+                if "datatype" in prop:
+                    constraints.append(
+                        ShaclPropertyConstraint(
+                            path=path,
+                            constraint="datatype",
+                            params={"value": prop["datatype"]},
+                        )
+                    )
+                if prop.get("unique") is True:
+                    constraints.append(
+                        ShaclPropertyConstraint(
+                            path=path,
+                            constraint="unique",
+                            params={"value": True},
+                        )
+                    )
+
+            shapes.append(ShaclShape(target_class=target_class, properties=constraints))
+
+        return ShaclCandidate(shapes=shapes)
+
+    def to_vocabulary_candidate(self, *, include_properties: bool = True) -> Any:
+        """Convert ontology labels and aliases into a lightweight vocabulary."""
+        from .semantic import VocabularyCandidate, VocabularyTerm
+
+        term_map: Dict[str, VocabularyTerm] = {}
+
+        def _merge_term(
+            pref_label: str,
+            *,
+            alt_labels: Optional[Sequence[str]] = None,
+            hidden_labels: Optional[Sequence[str]] = None,
+            broader: Optional[Sequence[str]] = None,
+            related: Optional[Sequence[str]] = None,
+            sources: Optional[Sequence[str]] = None,
+            definition: str = "",
+            examples: Optional[Sequence[str]] = None,
+        ) -> None:
+            label = pref_label.strip()
+            if not label:
+                return
+            key = label.casefold()
+            current = term_map.get(key)
+            if current is None:
+                current = VocabularyTerm(pref_label=label)
+                term_map[key] = current
+
+            def _merge_text_list(existing: List[str], values: Optional[Sequence[str]]) -> None:
+                seen = {item.casefold() for item in existing}
+                for value in values or []:
+                    text = str(value).strip()
+                    if text and text.casefold() not in seen:
+                        existing.append(text)
+                        seen.add(text.casefold())
+
+            _merge_text_list(current.alt_labels, alt_labels)
+            _merge_text_list(current.hidden_labels, hidden_labels)
+            _merge_text_list(current.broader, broader)
+            _merge_text_list(current.related, related)
+            _merge_text_list(current.sources, sources)
+            _merge_text_list(current.examples, examples)
+            if definition and not current.definition:
+                current.definition = definition.strip()
+
+        for label, node in self.nodes.items():
+            _merge_term(
+                label,
+                alt_labels=node.aliases,
+                broader=node.broader,
+                sources=[node.same_as] if node.same_as else None,
+                definition=node.description,
+            )
+            if include_properties:
+                for prop_name, prop in node.properties.items():
+                    _merge_term(
+                        prop_name,
+                        alt_labels=prop.aliases,
+                        hidden_labels=[f"{label}.{prop_name}"],
+                        broader=[label],
+                        definition=prop.description,
+                    )
+
+        for rel_type, rel in self.relationships.items():
+            _merge_term(
+                rel_type,
+                alt_labels=rel.aliases,
+                related=[name for name in (rel.source, rel.target) if name and name != "Any"],
+                sources=[rel.same_as] if rel.same_as else None,
+                definition=rel.description or f"{rel.source} -> {rel.target}",
+            )
+
+        return VocabularyCandidate(
+            schema_version="vocabulary.v2",
+            profile="skos",
+            terms=sorted(term_map.values(), key=lambda item: item.pref_label.casefold()),
+        )
+
+    def to_approved_artifacts(
+        self,
+        *,
+        include_vocabulary: bool = True,
+        include_property_terms: bool = True,
+    ) -> Any:
+        """Build an ``ApprovedArtifacts`` payload from this ontology."""
+        from .semantic import ApprovedArtifacts
+
+        return ApprovedArtifacts(
+            ontology_candidate=self.to_ontology_candidate(),
+            shacl_candidate=self.to_shacl_candidate(),
+            vocabulary_candidate=(
+                self.to_vocabulary_candidate(include_properties=include_property_terms)
+                if include_vocabulary
+                else None
+            ),
+        )
+
+    def to_semantic_prompt_context(
+        self,
+        *,
+        instructions: Optional[Sequence[str]] = None,
+        include_vocabulary: bool = True,
+        include_property_terms: bool = True,
+    ) -> Any:
+        """Build a typed semantic prompt context from this ontology."""
+        from .semantic import SemanticPromptContext
+
+        runtime_instructions: List[str] = []
+        if instructions:
+            runtime_instructions.extend(str(item).strip() for item in instructions if str(item).strip())
+        if self.package_id:
+            runtime_instructions.append(
+                f"Treat ontology package '{self.package_id}' version '{self.version}' as authoritative."
+            )
+
+        return SemanticPromptContext(
+            instructions=runtime_instructions,
+            ontology_candidate=self.to_ontology_candidate(),
+            shacl_candidate=self.to_shacl_candidate(),
+            vocabulary_candidate=(
+                self.to_vocabulary_candidate(include_properties=include_property_terms)
+                if include_vocabulary
+                else None
+            ),
+        )
+
+    def to_semantic_artifact_draft(
+        self,
+        *,
+        name: Optional[str] = None,
+        include_vocabulary: bool = True,
+        include_property_terms: bool = True,
+        source_summary: Optional[Dict[str, Any]] = None,
+    ) -> Any:
+        """Build a draft semantic artifact payload from this ontology."""
+        from .semantic import SemanticArtifactDraftInput
+
+        summary = {
+            "source": "ontology",
+            "ontology_name": self.name,
+            "package_id": self.package_id,
+            "version": self.version,
+            "graph_model": self.graph_model,
+            "namespace": self.namespace,
+            "node_count": len(self.nodes),
+            "relationship_count": len(self.relationships),
+        }
+        if source_summary:
+            summary.update(source_summary)
+
+        return SemanticArtifactDraftInput(
+            name=name or f"{self.package_id}-{self.version}",
+            ontology_candidate=self.to_ontology_candidate(),
+            shacl_candidate=self.to_shacl_candidate(),
+            vocabulary_candidate=(
+                self.to_vocabulary_candidate(include_properties=include_property_terms)
+                if include_vocabulary
+                else None
+            ),
+            source_summary=summary,
+        )
+
     def validate_with_shacl(self, data: Dict[str, Any]) -> List[str]:
         """Validate extracted data against SHACL shapes derived from
         this ontology.
@@ -1130,9 +1386,9 @@ class Ontology:
         """
         return {
             "ontology_name": self.name,
-            "entity_types": self._render_entity_types(),
-            "relationship_types": self._render_relationship_types(),
-            "constraints_summary": self._render_constraints_summary(),
+            "entity_types": self._cached_render("entity_types", self._render_entity_types),
+            "relationship_types": self._cached_render("relationship_types", self._render_relationship_types),
+            "constraints_summary": self._cached_render("constraints_summary", self._render_constraints_summary),
         }
 
     def to_query_context(self) -> Dict[str, str]:
@@ -1153,18 +1409,41 @@ class Ontology:
         """
         return {
             "ontology_name": self.name,
-            "graph_schema": self._render_graph_schema(),
-            "node_types": self._render_node_types_compact(),
-            "relationship_types": self._render_relationship_types_compact(),
-            "query_hints": self._render_query_hints(),
+            "ontology_profile": self._cached_render("ontology_profile", self._render_query_profile_summary),
+            "graph_schema": self._cached_render("graph_schema", self._render_graph_schema),
+            "node_types": self._cached_render("node_types", self._render_node_types_compact),
+            "relationship_types": self._cached_render("rel_types_compact", self._render_relationship_types_compact),
+            "query_hints": self._cached_render("query_hints", self._render_query_hints),
+        }
+
+    def to_query_profile(self) -> Dict[str, Any]:
+        """Return structured ontology profile metadata for query planning."""
+        deterministic_intents = [
+            "entity_lookup",
+            "relationship_lookup",
+            "neighbors",
+            "path",
+            "count",
+            "list_all",
+        ]
+        if self._supports_financial_metric_queries():
+            deterministic_intents.extend(["financial_metric_lookup", "financial_metric_delta"])
+        return {
+            "ontology_name": self.name,
+            "package_id": self.package_id,
+            "version": self.version,
+            "graph_model": self.graph_model,
+            "node_labels": sorted(self.nodes.keys()),
+            "relationship_types": sorted(self.relationships.keys()),
+            "deterministic_intents": deterministic_intents,
         }
 
     def to_linking_context(self) -> Dict[str, str]:
         """Build a context dict for **entity linking** prompts."""
         return {
             "ontology_name": self.name,
-            "relationship_types": self._render_relationship_types(),
-            "entity_types": self._render_entity_types(),
+            "relationship_types": self._cached_render("relationship_types", self._render_relationship_types),
+            "entity_types": self._cached_render("entity_types", self._render_entity_types),
         }
 
     # ------------------------------------------------------------------
@@ -1391,6 +1670,29 @@ class Ontology:
         return label if self.is_valid_label(label) else "Entity"
 
     # ------------------------------------------------------------------
+    # Render cache — avoids recomputing identical string outputs
+    # ------------------------------------------------------------------
+
+    def _cached_render(self, key: str, fn: Any) -> str:
+        """Return a cached render result, computing it on first access."""
+        if not hasattr(self, "_render_cache"):
+            object.__setattr__(self, "_render_cache", {})
+        cache = self._render_cache  # type: ignore[attr-defined]
+        if key not in cache:
+            cache[key] = fn()
+        return cache[key]
+
+    def invalidate_render_cache(self) -> None:
+        """Clear all cached render outputs.
+
+        Call this after programmatically mutating nodes or relationships
+        on an existing Ontology instance (rare — ontologies are normally
+        immutable after construction).
+        """
+        if hasattr(self, "_render_cache"):
+            self._render_cache.clear()  # type: ignore[attr-defined]
+
+    # ------------------------------------------------------------------
     # Private renderers — extraction
     # ------------------------------------------------------------------
 
@@ -1494,6 +1796,24 @@ class Ontology:
             elif rd.cardinality == "MANY_TO_ONE":
                 hints.append(f"- [{rtype}] is MANY-TO-ONE — each {rd.source} has at most one {rd.target}")
         return "\n".join(hints)
+
+    def _render_query_profile_summary(self) -> str:
+        profile = self.to_query_profile()
+        deterministic_intents = ", ".join(profile["deterministic_intents"])
+        return (
+            f"package_id={profile['package_id']}, "
+            f"version={profile['version']}, "
+            f"graph_model={profile['graph_model']}, "
+            f"deterministic_intents=[{deterministic_intents}]"
+        )
+
+    def _supports_financial_metric_queries(self) -> bool:
+        if "Company" not in self.nodes or "FinancialMetric" not in self.nodes:
+            return False
+        for rel in self.relationships.values():
+            if rel.source == "Company" and rel.target == "FinancialMetric":
+                return True
+        return False
 
     # ------------------------------------------------------------------
     # Merge
@@ -1763,6 +2083,65 @@ class Ontology:
         )
 
         return plan
+
+    def apply_migration(
+        self,
+        graph_store: Any,
+        new_ontology: "Ontology",
+        *,
+        database: str = "neo4j",
+        dry_run: bool = False,
+    ) -> Dict[str, Any]:
+        """Compute and optionally execute a migration to *new_ontology*.
+
+        Parameters
+        ----------
+        graph_store:
+            A :class:`~seocho.store.graph.GraphStore` instance (must support
+            ``execute_write``).
+        new_ontology:
+            The target ontology.
+        database:
+            Target database name.
+        dry_run:
+            If ``True``, return the plan without executing any statements.
+
+        Returns
+        -------
+        Dict with ``plan`` (full migration plan), ``executed`` (list of
+        executed statement results), and ``errors`` (list of failures).
+        When *dry_run* is ``True``, ``executed`` is empty.
+        """
+        plan = self.migration_plan(new_ontology)
+        result: Dict[str, Any] = {
+            "plan": plan,
+            "executed": [],
+            "errors": [],
+            "dry_run": dry_run,
+        }
+
+        if dry_run or not plan["cypher_statements"]:
+            return result
+
+        for stmt in plan["cypher_statements"]:
+            cypher = stmt["cypher"]
+            try:
+                write_result = graph_store.execute_write(
+                    cypher, database=database,
+                )
+                result["executed"].append({
+                    "description": stmt["description"],
+                    "cypher": cypher,
+                    "result": write_result,
+                })
+            except Exception as exc:
+                result["errors"].append({
+                    "description": stmt["description"],
+                    "cypher": cypher,
+                    "error": str(exc),
+                })
+
+        return result
 
     # ------------------------------------------------------------------
     # Dunder

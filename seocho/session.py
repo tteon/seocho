@@ -180,12 +180,16 @@ class SessionContext:
             parts.append(f"Answered {len(self.queries)} question(s).")
         return " ".join(parts)
 
-    def to_agent_context(self, max_entities: int = 30) -> str:
+    def to_agent_context(self, max_entities: int = 30, ontology: Any = None) -> str:
         """Build a structured context string for sub-agent prompts.
 
         Unlike ``summary()`` which is human-readable, this returns
         structured entity/relationship data that helps the agent
         make accurate queries without scanning full history.
+
+        If ``ontology`` is provided, includes denormalization hints
+        so the agent knows which properties can be queried directly
+        on a node (embedded) vs. requiring a relationship traversal.
         """
         lines: List[str] = []
 
@@ -202,6 +206,25 @@ class SessionContext:
             lines.append("=== Known Relationships ===")
             for r in self.relationships[:30]:
                 lines.append(f"  {r.source} -[{r.relationship_type}]-> {r.target}")
+
+        # Denormalization hints from ontology
+        if ontology is not None:
+            try:
+                plan = ontology.denormalization_plan()
+                if plan:
+                    lines.append("=== Denormalization Hints ===")
+                    for label, info in plan.items():
+                        for embed in info.get("embeds", []):
+                            status = "SAFE (can query directly)" if embed.get("safe") else "BLOCKED (must traverse)"
+                            fields = embed.get("fields", {})
+                            field_str = ", ".join(f"{k}={v}" for k, v in list(fields.items())[:5])
+                            lines.append(
+                                f"  [{label}] via {embed.get('via', '?')} -> {embed.get('target', '?')}: "
+                                f"{status}"
+                                + (f" — embedded fields: {field_str}" if field_str else "")
+                            )
+            except Exception:
+                pass
 
         if self.queries:
             lines.append(f"=== Previous Queries ({len(self.queries)}) ===")
@@ -471,7 +494,7 @@ class Session:
         start = time.time()
 
         # Pass structured context (entities/relationships), not full history
-        agent_ctx = self.context.to_agent_context()
+        agent_ctx = self.context.to_agent_context(ontology=self.ontology)
         context_block = f"\n\n{agent_ctx}" if agent_ctx else ""
 
         full_message = f"{message}{context_block}\n[Target database: {db}]"
@@ -552,7 +575,7 @@ class Session:
         start = time.time()
 
         # Pass structured context (entities, not history)
-        agent_ctx = self.context.to_agent_context()
+        agent_ctx = self.context.to_agent_context(ontology=self.ontology)
         context_msg = f"\n\n{agent_ctx}\n[Target database: {db}]" if agent_ctx else ""
 
         mode = self._execution_mode

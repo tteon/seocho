@@ -15,13 +15,15 @@ Choose the path that matches how you want to use SEOCHO:
 | Path | Install | What else you need |
 |------|---------|--------------------|
 | HTTP client mode | `pip install seocho` | a running SEOCHO runtime (`base_url=...`) |
-| Local SDK engine | `pip install -e ".[dev]"` | a reachable DozerDB/Neo4j instance and provider credentials |
+| Local SDK engine (published package) | `pip install "seocho[local]"` | a reachable DozerDB/Neo4j instance and provider credentials |
+| Repository development | `pip install -e ".[dev]"` | local clone + test/tooling deps |
 | Offline ontology governance | `pip install "seocho[ontology]"` | local ontology files only |
 
 Important:
 
 - `pip install seocho` is intentionally thin. It is enough for HTTP client mode and bundle consumption.
 - local engine mode is where DozerDB/Neo4j is core: you provide `ontology + graph_store + llm` explicitly.
+- `pip install "seocho[local]"` adds the dependencies needed for published-package local engine use without pulling the full repo development toolchain.
 - the fastest full local stack is still `make setup-env && make up`.
 
 ## Quick Start

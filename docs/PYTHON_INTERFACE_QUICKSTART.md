@@ -22,7 +22,13 @@ Pick the mode first:
 pip install seocho
 ```
 
-- local SDK engine or local CLI authoring:
+- local SDK engine from the published package:
+
+```bash
+pip install "seocho[local]"
+```
+
+- repository development or local CLI authoring from a clone:
 
 ```bash
 pip install -e ".[dev]"
@@ -37,8 +43,9 @@ pip install "seocho[ontology]"
 Important:
 
 - `pip install seocho` is enough for remote HTTP client mode.
+- `pip install "seocho[local]"` is the simplest published-package path for direct `Neo4jGraphStore(...)` workflows.
 - local engine mode requires a real graph backend and local-mode dependencies.
-- the current documented local-engine install is `.[dev]`; the thin base package is not the right install path for direct `Neo4jGraphStore(...)` workflows.
+- `pip install -e ".[dev]"` remains the right path when you are editing the repo itself.
 
 If you are iterating on schema evolution, use the offline governance CLI:
 

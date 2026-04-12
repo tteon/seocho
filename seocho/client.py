@@ -37,7 +37,7 @@ import json
 import logging
 import os
 import re
-from typing import Any, Dict, List, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
 from urllib.parse import urljoin
 
 import requests
@@ -83,7 +83,8 @@ from .runtime_contract import (
     semantic_run_path,
     serialize_entity_overrides,
 )
-from .runtime_bundle import RuntimeBundle, build_runtime_bundle, create_client_from_runtime_bundle
+if TYPE_CHECKING:
+    from .runtime_bundle import RuntimeBundle
 
 logger = logging.getLogger(__name__)
 _FOUR_DIGIT_YEAR_RE = re.compile(r"\b(20\d{2})\b")
@@ -134,6 +135,28 @@ class Seocho:
         timeout: Optional[float] = None,
         session: Optional[requests.Session] = None,
     ) -> None:
+        """Initialize the Seocho client.
+
+        Provide ``ontology``, ``graph_store``, and ``llm`` for local
+        engine mode.  Otherwise, the client connects to a SEOCHO HTTP
+        server at ``base_url``.
+
+        Args:
+            ontology: Ontology schema for extraction and querying.
+            graph_store: Graph database backend (e.g. Neo4jGraphStore).
+            llm: LLM backend for extraction and synthesis.
+            vector_store: Optional vector store for hybrid search.
+            extraction_prompt: Custom extraction prompt template.
+            agent_config: Agent-level configuration (quality thresholds, reasoning defaults).
+            base_url: SEOCHO server URL (HTTP mode). Defaults to ``SEOCHO_BASE_URL`` env
+                var or ``http://localhost:8001``.
+            workspace_id: Workspace identifier propagated to all API calls.
+            user_id: Default user ID for scoped operations.
+            agent_id: Default agent ID for scoped operations.
+            session_id: Default session ID for scoped operations.
+            timeout: HTTP request timeout in seconds.
+            session: Optional ``requests.Session`` for connection pooling.
+        """
         self.workspace_id = workspace_id or _env_str("SEOCHO_WORKSPACE_ID", "default")
         self.user_id = user_id or os.getenv("SEOCHO_USER_ID")
         self.agent_id = agent_id or os.getenv("SEOCHO_AGENT_ID")
@@ -609,6 +632,26 @@ class Seocho:
         approved_artifacts: Optional[Dict[str, Any] | ApprovedArtifacts] = None,
         approved_artifact_id: Optional[str] = None,
     ) -> MemoryCreateResult:
+        """Add content and return the full creation result including memory and artifacts.
+
+        Unlike :meth:`add`, this returns a :class:`MemoryCreateResult` containing
+        the created memory, any generated semantic artifacts, and server-side
+        metadata.  HTTP mode only.
+
+        Args:
+            content: Text to ingest into the knowledge graph.
+            metadata: Arbitrary metadata attached to the memory.
+            prompt_context: Semantic prompt context for extraction guidance.
+            database: Target database name.
+            category: Content category (e.g. ``"memory"``, ``"general"``).
+            source_type: Source type hint (e.g. ``"text"``, ``"file"``).
+            semantic_artifact_policy: Artifact generation policy (``"auto"``, ``"approved_only"``, ``"none"``).
+            approved_artifacts: Pre-approved artifact definitions to apply.
+            approved_artifact_id: ID of a previously approved artifact to apply.
+
+        Returns:
+            A :class:`MemoryCreateResult` with the created memory and any artifacts.
+        """
         resolved_metadata = dict(metadata or {})
         serialized_prompt_context = serialize_optional_mapping(
             prompt_context,
@@ -661,6 +704,19 @@ class Seocho:
         category: str = "memory",
         source_type: str = "text",
     ) -> MemoryCreateResult:
+        """Add content using a specific approved semantic artifact.
+
+        Convenience wrapper around :meth:`add_with_details` that forces
+        ``semantic_artifact_policy="approved_only"`` and sets the
+        ``approved_artifact_id``.
+
+        Args:
+            artifact_id: The ID of the approved artifact to apply.
+            content: Text to ingest.
+
+        Returns:
+            A :class:`MemoryCreateResult` with the created memory.
+        """
         return self.add_with_details(
             content,
             metadata=metadata,
@@ -676,6 +732,15 @@ class Seocho:
         )
 
     def get(self, memory_id: str, *, database: Optional[str] = None) -> Memory:
+        """Retrieve a single memory by ID.
+
+        Args:
+            memory_id: The memory identifier returned from :meth:`add`.
+            database: Optional target database override.
+
+        Returns:
+            The :class:`Memory` object.
+        """
         params: Dict[str, Any] = {"workspace_id": self.workspace_id}
         if database:
             params["database"] = database
@@ -693,6 +758,18 @@ class Seocho:
         graph_ids: Optional[Sequence[str]] = None,
         databases: Optional[Sequence[str]] = None,
     ) -> List[SearchResult]:
+        """Search memories by natural-language query.
+
+        Returns only the result list.  Use :meth:`search_with_context` for
+        the full response including metadata.  HTTP mode only.
+
+        Args:
+            query: Natural-language search query.
+            limit: Maximum number of results to return.
+
+        Returns:
+            List of :class:`SearchResult` objects ranked by relevance.
+        """
         return self.search_with_context(
             query,
             limit=limit,
@@ -714,6 +791,15 @@ class Seocho:
         graph_ids: Optional[Sequence[str]] = None,
         databases: Optional[Sequence[str]] = None,
     ) -> SearchResponse:
+        """Search memories and return the full response with context metadata.
+
+        Args:
+            query: Natural-language search query.
+            limit: Maximum number of results to return.
+
+        Returns:
+            A :class:`SearchResponse` containing results and search metadata.
+        """
         body: Dict[str, Any] = {
             "workspace_id": self.workspace_id,
             "query": query,
@@ -747,6 +833,18 @@ class Seocho:
         graph_ids: Optional[Sequence[str]] = None,
         databases: Optional[Sequence[str]] = None,
     ) -> ChatResponse:
+        """Send a chat message and receive a graph-grounded response.
+
+        Combines memory search with LLM synthesis to produce an answer
+        grounded in the knowledge graph.  HTTP mode only.
+
+        Args:
+            message: Natural-language message or question.
+            limit: Maximum number of memory results to consider.
+
+        Returns:
+            A :class:`ChatResponse` with the assistant message and sources.
+        """
         body: Dict[str, Any] = {
             "workspace_id": self.workspace_id,
             "message": message,
@@ -770,6 +868,15 @@ class Seocho:
         return ChatResponse.from_dict(payload)
 
     def delete(self, memory_id: str, *, database: Optional[str] = None) -> ArchiveResult:
+        """Archive (soft-delete) a memory by ID.
+
+        Args:
+            memory_id: The memory identifier to archive.
+            database: Optional target database override.
+
+        Returns:
+            An :class:`ArchiveResult` confirming the operation.
+        """
         params: Dict[str, Any] = {"workspace_id": self.workspace_id}
         if database:
             params["database"] = database
@@ -783,6 +890,19 @@ class Seocho:
         user_id: Optional[str] = None,
         graph_ids: Optional[Sequence[str]] = None,
     ) -> AgentRunResponse:
+        """Run the graph-scoped tool-using router agent.
+
+        The router agent selects the best graph(s) and tools to answer
+        the query.  HTTP mode only.
+
+        Args:
+            query: Natural-language query.
+            user_id: Override the default user ID for this call.
+            graph_ids: Restrict routing to specific graph IDs.
+
+        Returns:
+            An :class:`AgentRunResponse` with the agent's answer and trace.
+        """
         body = build_query_payload(
             query=query,
             workspace_id=self.workspace_id,
@@ -824,6 +944,23 @@ class Seocho:
         reasoning_mode: bool = False,
         repair_budget: int = 0,
     ) -> SemanticRunResponse:
+        """Run the semantic query path with ontology-aware Cypher generation.
+
+        Resolves graph targets, generates Cypher from the ontology, executes
+        against the graph store, and synthesizes an answer.  Supports
+        entity overrides and reasoning mode with query repair.  HTTP mode only.
+
+        Args:
+            query: Natural-language query.
+            graph_ids: Graph references to query against (strings, GraphRef, GraphTarget, or dicts).
+            databases: Explicit database names to target.
+            entity_overrides: Entity disambiguation hints.
+            reasoning_mode: Enable automatic query repair on empty results.
+            repair_budget: Maximum repair attempts when reasoning_mode is enabled.
+
+        Returns:
+            A :class:`SemanticRunResponse` with the answer, Cypher, and trace.
+        """
         resolved_graph_ids: Optional[List[str]] = None
         resolved_databases = [str(item).strip() for item in databases or [] if str(item).strip()]
         if graph_ids:
@@ -861,6 +998,18 @@ class Seocho:
         user_id: Optional[str] = None,
         graph_ids: Optional[Sequence[GraphRef | GraphTarget | Dict[str, Any] | str]] = None,
     ) -> DebateRunResponse:
+        """Run the multi-agent debate path for complex queries.
+
+        Multiple agents debate over the graph evidence to produce a
+        synthesized, higher-confidence answer.  HTTP mode only.
+
+        Args:
+            query: Natural-language query.
+            graph_ids: Graph references to debate over.
+
+        Returns:
+            A :class:`DebateRunResponse` with the consensus answer and debate trace.
+        """
         resolved_graph_ids: Optional[List[str]] = None
         if graph_ids:
             plain_graph_ids = [str(item).strip() for item in graph_ids if isinstance(item, str) and str(item).strip()]
@@ -887,6 +1036,26 @@ class Seocho:
         user_id: Optional[str] = None,
         session_id: Optional[str] = None,
     ) -> "ExecutionPlanBuilder":
+        """Create a chainable execution plan builder for a query.
+
+        Use the returned builder to configure graph targets, reasoning
+        style, entity overrides, and then call ``.run()`` to execute.
+
+        Example::
+
+            result = (
+                s.plan("Who is Samsung's CEO?")
+                .on_graph("news_kg")
+                .direct()
+                .run()
+            )
+
+        Args:
+            query: Natural-language query to plan execution for.
+
+        Returns:
+            An :class:`ExecutionPlanBuilder` for fluent configuration.
+        """
         return ExecutionPlanBuilder(
             self,
             query,
@@ -895,6 +1064,17 @@ class Seocho:
         )
 
     def execute(self, plan: ExecutionPlan | Dict[str, Any]) -> ExecutionResult:
+        """Execute a fully built execution plan.
+
+        Resolves graph targets, selects the runtime path based on
+        reasoning style (direct/react/debate), and returns the result.
+
+        Args:
+            plan: An :class:`ExecutionPlan` or compatible dict.
+
+        Returns:
+            An :class:`ExecutionResult` with the answer and execution metadata.
+        """
         if isinstance(plan, dict):
             plan = ExecutionPlan.from_dict(plan)
         if not isinstance(plan, ExecutionPlan):
@@ -959,6 +1139,20 @@ class Seocho:
         databases: Optional[Sequence[str]] = None,
         entity_overrides: Optional[Sequence[EntityOverride | Dict[str, Any]]] = None,
     ) -> PlatformChatResponse:
+        """Send a message through the platform chat endpoint.
+
+        Supports multiple modes (``"semantic"``, ``"debate"``, ``"react"``)
+        and maintains server-side session state.  HTTP mode only.
+
+        Args:
+            message: Natural-language message.
+            mode: Execution mode (``"semantic"``, ``"debate"``, ``"react"``).
+            session_id: Chat session identifier for conversation continuity.
+            entity_overrides: Entity disambiguation hints.
+
+        Returns:
+            A :class:`PlatformChatResponse` with the assistant reply.
+        """
         body: Dict[str, Any] = {
             "message": message,
             "mode": mode,
@@ -979,10 +1173,26 @@ class Seocho:
         return PlatformChatResponse.from_dict(payload)
 
     def session_history(self, session_id: str) -> PlatformSessionResponse:
+        """Retrieve the message history for a platform chat session.
+
+        Args:
+            session_id: The session identifier.
+
+        Returns:
+            A :class:`PlatformSessionResponse` with the conversation history.
+        """
         payload = self._request_json("GET", platform_chat_session_path(session_id))
         return PlatformSessionResponse.from_dict(payload)
 
     def reset_session(self, session_id: str) -> PlatformSessionResponse:
+        """Clear the message history for a platform chat session.
+
+        Args:
+            session_id: The session identifier to reset.
+
+        Returns:
+            A :class:`PlatformSessionResponse` confirming the reset.
+        """
         payload = self._request_json("DELETE", platform_chat_session_path(session_id))
         return PlatformSessionResponse.from_dict(payload)
 
@@ -997,6 +1207,24 @@ class Seocho:
         approved_artifacts: Optional[Dict[str, Any] | ApprovedArtifacts] = None,
         approved_artifact_id: Optional[str] = None,
     ) -> RawIngestResult:
+        """Ingest raw records directly into a target database.
+
+        Bypasses the text extraction pipeline and writes structured records
+        (nodes/relationships) directly to the graph.  Supports optional
+        rule constraint validation and automatic database creation.
+
+        Args:
+            records: Sequence of record dicts to ingest.
+            target_database: Database to write into.
+            enable_rule_constraints: Validate records against inferred rules.
+            create_database_if_missing: Auto-create the database if it does not exist.
+            semantic_artifact_policy: Artifact generation policy.
+            approved_artifacts: Pre-approved artifact definitions.
+            approved_artifact_id: ID of a previously approved artifact.
+
+        Returns:
+            A :class:`RawIngestResult` with ingestion statistics.
+        """
         body: Dict[str, Any] = {
             "workspace_id": self.workspace_id,
             "target_database": target_database,
@@ -1017,20 +1245,45 @@ class Seocho:
         return RawIngestResult.from_dict(payload)
 
     def graphs(self) -> List[GraphTarget]:
+        """List all available graph targets from the server catalog.
+
+        Results are cached internally for graph resolution in subsequent calls.
+
+        Returns:
+            List of :class:`GraphTarget` objects.
+        """
         payload = self._request_json("GET", RuntimePath.GRAPHS)
         graphs = [GraphTarget.from_dict(item) for item in payload.get("graphs", [])]
         self._graph_catalog_cache = {target.graph_id: target for target in graphs}
         return graphs
 
     def databases(self) -> List[str]:
+        """List all available database names from the server.
+
+        Returns:
+            List of database name strings.
+        """
         payload = self._request_json("GET", RuntimePath.DATABASES)
         return [str(item) for item in payload.get("databases", [])]
 
     def agents(self) -> List[str]:
+        """List all registered agent names from the server.
+
+        Returns:
+            List of agent name strings.
+        """
         payload = self._request_json("GET", RuntimePath.AGENTS)
         return [str(item) for item in payload.get("agents", [])]
 
     def health(self, *, scope: str = "runtime") -> Dict[str, Any]:
+        """Check server health status.
+
+        Args:
+            scope: Health check scope (``"runtime"`` or ``"batch"``).
+
+        Returns:
+            Dict with health status fields.
+        """
         if scope == "runtime":
             path = RuntimePath.HEALTH_RUNTIME
         elif scope == "batch":
@@ -1046,6 +1299,16 @@ class Seocho:
         route: Optional[str] = None,
         intent_id: Optional[str] = None,
     ) -> List[SemanticRunRecord]:
+        """List recent semantic run records.
+
+        Args:
+            limit: Maximum number of records to return.
+            route: Filter by route name.
+            intent_id: Filter by intent ID.
+
+        Returns:
+            List of :class:`SemanticRunRecord` objects.
+        """
         params: Dict[str, Any] = {
             "workspace_id": self.workspace_id,
             "limit": max(1, int(limit or 20)),
@@ -1058,6 +1321,14 @@ class Seocho:
         return [SemanticRunRecord.from_dict(item) for item in payload.get("runs", [])]
 
     def semantic_run(self, run_id: str) -> SemanticRunRecord:
+        """Retrieve a single semantic run record by ID.
+
+        Args:
+            run_id: The semantic run identifier.
+
+        Returns:
+            A :class:`SemanticRunRecord` with full run details.
+        """
         params: Dict[str, Any] = {"workspace_id": self.workspace_id}
         payload = self._request_json("GET", semantic_run_path(run_id), params=params)
         return SemanticRunRecord.from_dict(payload)
@@ -1071,6 +1342,20 @@ class Seocho:
         properties: Optional[Sequence[str]] = None,
         create_if_missing: bool = True,
     ) -> FulltextIndexResponse:
+        """Ensure fulltext indexes exist on the specified databases.
+
+        Creates or verifies fulltext indexes for entity search.  HTTP mode only.
+
+        Args:
+            databases: Database names to index. Defaults to all databases.
+            index_name: Name of the fulltext index.
+            labels: Node labels to include in the index.
+            properties: Node properties to index.
+            create_if_missing: Create the index if it does not already exist.
+
+        Returns:
+            A :class:`FulltextIndexResponse` with index status per database.
+        """
         body: Dict[str, Any] = {
             "workspace_id": self.workspace_id,
             "index_name": index_name,
@@ -1086,6 +1371,14 @@ class Seocho:
         return FulltextIndexResponse.from_dict(payload)
 
     def list_artifacts(self, *, status: Optional[str] = None) -> List[SemanticArtifactSummary]:
+        """List semantic artifacts, optionally filtered by status.
+
+        Args:
+            status: Filter by artifact status (e.g. ``"draft"``, ``"approved"``).
+
+        Returns:
+            List of :class:`SemanticArtifactSummary` objects.
+        """
         params: Dict[str, Any] = {"workspace_id": self.workspace_id}
         if status:
             params["status"] = status
@@ -1093,6 +1386,14 @@ class Seocho:
         return [SemanticArtifactSummary.from_dict(item) for item in payload.get("artifacts", [])]
 
     def get_artifact(self, artifact_id: str) -> SemanticArtifact:
+        """Retrieve a semantic artifact by ID.
+
+        Args:
+            artifact_id: The artifact identifier.
+
+        Returns:
+            The full :class:`SemanticArtifact` object.
+        """
         params = {"workspace_id": self.workspace_id}
         payload = self._request_json("GET", f"/semantic/artifacts/{artifact_id}", params=params)
         return SemanticArtifact.from_dict(payload)
@@ -1101,6 +1402,14 @@ class Seocho:
         self,
         draft: SemanticArtifactDraftInput | Dict[str, Any],
     ) -> SemanticArtifact:
+        """Create a new semantic artifact draft.
+
+        Args:
+            draft: Artifact definition as a :class:`SemanticArtifactDraftInput` or dict.
+
+        Returns:
+            The created :class:`SemanticArtifact` in draft status.
+        """
         payload = serialize_optional_mapping(draft, field_name="draft")
         if payload is None:
             raise TypeError("draft must be provided")
@@ -1118,6 +1427,16 @@ class Seocho:
         approved_by: str,
         approval_note: Optional[str] = None,
     ) -> SemanticArtifact:
+        """Approve a semantic artifact draft, promoting it to approved status.
+
+        Args:
+            artifact_id: The artifact to approve.
+            approved_by: Identity of the approver.
+            approval_note: Optional note explaining the approval.
+
+        Returns:
+            The updated :class:`SemanticArtifact` in approved status.
+        """
         body: Dict[str, Any] = {
             "workspace_id": self.workspace_id,
             "approved_by": approved_by,
@@ -1134,6 +1453,16 @@ class Seocho:
         deprecated_by: str,
         deprecation_note: Optional[str] = None,
     ) -> SemanticArtifact:
+        """Deprecate a semantic artifact, marking it as no longer recommended.
+
+        Args:
+            artifact_id: The artifact to deprecate.
+            deprecated_by: Identity of the person deprecating.
+            deprecation_note: Optional note explaining the deprecation.
+
+        Returns:
+            The updated :class:`SemanticArtifact` in deprecated status.
+        """
         body: Dict[str, Any] = {
             "workspace_id": self.workspace_id,
             "deprecated_by": deprecated_by,
@@ -1147,6 +1476,17 @@ class Seocho:
         self,
         artifact: SemanticArtifact | SemanticArtifactDraftInput | Dict[str, Any],
     ) -> ArtifactValidationResult:
+        """Validate a semantic artifact payload locally.
+
+        Checks required fields, schema consistency, and governance rules
+        without contacting the server.
+
+        Args:
+            artifact: The artifact to validate.
+
+        Returns:
+            An :class:`ArtifactValidationResult` with any validation errors.
+        """
         return validate_artifact_payload(artifact)
 
     def diff_artifacts(
@@ -1154,6 +1494,17 @@ class Seocho:
         left: SemanticArtifact | SemanticArtifactDraftInput | Dict[str, Any],
         right: SemanticArtifact | SemanticArtifactDraftInput | Dict[str, Any],
     ) -> ArtifactDiff:
+        """Compute the diff between two semantic artifact payloads.
+
+        Useful for reviewing changes before approving a new artifact version.
+
+        Args:
+            left: The baseline artifact.
+            right: The artifact to compare against.
+
+        Returns:
+            An :class:`ArtifactDiff` describing added, removed, and changed fields.
+        """
         return diff_artifact_payloads(left, right)
 
     def export_runtime_bundle(
@@ -1162,7 +1513,22 @@ class Seocho:
         *,
         app_name: Optional[str] = None,
         default_database: str = "neo4j",
-    ) -> RuntimeBundle:
+    ) -> "RuntimeBundle":
+        """Export the client configuration as a portable runtime bundle.
+
+        A runtime bundle captures ontology, artifacts, and configuration
+        so that another environment can recreate an equivalent client.
+
+        Args:
+            path: If provided, save the bundle to this file path.
+            app_name: Application name embedded in the bundle.
+            default_database: Default database for the bundle.
+
+        Returns:
+            A :class:`RuntimeBundle` that can be saved or used directly.
+        """
+        from .runtime_bundle import build_runtime_bundle
+
         bundle = build_runtime_bundle(
             self,
             app_name=app_name,
@@ -1175,13 +1541,28 @@ class Seocho:
     @classmethod
     def from_runtime_bundle(
         cls,
-        bundle_source: RuntimeBundle | str,
+        bundle_source: "RuntimeBundle | str",
         *,
         workspace_id: Optional[str] = None,
     ) -> "Seocho":
+        """Create a Seocho client from a saved runtime bundle.
+
+        Args:
+            bundle_source: A :class:`RuntimeBundle` object or path to a saved bundle file.
+            workspace_id: Override the workspace ID from the bundle.
+
+        Returns:
+            A configured :class:`Seocho` client.
+        """
+        from .runtime_bundle import create_client_from_runtime_bundle
+
         return create_client_from_runtime_bundle(bundle_source, workspace_id=workspace_id)
 
     def close(self) -> None:
+        """Release resources held by the client.
+
+        Closes the HTTP session and, in local mode, the graph store connection.
+        """
         self._graph_catalog_cache = None
         self._session.close()
         if self._local_mode and hasattr(self.graph_store, "close"):
@@ -1239,6 +1620,19 @@ class Seocho:
         ontology_ids: Optional[Sequence[str]] = None,
         vocabulary_profiles: Optional[Sequence[str]] = None,
     ) -> List[GraphRef]:
+        """Resolve graph references against the server catalog.
+
+        Merges user-provided graph references with catalog metadata,
+        optionally filtering by ontology or vocabulary profile.
+
+        Args:
+            graphs: Graph references to resolve (strings, GraphRef, GraphTarget, or dicts).
+            ontology_ids: Filter to graphs matching these ontology IDs.
+            vocabulary_profiles: Filter to graphs matching these vocabulary profiles.
+
+        Returns:
+            List of fully resolved :class:`GraphRef` objects.
+        """
         plan = ExecutionPlan(
             query="",
             targets=[self._coerce_graph_ref(graph) for graph in graphs],

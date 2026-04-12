@@ -226,6 +226,12 @@ Each entry must link to a full ADR when impact is non-trivial.
   - require onboarding docs to distinguish HTTP client vs local engine vs local runtime modes
   - document local ontology, graph, rule, semantic-artifact, and trace file locations
 
+- Accepted `ADR-0047-thin-http-install-and-local-extra-contract.md`
+  - keep `pip install seocho` as the thin HTTP client path
+  - add `seocho[local]` as the published-package local SDK engine path
+  - make top-level `seocho` exports lazy so optional runtime deps are not eagerly imported
+  - require website and source docs to share the same install/runtime split
+
 ## 2026-04-12
 
 - Accepted `ADR-0045-vendor-neutral-tracing-and-explicit-opik-opt-in.md`

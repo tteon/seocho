@@ -419,9 +419,11 @@ JSON object with `target_agent` and `reasoning`.
 # ------------------------------------------------------------------
 
 class QueryRequest(BaseModel):
-    query: str = Field(..., max_length=2000)
-    user_id: str = "user_default"
-    workspace_id: str = Field(default="default", pattern=WORKSPACE_ID_PATTERN)
+    """Base request for agent query endpoints."""
+
+    query: str = Field(..., max_length=2000, description="Natural-language question to process.")
+    user_id: str = Field(default="user_default", description="Caller identity for tracing and access control.")
+    workspace_id: str = Field(default="default", pattern=WORKSPACE_ID_PATTERN, description="Workspace scope for multi-tenant isolation.")
     graph_ids: Optional[List[str]] = Field(
         default=None,
         description="Optional list of graph IDs to target for debate/runtime routing.",
@@ -429,11 +431,13 @@ class QueryRequest(BaseModel):
 
 
 class EntityOverride(BaseModel):
-    question_entity: str = Field(..., min_length=1, max_length=256)
-    database: str = Field(..., min_length=1, max_length=64)
-    node_id: str | int
-    display_name: Optional[str] = None
-    labels: List[str] = Field(default_factory=list)
+    """UI-assisted entity disambiguation: pin a question entity to a specific graph node."""
+
+    question_entity: str = Field(..., min_length=1, max_length=256, description="Entity mention as it appears in the user question.")
+    database: str = Field(..., min_length=1, max_length=64, description="Target database containing the resolved node.")
+    node_id: str | int = Field(description="elementId or name of the resolved graph node.")
+    display_name: Optional[str] = Field(default=None, description="Human-readable label shown in the UI.")
+    labels: List[str] = Field(default_factory=list, description="Neo4j labels of the resolved node.")
 
 
 class SemanticQueryRequest(QueryRequest):
@@ -458,64 +462,78 @@ class SemanticQueryRequest(QueryRequest):
 
 
 class AgentResponse(BaseModel):
-    response: str
-    trace_steps: List[Dict[str, Any]]
+    """Standard response envelope for single-agent execution."""
+
+    response: str = Field(description="Final synthesized answer text.")
+    trace_steps: List[Dict[str, Any]] = Field(description="Ordered list of agent execution trace steps for DAG rendering.")
 
 
 class SemanticAgentResponse(AgentResponse):
-    route: str
-    semantic_context: Dict[str, Any]
-    lpg_result: Optional[Dict[str, Any]] = None
-    rdf_result: Optional[Dict[str, Any]] = None
-    support_assessment: Dict[str, Any] = Field(default_factory=dict)
-    strategy_decision: Dict[str, Any] = Field(default_factory=dict)
-    run_metadata: Dict[str, Any] = Field(default_factory=dict)
-    evidence_bundle: Dict[str, Any] = Field(default_factory=dict)
+    """Extended response for semantic entity-resolution query flow."""
+
+    route: str = Field(description="Selected query route: 'lpg', 'rdf', or 'hybrid'.")
+    semantic_context: Dict[str, Any] = Field(description="Resolved entities and disambiguation metadata.")
+    lpg_result: Optional[Dict[str, Any]] = Field(default=None, description="Raw LPG agent query results.")
+    rdf_result: Optional[Dict[str, Any]] = Field(default=None, description="Raw RDF agent query results.")
+    support_assessment: Dict[str, Any] = Field(default_factory=dict, description="Intent-support coverage analysis.")
+    strategy_decision: Dict[str, Any] = Field(default_factory=dict, description="Execution strategy reasoning trace.")
+    run_metadata: Dict[str, Any] = Field(default_factory=dict, description="Semantic run audit metadata (run_id, timestamps).")
+    evidence_bundle: Dict[str, Any] = Field(default_factory=dict, description="Structured evidence bundle with slot fills and required relations.")
 
 
 class SemanticRunRecordResponse(BaseModel):
-    run_id: str
-    workspace_id: str
-    timestamp: str
-    route: str
-    intent_id: str
-    query_preview: str
-    support_status: str = ""
-    support_reason: str = ""
-    support_coverage: float = 0.0
-    support_assessment: Dict[str, Any] = Field(default_factory=dict)
-    strategy_decision: Dict[str, Any] = Field(default_factory=dict)
-    reasoning: Dict[str, Any] = Field(default_factory=dict)
-    evidence_summary: Dict[str, Any] = Field(default_factory=dict)
-    lpg_record_count: int = 0
-    rdf_record_count: int = 0
-    response_preview: str = ""
+    """Audit record for a single semantic query execution."""
+
+    run_id: str = Field(description="Unique identifier for this semantic run.")
+    workspace_id: str = Field(description="Workspace that owns this run.")
+    timestamp: str = Field(description="ISO-8601 timestamp of run execution.")
+    route: str = Field(description="Query route used: 'lpg', 'rdf', or 'hybrid'.")
+    intent_id: str = Field(description="Inferred question intent identifier.")
+    query_preview: str = Field(description="Truncated user question for display.")
+    support_status: str = Field(default="", description="Intent-support verdict: 'supported', 'partial', or 'unsupported'.")
+    support_reason: str = Field(default="", description="Human-readable explanation of support status.")
+    support_coverage: float = Field(default=0.0, description="Fraction of required intent slots filled (0.0-1.0).")
+    support_assessment: Dict[str, Any] = Field(default_factory=dict, description="Full intent-support assessment payload.")
+    strategy_decision: Dict[str, Any] = Field(default_factory=dict, description="Strategy reasoning trace.")
+    reasoning: Dict[str, Any] = Field(default_factory=dict, description="Query reasoning and repair trace.")
+    evidence_summary: Dict[str, Any] = Field(default_factory=dict, description="Summarized evidence bundle.")
+    lpg_record_count: int = Field(default=0, description="Number of records returned by LPG agent.")
+    rdf_record_count: int = Field(default=0, description="Number of records returned by RDF agent.")
+    response_preview: str = Field(default="", description="Truncated final answer for display.")
 
 
 class SemanticRunRecordListResponse(BaseModel):
-    runs: List[SemanticRunRecordResponse] = Field(default_factory=list)
+    """Paginated list of semantic run audit records."""
+
+    runs: List[SemanticRunRecordResponse] = Field(default_factory=list, description="List of semantic run records.")
 
 
 class DebateResponse(BaseModel):
-    response: str
-    trace_steps: List[Dict[str, Any]]
-    debate_results: List[Dict[str, Any]]
-    agent_statuses: List[Dict[str, str]] = Field(default_factory=list)
-    debate_state: Literal["ready", "degraded", "blocked"] = "ready"
-    degraded: bool = False
+    """Response from parallel multi-agent debate execution."""
+
+    response: str = Field(description="Supervisor-synthesized final answer.")
+    trace_steps: List[Dict[str, Any]] = Field(description="Per-agent trace steps for DAG rendering.")
+    debate_results: List[Dict[str, Any]] = Field(description="Individual agent answers before synthesis.")
+    agent_statuses: List[Dict[str, str]] = Field(default_factory=list, description="Per-agent readiness status (ready/degraded/blocked).")
+    debate_state: Literal["ready", "degraded", "blocked"] = Field(default="ready", description="Overall debate readiness state.")
+    degraded: bool = Field(default=False, description="True if one or more agents were unavailable.")
 
 
 class FulltextIndexEnsureRequest(BaseModel):
-    workspace_id: str = Field(default="default", pattern=WORKSPACE_ID_PATTERN)
-    databases: Optional[List[str]] = None
-    index_name: str = Field(default="entity_fulltext", pattern=INDEX_NAME_PATTERN)
+    """Request to ensure fulltext indexes exist on target databases."""
+
+    workspace_id: str = Field(default="default", pattern=WORKSPACE_ID_PATTERN, description="Workspace scope.")
+    databases: Optional[List[str]] = Field(default=None, description="Databases to index; defaults to all registered databases.")
+    index_name: str = Field(default="entity_fulltext", pattern=INDEX_NAME_PATTERN, description="Name of the fulltext index to create or verify.")
     labels: List[str] = Field(
-        default_factory=lambda: ["Entity", "Company", "Person", "Organization", "Concept", "Document", "Resource"]
+        default_factory=lambda: ["Entity", "Company", "Person", "Organization", "Concept", "Document", "Resource"],
+        description="Node labels to include in the fulltext index.",
     )
     properties: List[str] = Field(
-        default_factory=lambda: ["name", "title", "id", "uri", "alias", "code", "symbol", "content_preview", "content", "memory_id"]
+        default_factory=lambda: ["name", "title", "id", "uri", "alias", "code", "symbol", "content_preview", "content", "memory_id"],
+        description="Node properties to include in the fulltext index.",
     )
-    create_if_missing: bool = True
+    create_if_missing: bool = Field(default=True, description="Create the index if it does not exist.")
 
 
 class FulltextIndexEnsureResult(BaseModel):
@@ -534,14 +552,16 @@ class FulltextIndexEnsureResponse(BaseModel):
 
 
 class PlatformChatRequest(BaseModel):
-    session_id: str = Field(default_factory=lambda: uuid4().hex)
-    message: str = Field(..., min_length=1, max_length=2000)
-    mode: Literal["router", "debate", "semantic"] = "semantic"
-    user_id: str = "user_default"
-    workspace_id: str = Field(default="default", pattern=WORKSPACE_ID_PATTERN)
-    graph_ids: Optional[List[str]] = None
-    databases: Optional[List[str]] = None
-    entity_overrides: Optional[List[EntityOverride]] = None
+    """Interactive chat request from the frontend platform."""
+
+    session_id: str = Field(default_factory=lambda: uuid4().hex, description="Session ID for conversation continuity; auto-generated if omitted.")
+    message: str = Field(..., min_length=1, max_length=2000, description="User message text.")
+    mode: Literal["router", "debate", "semantic"] = Field(default="semantic", description="Execution mode: 'router' (single agent), 'debate' (parallel), or 'semantic' (entity-resolution).")
+    user_id: str = Field(default="user_default", description="Caller identity for tracing.")
+    workspace_id: str = Field(default="default", pattern=WORKSPACE_ID_PATTERN, description="Workspace scope.")
+    graph_ids: Optional[List[str]] = Field(default=None, description="Graph IDs for debate mode routing.")
+    databases: Optional[List[str]] = Field(default=None, description="Databases for semantic mode entity resolution.")
+    entity_overrides: Optional[List[EntityOverride]] = Field(default=None, description="UI-assisted entity disambiguation overrides.")
 
 
 class PlatformTurn(BaseModel):
@@ -551,13 +571,15 @@ class PlatformTurn(BaseModel):
 
 
 class PlatformChatResponse(BaseModel):
-    session_id: str
-    mode: str
-    assistant_message: str
-    trace_steps: List[Dict[str, Any]]
-    ui_payload: Dict[str, Any]
-    runtime_payload: Dict[str, Any]
-    history: List[PlatformTurn]
+    """Response from the interactive platform chat endpoint."""
+
+    session_id: str = Field(description="Session ID for this conversation.")
+    mode: str = Field(description="Execution mode that was used.")
+    assistant_message: str = Field(description="Assistant response text.")
+    trace_steps: List[Dict[str, Any]] = Field(description="Agent execution trace for frontend DAG rendering.")
+    ui_payload: Dict[str, Any] = Field(description="Frontend-specific rendering hints (disambiguation, graph previews).")
+    runtime_payload: Dict[str, Any] = Field(description="Backend runtime metadata (semantic context, support assessment).")
+    history: List[PlatformTurn] = Field(description="Full session conversation history.")
 
 
 class PlatformSessionResponse(BaseModel):
@@ -579,23 +601,27 @@ class HealthResponse(BaseModel):
 
 
 class RawIngestRecord(BaseModel):
-    id: Optional[str] = None
-    content: str = Field(..., min_length=1, max_length=2000000)
-    category: str = Field(default="general", max_length=100)
-    source_type: Literal["text", "pdf", "csv"] = "text"
-    content_encoding: Literal["plain", "base64"] = "plain"
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    """Single raw record to ingest into the knowledge graph."""
+
+    id: Optional[str] = Field(default=None, description="Unique record identifier; auto-generated as 'raw_{idx}' if omitted.")
+    content: str = Field(..., min_length=1, max_length=2000000, description="Raw text content to extract entities from.")
+    category: str = Field(default="general", max_length=100, description="Data category for prompt routing (e.g. 'finance', 'medical').")
+    source_type: Literal["text", "pdf", "csv"] = Field(default="text", description="Content format.")
+    content_encoding: Literal["plain", "base64"] = Field(default="plain", description="Encoding of the content field.")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Arbitrary metadata attached to the record.")
 
 
 class PlatformRawIngestRequest(BaseModel):
-    workspace_id: str = Field(default="default", pattern=WORKSPACE_ID_PATTERN)
-    target_database: str = Field(default="kgnormal", pattern=DATABASE_NAME_PATTERN)
-    records: List[RawIngestRecord] = Field(..., min_length=1, max_length=100)
-    enable_rule_constraints: bool = True
-    create_database_if_missing: bool = True
-    semantic_artifact_policy: Literal["auto", "draft_only", "approved_only"] = "auto"
-    approved_artifacts: Optional[Dict[str, Any]] = None
-    approved_artifact_id: Optional[str] = None
+    """Batch raw-data ingestion request."""
+
+    workspace_id: str = Field(default="default", pattern=WORKSPACE_ID_PATTERN, description="Workspace scope.")
+    target_database: str = Field(default="kgnormal", pattern=DATABASE_NAME_PATTERN, description="DozerDB database to load extracted graph data into.")
+    records: List[RawIngestRecord] = Field(..., min_length=1, max_length=100, description="Raw records to ingest (1-100 per batch).")
+    enable_rule_constraints: bool = Field(default=True, description="Infer and apply SHACL-like rules to extracted nodes.")
+    create_database_if_missing: bool = Field(default=True, description="Provision the target database if it does not exist.")
+    semantic_artifact_policy: Literal["auto", "draft_only", "approved_only"] = Field(default="auto", description="Artifact promotion policy: 'auto' applies drafts, 'approved_only' requires approval.")
+    approved_artifacts: Optional[Dict[str, Any]] = Field(default=None, description="Pre-approved ontology/SHACL artifacts to use instead of draft inference.")
+    approved_artifact_id: Optional[str] = Field(default=None, description="ID of an approved artifact to resolve from the artifact store.")
 
 
 class RawIngestError(BaseModel):
@@ -611,19 +637,21 @@ class RawIngestWarning(BaseModel):
 
 
 class PlatformRawIngestResponse(BaseModel):
-    workspace_id: str
-    target_database: str
-    records_received: int
-    records_processed: int
-    records_failed: int
-    total_nodes: int
-    total_relationships: int
-    fallback_records: int = 0
-    rule_profile: Optional[Dict[str, Any]] = None
-    semantic_artifacts: Optional[Dict[str, Any]] = None
-    status: str
-    warnings: List[RawIngestWarning] = Field(default_factory=list)
-    errors: List[RawIngestError] = Field(default_factory=list)
+    """Response summarizing a batch ingestion result."""
+
+    workspace_id: str = Field(description="Workspace that owns the ingested data.")
+    target_database: str = Field(description="Database the data was loaded into.")
+    records_received: int = Field(description="Total records submitted in the request.")
+    records_processed: int = Field(description="Records successfully extracted and loaded.")
+    records_failed: int = Field(description="Records that failed during processing.")
+    total_nodes: int = Field(description="Total graph nodes created or merged.")
+    total_relationships: int = Field(description="Total graph relationships created or merged.")
+    fallback_records: int = Field(default=0, description="Records that used fallback (non-LLM) extraction.")
+    rule_profile: Optional[Dict[str, Any]] = Field(default=None, description="Inferred rule profile applied to the batch.")
+    semantic_artifacts: Optional[Dict[str, Any]] = Field(default=None, description="Ontology, SHACL, and vocabulary artifacts from this batch.")
+    status: str = Field(description="Batch outcome: 'success', 'partial_success', 'success_with_fallback', or 'failed'.")
+    warnings: List[RawIngestWarning] = Field(default_factory=list, description="Non-fatal warnings encountered during processing.")
+    errors: List[RawIngestError] = Field(default_factory=list, description="Fatal errors per failed record.")
 
 
 def ensure_fulltext_indexes_impl(request: FulltextIndexEnsureRequest) -> FulltextIndexEnsureResponse:

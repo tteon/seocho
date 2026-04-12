@@ -135,6 +135,16 @@ class SessionContext:
         fallback_from: str = "",
         fallback_reason: str = "",
     ) -> None:
+        """Record an indexing operation in the session context.
+
+        Args:
+            source_id: Identifier for the indexed document.
+            nodes: Number of nodes created.
+            rels: Number of relationships created.
+            text_preview: Truncated preview of the indexed text.
+            mode: Execution mode used (agent, pipeline, cache).
+            degraded: Whether the operation fell back from its intended mode.
+        """
         self.indexed_sources.append({
             "source_id": source_id,
             "nodes": nodes,
@@ -159,6 +169,15 @@ class SessionContext:
         fallback_from: str = "",
         fallback_reason: str = "",
     ) -> None:
+        """Record a query operation in the session context.
+
+        Args:
+            question: The natural-language question asked.
+            answer: The synthesized answer returned.
+            cypher: The Cypher query used, if any.
+            mode: Execution mode used (agent, pipeline, cache).
+            degraded: Whether the operation fell back from its intended mode.
+        """
         self.queries.append({
             "question": question,
             "answer_preview": answer[:300],

@@ -111,6 +111,7 @@ class Seocho:
         graph_store: Optional[Any] = None,  # seocho.graph_store.GraphStore
         llm: Optional[Any] = None,  # seocho.llm_backend.LLMBackend
         vector_store: Optional[Any] = None,  # seocho.vector_store.VectorStore
+        extraction_prompt: Optional[Any] = None,  # seocho.query.PromptTemplate
         # --- HTTP client mode ---
         base_url: Optional[str] = None,
         workspace_id: Optional[str] = None,
@@ -131,6 +132,7 @@ class Seocho:
         self.graph_store = graph_store
         self.llm = llm
         self.vector_store = vector_store
+        self.extraction_prompt = extraction_prompt
 
         # Determine mode
         self._local_mode = ontology is not None and graph_store is not None and llm is not None
@@ -141,6 +143,7 @@ class Seocho:
                 graph_store=graph_store,
                 llm=llm,
                 workspace_id=self.workspace_id,
+                extraction_prompt=extraction_prompt,
             )
             self._session = session or requests.Session()
             self.base_url = ""
@@ -1470,6 +1473,7 @@ class _LocalEngine:
         graph_store: Any,  # GraphStore
         llm: Any,  # LLMBackend
         workspace_id: str,
+        extraction_prompt: Optional[Any] = None,  # PromptTemplate
     ) -> None:
         from .indexing import IndexingPipeline
         from .ontology import Ontology
@@ -1487,7 +1491,7 @@ class _LocalEngine:
         )
 
         # Pre-build strategies (for extract-only and query)
-        self._extraction = ExtractionStrategy(ontology)
+        self._extraction = ExtractionStrategy(ontology, prompt_template=extraction_prompt)
         self._linking = LinkingStrategy(ontology)
         self._query = QueryStrategy(ontology)
 

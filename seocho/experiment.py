@@ -465,8 +465,10 @@ class Workbench:
         strict = params.get("strict_validation", False)
         prompt_template = params.get("prompt_template")
 
-        # Build extraction strategy
-        strategy = ExtractionStrategy(ontology)
+        # Build extraction strategy with optional custom prompt
+        from .query.strategy import PromptTemplate as PT
+        pt = prompt_template if isinstance(prompt_template, PT) else None
+        strategy = ExtractionStrategy(ontology, prompt_template=pt)
 
         # Chunk if needed
         from .index.pipeline import chunk_text
@@ -479,8 +481,6 @@ class Workbench:
 
         for chunk in chunks:
             system, user = strategy.render(chunk)
-            if prompt_template:
-                system = prompt_template
 
             response = llm.complete(
                 system=system, user=user,

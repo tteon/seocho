@@ -82,6 +82,7 @@ class TestBuilderAPI:
     def test_ontology_repr(self, simple_ontology):
         r = repr(simple_ontology)
         assert "test" in r
+        assert "package_id='test'" in r
         assert "nodes=2" in r
         assert "relationships=1" in r
 
@@ -114,6 +115,7 @@ class TestJSONLD:
         assert doc["@context"]["schema"] == "https://schema.org/"
         assert doc["@type"] == "seocho:Ontology"
         assert doc["name"] == "test"
+        assert doc["packageId"] == "test"
         assert "Person" in doc["nodes"]
         assert doc["nodes"]["Person"]["sameAs"] == "schema:Person"
 
@@ -138,10 +140,12 @@ class TestJSONLD:
     def test_from_dict(self):
         onto = Ontology.from_jsonld_dict({
             "name": "from_dict",
+            "packageId": "core.finance",
             "nodes": {"X": {"properties": {"id": {"type": "string", "unique": True}}}},
             "relationships": {},
         })
         assert onto.name == "from_dict"
+        assert onto.package_id == "core.finance"
         assert onto.nodes["X"].properties["id"].unique is True
 
 

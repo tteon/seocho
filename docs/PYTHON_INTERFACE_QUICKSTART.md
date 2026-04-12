@@ -40,6 +40,11 @@ seocho ontology export --schema schema.jsonld --format shacl --output shacl.json
 seocho ontology diff --left schema_v1.jsonld --right schema_v2.jsonld
 ```
 
+Recommendation:
+
+- keep a stable `package_id` on the ontology and bump `version` semantically
+- treat `seocho ontology diff` as the first migration warning gate before runtime rollout
+
 ## 2. Configure
 
 Fastest script-style setup:

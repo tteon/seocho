@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .ontology import Ontology
 
@@ -20,6 +20,7 @@ def load_ontology_file(path: str | Path) -> Ontology:
 @dataclass(slots=True)
 class OntologyCheckResult:
     ontology_name: str
+    package_id: str
     ontology_version: str
     ok: bool
     errors: List[str]
@@ -29,6 +30,7 @@ class OntologyCheckResult:
     def to_dict(self) -> Dict[str, Any]:
         return {
             "ontology_name": self.ontology_name,
+            "package_id": self.package_id,
             "ontology_version": self.ontology_version,
             "ok": self.ok,
             "errors": list(self.errors),
@@ -42,12 +44,20 @@ class OntologyDiffResult:
     left_name: str
     right_name: str
     changes: Dict[str, Any]
+    package_id: str
+    recommended_bump: str
+    requires_migration: bool
+    migration_warnings: List[str]
 
     def to_dict(self) -> Dict[str, Any]:
         return {
             "left_name": self.left_name,
             "right_name": self.right_name,
             "changes": self.changes,
+            "package_id": self.package_id,
+            "recommended_bump": self.recommended_bump,
+            "requires_migration": self.requires_migration,
+            "migration_warnings": list(self.migration_warnings),
         }
 
 
@@ -87,6 +97,7 @@ def check_ontology(ontology: Ontology) -> OntologyCheckResult:
         errors.append("Ontology defines no node types.")
 
     stats = {
+        "package_id": ontology.package_id,
         "graph_model": ontology.graph_model,
         "namespace": ontology.namespace,
         "node_count": len(ontology.nodes),
@@ -100,6 +111,7 @@ def check_ontology(ontology: Ontology) -> OntologyCheckResult:
     }
     return OntologyCheckResult(
         ontology_name=ontology.name,
+        package_id=ontology.package_id,
         ontology_version=ontology.version,
         ok=not errors,
         errors=errors,
@@ -142,11 +154,13 @@ def diff_ontologies(left: Ontology, right: Ontology) -> OntologyDiffResult:
                 changed.append(key)
         return changed
 
+    package_id = right.package_id or left.package_id
+
     changes = {
         "metadata": {
             "changed": [
                 key
-                for key in ("graph_type", "version", "description", "graph_model", "namespace")
+                for key in ("graph_type", "package_id", "version", "description", "graph_model", "namespace")
                 if left_dict.get(key) != right_dict.get(key)
             ],
         },
@@ -162,11 +176,128 @@ def diff_ontologies(left: Ontology, right: Ontology) -> OntologyDiffResult:
         },
     }
 
+    breaking = any(
+        [
+            bool(changes["nodes"]["removed"]),
+            bool(changes["relationships"]["removed"]),
+            bool(changes["nodes"]["changed"]),
+            bool(changes["relationships"]["changed"]),
+            "graph_model" in changes["metadata"]["changed"],
+            "namespace" in changes["metadata"]["changed"],
+            "package_id" in changes["metadata"]["changed"],
+        ]
+    )
+    additive = any(
+        [
+            bool(changes["nodes"]["added"]),
+            bool(changes["relationships"]["added"]),
+        ]
+    )
+    metadata_only = bool(changes["metadata"]["changed"]) and not any(
+        [
+            changes["nodes"]["added"],
+            changes["nodes"]["removed"],
+            changes["nodes"]["changed"],
+            changes["relationships"]["added"],
+            changes["relationships"]["removed"],
+            changes["relationships"]["changed"],
+        ]
+    )
+
+    if breaking:
+        recommended_bump = "major"
+    elif additive:
+        recommended_bump = "minor"
+    elif metadata_only:
+        recommended_bump = "patch"
+    else:
+        recommended_bump = "none"
+
+    migration_warnings = _build_migration_warnings(
+        left=left,
+        right=right,
+        changes=changes,
+        recommended_bump=recommended_bump,
+    )
+
     return OntologyDiffResult(
         left_name=f"{left.name}@{left.version}",
         right_name=f"{right.name}@{right.version}",
         changes=changes,
+        package_id=package_id,
+        recommended_bump=recommended_bump,
+        requires_migration=breaking,
+        migration_warnings=migration_warnings,
     )
+
+
+def _parse_semver(value: str) -> Optional[Tuple[int, int, int]]:
+    raw = value.strip()
+    parts = raw.split(".")
+    if len(parts) != 3:
+        return None
+    try:
+        return int(parts[0]), int(parts[1]), int(parts[2])
+    except ValueError:
+        return None
+
+
+def _build_migration_warnings(
+    *,
+    left: Ontology,
+    right: Ontology,
+    changes: Dict[str, Any],
+    recommended_bump: str,
+) -> List[str]:
+    warnings: List[str] = []
+
+    if left.package_id != right.package_id:
+        warnings.append(
+            f"package_id changed from '{left.package_id}' to '{right.package_id}'; treat this as a package migration boundary."
+        )
+
+    left_semver = _parse_semver(left.version)
+    right_semver = _parse_semver(right.version)
+    if left_semver is None or right_semver is None:
+        warnings.append(
+            f"Version comparison skipped because semver parsing failed ({left.version!r} -> {right.version!r})."
+        )
+        return warnings
+
+    if recommended_bump == "none" and left_semver != right_semver:
+        warnings.append("Version changed but no schema-level ontology changes were detected.")
+        return warnings
+
+    if recommended_bump == "patch":
+        if right_semver <= left_semver:
+            warnings.append(
+                "Patch-level metadata changes were detected but the ontology version did not increase."
+            )
+    elif recommended_bump == "minor":
+        if right_semver[0] == left_semver[0] and right_semver[1] <= left_semver[1]:
+            warnings.append(
+                "Additive ontology changes were detected; expected at least a minor version bump."
+            )
+    elif recommended_bump == "major":
+        if right_semver[0] <= left_semver[0]:
+            warnings.append(
+                "Breaking ontology changes were detected; expected a major version bump."
+            )
+        if changes["nodes"]["removed"] or changes["relationships"]["removed"]:
+            warnings.append(
+                "Removed node/relationship types may require data migration and downstream query updates."
+            )
+        if changes["nodes"]["changed"] or changes["relationships"]["changed"]:
+            warnings.append(
+                "Changed existing node/relationship definitions may invalidate prompt assumptions, constraints, or denormalization behavior."
+            )
+
+    if "graph_model" in changes["metadata"]["changed"]:
+        warnings.append("graph_model changed; treat this as a runtime/query migration, not just a schema patch.")
+    if "namespace" in changes["metadata"]["changed"]:
+        warnings.append("namespace changed; RDF identifiers and exported JSON-LD consumers may require remapping.")
+
+    return warnings
 
 
 def inspect_owl_ontology(source: str | Path) -> Owlready2InspectionResult:

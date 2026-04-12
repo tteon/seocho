@@ -199,6 +199,8 @@ class Ontology:
     ----------
     name:
         Human-readable ontology name (appears in LLM prompts).
+    package_id:
+        Stable governance identifier for the ontology package lineage.
     version:
         Semantic version string.
     description:
@@ -213,6 +215,7 @@ class Ontology:
         self,
         name: str,
         *,
+        package_id: str = "",
         version: str = "1.0.0",
         description: str = "",
         graph_model: str = "lpg",  # "lpg", "rdf", "hybrid"
@@ -221,6 +224,7 @@ class Ontology:
         relationships: Optional[Dict[str, RelDef]] = None,
     ) -> None:
         self.name = name
+        self.package_id = package_id.strip() or name
         self.version = version
         self.description = description
         self.graph_model = graph_model
@@ -314,6 +318,7 @@ class Ontology:
 
         return cls(
             name=data.get("graph_type") or data.get("name") or "Unnamed",
+            package_id=data.get("package_id", "") or data.get("packageId", "") or data.get("graph_type") or data.get("name") or "Unnamed",
             version=data.get("version", "1.0.0"),
             description=data.get("description", ""),
             graph_model=data.get("graph_model", "lpg"),
@@ -376,6 +381,7 @@ class Ontology:
 
         result: Dict[str, Any] = {
             "graph_type": self.name,
+            "package_id": self.package_id,
             "version": self.version,
             "description": self.description,
             "graph_model": self.graph_model,
@@ -498,6 +504,7 @@ class Ontology:
 
         return cls(
             name=data.get("name") or data.get("graph_type") or "Unnamed",
+            package_id=data.get("package_id", "") or data.get("packageId", "") or data.get("name") or data.get("graph_type") or "Unnamed",
             version=data.get("version", "1.0.0"),
             description=data.get("description", ""),
             graph_model=data.get("graph_model", "lpg"),
@@ -587,6 +594,7 @@ class Ontology:
             "@id": f"seocho:{self.name}",
             "@type": "seocho:Ontology",
             "name": self.name,
+            "packageId": self.package_id,
             "version": self.version,
         }
         if self.description:
@@ -1493,7 +1501,7 @@ class Ontology:
 
     def __repr__(self) -> str:
         return (
-            f"Ontology(name={self.name!r}, version={self.version!r}, "
+            f"Ontology(name={self.name!r}, package_id={self.package_id!r}, version={self.version!r}, "
             f"nodes={len(self.nodes)}, relationships={len(self.relationships)})"
         )
 

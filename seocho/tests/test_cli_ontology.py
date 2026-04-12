@@ -31,6 +31,7 @@ def test_cli_ontology_check_json(tmp_path, capsys) -> None:
     payload = json.loads(captured.out)
     assert exit_code == 0
     assert payload["ok"] is True
+    assert payload["package_id"] == "company_graph"
     assert payload["stats"]["node_count"] == 2
 
 
@@ -93,5 +94,7 @@ def test_cli_ontology_diff_json(tmp_path, capsys) -> None:
     captured = capsys.readouterr()
     payload = json.loads(captured.out)
     assert exit_code == 0
+    assert payload["recommended_bump"] == "minor"
+    assert payload["requires_migration"] is False
     assert "version" in payload["changes"]["metadata"]["changed"]
     assert "Metric" in payload["changes"]["nodes"]["added"]

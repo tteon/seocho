@@ -422,6 +422,126 @@ def log_experiment_run(
 
 
 # ---------------------------------------------------------------------------
+# Session-level tracing
+# ---------------------------------------------------------------------------
+
+class SessionTrace:
+    """A session-level parent trace that groups operations.
+
+    All spans logged within a session are children of this trace,
+    giving a single workflow view in Opik / JSONL.
+    """
+
+    def __init__(self, session_id: str, name: str = "") -> None:
+        self.session_id = session_id
+        self.name = name or f"session:{session_id}"
+        self._spans: List[Dict[str, Any]] = []
+        self._start_time = datetime.now(timezone.utc)
+        self._opik_trace: Any = None
+
+        # Start Opik parent trace if backend is active
+        for b in _BACKENDS:
+            if isinstance(b, OpikBackend) and b._client is not None:
+                try:
+                    self._opik_trace = b._client.trace(
+                        name=self.name,
+                        input={"session_id": session_id},
+                        metadata={"session": True},
+                        tags=["session"],
+                    )
+                except Exception as exc:
+                    logger.debug("Opik session trace start failed: %s", exc)
+                break
+
+    def log_span(
+        self,
+        name: str,
+        *,
+        input_data: Optional[Dict[str, Any]] = None,
+        output_data: Optional[Dict[str, Any]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        tags: Optional[List[str]] = None,
+    ) -> None:
+        """Log a span as a child of this session."""
+        record = {
+            "session_id": self.session_id,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "name": name,
+            "input": input_data or {},
+            "output": output_data or {},
+            "metadata": metadata or {},
+            "tags": tags or [],
+        }
+        self._spans.append(record)
+
+        # Log to Opik as child span
+        if self._opik_trace is not None:
+            try:
+                self._opik_trace.span(
+                    name=name,
+                    input=input_data or {},
+                    output=output_data or {},
+                    metadata=metadata or {},
+                    tags=tags or [],
+                )
+            except Exception:
+                pass
+
+        # Also log to all backends
+        enriched_meta = {**(metadata or {}), "session_id": self.session_id}
+        log_span(name, input_data=input_data, output_data=output_data,
+                 metadata=enriched_meta, tags=tags)
+
+    def end(self) -> Dict[str, Any]:
+        """End the session trace and return summary."""
+        elapsed = (datetime.now(timezone.utc) - self._start_time).total_seconds()
+
+        summary = {
+            "session_id": self.session_id,
+            "name": self.name,
+            "total_spans": len(self._spans),
+            "elapsed_seconds": round(elapsed, 2),
+        }
+
+        # End Opik parent trace
+        if self._opik_trace is not None:
+            try:
+                self._opik_trace.end(
+                    output=summary,
+                    metadata={"elapsed_seconds": round(elapsed, 2)},
+                )
+            except Exception:
+                pass
+
+        log_span(
+            "sdk.session.end",
+            output_data=summary,
+            metadata={"elapsed_seconds": round(elapsed, 2)},
+            tags=["session"],
+        )
+        return summary
+
+    @property
+    def spans(self) -> List[Dict[str, Any]]:
+        return list(self._spans)
+
+
+def begin_session(session_id: str, name: str = "") -> SessionTrace:
+    """Start a new session-level trace.
+
+    Returns a SessionTrace that groups all subsequent operations
+    into a single parent trace in Opik.
+    """
+    trace = SessionTrace(session_id, name)
+    log_span(
+        "sdk.session.start",
+        input_data={"session_id": session_id, "name": name},
+        tags=["session"],
+    )
+    return trace
+
+
+# ---------------------------------------------------------------------------
 # Decorator
 # ---------------------------------------------------------------------------
 

@@ -66,7 +66,15 @@ from .llm_backend import (
     list_provider_specs,
 )
 from .ontology import Cardinality, NodeDef, Ontology, P, PropertyType, RelDef
-from .tracing import disable_tracing, enable_tracing, flush_tracing, is_tracing_enabled
+from .session import Session
+from .tracing import (
+    SessionTrace,
+    begin_session,
+    disable_tracing,
+    enable_tracing,
+    flush_tracing,
+    is_tracing_enabled,
+)
 from .runtime_bundle import (
     PortablePromptTemplate,
     RuntimeBundle,
@@ -147,6 +155,8 @@ __all__ = [
     "Seocho",
     "AsyncSeocho",
     "ExecutionPlanBuilder",
+    "Session",
+    "SessionTrace",
     "RuntimeBundle",
     "RuntimeGraphBinding",
     "RuntimeGraphStoreConfig",
@@ -229,6 +239,8 @@ __all__ = [
     "EvaluationMatrixSummary",
     "ManualGoldCase",
     "SemanticEvaluationHarness",
+    # --- Tracing / session ---
+    "begin_session",
     # --- Module-level convenience functions ---
     "__version__",
     "add",

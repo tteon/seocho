@@ -2,6 +2,7 @@
 
 import pytest
 
+from seocho import Seocho
 from seocho.ontology import NodeDef, Ontology, P, RelDef
 from seocho.prompt_strategy import (
     ExtractionStrategy,
@@ -9,6 +10,7 @@ from seocho.prompt_strategy import (
     QueryStrategy,
     _sanitize_prompt_value,
 )
+from seocho.query import PRESET_PROMPTS, PromptTemplate
 
 
 @pytest.fixture
@@ -55,6 +57,57 @@ class TestExtractionStrategy:
         system, _ = ext.render("text", metadata="x" * 5000)
         assert "truncated" in system
         assert len(system) < 20000
+
+    def test_finder_financials_prompt_preserves_segment_line_items(self, ontology):
+        system, _ = PRESET_PROMPTS["finder_financials"].render(ontology.to_extraction_context(), "text")
+        assert "segment line items" in system
+        assert "Do not replace a segment metric with Total Revenues." in system
+
+    def test_local_add_propagates_custom_extraction_prompt(self, ontology):
+        class FakeResponse:
+            def __init__(self, payload):
+                self._payload = payload
+                self.usage = None
+
+            def json(self):
+                return self._payload
+
+        class FakeLLM:
+            def __init__(self):
+                self.system_prompts = []
+                self._count = 0
+
+            def complete(self, *, system, user, temperature, response_format=None):  # noqa: ANN001
+                self.system_prompts.append(system)
+                self._count += 1
+                if self._count == 1:
+                    return FakeResponse(
+                        {
+                            "nodes": [{"id": "c1", "label": "Company", "properties": {"name": "Samsung"}}],
+                            "relationships": [],
+                        }
+                    )
+                return FakeResponse(
+                    {
+                        "nodes": [{"id": "c1", "label": "Company", "properties": {"name": "Samsung"}}],
+                        "relationships": [],
+                    }
+                )
+
+        class FakeGraphStore:
+            def write(self, nodes, relationships, *, database="neo4j", workspace_id="default", source_id=""):  # noqa: ANN001
+                return {"nodes_created": len(nodes), "relationships_created": len(relationships), "errors": []}
+
+        client = Seocho(
+            ontology=ontology,
+            graph_store=FakeGraphStore(),
+            llm=FakeLLM(),
+            extraction_prompt=PromptTemplate(system="CUSTOM EXTRACTION PROMPT\n{{entity_types}}"),
+        )
+
+        client.add("Samsung is a company.", database="neo4j", category="general")
+
+        assert any("CUSTOM EXTRACTION PROMPT" in prompt for prompt in client._engine.llm.system_prompts)
 
 
 class TestQueryStrategy:

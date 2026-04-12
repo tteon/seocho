@@ -113,6 +113,12 @@ PRESET_PROMPTS: Dict[str, PromptTemplate] = {
             "- Financial metrics (revenue, assets, liabilities) with exact values\n"
             "- Regulatory references (GAAP, IFRS, SEC filings)\n"
             "- Temporal context (fiscal year, quarter, date)\n\n"
+            "Important financial extraction rules:\n"
+            "- Preserve business-segment or line-item metrics as separate FinancialMetric nodes.\n"
+            "- Do not collapse segment metrics into a total revenue metric.\n"
+            "- When the same metric appears for multiple periods, create one metric node per period.\n"
+            '- Include the period in the metric node name when needed, for example "Data and access solutions revenue 2023".\n'
+            "- Keep exact numeric values and their matching year/period together.\n\n"
             "{{constraints_summary}}\n\n"
             'Return JSON with "nodes" and "relationships" keys.'
         ),
@@ -203,6 +209,12 @@ PRESET_PROMPTS: Dict[str, PromptTemplate] = {
             "- Organizations get LEI or FIGI identifiers as URIs when available\n"
             "- Financial instruments reference SEC/ISIN identifiers\n"
             "- Regulatory references link to specific regulation URIs\n\n"
+            "Important financial extraction rules:\n"
+            "- Preserve business-segment or line-item metrics as separate FinancialMetric resources.\n"
+            "- Do not collapse segment metrics into a total revenue resource.\n"
+            "- When the same metric appears for multiple periods, create one resource per period.\n"
+            '- Include the period in the resource name when needed, for example "Data and access solutions revenue 2023".\n'
+            "- Keep exact numeric values aligned with their period.\n\n"
             "Return JSON with:\n"
             '  "nodes": [{"id": "uri", "label": "Type", "properties": {"uri": "...", "name": "..."}}]\n'
             '  "triples": [{"subject": "uri", "predicate": "predicate", "object": "uri_or_literal"}]\n'
@@ -229,9 +241,26 @@ PRESET_PROMPTS: Dict[str, PromptTemplate] = {
             "Entity types:\n{{entity_types}}\nRelationships:\n{{relationship_types}}\n\n"
             "Focus on: revenue, net income, operating income, growth rates, YoY comparisons, margins.\n"
             "Extract exact numerical values with year/period context.\n"
+            "Preserve segment line items such as business-unit revenue as separate metrics.\n"
+            "Do not replace a segment metric with Total Revenues.\n"
+            'When one metric appears in multiple years, create one metric node per year and include the year in the metric name when needed.\n'
             '{{constraints_summary}}\nReturn JSON with "nodes" and "relationships" keys.'
         ),
         user="SEC 10-K Financial data:\n{{text}}",
+    ),
+    "finder_financials_rdf": PromptTemplate(
+        system=(
+            'You are extracting SEC 10-K financial metrics as RDF resources.\n'
+            'Working with the "{{ontology_name}}" ontology.\n\n'
+            "Entity types:\n{{entity_types}}\nRelationships:\n{{relationship_types}}\n\n"
+            "Focus on: revenue, segment revenue, net income, operating income, margins, and YoY comparisons.\n"
+            "Extract exact numerical values with year/period context.\n"
+            "Preserve segment line items such as business-unit revenue as separate FinancialMetric resources.\n"
+            "Do not replace a segment metric with Total Revenues.\n"
+            'When one metric appears in multiple years, create one metric resource per year and include the year in the metric name when needed.\n'
+            '{{constraints_summary}}\nReturn JSON with "nodes" and "triples" keys.'
+        ),
+        user="SEC 10-K Financial data (RDF):\n{{text}}",
     ),
     "finder_footnotes": PromptTemplate(
         system=(

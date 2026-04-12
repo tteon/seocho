@@ -216,9 +216,14 @@ def main(dataset_source: str = "sample", split: str = HF_SPLIT):
     print(f"  Using: {LPG_DATABASE} (LPG) + {RDF_DATABASE} (RDF)")
 
     lpg_client = Seocho(ontology=lpg_ontology, graph_store=store, llm=llm,
-                        extraction_prompt=PRESET_PROMPTS["finance"])
+                        workspace_id=f"finder_lpg_{int(time.time())}",
+                        extraction_prompt=PRESET_PROMPTS["finder_financials"])
     rdf_client = Seocho(ontology=rdf_ontology, graph_store=store, llm=llm,
-                        extraction_prompt=PRESET_PROMPTS["rdf_fibo"])
+                        workspace_id=f"finder_rdf_{int(time.time())}",
+                        extraction_prompt=PRESET_PROMPTS["finder_financials_rdf"])
+
+    print(f"  LPG workspace: {lpg_client.workspace_id}")
+    print(f"  RDF workspace: {rdf_client.workspace_id}")
 
     # --- Phase 1: Indexing ---
     print(f"\n{'─' * 70}")
@@ -331,6 +336,7 @@ def main(dataset_source: str = "sample", split: str = HF_SPLIT):
             "dataset_source": dataset_source,
             "dataset_count": len(normalized_dataset),
             "model": MODEL,
+            "workspaces": {"lpg": lpg_client.workspace_id, "rdf": rdf_client.workspace_id},
             "indexing": {"lpg": lpg_results, "rdf": rdf_results},
             "queries": query_results,
         }, f, indent=2)

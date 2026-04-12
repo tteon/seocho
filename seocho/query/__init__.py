@@ -10,6 +10,7 @@ Where to look:
 If you want to improve Cypher generation or answer quality, start here.
 """
 
+from .cypher_builder import CypherBuilder
 from .strategy import (
     ExtractionStrategy,
     LinkingStrategy,

@@ -46,6 +46,12 @@ pip install -e ".[dev]"
 seocho serve
 ```
 
+Published-package local engine path:
+
+```bash
+pip install "seocho[local]"
+```
+
 The default core stack is:
 
 - `neo4j`

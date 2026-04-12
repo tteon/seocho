@@ -33,11 +33,13 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
 import uuid
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Sequence
 
 logger = logging.getLogger(__name__)
+_SLUG_RE = re.compile(r"[^a-z0-9]+")
 
 
 # ---------------------------------------------------------------------------
@@ -210,6 +212,7 @@ class IndexingPipeline:
         graph_store: Any,
         llm: Any,
         workspace_id: str = "default",
+        extraction_prompt: Optional[Any] = None,
         strict_validation: bool = False,
         max_chunk_chars: int = 6000,
         enable_dedup: bool = True,
@@ -229,6 +232,7 @@ class IndexingPipeline:
         self.max_chunk_chars = max_chunk_chars
         self.enable_dedup = enable_dedup
         self._seen_hashes: set = set()
+        self.extraction_prompt = extraction_prompt
 
         # Callbacks
         self.on_after_extract = on_after_extract
@@ -236,8 +240,134 @@ class IndexingPipeline:
         self.on_before_write = on_before_write
         self.on_after_write = on_after_write
 
-        self._extraction = ExtractionStrategy(ontology)
+        self._extraction = ExtractionStrategy(ontology, prompt_template=extraction_prompt)
         self._linking = LinkingStrategy(ontology)
+
+    def _normalize_extraction_payload(self, extracted: Dict[str, Any]) -> Dict[str, Any]:
+        """Normalize LLM extraction output into the graph write contract."""
+        raw_nodes = list(extracted.get("nodes", []) or [])
+        raw_relationships = list(extracted.get("relationships", []) or [])
+        raw_triples = list(extracted.get("triples", []) or [])
+
+        nodes: List[Dict[str, Any]] = []
+        node_lookup: Dict[str, str] = {}
+        for index, raw_node in enumerate(raw_nodes):
+            normalized = self._normalize_node(raw_node, index)
+            if not normalized:
+                continue
+            nodes.append(normalized)
+            props = normalized.get("properties", {})
+            for key in (
+                str(normalized.get("id", "")),
+                str(props.get("name", "")),
+                str(props.get("uri", "")),
+            ):
+                if key:
+                    node_lookup[key] = str(normalized["id"])
+
+        relationships: List[Dict[str, Any]] = []
+        for raw_rel in (raw_relationships or raw_triples):
+            normalized = self._normalize_relationship(raw_rel, node_lookup)
+            if normalized:
+                relationships.append(normalized)
+
+        return {"nodes": nodes, "relationships": relationships}
+
+    def _normalize_node(self, raw_node: Any, index: int) -> Optional[Dict[str, Any]]:
+        if not isinstance(raw_node, dict):
+            return None
+
+        if isinstance(raw_node.get("properties"), dict):
+            props = dict(raw_node.get("properties", {}))
+        else:
+            props = {
+                key: value
+                for key, value in raw_node.items()
+                if key not in {"id", "label", "properties", "from", "to", "source", "target", "type", "predicate"}
+            }
+
+        label = str(raw_node.get("label") or "").strip() or self._infer_node_label(props)
+        if not label:
+            return None
+
+        node_id = raw_node.get("id") or props.get("id") or props.get("uri") or props.get("name") or f"{label}_{index+1}"
+        normalized_id = self._normalize_node_id(str(node_id), label)
+        clean_props = {key: value for key, value in props.items() if value not in (None, "") and key != "id"}
+        if "name" not in clean_props and raw_node.get("name"):
+            clean_props["name"] = raw_node["name"]
+
+        return {"id": normalized_id, "label": label, "properties": clean_props}
+
+    def _normalize_relationship(
+        self,
+        raw_rel: Any,
+        node_lookup: Dict[str, str],
+    ) -> Optional[Dict[str, Any]]:
+        if not isinstance(raw_rel, dict):
+            return None
+
+        raw_source = str(raw_rel.get("source") or raw_rel.get("from") or raw_rel.get("subject") or "").strip()
+        raw_target = str(raw_rel.get("target") or raw_rel.get("to") or raw_rel.get("object") or "").strip()
+        raw_type = str(raw_rel.get("type") or raw_rel.get("predicate") or raw_rel.get("relationship") or "").strip()
+        if not raw_source or not raw_target or not raw_type:
+            return None
+
+        rel_type = self._normalize_relationship_type(raw_type)
+        if not rel_type:
+            return None
+
+        source_id = node_lookup.get(raw_source, raw_source)
+        target_id = node_lookup.get(raw_target, raw_target)
+        if not source_id or not target_id:
+            return None
+
+        properties = {
+            key: value
+            for key, value in raw_rel.items()
+            if key not in {"source", "target", "from", "to", "subject", "object", "type", "predicate", "relationship"}
+            and value not in (None, "")
+        }
+        return {"source": source_id, "target": target_id, "type": rel_type, "properties": properties}
+
+    def _infer_node_label(self, props: Dict[str, Any]) -> str:
+        prop_keys = {key for key, value in props.items() if value not in (None, "")}
+        best_label = ""
+        best_score = -1
+        for label, node_def in self.ontology.nodes.items():
+            schema_keys = set(node_def.properties.keys())
+            score = len(prop_keys & schema_keys)
+            if "name" in prop_keys and "name" in schema_keys:
+                score += 1
+            if score > best_score:
+                best_label = label
+                best_score = score
+        return best_label
+
+    def _normalize_node_id(self, raw_id: str, label: str) -> str:
+        if "://" in raw_id or raw_id.startswith("urn:"):
+            return raw_id
+        slug = _SLUG_RE.sub("_", raw_id.lower()).strip("_")
+        return slug or f"{label.lower()}_{uuid.uuid4().hex[:8]}"
+
+    def _normalize_relationship_type(self, raw_type: str) -> str:
+        if raw_type == "rdf:type":
+            return ""
+
+        direct = str(raw_type).strip()
+        if direct in self.ontology.relationships:
+            return direct
+
+        direct_lower = direct.lower()
+        tail = direct_lower.split(":")[-1].split("/")[-1].split("__")[-1]
+        for rel_name, rel_def in self.ontology.relationships.items():
+            candidates = {rel_name.lower(), *(alias.lower() for alias in rel_def.aliases)}
+            if rel_def.same_as:
+                same_as = rel_def.same_as.lower()
+                candidates.add(same_as)
+                candidates.add(same_as.split(":")[-1].split("/")[-1])
+            if direct_lower in candidates or tail in candidates:
+                return rel_name
+        return direct
 
     def index(
         self,
@@ -303,7 +433,7 @@ class IndexingPipeline:
                     temperature=0.0,
                     response_format={"type": "json_object"},
                 )
-                extracted = response.json()
+                extracted = self._normalize_extraction_payload(response.json())
                 # Collect token usage
                 if hasattr(response, 'usage') and response.usage:
                     for k, v in response.usage.items():
@@ -323,6 +453,56 @@ class IndexingPipeline:
             # --- Callback: on_after_extract ---
             if self.on_after_extract:
                 nodes, rels = self.on_after_extract(nodes, rels)
+
+            # --- Indexing Reasoning: re-extract if quality is low ---
+            score_data = self.ontology.score_extraction(extracted)
+            extraction_score = score_data.get("overall", 0.0)
+            quality_threshold = getattr(self, "_quality_threshold", 0.0)
+            max_retries = getattr(self, "_max_retries", 0)
+
+            if quality_threshold > 0 and extraction_score < quality_threshold and max_retries > 0:
+                # Build guidance from low-scoring details
+                low_nodes = [n for n in score_data.get("nodes", []) if n.get("score", 0) < 0.5]
+                missing_info = []
+                for n in low_nodes:
+                    details = n.get("details", {})
+                    if details.get("label_match", 1) == 0:
+                        missing_info.append(f"Node '{n.get('id')}' has unknown label '{n.get('label')}'")
+                    if details.get("property_completeness", 1) < 0.5:
+                        missing_info.append(f"Node '{n.get('id')}' ({n.get('label')}) is missing required properties")
+
+                for retry in range(max_retries):
+                    guidance = (
+                        f"Previous extraction scored {extraction_score:.0%}. Issues:\n"
+                        + "\n".join(f"- {m}" for m in missing_info[:5])
+                        + f"\n\nPlease re-extract with these corrections. "
+                        f"Available types: {', '.join(self.ontology.nodes.keys())}. "
+                        f"Available relationships: {', '.join(self.ontology.relationships.keys())}."
+                    )
+                    try:
+                        retry_system, retry_user = self._extraction.render(
+                            chunk, metadata=metadata,
+                        )
+                        retry_system += f"\n\n{guidance}"
+                        retry_response = self.llm.complete(
+                            system=retry_system, user=retry_user,
+                            temperature=0.1 * (retry + 1),
+                            response_format={"type": "json_object"},
+                        )
+                        retry_extracted = self._normalize_extraction_payload(retry_response.json())
+                        retry_score = self.ontology.score_extraction(retry_extracted).get("overall", 0)
+
+                        if retry_score > extraction_score:
+                            nodes = retry_extracted.get("nodes", [])
+                            rels = retry_extracted.get("relationships", [])
+                            extracted = retry_extracted
+                            extraction_score = retry_score
+                            logger.info("Indexing reasoning: retry %d improved score %.0f%% → %.0f%%",
+                                       retry + 1, extraction_score * 100, retry_score * 100)
+                            if retry_score >= quality_threshold:
+                                break
+                    except Exception:
+                        break
 
             # Validate with SHACL
             errors = self.ontology.validate_with_shacl(extracted)
@@ -349,7 +529,7 @@ class IndexingPipeline:
                         temperature=0.0,
                         response_format={"type": "json_object"},
                     )
-                    linked = link_response.json()
+                    linked = self._normalize_extraction_payload(link_response.json())
                     nodes = linked.get("nodes", nodes)
                     rels = linked.get("relationships", rels)
                 except Exception as exc:

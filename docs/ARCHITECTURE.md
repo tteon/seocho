@@ -12,6 +12,40 @@ Current baseline:
 - Canonical neutral artifact: JSONL
 - Graph backend: DozerDB (Neo4j protocol compatible)
 
+## Local Runtime Shape
+
+Default local activation is intentionally smaller than the full historical repo:
+
+- `neo4j`
+- `extraction-service`
+- `evaluation-interface`
+
+This is the supported first-run path for developers.
+The old `semantic-service` still exists, but only behind the explicit compose
+profile:
+
+```bash
+docker compose --profile legacy-semantic up -d semantic-service
+```
+
+That distinction matters because most current onboarding, API verification, and
+platform UX flow through `extraction-service`, not the standalone legacy
+semantic container.
+
+## Storage And Artifact Layout
+
+The main local artifacts are deliberately file-system visible:
+
+- ontology contract: usually `schema.jsonld`
+- graph state for the local compose stack: `data/neo4j/`
+- semantic artifacts: `outputs/semantic_artifacts/`
+- rule profile registry: `outputs/rule_profiles/rule_profiles.db`
+- semantic run metadata: `outputs/semantic_metadata/`
+- traces: path from `SEOCHO_TRACE_JSONL_PATH`
+
+Operators should inspect these directly during debugging instead of treating the
+runtime as opaque. See `docs/FILES_AND_ARTIFACTS.md` for the concrete commands.
+
 ## Priority Execution Board (2026-02-21)
 
 This board is the active architecture priority order.

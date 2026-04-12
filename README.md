@@ -3,7 +3,7 @@
 **Ontology-driven knowledge graph library for Python**
 
 [![PyPI](https://img.shields.io/pypi/v/seocho)](https://pypi.org/project/seocho/)
-[![Tests](https://img.shields.io/badge/tests-107%20passed-green)]()
+[![Tests](https://img.shields.io/badge/tests-139%20passed-green)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 Define your schema once — it drives extraction, querying, validation, and graph-governance artifacts from one contract.
@@ -116,6 +116,29 @@ configure_tracing_from_env()            # SEOCHO_TRACE_BACKEND=none|console|json
 # Agent design configuration
 from seocho import AgentConfig, AGENT_PRESETS
 s = Seocho(ontology=onto, ..., agent_config=AGENT_PRESETS["strict"])
+
+# Agent-level session (context persists across operations)
+with s.session("my_analysis") as sess:
+    sess.add("Samsung CEO Jay Y. Lee reported $234B revenue.")
+    sess.add("Apple CEO Tim Cook reported $383B revenue.")
+    answer = sess.ask("Compare Samsung and Apple revenue")
+    # → structured entity context passed to QueryAgent
+
+# Supervisor with sub-agent hand-off (explicit opt-in)
+from seocho import RoutingPolicy
+s = Seocho(ontology=onto, ..., agent_config=AgentConfig(
+    execution_mode="supervisor", handoff=True,
+    routing_policy=RoutingPolicy(latency=0.1, token_efficiency=0.3, information_quality=0.6),
+))
+with s.session("auto") as sess:
+    sess.run("Samsung CEO is Jay Y. Lee")    # → IndexingAgent
+    sess.run("Who is Samsung's CEO?")        # → QueryAgent
+
+# Ontology merge (combine two schemas)
+finance = Ontology.from_jsonld("finance.jsonld")
+legal = Ontology.from_jsonld("legal.jsonld")
+combined = finance.merge(legal)  # union of nodes + relationships
+combined.to_jsonld("combined.jsonld")
 ```
 
 ## SDK Package Structure
@@ -132,9 +155,12 @@ seocho/
 │   ├── graph.py     ← Neo4j/DozerDB
 │   ├── vector.py    ← FAISS / LanceDB
 │   └── llm.py       ← OpenAI, DeepSeek, Kimi, Grok
-├── ontology.py      ← Schema: JSON-LD + SHACL + denormalization
+├── ontology.py      ← Schema: JSON-LD + SHACL + denormalization + merge
+├── session.py       ← Agent session: context cache + hand-off
+├── agents.py        ← IndexingAgent / QueryAgent / Supervisor
+├── tools.py         ← @function_tool definitions for agents
+├── agent_config.py  ← AgentConfig, RoutingPolicy, presets
 ├── experiment.py    ← Workbench for parameter exploration
-├── agent_config.py  ← Agent design: presets + custom strategies
 ├── tracing.py       ← Pluggable observability
 └── client.py        ← Seocho unified interface
 ```

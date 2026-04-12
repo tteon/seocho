@@ -1727,23 +1727,46 @@ class _LocalEngine:
             return {}
 
     def _generate_cypher(self, question: str) -> tuple:
-        """Returns (cypher, params, error_message_or_None)."""
-        system, user = self._query.render(question)
+        """Extract intent via LLM, then build Cypher deterministically.
+
+        Returns (cypher, params, error_message_or_None).
+        """
+        from .query.cypher_builder import CypherBuilder
+
+        builder = CypherBuilder(self.ontology)
+
+        # Step 1: LLM extracts intent (NOT Cypher)
+        intent_prompt = builder.intent_extraction_prompt()
         response = self.llm.complete(
-            system=system, user=user,
+            system=intent_prompt,
+            user=f"Question: {question}",
             temperature=0.0,
             response_format={"type": "json_object"},
         )
-        try:
-            plan = response.json()
-        except (json.JSONDecodeError, ValueError):
-            logger.error("LLM returned non-JSON query plan: %s", response.text[:200])
-            return "", {}, "I could not generate a valid query for your question."
 
-        cypher = plan.get("cypher", "")
-        params = plan.get("params", {})
+        try:
+            intent_data = response.json()
+        except (json.JSONDecodeError, ValueError):
+            logger.error("LLM returned non-JSON intent: %s", response.text[:200])
+            # Fallback: treat as neighbor query for the entire question
+            intent_data = {"intent": "neighbors", "anchor_entity": question}
+
+        # Step 2: Code builds correct Cypher from intent
+        try:
+            cypher, params = builder.build(
+                intent=intent_data.get("intent", "neighbors"),
+                anchor_entity=intent_data.get("anchor_entity", question),
+                anchor_label=intent_data.get("anchor_label", ""),
+                target_entity=intent_data.get("target_entity", ""),
+                target_label=intent_data.get("target_label", ""),
+                relationship_type=intent_data.get("relationship_type", ""),
+            )
+        except Exception as exc:
+            logger.error("Cypher build failed: %s", exc)
+            return "", {}, "I could not build a query for your question."
+
         if not cypher:
-            return "", {}, "I could not determine how to query the graph for your question."
+            return "", {}, "I could not determine how to query the graph."
         return cypher, params, None
 
     def _execute_cypher(self, cypher: str, params: Dict, database: str) -> tuple:

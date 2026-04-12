@@ -37,6 +37,7 @@ def test_check_ontology_warns_when_unique_key_missing() -> None:
     result = check_ontology(ontology)
 
     assert result.ok is True
+    assert result.package_id == "warning_case"
     assert result.errors == []
     assert any("consider adding one" in item for item in result.warnings)
 
@@ -58,12 +59,16 @@ def test_diff_ontologies_detects_metadata_and_schema_changes() -> None:
 
     diff = diff_ontologies(left, right)
 
+    assert diff.package_id == "finance"
+    assert diff.recommended_bump == "major"
+    assert diff.requires_migration is True
     assert "version" in diff.changes["metadata"]["changed"]
     assert "graph_model" in diff.changes["metadata"]["changed"]
     assert "Desk" in diff.changes["nodes"]["added"]
     assert "Person" in diff.changes["nodes"]["removed"]
     assert "ASSIGNED_TO" in diff.changes["relationships"]["added"]
     assert "WORKS_AT" in diff.changes["relationships"]["removed"]
+    assert any("major version bump" in item for item in diff.migration_warnings)
 
 
 def test_export_ontology_payload_shacl_contains_shapes() -> None:
@@ -71,6 +76,28 @@ def test_export_ontology_payload_shacl_contains_shapes() -> None:
     assert isinstance(payload, dict)
     assert "shapes" in payload
     assert len(payload["shapes"]) == 2
+
+
+def test_diff_ontologies_warns_on_package_boundary_change() -> None:
+    left = Ontology(
+        name="finance",
+        package_id="package.finance",
+        version="1.0.0",
+        nodes={"Company": NodeDef(properties={"name": P(str, unique=True)})},
+        relationships={},
+    )
+    right = Ontology(
+        name="finance_v2",
+        package_id="package.finance.v2",
+        version="2.0.0",
+        nodes={"Company": NodeDef(properties={"name": P(str, unique=True)})},
+        relationships={},
+    )
+
+    diff = diff_ontologies(left, right)
+
+    assert diff.package_id == "package.finance.v2"
+    assert any("package migration boundary" in item for item in diff.migration_warnings)
 
 
 def test_inspect_owl_ontology_uses_optional_owlready2(monkeypatch) -> None:

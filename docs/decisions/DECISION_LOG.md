@@ -225,6 +225,11 @@ Each entry must link to a full ADR when impact is non-trivial.
   - add offline `seocho ontology` governance commands for check, export, diff, and optional OWL inspection
   - keep Owlready2 optional and outside the request hot path
 
+- Accepted `ADR-0044-ontology-package-lineage-and-migration-warning-contract.md`
+  - split ontology lineage (`package_id`) from ontology release version
+  - emit semver-aware migration warnings from ontology diff output
+  - keep guidance conservative and offline-governance focused
+
 - Accepted `ADR-0041-portable-sdk-runtime-bundle-and-http-adapter.md`
   - add a portable bundle contract for SDK-authored local runtimes
   - expose a narrow FastAPI adapter so other developers can consume SDK-authored apps over HTTP

@@ -1137,7 +1137,8 @@ def _cmd_ontology(args: argparse.Namespace) -> int:
             status = "ok" if result.ok else "invalid"
             print(f"ontology {status}: {result.ontology_name}@{result.ontology_version}")
             print(
-                f"  graph_model={result.stats['graph_model']} "
+                f"  package_id={result.package_id} "
+                f"graph_model={result.stats['graph_model']} "
                 f"nodes={result.stats['node_count']} relationships={result.stats['relationship_count']}"
             )
             for item in result.errors:
@@ -1174,10 +1175,17 @@ def _cmd_ontology(args: argparse.Namespace) -> int:
             print(json.dumps(diff.to_dict(), indent=2))
         else:
             print(f"diff {diff.left_name} -> {diff.right_name}")
+            print(
+                f"  package_id={diff.package_id} "
+                f"recommended_bump={diff.recommended_bump} "
+                f"requires_migration={'yes' if diff.requires_migration else 'no'}"
+            )
             for section_name, section_changes in diff.changes.items():
                 for change_kind, values in section_changes.items():
                     if values:
                         print(f"{section_name} {change_kind}: {', '.join(values)}")
+            for warning in diff.migration_warnings:
+                print(f"warning: {warning}")
         return 0
 
     if args.ontology_command == "inspect-owl":

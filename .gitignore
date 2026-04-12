@@ -70,6 +70,7 @@ tmp/
 # Logs
 logs/
 *.log
+outputs/
 
 # Data & Database
 data/

@@ -33,7 +33,7 @@ This will:
 1. Load the sample dataset
 2. Index into separate LPG (`seochoe2elpg`) and RDF (`seochoe2erdf`) databases
 3. Query both and compare answers
-4. Save results to `examples/datasets/results/`
+4. Save results to `outputs/evaluation/e2e/`
 5. Log all traces to Opik (if configured)
 
 ## Neo4j Database Naming

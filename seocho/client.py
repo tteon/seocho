@@ -497,9 +497,9 @@ class Seocho:
         """Create an agent-level session with context and tracing.
 
         A session maintains state across ``add()`` and ``ask()`` calls.
-        Each operation runs through an agent with tool use (not bare
-        chat completion), and all operations roll up into a single
-        parent trace in Opik.
+        Each operation prefers the agent/tool path, falls back to the
+        canonical local engine when the agent path is unavailable, and
+        rolls all operations into a single parent trace in Opik.
 
         Parameters
         ----------

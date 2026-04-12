@@ -9,6 +9,7 @@ python3 -m py_compile \
   seocho/models.py \
   seocho/client.py \
   seocho/api.py \
+  seocho/session.py \
   seocho/__init__.py \
   seocho/evaluation.py
 
@@ -17,6 +18,7 @@ uv run pytest \
   extraction/tests/test_semantic_query_flow.py \
   extraction/tests/test_api_endpoints.py \
   extraction/tests/test_sdk_client.py \
+  seocho/tests/test_session_agent.py \
   extraction/tests/test_sdk_evaluation.py \
   -q
 

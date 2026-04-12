@@ -3,8 +3,9 @@ Session — agent-level SDK interface with context and tracing.
 
 A Session maintains conversation state across ``add()`` and ``ask()`` calls.
 Instead of independent chat completions, each operation runs through an
-agent with tool use, and all operations within a session roll up into
-a single parent trace.
+agent with tool use, with explicit fallback to the canonical local engine
+when the agent path is unavailable. All operations within a session roll up
+into a single parent trace.
 
 Usage::
 
@@ -49,21 +50,50 @@ class SessionContext:
     total_nodes: int = 0
     total_relationships: int = 0
 
-    def add_indexing(self, source_id: str, nodes: int, rels: int, text_preview: str) -> None:
+    def add_indexing(
+        self,
+        source_id: str,
+        nodes: int,
+        rels: int,
+        text_preview: str,
+        *,
+        mode: str = "agent",
+        degraded: bool = False,
+        fallback_from: str = "",
+        fallback_reason: str = "",
+    ) -> None:
         self.indexed_sources.append({
             "source_id": source_id,
             "nodes": nodes,
             "relationships": rels,
             "text_preview": text_preview[:200],
+            "mode": mode,
+            "degraded": degraded,
+            "fallback_from": fallback_from,
+            "fallback_reason": fallback_reason,
         })
         self.total_nodes += nodes
         self.total_relationships += rels
 
-    def add_query(self, question: str, answer: str, cypher: str = "") -> None:
+    def add_query(
+        self,
+        question: str,
+        answer: str,
+        cypher: str = "",
+        *,
+        mode: str = "agent",
+        degraded: bool = False,
+        fallback_from: str = "",
+        fallback_reason: str = "",
+    ) -> None:
         self.queries.append({
             "question": question,
             "answer_preview": answer[:300],
             "cypher": cypher,
+            "mode": mode,
+            "degraded": degraded,
+            "fallback_from": fallback_from,
+            "fallback_reason": fallback_reason,
         })
 
     def summary(self) -> str:
@@ -82,8 +112,9 @@ class Session:
 
     Each call to ``add()`` runs an IndexingAgent that decides how to
     extract, validate, and write. Each call to ``ask()`` runs a
-    QueryAgent that builds and executes queries. The session maintains
-    context so the agents know what has been indexed.
+    QueryAgent that builds and executes queries. When the agent path
+    fails, the session falls back to the canonical local engine used by
+    ``Seocho`` and records the degraded path in trace/context metadata.
 
     Parameters
     ----------
@@ -144,6 +175,7 @@ class Session:
         # Lazy agent creation
         self._indexing_agent = None
         self._query_agent = None
+        self._pipeline_engine = None
 
     def _get_indexing_agent(self) -> Any:
         """Create or return the indexing agent."""
@@ -168,6 +200,21 @@ class Session:
                 vector_store=self.vector_store,
             )
         return self._query_agent
+
+    def _get_pipeline_engine(self) -> Any:
+        """Create or return the canonical local engine fallback."""
+        if self._pipeline_engine is None:
+            from .client import _LocalEngine
+
+            self._pipeline_engine = _LocalEngine(
+                ontology=self.ontology,
+                graph_store=self.graph_store,
+                llm=self.llm,
+                workspace_id=self.workspace_id,
+                extraction_prompt=self.extraction_prompt,
+                agent_config=self.agent_config,
+            )
+        return self._pipeline_engine
 
     def add(
         self,
@@ -217,15 +264,34 @@ class Session:
         source_id = result.get("source_id", "")
         nodes = result.get("nodes_created", 0)
         rels = result.get("relationships_created", 0)
-        self.context.add_indexing(source_id, nodes, rels, content)
+        self.context.add_indexing(
+            source_id,
+            nodes,
+            rels,
+            content,
+            mode=str(result.get("mode", "agent") or "agent"),
+            degraded=bool(result.get("degraded", False)),
+            fallback_from=str(result.get("fallback_from", "")),
+            fallback_reason=str(result.get("fallback_reason", "")),
+        )
 
         # Trace
         if self._trace:
             self._trace.log_span(
                 "session.add",
                 input_data={"text_preview": content[:200], "database": db, "category": category},
-                output_data={"source_id": source_id, "nodes": nodes, "relationships": rels},
-                metadata={"elapsed_seconds": round(elapsed, 2)},
+                output_data={
+                    "source_id": source_id,
+                    "nodes": nodes,
+                    "relationships": rels,
+                    "mode": str(result.get("mode", "agent") or "agent"),
+                },
+                metadata={
+                    "elapsed_seconds": round(elapsed, 2),
+                    "degraded": bool(result.get("degraded", False)),
+                    "fallback_from": str(result.get("fallback_from", "")),
+                    "fallback_reason": str(result.get("fallback_reason", "")),
+                },
                 tags=["indexing"],
             )
 
@@ -275,20 +341,37 @@ class Session:
             )
 
         if use_agent:
-            answer = self._ask_via_agent(question + context_msg, db)
+            query_result = self._ask_via_agent(question + context_msg, db)
         else:
-            answer = self._ask_via_pipeline(question, db, reasoning_mode)
+            query_result = self._ask_via_pipeline(question, db, reasoning_mode)
+
+        answer = str(query_result.get("answer", "") or "")
 
         elapsed = time.time() - start
-        self.context.add_query(question, answer)
+        self.context.add_query(
+            question,
+            answer,
+            mode=str(query_result.get("mode", "agent") or "agent"),
+            degraded=bool(query_result.get("degraded", False)),
+            fallback_from=str(query_result.get("fallback_from", "")),
+            fallback_reason=str(query_result.get("fallback_reason", "")),
+        )
 
         # Trace
         if self._trace:
             self._trace.log_span(
                 "session.ask",
                 input_data={"question": question, "database": db},
-                output_data={"answer_preview": answer[:300]},
-                metadata={"elapsed_seconds": round(elapsed, 2)},
+                output_data={
+                    "answer_preview": answer[:300],
+                    "mode": str(query_result.get("mode", "agent") or "agent"),
+                },
+                metadata={
+                    "elapsed_seconds": round(elapsed, 2),
+                    "degraded": bool(query_result.get("degraded", False)),
+                    "fallback_from": str(query_result.get("fallback_from", "")),
+                    "fallback_reason": str(query_result.get("fallback_reason", "")),
+                },
                 tags=["query"],
             )
 
@@ -313,16 +396,18 @@ class Session:
             user_msg += f"\n\nMetadata: {json.dumps(metadata, default=str)}"
 
         try:
-            result = asyncio.run(
-                Runner.run(agent, user_msg)
-            )
+            result = asyncio.run(Runner.run(agent, user_msg))
             # Parse agent's final output for structured result
             return self._parse_indexing_result(result.final_output, content)
         except Exception as exc:
             logger.warning("Agent indexing failed, falling back to pipeline: %s", exc)
-            return self._add_via_pipeline(content, database, category, metadata)
+            fallback = self._add_via_pipeline(content, database, category, metadata)
+            fallback["degraded"] = True
+            fallback["fallback_from"] = "agent"
+            fallback["fallback_reason"] = str(exc)
+            return fallback
 
-    def _ask_via_agent(self, question: str, database: str) -> str:
+    def _ask_via_agent(self, question: str, database: str) -> Dict[str, Any]:
         """Run query through the agent with tool use."""
         from agents import Runner
 
@@ -333,13 +418,21 @@ class Session:
         )
 
         try:
-            result = asyncio.run(
-                Runner.run(agent, user_msg)
-            )
-            return result.final_output or "No answer could be generated."
+            result = asyncio.run(Runner.run(agent, user_msg))
+            return {
+                "answer": result.final_output or "No answer could be generated.",
+                "mode": "agent",
+                "degraded": False,
+                "fallback_from": "",
+                "fallback_reason": "",
+            }
         except Exception as exc:
             logger.warning("Agent query failed, falling back to pipeline: %s", exc)
-            return self._ask_via_pipeline(question, database, True)
+            fallback = self._ask_via_pipeline(question, database, True)
+            fallback["degraded"] = True
+            fallback["fallback_from"] = "agent"
+            fallback["fallback_reason"] = str(exc)
+            return fallback
 
     def _add_via_pipeline(
         self,
@@ -349,79 +442,42 @@ class Session:
         metadata: Optional[Dict[str, Any]],
     ) -> Dict[str, Any]:
         """Direct pipeline fallback (no agent reasoning)."""
-        from .index.pipeline import IndexingPipeline
-
-        pipeline = IndexingPipeline(
-            ontology=self.ontology,
-            graph_store=self.graph_store,
-            llm=self.llm,
-            workspace_id=self.workspace_id,
-            extraction_prompt=self.extraction_prompt,
+        pipeline = self._get_pipeline_engine()
+        memory = pipeline.add(
+            content,
+            database=database,
+            category=category,
+            metadata=metadata,
         )
-
-        result = pipeline.index(content, database=database, category=category, metadata=metadata)
         return {
-            "source_id": result.source_id,
-            "nodes_created": result.total_nodes,
-            "relationships_created": result.total_relationships,
-            "chunks_processed": result.chunks_processed,
-            "validation_errors": result.validation_errors,
-            "ok": result.ok,
+            "source_id": memory.memory_id,
+            "nodes_created": int(memory.metadata.get("nodes_created", 0) or 0),
+            "relationships_created": int(memory.metadata.get("relationships_created", 0) or 0),
+            "chunks_processed": int(memory.metadata.get("chunks_processed", 0) or 0),
+            "validation_errors": list(memory.metadata.get("validation_errors", []) or []),
+            "write_errors": list(memory.metadata.get("write_errors", []) or []),
+            "ok": memory.status == "active",
             "mode": "pipeline",
+            "degraded": False,
+            "fallback_from": "",
+            "fallback_reason": "",
         }
 
-    def _ask_via_pipeline(self, question: str, database: str, reasoning_mode: bool) -> str:
+    def _ask_via_pipeline(self, question: str, database: str, reasoning_mode: bool) -> Dict[str, Any]:
         """Direct pipeline fallback for querying."""
-        from .query.cypher_builder import CypherBuilder
-        from .query.strategy import QueryStrategy
-
-        builder = CypherBuilder(self.ontology)
-        query_strategy = QueryStrategy(self.ontology)
-
-        # Intent extraction
-        intent_prompt = builder.intent_extraction_prompt()
-        response = self.llm.complete(
-            system=intent_prompt,
-            user=f"Question: {question}",
-            temperature=0.0,
-            response_format={"type": "json_object"},
+        pipeline = self._get_pipeline_engine()
+        answer = pipeline.ask(
+            question,
+            database=database,
+            reasoning_mode=reasoning_mode,
         )
-
-        try:
-            intent_data = json.loads(response.text)
-        except (json.JSONDecodeError, ValueError):
-            intent_data = {"intent": "neighbors", "anchor_entity": question}
-
-        intent_data = builder.normalize_intent(question, intent_data)
-
-        # Build Cypher
-        try:
-            cypher, params = builder.build(
-                intent=intent_data.get("intent", "neighbors"),
-                anchor_entity=intent_data.get("anchor_entity", ""),
-                anchor_label=intent_data.get("anchor_label", ""),
-                target_entity=intent_data.get("target_entity", ""),
-                target_label=intent_data.get("target_label", ""),
-                relationship_type=intent_data.get("relationship_type", ""),
-            )
-        except Exception as exc:
-            return f"Could not build query: {exc}"
-
-        # Execute
-        try:
-            records = self.graph_store.query(cypher, params=params, database=database)
-        except Exception as exc:
-            return f"Query execution failed: {exc}"
-
-        if not records:
-            return "No results found in the graph for your question."
-
-        # Synthesize answer
-        system_ans, user_ans = query_strategy.render_answer(
-            question, json.dumps(records, default=str),
-        )
-        answer_response = self.llm.complete(system=system_ans, user=user_ans, temperature=0.1)
-        return answer_response.text
+        return {
+            "answer": answer,
+            "mode": "pipeline",
+            "degraded": False,
+            "fallback_from": "",
+            "fallback_reason": "",
+        }
 
     def _parse_indexing_result(self, agent_output: str, original_text: str) -> Dict[str, Any]:
         """Parse the agent's final output into a structured result."""
@@ -433,6 +489,9 @@ class Session:
             "relationships_created": 0,
             "ok": True,
             "mode": "agent",
+            "degraded": False,
+            "fallback_from": "",
+            "fallback_reason": "",
             "agent_response": agent_output,
         }
 
@@ -487,6 +546,11 @@ class Session:
             "total_nodes": self.context.total_nodes,
             "total_relationships": self.context.total_relationships,
             "queries_answered": len(self.context.queries),
+            "degraded_operations": sum(
+                1
+                for record in [*self.context.indexed_sources, *self.context.queries]
+                if bool(record.get("degraded", False))
+            ),
             "context_summary": self.context.summary(),
         }
 

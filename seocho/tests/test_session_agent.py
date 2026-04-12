@@ -10,6 +10,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from seocho.models import Memory
 from seocho.ontology import Ontology, NodeDef, RelDef, P
 from seocho.tracing import (
     SessionTrace, begin_session, enable_tracing, disable_tracing,
@@ -124,6 +125,28 @@ class FakeGraphStore:
         return {"labels": ["Company", "Person"], "relationship_types": ["EMPLOYS"]}
 
 
+class FakePipelineEngine:
+    def add(self, content: str, *, database: str = "neo4j", category: str = "general", metadata=None):
+        return Memory(
+            memory_id="mem-123",
+            workspace_id="default",
+            content=content,
+            metadata={
+                "nodes_created": 2,
+                "relationships_created": 1,
+                "chunks_processed": 1,
+                "validation_errors": [],
+                "write_errors": [],
+            },
+            status="active",
+            database=database,
+            category=category,
+        )
+
+    def ask(self, question: str, *, database: str = "neo4j", reasoning_mode=None, repair_budget=None):
+        return f"pipeline answer for {question}"
+
+
 # ======================================================================
 # Session tracing tests
 # ======================================================================
@@ -226,7 +249,9 @@ class TestSession:
         result = sess.add("Samsung is a company.", use_agent=False)
         assert result["ok"] is True
         assert result["mode"] == "pipeline"
+        assert result["degraded"] is False
         assert sess.context.total_nodes >= 0
+        assert sess.context.indexed_sources[0]["mode"] == "pipeline"
 
     def test_session_pipeline_fallback_ask(self):
         onto = _make_test_ontology()
@@ -246,6 +271,72 @@ class TestSession:
         )
         answer = sess.ask("What industry is TestCorp in?", use_agent=False)
         assert "TestCorp" in answer or "Tech" in answer
+        assert sess.context.queries[0]["mode"] == "pipeline"
+        assert sess.context.queries[0]["degraded"] is False
+
+    def test_session_agent_add_fallback_records_degraded_metadata(self, monkeypatch):
+        onto = _make_test_ontology()
+        llm = FakeLLM()
+        store = FakeGraphStore()
+
+        from seocho.session import Session
+
+        fake_agents = ModuleType("agents")
+
+        class _FailingRunner:
+            @staticmethod
+            async def run(agent, user_msg):
+                raise RuntimeError("agent backend unavailable")
+
+        fake_agents.Runner = _FailingRunner
+        monkeypatch.setitem(sys.modules, "agents", fake_agents)
+        monkeypatch.setattr(Session, "_get_indexing_agent", lambda self: object())
+        monkeypatch.setattr(Session, "_get_pipeline_engine", lambda self: FakePipelineEngine())
+
+        sess = Session(
+            name="fallback-add", ontology=onto, graph_store=store, llm=llm,
+            database="testdb",
+        )
+
+        result = sess.add("Samsung is a company.", use_agent=True)
+        assert result["mode"] == "pipeline"
+        assert result["degraded"] is True
+        assert result["fallback_from"] == "agent"
+        assert "unavailable" in result["fallback_reason"]
+        assert sess.context.indexed_sources[0]["degraded"] is True
+        assert sess.context.indexed_sources[0]["fallback_from"] == "agent"
+
+    def test_session_agent_query_fallback_records_degraded_metadata(self, monkeypatch):
+        onto = _make_test_ontology()
+        llm = FakeLLM()
+        store = FakeGraphStore()
+
+        from seocho.session import Session
+
+        fake_agents = ModuleType("agents")
+
+        class _FailingRunner:
+            @staticmethod
+            async def run(agent, user_msg):
+                raise RuntimeError("query agent unavailable")
+
+        fake_agents.Runner = _FailingRunner
+        monkeypatch.setitem(sys.modules, "agents", fake_agents)
+        monkeypatch.setattr(Session, "_get_query_agent", lambda self: object())
+        monkeypatch.setattr(Session, "_get_pipeline_engine", lambda self: FakePipelineEngine())
+
+        sess = Session(
+            name="fallback-query", ontology=onto, graph_store=store, llm=llm,
+            database="testdb",
+        )
+
+        answer = sess.ask("What industry is TestCorp in?", use_agent=True)
+        assert "pipeline answer" in answer
+        assert sess.context.queries[0]["mode"] == "pipeline"
+        assert sess.context.queries[0]["degraded"] is True
+        assert sess.context.queries[0]["fallback_from"] == "agent"
+        summary = sess.close()
+        assert summary["degraded_operations"] == 1
 
     def test_session_context_tracks_operations(self):
         onto = _make_test_ontology()

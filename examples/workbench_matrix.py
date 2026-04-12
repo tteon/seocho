@@ -22,6 +22,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from dotenv import load_dotenv
 load_dotenv()
 
+from output_paths import evaluation_output_dir
+
 
 def main(quick: bool = False):
     print("=" * 70)
@@ -46,8 +48,7 @@ def main(quick: bool = False):
     texts = [d["text"] for d in dataset[:3]]
 
     # Tracing
-    results_dir = datasets_dir / "results"
-    results_dir.mkdir(exist_ok=True)
+    results_dir = evaluation_output_dir("workbench")
     jsonl_path = str(results_dir / "workbench_traces.jsonl")
     enable_tracing(backend=["console", "jsonl"], output=jsonl_path)
 

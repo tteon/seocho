@@ -36,6 +36,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from dotenv import load_dotenv
 load_dotenv()
 
+from output_paths import evaluation_output_dir
+
 
 def main(quick: bool = False):
     print("=" * 70)
@@ -67,8 +69,7 @@ def main(quick: bool = False):
     print(f"Dataset: {len(docs)} documents")
 
     # --- Feature 10: Enable tracing ---
-    traces_dir = Path(__file__).parent / "datasets" / "results"
-    traces_dir.mkdir(exist_ok=True)
+    traces_dir = evaluation_output_dir("combination")
     jsonl_path = str(traces_dir / "combination_traces.jsonl")
     csv_path = str(traces_dir / "combination_traces.csv")
 

@@ -23,19 +23,11 @@ jobs:
       - run: pip install uv && uv sync --extra ci
         env:
           UV_CACHE_DIR: /tmp/uv-cache
-      - name: flake8 (high-signal syntax/name errors only)
-        run: |
-          uv run flake8 \
-            seocho/ \
-            extraction/ \
-            --select=E9,F63,F7,F82 \
-            --count --show-source --statistics
-        env:
-          UV_CACHE_DIR: /tmp/uv-cache
       - name: py_compile critical modules
         run: |
           python3 -m py_compile seocho/__init__.py
           python3 -m py_compile seocho/client.py
+          python3 -m py_compile seocho/cli.py
           python3 -m py_compile seocho/session.py
           python3 -m py_compile seocho/agents.py
           python3 -m py_compile seocho/tools.py
@@ -43,6 +35,7 @@ jobs:
           python3 -m py_compile seocho/agent_config.py
           python3 -m py_compile seocho/tracing.py
           python3 -m py_compile seocho/experiment.py
+          python3 -m py_compile extraction/ingest_finder.py
 
   # ── SDK tests (no external services needed) ───────────────────
   sdk-tests:

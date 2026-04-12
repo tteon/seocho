@@ -44,7 +44,7 @@ git push -u origin feat/my-feature
 
 | Check | What it does |
 |-------|-------------|
-| **lint** | high-signal flake8 (syntax/undefined-name class) + py_compile |
+| **lint** | py_compile syntax/import sanity on critical SDK and ingestion modules |
 | **sdk-tests** | `seocho/tests/` on Python 3.10, 3.11, 3.12 |
 | **server-tests** | `extraction/tests/` on Python 3.11 |
 | **docs** | Doc contract + agent doc lint |

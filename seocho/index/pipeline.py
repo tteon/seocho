@@ -290,7 +290,14 @@ class IndexingPipeline:
         if not label:
             return None
 
-        node_id = raw_node.get("id") or props.get("id") or props.get("uri") or props.get("name") or f"{label}_{index+1}"
+        # Prefer name over LLM-generated sequential IDs ("1","2","3") to avoid
+        # cross-document collisions when MERGE matches on {id: "1"}.
+        raw_id = raw_node.get("id", "")
+        is_sequential_id = str(raw_id).strip().isdigit()
+        if is_sequential_id and props.get("name"):
+            node_id = props["name"]
+        else:
+            node_id = raw_id or props.get("id") or props.get("uri") or props.get("name") or f"{label}_{index+1}"
         normalized_id = self._normalize_node_id(str(node_id), label)
         clean_props = {key: value for key, value in props.items() if value not in (None, "") and key != "id"}
         if "name" not in clean_props and raw_node.get("name"):

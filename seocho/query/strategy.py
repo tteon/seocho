@@ -209,6 +209,102 @@ PRESET_PROMPTS: Dict[str, PromptTemplate] = {
         ),
         user="Financial document (extract as FIBO RDF):\n{{text}}",
     ),
+
+    # --- FinDER category-specific presets ---
+
+    "finder_overview": PromptTemplate(
+        system=(
+            'You are extracting company overview information from SEC 10-K filings.\n'
+            'Working with the "{{ontology_name}}" ontology.\n\n'
+            "Entity types:\n{{entity_types}}\nRelationships:\n{{relationship_types}}\n\n"
+            "Focus on: company structure, business segments, headquarters, subsidiaries, employee count.\n"
+            '{{constraints_summary}}\nReturn JSON with "nodes" and "relationships" keys.'
+        ),
+        user="SEC 10-K Company Overview section:\n{{text}}",
+    ),
+    "finder_financials": PromptTemplate(
+        system=(
+            'You are extracting financial metrics from SEC 10-K filings.\n'
+            'Working with the "{{ontology_name}}" ontology.\n\n'
+            "Entity types:\n{{entity_types}}\nRelationships:\n{{relationship_types}}\n\n"
+            "Focus on: revenue, net income, operating income, growth rates, YoY comparisons, margins.\n"
+            "Extract exact numerical values with year/period context.\n"
+            '{{constraints_summary}}\nReturn JSON with "nodes" and "relationships" keys.'
+        ),
+        user="SEC 10-K Financial data:\n{{text}}",
+    ),
+    "finder_footnotes": PromptTemplate(
+        system=(
+            'You are extracting accounting footnote details from SEC 10-K filings.\n'
+            'Working with the "{{ontology_name}}" ontology.\n\n'
+            "Entity types:\n{{entity_types}}\nRelationships:\n{{relationship_types}}\n\n"
+            "Focus on: accounting policies, detailed disclosures, estimates, contingencies.\n"
+            '{{constraints_summary}}\nReturn JSON with "nodes" and "relationships" keys.'
+        ),
+        user="SEC 10-K Footnotes:\n{{text}}",
+    ),
+    "finder_governance": PromptTemplate(
+        system=(
+            'You are extracting corporate governance information from SEC 10-K filings.\n'
+            'Working with the "{{ontology_name}}" ontology.\n\n'
+            "Entity types:\n{{entity_types}}\nRelationships:\n{{relationship_types}}\n\n"
+            "Focus on: executives (name+title), board members, compensation, ownership structure.\n"
+            '{{constraints_summary}}\nReturn JSON with "nodes" and "relationships" keys.'
+        ),
+        user="SEC 10-K Governance section:\n{{text}}",
+    ),
+    "finder_accounting": PromptTemplate(
+        system=(
+            'You are extracting accounting standards and policies from SEC 10-K filings.\n'
+            'Working with the "{{ontology_name}}" ontology.\n\n'
+            "Entity types:\n{{entity_types}}\nRelationships:\n{{relationship_types}}\n\n"
+            "Focus on: ASC/IFRS standards, depreciation methods, capitalization policies, goodwill, impairment.\n"
+            '{{constraints_summary}}\nReturn JSON with "nodes" and "relationships" keys.'
+        ),
+        user="SEC 10-K Accounting policies:\n{{text}}",
+    ),
+    "finder_legal": PromptTemplate(
+        system=(
+            'You are extracting legal proceedings from SEC 10-K filings.\n'
+            'Working with the "{{ontology_name}}" ontology.\n\n'
+            "Entity types:\n{{entity_types}}\nRelationships:\n{{relationship_types}}\n\n"
+            "Focus on: lawsuits, regulatory investigations, settlements, antitrust, patent claims.\n"
+            '{{constraints_summary}}\nReturn JSON with "nodes" and "relationships" keys.'
+        ),
+        user="SEC 10-K Legal proceedings:\n{{text}}",
+    ),
+    "finder_risk": PromptTemplate(
+        system=(
+            'You are extracting risk factors from SEC 10-K filings.\n'
+            'Working with the "{{ontology_name}}" ontology.\n\n'
+            "Entity types:\n{{entity_types}}\nRelationships:\n{{relationship_types}}\n\n"
+            "Focus on: market risk, operational risk, regulatory risk, cybersecurity, competition.\n"
+            '{{constraints_summary}}\nReturn JSON with "nodes" and "relationships" keys.'
+        ),
+        user="SEC 10-K Risk factors:\n{{text}}",
+    ),
+    "finder_shareholder": PromptTemplate(
+        system=(
+            'You are extracting shareholder return data from SEC 10-K filings.\n'
+            'Working with the "{{ontology_name}}" ontology.\n\n'
+            "Entity types:\n{{entity_types}}\nRelationships:\n{{relationship_types}}\n\n"
+            "Focus on: dividends, share repurchases/buybacks, total shareholder return, stock performance.\n"
+            '{{constraints_summary}}\nReturn JSON with "nodes" and "relationships" keys.'
+        ),
+        user="SEC 10-K Shareholder return data:\n{{text}}",
+    ),
+}
+
+# Category → prompt auto-selection map
+CATEGORY_PROMPT_MAP: Dict[str, str] = {
+    "Company Overview": "finder_overview",
+    "Financials": "finder_financials",
+    "Footnotes": "finder_footnotes",
+    "Governance": "finder_governance",
+    "Accounting": "finder_accounting",
+    "Legal": "finder_legal",
+    "Risk": "finder_risk",
+    "Shareholder Return": "finder_shareholder",
 }
 
 
@@ -274,6 +370,12 @@ class ExtractionStrategy(PromptStrategy):
         # If user provided a custom template, use it
         if self.prompt_template is not None:
             return self.prompt_template.render(ctx, text)
+
+        # Auto-select category-specific prompt if available
+        if self.category in CATEGORY_PROMPT_MAP:
+            auto_template = PRESET_PROMPTS.get(CATEGORY_PROMPT_MAP[self.category])
+            if auto_template is not None:
+                return auto_template.render(ctx, text)
 
         parts: List[str] = []
 

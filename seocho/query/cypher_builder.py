@@ -33,6 +33,27 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from ..ontology import Ontology
 
+# Common suffixes to strip for fuzzy entity matching
+_ENTITY_SUFFIXES = re.compile(
+    r"\s*\b(Inc\.?|Corp\.?|Corporation|LLC|Ltd\.?|Co\.?|Company|Group|Holdings?|"
+    r"Incorporated|Plc\.?|AG|SA|SE|GmbH|N\.?V\.?|& Co\.?)\s*$",
+    re.IGNORECASE,
+)
+
+
+def normalize_entity(name: str) -> str:
+    """Normalize an entity name for fuzzy matching.
+
+    Strips common corporate suffixes, possessives, trailing punctuation,
+    and extra whitespace.
+    """
+    text = name.strip()
+    text = text.replace("\u2019s", "").replace("'s", "")  # possessives
+    text = _ENTITY_SUFFIXES.sub("", text).strip()
+    text = re.sub(r"\s*&\s*$", "", text)  # trailing &
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
 
 class CypherBuilder:
     """Builds correct Cypher queries from structured intent.
@@ -159,12 +180,14 @@ class CypherBuilder:
 
     def _entity_lookup(self, entity: str, label: str, limit: int) -> Tuple[str, Dict]:
         label_clause = f":{label}" if label else ""
+        normalized = normalize_entity(entity)
         return (
             f"MATCH (n{label_clause})\n"
             f"WHERE toLower(coalesce(n.name, n.uri, '')) CONTAINS toLower($entity)\n"
+            f"   OR toLower(coalesce(n.name, n.uri, '')) CONTAINS toLower($entity_norm)\n"
             f"RETURN n\n"
             f"LIMIT $limit",
-            {"entity": entity, "limit": limit},
+            {"entity": entity, "entity_norm": normalized, "limit": limit},
         )
 
     def _relationship_lookup(
@@ -176,12 +199,21 @@ class CypherBuilder:
         t_label = f":{target_label}" if target_label else ""
         rel_clause = f":{self._rel_name(rel_type)}" if rel_type else ""
 
-        where_parts = ["toLower(coalesce(a.name, a.uri, '')) CONTAINS toLower($anchor)"]
-        params: Dict[str, Any] = {"anchor": anchor, "limit": limit}
+        anchor_norm = normalize_entity(anchor)
+        where_parts = [
+            "(toLower(coalesce(a.name, a.uri, '')) CONTAINS toLower($anchor) "
+            "OR toLower(coalesce(a.name, a.uri, '')) CONTAINS toLower($anchor_norm))"
+        ]
+        params: Dict[str, Any] = {"anchor": anchor, "anchor_norm": anchor_norm, "limit": limit}
 
         if target:
-            where_parts.append("toLower(coalesce(b.name, b.uri, '')) CONTAINS toLower($target)")
+            target_norm = normalize_entity(target)
+            where_parts.append(
+                "(toLower(coalesce(b.name, b.uri, '')) CONTAINS toLower($target) "
+                "OR toLower(coalesce(b.name, b.uri, '')) CONTAINS toLower($target_norm))"
+            )
             params["target"] = target
+            params["target_norm"] = target_norm
 
         where = " AND ".join(where_parts)
 
@@ -198,9 +230,11 @@ class CypherBuilder:
 
     def _neighbors(self, entity: str, label: str, limit: int) -> Tuple[str, Dict]:
         label_clause = f":{label}" if label else ""
+        normalized = normalize_entity(entity)
         return (
             f"MATCH (n{label_clause})\n"
             f"WHERE toLower(coalesce(n.name, n.uri, '')) CONTAINS toLower($entity)\n"
+            f"   OR toLower(coalesce(n.name, n.uri, '')) CONTAINS toLower($entity_norm)\n"
             f"OPTIONAL MATCH (n)-[r]-(m)\n"
             f"RETURN coalesce(n.name, n.uri) AS entity,\n"
             f"       properties(n) AS properties,\n"
@@ -210,7 +244,7 @@ class CypherBuilder:
             f"         neighbor_labels: labels(m)\n"
             f"       }})[0..$limit] AS neighbors\n"
             f"LIMIT 1",
-            {"entity": entity, "limit": limit},
+            {"entity": entity, "entity_norm": normalized, "limit": limit},
         )
 
     def _path(self, from_entity: str, to_entity: str, limit: int) -> Tuple[str, Dict]:

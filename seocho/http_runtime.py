@@ -8,13 +8,17 @@ from uuid import uuid4
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
+from .runtime_contract import (
+    RuntimePath,
+    WORKSPACE_ID_PATTERN,
+)
 from .runtime_bundle import RuntimeBundle, create_client_from_runtime_bundle
 
 _SEARCH_PROPERTIES = ["name", "title", "id", "uri", "description", "content_preview", "content"]
 
 
 class BundleMemoryCreateRequest(BaseModel):
-    workspace_id: str = Field(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$")
+    workspace_id: str = Field(default="default", pattern=WORKSPACE_ID_PATTERN)
     content: str = Field(..., min_length=1)
     metadata: Dict[str, Any] = Field(default_factory=dict)
     database: Optional[str] = None
@@ -22,21 +26,21 @@ class BundleMemoryCreateRequest(BaseModel):
 
 
 class BundleMemorySearchRequest(BaseModel):
-    workspace_id: str = Field(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$")
+    workspace_id: str = Field(default="default", pattern=WORKSPACE_ID_PATTERN)
     query: str = Field(..., min_length=1)
     limit: int = Field(default=5, ge=1, le=20)
     databases: Optional[List[str]] = None
 
 
 class BundleChatRequest(BaseModel):
-    workspace_id: str = Field(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$")
+    workspace_id: str = Field(default="default", pattern=WORKSPACE_ID_PATTERN)
     message: str = Field(..., min_length=1)
     limit: int = Field(default=5, ge=1, le=20)
     databases: Optional[List[str]] = None
 
 
 class BundleSemanticRequest(BaseModel):
-    workspace_id: str = Field(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$")
+    workspace_id: str = Field(default="default", pattern=WORKSPACE_ID_PATTERN)
     query: str = Field(..., min_length=1)
     databases: Optional[List[str]] = None
     reasoning_mode: bool = False
@@ -160,7 +164,7 @@ def create_bundle_runtime_app(
             "graphs": [item.to_public_dict(workspace_id=bundle.workspace_id) for item in bundle.graphs],
         }
 
-    @app.post("/api/memories")
+    @app.post(RuntimePath.API_MEMORIES)
     async def create_memory(request: BundleMemoryCreateRequest) -> Dict[str, Any]:
         _ensure_workspace(request.workspace_id)
         memory = runtime_client.add(
@@ -178,7 +182,7 @@ def create_bundle_runtime_app(
             "trace_id": "bundle_local_engine",
         }
 
-    @app.post("/api/memories/search")
+    @app.post(RuntimePath.API_MEMORIES_SEARCH)
     async def search_memories(request: BundleMemorySearchRequest) -> Dict[str, Any]:
         _ensure_workspace(request.workspace_id)
         database = _resolve_database(request.databases)
@@ -193,7 +197,7 @@ def create_bundle_runtime_app(
             "trace_id": "bundle_local_engine",
         }
 
-    @app.post("/api/chat")
+    @app.post(RuntimePath.API_CHAT)
     async def chat(request: BundleChatRequest) -> Dict[str, Any]:
         _ensure_workspace(request.workspace_id)
         database = _resolve_database(request.databases)
@@ -221,7 +225,7 @@ def create_bundle_runtime_app(
             "trace_id": "bundle_local_engine",
         }
 
-    @app.post("/run_agent_semantic")
+    @app.post(RuntimePath.RUN_AGENT_SEMANTIC)
     async def run_agent_semantic(request: BundleSemanticRequest) -> Dict[str, Any]:
         _ensure_workspace(request.workspace_id)
         database = _resolve_database(request.databases)
@@ -305,7 +309,7 @@ def create_bundle_runtime_app(
             "evidence_bundle": evidence_bundle,
         }
 
-    @app.post("/run_debate")
+    @app.post(RuntimePath.RUN_DEBATE)
     async def run_debate() -> Dict[str, Any]:
         raise HTTPException(
             status_code=501,

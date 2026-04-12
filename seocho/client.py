@@ -74,6 +74,15 @@ from .models import (
     SemanticRunRecord,
     SemanticRunResponse,
 )
+from .runtime_contract import (
+    RuntimePath,
+    build_query_payload,
+    build_scope_payload,
+    memory_path,
+    platform_chat_session_path,
+    semantic_run_path,
+    serialize_entity_overrides,
+)
 from .runtime_bundle import RuntimeBundle, build_runtime_bundle, create_client_from_runtime_bundle
 
 logger = logging.getLogger(__name__)
@@ -615,7 +624,16 @@ class Seocho:
             "source_type": source_type,
             "semantic_artifact_policy": semantic_artifact_policy,
         }
-        body.update(self._scope_payload(user_id=user_id, agent_id=agent_id, session_id=session_id))
+        body.update(
+            build_scope_payload(
+                default_user_id=self.user_id,
+                default_agent_id=self.agent_id,
+                default_session_id=self.session_id,
+                user_id=user_id,
+                agent_id=agent_id,
+                session_id=session_id,
+            )
+        )
         if database:
             body["database"] = database
         serialized_approved_artifacts = serialize_optional_mapping(
@@ -626,7 +644,7 @@ class Seocho:
             body["approved_artifacts"] = serialized_approved_artifacts
         if approved_artifact_id:
             body["approved_artifact_id"] = approved_artifact_id
-        payload = self._request_json("POST", "/api/memories", json_body=body)
+        payload = self._request_json("POST", RuntimePath.API_MEMORIES, json_body=body)
         return MemoryCreateResult.from_dict(payload)
 
     def apply_artifact(
@@ -661,7 +679,7 @@ class Seocho:
         params: Dict[str, Any] = {"workspace_id": self.workspace_id}
         if database:
             params["database"] = database
-        payload = self._request_json("GET", f"/api/memories/{memory_id}", params=params)
+        payload = self._request_json("GET", memory_path(memory_id), params=params)
         return Memory.from_dict(payload["memory"])
 
     def search(
@@ -701,12 +719,21 @@ class Seocho:
             "query": query,
             "limit": limit,
         }
-        body.update(self._scope_payload(user_id=user_id, agent_id=agent_id, session_id=session_id))
+        body.update(
+            build_scope_payload(
+                default_user_id=self.user_id,
+                default_agent_id=self.agent_id,
+                default_session_id=self.session_id,
+                user_id=user_id,
+                agent_id=agent_id,
+                session_id=session_id,
+            )
+        )
         if graph_ids:
             body["graph_ids"] = list(graph_ids)
         if databases:
             body["databases"] = list(databases)
-        payload = self._request_json("POST", "/api/memories/search", json_body=body)
+        payload = self._request_json("POST", RuntimePath.API_MEMORIES_SEARCH, json_body=body)
         return SearchResponse.from_dict(payload)
 
     def chat(
@@ -725,19 +752,28 @@ class Seocho:
             "message": message,
             "limit": limit,
         }
-        body.update(self._scope_payload(user_id=user_id, agent_id=agent_id, session_id=session_id))
+        body.update(
+            build_scope_payload(
+                default_user_id=self.user_id,
+                default_agent_id=self.agent_id,
+                default_session_id=self.session_id,
+                user_id=user_id,
+                agent_id=agent_id,
+                session_id=session_id,
+            )
+        )
         if graph_ids:
             body["graph_ids"] = list(graph_ids)
         if databases:
             body["databases"] = list(databases)
-        payload = self._request_json("POST", "/api/chat", json_body=body)
+        payload = self._request_json("POST", RuntimePath.API_CHAT, json_body=body)
         return ChatResponse.from_dict(payload)
 
     def delete(self, memory_id: str, *, database: Optional[str] = None) -> ArchiveResult:
         params: Dict[str, Any] = {"workspace_id": self.workspace_id}
         if database:
             params["database"] = database
-        payload = self._request_json("DELETE", f"/api/memories/{memory_id}", params=params)
+        payload = self._request_json("DELETE", memory_path(memory_id), params=params)
         return ArchiveResult.from_dict(payload)
 
     def router(
@@ -747,8 +783,14 @@ class Seocho:
         user_id: Optional[str] = None,
         graph_ids: Optional[Sequence[str]] = None,
     ) -> AgentRunResponse:
-        body = self._query_payload(query=query, user_id=user_id, graph_ids=graph_ids)
-        payload = self._request_json("POST", "/run_agent", json_body=body)
+        body = build_query_payload(
+            query=query,
+            workspace_id=self.workspace_id,
+            default_user_id=self.user_id,
+            user_id=user_id,
+            graph_ids=graph_ids,
+        )
+        payload = self._request_json("POST", RuntimePath.RUN_AGENT, json_body=body)
         return AgentRunResponse.from_dict(payload)
 
     def react(
@@ -794,16 +836,22 @@ class Seocho:
                 resolved_graph_ids = [target.graph_id for target in resolved_targets if target.graph_id]
                 if not resolved_databases:
                     resolved_databases = [target.database for target in resolved_targets if target.database]
-        body = self._query_payload(query=query, user_id=user_id, graph_ids=resolved_graph_ids)
+        body = build_query_payload(
+            query=query,
+            workspace_id=self.workspace_id,
+            default_user_id=self.user_id,
+            user_id=user_id,
+            graph_ids=resolved_graph_ids,
+        )
         if resolved_databases:
             body["databases"] = resolved_databases
         if entity_overrides:
-            body["entity_overrides"] = self._serialize_entity_overrides(entity_overrides)
+            body["entity_overrides"] = serialize_entity_overrides(entity_overrides)
         if reasoning_mode:
             body["reasoning_mode"] = True
         if repair_budget > 0:
             body["repair_budget"] = int(repair_budget)
-        payload = self._request_json("POST", "/run_agent_semantic", json_body=body)
+        payload = self._request_json("POST", RuntimePath.RUN_AGENT_SEMANTIC, json_body=body)
         return SemanticRunResponse.from_dict(payload)
 
     def debate(
@@ -822,8 +870,14 @@ class Seocho:
                 inline_targets = [self._coerce_graph_ref(item) for item in graph_ids]
                 resolved_targets = inline_targets if all(target.database for target in inline_targets) else self.resolve_graphs(*graph_ids)
                 resolved_graph_ids = [target.graph_id for target in resolved_targets if target.graph_id]
-        body = self._query_payload(query=query, user_id=user_id, graph_ids=resolved_graph_ids)
-        payload = self._request_json("POST", "/run_debate", json_body=body)
+        body = build_query_payload(
+            query=query,
+            workspace_id=self.workspace_id,
+            default_user_id=self.user_id,
+            user_id=user_id,
+            graph_ids=resolved_graph_ids,
+        )
+        payload = self._request_json("POST", RuntimePath.RUN_DEBATE, json_body=body)
         return DebateRunResponse.from_dict(payload)
 
     def plan(
@@ -920,16 +974,16 @@ class Seocho:
         if databases:
             body["databases"] = list(databases)
         if entity_overrides:
-            body["entity_overrides"] = self._serialize_entity_overrides(entity_overrides)
-        payload = self._request_json("POST", "/platform/chat/send", json_body=body)
+            body["entity_overrides"] = serialize_entity_overrides(entity_overrides)
+        payload = self._request_json("POST", RuntimePath.PLATFORM_CHAT_SEND, json_body=body)
         return PlatformChatResponse.from_dict(payload)
 
     def session_history(self, session_id: str) -> PlatformSessionResponse:
-        payload = self._request_json("GET", f"/platform/chat/session/{session_id}")
+        payload = self._request_json("GET", platform_chat_session_path(session_id))
         return PlatformSessionResponse.from_dict(payload)
 
     def reset_session(self, session_id: str) -> PlatformSessionResponse:
-        payload = self._request_json("DELETE", f"/platform/chat/session/{session_id}")
+        payload = self._request_json("DELETE", platform_chat_session_path(session_id))
         return PlatformSessionResponse.from_dict(payload)
 
     def raw_ingest(
@@ -959,25 +1013,31 @@ class Seocho:
             body["approved_artifacts"] = serialized_approved_artifacts
         if approved_artifact_id:
             body["approved_artifact_id"] = approved_artifact_id
-        payload = self._request_json("POST", "/platform/ingest/raw", json_body=body)
+        payload = self._request_json("POST", RuntimePath.PLATFORM_INGEST_RAW, json_body=body)
         return RawIngestResult.from_dict(payload)
 
     def graphs(self) -> List[GraphTarget]:
-        payload = self._request_json("GET", "/graphs")
+        payload = self._request_json("GET", RuntimePath.GRAPHS)
         graphs = [GraphTarget.from_dict(item) for item in payload.get("graphs", [])]
         self._graph_catalog_cache = {target.graph_id: target for target in graphs}
         return graphs
 
     def databases(self) -> List[str]:
-        payload = self._request_json("GET", "/databases")
+        payload = self._request_json("GET", RuntimePath.DATABASES)
         return [str(item) for item in payload.get("databases", [])]
 
     def agents(self) -> List[str]:
-        payload = self._request_json("GET", "/agents")
+        payload = self._request_json("GET", RuntimePath.AGENTS)
         return [str(item) for item in payload.get("agents", [])]
 
     def health(self, *, scope: str = "runtime") -> Dict[str, Any]:
-        return self._request_json("GET", f"/health/{scope}")
+        if scope == "runtime":
+            path = RuntimePath.HEALTH_RUNTIME
+        elif scope == "batch":
+            path = RuntimePath.HEALTH_BATCH
+        else:
+            path = f"/health/{scope}"
+        return self._request_json("GET", path)
 
     def semantic_runs(
         self,
@@ -994,12 +1054,12 @@ class Seocho:
             params["route"] = route
         if intent_id:
             params["intent_id"] = intent_id
-        payload = self._request_json("GET", "/semantic/runs", params=params)
+        payload = self._request_json("GET", RuntimePath.SEMANTIC_RUNS, params=params)
         return [SemanticRunRecord.from_dict(item) for item in payload.get("runs", [])]
 
     def semantic_run(self, run_id: str) -> SemanticRunRecord:
         params: Dict[str, Any] = {"workspace_id": self.workspace_id}
-        payload = self._request_json("GET", f"/semantic/runs/{run_id}", params=params)
+        payload = self._request_json("GET", semantic_run_path(run_id), params=params)
         return SemanticRunRecord.from_dict(payload)
 
     def ensure_fulltext_indexes(
@@ -1022,7 +1082,7 @@ class Seocho:
             body["labels"] = list(labels)
         if properties:
             body["properties"] = list(properties)
-        payload = self._request_json("POST", "/indexes/fulltext/ensure", json_body=body)
+        payload = self._request_json("POST", RuntimePath.INDEXES_FULLTEXT_ENSURE, json_body=body)
         return FulltextIndexResponse.from_dict(payload)
 
     def list_artifacts(self, *, status: Optional[str] = None) -> List[SemanticArtifactSummary]:
@@ -1150,55 +1210,6 @@ class Seocho:
     # ------------------------------------------------------------------
     # Internals
     # ------------------------------------------------------------------
-
-    def _scope_payload(
-        self,
-        *,
-        user_id: Optional[str] = None,
-        agent_id: Optional[str] = None,
-        session_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        payload: Dict[str, Any] = {}
-        resolved_user_id = user_id if user_id is not None else self.user_id
-        resolved_agent_id = agent_id if agent_id is not None else self.agent_id
-        resolved_session_id = session_id if session_id is not None else self.session_id
-        if resolved_user_id:
-            payload["user_id"] = resolved_user_id
-        if resolved_agent_id:
-            payload["agent_id"] = resolved_agent_id
-        if resolved_session_id:
-            payload["session_id"] = resolved_session_id
-        return payload
-
-    def _query_payload(
-        self,
-        *,
-        query: str,
-        user_id: Optional[str] = None,
-        graph_ids: Optional[Sequence[str]] = None,
-    ) -> Dict[str, Any]:
-        payload: Dict[str, Any] = {
-            "query": query,
-            "workspace_id": self.workspace_id,
-            "user_id": user_id if user_id is not None else self.user_id or "user_default",
-        }
-        if graph_ids:
-            payload["graph_ids"] = list(graph_ids)
-        return payload
-
-    @staticmethod
-    def _serialize_entity_overrides(
-        entity_overrides: Sequence[EntityOverride | Dict[str, Any]],
-    ) -> List[Dict[str, Any]]:
-        serialized: List[Dict[str, Any]] = []
-        for item in entity_overrides:
-            if isinstance(item, EntityOverride):
-                serialized.append(item.to_dict())
-            elif isinstance(item, dict):
-                serialized.append(dict(item))
-            else:
-                raise TypeError("entity_overrides must contain dict objects or EntityOverride values")
-        return serialized
 
     @staticmethod
     def _coerce_graph_ref(graph: GraphRef | GraphTarget | Dict[str, Any] | str) -> GraphRef:

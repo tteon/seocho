@@ -1,0 +1,496 @@
+"""
+Session — agent-level SDK interface with context and tracing.
+
+A Session maintains conversation state across ``add()`` and ``ask()`` calls.
+Instead of independent chat completions, each operation runs through an
+agent with tool use, and all operations within a session roll up into
+a single parent trace.
+
+Usage::
+
+    from seocho import Seocho, Ontology
+    from seocho.store import Neo4jGraphStore, OpenAIBackend
+
+    s = Seocho(ontology=onto, graph_store=store, llm=llm)
+
+    # Agent-level session (recommended)
+    session = s.session("finance_analysis")
+    session.add("NVIDIA revenue was $26.9B in 2024...")
+    session.add("Apple CEO Tim Cook announced...")
+    answer = session.ask("Compare NVIDIA and Apple revenue")
+    session.close()
+
+    # Session as context manager
+    with s.session("research") as session:
+        session.add("...")
+        answer = session.ask("...")
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+import time
+import uuid
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Sequence
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class SessionContext:
+    """Tracks what has been indexed and queried in this session."""
+
+    indexed_sources: List[Dict[str, Any]] = field(default_factory=list)
+    indexed_entities: List[str] = field(default_factory=list)
+    queries: List[Dict[str, Any]] = field(default_factory=list)
+    total_nodes: int = 0
+    total_relationships: int = 0
+
+    def add_indexing(self, source_id: str, nodes: int, rels: int, text_preview: str) -> None:
+        self.indexed_sources.append({
+            "source_id": source_id,
+            "nodes": nodes,
+            "relationships": rels,
+            "text_preview": text_preview[:200],
+        })
+        self.total_nodes += nodes
+        self.total_relationships += rels
+
+    def add_query(self, question: str, answer: str, cypher: str = "") -> None:
+        self.queries.append({
+            "question": question,
+            "answer_preview": answer[:300],
+            "cypher": cypher,
+        })
+
+    def summary(self) -> str:
+        """Human-readable summary of what happened in this session."""
+        parts = [f"Session indexed {len(self.indexed_sources)} document(s): "
+                 f"{self.total_nodes} nodes, {self.total_relationships} relationships."]
+        if self.indexed_entities:
+            parts.append(f"Key entities: {', '.join(self.indexed_entities[:10])}")
+        if self.queries:
+            parts.append(f"Answered {len(self.queries)} question(s).")
+        return " ".join(parts)
+
+
+class Session:
+    """Agent-level session with context persistence and tracing.
+
+    Each call to ``add()`` runs an IndexingAgent that decides how to
+    extract, validate, and write. Each call to ``ask()`` runs a
+    QueryAgent that builds and executes queries. The session maintains
+    context so the agents know what has been indexed.
+
+    Parameters
+    ----------
+    name:
+        Session name for identification and tracing.
+    ontology:
+        The Ontology driving extraction and querying.
+    graph_store:
+        GraphStore for Neo4j/DozerDB.
+    llm:
+        LLMBackend for agent reasoning.
+    vector_store:
+        Optional VectorStore for similarity search.
+    database:
+        Default target database.
+    extraction_prompt:
+        Optional custom PromptTemplate.
+    agent_config:
+        Optional AgentConfig for quality thresholds.
+    """
+
+    def __init__(
+        self,
+        *,
+        name: str = "",
+        ontology: Any,
+        graph_store: Any,
+        llm: Any,
+        vector_store: Any = None,
+        database: str = "neo4j",
+        extraction_prompt: Any = None,
+        agent_config: Any = None,
+        workspace_id: str = "default",
+    ) -> None:
+        self.session_id = str(uuid.uuid4())[:12]
+        self.name = name or f"session-{self.session_id}"
+        self.ontology = ontology
+        self.graph_store = graph_store
+        self.llm = llm
+        self.vector_store = vector_store
+        self.database = database
+        self.extraction_prompt = extraction_prompt
+        self.agent_config = agent_config
+        self.workspace_id = workspace_id
+
+        self.context = SessionContext()
+        self._trace = None
+        self._closed = False
+
+        # Start session trace
+        try:
+            from .tracing import begin_session, is_tracing_enabled
+            if is_tracing_enabled():
+                self._trace = begin_session(self.session_id, self.name)
+        except Exception:
+            pass
+
+        # Lazy agent creation
+        self._indexing_agent = None
+        self._query_agent = None
+
+    def _get_indexing_agent(self) -> Any:
+        """Create or return the indexing agent."""
+        if self._indexing_agent is None:
+            from .agents import create_indexing_agent
+            self._indexing_agent = create_indexing_agent(
+                ontology=self.ontology,
+                graph_store=self.graph_store,
+                llm=self.llm,
+                extraction_prompt=self.extraction_prompt,
+            )
+        return self._indexing_agent
+
+    def _get_query_agent(self) -> Any:
+        """Create or return the query agent."""
+        if self._query_agent is None:
+            from .agents import create_query_agent
+            self._query_agent = create_query_agent(
+                ontology=self.ontology,
+                graph_store=self.graph_store,
+                llm=self.llm,
+                vector_store=self.vector_store,
+            )
+        return self._query_agent
+
+    def add(
+        self,
+        content: str,
+        *,
+        database: Optional[str] = None,
+        category: str = "general",
+        metadata: Optional[Dict[str, Any]] = None,
+        use_agent: bool = True,
+    ) -> Dict[str, Any]:
+        """Index content through the indexing agent.
+
+        The agent decides the flow: extract → score → validate → link → write.
+        If quality is low, the agent re-extracts automatically.
+
+        Parameters
+        ----------
+        content:
+            The text to index.
+        database:
+            Target database (defaults to session default).
+        category:
+            Document category for prompt selection.
+        metadata:
+            Additional metadata.
+        use_agent:
+            If False, fall back to direct pipeline (no agent reasoning).
+
+        Returns
+        -------
+        Dict with source_id, nodes_created, relationships_created, etc.
+        """
+        if self._closed:
+            raise RuntimeError("Session is closed")
+
+        db = database or self.database
+        start = time.time()
+
+        if use_agent:
+            result = self._add_via_agent(content, db, category, metadata)
+        else:
+            result = self._add_via_pipeline(content, db, category, metadata)
+
+        elapsed = time.time() - start
+
+        # Update context
+        source_id = result.get("source_id", "")
+        nodes = result.get("nodes_created", 0)
+        rels = result.get("relationships_created", 0)
+        self.context.add_indexing(source_id, nodes, rels, content)
+
+        # Trace
+        if self._trace:
+            self._trace.log_span(
+                "session.add",
+                input_data={"text_preview": content[:200], "database": db, "category": category},
+                output_data={"source_id": source_id, "nodes": nodes, "relationships": rels},
+                metadata={"elapsed_seconds": round(elapsed, 2)},
+                tags=["indexing"],
+            )
+
+        return result
+
+    def ask(
+        self,
+        question: str,
+        *,
+        database: Optional[str] = None,
+        reasoning_mode: bool = True,
+        use_agent: bool = True,
+    ) -> str:
+        """Ask a question through the query agent.
+
+        The agent builds intent, calls text2cypher, executes, and
+        synthesizes an answer. If results are empty, the agent retries
+        with broader queries.
+
+        Parameters
+        ----------
+        question:
+            Natural-language question.
+        database:
+            Target database.
+        reasoning_mode:
+            Enable automatic query repair.
+        use_agent:
+            If False, fall back to direct pipeline.
+
+        Returns
+        -------
+        The synthesized answer string.
+        """
+        if self._closed:
+            raise RuntimeError("Session is closed")
+
+        db = database or self.database
+        start = time.time()
+
+        # Build context message for the agent
+        context_msg = ""
+        if self.context.indexed_sources:
+            context_msg = (
+                f"\n\n[Session context: {self.context.summary()}]\n"
+                f"[Target database: {db}]"
+            )
+
+        if use_agent:
+            answer = self._ask_via_agent(question + context_msg, db)
+        else:
+            answer = self._ask_via_pipeline(question, db, reasoning_mode)
+
+        elapsed = time.time() - start
+        self.context.add_query(question, answer)
+
+        # Trace
+        if self._trace:
+            self._trace.log_span(
+                "session.ask",
+                input_data={"question": question, "database": db},
+                output_data={"answer_preview": answer[:300]},
+                metadata={"elapsed_seconds": round(elapsed, 2)},
+                tags=["query"],
+            )
+
+        return answer
+
+    def _add_via_agent(
+        self,
+        content: str,
+        database: str,
+        category: str,
+        metadata: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """Run indexing through the agent with tool use."""
+        from agents import Runner
+
+        agent = self._get_indexing_agent()
+        user_msg = (
+            f"Index this text into database '{database}' with category '{category}'.\n\n"
+            f"Text:\n{content}"
+        )
+        if metadata:
+            user_msg += f"\n\nMetadata: {json.dumps(metadata, default=str)}"
+
+        try:
+            result = asyncio.run(
+                Runner.run(agent, user_msg)
+            )
+            # Parse agent's final output for structured result
+            return self._parse_indexing_result(result.final_output, content)
+        except Exception as exc:
+            logger.warning("Agent indexing failed, falling back to pipeline: %s", exc)
+            return self._add_via_pipeline(content, database, category, metadata)
+
+    def _ask_via_agent(self, question: str, database: str) -> str:
+        """Run query through the agent with tool use."""
+        from agents import Runner
+
+        agent = self._get_query_agent()
+        user_msg = (
+            f"Answer this question using database '{database}':\n\n"
+            f"{question}"
+        )
+
+        try:
+            result = asyncio.run(
+                Runner.run(agent, user_msg)
+            )
+            return result.final_output or "No answer could be generated."
+        except Exception as exc:
+            logger.warning("Agent query failed, falling back to pipeline: %s", exc)
+            return self._ask_via_pipeline(question, database, True)
+
+    def _add_via_pipeline(
+        self,
+        content: str,
+        database: str,
+        category: str,
+        metadata: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """Direct pipeline fallback (no agent reasoning)."""
+        from .index.pipeline import IndexingPipeline
+
+        pipeline = IndexingPipeline(
+            ontology=self.ontology,
+            graph_store=self.graph_store,
+            llm=self.llm,
+            workspace_id=self.workspace_id,
+            extraction_prompt=self.extraction_prompt,
+        )
+
+        result = pipeline.index(content, database=database, category=category, metadata=metadata)
+        return {
+            "source_id": result.source_id,
+            "nodes_created": result.total_nodes,
+            "relationships_created": result.total_relationships,
+            "chunks_processed": result.chunks_processed,
+            "validation_errors": result.validation_errors,
+            "ok": result.ok,
+            "mode": "pipeline",
+        }
+
+    def _ask_via_pipeline(self, question: str, database: str, reasoning_mode: bool) -> str:
+        """Direct pipeline fallback for querying."""
+        from .query.cypher_builder import CypherBuilder
+        from .query.strategy import QueryStrategy
+
+        builder = CypherBuilder(self.ontology)
+        query_strategy = QueryStrategy(self.ontology)
+
+        # Intent extraction
+        intent_prompt = builder.intent_extraction_prompt()
+        response = self.llm.complete(
+            system=intent_prompt,
+            user=f"Question: {question}",
+            temperature=0.0,
+            response_format={"type": "json_object"},
+        )
+
+        try:
+            intent_data = json.loads(response.text)
+        except (json.JSONDecodeError, ValueError):
+            intent_data = {"intent": "neighbors", "anchor_entity": question}
+
+        intent_data = builder.normalize_intent(question, intent_data)
+
+        # Build Cypher
+        try:
+            cypher, params = builder.build(
+                intent=intent_data.get("intent", "neighbors"),
+                anchor_entity=intent_data.get("anchor_entity", ""),
+                anchor_label=intent_data.get("anchor_label", ""),
+                target_entity=intent_data.get("target_entity", ""),
+                target_label=intent_data.get("target_label", ""),
+                relationship_type=intent_data.get("relationship_type", ""),
+            )
+        except Exception as exc:
+            return f"Could not build query: {exc}"
+
+        # Execute
+        try:
+            records = self.graph_store.query(cypher, params=params, database=database)
+        except Exception as exc:
+            return f"Query execution failed: {exc}"
+
+        if not records:
+            return "No results found in the graph for your question."
+
+        # Synthesize answer
+        system_ans, user_ans = query_strategy.render_answer(
+            question, json.dumps(records, default=str),
+        )
+        answer_response = self.llm.complete(system=system_ans, user=user_ans, temperature=0.1)
+        return answer_response.text
+
+    def _parse_indexing_result(self, agent_output: str, original_text: str) -> Dict[str, Any]:
+        """Parse the agent's final output into a structured result."""
+        # Try to extract structured data from agent's response
+        result = {
+            "source_id": str(uuid.uuid4()),
+            "nodes_created": 0,
+            "relationships_created": 0,
+            "ok": True,
+            "mode": "agent",
+            "agent_response": agent_output,
+        }
+
+        if not agent_output:
+            return result
+
+        # Look for numbers in agent output
+        import re
+        nodes_match = re.search(r"(\d+)\s*node", agent_output, re.IGNORECASE)
+        rels_match = re.search(r"(\d+)\s*(?:relationship|edge|rel)", agent_output, re.IGNORECASE)
+
+        if nodes_match:
+            result["nodes_created"] = int(nodes_match.group(1))
+        if rels_match:
+            result["relationships_created"] = int(rels_match.group(1))
+
+        return result
+
+    def traces(self) -> List[Dict[str, Any]]:
+        """Return all trace spans from this session."""
+        if self._trace:
+            return self._trace.spans
+        return []
+
+    def close(self) -> Dict[str, Any]:
+        """Close the session and finalize traces.
+
+        Returns a summary of the session.
+        """
+        if self._closed:
+            return {"status": "already_closed"}
+
+        self._closed = True
+        summary = {
+            "session_id": self.session_id,
+            "name": self.name,
+            "indexed_documents": len(self.context.indexed_sources),
+            "total_nodes": self.context.total_nodes,
+            "total_relationships": self.context.total_relationships,
+            "queries_answered": len(self.context.queries),
+            "context_summary": self.context.summary(),
+        }
+
+        if self._trace:
+            trace_summary = self._trace.end()
+            summary["trace"] = trace_summary
+
+        return summary
+
+    def __enter__(self) -> "Session":
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        self.close()
+
+    def __repr__(self) -> str:
+        status = "closed" if self._closed else "active"
+        return (
+            f"Session(name={self.name!r}, id={self.session_id!r}, "
+            f"status={status}, docs={len(self.context.indexed_sources)}, "
+            f"queries={len(self.context.queries)})"
+        )

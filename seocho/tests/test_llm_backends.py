@@ -50,7 +50,7 @@ def fake_openai(monkeypatch: pytest.MonkeyPatch) -> None:
     ("provider", "env_name", "base_url", "model"),
     [
         ("deepseek", "DEEPSEEK_API_KEY", "https://api.deepseek.com", "deepseek-chat"),
-        ("kimi", "MOONSHOT_API_KEY", "https://api.moonshot.cn/v1", "kimi-k2.5"),
+        ("kimi", "MOONSHOT_API_KEY", "https://api.moonshot.ai/v1", "kimi-k2.5"),
         ("grok", "XAI_API_KEY", "https://api.x.ai/v1", "grok-4.20-reasoning"),
     ],
 )
@@ -135,6 +135,6 @@ def test_agents_sdk_helpers_build_model_provider_and_run_config(
     run_config = backend.to_agents_run_config()
 
     assert sdk_model.model == "kimi-k2.5"
-    assert sdk_provider.kwargs["base_url"] == "https://api.moonshot.cn/v1"
+    assert sdk_provider.kwargs["base_url"] == "https://api.moonshot.ai/v1"
     assert sdk_provider.kwargs["use_responses"] is False
     assert run_config.model.model == "kimi-k2.5"

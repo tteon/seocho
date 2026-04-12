@@ -484,6 +484,61 @@ class Seocho:
             raise RuntimeError("query() requires local engine mode (ontology + graph_store + llm)")
         return self.graph_store.query(cypher, params=params, database=database)
 
+    # ------------------------------------------------------------------
+    # Agent-level session API
+    # ------------------------------------------------------------------
+
+    def session(
+        self,
+        name: str = "",
+        *,
+        database: Optional[str] = None,
+    ) -> "Session":
+        """Create an agent-level session with context and tracing.
+
+        A session maintains state across ``add()`` and ``ask()`` calls.
+        Each operation runs through an agent with tool use (not bare
+        chat completion), and all operations roll up into a single
+        parent trace in Opik.
+
+        Parameters
+        ----------
+        name:
+            Session name for identification and tracing.
+        database:
+            Default target database for this session.
+
+        Returns
+        -------
+        A :class:`~seocho.session.Session` that can be used as a
+        context manager::
+
+            with s.session("my_analysis") as sess:
+                sess.add("Samsung's CEO is Jay Y. Lee.")
+                answer = sess.ask("Who is Samsung's CEO?")
+
+        Requires local engine mode (ontology + graph_store + llm).
+        """
+        if not self._local_mode:
+            raise RuntimeError(
+                "session() requires local engine mode. "
+                "Provide ontology, graph_store, and llm to Seocho()."
+            )
+
+        from .session import Session
+
+        return Session(
+            name=name,
+            ontology=self.ontology,
+            graph_store=self.graph_store,
+            llm=self.llm,
+            vector_store=self.vector_store,
+            database=database or self.default_database,
+            extraction_prompt=self.extraction_prompt,
+            agent_config=self.agent_config,
+            workspace_id=self.workspace_id,
+        )
+
     def ensure_constraints(self, *, database: str = "neo4j") -> Dict[str, Any]:
         """Apply ontology-derived constraints to the graph database.
 

@@ -49,7 +49,7 @@ _PROVIDER_SPECS: Dict[str, ProviderSpec] = {
     "kimi": ProviderSpec(
         name="kimi",
         api_key_env="MOONSHOT_API_KEY",
-        base_url="https://api.moonshot.cn/v1",
+        base_url="https://api.moonshot.ai/v1",
         default_model="kimi-k2.5",
         default_embedding_model=None,
         supports_embeddings=False,

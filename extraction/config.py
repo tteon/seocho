@@ -18,7 +18,7 @@ import yaml
 
 # DozerDB connection settings (primary)
 # Keep NEO4J_* aliases for compatibility because DozerDB is Neo4j-protocol compatible.
-DOZERDB_URI = os.getenv("DOZERDB_URI", os.getenv("NEO4J_URI", "bolt://neo4j:7687"))
+DOZERDB_URI = os.getenv("DOZERDB_URI", os.getenv("NEO4J_URI", "bolt://localhost:7687"))
 DOZERDB_USER = os.getenv("DOZERDB_USER", os.getenv("NEO4J_USER", "neo4j"))
 DOZERDB_PASSWORD = os.getenv("DOZERDB_PASSWORD", os.getenv("NEO4J_PASSWORD", "password"))
 
@@ -344,7 +344,7 @@ def validate_config() -> None:
         )
 
     logger = logging.getLogger(__name__)
-    if NEO4J_URI == "bolt://neo4j:7687":
+    if NEO4J_URI == "bolt://localhost:7687":
         logger.warning(
             "Using default NEO4J_URI (%s). Set NEO4J_URI env var for production.",
             NEO4J_URI,

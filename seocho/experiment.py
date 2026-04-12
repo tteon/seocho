@@ -138,11 +138,23 @@ class ExperimentRunner:
         strategy = ExtractionStrategy(ontology)
         system, user = strategy.render(text)
 
-        response = llm.complete(
-            system=system, user=user,
-            temperature=0.0,
-            response_format={"type": "json_object"},
-        )
+        # Kimi K2.5 only accepts temperature=1
+        safe_temp = 0.0
+        if hasattr(llm, 'model') and 'kimi' in getattr(llm, 'model', '').lower():
+            safe_temp = 1.0
+
+        try:
+            response = llm.complete(
+                system=system, user=user,
+                temperature=safe_temp,
+                response_format={"type": "json_object"},
+            )
+        except Exception:
+            response = llm.complete(
+                system=system + "\n\nReturn ONLY valid JSON.",
+                user=user,
+                temperature=safe_temp,
+            )
 
         try:
             extracted = response.json()
@@ -566,6 +578,21 @@ class Workbench:
 
     @staticmethod
     def _resolve_llm(model: str) -> Any:
-        """Create LLM backend for a model name."""
-        from .store.llm import OpenAIBackend
-        return OpenAIBackend(model=model)
+        """Create LLM backend for a model name.
+
+        Auto-detects provider from model name:
+        - kimi* → KimiBackend (api.moonshot.ai)
+        - deepseek* → DeepSeekBackend
+        - grok* → GrokBackend
+        - everything else → OpenAIBackend
+        """
+        from .store.llm import create_llm_backend
+
+        model_lower = model.lower()
+        if "kimi" in model_lower or "moonshot" in model_lower:
+            return create_llm_backend(provider="kimi", model=model)
+        if "deepseek" in model_lower:
+            return create_llm_backend(provider="deepseek", model=model)
+        if "grok" in model_lower:
+            return create_llm_backend(provider="grok", model=model)
+        return create_llm_backend(provider="openai", model=model)

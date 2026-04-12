@@ -1,7 +1,0 @@
-timestamp,name,model,input_tokens,output_tokens,total_tokens,nodes,relationships,score,validation_errors,result_count,reasoning_attempts,elapsed_seconds
-2026-04-12T11:11:06.133571+00:00,sdk.experiment,,347,464,811,5,4,0.951,,,,7.82
-2026-04-12T11:11:10.494827+00:00,sdk.experiment,,339,258,597,3,2,0.956,,,,4.29
-2026-04-12T11:11:18.451830+00:00,sdk.experiment,,343,473,816,6,5,0.99,,,,7.89
-2026-04-12T11:11:26.736889+00:00,sdk.experiment,,571,506,1077,5,4,0.963,,,,8.22
-2026-04-12T11:11:31.532809+00:00,sdk.experiment,,563,278,841,3,2,0.967,,,,4.73
-2026-04-12T11:11:39.429241+00:00,sdk.experiment,,567,443,1010,5,4,1.0,,,,7.83

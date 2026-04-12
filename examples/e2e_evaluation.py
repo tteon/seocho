@@ -39,6 +39,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from dotenv import load_dotenv
 load_dotenv()
 
+from output_paths import evaluation_output_dir
+
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -325,8 +327,7 @@ def main(dataset_source: str = "sample", split: str = HF_SPLIT):
     print(f"\n  Queries: {len(query_results)} completed")
 
     # --- Save results ---
-    output_dir = Path(__file__).parent / "datasets" / "results"
-    output_dir.mkdir(exist_ok=True)
+    output_dir = evaluation_output_dir("e2e")
 
     with open(output_dir / "e2e_results.json", "w") as f:
         json.dump({

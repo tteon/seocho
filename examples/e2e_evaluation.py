@@ -40,8 +40,8 @@ load_dotenv()
 # Configuration
 # ---------------------------------------------------------------------------
 
-LPG_DATABASE = "seochoe2elpg"
-RDF_DATABASE = "seochoe2erdf"
+LPG_DATABASE = "finderlpg"
+RDF_DATABASE = "finderrdf"
 NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
 NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "password")
@@ -137,9 +137,10 @@ def main():
     store = Neo4jGraphStore(NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD)
     llm = OpenAIBackend(model=MODEL)
 
-    # Create databases if they don't exist
+    # Verify databases exist
     _ensure_database(store, LPG_DATABASE)
     _ensure_database(store, RDF_DATABASE)
+    print(f"  Using: {LPG_DATABASE} (LPG) + {RDF_DATABASE} (RDF)")
 
     lpg_client = Seocho(ontology=lpg_ontology, graph_store=store, llm=llm,
                         extraction_prompt=PRESET_PROMPTS["finance"])

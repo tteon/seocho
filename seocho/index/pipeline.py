@@ -530,8 +530,12 @@ class IndexingPipeline:
                         response_format={"type": "json_object"},
                     )
                     linked = self._normalize_extraction_payload(link_response.json())
-                    nodes = linked.get("nodes", nodes)
-                    rels = linked.get("relationships", rels)
+                    linked_nodes = linked.get("nodes", [])
+                    linked_rels = linked.get("relationships", [])
+                    if linked_nodes:
+                        nodes = linked_nodes
+                    if linked_rels:
+                        rels = linked_rels
                 except Exception as exc:
                     logger.warning("Linking failed for chunk %d, using raw extraction: %s", i, exc)
 

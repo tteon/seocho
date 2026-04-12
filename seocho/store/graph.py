@@ -29,6 +29,14 @@ logger = logging.getLogger(__name__)
 
 _LABEL_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
+
+def _is_property_value(value: Any) -> bool:
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return True
+    if isinstance(value, list):
+        return all(isinstance(item, (str, int, float, bool)) or item is None for item in value)
+    return False
+
 # Neo4j database naming: 3-63 chars, lowercase alpha start, alphanumeric only
 _VALID_DB_NAME_RE = re.compile(r"^[a-z][a-z0-9]{2,62}$")
 _RESERVED_DB_NAMES = {"system", "neo4j"}
@@ -280,16 +288,30 @@ class Neo4jGraphStore(GraphStore):
                 src = rel.get("source", "")
                 tgt = rel.get("target", "")
                 props = dict(rel.get("properties", {}))
-                props["_source_id"] = source_id
-                props["_workspace_id"] = workspace_id
 
                 try:
+                    set_clauses = [
+                        "r._source_id = $source_id",
+                        "r._workspace_id = $workspace_id",
+                    ]
+                    params: Dict[str, Any] = {
+                        "src": src,
+                        "tgt": tgt,
+                        "source_id": source_id,
+                        "workspace_id": workspace_id,
+                    }
+                    for idx, (key, value) in enumerate(props.items()):
+                        if not _is_property_value(value):
+                            continue
+                        safe_key = key.replace("`", "")
+                        param_name = f"prop_{idx}"
+                        set_clauses.append(f"r.`{safe_key}` = ${param_name}")
+                        params[param_name] = value
                     session.run(
                         f"MATCH (a {{id: $src}}), (b {{id: $tgt}}) "
-                        f"MERGE (a)-[r:{rtype}]->(b) SET r += $props",
-                        src=src,
-                        tgt=tgt,
-                        props=props,
+                        f"MERGE (a)-[r:{rtype}]->(b) "
+                        f"SET {', '.join(set_clauses)}",
+                        **params,
                     )
                     summary["relationships_created"] += 1
                 except Exception as exc:

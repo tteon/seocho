@@ -220,6 +220,134 @@ class Seocho:
         """Get the ontology for a database (registered or default)."""
         return self._ontology_registry.get(database, self.ontology)
 
+    def _require_ontology_contract(self, database: Optional[str] = None) -> Any:
+        ontology = self.get_ontology(database or self.default_database) if database else self.ontology
+        if ontology is None:
+            raise RuntimeError(
+                "An ontology is required for this operation. "
+                "Provide ontology=... when creating the client or register one for the target database."
+            )
+        return ontology
+
+    def approved_artifacts_from_ontology(
+        self,
+        *,
+        database: Optional[str] = None,
+        include_vocabulary: bool = True,
+        include_property_terms: bool = True,
+    ) -> ApprovedArtifacts:
+        """Build a runtime ``ApprovedArtifacts`` payload from the current ontology."""
+        ontology = self._require_ontology_contract(database)
+        return ontology.to_approved_artifacts(
+            include_vocabulary=include_vocabulary,
+            include_property_terms=include_property_terms,
+        )
+
+    def artifact_draft_from_ontology(
+        self,
+        *,
+        database: Optional[str] = None,
+        name: Optional[str] = None,
+        include_vocabulary: bool = True,
+        include_property_terms: bool = True,
+        source_summary: Optional[Dict[str, Any]] = None,
+    ) -> SemanticArtifactDraftInput:
+        """Build a draft semantic artifact payload from the current ontology."""
+        ontology = self._require_ontology_contract(database)
+        return ontology.to_semantic_artifact_draft(
+            name=name,
+            include_vocabulary=include_vocabulary,
+            include_property_terms=include_property_terms,
+            source_summary=source_summary,
+        )
+
+    def prompt_context_from_ontology(
+        self,
+        *,
+        database: Optional[str] = None,
+        instructions: Optional[Sequence[str]] = None,
+        include_vocabulary: bool = True,
+        include_property_terms: bool = True,
+    ) -> SemanticPromptContext:
+        """Build a typed semantic prompt context from the current ontology."""
+        ontology = self._require_ontology_contract(database)
+        return ontology.to_semantic_prompt_context(
+            instructions=instructions,
+            include_vocabulary=include_vocabulary,
+            include_property_terms=include_property_terms,
+        )
+
+    def migrate(
+        self,
+        database: str,
+        new_ontology: Any,
+        *,
+        dry_run: bool = False,
+        apply_constraints: bool = True,
+    ) -> Dict[str, Any]:
+        """Migrate a database from its current ontology to *new_ontology*.
+
+        Computes a migration plan (label/property/relationship diffs), then
+        executes the generated Cypher statements against the target database.
+        After a successful migration the ontology registry is updated
+        automatically.
+
+        Requires local mode (``_local_mode=True``).
+
+        Args:
+            database: Target database to migrate.
+            new_ontology: The :class:`~seocho.ontology.Ontology` to migrate to.
+            dry_run: If ``True``, return the plan without executing anything.
+            apply_constraints: After migration, apply the new ontology's
+                constraints/indexes to the database (default ``True``).
+
+        Returns:
+            Dict with ``plan``, ``executed``, ``errors``, ``dry_run``,
+            and ``constraints`` (if *apply_constraints* is ``True``).
+
+        Raises:
+            RuntimeError: If not in local mode (no graph_store available).
+
+        Example::
+
+            result = seocho.migrate("mydb", new_onto)
+            print(result["plan"]["summary"])
+            # "Migration 1.0 → 2.0: 1 additions, 0 removals, 0 Cypher statements"
+        """
+        if not self._local_mode or self._engine is None:
+            raise RuntimeError(
+                "migrate() requires local mode. "
+                "Initialize Seocho with a graph_store to use migrations."
+            )
+
+        current_ontology = self.get_ontology(database)
+        result = current_ontology.apply_migration(
+            graph_store=self._engine.graph_store,
+            new_ontology=new_ontology,
+            database=database,
+            dry_run=dry_run,
+        )
+
+        if dry_run:
+            return result
+
+        if not result["errors"]:
+            self.register_ontology(database, new_ontology)
+            result["ontology_updated"] = True
+
+            if apply_constraints:
+                try:
+                    constraint_result = self._engine.graph_store.ensure_constraints(
+                        new_ontology, database=database,
+                    )
+                    result["constraints"] = constraint_result
+                except Exception as exc:
+                    result["constraints"] = {"success": 0, "errors": [str(exc)]}
+        else:
+            result["ontology_updated"] = False
+
+        return result
+
     # ------------------------------------------------------------------
     # Core API — works in both modes
     # ------------------------------------------------------------------
@@ -2219,7 +2347,7 @@ class _LocalEngine:
         self._query.schema_info = schema_info
 
         # --- First attempt ---
-        cypher, params, intent_data, error = self._generate_cypher(question)
+        cypher, params, intent_data, error = self._generate_cypher(question, active_ontology)
         if error:
             return error
 
@@ -2249,7 +2377,7 @@ class _LocalEngine:
 
             for attempt_num in range(repair_budget):
                 repair_cypher, repair_params, repair_error = self._generate_repair_query(
-                    question, attempts, schema_info, intent_data,
+                    question, attempts, schema_info, intent_data, active_ontology,
                 )
                 if repair_error or not repair_cypher:
                     break
@@ -2312,6 +2440,7 @@ class _LocalEngine:
                 log_query(
                     question=question,
                     ontology_name=active_ontology.name,
+                    ontology_package=getattr(active_ontology, "package_id", active_ontology.name),
                     model=getattr(self.llm, "model", "unknown"),
                     cypher=cypher,
                     result_count=len(records) if records else 0,
@@ -2333,14 +2462,14 @@ class _LocalEngine:
         except Exception:
             return {}
 
-    def _generate_cypher(self, question: str) -> tuple:
+    def _generate_cypher(self, question: str, ontology: Any) -> tuple:
         """Extract intent via LLM, then build Cypher deterministically.
 
         Returns (cypher, params, intent_data, error_message_or_None).
         """
         from .query.cypher_builder import CypherBuilder
 
-        builder = CypherBuilder(self.ontology)
+        builder = CypherBuilder(ontology)
 
         # Step 1: LLM extracts intent (NOT Cypher)
         intent_prompt = builder.intent_extraction_prompt()
@@ -2397,12 +2526,14 @@ class _LocalEngine:
         attempts: List[Dict],
         schema_info: Dict[str, Any],
         intent_data: Optional[Dict[str, Any]] = None,
+        ontology: Optional[Any] = None,
     ) -> tuple:
         """Generate a repaired Cypher query based on previous failed attempts."""
         if intent_data and str(intent_data.get("intent", "")).startswith("financial_metric_"):
             return "", {}, "Deterministic finance query returned no supported evidence."
 
-        ctx = self.ontology.to_query_context()
+        active_ontology = ontology or self.ontology
+        ctx = active_ontology.to_query_context()
         attempts_summary = "\n".join(
             f"  Attempt {i+1}: {a['cypher'][:100]}... → {a['result_count']} results"
             + (f" (error: {a['error']})" if a.get("error") else "")
@@ -2860,6 +2991,68 @@ class AsyncSeocho:
     ) -> ArtifactDiff:
         """Async version of :meth:`Seocho.diff_artifacts`."""
         return await asyncio.to_thread(self._client.diff_artifacts, left, right)
+
+    async def migrate(
+        self,
+        database: str,
+        new_ontology: Any,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
+        """Async version of :meth:`Seocho.migrate`."""
+        return await asyncio.to_thread(
+            self._client.migrate, database, new_ontology, **kwargs,
+        )
+
+    async def approved_artifacts_from_ontology(
+        self,
+        *,
+        database: Optional[str] = None,
+        include_vocabulary: bool = True,
+        include_property_terms: bool = True,
+    ) -> ApprovedArtifacts:
+        """Async version of :meth:`Seocho.approved_artifacts_from_ontology`."""
+        return await asyncio.to_thread(
+            self._client.approved_artifacts_from_ontology,
+            database=database,
+            include_vocabulary=include_vocabulary,
+            include_property_terms=include_property_terms,
+        )
+
+    async def artifact_draft_from_ontology(
+        self,
+        *,
+        database: Optional[str] = None,
+        name: Optional[str] = None,
+        include_vocabulary: bool = True,
+        include_property_terms: bool = True,
+        source_summary: Optional[Dict[str, Any]] = None,
+    ) -> SemanticArtifactDraftInput:
+        """Async version of :meth:`Seocho.artifact_draft_from_ontology`."""
+        return await asyncio.to_thread(
+            self._client.artifact_draft_from_ontology,
+            database=database,
+            name=name,
+            include_vocabulary=include_vocabulary,
+            include_property_terms=include_property_terms,
+            source_summary=source_summary,
+        )
+
+    async def prompt_context_from_ontology(
+        self,
+        *,
+        database: Optional[str] = None,
+        instructions: Optional[Sequence[str]] = None,
+        include_vocabulary: bool = True,
+        include_property_terms: bool = True,
+    ) -> SemanticPromptContext:
+        """Async version of :meth:`Seocho.prompt_context_from_ontology`."""
+        return await asyncio.to_thread(
+            self._client.prompt_context_from_ontology,
+            database=database,
+            instructions=instructions,
+            include_vocabulary=include_vocabulary,
+            include_property_terms=include_property_terms,
+        )
 
     async def aclose(self) -> None:
         """Async version of :meth:`Seocho.close`."""

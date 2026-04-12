@@ -200,6 +200,19 @@ curl -sS -X POST http://localhost:8001/run_agent_semantic \
 
 You do not need to start by hand-authoring every ontology artifact.
 
+If you already have a local ontology, do not duplicate it manually for runtime
+semantic artifacts. Promote the same ontology into the runtime contract:
+
+```python
+from seocho import Ontology, Seocho
+
+ontology = Ontology.from_jsonld("schema.jsonld")
+client = Seocho(ontology=ontology)
+
+artifacts = client.approved_artifacts_from_ontology()
+draft = client.artifact_draft_from_ontology(name="finance_core_v1")
+```
+
 The practical order is:
 
 1. ingest representative data

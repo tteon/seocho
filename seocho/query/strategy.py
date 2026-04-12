@@ -408,6 +408,22 @@ class ExtractionStrategy(PromptStrategy):
             if auto_template is not None:
                 return auto_template.render(ctx, text)
 
+        # Build system prompt — the ontology-derived prefix is stable across
+        # chunks, maximizing provider-side prompt cache hits.
+        metadata = kwargs.get("metadata")
+        cache_key = (
+            self.category,
+            self.shacl_constraints,
+            self.vocabulary_terms,
+            self.developer_instructions,
+            repr(metadata) if metadata else None,
+        )
+        if not hasattr(self, "_system_prompt_cache"):
+            self._system_prompt_cache: Dict[Any, str] = {}
+        cached = self._system_prompt_cache.get(cache_key)
+        if cached is not None:
+            return cached, f"Text to extract:\n{text}"
+
         parts: List[str] = []
 
         parts.append("You are an expert entity extraction system.")
@@ -439,7 +455,6 @@ class ExtractionStrategy(PromptStrategy):
             parts.append("Developer instructions:")
             parts.append(self.developer_instructions)
 
-        metadata = kwargs.get("metadata")
         if metadata:
             parts.append("")
             parts.append(f"Source metadata: {_sanitize_prompt_value(metadata)}")
@@ -455,6 +470,7 @@ class ExtractionStrategy(PromptStrategy):
         )
 
         system = "\n".join(parts)
+        self._system_prompt_cache[cache_key] = system
         user = f"Text to extract:\n{text}"
         return system, user
 
@@ -491,6 +507,16 @@ class QueryStrategy(PromptStrategy):
         self.vocabulary_terms = vocabulary_terms
 
     def render(self, question: str, **kwargs: Any) -> tuple[str, str]:
+        # Cache the system prompt — it only changes when schema_info or
+        # vocabulary changes, not per question.  Maximizes provider-side
+        # prompt cache hits (OpenAI auto-caches identical prefixes ≥1024 tokens).
+        cache_key = (repr(self.schema_info), self.vocabulary_terms)
+        if not hasattr(self, "_system_prompt_cache"):
+            self._system_prompt_cache: Dict[Any, str] = {}
+        cached = self._system_prompt_cache.get(cache_key)
+        if cached is not None:
+            return cached, f"Question: {question}"
+
         ctx = self.ontology.to_query_context()
         parts: List[str] = []
 
@@ -503,6 +529,11 @@ class QueryStrategy(PromptStrategy):
         parts.append("")
         parts.append("--- Graph Schema ---")
         parts.append(ctx["graph_schema"])
+
+        if ctx.get("ontology_profile"):
+            parts.append("")
+            parts.append("--- Ontology Query Profile ---")
+            parts.append(ctx["ontology_profile"])
 
         if ctx.get("query_hints"):
             parts.append("")
@@ -529,6 +560,7 @@ class QueryStrategy(PromptStrategy):
         )
 
         system = "\n".join(parts)
+        self._system_prompt_cache[cache_key] = system
         user = f"Question: {question}"
         return system, user
 
@@ -548,6 +580,8 @@ class QueryStrategy(PromptStrategy):
 
         parts.append("You are a knowledge graph answer synthesis agent.")
         parts.append(f'Working with the "{ctx["ontology_name"]}" graph.')
+        if ctx.get("ontology_profile"):
+            parts.append("Ontology profile: " + ctx["ontology_profile"])
         parts.append("")
         parts.append("Available node types: " + ctx["node_types"])
         parts.append("Available relationships: " + ctx["relationship_types"])
@@ -611,6 +645,11 @@ class RDFQueryStrategy(PromptStrategy):
         parts.append("--- Graph Schema ---")
         parts.append(ctx["graph_schema"])
 
+        if ctx.get("ontology_profile"):
+            parts.append("")
+            parts.append("--- Ontology Query Profile ---")
+            parts.append(ctx["ontology_profile"])
+
         if ctx.get("query_hints"):
             parts.append("")
             parts.append("--- Query Hints ---")
@@ -641,6 +680,8 @@ class RDFQueryStrategy(PromptStrategy):
         parts: List[str] = []
         parts.append("You are an RDF knowledge graph answer agent.")
         parts.append(f'Working with the "{ctx["ontology_name"]}" RDF graph.')
+        if ctx.get("ontology_profile"):
+            parts.append("Ontology profile: " + ctx["ontology_profile"])
         parts.append("Node types: " + ctx["node_types"])
         parts.append("Produce a clear factual answer from the query results.")
 

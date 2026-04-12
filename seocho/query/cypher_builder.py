@@ -169,6 +169,7 @@ class CypherBuilder:
         return intent_data
 
     def intent_extraction_prompt(self) -> str:
+        profile = self.ontology.to_query_profile()
         labels = list(self.ontology.nodes.keys())
         rel_descriptions = []
         for rtype, rd in self.ontology.relationships.items():
@@ -190,6 +191,9 @@ class CypherBuilder:
             "You MUST use ONLY the node types and relationship types listed here.\n"
             "Do NOT invent new types — if the question implies a relationship not in the list,\n"
             "use the closest matching relationship or set relationship_type to empty.\n\n"
+            f"Ontology query profile: package_id={profile['package_id']}, "
+            f"version={profile['version']}, graph_model={profile['graph_model']}.\n"
+            f"Deterministic intents supported: {', '.join(profile['deterministic_intents'])}.\n\n"
             f"Node types:\n{node_block}\n\n"
             f"Relationship types (ONLY these exist in the graph):\n{rel_block}\n\n"
             "Return a JSON object with:\n"

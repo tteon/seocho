@@ -27,6 +27,25 @@ What they are for:
 - drive extraction prompts, validation, and query generation
 - act as the portable schema contract you can version in git
 
+How the same ontology reaches both local SDK and runtime paths:
+
+```python
+from seocho import Ontology, Seocho
+
+ontology = Ontology.from_jsonld("schema.jsonld")
+client = Seocho(ontology=ontology)
+
+artifacts = client.approved_artifacts_from_ontology()
+prompt_context = client.prompt_context_from_ontology()
+draft = client.artifact_draft_from_ontology(name="finance_core_v1")
+```
+
+Use this when:
+
+- local indexing/querying should use the ontology directly
+- runtime ingest/query should use the same ontology through approved semantic artifacts
+- you want one schema contract instead of a separate hand-maintained runtime payload
+
 ## 2. Local Graph Data
 
 Typical path:
@@ -64,6 +83,16 @@ What lives there:
 - draft and approved ontology candidates
 - SHACL-like shape candidates
 - vocabulary candidates used for governed semantic retrieval
+
+How to create them from the same local ontology:
+
+```python
+from seocho import Ontology, Seocho
+
+ontology = Ontology.from_jsonld("schema.jsonld")
+client = Seocho(ontology=ontology)
+draft = client.artifact_draft_from_ontology(name="finance_core_v1")
+```
 
 How to inspect:
 
@@ -161,3 +190,9 @@ That means the current first-run product path is:
 1. store graph state in `data/neo4j/`
 2. talk to the runtime through `extraction-service`
 3. optionally use the thin local UI in `evaluation-interface`
+
+And the ontology-first path is:
+
+1. author or inspect `schema.jsonld`
+2. use it directly in local SDK mode
+3. convert it into typed runtime semantic artifacts when the server/runtime path needs the same constraints

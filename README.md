@@ -111,6 +111,23 @@ client.add("ACME acquired Beta in 2024.")
 print(client.ask("Who did ACME acquire?", reasoning_mode=True, repair_budget=2))
 ```
 
+The same ontology object can also be promoted into the runtime artifact
+contract instead of maintaining a second schema representation:
+
+```python
+artifacts = client.approved_artifacts_from_ontology()
+prompt_context = client.prompt_context_from_ontology(
+    instructions=["Prefer finance ontology labels and relationships."]
+)
+draft = client.artifact_draft_from_ontology(name="finance_core_v1")
+
+client.add_with_details(
+    "ACME acquired Beta in 2024.",
+    prompt_context=prompt_context,
+    approved_artifacts=artifacts,
+)
+```
+
 ### 3. Run the local platform stack with UI + API + graph DB
 
 ```bash
@@ -137,6 +154,7 @@ See [docs/FILES_AND_ARTIFACTS.md](docs/FILES_AND_ARTIFACTS.md) for where
 | **Constraints** | UNIQUE/INDEX generated from ontology and can be applied to Neo4j |
 | **Denormalization** | Cardinality rules determine safe flattening |
 | **Reasoning** | Optional low-quality retry re-extracts with ontology guidance |
+| **Runtime parity** | The same ontology can be converted into approved semantic artifacts and typed prompt context |
 
 ## Key Features
 
@@ -171,6 +189,13 @@ s.ensure_constraints(database="neo4j")
 # seocho ontology diff --left schema_v1.jsonld --right schema_v2.jsonld
 # diff output now includes package_id, recommended version bump, and migration warnings
 
+# Build runtime-safe semantic artifacts from the same ontology contract
+artifacts = s.approved_artifacts_from_ontology()
+draft = s.artifact_draft_from_ontology(name="finance_core_v1")
+prompt_context = s.prompt_context_from_ontology(
+    instructions=["Treat finance.core as authoritative."]
+)
+
 # Experiment workbench
 from seocho.experiment import Workbench
 wb = Workbench(input_texts=["text..."])
@@ -189,14 +214,15 @@ configure_tracing_from_env()            # SEOCHO_TRACE_BACKEND=none|console|json
 
 # Agent design configuration
 from seocho import AgentConfig, AGENT_PRESETS
+onto = Ontology.from_jsonld("schema.jsonld")
 s = Seocho(ontology=onto, ..., agent_config=AGENT_PRESETS["strict"])
 
 # Agent-level session (context persists across operations)
 with s.session("my_analysis") as sess:
-    sess.add("Samsung CEO Jay Y. Lee reported $234B revenue.")
-    sess.add("Apple CEO Tim Cook reported $383B revenue.")
-    answer = sess.ask("Compare Samsung and Apple revenue")
-    # → structured entity context passed to QueryAgent
+    sess.add("ACME acquired Beta in 2024.")
+    sess.add("Beta provides risk analytics to ACME.")
+    answer = sess.ask("What does ACME own or use?")
+    # → the same ontology from schema.jsonld drives indexing, query prompts, and session context
 
 # Supervisor with sub-agent hand-off (explicit opt-in)
 from seocho import RoutingPolicy
@@ -205,8 +231,8 @@ s = Seocho(ontology=onto, ..., agent_config=AgentConfig(
     routing_policy=RoutingPolicy(latency=0.1, token_efficiency=0.3, information_quality=0.6),
 ))
 with s.session("auto") as sess:
-    sess.run("Samsung CEO is Jay Y. Lee")    # → IndexingAgent
-    sess.run("Who is Samsung's CEO?")        # → QueryAgent
+    sess.run("ACME acquired Beta in 2024.")  # → IndexingAgent
+    sess.run("What does ACME know about Beta?")  # → QueryAgent
 
 # Ontology merge (combine two schemas)
 finance = Ontology.from_jsonld("finance.jsonld")

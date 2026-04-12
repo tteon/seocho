@@ -111,6 +111,35 @@ Local-mode constructor parameters you should understand:
 - `llm`: OpenAI-compatible extraction/query backend
 - `ontology`: schema contract that drives extraction, validation, and query generation
 
+## 2.1 Use One Ontology Across Local And Runtime Paths
+
+This is the intended product shape:
+
+1. author one ontology
+2. use it directly in local SDK mode
+3. convert that same ontology into typed runtime artifacts when you need the server/runtime path
+
+```python
+from seocho import Ontology, Seocho
+
+ontology = Ontology.from_jsonld("schema.jsonld")
+client = Seocho(ontology=ontology)
+
+artifacts = client.approved_artifacts_from_ontology()
+prompt_context = client.prompt_context_from_ontology(
+    instructions=["Prefer finance ontology labels and constraints."]
+)
+draft = client.artifact_draft_from_ontology(name="finance_core_v1")
+```
+
+Use the helpers like this:
+
+- `approved_artifacts_from_ontology()`: build runtime-safe `ApprovedArtifacts`
+- `prompt_context_from_ontology()`: build typed semantic prompt context from the same ontology
+- `artifact_draft_from_ontology()`: build a draft payload for the semantic artifact lifecycle APIs
+
+That keeps `schema.jsonld`, local SDK prompts, SHACL validation, and runtime semantic artifacts on one contract.
+
 ## 3. Put Your Data In
 
 ### 3.1 Add one memory
@@ -124,6 +153,19 @@ memory = client.add(
 )
 
 print(memory.memory_id)
+```
+
+If you are indexing through the runtime path but still want the same ontology to
+govern the request:
+
+```python
+result = client.add_with_details(
+    "ACME acquired Beta in 2024.",
+    prompt_context=client.prompt_context_from_ontology(),
+    approved_artifacts=client.approved_artifacts_from_ontology(),
+)
+
+print(result.ingest_summary)
 ```
 
 ### 3.2 Ingest a batch of raw records
@@ -504,15 +546,28 @@ Three execution modes are available via ``AgentConfig``:
 
 ```python
 from seocho import Seocho, Ontology, AgentConfig, RoutingPolicy, AGENT_PRESETS
+from seocho.store import Neo4jGraphStore, OpenAIBackend
+
+onto = Ontology.from_jsonld("schema.jsonld")
+store = Neo4jGraphStore("bolt://localhost:7687", "neo4j", "password")
+llm = OpenAIBackend(model="gpt-4o-mini")
 
 # Pipeline mode (default) — deterministic, no LLM reasoning about flow
 s = Seocho(ontology=onto, graph_store=store, llm=llm)
 
 with s.session("analysis") as sess:
-    sess.add("Samsung CEO Jay Y. Lee reported $234B revenue.")
-    sess.add("Apple CEO Tim Cook reported $383B revenue.")
-    # QueryAgent sees structured context: entities + relationships
-    answer = sess.ask("Compare Samsung and Apple revenue")
+    sess.add("ACME acquired Beta in 2024.")
+    sess.add("Beta provides risk analytics to ACME.")
+    # QueryAgent sees structured context derived from the same ontology
+    answer = sess.ask("What does ACME know about Beta?")
+```
+
+If the same ontology must also govern runtime ingest, reuse it instead of
+authoring a second payload:
+
+```python
+runtime_artifacts = s.approved_artifacts_from_ontology()
+runtime_prompt_context = s.prompt_context_from_ontology()
 ```
 
 ### Agent mode (LLM decides tool execution order)
@@ -537,8 +592,8 @@ s = Seocho(
 )
 
 with s.session("auto") as sess:
-    sess.run("Samsung CEO is Jay Y. Lee")    # → IndexingAgent
-    sess.run("Who is Samsung's CEO?")        # → QueryAgent
+    sess.run("ACME acquired Beta in 2024.")      # → IndexingAgent
+    sess.run("What does ACME know about Beta?")  # → QueryAgent
 ```
 
 ### Routing policy presets
@@ -590,6 +645,13 @@ curl -sS "http://localhost:8001/semantic/artifacts?workspace_id=default" | jq .
 ```
 
 See `FILES_AND_ARTIFACTS.md` for the full map.
+
+The practical ontology file flow is:
+
+1. save the ontology as `schema.jsonld`
+2. inspect it with `seocho ontology check --schema schema.jsonld`
+3. derive SHACL with `seocho ontology export --schema schema.jsonld --format shacl --output shacl.json`
+4. use the same ontology to build runtime artifacts with `approved_artifacts_from_ontology()`
 
 ## 19. Read Next
 

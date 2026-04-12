@@ -127,7 +127,7 @@ def make_score_extraction_tool(ontology: Any):
     return score_extraction
 
 
-def make_write_to_graph_tool(graph_store: Any, ontology: Any):
+def make_write_to_graph_tool(graph_store: Any, ontology: Any = None):
     """Create a write_to_graph tool bound to this graph store."""
     from agents import function_tool
 
@@ -153,9 +153,8 @@ def make_write_to_graph_tool(graph_store: Any, ontology: Any):
 
         try:
             summary = graph_store.write(
-                nodes=nodes,
-                relationships=rels,
-                ontology=ontology,
+                nodes,
+                rels,
                 database=database,
                 source_id=source_id,
             )

@@ -12,6 +12,7 @@ If you want to improve Cypher generation or answer quality, start here.
 
 from .cypher_builder import CypherBuilder
 from .strategy import (
+    CATEGORY_PROMPT_MAP,
     ExtractionStrategy,
     LinkingStrategy,
     PRESET_PROMPTS,

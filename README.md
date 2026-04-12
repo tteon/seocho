@@ -124,6 +124,37 @@ recent_runs = seocho.semantic_runs(limit=5, route="lpg")
 print(recent_runs[0].run_id)
 ```
 
+Portable SDK-authored runtimes can now be exported and served over HTTP.
+This lets one developer author an ontology-first local engine with the SDK and
+let other developers consume it through the normal HTTP client mode:
+
+```python
+from seocho import Seocho
+
+client = Seocho(
+    ontology=ontology,
+    graph_store=graph_store,
+    llm=llm,
+    agent_config=agent_config,
+)
+client.export_runtime_bundle("portable.bundle.json", default_database="neo4j")
+```
+
+```bash
+seocho serve-http --bundle portable.bundle.json --host 0.0.0.0 --port 8010
+```
+
+```python
+from seocho import Seocho
+
+remote = Seocho(base_url="http://localhost:8010", workspace_id="default")
+print(remote.ask("What do you know about Alex?"))
+```
+
+Current portable bundle runtime is intentionally narrow. It is meant for
+`add`/`ask`/`chat`/`search`/basic `semantic` compatibility, not the full
+governance and debate surface of the main server runtime.
+
 Recommended execution order:
 
 - `ask` / `chat` for memory-first use

@@ -73,6 +73,7 @@ from .models import (
     SemanticRunRecord,
     SemanticRunResponse,
 )
+from .runtime_bundle import RuntimeBundle, build_runtime_bundle, create_client_from_runtime_bundle
 
 logger = logging.getLogger(__name__)
 
@@ -1034,6 +1035,31 @@ class Seocho:
         right: SemanticArtifact | SemanticArtifactDraftInput | Dict[str, Any],
     ) -> ArtifactDiff:
         return diff_artifact_payloads(left, right)
+
+    def export_runtime_bundle(
+        self,
+        path: Optional[str] = None,
+        *,
+        app_name: Optional[str] = None,
+        default_database: str = "neo4j",
+    ) -> RuntimeBundle:
+        bundle = build_runtime_bundle(
+            self,
+            app_name=app_name,
+            default_database=default_database,
+        )
+        if path:
+            bundle.save(path)
+        return bundle
+
+    @classmethod
+    def from_runtime_bundle(
+        cls,
+        bundle_source: RuntimeBundle | str,
+        *,
+        workspace_id: Optional[str] = None,
+    ) -> "Seocho":
+        return create_client_from_runtime_bundle(bundle_source, workspace_id=workspace_id)
 
     def close(self) -> None:
         self._graph_catalog_cache = None

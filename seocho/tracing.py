@@ -1,130 +1,277 @@
 """
-SDK-level Opik tracing — optional observability for indexing, querying,
+SDK-level tracing — pluggable observability for indexing, querying,
 and experiment workbench runs.
 
-All tracing is gated behind ``enable_tracing``. When Opik is not
-installed or not configured, everything is a no-op.
+Multiple backends supported::
 
-Usage::
-
-    from seocho import Seocho
     from seocho.tracing import enable_tracing
 
-    enable_tracing(project_name="my-project")
+    # Opik (hosted or self-hosted)
+    enable_tracing(backend="opik", project_name="my-project")
 
-    s = Seocho(ontology=onto, graph_store=store, llm=llm)
-    s.add("text")   # ← traced automatically
-    s.ask("q?")     # ← traced automatically
+    # Raw JSON lines file (no dependencies)
+    enable_tracing(backend="jsonl", output="./traces/seocho.jsonl")
 
-Workbench integration::
+    # Console output (debugging)
+    enable_tracing(backend="console")
 
-    from seocho.experiment import Workbench
-    wb = Workbench(input_texts=["..."])
-    wb.vary("model", ["gpt-4o", "gpt-4o-mini"])
-    results = wb.run_all()  # each run traced as Opik experiment
+    # Multiple backends at once
+    enable_tracing(backend=["opik", "jsonl"], output="./traces/seocho.jsonl")
+
+    # Custom backend
+    class MyTracer(TracingBackend):
+        def log_span(self, name, **kwargs): ...
+
+    enable_tracing(backend=MyTracer())
 """
 
 from __future__ import annotations
 
 import functools
+import json
 import logging
 import os
 import time
-from typing import Any, Callable, Dict, Optional
+from abc import ABC, abstractmethod
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional, Sequence, Union
 
 logger = logging.getLogger(__name__)
 
 # Module-level state
-_TRACING_ENABLED = False
-_OPIK_CLIENT = None
+_BACKENDS: List["TracingBackend"] = []
+
+
+# ======================================================================
+# Abstract backend
+# ======================================================================
+
+class TracingBackend(ABC):
+    """Base class for tracing backends."""
+
+    @abstractmethod
+    def log_span(
+        self,
+        name: str,
+        *,
+        input_data: Optional[Dict[str, Any]] = None,
+        output_data: Optional[Dict[str, Any]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        tags: Optional[List[str]] = None,
+    ) -> None:
+        """Log a single span/event."""
+
+    def close(self) -> None:
+        """Cleanup resources."""
+
+
+# ======================================================================
+# Built-in backends
+# ======================================================================
+
+class OpikBackend(TracingBackend):
+    """Opik tracing backend."""
+
+    def __init__(
+        self,
+        *,
+        url: Optional[str] = None,
+        workspace: Optional[str] = None,
+        project_name: Optional[str] = None,
+    ) -> None:
+        try:
+            import opik as _opik
+            self._opik = _opik
+        except ImportError:
+            raise ImportError("OpikBackend requires opik: pip install opik")
+
+        self._url = url or os.getenv("OPIK_URL", os.getenv("OPIK_URL_OVERRIDE", ""))
+        self._workspace = workspace or os.getenv("OPIK_WORKSPACE", "default")
+        self._project = project_name or os.getenv("OPIK_PROJECT_NAME", "seocho-sdk")
+
+        try:
+            self._client = self._opik.Opik(
+                project_name=self._project,
+                workspace=self._workspace,
+            )
+        except Exception:
+            self._client = None
+
+    def log_span(
+        self,
+        name: str,
+        *,
+        input_data: Optional[Dict[str, Any]] = None,
+        output_data: Optional[Dict[str, Any]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        tags: Optional[List[str]] = None,
+    ) -> None:
+        if self._client is None:
+            return
+        try:
+            self._client.log_spans([{
+                "name": name,
+                "input": input_data or {},
+                "output": output_data or {},
+                "metadata": metadata or {},
+                "tags": tags or [],
+            }])
+        except Exception as exc:
+            logger.debug("Opik log failed: %s", exc)
+
+
+class JSONLBackend(TracingBackend):
+    """Write traces as JSON lines to a file. No dependencies needed."""
+
+    def __init__(self, output: Union[str, Path] = "./traces/seocho.jsonl") -> None:
+        self._path = Path(output)
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        self._file = open(self._path, "a", encoding="utf-8")
+
+    def log_span(
+        self,
+        name: str,
+        *,
+        input_data: Optional[Dict[str, Any]] = None,
+        output_data: Optional[Dict[str, Any]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        tags: Optional[List[str]] = None,
+    ) -> None:
+        record = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "name": name,
+            "input": input_data or {},
+            "output": output_data or {},
+            "metadata": metadata or {},
+            "tags": tags or [],
+        }
+        try:
+            self._file.write(json.dumps(record, default=str) + "\n")
+            self._file.flush()
+        except Exception as exc:
+            logger.debug("JSONL write failed: %s", exc)
+
+    def close(self) -> None:
+        self._file.close()
+
+
+class ConsoleBackend(TracingBackend):
+    """Print traces to stdout. Useful for debugging."""
+
+    def log_span(
+        self,
+        name: str,
+        *,
+        input_data: Optional[Dict[str, Any]] = None,
+        output_data: Optional[Dict[str, Any]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        tags: Optional[List[str]] = None,
+    ) -> None:
+        ts = datetime.now().strftime("%H:%M:%S")
+        out = output_data or {}
+        meta = metadata or {}
+        parts = [f"[{ts}] {name}"]
+        if tags:
+            parts.append(f"tags={tags}")
+        for k, v in out.items():
+            parts.append(f"{k}={v}")
+        for k, v in meta.items():
+            if k not in ("elapsed_seconds",):
+                parts.append(f"{k}={v}")
+        elapsed = meta.get("elapsed_seconds")
+        if elapsed is not None:
+            parts.append(f"({elapsed:.1f}s)")
+        print("  ".join(parts))
+
+
+# ======================================================================
+# Public API
+# ======================================================================
+
+_BACKEND_MAP = {
+    "opik": OpikBackend,
+    "jsonl": JSONLBackend,
+    "console": ConsoleBackend,
+}
 
 
 def enable_tracing(
     *,
+    backend: Union[str, TracingBackend, List[Union[str, TracingBackend]]] = "console",
+    output: Optional[str] = None,
     url: Optional[str] = None,
     workspace: Optional[str] = None,
     project_name: Optional[str] = None,
 ) -> bool:
-    """Enable Opik tracing for the SDK.
+    """Enable tracing with one or more backends.
 
     Parameters
     ----------
-    url:
-        Opik backend URL. Defaults to ``OPIK_URL`` env var.
-    workspace:
-        Opik workspace. Defaults to ``OPIK_WORKSPACE`` env var or "default".
-    project_name:
-        Opik project name. Defaults to ``OPIK_PROJECT_NAME`` env var or "seocho-sdk".
+    backend:
+        Backend name(s) or instance(s):
+        - ``"opik"`` — Opik hosted/self-hosted
+        - ``"jsonl"`` — raw JSON lines file
+        - ``"console"`` — stdout
+        - ``TracingBackend`` instance — custom
+        - list of above — multiple backends
+    output:
+        File path for JSONL backend.
+    url, workspace, project_name:
+        Opik-specific configuration.
 
-    Returns
-    -------
-    True if tracing was successfully enabled.
+    Returns True if at least one backend was enabled.
     """
-    global _TRACING_ENABLED, _OPIK_CLIENT
+    global _BACKENDS
 
-    try:
-        import opik
-    except ImportError:
-        logger.info("Opik not installed — tracing disabled. Install with: pip install opik")
-        return False
+    backends_input = backend if isinstance(backend, list) else [backend]
+    new_backends: List[TracingBackend] = []
 
-    resolved_url = url or os.getenv("OPIK_URL", os.getenv("OPIK_URL_OVERRIDE", ""))
-    resolved_workspace = workspace or os.getenv("OPIK_WORKSPACE", "default")
-    resolved_project = project_name or os.getenv("OPIK_PROJECT_NAME", "seocho-sdk")
+    for b in backends_input:
+        if isinstance(b, TracingBackend):
+            new_backends.append(b)
+            continue
 
-    try:
-        _OPIK_CLIENT = opik.Opik(
-            project_name=resolved_project,
-            workspace=resolved_workspace,
-        )
-        _TRACING_ENABLED = True
-        logger.info("Opik tracing enabled (project=%s)", resolved_project)
-        return True
-    except Exception as exc:
-        logger.warning("Failed to enable Opik tracing: %s", exc)
-        return False
+        if isinstance(b, str):
+            try:
+                if b == "opik":
+                    new_backends.append(OpikBackend(
+                        url=url, workspace=workspace, project_name=project_name,
+                    ))
+                elif b == "jsonl":
+                    new_backends.append(JSONLBackend(output=output or "./traces/seocho.jsonl"))
+                elif b == "console":
+                    new_backends.append(ConsoleBackend())
+                else:
+                    logger.warning("Unknown tracing backend: %s", b)
+            except Exception as exc:
+                logger.warning("Failed to init backend %s: %s", b, exc)
+
+    _BACKENDS = new_backends
+    if new_backends:
+        names = [type(b).__name__ for b in new_backends]
+        logger.info("Tracing enabled: %s", ", ".join(names))
+    return len(new_backends) > 0
 
 
 def disable_tracing() -> None:
-    """Disable Opik tracing."""
-    global _TRACING_ENABLED, _OPIK_CLIENT
-    _TRACING_ENABLED = False
-    _OPIK_CLIENT = None
+    """Disable all tracing backends."""
+    global _BACKENDS
+    for b in _BACKENDS:
+        try:
+            b.close()
+        except Exception:
+            pass
+    _BACKENDS = []
 
 
 def is_tracing_enabled() -> bool:
-    """Check if tracing is active."""
-    return _TRACING_ENABLED
+    """Check if any tracing backend is active."""
+    return len(_BACKENDS) > 0
 
 
 # ---------------------------------------------------------------------------
-# Decorators
-# ---------------------------------------------------------------------------
-
-def traced(name: str) -> Callable:
-    """Decorator that creates an Opik trace for the decorated function.
-
-    No-op when tracing is disabled.
-    """
-    def decorator(fn: Callable) -> Callable:
-        @functools.wraps(fn)
-        def wrapper(*args: Any, **kwargs: Any) -> Any:
-            if not _TRACING_ENABLED:
-                return fn(*args, **kwargs)
-
-            try:
-                import opik
-                trace = opik.track(name=name)(fn)
-                return trace(*args, **kwargs)
-            except Exception:
-                return fn(*args, **kwargs)
-
-        return wrapper
-    return decorator
-
-
-# ---------------------------------------------------------------------------
-# Manual span helpers
+# Internal logging functions (called by SDK modules)
 # ---------------------------------------------------------------------------
 
 def log_span(
@@ -133,27 +280,20 @@ def log_span(
     input_data: Optional[Dict[str, Any]] = None,
     output_data: Optional[Dict[str, Any]] = None,
     metadata: Optional[Dict[str, Any]] = None,
-    tags: Optional[list] = None,
-    duration_seconds: Optional[float] = None,
+    tags: Optional[List[str]] = None,
 ) -> None:
-    """Log a standalone span to Opik.
-
-    Useful for tracking individual pipeline steps (extraction, validation,
-    query generation) without using the decorator pattern.
-    """
-    if not _TRACING_ENABLED or _OPIK_CLIENT is None:
-        return
-
-    try:
-        _OPIK_CLIENT.log_spans([{
-            "name": name,
-            "input": input_data or {},
-            "output": output_data or {},
-            "metadata": metadata or {},
-            "tags": tags or [],
-        }])
-    except Exception as exc:
-        logger.debug("Failed to log span: %s", exc)
+    """Log a span to ALL active backends."""
+    for b in _BACKENDS:
+        try:
+            b.log_span(
+                name,
+                input_data=input_data,
+                output_data=output_data,
+                metadata=metadata,
+                tags=tags,
+            )
+        except Exception:
+            pass
 
 
 def log_extraction(
@@ -168,7 +308,7 @@ def log_extraction(
     elapsed_seconds: float,
     metadata: Optional[Dict[str, Any]] = None,
 ) -> None:
-    """Log an extraction event to Opik."""
+    """Log an extraction event."""
     log_span(
         "sdk.extraction",
         input_data={"text_preview": text_preview[:200], "ontology": ontology_name, "model": model},
@@ -193,7 +333,7 @@ def log_query(
     reasoning_attempts: int = 0,
     elapsed_seconds: float = 0.0,
 ) -> None:
-    """Log a query event to Opik."""
+    """Log a query event."""
     log_span(
         "sdk.query",
         input_data={"question": question[:200], "ontology": ontology_name},
@@ -216,8 +356,7 @@ def log_experiment_run(
     elapsed_seconds: float,
     usage: Optional[Dict[str, int]] = None,
 ) -> None:
-    """Log a Workbench experiment run to Opik."""
-    param_str = " | ".join(f"{k}={v}" for k, v in params.items())
+    """Log a Workbench experiment run."""
     log_span(
         "sdk.experiment",
         input_data={"params": params},
@@ -228,8 +367,42 @@ def log_experiment_run(
         },
         metadata={
             "elapsed_seconds": round(elapsed_seconds, 2),
-            "param_string": param_str,
             **({"usage": usage} if usage else {}),
         },
         tags=["experiment", f"score:{score:.0%}"],
     )
+
+
+# ---------------------------------------------------------------------------
+# Decorator
+# ---------------------------------------------------------------------------
+
+def traced(name: str) -> Callable:
+    """Decorator that logs a span for the decorated function."""
+    def decorator(fn: Callable) -> Callable:
+        @functools.wraps(fn)
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            if not _BACKENDS:
+                return fn(*args, **kwargs)
+
+            start = time.time()
+            try:
+                result = fn(*args, **kwargs)
+                elapsed = time.time() - start
+                log_span(
+                    name,
+                    metadata={"elapsed_seconds": round(elapsed, 2)},
+                    tags=["function"],
+                )
+                return result
+            except Exception as exc:
+                elapsed = time.time() - start
+                log_span(
+                    name,
+                    metadata={"elapsed_seconds": round(elapsed, 2), "error": str(exc)},
+                    tags=["function", "error"],
+                )
+                raise
+
+        return wrapper
+    return decorator

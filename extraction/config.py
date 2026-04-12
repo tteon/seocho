@@ -5,13 +5,14 @@ All Neo4j and shared config should be imported from here
 instead of duplicating os.getenv() calls across modules.
 """
 
+import logging
 import os
 import re
-import logging
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse
 
 import yaml
 
@@ -346,5 +347,13 @@ def validate_config() -> None:
     if NEO4J_URI == "bolt://neo4j:7687":
         logger.warning(
             "Using default NEO4J_URI (%s). Set NEO4J_URI env var for production.",
+            NEO4J_URI,
+        )
+
+    parsed_uri = urlparse(NEO4J_URI)
+    if parsed_uri.hostname == "neo4j" and not os.path.exists("/.dockerenv"):
+        logger.warning(
+            "NEO4J_URI=%s uses the Docker-internal hostname 'neo4j'. "
+            "Host-side SDK/scripts should usually use bolt://localhost:7687 instead.",
             NEO4J_URI,
         )

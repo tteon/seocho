@@ -1,4 +1,34 @@
 """Backward-compatible re-export — canonical location is ``seocho.store.llm``."""
-from seocho.store.llm import LLMBackend, LLMResponse, OpenAIBackend  # noqa: F401
+from seocho.store.llm import (  # noqa: F401
+    DeepSeekBackend,
+    EmbeddingBackend,
+    GrokBackend,
+    KimiBackend,
+    LLMBackend,
+    LLMResponse,
+    OpenAIBackend,
+    OpenAICompatibleBackend,
+    OpenAICompatibleEmbeddingBackend,
+    ProviderSpec,
+    create_embedding_backend,
+    create_llm_backend,
+    get_provider_spec,
+    list_provider_specs,
+)
 
-__all__ = ["LLMBackend", "LLMResponse", "OpenAIBackend"]
+__all__ = [
+    "ProviderSpec",
+    "LLMBackend",
+    "EmbeddingBackend",
+    "LLMResponse",
+    "OpenAICompatibleBackend",
+    "OpenAICompatibleEmbeddingBackend",
+    "OpenAIBackend",
+    "DeepSeekBackend",
+    "KimiBackend",
+    "GrokBackend",
+    "get_provider_spec",
+    "list_provider_specs",
+    "create_llm_backend",
+    "create_embedding_backend",
+]

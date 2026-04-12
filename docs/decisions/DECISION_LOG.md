@@ -28,7 +28,7 @@ Each entry must link to a full ADR when impact is non-trivial.
 
 - Accepted `ADR-0001-aip-platform-baseline.md`
   - OpenAI Agents SDK as agent runtime
-  - Opik for tracing/evaluation
+  - observability wording later superseded by ADR-0045 (vendor-neutral trace contract, Opik preferred backend)
   - DozerDB fixed as backend graph DB
   - Single-tenant MVP, multi-tenant-ready data model
   - `owlready2` allowed only for offline policy validation/compilation
@@ -219,6 +219,11 @@ Each entry must link to a full ADR when impact is non-trivial.
   - keep scheduled improvement automation review-first with no direct push to `main`
 
 ## 2026-04-12
+
+- Accepted `ADR-0045-vendor-neutral-tracing-and-explicit-opik-opt-in.md`
+  - define the runtime tracing contract as `none|console|jsonl|opik`
+  - treat JSONL as the canonical neutral trace artifact and Opik as the preferred team backend
+  - require explicit Opik enablement before wrapping SDK OpenAI clients or activating Opik exporter paths
 
 - Accepted `ADR-0043-ontology-governance-cli-and-owlready2-boundary.md`
   - tighten README ontology lifecycle wording so it matches actual runtime behavior

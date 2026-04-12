@@ -5,7 +5,9 @@ This document is the canonical workflow reference for SEOCHO operations.
 ## Stack Baseline
 
 - Agent runtime: OpenAI Agents SDK
-- Tracing/evaluation: Opik
+- Tracing/evaluation contract: vendor-neutral (`none|console|jsonl|opik`)
+- Preferred team observability backend: Opik
+- Canonical neutral trace artifact: JSONL
 - Graph backend: DozerDB
 - MVP tenancy: single-tenant with `workspace_id` propagated end-to-end
 
@@ -79,7 +81,8 @@ Primary surfaces:
 - for custom interactive UX, run `/platform/chat/send`
 - monitor split health surfaces (`/health/runtime`, `/health/batch`)
 - enforce runtime policy checks
-- capture traces in Opik
+- capture traces through the configured observability backend
+- prefer `jsonl` as the portable artifact and Opik as the optional team exporter
 
 Semantic path summary:
 

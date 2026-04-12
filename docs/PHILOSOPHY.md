@@ -10,7 +10,7 @@ This document captures the non-negotiable design philosophy for SEOCHO and how i
 4. Map graph instances to graph agents in a 1:1 model.
 5. Keep router agent as the default request entrypoint and delegate to graph agents that can answer the query.
 6. Use supervisor-style orchestration for router <-> graph-agent collaboration, with ontology metadata driving query-to-instance allocation.
-7. Track and manage all agent-layer flow data with Opik.
+7. Track and manage all agent-layer flow data through a vendor-neutral trace contract, with JSONL as the canonical artifact and Opik as the preferred team exporter.
 
 ## Additional Perspectives
 
@@ -26,7 +26,8 @@ This document captures the non-negotiable design philosophy for SEOCHO and how i
 - Versioned ontology lifecycle:
   - Ontology files (`.ttl`, hint artifacts, profiles) are control-plane assets with explicit versioning and rollback.
 - Observability as a product surface:
-  - Opik traces are not only debugging artifacts; they are operating evidence for trust and governance.
+  - Trace artifacts must remain portable and reviewable outside any single vendor.
+  - Opik traces are preferred team-facing evidence for trust and governance, not the only valid runtime contract.
 - Cost-and-SLO bounded orchestration:
   - Debate/semantic paths must expose measurable latency and cost envelopes for production viability.
 - Deterministic degradation:
@@ -57,7 +58,7 @@ For multi-role feasibility reviews (frontend/backend/architect/software engineer
   - `extraction/semantic_query_flow.py`
 - Flow telemetry and auditability:
   - `extraction/tracing.py`
-  - Opik profile in `docker-compose.yml`
+  - JSONL trace artifacts and optional Opik profile in `docker-compose.yml`
 
 ## Operating Checks
 
@@ -68,7 +69,7 @@ Before promotion to production-like use:
 2. Routing:
    - Confirm router decisions align with ontology-backed graph metadata.
 3. Traceability:
-   - Verify Opik spans include enough metadata to reconstruct decision path.
+   - Verify JSONL traces and, when enabled, Opik spans include enough metadata to reconstruct decision path.
 4. UI contract:
    - Ensure workflow canvas lineage uses backend topology fields, not inferred-only links.
 5. Governance:

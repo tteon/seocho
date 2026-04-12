@@ -71,9 +71,12 @@ from .session import Session
 from .tracing import (
     SessionTrace,
     begin_session,
+    configure_tracing_from_env,
+    current_backend_names,
     disable_tracing,
     enable_tracing,
     flush_tracing,
+    is_backend_enabled,
     is_tracing_enabled,
 )
 from .runtime_bundle import (
@@ -242,6 +245,9 @@ __all__ = [
     "SemanticEvaluationHarness",
     # --- Tracing / session ---
     "begin_session",
+    "configure_tracing_from_env",
+    "current_backend_names",
+    "is_backend_enabled",
     # --- Module-level convenience functions ---
     "__version__",
     "add",

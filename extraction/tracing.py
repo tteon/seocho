@@ -1,14 +1,26 @@
 """
-Centralized Opik tracing module.
+Centralized tracing integration for extraction/runtime services.
 
-All tracing integration is gated behind ``OPIK_ENABLED`` so that the
-extraction pipeline works identically when Opik services are not running.
+The cross-repository trace contract is vendor-neutral:
+``SEOCHO_TRACE_BACKEND=none|console|jsonl|opik``.
+
+This module currently activates the Opik exporter path only when
+``SEOCHO_TRACE_BACKEND=opik``. Other values keep runtime behavior intact
+and simply disable Opik-specific instrumentation.
 """
 
 import logging
 import inspect
 
-from config import OPIK_ENABLED, OPIK_URL, OPIK_WORKSPACE, OPIK_PROJECT_NAME
+from config import (
+    OPIK_API_KEY,
+    OPIK_ENABLED,
+    OPIK_MODE,
+    OPIK_PROJECT_NAME,
+    OPIK_URL,
+    OPIK_WORKSPACE,
+    TRACE_BACKEND,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -34,10 +46,13 @@ def configure_opik() -> None:
             kwargs["url"] = OPIK_URL
 
         # Newer Opik SDKs can explicitly run in self-hosted mode.
-        if "use_local" in configure_params:
-            kwargs["use_local"] = True
-        elif "api_key" in configure_params:
-            kwargs["api_key"] = None  # legacy self-hosted path
+        if OPIK_MODE == "self_host":
+            if "use_local" in configure_params:
+                kwargs["use_local"] = True
+            elif "api_key" in configure_params:
+                kwargs["api_key"] = None  # legacy self-hosted path
+        elif OPIK_API_KEY and "api_key" in configure_params:
+            kwargs["api_key"] = OPIK_API_KEY
 
         if "workspace" in configure_params:
             kwargs["workspace"] = OPIK_WORKSPACE
@@ -46,7 +61,13 @@ def configure_opik() -> None:
 
         opik.configure(**kwargs)
         _opik_configured = True
-        logger.info("Opik tracing configured: %s (project=%s)", OPIK_URL, OPIK_PROJECT_NAME)
+        logger.info(
+            "Opik tracing configured: backend=%s mode=%s url=%s project=%s",
+            TRACE_BACKEND,
+            OPIK_MODE,
+            OPIK_URL,
+            OPIK_PROJECT_NAME,
+        )
     except Exception as exc:
         logger.warning("Failed to configure Opik – tracing disabled: %s", exc)
 
@@ -54,7 +75,7 @@ def configure_opik() -> None:
 def wrap_openai_client(client):
     """Wrap an OpenAI client with Opik auto-tracing.
 
-    Returns the original client unchanged when Opik is disabled.
+    Returns the original client unchanged unless Opik tracing is explicitly enabled.
     """
     if not OPIK_ENABLED:
         return client
@@ -70,7 +91,7 @@ def wrap_openai_client(client):
 def track(name: str):
     """Decorator for function-level tracing.
 
-    No-ops gracefully when Opik is disabled.
+    No-ops gracefully unless Opik tracing is explicitly enabled.
     """
     def decorator(fn):
         if not OPIK_ENABLED:

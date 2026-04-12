@@ -12,7 +12,9 @@ When a user uploads documents in the frontend, SEOCHO should:
 ## 2. Fixed Constraints (Consensus)
 
 - Runtime agent stack: OpenAI Agents SDK
-- Trace/eval: Opik
+- Trace/eval contract: vendor-neutral (`none|console|jsonl|opik`)
+- Preferred team backend: Opik
+- Canonical neutral artifact: JSONL
 - Graph backend: DozerDB
 - MVP tenancy: single-tenant, `workspace_id` propagated
 - Ontology reasoning:

@@ -7,7 +7,9 @@ SEOCHO transforms unstructured data into structured Knowledge Graphs. It impleme
 Current baseline:
 
 - Agent runtime: OpenAI Agents SDK
-- Trace/evaluation: Opik
+- Trace/evaluation contract: vendor-neutral (`none|console|jsonl|opik`)
+- Preferred team backend: Opik
+- Canonical neutral artifact: JSONL
 - Graph backend: DozerDB (Neo4j protocol compatible)
 
 ## Priority Execution Board (2026-02-21)
@@ -249,8 +251,8 @@ Offline ontology governance operators should prefer the SDK CLI surface:
 
 | Module | File | Purpose |
 |--------|------|---------|
-| Tracing | `extraction/tracing.py` | Opik integration: `configure_opik()`, `wrap_openai_client()`, `@track`, `update_current_span` |
-| Config | `extraction/config.py` | `OPIK_URL`, `OPIK_WORKSPACE`, `OPIK_PROJECT_NAME`, `OPIK_ENABLED` |
+| Tracing | `extraction/tracing.py` | Vendor-neutral trace contract with optional Opik exporter activation: `configure_opik()`, `wrap_openai_client()`, `@track`, `update_current_span` |
+| Config | `extraction/config.py` | `SEOCHO_TRACE_BACKEND`, `SEOCHO_TRACE_JSONL_PATH`, `SEOCHO_TRACE_OPIK_MODE`, `OPIK_URL`, `OPIK_WORKSPACE`, `OPIK_PROJECT_NAME` |
 
 ### UI Layer
 
@@ -379,10 +381,10 @@ context = bridge.render_extraction_context()
 - **Capabilities**: Allows the user to select semantic candidates, trigger override re-queries, and maintains strict session-level dialog history.
 - **Additional capability**: Supports direct raw-text ingestion (`Ingest Raw`) before query execution.
 
-### Opik (Production Eval & Trace)
-- **Purpose**: Production eval, debugging, LLM scoring, and deep agent visualization.
+### Opik (Optional Team Exporter)
+- **Purpose**: Team-grade eval, debugging, LLM scoring, and deep agent visualization.
 - **Location**: `http://localhost:5173` (opt-in via `docker compose --profile opik up -d`).
-- **Tracing**: `@track` decorators + `wrap_openai_client` trigger automated telemetry → building a native span tree.
+- **Tracing**: activated only when the trace backend is explicitly set to `opik`; otherwise runtime traces can stay local in JSONL or console form.
 - **Capabilities**: Captures parent-child span trees, exact LLM costs/latency, custom datasets & experiments, and prompt scoring metrics.
 
 ### Opik Span Tree (Debate Pattern)
@@ -430,9 +432,14 @@ NEO4J_USER=neo4j
 NEO4J_PASSWORD=password
 
 # Opik (opt-in)
+SEOCHO_TRACE_BACKEND=none
+SEOCHO_TRACE_JSONL_PATH=./traces/seocho-runtime.jsonl
+SEOCHO_TRACE_OPIK_MODE=self_host
 OPIK_VERSION=1.10.18
 OPIK_URL=http://opik-backend:8080
+OPIK_WORKSPACE=default
 OPIK_PROJECT_NAME=seocho
+OPIK_API_KEY=
 ```
 
 ### Pipeline Config (`extraction/conf/`)

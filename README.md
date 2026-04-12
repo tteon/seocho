@@ -106,10 +106,12 @@ results = wb.run_all()
 print(results.leaderboard())
 
 # Pluggable tracing
-from seocho import enable_tracing
-enable_tracing(backend="console")       # stdout
-enable_tracing(backend="jsonl")         # raw file
-enable_tracing(backend="opik")          # Opik cloud
+from seocho import enable_tracing, configure_tracing_from_env
+enable_tracing(backend="none")          # disable tracing explicitly
+enable_tracing(backend="console")       # stdout only
+enable_tracing(backend="jsonl")         # canonical neutral trace artifact
+enable_tracing(backend="opik")          # optional exporter (hosted or self-hosted)
+configure_tracing_from_env()            # SEOCHO_TRACE_BACKEND=none|console|jsonl|opik
 
 # Agent design configuration
 from seocho import AgentConfig, AGENT_PRESETS
@@ -183,6 +185,25 @@ onto = Ontology(name="fibo", graph_model="rdf",
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture |
 | [docs/WORKFLOW.md](docs/WORKFLOW.md) | Operational workflow |
 | [docs/ISSUE_TASK_SYSTEM.md](docs/ISSUE_TASK_SYSTEM.md) | Sprint/task governance |
+
+## Observability Modes
+
+- `none`: no tracing; smallest surface and lowest data retention risk.
+- `console`: ephemeral stdout debugging for local development.
+- `jsonl`: canonical neutral trace artifact for local files, replay, and vendor-neutral retention.
+- `opik`: optional exporter/backend for hosted or self-hosted team observability.
+
+Recommended defaults:
+
+- sensitive data or simple local usage: `none` or `jsonl`
+- team debugging and evaluation: `jsonl + opik`
+- private infra: self-hosted Opik with `SEOCHO_TRACE_OPIK_MODE=self_host`
+
+Retention and privacy guidance:
+
+- JSONL retention follows your filesystem policy; rotate or delete trace files explicitly.
+- Opik retention follows the target Opik deployment policy, whether hosted or self-hosted.
+- prompts, retrieval evidence, and metadata may appear in traces; avoid remote exporters for sensitive workloads unless governance is approved.
 
 ## Server Mode (Platform Operators)
 

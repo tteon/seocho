@@ -6,7 +6,7 @@ Use this file as the primary operational contract when implementing changes.
 ## 1. Current Product Consensus
 
 - Agent runtime: **OpenAI Agents SDK**
-- Trace/evaluation: **Opik**
+- Trace/evaluation contract: **vendor-neutral**, with **Opik preferred** for team observability
 - Graph DB backend: **DozerDB** (fixed)
 - Tenancy mode: **single-tenant MVP** with `workspace_id` propagated end-to-end
 - Ontology governance: **Owlready2 in offline path only** (no heavy reasoning in request hot path)
@@ -175,7 +175,7 @@ Rules constraints:
 
 - use `@track` for critical orchestration functions
 - include `workspace_id` and user context in trace metadata where applicable
-- use Opik for runtime tracing; avoid ad-hoc trace-only side channels
+- keep trace artifacts vendor-neutral; prefer JSONL as the portable record and Opik as the optional team exporter
 
 ## 10. Frontend-Driven Upload Flow (Target)
 
@@ -237,7 +237,7 @@ Critical alignment checks:
 - graph instance lifecycle and graph-agent lifecycle should remain 1:1 unless an ADR explicitly changes this.
 - router/supervisor request allocation should be grounded in ontology-backed graph metadata.
 - backend trace topology metadata is a contract for frontend DAG rendering, not an optional hint.
-- Opik traces should preserve enough metadata to audit routing, semantic disambiguation, and synthesis paths.
+- JSONL traces and, when enabled, Opik traces should preserve enough metadata to audit routing, semantic disambiguation, and synthesis paths.
 
 ## 15. Architecture Priority Execution (Active)
 

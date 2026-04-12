@@ -79,6 +79,7 @@ class OpikBackend(TracingBackend):
         url: Optional[str] = None,
         workspace: Optional[str] = None,
         project_name: Optional[str] = None,
+        api_key: Optional[str] = None,
     ) -> None:
         try:
             import opik as _opik
@@ -89,13 +90,25 @@ class OpikBackend(TracingBackend):
         self._url = url or os.getenv("OPIK_URL", os.getenv("OPIK_URL_OVERRIDE", ""))
         self._workspace = workspace or os.getenv("OPIK_WORKSPACE", "default")
         self._project = project_name or os.getenv("OPIK_PROJECT_NAME", "seocho-sdk")
+        self._api_key = api_key or os.getenv("OPIK_API_KEY", "")
 
         try:
-            self._client = self._opik.Opik(
+            # Configure Opik (supports both cloud and self-hosted)
+            kwargs: Dict[str, Any] = {}
+            if self._api_key:
+                kwargs["api_key"] = self._api_key
+            if self._url:
+                kwargs["url_override"] = self._url
+            if self._workspace and self._workspace != "default":
+                kwargs["workspace"] = self._workspace
+
+            self._opik.configure(
                 project_name=self._project,
-                workspace=self._workspace,
+                **kwargs,
             )
-        except Exception:
+            self._client = True  # configured via global state
+        except Exception as exc:
+            logger.warning("Opik configure failed: %s", exc)
             self._client = None
 
     def log_span(
@@ -110,13 +123,28 @@ class OpikBackend(TracingBackend):
         if self._client is None:
             return
         try:
-            self._client.log_spans([{
-                "name": name,
-                "input": input_data or {},
-                "output": output_data or {},
-                "metadata": metadata or {},
-                "tags": tags or [],
-            }])
+            # Use opik.track as a function call for cloud compatibility
+            self._opik.track(
+                name=name,
+                input=input_data or {},
+                output=output_data or {},
+                metadata=metadata or {},
+                tags=tags or [],
+            )
+        except AttributeError:
+            # Fallback: try direct trace logging
+            try:
+                trace = self._opik.Opik().trace(name=name)
+                trace.span(
+                    name=name,
+                    input=input_data or {},
+                    output=output_data or {},
+                    metadata=metadata or {},
+                    tags=tags or [],
+                )
+                trace.end()
+            except Exception:
+                pass
         except Exception as exc:
             logger.debug("Opik log failed: %s", exc)
 
@@ -203,6 +231,7 @@ def enable_tracing(
     url: Optional[str] = None,
     workspace: Optional[str] = None,
     project_name: Optional[str] = None,
+    api_key: Optional[str] = None,
 ) -> bool:
     """Enable tracing with one or more backends.
 
@@ -236,7 +265,8 @@ def enable_tracing(
             try:
                 if b == "opik":
                     new_backends.append(OpikBackend(
-                        url=url, workspace=workspace, project_name=project_name,
+                        url=url, workspace=workspace,
+                        project_name=project_name, api_key=api_key,
                     ))
                 elif b == "jsonl":
                     new_backends.append(JSONLBackend(output=output or "./traces/seocho.jsonl"))
@@ -406,3 +436,77 @@ def traced(name: str) -> Callable:
 
         return wrapper
     return decorator
+
+
+# ---------------------------------------------------------------------------
+# CSV Export
+# ---------------------------------------------------------------------------
+
+def export_traces_csv(
+    jsonl_path: str,
+    csv_path: str,
+    *,
+    fields: Optional[List[str]] = None,
+) -> int:
+    """Convert a JSONL trace file to CSV.
+
+    Parameters
+    ----------
+    jsonl_path:
+        Path to the .jsonl trace file.
+    csv_path:
+        Output CSV path.
+    fields:
+        CSV column names. Defaults to standard set.
+
+    Returns number of records exported.
+    """
+    import csv as csv_mod
+
+    if fields is None:
+        fields = [
+            "timestamp", "name", "model",
+            "input_tokens", "output_tokens", "total_tokens",
+            "nodes", "relationships", "score", "validation_errors",
+            "result_count", "reasoning_attempts",
+            "elapsed_seconds",
+        ]
+
+    records = []
+    with open(jsonl_path, "r") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                raw = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+            out = raw.get("output", {})
+            meta = raw.get("metadata", {})
+            usage = meta.get("usage", {})
+
+            record = {
+                "timestamp": raw.get("timestamp", ""),
+                "name": raw.get("name", ""),
+                "model": meta.get("model", raw.get("input", {}).get("model", "")),
+                "input_tokens": usage.get("prompt_tokens", ""),
+                "output_tokens": usage.get("completion_tokens", ""),
+                "total_tokens": usage.get("total_tokens", ""),
+                "nodes": out.get("nodes", ""),
+                "relationships": out.get("relationships", ""),
+                "score": out.get("score", ""),
+                "validation_errors": out.get("validation_errors", ""),
+                "result_count": out.get("result_count", ""),
+                "reasoning_attempts": out.get("reasoning_attempts", ""),
+                "elapsed_seconds": meta.get("elapsed_seconds", ""),
+            }
+            records.append(record)
+
+    with open(csv_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv_mod.DictWriter(f, fieldnames=fields, extrasaction="ignore")
+        writer.writeheader()
+        writer.writerows(records)
+
+    return len(records)

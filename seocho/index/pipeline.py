@@ -219,7 +219,7 @@ class IndexingPipeline:
         on_after_write: Optional[Callable] = None,
     ) -> None:
         from seocho.ontology import Ontology
-        from .prompt_strategy import ExtractionStrategy, LinkingStrategy
+        from seocho.query.strategy import ExtractionStrategy, LinkingStrategy
 
         self.ontology: Ontology = ontology
         self.graph_store = graph_store

@@ -29,6 +29,73 @@ logger = logging.getLogger(__name__)
 
 _LABEL_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
+# Neo4j database naming: 3-63 chars, lowercase alpha start, alphanumeric only
+_VALID_DB_NAME_RE = re.compile(r"^[a-z][a-z0-9]{2,62}$")
+_RESERVED_DB_NAMES = {"system", "neo4j"}
+
+
+class DatabaseNameError(ValueError):
+    """Raised when a database name violates Neo4j naming rules."""
+
+
+def validate_database_name(name: str) -> str:
+    """Validate a Neo4j database name.
+
+    Rules:
+    - 3–63 characters
+    - Starts with a lowercase letter
+    - Lowercase alphanumeric only (no hyphens, underscores, dots)
+    - ``system`` and ``neo4j`` are reserved
+
+    Raises :class:`DatabaseNameError` with a clear message if invalid.
+    """
+    if name in _RESERVED_DB_NAMES:
+        raise DatabaseNameError(
+            f"'{name}' is a reserved Neo4j database name. "
+            f"Choose a different name."
+        )
+    if not _VALID_DB_NAME_RE.match(name):
+        suggestions = []
+        if len(name) < 3:
+            suggestions.append("must be at least 3 characters")
+        if name != name.lower():
+            suggestions.append("must be lowercase")
+        if re.search(r"[^a-z0-9]", name):
+            suggestions.append("only lowercase letters and digits allowed (no hyphens, underscores, dots)")
+        if name and not name[0].isalpha():
+            suggestions.append("must start with a letter")
+        if len(name) > 63:
+            suggestions.append("must be 63 characters or fewer")
+
+        hint = "; ".join(suggestions) if suggestions else "invalid format"
+        raise DatabaseNameError(
+            f"Invalid Neo4j database name: '{name}'. {hint}.\n"
+            f"Example valid names: 'financedemo', 'finderlpg', 'myproject2025'"
+        )
+    return name
+
+
+def sanitize_database_name(raw: str) -> str:
+    """Convert a raw string into a valid Neo4j database name.
+
+    - Lowercases
+    - Strips non-alphanumeric characters
+    - Ensures minimum length
+    - Prepends 'db' if starts with digit
+    """
+    name = re.sub(r"[^a-z0-9]", "", raw.lower())
+    if not name:
+        name = "seocho"
+    if name[0].isdigit():
+        name = "db" + name
+    if len(name) < 3:
+        name = name + "db"
+    if len(name) > 63:
+        name = name[:63]
+    if name in _RESERVED_DB_NAMES:
+        name = name + "data"
+    return name
+
 
 # ---------------------------------------------------------------------------
 # Abstract base
@@ -158,6 +225,7 @@ class Neo4jGraphStore(GraphStore):
 
         self._driver = GraphDatabase.driver(uri, auth=(user, password))
         self._uri = uri
+        self._user = user
 
     def write(
         self,
@@ -411,6 +479,39 @@ class Neo4jGraphStore(GraphStore):
                             pass
 
         return summary
+
+    def ensure_database(self, name: str) -> bool:
+        """Create a database if it doesn't exist.
+
+        Validates the name against Neo4j rules first.
+
+        Returns True if the database was created, False if it already existed.
+
+        Raises :class:`DatabaseNameError` if the name is invalid.
+        """
+        validate_database_name(name)
+
+        try:
+            with self._driver.session(database="system") as session:
+                result = session.run("SHOW DATABASES")
+                existing = {r["name"] for r in result}
+                if name in existing:
+                    return False
+                session.run(f"CREATE DATABASE {name} IF NOT EXISTS")
+                logger.info("Created database: %s", name)
+                return True
+        except Exception as exc:
+            logger.warning("Could not create database '%s': %s", name, exc)
+            return False
+
+    def list_databases(self) -> List[str]:
+        """List all available databases."""
+        try:
+            with self._driver.session(database="system") as session:
+                result = session.run("SHOW DATABASES")
+                return [r["name"] for r in result if r["name"] not in _RESERVED_DB_NAMES]
+        except Exception:
+            return []
 
     def close(self) -> None:
         self._driver.close()

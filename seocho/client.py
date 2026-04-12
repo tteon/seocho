@@ -36,6 +36,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 from typing import Any, Dict, List, Optional, Sequence
 from urllib.parse import urljoin
 
@@ -76,6 +77,7 @@ from .models import (
 from .runtime_bundle import RuntimeBundle, build_runtime_bundle, create_client_from_runtime_bundle
 
 logger = logging.getLogger(__name__)
+_FOUR_DIGIT_YEAR_RE = re.compile(r"\b(20\d{2})\b")
 
 
 def _env_str(name: str, default: str) -> str:
@@ -141,6 +143,9 @@ class Seocho:
             from .agent_config import AgentConfig
             agent_config = AgentConfig()
         self.agent_config = agent_config
+
+        # Default database — auto-generated from ontology if not specified
+        self.default_database = self._resolve_default_database(ontology)
 
         # Determine mode
         self._local_mode = ontology is not None and graph_store is not None and llm is not None
@@ -211,7 +216,7 @@ class Seocho:
         In HTTP mode: sends to the SEOCHO server.
         """
         if self._local_mode:
-            db = database or "neo4j"
+            db = database or self.default_database
             return self._engine.add(
                 content,
                 database=db,
@@ -260,7 +265,7 @@ class Seocho:
         In HTTP mode: delegates to the SEOCHO chat endpoint.
         """
         if self._local_mode:
-            db = database or (databases[0] if databases and len(databases) > 0 else "neo4j")
+            db = database or (databases[0] if databases and len(databases) > 0 else self.default_database)
             return self._engine.ask(
                 message,
                 database=db,
@@ -1067,6 +1072,26 @@ class Seocho:
         if self._local_mode and hasattr(self.graph_store, "close"):
             self.graph_store.close()
 
+    @staticmethod
+    def _resolve_default_database(ontology: Optional[Any]) -> str:
+        """Generate an agent-friendly database name from ontology.
+
+        Naming convention: {domain}{graphmodel}
+        - agent가 이름만 보고 도메인과 그래프 모델을 알 수 있음
+        - 예: financelpg, legallpg, newsrdf, fibordf
+
+        Falls back to 'neo4j' if no ontology is provided.
+        """
+        if ontology is None:
+            return "neo4j"
+
+        from .store.graph import sanitize_database_name
+
+        domain = ontology.name.lower().replace(" ", "").replace("-", "").replace("_", "")
+        model = getattr(ontology, "graph_model", "lpg") or "lpg"
+        raw = f"{domain}{model}"
+        return sanitize_database_name(raw)
+
     # ------------------------------------------------------------------
     # Internals
     # ------------------------------------------------------------------
@@ -1520,11 +1545,13 @@ class _LocalEngine:
         self.llm = llm
         self.workspace_id = workspace_id
         self.agent_config: AgentConfig = agent_config or AgentConfig()
+        self.extraction_prompt = extraction_prompt
 
         # Indexing pipeline (handles chunking, extraction, validation, dedup, write)
         self._indexing = IndexingPipeline(
             ontology=ontology, graph_store=graph_store,
             llm=llm, workspace_id=workspace_id,
+            extraction_prompt=extraction_prompt,
         )
 
         # Pre-build strategies (for extract-only and query)
@@ -1559,6 +1586,7 @@ class _LocalEngine:
                 graph_store=self.graph_store,
                 llm=self.llm,
                 workspace_id=self.workspace_id,
+                extraction_prompt=self.extraction_prompt,
                 strict_validation=strict_validation,
             )
         else:
@@ -1695,7 +1723,7 @@ class _LocalEngine:
         self._query.schema_info = schema_info
 
         # --- First attempt ---
-        cypher, params, error = self._generate_cypher(question)
+        cypher, params, intent_data, error = self._generate_cypher(question)
         if error:
             return error
 
@@ -1710,7 +1738,7 @@ class _LocalEngine:
 
             for attempt_num in range(repair_budget):
                 repair_cypher, repair_params, repair_error = self._generate_repair_query(
-                    question, attempts, schema_info,
+                    question, attempts, schema_info, intent_data,
                 )
                 if repair_error or not repair_cypher:
                     break
@@ -1728,6 +1756,10 @@ class _LocalEngine:
                     records = repair_records
                     cypher = repair_cypher
                     break
+
+        deterministic_answer = self._build_deterministic_answer(question, records, intent_data)
+        if deterministic_answer:
+            return deterministic_answer
 
         # --- Synthesize answer ---
         reasoning_trace = None
@@ -1776,7 +1808,7 @@ class _LocalEngine:
     def _generate_cypher(self, question: str) -> tuple:
         """Extract intent via LLM, then build Cypher deterministically.
 
-        Returns (cypher, params, error_message_or_None).
+        Returns (cypher, params, intent_data, error_message_or_None).
         """
         from .query.cypher_builder import CypherBuilder
 
@@ -1795,8 +1827,9 @@ class _LocalEngine:
             intent_data = response.json()
         except (json.JSONDecodeError, ValueError):
             logger.error("LLM returned non-JSON intent: %s", response.text[:200])
-            # Fallback: treat as neighbor query for the entire question
             intent_data = {"intent": "neighbors", "anchor_entity": question}
+
+        intent_data = builder.normalize_intent(question, intent_data)
 
         # Step 2: Code builds correct Cypher from intent
         try:
@@ -1807,14 +1840,19 @@ class _LocalEngine:
                 target_entity=intent_data.get("target_entity", ""),
                 target_label=intent_data.get("target_label", ""),
                 relationship_type=intent_data.get("relationship_type", ""),
+                metric_name=intent_data.get("metric_name", ""),
+                metric_aliases=intent_data.get("metric_aliases", ()),
+                metric_scope_tokens=intent_data.get("metric_scope_tokens", ()),
+                years=intent_data.get("years", ()),
+                workspace_id=self.workspace_id,
             )
         except Exception as exc:
             logger.error("Cypher build failed: %s", exc)
-            return "", {}, "I could not build a query for your question."
+            return "", {}, intent_data, "I could not build a query for your question."
 
         if not cypher:
-            return "", {}, "I could not determine how to query the graph."
-        return cypher, params, None
+            return "", {}, intent_data, "I could not determine how to query the graph."
+        return cypher, params, intent_data, None
 
     def _execute_cypher(self, cypher: str, params: Dict, database: str) -> tuple:
         """Returns (records, error_message_or_None)."""
@@ -1830,8 +1868,12 @@ class _LocalEngine:
         question: str,
         attempts: List[Dict],
         schema_info: Dict[str, Any],
+        intent_data: Optional[Dict[str, Any]] = None,
     ) -> tuple:
         """Generate a repaired Cypher query based on previous failed attempts."""
+        if intent_data and str(intent_data.get("intent", "")).startswith("financial_metric_"):
+            return "", {}, "Deterministic finance query returned no supported evidence."
+
         ctx = self.ontology.to_query_context()
         attempts_summary = "\n".join(
             f"  Attempt {i+1}: {a['cypher'][:100]}... → {a['result_count']} results"
@@ -1864,6 +1906,212 @@ class _LocalEngine:
             return "", {}, "Repair query generation failed"
 
         return plan.get("cypher", ""), plan.get("params", {}), None
+
+    def _build_deterministic_answer(
+        self,
+        question: str,
+        records: Sequence[Dict[str, Any]],
+        intent_data: Optional[Dict[str, Any]],
+    ) -> Optional[str]:
+        if not intent_data:
+            return None
+        intent = str(intent_data.get("intent", "")).strip()
+        if intent not in {"financial_metric_lookup", "financial_metric_delta"}:
+            return None
+        return self._build_financial_answer(question, records, intent_data)
+
+    def _build_financial_answer(
+        self,
+        question: str,
+        records: Sequence[Dict[str, Any]],
+        intent_data: Dict[str, Any],
+    ) -> Optional[str]:
+        years = [str(year) for year in intent_data.get("years", []) if str(year).strip()]
+        rows = self._normalize_financial_rows(records)
+        if not rows:
+            return None
+
+        selected_rows = self._select_financial_rows(rows, intent_data)
+        if not selected_rows:
+            return None
+
+        intent = str(intent_data.get("intent", ""))
+        metric_label = self._humanize_metric_label(intent_data)
+        company = selected_rows[0].get("company", "")
+
+        if intent == "financial_metric_delta":
+            target_years = self._ordered_years(years or [row["year"] for row in selected_rows])
+            if len(target_years) < 2:
+                return None
+            start_year, end_year = target_years[0], target_years[-1]
+            by_year = {row["year"]: row for row in selected_rows if row.get("year")}
+            start_row = by_year.get(start_year)
+            end_row = by_year.get(end_year)
+            if not start_row or not end_row:
+                available = ", ".join(sorted(by_year.keys()))
+                return (
+                    f"I found related {metric_label} evidence for {company or 'the company'}, "
+                    f"but not enough period coverage to compare {start_year} and {end_year}. "
+                    f"Available years: {available or 'none'}."
+                )
+
+            delta = round(end_row["value"] - start_row["value"], 3)
+            direction = "increased" if delta > 0 else "decreased" if delta < 0 else "was flat"
+            delta_abs = self._format_financial_number(abs(delta))
+            start_value = self._format_financial_number(start_row["value"])
+            end_value = self._format_financial_number(end_row["value"])
+            if direction == "was flat":
+                return (
+                    f"For {company}, {metric_label} was flat from {start_year} to {end_year} "
+                    f"at ${end_value}."
+                )
+            return (
+                f"For {company}, {metric_label} {direction} by ${delta_abs} from {start_year} to {end_year}, "
+                f"calculated as ${end_value} minus ${start_value}."
+            )
+
+        best_row = selected_rows[-1]
+        year_suffix = f" in {best_row['year']}" if best_row.get("year") else ""
+        return f"For {company}, {metric_label} was ${self._format_financial_number(best_row['value'])}{year_suffix}."
+
+    def _normalize_financial_rows(self, records: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        rows: List[Dict[str, Any]] = []
+        seen: set[tuple[str, str, float, str]] = set()
+        for record in records:
+            if "metric_name" not in record or "value" not in record:
+                continue
+            value = self._coerce_number(record.get("value"))
+            if value is None:
+                continue
+            year = self._coerce_year(record.get("year"), record.get("metric_name"), record.get("company"))
+            company = str(record.get("company", "")).strip()
+            metric_name = str(record.get("metric_name", "")).strip()
+            key = (company, year, value, metric_name)
+            if key in seen:
+                continue
+            seen.add(key)
+            rows.append(
+                {
+                    "company": company,
+                    "metric_name": metric_name,
+                    "year": year,
+                    "value": value,
+                    "relationship": str(record.get("relationship", "")),
+                }
+            )
+        return rows
+
+    def _select_financial_rows(
+        self,
+        rows: Sequence[Dict[str, Any]],
+        intent_data: Dict[str, Any],
+    ) -> List[Dict[str, Any]]:
+        anchor = str(intent_data.get("anchor_entity", "")).strip()
+        target_years = self._ordered_years(intent_data.get("years", []))
+        metric_aliases = [str(alias).lower() for alias in intent_data.get("metric_aliases", [])]
+        scope_tokens = [str(token).lower() for token in intent_data.get("metric_scope_tokens", [])]
+
+        grouped: Dict[str, List[Dict[str, Any]]] = {}
+        for row in rows:
+            grouped.setdefault(row.get("company", ""), []).append(row)
+
+        best_company = ""
+        best_score = -1
+        for company, company_rows in grouped.items():
+            years_present = {row.get("year", "") for row in company_rows if row.get("year")}
+            metric_hits = 0
+            for row in company_rows:
+                text = str(row.get("metric_name", "")).lower()
+                metric_hits += sum(1 for token in scope_tokens if token in text)
+                metric_hits += sum(1 for alias in metric_aliases if alias in text)
+            coverage = sum(1 for year in target_years if year in years_present)
+            company_score = coverage * 10 + metric_hits + self._company_match_score(company, anchor)
+            if company_score > best_score:
+                best_score = company_score
+                best_company = company
+
+        selected = grouped.get(best_company, list(rows))
+        if not target_years:
+            return list(selected)
+
+        best_by_year: Dict[str, Dict[str, Any]] = {}
+        for row in selected:
+            year = row.get("year", "")
+            if not year:
+                continue
+            score = self._row_match_score(row, anchor, metric_aliases, scope_tokens)
+            current = best_by_year.get(year)
+            if current is None or score > self._row_match_score(current, anchor, metric_aliases, scope_tokens):
+                best_by_year[year] = row
+        return [best_by_year[year] for year in target_years if year in best_by_year]
+
+    def _row_match_score(
+        self,
+        row: Dict[str, Any],
+        anchor: str,
+        metric_aliases: Sequence[str],
+        scope_tokens: Sequence[str],
+    ) -> int:
+        score = self._company_match_score(str(row.get("company", "")), anchor)
+        metric_text = str(row.get("metric_name", "")).lower()
+        score += sum(3 for token in scope_tokens if token in metric_text)
+        score += sum(1 for alias in metric_aliases if alias in metric_text)
+        if str(row.get("relationship", "")) in {"REPORTED", "reported"}:
+            score += 2
+        return score
+
+    def _company_match_score(self, company: str, anchor: str) -> int:
+        if not anchor:
+            return 0
+        company_norm = re.sub(r"[^a-z0-9]+", " ", company.lower())
+        anchor_norm = re.sub(r"[^a-z0-9]+", " ", anchor.lower())
+        anchor_tokens = [token for token in anchor_norm.split() if token]
+        return sum(2 for token in anchor_tokens if token in company_norm)
+
+    def _coerce_number(self, value: Any) -> Optional[float]:
+        if value is None:
+            return None
+        text = str(value).strip().replace(",", "")
+        if not text:
+            return None
+        try:
+            return float(text)
+        except ValueError:
+            return None
+
+    def _coerce_year(self, raw_year: Any, *fallback_fields: Any) -> str:
+        text = str(raw_year).strip()
+        if text and text.lower() != "none":
+            if len(text) == 4 and text.isdigit():
+                return text
+        for field in fallback_fields:
+            match = _FOUR_DIGIT_YEAR_RE.search(str(field))
+            if match:
+                return match.group(1)
+        return ""
+
+    def _ordered_years(self, years: Sequence[Any]) -> List[str]:
+        deduped = []
+        for year in years:
+            text = str(year).strip()
+            if text and text not in deduped:
+                deduped.append(text)
+        return sorted(deduped)
+
+    def _humanize_metric_label(self, intent_data: Dict[str, Any]) -> str:
+        metric_name = str(intent_data.get("metric_name", "")).strip()
+        scope_tokens = [str(token) for token in intent_data.get("metric_scope_tokens", []) if str(token)]
+        metric_aliases = [str(alias) for alias in intent_data.get("metric_aliases", []) if str(alias)]
+        if metric_name:
+            return metric_name.replace("&", "and")
+        if scope_tokens and metric_aliases:
+            return f"{' '.join(scope_tokens)} {metric_aliases[0]}".strip()
+        if metric_aliases:
+            return metric_aliases[0]
+        return "financial metric"
+
+    def _format_financial_number(self, value: float) -> str:
+        return f"{value:,.1f}".rstrip("0").rstrip(".")
 
     def _link(
         self,

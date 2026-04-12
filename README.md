@@ -6,12 +6,18 @@
 [![Tests](https://img.shields.io/badge/tests-107%20passed-green)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Define your schema once — it drives extraction, querying, validation, and graph constraints automatically.
+Define your schema once — it drives extraction, querying, validation, and graph-governance artifacts from one contract.
 
 ## Install
 
 ```bash
 pip install seocho
+```
+
+Optional offline ontology governance tooling:
+
+```bash
+pip install "seocho[ontology]"
 ```
 
 ## Quick Start
@@ -51,11 +57,11 @@ print(s.ask("Where did Marie Curie work?"))
 | Stage | What happens |
 |-------|-------------|
 | **Extraction** | Entity types + relationships in LLM prompt |
-| **Querying** | Full schema context for Cypher generation |
+| **Querying** | Schema-aware Cypher generation and repair prompts |
 | **Validation** | SHACL shapes derived → catches type/cardinality errors |
-| **Constraints** | UNIQUE/INDEX generated and applied to Neo4j |
+| **Constraints** | UNIQUE/INDEX generated from ontology and can be applied to Neo4j |
 | **Denormalization** | Cardinality rules determine safe flattening |
-| **Reasoning** | Low quality → re-extract with ontology guidance |
+| **Reasoning** | Optional low-quality retry re-extracts with ontology guidance |
 
 ## Key Features
 
@@ -80,6 +86,14 @@ s.register_ontology("finance_db", finance_ontology)
 # Schema as code (JSON-LD canonical storage)
 ontology.to_jsonld("schema.jsonld")
 ontology = Ontology.from_jsonld("schema.jsonld")
+
+# Apply generated Neo4j constraints explicitly in local mode
+s.ensure_constraints(database="neo4j")
+
+# Offline ontology governance helpers
+# seocho ontology check --schema schema.jsonld
+# seocho ontology export --schema schema.jsonld --format shacl --output shacl.json
+# seocho ontology diff --left schema_v1.jsonld --right schema_v2.jsonld
 
 # Experiment workbench
 from seocho.experiment import Workbench

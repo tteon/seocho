@@ -51,6 +51,7 @@ Current developer-facing execution order:
 Use these when changing a specific subsystem or workflow:
 
 - `ARCHITECTURE.md`: system architecture and module map
+- `../seocho/ontology_governance.py`: offline ontology governance helpers used by `seocho ontology *`
 - `GRAPH_RAG_AGENT_HANDOFF_SPEC.md`: intent-first Graph-RAG design brief
 - `AGENT_SERVER_REFACTOR_PLAN.md`: staged decomposition plan for `extraction/agent_server.py`
 - `GRAPH_MODEL_STRATEGY.md`: ontology and graph representation choices

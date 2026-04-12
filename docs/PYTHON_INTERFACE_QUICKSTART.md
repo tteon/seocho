@@ -20,10 +20,24 @@ Published package:
 pip install seocho
 ```
 
+Optional offline ontology governance tooling:
+
+```bash
+pip install "seocho[ontology]"
+```
+
 Repository development install:
 
 ```bash
 pip install -e ".[dev]"
+```
+
+If you are iterating on schema evolution, use the offline governance CLI:
+
+```bash
+seocho ontology check --schema schema.jsonld
+seocho ontology export --schema schema.jsonld --format shacl --output shacl.json
+seocho ontology diff --left schema_v1.jsonld --right schema_v2.jsonld
 ```
 
 ## 2. Configure

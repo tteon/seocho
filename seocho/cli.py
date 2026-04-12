@@ -268,6 +268,36 @@ def build_parser() -> argparse.ArgumentParser:
     bundle_show_parser.add_argument("bundle", help="Path to bundle JSON file")
     bundle_show_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
 
+    ontology_parser = subparsers.add_parser("ontology", help="Offline ontology governance helpers")
+    ontology_subparsers = ontology_parser.add_subparsers(dest="ontology_command", required=True)
+
+    ontology_check_parser = ontology_subparsers.add_parser("check", help="Validate one ontology definition")
+    ontology_check_parser.add_argument("--schema", required=True, help="Ontology file (JSON-LD or YAML)")
+    ontology_check_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
+
+    ontology_export_parser = ontology_subparsers.add_parser("export", help="Export ontology-derived artifacts")
+    ontology_export_parser.add_argument("--schema", required=True, help="Ontology file (JSON-LD or YAML)")
+    ontology_export_parser.add_argument(
+        "--format",
+        required=True,
+        choices=["jsonld", "yaml", "dict", "shacl"],
+        help="Output artifact format",
+    )
+    ontology_export_parser.add_argument("--output", default=None, help="Optional output file path")
+    ontology_export_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
+
+    ontology_diff_parser = ontology_subparsers.add_parser("diff", help="Diff two ontology definitions")
+    ontology_diff_parser.add_argument("--left", required=True, help="Left ontology file")
+    ontology_diff_parser.add_argument("--right", required=True, help="Right ontology file")
+    ontology_diff_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
+
+    ontology_inspect_parser = ontology_subparsers.add_parser(
+        "inspect-owl",
+        help="Inspect an OWL ontology with Owlready2 (optional offline dependency)",
+    )
+    ontology_inspect_parser.add_argument("--source", required=True, help="OWL file path or URI")
+    ontology_inspect_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
+
     serve_http_parser = subparsers.add_parser("serve-http", help="Serve a portable bundle behind a small FastAPI runtime")
     serve_http_parser.add_argument("--bundle", required=True, help="Path to portable bundle JSON file")
     serve_http_parser.add_argument("--host", default="0.0.0.0", help="Bind host")
@@ -277,7 +307,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-LOCAL_COMMANDS = {"init", "index", "local-ask", "status", "compare", "experiment", "bundle", "serve-http"}
+LOCAL_COMMANDS = {"init", "index", "local-ask", "status", "compare", "experiment", "bundle", "ontology", "serve-http"}
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
@@ -708,6 +738,8 @@ def _dispatch_local(args: argparse.Namespace) -> int:
         return _cmd_experiment(args)
     if args.command == "bundle":
         return _cmd_bundle(args)
+    if args.command == "ontology":
+        return _cmd_ontology(args)
     if args.command == "serve-http":
         return _cmd_serve_http(args)
     raise SeochoError(f"Unknown local command: {args.command}")
@@ -1084,6 +1116,92 @@ def _cmd_bundle_show(args: argparse.Namespace) -> int:
         print(f"  llm: {bundle.llm.kind} / {bundle.llm.model}")
         print(f"  graphs: {', '.join(item.graph_id for item in bundle.graphs) or 'none'}")
     return 0
+
+
+def _cmd_ontology(args: argparse.Namespace) -> int:
+    from .ontology_governance import (
+        check_ontology,
+        diff_ontologies,
+        export_ontology_payload,
+        inspect_owl_ontology,
+        load_ontology_file,
+    )
+    import yaml
+
+    if args.ontology_command == "check":
+        ontology = load_ontology_file(args.schema)
+        result = check_ontology(ontology)
+        if getattr(args, "output_json", False):
+            print(json.dumps(result.to_dict(), indent=2))
+        else:
+            status = "ok" if result.ok else "invalid"
+            print(f"ontology {status}: {result.ontology_name}@{result.ontology_version}")
+            print(
+                f"  graph_model={result.stats['graph_model']} "
+                f"nodes={result.stats['node_count']} relationships={result.stats['relationship_count']}"
+            )
+            for item in result.errors:
+                print(f"error: {item}")
+            for item in result.warnings:
+                print(f"warning: {item}")
+        return 0 if result.ok else 1
+
+    if args.ontology_command == "export":
+        ontology = load_ontology_file(args.schema)
+        payload = export_ontology_payload(ontology, output_format=args.format)
+
+        if args.format == "yaml":
+            rendered = yaml.safe_dump(payload, sort_keys=False, allow_unicode=True)
+        else:
+            rendered = json.dumps(payload, indent=2, ensure_ascii=False)
+
+        if args.output:
+            Path(args.output).write_text(rendered + ("" if rendered.endswith("\n") else "\n"), encoding="utf-8")
+
+        if getattr(args, "output_json", False):
+            print(json.dumps({"format": args.format, "output": args.output, "payload": payload}, indent=2, ensure_ascii=False))
+        elif args.output:
+            print(f"exported {args.format} to {args.output}")
+        else:
+            print(rendered)
+        return 0
+
+    if args.ontology_command == "diff":
+        left = load_ontology_file(args.left)
+        right = load_ontology_file(args.right)
+        diff = diff_ontologies(left, right)
+        if getattr(args, "output_json", False):
+            print(json.dumps(diff.to_dict(), indent=2))
+        else:
+            print(f"diff {diff.left_name} -> {diff.right_name}")
+            for section_name, section_changes in diff.changes.items():
+                for change_kind, values in section_changes.items():
+                    if values:
+                        print(f"{section_name} {change_kind}: {', '.join(values)}")
+        return 0
+
+    if args.ontology_command == "inspect-owl":
+        inspection = inspect_owl_ontology(args.source)
+        if getattr(args, "output_json", False):
+            print(json.dumps(inspection.to_dict(), indent=2))
+        else:
+            if not inspection.available:
+                print(inspection.error or "owlready2 unavailable")
+                return 1
+            if inspection.error:
+                print(f"owlready2 inspection failed: {inspection.error}")
+                return 1
+            print(f"owlready2 source: {inspection.source}")
+            print(
+                "  "
+                f"classes={inspection.stats.get('class_count', 0)} "
+                f"properties={inspection.stats.get('property_count', 0)} "
+                f"individuals={inspection.stats.get('individual_count', 0)} "
+                f"imports={inspection.stats.get('import_count', 0)}"
+            )
+        return 0 if inspection.available and inspection.error is None else 1
+
+    raise SeochoError(f"Unknown ontology command: {args.ontology_command}")
 
 
 def _cmd_serve_http(args: argparse.Namespace) -> int:

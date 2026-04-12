@@ -220,6 +220,11 @@ Each entry must link to a full ADR when impact is non-trivial.
 
 ## 2026-04-12
 
+- Accepted `ADR-0043-ontology-governance-cli-and-owlready2-boundary.md`
+  - tighten README ontology lifecycle wording so it matches actual runtime behavior
+  - add offline `seocho ontology` governance commands for check, export, diff, and optional OWL inspection
+  - keep Owlready2 optional and outside the request hot path
+
 - Accepted `ADR-0041-portable-sdk-runtime-bundle-and-http-adapter.md`
   - add a portable bundle contract for SDK-authored local runtimes
   - expose a narrow FastAPI adapter so other developers can consume SDK-authored apps over HTTP

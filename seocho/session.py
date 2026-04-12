@@ -392,12 +392,14 @@ class Session:
         """Create or return the supervisor agent."""
         if not hasattr(self, '_supervisor_agent') or self._supervisor_agent is None:
             from .agents import create_supervisor_agent
+            policy = getattr(self.agent_config, 'routing_policy', None) if self.agent_config else None
             self._supervisor_agent = create_supervisor_agent(
                 ontology=self.ontology,
                 graph_store=self.graph_store,
                 llm=self.llm,
                 vector_store=self.vector_store,
                 extraction_prompt=self.extraction_prompt,
+                routing_policy=policy,
             )
         return self._supervisor_agent
 

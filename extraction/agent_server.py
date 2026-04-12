@@ -86,10 +86,14 @@ app = FastAPI(title="Agent Server")
 # Request ID middleware
 app.add_middleware(RequestIDMiddleware)
 
-# CORS — restrict to local development origins
+# CORS — configurable via SEOCHO_CORS_ORIGINS env var (comma-separated)
+_DEFAULT_CORS = "http://localhost:8501,http://localhost:3000"
+_cors_origins = [
+    o.strip() for o in os.getenv("SEOCHO_CORS_ORIGINS", _DEFAULT_CORS).split(",") if o.strip()
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8501", "http://localhost:3000"],
+    allow_origins=_cors_origins,
     allow_methods=["POST", "GET"],
     allow_headers=["*"],
 )

@@ -385,13 +385,15 @@ class ExtractionStrategy(PromptStrategy):
         vocabulary_terms: Optional[str] = None,
         developer_instructions: Optional[str] = None,
         prompt_template: Optional[PromptTemplate] = None,
+        extraction_prompt: Optional[PromptTemplate] = None,
     ) -> None:
         super().__init__(ontology)
         self.category = category
         self.shacl_constraints = shacl_constraints
         self.vocabulary_terms = vocabulary_terms
         self.developer_instructions = developer_instructions
-        self.prompt_template = prompt_template
+        # Accept both names — extraction_prompt is the public API name
+        self.prompt_template = extraction_prompt or prompt_template
 
     def render(self, text: str, **kwargs: Any) -> tuple[str, str]:
         ctx = self.ontology.to_extraction_context()

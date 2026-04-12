@@ -297,6 +297,97 @@ class Session:
 
         return result
 
+    def run(
+        self,
+        message: str,
+        *,
+        database: Optional[str] = None,
+    ) -> str:
+        """Send any message — the supervisor routes automatically.
+
+        No need to choose between ``add()`` and ``ask()``.  The
+        supervisor agent decides based on the message content.
+
+        Parameters
+        ----------
+        message:
+            Any natural-language message.
+        database:
+            Target database.
+
+        Returns
+        -------
+        The agent's response string.
+
+        Example::
+
+            with s.session("analysis") as sess:
+                sess.run("Samsung CEO is Jay Y. Lee")  # → IndexingAgent
+                answer = sess.run("Who is Samsung's CEO?")  # → QueryAgent
+        """
+        if self._closed:
+            raise RuntimeError("Session is closed")
+
+        db = database or self.database
+        start = time.time()
+
+        context_msg = ""
+        if self.context.indexed_sources:
+            context_msg = f"\n\n[Session context: {self.context.summary()}]"
+
+        full_message = f"{message}{context_msg}\n[Target database: {db}]"
+
+        try:
+            result_text = self._run_via_supervisor(full_message, db)
+        except Exception as exc:
+            logger.warning("Supervisor failed, auto-detecting: %s", exc)
+            is_question = "?" in message or any(
+                w in message.lower()
+                for w in ["who", "what", "where", "when", "how", "why", "list", "find", "show"]
+            )
+            if is_question:
+                result_text = self.ask(message, database=database, use_agent=False)
+            else:
+                r = self.add(message, database=database, use_agent=False)
+                result_text = (
+                    f"Indexed: {r.get('nodes_created', 0)} nodes, "
+                    f"{r.get('relationships_created', 0)} relationships"
+                )
+
+        elapsed = time.time() - start
+
+        if self._trace:
+            self._trace.log_span(
+                "session.run",
+                input_data={"message": message[:200], "database": db},
+                output_data={"response_preview": result_text[:300]},
+                metadata={"elapsed_seconds": round(elapsed, 2)},
+                tags=["supervisor"],
+            )
+
+        return result_text
+
+    def _run_via_supervisor(self, message: str, database: str) -> str:
+        """Run through supervisor agent with hand-off."""
+        from agents import Runner
+
+        supervisor = self._get_supervisor_agent()
+        result = asyncio.run(Runner.run(supervisor, message))
+        return result.final_output or "No response from agent."
+
+    def _get_supervisor_agent(self) -> Any:
+        """Create or return the supervisor agent."""
+        if not hasattr(self, '_supervisor_agent') or self._supervisor_agent is None:
+            from .agents import create_supervisor_agent
+            self._supervisor_agent = create_supervisor_agent(
+                ontology=self.ontology,
+                graph_store=self.graph_store,
+                llm=self.llm,
+                vector_store=self.vector_store,
+                extraction_prompt=self.extraction_prompt,
+            )
+        return self._supervisor_agent
+
     def ask(
         self,
         question: str,

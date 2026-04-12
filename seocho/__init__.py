@@ -35,6 +35,7 @@ from .api import (
 from .agent_config import (
     AGENT_PRESETS, AgentConfig, EnsembleExtractionStrategy,
     IndexingStrategy, ParallelExtractionStrategy, QueryAgentStrategy,
+    RoutingPolicy,
 )
 from .client import AsyncSeocho, ExecutionPlanBuilder, Seocho
 from .http_runtime import create_bundle_runtime_app

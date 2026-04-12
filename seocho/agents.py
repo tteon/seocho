@@ -207,3 +207,148 @@ def create_query_agent(
         model=agent_model,
         model_settings=ModelSettings(temperature=0.1),
     )
+
+
+# ======================================================================
+# Supervisor agent with hand-off
+# ======================================================================
+
+def _supervisor_system_prompt(ontology: Any, routing_policy: Any = None) -> str:
+    """Build the supervisor agent's system prompt."""
+    ctx = ontology.to_query_context()
+
+    policy_section = ""
+    if routing_policy is not None:
+        policy_ctx = routing_policy.to_prompt_context()
+        hints = routing_policy.to_agent_hints()
+        policy_section = f"""
+## Routing policy
+
+{policy_ctx}
+
+Derived settings:
+- Quality threshold: {hints.get('extraction_quality_threshold', 'default')}
+- Reasoning mode: {'enabled' if hints.get('reasoning_mode') else 'disabled'}
+- Repair budget: {hints.get('repair_budget', 0)} attempts
+- Validation: {hints.get('validation_on_fail', 'warn')}
+- Answer style: {hints.get('answer_style', 'concise')}
+
+When latency is dominant: prefer pipeline, skip retries, minimal validation.
+When information_quality is dominant: use agent tools, enable retries, strict validation.
+When token_efficiency is dominant: single-pass extraction, skip linking, concise answers.
+"""
+
+    return f"""You are a supervisor agent for a knowledge graph system.
+Your job is to route user requests to the right specialist agent.
+
+**Ontology: {ctx.get('ontology_name', 'unknown')}**
+
+You have two specialist agents:
+- **IndexingAgent**: For adding/indexing content into the knowledge graph.
+  Hand off when the user provides text to store, documents to index,
+  or facts to add.
+- **QueryAgent**: For answering questions from the knowledge graph.
+  Hand off when the user asks a question, requests information, or
+  wants to query the graph.
+
+## Routing rules
+
+1. If the message contains text/data to index → hand off to IndexingAgent
+2. If the message asks a question → hand off to QueryAgent
+3. If ambiguous, ask the user to clarify
+4. After a hand-off completes, summarize the result to the user
+{policy_section}"""
+
+
+def create_supervisor_agent(
+    *,
+    ontology: Any,
+    graph_store: Any,
+    llm: Any,
+    vector_store: Any = None,
+    extraction_prompt: Any = None,
+    routing_policy: Any = None,
+    model: Optional[str] = None,
+    name: str = "Supervisor",
+) -> Any:
+    """Create a supervisor agent that routes to IndexingAgent or QueryAgent.
+
+    The supervisor uses OpenAI Agents SDK hand-off to delegate work.
+    Users just call ``Runner.run(supervisor, message)`` and the
+    supervisor automatically routes to the right agent.
+
+    Parameters
+    ----------
+    ontology:
+        The Ontology driving both indexing and querying.
+    graph_store:
+        GraphStore for Neo4j/DozerDB.
+    llm:
+        LLMBackend for all agents.
+    vector_store:
+        Optional VectorStore.
+    extraction_prompt:
+        Optional custom PromptTemplate.
+    model:
+        Override model name.
+    name:
+        Supervisor agent name.
+
+    Returns
+    -------
+    An ``agents.Agent`` with hand-offs to IndexingAgent and QueryAgent.
+
+    Usage::
+
+        supervisor = create_supervisor_agent(
+            ontology=onto, graph_store=store, llm=llm,
+        )
+        result = await Runner.run(supervisor, "Samsung CEO is Jay Y. Lee")
+        # → automatically routes to IndexingAgent
+
+        result = await Runner.run(supervisor, "Who is Samsung's CEO?")
+        # → automatically routes to QueryAgent
+    """
+    from agents import Agent, ModelSettings, handoff
+
+    idx_agent = create_indexing_agent(
+        ontology=ontology,
+        graph_store=graph_store,
+        llm=llm,
+        extraction_prompt=extraction_prompt,
+        model=model,
+    )
+
+    qry_agent = create_query_agent(
+        ontology=ontology,
+        graph_store=graph_store,
+        llm=llm,
+        vector_store=vector_store,
+        model=model,
+    )
+
+    agent_model = llm.to_agents_sdk_model(model=model)
+    system = _supervisor_system_prompt(ontology, routing_policy=routing_policy)
+
+    return Agent(
+        name=name,
+        instructions=system,
+        handoffs=[
+            handoff(
+                idx_agent,
+                tool_description_override=(
+                    "Route to the IndexingAgent for adding or indexing "
+                    "content into the knowledge graph."
+                ),
+            ),
+            handoff(
+                qry_agent,
+                tool_description_override=(
+                    "Route to the QueryAgent for answering questions "
+                    "or querying the knowledge graph."
+                ),
+            ),
+        ],
+        model=agent_model,
+        model_settings=ModelSettings(temperature=0.0),
+    )

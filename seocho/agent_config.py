@@ -49,6 +49,145 @@ logger = logging.getLogger(__name__)
 
 
 # ======================================================================
+# Routing policy — controls how supervisor decides between agents
+# ======================================================================
+
+@dataclass
+class RoutingPolicy:
+    """Policy that guides supervisor routing decisions.
+
+    Three axes define the trade-off space. Each is a weight (0.0–1.0)
+    that tells the supervisor what to prioritize.
+
+    Usage::
+
+        # Fast responses, minimal token usage
+        policy = RoutingPolicy.fast()
+
+        # Thorough analysis, maximize information quality
+        policy = RoutingPolicy.thorough()
+
+        # Balanced (default)
+        policy = RoutingPolicy.balanced()
+
+        # Custom
+        policy = RoutingPolicy(latency=0.3, token_efficiency=0.2, information_quality=0.5)
+
+    Parameters
+    ----------
+    latency:
+        How much to prioritize speed.  High → prefer pipeline/template
+        over agent reasoning; skip validation when fast enough.
+    token_efficiency:
+        How much to prioritize low token consumption.  High → fewer
+        retries, shorter prompts, single-pass extraction.
+    information_quality:
+        How much to prioritize answer/extraction correctness.
+        High → enable reasoning, retries, SHACL validation, multi-pass.
+    """
+
+    latency: float = 0.33
+    token_efficiency: float = 0.33
+    information_quality: float = 0.34
+
+    def __post_init__(self) -> None:
+        for name in ("latency", "token_efficiency", "information_quality"):
+            val = getattr(self, name)
+            if not (0.0 <= val <= 1.0):
+                raise ValueError(f"{name} must be between 0.0 and 1.0, got {val}")
+
+    @classmethod
+    def fast(cls) -> "RoutingPolicy":
+        """Optimize for speed — minimal retries, pipeline-first."""
+        return cls(latency=0.7, token_efficiency=0.2, information_quality=0.1)
+
+    @classmethod
+    def balanced(cls) -> "RoutingPolicy":
+        """Equal weight across all axes."""
+        return cls(latency=0.33, token_efficiency=0.33, information_quality=0.34)
+
+    @classmethod
+    def thorough(cls) -> "RoutingPolicy":
+        """Maximize quality — agent reasoning, retries, validation."""
+        return cls(latency=0.1, token_efficiency=0.1, information_quality=0.8)
+
+    @property
+    def dominant_axis(self) -> str:
+        """Return the axis with highest weight."""
+        axes = {
+            "latency": self.latency,
+            "token_efficiency": self.token_efficiency,
+            "information_quality": self.information_quality,
+        }
+        return max(axes, key=axes.get)
+
+    def to_agent_hints(self) -> Dict[str, Any]:
+        """Derive concrete agent parameters from policy weights.
+
+        The supervisor and agents use these hints to adjust behavior:
+        - extraction retries, quality threshold, validation strictness
+        - query repair budget, answer detail level
+        """
+        hints: Dict[str, Any] = {}
+
+        # Extraction quality threshold: high info_quality → strict
+        hints["extraction_quality_threshold"] = round(
+            0.5 + 0.4 * self.information_quality, 2
+        )
+
+        # Retry budget: high info_quality → more retries, high latency → fewer
+        hints["extraction_max_retries"] = max(0, round(
+            3 * self.information_quality - 2 * self.latency
+        ))
+
+        # Repair budget: same trade-off for queries
+        hints["repair_budget"] = max(0, round(
+            4 * self.information_quality - 2 * self.latency
+        ))
+
+        # Reasoning mode: enable when quality matters
+        hints["reasoning_mode"] = self.information_quality > 0.4
+
+        # Validation strictness
+        if self.information_quality > 0.6:
+            hints["validation_on_fail"] = "retry"
+        elif self.latency > 0.6:
+            hints["validation_on_fail"] = "warn"
+        else:
+            hints["validation_on_fail"] = "relax"
+
+        # Answer style
+        if self.information_quality > 0.5:
+            hints["answer_style"] = "evidence"
+        else:
+            hints["answer_style"] = "concise"
+
+        # Linking strategy: expensive but better quality
+        if self.token_efficiency > 0.6:
+            hints["linking_strategy"] = "none"
+        else:
+            hints["linking_strategy"] = "llm"
+
+        return hints
+
+    def to_dict(self) -> Dict[str, float]:
+        return {
+            "latency": self.latency,
+            "token_efficiency": self.token_efficiency,
+            "information_quality": self.information_quality,
+        }
+
+    def to_prompt_context(self) -> str:
+        """Describe the policy for the supervisor's system prompt."""
+        return (
+            f"Routing policy: latency={self.latency:.0%}, "
+            f"token_efficiency={self.token_efficiency:.0%}, "
+            f"information_quality={self.information_quality:.0%}. "
+            f"Dominant axis: {self.dominant_axis}."
+        )
+
+
+# ======================================================================
 # Strategy ABCs — for advanced users who want to replace components
 # ======================================================================
 
@@ -231,6 +370,7 @@ class AgentConfig:
     # --- Agent execution ---
     execution_mode: str = "pipeline"  # "pipeline", "agent", "supervisor"
     handoff: bool = False  # enable sub-agent hand-off (requires execution_mode="supervisor")
+    routing_policy: Optional[RoutingPolicy] = None  # debate pool routing policy
 
     # --- Advanced: strategy injection ---
     custom_indexing_strategy: Optional[IndexingStrategy] = None
@@ -253,9 +393,39 @@ class AgentConfig:
             "routing": self.routing,
             "execution_mode": self.execution_mode,
             "handoff": self.handoff,
+            "routing_policy": self.routing_policy.to_dict() if self.routing_policy else None,
             "has_custom_indexing": self.custom_indexing_strategy is not None,
             "has_custom_query": self.custom_query_strategy is not None,
         }
+
+    def resolve_from_policy(self) -> "AgentConfig":
+        """Return a new AgentConfig with policy-derived settings applied.
+
+        If ``routing_policy`` is set, its ``to_agent_hints()`` override
+        the explicit fields (quality threshold, retries, etc.).
+        Explicit user overrides still take precedence if they differ
+        from the dataclass defaults.
+        """
+        if self.routing_policy is None:
+            return self
+
+        hints = self.routing_policy.to_agent_hints()
+        defaults = AgentConfig()
+        kwargs: Dict[str, Any] = {}
+
+        # Only apply hint if user hasn't explicitly overridden the field
+        for field_name, hint_value in hints.items():
+            current = getattr(self, field_name, None)
+            default = getattr(defaults, field_name, None)
+            if current == default:
+                kwargs[field_name] = hint_value
+
+        # Preserve all explicit user values
+        for f in self.__dataclass_fields__:
+            if f not in kwargs:
+                kwargs[f] = getattr(self, f)
+
+        return AgentConfig(**kwargs)
 
 
 # ======================================================================
@@ -304,13 +474,21 @@ AGENT_PRESETS: Dict[str, AgentConfig] = {
     ),
 
     "supervisor": AgentConfig(
-        extraction_quality_threshold=0.7,
-        extraction_retry_on_low_quality=True,
-        validation_on_fail="retry",
-        reasoning_mode=True,
-        repair_budget=2,
         execution_mode="supervisor",
         handoff=True,
+        routing_policy=RoutingPolicy.balanced(),
+    ),
+
+    "supervisor_fast": AgentConfig(
+        execution_mode="supervisor",
+        handoff=True,
+        routing_policy=RoutingPolicy.fast(),
+    ),
+
+    "supervisor_thorough": AgentConfig(
+        execution_mode="supervisor",
+        handoff=True,
+        routing_policy=RoutingPolicy.thorough(),
     ),
 }
 

@@ -1286,6 +1286,8 @@ class Ontology:
         rel_scores: List[Dict[str, Any]] = []
 
         for node in data.get("nodes", []):
+            if not isinstance(node, dict):
+                continue
             nid = node.get("id", "")
             label = node.get("label", "")
             props = node.get("properties", {})

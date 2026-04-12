@@ -9,6 +9,7 @@ Read these first unless you already know exactly which area you need:
 - `QUICKSTART.md`: shortest local success path
 - `PYTHON_INTERFACE_QUICKSTART.md`: public Python SDK and pip-install path
 - `APPLY_YOUR_DATA.md`: how to ingest your own records and query them safely
+- `FILES_AND_ARTIFACTS.md`: where ontology, rule, trace, and runtime files live
 - `WORKFLOW.md`: canonical operational workflow
 - `PRD_MVP.md`: current product scope and MVP contract
 - `GRAPH_MEMORY_API.md`: target public memory-first API
@@ -27,15 +28,17 @@ Use this path if you are new to the repository:
 1. `QUICKSTART.md`
 2. `PYTHON_INTERFACE_QUICKSTART.md`
 3. `APPLY_YOUR_DATA.md`
-4. `TUTORIAL_FIRST_RUN.md`
-5. `BEGINNER_PIPELINES_DEMO.md`
-6. `OPEN_SOURCE_PLAYBOOK.md`
+4. `FILES_AND_ARTIFACTS.md`
+5. `TUTORIAL_FIRST_RUN.md`
+6. `BEGINNER_PIPELINES_DEMO.md`
+7. `OPEN_SOURCE_PLAYBOOK.md`
 
 Role split:
 
 - `QUICKSTART.md` is the shortest successful run
 - `PYTHON_INTERFACE_QUICKSTART.md` is the public Python SDK quickstart
 - `APPLY_YOUR_DATA.md` is the bring-your-own-data ingestion and query guide
+- `FILES_AND_ARTIFACTS.md` explains where ontology and runtime artifacts live
 - `TUTORIAL_FIRST_RUN.md` is the manual API verification path
 - `BEGINNER_PIPELINES_DEMO.md` is the scripted demo path
 - `OPEN_SOURCE_PLAYBOOK.md` is the contributor path

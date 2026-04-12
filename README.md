@@ -10,15 +10,19 @@ Define your schema once — it drives extraction, querying, validation, and grap
 
 ## Install
 
-```bash
-pip install seocho
-```
+Choose the path that matches how you want to use SEOCHO:
 
-Optional offline ontology governance tooling:
+| Path | Install | What else you need |
+|------|---------|--------------------|
+| HTTP client mode | `pip install seocho` | a running SEOCHO runtime (`base_url=...`) |
+| Local SDK engine | `pip install -e ".[dev]"` | a reachable DozerDB/Neo4j instance and provider credentials |
+| Offline ontology governance | `pip install "seocho[ontology]"` | local ontology files only |
 
-```bash
-pip install "seocho[ontology]"
-```
+Important:
+
+- `pip install seocho` is intentionally thin. It is enough for HTTP client mode and bundle consumption.
+- local engine mode is where DozerDB/Neo4j is core: you provide `ontology + graph_store + llm` explicitly.
+- the fastest full local stack is still `make setup-env && make up`.
 
 ## Quick Start
 
@@ -52,6 +56,74 @@ s.add("Marie Curie worked at the University of Paris.")
 # 4. Query
 print(s.ask("Where did Marie Curie work?"))
 ```
+
+## Choose Your Runtime Shape
+
+| Mode | Constructor | Best for |
+|------|-------------|----------|
+| HTTP client mode | `Seocho(base_url="http://localhost:8001", workspace_id="default")` | consume an existing runtime over HTTP |
+| Local engine mode | `Seocho(ontology=..., graph_store=..., llm=...)` | SDK authoring, experiments, direct graph access |
+| Local platform runtime | `make up` or `seocho serve` | UI + API + DozerDB on one machine |
+
+For local engine mode, `Neo4jGraphStore` works against both Neo4j and DozerDB over Bolt:
+
+```python
+from seocho.store import Neo4jGraphStore
+
+store = Neo4jGraphStore("bolt://localhost:7687", "neo4j", "password")
+```
+
+Core runtime parameters you need to understand early:
+
+- `base_url`: remote SEOCHO runtime root for HTTP client mode
+- `workspace_id`: logical scope passed through runtime-facing requests
+- `graph_store`: Bolt-backed graph store for local engine mode
+- `reasoning_mode`: bounded semantic repair loop for hard questions
+- `repair_budget`: max additional repair attempts when retrieval is insufficient
+
+## Common Use Cases
+
+### 1. Consume an existing SEOCHO runtime over HTTP
+
+```python
+from seocho import Seocho
+
+client = Seocho(base_url="http://localhost:8001", workspace_id="default")
+print(client.ask("What do we know about ACME?"))
+```
+
+### 2. Build locally against your own ontology and graph
+
+```python
+from seocho import Seocho, Ontology
+from seocho.store import Neo4jGraphStore, OpenAIBackend
+
+client = Seocho(
+    ontology=Ontology.from_jsonld("schema.jsonld"),
+    graph_store=Neo4jGraphStore("bolt://localhost:7687", "neo4j", "password"),
+    llm=OpenAIBackend(model="gpt-4o-mini"),
+    workspace_id="default",
+)
+
+client.add("ACME acquired Beta in 2024.")
+print(client.ask("Who did ACME acquire?", reasoning_mode=True, repair_budget=2))
+```
+
+### 3. Run the local platform stack with UI + API + graph DB
+
+```bash
+make setup-env
+make up
+```
+
+Then open:
+
+- UI: `http://localhost:8501`
+- API docs: `http://localhost:8001/docs`
+- DozerDB browser: `http://localhost:7474`
+
+See [docs/FILES_AND_ARTIFACTS.md](docs/FILES_AND_ARTIFACTS.md) for where
+`schema.jsonld`, graph data, rule profiles, semantic artifacts, and traces live.
 
 ## What the Ontology Controls
 
@@ -209,6 +281,7 @@ onto = Ontology(name="fibo", graph_model="rdf",
 | [Examples](https://seocho.blog/sdk/examples/) | Real-world patterns |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture |
+| [docs/FILES_AND_ARTIFACTS.md](docs/FILES_AND_ARTIFACTS.md) | Where ontology, rule, trace, and runtime files live |
 | [docs/WORKFLOW.md](docs/WORKFLOW.md) | Operational workflow |
 | [docs/ISSUE_TASK_SYSTEM.md](docs/ISSUE_TASK_SYSTEM.md) | Sprint/task governance |
 
@@ -240,6 +313,18 @@ make setup-env && make up
 # UI: http://localhost:8501
 # API: http://localhost:8001/docs
 # DozerDB: http://localhost:7474
+```
+
+Default `make up` starts the core local stack only:
+
+- `neo4j`
+- `extraction-service`
+- `evaluation-interface`
+
+The old `semantic-service` remains available as an opt-in legacy profile:
+
+```bash
+docker compose --profile legacy-semantic up -d semantic-service
 ```
 
 See [docs/QUICKSTART.md](docs/QUICKSTART.md) for the full server setup guide.

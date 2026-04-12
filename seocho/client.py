@@ -1553,6 +1553,9 @@ class _LocalEngine:
             llm=llm, workspace_id=workspace_id,
             extraction_prompt=extraction_prompt,
         )
+        # Pass AgentConfig quality settings to pipeline
+        self._indexing._quality_threshold = self.agent_config.extraction_quality_threshold
+        self._indexing._max_retries = self.agent_config.extraction_max_retries
 
         # Pre-build strategies (for extract-only and query)
         self._extraction = ExtractionStrategy(ontology, prompt_template=extraction_prompt)

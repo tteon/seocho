@@ -259,12 +259,13 @@ it behind the small bundle HTTP adapter.
 Author the bundle:
 
 ```python
-from seocho import Seocho
+from seocho import DeepSeekBackend, LanceDBVectorStore, Seocho
 
 client = Seocho(
     ontology=ontology,
     graph_store=graph_store,
-    llm=llm,
+    llm=DeepSeekBackend(model="deepseek-chat"),
+    vector_store=LanceDBVectorStore(uri="./.lancedb", table_name="team_memory"),
     agent_config=agent_config,
 )
 
@@ -285,7 +286,8 @@ seocho bundle export \
   --neo4j-uri bolt://localhost:7687 \
   --neo4j-user neo4j \
   --neo4j-password password \
-  --model gpt-4o \
+  --provider deepseek \
+  --model deepseek-chat \
   --database neo4j \
   --output portable.bundle.json
 ```
@@ -311,13 +313,42 @@ print(semantic.route)
 Portable bundle limits in the current implementation:
 
 - supported backend export: `Neo4jGraphStore`
-- supported LLM export: `OpenAIBackend`
+- supported LLM export: OpenAI-compatible backends
+  - `OpenAIBackend`
+  - `DeepSeekBackend`
+  - `KimiBackend`
+  - `GrokBackend`
 - portable config only; custom Python strategies are rejected
 - intended HTTP surface: `add`, `ask`, `chat`, `search`, and basic `semantic`
 - not a replacement for the full main server runtime when you need debate,
   governance, or the complete artifact lifecycle
 
-## 13. Inspect Semantic Run History
+## 13. Choose A Provider And Vector Backend
+
+OpenAI-compatible providers are available through the same local SDK surface:
+
+```python
+from seocho import DeepSeekBackend, GrokBackend, KimiBackend, OpenAIBackend
+
+openai_llm = OpenAIBackend(model="gpt-4o-mini")
+deepseek_llm = DeepSeekBackend(model="deepseek-chat")
+kimi_llm = KimiBackend(model="kimi-k2.5")
+grok_llm = GrokBackend(model="grok-4.20-reasoning")
+```
+
+For semantic search, choose an in-memory or persistent vector backend:
+
+```python
+from seocho import FAISSVectorStore, LanceDBVectorStore
+
+faiss_vectors = FAISSVectorStore(model="text-embedding-3-small")
+lancedb_vectors = LanceDBVectorStore(
+    uri="./.lancedb",
+    table_name="team_memory",
+    model="text-embedding-3-small",
+)
+```
+## 14. Inspect Semantic Run History
 
 The runtime now keeps a SQLite-backed semantic run registry outside the graph
 store. You can inspect it from the SDK without touching internal files.
@@ -332,7 +363,7 @@ print(run_record.strategy.executed_mode)
 print(run_record.evidence_summary)
 ```
 
-## 13. Run Manual-Gold Evaluation
+## 15. Run Manual-Gold Evaluation
 
 Use the SDK evaluation harness when you want a small regression matrix over
 `question_only`, `reference_only`, `semantic_direct`, and `semantic_repair`.

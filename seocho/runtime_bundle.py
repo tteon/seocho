@@ -45,15 +45,22 @@ class PortablePromptTemplate(JsonSerializable):
 
 @dataclass(slots=True)
 class RuntimeLLMConfig(JsonSerializable):
-    kind: str = "openai"
+    kind: str = "openai_compatible"
+    provider: str = "openai"
     model: str = "gpt-4o"
     base_url: str = ""
     api_key_env: str = "OPENAI_API_KEY"
 
     @classmethod
     def from_dict(cls, payload: Dict[str, Any]) -> "RuntimeLLMConfig":
+        raw_kind = str(payload.get("kind", "openai_compatible")).strip() or "openai_compatible"
+        raw_provider = str(payload.get("provider", "")).strip() or "openai"
+        if raw_kind == "openai":
+            raw_kind = "openai_compatible"
+            raw_provider = "openai"
         return cls(
-            kind=str(payload.get("kind", "openai")).strip() or "openai",
+            kind=raw_kind,
+            provider=raw_provider,
             model=str(payload.get("model", "gpt-4o")).strip() or "gpt-4o",
             base_url=str(payload.get("base_url", "")).strip(),
             api_key_env=str(payload.get("api_key_env", "OPENAI_API_KEY")).strip() or "OPENAI_API_KEY",
@@ -209,9 +216,17 @@ def build_runtime_bundle(
 
     llm = getattr(client, "llm", None)
     llm_kind = llm.__class__.__name__
-    if llm_kind != "OpenAIBackend":
+    portable_llm_kinds = {
+        "OpenAICompatibleBackend",
+        "OpenAIBackend",
+        "DeepSeekBackend",
+        "KimiBackend",
+        "GrokBackend",
+    }
+    if llm_kind not in portable_llm_kinds:
         raise ValueError(
-            f"Portable runtime bundles currently support OpenAIBackend only, not {llm_kind}."
+            "Portable runtime bundles currently support OpenAI-compatible SDK backends "
+            f"only, not {llm_kind}."
         )
 
     ontology = getattr(client, "ontology", None)
@@ -259,10 +274,11 @@ def build_runtime_bundle(
         ontology=ontology.to_dict(),
         ontology_registry=ontology_registry,
         llm=RuntimeLLMConfig(
-            kind="openai",
+            kind="openai_compatible",
+            provider=str(getattr(llm, "provider", "openai")).strip() or "openai",
             model=str(getattr(llm, "model", "gpt-4o")).strip() or "gpt-4o",
             base_url=str(getattr(llm, "_base_url", "") or "").strip(),
-        api_key_env="OPENAI_API_KEY",
+            api_key_env=str(getattr(llm, "_api_key_env", "OPENAI_API_KEY")).strip() or "OPENAI_API_KEY",
         ),
         graph_store=RuntimeGraphStoreConfig(
             kind="neo4j",
@@ -280,12 +296,12 @@ def build_runtime_bundle(
 def create_client_from_runtime_bundle(bundle_source: RuntimeBundle | str | Path, *, workspace_id: Optional[str] = None) -> Any:
     from .client import Seocho
     from .store.graph import Neo4jGraphStore
-    from .store.llm import OpenAIBackend
+    from .store.llm import OpenAIBackend, create_llm_backend
 
     bundle = bundle_source if isinstance(bundle_source, RuntimeBundle) else RuntimeBundle.load(bundle_source)
     if bundle.graph_store.kind != "neo4j":
         raise ValueError(f"Unsupported portable graph store kind: {bundle.graph_store.kind}")
-    if bundle.llm.kind != "openai":
+    if bundle.llm.kind != "openai_compatible":
         raise ValueError(f"Unsupported portable LLM kind: {bundle.llm.kind}")
 
     ontology = Ontology.from_dict(bundle.ontology)
@@ -294,11 +310,19 @@ def create_client_from_runtime_bundle(bundle_source: RuntimeBundle | str | Path,
         bundle.graph_store.user,
         os.environ.get(bundle.graph_store.password_env, "password"),
     )
-    llm = OpenAIBackend(
-        model=bundle.llm.model,
-        api_key=os.environ.get(bundle.llm.api_key_env),
-        base_url=bundle.llm.base_url or None,
-    )
+    if bundle.llm.provider == "openai":
+        llm = OpenAIBackend(
+            model=bundle.llm.model,
+            api_key=os.environ.get(bundle.llm.api_key_env),
+            base_url=bundle.llm.base_url or None,
+        )
+    else:
+        llm = create_llm_backend(
+            provider=bundle.llm.provider,
+            model=bundle.llm.model,
+            api_key=os.environ.get(bundle.llm.api_key_env),
+            base_url=bundle.llm.base_url or None,
+        )
     agent_config = AgentConfig(
         **{
             key: value

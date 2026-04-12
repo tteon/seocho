@@ -57,7 +57,14 @@ def build_parser() -> argparse.ArgumentParser:
     ask_parser.add_argument("--neo4j-uri", default="bolt://localhost:7687", help="Neo4j URI (local mode)")
     ask_parser.add_argument("--neo4j-user", default="neo4j", help="Neo4j user (local mode)")
     ask_parser.add_argument("--neo4j-password", default="password", help="Neo4j password (local mode)")
+    ask_parser.add_argument(
+        "--provider",
+        choices=["openai", "deepseek", "kimi", "grok"],
+        default="openai",
+        help="OpenAI-compatible LLM provider preset (local mode)",
+    )
     ask_parser.add_argument("--model", default="gpt-4o", help="OpenAI model (local mode)")
+    ask_parser.add_argument("--llm-base-url", default=None, help="Override the provider base URL (local mode)")
     ask_parser.add_argument("--reasoning", action="store_true", help="Enable reasoning mode (local mode)")
     ask_parser.add_argument("--repair-budget", type=int, default=2, help="Max repair attempts (local mode)")
     _add_client_options(ask_parser, include_scope=True, include_json=True)
@@ -166,7 +173,14 @@ def build_parser() -> argparse.ArgumentParser:
     index_parser.add_argument("--neo4j-uri", default="bolt://localhost:7687", help="Neo4j/DozerDB URI")
     index_parser.add_argument("--neo4j-user", default="neo4j", help="Neo4j user")
     index_parser.add_argument("--neo4j-password", default="password", help="Neo4j password")
+    index_parser.add_argument(
+        "--provider",
+        choices=["openai", "deepseek", "kimi", "grok"],
+        default="openai",
+        help="OpenAI-compatible LLM provider preset",
+    )
     index_parser.add_argument("--model", default="gpt-4o", help="OpenAI model for extraction")
+    index_parser.add_argument("--llm-base-url", default=None, help="Override the provider base URL")
     index_parser.add_argument("--force", action="store_true", help="Re-index even if unchanged")
     index_parser.add_argument("--recursive", action="store_true", default=True, help="Scan subdirectories")
     index_parser.add_argument("--strict", action="store_true", help="Reject data that fails SHACL validation")
@@ -179,7 +193,14 @@ def build_parser() -> argparse.ArgumentParser:
     local_ask_parser.add_argument("--neo4j-uri", default="bolt://localhost:7687", help="Neo4j URI")
     local_ask_parser.add_argument("--neo4j-user", default="neo4j", help="Neo4j user")
     local_ask_parser.add_argument("--neo4j-password", default="password", help="Neo4j password")
+    local_ask_parser.add_argument(
+        "--provider",
+        choices=["openai", "deepseek", "kimi", "grok"],
+        default="openai",
+        help="OpenAI-compatible LLM provider preset",
+    )
     local_ask_parser.add_argument("--model", default="gpt-4o", help="OpenAI model")
+    local_ask_parser.add_argument("--llm-base-url", default=None, help="Override the provider base URL")
     local_ask_parser.add_argument("--reasoning", action="store_true", help="Enable reasoning mode (auto-retry)")
     local_ask_parser.add_argument("--repair-budget", type=int, default=2, help="Max repair attempts")
 
@@ -189,6 +210,14 @@ def build_parser() -> argparse.ArgumentParser:
     status_parser.add_argument("--neo4j-uri", default="bolt://localhost:7687", help="Neo4j URI")
     status_parser.add_argument("--neo4j-user", default="neo4j", help="Neo4j user")
     status_parser.add_argument("--neo4j-password", default="password", help="Neo4j password")
+    status_parser.add_argument(
+        "--provider",
+        choices=["openai", "deepseek", "kimi", "grok"],
+        default="openai",
+        help="OpenAI-compatible LLM provider preset",
+    )
+    status_parser.add_argument("--model", default="gpt-4o", help="LLM model used for local queries")
+    status_parser.add_argument("--llm-base-url", default=None, help="Override the provider base URL")
     status_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
 
     compare_parser = subparsers.add_parser("compare", help="Compare two configs/models side by side")
@@ -219,7 +248,14 @@ def build_parser() -> argparse.ArgumentParser:
     bundle_export_parser.add_argument("--neo4j-uri", default="bolt://localhost:7687", help="Neo4j/DozerDB URI")
     bundle_export_parser.add_argument("--neo4j-user", default="neo4j", help="Neo4j user")
     bundle_export_parser.add_argument("--neo4j-password", default="password", help="Neo4j password")
+    bundle_export_parser.add_argument(
+        "--provider",
+        choices=["openai", "deepseek", "kimi", "grok"],
+        default="openai",
+        help="OpenAI-compatible LLM provider preset",
+    )
     bundle_export_parser.add_argument("--model", default="gpt-4o", help="OpenAI model")
+    bundle_export_parser.add_argument("--llm-base-url", default=None, help="Override the provider base URL")
     bundle_export_parser.add_argument(
         "--prompt-preset",
         default=None,
@@ -775,7 +811,7 @@ def _build_local_client(args: argparse.Namespace) -> Seocho:
     from .config_file import get_default, load_config
     from .query.strategy import PRESET_PROMPTS
     from .store.graph import Neo4jGraphStore
-    from .store.llm import OpenAIBackend
+    from .store.llm import create_llm_backend
 
     cfg = load_config()
 
@@ -783,11 +819,13 @@ def _build_local_client(args: argparse.Namespace) -> Seocho:
     neo4j_uri = getattr(args, "neo4j_uri", None) or get_default(cfg, "neo4j", "uri", "bolt://localhost:7687")
     neo4j_user = getattr(args, "neo4j_user", None) or get_default(cfg, "neo4j", "user", "neo4j")
     neo4j_password = getattr(args, "neo4j_password", None) or get_default(cfg, "neo4j", "password", "password")
+    provider = getattr(args, "provider", None) or get_default(cfg, "llm", "provider", "openai")
     model = getattr(args, "model", None) or get_default(cfg, "llm", "model", "gpt-4o")
+    llm_base_url = getattr(args, "llm_base_url", None) or get_default(cfg, "llm", "base_url", None)
 
     ontology = _load_local_ontology(schema)
     store = Neo4jGraphStore(neo4j_uri, neo4j_user, neo4j_password)
-    llm = OpenAIBackend(model=model)
+    llm = create_llm_backend(provider=provider, model=model, base_url=llm_base_url)
     prompt_preset_name = getattr(args, "prompt_preset", None)
     extraction_prompt = PRESET_PROMPTS[prompt_preset_name] if prompt_preset_name else None
     return Seocho(ontology=ontology, graph_store=store, llm=llm, extraction_prompt=extraction_prompt)

@@ -222,6 +222,18 @@ Each entry must link to a full ADR when impact is non-trivial.
 
 - Accepted `ADR-0041-portable-sdk-runtime-bundle-and-http-adapter.md`
   - add a portable bundle contract for SDK-authored local runtimes
+  - expose a narrow FastAPI adapter so other developers can consume SDK-authored apps over HTTP
+  - keep portability declarative and reject custom Python hooks
+
+- Accepted `ADR-0042-openai-compatible-provider-and-vector-backend-contract.md`
+  - add OpenAI-compatible provider presets for OpenAI, DeepSeek, Kimi, and Grok
+  - expose Agents SDK helper builders from the same provider-backed SDK objects
+  - add LanceDB as a persistent vector backend alongside FAISS
+
+## 2026-04-12
+
+- Accepted `ADR-0041-portable-sdk-runtime-bundle-and-http-adapter.md`
+  - add a portable bundle contract for SDK-authored local runtimes
   - expose a small HTTP adapter so other developers can consume those apps with normal HTTP client mode
   - keep the portable runtime declarative-only and narrower than the full main server runtime
 

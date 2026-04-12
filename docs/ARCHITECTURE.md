@@ -414,7 +414,11 @@ Edge routing in the UI is rendered strictly via the `metadata.parent` (for the f
 ### Environment Variables (`.env`)
 ```
 OPENAI_API_KEY=sk-...
-NEO4J_URI=bolt://neo4j:7687
+OPENAI_MODEL=gpt-4o-mini
+DEEPSEEK_API_KEY=
+MOONSHOT_API_KEY=
+XAI_API_KEY=
+NEO4J_URI=bolt://localhost:7687
 NEO4J_USER=neo4j
 NEO4J_PASSWORD=password
 

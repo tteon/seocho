@@ -684,22 +684,34 @@ class Session:
         """Direct pipeline fallback (no agent reasoning)."""
         pipeline = self._get_pipeline_engine()
 
-        # Extract first (for context cache), then add normally
-        extracted_nodes: List[Dict] = []
-        extracted_rels: List[Dict] = []
-        try:
-            extracted = pipeline.extract(content, category=category, metadata=metadata)
-            extracted_nodes = extracted.get("nodes", [])
-            extracted_rels = extracted.get("relationships", [])
-        except Exception:
-            pass  # extraction for cache is best-effort
-
+        # Single add() call — no separate extract() to avoid double LLM calls
         memory = pipeline.add(
             content,
             database=database,
             category=category,
             metadata=metadata,
         )
+
+        # For context cache: query what was actually written to the graph
+        extracted_nodes: List[Dict] = []
+        extracted_rels: List[Dict] = []
+        if memory.status == "active" and self.graph_store is not None:
+            try:
+                sid = memory.memory_id
+                rows = self.graph_store.query(
+                    "MATCH (n) WHERE n._source_id = $sid "
+                    "RETURN labels(n)[0] AS label, n.name AS name, properties(n) AS props",
+                    params={"sid": sid}, database=database,
+                )
+                for row in rows:
+                    extracted_nodes.append({
+                        "label": row.get("label", ""),
+                        "properties": {k: v for k, v in (row.get("props") or {}).items()
+                                       if not k.startswith("_") and k != "id"},
+                    })
+            except Exception:
+                pass
+
         return {
             "source_id": memory.memory_id,
             "nodes_created": int(memory.metadata.get("nodes_created", 0) or 0),
@@ -782,6 +794,62 @@ class Session:
         if self._trace:
             return self._trace.spans
         return []
+
+    def ask_stream(
+        self,
+        question: str,
+        *,
+        database: Optional[str] = None,
+    ):
+        """Stream a query response token by token.
+
+        Requires ``execution_mode="agent"`` or ``"supervisor"``.
+        Yields partial text chunks as the agent generates them.
+
+        Usage::
+
+            for chunk in sess.ask_stream("Who is Samsung CEO?"):
+                print(chunk, end="", flush=True)
+        """
+        if self._closed:
+            raise RuntimeError("Session is closed")
+        if self._execution_mode == "pipeline":
+            # Pipeline mode: no streaming, yield full answer
+            answer = self.ask(question, database=database)
+            yield answer
+            return
+
+        db = database or self.database
+        agent_ctx = self.context.to_agent_context(ontology=self.ontology)
+        context_block = f"\n\n{agent_ctx}" if agent_ctx else ""
+        full_msg = f"{question}{context_block}\n[Target database: {db}]"
+
+        try:
+            from agents import Runner
+            agent = self._get_query_agent()
+
+            async def _stream():
+                result = Runner.run_streamed(agent, full_msg)
+                async for event in result.stream_events():
+                    if hasattr(event, 'data') and hasattr(event.data, 'delta'):
+                        yield event.data.delta
+
+            import asyncio
+            loop = asyncio.new_event_loop()
+            try:
+                ait = _stream().__aiter__()
+                while True:
+                    try:
+                        chunk = loop.run_until_complete(ait.__anext__())
+                        yield chunk
+                    except StopAsyncIteration:
+                        break
+            finally:
+                loop.close()
+        except Exception as exc:
+            logger.warning("Streaming failed, falling back: %s", exc)
+            answer = self.ask(question, database=database)
+            yield answer
 
     def close(self) -> Dict[str, Any]:
         """Close the session and finalize traces.

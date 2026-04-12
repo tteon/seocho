@@ -29,6 +29,7 @@ from seocho.store import Neo4jGraphStore, OpenAIBackend
 # 1. Define your schema
 ontology = Ontology(
     name="my_domain",
+    package_id="org.example.my_domain",
     nodes={
         "Person":  NodeDef(properties={"name": P(str, unique=True)}),
         "Company": NodeDef(properties={"name": P(str, unique=True)}),
@@ -94,6 +95,7 @@ s.ensure_constraints(database="neo4j")
 # seocho ontology check --schema schema.jsonld
 # seocho ontology export --schema schema.jsonld --format shacl --output shacl.json
 # seocho ontology diff --left schema_v1.jsonld --right schema_v2.jsonld
+# diff output now includes package_id, recommended version bump, and migration warnings
 
 # Experiment workbench
 from seocho.experiment import Workbench

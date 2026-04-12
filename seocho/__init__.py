@@ -44,8 +44,9 @@ from .exceptions import SeochoConnectionError, SeochoError, SeochoHTTPError
 from .governance import ArtifactDiff, ArtifactValidationMessage, ArtifactValidationResult
 from .indexing import BatchIndexingResult, IndexingResult
 from .local import LocalRuntimeStatus
-from .vector_store import VectorSearchResult
 from .ontology import Cardinality, NodeDef, Ontology, P, PropertyType, RelDef
+from .tracing import disable_tracing, enable_tracing, is_tracing_enabled
+from .vector_store import VectorSearchResult
 from .semantic import (
     ApprovedArtifacts,
     KnownEntity,

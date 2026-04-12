@@ -1,0 +1,18 @@
+name: docs-consistency
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  docs-contract:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run docs contract checks
+        run: bash scripts/ci/check-doc-contracts.sh

@@ -27,6 +27,7 @@ class RuleSet:
     rules: List[Rule] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
+        """Serialize to a portable dict (``schema_version`` + ``rules`` list)."""
         return {
             "schema_version": self.schema_version,
             "rules": [asdict(rule) for rule in self.rules],
@@ -34,6 +35,7 @@ class RuleSet:
 
     @classmethod
     def from_dict(cls, payload: Dict[str, Any]) -> "RuleSet":
+        """Deserialize from a dict produced by :meth:`to_dict`."""
         schema_version = payload.get("schema_version", "rules.v1")
         rules = []
         for item in payload.get("rules", []):

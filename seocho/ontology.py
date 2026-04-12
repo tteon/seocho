@@ -1496,6 +1496,179 @@ class Ontology:
         return "\n".join(hints)
 
     # ------------------------------------------------------------------
+    # Merge
+    # ------------------------------------------------------------------
+
+    def merge(
+        self,
+        other: "Ontology",
+        *,
+        strategy: str = "union",
+        name: Optional[str] = None,
+    ) -> "Ontology":
+        """Merge another ontology into this one.
+
+        Combines nodes, relationships, and their properties. When both
+        ontologies define the same label or relationship type, the
+        ``strategy`` determines how conflicts are resolved.
+
+        Parameters
+        ----------
+        other:
+            The ontology to merge in.
+        strategy:
+            Conflict resolution for overlapping definitions:
+            - ``"union"`` — combine properties from both (default)
+            - ``"left_wins"`` — keep this ontology's definition
+            - ``"right_wins"`` — keep other ontology's definition
+            - ``"strict"`` — raise on any conflict
+        name:
+            Name for the merged ontology (defaults to "left+right").
+
+        Returns
+        -------
+        A new :class:`Ontology` containing definitions from both.
+
+        Example::
+
+            finance = Ontology.from_jsonld("finance.jsonld")
+            legal = Ontology.from_jsonld("legal.jsonld")
+            combined = finance.merge(legal)
+            combined.to_jsonld("combined.jsonld")
+        """
+        merged_name = name or f"{self.name}+{other.name}"
+        merged_nodes: Dict[str, NodeDef] = {}
+        merged_rels: Dict[str, RelDef] = {}
+        conflicts: List[str] = []
+
+        # --- Merge nodes ---
+        all_labels = set(self.nodes.keys()) | set(other.nodes.keys())
+        for label in sorted(all_labels):
+            left = self.nodes.get(label)
+            right = other.nodes.get(label)
+
+            if left and not right:
+                merged_nodes[label] = left
+            elif right and not left:
+                merged_nodes[label] = right
+            else:
+                # Both define this label — apply strategy
+                merged_nodes[label] = self._merge_node_def(
+                    label, left, right, strategy, conflicts
+                )
+
+        # --- Merge relationships ---
+        all_rels = set(self.relationships.keys()) | set(other.relationships.keys())
+        for rtype in sorted(all_rels):
+            left = self.relationships.get(rtype)
+            right = other.relationships.get(rtype)
+
+            if left and not right:
+                merged_rels[rtype] = left
+            elif right and not left:
+                merged_rels[rtype] = right
+            else:
+                merged_rels[rtype] = self._merge_rel_def(
+                    rtype, left, right, strategy, conflicts
+                )
+
+        if conflicts and strategy == "strict":
+            raise ValueError(
+                f"Merge conflicts in strict mode:\n" +
+                "\n".join(f"  - {c}" for c in conflicts)
+            )
+
+        return Ontology(
+            name=merged_name,
+            version=self.version,
+            description=f"Merged: {self.name} + {other.name}",
+            graph_model=self.graph_model,
+            namespace=self.namespace or other.namespace,
+            nodes=merged_nodes,
+            relationships=merged_rels,
+        )
+
+    @staticmethod
+    def _merge_node_def(
+        label: str,
+        left: NodeDef,
+        right: NodeDef,
+        strategy: str,
+        conflicts: List[str],
+    ) -> NodeDef:
+        if strategy == "left_wins":
+            return left
+        if strategy == "right_wins":
+            return right
+
+        # Union: combine properties
+        merged_props = dict(left.properties)
+        for pname, p in right.properties.items():
+            if pname in merged_props:
+                existing = merged_props[pname]
+                if existing.property_type != p.property_type:
+                    conflicts.append(
+                        f"Node '{label}' property '{pname}': "
+                        f"type {existing.property_type.value} vs {p.property_type.value}"
+                    )
+                    if strategy == "strict":
+                        continue
+                # Union: more restrictive wins
+                merged_props[pname] = P(
+                    type=existing.property_type,
+                    index=existing.index or p.index,
+                    required=existing.required or p.required,
+                    unique=existing.unique or p.unique,
+                    description=existing.description or p.description,
+                    aliases=list(set(existing.aliases + p.aliases)),
+                )
+            else:
+                merged_props[pname] = p
+
+        return NodeDef(
+            description=left.description or right.description,
+            properties=merged_props,
+            aliases=list(set(left.aliases + right.aliases)),
+            broader=list(set(left.broader + right.broader)),
+            same_as=left.same_as or right.same_as,
+        )
+
+    @staticmethod
+    def _merge_rel_def(
+        rtype: str,
+        left: RelDef,
+        right: RelDef,
+        strategy: str,
+        conflicts: List[str],
+    ) -> RelDef:
+        if strategy == "left_wins":
+            return left
+        if strategy == "right_wins":
+            return right
+
+        # Check source/target compatibility
+        if left.source != right.source or left.target != right.target:
+            conflicts.append(
+                f"Relationship '{rtype}': "
+                f"{left.source}->{left.target} vs {right.source}->{right.target}"
+            )
+            if strategy == "strict":
+                return left
+
+        merged_props = dict(left.properties)
+        merged_props.update(right.properties)
+
+        return RelDef(
+            source=left.source,
+            target=left.target,
+            description=left.description or right.description,
+            cardinality=left.cardinality,
+            properties=merged_props,
+            aliases=list(set(left.aliases + right.aliases)),
+            same_as=left.same_as or right.same_as,
+        )
+
+    # ------------------------------------------------------------------
     # Dunder
     # ------------------------------------------------------------------
 

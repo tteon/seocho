@@ -46,6 +46,22 @@ from .exceptions import SeochoConnectionError, SeochoError, SeochoHTTPError
 from .governance import ArtifactDiff, ArtifactValidationMessage, ArtifactValidationResult
 from .indexing import BatchIndexingResult, IndexingResult
 from .local import LocalRuntimeStatus
+from .llm_backend import (
+    DeepSeekBackend,
+    EmbeddingBackend,
+    GrokBackend,
+    KimiBackend,
+    LLMBackend,
+    LLMResponse,
+    OpenAIBackend,
+    OpenAICompatibleBackend,
+    OpenAICompatibleEmbeddingBackend,
+    ProviderSpec,
+    create_embedding_backend,
+    create_llm_backend,
+    get_provider_spec,
+    list_provider_specs,
+)
 from .ontology import Cardinality, NodeDef, Ontology, P, PropertyType, RelDef
 from .tracing import disable_tracing, enable_tracing, flush_tracing, is_tracing_enabled
 from .runtime_bundle import (
@@ -57,7 +73,13 @@ from .runtime_bundle import (
     build_runtime_bundle,
     create_client_from_runtime_bundle,
 )
-from .vector_store import VectorSearchResult
+from .vector_store import (
+    FAISSVectorStore,
+    LanceDBVectorStore,
+    VectorSearchResult,
+    VectorStore,
+    create_vector_store,
+)
 from .semantic import (
     ApprovedArtifacts,
     KnownEntity,
@@ -117,6 +139,7 @@ __all__ = [
     "P",
     "PropertyType",
     "Cardinality",
+    "ProviderSpec",
     # --- Client ---
     "Seocho",
     "AsyncSeocho",
@@ -130,6 +153,25 @@ __all__ = [
     "SeochoError",
     "SeochoConnectionError",
     "SeochoHTTPError",
+    # --- LLM and vector backends ---
+    "LLMBackend",
+    "EmbeddingBackend",
+    "LLMResponse",
+    "OpenAICompatibleBackend",
+    "OpenAICompatibleEmbeddingBackend",
+    "OpenAIBackend",
+    "DeepSeekBackend",
+    "KimiBackend",
+    "GrokBackend",
+    "get_provider_spec",
+    "list_provider_specs",
+    "create_llm_backend",
+    "create_embedding_backend",
+    "VectorStore",
+    "FAISSVectorStore",
+    "LanceDBVectorStore",
+    "create_vector_store",
+    "VectorSearchResult",
     # --- Semantic artifact types ---
     "ApprovedArtifacts",
     "KnownEntity",

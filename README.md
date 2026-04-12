@@ -124,6 +124,22 @@ recent_runs = seocho.semantic_runs(limit=5, route="lpg")
 print(recent_runs[0].run_id)
 ```
 
+OpenAI-compatible providers and vector backends are pluggable in local SDK mode:
+
+```python
+from seocho import DeepSeekBackend, LanceDBVectorStore, Seocho
+
+llm = DeepSeekBackend(model="deepseek-chat")
+vectors = LanceDBVectorStore(uri="./.lancedb", table_name="team_docs")
+
+client = Seocho(
+    ontology=ontology,
+    graph_store=graph_store,
+    llm=llm,
+    vector_store=vectors,
+)
+```
+
 Portable SDK-authored runtimes can now be exported and served over HTTP.
 This lets one developer author an ontology-first local engine with the SDK and
 let other developers consume it through the normal HTTP client mode:
@@ -154,6 +170,9 @@ print(remote.ask("What do you know about Alex?"))
 Current portable bundle runtime is intentionally narrow. It is meant for
 `add`/`ask`/`chat`/`search`/basic `semantic` compatibility, not the full
 governance and debate surface of the main server runtime.
+
+Portable bundle export supports the OpenAI-compatible SDK backends:
+`OpenAIBackend`, `DeepSeekBackend`, `KimiBackend`, and `GrokBackend`.
 
 Recommended execution order:
 

@@ -28,8 +28,10 @@ class Neo4jGraphStore:
 
 class OpenAIBackend:
     def __init__(self, model: str = "gpt-4o", api_key: str | None = None, base_url: str | None = None) -> None:
+        self.provider = "openai"
         self.model = model
         self._api_key = api_key
+        self._api_key_env = "OPENAI_API_KEY"
         self._base_url = base_url or ""
 
 
@@ -205,6 +207,64 @@ def test_from_runtime_bundle_rehydrates_local_client(
     assert client.graph_store._uri == "bolt://bundle:7687"
     assert client.llm.model == "gpt-4.1"
     assert client.agent_config.reasoning_mode is True
+
+    client.close()
+
+
+def test_from_runtime_bundle_rehydrates_non_openai_provider(
+    monkeypatch: pytest.MonkeyPatch,
+    ontology: Ontology,
+    patch_local_engine: None,
+) -> None:
+    class DeepSeekBackend:
+        def __init__(self, model: str, api_key: str | None = None, base_url: str | None = None) -> None:
+            self.provider = "deepseek"
+            self.model = model
+            self._api_key = api_key
+            self._api_key_env = "DEEPSEEK_API_KEY"
+            self._base_url = base_url or ""
+
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "deepseek-key")
+    monkeypatch.setenv("NEO4J_PASSWORD", "password")
+    monkeypatch.setattr("seocho.store.graph.Neo4jGraphStore", Neo4jGraphStore)
+    monkeypatch.setattr(
+        "seocho.store.llm.create_llm_backend",
+        lambda **kwargs: DeepSeekBackend(
+            model=str(kwargs["model"]),
+            api_key=kwargs.get("api_key"),
+            base_url=kwargs.get("base_url"),
+        ),
+    )
+
+    bundle = RuntimeBundle(
+        app_name="deepseek-app",
+        workspace_id="default",
+        ontology=ontology.to_dict(),
+        llm=RuntimeLLMConfig(
+            kind="openai_compatible",
+            provider="deepseek",
+            model="deepseek-chat",
+            base_url="https://api.deepseek.com",
+            api_key_env="DEEPSEEK_API_KEY",
+        ),
+        graph_store=RuntimeGraphStoreConfig(uri="bolt://bundle:7687", user="neo4j", default_database="news"),
+        graphs=[
+            RuntimeGraphBinding(
+                graph_id="news",
+                database="news",
+                ontology_id=ontology.name,
+                graph_model="lpg",
+                uri="bolt://bundle:7687",
+            )
+        ],
+    )
+
+    client = Seocho.from_runtime_bundle(bundle)
+
+    assert client._local_mode is True
+    assert client.llm.provider == "deepseek"
+    assert client.llm.model == "deepseek-chat"
+    assert client.llm._base_url == "https://api.deepseek.com"
 
     client.close()
 

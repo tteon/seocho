@@ -250,7 +250,74 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-## 12. Inspect Semantic Run History
+## 12. Publish A Portable SDK Runtime
+
+When one developer builds a local SDK configuration and wants other developers
+to consume it over HTTP client mode, export a portable runtime bundle and serve
+it behind the small bundle HTTP adapter.
+
+Author the bundle:
+
+```python
+from seocho import Seocho
+
+client = Seocho(
+    ontology=ontology,
+    graph_store=graph_store,
+    llm=llm,
+    agent_config=agent_config,
+)
+
+bundle = client.export_runtime_bundle(
+    "portable.bundle.json",
+    app_name="team-memory-runtime",
+    default_database="neo4j",
+)
+
+print(bundle.app_name)
+```
+
+You can also do the same from the CLI:
+
+```bash
+seocho bundle export \
+  --schema schema.jsonld \
+  --neo4j-uri bolt://localhost:7687 \
+  --neo4j-user neo4j \
+  --neo4j-password password \
+  --model gpt-4o \
+  --database neo4j \
+  --output portable.bundle.json
+```
+
+Serve the bundle:
+
+```bash
+seocho serve-http --bundle portable.bundle.json --host 0.0.0.0 --port 8010
+```
+
+Consume it from another process or machine with the standard HTTP client mode:
+
+```python
+from seocho import Seocho
+
+remote = Seocho(base_url="http://localhost:8010", workspace_id="default")
+
+print(remote.ask("What do you know about Alex?"))
+semantic = remote.semantic("Who manages Seoul retail?", databases=["neo4j"])
+print(semantic.route)
+```
+
+Portable bundle limits in the current implementation:
+
+- supported backend export: `Neo4jGraphStore`
+- supported LLM export: `OpenAIBackend`
+- portable config only; custom Python strategies are rejected
+- intended HTTP surface: `add`, `ask`, `chat`, `search`, and basic `semantic`
+- not a replacement for the full main server runtime when you need debate,
+  governance, or the complete artifact lifecycle
+
+## 13. Inspect Semantic Run History
 
 The runtime now keeps a SQLite-backed semantic run registry outside the graph
 store. You can inspect it from the SDK without touching internal files.

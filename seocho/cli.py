@@ -208,10 +208,40 @@ def build_parser() -> argparse.ArgumentParser:
     experiment_parser.add_argument("--output", default=None, help="Save results to this directory")
     experiment_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
 
+    bundle_parser = subparsers.add_parser("bundle", help="Export or inspect portable runtime bundles")
+    bundle_subparsers = bundle_parser.add_subparsers(dest="bundle_command", required=True)
+
+    bundle_export_parser = bundle_subparsers.add_parser("export", help="Export a local SDK configuration as a portable bundle")
+    bundle_export_parser.add_argument("--output", required=True, help="Output bundle JSON file")
+    bundle_export_parser.add_argument("--app-name", default=None, help="Portable app name")
+    bundle_export_parser.add_argument("--database", default="neo4j", help="Default database for the portable runtime")
+    bundle_export_parser.add_argument("--schema", default="schema.jsonld", help="Ontology file (JSON-LD or YAML)")
+    bundle_export_parser.add_argument("--neo4j-uri", default="bolt://localhost:7687", help="Neo4j/DozerDB URI")
+    bundle_export_parser.add_argument("--neo4j-user", default="neo4j", help="Neo4j user")
+    bundle_export_parser.add_argument("--neo4j-password", default="password", help="Neo4j password")
+    bundle_export_parser.add_argument("--model", default="gpt-4o", help="OpenAI model")
+    bundle_export_parser.add_argument(
+        "--prompt-preset",
+        default=None,
+        choices=["general", "finance", "legal", "medical", "research", "rdf_general", "rdf_fibo"],
+        help="Optional extraction prompt preset to serialize into the portable bundle",
+    )
+    bundle_export_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
+
+    bundle_show_parser = bundle_subparsers.add_parser("show", help="Show one portable runtime bundle")
+    bundle_show_parser.add_argument("bundle", help="Path to bundle JSON file")
+    bundle_show_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
+
+    serve_http_parser = subparsers.add_parser("serve-http", help="Serve a portable bundle behind a small FastAPI runtime")
+    serve_http_parser.add_argument("--bundle", required=True, help="Path to portable bundle JSON file")
+    serve_http_parser.add_argument("--host", default="0.0.0.0", help="Bind host")
+    serve_http_parser.add_argument("--port", type=int, default=8010, help="Bind port")
+    serve_http_parser.add_argument("--reload", action="store_true", help="Enable uvicorn reload mode")
+
     return parser
 
 
-LOCAL_COMMANDS = {"init", "index", "local-ask", "status", "compare", "experiment"}
+LOCAL_COMMANDS = {"init", "index", "local-ask", "status", "compare", "experiment", "bundle", "serve-http"}
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
@@ -640,6 +670,10 @@ def _dispatch_local(args: argparse.Namespace) -> int:
         return _cmd_compare(args)
     if args.command == "experiment":
         return _cmd_experiment(args)
+    if args.command == "bundle":
+        return _cmd_bundle(args)
+    if args.command == "serve-http":
+        return _cmd_serve_http(args)
     raise SeochoError(f"Unknown local command: {args.command}")
 
 
@@ -739,6 +773,7 @@ def _load_local_ontology(schema_path: str) -> Any:
 def _build_local_client(args: argparse.Namespace) -> Seocho:
     """Build a local-mode Seocho client from CLI args + .seocho.toml defaults."""
     from .config_file import get_default, load_config
+    from .query.strategy import PRESET_PROMPTS
     from .store.graph import Neo4jGraphStore
     from .store.llm import OpenAIBackend
 
@@ -753,7 +788,9 @@ def _build_local_client(args: argparse.Namespace) -> Seocho:
     ontology = _load_local_ontology(schema)
     store = Neo4jGraphStore(neo4j_uri, neo4j_user, neo4j_password)
     llm = OpenAIBackend(model=model)
-    return Seocho(ontology=ontology, graph_store=store, llm=llm)
+    prompt_preset_name = getattr(args, "prompt_preset", None)
+    extraction_prompt = PRESET_PROMPTS[prompt_preset_name] if prompt_preset_name else None
+    return Seocho(ontology=ontology, graph_store=store, llm=llm, extraction_prompt=extraction_prompt)
 
 
 def _cmd_index(args: argparse.Namespace) -> int:
@@ -960,4 +997,69 @@ def _cmd_experiment(args: argparse.Namespace) -> int:
         saved = results.save(args.output)
         print(f"\nResults saved to {saved}/")
 
+    return 0
+
+
+def _cmd_bundle(args: argparse.Namespace) -> int:
+    if args.bundle_command == "export":
+        return _cmd_bundle_export(args)
+    if args.bundle_command == "show":
+        return _cmd_bundle_show(args)
+    raise SeochoError(f"Unknown bundle command: {args.bundle_command}")
+
+
+def _cmd_bundle_export(args: argparse.Namespace) -> int:
+    client = _build_local_client(args)
+    try:
+        bundle = client.export_runtime_bundle(
+            args.output,
+            app_name=args.app_name,
+            default_database=args.database,
+        )
+        payload = bundle.to_dict()
+        if getattr(args, "output_json", False):
+            print(json.dumps(payload, indent=2))
+        else:
+            print(f"Bundle exported to {args.output}")
+            print(f"  app_name: {payload['app_name']}")
+            print(f"  workspace_id: {payload['workspace_id']}")
+            print(f"  default_database: {payload['graph_store']['default_database']}")
+            print(f"  route graph count: {len(payload.get('graphs', []))}")
+        return 0
+    finally:
+        client.close()
+
+
+def _cmd_bundle_show(args: argparse.Namespace) -> int:
+    from .runtime_bundle import RuntimeBundle
+
+    bundle = RuntimeBundle.load(args.bundle)
+    payload = bundle.to_dict()
+    if getattr(args, "output_json", False):
+        print(json.dumps(payload, indent=2))
+    else:
+        print(f"Bundle: {args.bundle}")
+        print(f"  app_name: {bundle.app_name}")
+        print(f"  workspace_id: {bundle.workspace_id}")
+        print(f"  default_database: {bundle.default_database}")
+        print(f"  graph_store: {bundle.graph_store.kind} @ {bundle.graph_store.uri}")
+        print(f"  llm: {bundle.llm.kind} / {bundle.llm.model}")
+        print(f"  graphs: {', '.join(item.graph_id for item in bundle.graphs) or 'none'}")
+    return 0
+
+
+def _cmd_serve_http(args: argparse.Namespace) -> int:
+    from .http_runtime import create_bundle_runtime_app
+    from .runtime_bundle import RuntimeBundle
+
+    try:
+        import uvicorn
+    except ImportError as exc:
+        raise SeochoError(
+            "serve-http requires uvicorn. Install the repository dev dependencies or add uvicorn."
+        ) from exc
+
+    bundle = RuntimeBundle.load(args.bundle)
+    app = create_bundle_runtime_app(bundle)
+    uvicorn.run(app, host=args.host, port=args.port, reload=args.reload)
     return 0

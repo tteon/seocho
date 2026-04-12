@@ -218,6 +218,13 @@ Each entry must link to a full ADR when impact is non-trivial.
   - add a separate periodic Codex draft-PR workflow for bounded refactors and small improvements
   - keep scheduled improvement automation review-first with no direct push to `main`
 
+## 2026-04-12
+
+- Accepted `ADR-0041-portable-sdk-runtime-bundle-and-http-adapter.md`
+  - add a portable bundle contract for SDK-authored local runtimes
+  - expose a small HTTP adapter so other developers can consume those apps with normal HTTP client mode
+  - keep the portable runtime declarative-only and narrower than the full main server runtime
+
 - Accepted `ADR-0035-comment-triggered-maintainer-merge-workflow.md`
   - add `/go` comment-triggered squash merge workflow for reviewed PRs
   - require `write`/`maintain`/`admin` permission before merge automation runs

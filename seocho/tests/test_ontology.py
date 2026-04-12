@@ -369,10 +369,12 @@ class TestPromptContext:
     def test_query_context(self, simple_ontology):
         ctx = simple_ontology.to_query_context()
         assert "graph_schema" in ctx
+        assert "ontology_profile" in ctx
         assert "Person" in ctx["graph_schema"]
         assert "WORKS_AT" in ctx["graph_schema"]
         assert "UNIQUE" in ctx["query_hints"]
         assert "many-to-one" in ctx["query_hints"].lower()
+        assert "package_id=test" in ctx["ontology_profile"]
 
     def test_linking_context(self, simple_ontology):
         ctx = simple_ontology.to_linking_context()

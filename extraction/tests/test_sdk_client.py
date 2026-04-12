@@ -557,6 +557,37 @@ def test_validate_and_diff_artifact_helpers_are_available_locally():
     assert diff.summary["terms_added"] == 1
 
 
+def test_client_can_build_runtime_artifacts_from_registered_ontology():
+    from seocho.ontology import NodeDef, Ontology, P, RelDef
+
+    ontology = Ontology(
+        name="customer_graph",
+        package_id="customer.core",
+        nodes={
+            "Customer": NodeDef(
+                aliases=["AccountHolder"],
+                properties={"name": P(str, unique=True, aliases=["customer_name"])},
+            ),
+            "Account": NodeDef(properties={"number": P(str, unique=True)}),
+        },
+        relationships={
+            "OWNS": RelDef(source="Customer", target="Account", cardinality="ONE_TO_MANY"),
+        },
+    )
+    client = Seocho(ontology=ontology)
+
+    artifacts = client.approved_artifacts_from_ontology()
+    prompt_context = client.prompt_context_from_ontology()
+    draft = client.artifact_draft_from_ontology()
+
+    assert artifacts.ontology_candidate is not None
+    assert artifacts.ontology_candidate.ontology_name == "customer_graph"
+    assert artifacts.vocabulary_candidate is not None
+    assert any(term.pref_label == "Customer" for term in artifacts.vocabulary_candidate.terms)
+    assert prompt_context.ontology_candidate is not None
+    assert draft.source_summary["package_id"] == "customer.core"
+
+
 def test_runtime_client_methods_cover_semantic_debate_platform_and_admin_surfaces():
     session = _FakeSession(
         [

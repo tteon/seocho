@@ -116,6 +116,7 @@ class TestQueryStrategy:
         system, user = qs.render("Who works at Samsung?")
         assert "Person" in system
         assert "WORKS_AT" in system
+        assert "Ontology Query Profile" in system
         assert "UNIQUE" in system
         assert "many-to-one" in system.lower()
 

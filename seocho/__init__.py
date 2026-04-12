@@ -32,6 +32,7 @@ from .api import (
     semantic_runs,
     session_history,
 )
+from .agent_config import AGENT_PRESETS, AgentConfig, IndexingStrategy, QueryAgentStrategy
 from .client import AsyncSeocho, ExecutionPlanBuilder, Seocho
 from .evaluation import (
     EvaluationBaselineResult,

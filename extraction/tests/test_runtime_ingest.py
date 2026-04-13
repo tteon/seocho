@@ -2,6 +2,7 @@ import importlib
 import sys
 import types
 from unittest.mock import MagicMock, patch
+from types import SimpleNamespace
 
 
 class _FakeDbManager:
@@ -133,6 +134,129 @@ def test_build_graph_prompt_metadata_uses_registered_graph_target():
     assert payload["graph_id"] == "customer360"
     assert payload["ontology_id"] == "customer"
     assert payload["description"] == "Customer memory graph"
+
+
+def test_runtime_ingest_uses_canonical_engine_for_direct_extract_and_link():
+    fake_neo4j = types.ModuleType("neo4j")
+    fake_neo4j.GraphDatabase = MagicMock()
+    fake_neo4j_exceptions = types.ModuleType("neo4j.exceptions")
+    fake_neo4j_exceptions.ServiceUnavailable = RuntimeError
+    fake_neo4j_exceptions.SessionExpired = RuntimeError
+
+    fake_semantic_module = types.ModuleType("semantic_pass_orchestrator")
+
+    class _FakeSemanticPassOrchestrator:
+        def __init__(self, api_key, model, extractor):  # noqa: ANN001
+            self.api_key = api_key
+            self.model = model
+            self.extractor = extractor
+
+    fake_semantic_module.SemanticPassOrchestrator = _FakeSemanticPassOrchestrator
+
+    with patch.dict(
+        sys.modules,
+        {
+            "neo4j": fake_neo4j,
+            "neo4j.exceptions": fake_neo4j_exceptions,
+            "semantic_pass_orchestrator": fake_semantic_module,
+        },
+    ):
+        runtime_ingest = importlib.import_module("runtime_ingest")
+        runtime_ingest = importlib.reload(runtime_ingest)
+
+    class _FakeResponse:
+        def __init__(self, payload):
+            self._payload = payload
+
+        def json(self):
+            return self._payload
+
+    class _FakeLLM:
+        def __init__(self, payloads):
+            self.payloads = list(payloads)
+            self.calls = []
+
+        def complete(self, *, system, user, temperature=0.0, response_format=None):  # noqa: ANN001
+            self.calls.append(
+                {
+                    "system": system,
+                    "user": user,
+                    "temperature": temperature,
+                    "response_format": response_format,
+                }
+            )
+            return _FakeResponse(self.payloads.pop(0))
+
+    fake_llm = _FakeLLM(
+        [
+            {
+                "nodes": [
+                    {"id": "1", "label": "Entity", "properties": {"name": "ACME"}},
+                    {"id": "2", "label": "Entity", "properties": {"name": "Beta"}},
+                ],
+                "relationships": [{"source": "1", "target": "2", "type": "partner_of"}],
+            },
+            {
+                "nodes": [
+                    {"id": "acme", "label": "Entity", "properties": {"name": "ACME"}},
+                    {"id": "beta", "label": "Entity", "properties": {"name": "Beta"}},
+                ]
+            },
+        ]
+    )
+
+    runtime_cfg = SimpleNamespace(
+        model="gpt-test",
+        openai_api_key="test-key",
+        prompts=SimpleNamespace(
+            system="SYS {{graph_context}}\n{{developer_instructions}}",
+            user="TEXT {{text}}",
+        ),
+        linking_prompt=SimpleNamespace(
+            linking="LINK {{graph_context}}\n{{developer_instructions}}\n{{entities}}"
+        ),
+    )
+
+    with patch.object(runtime_ingest, "load_pipeline_runtime_config", return_value=runtime_cfg), patch.object(
+        runtime_ingest,
+        "create_llm_backend",
+        return_value=fake_llm,
+    ), patch.object(runtime_ingest.graph_registry, "find_by_database") as mock_find:
+        mock_find.return_value = SimpleNamespace(
+            graph_id="kgfinance",
+            database="kgnormal",
+            ontology_id="finance",
+            vocabulary_profile="vocabulary.v2",
+            description="Finance graph",
+            workspace_scope="default",
+        )
+        ingestor = runtime_ingest.RuntimeRawIngestor(db_manager=_FakeDbManager())
+        ingestor._semantic_orchestrator = None
+
+        graph, used_fallback, reason = ingestor._extract_graph(
+            source_id="r1",
+            text="ACME partnered with Beta.",
+            category="finance",
+            target_database="kgnormal",
+            record_metadata={
+                "semantic_prompt_context": {
+                    "instructions": ["Prefer approved finance labels."],
+                }
+            },
+            source_type="text",
+            approved_artifacts=None,
+        )
+
+        linked, warning = ingestor._link_graph(graph, "finance")
+
+    assert used_fallback is False
+    assert reason == ""
+    assert graph["relationships"][0]["type"] == "partner_of"
+    assert warning is None
+    assert linked["relationships"] == graph["relationships"]
+    assert "Graph ID: kgfinance" in fake_llm.calls[0]["system"]
+    assert "Prefer approved finance labels." in fake_llm.calls[0]["system"]
+    assert "Graph ID: kgfinance" in fake_llm.calls[1]["user"]
 
 
 def test_embedding_cache_lru_eviction():

@@ -347,6 +347,11 @@ Each entry must link to a full ADR when impact is non-trivial.
   - make `seocho/index/pipeline.py` and `extraction/pipeline.py` share canonical prompt and normalization logic
   - keep `runtime_ingest.py` out of scope for this slice
 
+- Accepted `ADR-0055-runtime-ingest-canonical-extraction-seam-first-slice.md`
+  - move runtime ingest prompt-driven extraction and linking setup onto the canonical SEOCHO extraction seam
+  - keep compatibility adapters so the semantic orchestrator can continue calling legacy extractor/linker method names
+  - leave the larger runtime_ingest orchestration split for later slices
+
 ## Template
 
 Use this block for new entries:

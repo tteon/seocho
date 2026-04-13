@@ -24,10 +24,50 @@ from database_manager import DatabaseManager
 from exceptions import InvalidDatabaseNameError
 from raw_material_parser import MaterialParseError, parse_raw_material_record
 from semantic_context import build_dynamic_prompt_context
+from seocho.index import CanonicalExtractionEngine
+from seocho.store.llm import create_llm_backend
 
 logger = logging.getLogger(__name__)
 
 _DB_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9]*$")
+
+
+class _CanonicalRuntimeExtractor:
+    """Compatibility adapter exposing the legacy extractor interface."""
+
+    def __init__(self, engine: CanonicalExtractionEngine):
+        self._engine = engine
+
+    def extract_entities(
+        self,
+        text: str,
+        category: str = "general",
+        extra_context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        return self._engine.extract(
+            text,
+            category=category,
+            extra_context=extra_context,
+        )
+
+
+class _CanonicalRuntimeLinker:
+    """Compatibility adapter exposing the legacy linker interface."""
+
+    def __init__(self, engine: CanonicalExtractionEngine):
+        self._engine = engine
+
+    def link_entities(
+        self,
+        extracted_data: Dict[str, Any],
+        category: str = "general",
+        extra_context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        return self._engine.link(
+            extracted_data,
+            category=category,
+            extra_context=extra_context,
+        )
 
 
 class RuntimeRawIngestor:
@@ -49,9 +89,6 @@ class RuntimeRawIngestor:
         self._embedding_cache_lock = threading.Lock()
 
         try:
-            from extractor import EntityExtractor
-            from linker import EntityLinker
-            from prompt_manager import PromptManager
             from semantic_pass_orchestrator import SemanticPassOrchestrator
 
             cfg = load_pipeline_runtime_config()
@@ -59,9 +96,22 @@ class RuntimeRawIngestor:
             if not api_key:
                 raise ValueError("OPENAI_API_KEY is empty")
             model = cfg.model
-            prompt_manager = PromptManager(cfg)
-            self._extractor = EntityExtractor(prompt_manager=prompt_manager, api_key=api_key, model=model)
-            self._linker = EntityLinker(prompt_manager=prompt_manager, api_key=api_key, model=model)
+            llm = create_llm_backend(
+                provider="openai",
+                model=model,
+                api_key=api_key,
+            )
+            shared_engine = CanonicalExtractionEngine(
+                ontology=None,
+                llm=llm,
+                custom_prompts={
+                    "system": cfg.prompts.system,
+                    "user": cfg.prompts.user,
+                },
+                linking_prompt=cfg.linking_prompt.linking,
+            )
+            self._extractor = _CanonicalRuntimeExtractor(shared_engine)
+            self._linker = _CanonicalRuntimeLinker(shared_engine)
             self._semantic_orchestrator = SemanticPassOrchestrator(
                 api_key=api_key,
                 model=model,

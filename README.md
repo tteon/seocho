@@ -24,6 +24,9 @@ The server side follows the same rule: `extraction/agent_server.py` is the
 transport entrypoint, while shared runtime service composition lives in
 `extraction/server_runtime.py`.
 
+Legacy extraction modules are being reduced to transport or compatibility
+adapters as canonical engine code moves under `seocho/*`.
+
 ## Why SEOCHO
 
 Most memory libraries optimize for the fastest generic demo. SEOCHO optimizes

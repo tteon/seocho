@@ -131,6 +131,9 @@ class IndexingResult:
     write_errors: List[str] = field(default_factory=list)
     skipped_chunks: int = 0
     deduplicated: bool = False
+    rule_profile: Optional[Dict[str, Any]] = None
+    rule_validation_summary: Optional[Dict[str, Any]] = None
+    relatedness_summary: Optional[Dict[str, Any]] = None
 
     @property
     def ok(self) -> bool:
@@ -147,6 +150,9 @@ class IndexingResult:
             "skipped_chunks": self.skipped_chunks,
             "deduplicated": self.deduplicated,
             "ok": self.ok,
+            "rule_profile": self.rule_profile,
+            "rule_validation_summary": self.rule_validation_summary,
+            "relatedness_summary": self.relatedness_summary,
         }
 
 
@@ -216,6 +222,8 @@ class IndexingPipeline:
         strict_validation: bool = False,
         max_chunk_chars: int = 6000,
         enable_dedup: bool = True,
+        enable_rule_constraints: bool = False,
+        embedding_backend: Any = None,
         on_after_extract: Optional[Callable] = None,
         on_after_validate: Optional[Callable] = None,
         on_before_write: Optional[Callable] = None,
@@ -231,8 +239,15 @@ class IndexingPipeline:
         self.strict_validation = strict_validation
         self.max_chunk_chars = max_chunk_chars
         self.enable_dedup = enable_dedup
+        self.enable_rule_constraints = enable_rule_constraints
         self._seen_hashes: set = set()
         self.extraction_prompt = extraction_prompt
+
+        # Embedding linker (optional — enables server-parity linking)
+        self._embedding_linker = None
+        if embedding_backend is not None:
+            from seocho.index.linker import EmbeddingLinker
+            self._embedding_linker = EmbeddingLinker(embedding_backend)
 
         # Callbacks
         self.on_after_extract = on_after_extract
@@ -553,9 +568,39 @@ class IndexingPipeline:
         # Cross-chunk dedup: merge nodes with same label+name
         all_nodes = self._cross_chunk_dedup(all_nodes)
 
+        # --- Embedding relatedness (parity with server path) ---
+        if self._embedding_linker is not None and all_nodes:
+            try:
+                candidate_names = {
+                    str(n.get("properties", {}).get("name", "")).strip().lower()
+                    for n in all_nodes
+                    if n.get("label") != "Document" and n.get("properties", {}).get("name")
+                }
+                # For local single-document indexing, known_entities starts empty
+                # (first record is "bootstrap").  The relatedness is recorded for
+                # contract parity with the server, not for linking decisions.
+                relatedness = self._embedding_linker.compute_relatedness(candidate_names, set())
+                result.relatedness_summary = self._embedding_linker.summarize([relatedness])
+            except Exception as exc:
+                logger.warning("Embedding relatedness skipped: %s", exc)
+
         # --- Callback: on_before_write ---
         if self.on_before_write:
             all_nodes, all_rels = self.on_before_write(all_nodes, all_rels)
+
+        # --- Rule inference & validation ---
+        if self.enable_rule_constraints and all_nodes:
+            try:
+                from seocho.rules import infer_rules_from_graph, apply_rules_to_graph
+
+                graph_for_rules = {"nodes": all_nodes, "relationships": all_rels}
+                ruleset = infer_rules_from_graph(graph_for_rules)
+                annotated = apply_rules_to_graph(graph_for_rules, ruleset)
+                all_nodes = annotated.get("nodes", all_nodes)
+                result.rule_profile = annotated.get("rule_profile")
+                result.rule_validation_summary = annotated.get("rule_validation_summary")
+            except Exception as exc:
+                logger.warning("Rule inference skipped: %s", exc)
 
         # Write to graph
         if all_nodes or all_rels:

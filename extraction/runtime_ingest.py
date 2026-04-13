@@ -8,11 +8,14 @@ graph data into a target DB.
 
 from __future__ import annotations
 
+import concurrent.futures
 import json
 import logging
 import math
 import os
 import re
+import threading
+from collections import OrderedDict
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Set, Tuple
 
@@ -41,7 +44,9 @@ class RuntimeRawIngestor:
         self._embedding_enabled = _env_bool("RUNTIME_LINKING_USE_EMBEDDING", True)
         self._embedding_model = os.getenv("RUNTIME_LINKING_EMBED_MODEL", "text-embedding-3-small")
         self._embedding_client = None
-        self._embedding_cache: Dict[str, List[float]] = {}
+        self._embedding_cache_max_size = int(os.getenv("RUNTIME_EMBEDDING_CACHE_MAX_SIZE", "4096"))
+        self._embedding_cache: OrderedDict[str, List[float]] = OrderedDict()
+        self._embedding_cache_lock = threading.Lock()
 
         try:
             from extractor import EntityExtractor
@@ -141,6 +146,8 @@ class RuntimeRawIngestor:
                 }
             )
 
+        # --- Phase A: Parse all records (sequential, fast) ---
+        parsed_items: List[Tuple[str, str, str, Any, Dict[str, Any]]] = []
         for idx, item in enumerate(records):
             source_id = str(item.get("id") or f"raw_{idx}")
             category = str(item.get("category", "general")).strip() or "general"
@@ -188,17 +195,43 @@ class RuntimeRawIngestor:
                 parser_metadata=parsed.metadata,
                 user_metadata=user_metadata,
             )
+            parsed_items.append((source_id, category, text, parsed, record_metadata))
+
+        # --- Phase B: Extract graphs in parallel (I/O-bound LLM calls) ---
+        max_workers = min(
+            max(len(parsed_items), 1),
+            int(os.getenv("RUNTIME_EXTRACT_MAX_WORKERS", "6")),
+        )
+        extraction_results: List[Optional[Tuple[Dict[str, Any], bool, str]]] = [None] * len(parsed_items)
+        extraction_errors: List[Optional[Exception]] = [None] * len(parsed_items)
+
+        def _extract_one(pi_idx: int) -> None:
+            src_id, cat, txt, prs, rec_meta = parsed_items[pi_idx]
             try:
-                graph_data, used_fallback, fallback_reason = self._extract_graph(
-                    source_id=source_id,
-                    text=text,
-                    category=category,
+                extraction_results[pi_idx] = self._extract_graph(
+                    source_id=src_id,
+                    text=txt,
+                    category=cat,
                     target_database=target_database,
-                    record_metadata=record_metadata,
-                    source_type=parsed.source_type,
+                    record_metadata=rec_meta,
+                    source_type=prs.source_type,
                     approved_artifacts=approved_artifacts,
                 )
             except Exception as exc:
+                extraction_errors[pi_idx] = exc
+
+        if len(parsed_items) <= 1:
+            for i in range(len(parsed_items)):
+                _extract_one(i)
+        else:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as pool:
+                futures = {pool.submit(_extract_one, i): i for i in range(len(parsed_items))}
+                concurrent.futures.wait(futures)
+
+        # --- Phase C: Relatedness, linking, memory graph (sequential) ---
+        for pi_idx, (source_id, category, text, parsed, record_metadata) in enumerate(parsed_items):
+            if extraction_errors[pi_idx] is not None:
+                exc = extraction_errors[pi_idx]
                 logger.error("Raw ingest failed for record '%s': %s", source_id, exc)
                 failed += 1
                 errors.append(
@@ -209,6 +242,8 @@ class RuntimeRawIngestor:
                     }
                 )
                 continue
+
+            graph_data, used_fallback, fallback_reason = extraction_results[pi_idx]
 
             if used_fallback:
                 fallback_records += 1
@@ -726,6 +761,22 @@ class RuntimeRawIngestor:
             if value not in (None, ""):
                 properties.setdefault(key, value)
 
+    def _cache_get(self, key: str) -> Optional[List[float]]:
+        with self._embedding_cache_lock:
+            vec = self._embedding_cache.get(key)
+            if vec is not None:
+                self._embedding_cache.move_to_end(key)
+            return vec
+
+    def _cache_put(self, key: str, vec: List[float]) -> None:
+        with self._embedding_cache_lock:
+            if key in self._embedding_cache:
+                self._embedding_cache.move_to_end(key)
+            else:
+                if len(self._embedding_cache) >= self._embedding_cache_max_size:
+                    self._embedding_cache.popitem(last=False)
+            self._embedding_cache[key] = vec
+
     def _compute_relatedness(self, candidate_names: Set[str], known_entities: Set[str]) -> Dict[str, Any]:
         if not candidate_names:
             return {
@@ -1198,7 +1249,7 @@ class RuntimeRawIngestor:
         key = text.strip().lower()
         if not key:
             return None
-        cached = self._embedding_cache.get(key)
+        cached = self._cache_get(key)
         if cached is not None:
             return cached
         if self._embedding_client is None:
@@ -1209,7 +1260,7 @@ class RuntimeRawIngestor:
                 model=self._embedding_model,
             )
             vec = response.data[0].embedding
-            self._embedding_cache[key] = vec
+            self._cache_put(key, vec)
             return vec
         except Exception as exc:
             logger.warning("Embedding relatedness skipped due to embedding error: %s", exc)
@@ -1285,21 +1336,7 @@ def _env_bool(name: str, default: bool) -> bool:
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
-def _cosine_similarity(a: List[float], b: List[float]) -> float:
-    if not a or not b or len(a) != len(b):
-        return 0.0
-    dot = 0.0
-    norm_a = 0.0
-    norm_b = 0.0
-    for x, y in zip(a, b):
-        xf = float(x)
-        yf = float(y)
-        dot += xf * yf
-        norm_a += xf * xf
-        norm_b += yf * yf
-    if norm_a <= 0.0 or norm_b <= 0.0:
-        return 0.0
-    return max(min(dot / (math.sqrt(norm_a) * math.sqrt(norm_b)), 1.0), -1.0)
+from seocho.index.linker import _cosine_similarity  # canonical impl (Rust native + Python fallback)
 
 
 def _utc_now_iso() -> str:

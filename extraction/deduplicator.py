@@ -12,7 +12,7 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 
-from vector_store import VectorStore
+from vector_store import VectorStoreBase as VectorStore
 
 logger = logging.getLogger(__name__)
 

@@ -52,11 +52,15 @@ Responsibilities:
 
 Primary surfaces:
 
-- `extraction/pipeline.py`
-- `extraction/rule_constraints.py`
-- `extraction/rule_api.py`
+- `seocho/rules.py` — canonical rule inference/validation (shared by SDK + server)
+- `seocho/index/pipeline.py` — canonical indexing pipeline (rule + embedding support)
+- `seocho/index/linker.py` — canonical embedding-based entity linker
+- `extraction/pipeline.py` — legacy batch pipeline
+- `extraction/rule_constraints.py` — re-export shim to `seocho.rules`
+- `extraction/rule_api.py` — HTTP endpoints for rule operations
 - `extraction/rule_profile_store.py`
 - `extraction/rule_export.py`
+- `extraction/vector_store.py` — adapter shim to `seocho.store.vector`
 
 ## 4. Mandatory Workflow For Agents
 

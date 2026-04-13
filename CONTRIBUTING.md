@@ -16,23 +16,31 @@ python -m pytest seocho/tests/ -q   # 87 tests, should pass in <1s
 The SDK is split into three domain packages. **The directory name tells you what it does.**
 
 ```
-seocho/
+seocho/                     ← Canonical domain engine (pip install seocho)
 ├── index/              ← Data Plane: putting data IN
-│   ├── pipeline.py     ← chunking → extract → validate → write
+│   ├── pipeline.py     ← chunk → extract → validate → rule inference → write
+│   ├── linker.py       ← embedding-based entity relatedness (canonical)
 │   └── file_reader.py  ← read .txt/.csv/.json/.jsonl files
 │
 ├── query/              ← Control Plane: getting data OUT
-│   └── strategy.py     ← ontology → LLM prompt generation
+│   └── strategy.py     ← ontology → LLM prompt generation (cached)
 │
 ├── store/              ← Storage backends
-│   ├── graph.py        ← Neo4j/DozerDB (write + query)
-│   ├── vector.py       ← FAISS similarity search
-│   └── llm.py          ← OpenAI completions
+│   ├── graph.py        ← Neo4j/DozerDB (write + query + schema cache)
+│   ├── vector.py       ← FAISS / LanceDB
+│   └── llm.py          ← OpenAI, DeepSeek, Kimi, Grok
 │
+├── rules.py            ← SHACL-like rule inference + validation (canonical)
 ├── ontology.py         ← Schema definition (shared across all planes)
 ├── client.py           ← Seocho class (unified interface)
 ├── models.py           ← Shared response types
 └── tests/              ← SDK test suite
+
+extraction/                 ← HTTP transport layer (server-only)
+├── agent_server.py     ← FastAPI endpoints
+├── rule_constraints.py ← re-export shim → seocho.rules
+├── vector_store.py     ← adapter shim → seocho.store.vector
+└── runtime_ingest.py   ← server ingest (converging toward seocho.index)
 ```
 
 ### I want to...

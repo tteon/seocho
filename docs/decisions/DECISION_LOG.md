@@ -3,6 +3,14 @@
 This file is the lightweight index of architecture/product decisions.
 Each entry must link to a full ADR when impact is non-trivial.
 
+## 2026-04-13
+
+- Accepted `ADR-0049-pipeline-unification-canonical-modules.md`
+  - core logic (rules, embedding linker, vector store) moves into `seocho/` as canonical
+  - `extraction/` modules become re-export shims or adapter shims
+  - parity harness (`tests/test_parity_harness.py`) guards local ↔ server result contract
+  - local mode now produces `rule_profile` + `relatedness_summary` matching server contract
+
 ## 2026-03-12
 
 - Accepted `ADR-0028-graph-registry-and-multi-instance-debate-runtime.md`
@@ -217,6 +225,13 @@ Each entry must link to a full ADR when impact is non-trivial.
   - add GitHub Actions publish flow for TestPyPI/PyPI with build and `twine check`
   - add a separate periodic Codex draft-PR workflow for bounded refactors and small improvements
   - keep scheduled improvement automation review-first with no direct push to `main`
+
+## 2026-04-13
+
+- Accepted `ADR-0048-canonical-query-engine-first-slice.md`
+  - introduce canonical query engine modules under `seocho/query/`
+  - move local planner/executor/answer-synthesis responsibilities behind shared query contracts
+  - reuse canonical evidence-bundle shaping from server runtime paths
 
 ## 2026-04-13
 

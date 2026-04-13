@@ -219,6 +219,125 @@ class Seocho:
         self._graph_catalog_cache: Optional[Dict[str, GraphTarget]] = None
         self._ontology_registry: Dict[str, Any] = {}  # database -> Ontology
 
+    # ------------------------------------------------------------------
+    # Convenience factories — shorten the 0→hello-world distance
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def local(
+        cls,
+        ontology: Any,
+        *,
+        llm: str = "openai/gpt-4o",
+        graph: str = "bolt://localhost:7687",
+        neo4j_user: str = "neo4j",
+        neo4j_password: str = "password",
+        api_key: Optional[str] = None,
+        **kwargs: Any,
+    ) -> "Seocho":
+        """Create a local-engine ``Seocho`` with sensible defaults.
+
+        This is the convenience factory for the common case::
+
+            s = Seocho.local(ontology)
+            s.add("text")
+            s.ask("question")
+
+        Args:
+            ontology: :class:`~seocho.ontology.Ontology` to bind.
+            llm: Provider/model string (``"openai/gpt-4o"``, ``"deepseek/deepseek-chat"``,
+                ``"kimi/kimi-k2.5"``) or plain model name (defaults to ``openai``).
+            graph: Bolt URI for Neo4j/DozerDB. Defaults to ``localhost:7687``.
+            neo4j_user: Neo4j username.
+            neo4j_password: Neo4j password.
+            api_key: Optional API key override for the LLM provider.
+                Falls back to the provider's env var (``OPENAI_API_KEY`` etc.).
+            **kwargs: Extra arguments forwarded to the :class:`Seocho` constructor
+                (``workspace_id``, ``agent_config``, ``extraction_prompt``, …).
+
+        Returns:
+            A configured :class:`Seocho` in local engine mode.
+        """
+        from .store.graph import Neo4jGraphStore
+        from .store.llm import create_llm_backend
+
+        provider, model = (llm.split("/", 1) if "/" in llm else ("openai", llm))
+        llm_backend = create_llm_backend(
+            provider=provider.strip(),
+            model=model.strip(),
+            api_key=api_key,
+        )
+        graph_store = Neo4jGraphStore(graph, neo4j_user, neo4j_password)
+        return cls(
+            ontology=ontology,
+            graph_store=graph_store,
+            llm=llm_backend,
+            **kwargs,
+        )
+
+    @classmethod
+    def remote(cls, base_url: str, **kwargs: Any) -> "Seocho":
+        """Create an HTTP-client ``Seocho`` pointing at a running runtime.
+
+        Equivalent to ``Seocho(base_url=base_url, **kwargs)`` but makes
+        the intent explicit at the call site.
+        """
+        return cls(base_url=base_url, **kwargs)
+
+    def agent(self, kind: str = "indexing", *, name: Optional[str] = None, model: Optional[str] = None) -> Any:
+        """Create an agent with this client's ontology, graph_store, and llm pre-wired.
+
+        Only available in local engine mode (requires ``ontology``, ``graph_store``,
+        ``llm`` at construction).
+
+        Args:
+            kind: ``"indexing"`` (default), ``"query"``, or ``"supervisor"``.
+            name: Optional custom agent name.
+            model: Optional model override for the agent (defaults to the client's llm).
+
+        Returns:
+            An :class:`agents.Agent` instance ready to use with
+            :class:`agents.Runner`.
+
+        Raises:
+            RuntimeError: If the client is not in local engine mode.
+            ValueError: If *kind* is not recognized.
+
+        Example::
+
+            indexing = seocho.agent("indexing")
+            query = seocho.agent("query")
+        """
+        if not self._local_mode or self.ontology is None:
+            raise RuntimeError(
+                "agent() requires local engine mode. "
+                "Initialize Seocho with ontology, graph_store, and llm."
+            )
+
+        kind_lower = kind.strip().lower()
+        shared_kwargs: Dict[str, Any] = {
+            "ontology": self.ontology,
+            "graph_store": self.graph_store,
+            "llm": self.llm,
+        }
+        if model is not None:
+            shared_kwargs["model"] = model
+        if name is not None:
+            shared_kwargs["name"] = name
+
+        if kind_lower == "indexing":
+            from .agent.factory import create_indexing_agent
+            return create_indexing_agent(**shared_kwargs)
+        if kind_lower == "query":
+            from .agent.factory import create_query_agent
+            return create_query_agent(**shared_kwargs)
+        if kind_lower == "supervisor":
+            from .agent.factory import create_supervisor_agent
+            return create_supervisor_agent(**shared_kwargs)
+        raise ValueError(
+            f"Unknown agent kind: {kind!r}. Expected 'indexing', 'query', or 'supervisor'."
+        )
+
     def register_ontology(self, database: str, ontology: Any) -> None:
         """Bind a specific ontology to a database.
 

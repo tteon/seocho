@@ -9,14 +9,12 @@ graph data into a target DB.
 from __future__ import annotations
 
 import concurrent.futures
-import json
 import logging
 import math
 import os
 import re
 import threading
 from collections import OrderedDict
-from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from config import graph_registry, load_pipeline_runtime_config
@@ -25,6 +23,24 @@ from exceptions import InvalidDatabaseNameError
 from raw_material_parser import MaterialParseError, parse_raw_material_record
 from semantic_context import build_dynamic_prompt_context
 from seocho.index import CanonicalExtractionEngine
+from seocho.index.runtime_artifacts import (
+    build_vocabulary_candidate,
+    clean_string_list,
+    merge_ontology_candidates,
+    merge_rule_profiles,
+    merge_shacl_candidates,
+    merge_string_lists,
+    node_display_name,
+    resolve_semantic_artifacts,
+    shacl_candidates_to_rule_profile,
+    summarize_relatedness,
+)
+from seocho.index.runtime_memory import (
+    build_record_metadata,
+    collect_entity_names,
+    copy_scope_properties,
+    ensure_memory_graph,
+)
 from seocho.store.llm import create_llm_backend
 
 logger = logging.getLogger(__name__)
@@ -646,16 +662,7 @@ class RuntimeRawIngestor:
 
     @staticmethod
     def _collect_entity_names(graph_data: Dict[str, Any]) -> Set[str]:
-        names: Set[str] = set()
-        for node in graph_data.get("nodes", []):
-            label = str(node.get("label", "")).strip()
-            if label == "Document":
-                continue
-            props = node.get("properties", {}) if isinstance(node, dict) else {}
-            value = str(props.get("name", "")).strip().lower()
-            if value:
-                names.add(value)
-        return names
+        return collect_entity_names(graph_data)
 
     @staticmethod
     def _build_record_metadata(
@@ -666,16 +673,14 @@ class RuntimeRawIngestor:
         parser_metadata: Optional[Dict[str, Any]],
         user_metadata: Optional[Dict[str, Any]],
     ) -> Dict[str, Any]:
-        metadata: Dict[str, Any] = {}
-        if isinstance(parser_metadata, dict):
-            metadata.update(parser_metadata)
-        if isinstance(user_metadata, dict):
-            metadata.update(user_metadata)
-        metadata.setdefault("source_id", source_id)
-        metadata.setdefault("category", category)
-        metadata.setdefault("source_type", source_type)
-        metadata.setdefault("content_encoding", content_encoding)
-        return metadata
+        return build_record_metadata(
+            source_id=source_id,
+            category=category,
+            source_type=source_type,
+            content_encoding=content_encoding,
+            parser_metadata=parser_metadata,
+            user_metadata=user_metadata,
+        )
 
     def _ensure_memory_graph(
         self,
@@ -688,128 +693,19 @@ class RuntimeRawIngestor:
         source_type: str,
         record_metadata: Dict[str, Any],
     ) -> Dict[str, Any]:
-        document_id = f"{source_id}_doc"
-        preview = text[:280]
-        metadata_json = json.dumps(record_metadata, ensure_ascii=False, sort_keys=True)
-        timestamp = str(
-            record_metadata.get("updated_at")
-            or record_metadata.get("created_at")
-            or _utc_now_iso()
+        return ensure_memory_graph(
+            graph_data=graph_data,
+            source_id=source_id,
+            workspace_id=workspace_id,
+            text=text,
+            category=category,
+            source_type=source_type,
+            record_metadata=record_metadata,
         )
-        node_map: Dict[str, Dict[str, Any]] = {}
-        normalized_relationships: List[Dict[str, Any]] = []
-        relationship_seen: Set[Tuple[str, str, str]] = set()
-
-        for raw_node in graph_data.get("nodes", []):
-            if not isinstance(raw_node, dict):
-                continue
-            node_id = str(raw_node.get("id", "")).strip()
-            if not node_id:
-                continue
-            label = str(raw_node.get("label", "Entity")).strip() or "Entity"
-            raw_props = raw_node.get("properties", {})
-            properties = dict(raw_props) if isinstance(raw_props, dict) else {}
-            properties.setdefault("source_id", source_id)
-            properties.setdefault("memory_id", source_id)
-            properties.setdefault("workspace_id", workspace_id)
-            properties.setdefault("status", "active")
-            properties.setdefault("category", category)
-            properties.setdefault("source_type", source_type)
-            properties.setdefault("updated_at", timestamp)
-            if label == "Document":
-                properties.setdefault("name", preview[:80] or source_id)
-                properties.setdefault("title", preview[:120] or source_id)
-                properties.setdefault("content", text)
-                properties.setdefault("content_preview", preview)
-                properties.setdefault("metadata_json", metadata_json)
-                properties.setdefault("created_at", timestamp)
-                self._copy_scope_properties(properties, record_metadata)
-            else:
-                properties.setdefault("content_preview", preview)
-            node_map[node_id] = {"id": node_id, "label": label, "properties": properties}
-
-        document_node = node_map.get(document_id, {"id": document_id, "label": "Document", "properties": {}})
-        document_props = dict(document_node.get("properties", {}))
-        document_props.update(
-            {
-                "name": document_props.get("name") or preview[:80] or source_id,
-                "title": document_props.get("title") or preview[:120] or source_id,
-                "content": text,
-                "content_preview": preview,
-                "source_id": source_id,
-                "memory_id": source_id,
-                "workspace_id": workspace_id,
-                "source_type": source_type,
-                "category": category,
-                "status": document_props.get("status") or "active",
-                "metadata_json": metadata_json,
-                "updated_at": document_props.get("updated_at") or timestamp,
-                "created_at": document_props.get("created_at") or timestamp,
-            }
-        )
-        self._copy_scope_properties(document_props, record_metadata)
-        node_map[document_id] = {"id": document_id, "label": "Document", "properties": document_props}
-
-        for raw_rel in graph_data.get("relationships", []):
-            if not isinstance(raw_rel, dict):
-                continue
-            source = str(raw_rel.get("source", "")).strip()
-            target = str(raw_rel.get("target", "")).strip()
-            rel_type = str(raw_rel.get("type", "RELATED_TO")).strip() or "RELATED_TO"
-            if not source or not target:
-                continue
-            raw_props = raw_rel.get("properties", {})
-            properties = dict(raw_props) if isinstance(raw_props, dict) else {}
-            properties.setdefault("source_id", source_id)
-            properties.setdefault("memory_id", source_id)
-            properties.setdefault("workspace_id", workspace_id)
-            key = (source, target, rel_type)
-            if key in relationship_seen:
-                continue
-            relationship_seen.add(key)
-            normalized_relationships.append(
-                {
-                    "source": source,
-                    "target": target,
-                    "type": rel_type,
-                    "properties": properties,
-                }
-            )
-
-        for node_id in list(node_map.keys()):
-            if node_id == document_id:
-                continue
-            key = (document_id, node_id, "MENTIONS")
-            if key in relationship_seen:
-                continue
-            relationship_seen.add(key)
-            normalized_relationships.append(
-                {
-                    "source": document_id,
-                    "target": node_id,
-                    "type": "MENTIONS",
-                    "properties": {
-                        "source_id": source_id,
-                        "memory_id": source_id,
-                        "workspace_id": workspace_id,
-                    },
-                }
-            )
-
-        semantic_payload = dict(graph_data.get("_semantic", {}))
-        semantic_payload["record_context"] = record_metadata
-        return {
-            "nodes": list(node_map.values()),
-            "relationships": normalized_relationships,
-            "_semantic": semantic_payload,
-        }
 
     @staticmethod
     def _copy_scope_properties(properties: Dict[str, Any], record_metadata: Dict[str, Any]) -> None:
-        for key in ("user_id", "agent_id", "session_id", "created_at", "updated_at"):
-            value = record_metadata.get(key)
-            if value not in (None, ""):
-                properties.setdefault(key, value)
+        copy_scope_properties(properties, record_metadata)
 
     def _cache_get(self, key: str) -> Optional[List[float]]:
         with self._embedding_cache_lock:
@@ -881,142 +777,11 @@ class RuntimeRawIngestor:
 
     @staticmethod
     def _merge_ontology_candidates(candidates: List[Dict[str, Any]]) -> Dict[str, Any]:
-        merged_classes: Dict[str, Dict[str, Any]] = {}
-        merged_relationships: Dict[Tuple[str, str, str], Dict[str, Any]] = {}
-        ontology_names: List[str] = []
-
-        for item in candidates:
-            name = str(item.get("ontology_name", "")).strip()
-            if name:
-                ontology_names.append(name)
-            for cls in item.get("classes", []):
-                cls_name = str(cls.get("name", "")).strip()
-                if not cls_name:
-                    continue
-                existing = merged_classes.setdefault(
-                    cls_name,
-                    {
-                        "name": cls_name,
-                        "description": str(cls.get("description", "")).strip(),
-                        "aliases": [],
-                        "broader": [],
-                        "related": [],
-                        "properties": [],
-                    },
-                )
-                if not existing.get("description"):
-                    existing["description"] = str(cls.get("description", "")).strip()
-                existing["aliases"] = RuntimeRawIngestor._merge_string_lists(
-                    existing.get("aliases", []),
-                    cls.get("aliases", []),
-                )
-                existing["broader"] = RuntimeRawIngestor._merge_string_lists(
-                    existing.get("broader", []),
-                    cls.get("broader", []),
-                )
-                existing["related"] = RuntimeRawIngestor._merge_string_lists(
-                    existing.get("related", []),
-                    cls.get("related", []),
-                )
-                existing_props = {
-                    str(prop.get("name", "")).strip(): prop
-                    for prop in existing["properties"]
-                    if isinstance(prop, dict) and str(prop.get("name", "")).strip()
-                }
-                for prop in cls.get("properties", []):
-                    prop_name = str(prop.get("name", "")).strip()
-                    if not prop_name:
-                        continue
-                    existing_prop = existing_props.get(prop_name)
-                    if existing_prop is None:
-                        existing_prop = {
-                            "name": prop_name,
-                            "datatype": str(prop.get("datatype", "string")).strip() or "string",
-                            "description": str(prop.get("description", "")).strip(),
-                            "aliases": RuntimeRawIngestor._clean_string_list(prop.get("aliases", [])),
-                        }
-                        existing["properties"].append(existing_prop)
-                        existing_props[prop_name] = existing_prop
-                        continue
-                    if not existing_prop.get("description"):
-                        existing_prop["description"] = str(prop.get("description", "")).strip()
-                    if not existing_prop.get("datatype"):
-                        existing_prop["datatype"] = str(prop.get("datatype", "string")).strip() or "string"
-                    existing_prop["aliases"] = RuntimeRawIngestor._merge_string_lists(
-                        existing_prop.get("aliases", []),
-                        prop.get("aliases", []),
-                    )
-
-            for rel in item.get("relationships", []):
-                rel_type = str(rel.get("type", "")).strip()
-                source = str(rel.get("source", "")).strip()
-                target = str(rel.get("target", "")).strip()
-                if not rel_type:
-                    continue
-                rel_key = (rel_type, source, target)
-                existing_rel = merged_relationships.setdefault(
-                    rel_key,
-                    {
-                        "type": rel_type,
-                        "source": source,
-                        "target": target,
-                        "description": "",
-                        "aliases": [],
-                        "related": [],
-                    },
-                )
-                if not existing_rel.get("description"):
-                    existing_rel["description"] = str(rel.get("description", "")).strip()
-                existing_rel["aliases"] = RuntimeRawIngestor._merge_string_lists(
-                    existing_rel.get("aliases", []),
-                    rel.get("aliases", []),
-                )
-                existing_rel["related"] = RuntimeRawIngestor._merge_string_lists(
-                    existing_rel.get("related", []),
-                    rel.get("related", []),
-                )
-
-        ontology_name = ontology_names[0] if ontology_names else "runtime_candidate_merged"
-        return {
-            "ontology_name": ontology_name,
-            "classes": list(merged_classes.values()),
-            "relationships": list(merged_relationships.values()),
-        }
+        return merge_ontology_candidates(candidates)
 
     @staticmethod
     def _merge_shacl_candidates(candidates: List[Dict[str, Any]]) -> Dict[str, Any]:
-        shape_map: Dict[str, Dict[str, Any]] = {}
-        for item in candidates:
-            for shape in item.get("shapes", []):
-                target = str(shape.get("target_class", "")).strip()
-                if not target:
-                    continue
-                existing = shape_map.setdefault(target, {"target_class": target, "properties": []})
-                seen_keys = {
-                    (
-                        p.get("path"),
-                        p.get("constraint"),
-                        json.dumps(p.get("params", {}), sort_keys=True),
-                    )
-                    for p in existing["properties"]
-                }
-                for prop in shape.get("properties", []):
-                    key = (
-                        prop.get("path"),
-                        prop.get("constraint"),
-                        json.dumps(prop.get("params", {}), sort_keys=True),
-                    )
-                    if key in seen_keys:
-                        continue
-                    seen_keys.add(key)
-                    existing["properties"].append(
-                        {
-                            "path": str(prop.get("path", "")).strip(),
-                            "constraint": str(prop.get("constraint", "")).strip(),
-                            "params": prop.get("params", {}) if isinstance(prop.get("params", {}), dict) else {},
-                        }
-                    )
-        return {"shapes": list(shape_map.values())}
+        return merge_shacl_candidates(candidates)
 
     @staticmethod
     def _build_vocabulary_candidate(
@@ -1024,263 +789,35 @@ class RuntimeRawIngestor:
         shacl_candidate: Dict[str, Any],
         prepared_graphs: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
-        term_map: Dict[str, Dict[str, Any]] = {}
-
-        def upsert_term(
-            canonical: str,
-            *,
-            source: str,
-            alt_labels: Optional[List[Any]] = None,
-            hidden_labels: Optional[List[Any]] = None,
-            broader: Optional[List[Any]] = None,
-            related: Optional[List[Any]] = None,
-            definition: str = "",
-            examples: Optional[List[Any]] = None,
-        ) -> None:
-            canonical_text = str(canonical).strip()
-            if not canonical_text:
-                return
-            key = canonical_text.lower()
-            existing = term_map.setdefault(
-                key,
-                {
-                    "pref_label": canonical_text,
-                    "alt_labels": set(),
-                    "hidden_labels": set(),
-                    "broader": set(),
-                    "related": set(),
-                    "definition": "",
-                    "sources": set(),
-                    "examples": set(),
-                },
-            )
-            existing["sources"].add(source)
-            if definition and not existing["definition"]:
-                existing["definition"] = definition
-            for alias in alt_labels or []:
-                alias_text = str(alias).strip()
-                if alias_text and alias_text.lower() != key:
-                    existing["alt_labels"].add(alias_text)
-            for alias in hidden_labels or []:
-                alias_text = str(alias).strip()
-                if alias_text and alias_text.lower() != key:
-                    existing["hidden_labels"].add(alias_text)
-            for value in broader or []:
-                broader_text = str(value).strip()
-                if broader_text:
-                    existing["broader"].add(broader_text)
-            for value in related or []:
-                related_text = str(value).strip()
-                if related_text:
-                    existing["related"].add(related_text)
-            for value in examples or []:
-                example_text = str(value).strip()
-                if example_text:
-                    existing["examples"].add(example_text)
-
-        for cls in ontology_candidate.get("classes", []):
-            if not isinstance(cls, dict):
-                continue
-            class_name = str(cls.get("name", "")).strip()
-            upsert_term(
-                class_name,
-                source="ontology.class",
-                alt_labels=RuntimeRawIngestor._clean_string_list(cls.get("aliases", [])),
-                broader=RuntimeRawIngestor._clean_string_list(cls.get("broader", [])),
-                related=RuntimeRawIngestor._clean_string_list(cls.get("related", [])),
-                definition=str(cls.get("description", "")).strip(),
-            )
-            for prop in cls.get("properties", []):
-                if not isinstance(prop, dict):
-                    continue
-                prop_name = str(prop.get("name", "")).strip()
-                if not prop_name:
-                    continue
-                qualified_name = f"{class_name}.{prop_name}" if class_name else prop_name
-                upsert_term(
-                    qualified_name,
-                    source="ontology.property",
-                    alt_labels=RuntimeRawIngestor._clean_string_list(prop.get("aliases", [])),
-                    definition=str(prop.get("description", "")).strip(),
-                )
-
-        for rel in ontology_candidate.get("relationships", []):
-            if not isinstance(rel, dict):
-                continue
-            upsert_term(
-                str(rel.get("type", "")).strip(),
-                source="ontology.relationship",
-                alt_labels=RuntimeRawIngestor._clean_string_list(rel.get("aliases", [])),
-                related=RuntimeRawIngestor._clean_string_list(rel.get("related", [])),
-                definition=str(rel.get("description", "")).strip(),
-            )
-
-        for shape in shacl_candidate.get("shapes", []):
-            if not isinstance(shape, dict):
-                continue
-            target_class = str(shape.get("target_class", "")).strip()
-            upsert_term(target_class, source="shacl.target_class")
-            for prop in shape.get("properties", []):
-                if not isinstance(prop, dict):
-                    continue
-                path = str(prop.get("path", "")).strip()
-                constraint = str(prop.get("constraint", "")).strip()
-                if not path:
-                    continue
-                params = prop.get("params", {}) if isinstance(prop.get("params", {}), dict) else {}
-                definition = constraint
-                if params:
-                    definition = f"{constraint} {json.dumps(params, sort_keys=True)}"
-                upsert_term(
-                    f"{target_class}.{path}" if target_class else path,
-                    source="shacl.property",
-                    definition=definition,
-                )
-
-        for graph_data in prepared_graphs or []:
-            for node in graph_data.get("nodes", []):
-                if not isinstance(node, dict):
-                    continue
-                label = str(node.get("label", "")).strip()
-                if not label or label == "Document":
-                    continue
-                props = node.get("properties", {})
-                properties = props if isinstance(props, dict) else {}
-                upsert_term(
-                    label,
-                    source="entity.label_observation",
-                    examples=[
-                        RuntimeRawIngestor._node_display_name(
-                            properties,
-                            node_id=str(node.get("id", "")).strip(),
-                        )
-                    ],
-                )
-            for rel in graph_data.get("relationships", []):
-                if not isinstance(rel, dict):
-                    continue
-                rel_type = str(rel.get("type", "")).strip()
-                if rel_type and rel_type != "MENTIONS":
-                    upsert_term(rel_type, source="entity.relationship_observation")
-
-        terms: List[Dict[str, Any]] = []
-        for value in sorted(term_map.values(), key=lambda item: str(item.get("pref_label", "")).lower()):
-            terms.append(
-                {
-                    "pref_label": value["pref_label"],
-                    "alt_labels": sorted(value["alt_labels"], key=lambda alias: alias.lower()),
-                    "hidden_labels": sorted(value["hidden_labels"], key=lambda alias: alias.lower()),
-                    "broader": sorted(value["broader"], key=lambda alias: alias.lower()),
-                    "related": sorted(value["related"], key=lambda alias: alias.lower()),
-                    "definition": value.get("definition", ""),
-                    "sources": sorted(value["sources"]),
-                    "examples": sorted(value["examples"]),
-                }
-            )
-
-        return {
-            "schema_version": "vocabulary.v2",
-            "profile": "skos",
-            "terms": terms,
-        }
+        return build_vocabulary_candidate(
+            ontology_candidate,
+            shacl_candidate,
+            prepared_graphs=prepared_graphs,
+        )
 
     @staticmethod
     def _merge_string_lists(existing: Any, incoming: Any) -> List[str]:
-        seen: Set[str] = set()
-        merged: List[str] = []
-        for value in RuntimeRawIngestor._clean_string_list(existing) + RuntimeRawIngestor._clean_string_list(incoming):
-            key = value.lower()
-            if key in seen:
-                continue
-            seen.add(key)
-            merged.append(value)
-        return merged
+        return merge_string_lists(existing, incoming)
 
     @staticmethod
     def _clean_string_list(values: Any) -> List[str]:
-        if not isinstance(values, list):
-            return []
-        cleaned: List[str] = []
-        seen: Set[str] = set()
-        for value in values:
-            text = str(value).strip()
-            key = text.lower()
-            if text and key not in seen:
-                seen.add(key)
-                cleaned.append(text)
-        return cleaned
+        return clean_string_list(values)
 
     @staticmethod
     def _node_display_name(properties: Dict[str, Any], node_id: str = "") -> str:
-        return str(
-            properties.get("name")
-            or properties.get("title")
-            or properties.get("id")
-            or properties.get("uri")
-            or node_id
-        ).strip()
+        return node_display_name(properties, node_id=node_id)
 
     @staticmethod
     def _shacl_candidates_to_rule_profile(shacl_candidate: Dict[str, Any]) -> Dict[str, Any]:
-        supported = {"required", "datatype", "enum", "range"}
-        rules: List[Dict[str, Any]] = []
-        for shape in shacl_candidate.get("shapes", []):
-            label = str(shape.get("target_class", "")).strip()
-            if not label:
-                continue
-            for prop in shape.get("properties", []):
-                kind = str(prop.get("constraint", "")).strip()
-                path = str(prop.get("path", "")).strip()
-                if not path or kind not in supported:
-                    continue
-                rules.append(
-                    {
-                        "label": label,
-                        "property_name": path,
-                        "kind": kind,
-                        "params": prop.get("params", {}) if isinstance(prop.get("params", {}), dict) else {},
-                    }
-                )
-        return {"schema_version": "rules.v1", "rules": rules}
+        return shacl_candidates_to_rule_profile(shacl_candidate)
 
     @staticmethod
     def _merge_rule_profiles(primary: Dict[str, Any], secondary: Dict[str, Any]) -> Dict[str, Any]:
-        merged: List[Dict[str, Any]] = []
-        seen = set()
-        for profile in [primary, secondary]:
-            for rule in profile.get("rules", []):
-                key = (
-                    str(rule.get("label", "")),
-                    str(rule.get("property_name", "")),
-                    str(rule.get("kind", "")),
-                    json.dumps(rule.get("params", {}), sort_keys=True),
-                )
-                if key in seen:
-                    continue
-                seen.add(key)
-                merged.append(
-                    {
-                        "label": key[0],
-                        "property_name": key[1],
-                        "kind": key[2],
-                        "params": rule.get("params", {}) if isinstance(rule.get("params", {}), dict) else {},
-                    }
-                )
-        return {"schema_version": "rules.v1", "rules": merged}
+        return merge_rule_profiles(primary, secondary)
 
     @staticmethod
     def _summarize_relatedness(records: List[Dict[str, Any]]) -> Dict[str, Any]:
-        total = len(records)
-        linked = sum(1 for item in records if item.get("is_related"))
-        avg_score = 0.0 if total == 0 else sum(float(item.get("score", 0.0)) for item in records) / total
-        embed_available = sum(1 for item in records if item.get("embedding_score") is not None)
-        return {
-            "total_records": total,
-            "related_records": linked,
-            "unrelated_records": max(total - linked, 0),
-            "average_score": round(avg_score, 3),
-            "embedding_evaluated_records": embed_available,
-        }
+        return summarize_relatedness(records)
 
     def _compute_embedding_relatedness(self, candidate_names: Set[str], known_entities: Set[str]) -> Optional[float]:
         if not self._embedding_enabled or self._embedding_client is None:
@@ -1323,49 +860,11 @@ class RuntimeRawIngestor:
         draft_shacl: Dict[str, Any],
         approved_artifacts: Dict[str, Any],
     ) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, Any]]:
-        approved_ontology = approved_artifacts.get("ontology_candidate")
-        approved_shacl = approved_artifacts.get("shacl_candidate")
-
-        if policy == "draft_only":
-            return (
-                {"ontology_candidate": {"ontology_name": "", "classes": [], "relationships": []}, "shacl_candidate": {"shapes": []}},
-                {
-                    "policy": policy,
-                    "applied": "none",
-                    "status": "draft_pending_review",
-                    "warning": None,
-                },
-            )
-
-        if policy == "approved_only":
-            if isinstance(approved_ontology, dict) and isinstance(approved_shacl, dict):
-                return (
-                    {"ontology_candidate": approved_ontology, "shacl_candidate": approved_shacl},
-                    {
-                        "policy": policy,
-                        "applied": "approved",
-                        "status": "approved_applied",
-                        "warning": None,
-                    },
-                )
-            return (
-                {"ontology_candidate": {"ontology_name": "", "classes": [], "relationships": []}, "shacl_candidate": {"shapes": []}},
-                {
-                    "policy": policy,
-                    "applied": "none",
-                    "status": "approval_required",
-                    "warning": "approved_only policy requires approved_artifacts with ontology_candidate and shacl_candidate.",
-                },
-            )
-
-        return (
-            {"ontology_candidate": draft_ontology, "shacl_candidate": draft_shacl},
-            {
-                "policy": "auto",
-                "applied": "draft",
-                "status": "auto_applied",
-                "warning": None,
-            },
+        return resolve_semantic_artifacts(
+            policy=policy,
+            draft_ontology=draft_ontology,
+            draft_shacl=draft_shacl,
+            approved_artifacts=approved_artifacts,
         )
 
 
@@ -1387,7 +886,3 @@ def _env_bool(name: str, default: bool) -> bool:
 
 
 from seocho.index.linker import _cosine_similarity  # canonical impl (Rust native + Python fallback)
-
-
-def _utc_now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()

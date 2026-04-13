@@ -119,6 +119,7 @@ Canonical SDK control-plane modules:
 Primary modules:
 
 - `extraction/agent_server.py`
+- `extraction/server_runtime.py`
 - `extraction/policy.py`
 - `docs/decisions/`
 
@@ -247,6 +248,12 @@ Canonical direction:
   shaping contracts from `seocho/query/*`
 - `extraction/*` should keep transport and runtime orchestration concerns, not
   grow a second query engine
+
+Server entrypoint direction:
+
+- `extraction/agent_server.py` should be the FastAPI transport shell
+- `extraction/server_runtime.py` should own shared runtime service composition
+- routers should prefer lazy service getters over eager singleton boot at import
 
 ## Intent-First Graph-RAG Contract (Active Direction)
 

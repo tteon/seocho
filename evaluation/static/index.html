@@ -40,7 +40,7 @@
           <button id="resetSessionBtn"
             style="background:transparent; border:1px solid var(--border-color); color:var(--text-muted); padding:4px 8px; border-radius:4px; font-size:0.75rem; cursor:pointer;"
             onmouseover="this.style.color='#fff'" onmouseout="this.style.color='var(--text-muted)'">Reset Trace</button>
-          <div class="status" id="statusPill">Initializing</div>
+          <div class="status" id="statusPill" role="status" aria-live="polite">Initializing</div>
         </div>
       </header>
 
@@ -72,7 +72,7 @@
         <label class="control ingest-grow">
           <span>Raw Records (one line per record)</span>
           <textarea id="ingestInput" rows="2"
-            placeholder="Example: ACME acquired Beta in 2024.\nExample: Beta provides risk analytics to ACME."></textarea>
+            placeholder="Example: ACME acquired Beta in 2024.&#10;Example: Beta provides risk analytics to ACME."></textarea>
         </label>
         <button id="ingestBtn" type="button">Ingest Raw</button>
         <button id="oneClickDemoBtn" type="button">Load Sample & Ask</button>
@@ -82,13 +82,13 @@
       <section class="content">
         <!-- Left: Chat & Reasoning Pane -->
         <div class="chat-pane">
-          <div class="chat-log" id="chatLog">
+          <div class="chat-log" id="chatLog" aria-live="polite">
             <div style="font-family:var(--font-mono); font-size:0.7rem; color:var(--text-muted); text-align:center;">//
               System Authenticated. Trace visualization ready.</div>
           </div>
 
           <form id="chatForm" class="composer">
-            <textarea id="chatInput" placeholder="Awaiting query injection..." rows="3"></textarea>
+            <textarea id="chatInput" placeholder="Awaiting query injection..." aria-label="Query input" rows="3"></textarea>
             <button type="submit" id="sendBtn">Execute Pipeline</button>
           </form>
         </div>

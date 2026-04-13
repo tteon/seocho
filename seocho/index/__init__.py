@@ -15,6 +15,7 @@ from .pipeline import (
     chunk_text,
     content_hash,
 )
+from .extraction_engine import CanonicalExtractionEngine
 from .file_reader import (
     DirectoryIndexResult,
     FileIndexer,
@@ -25,6 +26,7 @@ from .file_reader import (
 
 __all__ = [
     "IndexingPipeline",
+    "CanonicalExtractionEngine",
     "IndexingResult",
     "BatchIndexingResult",
     "chunk_text",

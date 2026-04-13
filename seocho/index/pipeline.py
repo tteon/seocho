@@ -41,6 +41,8 @@ from typing import Any, Callable, Dict, List, Optional, Sequence
 logger = logging.getLogger(__name__)
 _SLUG_RE = re.compile(r"[^a-z0-9]+")
 
+from .extraction_engine import CanonicalExtractionEngine
+
 
 # ---------------------------------------------------------------------------
 # Chunking
@@ -263,6 +265,11 @@ class IndexingPipeline:
 
         self._extraction = ExtractionStrategy(ontology, extraction_prompt=extraction_prompt)
         self._linking = LinkingStrategy(ontology)
+        self._graph_extraction = CanonicalExtractionEngine(
+            ontology=ontology,
+            llm=llm,
+            extraction_prompt=extraction_prompt,
+        )
 
     @staticmethod
     def _fallback_extract(text: str, *, source_id: str = "fallback") -> Dict[str, Any]:
@@ -312,136 +319,26 @@ class IndexingPipeline:
 
     def _normalize_extraction_payload(self, extracted: Dict[str, Any]) -> Dict[str, Any]:
         """Normalize LLM extraction output into the graph write contract."""
-        raw_nodes = list(extracted.get("nodes", []) or [])
-        raw_relationships = list(extracted.get("relationships", []) or [])
-        raw_triples = list(extracted.get("triples", []) or [])
-
-        nodes: List[Dict[str, Any]] = []
-        node_lookup: Dict[str, str] = {}
-        for index, raw_node in enumerate(raw_nodes):
-            normalized = self._normalize_node(raw_node, index)
-            if not normalized:
-                continue
-            nodes.append(normalized)
-            props = normalized.get("properties", {})
-            for key in (
-                str(normalized.get("id", "")),
-                str(props.get("name", "")),
-                str(props.get("uri", "")),
-            ):
-                if key:
-                    node_lookup[key] = str(normalized["id"])
-
-        relationships: List[Dict[str, Any]] = []
-        for raw_rel in (raw_relationships or raw_triples):
-            normalized = self._normalize_relationship(raw_rel, node_lookup)
-            if normalized:
-                relationships.append(normalized)
-
-        return {"nodes": nodes, "relationships": relationships}
+        return self._graph_extraction.normalize_payload(extracted)
 
     def _normalize_node(self, raw_node: Any, index: int) -> Optional[Dict[str, Any]]:
-        if not isinstance(raw_node, dict):
-            return None
-
-        if isinstance(raw_node.get("properties"), dict):
-            props = dict(raw_node.get("properties", {}))
-        else:
-            props = {
-                key: value
-                for key, value in raw_node.items()
-                if key not in {"id", "label", "properties", "from", "to", "source", "target", "type", "predicate"}
-            }
-
-        label = str(raw_node.get("label") or "").strip() or self._infer_node_label(props)
-        if not label:
-            return None
-
-        # Prefer name over LLM-generated sequential IDs ("1","2","3") to avoid
-        # cross-document collisions when MERGE matches on {id: "1"}.
-        raw_id = raw_node.get("id", "")
-        is_sequential_id = str(raw_id).strip().isdigit()
-        if is_sequential_id and props.get("name"):
-            node_id = props["name"]
-        else:
-            node_id = raw_id or props.get("id") or props.get("uri") or props.get("name") or f"{label}_{index+1}"
-        normalized_id = self._normalize_node_id(str(node_id), label)
-        clean_props = {key: value for key, value in props.items() if value not in (None, "") and key != "id"}
-        if "name" not in clean_props and raw_node.get("name"):
-            clean_props["name"] = raw_node["name"]
-
-        return {"id": normalized_id, "label": label, "properties": clean_props}
+        return self._graph_extraction._normalize_node(raw_node, index)
 
     def _normalize_relationship(
         self,
         raw_rel: Any,
         node_lookup: Dict[str, str],
     ) -> Optional[Dict[str, Any]]:
-        if not isinstance(raw_rel, dict):
-            return None
-
-        raw_source = str(raw_rel.get("source") or raw_rel.get("from") or raw_rel.get("subject") or "").strip()
-        raw_target = str(raw_rel.get("target") or raw_rel.get("to") or raw_rel.get("object") or "").strip()
-        raw_type = str(raw_rel.get("type") or raw_rel.get("predicate") or raw_rel.get("relationship") or "").strip()
-        if not raw_source or not raw_target or not raw_type:
-            return None
-
-        rel_type = self._normalize_relationship_type(raw_type)
-        if not rel_type:
-            return None
-
-        source_id = node_lookup.get(raw_source, raw_source)
-        target_id = node_lookup.get(raw_target, raw_target)
-        if not source_id or not target_id:
-            return None
-
-        properties = {
-            key: value
-            for key, value in raw_rel.items()
-            if key not in {"source", "target", "from", "to", "subject", "object", "type", "predicate", "relationship"}
-            and value not in (None, "")
-        }
-        return {"source": source_id, "target": target_id, "type": rel_type, "properties": properties}
+        return self._graph_extraction._normalize_relationship(raw_rel, node_lookup)
 
     def _infer_node_label(self, props: Dict[str, Any]) -> str:
-        prop_keys = {key for key, value in props.items() if value not in (None, "")}
-        best_label = ""
-        best_score = -1
-        for label, node_def in self.ontology.nodes.items():
-            schema_keys = set(node_def.properties.keys())
-            score = len(prop_keys & schema_keys)
-            if "name" in prop_keys and "name" in schema_keys:
-                score += 1
-            if score > best_score:
-                best_label = label
-                best_score = score
-        return best_label
+        return self._graph_extraction._infer_node_label(props)
 
     def _normalize_node_id(self, raw_id: str, label: str) -> str:
-        if "://" in raw_id or raw_id.startswith("urn:"):
-            return raw_id
-        slug = _SLUG_RE.sub("_", raw_id.lower()).strip("_")
-        return slug or f"{label.lower()}_{uuid.uuid4().hex[:8]}"
+        return self._graph_extraction._normalize_node_id(raw_id, label)
 
     def _normalize_relationship_type(self, raw_type: str) -> str:
-        if raw_type == "rdf:type":
-            return ""
-
-        direct = str(raw_type).strip()
-        if direct in self.ontology.relationships:
-            return direct
-
-        direct_lower = direct.lower()
-        tail = direct_lower.split(":")[-1].split("/")[-1].split("__")[-1]
-        for rel_name, rel_def in self.ontology.relationships.items():
-            candidates = {rel_name.lower(), *(alias.lower() for alias in rel_def.aliases)}
-            if rel_def.same_as:
-                same_as = rel_def.same_as.lower()
-                candidates.add(same_as)
-                candidates.add(same_as.split(":")[-1].split("/")[-1])
-            if direct_lower in candidates or tail in candidates:
-                return rel_name
-        return direct
+        return self._graph_extraction._normalize_relationship_type(raw_type)
 
     def index(
         self,
@@ -499,19 +396,13 @@ class IndexingPipeline:
                 on_chunk(i, len(chunks))
 
             # Extract
-            self._extraction.category = category
-            system, user = self._extraction.render(chunk, metadata=metadata)
             try:
-                response = self.llm.complete(
-                    system=system, user=user,
-                    temperature=0.0,
-                    response_format={"type": "json_object"},
+                response = self._graph_extraction.extract(
+                    chunk,
+                    category=category,
+                    metadata=metadata,
                 )
-                extracted = self._normalize_extraction_payload(response.json())
-                # Collect token usage
-                if hasattr(response, 'usage') and response.usage:
-                    for k, v in response.usage.items():
-                        _total_usage[k] = _total_usage.get(k, 0) + v
+                extracted = response
             except Exception as exc:
                 logger.warning(
                     "LLM extraction failed for chunk %d, using heuristic fallback: %s",
@@ -562,9 +453,7 @@ class IndexingPipeline:
                         f"Available relationships: {', '.join(self.ontology.relationships.keys())}."
                     )
                     try:
-                        retry_system, retry_user = self._extraction.render(
-                            chunk, metadata=metadata,
-                        )
+                        retry_system, retry_user = self._extraction.render(chunk, metadata=metadata)
                         retry_system += f"\n\n{guidance}"
                         retry_response = self.llm.complete(
                             system=retry_system, user=retry_user,
@@ -603,15 +492,10 @@ class IndexingPipeline:
             # Link (deduplicate entities within chunk)
             if nodes:
                 try:
-                    entities_json = json.dumps({"nodes": nodes, "relationships": rels}, default=str)
-                    self._linking.category = category
-                    sys_l, usr_l = self._linking.render(entities_json)
-                    link_response = self.llm.complete(
-                        system=sys_l, user=usr_l,
-                        temperature=0.0,
-                        response_format={"type": "json_object"},
+                    linked = self._graph_extraction.link(
+                        {"nodes": nodes, "relationships": rels},
+                        category=category,
                     )
-                    linked = self._normalize_extraction_payload(link_response.json())
                     linked_nodes = linked.get("nodes", [])
                     linked_rels = linked.get("relationships", [])
                     if linked_nodes:

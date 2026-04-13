@@ -271,9 +271,18 @@ compatibility roles.
   - `extraction/agent_server.py`
   - `extraction/public_memory_api.py`
   - `extraction/server_runtime.py`
+- keep as compatibility caller over canonical seam:
+  - `extraction/pipeline.py`
 - migrate later:
   - `extraction/runtime_ingest.py`
-  - `extraction/pipeline.py`
+
+Shared ingestion seam:
+
+- `seocho/index/extraction_engine.py`
+  - canonical extraction prompt rendering
+  - canonical linking prompt rendering
+  - canonical graph payload normalization
+  - reused by both SDK indexing and extraction compatibility pipeline paths
 
 ## Intent-First Graph-RAG Contract (Active Direction)
 
@@ -343,9 +352,10 @@ Offline ontology governance operators should prefer the SDK CLI surface:
 
 ### Extraction Layer
 
-| OntologyPromptBridge | `extraction/ontology_prompt_bridge.py` | Converts Ontology YAML definitions → LLM prompt variables |
-| EntityExtractor | `extraction/extractor.py` | OpenAI LLM-based entity and relationship extraction |
-| EntityLinker | `extraction/linker.py` | LLM-based entity resolution and canonicalization |
+| CanonicalExtractionEngine | `seocho/index/extraction_engine.py` | Shared extraction/linking prompt + normalization seam for SDK and extraction compatibility paths |
+| OntologyPromptBridge | `extraction/ontology_prompt_bridge.py` | Backward-compatible ontology → prompt bridge; new code should prefer ontology contracts directly |
+| EntityExtractor | `extraction/extractor.py` | Legacy OpenAI extractor wrapper retained for compatibility paths that have not yet moved to the canonical seam |
+| EntityLinker | `extraction/linker.py` | Legacy LLM linker wrapper retained for compatibility paths that have not yet moved to the canonical seam |
 | EntityDeduplicator | `extraction/deduplicator.py` | Embedding cosine similarity-based semantic deduplication |
 | RuleConstraints | `extraction/rule_constraints.py` | SHACL-like rule inference and node constraint validation annotations |
 | PromptManager | `extraction/prompt_manager.py` | Jinja2 prompt templating + history logging |

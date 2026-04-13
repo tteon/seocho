@@ -11,9 +11,19 @@ If you want to improve Cypher generation or answer quality, start here.
 """
 
 from .answering import QueryAnswerSynthesizer, build_evidence_bundle, infer_question_intent
-from .contracts import QueryAttempt, QueryExecution, QueryPlan
+from .contracts import (
+    CypherPlan,
+    InsufficiencyAssessment,
+    IntentSpec,
+    QueryAttempt,
+    QueryExecution,
+    QueryPlan,
+)
+from .cypher_validator import CypherQueryValidator
 from .cypher_builder import CypherBuilder
 from .executor import GraphQueryExecutor
+from .insufficiency import QueryInsufficiencyClassifier
+from .intent import INTENT_CATALOG
 from .planner import DeterministicQueryPlanner
 from .strategy import (
     CATEGORY_PROMPT_MAP,
@@ -25,16 +35,25 @@ from .strategy import (
     QueryStrategy,
     RDFQueryStrategy,
 )
+from .strategy_chooser import ExecutionStrategyChooser, IntentSupportValidator
 
 __all__ = [
+    "IntentSpec",
+    "INTENT_CATALOG",
     "QueryPlan",
     "QueryExecution",
     "QueryAttempt",
+    "CypherPlan",
+    "InsufficiencyAssessment",
     "DeterministicQueryPlanner",
     "GraphQueryExecutor",
     "QueryAnswerSynthesizer",
     "build_evidence_bundle",
     "infer_question_intent",
+    "CypherQueryValidator",
+    "QueryInsufficiencyClassifier",
+    "IntentSupportValidator",
+    "ExecutionStrategyChooser",
     "PromptStrategy",
     "PromptTemplate",
     "PRESET_PROMPTS",

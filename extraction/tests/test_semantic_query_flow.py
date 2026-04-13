@@ -144,6 +144,15 @@ def test_semantic_agent_flow_lpg_path():
     assert "Intent: relationship_lookup." in result["response"]
 
 
+def test_semantic_agent_flow_uses_canonical_phase_a_query_primitives():
+    flow = SemanticAgentFlow(FakeConnector())
+
+    assert flow.lpg_agent.validator.__class__.__module__ == "seocho.query.cypher_validator"
+    assert flow.lpg_agent.classifier.__class__.__module__ == "seocho.query.insufficiency"
+    assert flow.lpg_agent.support_validator.__class__.__module__ == "seocho.query.strategy_chooser"
+    assert flow.strategy_chooser.__class__.__module__ == "seocho.query.strategy_chooser"
+
+
 def test_semantic_agent_flow_reasoning_mode_repairs_initially_insufficient_query():
     flow = SemanticAgentFlow(FakeConnector())
     result = flow.run(

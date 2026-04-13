@@ -8,6 +8,10 @@
 
 Define your ontology once. SEOCHO uses that one contract to drive extraction,
 query planning, validation, graph constraints, and runtime semantic artifacts.
+`Seocho` remains the public facade while canonical engine code continues moving
+under `seocho/*`; semantic query Phase A now shares intent inference, evidence
+shaping, support assessment, strategy selection, Cypher validation, and
+insufficiency classification from `seocho/query/*`.
 
 ## Quick Start
 

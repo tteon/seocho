@@ -1,3 +1,7 @@
+# Rust (seocho-core)
+seocho-core/target/
+seocho-core/Cargo.lock
+
 # Node
 node_modules/
 .next/

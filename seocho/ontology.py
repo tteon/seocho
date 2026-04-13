@@ -456,6 +456,179 @@ class Ontology:
 
         return ontology_from_jsonld_dict(cls, data)
 
+    @classmethod
+    def from_artifact(
+        cls,
+        artifact: Any,
+        *,
+        version: str = "1.0.0",
+        graph_model: str = "lpg",
+    ) -> "Ontology":
+        """Build an Ontology from a semantic artifact or draft input.
+
+        Accepts a :class:`~seocho.semantic.SemanticArtifact`,
+        :class:`~seocho.semantic.SemanticArtifactDraftInput`, or a plain
+        dict with ``ontology_candidate`` and ``shacl_candidate`` keys.
+
+        This is the reverse of :meth:`to_semantic_artifact_draft` — it
+        promotes an approved (or draft) artifact into a full Ontology
+        instance that can be used for extraction and querying.
+
+        Args:
+            artifact: Artifact object or dict.
+            version: Ontology version string (overrides artifact metadata).
+            graph_model: ``'lpg'`` or ``'rdf'``.
+
+        Returns:
+            A new :class:`Ontology` instance.
+
+        Example::
+
+            approved = seocho.get_artifact("art_abc123")
+            onto = Ontology.from_artifact(approved, version="2.0")
+            seocho.register_ontology("mydb", onto)
+        """
+        _DATATYPE_MAP: Dict[str, PropertyType] = {
+            "string": PropertyType.STRING,
+            "integer": PropertyType.INTEGER,
+            "float": PropertyType.FLOAT,
+            "number": PropertyType.FLOAT,
+            "boolean": PropertyType.BOOLEAN,
+            "datetime": PropertyType.DATETIME,
+            "date": PropertyType.DATE,
+            "point": PropertyType.POINT,
+            "list": PropertyType.LIST,
+        }
+
+        # Normalize to dict if needed
+        if hasattr(artifact, "to_dict"):
+            data = artifact.to_dict()
+        elif isinstance(artifact, dict):
+            data = artifact
+        else:
+            raise TypeError(
+                f"Expected SemanticArtifact, SemanticArtifactDraftInput, or dict; "
+                f"got {type(artifact).__name__}"
+            )
+
+        onto_cand = data.get("ontology_candidate", {})
+        if hasattr(onto_cand, "to_dict"):
+            onto_cand = onto_cand.to_dict()
+
+        shacl_cand = data.get("shacl_candidate", {})
+        if hasattr(shacl_cand, "to_dict"):
+            shacl_cand = shacl_cand.to_dict()
+
+        ontology_name = str(onto_cand.get("ontology_name", "")).strip() or "Unnamed"
+
+        # Extract SHACL constraints for enrichment
+        shacl_required: Dict[str, set] = {}  # label -> set of required property names
+        shacl_unique: Dict[str, set] = {}
+        for shape in shacl_cand.get("shapes", []):
+            tc = str(shape.get("target_class", "")).strip()
+            if not tc:
+                continue
+            for constraint in shape.get("constraints", []):
+                path = str(constraint.get("path", "")).strip()
+                ctype = str(constraint.get("constraint", "")).strip()
+                if ctype == "minCount" and constraint.get("params", {}).get("value", 0) >= 1:
+                    shacl_required.setdefault(tc, set()).add(path)
+                elif ctype == "uniqueLang":
+                    shacl_unique.setdefault(tc, set()).add(path)
+
+        # Build NodeDefs from ontology_candidate classes
+        nodes: Dict[str, NodeDef] = {}
+        for cls_data in onto_cand.get("classes", []):
+            if isinstance(cls_data, dict):
+                label = str(cls_data.get("name", "")).strip()
+            else:
+                label = str(getattr(cls_data, "name", "")).strip()
+                cls_data = cls_data.to_dict() if hasattr(cls_data, "to_dict") else {}
+            if not label:
+                continue
+
+            props: Dict[str, P] = {}
+            req_props = shacl_required.get(label, set())
+            for prop_data in cls_data.get("properties", []):
+                if isinstance(prop_data, dict):
+                    pname = str(prop_data.get("name", "")).strip()
+                    datatype_str = str(prop_data.get("datatype", "string")).strip().lower()
+                    pdesc = str(prop_data.get("description", "")).strip()
+                    paliases = prop_data.get("aliases", [])
+                else:
+                    pname = str(getattr(prop_data, "name", "")).strip()
+                    datatype_str = str(getattr(prop_data, "datatype", "string")).strip().lower()
+                    pdesc = str(getattr(prop_data, "description", "")).strip()
+                    paliases = getattr(prop_data, "aliases", [])
+                if not pname:
+                    continue
+                ptype = _DATATYPE_MAP.get(datatype_str, PropertyType.STRING)
+                props[pname] = P(
+                    type=ptype,
+                    required=pname in req_props,
+                    description=pdesc,
+                    aliases=list(paliases) if paliases else [],
+                )
+
+            nodes[label] = NodeDef(
+                description=str(cls_data.get("description", "")).strip(),
+                properties=props,
+                aliases=list(cls_data.get("aliases", [])),
+                broader=list(cls_data.get("broader", [])),
+            )
+
+        # Build RelDefs from ontology_candidate relationships
+        rels: Dict[str, RelDef] = {}
+        for rel_data in onto_cand.get("relationships", []):
+            if isinstance(rel_data, dict):
+                rtype = str(rel_data.get("type", "")).strip()
+                source = str(rel_data.get("source", "Any")).strip() or "Any"
+                target = str(rel_data.get("target", "Any")).strip() or "Any"
+                rdesc = str(rel_data.get("description", "")).strip()
+                raliases = rel_data.get("aliases", [])
+            else:
+                rtype = str(getattr(rel_data, "type", "")).strip()
+                source = str(getattr(rel_data, "source", "Any")).strip() or "Any"
+                target = str(getattr(rel_data, "target", "Any")).strip() or "Any"
+                rdesc = str(getattr(rel_data, "description", "")).strip()
+                raliases = getattr(rel_data, "aliases", [])
+            if not rtype:
+                continue
+            rels[rtype] = RelDef(
+                source=source,
+                target=target,
+                description=rdesc,
+                aliases=list(raliases) if raliases else [],
+            )
+
+        # Extract metadata from source_summary if present
+        source_summary = data.get("source_summary", {})
+        resolved_version = (
+            version
+            or str(source_summary.get("version", "")).strip()
+            or "1.0.0"
+        )
+        package_id = (
+            str(source_summary.get("package_id", "")).strip()
+            or ontology_name
+        )
+        namespace = str(source_summary.get("namespace", "")).strip()
+        resolved_graph_model = (
+            graph_model
+            or str(source_summary.get("graph_model", "")).strip()
+            or "lpg"
+        )
+
+        return cls(
+            name=ontology_name,
+            package_id=package_id,
+            version=resolved_version,
+            graph_model=resolved_graph_model,
+            namespace=namespace,
+            nodes=nodes,
+            relationships=rels,
+        )
+
     def to_jsonld(self, path: Optional[Union[str, Path]] = None) -> Dict[str, Any]:
         """Export ontology as a JSON-LD document.
 
@@ -1816,6 +1989,97 @@ class Ontology:
                 })
 
         return result
+
+    def coverage_stats(
+        self,
+        graph_store: Any,
+        *,
+        database: str = "neo4j",
+    ) -> Dict[str, Any]:
+        """Compute ontology coverage statistics against a live graph.
+
+        Queries the graph to count how many nodes exist for each ontology-
+        defined label and how many relationships exist for each type.
+        Returns a coverage summary highlighting unused or under-populated
+        schema elements.
+
+        Args:
+            graph_store: A :class:`~seocho.store.graph.GraphStore` instance.
+            database: Target database to analyze.
+
+        Returns:
+            Dict with ``node_coverage``, ``relationship_coverage``,
+            ``overall_score``, and ``unused`` lists.
+
+        Example::
+
+            stats = onto.coverage_stats(store, database="mydb")
+            print(stats["overall_score"])        # 0.75
+            print(stats["unused"]["node_types"]) # ["OldEntity"]
+        """
+        node_stats: List[Dict[str, Any]] = []
+        total_defined_nodes = len(self.nodes)
+        populated_nodes = 0
+
+        for label in self.nodes:
+            try:
+                result = graph_store.query(
+                    f"MATCH (n:`{label}`) RETURN count(n) AS cnt",
+                    database=database,
+                )
+                count = int(result[0]["cnt"]) if result else 0
+            except Exception:
+                count = 0
+            node_stats.append({"label": label, "count": count})
+            if count > 0:
+                populated_nodes += 1
+
+        rel_stats: List[Dict[str, Any]] = []
+        total_defined_rels = len(self.relationships)
+        populated_rels = 0
+
+        for rtype in self.relationships:
+            try:
+                result = graph_store.query(
+                    f"MATCH ()-[r:`{rtype}`]->() RETURN count(r) AS cnt",
+                    database=database,
+                )
+                count = int(result[0]["cnt"]) if result else 0
+            except Exception:
+                count = 0
+            rel_stats.append({"type": rtype, "count": count})
+            if count > 0:
+                populated_rels += 1
+
+        node_score = populated_nodes / total_defined_nodes if total_defined_nodes else 1.0
+        rel_score = populated_rels / total_defined_rels if total_defined_rels else 1.0
+        overall = (node_score + rel_score) / 2.0
+
+        unused_nodes = [s["label"] for s in node_stats if s["count"] == 0]
+        unused_rels = [s["type"] for s in rel_stats if s["count"] == 0]
+
+        return {
+            "database": database,
+            "ontology_name": self.name,
+            "ontology_version": self.version,
+            "node_coverage": {
+                "defined": total_defined_nodes,
+                "populated": populated_nodes,
+                "score": round(node_score, 3),
+                "details": node_stats,
+            },
+            "relationship_coverage": {
+                "defined": total_defined_rels,
+                "populated": populated_rels,
+                "score": round(rel_score, 3),
+                "details": rel_stats,
+            },
+            "overall_score": round(overall, 3),
+            "unused": {
+                "node_types": unused_nodes,
+                "relationship_types": unused_rels,
+            },
+        }
 
     # ------------------------------------------------------------------
     # Dunder

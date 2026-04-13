@@ -176,8 +176,12 @@ Canonical direction:
 
 Primary modules:
 
-- `extraction/pipeline.py`
-- `extraction/rule_constraints.py`
+- `seocho/rules.py` — canonical rule inference/validation (shared by SDK + server)
+- `seocho/index/pipeline.py` — canonical indexing pipeline with rule + embedding support
+- `seocho/index/linker.py` — canonical embedding-based entity linker
+- `extraction/pipeline.py` — legacy batch pipeline
+- `extraction/rule_constraints.py` — re-export shim to `seocho.rules`
+- `extraction/vector_store.py` — adapter shim to `seocho.store.vector`
 - `extraction/graph_loader.py`
 
 ## End-to-End Data Flow

@@ -93,8 +93,8 @@ class Cardinality(Enum):
 
 
 @dataclass(slots=True)
-class P:
-    """Concise property definition for the builder API.
+class Property:
+    """Property definition for a node or relationship.
 
     Parameters
     ----------
@@ -111,6 +111,13 @@ class P:
         Human-readable description shown in prompts.
     aliases:
         Alternative names an LLM might use for this property.
+
+    Example::
+
+        from seocho import Property
+
+        name = Property(str, unique=True)
+        age = Property(int, required=True, description="Age in years")
     """
 
     type: Union[type, PropertyType, str] = str
@@ -139,6 +146,10 @@ class P:
         return None
 
 
+# Backward-compatible short alias. New code should prefer ``Property``.
+P = Property
+
+
 # cache builtin ``type`` before it gets shadowed
 builtins_type = type
 
@@ -150,7 +161,10 @@ builtins_type = type
 
 @dataclass(slots=True)
 class NodeDef:
-    """Definition of a node (entity) type in the ontology."""
+    """Definition of a node (entity) type in the ontology.
+
+    Also available under the longer alias ``NodeDefinition``.
+    """
 
     description: str = ""
     properties: Dict[str, P] = field(default_factory=dict)
@@ -175,7 +189,10 @@ class NodeDef:
 
 @dataclass(slots=True)
 class RelDef:
-    """Definition of a relationship type in the ontology."""
+    """Definition of a relationship type in the ontology.
+
+    Also available under the longer alias ``RelationshipDefinition``.
+    """
 
     source: str = "Any"
     target: str = "Any"
@@ -184,6 +201,13 @@ class RelDef:
     properties: Dict[str, P] = field(default_factory=dict)
     aliases: List[str] = field(default_factory=list)
     same_as: Optional[str] = None  # e.g. "schema:worksFor"
+
+
+# Explicit long-form aliases for users who prefer self-documenting names.
+# ``NodeDef`` / ``RelDef`` remain the canonical in-code names for brevity in
+# dict literals; these aliases are fully equivalent.
+NodeDefinition = NodeDef
+RelationshipDefinition = RelDef
 
 
 # ---------------------------------------------------------------------------

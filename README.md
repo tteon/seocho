@@ -20,14 +20,14 @@ pip install "seocho[local]"
 ```
 
 ```python
-from seocho import Seocho, Ontology, NodeDef, RelDef, P
+from seocho import Seocho, Ontology, NodeDef, RelDef, Property
 
 # 1. Define your schema
 ontology = Ontology(
     name="my_domain",
     nodes={
-        "Person":  NodeDef(properties={"name": P(str, unique=True)}),
-        "Company": NodeDef(properties={"name": P(str, unique=True)}),
+        "Person":  NodeDef(properties={"name": Property(str, unique=True)}),
+        "Company": NodeDef(properties={"name": Property(str, unique=True)}),
     },
     relationships={
         "WORKS_AT": RelDef(source="Person", target="Company"),

@@ -23,26 +23,20 @@ def simple_ontology():
 
 
 @pytest.fixture(autouse=True)
-def _reset_seocho_imports():
-    """Force fresh import of seocho.store.graph so earlier test modules that
-    inject a fake ``neo4j`` module into ``sys.modules`` don't leak state."""
-    import importlib
+def _strip_fake_neo4j():
+    """Remove fake ``neo4j`` modules other test files inject into ``sys.modules``.
+
+    Other extraction tests use ``importlib.reload`` together with a fake
+    ``neo4j`` module to test runtime_ingest without the real driver. That
+    leaves a synthetic module behind that conflicts with our mocking.
+    """
     import sys
 
-    # Ensure real neo4j mock does not linger from prior tests
     for mod_name in list(sys.modules):
         if mod_name == "neo4j" or mod_name.startswith("neo4j."):
             mod = sys.modules[mod_name]
             if not hasattr(mod, "__file__") or mod.__file__ is None:
                 del sys.modules[mod_name]
-
-    # Reload seocho.store.graph to pick up the clean state
-    for mod_name in ("seocho.store.graph", "seocho.store.llm", "seocho.client"):
-        if mod_name in sys.modules:
-            try:
-                importlib.reload(sys.modules[mod_name])
-            except Exception:
-                pass
     yield
 
 

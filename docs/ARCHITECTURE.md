@@ -184,6 +184,14 @@ Why this path exists:
 - fulltext-first lookup improves recall for imperfect user entity strings
 - semantic re-ranking + dedup reduces wrong-node selection before Cypher generation
 
+Canonical direction:
+
+- `seocho/query/` is the canonical query engine surface
+- local SDK and server runtime should share planner, executor, and answer
+  shaping contracts from `seocho/query/*`
+- `extraction/*` should keep transport and runtime orchestration concerns, not
+  grow a second query engine
+
 ## Intent-First Graph-RAG Contract (Active Direction)
 
 Semantic QA and memory-first answering should move toward an explicit

@@ -10,7 +10,8 @@ from uuid import uuid4
 
 from config import db_registry
 from runtime_ingest import RuntimeRawIngestor
-from semantic_query_flow import SemanticAgentFlow, build_evidence_bundle
+from semantic_query_flow import SemanticAgentFlow
+from seocho.query.answering import build_evidence_bundle
 
 
 class GraphMemoryService:

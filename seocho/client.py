@@ -74,6 +74,10 @@ from .models import (
     SemanticRunRecord,
     SemanticRunResponse,
 )
+from .query.answering import QueryAnswerSynthesizer
+from .query.contracts import QueryPlan
+from .query.executor import GraphQueryExecutor
+from .query.planner import DeterministicQueryPlanner
 from .runtime_contract import (
     RuntimePath,
     build_query_payload,
@@ -2345,13 +2349,32 @@ class _LocalEngine:
 
         schema_info = self._get_schema_info(database)
         self._query.schema_info = schema_info
+        planner = DeterministicQueryPlanner(
+            ontology=active_ontology,
+            llm=self.llm,
+            workspace_id=self.workspace_id,
+        )
+        executor = GraphQueryExecutor(graph_store=self.graph_store, database=database)
+        answer_synthesizer = QueryAnswerSynthesizer(
+            query_strategy=self._query,
+            llm=self.llm,
+        )
 
         # --- First attempt ---
-        cypher, params, intent_data, error = self._generate_cypher(question, active_ontology)
+        cypher, params, intent_data, error = self._generate_cypher(
+            question,
+            active_ontology,
+            planner=planner,
+        )
         if error:
             return error
 
-        records, exec_error = self._execute_cypher(cypher, params, database)
+        records, exec_error = self._execute_cypher(
+            cypher,
+            params,
+            database,
+            executor=executor,
+        )
         if exec_error:
             return exec_error
 
@@ -2378,12 +2401,14 @@ class _LocalEngine:
             for attempt_num in range(repair_budget):
                 repair_cypher, repair_params, repair_error = self._generate_repair_query(
                     question, attempts, schema_info, intent_data, active_ontology,
+                    planner=planner,
                 )
                 if repair_error or not repair_cypher:
                     break
 
                 repair_records, repair_exec_error = self._execute_cypher(
                     repair_cypher, repair_params, database,
+                    executor=executor,
                 )
                 attempts.append({
                     "cypher": repair_cypher,
@@ -2411,7 +2436,12 @@ class _LocalEngine:
             except Exception:
                 pass
 
-        deterministic_answer = self._build_deterministic_answer(question, records, intent_data)
+        deterministic_answer = self._build_deterministic_answer(
+            question,
+            records,
+            intent_data,
+            answer_synthesizer=answer_synthesizer,
+        )
         if deterministic_answer:
             return deterministic_answer
 
@@ -2420,16 +2450,11 @@ class _LocalEngine:
         if reasoning_mode and attempts:
             reasoning_trace = json.dumps(attempts, default=str)
 
-        system_ans, user_ans = self._query.render_answer(
-            question, json.dumps(records, default=str),
-        )
-        if reasoning_trace:
-            user_ans += f"\n\nReasoning trace (query attempts):\n{reasoning_trace}"
-        if vector_context:
-            user_ans += f"\n\nAdditional context from vector search:\n{vector_context}"
-
-        answer_response = self.llm.complete(
-            system=system_ans, user=user_ans, temperature=0.1,
+        answer_text = answer_synthesizer.synthesize(
+            question,
+            records,
+            reasoning_trace=reasoning_trace,
+            vector_context=vector_context,
         )
 
         # --- Query tracing ---
@@ -2450,7 +2475,7 @@ class _LocalEngine:
         except Exception:
             pass
 
-        return answer_response.text
+        return answer_text
 
     def _get_schema_info(self, database: str) -> Dict[str, Any]:
         try:
@@ -2462,63 +2487,40 @@ class _LocalEngine:
         except Exception:
             return {}
 
-    def _generate_cypher(self, question: str, ontology: Any) -> tuple:
+    def _generate_cypher(
+        self,
+        question: str,
+        ontology: Any,
+        *,
+        planner: Optional[DeterministicQueryPlanner] = None,
+    ) -> tuple:
         """Extract intent via LLM, then build Cypher deterministically.
 
         Returns (cypher, params, intent_data, error_message_or_None).
         """
-        from .query.cypher_builder import CypherBuilder
-
-        builder = CypherBuilder(ontology)
-
-        # Step 1: LLM extracts intent (NOT Cypher)
-        intent_prompt = builder.intent_extraction_prompt()
-        response = self.llm.complete(
-            system=intent_prompt,
-            user=f"Question: {question}",
-            temperature=0.0,
-            response_format={"type": "json_object"},
+        active_planner = planner or DeterministicQueryPlanner(
+            ontology=ontology,
+            llm=self.llm,
+            workspace_id=self.workspace_id,
         )
+        plan = active_planner.plan(question)
+        return plan.cypher, plan.params, plan.intent_data, plan.error
 
-        try:
-            intent_data = response.json()
-        except (json.JSONDecodeError, ValueError):
-            logger.error("LLM returned non-JSON intent: %s", response.text[:200])
-            intent_data = {"intent": "neighbors", "anchor_entity": question}
-
-        intent_data = builder.normalize_intent(question, intent_data)
-
-        # Step 2: Code builds correct Cypher from intent
-        try:
-            cypher, params = builder.build(
-                intent=intent_data.get("intent", "neighbors"),
-                anchor_entity=intent_data.get("anchor_entity", question),
-                anchor_label=intent_data.get("anchor_label", ""),
-                target_entity=intent_data.get("target_entity", ""),
-                target_label=intent_data.get("target_label", ""),
-                relationship_type=intent_data.get("relationship_type", ""),
-                metric_name=intent_data.get("metric_name", ""),
-                metric_aliases=intent_data.get("metric_aliases", ()),
-                metric_scope_tokens=intent_data.get("metric_scope_tokens", ()),
-                years=intent_data.get("years", ()),
-                workspace_id=self.workspace_id,
-            )
-        except Exception as exc:
-            logger.error("Cypher build failed: %s", exc)
-            return "", {}, intent_data, "I could not build a query for your question."
-
-        if not cypher:
-            return "", {}, intent_data, "I could not determine how to query the graph."
-        return cypher, params, intent_data, None
-
-    def _execute_cypher(self, cypher: str, params: Dict, database: str) -> tuple:
+    def _execute_cypher(
+        self,
+        cypher: str,
+        params: Dict,
+        database: str,
+        *,
+        executor: Optional[GraphQueryExecutor] = None,
+    ) -> tuple:
         """Returns (records, error_message_or_None)."""
-        try:
-            records = self.graph_store.query(cypher, params=params, database=database)
-            return records, None
-        except Exception as exc:
-            logger.error("Cypher execution failed: %s — query: %s", exc, cypher)
-            return [], f"The query could not be executed: {exc}"
+        active_executor = executor or GraphQueryExecutor(
+            graph_store=self.graph_store,
+            database=database,
+        )
+        execution = active_executor.execute(QueryPlan(question="", cypher=cypher, params=params))
+        return execution.records, execution.error
 
     def _generate_repair_query(
         self,
@@ -2527,57 +2529,40 @@ class _LocalEngine:
         schema_info: Dict[str, Any],
         intent_data: Optional[Dict[str, Any]] = None,
         ontology: Optional[Any] = None,
+        *,
+        planner: Optional[DeterministicQueryPlanner] = None,
     ) -> tuple:
         """Generate a repaired Cypher query based on previous failed attempts."""
-        if intent_data and str(intent_data.get("intent", "")).startswith("financial_metric_"):
-            return "", {}, "Deterministic finance query returned no supported evidence."
-
-        active_ontology = ontology or self.ontology
-        ctx = active_ontology.to_query_context()
-        attempts_summary = "\n".join(
-            f"  Attempt {i+1}: {a['cypher'][:100]}... → {a['result_count']} results"
-            + (f" (error: {a['error']})" if a.get("error") else "")
-            for i, a in enumerate(attempts)
+        active_planner = planner or DeterministicQueryPlanner(
+            ontology=ontology or self.ontology,
+            llm=self.llm,
+            workspace_id=self.workspace_id,
         )
-
-        system = (
-            "You are a knowledge graph query repair agent.\n"
-            f"Working with ontology \"{ctx['ontology_name']}\".\n\n"
-            f"--- Graph Schema ---\n{ctx['graph_schema']}\n\n"
-            f"The previous queries returned no results:\n{attempts_summary}\n\n"
-            "Generate a RELAXED alternative query that:\n"
-            "- Uses broader match patterns (CONTAINS instead of exact match)\n"
-            "- Tries alternative relationship paths\n"
-            "- Removes overly specific filters\n"
-            "- Falls back to listing available entities if all else fails\n\n"
-            "Return JSON: {\"cypher\": \"...\", \"params\": {...}, \"strategy\": \"...\"}"
+        plan = active_planner.repair(
+            question=question,
+            attempts=attempts,
+            intent_data=intent_data,
+            ontology=ontology,
         )
-        user = f"Original question: {question}"
-
-        response = self.llm.complete(
-            system=system, user=user,
-            temperature=0.2,
-            response_format={"type": "json_object"},
-        )
-        try:
-            plan = response.json()
-        except (json.JSONDecodeError, ValueError):
-            return "", {}, "Repair query generation failed"
-
-        return plan.get("cypher", ""), plan.get("params", {}), None
+        return plan.cypher, plan.params, plan.error
 
     def _build_deterministic_answer(
         self,
         question: str,
         records: Sequence[Dict[str, Any]],
         intent_data: Optional[Dict[str, Any]],
+        *,
+        answer_synthesizer: Optional[QueryAnswerSynthesizer] = None,
     ) -> Optional[str]:
-        if not intent_data:
-            return None
-        intent = str(intent_data.get("intent", "")).strip()
-        if intent not in {"financial_metric_lookup", "financial_metric_delta"}:
-            return None
-        return self._build_financial_answer(question, records, intent_data)
+        active_answer_synthesizer = answer_synthesizer or QueryAnswerSynthesizer(
+            query_strategy=self._query,
+            llm=self.llm,
+        )
+        return active_answer_synthesizer.build_deterministic_answer(
+            question,
+            records,
+            intent_data,
+        )
 
     def _build_financial_answer(
         self,

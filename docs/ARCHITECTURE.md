@@ -250,6 +250,9 @@ Canonical direction:
 - `seocho/query/` is the canonical query engine surface
 - local SDK and server runtime should share planner, executor, and answer
   shaping contracts from `seocho/query/*`
+- semantic query Phase A now also shares intent, support assessment, strategy
+  selection, Cypher validation, and insufficiency contracts from
+  `seocho/query/{intent,strategy_chooser,cypher_validator,insufficiency,contracts}.py`
 - `extraction/*` should keep transport and runtime orchestration concerns, not
   grow a second query engine
 
@@ -309,7 +312,11 @@ relevance.
 
 Primary implementation anchors:
 
-- `extraction/semantic_query_flow.py`
+- `seocho/query/intent.py`
+- `seocho/query/strategy_chooser.py`
+- `seocho/query/cypher_validator.py`
+- `seocho/query/insufficiency.py`
+- `extraction/semantic_query_flow.py` as the compatibility surface during migration
 - `extraction/memory_service.py`
 - `extraction/public_memory_api.py`
 - `seocho/types.py`

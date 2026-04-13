@@ -363,6 +363,11 @@ Each entry must link to a full ADR when impact is non-trivial.
   - keep `RuntimeRawIngestor` static and instance helper wrappers stable while delegating implementation to canonical helpers
   - leave runtime-only orchestration, embedding-relatedness I/O, and DB loading flow in `runtime_ingest.py` for later slices
 
+- Accepted `ADR-0058-semantic-query-phase-a-pure-logic-first-slice.md`
+  - move semantic query pure-logic primitives into canonical `seocho/query/*` modules
+  - rebind `extraction/semantic_query_flow.py` runtime helpers to canonical classes while keeping the existing import surface stable
+  - defer DB-aware helpers, route agents, and `SemanticAgentFlow` itself to later ADR-0056 phases
+
 ## Template
 
 Use this block for new entries:

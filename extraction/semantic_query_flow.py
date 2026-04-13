@@ -48,6 +48,17 @@ from seocho.query.answering import (
     build_evidence_bundle as shared_build_evidence_bundle,
     infer_question_intent as shared_infer_question_intent,
 )
+from seocho.query.contracts import (
+    CypherPlan as CanonicalCypherPlan,
+    InsufficiencyAssessment as CanonicalInsufficiencyAssessment,
+    IntentSpec as CanonicalIntentSpec,
+)
+from seocho.query.cypher_validator import CypherQueryValidator as CanonicalCypherQueryValidator
+from seocho.query.insufficiency import QueryInsufficiencyClassifier as CanonicalQueryInsufficiencyClassifier
+from seocho.query.strategy_chooser import (
+    ExecutionStrategyChooser as CanonicalExecutionStrategyChooser,
+    IntentSupportValidator as CanonicalIntentSupportValidator,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -1022,6 +1033,15 @@ class ExecutionStrategyChooser:
             }
         )
         return decision
+
+
+IntentSpec = CanonicalIntentSpec
+CypherPlan = CanonicalCypherPlan
+InsufficiencyAssessment = CanonicalInsufficiencyAssessment
+CypherQueryValidator = CanonicalCypherQueryValidator
+QueryInsufficiencyClassifier = CanonicalQueryInsufficiencyClassifier
+IntentSupportValidator = CanonicalIntentSupportValidator
+ExecutionStrategyChooser = CanonicalExecutionStrategyChooser
 
 
 class RunMetadataRegistry:

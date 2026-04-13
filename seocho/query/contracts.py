@@ -1,7 +1,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
+
+
+@dataclass(frozen=True)
+class IntentSpec:
+    """Intent contract used by semantic query planning and evidence shaping."""
+
+    intent_id: str
+    required_relations: Tuple[str, ...]
+    required_entity_types: Tuple[str, ...]
+    focus_slots: Tuple[str, ...]
+    trigger_keywords: Tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -41,3 +52,28 @@ class QueryAttempt:
     result_count: int
     error: Optional[str] = None
 
+
+@dataclass(frozen=True)
+class CypherPlan:
+    """Deterministic semantic query plan used by semantic graph answering."""
+
+    database: str
+    query: str
+    params: Dict[str, Any]
+    strategy: str
+    anchor_entity: str
+    anchor_label: str = ""
+    relation_types: Tuple[str, ...] = ()
+    profile_id: str = ""
+    query_kind: str = ""
+
+
+@dataclass(frozen=True)
+class InsufficiencyAssessment:
+    """Assessment of whether a graph retrieval filled the intended slots."""
+
+    sufficient: bool
+    reason: str
+    missing_slots: Tuple[str, ...]
+    row_count: int
+    filled_slots: Tuple[str, ...] = ()

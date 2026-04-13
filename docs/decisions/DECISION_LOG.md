@@ -358,6 +358,11 @@ Each entry must link to a full ADR when impact is non-trivial.
   - extraction/agent_server.py becomes thin wrapper, mirroring Graphiti's server/graph_service/routers pattern
   - 4-phase migration (pure logic → DB-aware support → agents → SemanticAgentFlow), each gated by parity harness
 
+- Accepted `ADR-0057-runtime-ingest-deterministic-helper-seams-first-slice.md`
+  - extract runtime memory-graph shaping and semantic-artifact merge helpers into canonical `seocho/index/*` modules
+  - keep `RuntimeRawIngestor` static and instance helper wrappers stable while delegating implementation to canonical helpers
+  - leave runtime-only orchestration, embedding-relatedness I/O, and DB loading flow in `runtime_ingest.py` for later slices
+
 ## Template
 
 Use this block for new entries:

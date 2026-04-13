@@ -32,7 +32,10 @@ calling into that shared engine instead of maintaining a second prompt and
 normalization path.
 `extraction/runtime_ingest.py` also uses this canonical seam for its prompt-
 driven extraction/linking path while larger runtime orchestration remains
-outside the seam for now.
+outside the seam for now. Deterministic runtime memory-graph shaping and
+semantic-artifact helpers now live under `seocho/index/runtime_memory.py` and
+`seocho/index/runtime_artifacts.py` so runtime-only wrappers no longer own that
+logic outright.
 
 ## Why SEOCHO
 

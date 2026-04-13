@@ -275,6 +275,9 @@ compatibility roles.
   - `extraction/pipeline.py`
 - partial canonical seam reuse:
   - `extraction/runtime_ingest.py`
+- canonical helper seams now shared with runtime ingest:
+  - `seocho/index/runtime_memory.py`
+  - `seocho/index/runtime_artifacts.py`
 - migrate later:
   - remaining runtime ingest orchestration beyond extraction/linking setup
 
@@ -356,6 +359,8 @@ Offline ontology governance operators should prefer the SDK CLI surface:
 ### Extraction Layer
 
 | CanonicalExtractionEngine | `seocho/index/extraction_engine.py` | Shared extraction/linking prompt + normalization seam for SDK and extraction compatibility paths |
+| RuntimeMemoryHelpers | `seocho/index/runtime_memory.py` | Shared deterministic memory-graph shaping helpers for SDK/runtime ingestion paths |
+| RuntimeArtifactHelpers | `seocho/index/runtime_artifacts.py` | Shared deterministic runtime semantic-artifact merge, vocabulary, and summary helpers |
 | OntologyPromptBridge | `extraction/ontology_prompt_bridge.py` | Backward-compatible ontology → prompt bridge; new code should prefer ontology contracts directly |
 | EntityExtractor | `extraction/extractor.py` | Legacy OpenAI extractor wrapper retained for compatibility paths that have not yet moved to the canonical seam |
 | EntityLinker | `extraction/linker.py` | Legacy LLM linker wrapper retained for compatibility paths that have not yet moved to the canonical seam |

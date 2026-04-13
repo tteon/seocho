@@ -273,8 +273,10 @@ compatibility roles.
   - `extraction/server_runtime.py`
 - keep as compatibility caller over canonical seam:
   - `extraction/pipeline.py`
-- migrate later:
+- partial canonical seam reuse:
   - `extraction/runtime_ingest.py`
+- migrate later:
+  - remaining runtime ingest orchestration beyond extraction/linking setup
 
 Shared ingestion seam:
 
@@ -282,7 +284,8 @@ Shared ingestion seam:
   - canonical extraction prompt rendering
   - canonical linking prompt rendering
   - canonical graph payload normalization
-  - reused by both SDK indexing and extraction compatibility pipeline paths
+  - reused by SDK indexing, extraction compatibility pipeline, and runtime
+    ingest prompt-driven extraction/linking setup
 
 ## Intent-First Graph-RAG Contract (Active Direction)
 

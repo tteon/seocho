@@ -48,6 +48,7 @@ class CanonicalExtractionEngine:
         *,
         category: str = "general",
         metadata: Optional[Dict[str, Any]] = None,
+        extra_context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Run one extraction pass and normalize the returned graph payload."""
 
@@ -55,6 +56,7 @@ class CanonicalExtractionEngine:
             text=text,
             category=category,
             metadata=metadata,
+            extra_context=extra_context,
         )
         response = self.llm.complete(
             system=system,
@@ -69,6 +71,7 @@ class CanonicalExtractionEngine:
         extracted: Dict[str, Any],
         *,
         category: str = "general",
+        extra_context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Run entity linking and preserve the graph-write contract."""
 
@@ -86,6 +89,7 @@ class CanonicalExtractionEngine:
         system, user = self._render_linking_prompts(
             entities_json=entities_json,
             category=category,
+            extra_context=extra_context,
         )
         response = self.llm.complete(
             system=system,
@@ -135,9 +139,15 @@ class CanonicalExtractionEngine:
         text: str,
         category: str,
         metadata: Optional[Dict[str, Any]],
+        extra_context: Optional[Dict[str, Any]],
     ) -> tuple[str, str]:
         if self.custom_prompts:
-            context = self._prompt_context(text=text, category=category, metadata=metadata)
+            context = self._prompt_context(
+                text=text,
+                category=category,
+                metadata=metadata,
+                extra_context=extra_context,
+            )
             system_template = self.custom_prompts.get("system", "")
             user_template = self.custom_prompts.get("user", "{{text}}")
             return (
@@ -157,13 +167,21 @@ class CanonicalExtractionEngine:
         )
         return system, f"Text to extract:\n{text}"
 
-    def _render_linking_prompts(self, *, entities_json: str, category: str) -> tuple[str, str]:
+    def _render_linking_prompts(
+        self,
+        *,
+        entities_json: str,
+        category: str,
+        extra_context: Optional[Dict[str, Any]],
+    ) -> tuple[str, str]:
         if self.linking_prompt:
             context = {
                 "category": category,
                 "entities": entities_json,
                 "entities_json": entities_json,
             }
+            if isinstance(extra_context, dict):
+                context.update(extra_context)
             return (
                 "You are an entity linking assistant.",
                 Template(self.linking_prompt).render(**context),
@@ -185,6 +203,7 @@ class CanonicalExtractionEngine:
         text: str,
         category: str,
         metadata: Optional[Dict[str, Any]],
+        extra_context: Optional[Dict[str, Any]],
     ) -> Dict[str, Any]:
         context: Dict[str, Any] = {
             "text": text,
@@ -198,6 +217,8 @@ class CanonicalExtractionEngine:
             context.setdefault("entity_types", "")
             context.setdefault("relationship_types", "")
             context.setdefault("constraints_summary", "")
+        if isinstance(extra_context, dict):
+            context.update(extra_context)
         return context
 
     def _normalize_node(self, raw_node: Any, index: int) -> Optional[Dict[str, Any]]:

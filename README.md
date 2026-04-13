@@ -30,6 +30,9 @@ The current ingestion seam for extraction and linking now lives under
 `seocho/index/extraction_engine.py`, with extraction-side compatibility code
 calling into that shared engine instead of maintaining a second prompt and
 normalization path.
+`extraction/runtime_ingest.py` also uses this canonical seam for its prompt-
+driven extraction/linking path while larger runtime orchestration remains
+outside the seam for now.
 
 ## Why SEOCHO
 

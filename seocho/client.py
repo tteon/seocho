@@ -38,12 +38,21 @@ import logging
 import os
 import re
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
-from urllib.parse import urljoin
 
 import requests
 
+from .client_artifacts import (
+    approved_artifacts_from_ontology as build_approved_artifacts_from_ontology,
+)
+from .client_artifacts import (
+    artifact_draft_from_ontology as build_artifact_draft_from_ontology,
+)
+from .client_artifacts import (
+    prompt_context_from_ontology as build_prompt_context_from_ontology,
+)
 from .exceptions import SeochoConnectionError, SeochoHTTPError
 from .governance import ArtifactDiff, ArtifactValidationResult, diff_artifact_payloads, validate_artifact_payload
+from .http_transport import RuntimeHttpTransport
 from .semantic import (
     ApprovedArtifacts,
     SemanticArtifact,
@@ -201,6 +210,11 @@ class Seocho:
             self._engine = None
             self.base_url = (base_url or _env_str("SEOCHO_BASE_URL", "http://localhost:8001")).rstrip("/") + "/"
             self._session = session or requests.Session()
+        self._transport = RuntimeHttpTransport(
+            base_url=self.base_url,
+            session=self._session,
+            timeout=self.timeout,
+        )
 
         self._graph_catalog_cache: Optional[Dict[str, GraphTarget]] = None
         self._ontology_registry: Dict[str, Any] = {}  # database -> Ontology
@@ -225,13 +239,9 @@ class Seocho:
         return self._ontology_registry.get(database, self.ontology)
 
     def _require_ontology_contract(self, database: Optional[str] = None) -> Any:
-        ontology = self.get_ontology(database or self.default_database) if database else self.ontology
-        if ontology is None:
-            raise RuntimeError(
-                "An ontology is required for this operation. "
-                "Provide ontology=... when creating the client or register one for the target database."
-            )
-        return ontology
+        from .client_artifacts import require_ontology_contract
+
+        return require_ontology_contract(self, database)
 
     def approved_artifacts_from_ontology(
         self,
@@ -241,8 +251,9 @@ class Seocho:
         include_property_terms: bool = True,
     ) -> ApprovedArtifacts:
         """Build a runtime ``ApprovedArtifacts`` payload from the current ontology."""
-        ontology = self._require_ontology_contract(database)
-        return ontology.to_approved_artifacts(
+        return build_approved_artifacts_from_ontology(
+            self,
+            database=database,
             include_vocabulary=include_vocabulary,
             include_property_terms=include_property_terms,
         )
@@ -257,8 +268,9 @@ class Seocho:
         source_summary: Optional[Dict[str, Any]] = None,
     ) -> SemanticArtifactDraftInput:
         """Build a draft semantic artifact payload from the current ontology."""
-        ontology = self._require_ontology_contract(database)
-        return ontology.to_semantic_artifact_draft(
+        return build_artifact_draft_from_ontology(
+            self,
+            database=database,
             name=name,
             include_vocabulary=include_vocabulary,
             include_property_terms=include_property_terms,
@@ -274,8 +286,9 @@ class Seocho:
         include_property_terms: bool = True,
     ) -> SemanticPromptContext:
         """Build a typed semantic prompt context from the current ontology."""
-        ontology = self._require_ontology_contract(database)
-        return ontology.to_semantic_prompt_context(
+        return build_prompt_context_from_ontology(
+            self,
+            database=database,
             instructions=instructions,
             include_vocabulary=include_vocabulary,
             include_property_terms=include_property_terms,
@@ -1900,35 +1913,12 @@ class Seocho:
         json_body: Optional[Dict[str, Any]] = None,
         params: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        url = urljoin(self.base_url, path.lstrip("/"))
-        try:
-            response = self._session.request(
-                method=method,
-                url=url,
-                json=json_body,
-                params=params,
-                timeout=self.timeout,
-            )
-        except requests.RequestException as exc:
-            raise SeochoConnectionError(f"Could not reach SEOCHO at {url}: {exc}") from exc
-
-        if response.status_code >= 400:
-            detail: Any
-            try:
-                payload = response.json()
-                detail = payload.get("detail", payload)
-            except ValueError:
-                detail = response.text
-            raise SeochoHTTPError(status_code=response.status_code, path=path, detail=detail)
-
-        try:
-            payload = response.json()
-        except ValueError as exc:
-            raise SeochoConnectionError(f"SEOCHO returned invalid JSON for {path}") from exc
-
-        if not isinstance(payload, dict):
-            raise SeochoConnectionError(f"SEOCHO returned unexpected payload for {path}")
-        return payload
+        return self._transport.request_json(
+            method,
+            path,
+            json_body=json_body,
+            params=params,
+        )
 
 
 # ======================================================================

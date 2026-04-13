@@ -109,6 +109,7 @@ Canonical SDK control-plane modules:
 
 - `seocho/agent/`
 - `seocho/query/`
+- `seocho/http_transport.py`
 - `seocho/ontology.py` as the stable public ontology facade
 - `seocho/ontology_serialization.py` for JSON-LD persistence
 - `seocho/ontology_artifacts.py` for runtime artifact and typed prompt generation
@@ -144,6 +145,27 @@ Canonical direction:
   contracts instead of hand-built client glue
 - public API compatibility should stay centered on `Ontology`
 - heavy governance and OWL inspection stays out of the request hot path
+
+## Client Facade Boundaries (Active Direction)
+
+`Seocho` should stay a public facade, not a second home for canonical engine
+logic.
+
+- `seocho/client.py`
+  - public SDK facade and orchestration entrypoints
+- `seocho/http_transport.py`
+  - HTTP request/response wrapping and exception mapping
+- `seocho/client_artifacts.py`
+  - ontology-to-runtime-artifact bridge helpers
+- `seocho/query/*`, `seocho/agent/*`, `seocho/ontology_*`
+  - canonical engine subdomains used by the facade
+
+Canonical direction:
+
+- keep the constructor and top-level SDK calls stable
+- move HTTP transport, ontology bridge helpers, and local engine internals out
+  of `client.py` over incremental slices
+- avoid adding new canonical business logic directly to the facade
 
 ### Data Plane
 

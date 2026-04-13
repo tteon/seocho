@@ -16,6 +16,10 @@ Internally, the ontology layer is split into clear boundaries:
 - `seocho/ontology_artifacts.py`: runtime artifact and prompt-context promotion
 - `seocho/ontology_governance.py`: offline diff/check/export path
 
+`Seocho` itself is also treated as a facade: canonical query, agent, ontology,
+transport, and artifact helpers live under `seocho/*`, while `client.py`
+stays focused on the public SDK entrypoints.
+
 ## Why SEOCHO
 
 Most memory libraries optimize for the fastest generic demo. SEOCHO optimizes

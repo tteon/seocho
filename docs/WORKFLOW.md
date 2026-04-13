@@ -40,8 +40,11 @@ Responsibilities:
 
 Primary surfaces:
 
-- `extraction/pipeline.py`
-- `extraction/rule_constraints.py`
+- `seocho/rules.py` — canonical rule inference/validation
+- `seocho/index/pipeline.py` — canonical indexing with `enable_rule_constraints` + `embedding_backend`
+- `seocho/index/linker.py` — canonical embedding-based entity linker
+- `extraction/pipeline.py` — legacy batch pipeline
+- `extraction/rule_constraints.py` — re-export shim to `seocho.rules`
 - `extraction/data_source.py`
 - `extraction/graph_loader.py`
 

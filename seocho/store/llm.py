@@ -395,8 +395,14 @@ class OpenAICompatibleBackend(LLMBackend):
                 "completion_tokens": int(getattr(resp.usage, "completion_tokens", 0) or 0),
                 "total_tokens": int(getattr(resp.usage, "total_tokens", 0) or 0),
             }
+        # Reasoning models (e.g. Kimi K2.5) may return the answer in
+        # ``reasoning_content`` when ``content`` is empty — typically
+        # when the generation was cut short by max_tokens.
+        text = getattr(choice.message, "content", "") or ""
+        if not text:
+            text = getattr(choice.message, "reasoning_content", "") or ""
         return LLMResponse(
-            text=getattr(choice.message, "content", "") or "",
+            text=text,
             model=getattr(resp, "model", "") or "",
             usage=usage,
         )

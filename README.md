@@ -282,24 +282,26 @@ combined.to_jsonld("combined.jsonld")
 
 ```
 seocho/
-├── index/           ← Data Plane: putting data IN
-│   ├── pipeline.py  ← chunk → extract → validate → write
-│   └── file_reader.py ← .txt/.md/.csv/.json/.jsonl/.pdf
-├── query/           ← Control Plane: getting data OUT
-│   ├── strategy.py  ← ontology → LLM prompt generation
+├── index/              ← Data Plane: putting data IN
+│   ├── pipeline.py     ← chunk → extract → validate → rule inference → write
+│   ├── linker.py       ← embedding-based entity relatedness (canonical)
+│   └── file_reader.py  ← .txt/.md/.csv/.json/.jsonl/.pdf
+├── query/              ← Control Plane: getting data OUT
+│   ├── strategy.py     ← ontology → LLM prompt generation (cached)
 │   └── cypher_builder.py ← deterministic Cypher from intent
-├── store/           ← Storage backends
-│   ├── graph.py     ← Neo4j/DozerDB
-│   ├── vector.py    ← FAISS / LanceDB
-│   └── llm.py       ← OpenAI, DeepSeek, Kimi, Grok
-├── ontology.py      ← Schema: JSON-LD + SHACL + denormalization + merge
-├── session.py       ← Agent session: context cache + hand-off
-├── agents.py        ← IndexingAgent / QueryAgent / Supervisor
-├── tools.py         ← @function_tool definitions for agents
-├── agent_config.py  ← AgentConfig, RoutingPolicy, presets
-├── experiment.py    ← Workbench for parameter exploration
-├── tracing.py       ← Pluggable observability
-└── client.py        ← Seocho unified interface
+├── store/              ← Storage backends
+│   ├── graph.py        ← Neo4j/DozerDB (with schema cache)
+│   ├── vector.py       ← FAISS / LanceDB
+│   └── llm.py          ← OpenAI, DeepSeek, Kimi, Grok
+├── rules.py            ← SHACL-like rule inference + validation (canonical)
+├── ontology.py         ← Schema: JSON-LD + SHACL + merge + migration + coverage
+├── session.py          ← Agent session: context cache + hand-off
+├── agents.py           ← IndexingAgent / QueryAgent / Supervisor
+├── tools.py            ← @function_tool definitions for agents
+├── agent_config.py     ← AgentConfig, RoutingPolicy, presets
+├── experiment.py       ← Workbench for parameter exploration
+├── tracing.py          ← Pluggable observability
+└── client.py           ← Seocho unified interface
 ```
 
 ## Three Ways to Use

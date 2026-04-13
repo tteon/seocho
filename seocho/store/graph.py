@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import logging
 import re
+import time
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Sequence
 
@@ -169,6 +170,19 @@ class GraphStore(ABC):
         """
 
     @abstractmethod
+    def execute_write(
+        self,
+        cypher: str,
+        *,
+        params: Optional[Dict[str, Any]] = None,
+        database: str = "neo4j",
+    ) -> Dict[str, Any]:
+        """Execute a write Cypher statement (MERGE, DELETE, SET, REMOVE, etc.).
+
+        Returns summary dict with ``nodes_affected`` and ``relationships_affected``.
+        """
+
+    @abstractmethod
     def get_schema(self, *, database: str = "neo4j") -> Dict[str, Any]:
         """Retrieve the current graph schema (labels, relationship types,
         property keys)."""
@@ -234,6 +248,9 @@ class Neo4jGraphStore(GraphStore):
         self._driver = GraphDatabase.driver(uri, auth=(user, password))
         self._uri = uri
         self._user = user
+        self._schema_cache: Dict[str, Dict[str, Any]] = {}
+        self._schema_cache_ts: Dict[str, float] = {}
+        self._schema_cache_ttl = 60.0  # seconds
 
     def write(
         self,
@@ -317,6 +334,8 @@ class Neo4jGraphStore(GraphStore):
                 except Exception as exc:
                     summary["errors"].append(f"Rel {src}-[{rtype}]->{tgt}: {exc}")
 
+        if summary["nodes_created"] or summary["relationships_created"]:
+            self.invalidate_schema_cache(database)
         return summary
 
     def query(
@@ -331,6 +350,30 @@ class Neo4jGraphStore(GraphStore):
         with self._driver.session(database=database) as session:
             result = session.run(cypher, parameters=params or {})
             return [record.data() for record in result]
+
+    def execute_write(
+        self,
+        cypher: str,
+        *,
+        params: Optional[Dict[str, Any]] = None,
+        database: str = "neo4j",
+    ) -> Dict[str, Any]:
+        if database != "neo4j":
+            validate_database_name(database)
+        with self._driver.session(database=database) as session:
+            result = session.run(cypher, parameters=params or {})
+            counters = result.consume().counters
+            return {
+                "nodes_affected": (
+                    getattr(counters, "nodes_created", 0)
+                    + getattr(counters, "nodes_deleted", 0)
+                ),
+                "relationships_affected": (
+                    getattr(counters, "relationships_created", 0)
+                    + getattr(counters, "relationships_deleted", 0)
+                ),
+                "properties_set": getattr(counters, "properties_set", 0),
+            }
 
     def ensure_constraints(
         self,
@@ -352,6 +395,11 @@ class Neo4jGraphStore(GraphStore):
         return summary
 
     def get_schema(self, *, database: str = "neo4j") -> Dict[str, Any]:
+        now = time.monotonic()
+        cached_ts = self._schema_cache_ts.get(database, 0.0)
+        if database in self._schema_cache and (now - cached_ts) < self._schema_cache_ttl:
+            return self._schema_cache[database]
+
         try:
             with self._driver.session(database=database) as session:
                 labels_result = session.run("CALL db.labels()")
@@ -363,14 +411,26 @@ class Neo4jGraphStore(GraphStore):
                 props_result = session.run("CALL db.propertyKeys()")
                 prop_keys = [r["propertyKey"] for r in props_result]
 
-            return {
+            schema = {
                 "labels": labels,
                 "relationship_types": rel_types,
                 "property_keys": prop_keys,
             }
+            self._schema_cache[database] = schema
+            self._schema_cache_ts[database] = now
+            return schema
         except Exception as exc:
             logger.warning("get_schema failed for database '%s': %s", database, exc)
             return {"labels": [], "relationship_types": [], "property_keys": []}
+
+    def invalidate_schema_cache(self, database: Optional[str] = None) -> None:
+        """Clear the schema cache for a database or all databases."""
+        if database is not None:
+            self._schema_cache.pop(database, None)
+            self._schema_cache_ts.pop(database, None)
+        else:
+            self._schema_cache.clear()
+            self._schema_cache_ts.clear()
 
     def delete_by_source(
         self,

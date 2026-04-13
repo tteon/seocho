@@ -277,6 +277,76 @@ class Seocho:
             source_summary=source_summary,
         )
 
+    def promote_artifact(
+        self,
+        artifact: Any,
+        database: str,
+        *,
+        version: Optional[str] = None,
+        apply_constraints: bool = True,
+    ) -> Any:
+        """Promote a semantic artifact to the active ontology for a database.
+
+        Converts a :class:`~seocho.semantic.SemanticArtifact`,
+        :class:`~seocho.semantic.SemanticArtifactDraftInput`, or plain dict
+        into an :class:`~seocho.ontology.Ontology` and registers it.
+
+        Args:
+            artifact: Approved (or draft) artifact to promote.
+            database: Target database to bind the new ontology to.
+            version: Ontology version string; inferred from artifact if omitted.
+            apply_constraints: Apply the new ontology's constraints to the
+                database after promotion (requires local mode).
+
+        Returns:
+            The newly created :class:`~seocho.ontology.Ontology` instance.
+
+        Example::
+
+            approved = seocho.get_artifact("art_abc123")
+            onto = seocho.promote_artifact(approved, "mydb", version="2.0")
+        """
+        from .ontology import Ontology as Ont
+
+        new_ontology = Ont.from_artifact(artifact, version=version or "1.0.0")
+        self.register_ontology(database, new_ontology)
+
+        if apply_constraints and self._local_mode and self._engine is not None:
+            try:
+                self._engine.graph_store.ensure_constraints(
+                    new_ontology, database=database,
+                )
+            except Exception as exc:
+                logger.warning("promote_artifact: constraint application failed: %s", exc)
+
+        return new_ontology
+
+    def coverage_stats(self, database: Optional[str] = None) -> Dict[str, Any]:
+        """Compute ontology coverage statistics for a database.
+
+        Requires local mode (graph_store access). Returns per-node-type
+        and per-relationship-type instance counts with an overall coverage
+        score (0.0–1.0).
+
+        Args:
+            database: Target database; defaults to ``default_database``.
+
+        Returns:
+            Dict with ``node_coverage``, ``relationship_coverage``,
+            ``overall_score``, and ``unused`` lists.
+
+        Raises:
+            RuntimeError: If not in local mode.
+        """
+        if not self._local_mode or self._engine is None:
+            raise RuntimeError(
+                "coverage_stats() requires local mode. "
+                "Initialize Seocho with a graph_store."
+            )
+        db = database or self.default_database
+        ontology = self.get_ontology(db)
+        return ontology.coverage_stats(self._engine.graph_store, database=db)
+
     def prompt_context_from_ontology(
         self,
         *,
@@ -2162,11 +2232,18 @@ class _LocalEngine:
         self.agent_config: AgentConfig = agent_config or AgentConfig()
         self.extraction_prompt = extraction_prompt
 
+        # Resolve embedding backend from the LLM if the provider supports it
+        embedding_backend = None
+        if hasattr(llm, "embed") and getattr(getattr(llm, "provider_spec", None), "supports_embeddings", False):
+            embedding_backend = llm
+
         # Indexing pipeline (handles chunking, extraction, validation, dedup, write)
         self._indexing = IndexingPipeline(
             ontology=ontology, graph_store=graph_store,
             llm=llm, workspace_id=workspace_id,
             extraction_prompt=extraction_prompt,
+            enable_rule_constraints=True,
+            embedding_backend=embedding_backend,
         )
         # Pass AgentConfig quality settings to pipeline
         self._indexing._quality_threshold = self.agent_config.extraction_quality_threshold
@@ -2206,6 +2283,7 @@ class _LocalEngine:
                 workspace_id=self.workspace_id,
                 extraction_prompt=self.extraction_prompt,
                 strict_validation=strict_validation,
+                enable_rule_constraints=True,
             )
         else:
             pipeline.strict_validation = strict_validation
@@ -2217,21 +2295,27 @@ class _LocalEngine:
             metadata=metadata,
         )
 
+        result_metadata: Dict[str, Any] = {
+            "category": category,
+            "nodes_created": result.total_nodes,
+            "relationships_created": result.total_relationships,
+            "chunks_processed": result.chunks_processed,
+            "validation_errors": result.validation_errors,
+            "write_errors": result.write_errors,
+            "skipped_chunks": result.skipped_chunks,
+            "deduplicated": result.deduplicated,
+            **(metadata or {}),
+        }
+        if result.rule_profile is not None:
+            result_metadata["rule_profile"] = result.rule_profile
+        if result.rule_validation_summary is not None:
+            result_metadata["rule_validation_summary"] = result.rule_validation_summary
+
         return Memory(
             memory_id=result.source_id,
             workspace_id=self.workspace_id,
             content=content[:500],
-            metadata={
-                "category": category,
-                "nodes_created": result.total_nodes,
-                "relationships_created": result.total_relationships,
-                "chunks_processed": result.chunks_processed,
-                "validation_errors": result.validation_errors,
-                "write_errors": result.write_errors,
-                "skipped_chunks": result.skipped_chunks,
-                "deduplicated": result.deduplicated,
-                **(metadata or {}),
-            },
+            metadata=result_metadata,
             status="active" if result.ok else "failed",
             database=database,
             category=category,

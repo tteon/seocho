@@ -307,6 +307,11 @@ Each entry must link to a full ADR when impact is non-trivial.
   - move session context and agent factory logic behind the canonical agent package
   - keep `seocho.agents` as a compatibility shim while local runtime migrates
 
+- Accepted `ADR-0050-canonical-ontology-subdomains-first-slice.md`
+  - split ontology internals into explicit serialization, artifact, and governance boundaries
+  - keep `Ontology` as the stable public facade while internal helpers take over implementation
+  - make runtime artifact generation depend on ontology-side contracts instead of client glue
+
 ## Template
 
 Use this block for new entries:

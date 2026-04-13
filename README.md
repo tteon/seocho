@@ -9,6 +9,13 @@
 Define your ontology once. SEOCHO uses that one contract to drive extraction,
 query planning, validation, graph constraints, and runtime semantic artifacts.
 
+Internally, the ontology layer is split into clear boundaries:
+
+- `seocho/ontology.py`: public schema facade
+- `seocho/ontology_serialization.py`: JSON-LD persistence
+- `seocho/ontology_artifacts.py`: runtime artifact and prompt-context promotion
+- `seocho/ontology_governance.py`: offline diff/check/export path
+
 ## Why SEOCHO
 
 Most memory libraries optimize for the fastest generic demo. SEOCHO optimizes

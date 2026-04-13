@@ -322,6 +322,11 @@ Each entry must link to a full ADR when impact is non-trivial.
   - make public memory router composition lazy so server import does not force memory-service construction
   - keep endpoint contracts stable while shrinking `agent_server.py`
 
+- Accepted `ADR-0053-extraction-cleanup-vector-shim-first-slice.md`
+  - replace `extraction/vector_store.py` with a compatibility adapter over canonical SEOCHO vector primitives
+  - classify extraction modules as shim now, keep as transport/composition, or migrate later
+  - leave larger ingestion canonicalization to follow-up slices
+
 ## Template
 
 Use this block for new entries:

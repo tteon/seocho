@@ -255,6 +255,22 @@ Server entrypoint direction:
 - `extraction/server_runtime.py` should own shared runtime service composition
 - routers should prefer lazy service getters over eager singleton boot at import
 
+## Extraction Cleanup Classification (Current)
+
+The extraction layer is being reduced toward transport, provisioning, and
+compatibility roles.
+
+- shim now:
+  - `extraction/rule_constraints.py`
+  - `extraction/vector_store.py`
+- keep as transport/composition:
+  - `extraction/agent_server.py`
+  - `extraction/public_memory_api.py`
+  - `extraction/server_runtime.py`
+- migrate later:
+  - `extraction/runtime_ingest.py`
+  - `extraction/pipeline.py`
+
 ## Intent-First Graph-RAG Contract (Active Direction)
 
 Semantic QA and memory-first answering should move toward an explicit

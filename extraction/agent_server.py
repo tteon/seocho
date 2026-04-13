@@ -3,9 +3,7 @@ import logging
 import functools
 import json
 import os
-from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional, Literal
-from dataclasses import dataclass, field
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Request, Depends, Query
@@ -20,9 +18,6 @@ from config import db_registry, graph_registry, validate_config
 from agent_readiness import summarize_readiness
 from agents_runtime import get_agents_runtime
 from shared_memory import SharedMemory
-from agent_factory import AgentFactory
-from database_manager import DatabaseManager
-from graph_connector import MultiGraphConnector
 from exceptions import (
     SeochoError,
     ConfigurationError,
@@ -64,13 +59,28 @@ from rule_api import (
     infer_rule_profile,
     validate_rule_profile,
 )
-from semantic_query_flow import SemanticAgentFlow
-from fulltext_index import FulltextIndexManager
-from platform_agents import PlatformSessionStore, BackendSpecialistAgent, FrontendSpecialistAgent
 from public_memory_api import build_public_memory_router
-from memory_service import GraphMemoryService
-from runtime_ingest import RuntimeRawIngestor
 from debate import DebateOrchestrator
+from server_runtime import (
+    ServerContext,
+    batch_status_file_path,
+    get_agent_factory_service,
+    get_backend_specialist_agent_service,
+    get_db_manager_service,
+    get_frontend_specialist_agent_service,
+    get_fulltext_index_manager_service,
+    get_memory_service,
+    get_neo4j_connector_service,
+    get_platform_session_store_service,
+    get_runtime_raw_ingestor,
+    get_schema_impl,
+    get_semantic_agent_flow_service,
+    get_vector_store_service,
+    get_graphs_impl,
+    get_databases_impl,
+    invalidate_semantic_vocabulary_cache,
+    utc_now_iso,
+)
 from semantic_artifact_api import (
     SemanticArtifactApproveRequest,
     SemanticArtifactDeprecateRequest,
@@ -88,7 +98,28 @@ from semantic_run_store import get_semantic_run, list_semantic_runs
 
 logger = logging.getLogger(__name__)
 
+
+class _LazyServiceProxy:
+    """Backward-compatible lazy proxy for shared runtime services."""
+
+    def __init__(self, resolver):
+        self._resolver = resolver
+
+    def __getattr__(self, name):
+        return getattr(self._resolver(), name)
+
 app = FastAPI(title="Agent Server")
+
+neo4j_conn = _LazyServiceProxy(get_neo4j_connector_service)
+db_manager = _LazyServiceProxy(get_db_manager_service)
+agent_factory = _LazyServiceProxy(get_agent_factory_service)
+faiss_manager = _LazyServiceProxy(get_vector_store_service)
+semantic_agent_flow = _LazyServiceProxy(get_semantic_agent_flow_service)
+fulltext_index_manager = _LazyServiceProxy(get_fulltext_index_manager_service)
+platform_session_store = _LazyServiceProxy(get_platform_session_store_service)
+backend_specialist_agent = _LazyServiceProxy(get_backend_specialist_agent_service)
+frontend_specialist_agent = _LazyServiceProxy(get_frontend_specialist_agent_service)
+memory_service = _LazyServiceProxy(get_memory_service)
 
 # Request ID middleware
 app.add_middleware(RequestIDMiddleware)
@@ -155,97 +186,8 @@ async def _startup():
     configure_opik()
 
 # ------------------------------------------------------------------
-# 1. Context & Trace Logic
-# ------------------------------------------------------------------
-@dataclass
-class ServerContext:
-    user_id: str
-    workspace_id: str = "default"
-    trace_path: List[str] = field(default_factory=list)
-    last_query: str = ""
-    shared_memory: Optional[SharedMemory] = None
-    allowed_databases: List[str] = field(default_factory=list)
-    tool_budget: int = 4
-    tool_invocations: int = 0
-
-    def log_activity(self, agent_name: str):
-        if not self.trace_path or self.trace_path[-1] != agent_name:
-            self.trace_path.append(agent_name)
-
-    def can_query_database(self, database: str) -> bool:
-        if not self.allowed_databases:
-            return True
-        return database in self.allowed_databases
-
-    def consume_tool_budget(self) -> bool:
-        if self.tool_invocations >= self.tool_budget:
-            return False
-        self.tool_invocations += 1
-        return True
-
-# ------------------------------------------------------------------
 # 2. Tools & Agents Definition
 # ------------------------------------------------------------------
-
-# --- Real Managers ---
-from vector_store import VectorStore
-from dependencies import (
-    get_neo4j_connector,
-    get_database_manager,
-    get_agent_factory,
-    get_vector_store,
-)
-
-
-class Neo4jConnector(MultiGraphConnector):
-    """Backward-compatible alias for the multi-instance graph connector."""
-
-
-# --- Singletons ---
-neo4j_conn = Neo4jConnector()
-db_manager = DatabaseManager()
-agent_factory = AgentFactory(neo4j_conn)
-faiss_manager = VectorStore(api_key=os.getenv("OPENAI_API_KEY", ""))
-semantic_agent_flow = SemanticAgentFlow(neo4j_conn)
-fulltext_index_manager = FulltextIndexManager(neo4j_conn)
-platform_session_store = PlatformSessionStore()
-backend_specialist_agent = BackendSpecialistAgent()
-frontend_specialist_agent = FrontendSpecialistAgent()
-runtime_raw_ingestor: Optional[RuntimeRawIngestor] = None
-memory_service: Optional[GraphMemoryService] = None
-
-
-def get_runtime_raw_ingestor() -> RuntimeRawIngestor:
-    global runtime_raw_ingestor
-    if runtime_raw_ingestor is None:
-        runtime_raw_ingestor = RuntimeRawIngestor(db_manager=db_manager)
-    return runtime_raw_ingestor
-
-
-def get_memory_service() -> GraphMemoryService:
-    global memory_service
-    if memory_service is None:
-        memory_service = GraphMemoryService(
-            db_manager=db_manager,
-            runtime_raw_ingestor=get_runtime_raw_ingestor(),
-            semantic_agent_flow=semantic_agent_flow,
-        )
-    return memory_service
-
-
-def _utc_now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
-
-
-def _batch_status_file_path() -> str:
-    return os.getenv("SEOCHO_BATCH_STATUS_FILE", "/tmp/seocho_batch_status")
-
-
-def _invalidate_semantic_vocabulary_cache() -> None:
-    try:
-        semantic_agent_flow.resolver.vocabulary_resolver.clear_cache()
-    except Exception:
-        logger.debug("Semantic vocabulary cache invalidation skipped.", exc_info=True)
 
 # --- Tools ---
 
@@ -682,7 +624,7 @@ def ensure_fulltext_indexes_impl(request: FulltextIndexEnsureRequest) -> Fulltex
 
 app.include_router(
     build_public_memory_router(
-        memory_service=get_memory_service(),
+        memory_service=memory_service,
         approved_artifact_resolver=lambda **kwargs: resolve_approved_artifact_payload(**kwargs),
     )
 )
@@ -1202,14 +1144,14 @@ async def runtime_health():
     return HealthResponse(
         scope="runtime",
         status=overall,
-        generated_at=_utc_now_iso(),
+        generated_at=utc_now_iso(),
         components=components,
     )
 
 
 @app.get(RuntimePath.HEALTH_BATCH, response_model=HealthResponse)
 async def batch_health():
-    status_file = _batch_status_file_path()
+    status_file = batch_status_file_path()
     batch_status = "degraded"
     detail = f"status file not found: {status_file}"
 
@@ -1237,7 +1179,7 @@ async def batch_health():
     return HealthResponse(
         scope="batch",
         status=batch_status,
-        generated_at=_utc_now_iso(),
+        generated_at=utc_now_iso(),
         components=components,
     )
 
@@ -1381,7 +1323,7 @@ async def semantic_artifacts_draft_create(request: SemanticArtifactDraftCreateRe
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
     payload = create_semantic_artifact_draft(request)
-    _invalidate_semantic_vocabulary_cache()
+    invalidate_semantic_vocabulary_cache()
     return payload
 
 
@@ -1398,7 +1340,7 @@ async def semantic_artifacts_approve(artifact_id: str, request: SemanticArtifact
         raise HTTPException(status_code=403, detail=str(e))
     try:
         payload = approve_semantic_artifact_draft(artifact_id=artifact_id, request=request)
-        _invalidate_semantic_vocabulary_cache()
+        invalidate_semantic_vocabulary_cache()
         return payload
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -1417,7 +1359,7 @@ async def semantic_artifacts_deprecate(artifact_id: str, request: SemanticArtifa
         raise HTTPException(status_code=403, detail=str(e))
     try:
         payload = deprecate_semantic_artifact_approved(artifact_id=artifact_id, request=request)
-        _invalidate_semantic_vocabulary_cache()
+        invalidate_semantic_vocabulary_cache()
         return payload
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))

@@ -150,10 +150,18 @@ class MemoryChatResponse(BaseModel):
 
 def build_public_memory_router(
     *,
-    memory_service: Any,
+    memory_service: Any = None,
+    memory_service_getter: Any = None,
     approved_artifact_resolver: Any,
 ) -> APIRouter:
     router = APIRouter(tags=["public-memory"])
+
+    def _memory_service() -> Any:
+        if memory_service is not None:
+            return memory_service
+        if memory_service_getter is None:
+            raise RuntimeError("memory_service or memory_service_getter is required")
+        return memory_service_getter()
 
     def _trace_id() -> str:
         return get_request_id() or "trace_unavailable"
@@ -193,7 +201,7 @@ def build_public_memory_router(
     async def create_memory(request: MemoryCreateRequest) -> MemoryCreateResponse:
         try:
             require_runtime_permission(role="user", action="manage_memories", workspace_id=request.workspace_id)
-            payload = memory_service.create_memory(
+            payload = _memory_service().create_memory(
                 workspace_id=request.workspace_id,
                 content=request.content,
                 metadata=request.metadata,
@@ -227,7 +235,7 @@ def build_public_memory_router(
     async def create_memory_batch(request: MemoryBatchCreateRequest) -> MemoryBatchCreateResponse:
         try:
             require_runtime_permission(role="user", action="manage_memories", workspace_id=request.workspace_id)
-            payload = memory_service.create_memories(
+            payload = _memory_service().create_memories(
                 workspace_id=request.workspace_id,
                 items=[item.model_dump() for item in request.items],
                 user_id=request.user_id,
@@ -261,7 +269,11 @@ def build_public_memory_router(
     ) -> MemoryGetResponse:
         try:
             require_runtime_permission(role="user", action="manage_memories", workspace_id=workspace_id)
-            payload = memory_service.get_memory(memory_id=memory_id, workspace_id=workspace_id, database=database)
+            payload = _memory_service().get_memory(
+                memory_id=memory_id,
+                workspace_id=workspace_id,
+                database=database,
+            )
             if payload is None:
                 raise HTTPException(status_code=404, detail=f"memory not found: {memory_id}")
             return MemoryGetResponse(memory=MemoryResource(**payload), trace_id=_trace_id())
@@ -272,7 +284,7 @@ def build_public_memory_router(
     async def search_memories(request: MemorySearchRequest) -> MemorySearchResponse:
         try:
             require_runtime_permission(role="user", action="manage_memories", workspace_id=request.workspace_id)
-            payload = memory_service.search_memories(
+            payload = _memory_service().search_memories(
                 workspace_id=request.workspace_id,
                 query=request.query,
                 limit=request.limit,
@@ -302,7 +314,7 @@ def build_public_memory_router(
     ) -> MemoryArchiveResponse:
         try:
             require_runtime_permission(role="user", action="manage_memories", workspace_id=workspace_id)
-            payload = memory_service.archive_memory(
+            payload = _memory_service().archive_memory(
                 memory_id=memory_id,
                 workspace_id=workspace_id,
                 database=database,
@@ -317,7 +329,7 @@ def build_public_memory_router(
     async def chat_from_memories(request: MemoryChatRequest) -> MemoryChatResponse:
         try:
             require_runtime_permission(role="user", action="manage_memories", workspace_id=request.workspace_id)
-            payload = memory_service.chat_from_memories(
+            payload = _memory_service().chat_from_memories(
                 workspace_id=request.workspace_id,
                 message=request.message,
                 limit=request.limit,

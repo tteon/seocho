@@ -317,6 +317,11 @@ Each entry must link to a full ADR when impact is non-trivial.
   - keep `Seocho` as the stable facade while canonical engines move underneath it
   - defer `_LocalEngine` extraction to a later slice
 
+- Accepted `ADR-0052-agent-server-runtime-service-split-first-slice.md`
+  - extract shared runtime service composition into `extraction/server_runtime.py`
+  - make public memory router composition lazy so server import does not force memory-service construction
+  - keep endpoint contracts stable while shrinking `agent_server.py`
+
 ## Template
 
 Use this block for new entries:

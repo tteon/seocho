@@ -105,6 +105,12 @@ This critical path is the default acceptance gate for user-facing releases.
 - runtime authorization policy enforcement
 - deployment quality gates and ADR governance
 
+Canonical SDK control-plane modules:
+
+- `seocho/agent/`
+- `seocho/query/`
+- `seocho/runtime_contract.py`
+
 Primary modules:
 
 - `extraction/agent_server.py`

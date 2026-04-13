@@ -118,6 +118,12 @@ body {
   color: var(--text-main);
 }
 
+.rail-btn:focus-visible {
+  outline: 2px solid var(--accent-blue);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
 .rail-btn.active {
   color: var(--accent-blue);
   border-left-color: var(--accent-blue);
@@ -164,6 +170,26 @@ body {
   display: flex;
   align-items: center;
   gap: 1rem;
+}
+
+.reset-btn {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.reset-btn:hover {
+  color: #fff;
+}
+
+.reset-btn:focus-visible {
+  outline: 2px solid var(--accent-blue);
+  outline-offset: 2px;
 }
 
 .status {
@@ -263,6 +289,11 @@ body {
   cursor: not-allowed;
 }
 
+#ingestBtn:focus-visible {
+  outline: 2px solid var(--accent-green);
+  outline-offset: 2px;
+}
+
 #oneClickDemoBtn {
   background: var(--accent-blue);
   color: #fff;
@@ -277,6 +308,11 @@ body {
 #oneClickDemoBtn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+#oneClickDemoBtn:focus-visible {
+  outline: 2px solid var(--accent-blue);
+  outline-offset: 2px;
 }
 
 /* Dual Pane Workspace */
@@ -383,6 +419,11 @@ body {
 
 .composer button:hover:not(:disabled) {
   opacity: 0.9;
+}
+
+.composer button:focus-visible {
+  outline: 2px solid var(--accent-blue);
+  outline-offset: 2px;
 }
 
 /* Right Pane: AIP Workflow Canvas */

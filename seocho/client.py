@@ -2310,6 +2310,11 @@ class _LocalEngine:
             result_metadata["rule_profile"] = result.rule_profile
         if result.rule_validation_summary is not None:
             result_metadata["rule_validation_summary"] = result.rule_validation_summary
+        if result.semantic_artifacts is not None:
+            result_metadata["semantic_artifacts"] = result.semantic_artifacts
+        if result.fallback_used:
+            result_metadata["fallback_used"] = True
+            result_metadata["fallback_reason"] = result.fallback_reason
 
         return Memory(
             memory_id=result.source_id,

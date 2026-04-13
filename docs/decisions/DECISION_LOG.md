@@ -312,6 +312,11 @@ Each entry must link to a full ADR when impact is non-trivial.
   - keep `Ontology` as the stable public facade while internal helpers take over implementation
   - make runtime artifact generation depend on ontology-side contracts instead of client glue
 
+- Accepted `ADR-0051-client-facade-boundary-first-slice.md`
+  - extract HTTP transport and ontology artifact bridge helpers out of `client.py`
+  - keep `Seocho` as the stable facade while canonical engines move underneath it
+  - defer `_LocalEngine` extraction to a later slice
+
 ## Template
 
 Use this block for new entries:

@@ -6,17 +6,15 @@ from typing import Optional, List, Dict, Any
 
 from collector import DataCollector
 from data_source import DataSource
-from extractor import EntityExtractor
-from prompt_manager import PromptManager
 from graph_loader import GraphLoader
-from linker import EntityLinker
 from vector_store import VectorStore
 from deduplicator import EntityDeduplicator
-from ontology_prompt_bridge import OntologyPromptBridge
 from rule_constraints import infer_rules_from_graph, apply_rules_to_graph
 from config import NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD
 from exceptions import PipelineError
 from tracing import track
+from seocho.index import CanonicalExtractionEngine
+from seocho.store.llm import create_llm_backend
 
 logger = logging.getLogger(__name__)
 
@@ -57,30 +55,29 @@ class ExtractionPipeline:
 
         # --- Ontology-driven prompt bridge ---
         self._ontology = None
-        self._ontology_bridge = None
         if ontology_path:
-            from ontology.base import Ontology
+            from seocho.ontology import Ontology
 
             self._ontology = Ontology.from_yaml(ontology_path)
-            self._ontology_bridge = OntologyPromptBridge(self._ontology)
             logger.info("Loaded ontology '%s' from %s", self._ontology.name, ontology_path)
 
-        self.prompt_manager = PromptManager(cfg)
-
-        self.extractor = EntityExtractor(
-            prompt_manager=self.prompt_manager,
-            api_key=cfg.openai_api_key,
+        self.llm = create_llm_backend(
+            provider="openai",
             model=cfg.model,
+            api_key=cfg.openai_api_key,
+        )
+        self.extraction_engine = CanonicalExtractionEngine(
+            ontology=self._ontology,
+            llm=self.llm,
+            custom_prompts={
+                "system": cfg.prompts.system,
+                "user": cfg.prompts.user,
+            },
+            linking_prompt=cfg.linking_prompt.linking,
         )
 
         # Graph Loader
         self.graph_loader = GraphLoader(NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD)
-
-        self.linker = EntityLinker(
-            prompt_manager=self.prompt_manager,
-            api_key=cfg.openai_api_key,
-            model=cfg.model,
-        )
 
         self.vector_store = VectorStore(api_key=cfg.openai_api_key)
 
@@ -146,22 +143,17 @@ class ExtractionPipeline:
         Raises:
             PipelineError: On any processing failure for this item.
         """
-        # Build extraction context
-        context = {"text": item["content"], "category": item.get("category", "general")}
-        if self._ontology_bridge:
-            context.update(self._ontology_bridge.render_extraction_context())
-
-        # 2. Extract Entities (with ontology context if available)
-        extracted_data = self.extractor.extract_entities(
-            item["content"], item.get("category", "general"), extra_context=context
+        category = item.get("category", "general")
+        extracted_data = self.extraction_engine.extract(
+            item["content"],
+            category=category,
+            metadata=item.get("metadata"),
         )
         logger.info("Extracted %d nodes.", len(extracted_data.get("nodes", [])))
 
         # 3. Entity Linking
         logger.debug("Linking entities...")
-        extracted_data = self.linker.link_entities(
-            extracted_data, category=item.get("category", "general")
-        )
+        extracted_data = self.extraction_engine.link(extracted_data, category=category)
         logger.info("Linked entities, count: %d", len(extracted_data.get("nodes", [])))
 
         # 4. Deduplication

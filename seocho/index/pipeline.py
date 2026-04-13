@@ -134,6 +134,9 @@ class IndexingResult:
     rule_profile: Optional[Dict[str, Any]] = None
     rule_validation_summary: Optional[Dict[str, Any]] = None
     relatedness_summary: Optional[Dict[str, Any]] = None
+    semantic_artifacts: Optional[Dict[str, Any]] = None
+    fallback_used: bool = False
+    fallback_reason: str = ""
 
     @property
     def ok(self) -> bool:
@@ -153,6 +156,9 @@ class IndexingResult:
             "rule_profile": self.rule_profile,
             "rule_validation_summary": self.rule_validation_summary,
             "relatedness_summary": self.relatedness_summary,
+            "semantic_artifacts": self.semantic_artifacts,
+            "fallback_used": self.fallback_used,
+            "fallback_reason": self.fallback_reason,
         }
 
 
@@ -257,6 +263,52 @@ class IndexingPipeline:
 
         self._extraction = ExtractionStrategy(ontology, extraction_prompt=extraction_prompt)
         self._linking = LinkingStrategy(ontology)
+
+    @staticmethod
+    def _fallback_extract(text: str, *, source_id: str = "fallback") -> Dict[str, Any]:
+        """Heuristic extraction when the LLM is unavailable.
+
+        Captures capitalized multi-character tokens as ``Entity`` nodes and
+        attaches them to a single ``Document`` via ``MENTIONS`` relationships.
+        Used as a last-resort fallback to preserve some graph structure when
+        LLM extraction fails.
+        """
+        import re as _re
+
+        tokens = _re.findall(r"\b[A-Z][A-Za-z0-9_-]{2,}\b", text)
+        seen: set = set()
+        unique: List[str] = []
+        for token in tokens:
+            key = token.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            unique.append(token)
+            if len(unique) >= 12:
+                break
+
+        doc_id = f"{source_id}_doc"
+        nodes: List[Dict[str, Any]] = [
+            {
+                "id": doc_id,
+                "label": "Document",
+                "properties": {
+                    "name": text[:80],
+                    "source_id": source_id,
+                },
+            }
+        ]
+        relationships: List[Dict[str, Any]] = []
+        for idx, name in enumerate(unique):
+            ent_id = f"{source_id}_ent_{idx}"
+            nodes.append(
+                {"id": ent_id, "label": "Entity", "properties": {"name": name}}
+            )
+            relationships.append(
+                {"source": doc_id, "target": ent_id, "type": "MENTIONS", "properties": {}}
+            )
+
+        return {"nodes": nodes, "relationships": relationships}
 
     def _normalize_extraction_payload(self, extracted: Dict[str, Any]) -> Dict[str, Any]:
         """Normalize LLM extraction output into the graph write contract."""
@@ -461,9 +513,17 @@ class IndexingPipeline:
                     for k, v in response.usage.items():
                         _total_usage[k] = _total_usage.get(k, 0) + v
             except Exception as exc:
-                logger.error("Extraction failed for chunk %d: %s", i, exc)
-                result.skipped_chunks += 1
-                continue
+                logger.warning(
+                    "LLM extraction failed for chunk %d, using heuristic fallback: %s",
+                    i, exc,
+                )
+                # Heuristic fallback — capture capitalized tokens as Entity
+                # nodes so the chunk produces *some* graph structure even
+                # without LLM access.  Marks the result as fallback_used for
+                # parity with server-side fallback_records tracking.
+                extracted = self._fallback_extract(chunk, source_id=source_id)
+                result.fallback_used = True
+                result.fallback_reason = f"{type(exc).__name__}: {str(exc)[:200]}"
 
             nodes = extracted.get("nodes", [])
             rels = extracted.get("relationships", [])
@@ -601,6 +661,28 @@ class IndexingPipeline:
                 result.rule_validation_summary = annotated.get("rule_validation_summary")
             except Exception as exc:
                 logger.warning("Rule inference skipped: %s", exc)
+
+        # --- Semantic artifacts (parity with server path) ---
+        # Build ontology/SHACL/vocabulary candidate payload from the active
+        # ontology so local mode reports the same artifact contract as the
+        # server's RuntimeRawIngestor.semantic_artifacts.
+        if all_nodes:
+            try:
+                draft = self.ontology.to_semantic_artifact_draft()
+                draft_dict = draft.to_dict() if hasattr(draft, "to_dict") else dict(draft)
+                result.semantic_artifacts = {
+                    "ontology_candidate": draft_dict.get("ontology_candidate"),
+                    "shacl_candidate": draft_dict.get("shacl_candidate"),
+                    "vocabulary_candidate": draft_dict.get("vocabulary_candidate"),
+                    "artifact_decision": {
+                        "policy": "auto",
+                        "applied": "draft",
+                        "status": "auto_applied",
+                    },
+                    "relatedness_summary": result.relatedness_summary,
+                }
+            except Exception as exc:
+                logger.warning("Semantic artifact draft skipped: %s", exc)
 
         # Write to graph
         if all_nodes or all_rels:

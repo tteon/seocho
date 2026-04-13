@@ -316,26 +316,30 @@ class TestParityHarness:
         assert local_vs is not None, "local path missing rule_validation_summary"
         assert server_has_vs, "server path missing rule_validation_summary in loaded graphs"
 
-    # --- Gap inventory: features server has but local doesn't ---
+    # --- Both paths produce semantic_artifacts ---
 
-    def test_gap_semantic_artifacts(self, local_result, server_result):
-        """Server returns semantic_artifacts; local doesn't."""
+    def test_semantic_artifacts_present_in_both(self, local_result, server_result):
+        """Both paths produce ontology/SHACL/vocabulary candidate payloads."""
         server_artifacts = server_result["ingest_result"].get("semantic_artifacts")
         assert server_artifacts is not None, "expected server to have semantic_artifacts"
-        # Local has no equivalent — this is a known gap
-        local_has_artifacts = hasattr(local_result["indexing_result"], "semantic_artifacts")
-        if not local_has_artifacts:
-            pytest.xfail("LOCAL GAP: IndexingResult has no semantic_artifacts field")
 
-    def test_gap_fallback_tracking(self, local_result, server_result):
-        """Server tracks fallback_records; local has no fallback concept."""
+        local_artifacts = local_result["indexing_result"].semantic_artifacts
+        assert local_artifacts is not None, "local missing semantic_artifacts"
+        # Contract: both must include ontology_candidate
+        assert local_artifacts.get("ontology_candidate") is not None
+        assert server_artifacts.get("ontology_candidate") is not None
+
+    def test_fallback_tracking_present_in_both(self, local_result, server_result):
+        """Both paths report fallback usage with the same shape."""
+        # Server tracks via fallback_records int counter
         server_fallback = server_result["ingest_result"].get("fallback_records", 0)
-        # Server used fallback (no LLM in test), local used fake LLM
         assert isinstance(server_fallback, int)
-        # Local has no fallback concept — this is a known gap
-        local_has_fallback = hasattr(local_result["indexing_result"], "fallback_records")
-        if not local_has_fallback:
-            pytest.xfail("LOCAL GAP: IndexingResult has no fallback_records tracking")
+
+        # Local tracks via fallback_used bool + fallback_reason on result
+        local_result_obj = local_result["indexing_result"]
+        assert hasattr(local_result_obj, "fallback_used")
+        assert hasattr(local_result_obj, "fallback_reason")
+        assert isinstance(local_result_obj.fallback_used, bool)
 
     def test_embedding_relatedness_present_in_both(self, local_result, server_result):
         """Both paths compute embedding relatedness when a backend is available."""

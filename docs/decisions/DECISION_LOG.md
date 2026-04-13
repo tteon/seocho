@@ -342,6 +342,11 @@ Each entry must link to a full ADR when impact is non-trivial.
   - classify extraction modules as shim now, keep as transport/composition, or migrate later
   - leave larger ingestion canonicalization to follow-up slices
 
+- Accepted `ADR-0054-extraction-pipeline-canonical-engine-first-slice.md`
+  - introduce `seocho/index/extraction_engine.py` as a shared extraction/linking seam
+  - make `seocho/index/pipeline.py` and `extraction/pipeline.py` share canonical prompt and normalization logic
+  - keep `runtime_ingest.py` out of scope for this slice
+
 ## Template
 
 Use this block for new entries:

@@ -26,6 +26,10 @@ transport entrypoint, while shared runtime service composition lives in
 
 Legacy extraction modules are being reduced to transport or compatibility
 adapters as canonical engine code moves under `seocho/*`.
+The current ingestion seam for extraction and linking now lives under
+`seocho/index/extraction_engine.py`, with extraction-side compatibility code
+calling into that shared engine instead of maintaining a second prompt and
+normalization path.
 
 ## Why SEOCHO
 

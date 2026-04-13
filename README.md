@@ -9,33 +9,78 @@
 Define your ontology once. SEOCHO uses that one contract to drive extraction,
 query planning, validation, graph constraints, and runtime semantic artifacts.
 
-Internally, the ontology layer is split into clear boundaries:
+## Quick Start
 
-- `seocho/ontology.py`: public schema facade
-- `seocho/ontology_serialization.py`: JSON-LD persistence
-- `seocho/ontology_artifacts.py`: runtime artifact and prompt-context promotion
-- `seocho/ontology_governance.py`: offline diff/check/export path
+```bash
+pip install "seocho[local]"
+```
 
-`Seocho` itself is also treated as a facade: canonical query, agent, ontology,
-transport, and artifact helpers live under `seocho/*`, while `client.py`
-stays focused on the public SDK entrypoints.
+```python
+from seocho import Seocho, Ontology, NodeDef, RelDef, P
 
-The server side follows the same rule: `extraction/agent_server.py` is the
-transport entrypoint, while shared runtime service composition lives in
-`extraction/server_runtime.py`.
+# 1. Define your schema
+ontology = Ontology(
+    name="my_domain",
+    nodes={
+        "Person":  NodeDef(properties={"name": P(str, unique=True)}),
+        "Company": NodeDef(properties={"name": P(str, unique=True)}),
+    },
+    relationships={
+        "WORKS_AT": RelDef(source="Person", target="Company"),
+    },
+)
 
-Legacy extraction modules are being reduced to transport or compatibility
-adapters as canonical engine code moves under `seocho/*`.
-The current ingestion seam for extraction and linking now lives under
-`seocho/index/extraction_engine.py`, with extraction-side compatibility code
-calling into that shared engine instead of maintaining a second prompt and
-normalization path.
-`extraction/runtime_ingest.py` also uses this canonical seam for its prompt-
-driven extraction/linking path while larger runtime orchestration remains
-outside the seam for now. Deterministic runtime memory-graph shaping and
-semantic-artifact helpers now live under `seocho/index/runtime_memory.py` and
-`seocho/index/runtime_artifacts.py` so runtime-only wrappers no longer own that
-logic outright.
+# 2. One-line local client — defaults to localhost Neo4j + openai/gpt-4o
+s = Seocho.local(ontology)
+
+# 3. Index
+s.add("Marie Curie worked at the University of Paris.")
+
+# 4. Query
+print(s.ask("Where did Marie Curie work?"))
+```
+
+Override the defaults when needed:
+
+```python
+s = Seocho.local(
+    ontology,
+    llm="deepseek/deepseek-chat",               # or "kimi/kimi-k2.5", "openai/gpt-4o-mini"
+    graph="bolt://neo4j.internal:7687",
+    neo4j_user="neo4j",
+    neo4j_password="••••",
+)
+```
+
+HTTP client mode (no local DB needed):
+
+```python
+from seocho import Seocho
+s = Seocho.remote("http://localhost:8001")
+```
+
+Read next:
+
+- [Why SEOCHO](docs/WHY_SEOCHO.md)
+- [Quickstart (docs)](docs/QUICKSTART.md)
+- [Python SDK Quickstart](docs/PYTHON_INTERFACE_QUICKSTART.md)
+- [Files and Artifacts](docs/FILES_AND_ARTIFACTS.md)
+
+## Install Paths
+
+| Path | Install | What else you need |
+|------|---------|--------------------|
+| HTTP client mode | `pip install seocho` | a running SEOCHO runtime (`base_url=...`) |
+| Local SDK engine (published package) | `pip install "seocho[local]"` | a reachable DozerDB/Neo4j instance and provider credentials |
+| Repository development | `pip install -e ".[dev]"` | local clone + test/tooling deps |
+| Offline ontology governance | `pip install "seocho[ontology]"` | local ontology files only |
+
+Notes:
+
+- `pip install seocho` is intentionally thin. It is enough for HTTP client mode and bundle consumption.
+- Local engine mode is where DozerDB/Neo4j is core: `Seocho.local(...)` wires the store and llm for you, or pass them explicitly with `Seocho(ontology=..., graph_store=..., llm=...)`.
+- `pip install "seocho[local]"` adds the dependencies needed for published-package local engine use without pulling the full repo development toolchain.
+- The fastest full local stack is still `make setup-env && make up`.
 
 ## Why SEOCHO
 
@@ -48,63 +93,28 @@ and agent behavior.
 - governed artifacts, not ad hoc schema drift
 - local SDK authoring and runtime consumption on one contract
 
-Start here:
+## Architecture Overview
 
-- [Why SEOCHO](docs/WHY_SEOCHO.md)
-- [Quickstart](docs/QUICKSTART.md)
-- [Python SDK Quickstart](docs/PYTHON_INTERFACE_QUICKSTART.md)
-- [Files and Artifacts](docs/FILES_AND_ARTIFACTS.md)
+Internally, the ontology layer is split into clear boundaries:
 
-## Install
+- `seocho/ontology.py`: public schema facade
+- `seocho/ontology_serialization.py`: JSON-LD persistence
+- `seocho/ontology_artifacts.py`: runtime artifact and prompt-context promotion
+- `seocho/ontology_governance.py`: offline diff/check/export path
 
-Choose the path that matches how you want to use SEOCHO:
+`Seocho` itself is a facade: canonical query, agent, ontology, transport, and
+artifact helpers live under `seocho/*`, while `client.py` stays focused on the
+public SDK entrypoints. The server side follows the same rule:
+`extraction/agent_server.py` is the transport entrypoint, while shared runtime
+service composition lives in `extraction/server_runtime.py`.
 
-| Path | Install | What else you need |
-|------|---------|--------------------|
-| HTTP client mode | `pip install seocho` | a running SEOCHO runtime (`base_url=...`) |
-| Local SDK engine (published package) | `pip install "seocho[local]"` | a reachable DozerDB/Neo4j instance and provider credentials |
-| Repository development | `pip install -e ".[dev]"` | local clone + test/tooling deps |
-| Offline ontology governance | `pip install "seocho[ontology]"` | local ontology files only |
-
-Important:
-
-- `pip install seocho` is intentionally thin. It is enough for HTTP client mode and bundle consumption.
-- local engine mode is where DozerDB/Neo4j is core: you provide `ontology + graph_store + llm` explicitly.
-- `pip install "seocho[local]"` adds the dependencies needed for published-package local engine use without pulling the full repo development toolchain.
-- the fastest full local stack is still `make setup-env && make up`.
-
-## Quick Start
-
-```python
-from seocho import Seocho, Ontology, NodeDef, RelDef, P
-from seocho.store import Neo4jGraphStore, OpenAIBackend
-
-# 1. Define your schema
-ontology = Ontology(
-    name="my_domain",
-    package_id="org.example.my_domain",
-    nodes={
-        "Person":  NodeDef(properties={"name": P(str, unique=True)}),
-        "Company": NodeDef(properties={"name": P(str, unique=True)}),
-    },
-    relationships={
-        "WORKS_AT": RelDef(source="Person", target="Company"),
-    },
-)
-
-# 2. Connect
-s = Seocho(
-    ontology=ontology,
-    graph_store=Neo4jGraphStore("bolt://localhost:7687", "neo4j", "password"),
-    llm=OpenAIBackend(model="gpt-4o"),
-)
-
-# 3. Index
-s.add("Marie Curie worked at the University of Paris.")
-
-# 4. Query
-print(s.ask("Where did Marie Curie work?"))
-```
+Legacy extraction modules are being reduced to transport or compatibility
+adapters as canonical engine code moves under `seocho/*`. The shared extraction
+seam lives at `seocho/index/extraction_engine.py` — both the SDK and the server
+runtime call it instead of keeping a second prompt/normalization path.
+Deterministic runtime memory-graph shaping and semantic-artifact helpers live
+under `seocho/index/runtime_memory.py` and `seocho/index/runtime_artifacts.py`
+so runtime-only wrappers no longer own that logic outright.
 
 ## Choose Your Runtime Shape
 

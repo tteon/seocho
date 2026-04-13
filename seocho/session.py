@@ -34,223 +34,17 @@ import json
 import logging
 import time
 import uuid
-from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence
 
+from .agent.context import SessionContext
+from .agent.contracts import normalize_execution_mode
+from .agent.factory import (
+    create_indexing_agent,
+    create_query_agent,
+    create_supervisor_agent,
+)
+
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class EntityRecord:
-    """A single entity extracted and written during the session."""
-
-    label: str
-    name: str
-    properties: Dict[str, Any] = field(default_factory=dict)
-    source_id: str = ""
-    database: str = ""
-
-
-@dataclass
-class RelationshipRecord:
-    """A single relationship extracted and written during the session."""
-
-    source: str
-    relationship_type: str
-    target: str
-    properties: Dict[str, Any] = field(default_factory=dict)
-    source_id: str = ""
-
-
-@dataclass
-class SessionContext:
-    """Structured context cache for the session.
-
-    Tracks entities, relationships, and operations so that:
-    - Sub-agents receive precise context (not just text summaries)
-    - Repeated queries can be answered from cache
-    - Token usage is minimized (structured data instead of full history)
-    """
-
-    indexed_sources: List[Dict[str, Any]] = field(default_factory=list)
-    queries: List[Dict[str, Any]] = field(default_factory=list)
-    total_nodes: int = 0
-    total_relationships: int = 0
-
-    # --- Structured entity/relationship cache ---
-    entities: Dict[str, EntityRecord] = field(default_factory=dict)
-    relationships: List[RelationshipRecord] = field(default_factory=list)
-    _query_cache: Dict[str, str] = field(default_factory=dict)
-
-    def register_entities(self, nodes: List[Dict[str, Any]], source_id: str = "", database: str = "") -> None:
-        """Register extracted entities into the structured cache."""
-        for node in nodes:
-            if not isinstance(node, dict):
-                continue
-            label = node.get("label", "")
-            props = node.get("properties", {})
-            name = props.get("name", node.get("id", ""))
-            if not name:
-                continue
-            key = f"{label}::{name}".lower()
-            self.entities[key] = EntityRecord(
-                label=label,
-                name=str(name),
-                properties=props,
-                source_id=source_id,
-                database=database,
-            )
-
-    def register_relationships(self, rels: List[Dict[str, Any]], source_id: str = "") -> None:
-        """Register extracted relationships into the structured cache."""
-        for rel in rels:
-            if not isinstance(rel, dict):
-                continue
-            self.relationships.append(RelationshipRecord(
-                source=str(rel.get("source", "")),
-                relationship_type=str(rel.get("type", rel.get("relationship_type", ""))),
-                target=str(rel.get("target", "")),
-                properties=rel.get("properties", {}),
-                source_id=source_id,
-            ))
-
-    def cache_query(self, question: str, answer: str) -> None:
-        """Cache a query result for deduplication."""
-        key = question.strip().lower()
-        self._query_cache[key] = answer
-
-    def get_cached_answer(self, question: str) -> Optional[str]:
-        """Return cached answer if available."""
-        return self._query_cache.get(question.strip().lower())
-
-    def add_indexing(
-        self,
-        source_id: str,
-        nodes: int,
-        rels: int,
-        text_preview: str,
-        *,
-        mode: str = "agent",
-        degraded: bool = False,
-        fallback_from: str = "",
-        fallback_reason: str = "",
-    ) -> None:
-        """Record an indexing operation in the session context.
-
-        Args:
-            source_id: Identifier for the indexed document.
-            nodes: Number of nodes created.
-            rels: Number of relationships created.
-            text_preview: Truncated preview of the indexed text.
-            mode: Execution mode used (agent, pipeline, cache).
-            degraded: Whether the operation fell back from its intended mode.
-        """
-        self.indexed_sources.append({
-            "source_id": source_id,
-            "nodes": nodes,
-            "relationships": rels,
-            "text_preview": text_preview[:200],
-            "mode": mode,
-            "degraded": degraded,
-            "fallback_from": fallback_from,
-            "fallback_reason": fallback_reason,
-        })
-        self.total_nodes += nodes
-        self.total_relationships += rels
-
-    def add_query(
-        self,
-        question: str,
-        answer: str,
-        cypher: str = "",
-        *,
-        mode: str = "agent",
-        degraded: bool = False,
-        fallback_from: str = "",
-        fallback_reason: str = "",
-    ) -> None:
-        """Record a query operation in the session context.
-
-        Args:
-            question: The natural-language question asked.
-            answer: The synthesized answer returned.
-            cypher: The Cypher query used, if any.
-            mode: Execution mode used (agent, pipeline, cache).
-            degraded: Whether the operation fell back from its intended mode.
-        """
-        self.queries.append({
-            "question": question,
-            "answer_preview": answer[:300],
-            "cypher": cypher,
-            "mode": mode,
-            "degraded": degraded,
-            "fallback_from": fallback_from,
-            "fallback_reason": fallback_reason,
-        })
-
-    def summary(self) -> str:
-        """Human-readable summary of what happened in this session."""
-        parts = [f"Session indexed {len(self.indexed_sources)} document(s): "
-                 f"{self.total_nodes} nodes, {self.total_relationships} relationships."]
-        if self.entities:
-            entity_names = [e.name for e in list(self.entities.values())[:10]]
-            parts.append(f"Key entities: {', '.join(entity_names)}")
-        if self.queries:
-            parts.append(f"Answered {len(self.queries)} question(s).")
-        return " ".join(parts)
-
-    def to_agent_context(self, max_entities: int = 30, ontology: Any = None) -> str:
-        """Build a structured context string for sub-agent prompts.
-
-        Unlike ``summary()`` which is human-readable, this returns
-        structured entity/relationship data that helps the agent
-        make accurate queries without scanning full history.
-
-        If ``ontology`` is provided, includes denormalization hints
-        so the agent knows which properties can be queried directly
-        on a node (embedded) vs. requiring a relationship traversal.
-        """
-        lines: List[str] = []
-
-        if self.entities:
-            lines.append("=== Known Entities ===")
-            for i, (key, e) in enumerate(self.entities.items()):
-                if i >= max_entities:
-                    lines.append(f"  ... and {len(self.entities) - max_entities} more")
-                    break
-                props_str = ", ".join(f"{k}={v}" for k, v in list(e.properties.items())[:5])
-                lines.append(f"  [{e.label}] {e.name} ({props_str})")
-
-        if self.relationships:
-            lines.append("=== Known Relationships ===")
-            for r in self.relationships[:30]:
-                lines.append(f"  {r.source} -[{r.relationship_type}]-> {r.target}")
-
-        # Denormalization hints from ontology
-        if ontology is not None:
-            try:
-                plan = ontology.denormalization_plan()
-                if plan:
-                    lines.append("=== Denormalization Hints ===")
-                    for label, info in plan.items():
-                        for embed in info.get("embeds", []):
-                            status = "SAFE (can query directly)" if embed.get("safe") else "BLOCKED (must traverse)"
-                            fields = embed.get("fields", {})
-                            field_str = ", ".join(f"{k}={v}" for k, v in list(fields.items())[:5])
-                            lines.append(
-                                f"  [{label}] via {embed.get('via', '?')} -> {embed.get('target', '?')}: "
-                                f"{status}"
-                                + (f" — embedded fields: {field_str}" if field_str else "")
-                            )
-            except Exception:
-                pass
-
-        if self.queries:
-            lines.append(f"=== Previous Queries ({len(self.queries)}) ===")
-            for q in self.queries[-5:]:
-                lines.append(f"  Q: {q['question'][:100]}")
-
-        return "\n".join(lines) if lines else ""
 
 
 class Session:
@@ -326,7 +120,6 @@ class Session:
     def _get_indexing_agent(self) -> Any:
         """Create or return the indexing agent."""
         if self._indexing_agent is None:
-            from .agents import create_indexing_agent
             self._indexing_agent = create_indexing_agent(
                 ontology=self.ontology,
                 graph_store=self.graph_store,
@@ -338,7 +131,6 @@ class Session:
     def _get_query_agent(self) -> Any:
         """Create or return the query agent."""
         if self._query_agent is None:
-            from .agents import create_query_agent
             self._query_agent = create_query_agent(
                 ontology=self.ontology,
                 graph_store=self.graph_store,
@@ -366,8 +158,8 @@ class Session:
     def _execution_mode(self) -> str:
         """Resolve execution mode from agent_config."""
         if self.agent_config is not None:
-            return getattr(self.agent_config, 'execution_mode', 'pipeline')
-        return 'pipeline'
+            return normalize_execution_mode(getattr(self.agent_config, 'execution_mode', 'pipeline'))
+        return "pipeline"
 
     def add(
         self,
@@ -498,7 +290,7 @@ class Session:
         cfg = self.agent_config
         handoff_enabled = (
             cfg is not None
-            and getattr(cfg, 'execution_mode', 'pipeline') == 'supervisor'
+            and normalize_execution_mode(getattr(cfg, 'execution_mode', 'pipeline')) == 'supervisor'
             and getattr(cfg, 'handoff', False)
         )
         if not handoff_enabled:
@@ -543,7 +335,6 @@ class Session:
     def _get_supervisor_agent(self) -> Any:
         """Create or return the supervisor agent."""
         if not hasattr(self, '_supervisor_agent') or self._supervisor_agent is None:
-            from .agents import create_supervisor_agent
             policy = getattr(self.agent_config, 'routing_policy', None) if self.agent_config else None
             self._supervisor_agent = create_supervisor_agent(
                 ontology=self.ontology,

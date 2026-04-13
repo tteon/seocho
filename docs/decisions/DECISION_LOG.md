@@ -302,6 +302,11 @@ Each entry must link to a full ADR when impact is non-trivial.
   - move local planner/executor/answer-synthesis responsibilities behind shared query contracts
   - reuse canonical evidence-bundle shaping from server runtime paths
 
+- Accepted `ADR-0049-canonical-agent-engine-first-slice.md`
+  - introduce canonical agent modules under `seocho/agent/`
+  - move session context and agent factory logic behind the canonical agent package
+  - keep `seocho.agents` as a compatibility shim while local runtime migrates
+
 ## Template
 
 Use this block for new entries:

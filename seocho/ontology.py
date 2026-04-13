@@ -439,79 +439,22 @@ class Ontology:
               "relationships": { ... }
             }
         """
-        with open(path, "r") as fh:
-            data = json.load(fh)
-        return cls._from_jsonld_dict(data)
+        from .ontology_serialization import ontology_from_jsonld_path
+
+        return ontology_from_jsonld_path(cls, path)
 
     @classmethod
     def from_jsonld_dict(cls, data: Dict[str, Any]) -> "Ontology":
         """Build from a parsed JSON-LD dict."""
-        return cls._from_jsonld_dict(data)
+        from .ontology_serialization import ontology_from_jsonld_dict
+
+        return ontology_from_jsonld_dict(cls, data)
 
     @classmethod
     def _from_jsonld_dict(cls, data: Dict[str, Any]) -> "Ontology":
-        nodes: Dict[str, NodeDef] = {}
-        for label, nd in (data.get("nodes") or {}).items():
-            props: Dict[str, P] = {}
-            for pname, pd in (nd.get("properties") or {}).items():
-                if isinstance(pd, dict):
-                    raw_type = pd.get("type", "string").upper()
-                    ptype = PropertyType[raw_type] if raw_type in PropertyType.__members__ else PropertyType.STRING
-                    props[pname] = P(
-                        type=ptype,
-                        unique=pd.get("unique", False),
-                        index=pd.get("index", False),
-                        required=pd.get("required", False),
-                        description=pd.get("description", ""),
-                        aliases=pd.get("aliases", []),
-                    )
-                else:
-                    # shorthand: "name": "string"
-                    raw = str(pd).upper()
-                    ptype = PropertyType[raw] if raw in PropertyType.__members__ else PropertyType.STRING
-                    props[pname] = P(type=ptype)
+        from .ontology_serialization import ontology_from_jsonld_dict
 
-            nodes[label] = NodeDef(
-                description=nd.get("description", ""),
-                properties=props,
-                aliases=nd.get("aliases", []),
-                broader=nd.get("broader", []),
-                same_as=nd.get("sameAs") or nd.get("same_as"),
-            )
-
-        rels: Dict[str, RelDef] = {}
-        for rtype, rd in (data.get("relationships") or {}).items():
-            rprops: Dict[str, P] = {}
-            for pname, pd in (rd.get("properties") or {}).items():
-                if isinstance(pd, dict):
-                    raw_type = pd.get("type", "string").upper()
-                    ptype = PropertyType[raw_type] if raw_type in PropertyType.__members__ else PropertyType.STRING
-                    rprops[pname] = P(type=ptype, description=pd.get("description", ""))
-                else:
-                    raw = str(pd).upper()
-                    ptype = PropertyType[raw] if raw in PropertyType.__members__ else PropertyType.STRING
-                    rprops[pname] = P(type=ptype)
-
-            rels[rtype] = RelDef(
-                source=rd.get("source", "Any"),
-                target=rd.get("target", "Any"),
-                description=rd.get("description", ""),
-                cardinality=rd.get("cardinality", "MANY_TO_MANY"),
-                properties=rprops,
-                aliases=rd.get("aliases", []),
-                same_as=rd.get("sameAs") or rd.get("same_as"),
-            )
-
-        return cls(
-            name=data.get("name") or data.get("graph_type") or "Unnamed",
-            package_id=data.get("package_id", "") or data.get("packageId", "") or data.get("name") or data.get("graph_type") or "Unnamed",
-            version=data.get("version", "1.0.0"),
-            description=data.get("description", ""),
-            graph_model=data.get("graph_model", "lpg"),
-            namespace=data.get("namespace", ""),
-            nodes=nodes,
-            relationships=rels,
-        )
+        return ontology_from_jsonld_dict(cls, data)
 
     def to_jsonld(self, path: Optional[Union[str, Path]] = None) -> Dict[str, Any]:
         """Export ontology as a JSON-LD document.
@@ -522,91 +465,9 @@ class Ontology:
         This is the **canonical** persistence format for SEOCHO
         ontologies.
         """
-        _TYPE_TO_JSONLD: Dict[str, str] = {
-            "STRING": "string",
-            "INTEGER": "integer",
-            "FLOAT": "float",
-            "BOOLEAN": "boolean",
-            "DATETIME": "dateTime",
-            "DATE": "date",
-            "POINT": "point",
-            "LIST": "list",
-        }
+        from .ontology_serialization import ontology_to_jsonld
 
-        nodes_out: Dict[str, Any] = {}
-        for label, nd in self.nodes.items():
-            node_entry: Dict[str, Any] = {}
-            node_entry["@type"] = "seocho:NodeType"
-            if nd.description:
-                node_entry["description"] = nd.description
-            if nd.same_as:
-                node_entry["sameAs"] = nd.same_as
-            if nd.aliases:
-                node_entry["aliases"] = list(nd.aliases)
-            if nd.broader:
-                node_entry["broader"] = list(nd.broader)
-
-            props_out: Dict[str, Any] = {}
-            for pname, p in nd.properties.items():
-                pentry: Dict[str, Any] = {
-                    "type": _TYPE_TO_JSONLD.get(p.property_type.value, "string"),
-                }
-                if p.unique:
-                    pentry["unique"] = True
-                if p.index:
-                    pentry["index"] = True
-                if p.required:
-                    pentry["required"] = True
-                if p.description:
-                    pentry["description"] = p.description
-                if p.aliases:
-                    pentry["aliases"] = list(p.aliases)
-                props_out[pname] = pentry
-            if props_out:
-                node_entry["properties"] = props_out
-            nodes_out[label] = node_entry
-
-        rels_out: Dict[str, Any] = {}
-        for rtype, rd in self.relationships.items():
-            rel_entry: Dict[str, Any] = {
-                "source": rd.source,
-                "target": rd.target,
-            }
-            if rd.description:
-                rel_entry["description"] = rd.description
-            if rd.cardinality != "MANY_TO_MANY":
-                rel_entry["cardinality"] = rd.cardinality
-            if rd.same_as:
-                rel_entry["sameAs"] = rd.same_as
-            if rd.aliases:
-                rel_entry["aliases"] = list(rd.aliases)
-            if rd.properties:
-                rp: Dict[str, Any] = {}
-                for pname, p in rd.properties.items():
-                    rp[pname] = {"type": _TYPE_TO_JSONLD.get(p.property_type.value, "string")}
-                    if p.description:
-                        rp[pname]["description"] = p.description
-                rel_entry["properties"] = rp
-            rels_out[rtype] = rel_entry
-
-        doc: Dict[str, Any] = {
-            "@context": dict(self.JSONLD_CONTEXT),
-            "@id": f"seocho:{self.name}",
-            "@type": "seocho:Ontology",
-            "name": self.name,
-            "packageId": self.package_id,
-            "version": self.version,
-        }
-        if self.description:
-            doc["description"] = self.description
-        doc["nodes"] = nodes_out
-        doc["relationships"] = rels_out
-
-        if path is not None:
-            with open(path, "w") as fh:
-                json.dump(doc, fh, indent=2, ensure_ascii=False)
-
-        return doc
+        return ontology_to_jsonld(self, path)
 
     # ------------------------------------------------------------------
     # SHACL — derived validation shapes
@@ -709,175 +570,21 @@ class Ontology:
 
     def to_ontology_candidate(self) -> Any:
         """Convert this ontology into the typed runtime ontology artifact."""
-        from .semantic import (
-            OntologyCandidate,
-            OntologyClass,
-            OntologyProperty,
-            OntologyRelationship,
-        )
+        from .ontology_artifacts import ontology_to_ontology_candidate
 
-        classes = [
-            OntologyClass(
-                name=label,
-                description=node.description,
-                aliases=list(node.aliases),
-                broader=list(node.broader),
-                properties=[
-                    OntologyProperty(
-                        name=prop_name,
-                        datatype=prop.property_type.value.lower(),
-                        description=prop.description,
-                        aliases=list(prop.aliases),
-                    )
-                    for prop_name, prop in node.properties.items()
-                ],
-            )
-            for label, node in self.nodes.items()
-        ]
-
-        relationships = [
-            OntologyRelationship(
-                type=rel_type,
-                source=rel.source,
-                target=rel.target,
-                description=rel.description,
-                aliases=list(rel.aliases),
-                related=[name for name in (rel.source, rel.target) if name and name != "Any"],
-            )
-            for rel_type, rel in self.relationships.items()
-        ]
-
-        return OntologyCandidate(
-            ontology_name=self.name,
-            classes=classes,
-            relationships=relationships,
-        )
+        return ontology_to_ontology_candidate(self)
 
     def to_shacl_candidate(self) -> Any:
         """Convert derived SHACL output into the typed runtime artifact shape."""
-        from .semantic import ShaclCandidate, ShaclPropertyConstraint, ShaclShape
+        from .ontology_artifacts import ontology_to_shacl_candidate
 
-        shapes: List[ShaclShape] = []
-        for shape_payload in self.to_shacl().get("shapes", []):
-            target_class = str(shape_payload.get("targetClass", "")).removeprefix("seocho:")
-            constraints: List[ShaclPropertyConstraint] = []
-            for prop in shape_payload.get("properties", []):
-                path = str(prop.get("path", "")).removeprefix("seocho:")
-                if not path:
-                    continue
-
-                if "minCount" in prop:
-                    constraints.append(
-                        ShaclPropertyConstraint(
-                            path=path,
-                            constraint="minCount",
-                            params={"value": prop["minCount"]},
-                        )
-                    )
-                if "maxCount" in prop:
-                    constraints.append(
-                        ShaclPropertyConstraint(
-                            path=path,
-                            constraint="maxCount",
-                            params={"value": prop["maxCount"]},
-                        )
-                    )
-                if "datatype" in prop:
-                    constraints.append(
-                        ShaclPropertyConstraint(
-                            path=path,
-                            constraint="datatype",
-                            params={"value": prop["datatype"]},
-                        )
-                    )
-                if prop.get("unique") is True:
-                    constraints.append(
-                        ShaclPropertyConstraint(
-                            path=path,
-                            constraint="unique",
-                            params={"value": True},
-                        )
-                    )
-
-            shapes.append(ShaclShape(target_class=target_class, properties=constraints))
-
-        return ShaclCandidate(shapes=shapes)
+        return ontology_to_shacl_candidate(self)
 
     def to_vocabulary_candidate(self, *, include_properties: bool = True) -> Any:
         """Convert ontology labels and aliases into a lightweight vocabulary."""
-        from .semantic import VocabularyCandidate, VocabularyTerm
+        from .ontology_artifacts import ontology_to_vocabulary_candidate
 
-        term_map: Dict[str, VocabularyTerm] = {}
-
-        def _merge_term(
-            pref_label: str,
-            *,
-            alt_labels: Optional[Sequence[str]] = None,
-            hidden_labels: Optional[Sequence[str]] = None,
-            broader: Optional[Sequence[str]] = None,
-            related: Optional[Sequence[str]] = None,
-            sources: Optional[Sequence[str]] = None,
-            definition: str = "",
-            examples: Optional[Sequence[str]] = None,
-        ) -> None:
-            label = pref_label.strip()
-            if not label:
-                return
-            key = label.casefold()
-            current = term_map.get(key)
-            if current is None:
-                current = VocabularyTerm(pref_label=label)
-                term_map[key] = current
-
-            def _merge_text_list(existing: List[str], values: Optional[Sequence[str]]) -> None:
-                seen = {item.casefold() for item in existing}
-                for value in values or []:
-                    text = str(value).strip()
-                    if text and text.casefold() not in seen:
-                        existing.append(text)
-                        seen.add(text.casefold())
-
-            _merge_text_list(current.alt_labels, alt_labels)
-            _merge_text_list(current.hidden_labels, hidden_labels)
-            _merge_text_list(current.broader, broader)
-            _merge_text_list(current.related, related)
-            _merge_text_list(current.sources, sources)
-            _merge_text_list(current.examples, examples)
-            if definition and not current.definition:
-                current.definition = definition.strip()
-
-        for label, node in self.nodes.items():
-            _merge_term(
-                label,
-                alt_labels=node.aliases,
-                broader=node.broader,
-                sources=[node.same_as] if node.same_as else None,
-                definition=node.description,
-            )
-            if include_properties:
-                for prop_name, prop in node.properties.items():
-                    _merge_term(
-                        prop_name,
-                        alt_labels=prop.aliases,
-                        hidden_labels=[f"{label}.{prop_name}"],
-                        broader=[label],
-                        definition=prop.description,
-                    )
-
-        for rel_type, rel in self.relationships.items():
-            _merge_term(
-                rel_type,
-                alt_labels=rel.aliases,
-                related=[name for name in (rel.source, rel.target) if name and name != "Any"],
-                sources=[rel.same_as] if rel.same_as else None,
-                definition=rel.description or f"{rel.source} -> {rel.target}",
-            )
-
-        return VocabularyCandidate(
-            schema_version="vocabulary.v2",
-            profile="skos",
-            terms=sorted(term_map.values(), key=lambda item: item.pref_label.casefold()),
-        )
+        return ontology_to_vocabulary_candidate(self, include_properties=include_properties)
 
     def to_approved_artifacts(
         self,
@@ -886,16 +593,12 @@ class Ontology:
         include_property_terms: bool = True,
     ) -> Any:
         """Build an ``ApprovedArtifacts`` payload from this ontology."""
-        from .semantic import ApprovedArtifacts
+        from .ontology_artifacts import ontology_to_approved_artifacts
 
-        return ApprovedArtifacts(
-            ontology_candidate=self.to_ontology_candidate(),
-            shacl_candidate=self.to_shacl_candidate(),
-            vocabulary_candidate=(
-                self.to_vocabulary_candidate(include_properties=include_property_terms)
-                if include_vocabulary
-                else None
-            ),
+        return ontology_to_approved_artifacts(
+            self,
+            include_vocabulary=include_vocabulary,
+            include_property_terms=include_property_terms,
         )
 
     def to_semantic_prompt_context(
@@ -906,25 +609,13 @@ class Ontology:
         include_property_terms: bool = True,
     ) -> Any:
         """Build a typed semantic prompt context from this ontology."""
-        from .semantic import SemanticPromptContext
+        from .ontology_artifacts import ontology_to_semantic_prompt_context
 
-        runtime_instructions: List[str] = []
-        if instructions:
-            runtime_instructions.extend(str(item).strip() for item in instructions if str(item).strip())
-        if self.package_id:
-            runtime_instructions.append(
-                f"Treat ontology package '{self.package_id}' version '{self.version}' as authoritative."
-            )
-
-        return SemanticPromptContext(
-            instructions=runtime_instructions,
-            ontology_candidate=self.to_ontology_candidate(),
-            shacl_candidate=self.to_shacl_candidate(),
-            vocabulary_candidate=(
-                self.to_vocabulary_candidate(include_properties=include_property_terms)
-                if include_vocabulary
-                else None
-            ),
+        return ontology_to_semantic_prompt_context(
+            self,
+            instructions=instructions,
+            include_vocabulary=include_vocabulary,
+            include_property_terms=include_property_terms,
         )
 
     def to_semantic_artifact_draft(
@@ -936,31 +627,14 @@ class Ontology:
         source_summary: Optional[Dict[str, Any]] = None,
     ) -> Any:
         """Build a draft semantic artifact payload from this ontology."""
-        from .semantic import SemanticArtifactDraftInput
+        from .ontology_artifacts import ontology_to_semantic_artifact_draft
 
-        summary = {
-            "source": "ontology",
-            "ontology_name": self.name,
-            "package_id": self.package_id,
-            "version": self.version,
-            "graph_model": self.graph_model,
-            "namespace": self.namespace,
-            "node_count": len(self.nodes),
-            "relationship_count": len(self.relationships),
-        }
-        if source_summary:
-            summary.update(source_summary)
-
-        return SemanticArtifactDraftInput(
-            name=name or f"{self.package_id}-{self.version}",
-            ontology_candidate=self.to_ontology_candidate(),
-            shacl_candidate=self.to_shacl_candidate(),
-            vocabulary_candidate=(
-                self.to_vocabulary_candidate(include_properties=include_property_terms)
-                if include_vocabulary
-                else None
-            ),
-            source_summary=summary,
+        return ontology_to_semantic_artifact_draft(
+            self,
+            name=name,
+            include_vocabulary=include_vocabulary,
+            include_property_terms=include_property_terms,
+            source_summary=source_summary,
         )
 
     def validate_with_shacl(self, data: Dict[str, Any]) -> List[str]:

@@ -109,6 +109,10 @@ Canonical SDK control-plane modules:
 
 - `seocho/agent/`
 - `seocho/query/`
+- `seocho/ontology.py` as the stable public ontology facade
+- `seocho/ontology_serialization.py` for JSON-LD persistence
+- `seocho/ontology_artifacts.py` for runtime artifact and typed prompt generation
+- `seocho/ontology_governance.py` for offline diff/check/export flows
 - `seocho/runtime_contract.py`
 
 Primary modules:
@@ -116,6 +120,30 @@ Primary modules:
 - `extraction/agent_server.py`
 - `extraction/policy.py`
 - `docs/decisions/`
+
+## Ontology Module Boundaries (Active Direction)
+
+Ontology remains a first-class SDK primitive, but it should no longer behave as
+one monolithic implementation file.
+
+- `seocho/ontology.py`
+  - stable public `Ontology`, `NodeDef`, `RelDef`, and `P` surface
+  - schema validation, SHACL derivation, and prompt-facing API entrypoints
+- `seocho/ontology_serialization.py`
+  - canonical JSON-LD load/save helpers
+  - no runtime governance side effects
+- `seocho/ontology_artifacts.py`
+  - runtime-facing typed artifact promotion
+  - approved artifacts, semantic prompt context, vocabulary shaping
+- `seocho/ontology_governance.py`
+  - offline check/diff/export/OWL inspection path
+
+Canonical direction:
+
+- local SDK and runtime promotion paths should consume explicit ontology-side
+  contracts instead of hand-built client glue
+- public API compatibility should stay centered on `Ontology`
+- heavy governance and OWL inspection stays out of the request hot path
 
 ### Data Plane
 

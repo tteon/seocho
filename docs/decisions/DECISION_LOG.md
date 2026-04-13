@@ -295,6 +295,13 @@ Each entry must link to a full ADR when impact is non-trivial.
   - restore maintainer-triggered `/go` squash merge gated on clean PR state
   - require a fixed PR body contract for automation-generated maintenance/review PRs
 
+## 2026-04-13
+
+- Accepted `ADR-0048-canonical-query-engine-first-slice.md`
+  - introduce canonical query engine modules under `seocho/query/`
+  - move local planner/executor/answer-synthesis responsibilities behind shared query contracts
+  - reuse canonical evidence-bundle shaping from server runtime paths
+
 ## Template
 
 Use this block for new entries:

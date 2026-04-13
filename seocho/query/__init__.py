@@ -10,7 +10,11 @@ Where to look:
 If you want to improve Cypher generation or answer quality, start here.
 """
 
+from .answering import QueryAnswerSynthesizer, build_evidence_bundle, infer_question_intent
+from .contracts import QueryAttempt, QueryExecution, QueryPlan
 from .cypher_builder import CypherBuilder
+from .executor import GraphQueryExecutor
+from .planner import DeterministicQueryPlanner
 from .strategy import (
     CATEGORY_PROMPT_MAP,
     ExtractionStrategy,
@@ -23,6 +27,14 @@ from .strategy import (
 )
 
 __all__ = [
+    "QueryPlan",
+    "QueryExecution",
+    "QueryAttempt",
+    "DeterministicQueryPlanner",
+    "GraphQueryExecutor",
+    "QueryAnswerSynthesizer",
+    "build_evidence_bundle",
+    "infer_question_intent",
     "PromptStrategy",
     "PromptTemplate",
     "PRESET_PROMPTS",

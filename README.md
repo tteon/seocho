@@ -20,6 +20,10 @@ Internally, the ontology layer is split into clear boundaries:
 transport, and artifact helpers live under `seocho/*`, while `client.py`
 stays focused on the public SDK entrypoints.
 
+The server side follows the same rule: `extraction/agent_server.py` is the
+transport entrypoint, while shared runtime service composition lives in
+`extraction/server_runtime.py`.
+
 ## Why SEOCHO
 
 Most memory libraries optimize for the fastest generic demo. SEOCHO optimizes

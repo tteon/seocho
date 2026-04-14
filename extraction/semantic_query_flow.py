@@ -48,6 +48,9 @@ from seocho.query.answering import (
     build_evidence_bundle as shared_build_evidence_bundle,
     infer_question_intent as shared_infer_question_intent,
 )
+from seocho.query.constraints import (
+    SemanticConstraintSliceBuilder as CanonicalSemanticConstraintSliceBuilder,
+)
 from seocho.query.contracts import (
     CypherPlan as CanonicalCypherPlan,
     InsufficiencyAssessment as CanonicalInsufficiencyAssessment,
@@ -55,6 +58,7 @@ from seocho.query.contracts import (
 )
 from seocho.query.cypher_validator import CypherQueryValidator as CanonicalCypherQueryValidator
 from seocho.query.insufficiency import QueryInsufficiencyClassifier as CanonicalQueryInsufficiencyClassifier
+from seocho.query.run_registry import RunMetadataRegistry as CanonicalRunMetadataRegistry
 from seocho.query.strategy_chooser import (
     ExecutionStrategyChooser as CanonicalExecutionStrategyChooser,
     IntentSupportValidator as CanonicalIntentSupportValidator,
@@ -1042,6 +1046,7 @@ CypherQueryValidator = CanonicalCypherQueryValidator
 QueryInsufficiencyClassifier = CanonicalQueryInsufficiencyClassifier
 IntentSupportValidator = CanonicalIntentSupportValidator
 ExecutionStrategyChooser = CanonicalExecutionStrategyChooser
+SemanticConstraintSliceBuilder = CanonicalSemanticConstraintSliceBuilder
 
 
 class RunMetadataRegistry:
@@ -1109,6 +1114,9 @@ class RunMetadataRegistry:
             "registry_path": str(stored.get("db_path", self.path)),
             "timestamp": timestamp,
         }
+
+
+RunMetadataRegistry = CanonicalRunMetadataRegistry
 
 
 class SemanticEntityResolver:
@@ -1485,7 +1493,9 @@ class LPGAgent:
     def __init__(self, connector: Any, result_limit: int = 20):
         self.connector = connector
         self.result_limit = result_limit
-        self.constraint_builder = SemanticConstraintSliceBuilder()
+        self.constraint_builder = SemanticConstraintSliceBuilder(
+            graph_targets=graph_registry.list_graphs()
+        )
         self.validator = CypherQueryValidator()
         self.classifier = QueryInsufficiencyClassifier()
         self.support_validator = IntentSupportValidator()
@@ -2379,7 +2389,9 @@ class SemanticAgentFlow:
         self.lpg_agent = LPGAgent(connector)
         self.rdf_agent = RDFAgent(connector)
         self.answer_agent = AnswerGenerationAgent()
-        self.constraint_builder = SemanticConstraintSliceBuilder()
+        self.constraint_builder = SemanticConstraintSliceBuilder(
+            graph_targets=graph_registry.list_graphs()
+        )
         self.strategy_chooser = ExecutionStrategyChooser()
         self.run_registry = RunMetadataRegistry()
 

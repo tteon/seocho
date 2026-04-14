@@ -11,6 +11,7 @@ If you want to improve Cypher generation or answer quality, start here.
 """
 
 from .answering import QueryAnswerSynthesizer, build_evidence_bundle, infer_question_intent
+from .constraints import SemanticConstraintSliceBuilder
 from .contracts import (
     CypherPlan,
     InsufficiencyAssessment,
@@ -25,6 +26,7 @@ from .executor import GraphQueryExecutor
 from .insufficiency import QueryInsufficiencyClassifier
 from .intent import INTENT_CATALOG
 from .planner import DeterministicQueryPlanner
+from .run_registry import RunMetadataRegistry
 from .strategy import (
     CATEGORY_PROMPT_MAP,
     ExtractionStrategy,
@@ -50,6 +52,8 @@ __all__ = [
     "QueryAnswerSynthesizer",
     "build_evidence_bundle",
     "infer_question_intent",
+    "SemanticConstraintSliceBuilder",
+    "RunMetadataRegistry",
     "CypherQueryValidator",
     "QueryInsufficiencyClassifier",
     "IntentSupportValidator",

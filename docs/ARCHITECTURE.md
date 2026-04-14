@@ -253,6 +253,8 @@ Canonical direction:
 - semantic query Phase A now also shares intent, support assessment, strategy
   selection, Cypher validation, and insufficiency contracts from
   `seocho/query/{intent,strategy_chooser,cypher_validator,insufficiency,contracts}.py`
+- semantic query Phase B now also shares constraint-slice building and run
+  metadata persistence from `seocho/query/{constraints,run_registry}.py`
 - `extraction/*` should keep transport and runtime orchestration concerns, not
   grow a second query engine
 

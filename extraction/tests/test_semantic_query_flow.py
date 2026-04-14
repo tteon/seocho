@@ -153,6 +153,14 @@ def test_semantic_agent_flow_uses_canonical_phase_a_query_primitives():
     assert flow.strategy_chooser.__class__.__module__ == "seocho.query.strategy_chooser"
 
 
+def test_semantic_agent_flow_uses_canonical_phase_b_support_classes():
+    flow = SemanticAgentFlow(FakeConnector())
+
+    assert flow.lpg_agent.constraint_builder.__class__.__module__ == "seocho.query.constraints"
+    assert flow.constraint_builder.__class__.__module__ == "seocho.query.constraints"
+    assert flow.run_registry.__class__.__module__ == "seocho.query.run_registry"
+
+
 def test_semantic_agent_flow_reasoning_mode_repairs_initially_insufficient_query():
     flow = SemanticAgentFlow(FakeConnector())
     result = flow.run(

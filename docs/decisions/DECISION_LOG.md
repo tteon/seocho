@@ -368,6 +368,11 @@ Each entry must link to a full ADR when impact is non-trivial.
   - rebind `extraction/semantic_query_flow.py` runtime helpers to canonical classes while keeping the existing import surface stable
   - defer DB-aware helpers, route agents, and `SemanticAgentFlow` itself to later ADR-0056 phases
 
+- Accepted `ADR-0059-semantic-query-phase-b-db-aware-support-first-slice.md`
+  - move semantic query constraint-slice building and semantic run metadata persistence into canonical `seocho/query/*` modules
+  - rebind `extraction/semantic_query_flow.py` runtime instances to canonical support classes while keeping the existing import surface stable
+  - defer route agents and `SemanticAgentFlow` itself to later ADR-0056 phases
+
 ## Template
 
 Use this block for new entries:

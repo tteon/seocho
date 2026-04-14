@@ -11,7 +11,9 @@ query planning, validation, graph constraints, and runtime semantic artifacts.
 `Seocho` remains the public facade while canonical engine code continues moving
 under `seocho/*`; semantic query Phase A now shares intent inference, evidence
 shaping, support assessment, strategy selection, Cypher validation, and
-insufficiency classification from `seocho/query/*`.
+insufficiency classification from `seocho/query/*`. Phase B now also shares
+semantic constraint slices and semantic run metadata support from the same
+canonical query package.
 
 ## Quick Start
 

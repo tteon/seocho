@@ -74,6 +74,7 @@ Read next:
 - [Quickstart (docs)](docs/QUICKSTART.md)
 - [Python SDK Quickstart](docs/PYTHON_INTERFACE_QUICKSTART.md)
 - [Files and Artifacts](docs/FILES_AND_ARTIFACTS.md)
+- [Benchmarks](docs/BENCHMARKS.md)
 
 ## Install Paths
 
@@ -116,6 +117,10 @@ artifact helpers live under `seocho/*`, while `client.py` stays focused on the
 public SDK entrypoints. The server side follows the same rule:
 `extraction/agent_server.py` is the transport entrypoint, while shared runtime
 service composition lives in `extraction/server_runtime.py`.
+
+Long-term, the overloaded `extraction/` package name is being retired in favor
+of a thinner `runtime/` deployment shell. The staged plan is documented in
+[docs/RUNTIME_PACKAGE_MIGRATION.md](docs/RUNTIME_PACKAGE_MIGRATION.md).
 
 Legacy extraction modules are being reduced to transport or compatibility
 adapters as canonical engine code moves under `seocho/*`. The shared extraction
@@ -378,6 +383,7 @@ onto = Ontology(name="fibo", graph_model="rdf",
 | [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture |
 | [docs/FILES_AND_ARTIFACTS.md](docs/FILES_AND_ARTIFACTS.md) | Where ontology, rule, trace, and runtime files live |
+| [docs/BENCHMARKS.md](docs/BENCHMARKS.md) | FinDER and GraphRAG-Bench evaluation tracks |
 | [docs/WORKFLOW.md](docs/WORKFLOW.md) | Operational workflow |
 | [docs/ISSUE_TASK_SYSTEM.md](docs/ISSUE_TASK_SYSTEM.md) | Sprint/task governance |
 

@@ -45,31 +45,35 @@ class SchemaManager:
                     for prop_name, config in props.items():
                         # 1. Unique Constraints
                         if config.get('constraint') == 'UNIQUE':
-                            constraint_name = f"constraint_{label}_{prop_name}_unique"
-                            query = f"CREATE CONSTRAINT {constraint_name} IF NOT EXISTS FOR (n:{label}) REQUIRE n.{prop_name} IS UNIQUE"
+                            safe_label = label.replace('`', '')
+                            safe_prop = prop_name.replace('`', '')
+                            constraint_name = f"constraint_{safe_label}_{safe_prop}_unique"
+                            query = f"CREATE CONSTRAINT `{constraint_name}` IF NOT EXISTS FOR (n:`{safe_label}`) REQUIRE n.`{safe_prop}` IS UNIQUE"
                             try:
                                 session.run(query)
-                                logger.info("Applied UNIQUE constraint on :%s(%s)", label, prop_name)
+                                logger.info("Applied UNIQUE constraint on :%s(%s)", safe_label, safe_prop)
                             except (ServiceUnavailable, SessionExpired) as e:
                                 raise Neo4jConnectionError(
-                                    f"Neo4j connection failed applying constraint on :{label}({prop_name}): {e}"
+                                    f"Neo4j connection failed applying constraint on :{safe_label}({safe_prop}): {e}"
                                 ) from e
                             except Exception as e:
-                                logger.error("Failed to apply constraint on :%s(%s): %s", label, prop_name, e)
+                                logger.error("Failed to apply constraint on :%s(%s): %s", safe_label, safe_prop, e)
 
                         # 2. Indexes
                         if config.get('index') is True:
-                            index_name = f"index_{label}_{prop_name}"
-                            query = f"CREATE INDEX {index_name} IF NOT EXISTS FOR (n:{label}) ON (n.{prop_name})"
+                            safe_label = label.replace('`', '')
+                            safe_prop = prop_name.replace('`', '')
+                            index_name = f"index_{safe_label}_{safe_prop}"
+                            query = f"CREATE INDEX `{index_name}` IF NOT EXISTS FOR (n:`{safe_label}`) ON (n.`{safe_prop}`)"
                             try:
                                 session.run(query)
-                                logger.info("Applied INDEX on :%s(%s)", label, prop_name)
+                                logger.info("Applied INDEX on :%s(%s)", safe_label, safe_prop)
                             except (ServiceUnavailable, SessionExpired) as e:
                                 raise Neo4jConnectionError(
-                                    f"Neo4j connection failed applying index on :{label}({prop_name}): {e}"
+                                    f"Neo4j connection failed applying index on :{safe_label}({safe_prop}): {e}"
                                 ) from e
                             except Exception as e:
-                                logger.error("Failed to apply index on :%s(%s): %s", label, prop_name, e)
+                                logger.error("Failed to apply index on :%s(%s): %s", safe_label, safe_prop, e)
         except (ServiceUnavailable, SessionExpired) as e:
             raise Neo4jConnectionError(
                 f"Neo4j connection failed during schema application for '{database}': {e}"

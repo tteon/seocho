@@ -175,6 +175,11 @@ def test_semantic_agent_flow_uses_canonical_phase_c_agent_classes():
     assert flow.answer_agent.__class__.__module__ == "seocho.query.semantic_agents"
 
 
+def test_semantic_agent_flow_uses_canonical_phase_d_flow_class():
+    flow = SemanticAgentFlow(FakeConnector())
+    assert flow.__class__.__module__ == "seocho.query.semantic_flow"
+
+
 def test_semantic_agent_flow_reasoning_mode_repairs_initially_insufficient_query():
     flow = SemanticAgentFlow(FakeConnector())
     result = flow.run(

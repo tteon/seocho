@@ -59,6 +59,7 @@ from seocho.query.contracts import (
 from seocho.query.cypher_validator import CypherQueryValidator as CanonicalCypherQueryValidator
 from seocho.query.insufficiency import QueryInsufficiencyClassifier as CanonicalQueryInsufficiencyClassifier
 from seocho.query.run_registry import RunMetadataRegistry as CanonicalRunMetadataRegistry
+from seocho.query.semantic_flow import SemanticAgentFlow as CanonicalSemanticAgentFlow
 from seocho.query.semantic_agents import (
     AnswerGenerationAgent as CanonicalAnswerGenerationAgent,
     LPGAgent as CanonicalLPGAgent,
@@ -2639,3 +2640,6 @@ class SemanticAgentFlow:
                 semantic_context=semantic_context,
                 matched_entities=semantic_context.get("entities", []),
             )
+
+
+SemanticAgentFlow = CanonicalSemanticAgentFlow

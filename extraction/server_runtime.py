@@ -101,7 +101,10 @@ def get_vector_store_service():
 def get_semantic_agent_flow_service() -> SemanticAgentFlow:
     global _semantic_agent_flow
     if _semantic_agent_flow is None:
-        _semantic_agent_flow = SemanticAgentFlow(get_neo4j_connector_service())
+        _semantic_agent_flow = SemanticAgentFlow(
+            get_neo4j_connector_service(),
+            graph_targets=graph_registry.list_graphs(),
+        )
     return _semantic_agent_flow
 
 

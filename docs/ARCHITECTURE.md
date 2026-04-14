@@ -258,6 +258,9 @@ Canonical direction:
 - semantic query Phase C now also shares entity resolution, route selection,
   LPG/RDF specialists, and answer framing from
   `seocho/query/semantic_agents.py`
+- semantic query Phase D now also shares `SemanticAgentFlow` orchestration from
+  `seocho/query/semantic_flow.py`; extraction keeps runtime injection and
+  compatibility aliases only
 - `extraction/*` should keep transport and runtime orchestration concerns, not
   grow a second query engine
 

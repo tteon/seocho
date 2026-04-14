@@ -27,6 +27,7 @@ from .insufficiency import QueryInsufficiencyClassifier
 from .intent import INTENT_CATALOG
 from .planner import DeterministicQueryPlanner
 from .run_registry import RunMetadataRegistry
+from .semantic_flow import SemanticAgentFlow
 from .semantic_agents import (
     AnswerGenerationAgent,
     LPGAgent,
@@ -61,6 +62,7 @@ __all__ = [
     "infer_question_intent",
     "SemanticConstraintSliceBuilder",
     "RunMetadataRegistry",
+    "SemanticAgentFlow",
     "SemanticEntityResolver",
     "QueryRouterAgent",
     "LPGAgent",

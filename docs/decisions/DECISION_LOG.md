@@ -378,6 +378,11 @@ Each entry must link to a full ADR when impact is non-trivial.
   - rebind `extraction/semantic_query_flow.py` route-agent names to canonical implementations while keeping the existing import surface stable
   - defer `SemanticAgentFlow` itself to the final ADR-0056 phase
 
+- Accepted `ADR-0061-semantic-query-phase-d-flow-first-slice.md`
+  - move `SemanticAgentFlow` orchestration into canonical `seocho/query/semantic_flow.py`
+  - rebind `extraction/semantic_query_flow.py` to the canonical flow class while keeping the existing import surface stable
+  - keep runtime graph-target injection in the extraction shell
+
 ## Template
 
 Use this block for new entries:

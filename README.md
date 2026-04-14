@@ -13,7 +13,8 @@ under `seocho/*`; semantic query Phase A now shares intent inference, evidence
 shaping, support assessment, strategy selection, Cypher validation, and
 insufficiency classification from `seocho/query/*`. Phase B now also shares
 semantic constraint slices and semantic run metadata support from the same
-canonical query package.
+canonical query package. Phase C now also shares semantic entity resolution,
+route agents, and answer framing from canonical `seocho/query/*` code.
 
 ## Quick Start
 

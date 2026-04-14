@@ -373,6 +373,11 @@ Each entry must link to a full ADR when impact is non-trivial.
   - rebind `extraction/semantic_query_flow.py` runtime instances to canonical support classes while keeping the existing import surface stable
   - defer route agents and `SemanticAgentFlow` itself to later ADR-0056 phases
 
+- Accepted `ADR-0060-semantic-query-phase-c-route-agents-first-slice.md`
+  - move semantic query route-agent classes into canonical `seocho/query/semantic_agents.py`
+  - rebind `extraction/semantic_query_flow.py` route-agent names to canonical implementations while keeping the existing import surface stable
+  - defer `SemanticAgentFlow` itself to the final ADR-0056 phase
+
 ## Template
 
 Use this block for new entries:

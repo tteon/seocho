@@ -161,6 +161,20 @@ def test_semantic_agent_flow_uses_canonical_phase_b_support_classes():
     assert flow.run_registry.__class__.__module__ == "seocho.query.run_registry"
 
 
+def test_semantic_agent_flow_uses_canonical_phase_c_agent_classes():
+    flow = SemanticAgentFlow(FakeConnector())
+    resolver = SemanticEntityResolver(FakeConnector())
+    router = QueryRouterAgent()
+
+    assert resolver.__class__.__module__ == "seocho.query.semantic_agents"
+    assert router.__class__.__module__ == "seocho.query.semantic_agents"
+    assert flow.resolver.__class__.__module__ == "seocho.query.semantic_agents"
+    assert flow.router.__class__.__module__ == "seocho.query.semantic_agents"
+    assert flow.lpg_agent.__class__.__module__ == "seocho.query.semantic_agents"
+    assert flow.rdf_agent.__class__.__module__ == "seocho.query.semantic_agents"
+    assert flow.answer_agent.__class__.__module__ == "seocho.query.semantic_agents"
+
+
 def test_semantic_agent_flow_reasoning_mode_repairs_initially_insufficient_query():
     flow = SemanticAgentFlow(FakeConnector())
     result = flow.run(

@@ -255,6 +255,9 @@ Canonical direction:
   `seocho/query/{intent,strategy_chooser,cypher_validator,insufficiency,contracts}.py`
 - semantic query Phase B now also shares constraint-slice building and run
   metadata persistence from `seocho/query/{constraints,run_registry}.py`
+- semantic query Phase C now also shares entity resolution, route selection,
+  LPG/RDF specialists, and answer framing from
+  `seocho/query/semantic_agents.py`
 - `extraction/*` should keep transport and runtime orchestration concerns, not
   grow a second query engine
 

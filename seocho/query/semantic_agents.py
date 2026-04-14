@@ -1,17 +1,3 @@
-"""
-Semantic query flow for graph QA.
-
-Implements a deterministic 4-agent orchestration:
-1) Router agent
-2) LPG agent
-3) RDF agent
-4) Answer generation agent
-
-The semantic layer resolves question entities using fulltext search first,
-then falls back to contains-based lookup, and applies lightweight
-dedup/disambiguation scoring.
-"""
-
 from __future__ import annotations
 
 import json
@@ -19,60 +5,19 @@ import logging
 import os
 import re
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from difflib import SequenceMatcher
-from hashlib import sha1
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
-from uuid import uuid4
 
-from config import graph_registry
-from ontology_hints import OntologyHintStore
-from semantic_profile_packages import (
-    SemanticProfilePackage,
-    apply_profile_relation_priority,
-    select_semantic_profile_package,
-)
-from semantic_run_store import save_semantic_run
-from semantic_artifact_store import (
-    DEFAULT_SEMANTIC_ARTIFACT_DIR,
-    get_semantic_artifact,
-    list_semantic_artifacts,
-)
-from semantic_context import (
-    _merge_ontology_candidates,
-    _merge_shacl_candidates,
-    _merge_vocabulary_candidates,
-)
-from semantic_vocabulary import ManagedVocabularyResolver
-from seocho.query.answering import (
-    build_evidence_bundle as shared_build_evidence_bundle,
-    infer_question_intent as shared_infer_question_intent,
-)
-from seocho.query.constraints import (
-    SemanticConstraintSliceBuilder as CanonicalSemanticConstraintSliceBuilder,
-)
-from seocho.query.contracts import (
-    CypherPlan as CanonicalCypherPlan,
-    InsufficiencyAssessment as CanonicalInsufficiencyAssessment,
-    IntentSpec as CanonicalIntentSpec,
-)
-from seocho.query.cypher_validator import CypherQueryValidator as CanonicalCypherQueryValidator
-from seocho.query.insufficiency import QueryInsufficiencyClassifier as CanonicalQueryInsufficiencyClassifier
-from seocho.query.run_registry import RunMetadataRegistry as CanonicalRunMetadataRegistry
-from seocho.query.semantic_agents import (
-    AnswerGenerationAgent as CanonicalAnswerGenerationAgent,
-    LPGAgent as CanonicalLPGAgent,
-    QueryRouterAgent as CanonicalQueryRouterAgent,
-    RDFAgent as CanonicalRDFAgent,
-    SemanticEntityResolver as CanonicalSemanticEntityResolver,
-)
-from seocho.query.strategy_chooser import (
-    ExecutionStrategyChooser as CanonicalExecutionStrategyChooser,
-    IntentSupportValidator as CanonicalIntentSupportValidator,
-)
+from .answering import build_evidence_bundle, infer_question_intent
+from .constraints import SemanticConstraintSliceBuilder
+from .contracts import CypherPlan, InsufficiencyAssessment
+from .cypher_validator import CypherQueryValidator
+from .insufficiency import QueryInsufficiencyClassifier
+from .run_registry import RunMetadataRegistry
+from .strategy_chooser import ExecutionStrategyChooser, IntentSupportValidator
 
 logger = logging.getLogger(__name__)
-
 
 RDF_HINTS = {
     "rdf",
@@ -131,31 +76,17 @@ STOPWORDS = {
     "please",
 }
 
-ENTITY_PROPERTIES = ("name", "title", "id", "uri", "code", "symbol", "alias", "content_preview", "content", "memory_id")
-
-COMMON_ALLOWED_PROPERTIES = {
-    *ENTITY_PROPERTIES,
-    "workspace_id",
-    "status",
-    "description",
-    "summary",
-    "type",
-    "value",
-    "created_at",
-    "updated_at",
-}
-
-FORBIDDEN_CYPHER_TOKENS = (
-    " CREATE ",
-    " MERGE ",
-    " DELETE ",
-    " DETACH ",
-    " SET ",
-    " REMOVE ",
-    " DROP ",
-    " LOAD CSV ",
-    " CALL DBMS",
-    " CALL GDS",
+ENTITY_PROPERTIES = (
+    "name",
+    "title",
+    "id",
+    "uri",
+    "code",
+    "symbol",
+    "alias",
+    "content_preview",
+    "content",
+    "memory_id",
 )
 
 QUESTION_LABEL_HINTS = {
@@ -167,100 +98,15 @@ QUESTION_LABEL_HINTS = {
     "ontology": {"ontology", "class", "property", "concept"},
 }
 
-
-@dataclass(frozen=True)
-class IntentSpec:
-    intent_id: str
-    required_relations: Tuple[str, ...]
-    required_entity_types: Tuple[str, ...]
-    focus_slots: Tuple[str, ...]
-    trigger_keywords: Tuple[str, ...]
+DEFAULT_SEMANTIC_ARTIFACT_DIR = "outputs/semantic_artifacts"
 
 
-INTENT_CATALOG: Tuple[IntentSpec, ...] = (
-    IntentSpec(
-        intent_id="relationship_lookup",
-        required_relations=("RELATES_TO", "USES", "OWNS", "WORKS_WITH"),
-        required_entity_types=("Entity",),
-        focus_slots=("source_entity", "target_entity", "relation_paths"),
-        trigger_keywords=("relation", "relationship", "related", "connected", "connection", "link", "between"),
-    ),
-    IntentSpec(
-        intent_id="responsibility_lookup",
-        required_relations=("MANAGES", "OWNS", "LEADS", "OPERATES"),
-        required_entity_types=("Person", "Organization"),
-        focus_slots=("owner_or_operator", "target_entity", "supporting_fact"),
-        trigger_keywords=("who manages", "manages", "owner", "owns", "owned", "leads", "lead", "responsible", "operates"),
-    ),
-    IntentSpec(
-        intent_id="explanation_lookup",
-        required_relations=(),
-        required_entity_types=("Entity",),
-        focus_slots=("target_entity", "supporting_fact"),
-        trigger_keywords=("why", "how", "explain"),
-    ),
-    IntentSpec(
-        intent_id="entity_summary",
-        required_relations=(),
-        required_entity_types=("Entity",),
-        focus_slots=("target_entity", "supporting_fact"),
-        trigger_keywords=(),
-    ),
-)
-
-
-def infer_question_intent(question: str, entities: Sequence[str]) -> Dict[str, Any]:
-    return shared_infer_question_intent(question, entities)
-
-
-def build_evidence_bundle(
-    *,
-    question: str,
-    semantic_context: Dict[str, Any],
-    memory: Optional[Dict[str, Any]] = None,
-    matched_entities: Optional[Sequence[str]] = None,
-    reasons: Optional[Sequence[str]] = None,
-    score: Optional[float] = None,
-    support_assessment: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
-    return shared_build_evidence_bundle(
-        question=question,
-        semantic_context=semantic_context,
-        memory=memory,
-        matched_entities=matched_entities,
-        reasons=reasons,
-        score=score,
-        support_assessment=support_assessment,
-    )
-
-
-def _entity_name(payload: Dict[str, Any]) -> str:
-    return str(payload.get("name") or payload.get("display_name") or "").strip()
-
-
-def _first_entity_with_labels(entities: Sequence[Dict[str, Any]], normalized_targets: Set[str]) -> str:
-    for entity in entities:
-        labels = entity.get("labels", [])
-        if not isinstance(labels, list):
-            continue
-        normalized_labels = {
-            re.sub(r"[^a-z0-9]+", "", str(label).lower())
-            for label in labels
-        }
-        if normalized_labels & {re.sub(r"[^a-z0-9]+", "", item.lower()) for item in normalized_targets}:
-            entity_name = _entity_name(entity)
-            if entity_name:
-                return entity_name
-    return ""
+def _normalize(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", value.lower()).strip()
 
 
 def _normalize_symbol(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", "", str(value).lower())
-
-
-def _slugify_symbol(value: str) -> str:
-    slug = re.sub(r"[^a-z0-9]+", "-", str(value).lower()).strip("-")
-    return slug or "term"
 
 
 def _parse_cypher_rows(raw: Any) -> List[Dict[str, Any]]:
@@ -273,857 +119,390 @@ def _parse_cypher_rows(raw: Any) -> List[Dict[str, Any]]:
     return parsed if isinstance(parsed, list) else []
 
 
-@dataclass(frozen=True)
-class CypherPlan:
-    database: str
-    query: str
-    params: Dict[str, Any]
-    strategy: str
-    anchor_entity: str
-    anchor_label: str = ""
-    relation_types: Tuple[str, ...] = ()
-    profile_id: str = ""
-    query_kind: str = ""
+class OntologyHintStore:
+    """In-memory ontology hint store with lightweight alias/label maps."""
+
+    def __init__(self, path: str = "output/ontology_hints.json"):
+        self.path = path
+        self.aliases: Dict[str, str] = {}
+        self.label_keywords: Dict[str, Set[str]] = {}
+        self.loaded: bool = False
+        self.load()
+
+    def load(self) -> None:
+        self.aliases = {}
+        self.label_keywords = {}
+        self.loaded = False
+
+        if not self.path or not os.path.exists(self.path):
+            logger.info("Ontology hints file not found: %s", self.path)
+            return
+
+        try:
+            with open(self.path, "r", encoding="utf-8") as handle:
+                payload = json.load(handle)
+        except Exception as exc:
+            logger.warning("Failed to load ontology hints (%s): %s", self.path, exc)
+            return
+
+        alias_map = payload.get("aliases", {})
+        if isinstance(alias_map, dict):
+            for src, dst in alias_map.items():
+                src_norm = _normalize(str(src))
+                dst_text = str(dst).strip()
+                if src_norm and dst_text:
+                    self.aliases[src_norm] = dst_text
+
+        label_map = payload.get("label_keywords", {})
+        if isinstance(label_map, dict):
+            for label, keywords in label_map.items():
+                label_key = _normalize(str(label))
+                if not label_key:
+                    continue
+                bucket: Set[str] = set()
+                if isinstance(keywords, list):
+                    for keyword in keywords:
+                        token = _normalize(str(keyword))
+                        if token:
+                            bucket.add(token)
+                if bucket:
+                    self.label_keywords[label_key] = bucket
+
+        self.loaded = bool(self.aliases or self.label_keywords)
+        logger.info(
+            "Loaded ontology hints: aliases=%d label_groups=%d",
+            len(self.aliases),
+            len(self.label_keywords),
+        )
+
+    def resolve_alias(self, entity_text: str) -> str:
+        key = _normalize(entity_text)
+        return self.aliases.get(key, entity_text)
+
+    def infer_label_hints(self, question: str) -> Set[str]:
+        q_norm = _normalize(question)
+        hits: Set[str] = set()
+        if not q_norm:
+            return hits
+
+        for label, keywords in self.label_keywords.items():
+            if any(keyword in q_norm for keyword in keywords):
+                hits.add(label)
+        return hits
+
+    def to_summary(self) -> Dict[str, object]:
+        return {
+            "path": self.path,
+            "loaded": self.loaded,
+            "alias_count": len(self.aliases),
+            "label_group_count": len(self.label_keywords),
+        }
 
 
-@dataclass(frozen=True)
-class InsufficiencyAssessment:
-    sufficient: bool
-    reason: str
-    missing_slots: Tuple[str, ...]
-    row_count: int
-    filled_slots: Tuple[str, ...] = ()
-
-
-class SemanticConstraintSliceBuilder:
-    """Build a lightweight semantic-layer slice for deterministic query generation."""
+class ManagedVocabularyResolver:
+    """Resolve query aliases from approved semantic artifact vocabulary."""
 
     def __init__(
         self,
         *,
-        artifact_base_dir: Optional[str] = None,
-        global_workspace_id: Optional[str] = None,
+        base_dir: str | None = None,
+        global_workspace_id: str | None = None,
     ) -> None:
-        self.artifact_base_dir = artifact_base_dir or os.getenv(
-            "SEMANTIC_ARTIFACT_DIR",
-            DEFAULT_SEMANTIC_ARTIFACT_DIR,
-        )
-        self.global_workspace_id = (
-            global_workspace_id
-            or os.getenv("VOCABULARY_GLOBAL_WORKSPACE_ID", "global").strip()
-            or "global"
-        )
+        self.base_dir = base_dir or os.getenv("SEMANTIC_ARTIFACT_DIR", DEFAULT_SEMANTIC_ARTIFACT_DIR)
+        configured_global = os.getenv("VOCABULARY_GLOBAL_WORKSPACE_ID", "global").strip()
+        self.global_workspace_id = global_workspace_id or configured_global or "global"
+        self.enabled = os.getenv("VOCABULARY_RESOLVER_ENABLED", "1").strip().lower() not in {
+            "0",
+            "false",
+            "no",
+            "off",
+        }
+        self._cache: Dict[str, Dict[str, Any]] = {}
 
-    def build_for_databases(
-        self,
-        databases: Sequence[str],
-        *,
-        workspace_id: str,
-    ) -> Dict[str, Dict[str, Any]]:
+    def resolve_alias(self, entity_text: str, workspace_id: str = "default") -> str:
+        if not self.enabled:
+            return entity_text
+        normalized = _normalize(entity_text)
+        if not normalized:
+            return entity_text
+        payload = self._workspace_payload(workspace_id)
+        return str(payload["aliases"].get(normalized, entity_text))
+
+    def to_summary(self, workspace_id: str = "default") -> Dict[str, Any]:
+        payload = self._workspace_payload(workspace_id)
         return {
-            str(database): self.build_for_database(str(database), workspace_id=workspace_id)
-            for database in databases
-        }
-
-    def build_for_database(self, database: str, *, workspace_id: str) -> Dict[str, Any]:
-        graph_target = graph_registry.find_by_database(database)
-        graph_id = graph_target.graph_id if graph_target is not None else database
-        ontology_id = (
-            str(graph_target.ontology_id).strip()
-            if graph_target is not None and str(graph_target.ontology_id).strip()
-            else database
-        )
-        vocabulary_profile = (
-            str(graph_target.vocabulary_profile).strip()
-            if graph_target is not None and str(graph_target.vocabulary_profile).strip()
-            else "vocabulary.v2"
-        )
-
-        artifact_payloads = self._load_matching_artifacts(
-            workspace_id=workspace_id,
-            ontology_id=ontology_id,
-            graph_id=graph_id,
-            database=database,
-        )
-        ontology_candidate = _merge_ontology_candidates(
-            [payload.get("ontology_candidate") for payload in artifact_payloads]
-        )
-        shacl_candidate = _merge_shacl_candidates(
-            [payload.get("shacl_candidate") for payload in artifact_payloads]
-        )
-        vocabulary_candidate = _merge_vocabulary_candidates(
-            [payload.get("vocabulary_candidate") for payload in artifact_payloads]
-        )
-
-        allowed_labels = sorted(
-            {
-                str(item.get("name", "")).strip()
-                for item in ontology_candidate.get("classes", [])
-                if isinstance(item, dict) and str(item.get("name", "")).strip()
-            }
-        )
-        allowed_relationship_types = sorted(
-            {
-                str(item.get("type", "")).strip()
-                for item in ontology_candidate.get("relationships", [])
-                if isinstance(item, dict) and str(item.get("type", "")).strip()
-            }
-        )
-        allowed_properties = set(COMMON_ALLOWED_PROPERTIES)
-        for cls in ontology_candidate.get("classes", []):
-            if not isinstance(cls, dict):
-                continue
-            for prop in cls.get("properties", []):
-                if not isinstance(prop, dict):
-                    continue
-                prop_name = str(prop.get("name", "")).strip()
-                if prop_name:
-                    allowed_properties.add(prop_name)
-        for shape in shacl_candidate.get("shapes", []):
-            if not isinstance(shape, dict):
-                continue
-            for prop in shape.get("properties", []):
-                if not isinstance(prop, dict):
-                    continue
-                path = str(prop.get("path", "")).strip()
-                if path:
-                    allowed_properties.add(path)
-
-        return {
-            "graph_id": graph_id,
-            "database": database,
-            "ontology_id": ontology_id,
-            "vocabulary_profile": vocabulary_profile,
-            "artifact_ids": [
-                str(payload.get("artifact_id", "")).strip()
-                for payload in artifact_payloads
-                if str(payload.get("artifact_id", "")).strip()
-            ],
-            "ontology_candidate": ontology_candidate,
-            "shacl_candidate": shacl_candidate,
-            "vocabulary_candidate": vocabulary_candidate,
-            "allowed_labels": allowed_labels,
-            "allowed_relationship_types": allowed_relationship_types,
-            "allowed_properties": sorted(allowed_properties),
-            "relation_aliases": self._build_relation_aliases(ontology_candidate),
-            "label_aliases": self._build_label_aliases(ontology_candidate, vocabulary_candidate),
-            "json_ld_context": self._build_json_ld_context(
-                ontology_id=ontology_id,
-                ontology_candidate=ontology_candidate,
-                vocabulary_candidate=vocabulary_candidate,
-            ),
-            "constraint_strength": (
-                "semantic_layer"
-                if artifact_payloads
-                else "graph_metadata_only"
-            ),
-        }
-
-    def _load_matching_artifacts(
-        self,
-        *,
-        workspace_id: str,
-        ontology_id: str,
-        graph_id: str,
-        database: str,
-    ) -> List[Dict[str, Any]]:
-        candidates: List[Dict[str, Any]] = []
-        for current_workspace in {self.global_workspace_id, workspace_id}:
-            approved_rows = list_semantic_artifacts(
-                workspace_id=current_workspace,
-                status="approved",
-                base_dir=self.artifact_base_dir,
-            )
-            for row in approved_rows:
-                artifact_id = str(row.get("artifact_id", "")).strip()
-                if not artifact_id:
-                    continue
-                try:
-                    payload = get_semantic_artifact(
-                        workspace_id=current_workspace,
-                        artifact_id=artifact_id,
-                        base_dir=self.artifact_base_dir,
-                    )
-                except FileNotFoundError:
-                    continue
-                if not self._artifact_matches(
-                    payload,
-                    ontology_id=ontology_id,
-                    graph_id=graph_id,
-                    database=database,
-                ):
-                    continue
-                candidates.append(payload)
-        candidates.sort(
-            key=lambda payload: (
-                str(payload.get("approved_at") or ""),
-                str(payload.get("created_at") or ""),
-                str(payload.get("artifact_id") or ""),
-            )
-        )
-        return candidates
-
-    @staticmethod
-    def _artifact_matches(
-        payload: Dict[str, Any],
-        *,
-        ontology_id: str,
-        graph_id: str,
-        database: str,
-    ) -> bool:
-        ontology_candidate = payload.get("ontology_candidate", {})
-        ontology_name = str(ontology_candidate.get("ontology_name", "")).strip()
-        artifact_name = str(payload.get("name", "")).strip()
-
-        normalized_targets = {
-            _normalize_symbol(ontology_id),
-            _normalize_symbol(graph_id),
-            _normalize_symbol(database),
-        }
-        normalized_targets.discard("")
-        normalized_candidates = {
-            _normalize_symbol(ontology_name),
-            _normalize_symbol(artifact_name),
-        }
-        normalized_candidates.discard("")
-        if not normalized_targets:
-            return True
-        if normalized_targets & normalized_candidates:
-            return True
-        return False
-
-    @staticmethod
-    def _build_relation_aliases(ontology_candidate: Dict[str, Any]) -> Dict[str, str]:
-        aliases: Dict[str, str] = {}
-        for rel in ontology_candidate.get("relationships", []):
-            if not isinstance(rel, dict):
-                continue
-            relation_type = str(rel.get("type", "")).strip()
-            if not relation_type:
-                continue
-            for candidate in [relation_type, *rel.get("aliases", []), *rel.get("related", [])]:
-                normalized = _normalize_symbol(candidate)
-                if normalized:
-                    aliases[normalized] = relation_type
-        return aliases
-
-    @staticmethod
-    def _build_label_aliases(
-        ontology_candidate: Dict[str, Any],
-        vocabulary_candidate: Dict[str, Any],
-    ) -> Dict[str, str]:
-        aliases: Dict[str, str] = {}
-        for cls in ontology_candidate.get("classes", []):
-            if not isinstance(cls, dict):
-                continue
-            canonical = str(cls.get("name", "")).strip()
-            if not canonical:
-                continue
-            for candidate in [canonical, *cls.get("aliases", []), *cls.get("related", [])]:
-                normalized = _normalize_symbol(candidate)
-                if normalized:
-                    aliases[normalized] = canonical
-
-        for term in vocabulary_candidate.get("terms", []):
-            if not isinstance(term, dict):
-                continue
-            canonical = str(
-                term.get("canonical")
-                or term.get("pref_label")
-                or term.get("name")
-                or ""
-            ).strip()
-            if not canonical:
-                continue
-            for candidate in [
-                canonical,
-                *term.get("aliases", []),
-                *term.get("alt_labels", []),
-                *term.get("hidden_labels", []),
-            ]:
-                normalized = _normalize_symbol(candidate)
-                if normalized:
-                    aliases[normalized] = canonical
-        return aliases
-
-    @staticmethod
-    def _build_json_ld_context(
-        *,
-        ontology_id: str,
-        ontology_candidate: Dict[str, Any],
-        vocabulary_candidate: Dict[str, Any],
-    ) -> Dict[str, Any]:
-        base = f"seocho://semantic/{_slugify_symbol(ontology_id)}/"
-        context: Dict[str, Any] = {"@vocab": base}
-
-        def register(term: str, iri: Optional[str] = None) -> None:
-            term_text = str(term).strip()
-            if not term_text:
-                return
-            context[term_text] = iri or f"{base}{_slugify_symbol(term_text)}"
-
-        for cls in ontology_candidate.get("classes", []):
-            if not isinstance(cls, dict):
-                continue
-            register(cls.get("name", ""))
-            for alias in cls.get("aliases", []):
-                register(alias)
-        for rel in ontology_candidate.get("relationships", []):
-            if not isinstance(rel, dict):
-                continue
-            register(rel.get("type", ""))
-            for alias in rel.get("aliases", []):
-                register(alias)
-        for term in vocabulary_candidate.get("terms", []):
-            if not isinstance(term, dict):
-                continue
-            iri = str(term.get("uri") or term.get("id") or "").strip() or None
-            register(term.get("pref_label") or term.get("canonical") or term.get("name"), iri)
-            for alias in [*term.get("alt_labels", []), *term.get("hidden_labels", []), *term.get("aliases", [])]:
-                register(alias, iri)
-        return context
-
-
-class CypherQueryValidator:
-    """Validate constrained Cypher plans before execution."""
-
-    def validate(self, plan: CypherPlan, constraint_slice: Dict[str, Any]) -> Dict[str, Any]:
-        normalized_query = " " + re.sub(r"\s+", " ", plan.query.upper()) + " "
-        violations: List[str] = []
-        if "$node_id" not in plan.query:
-            violations.append("missing_node_binding")
-        if "RETURN" not in normalized_query:
-            violations.append("missing_return_clause")
-        for token in FORBIDDEN_CYPHER_TOKENS:
-            if token in normalized_query:
-                violations.append(f"forbidden_token:{token.strip().lower().replace(' ', '_')}")
-
-        labels = {
-            match
-            for match in re.findall(r"\([^)]+:([A-Za-z_][A-Za-z0-9_]*)", plan.query)
-            if match
-        }
-        relation_types = {
-            match
-            for match in re.findall(r"\[[^\]]*:\s*([A-Za-z_][A-Za-z0-9_]*)", plan.query)
-            if match
-        }
-        properties = {
-            match
-            for match in re.findall(r"[A-Za-z_][A-Za-z0-9_]*\.([A-Za-z_][A-Za-z0-9_]*)", plan.query)
-            if match
-        }
-
-        allowed_labels = set(constraint_slice.get("allowed_labels", []))
-        if allowed_labels and labels - allowed_labels:
-            violations.append(
-                "unknown_labels:" + ",".join(sorted(labels - allowed_labels))
-            )
-
-        allowed_relationship_types = set(constraint_slice.get("allowed_relationship_types", []))
-        if allowed_relationship_types and relation_types - allowed_relationship_types:
-            violations.append(
-                "unknown_relationship_types:" + ",".join(sorted(relation_types - allowed_relationship_types))
-            )
-
-        allowed_properties = set(constraint_slice.get("allowed_properties", []))
-        if allowed_properties and properties - allowed_properties:
-            violations.append(
-                "unknown_properties:" + ",".join(sorted(properties - allowed_properties))
-            )
-
-        return {
-            "ok": not violations,
-            "violations": violations,
-            "labels": sorted(labels),
-            "relation_types": sorted(relation_types),
-            "properties": sorted(properties),
-        }
-
-
-class QueryInsufficiencyClassifier:
-    """Classify whether executed graph retrieval filled the requested slots."""
-
-    def assess(self, intent: Dict[str, Any], rows: Sequence[Dict[str, Any]]) -> InsufficiencyAssessment:
-        focus_slots = [
-            str(slot).strip()
-            for slot in intent.get("focus_slots", [])
-            if str(slot).strip()
-        ]
-        row_count = len(rows)
-        if row_count == 0:
-            return InsufficiencyAssessment(
-                sufficient=False,
-                reason="empty_result",
-                missing_slots=tuple(focus_slots),
-                row_count=0,
-            )
-
-        filled_slots: Set[str] = set()
-        intent_id = str(intent.get("intent_id", "")).strip()
-        for row in rows:
-            if row.get("source_entity"):
-                filled_slots.add("source_entity")
-            if row.get("target_entity"):
-                filled_slots.add("target_entity")
-            if row.get("relation_type") or row.get("relation_paths"):
-                filled_slots.add("relation_paths")
-            if row.get("owner_or_operator"):
-                filled_slots.add("owner_or_operator")
-            if row.get("supporting_fact") or row.get("properties") or row.get("neighbors"):
-                filled_slots.add("supporting_fact")
-
-        if intent_id == "relationship_lookup":
-            if not any(row.get("relation_type") for row in rows):
-                return InsufficiencyAssessment(
-                    sufficient=False,
-                    reason="missing_relation_path",
-                    missing_slots=tuple(slot for slot in focus_slots if slot not in filled_slots or slot == "relation_paths"),
-                    row_count=row_count,
-                    filled_slots=tuple(sorted(filled_slots)),
-                )
-        if intent_id == "responsibility_lookup":
-            if not any(row.get("owner_or_operator") for row in rows):
-                return InsufficiencyAssessment(
-                    sufficient=False,
-                    reason="missing_owner_or_operator",
-                    missing_slots=tuple(slot for slot in focus_slots if slot not in filled_slots or slot == "owner_or_operator"),
-                    row_count=row_count,
-                    filled_slots=tuple(sorted(filled_slots)),
-                )
-
-        missing_slots = tuple(slot for slot in focus_slots if slot not in filled_slots)
-        if missing_slots:
-            return InsufficiencyAssessment(
-                sufficient=False,
-                reason="partial_slot_fill",
-                missing_slots=missing_slots,
-                row_count=row_count,
-                filled_slots=tuple(sorted(filled_slots)),
-            )
-        return InsufficiencyAssessment(
-            sufficient=True,
-            reason="sufficient",
-            missing_slots=(),
-            row_count=row_count,
-            filled_slots=tuple(sorted(filled_slots)),
-        )
-
-
-class IntentSupportValidator:
-    """Estimate whether a graph target can likely satisfy the requested intent."""
-
-    def assess_candidate(
-        self,
-        *,
-        question_entity: str,
-        candidate: Dict[str, Any],
-        intent: Dict[str, Any],
-        constraint_slice: Dict[str, Any],
-        preview_bundle: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
-        required_relations = [
-            str(item).strip()
-            for item in intent.get("required_relations", [])
-            if str(item).strip()
-        ]
-        required_entity_types = [
-            str(item).strip()
-            for item in intent.get("required_entity_types", [])
-            if str(item).strip()
-        ]
-        focus_slots = [
-            str(item).strip()
-            for item in intent.get("focus_slots", [])
-            if str(item).strip()
-        ]
-        preview_bundle = preview_bundle if isinstance(preview_bundle, dict) else {}
-
-        candidate_labels = [
-            str(label).strip()
-            for label in candidate.get("labels", [])
-            if str(label).strip()
-        ]
-        allowed_relationship_types = [
-            str(item).strip()
-            for item in constraint_slice.get("allowed_relationship_types", [])
-            if str(item).strip()
-        ]
-
-        matched_relations = self._matched_relations(required_relations, constraint_slice)
-        non_generic_entity_types = [
-            item for item in required_entity_types
-            if _normalize_symbol(item) not in {"", "entity"}
-        ]
-        matched_entity_types = self._matched_entity_types(non_generic_entity_types, candidate_labels)
-
-        grounded_slots = set()
-        if question_entity or candidate.get("display_name"):
-            grounded_slots.add("target_entity")
-        if len(preview_bundle.get("candidate_entities", [])) > 1:
-            grounded_slots.add("source_entity")
-
-        relation_coverage = 1.0
-        if required_relations:
-            relation_coverage = len(matched_relations) / max(1, len(required_relations))
-
-        entity_type_coverage = 1.0
-        if non_generic_entity_types:
-            entity_type_coverage = len(matched_entity_types) / max(1, len(non_generic_entity_types))
-
-        slot_coverage = 1.0
-        if focus_slots:
-            slot_coverage = len(grounded_slots & set(focus_slots)) / max(1, len(focus_slots))
-
-        if required_relations:
-            coverage = (0.35 * slot_coverage) + (0.35 * relation_coverage) + (0.30 * entity_type_coverage)
-        else:
-            coverage = (0.70 * slot_coverage) + (0.30 * entity_type_coverage)
-        coverage = round(min(1.0, coverage), 4)
-
-        reason = "supported"
-        status = "supported"
-        if not candidate.get("node_id"):
-            reason = "no_candidate_node"
-            status = "unsupported"
-        elif required_relations and not matched_relations and constraint_slice.get("constraint_strength") == "semantic_layer":
-            reason = "missing_required_relation_support"
-            status = "partial"
-        elif non_generic_entity_types and not matched_entity_types:
-            reason = "entity_type_mismatch"
-            status = "partial"
-        elif coverage < 0.45:
-            reason = "low_support_coverage"
-            status = "partial"
-
-        supported = status == "supported"
-        missing_slots = [slot for slot in focus_slots if slot not in grounded_slots]
-        return {
-            "schema_version": "intent_support.v1",
-            "intent_id": str(intent.get("intent_id", "")).strip(),
-            "question_entity": question_entity,
-            "display_name": str(candidate.get("display_name") or question_entity).strip(),
-            "graph_id": str(constraint_slice.get("graph_id", "")).strip(),
-            "database": str(candidate.get("database") or constraint_slice.get("database") or "").strip(),
-            "constraint_strength": str(constraint_slice.get("constraint_strength", "")).strip(),
-            "supported": supported,
-            "status": status,
-            "reason": reason,
-            "coverage": coverage,
-            "confidence": round(float(candidate.get("final_score", 0.0) or 0.0), 4),
-            "required_relations": required_relations,
-            "matched_relations": matched_relations,
-            "required_entity_types": required_entity_types,
-            "matched_entity_types": matched_entity_types,
-            "focus_slots": focus_slots,
-            "grounded_slots": sorted(grounded_slots & set(focus_slots)),
-            "missing_slots": missing_slots,
-        }
-
-    def finalize_runtime_support(
-        self,
-        *,
-        preflight: Optional[Dict[str, Any]],
-        intent: Dict[str, Any],
-        bundle: Dict[str, Any],
-        assessment: InsufficiencyAssessment,
-        plan: CypherPlan,
-        constraint_slice: Dict[str, Any],
-    ) -> Dict[str, Any]:
-        focus_slots = [
-            str(item).strip()
-            for item in intent.get("focus_slots", [])
-            if str(item).strip()
-        ]
-        grounded_slots = {
-            str(item).strip()
-            for item in bundle.get("grounded_slots", [])
-            if str(item).strip()
-        }
-        selected_triples = bundle.get("selected_triples", [])
-        matched_relations = []
-        for triple in selected_triples:
-            if not isinstance(triple, dict):
-                continue
-            relation = str(triple.get("relation", "")).strip()
-            if relation and relation not in matched_relations:
-                matched_relations.append(relation)
-
-        coverage = round(
-            len(grounded_slots & set(focus_slots)) / max(1, len(focus_slots)),
-            4,
-        ) if focus_slots else 1.0
-
-        support = dict(preflight or {})
-        support.update(
-            {
-                "schema_version": "intent_support.v1",
-                "intent_id": str(intent.get("intent_id", "")).strip(),
-                "graph_id": str(constraint_slice.get("graph_id", "")).strip(),
-                "database": plan.database,
-                "supported": assessment.sufficient,
-                "status": "supported" if assessment.sufficient else ("partial" if grounded_slots else "unsupported"),
-                "reason": assessment.reason,
-                "coverage": coverage,
-                "matched_relations": matched_relations,
-                "focus_slots": focus_slots,
-                "grounded_slots": sorted(grounded_slots & set(focus_slots)),
-                "missing_slots": list(assessment.missing_slots),
-                "row_count": assessment.row_count,
-                "selected_triple_count": len(selected_triples),
-            }
-        )
-        return support
-
-    @staticmethod
-    def empty_assessment(intent: Dict[str, Any]) -> Dict[str, Any]:
-        focus_slots = [
-            str(item).strip()
-            for item in intent.get("focus_slots", [])
-            if str(item).strip()
-        ]
-        return {
-            "schema_version": "intent_support.v1",
-            "intent_id": str(intent.get("intent_id", "")).strip(),
-            "supported": False,
-            "status": "unsupported",
-            "reason": "no_entity_match",
-            "coverage": 0.0,
-            "confidence": 0.0,
-            "required_relations": [
-                str(item).strip()
-                for item in intent.get("required_relations", [])
-                if str(item).strip()
-            ],
-            "matched_relations": [],
-            "required_entity_types": [
-                str(item).strip()
-                for item in intent.get("required_entity_types", [])
-                if str(item).strip()
-            ],
-            "matched_entity_types": [],
-            "focus_slots": focus_slots,
-            "grounded_slots": [],
-            "missing_slots": focus_slots,
-        }
-
-    @staticmethod
-    def _matched_relations(required_relations: Sequence[str], constraint_slice: Dict[str, Any]) -> List[str]:
-        allowed_lookup = {
-            _normalize_symbol(item): str(item).strip()
-            for item in constraint_slice.get("allowed_relationship_types", [])
-            if str(item).strip()
-        }
-        matched: List[str] = []
-        for relation in required_relations:
-            normalized = _normalize_symbol(relation)
-            if normalized and normalized in allowed_lookup:
-                matched.append(allowed_lookup[normalized])
-        return matched
-
-    @staticmethod
-    def _matched_entity_types(required_entity_types: Sequence[str], candidate_labels: Sequence[str]) -> List[str]:
-        label_lookup = {
-            _normalize_symbol(item): str(item).strip()
-            for item in candidate_labels
-            if str(item).strip()
-        }
-        matched: List[str] = []
-        for entity_type in required_entity_types:
-            normalized = _normalize_symbol(entity_type)
-            if normalized and normalized in label_lookup:
-                matched.append(label_lookup[normalized])
-        return matched
-
-
-class ExecutionStrategyChooser:
-    """Choose and summarize semantic execution strategy."""
-
-    def choose_initial(
-        self,
-        *,
-        route: str,
-        reasoning_mode: bool,
-        repair_budget: int,
-        support_assessment: Dict[str, Any],
-        graph_count: int,
-        cross_graph_analysis: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
-        support_status = str(support_assessment.get("status", "unsupported")).strip() or "unsupported"
-        cross_graph_analysis = cross_graph_analysis if isinstance(cross_graph_analysis, dict) else {}
-        if route == "rdf":
-            initial_mode = "rdf"
-            reason = "question matched RDF-oriented cues"
-        elif reasoning_mode or repair_budget > 0:
-            initial_mode = "semantic_repair"
-            reason = "bounded repair was explicitly requested"
-        elif support_status == "supported":
-            initial_mode = "semantic_direct"
-            reason = "intent support is available for the selected graph scope"
-        elif graph_count > 1 and cross_graph_analysis.get("recommended_advanced"):
-            initial_mode = "semantic_direct"
-            reason = "cross-graph disagreement is detectable, but semantic mode stays the first pass"
-        elif graph_count > 1:
-            initial_mode = "semantic_direct"
-            reason = "starting with the cheapest grounded path before recommending advanced review"
-        else:
-            initial_mode = "semantic_direct"
-            reason = "starting with a lightweight semantic pass"
-
-        return {
-            "schema_version": "strategy_decision.v1",
-            "requested_mode": "semantic",
-            "initial_mode": initial_mode,
-            "executed_mode": initial_mode,
-            "reasoning_mode_requested": bool(reasoning_mode),
-            "repair_budget": max(0, int(repair_budget or 0)),
-            "support_status": support_status,
-            "reason": reason,
-            "advanced_debate_recommended": False,
-            "self_reflection_used": False,
-            "next_mode_hint": None,
-            "sdk_hint": None,
-            "cross_graph_analysis": cross_graph_analysis,
-        }
-
-    def finalize(
-        self,
-        *,
-        initial_decision: Dict[str, Any],
-        route: str,
-        graph_count: int,
-        support_assessment: Dict[str, Any],
-        reasoning: Optional[Dict[str, Any]],
-        cross_graph_analysis: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
-        decision = dict(initial_decision or {})
-        reasoning = reasoning if isinstance(reasoning, dict) else {}
-        cross_graph_analysis = cross_graph_analysis if isinstance(cross_graph_analysis, dict) else {}
-        support_status = str(support_assessment.get("status", "unsupported")).strip() or "unsupported"
-        self_reflection_used = bool(reasoning.get("self_reflection_used", False))
-
-        if route == "rdf":
-            executed_mode = "rdf"
-        elif route == "hybrid":
-            executed_mode = "hybrid"
-        elif self_reflection_used:
-            executed_mode = "semantic_self_reflect"
-        elif reasoning.get("requested"):
-            executed_mode = "semantic_repair"
-        else:
-            executed_mode = "semantic_direct"
-
-        next_mode_hint = None
-        sdk_hint = None
-        advanced_debate_recommended = False
-        if cross_graph_analysis.get("recommended_advanced"):
-            advanced_debate_recommended = True
-            next_mode_hint = "advanced"
-            sdk_hint = "Use client.plan(...).advanced().run() when graph scopes disagree materially."
-        elif not support_assessment.get("supported", False):
-            if graph_count > 1:
-                advanced_debate_recommended = True
-                next_mode_hint = "advanced"
-                sdk_hint = "Use client.plan(...).advanced().run() for an explicit cross-graph debate."
-            elif not reasoning.get("requested"):
-                next_mode_hint = "reasoning_mode"
-                sdk_hint = "Use client.plan(...).with_repair_budget(2).run() to allow bounded repair."
-            else:
-                next_mode_hint = "entity_override_or_semantic_artifact"
-                sdk_hint = "Add entity overrides or improve approved semantic artifacts for this graph."
-
-        decision.update(
-            {
-                "executed_mode": executed_mode,
-                "support_status": support_status,
-                "advanced_debate_recommended": advanced_debate_recommended,
-                "self_reflection_used": self_reflection_used,
-                "next_mode_hint": next_mode_hint,
-                "sdk_hint": sdk_hint,
-                "cross_graph_analysis": cross_graph_analysis,
-            }
-        )
-        return decision
-
-
-IntentSpec = CanonicalIntentSpec
-CypherPlan = CanonicalCypherPlan
-InsufficiencyAssessment = CanonicalInsufficiencyAssessment
-CypherQueryValidator = CanonicalCypherQueryValidator
-QueryInsufficiencyClassifier = CanonicalQueryInsufficiencyClassifier
-IntentSupportValidator = CanonicalIntentSupportValidator
-ExecutionStrategyChooser = CanonicalExecutionStrategyChooser
-SemanticConstraintSliceBuilder = CanonicalSemanticConstraintSliceBuilder
-
-
-class RunMetadataRegistry:
-    """Persist a lightweight semantic execution registry outside the graph store."""
-
-    def __init__(self, path: Optional[str] = None) -> None:
-        default_path = (
-            os.getenv("SEOCHO_SEMANTIC_METADATA_DB")
-            or os.getenv("SEOCHO_RUN_METADATA_PATH")
-            or "outputs/semantic_metadata"
-        )
-        self.path = path or default_path
-
-    def record_run(
-        self,
-        *,
-        question: str,
-        workspace_id: str,
-        route: str,
-        semantic_context: Dict[str, Any],
-        lpg_result: Optional[Dict[str, Any]],
-        rdf_result: Optional[Dict[str, Any]],
-        response: str,
-    ) -> Dict[str, Any]:
-        timestamp = datetime.now(timezone.utc).isoformat()
-        run_id = f"run_{uuid4().hex}"
-        evidence_bundle = semantic_context.get("evidence_bundle_preview", {})
-        support_assessment = semantic_context.get("support_assessment", {})
-        strategy_decision = semantic_context.get("strategy_decision", {})
-        record = {
-            "schema_version": "semantic_run_registry.v1",
-            "run_id": run_id,
-            "timestamp": timestamp,
+            "enabled": self.enabled,
+            "base_dir": self.base_dir,
             "workspace_id": workspace_id,
-            "query_preview": question[:240],
-            "query_hash": sha1(question.encode("utf-8")).hexdigest(),
-            "route": route,
-            "intent_id": str(semantic_context.get("intent", {}).get("intent_id", "")).strip(),
-            "support_assessment": support_assessment,
-            "strategy_decision": strategy_decision,
-            "reasoning": semantic_context.get("reasoning", {}),
-            "evidence_summary": {
-                "grounded_slots": list(evidence_bundle.get("grounded_slots", [])),
-                "missing_slots": list(evidence_bundle.get("missing_slots", [])),
-                "selected_triple_count": len(evidence_bundle.get("selected_triples", [])),
-                "confidence": float(evidence_bundle.get("confidence", 0.0) or 0.0),
+            "global_workspace_id": self.global_workspace_id,
+            "alias_count": len(payload["aliases"]),
+            "approved_artifact_counts": payload["approved_artifact_counts"],
+        }
+
+    def clear_cache(self) -> None:
+        self._cache = {}
+
+    def _workspace_payload(self, workspace_id: str) -> Dict[str, Any]:
+        key = str(workspace_id or "default")
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+
+        global_payload = self._collect_workspace_aliases(self.global_workspace_id)
+        workspace_payload = (
+            self._collect_workspace_aliases(key)
+            if key != self.global_workspace_id
+            else {"aliases": {}, "approved_count": 0}
+        )
+
+        aliases: Dict[str, str] = {}
+        aliases.update(global_payload["aliases"])
+        aliases.update(workspace_payload["aliases"])
+
+        payload = {
+            "aliases": aliases,
+            "approved_artifact_counts": {
+                "global": int(global_payload["approved_count"]),
+                "workspace": int(workspace_payload["approved_count"]),
             },
-            "lpg_record_count": len((lpg_result or {}).get("records", [])),
-            "rdf_record_count": len((rdf_result or {}).get("records", [])),
-            "response_preview": response[:240],
         }
+        self._cache[key] = payload
+        return payload
 
-        try:
-            stored = save_semantic_run(record, base_dir=self.path)
-            recorded = True
-        except Exception:
-            recorded = False
-            stored = {"db_path": self.path}
-            logger.warning("Failed to persist semantic run metadata.", exc_info=True)
+    def _collect_workspace_aliases(self, workspace_id: str) -> Dict[str, Any]:
+        approved_rows = self._list_semantic_artifacts(workspace_id, status="approved")
+        if not approved_rows:
+            return {"aliases": {}, "approved_count": 0}
 
-        return {
-            "schema_version": "semantic_run_registry.v1",
-            "run_id": run_id,
-            "recorded": recorded,
-            "registry_path": str(stored.get("db_path", self.path)),
-            "timestamp": timestamp,
-        }
+        aliases: Dict[str, str] = {}
+        ordered_rows = sorted(
+            approved_rows,
+            key=lambda row: (
+                str(row.get("approved_at") or ""),
+                str(row.get("created_at") or ""),
+                str(row.get("artifact_id") or ""),
+            ),
+        )
+        for row in ordered_rows:
+            artifact_id = str(row.get("artifact_id") or "").strip()
+            if not artifact_id:
+                continue
+            try:
+                payload = self._get_semantic_artifact(workspace_id, artifact_id)
+            except FileNotFoundError:
+                logger.warning(
+                    "Approved semantic artifact missing on disk: workspace=%s artifact_id=%s",
+                    workspace_id,
+                    artifact_id,
+                )
+                continue
+            self._merge_aliases_from_artifact(payload, aliases)
+        return {"aliases": aliases, "approved_count": len(ordered_rows)}
+
+    def _workspace_dir(self, workspace_id: str) -> Path:
+        return Path(self.base_dir) / workspace_id
+
+    def _list_semantic_artifacts(
+        self,
+        workspace_id: str,
+        *,
+        status: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        workspace_path = self._workspace_dir(workspace_id)
+        if not workspace_path.exists():
+            return []
+
+        rows: List[Dict[str, Any]] = []
+        for path in workspace_path.glob("*.json"):
+            with path.open("r", encoding="utf-8") as fp:
+                payload = json.load(fp)
+            row = {
+                "artifact_id": payload.get("artifact_id"),
+                "workspace_id": payload.get("workspace_id"),
+                "name": payload.get("name"),
+                "created_at": payload.get("created_at"),
+                "status": payload.get("status", "draft"),
+                "approved_at": payload.get("approved_at"),
+                "approved_by": payload.get("approved_by"),
+                "deprecated_at": payload.get("deprecated_at"),
+                "deprecated_by": payload.get("deprecated_by"),
+            }
+            if status and row["status"] != status:
+                continue
+            rows.append(row)
+        rows.sort(key=lambda item: item.get("created_at", ""), reverse=True)
+        return rows
+
+    def _get_semantic_artifact(self, workspace_id: str, artifact_id: str) -> Dict[str, Any]:
+        artifact_path = self._workspace_dir(workspace_id) / f"{artifact_id}.json"
+        if not artifact_path.exists():
+            raise FileNotFoundError(
+                f"semantic artifact not found: workspace={workspace_id}, artifact_id={artifact_id}"
+            )
+        with artifact_path.open("r", encoding="utf-8") as fp:
+            return json.load(fp)
+
+    def _merge_aliases_from_artifact(
+        self,
+        payload: Dict[str, Any],
+        aliases: Dict[str, str],
+    ) -> None:
+        vocab_candidate = payload.get("vocabulary_candidate")
+        if isinstance(vocab_candidate, dict):
+            for term in vocab_candidate.get("terms", []):
+                if not isinstance(term, dict):
+                    continue
+                canonical = str(
+                    term.get("canonical")
+                    or term.get("pref_label")
+                    or term.get("name")
+                    or ""
+                ).strip()
+                term_aliases = term.get("aliases", [])
+                if not isinstance(term_aliases, list):
+                    term_aliases = []
+                alt_labels = term.get("alt_labels", [])
+                if not isinstance(alt_labels, list):
+                    alt_labels = []
+                hidden_labels = term.get("hidden_labels", [])
+                if not isinstance(hidden_labels, list):
+                    hidden_labels = []
+                self._register_term(aliases, canonical, [*term_aliases, *alt_labels, *hidden_labels])
+
+        ontology_candidate = payload.get("ontology_candidate", {})
+        if isinstance(ontology_candidate, dict):
+            for cls in ontology_candidate.get("classes", []):
+                if not isinstance(cls, dict):
+                    continue
+                canonical = str(cls.get("name", "")).strip()
+                cls_aliases = cls.get("aliases", [])
+                if not isinstance(cls_aliases, list):
+                    cls_aliases = []
+                self._register_term(aliases, canonical, cls_aliases)
+
+            for rel in ontology_candidate.get("relationships", []):
+                if not isinstance(rel, dict):
+                    continue
+                canonical = str(rel.get("type", "")).strip()
+                rel_aliases = rel.get("aliases", [])
+                if not isinstance(rel_aliases, list):
+                    rel_aliases = []
+                self._register_term(aliases, canonical, rel_aliases)
+
+        shacl_candidate = payload.get("shacl_candidate", {})
+        if isinstance(shacl_candidate, dict):
+            for shape in shacl_candidate.get("shapes", []):
+                if not isinstance(shape, dict):
+                    continue
+                self._register_term(aliases, str(shape.get("target_class", "")).strip(), [])
+
+    @staticmethod
+    def _register_term(
+        aliases: Dict[str, str],
+        canonical: str,
+        term_aliases: List[Any],
+    ) -> None:
+        canonical_text = str(canonical).strip()
+        if not canonical_text:
+            return
+        values: List[str] = [canonical_text]
+        for item in term_aliases:
+            alias = str(item).strip()
+            if alias:
+                values.append(alias)
+        for value in values:
+            normalized = _normalize(value)
+            if normalized:
+                aliases[normalized] = canonical_text
 
 
-RunMetadataRegistry = CanonicalRunMetadataRegistry
+@dataclass(frozen=True)
+class SemanticProfilePackage:
+    profile_id: str
+    ontology_ids: tuple[str, ...]
+    intent_id: str
+    query_kind: str
+    relation_priority: tuple[str, ...]
+    notes: str = ""
+
+
+_PACKAGES: tuple[SemanticProfilePackage, ...] = (
+    SemanticProfilePackage(
+        profile_id="baseline.relationship.v1",
+        ontology_ids=("baseline", "kgnormal", "neo4j"),
+        intent_id="relationship_lookup",
+        query_kind="relationship_lookup",
+        relation_priority=("RELATES_TO", "USES", "WORKS_WITH", "OWNS"),
+        notes="Deterministic relationship lookup for baseline graphs.",
+    ),
+    SemanticProfilePackage(
+        profile_id="baseline.responsibility.v1",
+        ontology_ids=("baseline", "kgnormal", "neo4j"),
+        intent_id="responsibility_lookup",
+        query_kind="responsibility_lookup",
+        relation_priority=("MANAGES", "OPERATES", "LEADS", "OWNS"),
+        notes="Deterministic responsibility lookup for baseline graphs.",
+    ),
+    SemanticProfilePackage(
+        profile_id="fibo.relationship.v1",
+        ontology_ids=("fibo", "kgfibo", "finance"),
+        intent_id="relationship_lookup",
+        query_kind="relationship_lookup",
+        relation_priority=("RELATES_TO", "ISSUED_BY", "CONTROLS", "OWNS"),
+        notes="Deterministic relationship lookup for FIBO-aligned graphs.",
+    ),
+    SemanticProfilePackage(
+        profile_id="fibo.responsibility.v1",
+        ontology_ids=("fibo", "kgfibo", "finance"),
+        intent_id="responsibility_lookup",
+        query_kind="responsibility_lookup",
+        relation_priority=("OWNS", "CONTROLS", "OPERATES", "MANAGES"),
+        notes="Deterministic responsibility lookup for FIBO-aligned graphs.",
+    ),
+)
+
+
+def select_semantic_profile_package(
+    *,
+    intent_id: str,
+    constraint_slice: Dict[str, Any],
+) -> Optional[SemanticProfilePackage]:
+    normalized_intent = str(intent_id or "").strip()
+    ontology_candidates = {
+        str(constraint_slice.get("ontology_id", "")).strip().lower(),
+        str(constraint_slice.get("graph_id", "")).strip().lower(),
+        str(constraint_slice.get("database", "")).strip().lower(),
+    }
+    ontology_candidates.discard("")
+    for package in _PACKAGES:
+        if package.intent_id != normalized_intent:
+            continue
+        if ontology_candidates & {item.lower() for item in package.ontology_ids}:
+            return package
+    return None
+
+
+def apply_profile_relation_priority(
+    *,
+    package: Optional[SemanticProfilePackage],
+    relation_types: Sequence[str],
+    constraint_slice: Dict[str, Any],
+) -> List[str]:
+    if package is None:
+        return list(relation_types)
+    allowed = {
+        str(item).strip()
+        for item in constraint_slice.get("allowed_relationship_types", [])
+        if str(item).strip()
+    }
+    if not allowed:
+        return [relation for relation in package.relation_priority if relation]
+
+    prioritized = [relation for relation in package.relation_priority if relation in allowed]
+    passthrough = [relation for relation in relation_types if relation in allowed and relation not in prioritized]
+    if prioritized:
+        return prioritized + passthrough
+    return passthrough
 
 
 class SemanticEntityResolver:
@@ -1146,7 +525,6 @@ class SemanticEntityResolver:
         self.vocabulary_resolver = vocabulary_resolver or ManagedVocabularyResolver()
 
     def extract_question_entities(self, question: str) -> List[str]:
-        """Extract candidate entity spans from user question."""
         quoted = [m.group(1).strip() for m in re.finditer(r'"([^"]+)"', question)]
         single_quoted = [m.group(1).strip() for m in re.finditer(r"'([^']+)'", question)]
         caps = [
@@ -1169,7 +547,6 @@ class SemanticEntityResolver:
             seen.add(key)
             entities.append(cleaned)
 
-        # Fallback: use long tokens when no span was detected.
         if not entities:
             for token in re.findall(r"[A-Za-z0-9][A-Za-z0-9&._-]{2,}", question):
                 key = token.lower()
@@ -1189,7 +566,6 @@ class SemanticEntityResolver:
         databases: Sequence[str],
         workspace_id: str = "default",
     ) -> Dict[str, Any]:
-        """Resolve entities for a question across one or more databases."""
         entities = self.extract_question_entities(question)
         label_hints = self._infer_label_hints(question)
         label_hints.update(self.ontology_hint_store.infer_label_hints(question))
@@ -1412,17 +788,16 @@ class SemanticEntityResolver:
 
         ranked.sort(key=lambda item: item.get("final_score", 0.0), reverse=True)
         top_candidates = ranked[: self.candidate_limit]
-        
-        # UI Signal: If confidence gap > 0.15, mark as safe to auto-pin
+
         if len(top_candidates) > 0:
             best_score = top_candidates[0].get("final_score", 0.0)
             if len(top_candidates) > 1:
                 runner_up = top_candidates[1].get("final_score", 0.0)
                 gap = best_score - runner_up
-                top_candidates[0]["is_confident"] = (gap > 0.15)
+                top_candidates[0]["is_confident"] = gap > 0.15
             else:
                 top_candidates[0]["is_confident"] = True
-                
+
         return top_candidates
 
     def _run_query(
@@ -1497,12 +872,15 @@ class QueryRouterAgent:
 class LPGAgent:
     """LPG query agent with semantic-layer-constrained Cypher planning."""
 
-    def __init__(self, connector: Any, result_limit: int = 20):
+    def __init__(
+        self,
+        connector: Any,
+        result_limit: int = 20,
+        graph_targets: Optional[Sequence[Any]] = None,
+    ):
         self.connector = connector
         self.result_limit = result_limit
-        self.constraint_builder = SemanticConstraintSliceBuilder(
-            graph_targets=graph_registry.list_graphs()
-        )
+        self.constraint_builder = SemanticConstraintSliceBuilder(graph_targets=graph_targets)
         self.validator = CypherQueryValidator()
         self.classifier = QueryInsufficiencyClassifier()
         self.support_validator = IntentSupportValidator()
@@ -2052,11 +1430,7 @@ class LPGAgent:
     @staticmethod
     def _relationship_query(*, anchor_label: str, relation_types: Sequence[str]) -> str:
         label_clause = f":{anchor_label}" if anchor_label else ""
-        relation_clause = (
-            ":" + "|".join(relation_types)
-            if relation_types
-            else ""
-        )
+        relation_clause = ":" + "|".join(relation_types) if relation_types else ""
         return f"""
         MATCH (n{label_clause})
         WHERE elementId(n) = toString($node_id)
@@ -2075,11 +1449,7 @@ class LPGAgent:
     @staticmethod
     def _responsibility_query(*, anchor_label: str, relation_types: Sequence[str]) -> str:
         label_clause = f":{anchor_label}" if anchor_label else ""
-        relation_clause = (
-            ":" + "|".join(relation_types)
-            if relation_types
-            else ""
-        )
+        relation_clause = ":" + "|".join(relation_types) if relation_types else ""
         return f"""
         MATCH (target{label_clause})
         WHERE elementId(target) = toString($node_id)
@@ -2387,255 +1757,10 @@ class AnswerGenerationAgent:
         return " ".join(lines)
 
 
-SemanticEntityResolver = CanonicalSemanticEntityResolver
-QueryRouterAgent = CanonicalQueryRouterAgent
-LPGAgent = CanonicalLPGAgent
-RDFAgent = CanonicalRDFAgent
-AnswerGenerationAgent = CanonicalAnswerGenerationAgent
-
-
-class SemanticAgentFlow:
-    """Orchestrate semantic layer + router + specialist agents + answer agent."""
-
-    def __init__(self, connector: Any):
-        self.resolver = SemanticEntityResolver(connector)
-        self.router = QueryRouterAgent()
-        self.lpg_agent = LPGAgent(connector, graph_targets=graph_registry.list_graphs())
-        self.rdf_agent = RDFAgent(connector)
-        self.answer_agent = AnswerGenerationAgent()
-        self.constraint_builder = SemanticConstraintSliceBuilder(
-            graph_targets=graph_registry.list_graphs()
-        )
-        self.strategy_chooser = ExecutionStrategyChooser()
-        self.run_registry = RunMetadataRegistry()
-
-    def run(
-        self,
-        question: str,
-        databases: Sequence[str],
-        entity_overrides: Optional[Dict[str, Dict[str, Any]]] = None,
-        workspace_id: str = "default",
-        reasoning_mode: bool = False,
-        repair_budget: int = 0,
-    ) -> Dict[str, Any]:
-        trace_steps: List[Dict[str, Any]] = []
-
-        semantic_context = self.resolver.resolve(question, databases, workspace_id=workspace_id)
-        constraint_slices = self.constraint_builder.build_for_databases(
-            databases,
-            workspace_id=workspace_id,
-        )
-        semantic_context["semantic_layer"] = {
-            "databases": {
-                database: LPGAgent._summarize_constraint_slice(constraint_slice)
-                for database, constraint_slice in constraint_slices.items()
-            }
-        }
-        self._apply_entity_overrides(semantic_context, entity_overrides or {})
-        support_ranked_matches = self.lpg_agent.preview_support(semantic_context, constraint_slices)
-        trace_steps.append(
-            {
-                "id": "0",
-                "type": "SEMANTIC",
-                "agent": "SemanticLayer",
-                "content": "Entity extraction and disambiguation completed.",
-                "metadata": {
-                    "entities": semantic_context.get("entities", []),
-                    "unresolved_entities": semantic_context.get("unresolved_entities", []),
-                    "overrides_applied": sorted(
-                        list(semantic_context.get("overrides_applied", {}).keys())
-                    ),
-                    "reasoning_mode": reasoning_mode,
-                    "repair_budget": max(0, int(repair_budget or 0)),
-                    "support_status": semantic_context.get("preflight_support_assessment", {}).get("status"),
-                },
-            }
-        )
-
-        route = self.router.route(question)
-        semantic_context["strategy_decision"] = self.strategy_chooser.choose_initial(
-            route=route,
-            reasoning_mode=reasoning_mode,
-            repair_budget=repair_budget,
-            support_assessment=semantic_context.get("preflight_support_assessment", {}),
-            graph_count=len(databases),
-            cross_graph_analysis=semantic_context.get("cross_graph_analysis"),
-        )
-        trace_steps.append(
-            {
-                "id": "1",
-                "type": "ROUTER",
-                "agent": "RouterAgent",
-                "content": f"Question routed to {route}.",
-                "metadata": {
-                    "route": route,
-                    "initial_mode": semantic_context["strategy_decision"].get("initial_mode"),
-                },
-            }
-        )
-        trace_steps.append(
-            {
-                "id": "2",
-                "type": "STRATEGY",
-                "agent": "StrategyChooser",
-                "content": semantic_context["strategy_decision"].get("reason", ""),
-                "metadata": semantic_context["strategy_decision"],
-            }
-        )
-
-        lpg_result: Optional[Dict[str, Any]] = None
-        rdf_result: Optional[Dict[str, Any]] = None
-
-        if route in {"lpg", "hybrid"}:
-            lpg_result = self.lpg_agent.run(
-                question,
-                databases,
-                semantic_context,
-                workspace_id=workspace_id,
-                reasoning_mode=reasoning_mode,
-                repair_budget=repair_budget,
-                constraint_slices=constraint_slices,
-                ranked_matches=support_ranked_matches,
-            )
-            if isinstance(lpg_result.get("evidence_bundle"), dict):
-                semantic_context["evidence_bundle_preview"] = lpg_result["evidence_bundle"]
-            if isinstance(lpg_result.get("reasoning"), dict):
-                semantic_context["reasoning"] = lpg_result["reasoning"]
-            if isinstance(lpg_result.get("support_assessment"), dict):
-                semantic_context["support_assessment"] = lpg_result["support_assessment"]
-            trace_steps.append(
-                {
-                    "id": "3",
-                    "type": "SPECIALIST",
-                    "agent": "LPGAgent",
-                    "content": lpg_result.get("summary", ""),
-                    "metadata": {
-                        "records": len(lpg_result.get("records", [])),
-                        "reasoning_attempts": int(
-                            lpg_result.get("reasoning", {}).get("attempt_count", 0)
-                        ),
-                        "terminal_reason": lpg_result.get("reasoning", {}).get("terminal_reason"),
-                        "support_status": lpg_result.get("support_assessment", {}).get("status"),
-                    },
-                }
-            )
-
-        if route in {"rdf", "hybrid"}:
-            rdf_result = self.rdf_agent.run(question, databases, semantic_context)
-            trace_steps.append(
-                {
-                    "id": "4",
-                    "type": "SPECIALIST",
-                    "agent": "RDFAgent",
-                    "content": rdf_result.get("summary", ""),
-                    "metadata": {"records": len(rdf_result.get("records", []))},
-                }
-            )
-
-        semantic_context["strategy_decision"] = self.strategy_chooser.finalize(
-            initial_decision=semantic_context.get("strategy_decision", {}),
-            route=route,
-            graph_count=len(databases),
-            support_assessment=semantic_context.get("support_assessment", {}),
-            reasoning=semantic_context.get("reasoning"),
-            cross_graph_analysis=semantic_context.get("cross_graph_analysis"),
-        )
-
-        response = self.answer_agent.synthesize(
-            question=question,
-            route=route,
-            semantic_context=semantic_context,
-            lpg_result=lpg_result,
-            rdf_result=rdf_result,
-        )
-        semantic_context["run_metadata"] = self.run_registry.record_run(
-            question=question,
-            workspace_id=workspace_id,
-            route=route,
-            semantic_context=semantic_context,
-            lpg_result=lpg_result,
-            rdf_result=rdf_result,
-            response=response,
-        )
-        trace_steps.append(
-            {
-                "id": "5",
-                "type": "GENERATION",
-                "agent": "AnswerGenerationAgent",
-                "content": response,
-                "metadata": {
-                    "support_status": semantic_context.get("support_assessment", {}).get("status"),
-                    "next_mode_hint": semantic_context.get("strategy_decision", {}).get("next_mode_hint"),
-                },
-            }
-        )
-
-        return {
-            "response": response,
-            "trace_steps": trace_steps,
-            "route": route,
-            "semantic_context": semantic_context,
-            "lpg_result": lpg_result,
-            "rdf_result": rdf_result,
-            "support_assessment": semantic_context.get("support_assessment", {}),
-            "strategy_decision": semantic_context.get("strategy_decision", {}),
-            "run_metadata": semantic_context.get("run_metadata", {}),
-            "evidence_bundle": semantic_context.get("evidence_bundle_preview", {}),
-        }
-
-    @staticmethod
-    def _apply_entity_overrides(
-        semantic_context: Dict[str, Any],
-        entity_overrides: Dict[str, Dict[str, Any]],
-    ) -> None:
-        if not entity_overrides:
-            return
-
-        matches = semantic_context.setdefault("matches", {})
-        unresolved = set(semantic_context.get("unresolved_entities", []))
-        applied: Dict[str, Dict[str, Any]] = {}
-
-        for question_entity, override in entity_overrides.items():
-            if not question_entity:
-                continue
-
-            db_name = override.get("database")
-            node_id = override.get("node_id")
-            if db_name is None or node_id is None:
-                continue
-
-            candidate = {
-                "database": str(db_name),
-                "entity_text": question_entity,
-                "node_id": node_id,
-                "labels": override.get("labels", []),
-                "display_name": override.get("display_name", question_entity),
-                "base_score": 1.0,
-                "source": "override",
-                "index_name": None,
-                "lexical_score": 1.0,
-                "label_boost": 0.0,
-                "alias_boost": 0.0,
-                "final_score": 10.0,
-            }
-
-            existing = matches.get(question_entity, [])
-            matches[question_entity] = [candidate] + [
-                row for row in existing
-                if not (row.get("database") == candidate["database"] and row.get("node_id") == candidate["node_id"])
-            ]
-            unresolved.discard(question_entity)
-            applied[question_entity] = {
-                "database": candidate["database"],
-                "node_id": candidate["node_id"],
-                "display_name": candidate["display_name"],
-            }
-
-        semantic_context["unresolved_entities"] = sorted(unresolved)
-        if applied:
-            semantic_context["overrides_applied"] = applied
-            semantic_context["evidence_bundle_preview"] = build_evidence_bundle(
-                question="",
-                semantic_context=semantic_context,
-                matched_entities=semantic_context.get("entities", []),
-            )
+__all__ = [
+    "SemanticEntityResolver",
+    "QueryRouterAgent",
+    "LPGAgent",
+    "RDFAgent",
+    "AnswerGenerationAgent",
+]

@@ -281,6 +281,20 @@ For seocho.blog sync, keep these docs current as first-class release artifacts:
 Docs updates that change user behavior or architecture intent must include a decision log update (and ADR when non-trivial).
 
 Do not treat repo docs as the default notebook for implementation thinking.
-Internal notes should normally go under
-`/home/hadry/my_local_work/obsidian/seocho`, while `.beads` remains the source
-of truth for task progress.
+
+### 3-Way Documentation Split
+
+| Layer | Location | Role | Authority |
+|-------|----------|------|-----------|
+| `docs/` | in repo | **Contract** (what IS) | external users, contributors |
+| `.beads` | in repo | **Execution** (what/when) | task state, dependencies |
+| Obsidian | `/home/hadry/my_local_work/obsidian/seocho` | **Interpretation** (why/how) | design thinking, trade-offs, open questions |
+
+Rules:
+- Obsidian wiki (`wiki/topics/`) **interprets** `docs/` decisions — never duplicates them.
+  Link to ADRs by path; write only the reasoning, background, and open questions that `docs/` doesn't carry.
+- `.beads` is the source of truth for task progress — never track task status in Obsidian.
+- `docs/` is the source of truth for architecture and API contracts — never contradict it from Obsidian.
+- When finishing a work session, update relevant Obsidian `wiki/topics/*.md` pages
+  with new insights or state changes. Keep `[[wikilinks]]` between topics current.
+- See `vault-schema.md` in the Obsidian vault for full conventions.

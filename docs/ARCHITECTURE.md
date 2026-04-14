@@ -123,6 +123,24 @@ Primary modules:
 - `extraction/policy.py`
 - `docs/decisions/`
 
+## Runtime Package Target (Active Direction)
+
+`extraction/` is a historical package name, not the desired long-term runtime
+name.
+
+Long-term package shape:
+
+- `seocho/`
+  - canonical engine modules
+- `runtime/`
+  - deployment shell, route wiring, policy, readiness, registry
+- `extraction/`
+  - extraction-only helpers or compatibility wrappers during migration
+
+We are intentionally choosing `runtime/` over `server/` because the shell owns
+more than HTTP route files. The staged migration contract lives in
+`docs/RUNTIME_PACKAGE_MIGRATION.md`.
+
 ## Ontology Module Boundaries (Active Direction)
 
 Ontology remains a first-class SDK primitive, but it should no longer behave as
@@ -183,6 +201,24 @@ Primary modules:
 - `extraction/rule_constraints.py` — re-export shim to `seocho.rules`
 - `extraction/vector_store.py` — adapter shim to `seocho.store.vector`
 - `extraction/graph_loader.py`
+
+## Benchmark Contract (Active Direction)
+
+Performance and quality must be measured in two tracks:
+
+- `FinDER`
+  - ingestion, graph construction, finance QA
+- `GraphRAG-Bench`
+  - retrieval, evidence quality, reasoning
+
+Measurement order:
+
+1. SEOCHO local SDK baseline
+2. SEOCHO runtime baseline
+3. peer baselines
+
+That rule prevents us from confusing deployment overhead with canonical engine
+quality. See `docs/BENCHMARKS.md`.
 
 ## End-to-End Data Flow
 

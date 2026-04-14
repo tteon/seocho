@@ -29,6 +29,13 @@ Primary surfaces:
 - `docs/decisions/`
 - `docs/BEADS_OPERATING_MODEL.md`
 
+Long-term target:
+
+- `runtime/` becomes the canonical deployment-shell package
+- `extraction/` shrinks to extraction-only concerns or compatibility wrappers
+- until the rename lands, treat `extraction/` as a historical shell name, not as
+  the owner of canonical business logic
+
 ## Data Plane
 
 Responsibilities:
@@ -101,6 +108,10 @@ Semantic path summary:
 - run code and ops gates
 - run runtime flow smoke gate (`make e2e-smoke`) when API/UI/data-plane contracts change
 - run quickstart reproducibility check (raw ingest -> semantic/debate chat) before release notes
+- when performance work is in scope, run the relevant benchmark track before and
+  after the change:
+  - `FinDER` for ingestion / finance QA
+  - `GraphRAG-Bench` for retrieval / reasoning
 - optional one-command landing wrapper: `scripts/land.sh --task-id <id> --fix --pull --push`
 - run sprint label lint (`scripts/pm/lint-items.sh --sprint <id>`)
 - run agent docs lint (`scripts/pm/lint-agent-docs.sh`)

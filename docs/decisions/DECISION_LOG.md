@@ -11,6 +11,18 @@ Each entry must link to a full ADR when impact is non-trivial.
   - parity harness (`tests/test_parity_harness.py`) guards local ↔ server result contract
   - local mode now produces `rule_profile` + `relatedness_summary` matching server contract
 
+## 2026-04-15
+
+- Accepted `ADR-0062-staged-runtime-package-rename.md`
+  - choose `runtime/` as the long-term deployment-shell package name
+  - keep `seocho/` as canonical engine owner
+  - reduce `extraction/` toward extraction-only concerns or compatibility wrappers through staged migration
+
+- Accepted `ADR-0063-benchmark-track-split-and-finder-baseline-first-slice.md`
+  - split benchmark work into `FinDER` and `GraphRAG-Bench` tracks
+  - measure SEOCHO local SDK before SEOCHO runtime before peer systems
+  - ship a first-slice FinDER baseline harness for repeatable local/runtime measurements
+
 ## 2026-03-12
 
 - Accepted `ADR-0028-graph-registry-and-multi-instance-debate-runtime.md`

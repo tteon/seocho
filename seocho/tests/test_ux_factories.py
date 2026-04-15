@@ -41,23 +41,21 @@ def _strip_fake_neo4j():
 
 
 class TestSeochoLocal:
-    def test_local_default_provider(self, simple_ontology):
-        """Seocho.local(ontology) uses openai/gpt-4o by default."""
+    def test_local_default_uses_ladybug_embedded(self, simple_ontology, tmp_path):
+        """Seocho.local(ontology) defaults to embedded LadybugDB (no server)."""
         import seocho.store.graph as _graph_mod
         import seocho.store.llm as _llm_mod
         from seocho.client import Seocho
 
-        with patch.object(_graph_mod, "Neo4jGraphStore") as mock_graph, patch.object(
+        with patch.object(_graph_mod, "LadybugGraphStore") as mock_lbug, patch.object(
             _llm_mod, "create_llm_backend"
         ) as mock_llm:
-            mock_graph.return_value = MagicMock()
+            mock_lbug.return_value = MagicMock()
             mock_llm.return_value = MagicMock()
 
             s = Seocho.local(simple_ontology)
 
-            mock_graph.assert_called_once_with(
-                "bolt://localhost:7687", "neo4j", "password"
-            )
+            mock_lbug.assert_called_once_with(".seocho/local.lbug")
             mock_llm.assert_called_once_with(
                 provider="openai", model="gpt-4o", api_key=None
             )
@@ -70,7 +68,7 @@ class TestSeochoLocal:
         import seocho.store.llm as _llm_mod
         from seocho.client import Seocho
 
-        with patch.object(_graph_mod, "Neo4jGraphStore"), patch.object(
+        with patch.object(_graph_mod, "LadybugGraphStore"), patch.object(
             _llm_mod, "create_llm_backend"
         ) as mock_llm:
             mock_llm.return_value = MagicMock()
@@ -85,7 +83,7 @@ class TestSeochoLocal:
         import seocho.store.llm as _llm_mod
         from seocho.client import Seocho
 
-        with patch.object(_graph_mod, "Neo4jGraphStore"), patch.object(
+        with patch.object(_graph_mod, "LadybugGraphStore"), patch.object(
             _llm_mod, "create_llm_backend"
         ) as mock_llm:
             mock_llm.return_value = MagicMock()
@@ -94,24 +92,38 @@ class TestSeochoLocal:
                 provider="openai", model="gpt-4o-mini", api_key=None
             )
 
-    def test_local_custom_graph_uri(self, simple_ontology):
-        """Seocho.local respects a custom Bolt URI and credentials."""
+    def test_local_bolt_uri_uses_neo4j(self, simple_ontology):
+        """Seocho.local(graph='bolt://...') routes to Neo4jGraphStore."""
         import seocho.store.graph as _graph_mod
         import seocho.store.llm as _llm_mod
         from seocho.client import Seocho
 
-        with patch.object(_graph_mod, "Neo4jGraphStore") as mock_graph, patch.object(
-            _llm_mod, "create_llm_backend"
-        ):
+        with patch.object(_graph_mod, "Neo4jGraphStore") as mock_neo4j, patch.object(
+            _graph_mod, "LadybugGraphStore"
+        ) as mock_lbug, patch.object(_llm_mod, "create_llm_backend"):
             Seocho.local(
                 simple_ontology,
                 graph="bolt://neo4j.internal:7687",
                 neo4j_user="admin",
                 neo4j_password="secret",
             )
-            mock_graph.assert_called_once_with(
+            mock_neo4j.assert_called_once_with(
                 "bolt://neo4j.internal:7687", "admin", "secret"
             )
+            mock_lbug.assert_not_called()
+
+    def test_local_custom_ladybug_path(self, simple_ontology, tmp_path):
+        """Non-Bolt graph string is treated as a Ladybug filesystem path."""
+        import seocho.store.graph as _graph_mod
+        import seocho.store.llm as _llm_mod
+        from seocho.client import Seocho
+
+        custom_path = str(tmp_path / "mygraph.lbug")
+        with patch.object(_graph_mod, "LadybugGraphStore") as mock_lbug, patch.object(
+            _llm_mod, "create_llm_backend"
+        ):
+            Seocho.local(simple_ontology, graph=custom_path)
+            mock_lbug.assert_called_once_with(custom_path)
 
     def test_local_forwards_kwargs(self, simple_ontology):
         """Seocho.local forwards extra kwargs to the constructor."""
@@ -119,7 +131,7 @@ class TestSeochoLocal:
         import seocho.store.llm as _llm_mod
         from seocho.client import Seocho
 
-        with patch.object(_graph_mod, "Neo4jGraphStore"), patch.object(
+        with patch.object(_graph_mod, "LadybugGraphStore"), patch.object(
             _llm_mod, "create_llm_backend"
         ):
             s = Seocho.local(simple_ontology, workspace_id="tenant-a")

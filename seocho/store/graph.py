@@ -610,3 +610,369 @@ class Neo4jGraphStore(GraphStore):
 
     def __repr__(self) -> str:
         return f"Neo4jGraphStore(uri={self._uri!r})"
+
+
+# ---------------------------------------------------------------------------
+# LadybugDB / embedded implementation — zero-config, pip-installable
+# ---------------------------------------------------------------------------
+
+_LADYBUG_TYPE_MAP = {
+    "string": "STRING",
+    "integer": "INT64",
+    "float": "DOUBLE",
+    "number": "DOUBLE",
+    "boolean": "BOOL",
+    "datetime": "STRING",
+    "date": "STRING",
+}
+
+
+def _lbug_type(py_value: Any) -> str:
+    if isinstance(py_value, bool):
+        return "BOOL"
+    if isinstance(py_value, int):
+        return "INT64"
+    if isinstance(py_value, float):
+        return "DOUBLE"
+    return "STRING"
+
+
+class LadybugGraphStore(GraphStore):
+    """Embedded graph store backed by LadybugDB.
+
+    Zero-config, file-based, Cypher-native. Install with::
+
+        pip install "seocho[embedded]"   # or: pip install real_ladybug
+
+    Usage::
+
+        from seocho.store.graph import LadybugGraphStore
+        store = LadybugGraphStore("./mygraph.lbug")
+        store.ensure_constraints(ontology)   # creates NODE/REL tables
+        store.write(nodes, relationships)
+
+    Unlike Neo4j, LadybugDB is **schema-first** — node and relationship
+    tables must exist before writes. ``ensure_constraints(ontology)`` uses
+    the provided :class:`~seocho.ontology.Ontology` to declare all
+    NODE/REL tables up front.
+
+    For ad-hoc writes without a pre-registered ontology, tables are
+    auto-declared on first use with best-effort property typing.
+
+    Parameters
+    ----------
+    path:
+        Filesystem path where the Ladybug database files live.
+        Defaults to ``.seocho/local.lbug`` in the current directory.
+    """
+
+    def __init__(self, path: str = ".seocho/local.lbug") -> None:
+        try:
+            import real_ladybug as _lb
+        except ImportError as exc:
+            raise ImportError(
+                "LadybugGraphStore requires 'real_ladybug'. "
+                "Install it with: pip install real_ladybug"
+            ) from exc
+
+        import os as _os
+
+        self._lb = _lb
+        self._path = path
+        _os.makedirs(_os.path.dirname(_os.path.abspath(path)) or ".", exist_ok=True)
+        self._db = _lb.Database(path)
+        self._conn = _lb.Connection(self._db)
+        self._declared_node_tables: set = set()
+        self._declared_rel_tables: set = set()
+        self._load_existing_schema()
+
+    def _load_existing_schema(self) -> None:
+        """Populate declared-table sets from the existing database."""
+        try:
+            result = self._conn.execute("CALL show_tables() RETURN *")
+            for row in result:
+                row_list = row if isinstance(row, list) else list(row)
+                if len(row_list) >= 2:
+                    table_name = str(row_list[1])
+                    table_type = str(row_list[2]).upper() if len(row_list) > 2 else ""
+                    if "NODE" in table_type:
+                        self._declared_node_tables.add(table_name)
+                    elif "REL" in table_type:
+                        self._declared_rel_tables.add(table_name)
+        except Exception:
+            # CALL show_tables() may not be supported; ignore
+            pass
+
+    def _ensure_node_table(self, label: str, sample_props: Dict[str, Any]) -> None:
+        if label in self._declared_node_tables or not _LABEL_RE.match(label):
+            return
+        cols: List[str] = []
+        for key, value in (sample_props or {}).items():
+            if not _LABEL_RE.match(key):
+                continue
+            cols.append(f"`{key}` {_lbug_type(value)}")
+        # Always include workspace/source provenance columns
+        for col in ("_workspace_id", "_source_id"):
+            if not any(c.startswith(f"`{col}`") for c in cols):
+                cols.append(f"`{col}` STRING")
+        # Primary key: prefer ``id`` if present, else auto-generated ``_node_id``
+        pk = "id" if "id" in (sample_props or {}) else "_node_id"
+        if pk == "_node_id":
+            cols.append("`_node_id` STRING")
+        col_list = ", ".join(cols)
+        try:
+            self._conn.execute(
+                f"CREATE NODE TABLE IF NOT EXISTS `{label}` ({col_list}, PRIMARY KEY (`{pk}`))"
+            )
+            self._declared_node_tables.add(label)
+        except Exception as exc:
+            logger.warning("Failed to create node table %s: %s", label, exc)
+
+    def _ensure_rel_table(
+        self,
+        rel_type: str,
+        source_label: str,
+        target_label: str,
+        sample_props: Dict[str, Any],
+    ) -> None:
+        if rel_type in self._declared_rel_tables or not _LABEL_RE.match(rel_type):
+            return
+        if source_label not in self._declared_node_tables:
+            return
+        if target_label not in self._declared_node_tables:
+            return
+        cols: List[str] = []
+        for key, value in (sample_props or {}).items():
+            if not _LABEL_RE.match(key):
+                continue
+            cols.append(f"`{key}` {_lbug_type(value)}")
+        cols.append("`_workspace_id` STRING")
+        cols.append("`_source_id` STRING")
+        col_list = (", " + ", ".join(cols)) if cols else ""
+        try:
+            self._conn.execute(
+                f"CREATE REL TABLE IF NOT EXISTS `{rel_type}`(FROM `{source_label}` TO `{target_label}`{col_list})"
+            )
+            self._declared_rel_tables.add(rel_type)
+        except Exception as exc:
+            logger.warning("Failed to create rel table %s: %s", rel_type, exc)
+
+    def write(
+        self,
+        nodes: Sequence[Dict[str, Any]],
+        relationships: Sequence[Dict[str, Any]],
+        *,
+        database: str = "neo4j",
+        workspace_id: str = "default",
+        source_id: str = "",
+        **_kwargs: Any,
+    ) -> Dict[str, Any]:
+        summary = {"nodes_created": 0, "relationships_created": 0, "errors": []}
+        node_label_by_id: Dict[str, str] = {}
+
+        for node in nodes:
+            label = str(node.get("label", "Entity"))
+            if not _LABEL_RE.match(label):
+                summary["errors"].append(f"Invalid label: {label}")
+                continue
+            props = dict(node.get("properties", {}))
+            node_id = str(node.get("id") or props.get("name") or "")
+            if not node_id:
+                continue
+            props.setdefault("id", node_id)
+            props["_workspace_id"] = workspace_id
+            props["_source_id"] = source_id
+
+            self._ensure_node_table(label, props)
+            node_label_by_id[node_id] = label
+
+            prop_keys = [k for k in props if _LABEL_RE.match(k)]
+            set_clause = ", ".join(f"`{k}`: $p_{i}" for i, k in enumerate(prop_keys))
+            params = {f"p_{i}": props[k] for i, k in enumerate(prop_keys)}
+            try:
+                self._conn.execute(
+                    f"MERGE (n:`{label}` {{id: $id}}) SET n = {{{set_clause}}}",
+                    {"id": node_id, **params},
+                )
+                summary["nodes_created"] += 1
+            except Exception:
+                # Fallback: CREATE if MERGE dialect differs
+                try:
+                    self._conn.execute(
+                        f"CREATE (n:`{label}` {{{set_clause}}})",
+                        params,
+                    )
+                    summary["nodes_created"] += 1
+                except Exception as exc:
+                    summary["errors"].append(f"Node {node_id}: {exc}")
+
+        for rel in relationships:
+            rtype = str(rel.get("type", "RELATED_TO"))
+            src_id = str(rel.get("source", ""))
+            tgt_id = str(rel.get("target", ""))
+            if not (src_id and tgt_id and _LABEL_RE.match(rtype)):
+                continue
+            src_label = node_label_by_id.get(src_id)
+            tgt_label = node_label_by_id.get(tgt_id)
+            if not (src_label and tgt_label):
+                continue
+
+            rprops = dict(rel.get("properties", {}))
+            rprops["_workspace_id"] = workspace_id
+            rprops["_source_id"] = source_id
+
+            self._ensure_rel_table(rtype, src_label, tgt_label, rprops)
+
+            prop_keys = [k for k in rprops if _LABEL_RE.match(k)]
+            set_clause = (
+                "{" + ", ".join(f"`{k}`: $p_{i}" for i, k in enumerate(prop_keys)) + "}"
+                if prop_keys else ""
+            )
+            params = {"src": src_id, "tgt": tgt_id,
+                      **{f"p_{i}": rprops[k] for i, k in enumerate(prop_keys)}}
+            try:
+                self._conn.execute(
+                    f"MATCH (a:`{src_label}` {{id: $src}}), (b:`{tgt_label}` {{id: $tgt}}) "
+                    f"CREATE (a)-[r:`{rtype}`{(' ' + set_clause) if set_clause else ''}]->(b)",
+                    params,
+                )
+                summary["relationships_created"] += 1
+            except Exception as exc:
+                summary["errors"].append(f"Rel {src_id}-[{rtype}]->{tgt_id}: {exc}")
+
+        return summary
+
+    def query(
+        self,
+        cypher: str,
+        *,
+        params: Optional[Dict[str, Any]] = None,
+        database: str = "neo4j",
+    ) -> List[Dict[str, Any]]:
+        try:
+            result = self._conn.execute(cypher, params or {})
+            out: List[Dict[str, Any]] = []
+            # Ladybug returns rows as lists; convert to dicts using column names
+            col_names = getattr(result, "column_names", None) or []
+            for row in result:
+                row_list = row if isinstance(row, list) else list(row)
+                if col_names and len(col_names) == len(row_list):
+                    out.append({name: val for name, val in zip(col_names, row_list)})
+                else:
+                    out.append({f"col_{i}": val for i, val in enumerate(row_list)})
+            return out
+        except Exception as exc:
+            logger.warning("Ladybug query failed: %s", exc)
+            return []
+
+    def execute_write(
+        self,
+        cypher: str,
+        *,
+        params: Optional[Dict[str, Any]] = None,
+        database: str = "neo4j",
+    ) -> Dict[str, Any]:
+        try:
+            self._conn.execute(cypher, params or {})
+            return {"nodes_affected": 0, "relationships_affected": 0, "properties_set": 0}
+        except Exception as exc:
+            return {"error": str(exc)}
+
+    def ensure_constraints(
+        self,
+        ontology: Ontology,
+        *,
+        database: str = "neo4j",
+    ) -> Dict[str, Any]:
+        """Create NODE/REL tables declared by the ontology."""
+        summary = {"success": 0, "errors": []}
+
+        for label, node_def in ontology.nodes.items():
+            if not _LABEL_RE.match(label):
+                continue
+            cols: List[str] = []
+            pk_col: Optional[str] = None
+            for prop_name, prop in node_def.properties.items():
+                if not _LABEL_RE.match(prop_name):
+                    continue
+                py_type = str(prop.property_type.value).lower()
+                lbug_type = _LADYBUG_TYPE_MAP.get(py_type, "STRING")
+                cols.append(f"`{prop_name}` {lbug_type}")
+                if prop.unique and pk_col is None:
+                    pk_col = prop_name
+
+            cols.append("`id` STRING")
+            cols.append("`_workspace_id` STRING")
+            cols.append("`_source_id` STRING")
+            pk_col = pk_col or "id"
+
+            try:
+                self._conn.execute(
+                    f"CREATE NODE TABLE IF NOT EXISTS `{label}` "
+                    f"({', '.join(cols)}, PRIMARY KEY (`{pk_col}`))"
+                )
+                self._declared_node_tables.add(label)
+                summary["success"] += 1
+            except Exception as exc:
+                summary["errors"].append(f"Node table {label}: {exc}")
+
+        for rtype, rel_def in ontology.relationships.items():
+            if not _LABEL_RE.match(rtype):
+                continue
+            src, tgt = rel_def.source, rel_def.target
+            if src not in self._declared_node_tables or tgt not in self._declared_node_tables:
+                continue
+            try:
+                self._conn.execute(
+                    f"CREATE REL TABLE IF NOT EXISTS `{rtype}`"
+                    f"(FROM `{src}` TO `{tgt}`, `_workspace_id` STRING, `_source_id` STRING)"
+                )
+                self._declared_rel_tables.add(rtype)
+                summary["success"] += 1
+            except Exception as exc:
+                summary["errors"].append(f"Rel table {rtype}: {exc}")
+
+        return summary
+
+    def get_schema(self, *, database: str = "neo4j") -> Dict[str, Any]:
+        return {
+            "labels": sorted(self._declared_node_tables),
+            "relationship_types": sorted(self._declared_rel_tables),
+            "property_keys": [],
+        }
+
+    def delete_by_source(self, source_id: str, *, database: str = "neo4j") -> Dict[str, Any]:
+        summary = {"nodes_deleted": 0, "relationships_deleted": 0}
+        for label in list(self._declared_node_tables):
+            try:
+                self._conn.execute(
+                    f"MATCH (n:`{label}`) WHERE n._source_id = $sid DETACH DELETE n",
+                    {"sid": source_id},
+                )
+            except Exception:
+                pass
+        return summary
+
+    def count_by_source(self, source_id: str, *, database: str = "neo4j") -> Dict[str, int]:
+        total = 0
+        for label in self._declared_node_tables:
+            try:
+                result = self._conn.execute(
+                    f"MATCH (n:`{label}`) WHERE n._source_id = $sid RETURN count(n)",
+                    {"sid": source_id},
+                )
+                for row in result:
+                    total += int(row[0] if isinstance(row, list) else list(row)[0])
+            except Exception:
+                pass
+        return {"nodes": total, "relationships": 0}
+
+    def close(self) -> None:
+        try:
+            del self._conn
+            del self._db
+        except Exception:
+            pass
+
+    def __repr__(self) -> str:
+        return f"LadybugGraphStore(path={self._path!r})"

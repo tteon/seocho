@@ -233,7 +233,7 @@ class Seocho:
         ontology: Any,
         *,
         llm: str = "openai/gpt-4o",
-        graph: str = "bolt://localhost:7687",
+        graph: Optional[str] = None,
         neo4j_user: str = "neo4j",
         neo4j_password: str = "password",
         api_key: Optional[str] = None,
@@ -241,28 +241,36 @@ class Seocho:
     ) -> "Seocho":
         """Create a local-engine ``Seocho`` with sensible defaults.
 
-        This is the convenience factory for the common case::
+        Zero-config path (uses embedded LadybugDB, no server needed)::
 
-            s = Seocho.local(ontology)
+            s = Seocho.local(ontology)   # → .seocho/local.lbug
             s.add("text")
             s.ask("question")
 
+        Neo4j/DozerDB path::
+
+            s = Seocho.local(ontology, graph="bolt://localhost:7687")
+
         Args:
             ontology: :class:`~seocho.ontology.Ontology` to bind.
-            llm: Provider/model string (``"openai/gpt-4o"``, ``"deepseek/deepseek-chat"``,
-                ``"kimi/kimi-k2.5"``) or plain model name (defaults to ``openai``).
-            graph: Bolt URI for Neo4j/DozerDB. Defaults to ``localhost:7687``.
-            neo4j_user: Neo4j username.
-            neo4j_password: Neo4j password.
+            llm: Provider/model string (``"openai/gpt-4o"``,
+                ``"deepseek/deepseek-chat"``, ``"kimi/kimi-k2.5"``) or plain
+                model name (defaults to ``openai``).
+            graph: Graph backend selector.
+                - ``None`` (default): embedded LadybugDB at ``.seocho/local.lbug``.
+                - ``"bolt://..."``: Neo4j/DozerDB over Bolt protocol.
+                - Any other path: LadybugDB file path.
+            neo4j_user: Neo4j username (only used when *graph* is a Bolt URI).
+            neo4j_password: Neo4j password (only used when *graph* is a Bolt URI).
             api_key: Optional API key override for the LLM provider.
                 Falls back to the provider's env var (``OPENAI_API_KEY`` etc.).
-            **kwargs: Extra arguments forwarded to the :class:`Seocho` constructor
-                (``workspace_id``, ``agent_config``, ``extraction_prompt``, …).
+            **kwargs: Extra arguments forwarded to the :class:`Seocho`
+                constructor (``workspace_id``, ``agent_config``,
+                ``extraction_prompt``, …).
 
         Returns:
             A configured :class:`Seocho` in local engine mode.
         """
-        from .store.graph import Neo4jGraphStore
         from .store.llm import create_llm_backend
 
         provider, model = (llm.split("/", 1) if "/" in llm else ("openai", llm))
@@ -271,7 +279,20 @@ class Seocho:
             model=model.strip(),
             api_key=api_key,
         )
-        graph_store = Neo4jGraphStore(graph, neo4j_user, neo4j_password)
+
+        if graph and graph.startswith(("bolt://", "neo4j://", "neo4j+s://", "bolt+s://")):
+            from .store.graph import Neo4jGraphStore
+            graph_store = Neo4jGraphStore(graph, neo4j_user, neo4j_password)
+        else:
+            from .store.graph import LadybugGraphStore
+            path = graph or ".seocho/local.lbug"
+            graph_store = LadybugGraphStore(path)
+            # Declare tables from the ontology so writes work immediately
+            try:
+                graph_store.ensure_constraints(ontology)
+            except Exception:
+                pass
+
         return cls(
             ontology=ontology,
             graph_store=graph_store,

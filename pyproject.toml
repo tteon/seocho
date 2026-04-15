@@ -97,6 +97,10 @@ notebook = [
 ontology = [
     "owlready2",
 ]
+embedded = [
+    "real_ladybug>=0.15.0",
+    "openai",
+]
 pdf = [
     "opendataloader-pdf",
 ]

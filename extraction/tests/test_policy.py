@@ -1,6 +1,6 @@
 import pytest
 
-from policy import RuntimePolicyEngine, require_runtime_permission, run_offline_ontology_reasoning
+from runtime.policy import RuntimePolicyEngine, require_runtime_permission, run_offline_ontology_reasoning
 
 
 def test_workspace_id_validation():

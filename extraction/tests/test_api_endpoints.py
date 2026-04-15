@@ -10,7 +10,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+ROOT_DIR = os.path.join(os.path.dirname(__file__), "..", "..")
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
 
 
 @pytest.fixture(scope="module")
@@ -74,7 +76,7 @@ def app_module():
                 "agents": fake_agents,
             },
         ):
-            import agent_server
+            import runtime.agent_server as agent_server
 
             return importlib.reload(agent_server)
 

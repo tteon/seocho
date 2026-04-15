@@ -32,6 +32,13 @@ That distinction matters because most current onboarding, API verification, and
 platform UX flow through `extraction-service`, not the standalone legacy
 semantic container.
 
+During the staged runtime rename, `extraction-service` still starts the legacy
+flat `agent_server` module. Compose therefore bind-mounts `runtime/` and
+`seocho/` into `/app`, and the flat `extraction/*` compatibility aliases
+bootstrap repo-root imports before delegating to canonical `runtime/*` modules.
+This keeps the local activation path stable while ownership moves out of the
+historically overloaded package.
+
 ## Storage And Artifact Layout
 
 The main local artifacts are deliberately file-system visible:

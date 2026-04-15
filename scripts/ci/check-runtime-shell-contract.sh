@@ -62,14 +62,28 @@ check_absent "from runtime_ingest import RuntimeRawIngestor" \
   runtime/memory_service.py
 
 echo "Checking compatibility alias surface..."
-check_present "_import_module(\"runtime.agent_readiness\")" \
+check_present "alias_runtime_module(alias_name: str, runtime_module: str)" \
+  extraction/_runtime_alias.py
+check_present "repo_root = Path(__file__).resolve().parent.parent" \
+  extraction/_runtime_alias.py
+check_present "_alias_runtime_module(__name__, \"runtime.agent_readiness\")" \
   extraction/agent_readiness.py
-check_present "_import_module(\"runtime.middleware\")" \
+check_present "_alias_runtime_module(__name__, \"runtime.agent_server\")" \
+  extraction/agent_server.py
+check_present "_alias_runtime_module(__name__, \"runtime.middleware\")" \
   extraction/middleware.py
-check_present "_import_module(\"runtime.memory_service\")" \
+check_present "_alias_runtime_module(__name__, \"runtime.memory_service\")" \
   extraction/memory_service.py
-check_present "_import_module(\"runtime.runtime_ingest\")" \
+check_present "_alias_runtime_module(__name__, \"runtime.policy\")" \
+  extraction/policy.py
+check_present "_alias_runtime_module(__name__, \"runtime.public_memory_api\")" \
+  extraction/public_memory_api.py
+check_present "_alias_runtime_module(__name__, \"runtime.runtime_ingest\")" \
   extraction/runtime_ingest.py
+check_present "_alias_runtime_module(__name__, \"runtime.server_runtime\")" \
+  extraction/server_runtime.py
+check_present "cwd=os.path.join(ROOT_DIR, \"extraction\")" \
+  extraction/tests/test_runtime_package_aliases.py
 check_present "import runtime.agent_readiness as runtime_agent_readiness" \
   extraction/tests/test_runtime_package_aliases.py
 check_present "import runtime.middleware as runtime_middleware" \
@@ -78,6 +92,12 @@ check_present "import runtime.memory_service as runtime_memory_service" \
   extraction/tests/test_runtime_package_aliases.py
 check_present "import runtime.runtime_ingest as runtime_runtime_ingest" \
   extraction/tests/test_runtime_package_aliases.py
+
+echo "Checking local compose runtime visibility..."
+check_present "./runtime:/app/runtime:ro" \
+  docker-compose.yml
+check_present "./seocho:/app/seocho:ro" \
+  docker-compose.yml
 
 echo "Checking repo-owned runtime tests..."
 check_present "from runtime.agent_readiness import summarize_readiness" \

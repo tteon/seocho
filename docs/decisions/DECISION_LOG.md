@@ -30,6 +30,13 @@ Each entry must link to a full ADR when impact is non-trivial.
     ownership under `runtime/`
   - keep flat `extraction/*` imports working through module-alias compatibility shims
 
+- Accepted `ADR-0074-runtime-flat-entrypoint-compatibility.md`
+  - keep `runtime/` as canonical owner while preserving legacy flat
+    `extraction/*` imports from the `extraction/` working directory
+  - add an explicit alias bootstrap helper and compose mounts for `runtime/`
+    and `seocho/`
+  - extend the runtime shell contract gate to cover this staged rename seam
+
 ## 2026-03-12
 
 - Accepted `ADR-0028-graph-registry-and-multi-instance-debate-runtime.md`

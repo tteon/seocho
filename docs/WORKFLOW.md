@@ -126,6 +126,9 @@ Operational notes:
 
 - use `scripts/pm/lint-items.sh` with internal `bd --no-daemon` execution to avoid local daemon startup stalls.
 - current dev quality gates in `Makefile` run against `extraction-service`.
+- while the service name remains `extraction-service`, compose mounts
+  `runtime/` and `seocho/` into `/app` so legacy flat entrypoints can import
+  canonical runtime and SDK modules during the staged rename.
 - keep graph procedure privileges scoped (`apoc.*,n10s.*`) in `docker-compose.yml`.
 - default local compose stack is `neo4j + extraction-service + evaluation-interface`.
 - legacy `semantic-service` is opt-in only via `docker compose --profile legacy-semantic up -d semantic-service`.

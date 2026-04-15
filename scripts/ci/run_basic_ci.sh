@@ -11,10 +11,14 @@ python3 -m py_compile \
   runtime/server_runtime.py \
   runtime/runtime_ingest.py \
   runtime/agent_server.py \
+  extraction/_runtime_alias.py \
   extraction/agent_readiness.py \
   extraction/middleware.py \
   extraction/memory_service.py \
+  extraction/policy.py \
+  extraction/public_memory_api.py \
   extraction/runtime_ingest.py \
+  extraction/server_runtime.py \
   extraction/semantic_query_flow.py \
   extraction/semantic_run_store.py \
   extraction/semantic_profile_packages.py \

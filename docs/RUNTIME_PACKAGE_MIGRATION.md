@@ -94,6 +94,12 @@ Current landed first slice:
   `extraction/server_runtime.py`, `extraction/policy.py`,
   `extraction/public_memory_api.py`, and `extraction/runtime_ingest.py`
   remain as compatibility aliases
+- compatibility aliases use `extraction/_runtime_alias.py` so legacy flat
+  entrypoints such as `uvicorn agent_server:app` can resolve canonical
+  `runtime/*` modules when started from the `extraction/` directory
+- the local `extraction-service` compose service bind-mounts `runtime/` and
+  `seocho/` into `/app` until the service itself is renamed or rebuilt around
+  a repo-root runtime image
 
 Target first modules:
 

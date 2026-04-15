@@ -39,7 +39,7 @@ Practical implication:
 ### Backend runtime
 
 - `runtime/agent_server.py`
-- `extraction/runtime_ingest.py`
+- `runtime/runtime_ingest.py`
 - `extraction/semantic_query_flow.py`
 - `extraction/debate.py`
 - `extraction/rule_api.py`
@@ -128,7 +128,7 @@ These are runtime artifacts, embedded workspaces, or high-noise areas.
 
 ### Change ingest behavior
 
-1. inspect `extraction/runtime_ingest.py`
+1. inspect `runtime/runtime_ingest.py`
 2. preserve artifact and rule lifecycle boundaries
 3. keep heavy ontology logic out of hot paths
 4. verify ingest plus downstream search or chat flow

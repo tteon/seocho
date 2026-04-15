@@ -1,8 +1,14 @@
 import importlib
+import os
 import sys
 import types
-from unittest.mock import MagicMock, patch
 from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
+
+
+ROOT_DIR = os.path.join(os.path.dirname(__file__), "..", "..")
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
 
 
 class _FakeDbManager:
@@ -25,7 +31,7 @@ def test_runtime_ingest_batches_rule_profile_across_multiple_records():
     fake_neo4j_exceptions.SessionExpired = RuntimeError
 
     with patch.dict(sys.modules, {"neo4j": fake_neo4j, "neo4j.exceptions": fake_neo4j_exceptions}):
-        runtime_ingest = importlib.import_module("runtime_ingest")
+        runtime_ingest = importlib.import_module("runtime.runtime_ingest")
         runtime_ingest = importlib.reload(runtime_ingest)
 
     db = _FakeDbManager()
@@ -76,7 +82,7 @@ def test_resolve_semantic_artifacts_policy_variants():
     fake_neo4j_exceptions.ServiceUnavailable = RuntimeError
     fake_neo4j_exceptions.SessionExpired = RuntimeError
     with patch.dict(sys.modules, {"neo4j": fake_neo4j, "neo4j.exceptions": fake_neo4j_exceptions}):
-        runtime_ingest = importlib.import_module("runtime_ingest")
+        runtime_ingest = importlib.import_module("runtime.runtime_ingest")
         runtime_ingest = importlib.reload(runtime_ingest)
 
     draft_ontology = {"ontology_name": "d", "classes": [{"name": "Company"}], "relationships": []}
@@ -117,7 +123,7 @@ def test_build_graph_prompt_metadata_uses_registered_graph_target():
     fake_neo4j_exceptions.ServiceUnavailable = RuntimeError
     fake_neo4j_exceptions.SessionExpired = RuntimeError
     with patch.dict(sys.modules, {"neo4j": fake_neo4j, "neo4j.exceptions": fake_neo4j_exceptions}):
-        runtime_ingest = importlib.import_module("runtime_ingest")
+        runtime_ingest = importlib.import_module("runtime.runtime_ingest")
         runtime_ingest = importlib.reload(runtime_ingest)
 
     with patch.object(runtime_ingest.graph_registry, "find_by_database") as mock_find:
@@ -161,7 +167,7 @@ def test_runtime_ingest_uses_canonical_engine_for_direct_extract_and_link():
             "semantic_pass_orchestrator": fake_semantic_module,
         },
     ):
-        runtime_ingest = importlib.import_module("runtime_ingest")
+        runtime_ingest = importlib.import_module("runtime.runtime_ingest")
         runtime_ingest = importlib.reload(runtime_ingest)
 
     class _FakeResponse:
@@ -267,7 +273,7 @@ def test_embedding_cache_lru_eviction():
     fake_neo4j_exceptions.ServiceUnavailable = RuntimeError
     fake_neo4j_exceptions.SessionExpired = RuntimeError
     with patch.dict(sys.modules, {"neo4j": fake_neo4j, "neo4j.exceptions": fake_neo4j_exceptions}):
-        runtime_ingest = importlib.import_module("runtime_ingest")
+        runtime_ingest = importlib.import_module("runtime.runtime_ingest")
         runtime_ingest = importlib.reload(runtime_ingest)
 
     db = _FakeDbManager()
@@ -294,7 +300,7 @@ def test_embedding_cache_lru_freshness():
     fake_neo4j_exceptions.ServiceUnavailable = RuntimeError
     fake_neo4j_exceptions.SessionExpired = RuntimeError
     with patch.dict(sys.modules, {"neo4j": fake_neo4j, "neo4j.exceptions": fake_neo4j_exceptions}):
-        runtime_ingest = importlib.import_module("runtime_ingest")
+        runtime_ingest = importlib.import_module("runtime.runtime_ingest")
         runtime_ingest = importlib.reload(runtime_ingest)
 
     db = _FakeDbManager()
@@ -323,7 +329,7 @@ def test_parallel_extraction_preserves_order():
     fake_neo4j_exceptions.ServiceUnavailable = RuntimeError
     fake_neo4j_exceptions.SessionExpired = RuntimeError
     with patch.dict(sys.modules, {"neo4j": fake_neo4j, "neo4j.exceptions": fake_neo4j_exceptions}):
-        runtime_ingest = importlib.import_module("runtime_ingest")
+        runtime_ingest = importlib.import_module("runtime.runtime_ingest")
         runtime_ingest = importlib.reload(runtime_ingest)
 
     db = _FakeDbManager()
@@ -355,7 +361,7 @@ def test_parallel_extraction_error_isolation():
     fake_neo4j_exceptions.ServiceUnavailable = RuntimeError
     fake_neo4j_exceptions.SessionExpired = RuntimeError
     with patch.dict(sys.modules, {"neo4j": fake_neo4j, "neo4j.exceptions": fake_neo4j_exceptions}):
-        runtime_ingest = importlib.import_module("runtime_ingest")
+        runtime_ingest = importlib.import_module("runtime.runtime_ingest")
         runtime_ingest = importlib.reload(runtime_ingest)
 
     db = _FakeDbManager()

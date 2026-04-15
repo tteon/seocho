@@ -70,9 +70,10 @@ Current landed first slice:
 - `runtime/server_runtime.py`
 - `runtime/policy.py`
 - `runtime/public_memory_api.py`
+- `runtime/runtime_ingest.py`
 - `extraction/agent_server.py`, `extraction/server_runtime.py`,
-  `extraction/policy.py`, and `extraction/public_memory_api.py` remain as
-  compatibility aliases
+  `extraction/policy.py`, `extraction/public_memory_api.py`, and
+  `extraction/runtime_ingest.py` remain as compatibility aliases
 
 Target first modules:
 
@@ -80,6 +81,7 @@ Target first modules:
 - `runtime/server_runtime.py`
 - `runtime/policy.py`
 - `runtime/public_memory_api.py`
+- `runtime/runtime_ingest.py`
 
 ### Stage 2: Move Thin Runtime Shell Modules
 

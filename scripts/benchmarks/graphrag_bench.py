@@ -46,8 +46,6 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
-from _preflight import local_llm_api_key_error
-
 # ---------------------------------------------------------------------------
 # Bundled smoke dataset — 5 questions, minimal ontology
 # ---------------------------------------------------------------------------
@@ -281,8 +279,6 @@ def build_client(args: argparse.Namespace, onto: Any) -> Any:
         kwargs["graph"] = args.graph
     if args.llm:
         kwargs["llm"] = args.llm
-    if args.api_key:
-        kwargs["api_key"] = args.api_key
     return Seocho.local(onto, **kwargs)
 
 
@@ -321,14 +317,8 @@ def main() -> int:
                         help="Graph backend URI (defaults to embedded LadybugDB)")
     parser.add_argument("--llm", default="openai/gpt-4o-mini",
                         help="Provider/model string")
-    parser.add_argument("--api-key", default=os.getenv("OPENAI_API_KEY"),
-                        help="LLM API key override for local benchmark runs")
     parser.add_argument("--out", default="-", help="Output JSON path (- for stdout)")
     args = parser.parse_args()
-
-    if error := local_llm_api_key_error(args.llm, args.api_key):
-        print(error, file=sys.stderr)
-        return 2
 
     onto_spec, dataset = load_dataset(args.task, args.dataset)
     if args.limit:

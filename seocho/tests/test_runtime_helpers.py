@@ -53,6 +53,28 @@ def test_ensure_memory_graph_adds_document_scope_and_mentions_edges():
     assert all(rel["source"] == "rec-1_doc" for rel in mention_edges)
 
 
+def test_ensure_memory_graph_preview_preserves_finder_support_sentence():
+    text = (
+        "NVIDIA Corporation reported data center revenue of $15.0 billion in fiscal 2024, "
+        "up 217% from $4.7 billion in fiscal 2023. Gaming revenue was $10.4 billion, up 15%. "
+        "The company's gross margin expanded to 72.7% from 56.9%, driven by strong demand "
+        "for AI accelerator chips including the H100 and A100 product lines."
+    )
+
+    result = ensure_memory_graph(
+        graph_data={"nodes": [], "relationships": []},
+        source_id="finder-006",
+        workspace_id="default",
+        text=text,
+        category="Financials Qualitative",
+        source_type="text",
+        record_metadata={"source_id": "finder-006"},
+    )
+
+    document = next(node for node in result["nodes"] if node["label"] == "Document")
+    assert "H100 and A100 product lines" in document["properties"]["content_preview"]
+
+
 def test_runtime_artifact_helpers_merge_candidates_and_build_vocabulary():
     merged_ontology = merge_ontology_candidates(
         [

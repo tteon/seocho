@@ -9,7 +9,7 @@ handoff contract for graph-grounded answering work.
 Use it when redesigning or extending:
 
 - `extraction/semantic_query_flow.py`
-- `extraction/public_memory_api.py`
+- `runtime/public_memory_api.py`
 - `extraction/memory_service.py`
 - answer grounding contracts in the memory-first SDK and runtime APIs
 
@@ -159,7 +159,7 @@ Add or expose:
 Primary owners:
 
 - `extraction/memory_service.py`
-- `extraction/public_memory_api.py`
+- `runtime/public_memory_api.py`
 
 Expose enough grounding detail to inspect:
 

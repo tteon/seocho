@@ -108,7 +108,7 @@ scripts/pm/lint-agent-docs.sh
 When extending runtime behavior:
 
 - preserve `workspace_id` in request/model contracts
-- enforce runtime policy checks (`extraction/policy.py`)
+- enforce runtime policy checks (`runtime/policy.py`)
 - keep heavy ontology reasoning out of hot path
 - preserve trace topology contract (`node_id`, `parent_id`, `parent_ids`)
 

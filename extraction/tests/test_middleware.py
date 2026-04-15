@@ -9,7 +9,7 @@ from fastapi import FastAPI
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from middleware import RequestIDMiddleware, get_request_id
+from runtime.middleware import RequestIDMiddleware, get_request_id
 
 
 @pytest.fixture

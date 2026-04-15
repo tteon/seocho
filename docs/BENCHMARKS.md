@@ -16,8 +16,10 @@ Use FinDER for:
 Current first-slice baseline command:
 
 ```bash
-python scripts/benchmarks/run_finder_baseline.py --mode local
+OPENAI_API_KEY=... python scripts/benchmarks/run_finder_baseline.py --mode local
 ```
+
+For smoke runs, add `--limit 2` before running the full sample.
 
 Supported modes:
 
@@ -28,6 +30,10 @@ Supported modes:
 Default dataset:
 
 - `examples/datasets/finder_sample.json`
+
+Default local graph:
+
+- embedded LadybugDB via `Seocho.local()` unless `--graph` or `NEO4J_URI` is set
 
 Optional dataset:
 
@@ -44,6 +50,13 @@ Use GraphRAG-Bench for:
 
 This is the query/reasoning benchmark track. It should not be used as the only
 measure of ingestion quality.
+
+Smoke command:
+
+```bash
+OPENAI_API_KEY=... python scripts/benchmarks/graphrag_bench.py \
+  --task sample --limit 5 --out outputs/evaluation/graphrag_bench/smoke.json
+```
 
 ## Peer Systems
 

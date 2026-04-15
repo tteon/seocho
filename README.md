@@ -238,7 +238,10 @@ in trace/tool metadata. This is a guardrail, not a hard blocker: it tells you
 when a graph may need re-indexing under the current ontology profile. HTTP
 runtime `search_with_context(...)`, `chat(...)`, and `semantic(...)` responses
 also expose `ontology_context_mismatch` so client code can audit graph/profile
-drift without dropping to raw API payloads.
+drift without dropping to raw API payloads. Router, debate, execution-plan, and
+platform chat responses expose the same field as a top-level typed SDK value,
+so application code can treat ontology/database parity as middleware metadata
+instead of scraping nested runtime payloads.
 
 ## Key Features
 

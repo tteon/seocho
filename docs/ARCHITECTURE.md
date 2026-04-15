@@ -111,6 +111,7 @@ Canonical SDK control-plane modules:
 - `seocho/query/`
 - `seocho/http_transport.py`
 - `seocho/ontology.py` as the stable public ontology facade
+- `seocho/ontology_context.py` for compact shared ontology context descriptors and cache
 - `seocho/ontology_serialization.py` for JSON-LD persistence
 - `seocho/ontology_artifacts.py` for runtime artifact and typed prompt generation
 - `seocho/ontology_governance.py` for offline diff/check/export flows
@@ -149,6 +150,10 @@ one monolithic implementation file.
 - `seocho/ontology.py`
   - stable public `Ontology`, `NodeDef`, `RelDef`, and `P` surface
   - schema validation, SHACL derivation, and prompt-facing API entrypoints
+- `seocho/ontology_context.py`
+  - stable `ontology_context_hash` descriptor shared by indexing, query, traces, and agent sessions
+  - small in-process cache for compiled extraction/query/agent context artifacts
+  - SKOS-style glossary/vocabulary hash derived from ontology labels, aliases, properties, and relationship terms
 - `seocho/ontology_serialization.py`
   - canonical JSON-LD load/save helpers
   - no runtime governance side effects

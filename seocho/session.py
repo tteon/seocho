@@ -88,6 +88,7 @@ class Session:
         extraction_prompt: Any = None,
         agent_config: Any = None,
         workspace_id: str = "default",
+        ontology_profile: str = "default",
     ) -> None:
         self.session_id = str(uuid.uuid4())[:12]
         self.name = name or f"session-{self.session_id}"
@@ -99,8 +100,17 @@ class Session:
         self.extraction_prompt = extraction_prompt
         self.agent_config = agent_config
         self.workspace_id = workspace_id
+        self.ontology_profile = str(ontology_profile or "default")
 
         self.context = SessionContext()
+        from .ontology_context import OntologyContextCache
+
+        self._ontology_context_cache = OntologyContextCache(max_size=8)
+        self._ontology_context = self._ontology_context_cache.get(
+            ontology,
+            workspace_id=workspace_id,
+            profile=self.ontology_profile,
+        )
         self._trace = None
         self._closed = False
 
@@ -151,6 +161,7 @@ class Session:
                 workspace_id=self.workspace_id,
                 extraction_prompt=self.extraction_prompt,
                 agent_config=self.agent_config,
+                ontology_profile=self.ontology_profile,
             )
         return self._pipeline_engine
 
@@ -244,6 +255,10 @@ class Session:
                     "degraded": bool(result.get("degraded", False)),
                     "fallback_from": str(result.get("fallback_from", "")),
                     "fallback_reason": str(result.get("fallback_reason", "")),
+                    "ontology_context": result.get(
+                        "ontology_context",
+                        self._ontology_context.metadata(usage="agent_indexing"),
+                    ),
                 },
                 tags=["indexing"],
             )
@@ -306,6 +321,9 @@ class Session:
 
         # Pass structured context (entities/relationships), not full history
         agent_ctx = self.context.to_agent_context(ontology=self.ontology)
+        agent_ctx = "\n\n".join(
+            item for item in [self._ontology_context.agent_context, agent_ctx] if item
+        )
         context_block = f"\n\n{agent_ctx}" if agent_ctx else ""
 
         full_message = f"{message}{context_block}\n[Target database: {db}]"
@@ -318,7 +336,10 @@ class Session:
                 "session.run",
                 input_data={"message": message[:200], "database": db},
                 output_data={"response_preview": result_text[:300]},
-                metadata={"elapsed_seconds": round(elapsed, 2)},
+                metadata={
+                    "elapsed_seconds": round(elapsed, 2),
+                    "ontology_context": self._ontology_context.metadata(usage="agent"),
+                },
                 tags=["supervisor", "handoff"],
             )
 
@@ -386,6 +407,9 @@ class Session:
 
         # Pass structured context (entities, not history)
         agent_ctx = self.context.to_agent_context(ontology=self.ontology)
+        agent_ctx = "\n\n".join(
+            item for item in [self._ontology_context.agent_context, agent_ctx] if item
+        )
         context_msg = f"\n\n{agent_ctx}\n[Target database: {db}]" if agent_ctx else ""
 
         mode = self._execution_mode
@@ -421,6 +445,7 @@ class Session:
                     "degraded": bool(query_result.get("degraded", False)),
                     "fallback_from": str(query_result.get("fallback_from", "")),
                     "fallback_reason": str(query_result.get("fallback_reason", "")),
+                    "ontology_context": self._ontology_context.metadata(usage="agent_query"),
                 },
                 tags=["query"],
             )
@@ -444,11 +469,14 @@ class Session:
         )
         if metadata:
             user_msg += f"\n\nMetadata: {json.dumps(metadata, default=str)}"
+        user_msg += f"\n\n{self._ontology_context.agent_context}"
 
         try:
             result = asyncio.run(Runner.run(agent, user_msg))
             # Parse agent's final output for structured result
-            return self._parse_indexing_result(result.final_output, content)
+            parsed = self._parse_indexing_result(result.final_output, content)
+            parsed["ontology_context"] = self._ontology_context.metadata(usage="agent_indexing")
+            return parsed
         except Exception as exc:
             logger.warning("Agent indexing failed, falling back to pipeline: %s", exc)
             fallback = self._add_via_pipeline(content, database, category, metadata)
@@ -475,6 +503,7 @@ class Session:
                 "degraded": False,
                 "fallback_from": "",
                 "fallback_reason": "",
+                "ontology_context": self._ontology_context.metadata(usage="agent_query"),
             }
         except Exception as exc:
             logger.warning("Agent query failed, falling back to pipeline: %s", exc)
@@ -534,6 +563,7 @@ class Session:
             "degraded": False,
             "fallback_from": "",
             "fallback_reason": "",
+            "ontology_context": dict(memory.metadata.get("ontology_context", {}) or {}),
             "extracted_nodes": extracted_nodes,
             "extracted_relationships": extracted_rels,
         }
@@ -552,6 +582,7 @@ class Session:
             "degraded": False,
             "fallback_from": "",
             "fallback_reason": "",
+            "ontology_context": self._ontology_context.metadata(usage="pipeline_query"),
         }
 
     def _parse_indexing_result(self, agent_output: str, original_text: str) -> Dict[str, Any]:

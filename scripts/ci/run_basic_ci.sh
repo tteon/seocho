@@ -21,6 +21,7 @@ python3 -m py_compile \
   extraction/agent_server.py \
   seocho/models.py \
   seocho/client.py \
+  seocho/ontology_context.py \
   seocho/api.py \
   seocho/session.py \
   seocho/__init__.py \
@@ -36,6 +37,7 @@ uv run pytest \
   extraction/tests/test_semantic_query_flow.py \
   extraction/tests/test_api_endpoints.py \
   extraction/tests/test_sdk_client.py \
+  seocho/tests/test_ontology_context.py \
   seocho/tests/test_session_agent.py \
   extraction/tests/test_sdk_evaluation.py \
   -q

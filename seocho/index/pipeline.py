@@ -137,6 +137,7 @@ class IndexingResult:
     rule_validation_summary: Optional[Dict[str, Any]] = None
     relatedness_summary: Optional[Dict[str, Any]] = None
     semantic_artifacts: Optional[Dict[str, Any]] = None
+    ontology_context: Optional[Dict[str, Any]] = None
     fallback_used: bool = False
     fallback_reason: str = ""
 
@@ -159,6 +160,7 @@ class IndexingResult:
             "rule_validation_summary": self.rule_validation_summary,
             "relatedness_summary": self.relatedness_summary,
             "semantic_artifacts": self.semantic_artifacts,
+            "ontology_context": self.ontology_context,
             "fallback_used": self.fallback_used,
             "fallback_reason": self.fallback_reason,
         }
@@ -232,6 +234,8 @@ class IndexingPipeline:
         enable_dedup: bool = True,
         enable_rule_constraints: bool = False,
         embedding_backend: Any = None,
+        ontology_profile: str = "default",
+        ontology_context_cache: Any = None,
         on_after_extract: Optional[Callable] = None,
         on_after_validate: Optional[Callable] = None,
         on_before_write: Optional[Callable] = None,
@@ -250,6 +254,11 @@ class IndexingPipeline:
         self.enable_rule_constraints = enable_rule_constraints
         self._seen_hashes: set = set()
         self.extraction_prompt = extraction_prompt
+        self.ontology_profile = str(ontology_profile or "default")
+
+        from seocho.ontology_context import OntologyContextCache
+
+        self._ontology_context_cache = ontology_context_cache or OntologyContextCache()
 
         # Embedding linker (optional — enables server-parity linking)
         self._embedding_linker = None
@@ -371,6 +380,12 @@ class IndexingPipeline:
         """
         source_id = str(uuid.uuid4())
         result = IndexingResult(source_id=source_id)
+        ontology_context = self._ontology_context_cache.get(
+            self.ontology,
+            workspace_id=self.workspace_id,
+            profile=self.ontology_profile,
+        )
+        result.ontology_context = ontology_context.metadata(usage="indexing")
 
         # Dedup check
         if self.enable_dedup:

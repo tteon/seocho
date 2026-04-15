@@ -226,8 +226,10 @@ See [docs/FILES_AND_ARTIFACTS.md](docs/FILES_AND_ARTIFACTS.md) for where
 | **Validation** | SHACL shapes derived → catches type/cardinality errors |
 | **Constraints** | UNIQUE/INDEX generated from ontology and can be applied to Neo4j |
 | **Denormalization** | Cardinality rules determine safe flattening |
+| **Glossary** | SKOS-style vocabulary terms, aliases, and hidden labels are compiled into the ontology context identity |
 | **Reasoning** | Optional low-quality retry re-extracts with ontology guidance |
 | **Runtime parity** | The same ontology can be converted into approved semantic artifacts and typed prompt context |
+| **Agent context** | A stable ontology context hash follows indexing, query, session traces, and agent hand-off metadata |
 
 ## Key Features
 
@@ -296,6 +298,9 @@ with s.session("my_analysis") as sess:
     sess.add("Beta provides risk analytics to ACME.")
     answer = sess.ask("What does ACME own or use?")
     # → the same ontology from schema.jsonld drives indexing, query prompts, and session context
+
+# Optional: name the shared ontology profile used by indexing/query/agent metadata
+s = Seocho(ontology=onto, ..., ontology_profile="finance-core")
 
 # Supervisor with sub-agent hand-off (explicit opt-in)
 from seocho import RoutingPolicy

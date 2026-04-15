@@ -422,6 +422,12 @@ Each entry must link to a full ADR when impact is non-trivial.
   - keep `extraction/agent_readiness.py`, `extraction/middleware.py`, and `extraction/memory_service.py` as compatibility aliases
   - update active tests, docs, CI, and runtime-shell contract checks to prefer canonical `runtime/*` paths
 
+- Accepted `ADR-0068-ontology-context-cache-and-agent-middleware-seam.md`
+  - introduce compact shared ontology context descriptors and cache under `seocho/ontology_context.py`
+  - attach `ontology_context_hash` metadata across local indexing, query traces, and agent session context
+  - include SKOS-style glossary/vocabulary hash in the context identity
+  - defer Rust/DataBook-style portable bundles until the Python SDK contract is stable and measured
+
 ## Template
 
 Use this block for new entries:

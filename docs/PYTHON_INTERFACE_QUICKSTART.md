@@ -553,7 +553,12 @@ store = Neo4jGraphStore("bolt://localhost:7687", "neo4j", "password")
 llm = OpenAIBackend(model="gpt-4o-mini")
 
 # Pipeline mode (default) — deterministic, no LLM reasoning about flow
-s = Seocho(ontology=onto, graph_store=store, llm=llm)
+s = Seocho(
+    ontology=onto,
+    graph_store=store,
+    llm=llm,
+    ontology_profile="finance-core",
+)
 
 with s.session("analysis") as sess:
     sess.add("ACME acquired Beta in 2024.")
@@ -561,6 +566,14 @@ with s.session("analysis") as sess:
     # QueryAgent sees structured context derived from the same ontology
     answer = sess.ask("What does ACME know about Beta?")
 ```
+
+`ontology_profile` is optional. When set, SEOCHO attaches a compact
+`ontology_context` descriptor to indexing metadata, query traces, and session
+agent context. The descriptor also includes the SKOS-style glossary hash derived
+from vocabulary terms and aliases, so glossary changes invalidate the context
+identity. This is the lightweight middleware seam that proves indexing and
+querying used the same shared ontology contract without adding a new storage
+format or hot-path reasoning dependency.
 
 If the same ontology must also govern runtime ingest, reuse it instead of
 authoring a second payload:

@@ -38,20 +38,55 @@ check_present() {
 }
 
 echo "Checking canonical runtime shell imports..."
+check_present "from runtime.agent_readiness import summarize_readiness" \
+  runtime/agent_server.py
+check_present "from runtime.middleware import RequestIDMiddleware" \
+  runtime/agent_server.py
+check_present "from runtime.middleware import get_request_id" \
+  runtime/agent_server.py \
+  runtime/public_memory_api.py
+check_present "from runtime.memory_service import GraphMemoryService" \
+  runtime/server_runtime.py
 check_present "from runtime.runtime_ingest import RuntimeRawIngestor" \
   runtime/server_runtime.py \
-  extraction/memory_service.py
+  runtime/memory_service.py
+check_absent "from agent_readiness import summarize_readiness" \
+  runtime/agent_server.py
+check_absent "from middleware import" \
+  runtime/agent_server.py \
+  runtime/public_memory_api.py
+check_absent "from memory_service import GraphMemoryService" \
+  runtime/server_runtime.py
 check_absent "from runtime_ingest import RuntimeRawIngestor" \
   runtime/server_runtime.py \
-  extraction/memory_service.py
+  runtime/memory_service.py
 
 echo "Checking compatibility alias surface..."
+check_present "_import_module(\"runtime.agent_readiness\")" \
+  extraction/agent_readiness.py
+check_present "_import_module(\"runtime.middleware\")" \
+  extraction/middleware.py
+check_present "_import_module(\"runtime.memory_service\")" \
+  extraction/memory_service.py
 check_present "_import_module(\"runtime.runtime_ingest\")" \
   extraction/runtime_ingest.py
+check_present "import runtime.agent_readiness as runtime_agent_readiness" \
+  extraction/tests/test_runtime_package_aliases.py
+check_present "import runtime.middleware as runtime_middleware" \
+  extraction/tests/test_runtime_package_aliases.py
+check_present "import runtime.memory_service as runtime_memory_service" \
+  extraction/tests/test_runtime_package_aliases.py
 check_present "import runtime.runtime_ingest as runtime_runtime_ingest" \
   extraction/tests/test_runtime_package_aliases.py
 
 echo "Checking repo-owned runtime tests..."
+check_present "from runtime.agent_readiness import summarize_readiness" \
+  extraction/tests/test_agent_readiness.py
+check_present "from runtime.middleware import RequestIDMiddleware, get_request_id" \
+  extraction/tests/test_error_responses.py \
+  extraction/tests/test_middleware.py
+check_present "from runtime.memory_service import GraphMemoryService" \
+  extraction/tests/test_memory_service.py
 check_present "importlib.import_module(\"runtime.runtime_ingest\")" \
   extraction/tests/test_runtime_ingest.py
 check_absent "importlib.import_module(\"runtime_ingest\")" \
@@ -64,13 +99,22 @@ check_present '`runtime/runtime_ingest.py`' \
   docs/AGENT_DEVELOPMENT.md \
   docs/ARCHITECTURE.md \
   docs/RUNTIME_PACKAGE_MIGRATION.md
+check_present '`runtime/memory_service.py`' \
+  docs/ARCHITECTURE.md \
+  docs/RUNTIME_PACKAGE_MIGRATION.md
 check_absent '`extraction/runtime_ingest.py`' \
   docs/AGENT_DEVELOPMENT.md
 
 echo "Checking basic CI coverage..."
+check_present "runtime/memory_service.py" \
+  scripts/ci/run_basic_ci.sh
 check_present "runtime/runtime_ingest.py" \
   scripts/ci/run_basic_ci.sh
+check_present "extraction/memory_service.py" \
+  scripts/ci/run_basic_ci.sh
 check_present "extraction/runtime_ingest.py" \
+  scripts/ci/run_basic_ci.sh
+check_present "extraction/tests/test_memory_service.py" \
   scripts/ci/run_basic_ci.sh
 check_present "extraction/tests/test_runtime_ingest.py" \
   scripts/ci/run_basic_ci.sh

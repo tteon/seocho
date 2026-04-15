@@ -25,6 +25,8 @@ Responsibilities:
 Primary surfaces:
 
 - `runtime/agent_server.py`
+- `runtime/memory_service.py`
+- `runtime/middleware.py`
 - `runtime/policy.py`
 - `docs/decisions/`
 - `docs/BEADS_OPERATING_MODEL.md`
@@ -33,9 +35,10 @@ Long-term target:
 
 - `runtime/` becomes the canonical deployment-shell package
 - `extraction/` shrinks to extraction-only concerns or compatibility wrappers
-- the first runtime-package slice is landed: `agent_server`, `server_runtime`,
-  `public_memory_api`, and `policy` now live under `runtime/` with flat
-  `extraction/*` compatibility aliases
+- runtime-package slices are landing incrementally: `agent_server`,
+  `agent_readiness`, `middleware`, `memory_service`, `server_runtime`,
+  `public_memory_api`, `runtime_ingest`, and `policy` now live under
+  `runtime/` with flat `extraction/*` compatibility aliases
 
 ## Data Plane
 

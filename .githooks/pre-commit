@@ -62,7 +62,7 @@ fi
 
 STAGED_RUNTIME_FILES="$(git -C "${WORKTREE_ROOT}" diff --cached --name-only || true)"
 if printf '%s\n' "${STAGED_RUNTIME_FILES}" | grep -Eq \
-  '^(runtime/|extraction/runtime_ingest\.py|extraction/memory_service\.py|extraction/tests/test_(runtime_ingest|runtime_package_aliases|integration_runtime_flow|api_endpoints|api_integration)\.py|docs/(AGENT_DEVELOPMENT|ARCHITECTURE|RUNTIME_PACKAGE_MIGRATION|WORKFLOW)\.md|scripts/ci/run_basic_ci\.sh|\.agents/skills/runtime-migration-slice/)'; then
+  '^(runtime/|extraction/(agent_readiness|middleware|memory_service|runtime_ingest)\.py|extraction/tests/test_(agent_readiness|middleware|memory_service|runtime_ingest|runtime_package_aliases|integration_runtime_flow|api_endpoints|api_integration|error_responses)\.py|docs/(AGENT_DEVELOPMENT|ARCHITECTURE|RUNTIME_PACKAGE_MIGRATION|WORKFLOW)\.md|scripts/ci/(run_basic_ci|check-runtime-shell-contract)\.sh|\.agents/skills/runtime-migration-slice/)'; then
   if ! "${WORKTREE_ROOT}/scripts/ci/check-runtime-shell-contract.sh" >/dev/null 2>&1; then
     echo "Error: runtime shell contract check failed." >&2
     echo "Run: bash scripts/ci/check-runtime-shell-contract.sh" >&2

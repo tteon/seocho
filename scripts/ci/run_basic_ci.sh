@@ -4,10 +4,16 @@ set -euo pipefail
 python3 -m py_compile \
   runtime/__init__.py \
   runtime/policy.py \
+  runtime/agent_readiness.py \
+  runtime/middleware.py \
+  runtime/memory_service.py \
   runtime/public_memory_api.py \
   runtime/server_runtime.py \
   runtime/runtime_ingest.py \
   runtime/agent_server.py \
+  extraction/agent_readiness.py \
+  extraction/middleware.py \
+  extraction/memory_service.py \
   extraction/runtime_ingest.py \
   extraction/semantic_query_flow.py \
   extraction/semantic_run_store.py \
@@ -22,6 +28,9 @@ python3 -m py_compile \
 
 uv run pytest \
   extraction/tests/test_runtime_package_aliases.py \
+  extraction/tests/test_agent_readiness.py \
+  extraction/tests/test_middleware.py \
+  extraction/tests/test_memory_service.py \
   extraction/tests/test_runtime_ingest.py \
   extraction/tests/test_semantic_run_store.py \
   extraction/tests/test_semantic_query_flow.py \

@@ -4,7 +4,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from memory_service import GraphMemoryService
+from runtime.memory_service import GraphMemoryService
 
 
 class _FakeIngestor:

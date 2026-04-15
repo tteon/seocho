@@ -82,17 +82,25 @@ The main effect is engineering-facing:
 Current landed first slice:
 
 - `runtime/agent_server.py`
+- `runtime/agent_readiness.py`
+- `runtime/middleware.py`
+- `runtime/memory_service.py`
 - `runtime/server_runtime.py`
 - `runtime/policy.py`
 - `runtime/public_memory_api.py`
 - `runtime/runtime_ingest.py`
-- `extraction/agent_server.py`, `extraction/server_runtime.py`,
-  `extraction/policy.py`, `extraction/public_memory_api.py`, and
-  `extraction/runtime_ingest.py` remain as compatibility aliases
+- `extraction/agent_server.py`, `extraction/agent_readiness.py`,
+  `extraction/middleware.py`, `extraction/memory_service.py`,
+  `extraction/server_runtime.py`, `extraction/policy.py`,
+  `extraction/public_memory_api.py`, and `extraction/runtime_ingest.py`
+  remain as compatibility aliases
 
 Target first modules:
 
 - `runtime/agent_server.py`
+- `runtime/agent_readiness.py`
+- `runtime/middleware.py`
+- `runtime/memory_service.py`
 - `runtime/server_runtime.py`
 - `runtime/policy.py`
 - `runtime/public_memory_api.py`

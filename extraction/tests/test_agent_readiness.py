@@ -5,7 +5,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from agent_readiness import summarize_readiness
+from runtime.agent_readiness import summarize_readiness
 
 
 def test_summarize_readiness_ready():

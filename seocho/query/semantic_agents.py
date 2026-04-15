@@ -1705,6 +1705,8 @@ class RDFAgent:
 class AnswerGenerationAgent:
     """Generate final response payload from routed agent outputs."""
 
+    SUPPORTING_FACT_CHAR_LIMIT = 1200
+
     def synthesize(
         self,
         question: str,
@@ -1773,7 +1775,9 @@ class AnswerGenerationAgent:
         fact = str(slot_fills.get("supporting_fact") or "").strip()
         if not fact:
             return ""
-        return fact[:500].rstrip()
+        if len(fact) <= AnswerGenerationAgent.SUPPORTING_FACT_CHAR_LIMIT:
+            return fact
+        return fact[: AnswerGenerationAgent.SUPPORTING_FACT_CHAR_LIMIT].rsplit(" ", 1)[0].rstrip()
 
     @staticmethod
     def _direct_answer(question: str, supporting_fact: str) -> str:

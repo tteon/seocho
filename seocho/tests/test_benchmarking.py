@@ -66,6 +66,15 @@ def test_compare_answers_rejects_slot_match_when_numbers_differ():
     assert contains is False
 
 
+def test_compare_answers_treats_scaled_numeric_units_as_equivalent():
+    exact, contains = compare_answers(
+        "Tesla delivered 1.31 million vehicles in 2022 compared to 936,000 in 2021.",
+        "In 2022, Tesla delivered 1,310,000 vehicles. In 2021, Tesla delivered 936,000 vehicles.",
+    )
+    assert exact is False
+    assert contains is True
+
+
 def test_run_finder_benchmark_summarizes_latencies_and_matches():
     cases = [
         FinDERBenchmarkCase(

@@ -51,6 +51,54 @@ def test_debate_no_data_detector_handles_agent_phrase_variants():
     assert debate.DebateOrchestrator._should_fallback_to_semantic(
         "Based on the current data, there is no available information."
     )
+    assert debate.DebateOrchestrator._should_fallback_to_semantic(
+        "There are no business segments for Brown & Brown found in the current graph database."
+    )
+    assert debate.DebateOrchestrator._should_fallback_to_semantic(
+        "There is currently no information about key executives at Alphabet in the available graph database."
+    )
+    assert debate.DebateOrchestrator._should_fallback_to_semantic(
+        "There is no specific information recorded about what drove NVIDIA's gross margin expansion."
+    )
+    assert debate.DebateOrchestrator._should_fallback_to_semantic(
+        "There are no factors linked via the DRIVEN_BY relationship."
+    )
+    assert debate.DebateOrchestrator._should_fallback_to_semantic(
+        "There are no recorded business segments for Brown & Brown."
+    )
+    assert debate.DebateOrchestrator._should_fallback_to_semantic(
+        "The system does not show any information or entries linked to Brown & Brown's business segments."
+    )
+    assert debate.DebateOrchestrator._should_fallback_to_semantic(
+        "The sources do not explicitly record any legal issues Microsoft is facing."
+    )
+    assert debate.DebateOrchestrator._should_fallback_to_semantic(
+        "There are no records of key executives for Alphabet in the current scope."
+    )
+    assert debate.DebateOrchestrator._should_fallback_to_semantic(
+        "There is currently no information provided about the key executives at Alphabet."
+    )
+    assert debate.DebateOrchestrator._should_fallback_to_semantic(
+        "There is no detailed information regarding the specific factors that drove NVIDIA's gross margin expansion."
+    )
+    assert debate.DebateOrchestrator._should_fallback_to_semantic(
+        "A search for relevant entities did not yield any results."
+    )
+    assert debate.DebateOrchestrator._should_fallback_to_semantic(
+        "There are no business segments for Brown & Brown listed in the graph database."
+    )
+    assert debate.DebateOrchestrator._should_fallback_to_semantic(
+        "I could not retrieve any data from the graph about Tesla deliveries."
+    )
+    assert debate.DebateOrchestrator._should_fallback_to_semantic(
+        'I do not see any nodes or data directly related to "NVIDIA".'
+    )
+    assert debate.DebateOrchestrator._should_fallback_to_semantic(
+        "I am unable to answer what drove NVIDIA's gross margin expansion."
+    )
+    assert debate.DebateOrchestrator._should_fallback_to_semantic(
+        "NVIDIA and related financial details are outside the current scope."
+    )
 
 
 @pytest.mark.anyio

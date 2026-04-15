@@ -12,6 +12,9 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Set, Tuple
 
 
+CONTENT_PREVIEW_CHAR_LIMIT = 1200
+
+
 def build_record_metadata(
     *,
     source_id: str,
@@ -57,7 +60,7 @@ def ensure_memory_graph(
     record_metadata: Dict[str, Any],
 ) -> Dict[str, Any]:
     document_id = f"{source_id}_doc"
-    preview = text[:280]
+    preview = _content_preview(text)
     metadata_json = json.dumps(record_metadata, ensure_ascii=False, sort_keys=True)
     timestamp = str(
         record_metadata.get("updated_at")
@@ -182,6 +185,13 @@ def copy_scope_properties(properties: Dict[str, Any], record_metadata: Dict[str,
 
 def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _content_preview(text: str, limit: int = CONTENT_PREVIEW_CHAR_LIMIT) -> str:
+    content = str(text or "").strip()
+    if len(content) <= limit:
+        return content
+    return content[:limit].rsplit(" ", 1)[0].rstrip()
 
 
 __all__ = [

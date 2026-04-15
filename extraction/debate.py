@@ -24,6 +24,13 @@ logger = logging.getLogger(__name__)
 _NO_DATA_RE = re.compile(
     r"\b(no data|no available data|no matching|no relevant|not find|could not find|"
     r"cannot find|do not have|don't have|not available|no available information|"
+    r"no (?:specific )?information(?:\s+recorded|\s+about|\s+regarding)?|"
+    r"no information provided(?:\s+about)?|no detailed information(?:\s+regarding)?|"
+    r"no records(?:\s+of)?|do not have records|did not yield any results|"
+    r"no (?:specific )?factors(?:\s+linked)?|no recorded .{1,80}?|"
+    r"no .{1,80}? listed|could not retrieve any data|do not see any (?:nodes|data)|"
+    r"unable to answer|outside (?:the )?current scope|"
+    r"does not show any information|do(?:es)? not explicitly record|no .{1,80}? found|"
     r"does not provide information|lack[s]? (?:revenue|growth|requested|relevant|specific|valid|"
     r"supporting|source)? ?(?:data|information)|outside (?:my|the) graph)\b",
     re.IGNORECASE,

@@ -4,6 +4,7 @@ import json
 import re
 import time
 from dataclasses import asdict, dataclass, field
+from decimal import Decimal
 from pathlib import Path
 from statistics import median
 from typing import Any, Dict, Iterable, List, Sequence
@@ -11,7 +12,16 @@ from typing import Any, Dict, Iterable, List, Sequence
 
 _SPACE_RE = re.compile(r"\s+")
 _NON_ALNUM_RE = re.compile(r"[^a-z0-9\s]")
-_NUMBER_RE = re.compile(r"\d+(?:\.\d+)?%?")
+_NUMBER_WITH_UNIT_RE = re.compile(
+    r"(?P<number>\d+(?:\.\d+)?)(?P<percent>%?)\s*"
+    r"(?P<unit>thousand|million|billion|trillion)?"
+)
+_UNIT_MULTIPLIERS = {
+    "thousand": Decimal("1000"),
+    "million": Decimal("1000000"),
+    "billion": Decimal("1000000000"),
+    "trillion": Decimal("1000000000000"),
+}
 _STOPWORDS = {
     "a",
     "an",
@@ -148,7 +158,16 @@ def _meaningful_tokens(text: str) -> set[str]:
 
 def _numeric_slots(text: str) -> set[str]:
     normalized = str(text).lower().replace(",", "").replace("$", "")
-    return {match.rstrip("%") for match in _NUMBER_RE.findall(normalized)}
+    slots: set[str] = set()
+    for match in _NUMBER_WITH_UNIT_RE.finditer(normalized):
+        raw_number = match.group("number")
+        unit = match.group("unit")
+        if unit and not match.group("percent"):
+            scaled = Decimal(raw_number) * _UNIT_MULTIPLIERS[unit]
+            slots.add(str(int(scaled)) if scaled == scaled.to_integral_value() else str(scaled.normalize()))
+        else:
+            slots.add(raw_number)
+    return slots
 
 
 def _percentile_ms(values: Sequence[float], percentile: float) -> float:

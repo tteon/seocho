@@ -1,6 +1,7 @@
 import json
 
 from seocho.query.semantic_flow import SemanticAgentFlow
+from seocho.query.semantic_agents import AnswerGenerationAgent
 
 
 class FakeConnector:
@@ -82,3 +83,31 @@ def test_canonical_semantic_agent_flow_applies_entity_overrides():
     applied = result["semantic_context"].get("overrides_applied", {})
     assert "Neo4j" in applied
     assert applied["Neo4j"]["node_id"] == 777
+
+
+def test_answer_generation_preserves_long_supporting_sentence_product_ids():
+    supporting_fact = (
+        "NVIDIA Corporation reported data center revenue of $15.0 billion in fiscal 2024, "
+        "up 217% from $4.7 billion in fiscal 2023. Gaming revenue was $10.4 billion, up 15%. "
+        "The company's gross margin expanded to 72.7% from 56.9%, driven by strong demand "
+        "for AI accelerator chips including the H100 and A100 product lines."
+    )
+    response = AnswerGenerationAgent().synthesize(
+        question="What drove NVIDIA's gross margin expansion?",
+        route="lpg",
+        semantic_context={
+            "entities": ["NVIDIA"],
+            "intent": {"intent_id": "entity_summary"},
+            "evidence_bundle_preview": {
+                "slot_fills": {"supporting_fact": supporting_fact},
+                "grounded_slots": ["target_entity", "supporting_fact"],
+            },
+            "support_assessment": {"status": "supported", "reason": "sufficient"},
+            "strategy_decision": {},
+        },
+        lpg_result={"records": [{"entity": "NVIDIA"}]},
+        rdf_result=None,
+    )
+
+    direct_answer = response.split("Route selected:", 1)[0]
+    assert "H100 and A100 product lines" in direct_answer

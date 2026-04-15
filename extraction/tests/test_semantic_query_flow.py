@@ -142,6 +142,9 @@ def test_semantic_agent_flow_lpg_path():
     assert result["lpg_result"]["records"]
     assert "Route selected: LPG." in result["response"]
     assert "Intent: relationship_lookup." in result["response"]
+    assert "Evidence: Neo4j uses Cypher." in result["response"]
+    specialist_step = next(step for step in result["trace_steps"] if step["agent"] == "LPGAgent")
+    assert specialist_step["metadata"]["tool_calls"]
 
 
 def test_semantic_agent_flow_uses_canonical_phase_a_query_primitives():

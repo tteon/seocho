@@ -140,6 +140,7 @@ class SemanticAgentFlow:
                         ),
                         "terminal_reason": lpg_result.get("reasoning", {}).get("terminal_reason"),
                         "support_status": lpg_result.get("support_assessment", {}).get("status"),
+                        "tool_calls": lpg_result.get("reasoning", {}).get("repair_trace", []),
                     },
                 }
             )

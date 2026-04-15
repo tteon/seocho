@@ -164,6 +164,27 @@ def test_search_memories_adds_evidence_bundle_to_ranked_results():
     assert result["evidence_bundle"]["slot_fills"]["target_entity"] == "Seoul"
 
 
+def test_scope_filter_allows_workspace_level_memory_for_scoped_query():
+    service = GraphMemoryService(
+        db_manager=_FakeDbManager(),
+        runtime_raw_ingestor=_FakeIngestor(),
+        semantic_agent_flow=_FakeSemanticFlow(),
+    )
+
+    assert service._matches_scope(
+        {"user_id": "", "agent_id": "", "session_id": ""},
+        user_id="user_1",
+        agent_id="agent_1",
+        session_id="sess_1",
+    )
+    assert not service._matches_scope(
+        {"user_id": "user_2", "agent_id": "", "session_id": ""},
+        user_id="user_1",
+        agent_id="agent_1",
+        session_id="sess_1",
+    )
+
+
 def test_ontology_context_mismatch_summarizes_runtime_graph_status():
     service = GraphMemoryService(
         db_manager=_FakeDbManager(),

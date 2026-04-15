@@ -687,6 +687,7 @@ class RawIngestError(JsonSerializable):
 
 @dataclass(slots=True)
 class RawIngestResult(JsonSerializable):
+    ok: bool
     workspace_id: str
     target_database: str
     records_received: int
@@ -698,12 +699,20 @@ class RawIngestResult(JsonSerializable):
     rule_profile: Optional[Dict[str, Any]] = None
     semantic_artifacts: Optional[Dict[str, Any]] = None
     status: str = ""
+    domain_error: str = ""
     warnings: List[RawIngestWarning] = field(default_factory=list)
     errors: List[RawIngestError] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, payload: Dict[str, Any]) -> "RawIngestResult":
         return cls(
+            ok=bool(
+                payload.get(
+                    "ok",
+                    str(payload.get("status", "")) in {"success", "success_with_fallback", "partial_success"}
+                    and int(payload.get("records_processed", 0) or 0) > 0,
+                )
+            ),
             workspace_id=str(payload.get("workspace_id", "")),
             target_database=str(payload.get("target_database", "")),
             records_received=int(payload.get("records_received", 0)),
@@ -719,6 +728,7 @@ class RawIngestResult(JsonSerializable):
                 else None
             ),
             status=str(payload.get("status", "")),
+            domain_error=str(payload.get("domain_error", "")),
             warnings=[RawIngestWarning.from_dict(item) for item in payload.get("warnings", [])],
             errors=[RawIngestError.from_dict(item) for item in payload.get("errors", [])],
         )

@@ -141,6 +141,7 @@ def test_semantic_agent_flow_lpg_path():
     assert result["lpg_result"] is not None
     assert result["lpg_result"]["records"]
     assert "Route selected: LPG." in result["response"]
+    assert result["response"].startswith("Neo4j uses Cypher.")
     assert "Intent: relationship_lookup." in result["response"]
     assert "Evidence: Neo4j uses Cypher." in result["response"]
     specialist_step = next(step for step in result["trace_steps"] if step["agent"] == "LPGAgent")

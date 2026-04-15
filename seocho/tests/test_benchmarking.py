@@ -44,6 +44,28 @@ def test_compare_answers_supports_contains_match():
     assert contains is True
 
 
+def test_compare_answers_supports_slot_contains_match():
+    exact, contains = compare_answers(
+        "PTC reported total revenue of $2.1 billion in fiscal 2023, a 10% increase from $1.9 billion in the prior year.",
+        (
+            "PTC Inc. reported total revenue of 2.1 billion for fiscal year 2023, "
+            "representing a 10 increase from 1.9 billion in the prior year. "
+            "Route selected: LPG."
+        ),
+    )
+    assert exact is False
+    assert contains is True
+
+
+def test_compare_answers_rejects_slot_match_when_numbers_differ():
+    exact, contains = compare_answers(
+        "PTC reported total revenue of $2.1 billion in fiscal 2023, a 10% increase from $1.9 billion in the prior year.",
+        "PTC reported total revenue of 3.4 billion in fiscal 2023.",
+    )
+    assert exact is False
+    assert contains is False
+
+
 def test_run_finder_benchmark_summarizes_latencies_and_matches():
     cases = [
         FinDERBenchmarkCase(

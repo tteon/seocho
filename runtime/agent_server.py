@@ -691,6 +691,102 @@ def _ontology_context_middleware_status(
     )
 
 
+def _coerce_usage_payload(value: Any) -> Dict[str, Any]:
+    if value is None:
+        return {}
+    if hasattr(value, "model_dump"):
+        value = value.model_dump()
+    elif hasattr(value, "dict"):
+        value = value.dict()
+    if not isinstance(value, dict):
+        return {}
+
+    input_tokens = value.get("input_tokens", value.get("prompt_tokens"))
+    output_tokens = value.get("output_tokens", value.get("completion_tokens"))
+    total_tokens = value.get("total_tokens")
+    if input_tokens is None and output_tokens is None and total_tokens is None:
+        return {}
+
+    payload: Dict[str, Any] = {"source": "provider", "exact": True}
+    if input_tokens is not None:
+        payload["input_tokens"] = int(input_tokens)
+    if output_tokens is not None:
+        payload["output_tokens"] = int(output_tokens)
+    if total_tokens is not None:
+        payload["total_tokens"] = int(total_tokens)
+    elif input_tokens is not None and output_tokens is not None:
+        payload["total_tokens"] = int(input_tokens) + int(output_tokens)
+    return payload
+
+
+def _extract_provider_usage(result: Any) -> Dict[str, Any]:
+    for attr in ("usage", "usage_data"):
+        payload = _coerce_usage_payload(getattr(result, attr, None))
+        if payload:
+            return payload
+
+    for response in getattr(result, "raw_responses", []) or []:
+        payload = _coerce_usage_payload(getattr(response, "usage", None))
+        if payload:
+            return payload
+    return {}
+
+
+def _estimate_token_usage(
+    *,
+    query: str,
+    response: str,
+    trace_steps: List[Dict[str, Any]],
+    result: Any = None,
+) -> Dict[str, Any]:
+    provider_usage = _extract_provider_usage(result)
+    if provider_usage:
+        return provider_usage
+
+    trace_text = " ".join(str(step.get("content", "")) for step in trace_steps)
+    input_chars = len(query) + len(trace_text)
+    output_chars = len(response)
+    input_tokens = max(1, round(input_chars / 4)) if input_chars else 0
+    output_tokens = max(1, round(output_chars / 4)) if output_chars else 0
+    return {
+        "source": "estimated_char_count",
+        "exact": False,
+        "input_tokens_est": input_tokens,
+        "output_tokens_est": output_tokens,
+        "total_tokens_est": input_tokens + output_tokens,
+        "note": "Provider token usage was not exposed by this runtime result.",
+    }
+
+
+def _append_usage_trace_step(
+    trace_steps: List[Dict[str, Any]],
+    *,
+    query: str,
+    response: str,
+    mode: str,
+    result: Any = None,
+) -> List[Dict[str, Any]]:
+    steps = list(trace_steps)
+    steps.append(
+        {
+            "id": str(len(steps)),
+            "type": "METRIC",
+            "agent": "RuntimeTrace",
+            "content": "Token usage metadata captured for cost and design analysis.",
+            "metadata": {
+                "mode": mode,
+                "usage": _estimate_token_usage(
+                    query=query,
+                    response=response,
+                    trace_steps=steps,
+                    result=result,
+                ),
+            },
+        }
+    )
+    return steps
+
+
 app.include_router(
     build_public_memory_router(
         memory_service=memory_service,
@@ -892,6 +988,58 @@ async def run_agent(request: QueryRequest):
             "databases": scoped_databases,
         }
     )
+    if request.graph_ids:
+        if not scoped_databases:
+            raise HTTPException(status_code=400, detail="No target databases available for graph scope.")
+        try:
+            result = await asyncio.to_thread(
+                semantic_agent_flow.run,
+                question=request.query,
+                databases=scoped_databases,
+                entity_overrides={},
+                workspace_id=request.workspace_id,
+                reasoning_mode=False,
+                repair_budget=0,
+            )
+            response_text = str(result.get("response", ""))
+            trace_steps = list(result.get("trace_steps", []))
+            trace_steps.insert(
+                0,
+                {
+                    "id": "graph-scope",
+                    "type": "ROUTING_POLICY",
+                    "agent": "RuntimeRouter",
+                    "content": "Graph-scoped legacy request routed through semantic graph QA.",
+                    "metadata": {
+                        "requested_graph_ids": valid_graph_ids,
+                        "databases": scoped_databases,
+                        "fallback_from": "legacy_router",
+                    },
+                },
+            )
+            ontology_context_mismatch = _ontology_context_middleware_status(
+                workspace_id=request.workspace_id,
+                databases=scoped_databases,
+            )
+            return AgentResponse(
+                response=response_text,
+                trace_steps=_append_usage_trace_step(
+                    trace_steps,
+                    query=request.query,
+                    response=response_text,
+                    mode="graph-scoped-semantic",
+                ),
+                ontology_context_mismatch=ontology_context_mismatch,
+            )
+        except SeochoError:
+            raise
+        except Exception as e:
+            logger.error("Graph-scoped agent execution failed: %s", e, exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail="Graph-scoped agent execution failed. Check server logs for details.",
+            )
+
     srv_context = ServerContext(
         user_id=request.user_id,
         workspace_id=request.workspace_id,
@@ -950,7 +1098,13 @@ async def run_agent(request: QueryRequest):
         )
         return AgentResponse(
             response=str(result.final_output),
-            trace_steps=mapped_steps,
+            trace_steps=_append_usage_trace_step(
+                mapped_steps,
+                query=request.query,
+                response=str(result.final_output),
+                mode="legacy-router",
+                result=result,
+            ),
             ontology_context_mismatch=ontology_context_mismatch,
         )
     except SeochoError:
@@ -1038,6 +1192,12 @@ async def run_agent_semantic(request: SemanticQueryRequest):
             "ontology_context_mismatch"
         ] = ontology_context_mismatch
         result["ontology_context_mismatch"] = ontology_context_mismatch
+        result["trace_steps"] = _append_usage_trace_step(
+            list(result.get("trace_steps", [])),
+            query=request.query,
+            response=str(result.get("response", "")),
+            mode="semantic-route",
+        )
         return SemanticAgentResponse(**result)
     except SeochoError:
         raise
@@ -1144,15 +1304,17 @@ async def run_debate(request: QueryRequest):
             "graph_ids": request.graph_ids or graph_registry.list_graph_ids(),
         }
     )
+    valid_graph_ids, scoped_databases = _resolve_graph_scope(request.graph_ids)
+
     memory = SharedMemory()
     srv_context = ServerContext(
         user_id=request.user_id,
         workspace_id=request.workspace_id,
         last_query=request.query,
         shared_memory=memory,
+        allowed_databases=scoped_databases,
+        semantic_agent_flow=semantic_agent_flow,
     )
-
-    valid_graph_ids, scoped_databases = _resolve_graph_scope(request.graph_ids)
 
     if not valid_graph_ids:
         raise HTTPException(status_code=400, detail="No target graphs available.")
@@ -1204,6 +1366,12 @@ async def run_debate(request: QueryRequest):
         result["ontology_context_mismatch"] = _ontology_context_middleware_status(
             workspace_id=request.workspace_id,
             databases=scoped_databases,
+        )
+        result["trace_steps"] = _append_usage_trace_step(
+            list(result.get("trace_steps", [])),
+            query=request.query,
+            response=str(result.get("response", "")),
+            mode="debate",
         )
         return DebateResponse(**result)
     except SeochoError:

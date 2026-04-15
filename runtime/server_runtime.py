@@ -4,7 +4,7 @@ import logging
 import os
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from agent_factory import AgentFactory
 from config import db_registry, graph_registry
@@ -34,6 +34,7 @@ class ServerContext:
     allowed_databases: List[str] = field(default_factory=list)
     tool_budget: int = 4
     tool_invocations: int = 0
+    semantic_agent_flow: Optional[Any] = None
 
     def log_activity(self, agent_name: str) -> None:
         if not self.trace_path or self.trace_path[-1] != agent_name:

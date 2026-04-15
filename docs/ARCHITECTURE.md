@@ -156,7 +156,7 @@ one monolithic implementation file.
   - SKOS-style glossary/vocabulary hash derived from ontology labels, aliases, properties, and relationship terms
   - graph-write metadata helpers that attach compact `_ontology_*` properties to persisted nodes and relationships
   - query guardrail helpers that compare active ontology context with indexed graph context hashes
-  - typed HTTP response metadata for memory search/chat and semantic query clients
+  - typed HTTP response metadata for memory search/chat, semantic query, router, debate, execution-plan, and platform chat clients
 - `seocho/ontology_serialization.py`
   - canonical JSON-LD load/save helpers
   - no runtime governance side effects

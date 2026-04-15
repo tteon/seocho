@@ -259,6 +259,7 @@ class ExecutionResult(JsonSerializable):
     graph_ids: List[str] = field(default_factory=list)
     databases: List[str] = field(default_factory=list)
     trace_steps: List[Dict[str, Any]] = field(default_factory=list)
+    ontology_context_mismatch: Dict[str, Any] = field(default_factory=dict)
     router_result: Optional["AgentRunResponse"] = None
     semantic_result: Optional["SemanticRunResponse"] = None
     debate_result: Optional["DebateRunResponse"] = None
@@ -299,6 +300,7 @@ class ExecutionResult(JsonSerializable):
             graph_ids=graph_ids,
             databases=databases,
             trace_steps=list(getattr(result, "trace_steps", [])),
+            ontology_context_mismatch=dict(getattr(result, "ontology_context_mismatch", {}) or {}),
         )
         if runtime_mode == "semantic" and isinstance(result, SemanticRunResponse):
             payload.semantic_result = result
@@ -439,12 +441,14 @@ class EvidenceBundle(JsonSerializable):
 class AgentRunResponse(JsonSerializable):
     response: str
     trace_steps: List[Dict[str, Any]] = field(default_factory=list)
+    ontology_context_mismatch: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, payload: Dict[str, Any]) -> "AgentRunResponse":
         return cls(
             response=str(payload.get("response", "")),
             trace_steps=list(payload.get("trace_steps", [])),
+            ontology_context_mismatch=dict(payload.get("ontology_context_mismatch", {})),
         )
 
 
@@ -583,6 +587,7 @@ class DebateRunResponse(JsonSerializable):
     agent_statuses: List[Dict[str, str]] = field(default_factory=list)
     debate_state: str = "ready"
     degraded: bool = False
+    ontology_context_mismatch: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, payload: Dict[str, Any]) -> "DebateRunResponse":
@@ -593,6 +598,7 @@ class DebateRunResponse(JsonSerializable):
             agent_statuses=list(payload.get("agent_statuses", [])),
             debate_state=str(payload.get("debate_state", "ready")),
             degraded=bool(payload.get("degraded", False)),
+            ontology_context_mismatch=dict(payload.get("ontology_context_mismatch", {})),
         )
 
 
@@ -619,6 +625,7 @@ class PlatformChatResponse(JsonSerializable):
     trace_steps: List[Dict[str, Any]] = field(default_factory=list)
     ui_payload: Dict[str, Any] = field(default_factory=dict)
     runtime_payload: Dict[str, Any] = field(default_factory=dict)
+    ontology_context_mismatch: Dict[str, Any] = field(default_factory=dict)
     history: List[PlatformTurn] = field(default_factory=list)
 
     @classmethod
@@ -630,6 +637,7 @@ class PlatformChatResponse(JsonSerializable):
             trace_steps=list(payload.get("trace_steps", [])),
             ui_payload=dict(payload.get("ui_payload", {})),
             runtime_payload=dict(payload.get("runtime_payload", {})),
+            ontology_context_mismatch=dict(payload.get("ontology_context_mismatch", {})),
             history=[PlatformTurn.from_dict(item) for item in payload.get("history", [])],
         )
 

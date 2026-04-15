@@ -600,6 +600,7 @@ def test_runtime_client_methods_cover_semantic_debate_platform_and_admin_surface
                 payload={
                     "response": "router answer",
                     "trace_steps": [{"type": "GENERATION"}],
+                    "ontology_context_mismatch": {"mismatch": False, "databases": []},
                 }
             ),
             _FakeResponse(
@@ -625,6 +626,7 @@ def test_runtime_client_methods_cover_semantic_debate_platform_and_admin_surface
                     "agent_statuses": [{"graph": "kgnormal", "status": "ready", "reason": "checked"}],
                     "debate_state": "ready",
                     "degraded": False,
+                    "ontology_context_mismatch": {"mismatch": False, "databases": []},
                 }
             ),
             _FakeResponse(
@@ -634,7 +636,12 @@ def test_runtime_client_methods_cover_semantic_debate_platform_and_admin_surface
                     "assistant_message": "platform answer",
                     "trace_steps": [{"type": "GENERATION"}],
                     "ui_payload": {"cards": []},
-                    "runtime_payload": {"response": "platform answer", "debate_state": "ready"},
+                    "runtime_payload": {
+                        "response": "platform answer",
+                        "debate_state": "ready",
+                        "ontology_context_mismatch": {"mismatch": False, "databases": []},
+                    },
+                    "ontology_context_mismatch": {"mismatch": False, "databases": []},
                     "history": [
                         {"role": "user", "content": "hello", "metadata": {}},
                         {"role": "assistant", "content": "platform answer", "metadata": {}},
@@ -710,11 +717,14 @@ def test_runtime_client_methods_cover_semantic_debate_platform_and_admin_surface
     fulltext = client.ensure_fulltext_indexes(databases=["kgnormal"])
 
     assert routed.response == "router answer"
+    assert routed.ontology_context_mismatch["mismatch"] is False
     assert semantic.route == "lpg"
     assert semantic.semantic_context["entities"] == ["Neo4j"]
     assert semantic.ontology_context_mismatch["mismatch"] is True
     assert debated.debate_results[0]["graph"] == "kgnormal"
+    assert debated.ontology_context_mismatch["mismatch"] is False
     assert platform.history[1].content == "platform answer"
+    assert platform.ontology_context_mismatch["mismatch"] is False
     assert history.history[0].role == "user"
     assert reset.history == []
     assert ingested.records_processed == 1
@@ -869,6 +879,7 @@ def test_execution_plan_builder_defaults_to_semantic_and_advanced_remains_explic
                     "semantic_context": {"entities": ["Alex"]},
                     "lpg_result": {"records": []},
                     "rdf_result": None,
+                    "ontology_context_mismatch": {"mismatch": False, "databases": []},
                 }
             ),
             _FakeResponse(
@@ -879,6 +890,7 @@ def test_execution_plan_builder_defaults_to_semantic_and_advanced_remains_explic
                     "agent_statuses": [{"graph": "kgnormal", "status": "ready"}],
                     "debate_state": "ready",
                     "degraded": False,
+                    "ontology_context_mismatch": {"mismatch": True, "databases": []},
                 }
             ),
         ]
@@ -889,7 +901,9 @@ def test_execution_plan_builder_defaults_to_semantic_and_advanced_remains_explic
     advanced_result = client.plan("Hard graph question").on_graph("kgnormal").advanced().run()
 
     assert semantic_result.route == "lpg"
+    assert semantic_result.ontology_context_mismatch["mismatch"] is False
     assert advanced_result.debate_state == "ready"
+    assert advanced_result.ontology_context_mismatch["mismatch"] is True
     assert session.calls[1]["url"] == "http://localhost:8001/run_agent_semantic"
     assert session.calls[2]["url"] == "http://localhost:8001/run_debate"
 

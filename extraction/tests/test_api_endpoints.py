@@ -500,6 +500,7 @@ class TestListEndpoints:
                 mock_execute.return_value = {
                     "response": "platform response",
                     "trace_steps": [{"type": "GENERATION", "agent": "A", "content": "x", "metadata": {}}],
+                    "ontology_context_mismatch": {"mismatch": False, "databases": []},
                 }
                 mock_ui.return_value = {"cards": [], "trace_summary": {}, "entity_candidates": []}
                 response = await client.post(
@@ -515,35 +516,69 @@ class TestListEndpoints:
                 data = response.json()
                 assert data["session_id"] == "s1"
                 assert data["assistant_message"] == "platform response"
+                assert data["ontology_context_mismatch"]["mismatch"] is False
+
+    async def test_run_agent_scopes_graph_ids_and_returns_ontology_context(self, client, app_module):
+        class _FakeRuntime:
+            def trace(self, *_args, **_kwargs):
+                return nullcontext()
+
+            async def run(self, *, agent, input, context):  # noqa: ANN001
+                assert context.allowed_databases == ["kgnormal"]
+                return types.SimpleNamespace(final_output="router response", chat_history=[])
+
+        mismatch = {"mismatch": False, "databases": [{"database": "kgnormal"}]}
+        target = types.SimpleNamespace(database="kgnormal")
+        with patch.object(app_module.graph_registry, "list_graph_ids", return_value=["kgnormal"]):
+            with patch.object(app_module.graph_registry, "is_valid_graph", return_value=True):
+                with patch.object(app_module.graph_registry, "get_graph", return_value=target):
+                    with patch.object(app_module, "get_agents_runtime", return_value=_FakeRuntime()):
+                        with patch.object(app_module.memory_service, "ontology_context_mismatch", return_value=mismatch):
+                            response = await client.post(
+                                "/run_agent",
+                                json={
+                                    "query": "hello",
+                                    "workspace_id": "default",
+                                    "user_id": "u1",
+                                    "graph_ids": ["kgnormal"],
+                                },
+                            )
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["response"] == "router response"
+        assert payload["ontology_context_mismatch"] == mismatch
 
     async def test_run_debate_returns_blocked_state_when_no_ready_agents(self, client, app_module):
         with patch.object(app_module.graph_registry, "list_graph_ids", return_value=["kgnormal"]):
             with patch.object(app_module.graph_registry, "is_valid_graph", return_value=True):
-                with patch.object(app_module.agent_factory, "create_agents_for_graphs") as mock_create:
-                    with patch.object(app_module.agent_factory, "get_agents_for_graphs") as mock_get_agents:
-                        mock_create.return_value = [
-                            {
-                                "graph": "kgnormal",
-                                "database": "kgnormal",
-                                "status": "degraded",
-                                "reason": "Graph not found",
-                            }
-                        ]
-                        mock_get_agents.return_value = {}
-                        response = await client.post(
-                            "/run_debate",
-                            json={
-                                "query": "compare entities",
-                                "workspace_id": "default",
-                                "user_id": "u1",
-                                "graph_ids": ["kgnormal"],
-                            },
-                        )
-                        assert response.status_code == 200
-                        payload = response.json()
-                        assert payload["debate_state"] == "blocked"
-                        assert payload["degraded"] is True
-                        assert payload["debate_results"] == []
+                with patch.object(app_module.graph_registry, "get_graph", return_value=types.SimpleNamespace(database="kgnormal")):
+                    with patch.object(app_module.memory_service, "ontology_context_mismatch", return_value={"mismatch": False, "databases": []}):
+                        with patch.object(app_module.agent_factory, "create_agents_for_graphs") as mock_create:
+                            with patch.object(app_module.agent_factory, "get_agents_for_graphs") as mock_get_agents:
+                                mock_create.return_value = [
+                                    {
+                                        "graph": "kgnormal",
+                                        "database": "kgnormal",
+                                        "status": "degraded",
+                                        "reason": "Graph not found",
+                                    }
+                                ]
+                                mock_get_agents.return_value = {}
+                                response = await client.post(
+                                    "/run_debate",
+                                    json={
+                                        "query": "compare entities",
+                                        "workspace_id": "default",
+                                        "user_id": "u1",
+                                        "graph_ids": ["kgnormal"],
+                                    },
+                                )
+                                assert response.status_code == 200
+                                payload = response.json()
+                                assert payload["debate_state"] == "blocked"
+                                assert payload["degraded"] is True
+                                assert payload["debate_results"] == []
+                                assert payload["ontology_context_mismatch"]["mismatch"] is False
 
     async def test_run_debate_rejects_invalid_graph(self, client, app_module):
         with patch.object(app_module.graph_registry, "list_graph_ids", return_value=["kgnormal"]):

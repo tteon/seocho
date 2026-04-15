@@ -1,27 +1,40 @@
 # SEOCHO
 
-**Ontology-first graph memory for agents**
+**Ontology-aligned middleware between your agents and your graph database.**
 
 [![PyPI](https://img.shields.io/pypi/v/seocho)](https://pypi.org/project/seocho/)
 [![Tests](https://img.shields.io/badge/tests-139%20passed-green)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Define your ontology once. SEOCHO uses that one contract to drive extraction,
-query planning, validation, graph constraints, and runtime semantic artifacts.
-`Seocho` remains the public facade while canonical engine code continues moving
-under `seocho/*`; semantic query Phase A now shares intent inference, evidence
-shaping, support assessment, strategy selection, Cypher validation, and
-insufficiency classification from `seocho/query/*`. Phase B now also shares
-semantic constraint slices and semantic run metadata support from the same
-canonical query package. Phase C now also shares semantic entity resolution,
-route agents, and answer framing from canonical `seocho/query/*` code. Phase D
-now also shares full semantic query orchestration through canonical
-`seocho/query/semantic_flow.py`.
+You declare the ontology. You call `add()` and `ask()`. Under the hood, SEOCHO
+runs the agent reasoning and policy layer that keeps the graph database, the
+semantic artifacts, and the agent behavior all consistent with your one
+schema contract.
+
+What this means in practice:
+
+- **Agents stay in-schema.** Every extraction, every Cypher query, every
+  answer is grounded in the ontology you defined — not in a prompt template
+  that drifts.
+- **The database stays in-schema.** Constraints, indexes, SHACL-like rules,
+  and runtime semantic artifacts are all derived from the same ontology.
+- **You stay in control.** One schema change propagates everywhere: agent
+  prompts, query planning, validation, and governance artifacts.
+
+Compared to peer libraries:
+
+| Library | Core value |
+|---------|------------|
+| mem0 | generic memory for agents |
+| Graphiti (Zep) | temporal knowledge graph |
+| LlamaIndex | ecosystem + integrations |
+| **SEOCHO** | **ontology alignment between agent and graph DB** |
 
 ## Quick Start
 
 ```bash
-pip install "seocho[local]"
+uv pip install "seocho[embedded]"    # zero-config, embedded LadybugDB
+# or: uv pip install "seocho[local]" # with Neo4j/DozerDB
 ```
 
 ```python
@@ -39,7 +52,7 @@ ontology = Ontology(
     },
 )
 
-# 2. One-line local client — defaults to localhost Neo4j + openai/gpt-4o
+# 2. Zero-config local client — uses embedded LadybugDB, no server needed
 s = Seocho.local(ontology)
 
 # 3. Index
@@ -75,6 +88,7 @@ Read next:
 - [Python SDK Quickstart](docs/PYTHON_INTERFACE_QUICKSTART.md)
 - [Files and Artifacts](docs/FILES_AND_ARTIFACTS.md)
 - [OntologyRunContext Strategy](docs/ONTOLOGY_RUN_CONTEXT_STRATEGY.md)
+- [PropertyGraphLens Strategy](docs/PROPERTY_GRAPH_LENS_STRATEGY.md)
 - [Benchmarks](docs/BENCHMARKS.md)
 
 ## Install Paths
@@ -101,6 +115,7 @@ and agent behavior.
 
 - ontology-first, not prompt-first
 - graph-native, not vector-only
+- schemaless property graph plus agent-visible semantic overlay
 - governed artifacts, not ad hoc schema drift
 - local SDK authoring and runtime consumption on one contract
 

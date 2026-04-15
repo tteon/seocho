@@ -37,6 +37,13 @@ Each entry must link to a full ADR when impact is non-trivial.
     and `seocho/`
   - extend the runtime shell contract gate to cover this staged rename seam
 
+- Accepted `ADR-0075-embedded-local-default-install-contract.md`
+  - make `Seocho.local(ontology)` the serverless hello-world path through
+    embedded LadybugDB
+  - include the embedded graph dependency in `seocho[local]`
+  - keep DozerDB/Neo4j as the production graph path and defer Kuzu to a
+    separate backend evaluation
+
 ## 2026-03-12
 
 - Accepted `ADR-0028-graph-registry-and-multi-instance-debate-runtime.md`

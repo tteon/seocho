@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "seocho"
 version = "0.3.0"
-description = "Developer-friendly Python SDK for the SEOCHO graph-memory runtime"
+description = "Ontology-aligned middleware between agents and graph databases"
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.10"
 license = "MIT"
@@ -39,6 +39,7 @@ local = [
     "openai-agents",
     "pydantic>=2.0",
     "pyyaml",
+    "real_ladybug>=0.15.0",
     "tenacity>=8.2.0",
     "uvicorn",
 ]

@@ -41,6 +41,15 @@ def _strip_fake_neo4j():
 
 
 class TestSeochoLocal:
+    def test_ladybug_graph_store_is_publicly_exported(self):
+        """The default embedded graph backend is part of the public SDK surface."""
+        from seocho.graph_store import LadybugGraphStore as compat_export
+        from seocho.store import LadybugGraphStore as store_export
+        from seocho.store.graph import LadybugGraphStore as canonical_export
+
+        assert store_export is canonical_export
+        assert compat_export is canonical_export
+
     def test_local_default_uses_ladybug_embedded(self, simple_ontology, tmp_path):
         """Seocho.local(ontology) defaults to embedded LadybugDB (no server)."""
         import seocho.store.graph as _graph_mod

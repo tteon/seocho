@@ -1,3 +1,34 @@
+"""SEOCHO — Ontology-aligned middleware between agents and graph databases.
+
+Public Plugin Surface (stable contract)
+=======================================
+
+Extension is supported through exactly **four** abstract interfaces. New
+backends or providers plug in here. Anything else is an internal detail
+and must not be treated as an extension point.
+
+1. :class:`seocho.store.graph.GraphStore`
+   Graph database backend. Ships with :class:`Neo4jGraphStore` (production)
+   and :class:`LadybugGraphStore` (embedded, zero-config).
+
+2. :class:`seocho.store.vector.VectorStore`
+   Vector similarity store. Ships with :class:`FAISSVectorStore` and
+   :class:`LanceDBVectorStore`.
+
+3. :class:`seocho.store.llm.LLMBackend`
+   LLM chat-completion provider. Ships with :class:`OpenAIBackend`,
+   :class:`DeepSeekBackend`, :class:`KimiBackend`, :class:`GrokBackend`,
+   and the base :class:`OpenAICompatibleBackend`.
+
+4. :class:`seocho.store.llm.EmbeddingBackend`
+   Embedding provider. Ships with
+   :class:`OpenAICompatibleEmbeddingBackend`.
+
+Anything outside these four is **not** an extension point. We deliberately
+keep the plugin surface narrow so the ontology alignment contract stays
+testable and stable across versions.
+"""
+
 from importlib import import_module
 from importlib.metadata import PackageNotFoundError, version
 from typing import Dict, Iterable

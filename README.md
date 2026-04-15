@@ -119,7 +119,9 @@ public SDK entrypoints. The server side follows the same rule:
 `runtime/agent_server.py` is the transport entrypoint, while shared runtime
 service composition lives in `runtime/server_runtime.py`. The legacy
 `extraction/*` modules now preserve flat import compatibility while the
-deployment shell migrates to `runtime/`.
+deployment shell migrates to `runtime/`. The current local compose service is
+still named `extraction-service`; it bind-mounts `runtime/` and `seocho/` so
+the historical flat entrypoint can delegate to canonical runtime code.
 
 Long-term, the overloaded `extraction/` package name is being retired in favor
 of a thinner `runtime/` deployment shell. The staged plan is documented in

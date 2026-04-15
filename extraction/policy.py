@@ -1,7 +1,9 @@
 """Compatibility alias for :mod:`runtime.policy`."""
 
-from importlib import import_module as _import_module
-import sys as _sys
+try:
+    from ._runtime_alias import alias_runtime_module as _alias_runtime_module
+except ImportError:
+    from _runtime_alias import alias_runtime_module as _alias_runtime_module
 
 
-_sys.modules[__name__] = _import_module("runtime.policy")
+_alias_runtime_module(__name__, "runtime.policy")

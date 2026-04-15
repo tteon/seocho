@@ -31,6 +31,8 @@ services:
       - "${EXTRACTION_API_PORT:-8001}:8001"
     volumes:
       - ./extraction:/app
+      - ./runtime:/app/runtime:ro
+      - ./seocho:/app/seocho:ro
       - ./notebooks:/app/notebooks
       - ./demos:/app/demos
     environment:

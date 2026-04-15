@@ -1,4 +1,5 @@
 import os
+import subprocess
 import sys
 
 
@@ -54,3 +55,18 @@ def test_memory_service_alias_points_to_runtime_module() -> None:
     import runtime.memory_service as runtime_memory_service
 
     assert memory_service is runtime_memory_service
+
+
+def test_extraction_cwd_flat_alias_can_resolve_runtime_module() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import policy; import runtime.policy as rp; assert policy is rp",
+        ],
+        cwd=os.path.join(ROOT_DIR, "extraction"),
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr

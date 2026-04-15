@@ -2,13 +2,16 @@
 Graph store abstraction — pluggable backend for writing and querying
 knowledge graphs.
 
-Currently ships with :class:`Neo4jGraphStore` for DozerDB / Neo4j.
+Currently ships with :class:`LadybugGraphStore` for embedded local use and
+:class:`Neo4jGraphStore` for DozerDB / Neo4j.
 
 Usage::
 
     from seocho import Ontology
-    from seocho.graph_store import Neo4jGraphStore
+    from seocho.graph_store import LadybugGraphStore, Neo4jGraphStore
 
+    store = LadybugGraphStore(".seocho/local.lbug")
+    # or:
     store = Neo4jGraphStore("bolt://localhost:7687", "neo4j", "password")
     store.ensure_constraints(ontology)
     store.write(nodes, relationships, database="mydb")
@@ -642,7 +645,7 @@ class LadybugGraphStore(GraphStore):
 
     Zero-config, file-based, Cypher-native. Install with::
 
-        pip install "seocho[embedded]"   # or: pip install real_ladybug
+        pip install "seocho[local]"      # or: pip install "seocho[embedded]"
 
     Usage::
 
@@ -672,7 +675,7 @@ class LadybugGraphStore(GraphStore):
         except ImportError as exc:
             raise ImportError(
                 "LadybugGraphStore requires 'real_ladybug'. "
-                "Install it with: pip install real_ladybug"
+                "Install it with: pip install 'seocho[local]'"
             ) from exc
 
         import os as _os

@@ -33,8 +33,8 @@ Compared to peer libraries:
 ## Quick Start
 
 ```bash
-uv pip install "seocho[embedded]"    # zero-config, embedded LadybugDB
-# or: uv pip install "seocho[local]" # with Neo4j/DozerDB
+uv pip install "seocho[local]"       # zero-config local SDK, embedded LadybugDB by default
+# or: uv pip install "seocho[embedded]" # minimal embedded graph path
 ```
 
 ```python
@@ -62,7 +62,7 @@ s.add("Marie Curie worked at the University of Paris.")
 print(s.ask("Where did Marie Curie work?"))
 ```
 
-Override the defaults when needed:
+Use a production graph server when needed:
 
 ```python
 s = Seocho.local(
@@ -96,14 +96,15 @@ Read next:
 | Path | Install | What else you need |
 |------|---------|--------------------|
 | HTTP client mode | `pip install seocho` | a running SEOCHO runtime (`base_url=...`) |
-| Local SDK engine (published package) | `pip install "seocho[local]"` | a reachable DozerDB/Neo4j instance and provider credentials |
+| Local SDK engine (published package) | `pip install "seocho[local]"` | provider credentials; Neo4j/DozerDB only if you pass a Bolt URI |
 | Repository development | `pip install -e ".[dev]"` | local clone + test/tooling deps |
 | Offline ontology governance | `pip install "seocho[ontology]"` | local ontology files only |
 
 Notes:
 
 - `pip install seocho` is intentionally thin. It is enough for HTTP client mode and bundle consumption.
-- Local engine mode is where DozerDB/Neo4j is core: `Seocho.local(...)` wires the store and llm for you, or pass them explicitly with `Seocho(ontology=..., graph_store=..., llm=...)`.
+- `Seocho.local(ontology)` defaults to embedded LadybugDB at `.seocho/local.lbug`; it does not require a running graph server.
+- DozerDB/Neo4j remains the production graph path: pass `graph="bolt://..."` or construct `Neo4jGraphStore(...)` explicitly.
 - `pip install "seocho[local]"` adds the dependencies needed for published-package local engine use without pulling the full repo development toolchain.
 - The fastest full local stack is still `make setup-env && make up`.
 
@@ -155,10 +156,11 @@ so runtime-only wrappers no longer own that logic outright.
 | Mode | Constructor | Best for |
 |------|-------------|----------|
 | HTTP client mode | `Seocho(base_url="http://localhost:8001", workspace_id="default")` | consume an existing runtime over HTTP |
-| Local engine mode | `Seocho(ontology=..., graph_store=..., llm=...)` | SDK authoring, experiments, direct graph access |
+| Embedded local mode | `Seocho.local(ontology)` | serverless hello world, SDK authoring, experiments |
+| Explicit local engine mode | `Seocho(ontology=..., graph_store=..., llm=...)` | direct graph-store control |
 | Local platform runtime | `make up` or `seocho serve` | UI + API + DozerDB on one machine |
 
-For local engine mode, `Neo4jGraphStore` works against both Neo4j and DozerDB over Bolt:
+For production local engine mode, `Neo4jGraphStore` works against both Neo4j and DozerDB over Bolt:
 
 ```python
 from seocho.store import Neo4jGraphStore
@@ -170,7 +172,7 @@ Core runtime parameters you need to understand early:
 
 - `base_url`: remote SEOCHO runtime root for HTTP client mode
 - `workspace_id`: logical scope passed through runtime-facing requests
-- `graph_store`: Bolt-backed graph store for local engine mode
+- `graph_store`: explicit graph store for local engine mode; `Seocho.local(...)` creates an embedded store by default
 - `reasoning_mode`: bounded semantic repair loop for hard questions
 - `repair_budget`: max additional repair attempts when retrieval is insufficient
 
@@ -185,7 +187,17 @@ client = Seocho(base_url="http://localhost:8001", workspace_id="default")
 print(client.ask("What do we know about ACME?"))
 ```
 
-### 2. Build locally against your own ontology and graph
+### 2. Build locally against your own ontology with no graph server
+
+```python
+from seocho import Seocho, Ontology
+
+client = Seocho.local(Ontology.from_jsonld("schema.jsonld"))
+client.add("ACME acquired Beta in 2024.")
+print(client.ask("Who did ACME acquire?", reasoning_mode=True, repair_budget=2))
+```
+
+### 3. Build locally against a production graph server
 
 ```python
 from seocho import Seocho, Ontology
@@ -219,7 +231,7 @@ client.add_with_details(
 )
 ```
 
-### 3. Run the local platform stack with UI + API + graph DB
+### 4. Run the local platform stack with UI + API + graph DB
 
 ```bash
 make setup-env

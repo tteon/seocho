@@ -11,7 +11,7 @@ from config import db_registry, graph_registry
 from database_manager import DatabaseManager
 from fulltext_index import FulltextIndexManager
 from graph_connector import MultiGraphConnector
-from memory_service import GraphMemoryService
+from runtime.memory_service import GraphMemoryService
 from platform_agents import (
     BackendSpecialistAgent,
     FrontendSpecialistAgent,

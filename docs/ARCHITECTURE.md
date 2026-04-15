@@ -316,11 +316,17 @@ compatibility roles.
   - `extraction/vector_store.py`
 - compatibility alias now:
   - `extraction/agent_server.py`
+  - `extraction/agent_readiness.py`
+  - `extraction/middleware.py`
+  - `extraction/memory_service.py`
   - `extraction/public_memory_api.py`
   - `extraction/server_runtime.py`
   - `extraction/policy.py`
 - keep as transport/composition:
   - `runtime/agent_server.py`
+  - `runtime/agent_readiness.py`
+  - `runtime/middleware.py`
+  - `runtime/memory_service.py`
   - `runtime/public_memory_api.py`
   - `runtime/server_runtime.py`
   - `runtime/runtime_ingest.py`
@@ -367,8 +373,8 @@ Primary implementation anchors:
 - `seocho/query/cypher_validator.py`
 - `seocho/query/insufficiency.py`
 - `extraction/semantic_query_flow.py` as the compatibility surface during migration
-- `extraction/memory_service.py`
-- `extraction/public_memory_api.py`
+- `runtime/memory_service.py`
+- `runtime/public_memory_api.py`
 - `seocho/types.py`
 
 Reference design brief: `docs/GRAPH_RAG_AGENT_HANDOFF_SPEC.md`
@@ -444,6 +450,9 @@ Offline ontology governance operators should prefer the SDK CLI surface:
 | SharedMemory | `extraction/shared_memory.py` | Request-scoped shared memory between agents + query cache |
 | DebateOrchestrator | `extraction/debate.py` | Executes Parallel Debate pattern (fan-out → collect → synthesize) |
 | Agent Server | `runtime/agent_server.py` | FastAPI endpoints (`/run_agent`, `/run_debate`, `/run_agent_semantic`, `/platform/chat/send`, `/platform/ingest/raw`) |
+| Agent Readiness | `runtime/agent_readiness.py` | Runtime readiness summary helpers for graph-agent orchestration |
+| Request Middleware | `runtime/middleware.py` | Request ID correlation middleware for runtime HTTP endpoints |
+| Memory Service | `runtime/memory_service.py` | Memory-first runtime facade over ingest and semantic graph search |
 | Platform Agents | `extraction/platform_agents.py` | Backend/Frontend specialist orchestration + session state management |
 | Runtime Raw Ingestor | `runtime/runtime_ingest.py` | Runtime raw-text extraction/linking/rule-annotation and DB loading |
 

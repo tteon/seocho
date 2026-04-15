@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 from agents import Agent, function_tool, RunContextWrapper
 
 from config import db_registry, graph_registry, validate_config
-from agent_readiness import summarize_readiness
+from runtime.agent_readiness import summarize_readiness
 from agents_runtime import get_agents_runtime
 from shared_memory import SharedMemory
 from exceptions import (
@@ -26,7 +26,7 @@ from exceptions import (
     PipelineError,
     InvalidDatabaseNameError,
 )
-from middleware import RequestIDMiddleware
+from runtime.middleware import RequestIDMiddleware
 from tracing import configure_opik, track, update_current_span, update_current_trace
 from runtime.policy import require_runtime_permission
 from seocho.runtime_contract import (
@@ -167,7 +167,7 @@ async def seocho_error_handler(request: Request, exc: SeochoError):
             status_code = code
             break
 
-    from middleware import get_request_id
+    from runtime.middleware import get_request_id
     request_id = get_request_id()
 
     body = ErrorResponse(

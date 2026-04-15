@@ -417,6 +417,11 @@ Each entry must link to a full ADR when impact is non-trivial.
   - add a fast runtime-shell contract check for active docs/tests/imports
   - wire the contract check into basic CI and repo-managed pre-commit flow
 
+- Accepted `ADR-0067-runtime-support-module-slice.md`
+  - move runtime support ownership for readiness, request middleware, and memory facade under `runtime/`
+  - keep `extraction/agent_readiness.py`, `extraction/middleware.py`, and `extraction/memory_service.py` as compatibility aliases
+  - update active tests, docs, CI, and runtime-shell contract checks to prefer canonical `runtime/*` paths
+
 ## Template
 
 Use this block for new entries:

@@ -22,7 +22,7 @@ from exceptions import (
     InvalidLabelError,
     ExtractionError,
 )
-from middleware import RequestIDMiddleware, get_request_id
+from runtime.middleware import RequestIDMiddleware, get_request_id
 
 
 @pytest.fixture

@@ -41,8 +41,13 @@ Each entry must link to a full ADR when impact is non-trivial.
   - make `Seocho.local(ontology)` the serverless hello-world path through
     embedded LadybugDB
   - include the embedded graph dependency in `seocho[local]`
-  - keep DozerDB/Neo4j as the production graph path and defer Kuzu to a
-    separate backend evaluation
+  - keep DozerDB/Neo4j as the production graph path; LadybugDB is the embedded
+    local default
+
+- Accepted `ADR-0076-local-compose-bind-host-and-password-contract.md`
+  - bind compose-published local service ports to `127.0.0.1` by default
+  - require an explicit `NEO4J_PASSWORD` instead of falling back to `password`
+  - make LAN exposure an explicit `SEOCHO_BIND_HOST=0.0.0.0` opt-in
 
 ## 2026-03-12
 

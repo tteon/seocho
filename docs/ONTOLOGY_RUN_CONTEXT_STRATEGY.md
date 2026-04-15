@@ -45,6 +45,9 @@ Required fields:
 - `allowed_databases`: database scope enforced by tool middleware.
 - `policy_decision`: allow/warn/block decision plus reason.
 - `ontology_context_mismatch`: graph-indexed context parity metadata.
+- `property_graph_lens`: compact schema/property/overlay summary for visible
+  anchors, evidence paths, and bounded neighborhood probes when a graph-native
+  query path needs it.
 - `evidence_state`: intent, slot fill, missing slots, and selected triples
   when the query path emits evidence.
 
@@ -127,6 +130,9 @@ Already landed or in progress:
 - router/debate/platform/plan responses expose top-level
   `ontology_context_mismatch`
 - router `graph_ids` now bind database scope for tool middleware
+- `PropertyGraphLens` is the target semantic overlay strategy for preserving
+  schemaless property graph flexibility while marking only agent-visible graph
+  elements
 
 ### Stage 1. Canonical Context Model
 
@@ -135,6 +141,7 @@ Add `seocho/ontology_run_context.py` with:
 - `OntologyRunContext`
 - `OntologyPolicyDecision`
 - `OntologyEvidenceState`
+- optional `PropertyGraphLens` summary fields
 - helpers to build context from local SDK, runtime graph targets, and session
   state
 

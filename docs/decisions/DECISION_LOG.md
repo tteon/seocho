@@ -438,6 +438,11 @@ Each entry must link to a full ADR when impact is non-trivial.
   - parse the metadata into typed Python SDK response objects for direct library-user access
   - attach runtime graph target ontology metadata during runtime ingest without fabricating SDK context hashes
 
+- Accepted `ADR-0071-runtime-agent-ontology-middleware-contract.md`
+  - expose `ontology_context_mismatch` as a top-level typed field on router, debate, platform chat, and execution-plan responses
+  - resolve router `graph_ids` into database-scoped agent tool contexts so graph selection affects both DB access and parity metadata
+  - keep ontology/database parity as lightweight middleware metadata instead of adding hot-path ontology reasoning
+
 ## Template
 
 Use this block for new entries:

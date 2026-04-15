@@ -1996,9 +1996,10 @@ class Seocho:
                 "react and debate execution plans require HTTP client mode; "
                 "local engine mode currently supports direct execution only"
             )
-        databases = plan.databases or [plan.graph_ids[0]] if plan.graph_ids else []
+        databases = plan.databases or ([plan.graph_ids[0]] if plan.graph_ids else [])
         database = databases[0] if databases else "neo4j"
         response = self.ask(plan.query, database=database, user_id=plan.user_id)
+        metadata = getattr(self._engine, "_last_query_metadata", {}) if self._engine is not None else {}
         return ExecutionResult(
             requested_style="direct",
             runtime_mode="semantic",
@@ -2007,6 +2008,7 @@ class Seocho:
             graph_ids=plan.graph_ids,
             databases=[database] if database else [],
             trace_steps=[],
+            ontology_context_mismatch=dict(metadata.get("ontology_context_mismatch", {})),
         )
 
     def _resolve_execution_plan(self, plan: ExecutionPlan) -> ExecutionPlan:

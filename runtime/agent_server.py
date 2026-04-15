@@ -408,6 +408,10 @@ class AgentResponse(BaseModel):
 
     response: str = Field(description="Final synthesized answer text.")
     trace_steps: List[Dict[str, Any]] = Field(description="Ordered list of agent execution trace steps for DAG rendering.")
+    ontology_context_mismatch: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Runtime graph ontology-context parity metadata for the databases touched by this run.",
+    )
 
 
 class SemanticAgentResponse(AgentResponse):
@@ -460,6 +464,10 @@ class DebateResponse(BaseModel):
     agent_statuses: List[Dict[str, str]] = Field(default_factory=list, description="Per-agent readiness status (ready/degraded/blocked).")
     debate_state: Literal["ready", "degraded", "blocked"] = Field(default="ready", description="Overall debate readiness state.")
     degraded: bool = Field(default=False, description="True if one or more agents were unavailable.")
+    ontology_context_mismatch: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Runtime graph ontology-context parity metadata for debated graph databases.",
+    )
 
 
 class FulltextIndexEnsureRequest(BaseModel):
@@ -522,6 +530,10 @@ class PlatformChatResponse(BaseModel):
     trace_steps: List[Dict[str, Any]] = Field(description="Agent execution trace for frontend DAG rendering.")
     ui_payload: Dict[str, Any] = Field(description="Frontend-specific rendering hints (disambiguation, graph previews).")
     runtime_payload: Dict[str, Any] = Field(description="Backend runtime metadata (semantic context, support assessment).")
+    ontology_context_mismatch: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Runtime graph ontology-context parity metadata surfaced for direct SDK/UI access.",
+    )
     history: List[PlatformTurn] = Field(description="Full session conversation history.")
 
 
@@ -623,6 +635,39 @@ def ensure_fulltext_indexes_impl(request: FulltextIndexEnsureRequest) -> Fulltex
     return FulltextIndexEnsureResponse(results=results)
 
 
+def _resolve_graph_scope(graph_ids: Optional[List[str]]) -> tuple[List[str], List[str]]:
+    """Resolve public graph IDs into database names for agent/tool middleware."""
+
+    requested_graph_ids = graph_ids or graph_registry.list_graph_ids()
+    valid_graph_ids: List[str] = []
+    databases: List[str] = []
+    for graph_id in requested_graph_ids:
+        if not graph_registry.is_valid_graph(graph_id):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid graph '{graph_id}'. Valid options: {graph_registry.list_graph_ids()}",
+            )
+        target = graph_registry.get_graph(graph_id)
+        database = str(getattr(target, "database", "") or graph_id).strip()
+        valid_graph_ids.append(graph_id)
+        if database and database not in databases:
+            databases.append(database)
+    return valid_graph_ids, databases
+
+
+def _ontology_context_middleware_status(
+    *,
+    workspace_id: str,
+    databases: List[str],
+) -> Dict[str, Any]:
+    """Attach non-blocking ontology/database parity metadata to agent responses."""
+
+    return memory_service.ontology_context_mismatch(
+        workspace_id=workspace_id,
+        databases=databases or None,
+    )
+
+
 app.include_router(
     build_public_memory_router(
         memory_service=memory_service,
@@ -640,6 +685,7 @@ async def _platform_run_router(payload: Dict[str, Any]) -> AgentResponse:
         query=payload["message"],
         user_id=payload["user_id"],
         workspace_id=payload["workspace_id"],
+        graph_ids=payload.get("graph_ids"),
     )
     return await run_agent(req)
 
@@ -655,11 +701,14 @@ async def _platform_run_debate(payload: Dict[str, Any]) -> DebateResponse:
 
 
 async def _platform_run_semantic(payload: Dict[str, Any]) -> SemanticAgentResponse:
+    databases = payload.get("databases")
+    if not databases and payload.get("graph_ids"):
+        _, databases = _resolve_graph_scope(payload.get("graph_ids"))
     req = SemanticQueryRequest(
         query=payload["message"],
         user_id=payload["user_id"],
         workspace_id=payload["workspace_id"],
-        databases=payload.get("databases"),
+        databases=databases,
         entity_overrides=payload.get("entity_overrides"),
     )
     return await run_agent_semantic(req)
@@ -729,6 +778,7 @@ async def platform_chat_send(request: PlatformChatRequest):
         trace_steps=runtime_payload.get("trace_steps", []),
         ui_payload=ui_payload,
         runtime_payload=runtime_payload,
+        ontology_context_mismatch=runtime_payload.get("ontology_context_mismatch", {}),
         history=history,
     )
 
@@ -796,22 +846,32 @@ async def run_agent(request: QueryRequest):
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
 
+    valid_graph_ids, scoped_databases = _resolve_graph_scope(request.graph_ids)
     update_current_trace(
         metadata={
             "user_id": request.user_id,
             "workspace_id": request.workspace_id,
             "query": request.query[:200],
+            "graph_ids": valid_graph_ids,
+            "databases": scoped_databases,
         },
         tags=["router-mode"],
     )
     update_current_span(
-        metadata={"mode": "router", "user_id": request.user_id, "workspace_id": request.workspace_id}
+        metadata={
+            "mode": "router",
+            "user_id": request.user_id,
+            "workspace_id": request.workspace_id,
+            "graph_ids": valid_graph_ids,
+            "databases": scoped_databases,
+        }
     )
     srv_context = ServerContext(
         user_id=request.user_id,
         workspace_id=request.workspace_id,
         last_query=request.query,
         shared_memory=SharedMemory(),
+        allowed_databases=scoped_databases if request.graph_ids else [],
     )
 
     try:
@@ -858,9 +918,14 @@ async def run_agent(request: QueryRequest):
                 }
             })
 
+        ontology_context_mismatch = _ontology_context_middleware_status(
+            workspace_id=request.workspace_id,
+            databases=scoped_databases,
+        )
         return AgentResponse(
             response=str(result.final_output),
-            trace_steps=mapped_steps
+            trace_steps=mapped_steps,
+            ontology_context_mismatch=ontology_context_mismatch,
         )
     except SeochoError:
         raise
@@ -1061,15 +1126,7 @@ async def run_debate(request: QueryRequest):
         shared_memory=memory,
     )
 
-    requested_graph_ids = request.graph_ids or graph_registry.list_graph_ids()
-    valid_graph_ids: List[str] = []
-    for graph_id in requested_graph_ids:
-        if not graph_registry.is_valid_graph(graph_id):
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid graph '{graph_id}'. Valid options: {graph_registry.list_graph_ids()}",
-            )
-        valid_graph_ids.append(graph_id)
+    valid_graph_ids, scoped_databases = _resolve_graph_scope(request.graph_ids)
 
     if not valid_graph_ids:
         raise HTTPException(status_code=400, detail="No target graphs available.")
@@ -1080,6 +1137,10 @@ async def run_debate(request: QueryRequest):
 
     all_agents = agent_factory.get_agents_for_graphs(valid_graph_ids)
     if readiness["debate_state"] == "blocked" or not all_agents:
+        ontology_context_mismatch = _ontology_context_middleware_status(
+            workspace_id=request.workspace_id,
+            databases=scoped_databases,
+        )
         return DebateResponse(
             response="Debate mode is blocked: no ready graph agents are available.",
             trace_steps=[
@@ -1100,6 +1161,7 @@ async def run_debate(request: QueryRequest):
             agent_statuses=agent_statuses,
             debate_state="blocked",
             degraded=True,
+            ontology_context_mismatch=ontology_context_mismatch,
         )
 
     orchestrator = DebateOrchestrator(
@@ -1113,6 +1175,10 @@ async def run_debate(request: QueryRequest):
         result["agent_statuses"] = agent_statuses
         result["debate_state"] = readiness["debate_state"]
         result["degraded"] = readiness["degraded"]
+        result["ontology_context_mismatch"] = _ontology_context_middleware_status(
+            workspace_id=request.workspace_id,
+            databases=scoped_databases,
+        )
         return DebateResponse(**result)
     except SeochoError:
         raise

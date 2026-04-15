@@ -590,7 +590,15 @@ print(semantic.ontology_context_mismatch["mismatch"])
 
 chat = client.chat("What do we know about Seoul retail?", databases=["kgnormal"])
 print(chat.ontology_context_mismatch.get("warning", ""))
+
+result = client.plan("Compare Seoul retail sources").on_graph("retail_kg").advanced().run()
+print(result.ontology_context_mismatch["databases"])
 ```
+
+The same top-level field is available on router, debate, execution-plan, and
+platform chat responses. This keeps the library interface consistent: agent
+code asks a graph question, while SEOCHO carries ontology/database parity
+metadata beside the answer.
 
 If the same ontology must also govern runtime ingest, reuse it instead of
 authoring a second payload:

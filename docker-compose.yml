@@ -4,10 +4,10 @@ services:
     image: graphstack/dozerdb:5.26.3.0
     container_name: graphrag-neo4j
     ports:
-      - "${NEO4J_HTTP_PORT:-7474}:7474" # HTTP
-      - "${NEO4J_BOLT_PORT:-7687}:7687" # Bolt
+      - "${SEOCHO_BIND_HOST:-127.0.0.1}:${NEO4J_HTTP_PORT:-7474}:7474" # HTTP
+      - "${SEOCHO_BIND_HOST:-127.0.0.1}:${NEO4J_BOLT_PORT:-7687}:7687" # Bolt
     environment:
-      - NEO4J_AUTH=${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-password}
+      - NEO4J_AUTH=${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in .env before starting compose}
       - NEO4J_PLUGINS=["apoc", "n10s"]
       - dbms.security.procedures.unrestricted=apoc.*,n10s.*
       - dbms.security.procedures.allowlist=apoc.*,n10s.*
@@ -27,8 +27,8 @@ services:
     build: ./extraction
     container_name: extraction-service
     ports:
-      - "${EXTRACTION_NOTEBOOK_PORT:-8888}:8888"
-      - "${EXTRACTION_API_PORT:-8001}:8001"
+      - "${SEOCHO_BIND_HOST:-127.0.0.1}:${EXTRACTION_NOTEBOOK_PORT:-8888}:8888"
+      - "${SEOCHO_BIND_HOST:-127.0.0.1}:${EXTRACTION_API_PORT:-8001}:8001"
     volumes:
       - ./extraction:/app
       - ./runtime:/app/runtime:ro
@@ -40,7 +40,7 @@ services:
       # NEO4J_URI=bolt://localhost:7687 in .env.
       - NEO4J_URI=bolt://neo4j:7687
       - NEO4J_USER=${NEO4J_USER:-neo4j}
-      - NEO4J_PASSWORD=${NEO4J_PASSWORD:-password}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in .env before starting compose}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - SEOCHO_TRACE_BACKEND=${SEOCHO_TRACE_BACKEND:-none}
       - SEOCHO_TRACE_JSONL_PATH=${SEOCHO_TRACE_JSONL_PATH:-/tmp/seocho-runtime.jsonl}
@@ -65,7 +65,7 @@ services:
       # NEO4J_URI=bolt://localhost:7687 in .env.
       - NEO4J_URI=bolt://neo4j:7687
       - NEO4J_USER=${NEO4J_USER:-neo4j}
-      - NEO4J_PASSWORD=${NEO4J_PASSWORD:-password}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in .env before starting compose}
     depends_on:
       - neo4j
     networks:
@@ -76,7 +76,7 @@ services:
     container_name: evaluation-interface
     command: uvicorn server:app --host 0.0.0.0 --port 8501
     ports:
-      - "${CHAT_INTERFACE_PORT:-8501}:8501"
+      - "${SEOCHO_BIND_HOST:-127.0.0.1}:${CHAT_INTERFACE_PORT:-8501}:8501"
     volumes:
       - ./evaluation:/app
     environment:
@@ -98,7 +98,7 @@ services:
       MYSQL_USER: opik
       MYSQL_PASSWORD: ${OPIK_MYSQL_PASSWORD:-opik}
     ports:
-      - "3306:3306"
+      - "${SEOCHO_BIND_HOST:-127.0.0.1}:3306:3306"
     volumes:
       - ./data/opik/mysql:/var/lib/mysql
     healthcheck:
@@ -115,7 +115,7 @@ services:
     profiles: ["opik"]
     command: redis-server --requirepass ${OPIK_REDIS_PASSWORD:-opik}
     ports:
-      - "6379:6379"
+      - "${SEOCHO_BIND_HOST:-127.0.0.1}:6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "-a", "${OPIK_REDIS_PASSWORD:-opik}", "ping"]
       interval: 2s
@@ -130,7 +130,7 @@ services:
     container_name: opik-zookeeper
     profiles: ["opik"]
     ports:
-      - "2181:2181"
+      - "${SEOCHO_BIND_HOST:-127.0.0.1}:2181:2181"
     networks:
       - graphrag-net
 
@@ -144,8 +144,8 @@ services:
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
       CLICKHOUSE_DB: opik
     ports:
-      - "8123:8123"
-      - "9000:9000"
+      - "${SEOCHO_BIND_HOST:-127.0.0.1}:8123:8123"
+      - "${SEOCHO_BIND_HOST:-127.0.0.1}:9000:9000"
     volumes:
       - ./data/opik/clickhouse:/var/lib/clickhouse
       - ./opik/clickhouse_config/additional_config.xml:/etc/clickhouse-server/config.d/additional_config.xml:ro
@@ -168,8 +168,8 @@ services:
       MINIO_ROOT_PASSWORD: ${OPIK_MINIO_PASSWORD:-opikopik}
     command: server /data --console-address ":9090"
     ports:
-      - "9001:9000"
-      - "9090:9090"
+      - "${SEOCHO_BIND_HOST:-127.0.0.1}:9001:9000"
+      - "${SEOCHO_BIND_HOST:-127.0.0.1}:9090:9090"
     volumes:
       - ./data/opik/minio:/data
     networks:
@@ -221,8 +221,8 @@ services:
       PYTHON_EVALUATOR_URL: http://opik-python-backend:8000
       JAVA_OPTS: "-Dliquibase.propertySubstitutionEnabled=true -XX:+UseG1GC -XX:MaxRAMPercentage=80.0"
     ports:
-      - "8080:8080"
-      - "3003:3003"
+      - "${SEOCHO_BIND_HOST:-127.0.0.1}:8080:8080"
+      - "${SEOCHO_BIND_HOST:-127.0.0.1}:3003:3003"
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8080/health-check" ]
       interval: 2s
@@ -252,7 +252,7 @@ services:
       OPIK_VERSION: ${OPIK_VERSION:-1.10.18}
       PYTHON_CODE_EXECUTOR_STRATEGY: process
     ports:
-      - "8000:8000"
+      - "${SEOCHO_BIND_HOST:-127.0.0.1}:8000:8000"
     depends_on:
       opik-backend:
         condition: service_healthy
@@ -264,7 +264,7 @@ services:
     container_name: opik-frontend
     profiles: ["opik"]
     ports:
-      - "5173:5173"
+      - "${SEOCHO_BIND_HOST:-127.0.0.1}:5173:5173"
     depends_on:
       opik-backend:
         condition: service_healthy

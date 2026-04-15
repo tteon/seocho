@@ -60,6 +60,7 @@ def test_canonical_semantic_agent_flow_runs_end_to_end():
     assert result["support_assessment"]["status"] == "supported"
     assert result["strategy_decision"]["executed_mode"] == "semantic_direct"
     assert result["evidence_bundle"]["slot_fills"]["relation_paths"] == ["USES"]
+    assert result["response"].startswith("Neo4j uses Cypher.")
     assert "Route selected: LPG." in result["response"]
 
 

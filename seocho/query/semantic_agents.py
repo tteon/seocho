@@ -1720,7 +1720,13 @@ class AnswerGenerationAgent:
         support_assessment = semantic_context.get("support_assessment", {})
         strategy_decision = semantic_context.get("strategy_decision", {})
 
-        lines = [f"Route selected: {route.upper()}."]
+        supporting_fact = self._supporting_fact(evidence_bundle)
+        direct_answer = self._direct_answer(question, supporting_fact)
+        lines: List[str] = []
+        if direct_answer:
+            lines.append(direct_answer)
+
+        lines.append(f"Route selected: {route.upper()}.")
         if intent.get("intent_id"):
             lines.append(f"Intent: {intent['intent_id']}.")
         if entities:
@@ -1747,7 +1753,6 @@ class AnswerGenerationAgent:
         elif strategy_decision.get("next_mode_hint") == "reasoning_mode":
             lines.append("A bounded repair retry is recommended for a stronger retrieval attempt.")
 
-        supporting_fact = self._supporting_fact(evidence_bundle)
         if supporting_fact:
             lines.append(f"Evidence: {supporting_fact}")
 
@@ -1769,6 +1774,33 @@ class AnswerGenerationAgent:
         if not fact:
             return ""
         return fact[:500].rstrip()
+
+    @staticmethod
+    def _direct_answer(question: str, supporting_fact: str) -> str:
+        if not supporting_fact:
+            return ""
+        sentences = [
+            sentence.strip()
+            for sentence in re.split(r"(?<=[.!?])\s+", supporting_fact)
+            if sentence.strip()
+        ]
+        if not sentences:
+            return supporting_fact
+
+        question_terms = {
+            token
+            for token in re.findall(r"[a-z0-9]+", question.lower())
+            if token not in STOPWORDS and len(token) > 1
+        }
+        if not question_terms:
+            return sentences[0]
+
+        def score(sentence: str) -> tuple[int, int]:
+            terms = set(re.findall(r"[a-z0-9]+", sentence.lower()))
+            numeric_hits = len(set(re.findall(r"\d+(?:\.\d+)?", sentence)) & question_terms)
+            return (len(terms & question_terms), numeric_hits)
+
+        return max(sentences, key=score)
 
 
 __all__ = [

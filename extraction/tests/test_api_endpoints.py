@@ -519,20 +519,33 @@ class TestListEndpoints:
                 assert data["ontology_context_mismatch"]["mismatch"] is False
 
     async def test_run_agent_scopes_graph_ids_and_returns_ontology_context(self, client, app_module):
-        class _FakeRuntime:
-            def trace(self, *_args, **_kwargs):
-                return nullcontext()
-
-            async def run(self, *, agent, input, context):  # noqa: ANN001
-                assert context.allowed_databases == ["kgnormal"]
-                return types.SimpleNamespace(final_output="router response", chat_history=[])
+        class _FakeSemanticFlow:
+            def run(self, *, question, databases, entity_overrides, workspace_id, reasoning_mode, repair_budget):
+                assert question == "hello"
+                assert databases == ["kgnormal"]
+                assert entity_overrides == {}
+                assert workspace_id == "default"
+                assert reasoning_mode is False
+                assert repair_budget == 0
+                return {
+                    "response": "semantic response",
+                    "trace_steps": [
+                        {
+                            "id": "0",
+                            "type": "GENERATION",
+                            "agent": "AnswerGenerationAgent",
+                            "content": "semantic response",
+                            "metadata": {},
+                        }
+                    ],
+                }
 
         mismatch = {"mismatch": False, "databases": [{"database": "kgnormal"}]}
         target = types.SimpleNamespace(database="kgnormal")
         with patch.object(app_module.graph_registry, "list_graph_ids", return_value=["kgnormal"]):
             with patch.object(app_module.graph_registry, "is_valid_graph", return_value=True):
                 with patch.object(app_module.graph_registry, "get_graph", return_value=target):
-                    with patch.object(app_module, "get_agents_runtime", return_value=_FakeRuntime()):
+                    with patch.object(app_module, "semantic_agent_flow", _FakeSemanticFlow()):
                         with patch.object(app_module.memory_service, "ontology_context_mismatch", return_value=mismatch):
                             response = await client.post(
                                 "/run_agent",
@@ -545,8 +558,11 @@ class TestListEndpoints:
                             )
         assert response.status_code == 200
         payload = response.json()
-        assert payload["response"] == "router response"
+        assert payload["response"] == "semantic response"
         assert payload["ontology_context_mismatch"] == mismatch
+        assert payload["trace_steps"][0]["type"] == "ROUTING_POLICY"
+        assert payload["trace_steps"][-1]["type"] == "METRIC"
+        assert payload["trace_steps"][-1]["metadata"]["usage"]["source"] == "estimated_char_count"
 
     async def test_run_debate_returns_blocked_state_when_no_ready_agents(self, client, app_module):
         with patch.object(app_module.graph_registry, "list_graph_ids", return_value=["kgnormal"]):

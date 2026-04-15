@@ -11,6 +11,31 @@ from typing import Any, Dict, Iterable, List, Sequence
 
 _SPACE_RE = re.compile(r"\s+")
 _NON_ALNUM_RE = re.compile(r"[^a-z0-9\s]")
+_NUMBER_RE = re.compile(r"\d+(?:\.\d+)?%?")
+_STOPWORDS = {
+    "a",
+    "an",
+    "and",
+    "are",
+    "as",
+    "by",
+    "for",
+    "from",
+    "in",
+    "is",
+    "it",
+    "of",
+    "on",
+    "or",
+    "the",
+    "through",
+    "to",
+    "was",
+    "were",
+    "what",
+    "which",
+    "with",
+}
 
 
 @dataclass(slots=True)
@@ -88,8 +113,42 @@ def compare_answers(expected: str, actual: str) -> tuple[bool, bool]:
     if not norm_expected or not norm_actual:
         return False, False
     exact = norm_expected == norm_actual
-    contains = norm_expected in norm_actual or norm_actual in norm_expected
+    contains = (
+        norm_expected in norm_actual
+        or norm_actual in norm_expected
+        or _slot_contains_match(expected, actual)
+    )
     return exact, contains
+
+
+def _slot_contains_match(expected: str, actual: str) -> bool:
+    expected_tokens = _meaningful_tokens(expected)
+    actual_tokens = _meaningful_tokens(actual)
+    if not expected_tokens or not actual_tokens:
+        return False
+
+    expected_numbers = _numeric_slots(expected)
+    actual_numbers = _numeric_slots(actual)
+    if expected_numbers and not expected_numbers.issubset(actual_numbers):
+        return False
+
+    overlap = expected_tokens & actual_tokens
+    recall = len(overlap) / len(expected_tokens)
+    return recall >= 0.72
+
+
+def _meaningful_tokens(text: str) -> set[str]:
+    tokens = set(normalize_answer(text).split())
+    return {
+        token
+        for token in tokens
+        if token not in _STOPWORDS and (len(token) > 1 or token.isdigit())
+    }
+
+
+def _numeric_slots(text: str) -> set[str]:
+    normalized = str(text).lower().replace(",", "").replace("$", "")
+    return {match.rstrip("%") for match in _NUMBER_RE.findall(normalized)}
 
 
 def _percentile_ms(values: Sequence[float], percentile: float) -> float:

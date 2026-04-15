@@ -115,8 +115,10 @@ Internally, the ontology layer is split into clear boundaries:
 `Seocho` itself is a facade: canonical query, agent, ontology, transport, and
 artifact helpers live under `seocho/*`, while `client.py` stays focused on the
 public SDK entrypoints. The server side follows the same rule:
-`extraction/agent_server.py` is the transport entrypoint, while shared runtime
-service composition lives in `extraction/server_runtime.py`.
+`runtime/agent_server.py` is the transport entrypoint, while shared runtime
+service composition lives in `runtime/server_runtime.py`. The legacy
+`extraction/*` modules now preserve flat import compatibility while the
+deployment shell migrates to `runtime/`.
 
 Long-term, the overloaded `extraction/` package name is being retired in favor
 of a thinner `runtime/` deployment shell. The staged plan is documented in

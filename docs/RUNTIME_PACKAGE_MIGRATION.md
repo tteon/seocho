@@ -64,6 +64,16 @@ Why `runtime/` instead of `server/`:
 - keep `extraction/` import paths working
 - move thin wrappers first, not heavy orchestrators first
 
+Current landed first slice:
+
+- `runtime/agent_server.py`
+- `runtime/server_runtime.py`
+- `runtime/policy.py`
+- `runtime/public_memory_api.py`
+- `extraction/agent_server.py`, `extraction/server_runtime.py`,
+  `extraction/policy.py`, and `extraction/public_memory_api.py` remain as
+  compatibility aliases
+
 Target first modules:
 
 - `runtime/agent_server.py`

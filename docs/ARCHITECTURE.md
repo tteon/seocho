@@ -118,9 +118,9 @@ Canonical SDK control-plane modules:
 
 Primary modules:
 
-- `extraction/agent_server.py`
-- `extraction/server_runtime.py`
-- `extraction/policy.py`
+- `runtime/agent_server.py`
+- `runtime/server_runtime.py`
+- `runtime/policy.py`
 - `docs/decisions/`
 
 ## Runtime Package Target (Active Direction)
@@ -302,8 +302,8 @@ Canonical direction:
 
 Server entrypoint direction:
 
-- `extraction/agent_server.py` should be the FastAPI transport shell
-- `extraction/server_runtime.py` should own shared runtime service composition
+- `runtime/agent_server.py` is the FastAPI transport shell
+- `runtime/server_runtime.py` owns shared runtime service composition
 - routers should prefer lazy service getters over eager singleton boot at import
 
 ## Extraction Cleanup Classification (Current)
@@ -314,10 +314,15 @@ compatibility roles.
 - shim now:
   - `extraction/rule_constraints.py`
   - `extraction/vector_store.py`
-- keep as transport/composition:
+- compatibility alias now:
   - `extraction/agent_server.py`
   - `extraction/public_memory_api.py`
   - `extraction/server_runtime.py`
+  - `extraction/policy.py`
+- keep as transport/composition:
+  - `runtime/agent_server.py`
+  - `runtime/public_memory_api.py`
+  - `runtime/server_runtime.py`
 - keep as compatibility caller over canonical seam:
   - `extraction/pipeline.py`
 - partial canonical seam reuse:
@@ -437,7 +442,7 @@ Offline ontology governance operators should prefer the SDK CLI surface:
 | AgentFactory | `extraction/agent_factory.py` | Dynamically provisions dedicated Agents per graph target |
 | SharedMemory | `extraction/shared_memory.py` | Request-scoped shared memory between agents + query cache |
 | DebateOrchestrator | `extraction/debate.py` | Executes Parallel Debate pattern (fan-out → collect → synthesize) |
-| Agent Server | `extraction/agent_server.py` | FastAPI endpoints (`/run_agent`, `/run_debate`, `/run_agent_semantic`, `/platform/chat/send`, `/platform/ingest/raw`) |
+| Agent Server | `runtime/agent_server.py` | FastAPI endpoints (`/run_agent`, `/run_debate`, `/run_agent_semantic`, `/platform/chat/send`, `/platform/ingest/raw`) |
 | Platform Agents | `extraction/platform_agents.py` | Backend/Frontend specialist orchestration + session state management |
 | Runtime Raw Ingestor | `extraction/runtime_ingest.py` | Runtime raw-text extraction/linking/rule-annotation and DB loading |
 

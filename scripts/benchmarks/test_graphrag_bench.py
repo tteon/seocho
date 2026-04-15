@@ -8,6 +8,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent))
 import graphrag_bench as bench
+from _preflight import local_llm_api_key_error
 
 
 def test_smoke_dataset_shape():
@@ -117,3 +118,18 @@ def test_benchmark_result_serializes_to_dict():
     assert d["task"] == "sample"
     assert d["exact_match"] == 1.0
     assert "cases" in d
+
+
+def test_local_llm_api_key_preflight_reports_missing_openai_key(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    error = local_llm_api_key_error("openai/gpt-4o-mini")
+
+    assert "OPENAI_API_KEY is required" in error
+    assert "--api-key" in error
+
+
+def test_local_llm_api_key_preflight_accepts_explicit_key(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    assert local_llm_api_key_error("openai/gpt-4o-mini", "sk-test") == ""

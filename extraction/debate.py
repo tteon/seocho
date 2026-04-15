@@ -8,8 +8,9 @@ synthesises the results into a single coherent response.
 
 import asyncio
 import logging
+import re
 from dataclasses import dataclass, field
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from agents import Agent
 
@@ -18,6 +19,15 @@ from shared_memory import SharedMemory
 from tracing import track, update_current_span, update_current_trace
 
 logger = logging.getLogger(__name__)
+
+
+_NO_DATA_RE = re.compile(
+    r"\b(no data|no available data|no matching|no relevant|not find|could not find|"
+    r"cannot find|do not have|don't have|not available|no available information|"
+    r"does not provide information|lack[s]? (?:revenue|growth|requested|relevant|specific|valid|"
+    r"supporting|source)? ?(?:data|information)|outside (?:my|the) graph)\b",
+    re.IGNORECASE,
+)
 
 
 @dataclass
@@ -137,15 +147,27 @@ class DebateOrchestrator:
                     context=context,
                 )
             response_text = str(result.final_output)
+            db_name = str(getattr(agent, "graph_database", graph_id))
+            trace_steps = self._extract_trace(result)
+            fallback = await self._semantic_graph_fallback(
+                graph_id=graph_id,
+                db_name=db_name,
+                query=query,
+                response_text=response_text,
+                context=context,
+            )
+            if fallback is not None:
+                response_text = fallback["response"]
+                trace_steps.extend(fallback["trace_steps"])
             update_current_span(
                 output={"response_preview": response_text[:300]},
             )
             return DebateResult(
                 agent_name=agent.name,
                 graph_id=graph_id,
-                db_name=str(getattr(agent, "graph_database", graph_id)),
+                db_name=db_name,
                 response=response_text,
-                trace_steps=self._extract_trace(result),
+                trace_steps=trace_steps,
             )
         except Exception as e:
             logger.error("Agent %s failed: %s", agent.name, e)
@@ -153,13 +175,105 @@ class DebateOrchestrator:
                 metadata={"error": str(e)},
                 tags=["error"],
             )
+            db_name = str(getattr(agent, "graph_database", graph_id))
+            fallback = await self._semantic_graph_fallback(
+                graph_id=graph_id,
+                db_name=db_name,
+                query=query,
+                response_text=f"Error: {e}",
+                context=context,
+                force=True,
+            )
+            if fallback is not None:
+                return DebateResult(
+                    agent_name=agent.name,
+                    graph_id=graph_id,
+                    db_name=db_name,
+                    response=fallback["response"],
+                    trace_steps=fallback["trace_steps"],
+                )
             return DebateResult(
                 agent_name=agent.name,
                 graph_id=graph_id,
-                db_name=str(getattr(agent, "graph_database", graph_id)),
+                db_name=db_name,
                 response=f"Error: {e}",
                 trace_steps=[],
             )
+
+    async def _semantic_graph_fallback(
+        self,
+        *,
+        graph_id: str,
+        db_name: str,
+        query: str,
+        response_text: str,
+        context: Any,
+        force: bool = False,
+    ) -> Optional[Dict[str, Any]]:
+        if not force and not self._should_fallback_to_semantic(response_text):
+            return None
+
+        semantic_flow = getattr(context, "semantic_agent_flow", None)
+        if semantic_flow is None:
+            return None
+
+        try:
+            result = await asyncio.to_thread(
+                semantic_flow.run,
+                question=query,
+                databases=[db_name],
+                entity_overrides={},
+                workspace_id=str(getattr(context, "workspace_id", "default")),
+                reasoning_mode=False,
+                repair_budget=0,
+            )
+        except Exception as exc:
+            logger.debug(
+                "Semantic fallback skipped for graph %s database %s: %s",
+                graph_id,
+                db_name,
+                exc,
+                exc_info=True,
+            )
+            return None
+
+        support = result.get("support_assessment", {}) if isinstance(result, dict) else {}
+        status = str(support.get("status", "")).lower() if isinstance(support, dict) else ""
+        supported = bool(support.get("supported")) if isinstance(support, dict) else False
+        lpg_payload = (result.get("lpg_result") or {}) if isinstance(result, dict) else {}
+        rdf_payload = (result.get("rdf_result") or {}) if isinstance(result, dict) else {}
+        lpg_records = lpg_payload.get("records", []) if isinstance(lpg_payload, dict) else []
+        rdf_records = rdf_payload.get("records", []) if isinstance(rdf_payload, dict) else []
+        fallback_response = str(result.get("response", "")).strip() if isinstance(result, dict) else ""
+        if not fallback_response or not (supported or status == "supported" or lpg_records or rdf_records):
+            return None
+
+        return {
+            "response": fallback_response,
+            "trace_steps": [
+                {
+                    "id": "semantic-fallback",
+                    "type": "DETERMINISTIC_FALLBACK",
+                    "role": "system",
+                    "content": (
+                        "Graph agent returned an ungrounded/no-data answer; "
+                        "SemanticAgentFlow supplied deterministic graph evidence."
+                    ),
+                    "tool_names": ["semantic_agent_flow"],
+                    "metadata": {
+                        "graph": graph_id,
+                        "db": db_name,
+                        "support_status": status,
+                        "records": len(lpg_records) + len(rdf_records),
+                        "fallback_reason": "agent_error" if force else "no_data_response",
+                    },
+                }
+            ],
+        }
+
+    @staticmethod
+    def _should_fallback_to_semantic(response_text: str) -> bool:
+        return bool(_NO_DATA_RE.search(str(response_text or "")))
 
     # ------------------------------------------------------------------
     # Supervisor synthesis (traced)
@@ -326,6 +440,9 @@ class DebateOrchestrator:
                 # Map internal types to display types
                 sub_type = ts.get("type", "UNKNOWN")
                 sub_content = ts.get("content", "")
+                sub_metadata = ts.get("metadata", {})
+                if not isinstance(sub_metadata, dict):
+                    sub_metadata = {}
 
                 steps.append({
                     "id": str(step_id),
@@ -333,6 +450,7 @@ class DebateOrchestrator:
                     "agent": r.agent_name,
                     "content": sub_content[:120],
                     "metadata": {
+                        **sub_metadata,
                         "node_id": sub_id,
                         "parent_id": prev_sub_id,
                         "phase": "fan-out",

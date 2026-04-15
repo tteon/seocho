@@ -191,6 +191,22 @@ class SemanticAgentFlow:
                 "metadata": {
                     "support_status": semantic_context.get("support_assessment", {}).get("status"),
                     "next_mode_hint": semantic_context.get("strategy_decision", {}).get("next_mode_hint"),
+                    "usage_estimate": self._estimate_usage(
+                        question=question,
+                        response=response,
+                        semantic_context=semantic_context,
+                        lpg_result=lpg_result,
+                        rdf_result=rdf_result,
+                    ),
+                    "agent_pattern": {
+                        "pattern": "semantic_direct",
+                        "turn_count": len(trace_steps) + 1,
+                        "tool_like_steps": sum(
+                            1
+                            for step in trace_steps
+                            if step.get("type") in {"SPECIALIST", "STRATEGY"}
+                        ),
+                    },
                 },
             }
         )
@@ -264,6 +280,28 @@ class SemanticAgentFlow:
                 semantic_context=semantic_context,
                 matched_entities=semantic_context.get("entities", []),
             )
+
+    @staticmethod
+    def _estimate_usage(
+        *,
+        question: str,
+        response: str,
+        semantic_context: Dict[str, Any],
+        lpg_result: Optional[Dict[str, Any]],
+        rdf_result: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        context_chars = len(str(semantic_context))
+        context_chars += len(str(lpg_result or {}))
+        context_chars += len(str(rdf_result or {}))
+        input_tokens = max(1, round((len(question) + context_chars) / 4))
+        output_tokens = max(1, round(len(response) / 4)) if response else 0
+        return {
+            "source": "estimated_char_count",
+            "exact": False,
+            "input_tokens_est": input_tokens,
+            "output_tokens_est": output_tokens,
+            "total_tokens_est": input_tokens + output_tokens,
+        }
 
 
 __all__ = ["SemanticAgentFlow"]

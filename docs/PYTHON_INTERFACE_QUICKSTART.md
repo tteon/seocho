@@ -575,6 +575,13 @@ identity. This is the lightweight middleware seam that proves indexing and
 querying used the same shared ontology contract without adding a new storage
 format or hot-path reasoning dependency.
 
+In local SDK mode, the same context is also persisted as compact `_ontology_*`
+properties on graph nodes and relationships. Query paths inspect those hashes
+and surface `ontology_context_mismatch` metadata when the active ontology
+profile differs from data already indexed in the target graph. SEOCHO does not
+block the answer automatically; the metadata is a re-indexing and audit
+guardrail for teams that change ontology profiles over time.
+
 If the same ontology must also govern runtime ingest, reuse it instead of
 authoring a second payload:
 

@@ -135,6 +135,8 @@ class Session:
                 graph_store=self.graph_store,
                 llm=self.llm,
                 extraction_prompt=self.extraction_prompt,
+                ontology_context=self._ontology_context,
+                workspace_id=self.workspace_id,
             )
         return self._indexing_agent
 
@@ -146,6 +148,8 @@ class Session:
                 graph_store=self.graph_store,
                 llm=self.llm,
                 vector_store=self.vector_store,
+                ontology_context=self._ontology_context,
+                workspace_id=self.workspace_id,
             )
         return self._query_agent
 
@@ -364,6 +368,8 @@ class Session:
                 vector_store=self.vector_store,
                 extraction_prompt=self.extraction_prompt,
                 routing_policy=policy,
+                ontology_context=self._ontology_context,
+                workspace_id=self.workspace_id,
             )
         return self._supervisor_agent
 

@@ -154,6 +154,8 @@ one monolithic implementation file.
   - stable `ontology_context_hash` descriptor shared by indexing, query, traces, and agent sessions
   - small in-process cache for compiled extraction/query/agent context artifacts
   - SKOS-style glossary/vocabulary hash derived from ontology labels, aliases, properties, and relationship terms
+  - graph-write metadata helpers that attach compact `_ontology_*` properties to persisted nodes and relationships
+  - query guardrail helpers that compare active ontology context with indexed graph context hashes
 - `seocho/ontology_serialization.py`
   - canonical JSON-LD load/save helpers
   - no runtime governance side effects

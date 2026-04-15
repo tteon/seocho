@@ -594,6 +594,10 @@ class RawIngestWarning(BaseModel):
 class PlatformRawIngestResponse(BaseModel):
     """Response summarizing a batch ingestion result."""
 
+    ok: bool = Field(
+        default=False,
+        description="True when at least one record was processed and the batch status is not failed.",
+    )
     workspace_id: str = Field(description="Workspace that owns the ingested data.")
     target_database: str = Field(description="Database the data was loaded into.")
     records_received: int = Field(description="Total records submitted in the request.")
@@ -605,6 +609,7 @@ class PlatformRawIngestResponse(BaseModel):
     rule_profile: Optional[Dict[str, Any]] = Field(default=None, description="Inferred rule profile applied to the batch.")
     semantic_artifacts: Optional[Dict[str, Any]] = Field(default=None, description="Ontology, SHACL, and vocabulary artifacts from this batch.")
     status: str = Field(description="Batch outcome: 'success', 'partial_success', 'success_with_fallback', or 'failed'.")
+    domain_error: str = Field(default="", description="Human-readable domain failure summary when ok is false.")
     warnings: List[RawIngestWarning] = Field(default_factory=list, description="Non-fatal warnings encountered during processing.")
     errors: List[RawIngestError] = Field(default_factory=list, description="Fatal errors per failed record.")
 
@@ -633,6 +638,24 @@ def ensure_fulltext_indexes_impl(request: FulltextIndexEnsureRequest) -> Fulltex
         )
         results.append(FulltextIndexEnsureResult(**result))
     return FulltextIndexEnsureResponse(results=results)
+
+
+def _raw_ingest_response_payload(result: Dict[str, Any]) -> Dict[str, Any]:
+    """Attach domain success metadata without conflating it with HTTP status."""
+    payload = dict(result)
+    status = str(payload.get("status", ""))
+    records_processed = int(payload.get("records_processed", 0) or 0)
+    records_failed = int(payload.get("records_failed", 0) or 0)
+    ok = status in {"success", "success_with_fallback", "partial_success"} and records_processed > 0
+    payload["ok"] = ok
+    if ok:
+        payload.setdefault("domain_error", "")
+    else:
+        payload["domain_error"] = (
+            f"status={status or 'unknown'}, "
+            f"records_processed={records_processed}, records_failed={records_failed}"
+        )
+    return payload
 
 
 def _resolve_graph_scope(graph_ids: Optional[List[str]]) -> tuple[List[str], List[str]]:
@@ -825,7 +848,10 @@ async def platform_ingest_raw(request: PlatformRawIngestRequest):
             semantic_artifact_policy=request.semantic_artifact_policy,
             approved_artifacts=resolved_approved_artifacts,
         )
-        return PlatformRawIngestResponse(workspace_id=request.workspace_id, **result)
+        return PlatformRawIngestResponse(
+            workspace_id=request.workspace_id,
+            **_raw_ingest_response_payload(result),
+        )
     except InvalidDatabaseNameError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except FileNotFoundError as e:

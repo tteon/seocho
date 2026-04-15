@@ -1,5 +1,7 @@
+import json
 import logging
 import re
+from typing import Any, Dict
 from neo4j import GraphDatabase
 from neo4j.exceptions import ServiceUnavailable, SessionExpired
 from exceptions import Neo4jConnectionError, InvalidLabelError, LoadError
@@ -9,6 +11,8 @@ logger = logging.getLogger(__name__)
 
 # Regex for valid Neo4j label/relationship type names
 _VALID_LABEL_RE = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')
+_LABEL_TOKEN_RE = re.compile(r"[^A-Za-z0-9_]+")
+_PROPERTY_SCALAR_TYPES = (str, int, float, bool)
 
 
 def _validate_label(label: str) -> str:
@@ -19,6 +23,46 @@ def _validate_label(label: str) -> str:
     if _VALID_LABEL_RE.match(label):
         return label
     raise InvalidLabelError(f"Invalid Neo4j label: '{label}'")
+
+
+def _normalize_label(label: Any, *, default: str = "Entity", uppercase: bool = False) -> str:
+    """Normalize LLM-provided labels before safe Cypher interpolation."""
+    raw = str(label or default).strip() or default
+    normalized = _LABEL_TOKEN_RE.sub("_", raw).strip("_")
+    if uppercase:
+        normalized = normalized.upper()
+    if not normalized:
+        normalized = default.upper() if uppercase else default
+    if not re.match(r"^[A-Za-z_]", normalized):
+        normalized = f"N_{normalized}"
+    return _validate_label(normalized)
+
+
+def _is_property_value(value: Any) -> bool:
+    if isinstance(value, _PROPERTY_SCALAR_TYPES):
+        return True
+    if isinstance(value, (list, tuple)):
+        return all(isinstance(item, _PROPERTY_SCALAR_TYPES) for item in value)
+    return False
+
+
+def _sanitize_property_value(value: Any) -> Any:
+    """Return a Neo4j-safe property value while preserving nested evidence."""
+    if _is_property_value(value):
+        if isinstance(value, tuple):
+            return list(value)
+        return value
+    if value is None:
+        return None
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, default=str)
+
+
+def _sanitize_properties(properties: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        str(key): _sanitize_property_value(value)
+        for key, value in dict(properties or {}).items()
+        if value is not None
+    }
 
 
 class GraphLoader:
@@ -64,8 +108,8 @@ class GraphLoader:
 
     @staticmethod
     def _create_node(tx, node, source_id, workspace_id):
-        label = _validate_label(node.get("label", "Entity"))
-        properties = node.get("properties", {})
+        label = _normalize_label(node.get("label", "Entity"))
+        properties = _sanitize_properties(node.get("properties", {}))
         properties["id"] = node["id"]
         properties["source_id"] = source_id
         properties.setdefault("workspace_id", workspace_id)
@@ -81,10 +125,12 @@ class GraphLoader:
     def _create_relationship(tx, rel):
         source_id = rel["source"]
         target_id = rel["target"]
-        rel_type = _validate_label(
-            rel.get("type", "RELATED_TO").upper().replace(" ", "_")
+        rel_type = _normalize_label(
+            rel.get("type", "RELATED_TO"),
+            default="RELATED_TO",
+            uppercase=True,
         )
-        properties = rel.get("properties", {})
+        properties = _sanitize_properties(rel.get("properties", {}))
 
         query = (
             f"MATCH (a {{id: $source_id}}), (b {{id: $target_id}}) "

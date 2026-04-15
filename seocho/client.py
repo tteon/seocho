@@ -324,6 +324,13 @@ class Seocho:
             "graph_store": self.graph_store,
             "llm": self.llm,
         }
+        ontology_context = self._engine._ontology_context_cache.get(
+            self.ontology,
+            workspace_id=self.workspace_id,
+            profile=self.ontology_profile,
+        )
+        shared_kwargs["ontology_context"] = ontology_context
+        shared_kwargs["workspace_id"] = self.workspace_id
         if model is not None:
             shared_kwargs["model"] = model
         if name is not None:
@@ -2361,6 +2368,7 @@ class _LocalEngine:
         from .ontology_context import OntologyContextCache
 
         self._ontology_context_cache = OntologyContextCache()
+        self._last_query_metadata: Dict[str, Any] = {}
 
         # Resolve embedding backend from the LLM if the provider supports it
         embedding_backend = None
@@ -2658,6 +2666,19 @@ class _LocalEngine:
             except Exception:
                 pass
 
+        ontology_context_mismatch = self._query_ontology_context_mismatch(database, ontology_context)
+        self._last_query_metadata = {
+            "ontology_context": ontology_context.metadata(usage="query"),
+            "ontology_context_mismatch": ontology_context_mismatch,
+        }
+        if ontology_context_mismatch.get("mismatch"):
+            logger.warning(
+                "Ontology context mismatch for database=%s active=%s indexed=%s",
+                database,
+                ontology_context_mismatch.get("active_context_hash", ""),
+                ontology_context_mismatch.get("indexed_context_hashes", []),
+            )
+
         deterministic_answer = self._build_deterministic_answer(
             question,
             records,
@@ -2665,6 +2686,15 @@ class _LocalEngine:
             answer_synthesizer=answer_synthesizer,
         )
         if deterministic_answer:
+            _query_elapsed = _time.time() - _query_start
+            self._log_query_trace(
+                question=question,
+                ontology=active_ontology,
+                cypher=cypher,
+                result_count=len(records) if records else 0,
+                reasoning_attempts=len(attempts) if reasoning_mode and attempts else 0,
+                elapsed_seconds=_query_elapsed,
+            )
             return deterministic_answer
 
         # --- Synthesize answer ---
@@ -2681,24 +2711,53 @@ class _LocalEngine:
 
         # --- Query tracing ---
         _query_elapsed = _time.time() - _query_start
+        self._log_query_trace(
+            question=question,
+            ontology=active_ontology,
+            cypher=cypher,
+            result_count=len(records) if records else 0,
+            reasoning_attempts=len(attempts) if reasoning_mode and attempts else 0,
+            elapsed_seconds=_query_elapsed,
+        )
+
+        return answer_text
+
+    def _log_query_trace(
+        self,
+        *,
+        question: str,
+        ontology: Any,
+        cypher: str,
+        result_count: int,
+        reasoning_attempts: int,
+        elapsed_seconds: float,
+    ) -> None:
         try:
             from .tracing import log_query, is_tracing_enabled
             if is_tracing_enabled():
                 log_query(
                     question=question,
-                    ontology_name=active_ontology.name,
-                    ontology_package=getattr(active_ontology, "package_id", active_ontology.name),
+                    ontology_name=ontology.name,
+                    ontology_package=getattr(ontology, "package_id", ontology.name),
                     model=getattr(self.llm, "model", "unknown"),
                     cypher=cypher,
-                    result_count=len(records) if records else 0,
-                    reasoning_attempts=len(attempts) if reasoning_mode and attempts else 0,
-                    elapsed_seconds=_query_elapsed,
-                    metadata={"ontology_context": ontology_context.metadata(usage="query")},
+                    result_count=result_count,
+                    reasoning_attempts=reasoning_attempts,
+                    elapsed_seconds=elapsed_seconds,
+                    metadata=self._last_query_metadata,
                 )
         except Exception:
             pass
 
-        return answer_text
+    def _query_ontology_context_mismatch(self, database: str, ontology_context: Any) -> Dict[str, Any]:
+        from .ontology_context import query_ontology_context_mismatch
+
+        return query_ontology_context_mismatch(
+            self.graph_store,
+            ontology_context,
+            workspace_id=self.workspace_id,
+            database=database,
+        )
 
     def _get_schema_info(self, database: str) -> Dict[str, Any]:
         try:

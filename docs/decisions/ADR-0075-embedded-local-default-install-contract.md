@@ -31,9 +31,10 @@ Expose `LadybugGraphStore` from both `seocho.store` and the compatibility
 `seocho.graph_store` module because it is now part of the public local SDK
 surface.
 
-DozerDB/Neo4j remains the production graph path. Kuzu remains a strong
-candidate for a future optional backend, but it should be evaluated in a
-separate backend slice rather than replacing the just-landed default.
+DozerDB/Neo4j remains the production graph path. LadybugDB is the embedded
+local default and replaces prior embedded-backend exploration. Additional
+embedded graph backends are not part of the active roadmap unless a future user
+need reopens them.
 
 ## Consequences
 
@@ -42,9 +43,8 @@ separate backend slice rather than replacing the just-landed default.
 - Production examples still show `Neo4jGraphStore` for DozerDB/Neo4j over Bolt.
 - The public docs now match the implementation instead of promising a
   Neo4j-first default that no longer exists.
-- Kuzu evaluation can focus on dialect compatibility, maintenance status,
-  benchmark behavior, and GraphStore abstraction fit without blocking
-  onboarding.
+- LadybugDB is the embedded local graph path; additional embedded graph
+  backends are deliberately out of the active onboarding roadmap.
 
 ## Related Documents
 

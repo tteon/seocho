@@ -90,6 +90,13 @@ async def client(app_module):
 class TestListEndpoints:
     """Test endpoints without external DB/runtime dependencies."""
 
+    async def test_runtime_agent_server_aliases_flat_import(self, app_module):
+        import runtime.agent_server as runtime_agent_server
+
+        assert app_module.__name__ == "runtime.agent_server"
+        assert runtime_agent_server.__name__ == "runtime.agent_server"
+        assert app_module.__file__ == runtime_agent_server.__file__
+
     async def test_list_databases(self, client):
         response = await client.get("/databases")
         assert response.status_code == 200

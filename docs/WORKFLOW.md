@@ -24,8 +24,8 @@ Responsibilities:
 
 Primary surfaces:
 
-- `extraction/agent_server.py`
-- `extraction/policy.py`
+- `runtime/agent_server.py`
+- `runtime/policy.py`
 - `docs/decisions/`
 - `docs/BEADS_OPERATING_MODEL.md`
 
@@ -33,8 +33,9 @@ Long-term target:
 
 - `runtime/` becomes the canonical deployment-shell package
 - `extraction/` shrinks to extraction-only concerns or compatibility wrappers
-- until the rename lands, treat `extraction/` as a historical shell name, not as
-  the owner of canonical business logic
+- the first runtime-package slice is landed: `agent_server`, `server_runtime`,
+  `public_memory_api`, and `policy` now live under `runtime/` with flat
+  `extraction/*` compatibility aliases
 
 ## Data Plane
 

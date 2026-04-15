@@ -23,6 +23,13 @@ Each entry must link to a full ADR when impact is non-trivial.
   - measure SEOCHO local SDK before SEOCHO runtime before peer systems
   - ship a first-slice FinDER baseline harness for repeatable local/runtime measurements
 
+- Accepted `ADR-0064-runtime-package-first-shell-slice.md`
+  - introduce `runtime/` as the canonical deployment-shell package in code, not
+    only in planning docs
+  - move `agent_server`, `server_runtime`, `policy`, and `public_memory_api`
+    ownership under `runtime/`
+  - keep flat `extraction/*` imports working through module-alias compatibility shims
+
 ## 2026-03-12
 
 - Accepted `ADR-0028-graph-registry-and-multi-instance-debate-runtime.md`

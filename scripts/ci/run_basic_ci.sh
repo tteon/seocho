@@ -2,6 +2,11 @@
 set -euo pipefail
 
 python3 -m py_compile \
+  runtime/__init__.py \
+  runtime/policy.py \
+  runtime/public_memory_api.py \
+  runtime/server_runtime.py \
+  runtime/agent_server.py \
   extraction/semantic_query_flow.py \
   extraction/semantic_run_store.py \
   extraction/semantic_profile_packages.py \
@@ -14,6 +19,7 @@ python3 -m py_compile \
   seocho/evaluation.py
 
 uv run pytest \
+  extraction/tests/test_runtime_package_aliases.py \
   extraction/tests/test_semantic_run_store.py \
   extraction/tests/test_semantic_query_flow.py \
   extraction/tests/test_api_endpoints.py \

@@ -467,6 +467,11 @@ Each entry must link to a full ADR when impact is non-trivial.
   - align single-turn, multi-turn, reasoning, tool use, debate, policy, graph scope, and evidence status through one compact context envelope
   - defer Rust, Arrow, GraphAr, DataBook, vineyard, and request-time Owlready2 until Python context overhead is measured
 
+- Accepted `ADR-0073-property-graph-lens-semantic-overlay.md`
+  - preserve schemaless property graph flexibility while marking only agent-visible anchors, evidence sources, evidence paths, provenance, importance, confidence, and context metadata
+  - make ontology an agent-readable semantic overlay instead of a mandatory total graph schema
+  - keep the first lens implementation read-only, bounded, and Python/DozerDB-native before adding analytics or native acceleration
+
 ## Template
 
 Use this block for new entries:

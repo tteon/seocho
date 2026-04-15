@@ -166,6 +166,8 @@ one monolithic implementation file.
   - typed HTTP response metadata for memory search/chat, semantic query, router, debate, execution-plan, and platform chat clients
 - Target middleware contract: `docs/ONTOLOGY_RUN_CONTEXT_STRATEGY.md`
   - aligns workspace, graph/database scope, ontology profile, glossary identity, policy, tool use, debate, session carryover, and evidence status
+- Target property-graph lens contract: `docs/PROPERTY_GRAPH_LENS_STRATEGY.md`
+  - preserves schemaless graph flexibility while marking only agent-visible anchors, evidence sources, evidence paths, provenance, importance, confidence, and context metadata
 - `seocho/ontology_serialization.py`
   - canonical JSON-LD load/save helpers
   - no runtime governance side effects

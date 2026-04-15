@@ -438,10 +438,15 @@ See [docs/QUICKSTART.md](docs/QUICKSTART.md) for the full server setup guide.
 ```bash
 git clone git@github.com:tteon/seocho.git && cd seocho
 pip install -e ".[dev]"
+scripts/pm/install-git-hooks.sh
 python -m pytest seocho/tests/ -q
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the full guide.
+For runtime-package migration work, also run
+`bash scripts/ci/check-runtime-shell-contract.sh`.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/WORKFLOW.md](docs/WORKFLOW.md)
+for the full guide.
 
 ## License
 

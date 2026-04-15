@@ -32,4 +32,5 @@ uv run pytest \
   -q
 
 git diff --check
+scripts/ci/check-runtime-shell-contract.sh
 scripts/pm/lint-agent-docs.sh

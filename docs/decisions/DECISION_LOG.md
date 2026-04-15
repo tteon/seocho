@@ -412,6 +412,11 @@ Each entry must link to a full ADR when impact is non-trivial.
   - keep `extraction/runtime_ingest.py` as a compatibility alias during staged rename work
   - continue shrinking runtime ingest toward deployment-shell composition while preserving current API behavior
 
+- Accepted `ADR-0066-runtime-migration-automation-guardrails.md`
+  - add a repo-local Codex skill for bounded runtime migration slices
+  - add a fast runtime-shell contract check for active docs/tests/imports
+  - wire the contract check into basic CI and repo-managed pre-commit flow
+
 ## Template
 
 Use this block for new entries:

@@ -157,7 +157,18 @@ Operational notes:
   - semantic/runtime/SDK `py_compile`
   - focused semantic/runtime/SDK pytest
   - `git diff --check`
+  - `bash scripts/ci/check-runtime-shell-contract.sh`
   - `scripts/pm/lint-agent-docs.sh`
+
+Runtime migration slices should use the repo-local skill:
+
+- `.agents/skills/runtime-migration-slice/SKILL.md`
+
+Install repo-managed hooks once per clone:
+
+```bash
+scripts/pm/install-git-hooks.sh
+```
 
 6. Daily Codex Maintenance Automation
 

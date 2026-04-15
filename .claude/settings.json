@@ -1,0 +1,82 @@
+{
+  "$schema_note": "Shared project settings for SEOCHO — committed to the repo. Personal/ad-hoc permissions belong in .claude/settings.local.json (gitignored). See .claude/skills/ for Track B safety procedures.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/session-context.sh"
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(bd --help)",
+      "Bash(bd --no-daemon sync)",
+      "Bash(bd close:*)",
+      "Bash(bd comments:*)",
+      "Bash(bd create:*)",
+      "Bash(bd dep:*)",
+      "Bash(bd list:*)",
+      "Bash(bd ready:*)",
+      "Bash(bd show:*)",
+      "Bash(bd sync:*)",
+      "Bash(bd update:*)",
+      "Bash(du:*)",
+      "Bash(find:*)",
+      "Bash(flake8:*)",
+      "Bash(gh api:*)",
+      "Bash(gh pr:*)",
+      "Bash(git add:*)",
+      "Bash(git checkout:*)",
+      "Bash(git cherry-pick:*)",
+      "Bash(git commit:*)",
+      "Bash(git fetch:*)",
+      "Bash(git push:*)",
+      "Bash(git rebase:*)",
+      "Bash(git reset:*)",
+      "Bash(git restore:*)",
+      "Bash(git rm:*)",
+      "Bash(git stash:*)",
+      "Bash(grep:*)",
+      "Bash(ls:*)",
+      "Bash(npm run:*)",
+      "Bash(pip install:*)",
+      "Bash(pip show:*)",
+      "Bash(pip3 install:*)",
+      "Bash(pip3 show:*)",
+      "Bash(python:*)",
+      "Bash(python3:*)",
+      "Bash(python3 -m pytest:*)",
+      "Bash(test:*)",
+      "Bash(uv sync:*)",
+      "Bash(wc:*)",
+      "Bash(xargs:*)",
+      "WebFetch(domain:api.github.com)",
+      "WebFetch(domain:deepwiki.com)",
+      "WebFetch(domain:docs.mem0.ai)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:gist.github.com)",
+      "WebFetch(domain:platform.kimi.ai)",
+      "WebFetch(domain:pypi.org)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:seocho.blog)",
+      "WebFetch(domain:www.comet.com)",
+      "WebSearch",
+      "mcp__serena__check_onboarding_performed",
+      "mcp__serena__find_referencing_symbols",
+      "mcp__serena__find_symbol",
+      "mcp__serena__get_symbols_overview",
+      "mcp__serena__initial_instructions",
+      "mcp__serena__list_dir",
+      "mcp__serena__list_memories",
+      "mcp__serena__search_for_pattern",
+      "mcp__serena__think_about_collected_information",
+      "mcp__serena__think_about_task_adherence",
+      "mcp__serena__think_about_whether_you_are_done"
+    ]
+  }
+}

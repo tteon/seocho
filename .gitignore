@@ -99,3 +99,6 @@ kgbuild_export.*
 daemon/
 gnnllm/
 tteon.github.io/
+
+# Claude Code — personal/ad-hoc permission overlay (shared settings in .claude/settings.json are tracked)
+.claude/settings.local.json

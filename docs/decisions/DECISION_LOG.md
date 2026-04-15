@@ -443,6 +443,11 @@ Each entry must link to a full ADR when impact is non-trivial.
   - resolve router `graph_ids` into database-scoped agent tool contexts so graph selection affects both DB access and parity metadata
   - keep ontology/database parity as lightweight middleware metadata instead of adding hot-path ontology reasoning
 
+- Accepted `ADR-0072-ontology-run-context-strategy.md`
+  - define `OntologyRunContext` as the target middleware contract for SDK and runtime agent paths
+  - align single-turn, multi-turn, reasoning, tool use, debate, policy, graph scope, and evidence status through one compact context envelope
+  - defer Rust, Arrow, GraphAr, DataBook, vineyard, and request-time Owlready2 until Python context overhead is measured
+
 ## Template
 
 Use this block for new entries:

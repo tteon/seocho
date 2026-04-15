@@ -157,6 +157,8 @@ one monolithic implementation file.
   - graph-write metadata helpers that attach compact `_ontology_*` properties to persisted nodes and relationships
   - query guardrail helpers that compare active ontology context with indexed graph context hashes
   - typed HTTP response metadata for memory search/chat, semantic query, router, debate, execution-plan, and platform chat clients
+- Target middleware contract: `docs/ONTOLOGY_RUN_CONTEXT_STRATEGY.md`
+  - aligns workspace, graph/database scope, ontology profile, glossary identity, policy, tool use, debate, session carryover, and evidence status
 - `seocho/ontology_serialization.py`
   - canonical JSON-LD load/save helpers
   - no runtime governance side effects

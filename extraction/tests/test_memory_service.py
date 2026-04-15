@@ -1,9 +1,11 @@
 import os
 import sys
+from unittest.mock import patch
 
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+import runtime.memory_service as memory_service_mod
 from runtime.memory_service import GraphMemoryService
 
 
@@ -160,3 +162,63 @@ def test_search_memories_adds_evidence_bundle_to_ranked_results():
     assert result["evidence_bundle"]["intent_id"] == "responsibility_lookup"
     assert result["evidence_bundle"]["slot_fills"]["owner_or_operator"] == "Alice"
     assert result["evidence_bundle"]["slot_fills"]["target_entity"] == "Seoul"
+
+
+def test_ontology_context_mismatch_summarizes_runtime_graph_status():
+    service = GraphMemoryService(
+        db_manager=_FakeDbManager(),
+        runtime_raw_ingestor=_FakeIngestor(),
+        semantic_agent_flow=_FakeSemanticFlow(),
+    )
+    service._run_query = lambda *_args, **_kwargs: [
+        {
+            "indexed_context_hashes": ["old", "new"],
+            "indexed_ontology_ids": ["legacy"],
+            "indexed_profiles": ["vocabulary.v1"],
+            "scoped_nodes": 4,
+            "missing_context_nodes": 0,
+            "missing_context_hash_nodes": 1,
+        }
+    ]
+
+    with patch.object(memory_service_mod.graph_registry, "find_by_database") as mock_find:
+        mock_find.return_value = type(
+            "Target",
+            (),
+            {
+                "graph_id": "kgfinance",
+                "ontology_id": "finance",
+                "vocabulary_profile": "vocabulary.v2",
+            },
+        )()
+        payload = service.ontology_context_mismatch(
+            workspace_id="default",
+            databases=["kgnormal"],
+        )
+
+    assert payload["mismatch"] is True
+    assert payload["missing_context"] is True
+    status = payload["databases"][0]
+    assert status["database"] == "kgnormal"
+    assert status["graph_id"] == "kgfinance"
+    assert "multiple_indexed_context_hashes" in status["mismatch_reasons"]
+    assert "indexed_ontology_id_differs_from_target" in status["mismatch_reasons"]
+
+
+def test_search_memories_surfaces_ontology_context_mismatch():
+    service = GraphMemoryService(
+        db_manager=_FakeDbManager(),
+        runtime_raw_ingestor=_FakeIngestor(),
+        semantic_agent_flow=_FakeSemanticFlow(),
+    )
+    service.ontology_context_mismatch = lambda **_: {"mismatch": False, "databases": []}
+    service._search_document_fallback = lambda **_: []
+
+    payload = service.search_memories(
+        workspace_id="default",
+        query="Who manages Seoul retail?",
+        limit=3,
+    )
+
+    assert payload["ontology_context_mismatch"] == {"mismatch": False, "databases": []}
+    assert payload["semantic_context"]["ontology_context_mismatch"]["mismatch"] is False

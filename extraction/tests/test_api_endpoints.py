@@ -217,7 +217,10 @@ class TestListEndpoints:
             assert kwargs["repair_budget"] == 2
 
     async def test_run_agent_semantic_endpoint_returns_support_and_strategy_metadata(self, client, app_module):
-        with patch.object(app_module.semantic_agent_flow, "run") as mock_run:
+        with patch.object(app_module.semantic_agent_flow, "run") as mock_run, patch.object(
+            app_module.memory_service,
+            "ontology_context_mismatch",
+        ) as mock_context:
             mock_run.return_value = {
                 "response": "Route selected: LPG.",
                 "trace_steps": [],
@@ -230,6 +233,12 @@ class TestListEndpoints:
                 "run_metadata": {"run_id": "run_123", "recorded": True},
                 "evidence_bundle": {"intent_id": "relationship_lookup", "grounded_slots": ["target_entity"]},
             }
+            mock_context.return_value = {
+                "mismatch": False,
+                "missing_context": False,
+                "databases": [],
+                "warning": "",
+            }
             response = await client.post(
                 "/run_agent_semantic",
                 json={"query": "Tell me about Neo4j", "workspace_id": "default"},
@@ -239,6 +248,8 @@ class TestListEndpoints:
             assert payload["support_assessment"]["status"] == "supported"
             assert payload["strategy_decision"]["executed_mode"] == "semantic_direct"
             assert payload["run_metadata"]["run_id"] == "run_123"
+            assert payload["ontology_context_mismatch"]["mismatch"] is False
+            assert payload["semantic_context"]["ontology_context_mismatch"]["mismatch"] is False
 
     async def test_semantic_runs_list_endpoint(self, client, app_module):
         with patch.object(app_module, "list_semantic_runs") as mock_list:
@@ -699,6 +710,7 @@ class TestListEndpoints:
                     }
                 ],
                 "semantic_context": {"entities": ["Seoul"], "matches": {}, "unresolved_entities": []},
+                "ontology_context_mismatch": {"mismatch": False, "databases": []},
             }
             response = await client.post(
                 "/api/memories/search",
@@ -707,6 +719,7 @@ class TestListEndpoints:
             assert response.status_code == 200
             payload = response.json()
             assert payload["results"][0]["memory_id"] == "mem_1"
+            assert payload["ontology_context_mismatch"]["mismatch"] is False
             assert payload["trace_id"]
 
     async def test_public_memory_get_endpoint(self, client, app_module):
@@ -766,6 +779,7 @@ class TestListEndpoints:
                         }
                     ],
                     "semantic_context": {"entities": ["Seoul"], "matches": {}, "unresolved_entities": []},
+                    "ontology_context_mismatch": {"mismatch": True, "databases": []},
                 }
                 response = await client.post(
                     "/api/chat",
@@ -779,6 +793,7 @@ class TestListEndpoints:
                 payload = response.json()
                 assert payload["assistant_message"] == "Alice manages Seoul retail."
                 assert payload["memory_hits"][0]["memory_id"] == "mem_1"
+                assert payload["ontology_context_mismatch"]["mismatch"] is True
                 _, kwargs = mock_chat.call_args
                 assert kwargs["databases"] == ["kgnormal"]
 

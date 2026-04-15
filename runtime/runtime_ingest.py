@@ -41,6 +41,7 @@ from seocho.index.runtime_memory import (
     copy_scope_properties,
     ensure_memory_graph,
 )
+from seocho.ontology_context import apply_ontology_context_to_graph_payload
 from seocho.store.llm import create_llm_backend
 
 logger = logging.getLogger(__name__)
@@ -436,6 +437,10 @@ class RuntimeRawIngestor:
                     graph_for_load = graph_data
 
             try:
+                graph_for_load = self._apply_runtime_ontology_context(
+                    graph_for_load,
+                    target_database=target_database,
+                )
                 self._db_manager.load_data(
                     target_database,
                     graph_for_load,
@@ -642,6 +647,29 @@ class RuntimeRawIngestor:
             "description": target.description,
             "workspace_scope": target.workspace_scope,
         }
+
+    def _apply_runtime_ontology_context(
+        self,
+        graph_data: Dict[str, Any],
+        *,
+        target_database: str,
+    ) -> Dict[str, Any]:
+        graph_metadata = self._build_graph_prompt_metadata(target_database)
+        context_payload = {
+            "ontology_id": graph_metadata.get("ontology_id", ""),
+            "ontology_name": graph_metadata.get("ontology_id", ""),
+            "profile": graph_metadata.get("vocabulary_profile", ""),
+            "graph_model": "lpg",
+        }
+        nodes, relationships = apply_ontology_context_to_graph_payload(
+            graph_data.get("nodes", []),
+            graph_data.get("relationships", []),
+            context_payload,
+        )
+        copied = dict(graph_data)
+        copied["nodes"] = nodes
+        copied["relationships"] = relationships
+        return copied
 
     def _load_existing_entity_names(self, target_database: str, limit: int = 500) -> Set[str]:
         names: Set[str] = set()

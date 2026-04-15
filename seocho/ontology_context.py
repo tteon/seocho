@@ -297,6 +297,67 @@ def assess_ontology_context_mismatch(
     }
 
 
+def assess_graph_ontology_context_status(
+    *,
+    database: str,
+    workspace_id: str,
+    indexed_context_hashes: Iterable[Any] = (),
+    indexed_ontology_ids: Iterable[Any] = (),
+    indexed_profiles: Iterable[Any] = (),
+    expected_ontology_id: str = "",
+    expected_profile: str = "",
+    missing_context_nodes: int = 0,
+    missing_context_hash_nodes: int = 0,
+    scoped_nodes: int = 0,
+) -> Dict[str, Any]:
+    """Summarize graph-level ontology context provenance for runtime responses."""
+
+    context_hashes = _clean_distinct_strings(indexed_context_hashes)
+    ontology_ids = _clean_distinct_strings(indexed_ontology_ids)
+    profiles = _clean_distinct_strings(indexed_profiles)
+    expected_ontology = str(expected_ontology_id or "").strip()
+    expected_profile_value = str(expected_profile or "").strip()
+
+    reasons: List[str] = []
+    if len(context_hashes) > 1:
+        reasons.append("multiple_indexed_context_hashes")
+    if expected_ontology and ontology_ids and any(item != expected_ontology for item in ontology_ids):
+        reasons.append("indexed_ontology_id_differs_from_target")
+    if expected_profile_value and profiles and any(item != expected_profile_value for item in profiles):
+        reasons.append("indexed_profile_differs_from_target")
+
+    missing_nodes = int(missing_context_nodes or 0)
+    missing_hash_nodes = int(missing_context_hash_nodes or 0)
+    scoped_count = int(scoped_nodes or 0)
+    warning = ""
+    if reasons:
+        warning = (
+            "Indexed graph ontology context differs from the active runtime graph target. "
+            "Re-index or route the query to the matching graph target before trusting strict comparisons."
+        )
+    elif scoped_count and (missing_nodes or missing_hash_nodes):
+        warning = (
+            "Some indexed graph nodes do not carry full ontology context metadata. "
+            "Results are readable, but context parity cannot be fully verified."
+        )
+
+    return {
+        "database": str(database or ""),
+        "workspace_id": str(workspace_id or "default"),
+        "expected_ontology_id": expected_ontology,
+        "expected_profile": expected_profile_value,
+        "indexed_context_hashes": context_hashes,
+        "indexed_ontology_ids": ontology_ids,
+        "indexed_profiles": profiles,
+        "mismatch": bool(reasons),
+        "mismatch_reasons": reasons,
+        "missing_context_nodes": missing_nodes,
+        "missing_context_hash_nodes": missing_hash_nodes,
+        "scoped_nodes": scoped_count,
+        "warning": warning,
+    }
+
+
 def query_ontology_context_mismatch(
     graph_store: Any,
     active_context: CompiledOntologyContext | Dict[str, Any],
@@ -350,3 +411,13 @@ def same_ontology_context_hash(values: Iterable[Dict[str, Any]]) -> bool:
     }
     hashes.discard("")
     return len(hashes) <= 1
+
+
+def _clean_distinct_strings(values: Iterable[Any]) -> List[str]:
+    return sorted(
+        {
+            str(item).strip()
+            for item in values
+            if str(item).strip() and str(item).strip().lower() != "none"
+        }
+    )

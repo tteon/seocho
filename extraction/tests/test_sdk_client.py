@@ -109,6 +109,7 @@ def test_add_search_chat_and_graphs_use_public_api_contract():
                         }
                     ],
                     "semantic_context": {"entities": ["Seoul"]},
+                    "ontology_context_mismatch": {"mismatch": False, "databases": []},
                     "trace_id": "tr_2",
                 }
             ),
@@ -132,6 +133,7 @@ def test_add_search_chat_and_graphs_use_public_api_contract():
                     ],
                     "semantic_context": {"entities": ["Seoul"]},
                     "evidence_bundle": {"intent_id": "responsibility_lookup", "missing_slots": []},
+                    "ontology_context_mismatch": {"mismatch": True, "databases": []},
                     "trace_id": "tr_3",
                 }
             ),
@@ -160,14 +162,17 @@ def test_add_search_chat_and_graphs_use_public_api_contract():
     )
 
     memory = client.add("Alice manages Seoul retail.", metadata={"source": "sdk"})
-    results = client.search("Who manages Seoul retail?", graph_ids=["kgnormal"])
+    search = client.search_with_context("Who manages Seoul retail?", graph_ids=["kgnormal"])
+    results = search.results
     answer = client.chat("What do we know about Seoul retail?", graph_ids=["kgnormal"])
     graphs = client.graphs()
 
     assert memory.memory_id == "mem_1"
     assert results[0].matched_entities == ["Seoul"]
     assert results[0].evidence_bundle["intent_id"] == "responsibility_lookup"
+    assert search.ontology_context_mismatch["mismatch"] is False
     assert answer.assistant_message == "Alice manages Seoul retail."
+    assert answer.ontology_context_mismatch["mismatch"] is True
     assert answer.evidence_bundle["intent_id"] == "responsibility_lookup"
     assert graphs[0].graph_id == "kgnormal"
 
@@ -607,6 +612,7 @@ def test_runtime_client_methods_cover_semantic_debate_platform_and_admin_surface
                         "matches": {"Neo4j": [{"database": "kgnormal"}]},
                         "unresolved_entities": [],
                     },
+                    "ontology_context_mismatch": {"mismatch": True, "databases": []},
                     "lpg_result": {"records": []},
                     "rdf_result": None,
                 }
@@ -706,6 +712,7 @@ def test_runtime_client_methods_cover_semantic_debate_platform_and_admin_surface
     assert routed.response == "router answer"
     assert semantic.route == "lpg"
     assert semantic.semantic_context["entities"] == ["Neo4j"]
+    assert semantic.ontology_context_mismatch["mismatch"] is True
     assert debated.debate_results[0]["graph"] == "kgnormal"
     assert platform.history[1].content == "platform answer"
     assert history.history[0].role == "user"

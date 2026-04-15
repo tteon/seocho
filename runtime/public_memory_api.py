@@ -115,6 +115,7 @@ class MemoryGetResponse(BaseModel):
 class MemorySearchResponse(BaseModel):
     results: List[MemorySearchResult]
     semantic_context: Dict[str, Any] = Field(default_factory=dict)
+    ontology_context_mismatch: Dict[str, Any] = Field(default_factory=dict)
     trace_id: str
 
 
@@ -145,6 +146,7 @@ class MemoryChatResponse(BaseModel):
     search_results: List[MemorySearchResult] = Field(default_factory=list)
     semantic_context: Dict[str, Any] = Field(default_factory=dict)
     evidence_bundle: Dict[str, Any] = Field(default_factory=dict)
+    ontology_context_mismatch: Dict[str, Any] = Field(default_factory=dict)
     trace_id: str
 
 
@@ -299,6 +301,7 @@ def build_public_memory_router(
             return MemorySearchResponse(
                 results=[MemorySearchResult(**item) for item in payload["results"]],
                 semantic_context=payload.get("semantic_context", {}),
+                ontology_context_mismatch=payload.get("ontology_context_mismatch", {}),
                 trace_id=_trace_id(),
             )
         except PermissionError as exc:
@@ -347,6 +350,7 @@ def build_public_memory_router(
                 search_results=[MemorySearchResult(**item) for item in payload["search_results"]],
                 semantic_context=payload.get("semantic_context", {}),
                 evidence_bundle=payload.get("evidence_bundle", {}),
+                ontology_context_mismatch=payload.get("ontology_context_mismatch", {}),
                 trace_id=_trace_id(),
             )
         except PermissionError as exc:

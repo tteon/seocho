@@ -235,7 +235,10 @@ Local SDK writes now persist compact `_ontology_*` graph properties on nodes and
 relationships. Local queries and agent query tools compare the active ontology
 context hash with hashes already indexed in the graph and surface any mismatch
 in trace/tool metadata. This is a guardrail, not a hard blocker: it tells you
-when a graph may need re-indexing under the current ontology profile.
+when a graph may need re-indexing under the current ontology profile. HTTP
+runtime `search_with_context(...)`, `chat(...)`, and `semantic(...)` responses
+also expose `ontology_context_mismatch` so client code can audit graph/profile
+drift without dropping to raw API payloads.
 
 ## Key Features
 

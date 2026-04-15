@@ -72,6 +72,8 @@ def test_runtime_ingest_batches_rule_profile_across_multiple_records():
     assert len(doc_nodes) == 1
     assert doc_nodes[0]["properties"]["memory_id"] == "r1"
     assert doc_nodes[0]["properties"]["workspace_id"] == "default"
+    assert doc_nodes[0]["properties"]["_ontology_id"] == "baseline"
+    assert doc_nodes[0]["properties"]["_ontology_profile"] == "vocabulary.v2"
     assert "metadata_json" in doc_nodes[0]["properties"]
 
 

@@ -433,6 +433,11 @@ Each entry must link to a full ADR when impact is non-trivial.
   - compare active ontology context hash with indexed graph context hashes at query time
   - surface mismatch metadata in local query traces and agent query tool output without blocking reads
 
+- Accepted `ADR-0070-runtime-ontology-context-response-contract.md`
+  - expose `ontology_context_mismatch` through runtime memory search/chat and semantic query responses
+  - parse the metadata into typed Python SDK response objects for direct library-user access
+  - attach runtime graph target ontology metadata during runtime ingest without fabricating SDK context hashes
+
 ## Template
 
 Use this block for new entries:

@@ -8,9 +8,10 @@ from difflib import SequenceMatcher
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 from uuid import uuid4
 
-from config import db_registry
+from config import db_registry, graph_registry
 from runtime.runtime_ingest import RuntimeRawIngestor
 from semantic_query_flow import SemanticAgentFlow
+from seocho.ontology_context import assess_graph_ontology_context_status
 from seocho.query.answering import build_evidence_bundle
 
 
@@ -244,11 +245,16 @@ class GraphMemoryService:
             (entity resolution metadata).
         """
         candidate_dbs = self._candidate_databases_from_list(databases)
+        ontology_context_mismatch = self.ontology_context_mismatch(
+            workspace_id=workspace_id,
+            databases=candidate_dbs,
+        )
         semantic_context = self.semantic_agent_flow.resolver.resolve(
             question=query,
             databases=candidate_dbs,
             workspace_id=workspace_id,
         )
+        semantic_context.setdefault("ontology_context_mismatch", ontology_context_mismatch)
         grouped: Dict[Tuple[str, str], Dict[str, Any]] = {}
         for entity, candidates in semantic_context.get("matches", {}).items():
             for candidate in candidates:
@@ -335,6 +341,7 @@ class GraphMemoryService:
         return {
             "results": results[:limit],
             "semantic_context": semantic_context,
+            "ontology_context_mismatch": ontology_context_mismatch,
         }
 
     def archive_memory(
@@ -414,6 +421,93 @@ class GraphMemoryService:
             "search_results": hits,
             "semantic_context": search_payload["semantic_context"],
             "evidence_bundle": top_bundle,
+            "ontology_context_mismatch": search_payload.get("ontology_context_mismatch", {}),
+        }
+
+    def ontology_context_mismatch(
+        self,
+        *,
+        workspace_id: str,
+        databases: Optional[Sequence[str]] = None,
+    ) -> Dict[str, Any]:
+        """Return ontology-context provenance status for runtime query responses."""
+
+        statuses: List[Dict[str, Any]] = []
+        for database in self._candidate_databases_from_list(databases):
+            target = graph_registry.find_by_database(database)
+            rows = self._run_query(
+                database,
+                """
+                MATCH (n)
+                WHERE coalesce(n._workspace_id, n.workspace_id, $workspace_id) = $workspace_id
+                WITH collect(DISTINCT n._ontology_context_hash) AS raw_hashes,
+                     collect(DISTINCT n._ontology_id) AS raw_ontology_ids,
+                     collect(DISTINCT n._ontology_profile) AS raw_profiles,
+                     count(n) AS scoped_nodes,
+                     sum(CASE WHEN n._ontology_context_hash IS NULL AND n._ontology_id IS NULL THEN 1 ELSE 0 END) AS missing_context_nodes,
+                     sum(CASE WHEN n._ontology_context_hash IS NULL THEN 1 ELSE 0 END) AS missing_context_hash_nodes
+                RETURN [value IN raw_hashes WHERE value IS NOT NULL][0..10] AS indexed_context_hashes,
+                       [value IN raw_ontology_ids WHERE value IS NOT NULL][0..10] AS indexed_ontology_ids,
+                       [value IN raw_profiles WHERE value IS NOT NULL][0..10] AS indexed_profiles,
+                       scoped_nodes,
+                       missing_context_nodes,
+                       missing_context_hash_nodes
+                """,
+                {"workspace_id": workspace_id},
+            )
+            row = rows[0] if rows else {}
+            status = assess_graph_ontology_context_status(
+                database=database,
+                workspace_id=workspace_id,
+                indexed_context_hashes=row.get("indexed_context_hashes", []) if isinstance(row, dict) else [],
+                indexed_ontology_ids=row.get("indexed_ontology_ids", []) if isinstance(row, dict) else [],
+                indexed_profiles=row.get("indexed_profiles", []) if isinstance(row, dict) else [],
+                expected_ontology_id=str(getattr(target, "ontology_id", "") or ""),
+                missing_context_nodes=(
+                    int(row.get("missing_context_nodes", 0) or 0)
+                    if isinstance(row, dict)
+                    else 0
+                ),
+                missing_context_hash_nodes=(
+                    int(row.get("missing_context_hash_nodes", 0) or 0)
+                    if isinstance(row, dict)
+                    else 0
+                ),
+                scoped_nodes=(
+                    int(row.get("scoped_nodes", 0) or 0)
+                    if isinstance(row, dict)
+                    else 0
+                ),
+            )
+            status["graph_id"] = str(getattr(target, "graph_id", "") or "")
+            status["expected_vocabulary_profile"] = str(
+                getattr(target, "vocabulary_profile", "") or ""
+            )
+            statuses.append(status)
+
+        mismatch = any(item.get("mismatch") for item in statuses)
+        missing_context = any(
+            int(item.get("missing_context_nodes", 0) or 0) > 0
+            or int(item.get("missing_context_hash_nodes", 0) or 0) > 0
+            for item in statuses
+        )
+        warning = ""
+        if mismatch:
+            warning = (
+                "At least one runtime graph has indexed ontology metadata that differs "
+                "from the active graph target."
+            )
+        elif missing_context:
+            warning = (
+                "At least one runtime graph has incomplete ontology context metadata; "
+                "re-index to make context parity fully auditable."
+            )
+
+        return {
+            "mismatch": mismatch,
+            "missing_context": missing_context,
+            "databases": statuses,
+            "warning": warning,
         }
 
     def _candidate_databases(self, database: Optional[str] = None) -> List[str]:

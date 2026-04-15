@@ -13,7 +13,7 @@ sys.modules.setdefault("neo4j", MagicMock())
 sys.modules.setdefault("neo4j.exceptions", MagicMock())
 
 from exceptions import InvalidLabelError
-from graph_loader import _validate_label
+from graph_loader import _normalize_label, _sanitize_properties, _validate_label
 
 
 class TestValidateLabel:
@@ -45,6 +45,31 @@ class TestValidateLabel:
     def test_invalid_cypher_injection(self):
         with pytest.raises(InvalidLabelError):
             _validate_label("Entity` SET n.pwned=true //")
+
+    def test_normalize_llm_label_with_spaces(self):
+        assert _normalize_label("Fiscal Year") == "Fiscal_Year"
+
+    def test_normalize_relationship_type_uppercases(self):
+        assert _normalize_label("legal issue", default="RELATED_TO", uppercase=True) == "LEGAL_ISSUE"
+
+
+class TestPropertySanitization:
+    def test_nested_maps_are_serialized_for_neo4j_properties(self):
+        props = _sanitize_properties(
+            {
+                "name": "Revenue",
+                "amount": {"value": "$2.1 billion"},
+                "tags": ["finance", "annual"],
+                "nested_list": [{"year": 2023}],
+                "empty": None,
+            }
+        )
+
+        assert props["name"] == "Revenue"
+        assert props["amount"] == '{"value": "$2.1 billion"}'
+        assert props["tags"] == ["finance", "annual"]
+        assert props["nested_list"] == '[{"year": 2023}]'
+        assert "empty" not in props
 
 
 class TestGraphLoaderLoadGraph:
@@ -79,3 +104,44 @@ class TestGraphLoaderLoadGraph:
             }
             loader.load_graph(data, "test_source")
             assert mock_session.execute_write.call_count == 2
+
+    def test_create_node_normalizes_label_and_nested_properties(self):
+        from graph_loader import GraphLoader
+
+        tx = MagicMock()
+        GraphLoader._create_node(
+            tx,
+            {
+                "id": "n1",
+                "label": "Fiscal Year",
+                "properties": {"properties": {"amount": "$2.1 billion"}},
+            },
+            "src",
+            "default",
+        )
+
+        query = tx.run.call_args.args[0]
+        kwargs = tx.run.call_args.kwargs
+        assert "MERGE (n:`Fiscal_Year`" in query
+        assert kwargs["props"]["properties"] == '{"amount": "$2.1 billion"}'
+        assert kwargs["props"]["source_id"] == "src"
+        assert kwargs["props"]["workspace_id"] == "default"
+
+    def test_create_relationship_sanitizes_nested_properties(self):
+        from graph_loader import GraphLoader
+
+        tx = MagicMock()
+        GraphLoader._create_relationship(
+            tx,
+            {
+                "source": "a",
+                "target": "b",
+                "type": "faced legal issue",
+                "properties": {"properties": {}},
+            },
+        )
+
+        query = tx.run.call_args.args[0]
+        kwargs = tx.run.call_args.kwargs
+        assert "MERGE (a)-[r:`FACED_LEGAL_ISSUE`]->(b)" in query
+        assert kwargs["props"]["properties"] == "{}"

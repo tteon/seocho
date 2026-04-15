@@ -29,6 +29,7 @@ from seocho import (
     VocabularyTerm,
 )
 from seocho.exceptions import SeochoConnectionError, SeochoHTTPError
+from seocho.models import RawIngestResult
 
 
 class _FakeResponse:
@@ -71,6 +72,40 @@ class _FakeSession:
 
     def close(self) -> None:
         self.closed = True
+
+
+def test_raw_ingest_result_parses_domain_status_contract():
+    success = RawIngestResult.from_dict(
+        {
+            "workspace_id": "default",
+            "target_database": "kgnormal",
+            "records_received": 1,
+            "records_processed": 1,
+            "records_failed": 0,
+            "total_nodes": 2,
+            "total_relationships": 1,
+            "status": "success",
+        }
+    )
+    failed = RawIngestResult.from_dict(
+        {
+            "ok": False,
+            "workspace_id": "default",
+            "target_database": "kgnormal",
+            "records_received": 1,
+            "records_processed": 0,
+            "records_failed": 1,
+            "total_nodes": 0,
+            "total_relationships": 0,
+            "status": "failed",
+            "domain_error": "status=failed, records_processed=0, records_failed=1",
+        }
+    )
+
+    assert success.ok is True
+    assert success.domain_error == ""
+    assert failed.ok is False
+    assert failed.domain_error == "status=failed, records_processed=0, records_failed=1"
 
 
 def test_add_search_chat_and_graphs_use_public_api_contract():

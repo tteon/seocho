@@ -1747,6 +1747,10 @@ class AnswerGenerationAgent:
         elif strategy_decision.get("next_mode_hint") == "reasoning_mode":
             lines.append("A bounded repair retry is recommended for a stronger retrieval attempt.")
 
+        supporting_fact = self._supporting_fact(evidence_bundle)
+        if supporting_fact:
+            lines.append(f"Evidence: {supporting_fact}")
+
         if lpg_result and lpg_result.get("records"):
             lines.append(f"LPG records: {len(lpg_result['records'])}.")
         if rdf_result and rdf_result.get("records"):
@@ -1755,6 +1759,16 @@ class AnswerGenerationAgent:
             lines.append("No matching graph records were found for this question.")
 
         return " ".join(lines)
+
+    @staticmethod
+    def _supporting_fact(evidence_bundle: Dict[str, Any]) -> str:
+        slot_fills = evidence_bundle.get("slot_fills", {})
+        if not isinstance(slot_fills, dict):
+            return ""
+        fact = str(slot_fills.get("supporting_fact") or "").strip()
+        if not fact:
+            return ""
+        return fact[:500].rstrip()
 
 
 __all__ = [

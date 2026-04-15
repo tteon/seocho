@@ -623,7 +623,45 @@ class TestListEndpoints:
             assert response.status_code == 200
             payload = response.json()
             assert payload["status"] == "success"
+            assert payload["ok"] is True
+            assert payload["domain_error"] == ""
             assert payload["records_processed"] == 2
+
+    async def test_platform_raw_ingest_endpoint_exposes_domain_failure(self, client, app_module):
+        mock_ingestor = MagicMock()
+        with patch.object(app_module, "get_runtime_raw_ingestor", return_value=mock_ingestor):
+            mock_ingestor.ingest_records.return_value = {
+                "target_database": "kgnormal",
+                "records_received": 1,
+                "records_processed": 0,
+                "records_failed": 1,
+                "total_nodes": 0,
+                "total_relationships": 0,
+                "status": "failed",
+                "errors": [
+                    {
+                        "record_id": "r1",
+                        "error_type": "LoadError",
+                        "message": "nested map property rejected",
+                    }
+                ],
+                "warnings": [],
+            }
+            response = await client.post(
+                "/platform/ingest/raw",
+                json={
+                    "workspace_id": "default",
+                    "target_database": "kgnormal",
+                    "records": [{"id": "r1", "content": "Alpha reports nested metrics."}],
+                },
+            )
+
+            assert response.status_code == 200
+            payload = response.json()
+            assert payload["status"] == "failed"
+            assert payload["ok"] is False
+            assert payload["domain_error"] == "status=failed, records_processed=0, records_failed=1"
+            assert payload["records_processed"] == 0
 
     async def test_platform_raw_ingest_with_approved_artifact_id(self, client, app_module):
         mock_ingestor = MagicMock()

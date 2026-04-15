@@ -664,13 +664,22 @@ class GraphMemoryService:
         agent_id: Optional[str],
         session_id: Optional[str],
     ) -> bool:
-        if user_id and str(memory.get("user_id", "")).strip() != str(user_id).strip():
+        if not self._scope_matches(memory.get("user_id"), user_id):
             return False
-        if agent_id and str(memory.get("agent_id", "")).strip() != str(agent_id).strip():
+        if not self._scope_matches(memory.get("agent_id"), agent_id):
             return False
-        if session_id and str(memory.get("session_id", "")).strip() != str(session_id).strip():
+        if not self._scope_matches(memory.get("session_id"), session_id):
             return False
         return True
+
+    @staticmethod
+    def _scope_matches(memory_value: Any, requested_value: Optional[str]) -> bool:
+        if not requested_value:
+            return True
+        stored = str(memory_value or "").strip()
+        # Empty scope means workspace-level memory; it remains visible to scoped
+        # user/agent/session queries inside the already-enforced workspace.
+        return not stored or stored == str(requested_value).strip()
 
     def _run_query(self, database: str, query: str, params: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
         try:

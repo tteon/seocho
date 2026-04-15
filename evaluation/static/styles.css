@@ -212,6 +212,7 @@ body {
 .control select:focus,
 .control input:focus {
   border-color: var(--accent-blue);
+  box-shadow: 0 0 0 1px var(--accent-blue);
 }
 
 .ingest-controls {
@@ -245,6 +246,7 @@ body {
 
 .ingest-grow textarea:focus {
   border-color: var(--accent-blue);
+  box-shadow: 0 0 0 1px var(--accent-blue);
 }
 
 #ingestBtn {
@@ -383,6 +385,11 @@ body {
 
 .composer button:hover:not(:disabled) {
   opacity: 0.9;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--accent-blue);
+  outline-offset: 2px;
 }
 
 /* Right Pane: AIP Workflow Canvas */

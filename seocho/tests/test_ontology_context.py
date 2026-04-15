@@ -1,8 +1,14 @@
 from __future__ import annotations
 
 from seocho import NodeDef, Ontology, P, RelDef
+from seocho.client import _LocalEngine
 from seocho.index.pipeline import IndexingPipeline
-from seocho.ontology_context import OntologyContextCache, compile_ontology_context
+from seocho.ontology_context import (
+    OntologyContextCache,
+    assess_ontology_context_mismatch,
+    compile_ontology_context,
+    query_ontology_context_mismatch,
+)
 
 
 def _ontology(version: str = "1.0.0") -> Ontology:
@@ -50,12 +56,35 @@ class _FakeLLM:
 
 
 class _FakeGraphStore:
+    def __init__(self) -> None:
+        self.writes = []
+
     def write(self, nodes, relationships, *, database="neo4j", workspace_id="default", source_id=""):  # noqa: ANN001
+        self.writes.append(
+            {
+                "nodes": nodes,
+                "relationships": relationships,
+                "database": database,
+                "workspace_id": workspace_id,
+                "source_id": source_id,
+            }
+        )
         return {
             "nodes_created": len(nodes),
             "relationships_created": len(relationships),
             "errors": [],
         }
+
+
+class _MismatchGraphStore(_FakeGraphStore):
+    def query(self, cypher: str, *, params=None, database="neo4j"):  # noqa: ANN001
+        return [
+            {
+                "indexed_context_hashes": ["old-context-hash"],
+                "scoped_nodes": 3,
+                "missing_context_nodes": 1,
+            }
+        ]
 
 
 def test_compile_ontology_context_has_stable_identity() -> None:
@@ -109,9 +138,10 @@ def test_ontology_context_cache_tracks_hits() -> None:
 
 
 def test_indexing_result_records_ontology_context() -> None:
+    graph_store = _FakeGraphStore()
     pipeline = IndexingPipeline(
         ontology=_ontology(),
-        graph_store=_FakeGraphStore(),
+        graph_store=graph_store,
         llm=_FakeLLM(),
         workspace_id="acme",
         ontology_profile="finder-financials",
@@ -124,3 +154,61 @@ def test_indexing_result_records_ontology_context() -> None:
     assert payload["ontology_context"]["workspace_id"] == "acme"
     assert payload["ontology_context"]["profile"] == "finder-financials"
     assert payload["ontology_context"]["context_hash"]
+    written_node = graph_store.writes[0]["nodes"][0]
+    written_rel = graph_store.writes[0]["relationships"][0]
+    assert written_node["properties"]["_ontology_context_hash"] == payload["ontology_context"]["context_hash"]
+    assert written_rel["properties"]["_ontology_profile"] == "finder-financials"
+
+
+def test_assess_ontology_context_mismatch_detects_drift() -> None:
+    active = compile_ontology_context(_ontology(), workspace_id="acme")
+
+    result = assess_ontology_context_mismatch(
+        active,
+        ["old-context-hash", active.descriptor.context_hash],
+        missing_context_nodes=2,
+        scoped_nodes=10,
+    )
+
+    assert result["mismatch"] is True
+    assert result["active_context_hash"] == active.descriptor.context_hash
+    assert "old-context-hash" in result["indexed_context_hashes"]
+    assert result["missing_context_nodes"] == 2
+    assert result["warning"]
+
+
+def test_local_engine_query_guardrail_surfaces_mismatch() -> None:
+    engine = _LocalEngine(
+        ontology=_ontology(),
+        graph_store=_MismatchGraphStore(),
+        llm=_FakeLLM(),
+        workspace_id="acme",
+        ontology_profile="finder-financials",
+    )
+    active = engine._ontology_context_cache.get(
+        engine.ontology,
+        workspace_id="acme",
+        profile="finder-financials",
+    )
+
+    result = engine._query_ontology_context_mismatch("neo4j", active)
+
+    assert result["mismatch"] is True
+    assert result["active_context_hash"] == active.descriptor.context_hash
+    assert result["indexed_context_hashes"] == ["old-context-hash"]
+    assert result["scoped_nodes"] == 3
+
+
+def test_query_ontology_context_mismatch_helper_handles_graph_metadata() -> None:
+    active = compile_ontology_context(_ontology(), workspace_id="acme")
+
+    result = query_ontology_context_mismatch(
+        _MismatchGraphStore(),
+        active,
+        workspace_id="acme",
+        database="neo4j",
+    )
+
+    assert result["mismatch"] is True
+    assert result["missing_context_nodes"] == 1
+    assert result["indexed_context_hashes"] == ["old-context-hash"]

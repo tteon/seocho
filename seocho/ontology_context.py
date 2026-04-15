@@ -213,6 +213,136 @@ def merge_ontology_context_metadata(
     return merged
 
 
+def ontology_context_graph_properties(context: CompiledOntologyContext | Dict[str, Any]) -> Dict[str, str]:
+    """Return graph-safe properties for persisted nodes and relationships."""
+
+    payload = context.metadata(usage="graph_write") if isinstance(context, CompiledOntologyContext) else dict(context)
+    return {
+        "_ontology_context_hash": str(payload.get("context_hash", "")),
+        "_ontology_artifact_hash": str(payload.get("artifact_hash", "")),
+        "_ontology_glossary_hash": str(payload.get("glossary_hash", "")),
+        "_ontology_id": str(payload.get("ontology_id", "")),
+        "_ontology_name": str(payload.get("ontology_name", "")),
+        "_ontology_version": str(payload.get("ontology_version", "")),
+        "_ontology_profile": str(payload.get("profile", "")),
+        "_ontology_graph_model": str(payload.get("graph_model", "")),
+    }
+
+
+def apply_ontology_context_to_graph_payload(
+    nodes: Iterable[Dict[str, Any]],
+    relationships: Iterable[Dict[str, Any]],
+    context: CompiledOntologyContext | Dict[str, Any],
+) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """Attach ontology context properties without mutating caller-owned payloads."""
+
+    context_props = ontology_context_graph_properties(context)
+    out_nodes: List[Dict[str, Any]] = []
+    out_relationships: List[Dict[str, Any]] = []
+    for node in nodes:
+        copied = dict(node)
+        properties = dict(copied.get("properties", {}) or {})
+        for key, value in context_props.items():
+            if value:
+                properties.setdefault(key, value)
+        copied["properties"] = properties
+        out_nodes.append(copied)
+    for rel in relationships:
+        copied = dict(rel)
+        properties = dict(copied.get("properties", {}) or {})
+        for key, value in context_props.items():
+            if value:
+                properties.setdefault(key, value)
+        copied["properties"] = properties
+        out_relationships.append(copied)
+    return out_nodes, out_relationships
+
+
+def assess_ontology_context_mismatch(
+    active_context: CompiledOntologyContext | Dict[str, Any],
+    indexed_hashes: Iterable[Any],
+    *,
+    missing_context_nodes: int = 0,
+    scoped_nodes: int = 0,
+) -> Dict[str, Any]:
+    """Compare active ontology context with hashes observed in the graph."""
+
+    payload = (
+        active_context.metadata(usage="query")
+        if isinstance(active_context, CompiledOntologyContext)
+        else dict(active_context)
+    )
+    active_hash = str(payload.get("context_hash", "")).strip()
+    observed = sorted(
+        {
+            str(item).strip()
+            for item in indexed_hashes
+            if str(item).strip() and str(item).strip().lower() != "none"
+        }
+    )
+    mismatched = bool(active_hash and observed and any(item != active_hash for item in observed))
+    warning = ""
+    if mismatched:
+        warning = (
+            "Active ontology context differs from at least one indexed graph context. "
+            "Re-index or query with the matching ontology profile before trusting strict comparisons."
+        )
+    return {
+        "active_context_hash": active_hash,
+        "indexed_context_hashes": observed,
+        "mismatch": mismatched,
+        "missing_context_nodes": int(missing_context_nodes or 0),
+        "scoped_nodes": int(scoped_nodes or 0),
+        "warning": warning,
+    }
+
+
+def query_ontology_context_mismatch(
+    graph_store: Any,
+    active_context: CompiledOntologyContext | Dict[str, Any],
+    *,
+    workspace_id: str = "default",
+    database: str = "neo4j",
+) -> Dict[str, Any]:
+    """Inspect graph metadata and compare it with the active ontology context."""
+
+    try:
+        rows = graph_store.query(
+            """
+            MATCH (n)
+            WHERE coalesce(n._workspace_id, n.workspace_id, $workspace_id) = $workspace_id
+            WITH collect(DISTINCT n._ontology_context_hash) AS raw_hashes,
+                 count(n) AS scoped_nodes,
+                 sum(CASE WHEN n._ontology_context_hash IS NULL THEN 1 ELSE 0 END) AS missing_context_nodes
+            RETURN [context_hash IN raw_hashes WHERE context_hash IS NOT NULL][0..10] AS indexed_context_hashes,
+                   scoped_nodes,
+                   missing_context_nodes
+            """,
+            params={"workspace_id": workspace_id},
+            database=database,
+        )
+    except Exception as exc:
+        result = assess_ontology_context_mismatch(active_context, [])
+        result["error"] = str(exc)
+        return result
+
+    row = rows[0] if rows else {}
+    return assess_ontology_context_mismatch(
+        active_context,
+        row.get("indexed_context_hashes", []) if isinstance(row, dict) else [],
+        missing_context_nodes=(
+            int(row.get("missing_context_nodes", 0) or 0)
+            if isinstance(row, dict)
+            else 0
+        ),
+        scoped_nodes=(
+            int(row.get("scoped_nodes", 0) or 0)
+            if isinstance(row, dict)
+            else 0
+        ),
+    )
+
+
 def same_ontology_context_hash(values: Iterable[Dict[str, Any]]) -> bool:
     hashes = {
         str(item.get("ontology_context_hash") or item.get("context_hash") or "").strip()

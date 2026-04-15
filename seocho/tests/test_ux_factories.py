@@ -193,6 +193,9 @@ class TestSeochoAgent:
             s = Seocho.local(simple_ontology)
             s.agent("query")
             mock_factory.assert_called_once()
+            call_kwargs = mock_factory.call_args.kwargs
+            assert call_kwargs["ontology_context"].descriptor.workspace_id == "default"
+            assert call_kwargs["workspace_id"] == "default"
 
     def test_agent_supervisor_delegates_to_factory(self, simple_ontology):
         import seocho.agent.factory as _factory_mod

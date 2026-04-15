@@ -201,11 +201,18 @@ class TestToolCreation:
     def test_create_query_tools_returns_list(self, monkeypatch):
         self._patch_agents(monkeypatch)
         from seocho.tools import create_query_tools
+        from seocho.ontology_context import compile_ontology_context
 
         onto = _make_test_ontology()
         store = FakeGraphStore()
+        context = compile_ontology_context(onto, workspace_id="acme")
 
-        tools = create_query_tools(ontology=onto, graph_store=store)
+        tools = create_query_tools(
+            ontology=onto,
+            graph_store=store,
+            ontology_context=context,
+            workspace_id="acme",
+        )
         assert len(tools) == 2  # text2cypher, execute_cypher
 
     def test_create_query_tools_with_vector_store(self, monkeypatch):

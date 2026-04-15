@@ -229,7 +229,13 @@ See [docs/FILES_AND_ARTIFACTS.md](docs/FILES_AND_ARTIFACTS.md) for where
 | **Glossary** | SKOS-style vocabulary terms, aliases, and hidden labels are compiled into the ontology context identity |
 | **Reasoning** | Optional low-quality retry re-extracts with ontology guidance |
 | **Runtime parity** | The same ontology can be converted into approved semantic artifacts and typed prompt context |
-| **Agent context** | A stable ontology context hash follows indexing, query, session traces, and agent hand-off metadata |
+| **Agent context** | A stable ontology context hash follows indexing, graph writes, query traces, and agent hand-off metadata |
+
+Local SDK writes now persist compact `_ontology_*` graph properties on nodes and
+relationships. Local queries and agent query tools compare the active ontology
+context hash with hashes already indexed in the graph and surface any mismatch
+in trace/tool metadata. This is a guardrail, not a hard blocker: it tells you
+when a graph may need re-indexing under the current ontology profile.
 
 ## Key Features
 

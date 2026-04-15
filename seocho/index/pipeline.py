@@ -586,6 +586,13 @@ class IndexingPipeline:
         # Write to graph
         if all_nodes or all_rels:
             try:
+                from seocho.ontology_context import apply_ontology_context_to_graph_payload
+
+                all_nodes, all_rels = apply_ontology_context_to_graph_payload(
+                    all_nodes,
+                    all_rels,
+                    ontology_context,
+                )
                 summary = self.graph_store.write(
                     all_nodes, all_rels,
                     database=database,

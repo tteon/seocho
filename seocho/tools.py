@@ -127,7 +127,13 @@ def make_score_extraction_tool(ontology: Any):
     return score_extraction
 
 
-def make_write_to_graph_tool(graph_store: Any, ontology: Any = None):
+def make_write_to_graph_tool(
+    graph_store: Any,
+    ontology: Any = None,
+    *,
+    ontology_context: Any = None,
+    workspace_id: str = "default",
+):
     """Create a write_to_graph tool bound to this graph store."""
     from agents import function_tool
 
@@ -150,6 +156,10 @@ def make_write_to_graph_tool(graph_store: Any, ontology: Any = None):
 
         nodes = data.get("nodes", [])
         rels = data.get("relationships", [])
+        if ontology_context is not None:
+            from .ontology_context import apply_ontology_context_to_graph_payload
+
+            nodes, rels = apply_ontology_context_to_graph_payload(nodes, rels, ontology_context)
 
         try:
             summary = graph_store.write(
@@ -157,6 +167,7 @@ def make_write_to_graph_tool(graph_store: Any, ontology: Any = None):
                 rels,
                 database=database,
                 source_id=source_id,
+                workspace_id=workspace_id,
             )
             return json.dumps({
                 "ok": True,
@@ -284,7 +295,12 @@ def make_text2cypher_tool(ontology: Any):
     return text2cypher
 
 
-def make_execute_cypher_tool(graph_store: Any):
+def make_execute_cypher_tool(
+    graph_store: Any,
+    *,
+    ontology_context: Any = None,
+    workspace_id: str = "default",
+):
     """Create an execute_cypher tool bound to this graph store."""
     from agents import function_tool
 
@@ -307,10 +323,20 @@ def make_execute_cypher_tool(graph_store: Any):
 
         try:
             records = graph_store.query(cypher, params=params, database=database)
-            return json.dumps({
+            payload = {
                 "records": records,
                 "count": len(records),
-            }, default=str)
+            }
+            if ontology_context is not None:
+                from .ontology_context import query_ontology_context_mismatch
+
+                payload["ontology_context_mismatch"] = query_ontology_context_mismatch(
+                    graph_store,
+                    ontology_context,
+                    workspace_id=workspace_id,
+                    database=database,
+                )
+            return json.dumps(payload, default=str)
         except Exception as exc:
             logger.error("execute_cypher failed: %s", exc)
             return json.dumps({"records": [], "count": 0, "error": str(exc)})
@@ -362,6 +388,8 @@ def create_indexing_tools(
     graph_store: Any,
     llm: Any,
     extraction_prompt: Any = None,
+    ontology_context: Any = None,
+    workspace_id: str = "default",
 ) -> List[Any]:
     """Create the full set of indexing tools."""
     return [
@@ -369,7 +397,12 @@ def create_indexing_tools(
         make_validate_extraction_tool(ontology),
         make_score_extraction_tool(ontology),
         make_link_entities_tool(ontology, llm),
-        make_write_to_graph_tool(graph_store, ontology),
+        make_write_to_graph_tool(
+            graph_store,
+            ontology,
+            ontology_context=ontology_context,
+            workspace_id=workspace_id,
+        ),
     ]
 
 
@@ -378,11 +411,17 @@ def create_query_tools(
     ontology: Any,
     graph_store: Any,
     vector_store: Any = None,
+    ontology_context: Any = None,
+    workspace_id: str = "default",
 ) -> List[Any]:
     """Create the full set of query tools."""
     tools = [
         make_text2cypher_tool(ontology),
-        make_execute_cypher_tool(graph_store),
+        make_execute_cypher_tool(
+            graph_store,
+            ontology_context=ontology_context,
+            workspace_id=workspace_id,
+        ),
     ]
     if vector_store is not None:
         tools.append(make_search_similar_tool(vector_store))

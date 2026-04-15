@@ -122,6 +122,8 @@ def create_indexing_agent(
     graph_store: Any,
     llm: Any,
     extraction_prompt: Any = None,
+    ontology_context: Any = None,
+    workspace_id: str = "default",
     model: Optional[str] = None,
     name: str = "IndexingAgent",
 ) -> Any:
@@ -133,6 +135,8 @@ def create_indexing_agent(
         graph_store=graph_store,
         llm=llm,
         extraction_prompt=extraction_prompt,
+        ontology_context=ontology_context,
+        workspace_id=workspace_id,
     )
     return Agent(
         name=name,
@@ -149,6 +153,8 @@ def create_query_agent(
     graph_store: Any,
     llm: Any,
     vector_store: Any = None,
+    ontology_context: Any = None,
+    workspace_id: str = "default",
     model: Optional[str] = None,
     name: str = "QueryAgent",
 ) -> Any:
@@ -159,6 +165,8 @@ def create_query_agent(
         ontology=ontology,
         graph_store=graph_store,
         vector_store=vector_store,
+        ontology_context=ontology_context,
+        workspace_id=workspace_id,
     )
     return Agent(
         name=name,
@@ -177,6 +185,8 @@ def create_supervisor_agent(
     vector_store: Any = None,
     extraction_prompt: Any = None,
     routing_policy: Any = None,
+    ontology_context: Any = None,
+    workspace_id: str = "default",
     model: Optional[str] = None,
     name: str = "Supervisor",
 ) -> Any:
@@ -187,6 +197,8 @@ def create_supervisor_agent(
         graph_store=graph_store,
         llm=llm,
         extraction_prompt=extraction_prompt,
+        ontology_context=ontology_context,
+        workspace_id=workspace_id,
         model=model,
     )
     qry_agent = create_query_agent(
@@ -194,6 +206,8 @@ def create_supervisor_agent(
         graph_store=graph_store,
         llm=llm,
         vector_store=vector_store,
+        ontology_context=ontology_context,
+        workspace_id=workspace_id,
         model=model,
     )
     return Agent(
@@ -218,4 +232,3 @@ def create_supervisor_agent(
         model=llm.to_agents_sdk_model(model=model),
         model_settings=ModelSettings(temperature=0.0),
     )
-

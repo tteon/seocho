@@ -428,6 +428,11 @@ Each entry must link to a full ADR when impact is non-trivial.
   - include SKOS-style glossary/vocabulary hash in the context identity
   - defer Rust/DataBook-style portable bundles until the Python SDK contract is stable and measured
 
+- Accepted `ADR-0069-ontology-context-graph-write-and-query-guardrail.md`
+  - persist compact `_ontology_*` properties on local SDK graph write payloads
+  - compare active ontology context hash with indexed graph context hashes at query time
+  - surface mismatch metadata in local query traces and agent query tool output without blocking reads
+
 ## Template
 
 Use this block for new entries:

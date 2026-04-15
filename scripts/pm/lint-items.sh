@@ -29,13 +29,14 @@ else
   echo "Running issue/task collaboration lint..."
 fi
 
-issue_rows="$(bd --no-daemon list --json --all --limit 0)"
+issues_json="/tmp/pm_lint_issues.json"
+bd --no-daemon list --json --all --limit 0 > "${issues_json}"
 
-ISSUE_ROWS="${issue_rows}" python3 - <<'PY' > /tmp/pm_lint_ids.txt
+python3 - "${issues_json}" <<'PY' > /tmp/pm_lint_ids.txt
 import json, sys
-import os
 
-rows = json.loads(os.environ["ISSUE_ROWS"])
+with open(sys.argv[1], "r", encoding="utf-8") as fh:
+    rows = json.load(fh)
 for row in rows:
     status = row.get("status")
     issue_type = row.get("issue_type")
@@ -80,7 +81,7 @@ PY
   done
 done < /tmp/pm_lint_ids.txt
 
-rm -f /tmp/pm_lint_ids.txt
+rm -f /tmp/pm_lint_ids.txt "${issues_json}"
 
 if [[ "${missing}" -ne 0 ]]; then
   echo "Lint failed: missing required collaboration labels."

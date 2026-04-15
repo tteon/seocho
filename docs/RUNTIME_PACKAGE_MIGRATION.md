@@ -33,6 +33,21 @@ Why `runtime/` instead of `server/`:
 
 ## Ownership Contract
 
+## User-Facing Impact
+
+This migration is intended to be invisible to end users and API consumers:
+
+- endpoint paths stay the same
+- request and response contracts stay the same
+- runtime behavior should stay the same except for bug fixes
+
+The main effect is engineering-facing:
+
+- less SDK/runtime drift
+- easier parity testing
+- clearer docs and contributor entry points
+- lower risk when moving more runtime shell code out of `extraction/`
+
 ### `seocho/` owns
 
 - extraction/query/agent/rules/linking logic
@@ -126,6 +141,7 @@ Each migration slice must satisfy:
 3. no new business logic is introduced in `extraction/`
 4. route and policy behavior remain stable
 5. ADR and architecture docs are updated
+6. `bash scripts/ci/check-runtime-shell-contract.sh` passes for runtime-shell slices
 
 ## Benchmark Interaction Rule
 

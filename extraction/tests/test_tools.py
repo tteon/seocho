@@ -1,14 +1,15 @@
 
-import pytest
-from unittest.mock import MagicMock, patch
-import sys
 import os
+import sys
+from unittest.mock import MagicMock, patch
 
-# Add parent to path to import tools
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+import pytest
 
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
 
-from agent_server import get_databases_impl, get_schema_impl
+from runtime.agent_server import get_databases_impl, get_schema_impl
 
 def test_get_databases_tool():
     result = get_databases_impl()

@@ -7,7 +7,7 @@ if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
 
-from server_runtime import (
+from runtime.server_runtime import (
     ServerContext,
     get_agent_factory_service,
     get_backend_specialist_agent_service,

@@ -12,7 +12,9 @@ from unittest.mock import MagicMock
 import httpx
 import pytest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+ROOT_DIR = os.path.join(os.path.dirname(__file__), "..", "..")
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
 
 
 class _FakeRecord:
@@ -242,6 +244,7 @@ def app_module():
             mp_modules.setitem(sys.modules, "agents", fake_agents)
             for module_name in [
                 "agent_server",
+                "runtime.agent_server",
                 "config",
                 "database_manager",
                 "graph_loader",
@@ -251,7 +254,7 @@ def app_module():
                 "dependencies",
             ]:
                 sys.modules.pop(module_name, None)
-            import agent_server
+            import runtime.agent_server as agent_server
 
             module = importlib.reload(agent_server)
             module._integration_graph_store = store

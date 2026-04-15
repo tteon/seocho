@@ -38,7 +38,7 @@ Practical implication:
 
 ### Backend runtime
 
-- `extraction/agent_server.py`
+- `runtime/agent_server.py`
 - `extraction/runtime_ingest.py`
 - `extraction/semantic_query_flow.py`
 - `extraction/debate.py`
@@ -220,7 +220,7 @@ The canonical rules for these markers live in `docs/DEVELOPER_INPUT_CONVENTIONS.
 
 Agents should keep these weaknesses in mind while editing:
 
-- `extraction/agent_server.py` is still too large
+- `runtime/agent_server.py` is still too large
 - import-time singletons increase coupling
 - source code and assets are mixed inside `extraction/`
 - `semantic/` responsibility is not fully clarified

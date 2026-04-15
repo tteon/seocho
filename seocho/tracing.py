@@ -475,22 +475,32 @@ def log_query(
     *,
     question: str,
     ontology_name: str,
+    ontology_package: str = "",
     model: str,
     cypher: str = "",
     result_count: int = 0,
     reasoning_attempts: int = 0,
     elapsed_seconds: float = 0.0,
+    metadata: Optional[Dict[str, Any]] = None,
 ) -> None:
     """Log a query event."""
     log_span(
         "sdk.query",
-        input_data={"question": question[:200], "ontology": ontology_name},
+        input_data={
+            "question": question[:200],
+            "ontology": ontology_name,
+            **({"ontology_package": ontology_package} if ontology_package else {}),
+        },
         output_data={
             "cypher_preview": cypher[:200],
             "result_count": result_count,
             "reasoning_attempts": reasoning_attempts,
         },
-        metadata={"model": model, "elapsed_seconds": round(elapsed_seconds, 2)},
+        metadata={
+            "model": model,
+            "elapsed_seconds": round(elapsed_seconds, 2),
+            **(metadata or {}),
+        },
         tags=["query", f"model:{model}"],
     )
 

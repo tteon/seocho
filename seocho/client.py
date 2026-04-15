@@ -139,6 +139,7 @@ class Seocho:
         vector_store: Optional[Any] = None,  # seocho.vector_store.VectorStore
         extraction_prompt: Optional[Any] = None,  # seocho.query.PromptTemplate
         agent_config: Optional[Any] = None,  # seocho.agent_config.AgentConfig
+        ontology_profile: str = "default",
         # --- HTTP client mode ---
         base_url: Optional[str] = None,
         workspace_id: Optional[str] = None,
@@ -161,6 +162,7 @@ class Seocho:
             vector_store: Optional vector store for hybrid search.
             extraction_prompt: Custom extraction prompt template.
             agent_config: Agent-level configuration (quality thresholds, reasoning defaults).
+            ontology_profile: Stable context profile name shared by indexing, query, and agent runs.
             base_url: SEOCHO server URL (HTTP mode). Defaults to ``SEOCHO_BASE_URL`` env
                 var or ``http://localhost:8001``.
             workspace_id: Workspace identifier propagated to all API calls.
@@ -182,6 +184,7 @@ class Seocho:
         self.llm = llm
         self.vector_store = vector_store
         self.extraction_prompt = extraction_prompt
+        self.ontology_profile = str(ontology_profile or "default")
 
         # Agent config
         if agent_config is None:
@@ -203,6 +206,7 @@ class Seocho:
                 workspace_id=self.workspace_id,
                 extraction_prompt=extraction_prompt,
                 agent_config=agent_config,
+                ontology_profile=self.ontology_profile,
             )
             self._session = session or requests.Session()
             self.base_url = ""
@@ -903,6 +907,7 @@ class Seocho:
             extraction_prompt=self.extraction_prompt,
             agent_config=self.agent_config,
             workspace_id=self.workspace_id,
+            ontology_profile=self.ontology_profile,
         )
 
     def ensure_constraints(self, *, database: str = "neo4j") -> Dict[str, Any]:
@@ -2338,6 +2343,7 @@ class _LocalEngine:
         workspace_id: str,
         extraction_prompt: Optional[Any] = None,  # PromptTemplate
         agent_config: Optional[Any] = None,  # AgentConfig
+        ontology_profile: str = "default",
     ) -> None:
         from .agent_config import AgentConfig
         from .indexing import IndexingPipeline
@@ -2350,6 +2356,11 @@ class _LocalEngine:
         self.workspace_id = workspace_id
         self.agent_config: AgentConfig = agent_config or AgentConfig()
         self.extraction_prompt = extraction_prompt
+        self.ontology_profile = str(ontology_profile or "default")
+
+        from .ontology_context import OntologyContextCache
+
+        self._ontology_context_cache = OntologyContextCache()
 
         # Resolve embedding backend from the LLM if the provider supports it
         embedding_backend = None
@@ -2363,6 +2374,8 @@ class _LocalEngine:
             extraction_prompt=extraction_prompt,
             enable_rule_constraints=True,
             embedding_backend=embedding_backend,
+            ontology_profile=self.ontology_profile,
+            ontology_context_cache=self._ontology_context_cache,
         )
         # Pass AgentConfig quality settings to pipeline
         self._indexing._quality_threshold = self.agent_config.extraction_quality_threshold
@@ -2403,6 +2416,8 @@ class _LocalEngine:
                 extraction_prompt=self.extraction_prompt,
                 strict_validation=strict_validation,
                 enable_rule_constraints=True,
+                ontology_profile=self.ontology_profile,
+                ontology_context_cache=self._ontology_context_cache,
             )
         else:
             pipeline.strict_validation = strict_validation
@@ -2431,6 +2446,10 @@ class _LocalEngine:
             result_metadata["rule_validation_summary"] = result.rule_validation_summary
         if result.semantic_artifacts is not None:
             result_metadata["semantic_artifacts"] = result.semantic_artifacts
+        if result.ontology_context is not None:
+            result_metadata["ontology_context"] = result.ontology_context
+            result_metadata["ontology_context_hash"] = result.ontology_context.get("context_hash", "")
+            result_metadata["ontology_profile"] = result.ontology_context.get("profile", self.ontology_profile)
         if result.fallback_used:
             result_metadata["fallback_used"] = True
             result_metadata["fallback_reason"] = result.fallback_reason
@@ -2532,6 +2551,11 @@ class _LocalEngine:
         """
         # Use database-specific ontology if registered
         active_ontology = ontology_override or self.ontology
+        ontology_context = self._ontology_context_cache.get(
+            active_ontology,
+            workspace_id=self.workspace_id,
+            profile=self.ontology_profile,
+        )
         if ontology_override is not None:
             from .prompt_strategy import QueryStrategy
             self._query = QueryStrategy(active_ontology)
@@ -2669,6 +2693,7 @@ class _LocalEngine:
                     result_count=len(records) if records else 0,
                     reasoning_attempts=len(attempts) if reasoning_mode and attempts else 0,
                     elapsed_seconds=_query_elapsed,
+                    metadata={"ontology_context": ontology_context.metadata(usage="query")},
                 )
         except Exception:
             pass

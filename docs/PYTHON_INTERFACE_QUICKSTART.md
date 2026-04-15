@@ -2,6 +2,7 @@
 
 SEOCHO's Python SDK is designed around a simple rule:
 
+- keep agents and graph databases aligned to one ontology contract
 - default to the semantic layer
 - turn on bounded repair when retrieval is insufficient
 - use debate only as an explicit advanced mode
@@ -43,8 +44,9 @@ pip install "seocho[ontology]"
 Important:
 
 - `pip install seocho` is enough for remote HTTP client mode.
-- `pip install "seocho[local]"` is the simplest published-package path for direct `Neo4jGraphStore(...)` workflows.
-- local engine mode requires a real graph backend and local-mode dependencies.
+- `pip install "seocho[local]"` is the simplest published-package path for `Seocho.local(...)`.
+- `Seocho.local(ontology)` defaults to embedded LadybugDB, so a Neo4j/DozerDB server is optional for hello world.
+- pass `graph="bolt://..."` or `Neo4jGraphStore(...)` when you want the production DozerDB/Neo4j path.
 - `pip install -e ".[dev]"` remains the right path when you are editing the repo itself.
 
 If you are iterating on schema evolution, use the offline governance CLI:
@@ -67,7 +69,8 @@ You have two primary SDK shapes:
 | Mode | Constructor | When to use it |
 |------|-------------|----------------|
 | HTTP client | `Seocho(base_url="http://localhost:8001", workspace_id="default")` | consume a running SEOCHO runtime |
-| Local engine | `Seocho(ontology=..., graph_store=..., llm=...)` | SDK authoring, experiments, direct graph access |
+| Embedded local engine | `Seocho.local(ontology)` | serverless SDK authoring, experiments, hello world |
+| Explicit local engine | `Seocho(ontology=..., graph_store=..., llm=...)` | direct backend control |
 
 Fastest script-style setup:
 
@@ -91,7 +94,17 @@ Important parameters:
 - `workspace_id`: required logical scope for runtime-facing data and queries
 - `user_id`, `agent_id`, `session_id`: optional scope fields for memory/runtime tracing
 
-Local engine example:
+Embedded local engine example:
+
+```python
+from seocho import Ontology, Seocho
+
+client = Seocho.local(Ontology(name="demo"))
+client.add("Marie Curie worked at the University of Paris.")
+print(client.ask("Where did Marie Curie work?"))
+```
+
+Production graph-server example:
 
 ```python
 from seocho import Seocho, Ontology
@@ -107,7 +120,7 @@ client = Seocho(
 
 Local-mode constructor parameters you should understand:
 
-- `graph_store`: Bolt-backed DozerDB/Neo4j connection used by the SDK
+- `graph_store`: explicit backend used by the SDK; `Seocho.local(...)` creates an embedded LadybugDB store by default
 - `llm`: OpenAI-compatible extraction/query backend
 - `ontology`: schema contract that drives extraction, validation, and query generation
 

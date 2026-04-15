@@ -582,6 +582,16 @@ profile differs from data already indexed in the target graph. SEOCHO does not
 block the answer automatically; the metadata is a re-indexing and audit
 guardrail for teams that change ontology profiles over time.
 
+HTTP runtime mode exposes the same guardrail through typed SDK responses:
+
+```python
+semantic = client.semantic("Who manages Seoul retail?", databases=["kgnormal"])
+print(semantic.ontology_context_mismatch["mismatch"])
+
+chat = client.chat("What do we know about Seoul retail?", databases=["kgnormal"])
+print(chat.ontology_context_mismatch.get("warning", ""))
+```
+
 If the same ontology must also govern runtime ingest, reuse it instead of
 authoring a second payload:
 

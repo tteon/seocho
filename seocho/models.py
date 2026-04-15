@@ -70,6 +70,7 @@ class MemoryCreateResult(JsonSerializable):
 class SearchResponse(JsonSerializable):
     results: List[SearchResult] = field(default_factory=list)
     semantic_context: Dict[str, Any] = field(default_factory=dict)
+    ontology_context_mismatch: Dict[str, Any] = field(default_factory=dict)
     trace_id: str = ""
 
     @classmethod
@@ -77,6 +78,7 @@ class SearchResponse(JsonSerializable):
         return cls(
             results=[SearchResult.from_dict(item) for item in payload.get("results", [])],
             semantic_context=dict(payload.get("semantic_context", {})),
+            ontology_context_mismatch=dict(payload.get("ontology_context_mismatch", {})),
             trace_id=str(payload.get("trace_id", "")),
         )
 
@@ -88,6 +90,7 @@ class ChatResponse(JsonSerializable):
     search_results: List[SearchResult] = field(default_factory=list)
     semantic_context: Dict[str, Any] = field(default_factory=dict)
     evidence_bundle: Dict[str, Any] = field(default_factory=dict)
+    ontology_context_mismatch: Dict[str, Any] = field(default_factory=dict)
     trace_id: str = ""
 
     @classmethod
@@ -98,6 +101,7 @@ class ChatResponse(JsonSerializable):
             search_results=[SearchResult.from_dict(item) for item in payload.get("search_results", [])],
             semantic_context=dict(payload.get("semantic_context", {})),
             evidence_bundle=dict(payload.get("evidence_bundle", {})),
+            ontology_context_mismatch=dict(payload.get("ontology_context_mismatch", {})),
             trace_id=str(payload.get("trace_id", "")),
         )
 
@@ -475,6 +479,7 @@ class SemanticRunResponse(JsonSerializable):
     strategy_decision: Dict[str, Any] = field(default_factory=dict)
     run_metadata: Dict[str, Any] = field(default_factory=dict)
     evidence_bundle: Dict[str, Any] = field(default_factory=dict)
+    ontology_context_mismatch: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, payload: Dict[str, Any]) -> "SemanticRunResponse":
@@ -489,6 +494,7 @@ class SemanticRunResponse(JsonSerializable):
             strategy_decision=dict(payload.get("strategy_decision", {})),
             run_metadata=dict(payload.get("run_metadata", {})),
             evidence_bundle=dict(payload.get("evidence_bundle", {})),
+            ontology_context_mismatch=dict(payload.get("ontology_context_mismatch", {})),
         )
 
     @property

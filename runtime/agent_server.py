@@ -421,6 +421,7 @@ class SemanticAgentResponse(AgentResponse):
     strategy_decision: Dict[str, Any] = Field(default_factory=dict, description="Execution strategy reasoning trace.")
     run_metadata: Dict[str, Any] = Field(default_factory=dict, description="Semantic run audit metadata (run_id, timestamps).")
     evidence_bundle: Dict[str, Any] = Field(default_factory=dict, description="Structured evidence bundle with slot fills and required relations.")
+    ontology_context_mismatch: Dict[str, Any] = Field(default_factory=dict, description="Runtime graph ontology-context parity metadata.")
 
 
 class SemanticRunRecordResponse(BaseModel):
@@ -938,6 +939,14 @@ async def run_agent_semantic(request: SemanticQueryRequest):
             reasoning_mode=request.reasoning_mode,
             repair_budget=request.repair_budget,
         )
+        ontology_context_mismatch = memory_service.ontology_context_mismatch(
+            workspace_id=request.workspace_id,
+            databases=valid_dbs,
+        )
+        result.setdefault("semantic_context", {})[
+            "ontology_context_mismatch"
+        ] = ontology_context_mismatch
+        result["ontology_context_mismatch"] = ontology_context_mismatch
         return SemanticAgentResponse(**result)
     except SeochoError:
         raise

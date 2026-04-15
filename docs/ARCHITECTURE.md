@@ -323,9 +323,10 @@ compatibility roles.
   - `runtime/agent_server.py`
   - `runtime/public_memory_api.py`
   - `runtime/server_runtime.py`
+  - `runtime/runtime_ingest.py`
 - keep as compatibility caller over canonical seam:
   - `extraction/pipeline.py`
-- partial canonical seam reuse:
+- compatibility alias now:
   - `extraction/runtime_ingest.py`
 - canonical helper seams now shared with runtime ingest:
   - `seocho/index/runtime_memory.py`
@@ -444,7 +445,7 @@ Offline ontology governance operators should prefer the SDK CLI surface:
 | DebateOrchestrator | `extraction/debate.py` | Executes Parallel Debate pattern (fan-out → collect → synthesize) |
 | Agent Server | `runtime/agent_server.py` | FastAPI endpoints (`/run_agent`, `/run_debate`, `/run_agent_semantic`, `/platform/chat/send`, `/platform/ingest/raw`) |
 | Platform Agents | `extraction/platform_agents.py` | Backend/Frontend specialist orchestration + session state management |
-| Runtime Raw Ingestor | `extraction/runtime_ingest.py` | Runtime raw-text extraction/linking/rule-annotation and DB loading |
+| Runtime Raw Ingestor | `runtime/runtime_ingest.py` | Runtime raw-text extraction/linking/rule-annotation and DB loading |
 
 ### Observability Layer
 

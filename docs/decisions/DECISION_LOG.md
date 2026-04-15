@@ -402,6 +402,16 @@ Each entry must link to a full ADR when impact is non-trivial.
   - rebind `extraction/semantic_query_flow.py` to the canonical flow class while keeping the existing import surface stable
   - keep runtime graph-target injection in the extraction shell
 
+- Accepted `ADR-0064-runtime-package-first-shell-slice.md`
+  - introduce `runtime/` as the canonical deployment-shell package
+  - keep `extraction/agent_server.py`, `extraction/server_runtime.py`, `extraction/policy.py`, and `extraction/public_memory_api.py` as compatibility aliases
+  - normalize repo-owned tests and docs toward `runtime/*` imports first
+
+- Accepted `ADR-0065-runtime-ingest-runtime-package-slice.md`
+  - move `RuntimeRawIngestor` ownership to `runtime/runtime_ingest.py`
+  - keep `extraction/runtime_ingest.py` as a compatibility alias during staged rename work
+  - continue shrinking runtime ingest toward deployment-shell composition while preserving current API behavior
+
 ## Template
 
 Use this block for new entries:

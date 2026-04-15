@@ -26,3 +26,10 @@ def test_server_runtime_alias_points_to_runtime_module() -> None:
     import runtime.server_runtime as runtime_server_runtime
 
     assert server_runtime is runtime_server_runtime
+
+
+def test_runtime_ingest_alias_points_to_runtime_module() -> None:
+    import runtime_ingest
+    import runtime.runtime_ingest as runtime_runtime_ingest
+
+    assert runtime_ingest is runtime_runtime_ingest

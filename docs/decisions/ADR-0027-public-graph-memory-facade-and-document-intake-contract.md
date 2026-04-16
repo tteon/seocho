@@ -5,7 +5,7 @@ Status: Accepted
 
 ## Context
 
-SEOCHO is moving toward a memory-first public product surface inspired by mem0's graph-memory experience, while keeping SEOCHO's ontology, vocabulary, provenance, and graph reasoning strengths.
+SEOCHO is moving toward a memory-first public product surface that emphasizes a graph-memory-style interaction model, while keeping SEOCHO's ontology, vocabulary, provenance, and graph reasoning strengths.
 
 At the same time, the repository is being optimized for agent-friendly development. That requires document conventions that coding agents can interpret mechanically instead of inferring intent from free-form prose.
 

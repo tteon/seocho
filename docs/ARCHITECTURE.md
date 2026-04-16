@@ -8,7 +8,7 @@ Current baseline:
 
 - Agent runtime: OpenAI Agents SDK
 - Trace/evaluation contract: vendor-neutral (`none|console|jsonl|opik`)
-- Preferred team backend: Opik
+- Optional team trace exporter: Opik (off by default, opt-in per deployment)
 - Canonical neutral artifact: JSONL
 - Graph backend: DozerDB (Neo4j protocol compatible)
 
@@ -649,15 +649,22 @@ Edge routing in the UI is rendered strictly via the `metadata.parent` (for the f
 ## Configuration
 
 ### Environment Variables (`.env`)
+
+Replace all placeholder values below with your own credentials before use.
+Provider names are shown as illustrative OpenAI-compatible backends, not as
+endorsements or partnerships; any OpenAI-compatible endpoint is supported
+through the same plug-in surface.
+
 ```
-OPENAI_API_KEY=sk-...
-OPENAI_MODEL=gpt-4o-mini
+OPENAI_API_KEY=<your-key>
+OPENAI_MODEL=<your-model>
+# Optional OpenAI-compatible providers:
 DEEPSEEK_API_KEY=
 MOONSHOT_API_KEY=
 XAI_API_KEY=
 NEO4J_URI=bolt://localhost:7687
 NEO4J_USER=neo4j
-NEO4J_PASSWORD=password
+NEO4J_PASSWORD=<set-a-strong-password>
 
 # Opik (opt-in)
 SEOCHO_TRACE_BACKEND=none

@@ -5,11 +5,11 @@ Status: Draft
 
 ## 1. Product Statement
 
-SEOCHO is a self-hosted memory and knowledge platform for teams that want a mem0-open-source-like graph memory interface on top of a graph-backed runtime.
+SEOCHO is a self-hosted memory and knowledge platform for teams that want a simple, resource-oriented graph memory interface on top of a graph-backed runtime.
 
 Important scope boundary:
 
-- the target is not the full mem0 product
+- the target is not any specific peer product
 - the target is the graph memory interaction model
 
 The product experience should feel simple and memory-first from the outside, while keeping graph extraction, rule inference, ontology governance, and tracing inside the platform.

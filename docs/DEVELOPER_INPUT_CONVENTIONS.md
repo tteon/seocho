@@ -30,7 +30,7 @@ Use for a confirmed product or architecture decision.
 
 Examples:
 
-- `DEV-DECISION: SEOCHO borrows only the graph-memory interface from mem0, not the full product surface.`
+- `DEV-DECISION: SEOCHO borrows only a generic graph-memory interaction model, not any specific peer product surface.`
 - `DEV-DECISION: Public memory APIs default to soft archive semantics.`
 
 ### `DEV-CONSTRAINT:`
@@ -57,7 +57,7 @@ Use to block accidental feature expansion.
 
 Examples:
 
-- `DEV-OUT-OF-SCOPE: Full mem0 compatibility is not part of this MVP.`
+- `DEV-OUT-OF-SCOPE: Full compatibility with any specific peer graph-memory product is not part of this MVP.`
 - `DEV-OUT-OF-SCOPE: Online ontology reasoning is excluded from runtime request handling.`
 
 ### `DEV-ACCEPTANCE:`

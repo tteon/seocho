@@ -18,27 +18,26 @@ local path because the orchestration does not exist there.
 
 A previous instinct was to keep this in `extraction/` because it touches
 DB-stateful operations (fulltext entity lookup, multi-database constraint
-loading). A survey of leading knowledge-graph SDKs disproves this:
+loading). A survey of mature graph-memory and graph-RAG SDKs in the same
+category disproves this:
 
-| Solution | Where the orchestration lives |
-|----------|-------------------------------|
-| Graphiti (Zep) | `graphiti_core.Graphiti` — `server/graph_service/routers/retrieve.py` is a thin FastAPI wrapper that delegates to `graphiti.search()` etc. |
-| Cognee | `cognee.recall()` — same code path for local and `cognee.serve()` hosted mode |
-| mem0 (graph) | `Memory` class — graph store is just a config option, no separate orchestration class |
-| LlamaIndex | SDK only — user brings the DB |
-| Neo4j GraphRAG | SDK only — `Driver + Retriever + LLM` triple |
+- DB-stateful query orchestration lives in the SDK class, not in a
+  server-only module
+- the HTTP server, when present, is a thin routing wrapper that delegates
+  to the SDK orchestration class for the same operations local callers use
+- the SDK only needs `GraphStore` and `LLMBackend` abstractions to host
+  this orchestration, both of which `seocho/` already has
 
-**Every leading solution puts DB-stateful query orchestration in the SDK.**
-None split it into a server-only module. The "DB-stateful = server-only"
-assumption is incorrect — the SDK simply needs `GraphStore` and
-`LLMBackend` abstractions, both of which `seocho/` already has.
+**The "DB-stateful = server-only" assumption is incorrect.** The consistent
+pattern across the category is that SDK orchestration is shared between
+local and hosted modes.
 
 ## Decision
 
 Move `SemanticAgentFlow` and its supporting classes into the SDK as the
 canonical query orchestration. `extraction/agent_server.py` becomes a
-FastAPI thin wrapper that calls the SDK class — matching the Graphiti
-pattern.
+FastAPI thin wrapper that calls the SDK class — matching the common
+thin-server wrapper pattern used across the category.
 
 ## Target Structure
 
@@ -128,8 +127,9 @@ the same `route`, `support_assessment`, `evidence_bundle` from both paths.
 
 ## References
 
-- Graphiti: <https://github.com/getzep/graphiti> (`graphiti_core/` + thin `server/`)
-- Cognee: <https://github.com/topoteretes/cognee> (`cognee.serve()` pattern)
-- mem0: <https://docs.mem0.ai/open-source/graph_memory/overview>
+- Industry survey: mature graph-memory and graph-RAG SDKs in the same
+  category consistently colocate orchestration with the SDK class and
+  expose a thin HTTP wrapper for hosted modes (peer names withheld from
+  public docs; tracked in internal benchmark and category notes).
 - ADR-0048: canonical query engine first slice (precedent)
 - ADR-0055: runtime ingest canonical extraction seam (precedent)

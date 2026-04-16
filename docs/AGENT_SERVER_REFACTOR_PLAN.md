@@ -179,7 +179,7 @@ This is the most important technical cleanup.
 
 ## 7. API Consistency Improvements
 
-If the goal is a mem0-graph-memory-like interface, these improvements matter most:
+If the goal is a generic graph-memory-style interface, these improvements matter most:
 
 ### Naming
 

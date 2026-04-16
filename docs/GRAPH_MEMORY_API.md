@@ -3,12 +3,12 @@
 Date: 2026-03-12
 Status: Draft
 
-This document defines the target public interface for SEOCHO if the product direction is inspired by mem0's graph memory experience only.
+This document defines the target public interface for SEOCHO when the product direction emphasizes a graph-memory-style interaction model on the outside.
 
 Important scope boundary:
 
-- SEOCHO is not trying to clone all of mem0
-- SEOCHO is borrowing the graph memory interaction model
+- SEOCHO is not trying to replicate any specific peer product
+- SEOCHO borrows only the generic graph-memory interaction model
 - graph-backed retrieval, provenance, rules, and governance remain differentiators
 
 ## 1. Goals

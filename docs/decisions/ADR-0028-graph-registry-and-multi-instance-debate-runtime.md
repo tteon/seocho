@@ -12,7 +12,7 @@ The product direction now requires:
 - graph-scoped OpenAI Agents SDK specialists
 - the ability for different graph IDs to point at different Neo4j instances
 - lightweight public discovery of graph targets
-- a mem0-like interface layer without exposing internal agent topology
+- a generic graph-memory-style interface layer without exposing internal agent topology
 
 ## Decision
 
@@ -32,7 +32,7 @@ Positive:
 - each agent can be hard-bound to one graph target by tool closure
 - multi-instance graph debate is supported without prompt-only scoping
 - ontology and vocabulary metadata can travel with graph routing
-- mem0-style client flows can discover graph targets safely
+- graph-memory-style client flows can discover graph targets safely
 
 Tradeoffs:
 

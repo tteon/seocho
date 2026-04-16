@@ -250,3 +250,29 @@ def test_search_memories_surfaces_ontology_context_mismatch():
 
     assert payload["ontology_context_mismatch"] == {"mismatch": False, "databases": []}
     assert payload["semantic_context"]["ontology_context_mismatch"]["mismatch"] is False
+
+
+def test_archive_memory_tries_candidate_databases_until_it_finds_a_match():
+    service = GraphMemoryService(
+        db_manager=_FakeDbManager(),
+        runtime_raw_ingestor=_FakeIngestor(),
+        semantic_agent_flow=_FakeSemanticFlow(),
+        default_database="ladybug_local",
+    )
+    calls = []
+
+    service._candidate_databases = lambda database=None: ["ladybug_local", "kgnormal"]
+
+    def _archive(database, memory_id, workspace_id, archived_at):  # noqa: ANN001
+        calls.append((database, memory_id, workspace_id, archived_at))
+        return 0 if database == "ladybug_local" else 3
+
+    service._archive_memory_in_db = _archive
+
+    payload = service.archive_memory(memory_id="mem_1", workspace_id="default")
+
+    assert [call[0] for call in calls] == ["ladybug_local", "kgnormal"]
+    assert payload["memory_id"] == "mem_1"
+    assert payload["database"] == "kgnormal"
+    assert payload["status"] == "archived"
+    assert payload["archived_nodes"] == 3

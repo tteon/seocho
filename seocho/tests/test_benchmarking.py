@@ -3,6 +3,8 @@ from seocho.benchmarking import (
     compare_answers,
     normalize_answer,
     run_finder_benchmark,
+    split_finder_diagnosis,
+    summarize_finder_contract_findings,
     summarize_finder_records,
 )
 
@@ -137,3 +139,54 @@ def test_summarize_finder_records_handles_empty_input():
     assert summary.record_count == 0
     assert summary.add_latency_p50_ms == 0.0
     assert summary.ask_latency_p95_ms == 0.0
+
+
+def test_split_finder_diagnosis_separates_indexing_and_query_findings():
+    split = split_finder_diagnosis(
+        [
+            "indexing_no_graph_writes",
+            "query_no_graph_records",
+            "answer_quality_or_slot_selection_gap",
+            "custom_follow_up",
+            "query_no_graph_records",
+        ]
+    )
+
+    assert split["indexing"] == ["indexing_no_graph_writes"]
+    assert split["query"] == [
+        "query_no_graph_records",
+        "answer_quality_or_slot_selection_gap",
+    ]
+    assert split["shared"] == ["custom_follow_up"]
+
+
+def test_summarize_finder_contract_findings_counts_records_and_codes():
+    summary = summarize_finder_contract_findings(
+        [
+            {
+                "case_id": "finder_001",
+                "diagnosis": [
+                    "indexing_no_graph_writes",
+                    "query_no_graph_records",
+                ],
+            },
+            {
+                "case_id": "finder_002",
+                "diagnosis": [
+                    "source_text_has_answer_but_graph_projection_lost_it",
+                    "answer_quality_or_slot_selection_gap",
+                    "custom_follow_up",
+                ],
+            },
+            {"case_id": "finder_003", "diagnosis": []},
+        ]
+    )
+
+    assert summary["indexing"]["record_count"] == 2
+    assert summary["indexing"]["finding_counts"]["indexing_no_graph_writes"] == 1
+    assert summary["indexing"]["finding_counts"]["source_text_has_answer_but_graph_projection_lost_it"] == 1
+    assert summary["query"]["record_count"] == 2
+    assert summary["query"]["finding_counts"]["query_no_graph_records"] == 1
+    assert summary["query"]["finding_counts"]["answer_quality_or_slot_selection_gap"] == 1
+    assert summary["shared"]["record_count"] == 1
+    assert summary["shared"]["finding_counts"]["custom_follow_up"] == 1

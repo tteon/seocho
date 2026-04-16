@@ -87,14 +87,14 @@ measure of ingestion quality.
 
 ## Peer Systems
 
-The current peer baseline set is:
+Benchmarks are run against a rotating set of graph-memory peer systems in
+the same category. Named peer baselines and their versions are tracked in
+internal benchmark runs and are not published here, because the category is
+moving quickly and any fixed list would go stale or misrepresent peer
+products.
 
-- Graphiti
-- Cognee
-- mem0 graph memory
-
-These are useful peer systems, but they are not identical products. Results
-must be reported by track and by capability, not as a single overall winner.
+Peer systems are not identical products. Results must be reported by track
+and by capability, not as a single overall winner.
 
 ## Measurement Order
 

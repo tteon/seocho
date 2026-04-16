@@ -21,14 +21,12 @@ What this means in practice:
 - **You stay in control.** One schema change propagates everywhere: agent
   prompts, query planning, validation, and governance artifacts.
 
-Compared to peer libraries:
+Where SEOCHO fits:
 
-| Library | Core value |
-|---------|------------|
-| mem0 | generic memory for agents |
-| Graphiti (Zep) | temporal knowledge graph |
-| LlamaIndex | ecosystem + integrations |
-| **SEOCHO** | **ontology alignment between agent and graph DB** |
+- pick SEOCHO when agent behavior, graph schema, and extraction rules must
+  stay aligned to a single ontology contract
+- the emphasis is on ontology-governed semantics over generic chat memory
+  or schema-free RAG
 
 ## Quick Start
 

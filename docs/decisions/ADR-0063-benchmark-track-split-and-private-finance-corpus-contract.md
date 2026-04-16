@@ -25,11 +25,10 @@ We will use two benchmark tracks:
 2. `GraphRAG-Bench`
    - graph retrieval / evidence quality / reasoning
 
-Peer systems for comparison:
-
-- Graphiti
-- Cognee
-- mem0 graph memory
+Peer systems for comparison come from the current rotating set of
+graph-memory and graph-RAG SDKs in the same category. Specific peer names
+and versions are tracked in internal benchmark runs, not published here,
+so the list cannot go stale or misrepresent third-party products.
 
 Measurement order:
 

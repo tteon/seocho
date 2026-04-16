@@ -418,8 +418,8 @@ Each entry must link to a full ADR when impact is non-trivial.
 
 - Accepted `ADR-0056-canonicalize-semantic-query-flow-to-sdk.md`
   - move SemanticAgentFlow and 14 supporting classes from extraction/semantic_query_flow.py to seocho/query/*
-  - rationale: industry survey (Graphiti, Cognee, mem0, LlamaIndex, Neo4j GraphRAG) confirms DB-stateful query orchestration belongs in SDK
-  - extraction/agent_server.py becomes thin wrapper, mirroring Graphiti's server/graph_service/routers pattern
+  - rationale: industry survey of mature graph-memory and graph-RAG SDKs confirms DB-stateful query orchestration belongs in SDK
+  - extraction/agent_server.py becomes thin wrapper, mirroring the common thin-server wrapper pattern used across the category
   - 4-phase migration (pure logic → DB-aware support → agents → SemanticAgentFlow), each gated by parity harness
 
 - Accepted `ADR-0057-runtime-ingest-deterministic-helper-seams-first-slice.md`

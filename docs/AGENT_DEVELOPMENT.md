@@ -25,14 +25,14 @@ For document-driven development, also read:
 
 ## 2. Product Direction
 
-The near-term direction is a mem0-graph-memory-like interface on top of SEOCHO's graph-backed runtime.
+The near-term direction is a generic graph-memory-style interface on top of SEOCHO's graph-backed runtime.
 
 Practical implication:
 
 - public UX should feel memory-first
 - internal runtime may remain graph- and agent-heavy
 - new user-facing APIs should prefer stable resource-oriented naming over orchestration jargon
-- do not assume the product is trying to replicate the full mem0 surface
+- do not assume the product is trying to replicate any specific peer product surface
 
 ## 3. Core Entry Points
 

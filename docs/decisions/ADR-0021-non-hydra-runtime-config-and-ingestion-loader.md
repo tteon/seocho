@@ -20,7 +20,7 @@ Batch/runtime config paths still depended on Hydra/OmegaConf entrypoints, which 
    - typed dataclass config objects for prompts/model/runtime flags
 3. Replace Hydra-decorated batch entrypoints with standard Python CLI loading:
    - `extraction/main.py`
-   - `extraction/ingest_finder.py`
+   - `extraction/ingest_finance_corpus.py`
 4. Keep prompt/schema YAML artifacts under `extraction/conf/*` as plain configuration files.
 5. Update docs to reflect non-Hydra config architecture.
 
@@ -43,7 +43,7 @@ Key files:
 
 - `extraction/config.py`
 - `extraction/main.py`
-- `extraction/ingest_finder.py`
+- `extraction/ingest_finance_corpus.py`
 - `extraction/runtime_ingest.py`
 - `extraction/conf/config.yaml`
 - `extraction/conf/ingestion/config.yaml`

@@ -1,4 +1,4 @@
-# ADR-0063: Benchmark Track Split And FinDER Baseline First Slice
+# ADR-0063: Benchmark Track Split And Private Finance Corpus Contract
 
 ## Status
 
@@ -20,8 +20,8 @@ A single blended benchmark would distort results because SEOCHO spans:
 
 We will use two benchmark tracks:
 
-1. `FinDER`
-   - ingestion / ontology-governed extraction / finance QA
+1. `private finance corpus`
+   - ingestion / ontology-governed extraction / finance-domain QA
 2. `GraphRAG-Bench`
    - graph retrieval / evidence quality / reasoning
 
@@ -37,7 +37,7 @@ Measurement order:
 2. SEOCHO runtime HTTP baseline
 3. peer systems
 
-The first shipped slice is a runnable FinDER baseline harness for SEOCHO.
+The first shipped slice is a runnable finance-domain benchmark harness for SEOCHO.
 
 ## Consequences
 
@@ -55,5 +55,6 @@ Negative:
 ## Implementation Notes
 
 - benchmark contract is documented in `docs/BENCHMARKS.md`
-- FinDER baseline harness lives at `scripts/benchmarks/run_finder_baseline.py`
+- finance-domain benchmark harness lives at `scripts/benchmarks/run_finance_benchmark.py`
 - benchmark helper logic lives at `seocho/benchmarking.py`
+- the bundled tutorial sample is onboarding-only and must not be cited as benchmark evidence

@@ -191,7 +191,7 @@ Extend evidence-bundle work to record:
 - selected triples
 - abstention reason
 
-Use this before adding GraphRAG-Bench or FinDER benchmark comparisons so the
+Use this before adding GraphRAG-Bench or private finance corpus benchmark comparisons so the
 failure modes are inspectable.
 
 ## Non-Goals

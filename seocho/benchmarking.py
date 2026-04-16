@@ -46,11 +46,11 @@ _STOPWORDS = {
     "which",
     "with",
 }
-_FINDER_INDEXING_FINDINGS = {
+_FINANCE_BENCHMARK_INDEXING_FINDINGS = {
     "indexing_no_graph_writes",
     "source_text_has_answer_but_graph_projection_lost_it",
 }
-_FINDER_QUERY_FINDINGS = {
+_FINANCE_BENCHMARK_QUERY_FINDINGS = {
     "query_no_graph_records",
     "vector_substrate_not_in_local_answer_path",
     "fulltext_substrate_unavailable_or_unchecked",
@@ -59,7 +59,7 @@ _FINDER_QUERY_FINDINGS = {
 
 
 @dataclass(slots=True)
-class FinDERBenchmarkCase:
+class FinanceBenchmarkCase:
     case_id: str
     text: str
     question: str
@@ -69,7 +69,7 @@ class FinDERBenchmarkCase:
 
 
 @dataclass(slots=True)
-class FinDERBenchmarkRecord:
+class FinanceBenchmarkRecord:
     case_id: str
     category: str
     add_latency_ms: float
@@ -84,7 +84,7 @@ class FinDERBenchmarkRecord:
 
 
 @dataclass(slots=True)
-class FinDERBenchmarkSummary:
+class FinanceBenchmarkSummary:
     mode: str
     dataset: str
     record_count: int
@@ -97,7 +97,7 @@ class FinDERBenchmarkSummary:
     avg_nodes_created: float
     avg_relationships_created: float
     failure_count: int
-    records: List[FinDERBenchmarkRecord] = field(default_factory=list)
+    records: List[FinanceBenchmarkRecord] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         payload = asdict(self)
@@ -105,8 +105,8 @@ class FinDERBenchmarkSummary:
         return payload
 
 
-def split_finder_diagnosis(findings: Sequence[str]) -> Dict[str, List[str]]:
-    """Split FinDER diagnosis codes into indexing vs query contracts."""
+def split_finance_diagnosis(findings: Sequence[str]) -> Dict[str, List[str]]:
+    """Split finance benchmark diagnosis codes into indexing vs query contracts."""
 
     contracts = {"indexing": [], "query": [], "shared": []}
     seen: set[str] = set()
@@ -115,19 +115,19 @@ def split_finder_diagnosis(findings: Sequence[str]) -> Dict[str, List[str]]:
         if not finding or finding in seen:
             continue
         seen.add(finding)
-        if finding in _FINDER_INDEXING_FINDINGS:
+        if finding in _FINANCE_BENCHMARK_INDEXING_FINDINGS:
             contracts["indexing"].append(finding)
-        elif finding in _FINDER_QUERY_FINDINGS:
+        elif finding in _FINANCE_BENCHMARK_QUERY_FINDINGS:
             contracts["query"].append(finding)
         else:
             contracts["shared"].append(finding)
     return contracts
 
 
-def summarize_finder_contract_findings(
+def summarize_finance_contract_findings(
     records: Sequence[Mapping[str, Any]],
 ) -> Dict[str, Dict[str, Any]]:
-    """Aggregate split FinDER findings across records.
+    """Aggregate split finance benchmark findings across records.
 
     Each input record is expected to expose ``case_id`` and ``diagnosis``.
     Unknown finding codes remain visible under the ``shared`` contract bucket.
@@ -139,7 +139,7 @@ def summarize_finder_contract_findings(
         "shared": {"record_count": 0, "finding_counts": {}},
     }
     for record in records:
-        split = split_finder_diagnosis(record.get("diagnosis", []))
+        split = split_finance_diagnosis(record.get("diagnosis", []))
         for contract, findings in split.items():
             if findings:
                 summary[contract]["record_count"] += 1
@@ -149,10 +149,10 @@ def summarize_finder_contract_findings(
     return summary
 
 
-def load_finder_cases(path: str | Path) -> List[FinDERBenchmarkCase]:
+def load_finance_cases(path: str | Path) -> List[FinanceBenchmarkCase]:
     raw = json.loads(Path(path).read_text())
     return [
-        FinDERBenchmarkCase(
+        FinanceBenchmarkCase(
             case_id=str(item["id"]),
             text=str(item["text"]),
             question=str(item["question"]),
@@ -232,12 +232,12 @@ def _percentile_ms(values: Sequence[float], percentile: float) -> float:
     return round(float(ordered[index]), 2)
 
 
-def summarize_finder_records(
+def summarize_finance_records(
     *,
     mode: str,
     dataset: str,
-    records: Sequence[FinDERBenchmarkRecord],
-) -> FinDERBenchmarkSummary:
+    records: Sequence[FinanceBenchmarkRecord],
+) -> FinanceBenchmarkSummary:
     add_latencies = [record.add_latency_ms for record in records]
     ask_latencies = [record.ask_latency_ms for record in records]
     exact_hits = sum(1 for record in records if record.exact_match)
@@ -247,7 +247,7 @@ def summarize_finder_records(
     failures = sum(1 for record in records if record.error)
     count = len(records)
 
-    return FinDERBenchmarkSummary(
+    return FinanceBenchmarkSummary(
         mode=mode,
         dataset=dataset,
         record_count=count,
@@ -264,15 +264,15 @@ def summarize_finder_records(
     )
 
 
-def run_finder_benchmark(
+def run_finance_benchmark(
     *,
     client: Any,
-    cases: Iterable[FinDERBenchmarkCase],
+    cases: Iterable[FinanceBenchmarkCase],
     mode: str,
     dataset: str,
     database: str = "neo4j",
-) -> FinDERBenchmarkSummary:
-    records: List[FinDERBenchmarkRecord] = []
+) -> FinanceBenchmarkSummary:
+    records: List[FinanceBenchmarkRecord] = []
     for case in cases:
         add_started = time.perf_counter()
         answer = ""
@@ -298,7 +298,7 @@ def run_finder_benchmark(
             error = str(exc)
 
         records.append(
-            FinDERBenchmarkRecord(
+            FinanceBenchmarkRecord(
                 case_id=case.case_id,
                 category=case.category,
                 add_latency_ms=round(add_latency_ms, 2),
@@ -313,4 +313,4 @@ def run_finder_benchmark(
             )
         )
 
-    return summarize_finder_records(mode=mode, dataset=dataset, records=records)
+    return summarize_finance_records(mode=mode, dataset=dataset, records=records)

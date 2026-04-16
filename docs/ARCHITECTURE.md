@@ -225,8 +225,8 @@ Primary modules:
 
 Performance and quality must be measured in two tracks:
 
-- `FinDER`
-  - ingestion, graph construction, finance QA
+- `private finance corpus`
+  - ingestion, graph construction, finance-domain QA
 - `GraphRAG-Bench`
   - retrieval, evidence quality, reasoning
 

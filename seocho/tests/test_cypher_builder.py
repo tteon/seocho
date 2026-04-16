@@ -20,7 +20,7 @@ def _finance_ontology(graph_model: str = "lpg") -> Ontology:
             )
         }
     return Ontology(
-        name=f"finder_{graph_model}",
+        name=f"finance_benchmark_{graph_model}",
         graph_model=graph_model,
         namespace=namespace,
         nodes={
@@ -59,13 +59,13 @@ def test_builder_financial_metric_query_uses_workspace_and_rel_candidates() -> N
         metric_aliases=["revenue", "revenues", "rev"],
         metric_scope_tokens=["data", "access", "solutions"],
         years=["2021", "2023"],
-        workspace_id="finder_test",
+        workspace_id="finance_benchmark_test",
     )
 
     assert "relationship_candidates" in params
     assert "reported" in params["relationship_candidates"]
     assert "HASREPORTEDMETRIC" in {value.upper() for value in params["relationship_candidates"]}
-    assert params["workspace_id"] == "finder_test"
+    assert params["workspace_id"] == "finance_benchmark_test"
     assert "metric_scope_tokens" in params
     assert "coalesce(c._workspace_id, '') = $workspace_id" in cypher
 
@@ -124,7 +124,7 @@ def test_local_engine_finance_delta_returns_deterministic_answer() -> None:
         ontology=_finance_ontology(),
         graph_store=_FakeGraphStore(),
         llm=_FakeLLM(),
-        workspace_id="finder_test",
+        workspace_id="finance_benchmark_test",
     )
 
     answer = client.ask(

@@ -1,11 +1,11 @@
 from seocho.benchmarking import (
-    FinDERBenchmarkCase,
+    FinanceBenchmarkCase,
     compare_answers,
     normalize_answer,
-    run_finder_benchmark,
-    split_finder_diagnosis,
-    summarize_finder_contract_findings,
-    summarize_finder_records,
+    run_finance_benchmark,
+    split_finance_diagnosis,
+    summarize_finance_contract_findings,
+    summarize_finance_records,
 )
 
 
@@ -77,17 +77,17 @@ def test_compare_answers_treats_scaled_numeric_units_as_equivalent():
     assert contains is True
 
 
-def test_run_finder_benchmark_summarizes_latencies_and_matches():
+def test_run_finance_benchmark_summarizes_latencies_and_matches():
     cases = [
-        FinDERBenchmarkCase(
-            case_id="finder_001",
+        FinanceBenchmarkCase(
+            case_id="case_001",
             text="PTC text",
             question="What was PTC's revenue growth in fiscal 2023?",
             expected_answer="PTC reported total revenue of $2.1 billion in fiscal 2023, a 10% increase from $1.9 billion in the prior year.",
             category="Financials",
         ),
-        FinDERBenchmarkCase(
-            case_id="finder_002",
+        FinanceBenchmarkCase(
+            case_id="case_002",
             text="Brown text",
             question="What are Brown & Brown's business segments?",
             expected_answer="Retail, National Programs, Wholesale Brokerage, and Services.",
@@ -95,11 +95,11 @@ def test_run_finder_benchmark_summarizes_latencies_and_matches():
         ),
     ]
 
-    summary = run_finder_benchmark(
+    summary = run_finance_benchmark(
         client=_FakeClient(),
         cases=cases,
         mode="local",
-        dataset="finder_sample.json",
+        dataset="tutorial_filings_sample.json",
         database="neo4j",
     )
 
@@ -111,10 +111,10 @@ def test_run_finder_benchmark_summarizes_latencies_and_matches():
     assert summary.avg_relationships_created == 1.0
 
 
-def test_run_finder_benchmark_records_failures():
+def test_run_finance_benchmark_records_failures():
     cases = [
-        FinDERBenchmarkCase(
-            case_id="finder_003",
+        FinanceBenchmarkCase(
+            case_id="case_003",
             text="Broken text",
             question="Broken question",
             expected_answer="Broken answer",
@@ -122,11 +122,11 @@ def test_run_finder_benchmark_records_failures():
         )
     ]
 
-    summary = run_finder_benchmark(
+    summary = run_finance_benchmark(
         client=_FailingClient(),
         cases=cases,
         mode="local",
-        dataset="finder_sample.json",
+        dataset="tutorial_filings_sample.json",
         database="neo4j",
     )
 
@@ -134,15 +134,15 @@ def test_run_finder_benchmark_records_failures():
     assert summary.records[0].error == "boom"
 
 
-def test_summarize_finder_records_handles_empty_input():
-    summary = summarize_finder_records(mode="local", dataset="finder_sample.json", records=[])
+def test_summarize_finance_records_handles_empty_input():
+    summary = summarize_finance_records(mode="local", dataset="tutorial_filings_sample.json", records=[])
     assert summary.record_count == 0
     assert summary.add_latency_p50_ms == 0.0
     assert summary.ask_latency_p95_ms == 0.0
 
 
-def test_split_finder_diagnosis_separates_indexing_and_query_findings():
-    split = split_finder_diagnosis(
+def test_split_finance_diagnosis_separates_indexing_and_query_findings():
+    split = split_finance_diagnosis(
         [
             "indexing_no_graph_writes",
             "query_no_graph_records",
@@ -160,25 +160,25 @@ def test_split_finder_diagnosis_separates_indexing_and_query_findings():
     assert split["shared"] == ["custom_follow_up"]
 
 
-def test_summarize_finder_contract_findings_counts_records_and_codes():
-    summary = summarize_finder_contract_findings(
+def test_summarize_finance_contract_findings_counts_records_and_codes():
+    summary = summarize_finance_contract_findings(
         [
             {
-                "case_id": "finder_001",
+                "case_id": "case_001",
                 "diagnosis": [
                     "indexing_no_graph_writes",
                     "query_no_graph_records",
                 ],
             },
             {
-                "case_id": "finder_002",
+                "case_id": "case_002",
                 "diagnosis": [
                     "source_text_has_answer_but_graph_projection_lost_it",
                     "answer_quality_or_slot_selection_gap",
                     "custom_follow_up",
                 ],
             },
-            {"case_id": "finder_003", "diagnosis": []},
+            {"case_id": "case_003", "diagnosis": []},
         ]
     )
 

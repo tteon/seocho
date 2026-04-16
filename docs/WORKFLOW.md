@@ -114,7 +114,7 @@ Semantic path summary:
 - run quickstart reproducibility check (raw ingest -> semantic/debate chat) before release notes
 - when performance work is in scope, run the relevant benchmark track before and
   after the change:
-  - `FinDER` for ingestion / finance QA
+  - `private finance corpus` for ingestion / finance-domain QA
   - `GraphRAG-Bench` for retrieval / reasoning
 - optional one-command landing wrapper: `scripts/land.sh --task-id <id> --fix --pull --push`
 - run sprint label lint (`scripts/pm/lint-items.sh --sprint <id>`)

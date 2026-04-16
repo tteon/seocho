@@ -18,10 +18,10 @@ Each entry must link to a full ADR when impact is non-trivial.
   - keep `seocho/` as canonical engine owner
   - reduce `extraction/` toward extraction-only concerns or compatibility wrappers through staged migration
 
-- Accepted `ADR-0063-benchmark-track-split-and-finder-baseline-first-slice.md`
-  - split benchmark work into `FinDER` and `GraphRAG-Bench` tracks
+- Accepted `ADR-0063-benchmark-track-split-and-private-finance-corpus-contract.md`
+  - split benchmark work into `private finance corpus` and `GraphRAG-Bench` tracks
   - measure SEOCHO local SDK before SEOCHO runtime before peer systems
-  - ship a first-slice FinDER baseline harness for repeatable local/runtime measurements
+  - ship a finance-domain benchmark harness for repeatable local/runtime measurements
 
 - Accepted `ADR-0064-runtime-package-first-shell-slice.md`
   - introduce `runtime/` as the canonical deployment-shell package in code, not

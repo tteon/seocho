@@ -166,7 +166,7 @@ Useful starting points:
 
 - `examples/quickstart.ipynb`
 - `examples/bring_your_data.ipynb`
-- `examples/datasets/finder_sample.json`
+- `examples/datasets/tutorial_filings_sample.json`
 - `examples/datasets/fibo_base.jsonld`
 - `examples/datasets/fibo_plus.jsonld`
 - `examples/datasets/fibo_minus.jsonld`

@@ -4,18 +4,18 @@ SEOCHO should be measured with two benchmark tracks, not one blended score.
 
 ## Benchmark Tracks
 
-### Track 1: FinDER
+### Track 1: Private Finance Corpus
 
-Use FinDER for:
+Use a private finance corpus for:
 
 - ontology-governed extraction quality
 - graph write quality
 - finance-domain question answering
 - local SDK vs runtime overhead on the same workload
 
-FinDER should now be reported in two contract views, not one blended score.
+This track should be reported in two contract views, not one blended score.
 
-#### FinDER Indexing Contract
+#### Private Finance Corpus Indexing Contract
 
 Use the indexing view to validate:
 
@@ -28,7 +28,7 @@ Use the indexing view to validate:
   - `delete_source`
   - approved-artifact / ontology-management promotion flows
 
-#### FinDER Query Contract
+#### Private Finance Corpus Query Contract
 
 Use the query view to validate:
 
@@ -36,7 +36,7 @@ Use the query view to validate:
 - ontology-context propagation and mismatch reporting
 - evidence bundle quality and support assessment quality
 - debate preflight/fallback behavior against the same indexed records
-- reference-grounded QA outcomes against the FinDER expected answers
+- reference-grounded QA outcomes against corpus-specific expected answers
 - local provider-matrix smoke runs on a fixed subset:
   - `openai`
   - `deepseek`
@@ -47,7 +47,7 @@ Use the query view to validate:
 Current first-slice baseline command:
 
 ```bash
-python scripts/benchmarks/run_finder_baseline.py --mode local
+python scripts/benchmarks/run_finance_benchmark.py --mode local
 ```
 
 Supported modes:
@@ -56,13 +56,18 @@ Supported modes:
 - `remote`
 - `both`
 
-Default dataset:
+Default tutorial smoke dataset:
 
-- `examples/datasets/finder_sample.json`
+- `examples/datasets/tutorial_filings_sample.json`
 
-Optional dataset:
+Production benchmark input:
 
-- gated Hugging Face FinDER split
+- a user-supplied private finance corpus passed with `--dataset`
+
+Rule:
+
+- the bundled tutorial sample is for onboarding and smoke checks only
+- do not report tutorial-sample results as benchmark evidence
 
 ### Track 2: GraphRAG-Bench
 
@@ -101,7 +106,7 @@ Why:
 - the runtime path measures deployment overhead and policy/transport cost
 - peer comparisons are not meaningful if the internal baseline is unstable
 
-## FinDER Metrics
+## Private Finance Corpus Metrics
 
 Report at minimum:
 
@@ -136,7 +141,7 @@ Report at minimum:
 
 Benchmark outputs should be saved under:
 
-- `outputs/evaluation/finder_benchmark/`
+- `outputs/evaluation/finance_benchmark/`
 - `outputs/evaluation/graphrag_bench/`
 
 JSON output should remain the default artifact so results can be compared over

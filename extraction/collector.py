@@ -8,19 +8,18 @@ logger = logging.getLogger(__name__)
 class DataCollector:
     def __init__(self, use_mock: bool = False):
         self.use_mock = use_mock
-        # In a real scenario, could accept dataset URL as config
-        self.dataset_url = "hf://datasets/Linq-AI-Research/FinDER/data/train-00000-of-00001.parquet"
+        self.dataset_url = os.getenv("BENCHMARK_DATASET_URL", "").strip()
         self.target_categories = ['Financials', 'Company overview', 'Legal']
 
     def collect_raw_data(self) -> List[Dict]:
         """
-        Collects data from HuggingFace dataset or returns mock data.
+        Collects data from a configured external dataset or returns mock data.
         Returns a list of dicts with standard keys: id, content, category, source.
         """
         df = None
 
         if self.use_mock:
-            logger.info("Generating mock data (simulating FinDER dataset structure)...")
+            logger.info("Generating mock data (simulating finance-domain corpus structure)...")
             mock_data = [
                 {
                     "_id": "mock_1",
@@ -51,6 +50,9 @@ class DataCollector:
             df = pd.DataFrame(mock_data)
 
         else:
+            if not self.dataset_url:
+                logger.error("BENCHMARK_DATASET_URL is not set; refusing to load an external benchmark corpus.")
+                return []
             logger.info("Loading dataset from %s...", self.dataset_url)
             try:
                 from datasets import load_dataset
@@ -106,7 +108,7 @@ class DataCollector:
                     "id": str(doc_id)[:50],
                     "content": content,
                     "category": row.get('category', 'general'),
-                    "source": "FinDER_HF" if not self.use_mock else "FinDER_Mock"
+                    "source": "external_finance_corpus" if not self.use_mock else "mock_finance_corpus"
                 }
                 data.append(item)
 

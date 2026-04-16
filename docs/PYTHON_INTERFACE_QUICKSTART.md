@@ -456,16 +456,25 @@ Portable bundle limits in the current implementation:
 
 ## 13. Choose A Provider And Vector Backend
 
-OpenAI-compatible providers are available through the same local SDK surface:
+SEOCHO supports any OpenAI-compatible chat-completion provider through a
+single plug-in surface. The provider names and models shown below are
+illustrative examples of that plug-in surface, not endorsements,
+partnerships, or recommendations — substitute the provider and model that
+match your own policy and cost profile.
 
 ```python
-from seocho import DeepSeekBackend, GrokBackend, KimiBackend, OpenAIBackend
+from seocho import DeepSeekBackend, GrokBackend, KimiBackend, OpenAIBackend, QwenBackend
 
-openai_llm = OpenAIBackend(model="gpt-4o-mini")
-deepseek_llm = DeepSeekBackend(model="deepseek-chat")
-kimi_llm = KimiBackend(model="kimi-k2.5")
-grok_llm = GrokBackend(model="grok-4.20-reasoning")
+# Example instantiations — replace with the provider and model you use.
+openai_llm = OpenAIBackend(model="<model-id>")
+deepseek_llm = DeepSeekBackend(model="<model-id>")
+kimi_llm = KimiBackend(model="<model-id>")
+grok_llm = GrokBackend(model="<model-id>")
+qwen_llm = QwenBackend(model="<model-id>")
 ```
+
+Provider env vars follow the preset names: `OPENAI_API_KEY`, `DEEPSEEK_API_KEY`,
+`MOONSHOT_API_KEY`, `XAI_API_KEY`, and `DASHSCOPE_API_KEY`.
 
 For semantic search, choose an in-memory or persistent vector backend:
 

@@ -2,7 +2,7 @@
 LLM and embedding backend abstractions for the public SEOCHO SDK.
 
 The default implementation uses OpenAI-compatible HTTP APIs so the same
-interface can be reused across OpenAI, DeepSeek, Kimi, and Grok.
+interface can be reused across OpenAI, DeepSeek, Kimi, Grok, and Qwen.
 """
 
 from __future__ import annotations
@@ -59,6 +59,14 @@ _PROVIDER_SPECS: Dict[str, ProviderSpec] = {
         api_key_env="XAI_API_KEY",
         base_url="https://api.x.ai/v1",
         default_model="grok-4.20-reasoning",
+        default_embedding_model=None,
+        supports_embeddings=False,
+    ),
+    "qwen": ProviderSpec(
+        name="qwen",
+        api_key_env="DASHSCOPE_API_KEY",
+        base_url="https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+        default_model="qwen-plus",
         default_embedding_model=None,
         supports_embeddings=False,
     ),
@@ -548,6 +556,24 @@ class GrokBackend(OpenAICompatibleBackend):
         )
 
 
+class QwenBackend(OpenAICompatibleBackend):
+    def __init__(
+        self,
+        *,
+        model: str = "qwen-plus",
+        api_key: Optional[str] = None,
+        base_url: Optional[str] = None,
+        timeout: float = 120.0,
+    ) -> None:
+        super().__init__(
+            provider="qwen",
+            model=model,
+            api_key=api_key,
+            base_url=base_url,
+            timeout=timeout,
+        )
+
+
 def create_llm_backend(
     *,
     provider: str = "openai",
@@ -583,6 +609,13 @@ def create_llm_backend(
     if provider_key == "grok":
         return GrokBackend(
             model=model or get_provider_spec("grok").default_model,
+            api_key=api_key,
+            base_url=base_url,
+            timeout=timeout,
+        )
+    if provider_key == "qwen":
+        return QwenBackend(
+            model=model or get_provider_spec("qwen").default_model,
             api_key=api_key,
             base_url=base_url,
             timeout=timeout,

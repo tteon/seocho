@@ -40,6 +40,7 @@ Use the query view to validate:
 - evidence bundle quality and support assessment quality
 - debate preflight/fallback behavior against the same indexed records
 - reference-grounded QA outcomes against corpus-specific expected answers
+- reference-grounded QA outcomes against corpus-specific expected answers
 - local provider-matrix smoke runs on a fixed subset:
   - `openai`
   - `deepseek`

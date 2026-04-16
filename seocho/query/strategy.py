@@ -222,9 +222,9 @@ PRESET_PROMPTS: Dict[str, PromptTemplate] = {
         user="Financial document (extract as FIBO RDF):\n{{text}}",
     ),
 
-    # --- FinDER category-specific presets ---
+    # --- Filing-domain category-specific presets ---
 
-    "finder_overview": PromptTemplate(
+    "filing_overview": PromptTemplate(
         system=(
             'You are extracting company overview information from SEC 10-K filings.\n'
             'Working with the "{{ontology_name}}" ontology.\n\n'
@@ -234,7 +234,7 @@ PRESET_PROMPTS: Dict[str, PromptTemplate] = {
         ),
         user="SEC 10-K Company Overview section:\n{{text}}",
     ),
-    "finder_financials": PromptTemplate(
+    "filing_financials": PromptTemplate(
         system=(
             'You are extracting financial metrics from SEC 10-K filings.\n'
             'Working with the "{{ontology_name}}" ontology.\n\n'
@@ -248,7 +248,7 @@ PRESET_PROMPTS: Dict[str, PromptTemplate] = {
         ),
         user="SEC 10-K Financial data:\n{{text}}",
     ),
-    "finder_financials_rdf": PromptTemplate(
+    "filing_financials_rdf": PromptTemplate(
         system=(
             'You are extracting SEC 10-K financial metrics as RDF resources.\n'
             'Working with the "{{ontology_name}}" ontology.\n\n'
@@ -262,7 +262,7 @@ PRESET_PROMPTS: Dict[str, PromptTemplate] = {
         ),
         user="SEC 10-K Financial data (RDF):\n{{text}}",
     ),
-    "finder_footnotes": PromptTemplate(
+    "filing_footnotes": PromptTemplate(
         system=(
             'You are extracting accounting footnote details from SEC 10-K filings.\n'
             'Working with the "{{ontology_name}}" ontology.\n\n'
@@ -272,7 +272,7 @@ PRESET_PROMPTS: Dict[str, PromptTemplate] = {
         ),
         user="SEC 10-K Footnotes:\n{{text}}",
     ),
-    "finder_governance": PromptTemplate(
+    "filing_governance": PromptTemplate(
         system=(
             'You are extracting corporate governance information from SEC 10-K filings.\n'
             'Working with the "{{ontology_name}}" ontology.\n\n'
@@ -282,7 +282,7 @@ PRESET_PROMPTS: Dict[str, PromptTemplate] = {
         ),
         user="SEC 10-K Governance section:\n{{text}}",
     ),
-    "finder_accounting": PromptTemplate(
+    "filing_accounting": PromptTemplate(
         system=(
             'You are extracting accounting standards and policies from SEC 10-K filings.\n'
             'Working with the "{{ontology_name}}" ontology.\n\n'
@@ -292,7 +292,7 @@ PRESET_PROMPTS: Dict[str, PromptTemplate] = {
         ),
         user="SEC 10-K Accounting policies:\n{{text}}",
     ),
-    "finder_legal": PromptTemplate(
+    "filing_legal": PromptTemplate(
         system=(
             'You are extracting legal proceedings from SEC 10-K filings.\n'
             'Working with the "{{ontology_name}}" ontology.\n\n'
@@ -302,7 +302,7 @@ PRESET_PROMPTS: Dict[str, PromptTemplate] = {
         ),
         user="SEC 10-K Legal proceedings:\n{{text}}",
     ),
-    "finder_risk": PromptTemplate(
+    "filing_risk": PromptTemplate(
         system=(
             'You are extracting risk factors from SEC 10-K filings.\n'
             'Working with the "{{ontology_name}}" ontology.\n\n'
@@ -312,7 +312,7 @@ PRESET_PROMPTS: Dict[str, PromptTemplate] = {
         ),
         user="SEC 10-K Risk factors:\n{{text}}",
     ),
-    "finder_shareholder": PromptTemplate(
+    "filing_shareholder": PromptTemplate(
         system=(
             'You are extracting shareholder return data from SEC 10-K filings.\n'
             'Working with the "{{ontology_name}}" ontology.\n\n'
@@ -326,14 +326,14 @@ PRESET_PROMPTS: Dict[str, PromptTemplate] = {
 
 # Category → prompt auto-selection map
 CATEGORY_PROMPT_MAP: Dict[str, str] = {
-    "Company Overview": "finder_overview",
-    "Financials": "finder_financials",
-    "Footnotes": "finder_footnotes",
-    "Governance": "finder_governance",
-    "Accounting": "finder_accounting",
-    "Legal": "finder_legal",
-    "Risk": "finder_risk",
-    "Shareholder Return": "finder_shareholder",
+    "Company Overview": "filing_overview",
+    "Financials": "filing_financials",
+    "Footnotes": "filing_footnotes",
+    "Governance": "filing_governance",
+    "Accounting": "filing_accounting",
+    "Legal": "filing_legal",
+    "Risk": "filing_risk",
+    "Shareholder Return": "filing_shareholder",
 }
 
 

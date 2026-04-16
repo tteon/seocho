@@ -53,7 +53,7 @@ def test_ensure_memory_graph_adds_document_scope_and_mentions_edges():
     assert all(rel["source"] == "rec-1_doc" for rel in mention_edges)
 
 
-def test_ensure_memory_graph_preview_preserves_finder_support_sentence():
+def test_ensure_memory_graph_preview_preserves_tutorial_support_sentence():
     text = (
         "NVIDIA Corporation reported data center revenue of $15.0 billion in fiscal 2024, "
         "up 217% from $4.7 billion in fiscal 2023. Gaming revenue was $10.4 billion, up 15%. "

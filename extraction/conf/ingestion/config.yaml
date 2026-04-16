@@ -1,7 +1,7 @@
 schema: baseline
 
 dataset:
-  path: "hf://datasets/Linq-AI-Research/FinDER/data/train-00000-of-00001.parquet"
+  path: "${oc.env:BENCHMARK_DATASET_URL,}"
   categories:
     - "Financials"
     - "Company overview"

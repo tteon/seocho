@@ -62,7 +62,7 @@ def main(quick: bool = False):
     DB = "neo4j"
 
     # Load dataset
-    dataset_path = Path(__file__).parent / "datasets" / "finder_sample.json"
+    dataset_path = Path(__file__).parent / "datasets" / "tutorial_filings_sample.json"
     with open(dataset_path) as f:
         dataset = json.load(f)
     docs = dataset[:3] if quick else dataset[:5]

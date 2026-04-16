@@ -611,6 +611,72 @@ class TestListEndpoints:
                 assert response.status_code == 400
                 assert "Invalid graph" in response.text
 
+    async def test_run_debate_accepts_registered_database_without_explicit_graph_alias(self, client, app_module):
+        graph_id = "finderrt20260417d"
+        target = types.SimpleNamespace(graph_id=graph_id, database=graph_id)
+
+        class _FakeDebateOrchestrator:
+            def __init__(self, *, agents, supervisor, shared_memory):
+                assert list(agents.keys()) == [graph_id]
+
+            async def run_debate(self, query, context):
+                assert query == "compare entities"
+                assert context.allowed_databases == [graph_id]
+                return {
+                    "response": "semantic debate response",
+                    "trace_steps": [],
+                    "debate_results": [
+                        {
+                            "agent": "Agent_finderrt20260417d",
+                            "graph": graph_id,
+                            "db": graph_id,
+                            "response": "semantic debate response",
+                        }
+                    ],
+                }
+
+        with patch.object(app_module.graph_registry, "list_graph_ids", return_value=["kgnormal"]):
+            with patch.object(app_module.graph_registry, "is_valid_graph", return_value=False):
+                with patch.object(app_module.db_registry, "is_valid", side_effect=lambda value: value == graph_id):
+                    with patch.object(app_module.graph_registry, "find_by_database", return_value=None):
+                        with patch.object(app_module.graph_registry, "ensure_default_graph", return_value=target) as mock_ensure:
+                            with patch.object(app_module.memory_service, "ontology_context_mismatch", return_value={"mismatch": False, "databases": [{"database": graph_id}]}):
+                                with patch.object(app_module.agent_factory, "create_agents_for_graphs") as mock_create:
+                                    with patch.object(app_module.agent_factory, "get_agents_for_graphs") as mock_get:
+                                        with patch.object(app_module, "DebateOrchestrator", _FakeDebateOrchestrator):
+                                            mock_create.return_value = [
+                                                {
+                                                    "graph": graph_id,
+                                                    "database": graph_id,
+                                                    "status": "ready",
+                                                    "reason": "created",
+                                                }
+                                            ]
+                                            mock_get.return_value = {
+                                                graph_id: types.SimpleNamespace(
+                                                    name="Agent_finderrt20260417d",
+                                                    graph_database=graph_id,
+                                                )
+                                            }
+                                            response = await client.post(
+                                                "/run_debate",
+                                                json={
+                                                    "query": "compare entities",
+                                                    "workspace_id": "default",
+                                                    "user_id": "u1",
+                                                    "graph_ids": [graph_id],
+                                                },
+                                            )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["response"] == "semantic debate response"
+        assert payload["debate_state"] == "ready"
+        mock_ensure.assert_called_once_with(graph_id)
+        mock_create.assert_called_once()
+        assert mock_create.call_args.args[0] == [graph_id]
+        assert mock_get.call_args.args[0] == [graph_id]
+
     async def test_platform_raw_ingest_endpoint(self, client, app_module):
         mock_ingestor = MagicMock()
         with patch.object(app_module, "get_runtime_raw_ingestor", return_value=mock_ingestor):

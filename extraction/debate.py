@@ -7,6 +7,7 @@ synthesises the results into a single coherent response.
 """
 
 import asyncio
+import json
 import logging
 import re
 from dataclasses import dataclass, field
@@ -45,6 +46,11 @@ class DebateResult:
     db_name: str
     response: str
     trace_steps: List[Dict[str, Any]] = field(default_factory=list)
+    semantic_reused: bool = False
+    semantic_route: str = ""
+    support_assessment: Dict[str, Any] = field(default_factory=dict)
+    evidence_bundle: Dict[str, Any] = field(default_factory=dict)
+    strategy_decision: Dict[str, Any] = field(default_factory=dict)
 
 
 class DebateOrchestrator:
@@ -106,6 +112,27 @@ class DebateOrchestrator:
                 f"agent_result:{result.graph_id}", result.response
             )
 
+        direct_semantic = self._direct_semantic_resolution(debate_results)
+        if direct_semantic is not None:
+            all_trace_steps = self._build_debate_trace(
+                debate_results,
+                supervisor_result=None,
+                bypass_reason="single_supported_semantic_reuse",
+            )
+            return {
+                "response": direct_semantic.response,
+                "trace_steps": all_trace_steps,
+                "debate_results": [
+                    {
+                        "agent": r.agent_name,
+                        "graph": r.graph_id,
+                        "db": r.db_name,
+                        "response": r.response,
+                    }
+                    for r in debate_results
+                ],
+            }
+
         # 3. Synthesise with Supervisor
         supervisor_result = await self._run_supervisor(
             query, debate_results, context
@@ -165,6 +192,11 @@ class DebateOrchestrator:
                 db_name=db_name,
                 response=response_text,
                 trace_steps=preflight["trace_steps"],
+                semantic_reused=True,
+                semantic_route=str(preflight.get("semantic_route", "")),
+                support_assessment=dict(preflight.get("support_assessment", {})),
+                evidence_bundle=dict(preflight.get("evidence_bundle", {})),
+                strategy_decision=dict(preflight.get("strategy_decision", {})),
             )
         try:
             with self._agents_runtime.trace(f"Debate:{agent.name}"):
@@ -216,6 +248,11 @@ class DebateOrchestrator:
                     db_name=db_name,
                     response=fallback["response"],
                     trace_steps=fallback["trace_steps"],
+                    semantic_reused=True,
+                    semantic_route=str(fallback.get("semantic_route", "")),
+                    support_assessment=dict(fallback.get("support_assessment", {})),
+                    evidence_bundle=dict(fallback.get("evidence_bundle", {})),
+                    strategy_decision=dict(fallback.get("strategy_decision", {})),
                 )
             return DebateResult(
                 agent_name=agent.name,
@@ -263,6 +300,10 @@ class DebateOrchestrator:
                     },
                 }
             ],
+            "semantic_route": semantic_support["route"],
+            "support_assessment": semantic_support["support_assessment"],
+            "evidence_bundle": semantic_support["evidence_bundle"],
+            "strategy_decision": semantic_support["strategy_decision"],
         }
 
     async def _run_semantic_graph_flow(
@@ -299,7 +340,16 @@ class DebateOrchestrator:
     @staticmethod
     def _semantic_support_summary(result: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         if not isinstance(result, dict):
-            return {"response": "", "status": "", "supported": False, "records": 0}
+            return {
+                "response": "",
+                "status": "",
+                "supported": False,
+                "records": 0,
+                "route": "",
+                "support_assessment": {},
+                "evidence_bundle": {},
+                "strategy_decision": {},
+            }
 
         support = result.get("support_assessment", {})
         status = str(support.get("status", "")).lower() if isinstance(support, dict) else ""
@@ -309,12 +359,18 @@ class DebateOrchestrator:
         lpg_records = lpg_payload.get("records", []) if isinstance(lpg_payload, dict) else []
         rdf_records = rdf_payload.get("records", []) if isinstance(rdf_payload, dict) else []
         response = str(result.get("response", "")).strip()
+        evidence_bundle = result.get("evidence_bundle") or result.get("evidence_bundle_preview") or {}
+        strategy_decision = result.get("strategy_decision") or {}
         return {
             "response": response,
             "status": status,
             "supported": bool(response) and (supported or status == "supported"),
             "records": len(lpg_records) + len(rdf_records),
             "has_records": bool(lpg_records or rdf_records),
+            "route": str(result.get("route", "") or ""),
+            "support_assessment": dict(support) if isinstance(support, dict) else {},
+            "evidence_bundle": dict(evidence_bundle) if isinstance(evidence_bundle, dict) else {},
+            "strategy_decision": dict(strategy_decision) if isinstance(strategy_decision, dict) else {},
         }
 
     async def _semantic_graph_fallback(
@@ -365,6 +421,10 @@ class DebateOrchestrator:
                     },
                 }
             ],
+            "semantic_route": semantic_support["route"],
+            "support_assessment": semantic_support["support_assessment"],
+            "evidence_bundle": semantic_support["evidence_bundle"],
+            "strategy_decision": semantic_support["strategy_decision"],
         }
 
     @staticmethod
@@ -409,14 +469,50 @@ class DebateOrchestrator:
     ) -> str:
         parts = [f"Original Question: {query}\n\nAgent Responses:\n"]
         for r in results:
-            parts.append(
-                f"--- {r.agent_name} (graph={r.graph_id}, database={r.db_name}) ---\n{r.response}\n"
-            )
+            header = f"--- {r.agent_name} (graph={r.graph_id}, database={r.db_name}) ---"
+            parts.append(header)
+            if r.semantic_reused:
+                parts.append("Semantic evidence reused: yes")
+            support_status = str(r.support_assessment.get("status", "")).strip()
+            if support_status:
+                parts.append(f"Support status: {support_status}")
+            evidence_summary = DebateOrchestrator._summarize_evidence_bundle(r.evidence_bundle)
+            if evidence_summary:
+                parts.append(f"Evidence bundle: {json.dumps(evidence_summary, ensure_ascii=False, sort_keys=True)}")
+            parts.append(r.response)
+            parts.append("")
         parts.append(
             "\nSynthesize these responses into a single, coherent answer. "
             "Highlight agreements and note disagreements."
         )
         return "\n".join(parts)
+
+    @staticmethod
+    def _summarize_evidence_bundle(bundle: Dict[str, Any]) -> Dict[str, Any]:
+        if not isinstance(bundle, dict):
+            return {}
+        summary: Dict[str, Any] = {}
+        for key in ("intent_id", "grounded_slots", "missing_slots"):
+            value = bundle.get(key)
+            if value:
+                summary[key] = value
+        slot_fills = bundle.get("slot_fills")
+        if isinstance(slot_fills, dict) and slot_fills:
+            summary["slot_fills"] = slot_fills
+        selected = bundle.get("selected_triples")
+        if isinstance(selected, list) and selected:
+            summary["selected_triples"] = selected[:3]
+        return summary
+
+    @staticmethod
+    def _direct_semantic_resolution(results: List[DebateResult]) -> Optional[DebateResult]:
+        if len(results) != 1:
+            return None
+        result = results[0]
+        status = str(result.support_assessment.get("status", "")).lower()
+        if result.semantic_reused and status == "supported" and result.response:
+            return result
+        return None
 
     @staticmethod
     def _extract_trace(result) -> List[Dict[str, Any]]:
@@ -466,6 +562,8 @@ class DebateOrchestrator:
     def _build_debate_trace(
         debate_results: List[DebateResult],
         supervisor_result,
+        *,
+        bypass_reason: str = "",
     ) -> List[Dict[str, Any]]:
         """Build a trace structure for the Streamlit agent flow graph.
 
@@ -578,6 +676,22 @@ class DebateOrchestrator:
         step_id += 1
 
         # Supervisor synthesis
+        if supervisor_result is None:
+            steps.append({
+                "id": str(step_id),
+                "type": "SYNTHESIS_BYPASSED",
+                "agent": "DebateOrchestrator",
+                "content": "Deterministic semantic evidence reused directly.",
+                "metadata": {
+                    "node_id": f"node_synthesis_{step_id}",
+                    "parent_id": collect_id,
+                    "phase": "synthesis",
+                    "full_content": "Supervisor synthesis was bypassed because a single graph returned supported semantic evidence.",
+                    "bypass_reason": bypass_reason,
+                },
+            })
+            return steps
+
         supervisor_output = str(
             getattr(supervisor_result, "final_output", "")
         )

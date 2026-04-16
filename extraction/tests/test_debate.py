@@ -154,6 +154,10 @@ async def test_debate_orchestrator_uses_semantic_preflight_when_supported(monkey
                 "response": "Deterministic graph answer.",
                 "trace_steps": [],
                 "support_assessment": {"status": "supported", "supported": True},
+                "evidence_bundle": {
+                    "intent_id": "financial_metric_lookup",
+                    "slot_fills": {"target_entity": "Revenue", "supporting_fact": "PTC revenue grew 10%."},
+                },
                 "lpg_result": {"records": [{"company": "ACME"}]},
                 "rdf_result": None,
             }
@@ -175,9 +179,10 @@ async def test_debate_orchestrator_uses_semantic_preflight_when_supported(monkey
     result = await orchestrator.run_debate("What was PTC revenue growth?", context=context)
 
     assert result["debate_results"][0]["response"] == "Deterministic graph answer."
-    assert "Deterministic graph answer." in result["response"]
-    assert calls == ["Supervisor"]
+    assert result["response"] == "Deterministic graph answer."
+    assert calls == []
     assert any(step["type"] == "DETERMINISTIC_PREFLIGHT" for step in result["trace_steps"])
+    assert any(step["type"] == "SYNTHESIS_BYPASSED" for step in result["trace_steps"])
 
 
 @pytest.mark.anyio
@@ -218,6 +223,10 @@ async def test_debate_orchestrator_falls_back_to_semantic_flow_on_no_data(monkey
                 "response": "PTC reported revenue growth from graph evidence.",
                 "trace_steps": [],
                 "support_assessment": {"status": "supported", "supported": True},
+                "evidence_bundle": {
+                    "intent_id": "financial_metric_lookup",
+                    "slot_fills": {"target_entity": "Revenue", "supporting_fact": "PTC revenue grew 10%."},
+                },
                 "lpg_result": {"records": [{"company": "PTC"}]},
                 "rdf_result": None,
             }
@@ -320,6 +329,10 @@ async def test_debate_orchestrator_falls_back_to_semantic_flow_on_agent_error(mo
                 "response": "Recovered deterministic graph evidence.",
                 "trace_steps": [],
                 "support_assessment": {"status": "supported", "supported": True},
+                "evidence_bundle": {
+                    "intent_id": "financial_metric_lookup",
+                    "slot_fills": {"target_entity": "Revenue", "supporting_fact": "Recovered from semantic flow."},
+                },
                 "lpg_result": {"records": [{"company": "PTC"}]},
                 "rdf_result": None,
             }
@@ -345,3 +358,28 @@ async def test_debate_orchestrator_falls_back_to_semantic_flow_on_agent_error(mo
     assert semantic_calls == 2
     debate_step = next(step for step in result["trace_steps"] if step["type"] == "DETERMINISTIC_FALLBACK")
     assert debate_step["metadata"]["fallback_reason"] == "agent_error"
+
+
+def test_debate_supervisor_input_includes_semantic_evidence_bundle():
+    payload = debate.DebateOrchestrator._format_for_supervisor(
+        "What legal issues does Microsoft face?",
+        [
+            debate.DebateResult(
+                agent_name="Agent_kgnormal",
+                graph_id="graph-normal",
+                db_name="kgnormal",
+                response="Microsoft faces an EU antitrust investigation.",
+                semantic_reused=True,
+                support_assessment={"status": "supported"},
+                evidence_bundle={
+                    "intent_id": "legal_issue_lookup",
+                    "slot_fills": {"target_entity": "Microsoft", "supporting_fact": "EU antitrust investigation into Teams bundling."},
+                    "grounded_slots": ["target_entity", "supporting_fact"],
+                },
+            )
+        ],
+    )
+
+    assert "Semantic evidence reused: yes" in payload
+    assert "Support status: supported" in payload
+    assert '"intent_id": "legal_issue_lookup"' in payload

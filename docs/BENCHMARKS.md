@@ -13,6 +13,37 @@ Use FinDER for:
 - finance-domain question answering
 - local SDK vs runtime overhead on the same workload
 
+FinDER should now be reported in two contract views, not one blended score.
+
+#### FinDER Indexing Contract
+
+Use the indexing view to validate:
+
+- ontology extraction and ontology-context metadata on written records
+- `rule_profile`, `semantic_artifacts`, and fallback vs non-fallback ingest behavior
+- graph write counts and graph projection quality
+- embedded local path (`LadybugGraphStore`) vs server runtime path (`Neo4j`/DozerDB)
+- memory lifecycle operations tied to indexed graph state:
+  - `archive_memory`
+  - `delete_source`
+  - approved-artifact / ontology-management promotion flows
+
+#### FinDER Query Contract
+
+Use the query view to validate:
+
+- semantic routing and multi-step reasoning behavior
+- ontology-context propagation and mismatch reporting
+- evidence bundle quality and support assessment quality
+- debate preflight/fallback behavior against the same indexed records
+- reference-grounded QA outcomes against the FinDER expected answers
+- local provider-matrix smoke runs on a fixed subset:
+  - `openai`
+  - `deepseek`
+  - `kimi`
+  - `grok`
+  - `qwen`
+
 Current first-slice baseline command:
 
 ```bash
@@ -83,6 +114,14 @@ Report at minimum:
 - contains-match rate
 - failure count
 
+Also report split contract findings:
+
+- indexing findings by code and affected-case count
+- query findings by code and affected-case count
+- whether the run was local embedded (`Ladybug`) or runtime server (`Neo4j`/DozerDB)
+- whether fallback or non-fallback paths were exercised
+- whether the provider matrix was exercised or skipped
+
 ## GraphRAG-Bench Metrics
 
 Report at minimum:
@@ -102,3 +141,6 @@ Benchmark outputs should be saved under:
 
 JSON output should remain the default artifact so results can be compared over
 time without depending on a specific trace backend.
+
+Local benchmark and diagnostic artifacts may live under `.seocho/benchmarks/results/`
+while iterating, but those files are local-only and must not be committed.

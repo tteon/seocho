@@ -62,12 +62,14 @@ s.add("Marie Curie worked at the University of Paris.")
 print(s.ask("Where did Marie Curie work?"))
 ```
 
-Use a production graph server when needed:
+Use a production graph server when needed. The `llm=` value is a
+`provider/model` string for any OpenAI-compatible backend you configure —
+provider names are pluggable, not endorsements:
 
 ```python
 s = Seocho.local(
     ontology,
-    llm="deepseek/deepseek-chat",               # or "kimi/kimi-k2.5", "openai/gpt-4o-mini"
+    llm="<provider>/<model>",                   # any configured OpenAI-compatible backend
     graph="bolt://neo4j.internal:7687",
     neo4j_user="neo4j",
     neo4j_password="••••",
@@ -286,9 +288,13 @@ s.add(text, category="Financials")      # 8 FinDER domain presets
 s.ask("question", reasoning_mode=True, repair_budget=2)
 
 # Multiple LLM providers
-from seocho.store import OpenAIBackend
-llm = OpenAIBackend(model="gpt-4o-mini")                              # OpenAI
-llm = OpenAIBackend(model="deepseek-chat", base_url="https://api.deepseek.com/v1")  # DeepSeek
+from seocho.store import DeepSeekBackend, GrokBackend, KimiBackend, OpenAIBackend, QwenBackend
+
+llm = OpenAIBackend(model="gpt-4o-mini")           # OpenAI
+llm = DeepSeekBackend(model="deepseek-chat")       # DeepSeek
+llm = KimiBackend(model="kimi-k2.5")               # Kimi
+llm = GrokBackend(model="grok-4.20-reasoning")     # Grok
+llm = QwenBackend(model="qwen-plus")               # Qwen via DashScope compatible-mode
 
 # Multi-ontology per database
 s.register_ontology("finance_db", finance_ontology)

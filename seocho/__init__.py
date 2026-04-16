@@ -18,6 +18,7 @@ and must not be treated as an extension point.
 3. :class:`seocho.store.llm.LLMBackend`
    LLM chat-completion provider. Ships with :class:`OpenAIBackend`,
    :class:`DeepSeekBackend`, :class:`KimiBackend`, :class:`GrokBackend`,
+   :class:`QwenBackend`,
    and the base :class:`OpenAICompatibleBackend`.
 
 4. :class:`seocho.store.llm.EmbeddingBackend`
@@ -123,6 +124,7 @@ _MODULE_EXPORTS: Dict[str, Iterable[str]] = {
         "OpenAICompatibleBackend",
         "OpenAICompatibleEmbeddingBackend",
         "ProviderSpec",
+        "QwenBackend",
         "create_embedding_backend",
         "create_llm_backend",
         "get_provider_spec",
@@ -323,6 +325,7 @@ __all__ = [
     "Property",
     "PropertyType",
     "ProviderSpec",
+    "QwenBackend",
     "QueryAgentStrategy",
     "RawIngestError",
     "RawIngestResult",

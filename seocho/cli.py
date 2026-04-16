@@ -59,11 +59,11 @@ def build_parser() -> argparse.ArgumentParser:
     ask_parser.add_argument("--neo4j-password", default="password", help="Neo4j password (local mode)")
     ask_parser.add_argument(
         "--provider",
-        choices=["openai", "deepseek", "kimi", "grok"],
+        choices=["openai", "deepseek", "kimi", "grok", "qwen"],
         default="openai",
         help="OpenAI-compatible LLM provider preset (local mode)",
     )
-    ask_parser.add_argument("--model", default="gpt-4o", help="OpenAI model (local mode)")
+    ask_parser.add_argument("--model", default="gpt-4o", help="LLM model (local mode)")
     ask_parser.add_argument("--llm-base-url", default=None, help="Override the provider base URL (local mode)")
     ask_parser.add_argument("--reasoning", action="store_true", help="Enable reasoning mode (local mode)")
     ask_parser.add_argument("--repair-budget", type=int, default=2, help="Max repair attempts (local mode)")
@@ -175,11 +175,11 @@ def build_parser() -> argparse.ArgumentParser:
     index_parser.add_argument("--neo4j-password", default="password", help="Neo4j password")
     index_parser.add_argument(
         "--provider",
-        choices=["openai", "deepseek", "kimi", "grok"],
+        choices=["openai", "deepseek", "kimi", "grok", "qwen"],
         default="openai",
         help="OpenAI-compatible LLM provider preset",
     )
-    index_parser.add_argument("--model", default="gpt-4o", help="OpenAI model for extraction")
+    index_parser.add_argument("--model", default="gpt-4o", help="LLM model for extraction")
     index_parser.add_argument("--llm-base-url", default=None, help="Override the provider base URL")
     index_parser.add_argument("--force", action="store_true", help="Re-index even if unchanged")
     index_parser.add_argument("--recursive", action="store_true", default=True, help="Scan subdirectories")
@@ -195,11 +195,11 @@ def build_parser() -> argparse.ArgumentParser:
     local_ask_parser.add_argument("--neo4j-password", default="password", help="Neo4j password")
     local_ask_parser.add_argument(
         "--provider",
-        choices=["openai", "deepseek", "kimi", "grok"],
+        choices=["openai", "deepseek", "kimi", "grok", "qwen"],
         default="openai",
         help="OpenAI-compatible LLM provider preset",
     )
-    local_ask_parser.add_argument("--model", default="gpt-4o", help="OpenAI model")
+    local_ask_parser.add_argument("--model", default="gpt-4o", help="LLM model")
     local_ask_parser.add_argument("--llm-base-url", default=None, help="Override the provider base URL")
     local_ask_parser.add_argument("--reasoning", action="store_true", help="Enable reasoning mode (auto-retry)")
     local_ask_parser.add_argument("--repair-budget", type=int, default=2, help="Max repair attempts")
@@ -212,7 +212,7 @@ def build_parser() -> argparse.ArgumentParser:
     status_parser.add_argument("--neo4j-password", default="password", help="Neo4j password")
     status_parser.add_argument(
         "--provider",
-        choices=["openai", "deepseek", "kimi", "grok"],
+        choices=["openai", "deepseek", "kimi", "grok", "qwen"],
         default="openai",
         help="OpenAI-compatible LLM provider preset",
     )
@@ -250,7 +250,7 @@ def build_parser() -> argparse.ArgumentParser:
     bundle_export_parser.add_argument("--neo4j-password", default="password", help="Neo4j password")
     bundle_export_parser.add_argument(
         "--provider",
-        choices=["openai", "deepseek", "kimi", "grok"],
+        choices=["openai", "deepseek", "kimi", "grok", "qwen"],
         default="openai",
         help="OpenAI-compatible LLM provider preset",
     )

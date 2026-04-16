@@ -71,8 +71,15 @@ class TestSeochoLocal:
             assert s._local_mode is True
             assert s.ontology is simple_ontology
 
-    def test_local_custom_provider_slash_model(self, simple_ontology):
-        """Seocho.local(llm='deepseek/deepseek-chat') parses provider/model."""
+    @pytest.mark.parametrize(
+        ("llm_value", "provider", "model"),
+        [
+            ("deepseek/deepseek-chat", "deepseek", "deepseek-chat"),
+            ("qwen/qwen-plus", "qwen", "qwen-plus"),
+        ],
+    )
+    def test_local_custom_provider_slash_model(self, simple_ontology, llm_value, provider, model):
+        """Seocho.local(llm='provider/model') parses provider/model."""
         import seocho.store.graph as _graph_mod
         import seocho.store.llm as _llm_mod
         from seocho.client import Seocho
@@ -81,9 +88,9 @@ class TestSeochoLocal:
             _llm_mod, "create_llm_backend"
         ) as mock_llm:
             mock_llm.return_value = MagicMock()
-            Seocho.local(simple_ontology, llm="deepseek/deepseek-chat")
+            Seocho.local(simple_ontology, llm=llm_value)
             mock_llm.assert_called_once_with(
-                provider="deepseek", model="deepseek-chat", api_key=None
+                provider=provider, model=model, api_key=None
             )
 
     def test_local_plain_model_defaults_to_openai(self, simple_ontology):

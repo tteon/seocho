@@ -60,6 +60,12 @@ def reset_tracing_state() -> None:
         ("deepseek", "DEEPSEEK_API_KEY", "https://api.deepseek.com", "deepseek-chat"),
         ("kimi", "MOONSHOT_API_KEY", "https://api.moonshot.ai/v1", "kimi-k2.5"),
         ("grok", "XAI_API_KEY", "https://api.x.ai/v1", "grok-4.20-reasoning"),
+        (
+            "qwen",
+            "DASHSCOPE_API_KEY",
+            "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+            "qwen-plus",
+        ),
     ],
 )
 def test_provider_presets_resolve_openai_compatible_defaults(

@@ -584,6 +584,7 @@ class Workbench:
         - kimi* → KimiBackend (api.moonshot.ai)
         - deepseek* → DeepSeekBackend
         - grok* → GrokBackend
+        - qwen* / dashscope* → QwenBackend
         - everything else → OpenAIBackend
         """
         from .store.llm import create_llm_backend
@@ -595,4 +596,6 @@ class Workbench:
             return create_llm_backend(provider="deepseek", model=model)
         if "grok" in model_lower:
             return create_llm_backend(provider="grok", model=model)
+        if "qwen" in model_lower or "dashscope" in model_lower:
+            return create_llm_backend(provider="qwen", model=model)
         return create_llm_backend(provider="openai", model=model)

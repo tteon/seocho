@@ -222,6 +222,7 @@ def build_runtime_bundle(
         "DeepSeekBackend",
         "KimiBackend",
         "GrokBackend",
+        "QwenBackend",
     }
     if llm_kind not in portable_llm_kinds:
         raise ValueError(

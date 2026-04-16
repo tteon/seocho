@@ -35,6 +35,15 @@ class OpenAIBackend:
         self._base_url = base_url or ""
 
 
+class QwenBackend:
+    def __init__(self, model: str = "qwen-plus", api_key: str | None = None, base_url: str | None = None) -> None:
+        self.provider = "qwen"
+        self.model = model
+        self._api_key = api_key
+        self._api_key_env = "DASHSCOPE_API_KEY"
+        self._base_url = base_url or "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+
+
 class DummyLocalEngine:
     def __init__(
         self,
@@ -45,6 +54,7 @@ class DummyLocalEngine:
         workspace_id,
         extraction_prompt=None,
         agent_config=None,
+        ontology_profile="default",
     ) -> None:
         self.ontology = ontology
         self.graph_store = graph_store
@@ -52,6 +62,7 @@ class DummyLocalEngine:
         self.workspace_id = workspace_id
         self.extraction_prompt = extraction_prompt
         self.agent_config = agent_config
+        self.ontology_profile = ontology_profile
 
 
 class FakeBundleRuntimeClient:
@@ -150,6 +161,25 @@ def test_export_runtime_bundle_serializes_local_sdk_configuration(
     assert bundle.extraction_prompt is not None
     assert "ontology_name" in bundle.extraction_prompt.system
     assert bundle.graphs[0].database == "news"
+
+    client.close()
+
+
+def test_export_runtime_bundle_accepts_qwen_backend(
+    ontology: Ontology,
+    patch_local_engine: None,
+) -> None:
+    client = Seocho(
+        ontology=ontology,
+        graph_store=Neo4jGraphStore(),
+        llm=QwenBackend(model="qwen-plus"),
+    )
+
+    bundle = client.export_runtime_bundle(app_name="portable-qwen", default_database="news")
+
+    assert bundle.llm.provider == "qwen"
+    assert bundle.llm.model == "qwen-plus"
+    assert bundle.llm.base_url == "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
 
     client.close()
 

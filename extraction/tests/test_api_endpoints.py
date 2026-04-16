@@ -643,6 +643,46 @@ class TestListEndpoints:
             assert payload["domain_error"] == ""
             assert payload["records_processed"] == 2
 
+    async def test_platform_raw_ingest_endpoint_surfaces_rule_profile_and_fallback_metadata(self, client, app_module):
+        mock_ingestor = MagicMock()
+        with patch.object(app_module, "get_runtime_raw_ingestor", return_value=mock_ingestor):
+            mock_ingestor.ingest_records.return_value = {
+                "workspace_id": "default",
+                "target_database": "kgnormal",
+                "records_received": 1,
+                "records_processed": 1,
+                "records_failed": 0,
+                "total_nodes": 3,
+                "total_relationships": 2,
+                "fallback_records": 1,
+                "rule_profile": {"schema_version": "rules.v1", "rules": [{"label": "Company"}]},
+                "semantic_artifacts": {
+                    "ontology_candidate": {"ontology_name": "finder", "graph_model": "lpg"},
+                    "shacl_candidate": {"shapes": []},
+                    "vocabulary_candidate": {"profile": "skos", "terms": []},
+                    "artifact_decision": {"status": "auto_applied"},
+                },
+                "status": "success_with_fallback",
+                "warnings": [],
+                "errors": [],
+            }
+            response = await client.post(
+                "/platform/ingest/raw",
+                json={
+                    "workspace_id": "default",
+                    "target_database": "kgnormal",
+                    "records": [{"id": "r1", "content": "Alpha reports nested metrics."}],
+                },
+            )
+
+            assert response.status_code == 200
+            payload = response.json()
+            assert payload["status"] == "success_with_fallback"
+            assert payload["fallback_records"] == 1
+            assert payload["rule_profile"]["schema_version"] == "rules.v1"
+            assert payload["semantic_artifacts"]["ontology_candidate"]["ontology_name"] == "finder"
+            assert payload["semantic_artifacts"]["artifact_decision"]["status"] == "auto_applied"
+
     async def test_platform_raw_ingest_endpoint_exposes_domain_failure(self, client, app_module):
         mock_ingestor = MagicMock()
         with patch.object(app_module, "get_runtime_raw_ingestor", return_value=mock_ingestor):
@@ -868,6 +908,11 @@ class TestListEndpoints:
                         }
                     ],
                     "semantic_context": {"entities": ["Seoul"], "matches": {}, "unresolved_entities": []},
+                    "evidence_bundle": {
+                        "intent_id": "responsibility_lookup",
+                        "grounded_slots": ["owner_or_operator", "target_entity"],
+                        "slot_fills": {"owner_or_operator": "Alice", "target_entity": "Seoul Retail"},
+                    },
                     "ontology_context_mismatch": {"mismatch": True, "databases": []},
                 }
                 response = await client.post(
@@ -882,6 +927,8 @@ class TestListEndpoints:
                 payload = response.json()
                 assert payload["assistant_message"] == "Alice manages Seoul retail."
                 assert payload["memory_hits"][0]["memory_id"] == "mem_1"
+                assert payload["evidence_bundle"]["intent_id"] == "responsibility_lookup"
+                assert payload["evidence_bundle"]["slot_fills"]["owner_or_operator"] == "Alice"
                 assert payload["ontology_context_mismatch"]["mismatch"] is True
                 _, kwargs = mock_chat.call_args
                 assert kwargs["databases"] == ["kgnormal"]

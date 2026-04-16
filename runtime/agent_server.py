@@ -665,14 +665,26 @@ def _resolve_graph_scope(graph_ids: Optional[List[str]]) -> tuple[List[str], Lis
     valid_graph_ids: List[str] = []
     databases: List[str] = []
     for graph_id in requested_graph_ids:
-        if not graph_registry.is_valid_graph(graph_id):
+        if graph_registry.is_valid_graph(graph_id):
+            target = graph_registry.get_graph(graph_id)
+        elif db_registry.is_valid(graph_id):
+            # Raw ingest can provision a database before any public graph alias exists.
+            # Accept the database name here and promote it to a default graph target so
+            # router/debate paths can operate on the same runtime-created graph.
+            target = graph_registry.find_by_database(graph_id) or graph_registry.ensure_default_graph(graph_id)
+        else:
             raise HTTPException(
                 status_code=400,
                 detail=f"Invalid graph '{graph_id}'. Valid options: {graph_registry.list_graph_ids()}",
             )
-        target = graph_registry.get_graph(graph_id)
+        if target is None:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid graph '{graph_id}'. Valid options: {graph_registry.list_graph_ids()}",
+            )
         database = str(getattr(target, "database", "") or graph_id).strip()
-        valid_graph_ids.append(graph_id)
+        resolved_graph_id = str(getattr(target, "graph_id", "") or graph_id).strip()
+        valid_graph_ids.append(resolved_graph_id)
         if database and database not in databases:
             databases.append(database)
     return valid_graph_ids, databases

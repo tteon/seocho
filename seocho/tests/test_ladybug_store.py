@@ -86,6 +86,77 @@ class TestLadybugStore:
         assert summary["relationships_created"] == 0
         assert summary["errors"] == []
 
+    def test_delete_by_source_removes_written_nodes(self, store):
+        store.write(
+            nodes=[
+                {"id": "alice", "label": "Person", "properties": {"name": "Alice", "age": 30}},
+                {"id": "apple", "label": "Company", "properties": {"name": "Apple"}},
+            ],
+            relationships=[
+                {"source": "alice", "target": "apple", "type": "WORKS_AT", "properties": {}},
+            ],
+            source_id="doc-delete",
+        )
+
+        before = store.count_by_source("doc-delete")
+        store.delete_by_source("doc-delete")
+        after = store.count_by_source("doc-delete")
+
+        assert before["nodes"] >= 1
+        assert after["nodes"] == 0
+
+    def test_fulltext_introspection_query_degrades_to_empty_result(self, store):
+        rows = store.query("SHOW FULLTEXT INDEXES YIELD name, state RETURN name, state")
+        assert rows == []
+
+    def test_query_rewrites_elementid_and_properties_projection(self, store):
+        store.write(
+            nodes=[
+                {
+                    "id": "alice",
+                    "label": "Person",
+                    "properties": {"name": "Alice", "content_preview": "Alice works at Apple."},
+                },
+                {"id": "apple", "label": "Company", "properties": {"name": "Apple"}},
+            ],
+            relationships=[
+                {"source": "alice", "target": "apple", "type": "WORKS_AT", "properties": {"memory_id": "mem_1"}},
+            ],
+            source_id="doc-query-compat",
+        )
+
+        rows = store.query(
+            """
+            MATCH (n:Person)
+            WHERE elementId(n) = toString($node_id)
+            OPTIONAL MATCH (n)-[r]-(m)
+            RETURN coalesce(n.name, n.title, n.id, n.uri, elementId(n)) AS target_entity,
+                   properties(n) AS properties,
+                   collect(
+                     DISTINCT {
+                       relation: type(r),
+                       target: coalesce(m.name, m.title, m.id, m.uri, elementId(m)),
+                       target_labels: labels(m)
+                     }
+                   )[0..$limit] AS neighbors,
+                   coalesce(n.content_preview, n.description, n.content, '') AS supporting_fact
+            LIMIT 1
+            """,
+            params={"node_id": "alice", "limit": 5},
+        )
+
+        assert rows
+        row = rows[0]
+        target_entity = row.get("target_entity", row.get("col_0"))
+        properties = row.get("properties", row.get("col_1"))
+        neighbors = row.get("neighbors", row.get("col_2"))
+        supporting_fact = row.get("supporting_fact", row.get("col_3"))
+
+        assert target_entity == "Alice"
+        assert properties["name"] == "Alice"
+        assert neighbors[0]["target"] == "Apple"
+        assert supporting_fact == "Alice works at Apple."
+
     def test_embedded_creates_file_on_disk(self, tmp_path):
         path = str(tmp_path / "mygraph.lbug")
         store = LadybugGraphStore(path)

@@ -132,7 +132,58 @@ async def test_debate_orchestrator_uses_starting_agent(monkeypatch):
 
 
 @pytest.mark.anyio
+async def test_debate_orchestrator_uses_semantic_preflight_when_supported(monkeypatch):
+    calls = []
+
+    class _Runtime:
+        @staticmethod
+        async def run(*, agent, input, context):
+            calls.append(agent.name)
+            if agent.name == "Supervisor":
+                return types.SimpleNamespace(final_output=f"Supervisor:{input}", chat_history=[])
+            raise AssertionError("graph agent should be skipped when semantic preflight is supported")
+
+        @staticmethod
+        @contextmanager
+        def trace(name: str):
+            yield
+
+    class _SemanticFlow:
+        def run(self, **_kwargs):
+            return {
+                "response": "Deterministic graph answer.",
+                "trace_steps": [],
+                "support_assessment": {"status": "supported", "supported": True},
+                "lpg_result": {"records": [{"company": "ACME"}]},
+                "rdf_result": None,
+            }
+
+    monkeypatch.setattr(debate, "update_current_trace", lambda **_k: None)
+    monkeypatch.setattr(debate, "update_current_span", lambda **_k: None)
+
+    orchestrator = debate.DebateOrchestrator(
+        agents={"graph-normal": _DummyAgent("Agent_kgnormal", graph_database="kgnormal")},
+        supervisor=_DummyAgent("Supervisor"),
+        shared_memory=_DummyMemory(),
+        agents_runtime=_Runtime(),
+    )
+
+    context = types.SimpleNamespace(
+        workspace_id="default",
+        semantic_agent_flow=_SemanticFlow(),
+    )
+    result = await orchestrator.run_debate("What was PTC revenue growth?", context=context)
+
+    assert result["debate_results"][0]["response"] == "Deterministic graph answer."
+    assert "Deterministic graph answer." in result["response"]
+    assert calls == ["Supervisor"]
+    assert any(step["type"] == "DETERMINISTIC_PREFLIGHT" for step in result["trace_steps"])
+
+
+@pytest.mark.anyio
 async def test_debate_orchestrator_falls_back_to_semantic_flow_on_no_data(monkeypatch):
+    semantic_calls = 0
+
     class _Runtime:
         @staticmethod
         async def run(*, agent, input, context):
@@ -147,12 +198,22 @@ async def test_debate_orchestrator_falls_back_to_semantic_flow_on_no_data(monkey
 
     class _SemanticFlow:
         def run(self, *, question, databases, entity_overrides, workspace_id, reasoning_mode, repair_budget):
+            nonlocal semantic_calls
+            semantic_calls += 1
             assert question == "What was PTC revenue growth?"
             assert databases == ["kgnormal"]
             assert entity_overrides == {}
             assert workspace_id == "default"
             assert reasoning_mode is False
             assert repair_budget == 0
+            if semantic_calls == 1:
+                return {
+                    "response": "Ungrounded semantic answer.",
+                    "trace_steps": [],
+                    "support_assessment": {"status": "unsupported", "supported": False},
+                    "lpg_result": {"records": []},
+                    "rdf_result": None,
+                }
             return {
                 "response": "PTC reported revenue growth from graph evidence.",
                 "trace_steps": [],
@@ -179,11 +240,58 @@ async def test_debate_orchestrator_falls_back_to_semantic_flow_on_no_data(monkey
 
     assert result["debate_results"][0]["response"] == "PTC reported revenue growth from graph evidence."
     assert "PTC reported revenue growth from graph evidence." in result["response"]
+    assert semantic_calls == 2
     assert any(step["type"] == "DETERMINISTIC_FALLBACK" for step in result["trace_steps"])
 
 
 @pytest.mark.anyio
+async def test_debate_orchestrator_runs_graph_agent_when_preflight_is_unsupported(monkeypatch):
+    class _Runtime:
+        @staticmethod
+        async def run(*, agent, input, context):
+            if agent.name == "Supervisor":
+                return types.SimpleNamespace(final_output=f"Supervisor:{input}", chat_history=[])
+            return types.SimpleNamespace(final_output="Graph agent answer.", chat_history=[])
+
+        @staticmethod
+        @contextmanager
+        def trace(name: str):
+            yield
+
+    class _SemanticFlow:
+        def run(self, **_kwargs):
+            return {
+                "response": "Ungrounded semantic answer.",
+                "trace_steps": [],
+                "support_assessment": {"status": "unsupported", "supported": False},
+                "lpg_result": {"records": []},
+                "rdf_result": None,
+            }
+
+    monkeypatch.setattr(debate, "update_current_trace", lambda **_k: None)
+    monkeypatch.setattr(debate, "update_current_span", lambda **_k: None)
+
+    orchestrator = debate.DebateOrchestrator(
+        agents={"graph-normal": _DummyAgent("Agent_kgnormal", graph_database="kgnormal")},
+        supervisor=_DummyAgent("Supervisor"),
+        shared_memory=_DummyMemory(),
+        agents_runtime=_Runtime(),
+    )
+
+    context = types.SimpleNamespace(
+        workspace_id="default",
+        semantic_agent_flow=_SemanticFlow(),
+    )
+    result = await orchestrator.run_debate("What was PTC revenue growth?", context=context)
+
+    assert result["debate_results"][0]["response"] == "Graph agent answer."
+    assert not any(step["type"] == "DETERMINISTIC_PREFLIGHT" for step in result["trace_steps"])
+
+
+@pytest.mark.anyio
 async def test_debate_orchestrator_falls_back_to_semantic_flow_on_agent_error(monkeypatch):
+    semantic_calls = 0
+
     class _Runtime:
         @staticmethod
         async def run(*, agent, input, context):
@@ -198,6 +306,16 @@ async def test_debate_orchestrator_falls_back_to_semantic_flow_on_agent_error(mo
 
     class _SemanticFlow:
         def run(self, **_kwargs):
+            nonlocal semantic_calls
+            semantic_calls += 1
+            if semantic_calls == 1:
+                return {
+                    "response": "Ungrounded semantic answer.",
+                    "trace_steps": [],
+                    "support_assessment": {"status": "unsupported", "supported": False},
+                    "lpg_result": {"records": []},
+                    "rdf_result": None,
+                }
             return {
                 "response": "Recovered deterministic graph evidence.",
                 "trace_steps": [],
@@ -224,5 +342,6 @@ async def test_debate_orchestrator_falls_back_to_semantic_flow_on_agent_error(mo
 
     assert result["debate_results"][0]["response"] == "Recovered deterministic graph evidence."
     assert "Recovered deterministic graph evidence." in result["response"]
+    assert semantic_calls == 2
     debate_step = next(step for step in result["trace_steps"] if step["type"] == "DETERMINISTIC_FALLBACK")
     assert debate_step["metadata"]["fallback_reason"] == "agent_error"

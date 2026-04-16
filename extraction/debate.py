@@ -138,6 +138,7 @@ class DebateOrchestrator:
     async def _run_single_agent(
         self, graph_id: str, agent: Agent, query: str, context: Any
     ) -> DebateResult:
+        db_name = str(getattr(agent, "graph_database", graph_id))
         update_current_span(
             metadata={
                 "phase": "fan-out",
@@ -146,6 +147,25 @@ class DebateOrchestrator:
             },
             tags=[f"graph:{graph_id}", "debate-agent"],
         )
+        preflight = await self._semantic_graph_preflight(
+            graph_id=graph_id,
+            db_name=db_name,
+            query=query,
+            context=context,
+        )
+        if preflight is not None:
+            response_text = preflight["response"]
+            update_current_span(
+                output={"response_preview": response_text[:300]},
+                metadata={"semantic_preflight_used": True},
+            )
+            return DebateResult(
+                agent_name=agent.name,
+                graph_id=graph_id,
+                db_name=db_name,
+                response=response_text,
+                trace_steps=preflight["trace_steps"],
+            )
         try:
             with self._agents_runtime.trace(f"Debate:{agent.name}"):
                 result = await self._agents_runtime.run(
@@ -154,7 +174,6 @@ class DebateOrchestrator:
                     context=context,
                 )
             response_text = str(result.final_output)
-            db_name = str(getattr(agent, "graph_database", graph_id))
             trace_steps = self._extract_trace(result)
             fallback = await self._semantic_graph_fallback(
                 graph_id=graph_id,
@@ -182,7 +201,6 @@ class DebateOrchestrator:
                 metadata={"error": str(e)},
                 tags=["error"],
             )
-            db_name = str(getattr(agent, "graph_database", graph_id))
             fallback = await self._semantic_graph_fallback(
                 graph_id=graph_id,
                 db_name=db_name,
@@ -207,19 +225,53 @@ class DebateOrchestrator:
                 trace_steps=[],
             )
 
-    async def _semantic_graph_fallback(
+    async def _semantic_graph_preflight(
         self,
         *,
         graph_id: str,
         db_name: str,
         query: str,
-        response_text: str,
         context: Any,
-        force: bool = False,
     ) -> Optional[Dict[str, Any]]:
-        if not force and not self._should_fallback_to_semantic(response_text):
+        result = await self._run_semantic_graph_flow(
+            db_name=db_name,
+            query=query,
+            context=context,
+        )
+        semantic_support = self._semantic_support_summary(result)
+        if not semantic_support["supported"]:
             return None
 
+        return {
+            "response": semantic_support["response"],
+            "trace_steps": [
+                {
+                    "id": "semantic-preflight",
+                    "type": "DETERMINISTIC_PREFLIGHT",
+                    "role": "system",
+                    "content": (
+                        "SemanticAgentFlow provided supported graph evidence before "
+                        "graph-agent debate execution."
+                    ),
+                    "tool_names": ["semantic_agent_flow"],
+                    "metadata": {
+                        "graph": graph_id,
+                        "db": db_name,
+                        "support_status": semantic_support["status"],
+                        "records": semantic_support["records"],
+                        "preflight_reason": "supported_graph_evidence",
+                    },
+                }
+            ],
+        }
+
+    async def _run_semantic_graph_flow(
+        self,
+        *,
+        db_name: str,
+        query: str,
+        context: Any,
+    ) -> Optional[Dict[str, Any]]:
         semantic_flow = getattr(context, "semantic_agent_flow", None)
         if semantic_flow is None:
             return None
@@ -236,27 +288,64 @@ class DebateOrchestrator:
             )
         except Exception as exc:
             logger.debug(
-                "Semantic fallback skipped for graph %s database %s: %s",
-                graph_id,
+                "Semantic graph flow skipped for database %s: %s",
                 db_name,
                 exc,
                 exc_info=True,
             )
             return None
+        return result if isinstance(result, dict) else None
 
-        support = result.get("support_assessment", {}) if isinstance(result, dict) else {}
+    @staticmethod
+    def _semantic_support_summary(result: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        if not isinstance(result, dict):
+            return {"response": "", "status": "", "supported": False, "records": 0}
+
+        support = result.get("support_assessment", {})
         status = str(support.get("status", "")).lower() if isinstance(support, dict) else ""
         supported = bool(support.get("supported")) if isinstance(support, dict) else False
-        lpg_payload = (result.get("lpg_result") or {}) if isinstance(result, dict) else {}
-        rdf_payload = (result.get("rdf_result") or {}) if isinstance(result, dict) else {}
+        lpg_payload = result.get("lpg_result") or {}
+        rdf_payload = result.get("rdf_result") or {}
         lpg_records = lpg_payload.get("records", []) if isinstance(lpg_payload, dict) else []
         rdf_records = rdf_payload.get("records", []) if isinstance(rdf_payload, dict) else []
-        fallback_response = str(result.get("response", "")).strip() if isinstance(result, dict) else ""
-        if not fallback_response or not (supported or status == "supported" or lpg_records or rdf_records):
+        response = str(result.get("response", "")).strip()
+        return {
+            "response": response,
+            "status": status,
+            "supported": bool(response) and (supported or status == "supported"),
+            "records": len(lpg_records) + len(rdf_records),
+            "has_records": bool(lpg_records or rdf_records),
+        }
+
+    async def _semantic_graph_fallback(
+        self,
+        *,
+        graph_id: str,
+        db_name: str,
+        query: str,
+        response_text: str,
+        context: Any,
+        force: bool = False,
+    ) -> Optional[Dict[str, Any]]:
+        if not force and not self._should_fallback_to_semantic(response_text):
+            return None
+
+        result = await self._run_semantic_graph_flow(
+            db_name=db_name,
+            query=query,
+            context=context,
+        )
+        if result is None:
+            return None
+
+        semantic_support = self._semantic_support_summary(result)
+        if not semantic_support["response"] or not (
+            semantic_support["supported"] or semantic_support["has_records"]
+        ):
             return None
 
         return {
-            "response": fallback_response,
+            "response": semantic_support["response"],
             "trace_steps": [
                 {
                     "id": "semantic-fallback",
@@ -270,8 +359,8 @@ class DebateOrchestrator:
                     "metadata": {
                         "graph": graph_id,
                         "db": db_name,
-                        "support_status": status,
-                        "records": len(lpg_records) + len(rdf_records),
+                        "support_status": semantic_support["status"],
+                        "records": semantic_support["records"],
                         "fallback_reason": "agent_error" if force else "no_data_response",
                     },
                 }

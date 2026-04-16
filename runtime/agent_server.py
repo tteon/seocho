@@ -944,10 +944,9 @@ async def platform_ingest_raw(request: PlatformRawIngestRequest):
             semantic_artifact_policy=request.semantic_artifact_policy,
             approved_artifacts=resolved_approved_artifacts,
         )
-        return PlatformRawIngestResponse(
-            workspace_id=request.workspace_id,
-            **_raw_ingest_response_payload(result),
-        )
+        payload = _raw_ingest_response_payload(result)
+        payload.setdefault("workspace_id", request.workspace_id)
+        return PlatformRawIngestResponse(**payload)
     except InvalidDatabaseNameError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except FileNotFoundError as e:

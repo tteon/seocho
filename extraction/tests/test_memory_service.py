@@ -84,9 +84,14 @@ def test_chat_from_memories_uses_search_results_for_response():
                 "matched_entities": ["Seoul"],
                 "database": "kgnormal",
                 "status": "active",
+                "evidence_bundle": {
+                    "intent_id": "responsibility_lookup",
+                    "slot_fills": {"owner_or_operator": "Alice", "target_entity": "Seoul Retail"},
+                },
             }
         ],
         "semantic_context": {"entities": ["Seoul"], "matches": {}, "unresolved_entities": []},
+        "ontology_context_mismatch": {"mismatch": False, "databases": []},
     }
 
     payload = service.chat_from_memories(workspace_id="default", message="Who manages Seoul retail?")
@@ -94,6 +99,8 @@ def test_chat_from_memories_uses_search_results_for_response():
     assert payload["assistant_message"] == "Alice manages Seoul retail."
     assert payload["memory_hits"][0]["memory_id"] == "mem_1"
     assert payload["evidence_bundle"]["intent_id"] == "responsibility_lookup"
+    assert payload["evidence_bundle"]["slot_fills"]["owner_or_operator"] == "Alice"
+    assert payload["ontology_context_mismatch"]["mismatch"] is False
 
 
 def test_search_memories_adds_evidence_bundle_to_ranked_results():

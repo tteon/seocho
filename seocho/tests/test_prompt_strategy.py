@@ -58,8 +58,8 @@ class TestExtractionStrategy:
         assert "truncated" in system
         assert len(system) < 20000
 
-    def test_finder_financials_prompt_preserves_segment_line_items(self, ontology):
-        system, _ = PRESET_PROMPTS["finder_financials"].render(ontology.to_extraction_context(), "text")
+    def test_filing_financials_prompt_preserves_segment_line_items(self, ontology):
+        system, _ = PRESET_PROMPTS["filing_financials"].render(ontology.to_extraction_context(), "text")
         assert "segment line items" in system
         assert "Do not replace a segment metric with Total Revenues." in system
 

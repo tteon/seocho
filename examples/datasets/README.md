@@ -6,13 +6,13 @@ Sample data for SEOCHO E2E testing and evaluation.
 
 | File | Records | Source | Description |
 |------|---------|--------|-------------|
-| `finder_sample.json` | 10 | FinDER (SEC 10-K) | Financial Q&A with ground truth answers |
+| `tutorial_filings_sample.json` | 10 | Bundled tutorial sample | Filing-domain onboarding sample with expected answers |
 
-## FinDER Sample Format
+## Tutorial Sample Format
 
 ```json
 {
-  "id": "finder_001",
+  "id": "case_001",
   "text": "PTC Inc. reported total revenue of $2.1 billion...",
   "question": "What was PTC's revenue growth in fiscal 2023?",
   "expected_answer": "PTC reported total revenue of $2.1 billion...",
@@ -44,16 +44,9 @@ Neo4j requires: lowercase, no hyphens, no underscores, start with letter.
 |---------|--------------|
 | LPG evaluation | `seochoe2elpg` |
 | RDF evaluation | `seochoe2erdf` |
-| FinDER LPG (existing) | `finderlpg` |
-| FinDER RDF (existing) | `finderrdf` |
 
-## Full FinDER Dataset
+## Boundary
 
-For the complete 5,703-record dataset:
-
-```python
-from datasets import load_dataset
-ds = load_dataset("Linq-AI-Research/FinDER")["train"]
-```
-
-Requires HuggingFace token (gated dataset).
+- the bundled tutorial sample is for onboarding and local smoke checks
+- benchmark and performance claims should use a user-supplied private corpus
+- do not publish tutorial-sample results as benchmark evidence

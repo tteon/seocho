@@ -263,7 +263,7 @@ def main(schema_name: str | None = None):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Ingest FinDER-style dataset to graph and vector stores.")
+    parser = argparse.ArgumentParser(description="Ingest a finance-domain corpus to graph and vector stores.")
     parser.add_argument("--schema", default=None, help="Schema name under conf/ingestion/schema (e.g., baseline, fibo)")
     args = parser.parse_args()
     main(schema_name=args.schema)

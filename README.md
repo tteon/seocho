@@ -282,7 +282,7 @@ instead of scraping nested runtime payloads.
 s.index_directory("./my_data/")         # .txt, .md, .csv, .json, .jsonl, .pdf
 
 # Category-specific extraction (auto-selects prompt)
-s.add(text, category="Financials")      # 8 FinDER domain presets
+s.add(text, category="Financials")      # 8 filing-domain presets
 
 # Query with reasoning mode
 s.ask("question", reasoning_mode=True, repair_budget=2)
@@ -438,7 +438,7 @@ onto = Ontology(name="fibo", graph_model="rdf",
 | [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture |
 | [docs/FILES_AND_ARTIFACTS.md](docs/FILES_AND_ARTIFACTS.md) | Where ontology, rule, trace, and runtime files live |
-| [docs/BENCHMARKS.md](docs/BENCHMARKS.md) | FinDER and GraphRAG-Bench evaluation tracks |
+| [docs/BENCHMARKS.md](docs/BENCHMARKS.md) | Private finance corpus and GraphRAG-Bench evaluation tracks |
 | [docs/WORKFLOW.md](docs/WORKFLOW.md) | Operational workflow |
 | [docs/ISSUE_TASK_SYSTEM.md](docs/ISSUE_TASK_SYSTEM.md) | Sprint/task governance |
 

@@ -8,7 +8,7 @@ from seocho.query.planner import DeterministicQueryPlanner
 
 def _finance_ontology() -> Ontology:
     return Ontology(
-        name="finder_lpg",
+        name="finance_benchmark_lpg",
         graph_model="lpg",
         nodes={
             "Company": NodeDef(properties={"name": P(str, unique=True)}),
@@ -51,14 +51,14 @@ def test_deterministic_query_planner_returns_canonical_query_plan() -> None:
     planner = DeterministicQueryPlanner(
         ontology=_finance_ontology(),
         llm=_FakeLLM(),
-        workspace_id="finder_test",
+        workspace_id="finance_benchmark_test",
     )
 
     plan = planner.plan("Delta in CBOE Data & Access Solutions rev from 2021-23.")
 
     assert plan.ok is True
     assert plan.intent_data["intent"] == "financial_metric_delta"
-    assert plan.params["workspace_id"] == "finder_test"
+    assert plan.params["workspace_id"] == "finance_benchmark_test"
     assert "MATCH" in plan.cypher
 
 
@@ -66,7 +66,7 @@ def test_graph_query_executor_returns_canonical_execution_result() -> None:
     planner = DeterministicQueryPlanner(
         ontology=_finance_ontology(),
         llm=_FakeLLM(),
-        workspace_id="finder_test",
+        workspace_id="finance_benchmark_test",
     )
     plan = planner.plan("Delta in CBOE Data & Access Solutions rev from 2021-23.")
 

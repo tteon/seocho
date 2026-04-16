@@ -1,26 +1,21 @@
 #!/usr/bin/env python3
 """
-SEOCHO E2E Evaluation with FinDER Dataset + Opik Tracing
+SEOCHO E2E evaluation with the bundled tutorial filings sample.
 
 This script:
-1. Loads FinDER sample data or the gated Hugging Face FinDER dataset
-2. Indexes into separate LPG and RDF databases (Neo4j naming convention)
+1. Loads a local JSON dataset
+2. Indexes into separate LPG and RDF databases
 3. Queries both and compares answers
-4. Evaluates quality via Opik experiment
+4. Evaluates quality via Opik experiment when configured
 
 Usage:
     python examples/e2e_evaluation.py
-    python examples/e2e_evaluation.py --dataset-source hf --split 'train[:5]'
+    python examples/e2e_evaluation.py --dataset examples/datasets/tutorial_filings_sample.json
 
 Requires:
     - Neo4j/DozerDB running on bolt://localhost:7687
     - OPENAI_API_KEY in .env
     - OPIK_API_KEY in .env (optional, for Opik cloud)
-    - HF_TOKEN in .env when using `--dataset-source hf`
-
-Neo4j database naming convention:
-    - lowercase only, no hyphens, no underscores
-    - e.g. finderlpg, finderrdf, seochoe2elpg
 """
 
 from __future__ import annotations
@@ -57,9 +52,7 @@ NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "password")
 MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 OPIK_PROJECT = os.getenv("OPIK_PROJECT_NAME", "seocho-opik-test")
 OPIK_WORKSPACE = os.getenv("OPIK_WORKSPACE", "tteon").strip('"')
-DATASET_PATH = Path(__file__).parent / "datasets" / "finder_sample.json"
-HF_DATASET_ID = "Linq-AI-Research/FinDER"
-HF_SPLIT = "train[:10]"
+DATASET_PATH = Path(__file__).parent / "datasets" / "tutorial_filings_sample.json"
 
 
 def _resolve_host_neo4j_uri(uri: str) -> str:
@@ -75,32 +68,16 @@ def _resolve_host_neo4j_uri(uri: str) -> str:
     return resolved
 
 
-def _load_dataset(dataset_source: str, split: str):
-    if dataset_source == "sample":
-        print(f"\nLoading dataset: {DATASET_PATH}")
-        with open(DATASET_PATH) as f:
-            dataset = json.load(f)
-        print(f"  {len(dataset)} sample documents loaded")
-        return dataset
-
-    if dataset_source == "hf":
-        from datasets import load_dataset
-
-        hf_token = os.getenv("HF_TOKEN", "").strip()
-        if hf_token and not os.getenv("HUGGINGFACE_HUB_TOKEN"):
-            os.environ["HUGGINGFACE_HUB_TOKEN"] = hf_token
-
-        print(f"\nLoading Hugging Face dataset: {HF_DATASET_ID} ({split})")
-        dataset = load_dataset(HF_DATASET_ID, split=split)
-        rows = [dict(row) for row in dataset]
-        print(f"  {len(rows)} HF documents loaded")
-        return rows
-
-    raise ValueError(f"Unsupported dataset source: {dataset_source}")
+def _load_dataset(dataset_path: Path) -> list[dict]:
+    print(f"\nLoading dataset: {dataset_path}")
+    with dataset_path.open(encoding="utf-8") as f:
+        dataset = json.load(f)
+    print(f"  {len(dataset)} documents loaded")
+    return dataset
 
 
 def _normalize_record(record: dict) -> dict:
-    """Unify the local sample and gated HF FinDER formats."""
+    """Normalize a local tutorial or private local JSON record into one shape."""
     if "question" in record:
         return {
             "id": record["id"],
@@ -118,7 +95,7 @@ def _normalize_record(record: dict) -> dict:
         context_text = str(references)
 
     return {
-        "id": record.get("_id", "unknown"),
+        "id": record.get("_id", record.get("id", "unknown")),
         "context_text": context_text,
         "question": record["text"],
         "expected_answer": record.get("answer", ""),
@@ -127,9 +104,9 @@ def _normalize_record(record: dict) -> dict:
     }
 
 
-def main(dataset_source: str = "sample", split: str = HF_SPLIT):
+def main(dataset_path: Path = DATASET_PATH):
     print("=" * 70)
-    print("SEOCHO E2E Evaluation — FinDER Dataset")
+    print("SEOCHO E2E Evaluation — Tutorial Filings Sample")
     print("=" * 70)
 
     # --- Setup Opik ---
@@ -149,7 +126,7 @@ def main(dataset_source: str = "sample", split: str = HF_SPLIT):
         print(f"Opik: disabled ({exc})")
 
     # --- Load dataset ---
-    dataset = _load_dataset(dataset_source=dataset_source, split=split)
+    dataset = _load_dataset(dataset_path=dataset_path)
     normalized_dataset = [_normalize_record(item) for item in dataset]
 
     # --- Setup SDK ---
@@ -159,7 +136,7 @@ def main(dataset_source: str = "sample", split: str = HF_SPLIT):
 
     # LPG ontology
     lpg_ontology = Ontology(
-        name="finder_lpg",
+        name="tutorial_filings_lpg",
         graph_model="lpg",
         nodes={
             "Company": NodeDef(description="A business entity", properties={
@@ -188,7 +165,7 @@ def main(dataset_source: str = "sample", split: str = HF_SPLIT):
 
     # RDF ontology (same entities, but RDF mode)
     rdf_ontology = Ontology(
-        name="finder_rdf",
+        name="tutorial_filings_rdf",
         graph_model="rdf",
         namespace="https://seocho.dev/fibo/",
         nodes={
@@ -218,11 +195,11 @@ def main(dataset_source: str = "sample", split: str = HF_SPLIT):
     print(f"  Using: {LPG_DATABASE} (LPG) + {RDF_DATABASE} (RDF)")
 
     lpg_client = Seocho(ontology=lpg_ontology, graph_store=store, llm=llm,
-                        workspace_id=f"finder_lpg_{int(time.time())}",
-                        extraction_prompt=PRESET_PROMPTS["finder_financials"])
+                        workspace_id=f"tutorial_lpg_{int(time.time())}",
+                        extraction_prompt=PRESET_PROMPTS["filing_financials"])
     rdf_client = Seocho(ontology=rdf_ontology, graph_store=store, llm=llm,
-                        workspace_id=f"finder_rdf_{int(time.time())}",
-                        extraction_prompt=PRESET_PROMPTS["finder_financials_rdf"])
+                        workspace_id=f"tutorial_rdf_{int(time.time())}",
+                        extraction_prompt=PRESET_PROMPTS["filing_financials_rdf"])
 
     print(f"  LPG workspace: {lpg_client.workspace_id}")
     print(f"  RDF workspace: {rdf_client.workspace_id}")
@@ -334,7 +311,7 @@ def main(dataset_source: str = "sample", split: str = HF_SPLIT):
             "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
             "lpg_database": LPG_DATABASE,
             "rdf_database": RDF_DATABASE,
-            "dataset_source": dataset_source,
+            "dataset": str(dataset_path),
             "dataset_count": len(normalized_dataset),
             "model": MODEL,
             "workspaces": {"lpg": lpg_client.workspace_id, "rdf": rdf_client.workspace_id},
@@ -375,17 +352,11 @@ def _ensure_database(store, db_name: str) -> None:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Run a small FinDER E2E evaluation against SEOCHO.")
+    parser = argparse.ArgumentParser(description="Run the bundled tutorial filings E2E evaluation against SEOCHO.")
     parser.add_argument(
-        "--dataset-source",
-        choices=("sample", "hf"),
-        default=os.getenv("FINDER_DATASET_SOURCE", "sample"),
-        help="Use the local sample dataset or the gated Hugging Face FinDER dataset.",
-    )
-    parser.add_argument(
-        "--split",
-        default=os.getenv("FINDER_HF_SPLIT", HF_SPLIT),
-        help="Hugging Face split/slice expression, e.g. 'train[:5]'. Ignored for sample mode.",
+        "--dataset",
+        default=os.getenv("SEOCHO_TUTORIAL_DATASET", str(DATASET_PATH)),
+        help="Path to a local JSON dataset. The bundled sample is tutorial-only.",
     )
     args = parser.parse_args()
-    main(dataset_source=args.dataset_source, split=args.split)
+    main(dataset_path=Path(args.dataset))

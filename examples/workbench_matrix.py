@@ -43,7 +43,7 @@ def main(quick: bool = False):
 
     # Load sample text
     import json
-    with open(datasets_dir / "finder_sample.json") as f:
+    with open(datasets_dir / "tutorial_filings_sample.json") as f:
         dataset = json.load(f)
     texts = [d["text"] for d in dataset[:3]]
 
@@ -74,7 +74,7 @@ def main(quick: bool = False):
         wb.vary("prompt_template", [
             PRESET_PROMPTS["general"],
             PRESET_PROMPTS["finance"],
-            PRESET_PROMPTS["finder_financials"],
+            PRESET_PROMPTS["filing_financials"],
         ])
         wb.vary("chunk_size", [4000, 8000])
 

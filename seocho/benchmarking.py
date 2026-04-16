@@ -7,7 +7,7 @@ from dataclasses import asdict, dataclass, field
 from decimal import Decimal
 from pathlib import Path
 from statistics import median
-from typing import Any, Dict, Iterable, List, Sequence
+from typing import Any, Dict, Iterable, List, Mapping, Sequence
 
 
 _SPACE_RE = re.compile(r"\s+")
@@ -45,6 +45,16 @@ _STOPWORDS = {
     "what",
     "which",
     "with",
+}
+_FINDER_INDEXING_FINDINGS = {
+    "indexing_no_graph_writes",
+    "source_text_has_answer_but_graph_projection_lost_it",
+}
+_FINDER_QUERY_FINDINGS = {
+    "query_no_graph_records",
+    "vector_substrate_not_in_local_answer_path",
+    "fulltext_substrate_unavailable_or_unchecked",
+    "answer_quality_or_slot_selection_gap",
 }
 
 
@@ -93,6 +103,50 @@ class FinDERBenchmarkSummary:
         payload = asdict(self)
         payload["records"] = [asdict(record) for record in self.records]
         return payload
+
+
+def split_finder_diagnosis(findings: Sequence[str]) -> Dict[str, List[str]]:
+    """Split FinDER diagnosis codes into indexing vs query contracts."""
+
+    contracts = {"indexing": [], "query": [], "shared": []}
+    seen: set[str] = set()
+    for raw in findings:
+        finding = str(raw or "").strip()
+        if not finding or finding in seen:
+            continue
+        seen.add(finding)
+        if finding in _FINDER_INDEXING_FINDINGS:
+            contracts["indexing"].append(finding)
+        elif finding in _FINDER_QUERY_FINDINGS:
+            contracts["query"].append(finding)
+        else:
+            contracts["shared"].append(finding)
+    return contracts
+
+
+def summarize_finder_contract_findings(
+    records: Sequence[Mapping[str, Any]],
+) -> Dict[str, Dict[str, Any]]:
+    """Aggregate split FinDER findings across records.
+
+    Each input record is expected to expose ``case_id`` and ``diagnosis``.
+    Unknown finding codes remain visible under the ``shared`` contract bucket.
+    """
+
+    summary: Dict[str, Dict[str, Any]] = {
+        "indexing": {"record_count": 0, "finding_counts": {}},
+        "query": {"record_count": 0, "finding_counts": {}},
+        "shared": {"record_count": 0, "finding_counts": {}},
+    }
+    for record in records:
+        split = split_finder_diagnosis(record.get("diagnosis", []))
+        for contract, findings in split.items():
+            if findings:
+                summary[contract]["record_count"] += 1
+            for finding in findings:
+                counts = summary[contract]["finding_counts"]
+                counts[finding] = int(counts.get(finding, 0)) + 1
+    return summary
 
 
 def load_finder_cases(path: str | Path) -> List[FinDERBenchmarkCase]:

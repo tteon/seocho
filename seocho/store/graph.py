@@ -628,6 +628,122 @@ _LADYBUG_TYPE_MAP = {
     "datetime": "STRING",
     "date": "STRING",
 }
+_LADYBUG_COMMON_NODE_STRING_COLUMNS = (
+    "name",
+    "title",
+    "uri",
+    "description",
+    "content",
+    "content_preview",
+    "memory_id",
+    "source_id",
+    "workspace_id",
+    "status",
+    "category",
+    "source_type",
+    "created_at",
+    "updated_at",
+    "archived_at",
+    "metadata_json",
+    "user_id",
+    "agent_id",
+    "session_id",
+    "_ontology_context_hash",
+    "_ontology_id",
+    "_ontology_profile",
+    "_workspace_id",
+    "_source_id",
+)
+_LADYBUG_COMMON_REL_STRING_COLUMNS = (
+    "type",
+    "memory_id",
+    "source_id",
+    "workspace_id",
+    "_workspace_id",
+    "_source_id",
+    "_ontology_context_hash",
+    "_ontology_id",
+    "_ontology_profile",
+)
+_LADYBUG_NODE_PROJECTION_KEYS = (
+    "id",
+    "name",
+    "title",
+    "uri",
+    "description",
+    "content",
+    "content_preview",
+    "memory_id",
+    "source_id",
+    "workspace_id",
+    "status",
+    "category",
+    "source_type",
+    "created_at",
+    "updated_at",
+    "archived_at",
+    "_ontology_context_hash",
+    "_ontology_id",
+    "_ontology_profile",
+)
+_LADYBUG_REL_PROJECTION_KEYS = (
+    "type",
+    "memory_id",
+    "source_id",
+    "workspace_id",
+    "_workspace_id",
+    "_source_id",
+    "_ontology_context_hash",
+    "_ontology_id",
+    "_ontology_profile",
+)
+_LADYBUG_FULLTEXT_SHOW_PATTERNS = (
+    "SHOW FULLTEXT INDEXES",
+    "SHOW INDEXES",
+)
+
+
+def _ladybug_column_names(columns: Sequence[str]) -> set[str]:
+    names: set[str] = set()
+    for column in columns:
+        match = re.match(r"`([^`]+)`\s+", str(column))
+        if match:
+            names.add(match.group(1))
+    return names
+
+
+def _append_ladybug_string_columns(columns: List[str], names: Sequence[str]) -> None:
+    existing = _ladybug_column_names(columns)
+    for name in names:
+        if name in existing:
+            continue
+        columns.append(f"`{name}` STRING")
+        existing.add(name)
+
+
+def _ladybug_property_projection(variable: str, *, relation: bool) -> str:
+    keys = _LADYBUG_REL_PROJECTION_KEYS if relation else _LADYBUG_NODE_PROJECTION_KEYS
+    items = ", ".join(f"{key}: coalesce({variable}.{key}, '')" for key in keys)
+    return "{" + items + "}"
+
+
+def _rewrite_ladybug_query(cypher: str) -> str:
+    rewritten = re.sub(
+        r"elementId\((\w+)\)",
+        lambda match: f"coalesce({match.group(1)}.id, '')",
+        cypher,
+    )
+    rewritten = re.sub(r"toString\(\$(\w+)\)", lambda match: f"${match.group(1)}", rewritten)
+    rewritten = re.sub(r"type\((\w+)\)", lambda match: f"coalesce({match.group(1)}.type, '')", rewritten)
+    rewritten = re.sub(
+        r"properties\((\w+)\)\s+AS\s+([A-Za-z_][A-Za-z0-9_]*)",
+        lambda match: (
+            f"{_ladybug_property_projection(match.group(1), relation=match.group(1).lower() in {'r', 'rel', 'relationship'})} "
+            f"AS {match.group(2)}"
+        ),
+        rewritten,
+    )
+    return rewritten
 
 
 def _lbug_type(py_value: Any) -> str:
@@ -714,10 +830,7 @@ class LadybugGraphStore(GraphStore):
             if not _LABEL_RE.match(key):
                 continue
             cols.append(f"`{key}` {_lbug_type(value)}")
-        # Always include workspace/source provenance columns
-        for col in ("_workspace_id", "_source_id"):
-            if not any(c.startswith(f"`{col}`") for c in cols):
-                cols.append(f"`{col}` STRING")
+        _append_ladybug_string_columns(cols, _LADYBUG_COMMON_NODE_STRING_COLUMNS)
         # Primary key: prefer ``id`` if present, else auto-generated ``_node_id``
         pk = "id" if "id" in (sample_props or {}) else "_node_id"
         if pk == "_node_id":
@@ -749,8 +862,7 @@ class LadybugGraphStore(GraphStore):
             if not _LABEL_RE.match(key):
                 continue
             cols.append(f"`{key}` {_lbug_type(value)}")
-        cols.append("`_workspace_id` STRING")
-        cols.append("`_source_id` STRING")
+        _append_ladybug_string_columns(cols, _LADYBUG_COMMON_REL_STRING_COLUMNS)
         col_list = (", " + ", ".join(cols)) if cols else ""
         try:
             self._conn.execute(
@@ -821,6 +933,7 @@ class LadybugGraphStore(GraphStore):
                 continue
 
             rprops = dict(rel.get("properties", {}))
+            rprops.setdefault("type", rtype)
             rprops["_workspace_id"] = workspace_id
             rprops["_source_id"] = source_id
 
@@ -852,6 +965,12 @@ class LadybugGraphStore(GraphStore):
         params: Optional[Dict[str, Any]] = None,
         database: str = "neo4j",
     ) -> List[Dict[str, Any]]:
+        compact = " ".join(str(cypher).upper().split())
+        if any(compact.startswith(pattern) for pattern in _LADYBUG_FULLTEXT_SHOW_PATTERNS):
+            return []
+        if "CALL DB.INDEX.FULLTEXT.QUERYNODES" in compact:
+            return []
+        cypher = _rewrite_ladybug_query(cypher)
         try:
             result = self._conn.execute(cypher, params or {})
             out: List[Dict[str, Any]] = []
@@ -904,9 +1023,7 @@ class LadybugGraphStore(GraphStore):
                 if prop.unique and pk_col is None:
                     pk_col = prop_name
 
-            cols.append("`id` STRING")
-            cols.append("`_workspace_id` STRING")
-            cols.append("`_source_id` STRING")
+            _append_ladybug_string_columns(cols, ("id", * _LADYBUG_COMMON_NODE_STRING_COLUMNS))
             pk_col = pk_col or "id"
 
             try:
@@ -928,7 +1045,7 @@ class LadybugGraphStore(GraphStore):
             try:
                 self._conn.execute(
                     f"CREATE REL TABLE IF NOT EXISTS `{rtype}`"
-                    f"(FROM `{src}` TO `{tgt}`, `_workspace_id` STRING, `_source_id` STRING)"
+                    f"(FROM `{src}` TO `{tgt}`, {', '.join(f'`{name}` STRING' for name in _LADYBUG_COMMON_REL_STRING_COLUMNS)})"
                 )
                 self._declared_rel_tables.add(rtype)
                 summary["success"] += 1

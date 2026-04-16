@@ -372,12 +372,9 @@ def query_ontology_context_mismatch(
             """
             MATCH (n)
             WHERE coalesce(n._workspace_id, n.workspace_id, $workspace_id) = $workspace_id
-            WITH collect(DISTINCT n._ontology_context_hash) AS raw_hashes,
-                 count(n) AS scoped_nodes,
-                 sum(CASE WHEN n._ontology_context_hash IS NULL THEN 1 ELSE 0 END) AS missing_context_nodes
-            RETURN [context_hash IN raw_hashes WHERE context_hash IS NOT NULL][0..10] AS indexed_context_hashes,
-                   scoped_nodes,
-                   missing_context_nodes
+            RETURN collect(DISTINCT coalesce(n._ontology_context_hash, '')) AS raw_context_hashes,
+                   count(n) AS scoped_nodes,
+                   sum(CASE WHEN coalesce(n._ontology_context_hash, '') = '' THEN 1 ELSE 0 END) AS missing_context_nodes
             """,
             params={"workspace_id": workspace_id},
             database=database,
@@ -390,7 +387,15 @@ def query_ontology_context_mismatch(
     row = rows[0] if rows else {}
     return assess_ontology_context_mismatch(
         active_context,
-        row.get("indexed_context_hashes", []) if isinstance(row, dict) else [],
+        _clean_distinct_strings(
+            (
+                row.get("raw_context_hashes")
+                if isinstance(row, dict) and row.get("raw_context_hashes") is not None
+                else row.get("indexed_context_hashes", [])
+                if isinstance(row, dict)
+                else []
+            )
+        ),
         missing_context_nodes=(
             int(row.get("missing_context_nodes", 0) or 0)
             if isinstance(row, dict)

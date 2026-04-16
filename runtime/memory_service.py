@@ -11,7 +11,10 @@ from uuid import uuid4
 from config import db_registry, graph_registry
 from runtime.runtime_ingest import RuntimeRawIngestor
 from semantic_query_flow import SemanticAgentFlow
-from seocho.ontology_context import assess_graph_ontology_context_status
+from seocho.ontology_context import (
+    _clean_distinct_strings,
+    assess_graph_ontology_context_status,
+)
 from seocho.query.answering import build_evidence_bundle
 
 
@@ -440,18 +443,12 @@ class GraphMemoryService:
                 """
                 MATCH (n)
                 WHERE coalesce(n._workspace_id, n.workspace_id, $workspace_id) = $workspace_id
-                WITH collect(DISTINCT n._ontology_context_hash) AS raw_hashes,
-                     collect(DISTINCT n._ontology_id) AS raw_ontology_ids,
-                     collect(DISTINCT n._ontology_profile) AS raw_profiles,
-                     count(n) AS scoped_nodes,
-                     sum(CASE WHEN n._ontology_context_hash IS NULL AND n._ontology_id IS NULL THEN 1 ELSE 0 END) AS missing_context_nodes,
-                     sum(CASE WHEN n._ontology_context_hash IS NULL THEN 1 ELSE 0 END) AS missing_context_hash_nodes
-                RETURN [value IN raw_hashes WHERE value IS NOT NULL][0..10] AS indexed_context_hashes,
-                       [value IN raw_ontology_ids WHERE value IS NOT NULL][0..10] AS indexed_ontology_ids,
-                       [value IN raw_profiles WHERE value IS NOT NULL][0..10] AS indexed_profiles,
-                       scoped_nodes,
-                       missing_context_nodes,
-                       missing_context_hash_nodes
+                RETURN collect(DISTINCT coalesce(n._ontology_context_hash, '')) AS raw_context_hashes,
+                       collect(DISTINCT coalesce(n._ontology_id, '')) AS raw_ontology_ids,
+                       collect(DISTINCT coalesce(n._ontology_profile, '')) AS raw_profiles,
+                       count(n) AS scoped_nodes,
+                       sum(CASE WHEN coalesce(n._ontology_context_hash, '') = '' AND coalesce(n._ontology_id, '') = '' THEN 1 ELSE 0 END) AS missing_context_nodes,
+                       sum(CASE WHEN coalesce(n._ontology_context_hash, '') = '' THEN 1 ELSE 0 END) AS missing_context_hash_nodes
                 """,
                 {"workspace_id": workspace_id},
             )
@@ -459,9 +456,33 @@ class GraphMemoryService:
             status = assess_graph_ontology_context_status(
                 database=database,
                 workspace_id=workspace_id,
-                indexed_context_hashes=row.get("indexed_context_hashes", []) if isinstance(row, dict) else [],
-                indexed_ontology_ids=row.get("indexed_ontology_ids", []) if isinstance(row, dict) else [],
-                indexed_profiles=row.get("indexed_profiles", []) if isinstance(row, dict) else [],
+                indexed_context_hashes=_clean_distinct_strings(
+                    (
+                        row.get("raw_context_hashes")
+                        if isinstance(row, dict) and row.get("raw_context_hashes") is not None
+                        else row.get("indexed_context_hashes", [])
+                        if isinstance(row, dict)
+                        else []
+                    )
+                ),
+                indexed_ontology_ids=_clean_distinct_strings(
+                    (
+                        row.get("raw_ontology_ids")
+                        if isinstance(row, dict) and row.get("raw_ontology_ids") is not None
+                        else row.get("indexed_ontology_ids", [])
+                        if isinstance(row, dict)
+                        else []
+                    )
+                ),
+                indexed_profiles=_clean_distinct_strings(
+                    (
+                        row.get("raw_profiles")
+                        if isinstance(row, dict) and row.get("raw_profiles") is not None
+                        else row.get("indexed_profiles", [])
+                        if isinstance(row, dict)
+                        else []
+                    )
+                ),
                 expected_ontology_id=str(getattr(target, "ontology_id", "") or ""),
                 missing_context_nodes=(
                     int(row.get("missing_context_nodes", 0) or 0)

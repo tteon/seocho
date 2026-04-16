@@ -179,6 +179,7 @@ def test_summarize_finance_contract_findings_counts_records_and_codes():
                 ],
             },
             {"case_id": "case_003", "diagnosis": []},
+            {"case_id": "case_003", "diagnosis": []},
         ]
     )
 

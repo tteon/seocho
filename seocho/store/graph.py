@@ -649,8 +649,13 @@ _LADYBUG_COMMON_NODE_STRING_COLUMNS = (
     "agent_id",
     "session_id",
     "_ontology_context_hash",
+    "_ontology_artifact_hash",
+    "_ontology_glossary_hash",
     "_ontology_id",
+    "_ontology_name",
+    "_ontology_version",
     "_ontology_profile",
+    "_ontology_graph_model",
     "_workspace_id",
     "_source_id",
 )
@@ -662,8 +667,13 @@ _LADYBUG_COMMON_REL_STRING_COLUMNS = (
     "_workspace_id",
     "_source_id",
     "_ontology_context_hash",
+    "_ontology_artifact_hash",
+    "_ontology_glossary_hash",
     "_ontology_id",
+    "_ontology_name",
+    "_ontology_version",
     "_ontology_profile",
+    "_ontology_graph_model",
 )
 _LADYBUG_NODE_PROJECTION_KEYS = (
     "id",
@@ -683,8 +693,13 @@ _LADYBUG_NODE_PROJECTION_KEYS = (
     "updated_at",
     "archived_at",
     "_ontology_context_hash",
+    "_ontology_artifact_hash",
+    "_ontology_glossary_hash",
     "_ontology_id",
+    "_ontology_name",
+    "_ontology_version",
     "_ontology_profile",
+    "_ontology_graph_model",
 )
 _LADYBUG_REL_PROJECTION_KEYS = (
     "type",
@@ -694,8 +709,13 @@ _LADYBUG_REL_PROJECTION_KEYS = (
     "_workspace_id",
     "_source_id",
     "_ontology_context_hash",
+    "_ontology_artifact_hash",
+    "_ontology_glossary_hash",
     "_ontology_id",
+    "_ontology_name",
+    "_ontology_version",
     "_ontology_profile",
+    "_ontology_graph_model",
 )
 _LADYBUG_FULLTEXT_SHOW_PATTERNS = (
     "SHOW FULLTEXT INDEXES",

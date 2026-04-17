@@ -10,6 +10,7 @@ if ROOT_DIR not in sys.path:
 
 
 import extraction.vector_store as vector_store_module
+import seocho.store.vector as canonical_vector_store
 
 
 class _FakeFaissIndex:
@@ -37,12 +38,15 @@ class _FakeEmbeddingBackend:
 
 class _FakeCanonicalStore:
     def __init__(self, **kwargs):  # noqa: ANN003, ANN001
-        self._embedding_backend = kwargs["embedding_backend"]
-        self._model = kwargs["model"]
+        self.kwargs = dict(kwargs)
+        self._embedding_backend = _FakeEmbeddingBackend()
+        self._model = "test-embedding-model"
         self._index = _FakeFaissIndex()
-        self._faiss = _FakeFaiss()
         self._docs = []
         self._id_to_idx = {}
+
+    def _embed(self, texts):  # noqa: ANN001
+        return self._embedding_backend.embed(texts, model=self._model)
 
     def add(self, doc_id, text, *, metadata=None):  # noqa: ANN001
         idx = len(self._docs)
@@ -55,7 +59,7 @@ class _FakeCanonicalStore:
         for doc in self._docs[:limit]:
             items.append(
                 SimpleNamespace(
-                    id=doc["id"],
+                    doc_id=doc["id"],
                     text=doc["text"],
                     metadata=dict(doc.get("metadata", {})),
                 )
@@ -64,13 +68,7 @@ class _FakeCanonicalStore:
 
 
 def test_vector_store_shim_uses_canonical_embedding_backend(monkeypatch) -> None:
-    monkeypatch.setattr(vector_store_module, "create_embedding_backend", lambda **kwargs: _FakeEmbeddingBackend())
-    monkeypatch.setattr(vector_store_module, "FAISSVectorStore", _FakeCanonicalStore)
-    monkeypatch.setattr(
-        vector_store_module,
-        "_normalize_vectors",
-        lambda vectors: vectors,
-    )
+    monkeypatch.setattr(canonical_vector_store, "FAISSVectorStore", _FakeCanonicalStore)
 
     store = vector_store_module.VectorStore(api_key="test", dimension=3)
     store.add_document("doc-1", "hello world")
@@ -78,16 +76,12 @@ def test_vector_store_shim_uses_canonical_embedding_backend(monkeypatch) -> None
     assert store.embed_text("hello") == [1.0, 0.0, 0.0]
     assert store.search("hello", k=1) == [{"id": "doc-1", "text": "hello world"}]
     assert store.doc_map == {0: "doc-1"}
+    assert store._store.kwargs == {"api_key": "test", "dimension": 3}
 
 
 def test_vector_store_shim_persists_and_restores_metadata(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr(vector_store_module, "create_embedding_backend", lambda **kwargs: _FakeEmbeddingBackend())
-    monkeypatch.setattr(vector_store_module, "FAISSVectorStore", _FakeCanonicalStore)
-    monkeypatch.setattr(
-        vector_store_module,
-        "_normalize_vectors",
-        lambda vectors: vectors,
-    )
+    monkeypatch.setattr(canonical_vector_store, "FAISSVectorStore", _FakeCanonicalStore)
+    monkeypatch.setitem(sys.modules, "faiss", _FakeFaiss())
 
     store = vector_store_module.VectorStore(api_key="test", dimension=3)
     store.add_document("doc-1", "hello world")
@@ -98,3 +92,4 @@ def test_vector_store_shim_persists_and_restores_metadata(tmp_path, monkeypatch)
 
     assert restored.doc_map == {0: "doc-1"}
     assert restored.documents == [{"id": "doc-1", "text_preview": "hello world"}]
+    assert restored._store._index.ntotal == 1

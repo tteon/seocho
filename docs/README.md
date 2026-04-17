@@ -36,6 +36,7 @@ Read these first unless you already know exactly which area you need:
 - [FILES_AND_ARTIFACTS.md](FILES_AND_ARTIFACTS.md): where ontology, rule, trace, and runtime files live
 - [BENCHMARKS.md](BENCHMARKS.md): benchmark tracks, peer baselines, and measurement order
 - [GASTOWN_COORDINATION.md](GASTOWN_COORDINATION.md): shared-seam reservation and handoff contract
+- [MODULE_OWNERSHIP_MAP.md](MODULE_OWNERSHIP_MAP.md): where new code should land
 - [RUNTIME_PACKAGE_MIGRATION.md](RUNTIME_PACKAGE_MIGRATION.md): staged `extraction/` to `runtime/` migration plan
 - [WORKFLOW.md](WORKFLOW.md): canonical operational workflow
 - `PRD_MVP.md`: current product scope and MVP contract
@@ -85,6 +86,7 @@ Use these when changing a specific subsystem or workflow:
 - `ARCHITECTURE.md`: system architecture and module map
 - `BENCHMARKS.md`: benchmark tracks and baseline measurement contract
 - `GASTOWN_COORDINATION.md`: coordination contract for shared write scopes
+- `MODULE_OWNERSHIP_MAP.md`: contributor-facing canonical ownership map
 - `RUNTIME_PACKAGE_MIGRATION.md`: staged package-boundary migration plan
 - `../seocho/ontology_governance.py`: offline ontology governance helpers used by `seocho ontology *`
 - `GRAPH_RAG_AGENT_HANDOFF_SPEC.md`: intent-first Graph-RAG design brief

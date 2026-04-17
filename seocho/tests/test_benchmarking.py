@@ -15,11 +15,17 @@ from seocho.benchmarking import (
     summarize_finance_contract_findings,
     summarize_finance_records,
 )
+from scripts.benchmarks.run_finder_benchmark import _local_graph_path_for_run
 
 
 class _FakeMemory:
-    def __init__(self, nodes: int, rels: int):
-        self.metadata = {"nodes_created": nodes, "relationships_created": rels}
+    def __init__(self, nodes: int, rels: int, *, fallback_used: bool = False, deduplicated: bool = False):
+        self.metadata = {
+            "nodes_created": nodes,
+            "relationships_created": rels,
+            "fallback_used": fallback_used,
+            "deduplicated": deduplicated,
+        }
 
 
 class _FakeClient:
@@ -39,6 +45,11 @@ class _FakeClient:
 class _FailingClient(_FakeClient):
     def add(self, text: str, **kwargs):
         raise RuntimeError("boom")
+
+
+class _FallbackClient(_FakeClient):
+    def add(self, text: str, **kwargs):
+        return _FakeMemory(nodes=0, rels=0, fallback_used=False, deduplicated=False)
 
 
 def test_normalize_answer_collapses_case_and_punctuation():
@@ -153,6 +164,30 @@ def test_run_finder_benchmark_summarizes_latencies_and_matches():
     assert summary.contains_match_rate == 1.0
     assert summary.avg_nodes_created == 2.0
     assert summary.avg_relationships_created == 1.0
+
+
+def test_run_finder_benchmark_preserves_indexing_metadata_flags():
+    cases = [
+        FinDERBenchmarkCase(
+            case_id="finder_010",
+            text="Meta text",
+            question="What accounting standard does Meta use?",
+            expected_answer="ASC 718.",
+            category="Accounting",
+            reasoning_type="Qualitative",
+        )
+    ]
+
+    summary = run_finder_benchmark(
+        client=_FallbackClient(),
+        cases=cases,
+        mode="local",
+        dataset="finder_sample.json",
+        database="neo4j",
+    )
+
+    assert summary.records[0].fallback_used is False
+    assert summary.records[0].deduplicated is False
 
 
 def test_run_finance_benchmark_records_failures():
@@ -358,3 +393,20 @@ def test_load_finder_cases_reads_dataset(tmp_path):
     assert len(cases) == 1
     assert cases[0].case_id == "finder_001"
     assert cases[0].reasoning_type == "Subtraction"
+
+
+def test_local_graph_path_for_run_isolated_by_workspace(tmp_path):
+    path = _local_graph_path_for_run("Finder Local 2026-04-18", base_dir=tmp_path)
+
+    assert path.endswith("finder-local-2026-04-18.lbug")
+    assert str(tmp_path) in path
+
+
+def test_local_graph_path_for_run_removes_stale_file_when_fresh(tmp_path):
+    stale_path = tmp_path / "finder-local-2026-04-18.lbug"
+    stale_path.write_text("stale")
+
+    path = _local_graph_path_for_run("Finder Local 2026-04-18", base_dir=tmp_path, fresh=True)
+
+    assert path == str(stale_path)
+    assert not stale_path.exists()

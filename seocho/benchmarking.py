@@ -110,6 +110,8 @@ class FinDERBenchmarkRecord:
     contains_match: bool
     nodes_created: int = 0
     relationships_created: int = 0
+    fallback_used: bool = False
+    deduplicated: bool = False
     error: str = ""
 
 
@@ -147,6 +149,8 @@ class FinanceBenchmarkRecord:
     contains_match: bool
     nodes_created: int = 0
     relationships_created: int = 0
+    fallback_used: bool = False
+    deduplicated: bool = False
     error: str = ""
 
 
@@ -469,12 +473,16 @@ def run_finder_benchmark(
         contains = False
         nodes_created = 0
         relationships_created = 0
+        fallback_used = False
+        deduplicated = False
         try:
             memory = client.add(case.text, database=database, category=case.category)
             add_latency_ms = (time.perf_counter() - add_started) * 1000.0
             metadata = dict(getattr(memory, "metadata", {}) or {})
             nodes_created = int(metadata.get("nodes_created", 0) or 0)
             relationships_created = int(metadata.get("relationships_created", 0) or 0)
+            fallback_used = bool(metadata.get("fallback_used", False))
+            deduplicated = bool(metadata.get("deduplicated", False))
 
             ask_started = time.perf_counter()
             answer = str(client.ask(case.question, database=database))
@@ -497,6 +505,8 @@ def run_finder_benchmark(
                 contains_match=contains,
                 nodes_created=nodes_created,
                 relationships_created=relationships_created,
+                fallback_used=fallback_used,
+                deduplicated=deduplicated,
                 error=error,
             )
         )
@@ -521,12 +531,16 @@ def run_finance_benchmark(
         contains = False
         nodes_created = 0
         relationships_created = 0
+        fallback_used = False
+        deduplicated = False
         try:
             memory = client.add(case.text, database=database, category=case.category)
             add_latency_ms = (time.perf_counter() - add_started) * 1000.0
             metadata = dict(getattr(memory, "metadata", {}) or {})
             nodes_created = int(metadata.get("nodes_created", 0) or 0)
             relationships_created = int(metadata.get("relationships_created", 0) or 0)
+            fallback_used = bool(metadata.get("fallback_used", False))
+            deduplicated = bool(metadata.get("deduplicated", False))
 
             ask_started = time.perf_counter()
             answer = str(client.ask(case.question, database=database))
@@ -549,6 +563,8 @@ def run_finance_benchmark(
                 contains_match=contains,
                 nodes_created=nodes_created,
                 relationships_created=relationships_created,
+                fallback_used=fallback_used,
+                deduplicated=deduplicated,
                 error=error,
             )
         )

@@ -29,6 +29,7 @@ python3 -m py_compile \
   runtime/agent_state.py \
   seocho/models.py \
   seocho/client.py \
+  seocho/local_engine.py \
   seocho/events.py \
   seocho/ontology_context.py \
   seocho/api.py \

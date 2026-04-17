@@ -195,6 +195,8 @@ scripts/pm/install-git-hooks.sh
   - `OPENAI_API_KEY`
   - `SEOCHO_GITHUB_APP_ID`
   - `SEOCHO_GITHUB_APP_PRIVATE_KEY`
+- if any required secret is missing, the workflow exits successfully after an
+  explicit skip notice and creates no PR
 - prompt contract: `.github/codex/prompts/daily-maintenance-pr.md`
 - skill contract: `.agents/skills/daily-maintenance-pr/SKILL.md`
 - PR contract:
@@ -214,6 +216,8 @@ scripts/pm/install-git-hooks.sh
   - `OPENAI_API_KEY`
   - `SEOCHO_GITHUB_APP_ID`
   - `SEOCHO_GITHUB_APP_PRIVATE_KEY`
+- if any required secret is missing, the workflow exits successfully after an
+  explicit skip notice and creates no PR
 - prompt contract: `.github/codex/prompts/periodic-review-pr.md`
 - skill contract: `.agents/skills/periodic-review-pr/SKILL.md`
 - PR contract:

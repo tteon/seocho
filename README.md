@@ -104,6 +104,11 @@ Choose your path:
 The bundled tutorial sample is for onboarding only. Internal benchmark and
 engineering loops should use a private finance corpus, not the tutorial sample.
 
+Scheduled Codex GitHub workflows are optional. If `OPENAI_API_KEY`,
+`SEOCHO_GITHUB_APP_ID`, or `SEOCHO_GITHUB_APP_PRIVATE_KEY` are not configured,
+the scheduled automation jobs skip cleanly; `Basic CI` remains the required
+repository check surface.
+
 ## Install Paths
 
 | Path | Install | What else you need |

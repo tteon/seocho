@@ -21,17 +21,34 @@ jobs:
       SEOCHO_GITHUB_APP_ID: ${{ secrets.SEOCHO_GITHUB_APP_ID }}
       SEOCHO_GITHUB_APP_PRIVATE_KEY: ${{ secrets.SEOCHO_GITHUB_APP_PRIVATE_KEY }}
     steps:
-      - name: Check required secrets
+      - name: Check automation secrets
+        id: secret_check
         shell: bash
         run: |
+          missing=()
           for name in OPENAI_API_KEY SEOCHO_GITHUB_APP_ID SEOCHO_GITHUB_APP_PRIVATE_KEY; do
             if [ -z "${!name}" ]; then
-              echo "Missing required secret: $name" >&2
-              exit 1
+              missing+=("$name")
             fi
           done
 
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "missing=$(IFS=,; echo "${missing[*]}")" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Codex automation skipped::Missing secrets: $(IFS=,; echo "${missing[*]}")"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+            echo "missing=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Skip maintenance when secrets are absent
+        if: steps.secret_check.outputs.ready != 'true'
+        shell: bash
+        run: |
+          echo "Skipping scheduled Codex maintenance because required secrets are not configured."
+
       - name: Create GitHub App token
+        if: steps.secret_check.outputs.ready == 'true'
         id: app_token
         uses: actions/create-github-app-token@v2
         with:
@@ -39,6 +56,7 @@ jobs:
           private-key: ${{ secrets.SEOCHO_GITHUB_APP_PRIVATE_KEY }}
 
       - name: Check out repository
+        if: steps.secret_check.outputs.ready == 'true'
         uses: actions/checkout@v4
         with:
           token: ${{ steps.app_token.outputs.token }}
@@ -46,19 +64,23 @@ jobs:
           persist-credentials: true
 
       - name: Set up Python
+        if: steps.secret_check.outputs.ready == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
       - name: Install uv
+        if: steps.secret_check.outputs.ready == 'true'
         run: python -m pip install --upgrade uv
 
       - name: Sync CI dependencies
+        if: steps.secret_check.outputs.ready == 'true'
         env:
           UV_CACHE_DIR: /tmp/uv-cache
         run: uv sync --extra ci
 
       - name: Run Codex maintenance pass
+        if: steps.secret_check.outputs.ready == 'true'
         id: run_codex
         uses: openai/codex-action@v1
         with:
@@ -69,6 +91,7 @@ jobs:
           model: gpt-5.4-mini
 
       - name: Detect repository changes
+        if: steps.secret_check.outputs.ready == 'true'
         id: changes
         shell: bash
         run: |

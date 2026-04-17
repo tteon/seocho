@@ -5,6 +5,7 @@ import argparse
 import dataclasses
 import json
 import os
+import re
 import sys
 import time
 import urllib.error
@@ -53,6 +54,21 @@ def _output_dir() -> Path:
     return path
 
 
+def _local_graph_path_for_run(
+    workspace_id: str,
+    *,
+    base_dir: Path | None = None,
+    fresh: bool = False,
+) -> str:
+    root = base_dir or (ROOT / ".seocho" / "benchmarks" / "local")
+    root.mkdir(parents=True, exist_ok=True)
+    slug = re.sub(r"[^a-z0-9]+", "-", str(workspace_id).lower()).strip("-") or "finder-local"
+    path = root / f"{slug}.lbug"
+    if fresh and path.exists():
+        path.unlink()
+    return str(path)
+
+
 def _build_finder_ontology() -> Ontology:
     return Ontology(
         name="finder_benchmark",
@@ -87,6 +103,8 @@ def _build_local_client(args: argparse.Namespace) -> Seocho:
                 "neo4j_password": args.neo4j_password,
             }
         )
+    else:
+        kwargs["graph"] = args.local_graph_path
     return Seocho.local(
         _build_finder_ontology(),
         **kwargs,
@@ -290,6 +308,11 @@ def main() -> int:
         default=os.getenv("NEO4J_URI", "") if os.getenv("FINDER_USE_BOLT") else "",
         help="Optional Bolt URI. Leave empty to use embedded LadybugDB for Seocho.local().",
     )
+    parser.add_argument(
+        "--local-graph-path",
+        default="",
+        help="Optional Ladybug file path for local mode. Defaults to an isolated per-workspace benchmark file.",
+    )
     parser.add_argument("--neo4j-user", default=os.getenv("NEO4J_USER", "neo4j"))
     parser.add_argument("--neo4j-password", default=os.getenv("NEO4J_PASSWORD", "password"))
     parser.add_argument("--model", default=os.getenv("OPENAI_MODEL", "gpt-4o-mini"))
@@ -303,6 +326,11 @@ def main() -> int:
     if not dataset_path.exists():
         raise SystemExit(
             f"FinDER dataset not found: {dataset_path}. Pass --dataset /path/to/finder_sample.json."
+        )
+    if not args.graph:
+        args.local_graph_path = args.local_graph_path or _local_graph_path_for_run(
+            args.workspace_id,
+            fresh=True,
         )
 
     all_cases = load_finder_cases(dataset_path)
@@ -390,6 +418,7 @@ def main() -> int:
         "scenario": args.scenario,
         "scenario_counts": _scenario_counts(all_cases),
         "selected_case_ids": [case.case_id for case in cases],
+        "local_graph_path": args.local_graph_path if not args.graph else "",
         "runtime_setup": output_runtime_setup,
         "summaries": summaries,
     }

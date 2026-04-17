@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import logging
 import os
 from dataclasses import dataclass, field
@@ -77,38 +76,6 @@ _runtime_raw_ingestor: Optional[RuntimeRawIngestor] = None
 _memory_service: Optional[GraphMemoryService] = None
 
 
-class _ConnectorGraphQueryAdapter:
-    """Adapt the legacy connector string API to the canonical QueryProxy contract."""
-
-    def __init__(self, connector: MultiGraphConnector) -> None:
-        self._connector = connector
-
-    def query(
-        self,
-        cypher: str,
-        *,
-        params: Optional[dict[str, Any]] = None,
-        database: str = "neo4j",
-    ) -> list[dict[str, Any]]:
-        raw = self._connector.run_cypher(query=cypher, database=database, params=dict(params or {}))
-        if isinstance(raw, str) and raw.startswith("Error"):
-            raise RuntimeError(raw)
-        if not raw:
-            return []
-
-        parsed = json.loads(raw)
-        if not isinstance(parsed, list):
-            return []
-
-        rows: list[dict[str, Any]] = []
-        for item in parsed:
-            if isinstance(item, dict):
-                rows.append(item)
-            else:
-                rows.append({"value": item})
-        return rows
-
-
 def get_neo4j_connector_service() -> Neo4jConnector:
     global _neo4j_conn
     if _neo4j_conn is None:
@@ -172,9 +139,7 @@ def get_semantic_agent_flow_service() -> SemanticAgentFlow:
 def get_graph_query_proxy_service() -> QueryProxy:
     global _graph_query_proxy
     if _graph_query_proxy is None:
-        _graph_query_proxy = QueryProxy(
-            _ConnectorGraphQueryAdapter(get_neo4j_connector_service()),
-        )
+        _graph_query_proxy = QueryProxy(get_neo4j_connector_service())
     return _graph_query_proxy
 
 

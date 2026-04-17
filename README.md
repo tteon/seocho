@@ -182,6 +182,9 @@ Current hot-path wiring is intentionally incremental:
 - `Seocho.add()` already enters `IngestionFacade` through `seocho/local_engine.py`
 - runtime semantic flow creation goes through the canonical `seocho.query.AgentFactory`
 - runtime graph reads and Cypher tool execution now pass through `QueryProxy`
+  - `QueryProxy` now normalizes legacy connector JSON/error payloads onto a
+    typed `list[dict]` row contract and emits explicit failure events when that
+    contract is violated
 - debate readiness summaries normalize onto `AgentStateMachine`
 
 The multi-agent debate specialist factory still lives behind the legacy

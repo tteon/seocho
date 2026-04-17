@@ -91,6 +91,15 @@ Each entry must link to a full ADR when impact is non-trivial.
   - normalize debate readiness through `AgentStateMachine`
   - defer debate-factory convergence and `LLMProxy` to later slices
 
+- Accepted `ADR-0084-typed-query-contract-for-runtime-and-semantic-paths.md`
+  - make `QueryProxy` the owner of the shared typed query row/error contract
+  - keep `run_cypher()` compatibility while adding typed `query()` on the
+    legacy connector surface
+  - surface semantic query contract failures as diagnostics instead of silently
+    flattening them into empty graph results
+  - classify finance benchmark query-contract failures under an explicit query
+    diagnosis code
+
 ## 2026-03-12
 
 - Accepted `ADR-0028-graph-registry-and-multi-instance-debate-runtime.md`

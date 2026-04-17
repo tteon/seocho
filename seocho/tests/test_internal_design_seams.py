@@ -6,7 +6,12 @@ from seocho.events import DomainEvent, InMemoryEventPublisher
 from seocho.index.ingestion_facade import IngestRequest, IngestionFacade
 from seocho.local_engine import _LocalEngine
 from seocho.query.agent_factory import AgentConfig, AgentFactory
-from seocho.query.query_proxy import QueryProxy, QueryRequest
+from seocho.query.query_proxy import (
+    QueryExecutionError,
+    QueryProxy,
+    QueryRequest,
+    coerce_query_records,
+)
 
 
 class _FakeIndexingResult:
@@ -74,6 +79,16 @@ class _FakeGraphStore:
         return [{"answer": 1}]
 
 
+class _StringGraphStore:
+    def query(self, cypher: str, *, params=None, database: str = "neo4j"):  # noqa: ANN001, ARG002
+        return '[{"answer": 2}]'
+
+
+class _ErrorGraphStore:
+    def query(self, cypher: str, *, params=None, database: str = "neo4j"):  # noqa: ANN001, ARG002
+        return "Error executing Cypher in 'neo4j': boom"
+
+
 def test_domain_event_records_basic_metadata() -> None:
     event = DomainEvent(
         kind="ingest.started",
@@ -133,6 +148,52 @@ def test_query_proxy_validates_and_publishes_success() -> None:
     assert store.calls[0]["database"] == "kgdemo"
     assert publisher.events[-1].kind == "query.succeeded"
     assert publisher.events[-1].payload["result_count"] == 1
+
+
+def test_query_proxy_normalizes_string_payloads() -> None:
+    publisher = InMemoryEventPublisher()
+    proxy = QueryProxy(_StringGraphStore(), publisher=publisher)
+
+    records = proxy.query(
+        QueryRequest(
+            cypher="MATCH (n) RETURN n",
+            workspace_id="ws-1",
+        )
+    )
+
+    assert records == [{"answer": 2}]
+    assert publisher.events[-1].kind == "query.succeeded"
+
+
+def test_query_proxy_publishes_failed_event_for_contract_errors() -> None:
+    publisher = InMemoryEventPublisher()
+    proxy = QueryProxy(_ErrorGraphStore(), publisher=publisher)
+
+    try:
+        proxy.query(
+            QueryRequest(
+                cypher="MATCH (n) RETURN n",
+                workspace_id="ws-1",
+            )
+        )
+    except QueryExecutionError as exc:
+        assert "boom" in str(exc)
+    else:  # pragma: no cover
+        raise AssertionError("expected QueryExecutionError")
+
+    assert publisher.events[-1].kind == "query.failed"
+    assert "boom" in publisher.events[-1].payload["error"]
+
+
+def test_coerce_query_records_wraps_scalar_rows() -> None:
+    rows = coerce_query_records(
+        '[1, {"answer": 3}]',
+        database="neo4j",
+        cypher="RETURN 1",
+        source="unit",
+    )
+
+    assert rows == [{"value": 1}, {"answer": 3}]
 
 
 def test_agent_factory_registers_and_creates_agents() -> None:

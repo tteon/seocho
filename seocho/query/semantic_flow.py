@@ -45,6 +45,7 @@ class SemanticAgentFlow:
         trace_steps: List[Dict[str, Any]] = []
 
         semantic_context = self.resolver.resolve(question, databases, workspace_id=workspace_id)
+        semantic_context.setdefault("query_diagnostics", [])
         constraint_slices = self.constraint_builder.build_for_databases(
             databases,
             workspace_id=workspace_id,
@@ -127,6 +128,8 @@ class SemanticAgentFlow:
                 semantic_context["reasoning"] = lpg_result["reasoning"]
             if isinstance(lpg_result.get("support_assessment"), dict):
                 semantic_context["support_assessment"] = lpg_result["support_assessment"]
+            if isinstance(lpg_result.get("query_diagnostics"), list):
+                semantic_context["query_diagnostics"] = list(lpg_result["query_diagnostics"])
             trace_steps.append(
                 {
                     "id": "3",
@@ -222,6 +225,7 @@ class SemanticAgentFlow:
             "strategy_decision": semantic_context.get("strategy_decision", {}),
             "run_metadata": semantic_context.get("run_metadata", {}),
             "evidence_bundle": semantic_context.get("evidence_bundle_preview", {}),
+            "query_diagnostics": semantic_context.get("query_diagnostics", []),
         }
 
     @staticmethod

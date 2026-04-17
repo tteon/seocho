@@ -7,6 +7,7 @@ import logging
 from typing import Any, Dict, Optional, Tuple
 
 from neo4j import GraphDatabase
+from seocho.query.query_proxy import coerce_query_records
 
 from config import (
     GraphTarget,
@@ -98,6 +99,27 @@ class MultiGraphConnector:
             scope = graph_id or database
             logger.error("Error executing Cypher in '%s': %s", scope, exc)
             return f"Error executing Cypher in '{scope}': {exc}"
+
+    def query(
+        self,
+        cypher: str,
+        *,
+        params: Optional[Dict[str, Any]] = None,
+        database: str = "neo4j",
+    ) -> list[Dict[str, Any]]:
+        """Typed query surface used by canonical query/runtime seams."""
+
+        raw = self.run_cypher(
+            query=cypher,
+            database=database,
+            params=params,
+        )
+        return coerce_query_records(
+            raw,
+            database=database,
+            cypher=cypher,
+            source=self.__class__.__name__,
+        )
 
     def close(self) -> None:
         for driver in self._drivers.values():

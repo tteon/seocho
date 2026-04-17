@@ -53,6 +53,13 @@ class FakeConnector:
         return json.dumps([])
 
 
+class FailingRelationshipConnector(FakeConnector):
+    def run_cypher(self, query, database="neo4j", params=None):
+        if "AS source_entity" in query and "AS relation_type" in query:
+            return "Error executing Cypher in 'neo4j': simulated contract failure"
+        return super().run_cypher(query, database=database, params=params)
+
+
 def test_canonical_semantic_agent_flow_runs_end_to_end():
     flow = SemanticAgentFlow(FakeConnector())
     result = flow.run("What is Neo4j connected to?", ["kgnormal"])
@@ -111,3 +118,18 @@ def test_answer_generation_preserves_long_supporting_sentence_product_ids():
 
     direct_answer = response.split("Route selected:", 1)[0]
     assert "H100 and A100 product lines" in direct_answer
+
+
+def test_canonical_semantic_flow_reports_query_contract_failures():
+    flow = SemanticAgentFlow(FailingRelationshipConnector())
+
+    result = flow.run(
+        "What is Neo4j connected to?",
+        ["kgnormal"],
+        reasoning_mode=True,
+        repair_budget=1,
+    )
+
+    assert result["query_diagnostics"]
+    assert result["query_diagnostics"][0]["diagnosis_code"] == "query_execution_failed_or_contract_error"
+    assert result["lpg_result"]["reasoning"]["query_failure_count"] >= 1

@@ -14,6 +14,7 @@ from .constraints import SemanticConstraintSliceBuilder
 from .contracts import CypherPlan, InsufficiencyAssessment
 from .cypher_validator import CypherQueryValidator
 from .insufficiency import QueryInsufficiencyClassifier
+from .query_proxy import QueryExecutionError, coerce_query_records
 from .run_registry import RunMetadataRegistry
 from .strategy_chooser import ExecutionStrategyChooser, IntentSupportValidator
 
@@ -99,6 +100,7 @@ QUESTION_LABEL_HINTS = {
 }
 
 DEFAULT_SEMANTIC_ARTIFACT_DIR = "outputs/semantic_artifacts"
+QUERY_CONTRACT_FAILURE_CODE = "query_execution_failed_or_contract_error"
 
 
 def _normalize(value: str) -> str:
@@ -109,14 +111,44 @@ def _normalize_symbol(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", "", str(value).lower())
 
 
-def _parse_cypher_rows(raw: Any) -> List[Dict[str, Any]]:
-    if isinstance(raw, str) and raw.startswith("Error"):
-        return []
-    try:
-        parsed = json.loads(raw)
-    except Exception:
-        return []
-    return parsed if isinstance(parsed, list) else []
+def _query_rows(
+    connector: Any,
+    *,
+    query: str,
+    database: str,
+    params: Optional[Dict[str, Any]],
+    source: str,
+) -> List[Dict[str, Any]]:
+    query_method = getattr(connector, "query", None)
+    if callable(query_method):
+        return query_method(query, params=params, database=database)
+    raw = connector.run_cypher(query=query, database=database, params=params)
+    return coerce_query_records(
+        raw,
+        database=database,
+        cypher=query,
+        source=source,
+    )
+
+
+def _query_failure_diagnostic(
+    *,
+    exc: QueryExecutionError,
+    database: str,
+    phase: str,
+    strategy: str = "",
+    anchor_entity: str = "",
+) -> Dict[str, Any]:
+    return {
+        "diagnosis_code": QUERY_CONTRACT_FAILURE_CODE,
+        "status": "query_failed",
+        "phase": phase,
+        "database": database,
+        "strategy": strategy,
+        "anchor_entity": anchor_entity,
+        "source": exc.source,
+        "error": str(exc),
+    }
 
 
 class OntologyHintStore:
@@ -523,6 +555,7 @@ class SemanticEntityResolver:
             path=os.getenv("ONTOLOGY_HINTS_PATH", "output/ontology_hints.json")
         )
         self.vocabulary_resolver = vocabulary_resolver or ManagedVocabularyResolver()
+        self._query_diagnostics: List[Dict[str, Any]] = []
 
     def extract_question_entities(self, question: str) -> List[str]:
         quoted = [m.group(1).strip() for m in re.finditer(r'"([^"]+)"', question)]
@@ -566,6 +599,7 @@ class SemanticEntityResolver:
         databases: Sequence[str],
         workspace_id: str = "default",
     ) -> Dict[str, Any]:
+        self._query_diagnostics = []
         entities = self.extract_question_entities(question)
         label_hints = self._infer_label_hints(question)
         label_hints.update(self.ontology_hint_store.infer_label_hints(question))
@@ -625,6 +659,7 @@ class SemanticEntityResolver:
             semantic_context=semantic_context,
             matched_entities=entities,
         )
+        semantic_context["query_diagnostics"] = list(self._query_diagnostics)
         return semantic_context
 
     def _discover_fulltext_indexes(self, databases: Sequence[str]) -> Dict[str, List[str]]:
@@ -636,7 +671,12 @@ class SemanticEntityResolver:
                 "SHOW INDEXES YIELD name, type, state WHERE type = 'FULLTEXT' AND state = 'ONLINE' RETURN name",
             ]
             for query in candidates:
-                rows = self._run_query(db_name, query, params=None)
+                rows = self._run_query(
+                    db_name,
+                    query,
+                    params=None,
+                    phase="resolver_fulltext_index_discovery",
+                )
                 if rows:
                     indexes = [str(row.get("name", "")).strip() for row in rows if row.get("name")]
                     if indexes:
@@ -678,6 +718,7 @@ class SemanticEntityResolver:
                     "limit": self.candidate_limit,
                     "workspace_id": workspace_id,
                 },
+                phase="resolver_fulltext_lookup",
             )
             if not rows:
                 continue
@@ -726,6 +767,7 @@ class SemanticEntityResolver:
                 "limit": self.candidate_limit,
                 "workspace_id": workspace_id,
             },
+            phase="resolver_contains_lookup",
         )
         candidates: List[Dict[str, Any]] = []
         for row in rows:
@@ -805,19 +847,27 @@ class SemanticEntityResolver:
         db_name: str,
         query: str,
         params: Optional[Dict[str, Any]],
+        *,
+        phase: str,
     ) -> List[Dict[str, Any]]:
-        raw = self.connector.run_cypher(query=query, database=db_name, params=params)
-        if isinstance(raw, str) and raw.startswith("Error"):
-            logger.debug("Cypher error [%s]: %s", db_name, raw)
-            return []
         try:
-            parsed = json.loads(raw)
-        except Exception:
-            logger.debug("Non-JSON query output [%s]: %s", db_name, str(raw)[:160])
+            return _query_rows(
+                self.connector,
+                query=query,
+                database=db_name,
+                params=params,
+                source=self.__class__.__name__,
+            )
+        except QueryExecutionError as exc:
+            logger.debug("Query contract failure [%s/%s]: %s", db_name, phase, exc)
+            self._query_diagnostics.append(
+                _query_failure_diagnostic(
+                    exc=exc,
+                    database=db_name,
+                    phase=phase,
+                )
+            )
             return []
-        if not isinstance(parsed, list):
-            return []
-        return parsed
 
     @staticmethod
     def _clean_span(value: str) -> str:
@@ -1036,6 +1086,7 @@ class LPGAgent:
             semantic_context,
             constraint_slices or {},
         )
+        query_diagnostics = list(semantic_context.get("query_diagnostics", []))
         if not top_matches:
             return {
                 "mode": "lpg",
@@ -1047,9 +1098,11 @@ class LPGAgent:
                     "attempt_count": 0,
                     "repair_trace": [],
                     "self_reflection_used": False,
+                    "query_failure_count": len(query_diagnostics),
                 },
                 "support_assessment": semantic_context.get("support_assessment", {}),
                 "execution_strategy": semantic_context.get("strategy_decision", {}),
+                "query_diagnostics": query_diagnostics,
             }
 
         constraint_slices = constraint_slices or self.constraint_builder.build_for_databases(
@@ -1079,6 +1132,7 @@ class LPGAgent:
                 anchor_match=item,
                 constraint_slice=constraint_slice,
                 attempt_limit=attempt_limit,
+                query_diagnostics=query_diagnostics,
             )
             repair_trace.extend(execution["repair_trace"])
             if execution["records"]:
@@ -1116,6 +1170,7 @@ class LPGAgent:
                     "repair_trace": repair_trace,
                     "constraint_slice": self._summarize_constraint_slice(selected_constraint_slice),
                     "self_reflection_used": self_reflection_used,
+                    "query_failure_count": len(query_diagnostics),
                     "insufficiency": (
                         {
                             "reason": best_assessment.reason,
@@ -1129,6 +1184,7 @@ class LPGAgent:
                 "evidence_bundle": best_bundle or semantic_context.get("evidence_bundle_preview", {}),
                 "support_assessment": best_support_assessment or semantic_context.get("support_assessment", {}),
                 "execution_strategy": semantic_context.get("strategy_decision", {}),
+                "query_diagnostics": query_diagnostics,
             }
 
         best_reason = best_assessment.reason if best_assessment is not None else "sufficient"
@@ -1148,10 +1204,12 @@ class LPGAgent:
                 "constraint_slice": self._summarize_constraint_slice(selected_constraint_slice),
                 "terminal_reason": best_reason,
                 "self_reflection_used": self_reflection_used,
+                "query_failure_count": len(query_diagnostics),
             },
             "evidence_bundle": best_bundle or semantic_context.get("evidence_bundle_preview", {}),
             "support_assessment": best_support_assessment or semantic_context.get("support_assessment", {}),
             "execution_strategy": semantic_context.get("strategy_decision", {}),
+            "query_diagnostics": query_diagnostics,
         }
 
     def _top_entity_matches(
@@ -1170,6 +1228,7 @@ class LPGAgent:
         anchor_match: Dict[str, Any],
         constraint_slice: Dict[str, Any],
         attempt_limit: int,
+        query_diagnostics: List[Dict[str, Any]],
     ) -> Dict[str, Any]:
         intent = semantic_context.get("intent", {})
         records: List[Dict[str, Any]] = []
@@ -1210,12 +1269,42 @@ class LPGAgent:
                 )
                 continue
 
-            raw = self.connector.run_cypher(
-                query=plan.query,
-                database=plan.database,
-                params=plan.params,
-            )
-            rows = _parse_cypher_rows(raw)
+            try:
+                rows = _query_rows(
+                    self.connector,
+                    query=plan.query,
+                    database=plan.database,
+                    params=plan.params,
+                    source=self.__class__.__name__,
+                )
+            except QueryExecutionError as exc:
+                diagnostic = _query_failure_diagnostic(
+                    exc=exc,
+                    database=plan.database,
+                    phase="lpg_runtime_query",
+                    strategy=strategy,
+                    anchor_entity=str(plan.anchor_entity),
+                )
+                query_diagnostics.append(diagnostic)
+                repair_trace.append(
+                    {
+                        "strategy": strategy,
+                        "database": plan.database,
+                        "graph_id": constraint_slice.get("graph_id"),
+                        "anchor_entity": plan.anchor_entity,
+                        "relation_types": list(plan.relation_types),
+                        "status": "query_failed",
+                        "diagnosis_code": QUERY_CONTRACT_FAILURE_CODE,
+                        "error": diagnostic["error"],
+                    }
+                )
+                last_assessment = InsufficiencyAssessment(
+                    sufficient=False,
+                    reason="query_execution_failed",
+                    missing_slots=tuple(intent.get("focus_slots", [])),
+                    row_count=0,
+                )
+                continue
             annotated_rows = [
                 {
                     "database": plan.database,
@@ -1609,14 +1698,18 @@ class LPGAgent:
         """
         rows: List[Dict[str, Any]] = []
         for db_name in databases:
-            raw = self.connector.run_cypher(query=query, database=db_name, params=None)
             try:
-                parsed = json.loads(raw)
-            except Exception:
+                parsed = _query_rows(
+                    self.connector,
+                    query=query,
+                    database=db_name,
+                    params=None,
+                    source=self.__class__.__name__,
+                )
+            except QueryExecutionError:
                 continue
-            if isinstance(parsed, list):
-                for row in parsed:
-                    rows.append({"database": db_name, **row})
+            for row in parsed:
+                rows.append({"database": db_name, **row})
         return rows
 
 
@@ -1666,18 +1759,18 @@ class RDFAgent:
         """
         all_rows: List[Dict[str, Any]] = []
         for db_name in databases:
-            raw = self.connector.run_cypher(
-                query=query,
-                database=db_name,
-                params={"query": entity_text, "limit": self.result_limit},
-            )
             try:
-                parsed = json.loads(raw)
-            except Exception:
+                parsed = _query_rows(
+                    self.connector,
+                    query=query,
+                    database=db_name,
+                    params={"query": entity_text, "limit": self.result_limit},
+                    source=self.__class__.__name__,
+                )
+            except QueryExecutionError:
                 continue
-            if isinstance(parsed, list):
-                for row in parsed:
-                    all_rows.append({"database": db_name, **row})
+            for row in parsed:
+                all_rows.append({"database": db_name, **row})
         return all_rows
 
     def _rdf_label_overview(self, databases: Sequence[str]) -> List[Dict[str, Any]]:
@@ -1691,14 +1784,18 @@ class RDFAgent:
         """
         rows: List[Dict[str, Any]] = []
         for db_name in databases:
-            raw = self.connector.run_cypher(query=query, database=db_name, params=None)
             try:
-                parsed = json.loads(raw)
-            except Exception:
+                parsed = _query_rows(
+                    self.connector,
+                    query=query,
+                    database=db_name,
+                    params=None,
+                    source=self.__class__.__name__,
+                )
+            except QueryExecutionError:
                 continue
-            if isinstance(parsed, list):
-                for row in parsed:
-                    rows.append({"database": db_name, **row})
+            for row in parsed:
+                rows.append({"database": db_name, **row})
         return rows
 
 

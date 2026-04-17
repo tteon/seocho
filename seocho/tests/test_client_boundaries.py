@@ -7,6 +7,8 @@ from seocho.client_artifacts import (
     approved_artifacts_from_ontology,
     prompt_context_from_ontology,
 )
+from seocho.client_bundle import RuntimeBundleClientHelper
+from seocho.client_remote import RemoteClientHelper
 from seocho.exceptions import SeochoConnectionError, SeochoHTTPError
 from seocho.http_transport import RuntimeHttpTransport
 from seocho.ontology import NodeDef, Ontology, P
@@ -34,6 +36,7 @@ class _FakeSession:
     def __init__(self, responses: List[_FakeResponse]) -> None:
         self.responses = list(responses)
         self.calls: List[Dict[str, Any]] = []
+        self.closed = False
 
     def request(self, method: str, url: str, json=None, params=None, timeout=None):
         self.calls.append(
@@ -48,6 +51,9 @@ class _FakeSession:
         if not self.responses:
             raise AssertionError("No fake responses left")
         return self.responses.pop(0)
+
+    def close(self) -> None:
+        self.closed = True
 
 
 def _build_client() -> Seocho:
@@ -101,3 +107,75 @@ def test_http_transport_wraps_connection_errors() -> None:
         raise AssertionError("Expected SeochoConnectionError")
     except SeochoConnectionError as exc:
         assert "Could not reach SEOCHO" in str(exc)
+
+
+def test_client_initializes_remote_helper_and_delegates_request_json() -> None:
+    session = _FakeSession([_FakeResponse(payload={"graphs": []})])
+    client = Seocho(base_url="http://localhost:8001", session=session)
+
+    payload = client._request_json("GET", "/graphs")
+
+    assert isinstance(client._remote, RemoteClientHelper)
+    assert client._transport is client._remote.transport
+    assert client.base_url == "http://localhost:8001/"
+    assert payload == {"graphs": []}
+
+    client.close()
+    assert session.closed is True
+
+
+def test_client_bundle_helper_exports_runtime_bundle(monkeypatch) -> None:
+    class _FakeBundle:
+        def __init__(self) -> None:
+            self.saved_path: str | None = None
+
+        def save(self, path: str) -> None:
+            self.saved_path = path
+
+    fake_bundle = _FakeBundle()
+    calls: Dict[str, Any] = {}
+
+    def _fake_build_runtime_bundle(client: Seocho, *, app_name: str | None, default_database: str):
+        calls["client"] = client
+        calls["app_name"] = app_name
+        calls["default_database"] = default_database
+        return fake_bundle
+
+    monkeypatch.setattr("seocho.client_bundle.build_runtime_bundle", _fake_build_runtime_bundle)
+
+    client = Seocho(base_url="http://localhost:8001", session=_FakeSession([]))
+    bundle = client.export_runtime_bundle(
+        path="/tmp/portable.bundle.json",
+        app_name="portable-app",
+        default_database="news",
+    )
+
+    assert isinstance(client._bundle_helper, RuntimeBundleClientHelper)
+    assert bundle is fake_bundle
+    assert fake_bundle.saved_path == "/tmp/portable.bundle.json"
+    assert calls["client"] is client
+    assert calls["app_name"] == "portable-app"
+    assert calls["default_database"] == "news"
+
+    client.close()
+
+
+def test_client_bundle_helper_rehydrates_from_bundle(monkeypatch) -> None:
+    expected = object()
+    calls: Dict[str, Any] = {}
+
+    def _fake_create_client_from_runtime_bundle(bundle_source: str, *, workspace_id: str | None = None):
+        calls["bundle_source"] = bundle_source
+        calls["workspace_id"] = workspace_id
+        return expected
+
+    monkeypatch.setattr(
+        "seocho.client_bundle.create_client_from_runtime_bundle",
+        _fake_create_client_from_runtime_bundle,
+    )
+
+    client = Seocho.from_runtime_bundle("portable.bundle.json", workspace_id="tenant-a")
+
+    assert client is expected
+    assert calls["bundle_source"] == "portable.bundle.json"
+    assert calls["workspace_id"] == "tenant-a"

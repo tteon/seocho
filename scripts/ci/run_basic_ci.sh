@@ -29,6 +29,8 @@ python3 -m py_compile \
   runtime/agent_state.py \
   seocho/models.py \
   seocho/client.py \
+  seocho/client_bundle.py \
+  seocho/client_remote.py \
   seocho/local_engine.py \
   seocho/events.py \
   seocho/ontology_context.py \
@@ -54,6 +56,8 @@ uv run pytest \
   extraction/tests/test_pipeline_canonical_engine.py \
   extraction/tests/test_api_endpoints.py \
   extraction/tests/test_sdk_client.py \
+  seocho/tests/test_client_boundaries.py \
+  seocho/tests/test_runtime_bundle.py \
   seocho/tests/test_internal_design_seams.py \
   seocho/tests/test_ontology_context.py \
   seocho/tests/test_session_agent.py \

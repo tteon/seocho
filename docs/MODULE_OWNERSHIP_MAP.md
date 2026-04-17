@@ -21,7 +21,7 @@ going in the wrong place.
 
 | Concern | Canonical owner | Compatibility or legacy surface | Notes |
 |---|---|---|---|
-| Public SDK facade | `seocho/client.py`, `seocho/http_transport.py`, `seocho/client_artifacts.py` | none | Keep facade thin; move helpers out before adding more logic |
+| Public SDK facade | `seocho/client.py`, `seocho/http_transport.py`, `seocho/client_artifacts.py`, `seocho/client_remote.py`, `seocho/client_bundle.py`, `seocho/local_engine.py` | none | Keep facade thin; move helper ownership into dedicated modules before adding more logic |
 | Ontology schema and governance | `seocho/ontology*.py` | none | Offline governance stays out of hot paths |
 | Indexing and graph shaping | `seocho/index/*`, `seocho/rules.py` | `extraction/pipeline.py`, `extraction/rule_constraints.py` | Indexing, linking, runtime memory shaping, and rule logic belong here |
 | Query, routing, evidence, answering | `seocho/query/*`, `seocho/prompt_strategy.py` | none | Semantic and debate behavior should converge here |

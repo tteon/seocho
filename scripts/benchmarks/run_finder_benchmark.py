@@ -2,9 +2,14 @@
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import json
 import os
 import sys
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -88,10 +93,6 @@ def _build_local_client(args: argparse.Namespace) -> Seocho:
     )
 
 
-def _build_remote_client(args: argparse.Namespace) -> Seocho:
-    return Seocho.remote(args.base_url, workspace_id=args.workspace_id)
-
-
 def _write_summary(payload: dict) -> Path:
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     target = _output_dir() / f"finder_benchmark_{timestamp}.json"
@@ -106,36 +107,147 @@ def _scenario_counts(cases: list) -> dict[str, int]:
     return counts
 
 
-def _run_remote_semantic_benchmark(args: argparse.Namespace, client: Seocho, cases: list) -> dict:
+def _request_json(
+    *,
+    base_url: str,
+    method: str,
+    path: str,
+    payload: dict | None = None,
+    query: dict | None = None,
+    timeout: float = 120.0,
+) -> tuple[int, object]:
+    url = base_url.rstrip("/") + path
+    if query:
+        url += "?" + urllib.parse.urlencode(query)
+    headers = {"Accept": "application/json"}
+    data = None
+    if payload is not None:
+        headers["Content-Type"] = "application/json"
+        data = json.dumps(payload).encode("utf-8")
+    request = urllib.request.Request(url, data=data, headers=headers, method=method.upper())
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            body = response.read().decode("utf-8", errors="replace")
+            return int(response.status), json.loads(body) if body else {}
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="replace")
+        try:
+            parsed = json.loads(body) if body else {}
+        except json.JSONDecodeError:
+            parsed = {"raw": body}
+        return int(exc.code), parsed
+    except Exception as exc:
+        return 0, {"error": f"{type(exc).__name__}: {exc}"}
+
+
+def _extract_answer(payload: object) -> str:
+    if not isinstance(payload, dict):
+        return ""
+    for key in ("response", "assistant_message", "answer"):
+        value = payload.get(key)
+        if isinstance(value, str):
+            return value
+    runtime_payload = payload.get("runtime_payload")
+    if isinstance(runtime_payload, dict):
+        for key in ("response", "assistant_message", "answer"):
+            value = runtime_payload.get(key)
+            if isinstance(value, str):
+                return value
+    return ""
+
+
+def _remote_setup(args: argparse.Namespace, cases: list) -> dict:
+    records = [
+        {
+            "id": case.case_id,
+            "content": case.text,
+            "category": case.category,
+            "source_type": "text",
+            "metadata": {
+                "benchmark_case_id": case.case_id,
+                "question": case.question,
+                "expected_answer": case.expected_answer,
+                "reasoning_type": case.reasoning_type,
+            },
+        }
+        for case in cases
+    ]
+
+    started = time.perf_counter()
+    ingest_status, ingest_payload = _request_json(
+        base_url=args.base_url,
+        method="POST",
+        path="/platform/ingest/raw",
+        payload={
+            "workspace_id": args.workspace_id,
+            "target_database": args.database,
+            "records": records,
+            "enable_rule_constraints": True,
+            "create_database_if_missing": True,
+            "semantic_artifact_policy": "auto",
+        },
+        timeout=args.timeout,
+    )
+    ingest_latency_ms = round((time.perf_counter() - started) * 1000.0, 2)
+
+    started = time.perf_counter()
+    fulltext_status, fulltext_payload = _request_json(
+        base_url=args.base_url,
+        method="POST",
+        path="/indexes/fulltext/ensure",
+        payload={
+            "workspace_id": args.workspace_id,
+            "databases": [args.database],
+            "index_name": "entity_fulltext",
+            "create_if_missing": True,
+        },
+        timeout=args.timeout,
+    )
+    fulltext_latency_ms = round((time.perf_counter() - started) * 1000.0, 2)
+
+    return {
+        "ingest_status_code": ingest_status,
+        "ingest_latency_ms": ingest_latency_ms,
+        "ingest_payload": ingest_payload,
+        "fulltext_status_code": fulltext_status,
+        "fulltext_latency_ms": fulltext_latency_ms,
+        "fulltext_payload": fulltext_payload,
+    }
+
+
+def _run_remote_endpoint_benchmark(
+    args: argparse.Namespace,
+    cases: list,
+    *,
+    mode: str,
+    path: str,
+    payload_factory,
+    setup_latency_ms: float,
+) -> dict:
     records: list[FinDERBenchmarkRecord] = []
+    amortized_add_latency_ms = round(setup_latency_ms / max(1, len(cases)), 2)
     for case in cases:
-        add_started = datetime.now(timezone.utc)
         answer = ""
         error = ""
         exact = False
         contains = False
-        nodes_created = 0
-        relationships_created = 0
+        started = time.perf_counter()
         try:
-            before = datetime.now(timezone.utc)
-            memory = client.add(case.text, database=args.database, category=case.category)
-            add_latency_ms = (datetime.now(timezone.utc) - before).total_seconds() * 1000.0
-            metadata = dict(getattr(memory, "metadata", {}) or {})
-            nodes_created = int(metadata.get("nodes_created", 0) or 0)
-            relationships_created = int(metadata.get("relationships_created", 0) or 0)
-
-            before = datetime.now(timezone.utc)
-            result = client.semantic(
-                case.question,
-                databases=[args.database],
-                reasoning_mode=args.reasoning_mode,
-                repair_budget=args.repair_budget,
+            status_code, payload = _request_json(
+                base_url=args.base_url,
+                method="POST",
+                path=path,
+                payload=payload_factory(case),
+                timeout=args.timeout,
             )
-            ask_latency_ms = (datetime.now(timezone.utc) - before).total_seconds() * 1000.0
-            answer = str(result.response)
-            exact, contains = compare_answers(case.expected_answer, answer)
+            ask_latency_ms = round((time.perf_counter() - started) * 1000.0, 2)
+            if 200 <= status_code < 300:
+                answer = _extract_answer(payload)
+                exact, contains = compare_answers(case.expected_answer, answer)
+            else:
+                detail = payload.get("detail") if isinstance(payload, dict) else ""
+                error = str(detail or payload)
         except Exception as exc:  # pragma: no cover
-            add_latency_ms = (datetime.now(timezone.utc) - add_started).total_seconds() * 1000.0
             ask_latency_ms = 0.0
             error = str(exc)
 
@@ -143,19 +255,19 @@ def _run_remote_semantic_benchmark(args: argparse.Namespace, client: Seocho, cas
             FinDERBenchmarkRecord(
                 case_id=case.case_id,
                 category=case.category,
-                add_latency_ms=round(add_latency_ms, 2),
+                add_latency_ms=amortized_add_latency_ms,
                 ask_latency_ms=round(ask_latency_ms, 2),
                 answer=answer,
                 expected_answer=case.expected_answer,
                 exact_match=exact,
                 contains_match=contains,
-                nodes_created=nodes_created,
-                relationships_created=relationships_created,
+                nodes_created=0,
+                relationships_created=0,
                 error=error,
             )
         )
     return summarize_finder_records(
-        mode="remote-semantic",
+        mode=mode,
         dataset=str(args.dataset),
         records=records,
     ).to_dict()
@@ -184,6 +296,7 @@ def main() -> int:
     parser.add_argument("--workspace-id", default=f"finder-benchmark-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}")
     parser.add_argument("--reasoning-mode", action="store_true")
     parser.add_argument("--repair-budget", type=int, default=0)
+    parser.add_argument("--timeout", type=float, default=float(os.getenv("FINDER_RUNTIME_TIMEOUT", "180")))
     args = parser.parse_args()
 
     dataset_path = Path(args.dataset)
@@ -215,11 +328,59 @@ def main() -> int:
             local_client.close()
 
     if args.mode in {"remote", "both"}:
-        remote_client = _build_remote_client(args)
-        try:
-            summaries.append(_run_remote_semantic_benchmark(args, remote_client, cases))
-        finally:
-            remote_client.close()
+        runtime_setup = _remote_setup(args, cases)
+        output_runtime_setup = runtime_setup
+        summaries.append(
+            _run_remote_endpoint_benchmark(
+                args,
+                cases,
+                mode="remote-semantic",
+                path="/run_agent_semantic",
+                setup_latency_ms=float(runtime_setup["ingest_latency_ms"]),
+                payload_factory=lambda case: {
+                    "query": case.question,
+                    "workspace_id": args.workspace_id,
+                    "user_id": "finder_runtime_benchmark",
+                    "databases": [args.database],
+                    "reasoning_mode": args.reasoning_mode,
+                    "repair_budget": args.repair_budget if args.reasoning_mode else 0,
+                },
+            )
+        )
+        summaries.append(
+            _run_remote_endpoint_benchmark(
+                args,
+                cases,
+                mode="remote-debate",
+                path="/run_debate",
+                setup_latency_ms=float(runtime_setup["ingest_latency_ms"]),
+                payload_factory=lambda case: {
+                    "query": case.question,
+                    "workspace_id": args.workspace_id,
+                    "user_id": "finder_runtime_benchmark",
+                    "graph_ids": [args.database],
+                },
+            )
+        )
+        summaries.append(
+            _run_remote_endpoint_benchmark(
+                args,
+                cases,
+                mode="remote-platform-semantic",
+                path="/platform/chat/send",
+                setup_latency_ms=float(runtime_setup["ingest_latency_ms"]),
+                payload_factory=lambda case: {
+                    "session_id": f"{args.workspace_id}-platform-{case.case_id}",
+                    "message": case.question,
+                    "mode": "semantic",
+                    "workspace_id": args.workspace_id,
+                    "user_id": "finder_runtime_benchmark",
+                    "databases": [args.database],
+                },
+            )
+        )
+    else:
+        output_runtime_setup = {}
 
     output = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -229,6 +390,7 @@ def main() -> int:
         "scenario": args.scenario,
         "scenario_counts": _scenario_counts(all_cases),
         "selected_case_ids": [case.case_id for case in cases],
+        "runtime_setup": output_runtime_setup,
         "summaries": summaries,
     }
     path = _write_summary(output)

@@ -150,6 +150,28 @@ more than HTTP route files. The staged migration contract lives in
 `docs/RUNTIME_PACKAGE_MIGRATION.md`. Contributor-facing placement guidance
 lives in `docs/MODULE_OWNERSHIP_MAP.md`.
 
+## Internal Orchestration Seams (2026-04-17)
+
+`ADR-0080` introduced internal seams for the modular monolith. The important
+question now is where those seams are actually in use.
+
+Current wiring:
+
+- local SDK ingest path: `Seocho.add()` -> `seocho/local_engine._LocalEngine`
+  -> `seocho.index.ingestion_facade.IngestionFacade` -> `seocho.index.pipeline.IndexingPipeline`
+- runtime semantic composition root: `runtime/server_runtime.py` now builds the
+  shared `SemanticAgentFlow` through the canonical `seocho.query.AgentFactory`
+- runtime graph reads: `runtime/memory_service.py` and runtime Cypher tool
+  execution now route read queries through `seocho.query.QueryProxy`
+- runtime readiness model: `runtime.agent_readiness.summarize_readiness()`
+  normalizes debate availability onto `runtime.agent_state.AgentStateMachine`
+
+Explicit non-goal for this slice:
+
+- the legacy debate specialist-agent factory in `extraction/agent_factory.py`
+  is still in place. That path remains compatible, but it is not yet the
+  canonical factory seam.
+
 ## Ontology Module Boundaries (Active Direction)
 
 Ontology remains a first-class SDK primitive, but it should no longer behave as

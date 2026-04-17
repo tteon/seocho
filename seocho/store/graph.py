@@ -25,7 +25,7 @@ import logging
 import re
 import time
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Callable, Dict, List, Optional, Sequence
 
 from seocho.ontology import Ontology
 
@@ -727,13 +727,104 @@ def _ladybug_property_projection(variable: str, *, relation: bool) -> str:
     return "{" + items + "}"
 
 
-def _rewrite_ladybug_query(cypher: str) -> str:
+def _ladybug_expand_param_predicate(
+    cypher: str,
+    params: Dict[str, Any],
+    *,
+    pattern: str,
+    param_name: str,
+    param_prefix: str,
+    clause_factory: Callable[[str], str],
+    joiner: str,
+) -> str:
+    values = [str(value) for value in (params.get(param_name) or []) if str(value).strip()]
+    if not re.search(pattern, cypher, flags=re.IGNORECASE):
+        return cypher
+    if not values:
+        return re.sub(pattern, "TRUE", cypher, flags=re.IGNORECASE)
+
+    clauses: List[str] = []
+    for index, value in enumerate(values):
+        key = f"{param_prefix}_{index}"
+        params[key] = value
+        clauses.append(clause_factory(key))
+    replacement = "(" + joiner.join(clauses) + ")"
+    return re.sub(pattern, replacement, cypher, flags=re.IGNORECASE)
+
+
+def _rewrite_ladybug_query(cypher: str, params: Optional[Dict[str, Any]] = None) -> tuple[str, Dict[str, Any]]:
+    query_params = dict(params or {})
+    rewritten = _ladybug_expand_param_predicate(
+        cypher,
+        query_params,
+        pattern=(
+            r"\(\$relationship_candidates\s*=\s*\[\]\s+OR\s+type\(r\)\s+IN\s+\$relationship_candidates\s*\)"
+        ),
+        param_name="relationship_candidates",
+        param_prefix="__ladybug_relationship_candidate",
+        clause_factory=lambda key: f"coalesce(r.type, '') = ${key}",
+        joiner=" OR ",
+    )
+    rewritten = _ladybug_expand_param_predicate(
+        rewritten,
+        query_params,
+        pattern=(
+            r"\(\$metric_aliases\s*=\s*\[\]\s+OR\s+ANY\(\s*alias\s+IN\s+\$metric_aliases\s+WHERE\s+"
+            r"toLower\(coalesce\(m\.name,\s*m\.uri,\s*''\)\)\s+CONTAINS\s+alias\s*\)\s*\)"
+        ),
+        param_name="metric_aliases",
+        param_prefix="__ladybug_metric_alias",
+        clause_factory=lambda key: f"toLower(coalesce(m.name, m.uri, '')) CONTAINS ${key}",
+        joiner=" OR ",
+    )
+    rewritten = _ladybug_expand_param_predicate(
+        rewritten,
+        query_params,
+        pattern=(
+            r"\(\$metric_scope_tokens\s*=\s*\[\]\s+OR\s+ALL\(\s*token\s+IN\s+\$metric_scope_tokens\s+WHERE\s+"
+            r"toLower\(coalesce\(m\.name,\s*m\.uri,\s*''\)\)\s+CONTAINS\s+token\s*\)\s*\)"
+        ),
+        param_name="metric_scope_tokens",
+        param_prefix="__ladybug_metric_scope_token",
+        clause_factory=lambda key: f"toLower(coalesce(m.name, m.uri, '')) CONTAINS ${key}",
+        joiner=" AND ",
+    )
+    rewritten = _ladybug_expand_param_predicate(
+        rewritten,
+        query_params,
+        pattern=(
+            r"\(\$years\s*=\s*\[\]\s+OR\s+ANY\(\s*year\s+IN\s+\$years\s+WHERE\s+"
+            r"coalesce\(toString\(m\.year\),\s*''\)\s*=\s*year\s+OR\s+"
+            r"toLower\(coalesce\(m\.name,\s*m\.uri,\s*''\)\)\s+CONTAINS\s+year\s*\)\s*\)"
+        ),
+        param_name="years",
+        param_prefix="__ladybug_year",
+        clause_factory=(
+            lambda key: (
+                f"(coalesce(m.year, '') = ${key} OR "
+                f"toLower(coalesce(m.name, m.uri, '')) CONTAINS ${key})"
+            )
+        ),
+        joiner=" OR ",
+    )
     rewritten = re.sub(
         r"elementId\((\w+)\)",
         lambda match: f"coalesce({match.group(1)}.id, '')",
-        cypher,
+        rewritten,
+    )
+    rewritten = re.sub(
+        r"coalesce\(toString\(([^)]+)\),\s*''\)",
+        lambda match: f"coalesce({match.group(1)}, '')",
+        rewritten,
     )
     rewritten = re.sub(r"toString\(\$(\w+)\)", lambda match: f"${match.group(1)}", rewritten)
+    rewritten = re.sub(r"toString\((\w+\.\w+)\)", lambda match: f"coalesce({match.group(1)}, '')", rewritten)
+    rewritten = re.sub(
+        r"CASE\s+WHEN\s+(\w+\.\w+)\s+IS\s+NULL\s+THEN\s+''\s+ELSE\s+toString\(\1\)\s+END",
+        lambda match: f"coalesce({match.group(1)}, '')",
+        rewritten,
+        flags=re.IGNORECASE,
+    )
     rewritten = re.sub(r"type\((\w+)\)", lambda match: f"coalesce({match.group(1)}.type, '')", rewritten)
     rewritten = re.sub(
         r"properties\((\w+)\)\s+AS\s+([A-Za-z_][A-Za-z0-9_]*)",
@@ -743,7 +834,7 @@ def _rewrite_ladybug_query(cypher: str) -> str:
         ),
         rewritten,
     )
-    return rewritten
+    return rewritten, query_params
 
 
 def _lbug_type(py_value: Any) -> str:
@@ -970,9 +1061,9 @@ class LadybugGraphStore(GraphStore):
             return []
         if "CALL DB.INDEX.FULLTEXT.QUERYNODES" in compact:
             return []
-        cypher = _rewrite_ladybug_query(cypher)
+        cypher, query_params = _rewrite_ladybug_query(cypher, params=params)
         try:
-            result = self._conn.execute(cypher, params or {})
+            result = self._conn.execute(cypher, query_params)
             out: List[Dict[str, Any]] = []
             # Ladybug returns rows as lists; convert to dicts using column names
             col_names = getattr(result, "column_names", None) or []

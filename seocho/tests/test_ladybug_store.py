@@ -7,6 +7,7 @@ import pytest
 pytest.importorskip("real_ladybug")
 
 from seocho.ontology import NodeDef, Ontology, Property, RelDef
+from seocho.query.cypher_builder import CypherBuilder
 from seocho.store.graph import LadybugGraphStore
 
 
@@ -156,6 +157,71 @@ class TestLadybugStore:
         assert properties["name"] == "Alice"
         assert neighbors[0]["target"] == "Apple"
         assert supporting_fact == "Alice works at Apple."
+
+    def test_query_rewrites_financial_metric_filters(self, tmp_path):
+        ontology = Ontology(
+            name="finder",
+            nodes={
+                "Company": NodeDef(properties={"name": Property(str, unique=True)}),
+                "FinancialMetric": NodeDef(
+                    properties={
+                        "name": Property(str, unique=True),
+                        "year": Property(str),
+                        "value": Property(str),
+                    }
+                ),
+            },
+            relationships={
+                "REPORTED": RelDef(source="Company", target="FinancialMetric"),
+            },
+        )
+        store = LadybugGraphStore(str(tmp_path / "finder.lbug"))
+        store.ensure_constraints(ontology)
+        try:
+            store.write(
+                nodes=[
+                    {"id": "ptc", "label": "Company", "properties": {"name": "PTC"}},
+                    {
+                        "id": "ptc_rev_2023",
+                        "label": "FinancialMetric",
+                        "properties": {"name": "Total revenue", "year": "2023", "value": "2.1 billion"},
+                    },
+                ],
+                relationships=[
+                    {
+                        "source": "ptc",
+                        "target": "ptc_rev_2023",
+                        "type": "REPORTED",
+                        "properties": {},
+                    }
+                ],
+                source_id="finder-doc",
+            )
+
+            builder = CypherBuilder(ontology)
+            query, params = builder.build(
+                intent="financial_metric_lookup",
+                anchor_entity="PTC",
+                metric_name="Total revenue",
+                metric_aliases=("revenue",),
+                metric_scope_tokens=("total",),
+                years=("2023",),
+                workspace_id="default",
+                limit=5,
+            )
+
+            rows = store.query(query, params=params)
+
+            assert rows
+            row = rows[0]
+            values = list(row.values()) if isinstance(row, dict) else list(row)
+            assert "PTC" in values
+            assert "Total revenue" in values
+            assert "2023" in values
+            assert "2.1 billion" in values
+            assert "REPORTED" in values
+        finally:
+            store.close()
 
     def test_embedded_creates_file_on_disk(self, tmp_path):
         path = str(tmp_path / "mygraph.lbug")

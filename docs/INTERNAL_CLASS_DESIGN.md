@@ -33,6 +33,7 @@ The intended import direction is:
 
 ```text
 seocho/client.py
+  -> seocho/local_engine.py
   -> seocho/index/ingestion_facade.py
   -> seocho/query/*
   -> seocho/events.py
@@ -63,7 +64,7 @@ seocho/client.py -> new business logic in extraction/*
 
 ```text
 Seocho.add()
-  -> _LocalEngine.add()
+  -> seocho/local_engine._LocalEngine.add()
   -> IngestionFacade.ingest()
   -> IndexingPipeline.index()
 ```
@@ -117,6 +118,7 @@ In practical terms:
 ## Relationship To Existing Files
 
 - `seocho/client.py` remains the public facade for now
+- `seocho/local_engine.py` owns local-mode orchestration behind that facade
 - `seocho/index/pipeline.py` remains the canonical indexing engine
 - `seocho/query/semantic_flow.py` remains the canonical semantic orchestrator
 - `runtime/server_runtime.py` remains the runtime composition root

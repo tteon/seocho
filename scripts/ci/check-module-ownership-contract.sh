@@ -45,9 +45,15 @@ check_present "from seocho.store.llm import create_llm_backend" \
 check_absent "from extractor import" \
   extraction/pipeline.py
 check_present "from .index.ingestion_facade import IngestRequest, IngestionFacade" \
-  seocho/client.py
+  seocho/local_engine.py
 check_present "self._ingestion = IngestionFacade(self._indexing, publisher=self._events)" \
+  seocho/local_engine.py
+check_present "from .local_engine import _LocalEngine" \
   seocho/client.py
+check_absent "class _LocalEngine:" \
+  seocho/client.py
+check_present "class _LocalEngine:" \
+  seocho/local_engine.py
 
 echo "Checking extraction shim ownership..."
 check_present "from seocho.rules import (" \
@@ -78,6 +84,8 @@ check_present "test_ingestion_facade_publishes_lifecycle_events" \
   seocho/tests/test_internal_design_seams.py
 check_present "test_query_proxy_validates_and_publishes_success" \
   seocho/tests/test_internal_design_seams.py
+check_present "test_client_imports_local_engine_from_dedicated_module" \
+  seocho/tests/test_internal_design_seams.py
 
 echo "Checking basic CI coverage..."
 check_present "extraction/rule_constraints.py" \
@@ -98,6 +106,8 @@ check_present "runtime/agent_state.py" \
   scripts/ci/run_basic_ci.sh
 check_present "seocho/events.py" \
   scripts/ci/run_basic_ci.sh
+check_present "seocho/local_engine.py" \
+  scripts/ci/run_basic_ci.sh
 check_present "seocho/index/ingestion_facade.py" \
   scripts/ci/run_basic_ci.sh
 check_present "seocho/query/query_proxy.py" \
@@ -114,6 +124,7 @@ check_present "INTERNAL_CLASS_DESIGN.md" \
   docs/README.md
 check_present "docs/INTERNAL_CLASS_DESIGN.md" \
   docs/WORKFLOW.md \
-  docs/decisions/ADR-0080-internal-orchestration-seams-for-modular-monolith.md
+  docs/decisions/ADR-0080-internal-orchestration-seams-for-modular-monolith.md \
+  docs/decisions/ADR-0081-local-engine-module-behind-client-facade.md
 
 echo "Module ownership contract checks passed."

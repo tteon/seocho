@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import seocho.client as client_module
 from runtime.agent_state import AgentStateMachine
 from seocho.events import DomainEvent, InMemoryEventPublisher
 from seocho.index.ingestion_facade import IngestRequest, IngestionFacade
+from seocho.local_engine import _LocalEngine
 from seocho.query.agent_factory import AgentConfig, AgentFactory
 from seocho.query.query_proxy import QueryProxy, QueryRequest
 
@@ -171,3 +173,8 @@ def test_agent_state_machine_publishes_transitions() -> None:
     assert state.can_answer() is False
     assert state.can_query_graph() is False
     assert publisher.events[-1].payload["to"] == "blocked"
+
+
+def test_client_imports_local_engine_from_dedicated_module() -> None:
+    assert client_module._LocalEngine is _LocalEngine
+    assert _LocalEngine.__module__ == "seocho.local_engine"

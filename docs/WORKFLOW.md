@@ -145,6 +145,8 @@ Operational notes:
 - legacy `semantic-service` is opt-in only via `docker compose --profile legacy-semantic up -d semantic-service`.
 - when decomposing large files, prefer the internal seam classes documented in
   `docs/INTERNAL_CLASS_DESIGN.md` before introducing new top-level services
+- local SDK orchestration extracted from `seocho/client.py` should land in
+  `seocho/local_engine.py` before any broader facade redesign
 
 ## Docs Website Sync
 

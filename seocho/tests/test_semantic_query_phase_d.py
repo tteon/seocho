@@ -60,6 +60,68 @@ class FailingRelationshipConnector(FakeConnector):
         return super().run_cypher(query, database=database, params=params)
 
 
+class EntitySummaryConnector(FakeConnector):
+    def run_cypher(self, query, database="neo4j", params=None):
+        params = params or {}
+
+        if "CALL db.index.fulltext.queryNodes" in query:
+            text = str(params.get("query", "")).lower()
+            if "amazon" in text:
+                return json.dumps(
+                    [
+                        {
+                            "node_id": 202,
+                            "labels": ["Company"],
+                            "display_name": "Amazon",
+                            "source_id": "mem_amazon",
+                            "memory_id": "mem_amazon",
+                            "score": 3.4,
+                        }
+                    ]
+                )
+            return json.dumps([])
+
+        if "properties(n) AS properties" in query and "AS neighbors" in query:
+            return json.dumps(
+                [
+                    {
+                        "target_entity": "Amazon",
+                        "properties": {"name": "Amazon"},
+                        "neighbors": [
+                            {
+                                "relation": "FACES",
+                                "target": "dependence on third-party sellers",
+                                "target_labels": ["Risk"],
+                            },
+                            {
+                                "relation": "FACES",
+                                "target": "regulatory challenges in multiple jurisdictions",
+                                "target_labels": ["Risk"],
+                            },
+                            {
+                                "relation": "FACES",
+                                "target": "cybersecurity threats to customer data",
+                                "target_labels": ["Risk"],
+                            },
+                            {
+                                "relation": "FACES",
+                                "target": "significant capital expenditure requirements for AWS infrastructure",
+                                "target_labels": ["Risk"],
+                            },
+                            {
+                                "relation": "FACES",
+                                "target": "competition in e-commerce and cloud computing markets",
+                                "target_labels": ["Risk"],
+                            },
+                        ],
+                        "supporting_fact": "",
+                    }
+                ]
+            )
+
+        return super().run_cypher(query, database=database, params=params)
+
+
 def test_canonical_semantic_agent_flow_runs_end_to_end():
     flow = SemanticAgentFlow(FakeConnector())
     result = flow.run("What is Neo4j connected to?", ["kgnormal"])
@@ -133,3 +195,21 @@ def test_canonical_semantic_flow_reports_query_contract_failures():
     assert result["query_diagnostics"]
     assert result["query_diagnostics"][0]["diagnosis_code"] == "query_execution_failed_or_contract_error"
     assert result["lpg_result"]["reasoning"]["query_failure_count"] >= 1
+
+
+def test_canonical_semantic_flow_synthesizes_risk_summary_from_neighbors():
+    flow = SemanticAgentFlow(EntitySummaryConnector())
+
+    result = flow.run("What are Amazon's key risk factors?", ["kgnormal"])
+
+    assert result["route"] == "lpg"
+    assert result["support_assessment"]["status"] == "supported"
+    assert "Amazon's key risks include dependence on third-party sellers" in result["response"]
+    assert "cybersecurity threats to customer data" in result["response"]
+    assert (
+        result["evidence_bundle"]["slot_fills"]["supporting_fact"]
+        == "Amazon's key risks include dependence on third-party sellers, "
+        "regulatory challenges in multiple jurisdictions, cybersecurity threats to customer data, "
+        "significant capital expenditure requirements for AWS infrastructure, "
+        "competition in e-commerce and cloud computing markets."
+    )

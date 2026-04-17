@@ -82,6 +82,17 @@ runtime/server_runtime.py
   -> AgentStateMachine
 ```
 
+Current wiring status:
+
+- `runtime/server_runtime.py` now creates the shared semantic flow through the
+  canonical `seocho.query.AgentFactory`
+- `runtime/memory_service.py` and runtime Cypher tool execution now use
+  `QueryProxy` for read/query instrumentation instead of bypassing the seam
+- `runtime/agent_readiness.py` now normalizes debate readiness through
+  `AgentStateMachine`
+- the debate specialist-agent factory still remains on the legacy
+  `extraction/agent_factory.py` path and should converge in a later slice
+
 ### 3. Event spine
 
 The event layer should stay thin. It is not a distributed messaging system.

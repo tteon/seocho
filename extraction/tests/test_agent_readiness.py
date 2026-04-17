@@ -39,3 +39,15 @@ def test_summarize_readiness_blocked():
     )
     assert summary["debate_state"] == "blocked"
     assert summary["ready_count"] == 0
+
+
+def test_summarize_readiness_initializing_degrades_when_some_graphs_are_ready():
+    summary = summarize_readiness(
+        [
+            {"database": "kgnormal", "status": "ready"},
+            {"database": "kgfibo", "status": "initializing"},
+        ]
+    )
+    assert summary["debate_state"] == "degraded"
+    assert summary["degraded"] is True
+    assert summary["degraded_count"] == 1

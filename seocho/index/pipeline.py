@@ -583,6 +583,36 @@ class IndexingPipeline:
             except Exception as exc:
                 logger.warning("Semantic artifact draft skipped: %s", exc)
 
+        # --- Memory graph shaping ---
+        if all_nodes or all_rels:
+            try:
+                from seocho.index.runtime_memory import build_record_metadata, ensure_memory_graph
+
+                source_type = "text"
+                if isinstance(metadata, dict):
+                    source_type = str(metadata.get("source_type") or "text")
+                record_metadata = build_record_metadata(
+                    source_id=source_id,
+                    category=category,
+                    source_type=source_type,
+                    content_encoding="utf-8",
+                    parser_metadata=None,
+                    user_metadata=metadata if isinstance(metadata, dict) else None,
+                )
+                shaped = ensure_memory_graph(
+                    graph_data={"nodes": all_nodes, "relationships": all_rels},
+                    source_id=source_id,
+                    workspace_id=self.workspace_id,
+                    text=content,
+                    category=category,
+                    source_type=source_type,
+                    record_metadata=record_metadata,
+                )
+                all_nodes = shaped.get("nodes", all_nodes)
+                all_rels = shaped.get("relationships", all_rels)
+            except Exception as exc:
+                logger.warning("Memory graph shaping skipped: %s", exc)
+
         # Write to graph
         if all_nodes or all_rels:
             try:

@@ -273,7 +273,9 @@ class CypherBuilder:
             "RETURN coalesce(a.name, a.uri) AS source,\n"
             "       type(r) AS relationship,\n"
             "       coalesce(b.name, b.uri) AS target,\n"
-            "       labels(b) AS target_labels\n"
+            "       labels(b) AS target_labels,\n"
+            "       properties(b) AS target_properties,\n"
+            "       coalesce(b.content_preview, b.description, b.content, '') AS supporting_fact\n"
             "LIMIT $limit",
             params,
         )
@@ -294,7 +296,8 @@ class CypherBuilder:
             "         relation: type(r),\n"
             "         neighbor: coalesce(m.name, m.uri),\n"
             "         neighbor_labels: labels(m)\n"
-            "       })[0..$limit] AS neighbors\n"
+            "       })[0..$limit] AS neighbors,\n"
+            "       coalesce(n.content_preview, n.description, n.content, '') AS supporting_fact\n"
             "LIMIT 1",
             {
                 "entity": entity,
@@ -369,7 +372,8 @@ class CypherBuilder:
             "       coalesce(m.name, m.uri) AS metric_name,\n"
             "       coalesce(toString(m.year), '') AS year,\n"
             "       CASE WHEN m.value IS NULL THEN '' ELSE toString(m.value) END AS value,\n"
-            "       type(r) AS relationship\n"
+            "       type(r) AS relationship,\n"
+            "       coalesce(m.content_preview, c.content_preview, m.description, c.description, '') AS supporting_fact\n"
             "ORDER BY company, year, metric_name\n"
             "LIMIT $limit",
             {

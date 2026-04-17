@@ -151,6 +151,57 @@ def _query_failure_diagnostic(
     }
 
 
+def _compose_selected_triple_fact(
+    *,
+    question: str,
+    target_entity: str,
+    selected_triples: Sequence[Dict[str, Any]],
+) -> str:
+    normalized_question = _normalize_symbol(question)
+    subject = str(target_entity).strip()
+    if not subject:
+        for triple in selected_triples:
+            candidate = str(triple.get("source") or "").strip()
+            if candidate:
+                subject = candidate
+                break
+
+    def _unique_targets(predicate) -> List[str]:
+        seen: Set[str] = set()
+        values: List[str] = []
+        for triple in selected_triples:
+            target = str(triple.get("target") or "").strip()
+            if not target:
+                continue
+            relation = _normalize_symbol(str(triple.get("relation") or ""))
+            raw_labels = triple.get("target_labels", [])
+            labels = {
+                _normalize_symbol(str(label))
+                for label in raw_labels
+                if str(label).strip()
+            } if isinstance(raw_labels, list) else set()
+            if not predicate(relation, labels):
+                continue
+            key = target.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            values.append(target)
+        return values
+
+    risk_targets = _unique_targets(
+        lambda relation, labels: relation == "faces" or "risk" in labels or "risk" in normalized_question
+    )
+    if risk_targets:
+        subject_prefix = f"{subject}'s" if subject else "The"
+        return f"{subject_prefix} key risks include {', '.join(risk_targets[:5])}."
+
+    generic_targets = _unique_targets(lambda relation, labels: True)
+    if subject and generic_targets:
+        return f"{subject} is connected to {', '.join(generic_targets[:5])}."
+    return ""
+
+
 class OntologyHintStore:
     """In-memory ontology hint store with lightweight alias/label maps."""
 
@@ -1642,6 +1693,15 @@ class LPGAgent:
                             }
                         )
 
+        if not slot_fills.get("supporting_fact"):
+            synthesized_fact = _compose_selected_triple_fact(
+                question=question,
+                target_entity=str(slot_fills.get("target_entity") or plan.anchor_entity or "").strip(),
+                selected_triples=selected_triples,
+            )
+            if synthesized_fact:
+                slot_fills["supporting_fact"] = synthesized_fact
+
         focus_slots = [str(slot).strip() for slot in intent.get("focus_slots", []) if str(slot).strip()]
         bundle["slot_fills"] = slot_fills
         bundle["selected_triples"] = selected_triples[:10]
@@ -1820,6 +1880,16 @@ class AnswerGenerationAgent:
         strategy_decision = semantic_context.get("strategy_decision", {})
 
         supporting_fact = self._supporting_fact(evidence_bundle)
+        if not supporting_fact:
+            slot_fills = evidence_bundle.get("slot_fills", {})
+            target_entity = ""
+            if isinstance(slot_fills, dict):
+                target_entity = str(slot_fills.get("target_entity") or "").strip()
+            supporting_fact = _compose_selected_triple_fact(
+                question=question,
+                target_entity=target_entity or (entities[0] if entities else ""),
+                selected_triples=evidence_bundle.get("selected_triples", []),
+            )
         direct_answer = self._direct_answer(question, supporting_fact)
         lines: List[str] = []
         if direct_answer:
@@ -1896,12 +1966,19 @@ class AnswerGenerationAgent:
         if not question_terms:
             return sentences[0]
 
-        def score(sentence: str) -> tuple[int, int]:
-            terms = set(re.findall(r"[a-z0-9]+", sentence.lower()))
-            numeric_hits = len(set(re.findall(r"\d+(?:\.\d+)?", sentence)) & question_terms)
-            return (len(terms & question_terms), numeric_hits)
+        if "executive" in question_terms or "executives" in question_terms:
+            question_terms.update({"ceo", "cfo", "chairman", "board", "director", "officer"})
 
-        return max(sentences, key=score)
+        def score(sentence: str) -> tuple[int, int, int]:
+            terms = set(re.findall(r"[a-z0-9]+", sentence.lower()))
+            numeric_hits = len(set(re.findall(r"\d+(?:\.\d+)?", sentence.lower())) & question_terms)
+            return (len(terms & question_terms), numeric_hits, len(sentence))
+
+        best_sentence = max(sentences, key=score)
+        best_score = score(best_sentence)
+        if best_score[0] < 2 or len(best_sentence) < 24:
+            return supporting_fact
+        return best_sentence
 
 
 __all__ = [

@@ -70,6 +70,30 @@ def test_builder_financial_metric_query_uses_workspace_and_rel_candidates() -> N
     assert "coalesce(c._workspace_id, '') = $workspace_id" in cypher
 
 
+def test_builder_relationship_lookup_returns_target_properties_and_supporting_fact() -> None:
+    ontology = Ontology(
+        name="company_graph",
+        nodes={
+            "Company": NodeDef(properties={"name": P(str, unique=True)}),
+            "Person": NodeDef(properties={"name": P(str, unique=True), "title": P(str)}),
+        },
+        relationships={"EMPLOYS": RelDef(source="Company", target="Person")},
+    )
+    builder = CypherBuilder(ontology)
+
+    cypher, _ = builder.build(
+        intent="relationship_lookup",
+        anchor_entity="Alphabet",
+        anchor_label="Company",
+        target_label="Person",
+        relationship_type="EMPLOYS",
+        workspace_id="acme",
+    )
+
+    assert "target_properties" in cypher
+    assert "supporting_fact" in cypher
+
+
 class _FakeLLMResponse:
     def __init__(self, payload: dict) -> None:
         self._payload = payload
@@ -138,3 +162,62 @@ def test_local_engine_finance_delta_returns_deterministic_answer() -> None:
     assert "2021" in answer
     assert "2023" in answer
     assert "Cboe Global Markets, Inc. and Subsidiaries" in answer
+
+
+def test_local_engine_relationship_answer_includes_titles_from_target_properties() -> None:
+    ontology = Ontology(
+        name="company_graph",
+        nodes={
+            "Company": NodeDef(properties={"name": P(str, unique=True)}),
+            "Person": NodeDef(properties={"name": P(str, unique=True), "title": P(str)}),
+        },
+        relationships={"EMPLOYS": RelDef(source="Company", target="Person")},
+    )
+
+    class RelationshipLLM:
+        def complete(self, *, system, user, temperature, response_format=None):  # noqa: ANN001
+            return _FakeLLMResponse(
+                {
+                    "intent": "relationship_lookup",
+                    "anchor_entity": "Alphabet",
+                    "anchor_label": "Company",
+                    "target_label": "Person",
+                    "relationship_type": "EMPLOYS",
+                }
+            )
+
+    class RelationshipGraphStore:
+        def get_schema(self, *, database: str = "neo4j") -> dict:
+            return {"labels": ["Company", "Person"], "relationship_types": ["EMPLOYS"]}
+
+        def query(self, cypher: str, *, params=None, database: str = "neo4j"):  # noqa: ANN001
+            return [
+                {
+                    "source": "Alphabet Inc.",
+                    "relationship": "EMPLOYS",
+                    "target": "Sundar Pichai",
+                    "target_labels": ["Person"],
+                    "target_properties": {"title": "CEO"},
+                    "supporting_fact": "",
+                },
+                {
+                    "source": "Alphabet Inc.",
+                    "relationship": "EMPLOYS",
+                    "target": "Ruth Porat",
+                    "target_labels": ["Person"],
+                    "target_properties": {"title": "CFO"},
+                    "supporting_fact": "",
+                },
+            ]
+
+    client = Seocho(
+        ontology=ontology,
+        graph_store=RelationshipGraphStore(),
+        llm=RelationshipLLM(),
+        workspace_id="finance_benchmark_test",
+    )
+
+    answer = client.ask("Who are the key executives at Alphabet?", database="neo4j")
+
+    assert "Sundar Pichai as CEO" in answer
+    assert "Ruth Porat as CFO" in answer

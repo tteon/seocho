@@ -200,16 +200,28 @@ class TestExtractionNormalization:
                 )
 
         class FakeGraphStore:
+            def __init__(self):
+                self.last_nodes = []
+                self.last_relationships = []
+
             def write(self, nodes, relationships, *, database="neo4j", workspace_id="default", source_id=""):  # noqa: ANN001
+                self.last_nodes = list(nodes)
+                self.last_relationships = list(relationships)
                 return {"nodes_created": len(nodes), "relationships_created": len(relationships), "errors": []}
 
+        store = FakeGraphStore()
         pipeline = IndexingPipeline(
             ontology=ontology,
-            graph_store=FakeGraphStore(),
+            graph_store=store,
             llm=FakeLLM(),
         )
 
         result = pipeline.index("Cboe data")
 
-        assert result.total_nodes == 1
-        assert result.total_relationships == 1
+        assert result.total_nodes == 2
+        assert result.total_relationships == 2
+        company = next(node for node in store.last_nodes if node["label"] == "Company")
+        document = next(node for node in store.last_nodes if node["label"] == "Document")
+        assert company["properties"]["content_preview"] == "Cboe data"
+        assert document["properties"]["content_preview"] == "Cboe data"
+        assert any(rel["type"] == "MENTIONS" for rel in store.last_relationships)

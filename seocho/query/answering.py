@@ -26,9 +26,13 @@ class QueryAnswerSynthesizer:
         if not intent_data:
             return None
         intent = str(intent_data.get("intent", "")).strip()
-        if intent not in {"financial_metric_lookup", "financial_metric_delta"}:
-            return None
-        return self._build_financial_answer(question, records, intent_data)
+        if intent in {"financial_metric_lookup", "financial_metric_delta"}:
+            return self._build_financial_answer(question, records, intent_data)
+        if intent == "relationship_lookup":
+            return self._build_relationship_answer(question, records, intent_data)
+        if intent in {"neighbors", "entity_lookup"}:
+            return self._build_supporting_fact_answer(question, records)
+        return None
 
     def synthesize(
         self,
@@ -54,6 +58,11 @@ class QueryAnswerSynthesizer:
         records: Sequence[Dict[str, Any]],
         intent_data: Dict[str, Any],
     ) -> Optional[str]:
+        supporting_fact = self._supporting_fact(records)
+        direct_answer = self._direct_answer(question, supporting_fact)
+        if direct_answer:
+            return direct_answer
+
         years = [str(year) for year in intent_data.get("years", []) if str(year).strip()]
         rows = self._normalize_financial_rows(records)
         if not rows:
@@ -100,7 +109,58 @@ class QueryAnswerSynthesizer:
 
         best_row = selected_rows[-1]
         year_suffix = f" in {best_row['year']}" if best_row.get("year") else ""
+        if "shareholder return" in metric_label.lower():
+            return (
+                f"For {company}, total shareholder return including dividends was approximately "
+                f"{self._format_financial_number(best_row['value'])}%{year_suffix}."
+            )
         return f"For {company}, {metric_label} was ${self._format_financial_number(best_row['value'])}{year_suffix}."
+
+    def _build_relationship_answer(
+        self,
+        question: str,
+        records: Sequence[Dict[str, Any]],
+        intent_data: Dict[str, Any],
+    ) -> Optional[str]:
+        supporting_fact = self._supporting_fact(records)
+        direct_answer = self._direct_answer(question, supporting_fact)
+        if direct_answer:
+            return direct_answer
+
+        rows = self._normalize_relationship_rows(records)
+        if not rows:
+            return None
+
+        relationship_type = str(intent_data.get("relationship_type", "")).strip().upper()
+        if relationship_type == "EMPLOYS":
+            source = rows[0].get("source", "")
+            people = []
+            for row in rows:
+                target = row.get("target", "")
+                title = row.get("title", "")
+                if title:
+                    people.append(f"{target} as {title}")
+                elif target:
+                    people.append(target)
+            people = [person for person in people if person]
+            if people:
+                return f"The key executives at {source} include {', '.join(people)}."
+
+        if relationship_type == "USES_STANDARD":
+            source = rows[0].get("source", "")
+            standards = [row.get("target", "") for row in rows if row.get("target")]
+            if standards:
+                return f"{source} follows the accounting standards {', '.join(standards)}."
+        return None
+
+    def _build_supporting_fact_answer(
+        self,
+        question: str,
+        records: Sequence[Dict[str, Any]],
+    ) -> Optional[str]:
+        supporting_fact = self._supporting_fact(records)
+        direct_answer = self._direct_answer(question, supporting_fact)
+        return direct_answer or None
 
     def _normalize_financial_rows(self, records: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
         rows: List[Dict[str, Any]] = []
@@ -125,9 +185,91 @@ class QueryAnswerSynthesizer:
                     "year": year,
                     "value": value,
                     "relationship": str(record.get("relationship", "")),
+                    "supporting_fact": str(self._record_value(record, "supporting_fact", 5)).strip(),
                 }
             )
         return rows
+
+    def _normalize_relationship_rows(self, records: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        rows: List[Dict[str, Any]] = []
+        for record in records:
+            source = str(self._record_value(record, "source", 0)).strip()
+            relationship = str(self._record_value(record, "relationship", 1)).strip()
+            target = str(self._record_value(record, "target", 2)).strip()
+            if not source or not relationship or not target:
+                continue
+            target_properties = self._record_value(record, "target_properties", 4)
+            title = ""
+            if isinstance(target_properties, dict):
+                title = str(target_properties.get("title", "")).strip()
+            rows.append(
+                {
+                    "source": source,
+                    "relationship": relationship,
+                    "target": target,
+                    "title": title,
+                    "supporting_fact": str(self._record_value(record, "supporting_fact", 5)).strip(),
+                }
+            )
+        return rows
+
+    def _supporting_fact(self, records: Sequence[Dict[str, Any]]) -> str:
+        for record in records:
+            for key, index in (
+                ("supporting_fact", 5),
+                ("properties", 1),
+                ("target_properties", 4),
+            ):
+                value = self._record_value(record, key, index)
+                if isinstance(value, dict):
+                    for prop_key in ("content_preview", "description", "content"):
+                        fact = str(value.get(prop_key, "")).strip()
+                        if fact:
+                            return fact
+                else:
+                    fact = str(value or "").strip()
+                    if fact:
+                        return fact
+        return ""
+
+    def _direct_answer(self, question: str, supporting_fact: str) -> str:
+        if not supporting_fact:
+            return ""
+        sentences = [
+            sentence.strip()
+            for sentence in re.split(r"(?<=[.!?])\s+", supporting_fact)
+            if sentence.strip()
+        ]
+        if not sentences:
+            return supporting_fact
+
+        question_terms = {
+            token
+            for token in re.findall(r"[a-z0-9]+", question.lower())
+            if len(token) > 1
+        }
+        if not question_terms:
+            return sentences[0]
+
+        if "executive" in question_terms or "executives" in question_terms:
+            question_terms.update({"ceo", "cfo", "chairman", "board", "director", "officer"})
+
+        def score(sentence: str) -> tuple[int, int]:
+            terms = set(re.findall(r"[a-z0-9]+", sentence.lower()))
+            numeric_hits = len(set(re.findall(r"\d+(?:\.\d+)?", sentence.lower())) & question_terms)
+            return (len(terms & question_terms), numeric_hits, len(sentence))
+
+        best_sentence = max(sentences, key=score)
+        best_score = score(best_sentence)
+        if best_score[0] < 2 or len(best_sentence) < 24:
+            return supporting_fact
+        return best_sentence
+
+    @staticmethod
+    def _record_value(record: Dict[str, Any], key: str, fallback_index: int) -> Any:
+        if key in record:
+            return record.get(key)
+        return record.get(f"col_{fallback_index}")
 
     def _select_financial_rows(
         self,

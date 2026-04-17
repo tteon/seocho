@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from typing import Any, Dict, Mapping, Optional, Protocol
 
@@ -47,6 +48,81 @@ class QueryRequest:
     params: Optional[Mapping[str, Any]] = None
 
 
+class QueryExecutionError(RuntimeError):
+    """Raised when a graph backend violates the typed query/result contract."""
+
+    def __init__(
+        self,
+        *,
+        database: str,
+        cypher: str,
+        source: str,
+        detail: str,
+    ) -> None:
+        self.database = database
+        self.cypher = cypher
+        self.source = source
+        self.detail = detail
+        super().__init__(f"{source} query failed for '{database}': {detail}")
+
+
+def coerce_query_records(
+    raw: Any,
+    *,
+    database: str,
+    cypher: str,
+    source: str,
+) -> list[Dict[str, Any]]:
+    """Normalize connector/graph payloads onto the typed query-record contract."""
+
+    if raw in (None, "", []):
+        return []
+
+    parsed: Any
+    if isinstance(raw, list):
+        parsed = raw
+    elif isinstance(raw, str):
+        if raw.startswith("Error"):
+            raise QueryExecutionError(
+                database=database,
+                cypher=cypher,
+                source=source,
+                detail=raw,
+            )
+        try:
+            parsed = json.loads(raw)
+        except Exception as exc:  # pragma: no cover - exercised via semantic/runtime paths
+            raise QueryExecutionError(
+                database=database,
+                cypher=cypher,
+                source=source,
+                detail=f"non-json payload: {str(raw)[:160]}",
+            ) from exc
+    else:
+        raise QueryExecutionError(
+            database=database,
+            cypher=cypher,
+            source=source,
+            detail=f"unsupported payload type: {type(raw).__name__}",
+        )
+
+    if not isinstance(parsed, list):
+        raise QueryExecutionError(
+            database=database,
+            cypher=cypher,
+            source=source,
+            detail=f"expected list payload, got {type(parsed).__name__}",
+        )
+
+    rows: list[Dict[str, Any]] = []
+    for item in parsed:
+        if isinstance(item, dict):
+            rows.append(item)
+        else:
+            rows.append({"value": item})
+    return rows
+
+
 class QueryProxy:
     """Read-only graph query proxy with policy and event hooks."""
 
@@ -71,10 +147,16 @@ class QueryProxy:
             params=params,
         )
         try:
-            records = self._graph_store.query(
+            raw_records = self._graph_store.query(
                 request.cypher,
                 params=params,
                 database=request.database,
+            )
+            records = coerce_query_records(
+                raw_records,
+                database=request.database,
+                cypher=request.cypher,
+                source=type(self._graph_store).__name__,
             )
         except Exception as exc:
             self._publisher.publish(

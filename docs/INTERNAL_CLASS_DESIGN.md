@@ -23,7 +23,7 @@ That means:
 |---|---|---|
 | `DomainEvent` | `seocho/events.py` | Small event envelope for trace/artifact/metrics hooks |
 | `IngestionFacade` | `seocho/index/ingestion_facade.py` | Wrap indexing pipeline calls and publish lifecycle events |
-| `QueryProxy` | `seocho/query/query_proxy.py` | Validate and instrument graph queries before they hit `GraphStore` |
+| `QueryProxy` | `seocho/query/query_proxy.py` | Validate, normalize, and instrument graph queries before they hit `GraphStore` |
 | `AgentFactory` | `seocho/query/agent_factory.py` | Registry-backed construction of semantic/debate/query agents |
 | `AgentStateMachine` | `runtime/agent_state.py` | Explicit runtime state transitions: ready, degraded, blocked |
 
@@ -88,6 +88,9 @@ Current wiring status:
   canonical `seocho.query.AgentFactory`
 - `runtime/memory_service.py` and runtime Cypher tool execution now use
   `QueryProxy` for read/query instrumentation instead of bypassing the seam
+- `QueryProxy` also owns the shared row/error coercion used by legacy
+  connector payloads, so semantic query code can surface contract failures
+  instead of silently flattening them into "no records"
 - `runtime/agent_readiness.py` now normalizes debate readiness through
   `AgentStateMachine`
 - the debate specialist-agent factory still remains on the legacy

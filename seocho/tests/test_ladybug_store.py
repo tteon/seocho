@@ -7,6 +7,7 @@ import pytest
 pytest.importorskip("real_ladybug")
 
 from seocho.ontology import NodeDef, Ontology, Property, RelDef
+from seocho.ontology_context import apply_ontology_context_to_graph_payload, compile_ontology_context
 from seocho.query.cypher_builder import CypherBuilder
 from seocho.store.graph import LadybugGraphStore
 
@@ -86,6 +87,35 @@ class TestLadybugStore:
         assert summary["nodes_created"] == 2
         assert summary["relationships_created"] == 0
         assert summary["errors"] == []
+
+    def test_write_accepts_ontology_context_properties(self, ontology, tmp_path):
+        store = LadybugGraphStore(str(tmp_path / "context.lbug"))
+        store.ensure_constraints(ontology)
+        try:
+            context = compile_ontology_context(ontology, workspace_id="acme")
+            nodes, relationships = apply_ontology_context_to_graph_payload(
+                [
+                    {"id": "alice", "label": "Person", "properties": {"name": "Alice", "age": 30}},
+                    {"id": "apple", "label": "Company", "properties": {"name": "Apple"}},
+                ],
+                [
+                    {"source": "alice", "target": "apple", "type": "WORKS_AT", "properties": {}},
+                ],
+                context,
+            )
+
+            summary = store.write(
+                nodes=nodes,
+                relationships=relationships,
+                source_id="doc-context",
+                workspace_id="acme",
+            )
+
+            assert summary["nodes_created"] == 2
+            assert summary["relationships_created"] == 1
+            assert summary["errors"] == []
+        finally:
+            store.close()
 
     def test_delete_by_source_removes_written_nodes(self, store):
         store.write(

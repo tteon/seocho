@@ -78,3 +78,34 @@ def test_canonical_extraction_engine_uses_custom_prompt_templates_without_ontolo
     assert "Category=finance" in llm.calls[0]["system"]
     assert "Ontology=" in llm.calls[0]["system"]
     assert llm.calls[0]["user"] == "Input=hello world"
+
+
+def test_canonical_extraction_engine_flattens_nested_relationship_properties():
+    ontology = Ontology(
+        name="companies",
+        nodes={"Company": NodeDef(properties={"name": P(str)})},
+        relationships={"ACQUIRED": RelDef(source="Company", target="Company")},
+    )
+    llm = _FakeLLM(
+        [
+            {
+                "nodes": [
+                    {"id": "1", "label": "Company", "properties": {"name": "Acme"}},
+                    {"id": "2", "label": "Company", "properties": {"name": "Beta"}},
+                ],
+                "relationships": [
+                    {
+                        "source": "1",
+                        "target": "2",
+                        "type": "ACQUIRED",
+                        "properties": {"year": 2024},
+                    }
+                ],
+            }
+        ]
+    )
+    engine = CanonicalExtractionEngine(ontology=ontology, llm=llm)
+
+    extracted = engine.extract("Acme acquired Beta in 2024.", category="general")
+
+    assert extracted["relationships"][0]["properties"] == {"year": 2024}

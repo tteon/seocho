@@ -311,23 +311,37 @@ class CanonicalExtractionEngine:
         if not source_id or not target_id:
             return None
 
-        properties = {
-            key: value
-            for key, value in raw_rel.items()
-            if key
-            not in {
-                "source",
-                "target",
-                "from",
-                "to",
-                "subject",
-                "object",
-                "type",
-                "predicate",
-                "relationship",
+        properties = {}
+        nested_properties = raw_rel.get("properties")
+        if isinstance(nested_properties, dict):
+            properties.update(
+                {
+                    key: value
+                    for key, value in nested_properties.items()
+                    if value not in (None, "")
+                }
+            )
+
+        properties.update(
+            {
+                key: value
+                for key, value in raw_rel.items()
+                if key
+                not in {
+                    "source",
+                    "target",
+                    "from",
+                    "to",
+                    "subject",
+                    "object",
+                    "type",
+                    "predicate",
+                    "relationship",
+                    "properties",
+                }
+                and value not in (None, "")
             }
-            and value not in (None, "")
-        }
+        )
         return {
             "source": source_id,
             "target": target_id,

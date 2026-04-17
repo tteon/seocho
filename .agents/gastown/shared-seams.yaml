@@ -1,0 +1,71 @@
+version: 1
+default_ttl_hours: 24
+planning_source: ".beads"
+serialized_merge_default: false
+
+seams:
+  - id: sdk-facade
+    description: Public SDK facade and helper split boundaries.
+    serialized_merge: true
+    paths:
+      - "seocho/client.py"
+      - "seocho/http_transport.py"
+      - "seocho/client_artifacts.py"
+      - "seocho/cli.py"
+
+  - id: query-canonical
+    description: Canonical query, routing, evidence, and answering behavior.
+    serialized_merge: true
+    paths:
+      - "seocho/query/"
+      - "seocho/prompt_strategy.py"
+
+  - id: indexing-canonical
+    description: Canonical indexing, extraction, rule, and graph-shaping logic.
+    serialized_merge: true
+    paths:
+      - "seocho/index/"
+      - "seocho/rules.py"
+      - "seocho/benchmarking.py"
+      - "scripts/benchmarks/"
+
+  - id: runtime-shell
+    description: Runtime route wiring, policy, readiness, and registry surfaces.
+    serialized_merge: true
+    paths:
+      - "runtime/"
+      - "extraction/agent_server.py"
+      - "extraction/memory_service.py"
+      - "extraction/runtime_ingest.py"
+      - "extraction/policy.py"
+
+  - id: extraction-shims
+    description: Legacy extraction compatibility and batch-only helpers.
+    serialized_merge: false
+    paths:
+      - "extraction/pipeline.py"
+      - "extraction/rule_constraints.py"
+      - "extraction/vector_store.py"
+      - "extraction/graph_loader.py"
+      - "extraction/data_source.py"
+
+  - id: docs-entry
+    description: Entry docs and contributor contracts that shape how the repo is operated.
+    serialized_merge: true
+    paths:
+      - "README.md"
+      - "AGENTS.md"
+      - "CLAUDE.md"
+      - "docs/WORKFLOW.md"
+      - "docs/ARCHITECTURE.md"
+      - "docs/BENCHMARKS.md"
+      - "docs/ISSUE_TASK_SYSTEM.md"
+      - "docs/decisions/"
+
+  - id: github-automation
+    description: CI, Codex automation, and merge workflow surfaces.
+    serialized_merge: true
+    paths:
+      - ".github/workflows/"
+      - ".github/codex/"
+      - "scripts/ci/"

@@ -62,6 +62,19 @@ Each entry must link to a full ADR when impact is non-trivial.
     failing when automation secrets are absent
   - keep the Codex/App-token execution path unchanged when secrets are present
 
+- Accepted `ADR-0079-basic-ci-module-ownership-contract.md`
+  - extend `Basic CI` with module ownership checks for indexing and extraction
+    shim seams
+  - keep `seocho/*` and `runtime/*` as canonical owners while asserting that
+    extraction shims stay thin
+  - pull focused ownership regression tests into the default CI surface
+
+- Accepted `ADR-0080-internal-orchestration-seams-for-modular-monolith.md`
+  - introduce `DomainEvent`, `IngestionFacade`, `QueryProxy`, `AgentFactory`,
+    and `AgentStateMachine` as internal decomposition seams
+  - keep `seocho/client.py` as the public facade while logic moves behind it
+  - treat these seams as modular-monolith structure, not a microservice split
+
 ## 2026-03-12
 
 - Accepted `ADR-0028-graph-registry-and-multi-instance-debate-runtime.md`

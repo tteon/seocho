@@ -146,6 +146,7 @@ def test_split_finance_diagnosis_separates_indexing_and_query_findings():
         [
             "indexing_no_graph_writes",
             "query_no_graph_records",
+            "query_execution_failed_or_contract_error",
             "answer_quality_or_slot_selection_gap",
             "custom_follow_up",
             "query_no_graph_records",
@@ -155,6 +156,7 @@ def test_split_finance_diagnosis_separates_indexing_and_query_findings():
     assert split["indexing"] == ["indexing_no_graph_writes"]
     assert split["query"] == [
         "query_no_graph_records",
+        "query_execution_failed_or_contract_error",
         "answer_quality_or_slot_selection_gap",
     ]
     assert split["shared"] == ["custom_follow_up"]
@@ -168,6 +170,7 @@ def test_summarize_finance_contract_findings_counts_records_and_codes():
                 "diagnosis": [
                     "indexing_no_graph_writes",
                     "query_no_graph_records",
+                    "query_execution_failed_or_contract_error",
                 ],
             },
             {
@@ -188,6 +191,7 @@ def test_summarize_finance_contract_findings_counts_records_and_codes():
     assert summary["indexing"]["finding_counts"]["source_text_has_answer_but_graph_projection_lost_it"] == 1
     assert summary["query"]["record_count"] == 2
     assert summary["query"]["finding_counts"]["query_no_graph_records"] == 1
+    assert summary["query"]["finding_counts"]["query_execution_failed_or_contract_error"] == 1
     assert summary["query"]["finding_counts"]["answer_quality_or_slot_selection_gap"] == 1
     assert summary["shared"]["record_count"] == 1
     assert summary["shared"]["finding_counts"]["custom_follow_up"] == 1

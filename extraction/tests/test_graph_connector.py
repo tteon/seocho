@@ -100,3 +100,57 @@ def test_run_cypher_uses_graph_bound_driver(monkeypatch):
             "parameters": {"limit": 1},
         }
     ]
+
+
+def test_query_normalizes_graph_bound_driver_rows(monkeypatch):
+    class _Record:
+        @staticmethod
+        def data():
+            return {"ok": 2}
+
+    class _Session:
+        def __init__(self, database: str):
+            self.database = database
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def run(self, query, parameters=None):
+            return [_Record()]
+
+    class _Driver:
+        def __init__(self, uri, auth):
+            self.uri = uri
+            self.auth = auth
+
+        def session(self, database: str):
+            return _Session(database)
+
+        def close(self):
+            return None
+
+    monkeypatch.setattr(
+        graph_connector.graph_registry,
+        "get_graph",
+        lambda graph_id: GraphTarget(
+            graph_id=graph_id,
+            database="kgfibo",
+            uri="bolt://finance:7687",
+            user="neo4j",
+            password="secret",
+            ontology_id="fibo",
+        ),
+    )
+    monkeypatch.setattr(
+        graph_connector.GraphDatabase,
+        "driver",
+        lambda uri, auth: _Driver(uri, auth),
+    )
+    connector = graph_connector.MultiGraphConnector()
+
+    rows = connector.query("RETURN 2 AS ok", database="kgfibo")
+
+    assert rows == [{"ok": 2}]

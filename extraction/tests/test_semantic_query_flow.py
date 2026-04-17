@@ -102,6 +102,13 @@ class FakeConnector:
         return json.dumps([])
 
 
+class FailingRelationshipConnector(FakeConnector):
+    def run_cypher(self, query, database="neo4j", params=None):
+        if "AS source_entity" in query and "AS relation_type" in query:
+            return "Error executing Cypher in 'neo4j': simulated contract failure"
+        return super().run_cypher(query, database=database, params=params)
+
+
 def test_extract_question_entities():
     resolver = SemanticEntityResolver(FakeConnector())
     entities = resolver.extract_question_entities('What is "Neo4j" relation to GraphRAG?')
@@ -339,3 +346,19 @@ def test_resolve_prefers_workspace_vocabulary_over_global(tmp_path, monkeypatch)
     assert result["alias_resolved"]["Neo4j"] == "Neo4j Enterprise"
     assert result["vocabulary_hints"]["approved_artifact_counts"]["global"] == 1
     assert result["vocabulary_hints"]["approved_artifact_counts"]["workspace"] == 1
+
+
+def test_semantic_agent_flow_surfaces_query_contract_failures_in_reasoning_trace():
+    flow = SemanticAgentFlow(FailingRelationshipConnector())
+
+    result = flow.run("What is Neo4j connected to?", ["kgnormal"], reasoning_mode=True, repair_budget=1)
+
+    diagnostics = result["query_diagnostics"]
+    assert diagnostics
+    assert diagnostics[0]["diagnosis_code"] == "query_execution_failed_or_contract_error"
+    assert result["lpg_result"]["reasoning"]["query_failure_count"] >= 1
+    assert any(
+        step.get("status") == "query_failed"
+        and step.get("diagnosis_code") == "query_execution_failed_or_contract_error"
+        for step in result["lpg_result"]["reasoning"]["repair_trace"]
+    )

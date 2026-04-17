@@ -52,6 +52,7 @@ _FINANCE_BENCHMARK_INDEXING_FINDINGS = {
 }
 _FINANCE_BENCHMARK_QUERY_FINDINGS = {
     "query_no_graph_records",
+    "query_execution_failed_or_contract_error",
     "vector_substrate_not_in_local_answer_path",
     "fulltext_substrate_unavailable_or_unchecked",
     "answer_quality_or_slot_selection_gap",

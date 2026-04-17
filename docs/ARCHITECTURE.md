@@ -163,6 +163,8 @@ Current wiring:
   shared `SemanticAgentFlow` through the canonical `seocho.query.AgentFactory`
 - runtime graph reads: `runtime/memory_service.py` and runtime Cypher tool
   execution now route read queries through `seocho.query.QueryProxy`
+  - `QueryProxy` now owns the typed query-result contract so runtime and
+    semantic paths can distinguish empty results from connector/contract failures
 - runtime readiness model: `runtime.agent_readiness.summarize_readiness()`
   normalizes debate availability onto `runtime.agent_state.AgentStateMachine`
 

@@ -1,9 +1,17 @@
 from seocho.benchmarking import (
+    FinDERBenchmarkCase,
+    classify_finder_scenario,
     FinanceBenchmarkCase,
     compare_answers,
+    filter_finder_cases,
+    load_finder_cases,
     normalize_answer,
+    run_finder_benchmark,
     run_finance_benchmark,
+    split_finder_diagnosis,
     split_finance_diagnosis,
+    summarize_finder_contract_findings,
+    summarize_finder_records,
     summarize_finance_contract_findings,
     summarize_finance_records,
 )
@@ -111,6 +119,42 @@ def test_run_finance_benchmark_summarizes_latencies_and_matches():
     assert summary.avg_relationships_created == 1.0
 
 
+def test_run_finder_benchmark_summarizes_latencies_and_matches():
+    cases = [
+        FinDERBenchmarkCase(
+            case_id="finder_001",
+            text="PTC text",
+            question="What was PTC's revenue growth in fiscal 2023?",
+            expected_answer="PTC reported total revenue of $2.1 billion in fiscal 2023, a 10% increase from $1.9 billion in the prior year.",
+            category="Financials",
+            reasoning_type="Subtraction",
+        ),
+        FinDERBenchmarkCase(
+            case_id="finder_002",
+            text="Brown text",
+            question="What are Brown & Brown's business segments?",
+            expected_answer="Retail, National Programs, Wholesale Brokerage, and Services.",
+            category="Company Overview",
+            reasoning_type="Qualitative",
+        ),
+    ]
+
+    summary = run_finder_benchmark(
+        client=_FakeClient(),
+        cases=cases,
+        mode="local",
+        dataset="finder_sample.json",
+        database="neo4j",
+    )
+
+    assert summary.mode == "local"
+    assert summary.record_count == 2
+    assert summary.failure_count == 0
+    assert summary.contains_match_rate == 1.0
+    assert summary.avg_nodes_created == 2.0
+    assert summary.avg_relationships_created == 1.0
+
+
 def test_run_finance_benchmark_records_failures():
     cases = [
         FinanceBenchmarkCase(
@@ -134,11 +178,39 @@ def test_run_finance_benchmark_records_failures():
     assert summary.records[0].error == "boom"
 
 
+def test_summarize_finder_records_handles_empty_input():
+    summary = summarize_finder_records(mode="local", dataset="finder_sample.json", records=[])
+    assert summary.record_count == 0
+    assert summary.add_latency_p50_ms == 0.0
+    assert summary.ask_latency_p95_ms == 0.0
+
+
 def test_summarize_finance_records_handles_empty_input():
     summary = summarize_finance_records(mode="local", dataset="tutorial_filings_sample.json", records=[])
     assert summary.record_count == 0
     assert summary.add_latency_p50_ms == 0.0
     assert summary.ask_latency_p95_ms == 0.0
+
+
+def test_split_finder_diagnosis_separates_indexing_and_query_findings():
+    split = split_finder_diagnosis(
+        [
+            "indexing_no_graph_writes",
+            "query_no_graph_records",
+            "query_execution_failed_or_contract_error",
+            "answer_quality_or_slot_selection_gap",
+            "custom_follow_up",
+            "query_no_graph_records",
+        ]
+    )
+
+    assert split["indexing"] == ["indexing_no_graph_writes"]
+    assert split["query"] == [
+        "query_no_graph_records",
+        "query_execution_failed_or_contract_error",
+        "answer_quality_or_slot_selection_gap",
+    ]
+    assert split["shared"] == ["custom_follow_up"]
 
 
 def test_split_finance_diagnosis_separates_indexing_and_query_findings():
@@ -160,6 +232,40 @@ def test_split_finance_diagnosis_separates_indexing_and_query_findings():
         "answer_quality_or_slot_selection_gap",
     ]
     assert split["shared"] == ["custom_follow_up"]
+
+
+def test_summarize_finder_contract_findings_counts_records_and_codes():
+    summary = summarize_finder_contract_findings(
+        [
+            {
+                "case_id": "finder_001",
+                "diagnosis": [
+                    "indexing_no_graph_writes",
+                    "query_no_graph_records",
+                    "query_execution_failed_or_contract_error",
+                ],
+            },
+            {
+                "case_id": "finder_002",
+                "diagnosis": [
+                    "source_text_has_answer_but_graph_projection_lost_it",
+                    "answer_quality_or_slot_selection_gap",
+                    "custom_follow_up",
+                ],
+            },
+            {"case_id": "finder_003", "diagnosis": []},
+        ]
+    )
+
+    assert summary["indexing"]["record_count"] == 2
+    assert summary["indexing"]["finding_counts"]["indexing_no_graph_writes"] == 1
+    assert summary["indexing"]["finding_counts"]["source_text_has_answer_but_graph_projection_lost_it"] == 1
+    assert summary["query"]["record_count"] == 2
+    assert summary["query"]["finding_counts"]["query_no_graph_records"] == 1
+    assert summary["query"]["finding_counts"]["query_execution_failed_or_contract_error"] == 1
+    assert summary["query"]["finding_counts"]["answer_quality_or_slot_selection_gap"] == 1
+    assert summary["shared"]["record_count"] == 1
+    assert summary["shared"]["finding_counts"]["custom_follow_up"] == 1
 
 
 def test_summarize_finance_contract_findings_counts_records_and_codes():
@@ -195,3 +301,60 @@ def test_summarize_finance_contract_findings_counts_records_and_codes():
     assert summary["query"]["finding_counts"]["answer_quality_or_slot_selection_gap"] == 1
     assert summary["shared"]["record_count"] == 1
     assert summary["shared"]["finding_counts"]["custom_follow_up"] == 1
+
+
+def test_classify_finder_scenario_splits_beginner_and_advanced_cases():
+    beginner = FinDERBenchmarkCase(
+        case_id="finder_002",
+        text="",
+        question="",
+        expected_answer="",
+        category="Company Overview",
+        reasoning_type="Qualitative",
+    )
+    advanced = FinDERBenchmarkCase(
+        case_id="finder_004",
+        text="",
+        question="",
+        expected_answer="",
+        category="Financials",
+        reasoning_type="Compositional",
+    )
+
+    assert classify_finder_scenario(beginner) == "beginner"
+    assert classify_finder_scenario(advanced) == "advanced"
+
+
+def test_filter_finder_cases_returns_scenario_subset():
+    cases = [
+        FinDERBenchmarkCase("finder_002", "", "", "", "Company Overview", "Qualitative"),
+        FinDERBenchmarkCase("finder_004", "", "", "", "Financials", "Compositional"),
+        FinDERBenchmarkCase("finder_005", "", "", "", "Legal", "Qualitative"),
+    ]
+
+    assert [case.case_id for case in filter_finder_cases(cases, "beginner")] == ["finder_002"]
+    assert [case.case_id for case in filter_finder_cases(cases, "advanced")] == ["finder_004", "finder_005"]
+
+
+def test_load_finder_cases_reads_dataset(tmp_path):
+    dataset = tmp_path / "finder.json"
+    dataset.write_text(
+        """
+        [
+          {
+            "id": "finder_001",
+            "text": "text",
+            "question": "question",
+            "expected_answer": "answer",
+            "category": "Financials",
+            "reasoning_type": "Subtraction"
+          }
+        ]
+        """.strip()
+    )
+
+    cases = load_finder_cases(dataset)
+
+    assert len(cases) == 1
+    assert cases[0].case_id == "finder_001"
+    assert cases[0].reasoning_type == "Subtraction"

@@ -73,6 +73,35 @@ Rule:
 - the bundled tutorial sample is for onboarding and smoke checks only
 - do not report tutorial-sample results as benchmark evidence
 
+FinDER-specific engineering loop:
+
+- use a user-supplied FinDER-format dataset with `scripts/benchmarks/run_finder_benchmark.py`
+- split runs into:
+  - `--scenario beginner` for mostly single-hop qualitative onboarding flows
+  - `--scenario advanced` for financial delta/compositional/legal synthesis flows
+- treat embedded local (`Ladybug`) and runtime HTTP (`Neo4j`/DozerDB) as separate baselines
+
+Example commands:
+
+```bash
+uv run python scripts/benchmarks/run_finder_benchmark.py \
+  --dataset /path/to/finder_sample.json \
+  --mode local \
+  --scenario beginner
+
+uv run python scripts/benchmarks/run_finder_benchmark.py \
+  --dataset /path/to/finder_sample.json \
+  --mode remote \
+  --scenario advanced
+```
+
+Interpretation:
+
+- `local` without `--graph` means embedded `LadybugGraphStore`
+- `local --graph bolt://...` means SDK path against Neo4j/DozerDB
+- `remote` means runtime HTTP semantic path (`Seocho.semantic(...)`), not the memory-first `ask()` facade
+- benchmark artifacts from active diagnosis runs stay local-only
+
 ### Track 2: GraphRAG-Bench
 
 Use GraphRAG-Bench for:
@@ -146,6 +175,7 @@ Report at minimum:
 Benchmark outputs should be saved under:
 
 - `outputs/evaluation/finance_benchmark/`
+- `outputs/evaluation/finder_benchmark/`
 - `outputs/evaluation/graphrag_bench/`
 
 JSON output should remain the default artifact so results can be compared over

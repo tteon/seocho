@@ -498,6 +498,16 @@ Each entry must link to a full ADR when impact is non-trivial.
   - make ontology an agent-readable semantic overlay instead of a mandatory total graph schema
   - keep the first lens implementation read-only, bounded, and Python/DozerDB-native before adding analytics or native acceleration
 
+- Accepted `ADR-0080-internal-orchestration-seams-for-modular-monolith.md`
+  - introduce `DomainEvent`, `IngestionFacade`, `QueryProxy`, `AgentFactory`, and `AgentStateMachine` as internal seams
+  - keep `seocho/client.py` as the public SDK facade while moving orchestration helpers behind it
+  - treat `seocho/index/*` and `seocho/query/*` as canonical engine owners, not new public APIs
+
+- Accepted `ADR-0081-local-engine-module-behind-client-facade.md`
+  - move `_LocalEngine` from `seocho/client.py` to `seocho/local_engine.py`
+  - keep local-mode orchestration behind the public `Seocho` facade instead of inside it
+  - enforce the boundary in basic CI and module-ownership checks
+
 ## Template
 
 Use this block for new entries:

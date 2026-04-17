@@ -12,6 +12,8 @@ start here immediately.
 
 If your first question is how to load your own records safely, read
 `APPLY_YOUR_DATA.md` alongside this guide.
+If your first question is how to measure quality or latency, read
+`BENCHMARKS.md` instead of treating this guide as the benchmark contract.
 
 ## 1. Install
 

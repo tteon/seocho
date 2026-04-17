@@ -2,6 +2,9 @@
 
 SEOCHO should be measured with two benchmark tracks, not one blended score.
 
+This page is for engineering evaluation and regression loops. It is not the
+onboarding guide.
+
 ## Benchmark Tracks
 
 ### Track 1: Private Finance Corpus

@@ -49,6 +49,13 @@ Each entry must link to a full ADR when impact is non-trivial.
   - require an explicit `NEO4J_PASSWORD` instead of falling back to `password`
   - make LAN exposure an explicit `SEOCHO_BIND_HOST=0.0.0.0` opt-in
 
+## 2026-04-17
+
+- Accepted `ADR-0077-gastown-shared-seam-coordination-plane.md`
+  - keep `.beads` as the canonical planning/status tracker
+  - use Gastown only for shared-seam reservations and handoff coordination
+  - add a repo-local shared seam registry with default 24-hour TTL guidance
+
 ## 2026-03-12
 
 - Accepted `ADR-0028-graph-registry-and-multi-instance-debate-runtime.md`

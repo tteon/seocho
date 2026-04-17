@@ -87,11 +87,22 @@ Read next:
 
 - [Why SEOCHO](docs/WHY_SEOCHO.md)
 - [Quickstart (docs)](docs/QUICKSTART.md)
+- [Apply Your Data](docs/APPLY_YOUR_DATA.md)
 - [Python SDK Quickstart](docs/PYTHON_INTERFACE_QUICKSTART.md)
 - [Files and Artifacts](docs/FILES_AND_ARTIFACTS.md)
 - [OntologyRunContext Strategy](docs/ONTOLOGY_RUN_CONTEXT_STRATEGY.md)
 - [PropertyGraphLens Strategy](docs/PROPERTY_GRAPH_LENS_STRATEGY.md)
 - [Benchmarks](docs/BENCHMARKS.md)
+- [Gastown Coordination](docs/GASTOWN_COORDINATION.md)
+
+Choose your path:
+
+- tutorial and first local success: `docs/QUICKSTART.md`
+- bring your ontology and your own data: `docs/APPLY_YOUR_DATA.md`
+- production runtime or SDK consumption: `docs/PYTHON_INTERFACE_QUICKSTART.md`
+
+The bundled tutorial sample is for onboarding only. Internal benchmark and
+engineering loops should use a private finance corpus, not the tutorial sample.
 
 ## Install Paths
 

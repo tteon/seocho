@@ -20,6 +20,9 @@ Both must carry:
 - roadmap
 - area
 
+`.beads` is the canonical planning and state system. Use Gastown only for
+cross-agent coordination on shared write scopes.
+
 ## 3. Required Label Taxonomy
 
 Every active item (`open`, `in_progress`, `blocked`) must include:
@@ -96,6 +99,19 @@ scripts/pm/lint-agent-docs.sh
 4. Close sprint:
    - close or re-sprint unfinished work with updated urgency
    - carry risks as new items, not hidden notes
+
+## 6.5 Shared-Seam Coordination
+
+When multiple agents are active:
+
+1. create or claim the `bd` item first
+2. if the change touches a shared seam, reserve that seam in Gastown
+3. include the `bd` id, branch/worktree, write scope, and TTL in the reservation
+4. release or hand off the reservation when landing or pausing work
+
+Use `.agents/gastown/shared-seams.yaml` and `docs/GASTOWN_COORDINATION.md` as
+the coordination contract. Do not duplicate roadmap, sprint, or priority logic
+in Gastown.
 
 ## 7. Roadmap Linking Rule
 

@@ -29,9 +29,16 @@ behavior, also read `docs/GRAPH_RAG_AGENT_HANDOFF_SPEC.md`.
 - create standardized work items with:
   - `scripts/pm/new-issue.sh`
   - `scripts/pm/new-task.sh`
+- `.beads` is the canonical planning and status tracker
+- use Gastown only as a coordination plane for shared-seam reservations:
+  - claim a reservation after the `bd` item exists
+  - include the `bd` id, branch/worktree, write scope, and TTL
+  - keep the shared seam registry in `.agents/gastown/shared-seams.yaml`
 - exception: the scheduled daily Codex maintenance workflow may operate without
   a dedicated `bd` item when the PR itself is the review envelope; in that case
   the PR body must still capture scope, validation, and residual risk
+
+Shared-seam work should also follow `docs/GASTOWN_COORDINATION.md`.
 
 Active work items must include collaboration labels:
 
@@ -72,10 +79,14 @@ scripts/pm/lint-agent-docs.sh
 2. run relevant quality gates
 3. update issue status
 4. land:
+   - release or hand off any active Gastown reservation
    - `git pull --rebase`
    - `bd sync` (best effort if workspace issue persists)
    - `git push`
    - `git status` (must show up to date with `origin/main`)
+
+When working in a git worktree, prefer `BEADS_NO_DAEMON=1` to avoid daemon
+cross-talk between worktrees.
 
 Push target is always `main`.
 

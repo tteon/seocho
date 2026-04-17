@@ -35,6 +35,7 @@ Read these first unless you already know exactly which area you need:
 - [APPLY_YOUR_DATA.md](APPLY_YOUR_DATA.md): how to ingest your own records and query them safely
 - [FILES_AND_ARTIFACTS.md](FILES_AND_ARTIFACTS.md): where ontology, rule, trace, and runtime files live
 - [BENCHMARKS.md](BENCHMARKS.md): benchmark tracks, peer baselines, and measurement order
+- [GASTOWN_COORDINATION.md](GASTOWN_COORDINATION.md): shared-seam reservation and handoff contract
 - [RUNTIME_PACKAGE_MIGRATION.md](RUNTIME_PACKAGE_MIGRATION.md): staged `extraction/` to `runtime/` migration plan
 - [WORKFLOW.md](WORKFLOW.md): canonical operational workflow
 - `PRD_MVP.md`: current product scope and MVP contract
@@ -83,6 +84,7 @@ Use these when changing a specific subsystem or workflow:
 
 - `ARCHITECTURE.md`: system architecture and module map
 - `BENCHMARKS.md`: benchmark tracks and baseline measurement contract
+- `GASTOWN_COORDINATION.md`: coordination contract for shared write scopes
 - `RUNTIME_PACKAGE_MIGRATION.md`: staged package-boundary migration plan
 - `../seocho/ontology_governance.py`: offline ontology governance helpers used by `seocho ontology *`
 - `GRAPH_RAG_AGENT_HANDOFF_SPEC.md`: intent-first Graph-RAG design brief
@@ -118,6 +120,8 @@ Use these when changing a specific subsystem or workflow:
   bounded maintenance work
 - `../.agents/skills/periodic-review-pr/SKILL.md`: repo-local skill for
   bounded review/refactor work
+- `../.agents/gastown/shared-seams.yaml`: repo-local shared seam registry for
+  Gastown reservations
 - `../.github/codex/prompts/daily-maintenance-pr.md`: prompt for daily Codex
   maintenance
 - `../.github/codex/prompts/periodic-review-pr.md`: prompt for periodic Codex

@@ -36,8 +36,9 @@ Responsibilities:
 
 Primary surfaces:
 
-- `extraction/agent_server.py`
-- `extraction/policy.py`
+- `runtime/agent_server.py`
+- `runtime/policy.py`
+- `runtime/memory_service.py`
 - `docs/decisions/*`
 - `docs/BEADS_OPERATING_MODEL.md`
 
@@ -72,11 +73,15 @@ Primary surfaces:
 4. if creating new work, use standardized scripts:
    - `scripts/pm/new-issue.sh`
    - `scripts/pm/new-task.sh`
+5. if the change touches a shared seam, claim it in Gastown using the registry
+   in `.agents/gastown/shared-seams.yaml`
 
 Tracking and notes split:
 
 - `.beads` is the canonical tracker for code-task progress, status changes,
   blockers, and landing state
+- Gastown is the coordination plane for write-scope reservations only; it is
+  not the planning source of truth
 - `/home/hadry/my_local_work/obsidian/seocho` is the default home for internal
   design notes, failure analysis, experiment logs, and feature ideation
 - repo docs should stay reserved for contracts and instructions that must ship
@@ -85,6 +90,8 @@ Tracking and notes split:
 ## 4.2 During Implementation
 
 - keep scope tight to one issue/feature slice
+- split or hand off work instead of letting multiple agents write the same
+  shared seam at once
 - preserve `workspace_id` in new runtime-facing contracts
 - add/adjust tests for modified behavior
 - update repo docs only for user-visible or operator-visible contract changes
@@ -97,12 +104,15 @@ Tracking and notes split:
 2. run sprint lint when applicable:
    - `scripts/pm/lint-items.sh --sprint <id>`
 3. close or handoff issue
-4. `git pull --rebase`
-5. `bd sync` (best effort; known workspace issue may fail)
-6. `git push`
-7. `git status` must show up-to-date with `origin/main`
+4. release or hand off any active Gastown reservation
+5. `git pull --rebase`
+6. `bd sync` (best effort; known workspace issue may fail)
+7. `git push`
+8. `git status` must show up-to-date with `origin/main`
 
 Push target is always `main`.
+
+When using git worktrees, prefer `BEADS_NO_DAEMON=1`.
 
 ## 5. Issue/Task Governance
 

@@ -69,6 +69,12 @@ Primary surfaces:
 - capture work item using standardized scripts:
   - `scripts/pm/new-issue.sh`
   - `scripts/pm/new-task.sh`
+- keep `.beads` as the canonical planning/status tracker
+- if the change touches a shared seam, create a Gastown reservation after the
+  `bd` item exists:
+  - include seam id, owner, `bd` id, branch/worktree, write scope, and TTL
+  - use `.agents/gastown/shared-seams.yaml` as the repo seam registry
+  - treat Gastown as coordination only, not a second planning system
 - for semantic retrieval or graph-grounded answer work, align the change with
   `docs/GRAPH_RAG_AGENT_HANDOFF_SPEC.md`
 - confirm philosophy alignment against `docs/PHILOSOPHY.md` (ontology evidence, router/graph mapping, traceability)
@@ -116,15 +122,20 @@ Semantic path summary:
   after the change:
   - `private finance corpus` for ingestion / finance-domain QA
   - `GraphRAG-Bench` for retrieval / reasoning
+  - the bundled tutorial sample is onboarding-only and must not be reported as
+    benchmark evidence
 - optional one-command landing wrapper: `scripts/land.sh --task-id <id> --fix --pull --push`
 - run sprint label lint (`scripts/pm/lint-items.sh --sprint <id>`)
 - run agent docs lint (`scripts/pm/lint-agent-docs.sh`)
+- release or hand off any Gastown reservation before merge
 - close issue, rebase, sync, push
 - verify branch is up to date with origin
 
 Operational notes:
 
 - use `scripts/pm/lint-items.sh` with internal `bd --no-daemon` execution to avoid local daemon startup stalls.
+- when using git worktrees, prefer `BEADS_NO_DAEMON=1` to prevent daemon writes
+  landing in the wrong worktree
 - current dev quality gates in `Makefile` run against `extraction-service`.
 - while the service name remains `extraction-service`, compose mounts
   `runtime/` and `seocho/` into `/app` so legacy flat entrypoints can import

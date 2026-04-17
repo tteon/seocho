@@ -100,11 +100,15 @@ class TestLadybugStore:
         )
 
         before = store.count_by_source("doc-delete")
-        store.delete_by_source("doc-delete")
+        summary = store.delete_by_source("doc-delete")
         after = store.count_by_source("doc-delete")
 
         assert before["nodes"] >= 1
+        assert before["relationships"] >= 1
+        assert summary["nodes_deleted"] >= 1
+        assert summary["relationships_deleted"] >= 1
         assert after["nodes"] == 0
+        assert after["relationships"] == 0
 
     def test_fulltext_introspection_query_degrades_to_empty_result(self, store):
         rows = store.query("SHOW FULLTEXT INDEXES YIELD name, state RETURN name, state")

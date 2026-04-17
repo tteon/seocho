@@ -99,7 +99,16 @@ Interpretation:
 
 - `local` without `--graph` means embedded `LadybugGraphStore`
 - `local --graph bolt://...` means SDK path against Neo4j/DozerDB
-- `remote` means runtime HTTP semantic path (`Seocho.semantic(...)`), not the memory-first `ask()` facade
+- `remote` means runtime HTTP benchmark against canonical semantic/debate/platform endpoints, not the memory-first `ask()` facade
+- `remote` now uses canonical runtime endpoints:
+  - `/platform/ingest/raw`
+  - `/run_agent_semantic`
+  - `/run_debate`
+  - `/platform/chat/send` with `mode=semantic`
+- remote benchmark artifacts include `runtime_setup` plus per-endpoint summaries:
+  - `remote-semantic`
+  - `remote-debate`
+  - `remote-platform-semantic`
 - benchmark artifacts from active diagnosis runs stay local-only
 
 ### Track 2: GraphRAG-Bench

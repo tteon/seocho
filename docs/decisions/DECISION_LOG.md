@@ -56,6 +56,12 @@ Each entry must link to a full ADR when impact is non-trivial.
   - use Gastown only for shared-seam reservations and handoff coordination
   - add a repo-local shared seam registry with default 24-hour TTL guidance
 
+- Accepted `ADR-0078-secretless-skip-for-scheduled-codex-automation.md`
+  - keep `Basic CI` as the required repository quality gate
+  - make scheduled Codex workflows emit an explicit skip notice instead of
+    failing when automation secrets are absent
+  - keep the Codex/App-token execution path unchanged when secrets are present
+
 ## 2026-03-12
 
 - Accepted `ADR-0028-graph-registry-and-multi-instance-debate-runtime.md`

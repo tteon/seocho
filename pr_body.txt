@@ -1,0 +1,18 @@
+## What
+Added explicit `button:focus-visible` rules with a `var(--accent-blue)` outline to `evaluation/static/styles.css`.
+Added `box-shadow` to `.control select:focus`, `.control input:focus`, and `.ingest-grow textarea:focus`.
+Added `.jules/palette.md` to log codebase-specific accessibility rules for interactive elements.
+
+## Why
+Currently, UI interactive elements primarily rely on border color changes on focus, which might be too subtle for keyboard users or those with visual impairments. Explicit outlines and stronger visual indicators are necessary for good keyboard accessibility.
+
+## Accessibility / UX Impact
+Improves keyboard navigation. Users navigating the application via keyboard will now see a clear, distinct outline around buttons and inputs, confirming where the current focus lies.
+
+## Validation
+- Checked that CI tests (`bash scripts/ci/run_basic_ci.sh`) pass.
+- Linted agent docs (`bash scripts/pm/lint-agent-docs.sh`) pass.
+- Verified visual changes using Playwright scripts against the local frontend evaluation server to confirm expected focus states on both a `button` and `textarea`.
+
+## Risks
+Negligible. This is a CSS-only visual update restricted to `:focus` and `:focus-visible` pseudoclasses. It does not alter DOM structure or application logic.

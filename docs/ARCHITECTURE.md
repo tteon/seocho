@@ -147,7 +147,8 @@ Long-term package shape:
 
 We are intentionally choosing `runtime/` over `server/` because the shell owns
 more than HTTP route files. The staged migration contract lives in
-`docs/RUNTIME_PACKAGE_MIGRATION.md`.
+`docs/RUNTIME_PACKAGE_MIGRATION.md`. Contributor-facing placement guidance
+lives in `docs/MODULE_OWNERSHIP_MAP.md`.
 
 ## Ontology Module Boundaries (Active Direction)
 

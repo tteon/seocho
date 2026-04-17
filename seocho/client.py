@@ -2376,7 +2376,9 @@ class _LocalEngine:
         ontology_profile: str = "default",
     ) -> None:
         from .agent_config import AgentConfig
+        from .events import NullEventPublisher
         from .indexing import IndexingPipeline
+        from .index.ingestion_facade import IngestRequest, IngestionFacade
         from .ontology import Ontology
         from .prompt_strategy import ExtractionStrategy, LinkingStrategy, QueryStrategy
 
@@ -2392,6 +2394,8 @@ class _LocalEngine:
 
         self._ontology_context_cache = OntologyContextCache()
         self._last_query_metadata: Dict[str, Any] = {}
+        self._events = NullEventPublisher()
+        self._ingest_request_cls = IngestRequest
 
         # Resolve embedding backend from the LLM if the provider supports it
         embedding_backend = None
@@ -2411,6 +2415,7 @@ class _LocalEngine:
         # Pass AgentConfig quality settings to pipeline
         self._indexing._quality_threshold = self.agent_config.extraction_quality_threshold
         self._indexing._max_retries = self.agent_config.extraction_max_retries
+        self._ingestion = IngestionFacade(self._indexing, publisher=self._events)
 
         # Pre-build strategies (for extract-only and query)
         self._extraction = ExtractionStrategy(ontology, extraction_prompt=extraction_prompt)
@@ -2436,9 +2441,9 @@ class _LocalEngine:
         If ``ontology_override`` is provided, it is used instead of the
         default ontology (for multi-ontology per database support).
         """
-        pipeline = self._indexing
         if ontology_override is not None:
             from .indexing import IndexingPipeline
+            from .index.ingestion_facade import IngestionFacade
             pipeline = IndexingPipeline(
                 ontology=ontology_override,
                 graph_store=self.graph_store,
@@ -2450,14 +2455,19 @@ class _LocalEngine:
                 ontology_profile=self.ontology_profile,
                 ontology_context_cache=self._ontology_context_cache,
             )
+            ingestion = IngestionFacade(pipeline, publisher=self._events)
         else:
-            pipeline.strict_validation = strict_validation
+            ingestion = self._ingestion
 
-        result = pipeline.index(
-            content,
-            database=database,
-            category=category,
-            metadata=metadata,
+        result = ingestion.ingest(
+            self._ingest_request_cls(
+                content=content,
+                workspace_id=self.workspace_id,
+                database=database,
+                category=category,
+                metadata=metadata,
+                strict_validation=strict_validation,
+            )
         )
 
         result_metadata: Dict[str, Any] = {

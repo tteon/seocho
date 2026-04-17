@@ -16,6 +16,7 @@ from .pipeline import (
     content_hash,
 )
 from .extraction_engine import CanonicalExtractionEngine
+from .ingestion_facade import IngestRequest, IngestionFacade
 from .file_reader import (
     DirectoryIndexResult,
     FileIndexer,
@@ -27,6 +28,8 @@ from .file_reader import (
 __all__ = [
     "IndexingPipeline",
     "CanonicalExtractionEngine",
+    "IngestRequest",
+    "IngestionFacade",
     "IndexingResult",
     "BatchIndexingResult",
     "chunk_text",

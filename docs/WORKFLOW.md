@@ -143,6 +143,8 @@ Operational notes:
 - keep graph procedure privileges scoped (`apoc.*,n10s.*`) in `docker-compose.yml`.
 - default local compose stack is `neo4j + extraction-service + evaluation-interface`.
 - legacy `semantic-service` is opt-in only via `docker compose --profile legacy-semantic up -d semantic-service`.
+- when decomposing large files, prefer the internal seam classes documented in
+  `docs/INTERNAL_CLASS_DESIGN.md` before introducing new top-level services
 
 ## Docs Website Sync
 
@@ -175,6 +177,7 @@ Operational notes:
   - focused semantic/runtime/SDK pytest
   - `git diff --check`
   - `bash scripts/ci/check-runtime-shell-contract.sh`
+  - `bash scripts/ci/check-module-ownership-contract.sh`
   - `scripts/pm/lint-agent-docs.sh`
 
 Runtime migration slices should use the repo-local skill:

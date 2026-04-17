@@ -10,6 +10,7 @@ Where to look:
 If you want to improve Cypher generation or answer quality, start here.
 """
 
+from .agent_factory import AgentConfig, AgentFactory
 from .answering import QueryAnswerSynthesizer, build_evidence_bundle, infer_question_intent
 from .constraints import SemanticConstraintSliceBuilder
 from .contracts import (
@@ -26,6 +27,7 @@ from .executor import GraphQueryExecutor
 from .insufficiency import QueryInsufficiencyClassifier
 from .intent import INTENT_CATALOG
 from .planner import DeterministicQueryPlanner
+from .query_proxy import NullQueryPolicy, QueryPolicy, QueryProxy, QueryRequest
 from .run_registry import RunMetadataRegistry
 from .semantic_flow import SemanticAgentFlow
 from .semantic_agents import (
@@ -49,6 +51,8 @@ from .strategy_chooser import ExecutionStrategyChooser, IntentSupportValidator
 
 __all__ = [
     "IntentSpec",
+    "AgentConfig",
+    "AgentFactory",
     "INTENT_CATALOG",
     "QueryPlan",
     "QueryExecution",
@@ -60,6 +64,10 @@ __all__ = [
     "QueryAnswerSynthesizer",
     "build_evidence_bundle",
     "infer_question_intent",
+    "QueryProxy",
+    "QueryRequest",
+    "QueryPolicy",
+    "NullQueryPolicy",
     "SemanticConstraintSliceBuilder",
     "RunMetadataRegistry",
     "SemanticAgentFlow",

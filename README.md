@@ -168,6 +168,11 @@ runtime call it instead of keeping a second prompt/normalization path.
 Deterministic runtime memory-graph shaping and semantic-artifact helpers live
 under `seocho/index/runtime_memory.py` and `seocho/index/runtime_artifacts.py`
 so runtime-only wrappers no longer own that logic outright.
+Basic CI also checks that extraction shims keep delegating to canonical
+`seocho/*` and `runtime/*` owners instead of quietly accreting new logic.
+The next modularization step uses internal seams such as `DomainEvent`,
+`IngestionFacade`, `QueryProxy`, `AgentFactory`, and `AgentStateMachine`
+without widening the public SDK surface.
 
 ## Choose Your Runtime Shape
 

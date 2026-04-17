@@ -136,6 +136,10 @@ Use these when changing a specific subsystem or workflow:
 - `../.github/workflows/pr-comment-merge.yml`: maintainer-triggered `/go`
   squash merge workflow
 
+Scheduled Codex automation is optional. When `OPENAI_API_KEY`,
+`SEOCHO_GITHUB_APP_ID`, or `SEOCHO_GITHUB_APP_PRIVATE_KEY` are missing, the
+daily and periodic workflows exit successfully after an explicit skip notice.
+
 ## Docs Sync Integration
 
 - `README.md` and selected `docs/*` pages are the source material for website docs.

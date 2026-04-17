@@ -157,7 +157,9 @@ deployment shell migrates to `runtime/`. The current local compose service is
 still named `extraction-service`; it bind-mounts `runtime/` and `seocho/` so
 the historical flat entrypoint can delegate to canonical runtime code.
 Local-mode orchestration now lives in `seocho/local_engine.py` so `client.py`
-does not keep expanding as a second canonical engine owner.
+does not keep expanding as a second canonical engine owner. Remote transport
+setup and runtime-bundle import/export glue now live in `seocho/client_remote.py`
+and `seocho/client_bundle.py` for the same reason.
 
 Long-term, the overloaded `extraction/` package name is being retired in favor
 of a thinner `runtime/` deployment shell. The staged plan is documented in
@@ -413,6 +415,8 @@ seocho/
 ├── agent_config.py     ← AgentConfig, RoutingPolicy, presets
 ├── experiment.py       ← Workbench for parameter exploration
 ├── tracing.py          ← Pluggable observability
+├── client_remote.py    ← HTTP transport/request helper behind the SDK facade
+├── client_bundle.py    ← Runtime-bundle import/export helper behind the facade
 ├── local_engine.py     ← Local-mode orchestration behind the SDK facade
 └── client.py           ← Public SDK facade
 ```

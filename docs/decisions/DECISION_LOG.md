@@ -508,6 +508,11 @@ Each entry must link to a full ADR when impact is non-trivial.
   - keep local-mode orchestration behind the public `Seocho` facade instead of inside it
   - enforce the boundary in basic CI and module-ownership checks
 
+- Accepted `ADR-0082-client-remote-and-bundle-helpers.md`
+  - move HTTP transport/request dispatch helper ownership to `seocho/client_remote.py`
+  - move runtime-bundle import/export glue to `seocho/client_bundle.py`
+  - keep `Seocho` as the stable public facade while shrinking `client.py`
+
 ## Template
 
 Use this block for new entries:

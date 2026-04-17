@@ -119,6 +119,8 @@ In practical terms:
 
 - `seocho/client.py` remains the public facade for now
 - `seocho/local_engine.py` owns local-mode orchestration behind that facade
+- `seocho/client_remote.py` owns transport/request dispatch setup behind that facade
+- `seocho/client_bundle.py` owns runtime-bundle import/export glue behind that facade
 - `seocho/index/pipeline.py` remains the canonical indexing engine
 - `seocho/query/semantic_flow.py` remains the canonical semantic orchestrator
 - `runtime/server_runtime.py` remains the runtime composition root

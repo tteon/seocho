@@ -50,10 +50,22 @@ check_present "self._ingestion = IngestionFacade(self._indexing, publisher=self.
   seocho/local_engine.py
 check_present "from .local_engine import _LocalEngine" \
   seocho/client.py
+check_present "from .client_remote import RemoteClientHelper" \
+  seocho/client.py
+check_present "from .client_bundle import RuntimeBundleClientHelper" \
+  seocho/client.py
 check_absent "class _LocalEngine:" \
   seocho/client.py
 check_present "class _LocalEngine:" \
   seocho/local_engine.py
+check_present "class RemoteClientHelper:" \
+  seocho/client_remote.py
+check_present "class RuntimeBundleClientHelper:" \
+  seocho/client_bundle.py
+check_absent "from .runtime_bundle import build_runtime_bundle" \
+  seocho/client.py
+check_absent "from .runtime_bundle import create_client_from_runtime_bundle" \
+  seocho/client.py
 
 echo "Checking extraction shim ownership..."
 check_present "from seocho.rules import (" \
@@ -86,6 +98,12 @@ check_present "test_query_proxy_validates_and_publishes_success" \
   seocho/tests/test_internal_design_seams.py
 check_present "test_client_imports_local_engine_from_dedicated_module" \
   seocho/tests/test_internal_design_seams.py
+check_present "test_client_initializes_remote_helper_and_delegates_request_json" \
+  seocho/tests/test_client_boundaries.py
+check_present "test_client_bundle_helper_exports_runtime_bundle" \
+  seocho/tests/test_client_boundaries.py
+check_present "test_client_bundle_helper_rehydrates_from_bundle" \
+  seocho/tests/test_client_boundaries.py
 
 echo "Checking basic CI coverage..."
 check_present "extraction/rule_constraints.py" \
@@ -106,6 +124,10 @@ check_present "runtime/agent_state.py" \
   scripts/ci/run_basic_ci.sh
 check_present "seocho/events.py" \
   scripts/ci/run_basic_ci.sh
+check_present "seocho/client_bundle.py" \
+  scripts/ci/run_basic_ci.sh
+check_present "seocho/client_remote.py" \
+  scripts/ci/run_basic_ci.sh
 check_present "seocho/local_engine.py" \
   scripts/ci/run_basic_ci.sh
 check_present "seocho/index/ingestion_facade.py" \
@@ -113,6 +135,10 @@ check_present "seocho/index/ingestion_facade.py" \
 check_present "seocho/query/query_proxy.py" \
   scripts/ci/run_basic_ci.sh
 check_present "seocho/query/agent_factory.py" \
+  scripts/ci/run_basic_ci.sh
+check_present "seocho/tests/test_client_boundaries.py" \
+  scripts/ci/run_basic_ci.sh
+check_present "seocho/tests/test_runtime_bundle.py" \
   scripts/ci/run_basic_ci.sh
 check_present "seocho/tests/test_internal_design_seams.py" \
   scripts/ci/run_basic_ci.sh
@@ -125,6 +151,7 @@ check_present "INTERNAL_CLASS_DESIGN.md" \
 check_present "docs/INTERNAL_CLASS_DESIGN.md" \
   docs/WORKFLOW.md \
   docs/decisions/ADR-0080-internal-orchestration-seams-for-modular-monolith.md \
-  docs/decisions/ADR-0081-local-engine-module-behind-client-facade.md
+  docs/decisions/ADR-0081-local-engine-module-behind-client-facade.md \
+  docs/decisions/ADR-0082-client-remote-and-bundle-helpers.md
 
 echo "Module ownership contract checks passed."

@@ -39,6 +39,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
 
 import requests
 
+from .client_bundle import RuntimeBundleClientHelper
 from .client_artifacts import (
     approved_artifacts_from_ontology as build_approved_artifacts_from_ontology,
 )
@@ -48,9 +49,9 @@ from .client_artifacts import (
 from .client_artifacts import (
     prompt_context_from_ontology as build_prompt_context_from_ontology,
 )
+from .client_remote import RemoteClientHelper
 from .exceptions import SeochoConnectionError, SeochoHTTPError
 from .governance import ArtifactDiff, ArtifactValidationResult, diff_artifact_payloads, validate_artifact_payload
-from .http_transport import RuntimeHttpTransport
 from .local_engine import _LocalEngine
 from .semantic import (
     ApprovedArtifacts,
@@ -203,16 +204,21 @@ class Seocho:
                 ontology_profile=self.ontology_profile,
             )
             self._session = session or requests.Session()
-            self.base_url = ""
         else:
             self._engine = None
-            self.base_url = (base_url or _env_str("SEOCHO_BASE_URL", "http://localhost:8001")).rstrip("/") + "/"
             self._session = session or requests.Session()
-        self._transport = RuntimeHttpTransport(
-            base_url=self.base_url,
+
+        self._bundle_helper = RuntimeBundleClientHelper()
+        resolved_base_url = ""
+        if not self._local_mode:
+            resolved_base_url = (base_url or _env_str("SEOCHO_BASE_URL", "http://localhost:8001")).rstrip("/") + "/"
+        self._remote = RemoteClientHelper.build(
+            base_url=resolved_base_url,
             session=self._session,
             timeout=self.timeout,
         )
+        self.base_url = self._remote.base_url
+        self._transport = self._remote.transport
 
         self._graph_catalog_cache: Optional[Dict[str, GraphTarget]] = None
         self._ontology_registry: Dict[str, Any] = {}  # database -> Ontology
@@ -1888,16 +1894,12 @@ class Seocho:
         Returns:
             A :class:`RuntimeBundle` that can be saved or used directly.
         """
-        from .runtime_bundle import build_runtime_bundle
-
-        bundle = build_runtime_bundle(
+        return self._bundle_helper.export_bundle(
             self,
+            path=path,
             app_name=app_name,
             default_database=default_database,
         )
-        if path:
-            bundle.save(path)
-        return bundle
 
     @classmethod
     def from_runtime_bundle(
@@ -1915,9 +1917,7 @@ class Seocho:
         Returns:
             A configured :class:`Seocho` client.
         """
-        from .runtime_bundle import create_client_from_runtime_bundle
-
-        return create_client_from_runtime_bundle(bundle_source, workspace_id=workspace_id)
+        return RuntimeBundleClientHelper.create_client(bundle_source, workspace_id=workspace_id)
 
     def close(self) -> None:
         """Release resources held by the client.
@@ -2131,7 +2131,7 @@ class Seocho:
         json_body: Optional[Dict[str, Any]] = None,
         params: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        return self._transport.request_json(
+        return self._remote.request_json(
             method,
             path,
             json_body=json_body,

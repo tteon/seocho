@@ -4,10 +4,14 @@ Goal: one successful local run in under 5 minutes.
 
 If you only read one runtime document first, read this one.
 
+This page is the onboarding path. Use it for first success and local product
+verification, not for benchmark claims.
+
 If you want the Python SDK path immediately, continue with
 `docs/PYTHON_INTERFACE_QUICKSTART.md`.
 If you want the bring-your-own-data path immediately, continue with
 `docs/APPLY_YOUR_DATA.md`.
+If you are measuring quality or latency, continue with `docs/BENCHMARKS.md`.
 
 ## 1. Prerequisites
 

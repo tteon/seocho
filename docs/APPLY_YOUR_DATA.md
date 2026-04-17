@@ -11,6 +11,9 @@ operations:
 This document is the shortest path from "I have data" to "I can query it
 through the SDK and API."
 
+This page is the bring-your-own-data path. It is not the benchmark contract;
+use `BENCHMARKS.md` for private corpus evaluation rules.
+
 Before you start, know the main local locations:
 
 - ontology file: usually `schema.jsonld`

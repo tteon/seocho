@@ -39,6 +39,15 @@ class _FakeDbManager:
     driver = None
 
 
+class _RecordingQueryProxy:
+    def __init__(self) -> None:
+        self.calls = []
+
+    def query(self, request):
+        self.calls.append(request)
+        return [{"memory_id": "mem_1"}]
+
+
 def test_create_memory_calls_runtime_ingest_with_workspace_and_scope():
     ingestor = _FakeIngestor()
     service = GraphMemoryService(
@@ -231,6 +240,29 @@ def test_ontology_context_mismatch_summarizes_runtime_graph_status():
     assert status["graph_id"] == "kgfinance"
     assert "multiple_indexed_context_hashes" in status["mismatch_reasons"]
     assert "indexed_ontology_id_differs_from_target" in status["mismatch_reasons"]
+
+
+def test_run_query_prefers_query_proxy_with_workspace_scope():
+    query_proxy = _RecordingQueryProxy()
+    service = GraphMemoryService(
+        db_manager=_FakeDbManager(),
+        runtime_raw_ingestor=_FakeIngestor(),
+        semantic_agent_flow=_FakeSemanticFlow(),
+        query_proxy=query_proxy,
+    )
+
+    rows = service._run_query(
+        "kgnormal",
+        "MATCH (m:Document) RETURN m",
+        {"limit": 5},
+        workspace_id="ws-runtime",
+    )
+
+    assert rows == [{"memory_id": "mem_1"}]
+    request = query_proxy.calls[0]
+    assert request.workspace_id == "ws-runtime"
+    assert request.database == "kgnormal"
+    assert request.params == {"limit": 5}
 
 
 def test_search_memories_surfaces_ontology_context_mismatch():

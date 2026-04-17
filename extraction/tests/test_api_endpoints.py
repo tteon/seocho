@@ -119,6 +119,34 @@ class TestListEndpoints:
         data = response.json()
         assert "agents" in data
 
+    async def test_execute_cypher_tool_uses_query_proxy(self, app_module):
+        context = types.SimpleNamespace(
+            context=app_module.ServerContext(
+                user_id="u1",
+                workspace_id="default",
+                allowed_databases=["kgnormal"],
+            )
+        )
+        fake_proxy = types.SimpleNamespace(
+            query=MagicMock(return_value=[{"ok": 1}]),
+        )
+        with patch.object(app_module, "query_proxy", fake_proxy), patch.object(
+            app_module.graph_registry,
+            "find_by_database",
+            return_value=types.SimpleNamespace(vocabulary_profile="finance"),
+        ):
+            raw = app_module.execute_cypher_tool(
+                context,
+                "MATCH (n) RETURN n LIMIT 1",
+                database="kgnormal",
+            )
+
+        assert raw == '[{"ok": 1}]'
+        request = fake_proxy.query.call_args.args[0]
+        assert request.workspace_id == "default"
+        assert request.database == "kgnormal"
+        assert request.ontology_profile == "finance"
+
     async def test_runtime_health_endpoint(self, client):
         response = await client.get("/health/runtime")
         assert response.status_code == 200
@@ -1025,15 +1053,23 @@ class TestQueryValidation:
         wrapper = types.SimpleNamespace(
             context=app_module.ServerContext(
                 user_id="user_default",
+                workspace_id="default",
                 allowed_databases=["kgnormal"],
                 tool_budget=1,
             )
         )
 
-        with patch.object(app_module.neo4j_conn, "run_cypher", return_value='[{"ok": 1}]') as mock_run:
+        fake_proxy = types.SimpleNamespace(query=MagicMock(return_value=[{"ok": 1}]))
+        with patch.object(app_module, "query_proxy", fake_proxy), patch.object(
+            app_module.graph_registry,
+            "find_by_database",
+            return_value=types.SimpleNamespace(vocabulary_profile="default"),
+        ):
             first = app_module.execute_cypher_tool(wrapper, "RETURN 1", database="kgnormal")
             second = app_module.execute_cypher_tool(wrapper, "RETURN 1", database="kgnormal")
 
         assert first == '[{"ok": 1}]'
         assert "Tool budget exhausted" in second
-        mock_run.assert_called_once_with("RETURN 1", database="kgnormal")
+        request = fake_proxy.query.call_args.args[0]
+        assert request.workspace_id == "default"
+        assert request.database == "kgnormal"

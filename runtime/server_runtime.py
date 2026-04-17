@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import json
 import logging
 import os
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, List, Optional
 
-from agent_factory import AgentFactory
+from agent_factory import AgentFactory as DebateAgentFactory
 from config import db_registry, graph_registry
 from database_manager import DatabaseManager
 from fulltext_index import FulltextIndexManager
@@ -20,6 +21,11 @@ from platform_agents import (
 from runtime.runtime_ingest import RuntimeRawIngestor
 from semantic_query_flow import SemanticAgentFlow
 from shared_memory import SharedMemory
+from seocho.query.agent_factory import (
+    AgentConfig as SemanticFlowAgentConfig,
+    AgentFactory as SemanticFlowAgentFactory,
+)
+from seocho.query.query_proxy import QueryProxy
 
 logger = logging.getLogger(__name__)
 
@@ -58,15 +64,49 @@ class Neo4jConnector(MultiGraphConnector):
 
 _neo4j_conn: Optional[Neo4jConnector] = None
 _db_manager: Optional[DatabaseManager] = None
-_agent_factory: Optional[AgentFactory] = None
+_agent_factory: Optional[DebateAgentFactory] = None
 _vector_store: Optional[object] = None
+_semantic_flow_factory: Optional[SemanticFlowAgentFactory] = None
 _semantic_agent_flow: Optional[SemanticAgentFlow] = None
+_graph_query_proxy: Optional[QueryProxy] = None
 _fulltext_index_manager: Optional[FulltextIndexManager] = None
 _platform_session_store: Optional[PlatformSessionStore] = None
 _backend_specialist_agent: Optional[BackendSpecialistAgent] = None
 _frontend_specialist_agent: Optional[FrontendSpecialistAgent] = None
 _runtime_raw_ingestor: Optional[RuntimeRawIngestor] = None
 _memory_service: Optional[GraphMemoryService] = None
+
+
+class _ConnectorGraphQueryAdapter:
+    """Adapt the legacy connector string API to the canonical QueryProxy contract."""
+
+    def __init__(self, connector: MultiGraphConnector) -> None:
+        self._connector = connector
+
+    def query(
+        self,
+        cypher: str,
+        *,
+        params: Optional[dict[str, Any]] = None,
+        database: str = "neo4j",
+    ) -> list[dict[str, Any]]:
+        raw = self._connector.run_cypher(query=cypher, database=database, params=dict(params or {}))
+        if isinstance(raw, str) and raw.startswith("Error"):
+            raise RuntimeError(raw)
+        if not raw:
+            return []
+
+        parsed = json.loads(raw)
+        if not isinstance(parsed, list):
+            return []
+
+        rows: list[dict[str, Any]] = []
+        for item in parsed:
+            if isinstance(item, dict):
+                rows.append(item)
+            else:
+                rows.append({"value": item})
+        return rows
 
 
 def get_neo4j_connector_service() -> Neo4jConnector:
@@ -83,11 +123,20 @@ def get_db_manager_service() -> DatabaseManager:
     return _db_manager
 
 
-def get_agent_factory_service() -> AgentFactory:
+def get_agent_factory_service() -> DebateAgentFactory:
     global _agent_factory
     if _agent_factory is None:
-        _agent_factory = AgentFactory(get_neo4j_connector_service())
+        _agent_factory = DebateAgentFactory(get_neo4j_connector_service())
     return _agent_factory
+
+
+def get_semantic_flow_factory_service() -> SemanticFlowAgentFactory:
+    global _semantic_flow_factory
+    if _semantic_flow_factory is None:
+        _semantic_flow_factory = SemanticFlowAgentFactory.with_semantic_flow(
+            get_neo4j_connector_service(),
+        )
+    return _semantic_flow_factory
 
 
 def get_vector_store_service():
@@ -102,11 +151,31 @@ def get_vector_store_service():
 def get_semantic_agent_flow_service() -> SemanticAgentFlow:
     global _semantic_agent_flow
     if _semantic_agent_flow is None:
-        _semantic_agent_flow = SemanticAgentFlow(
-            get_neo4j_connector_service(),
-            graph_targets=graph_registry.list_graphs(),
+        graph_targets = graph_registry.list_graphs()
+        default_database = (
+            str(getattr(graph_targets[0], "database", "") or "neo4j")
+            if graph_targets
+            else "neo4j"
+        )
+        _semantic_agent_flow = get_semantic_flow_factory_service().create(
+            SemanticFlowAgentConfig(
+                mode="semantic",
+                workspace_id="runtime",
+                database=default_database,
+                ontology_profile="default",
+                graph_targets=graph_targets,
+            )
         )
     return _semantic_agent_flow
+
+
+def get_graph_query_proxy_service() -> QueryProxy:
+    global _graph_query_proxy
+    if _graph_query_proxy is None:
+        _graph_query_proxy = QueryProxy(
+            _ConnectorGraphQueryAdapter(get_neo4j_connector_service()),
+        )
+    return _graph_query_proxy
 
 
 def get_fulltext_index_manager_service() -> FulltextIndexManager:
@@ -151,6 +220,7 @@ def get_memory_service() -> GraphMemoryService:
             db_manager=get_db_manager_service(),
             runtime_raw_ingestor=get_runtime_raw_ingestor(),
             semantic_agent_flow=get_semantic_agent_flow_service(),
+            query_proxy=get_graph_query_proxy_service(),
         )
     return _memory_service
 

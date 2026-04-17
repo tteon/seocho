@@ -75,6 +75,22 @@ Each entry must link to a full ADR when impact is non-trivial.
   - keep `seocho/client.py` as the public facade while logic moves behind it
   - treat these seams as modular-monolith structure, not a microservice split
 
+- Accepted `ADR-0081-local-engine-module-behind-client-facade.md`
+  - move `_LocalEngine` into `seocho/local_engine.py`
+  - keep `seocho/client.py` as a composition-oriented public facade
+  - enforce the boundary with module-ownership checks
+
+- Accepted `ADR-0082-client-remote-and-bundle-helpers.md`
+  - move remote transport setup into `seocho/client_remote.py`
+  - move runtime bundle glue into `seocho/client_bundle.py`
+  - keep `seocho/client.py` focused on the public facade surface
+
+- Accepted `ADR-0083-runtime-wiring-for-internal-orchestration-seams.md`
+  - wire runtime graph reads and Cypher tool execution through `QueryProxy`
+  - build the shared semantic flow through the canonical `seocho.query.AgentFactory`
+  - normalize debate readiness through `AgentStateMachine`
+  - defer debate-factory convergence and `LLMProxy` to later slices
+
 ## 2026-03-12
 
 - Accepted `ADR-0028-graph-registry-and-multi-instance-debate-runtime.md`

@@ -16,6 +16,7 @@ from seocho.ontology_context import (
     assess_graph_ontology_context_status,
 )
 from seocho.query.answering import build_evidence_bundle
+from seocho.query.query_proxy import QueryProxy, QueryRequest as GraphQueryRequest
 
 
 class GraphMemoryService:
@@ -28,11 +29,13 @@ class GraphMemoryService:
         runtime_raw_ingestor: RuntimeRawIngestor,
         semantic_agent_flow: SemanticAgentFlow,
         default_database: Optional[str] = None,
+        query_proxy: Optional[QueryProxy] = None,
     ) -> None:
         self.db_manager = db_manager
         self.runtime_raw_ingestor = runtime_raw_ingestor
         self.semantic_agent_flow = semantic_agent_flow
         self.default_database = default_database or os.getenv("PUBLIC_MEMORY_DATABASE", "kgnormal")
+        self.query_proxy = query_proxy
 
     def create_memory(
         self,
@@ -451,6 +454,7 @@ class GraphMemoryService:
                        sum(CASE WHEN coalesce(n._ontology_context_hash, '') = '' THEN 1 ELSE 0 END) AS missing_context_hash_nodes
                 """,
                 {"workspace_id": workspace_id},
+                workspace_id=workspace_id,
             )
             row = rows[0] if rows else {}
             status = assess_graph_ontology_context_status(
@@ -571,7 +575,12 @@ class GraphMemoryService:
                entities
         LIMIT 1
         """
-        rows = self._run_query(database, query, {"memory_id": memory_id, "workspace_id": workspace_id})
+        rows = self._run_query(
+            database,
+            query,
+            {"memory_id": memory_id, "workspace_id": workspace_id},
+            workspace_id=workspace_id,
+        )
         if not rows:
             return None
         return rows[0]
@@ -590,6 +599,7 @@ class GraphMemoryService:
             database,
             query,
             {"memory_id": memory_id, "workspace_id": workspace_id, "archived_at": archived_at},
+            workspace_id=workspace_id,
         )
         if not rows:
             return 0
@@ -627,7 +637,12 @@ class GraphMemoryService:
         """
         results: List[Dict[str, Any]] = []
         for database in databases:
-            rows = self._run_query(database, search_query, {"workspace_id": workspace_id, "query": query})
+            rows = self._run_query(
+                database,
+                search_query,
+                {"workspace_id": workspace_id, "query": query},
+                workspace_id=workspace_id,
+            )
             for row in rows:
                 payload = self._row_to_memory(row, database)
                 if not self._matches_scope(payload, user_id, agent_id, session_id):
@@ -702,7 +717,29 @@ class GraphMemoryService:
         # user/agent/session queries inside the already-enforced workspace.
         return not stored or stored == str(requested_value).strip()
 
-    def _run_query(self, database: str, query: str, params: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _run_query(
+        self,
+        database: str,
+        query: str,
+        params: Optional[Dict[str, Any]],
+        *,
+        workspace_id: str = "default",
+    ) -> List[Dict[str, Any]]:
+        if self.query_proxy is not None:
+            target = graph_registry.find_by_database(database)
+            ontology_profile = str(getattr(target, "vocabulary_profile", "") or "default")
+            try:
+                return self.query_proxy.query(
+                    GraphQueryRequest(
+                        cypher=query,
+                        params=params,
+                        workspace_id=workspace_id,
+                        database=database,
+                        ontology_profile=ontology_profile,
+                    )
+                )
+            except Exception:
+                return []
         try:
             with self.db_manager.driver.session(database=database) as session:
                 result = session.run(query, params or {})

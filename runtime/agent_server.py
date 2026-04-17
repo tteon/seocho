@@ -69,8 +69,8 @@ from runtime.server_runtime import (
     get_db_manager_service,
     get_frontend_specialist_agent_service,
     get_fulltext_index_manager_service,
+    get_graph_query_proxy_service,
     get_memory_service,
-    get_neo4j_connector_service,
     get_platform_session_store_service,
     get_runtime_raw_ingestor,
     get_schema_impl,
@@ -95,6 +95,7 @@ from semantic_artifact_api import (
     resolve_approved_artifact_payload,
 )
 from semantic_run_store import get_semantic_run, list_semantic_runs
+from seocho.query.query_proxy import QueryRequest as GraphQueryRequest
 
 logger = logging.getLogger(__name__)
 
@@ -110,9 +111,9 @@ class _LazyServiceProxy:
 
 app = FastAPI(title="Agent Server")
 
-neo4j_conn = _LazyServiceProxy(get_neo4j_connector_service)
 db_manager = _LazyServiceProxy(get_db_manager_service)
 agent_factory = _LazyServiceProxy(get_agent_factory_service)
+query_proxy = _LazyServiceProxy(get_graph_query_proxy_service)
 faiss_manager = _LazyServiceProxy(get_vector_store_service)
 semantic_agent_flow = _LazyServiceProxy(get_semantic_agent_flow_service)
 fulltext_index_manager = _LazyServiceProxy(get_fulltext_index_manager_service)
@@ -248,7 +249,26 @@ def execute_cypher_tool(context: RunContextWrapper, query: str, database: str = 
             return f"Database '{database}' is outside the allowed graph scope."
         if not server_context.consume_tool_budget():
             return "Tool budget exhausted for this request."
-    return neo4j_conn.run_cypher(query, database=database)
+    workspace_id = (
+        server_context.workspace_id
+        if isinstance(server_context, ServerContext)
+        else "default"
+    )
+    target = graph_registry.find_by_database(database)
+    ontology_profile = str(getattr(target, "vocabulary_profile", "") or "default")
+    try:
+        rows = query_proxy.query(
+            GraphQueryRequest(
+                cypher=query,
+                database=database,
+                workspace_id=workspace_id,
+                ontology_profile=ontology_profile,
+            )
+        )
+    except Exception as exc:
+        logger.error("Error executing Cypher in '%s': %s", database, exc)
+        return f"Error executing Cypher in '{database}': {exc}"
+    return json.dumps(rows)
 
 @function_tool
 def search_vector_tool(query: str) -> str:
@@ -1400,10 +1420,17 @@ async def runtime_health():
 
     db_status = "ready"
     db_detail = "DozerDB query ok"
-    db_probe = neo4j_conn.run_cypher("RETURN 1 AS ok", database="neo4j")
-    if isinstance(db_probe, str) and db_probe.startswith("Error"):
+    try:
+        query_proxy.query(
+            GraphQueryRequest(
+                cypher="RETURN 1 AS ok",
+                database="neo4j",
+                workspace_id="runtime-health",
+            )
+        )
+    except Exception as exc:
         db_status = "blocked"
-        db_detail = db_probe
+        db_detail = str(exc)
     components.append(HealthComponent(name="dozerdb", status=db_status, detail=db_detail))
 
     runtime_status = "ready"

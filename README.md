@@ -177,6 +177,16 @@ Basic CI also checks that extraction shims keep delegating to canonical
 The next modularization step uses internal seams such as `DomainEvent`,
 `IngestionFacade`, `QueryProxy`, `AgentFactory`, and `AgentStateMachine`
 without widening the public SDK surface.
+Current hot-path wiring is intentionally incremental:
+
+- `Seocho.add()` already enters `IngestionFacade` through `seocho/local_engine.py`
+- runtime semantic flow creation goes through the canonical `seocho.query.AgentFactory`
+- runtime graph reads and Cypher tool execution now pass through `QueryProxy`
+- debate readiness summaries normalize onto `AgentStateMachine`
+
+The multi-agent debate specialist factory still lives behind the legacy
+`extraction/agent_factory.py` surface for now. That convergence step remains a
+follow-up, not part of the public SDK contract.
 
 ## Choose Your Runtime Shape
 

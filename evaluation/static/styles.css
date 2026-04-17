@@ -574,3 +574,15 @@ body {
     stroke-dashoffset: -16;
   }
 }
+
+/* Accessibility Focus States */
+button:focus-visible {
+  outline: 2px solid var(--accent-blue);
+  outline-offset: 2px;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  box-shadow: 0 0 0 2px rgba(47, 129, 247, 0.4);
+}

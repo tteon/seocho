@@ -1,0 +1,1 @@
+- Interactive UI elements must maintain explicit keyboard accessibility patterns, such as using `button:focus-visible` with outlines and `box-shadow` on `:focus` for inputs.

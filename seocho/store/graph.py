@@ -1153,19 +1153,38 @@ class LadybugGraphStore(GraphStore):
         }
 
     def delete_by_source(self, source_id: str, *, database: str = "neo4j") -> Dict[str, Any]:
-        summary = {"nodes_deleted": 0, "relationships_deleted": 0}
-        for label in list(self._declared_node_tables):
-            try:
-                self._conn.execute(
-                    f"MATCH (n:`{label}`) WHERE n._source_id = $sid DETACH DELETE n",
-                    {"sid": source_id},
-                )
-            except Exception:
-                pass
+        before = self.count_by_source(source_id, database=database)
+        summary = {
+            "nodes_deleted": before["nodes"],
+            "relationships_deleted": before["relationships"],
+            "errors": [],
+        }
+
+        try:
+            self._conn.execute(
+                "MATCH ()-[r]->() WHERE r._source_id = $sid DELETE r",
+                {"sid": source_id},
+            )
+        except Exception as exc:
+            summary["errors"].append(f"relationship delete: {exc}")
+
+        try:
+            self._conn.execute(
+                "MATCH (n) WHERE n._source_id = $sid DETACH DELETE n",
+                {"sid": source_id},
+            )
+        except Exception as exc:
+            summary["errors"].append(f"node delete: {exc}")
+
+        after = self.count_by_source(source_id, database=database)
+        summary["nodes_deleted"] = max(0, before["nodes"] - after["nodes"])
+        summary["relationships_deleted"] = max(0, before["relationships"] - after["relationships"])
         return summary
 
     def count_by_source(self, source_id: str, *, database: str = "neo4j") -> Dict[str, int]:
-        total = 0
+        node_total = 0
+        relationship_total = 0
+
         for label in self._declared_node_tables:
             try:
                 result = self._conn.execute(
@@ -1173,10 +1192,21 @@ class LadybugGraphStore(GraphStore):
                     {"sid": source_id},
                 )
                 for row in result:
-                    total += int(row[0] if isinstance(row, list) else list(row)[0])
+                    node_total += int(row[0] if isinstance(row, list) else list(row)[0])
             except Exception:
                 pass
-        return {"nodes": total, "relationships": 0}
+
+        try:
+            result = self._conn.execute(
+                "MATCH ()-[r]->() WHERE r._source_id = $sid RETURN count(r)",
+                {"sid": source_id},
+            )
+            for row in result:
+                relationship_total += int(row[0] if isinstance(row, list) else list(row)[0])
+        except Exception:
+            pass
+
+        return {"nodes": node_total, "relationships": relationship_total}
 
     def close(self) -> None:
         try:

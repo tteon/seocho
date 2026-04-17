@@ -98,6 +98,9 @@ uv run python scripts/benchmarks/run_finder_benchmark.py \
 Interpretation:
 
 - `local` without `--graph` means embedded `LadybugGraphStore`
+- `local` without `--graph` now uses an isolated per-run Ladybug file under `.seocho/benchmarks/local/`
+  - this avoids false zero-write runs caused by reusing the default `.seocho/local.lbug` dedup state
+  - the auto-generated benchmark file is reset at the start of each run, even if the same `workspace_id` is reused
 - `local --graph bolt://...` means SDK path against Neo4j/DozerDB
 - `remote` means runtime HTTP benchmark against canonical semantic/debate/platform endpoints, not the memory-first `ask()` facade
 - `remote` now uses canonical runtime endpoints:
@@ -109,6 +112,9 @@ Interpretation:
   - `remote-semantic`
   - `remote-debate`
   - `remote-platform-semantic`
+- local benchmark records should retain indexing-path hints per case:
+  - `fallback_used`
+  - `deduplicated`
 - benchmark artifacts from active diagnosis runs stay local-only
 
 ### Track 2: GraphRAG-Bench

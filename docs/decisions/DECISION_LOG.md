@@ -546,6 +546,13 @@ Each entry must link to a full ADR when impact is non-trivial.
   - move live source mounts behind `docker-compose.dev.yml` and `make up-live`
   - keep port `8001` reproducible from a known build snapshot during benchmark
     and support loops
+- Accepted `ADR-0086-user-first-readme-and-docs-entrypoints.md`
+  - make GitHub `README.md` and `docs/README.md` lead with product value,
+    first-run paths, and copy-paste snippets
+  - keep architecture depth available through a clear deep-dive CTA instead of
+    leading with framework comparison language
+  - keep mirrored website docs home aligned with the same source-of-truth docs
+    structure
 
 ## Template
 

@@ -7,6 +7,39 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 
+def build_ontology_context_summary_query(*, include_runtime_fields: bool = False) -> str:
+    """Return a document-scoped metadata query for ontology context checks.
+
+    `Document` nodes are the stable per-record provenance carrier across local
+    and runtime ingestion paths. Querying that label first avoids noisy
+    whole-graph property scans on mixed-property graphs while preserving the
+    ontology-context mismatch signal for SEOCHO-managed data.
+    """
+
+    projections = [
+        "collect(DISTINCT coalesce(n._ontology_context_hash, '')) AS raw_context_hashes",
+        "count(n) AS scoped_nodes",
+        "sum(CASE WHEN coalesce(n._ontology_context_hash, '') = '' THEN 1 ELSE 0 END) AS missing_context_nodes",
+    ]
+    if include_runtime_fields:
+        projections.insert(
+            1,
+            "collect(DISTINCT coalesce(n._ontology_id, '')) AS raw_ontology_ids",
+        )
+        projections.insert(
+            2,
+            "collect(DISTINCT coalesce(n._ontology_profile, '')) AS raw_profiles",
+        )
+        projections.append(
+            "sum(CASE WHEN coalesce(n._ontology_context_hash, '') = '' AND coalesce(n._ontology_id, '') = '' THEN 1 ELSE 0 END) AS missing_context_hash_nodes"
+        )
+    return (
+        "OPTIONAL MATCH (n:Document)\n"
+        "WHERE coalesce(n._workspace_id, n.workspace_id, $workspace_id) = $workspace_id\n"
+        f"RETURN {', '.join(projections)}"
+    )
+
+
 def _stable_json(payload: Dict[str, Any]) -> str:
     return json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
 
@@ -369,13 +402,7 @@ def query_ontology_context_mismatch(
 
     try:
         rows = graph_store.query(
-            """
-            MATCH (n)
-            WHERE coalesce(n._workspace_id, n.workspace_id, $workspace_id) = $workspace_id
-            RETURN collect(DISTINCT coalesce(n._ontology_context_hash, '')) AS raw_context_hashes,
-                   count(n) AS scoped_nodes,
-                   sum(CASE WHEN coalesce(n._ontology_context_hash, '') = '' THEN 1 ELSE 0 END) AS missing_context_nodes
-            """,
+            build_ontology_context_summary_query(),
             params={"workspace_id": workspace_id},
             database=database,
         )

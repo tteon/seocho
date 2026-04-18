@@ -154,12 +154,25 @@ class CypherBuilder:
             intent = "financial_metric_delta"
         elif self._is_financial_metric_question(question, raw_intent_name, years, metric_aliases):
             intent = "financial_metric_lookup"
+        elif self._is_legal_issue_question(question, raw_intent_name):
+            intent = "relationship_lookup"
         else:
             intent = raw_intent_name or "neighbors"
 
         if intent in {"financial_metric_lookup", "financial_metric_delta"}:
             intent_data["anchor_label"] = str(intent_data.get("anchor_label") or "Company")
             intent_data["target_label"] = str(intent_data.get("target_label") or "FinancialMetric")
+        elif intent == "relationship_lookup" and self._is_legal_issue_question(question, raw_intent_name):
+            anchor_label = str(intent_data.get("anchor_label") or "Company")
+            target_label = str(intent_data.get("target_label") or "LegalIssue")
+            intent_data["anchor_label"] = anchor_label
+            intent_data["target_label"] = target_label
+            if not str(intent_data.get("relationship_type") or "").strip():
+                intent_data["relationship_type"] = self._match_relationship(
+                    "INVOLVED_IN",
+                    anchor_label=anchor_label,
+                    target_label=target_label,
+                )
 
         intent_data["intent"] = intent
         intent_data["metric_name"] = metric_name
@@ -539,3 +552,29 @@ class CypherBuilder:
             return True
         lower = question.lower()
         return bool(metric_aliases and (years or any(term in lower for terms in _FINANCE_METRIC_TERMS.values() for term in terms)))
+
+    def _is_legal_issue_question(self, question: str, raw_intent_name: str) -> bool:
+        if raw_intent_name == "relationship_lookup":
+            return False
+        if "LegalIssue" not in self.ontology.nodes:
+            return False
+        if not any(
+            rel_def.source == "Company" and rel_def.target == "LegalIssue"
+            for rel_def in self.ontology.relationships.values()
+        ):
+            return False
+        lower = question.lower()
+        legal_markers = (
+            "legal issue",
+            "legal issues",
+            "lawsuit",
+            "lawsuits",
+            "litigation",
+            "investigation",
+            "investigations",
+            "claim",
+            "claims",
+            "proceeding",
+            "proceedings",
+        )
+        return any(marker in lower for marker in legal_markers)

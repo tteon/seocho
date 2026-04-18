@@ -47,6 +47,28 @@ def test_builder_normalizes_finance_delta_intent_from_question() -> None:
     assert set(intent["metric_scope_tokens"]) >= {"data", "access", "solutions"}
 
 
+def test_builder_normalizes_legal_relationship_lookup_from_question() -> None:
+    ontology = Ontology(
+        name="legal_graph",
+        nodes={
+            "Company": NodeDef(properties={"name": P(str, unique=True)}),
+            "LegalIssue": NodeDef(properties={"name": P(str, unique=True), "status": P(str)}),
+        },
+        relationships={"INVOLVED_IN": RelDef(source="Company", target="LegalIssue")},
+    )
+    builder = CypherBuilder(ontology)
+
+    intent = builder.normalize_intent(
+        "What legal issues does Microsoft face?",
+        {"anchor_entity": "Microsoft"},
+    )
+
+    assert intent["intent"] == "relationship_lookup"
+    assert intent["anchor_label"] == "Company"
+    assert intent["target_label"] == "LegalIssue"
+    assert intent["relationship_type"] == "INVOLVED_IN"
+
+
 def test_builder_financial_metric_query_uses_workspace_and_rel_candidates() -> None:
     builder = CypherBuilder(_finance_ontology("rdf"))
 
@@ -221,3 +243,117 @@ def test_local_engine_relationship_answer_includes_titles_from_target_properties
 
     assert "Sundar Pichai as CEO" in answer
     assert "Ruth Porat as CFO" in answer
+
+
+def test_local_engine_legal_relationship_answer_lists_issues() -> None:
+    ontology = Ontology(
+        name="legal_graph",
+        nodes={
+            "Company": NodeDef(properties={"name": P(str, unique=True)}),
+            "LegalIssue": NodeDef(properties={"name": P(str, unique=True), "status": P(str)}),
+        },
+        relationships={"INVOLVED_IN": RelDef(source="Company", target="LegalIssue")},
+    )
+
+    class LegalLLM:
+        def complete(self, *, system, user, temperature, response_format=None):  # noqa: ANN001
+            return _FakeLLMResponse({"anchor_entity": "Microsoft"})
+
+    class LegalGraphStore:
+        def get_schema(self, *, database: str = "neo4j") -> dict:
+            return {"labels": ["Company", "LegalIssue"], "relationship_types": ["INVOLVED_IN"]}
+
+        def query(self, cypher: str, *, params=None, database: str = "neo4j"):  # noqa: ANN001
+            return [
+                {
+                    "source": "Microsoft",
+                    "relationship": "INVOLVED_IN",
+                    "target": "an EU antitrust investigation into Teams bundling with Office 365",
+                    "target_labels": ["LegalIssue"],
+                    "target_properties": {"status": "open"},
+                    "supporting_fact": "",
+                },
+                {
+                    "source": "Microsoft",
+                    "relationship": "INVOLVED_IN",
+                    "target": "ongoing LinkedIn acquisition litigation",
+                    "target_labels": ["LegalIssue"],
+                    "target_properties": {"status": "open"},
+                    "supporting_fact": "",
+                },
+                {
+                    "source": "Microsoft",
+                    "relationship": "INVOLVED_IN",
+                    "target": "various patent infringement claims",
+                    "target_labels": ["LegalIssue"],
+                    "target_properties": {"status": "open"},
+                    "supporting_fact": "",
+                },
+            ]
+
+    client = Seocho(
+        ontology=ontology,
+        graph_store=LegalGraphStore(),
+        llm=LegalLLM(),
+        workspace_id="finance_benchmark_test",
+    )
+
+    answer = client.ask("What legal issues does Microsoft face?", database="neo4j")
+
+    assert "Microsoft faces" in answer
+    assert "Teams bundling with Office 365" in answer
+    assert "LinkedIn acquisition litigation" in answer
+    assert "patent infringement claims" in answer
+
+
+def test_local_engine_legal_neighbors_answer_keeps_specific_issue_sentences() -> None:
+    ontology = Ontology(
+        name="legal_graph",
+        nodes={
+            "Company": NodeDef(properties={"name": P(str, unique=True)}),
+            "LegalIssue": NodeDef(properties={"name": P(str, unique=True), "status": P(str)}),
+        },
+        relationships={"INVOLVED_IN": RelDef(source="Company", target="LegalIssue")},
+    )
+    supporting_fact = (
+        "Microsoft Corporation faces various legal proceedings and claims. "
+        "In June 2022, the European Commission opened an antitrust investigation into Microsoft's bundling of Teams with Office 365. "
+        "The company also faces ongoing litigation related to the LinkedIn acquisition and various patent infringement claims."
+    )
+
+    class LegalNeighborsLLM:
+        def complete(self, *, system, user, temperature, response_format=None):  # noqa: ANN001
+            return _FakeLLMResponse(
+                {
+                    "intent": "neighbors",
+                    "anchor_entity": "Microsoft",
+                    "anchor_label": "Company",
+                }
+            )
+
+    class LegalNeighborsGraphStore:
+        def get_schema(self, *, database: str = "neo4j") -> dict:
+            return {"labels": ["Company", "LegalIssue"], "relationship_types": ["INVOLVED_IN"]}
+
+        def query(self, cypher: str, *, params=None, database: str = "neo4j"):  # noqa: ANN001
+            return [
+                {
+                    "entity": "Microsoft",
+                    "properties": {"name": "Microsoft", "content_preview": supporting_fact},
+                    "neighbors": [],
+                    "supporting_fact": supporting_fact,
+                }
+            ]
+
+    client = Seocho(
+        ontology=ontology,
+        graph_store=LegalNeighborsGraphStore(),
+        llm=LegalNeighborsLLM(),
+        workspace_id="finance_benchmark_test",
+    )
+
+    answer = client.ask("What legal issues does Microsoft face?", database="neo4j")
+
+    assert "antitrust investigation into Microsoft's bundling of Teams with Office 365" in answer
+    assert "LinkedIn acquisition" in answer
+    assert "patent infringement claims" in answer

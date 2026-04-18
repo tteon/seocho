@@ -181,7 +181,8 @@ class RuntimeRawIngestor:
 
         if not _DB_NAME_RE.match(target_database):
             raise InvalidDatabaseNameError(
-                f"Invalid DB name '{target_database}': must be alphanumeric and start with a letter"
+                f"Invalid DB name '{target_database}': must be lowercase alphanumeric, "
+                "start with a letter, and be 3-63 chars"
             )
 
         if create_database_if_missing:

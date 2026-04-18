@@ -82,7 +82,7 @@ class DatabaseManager:
         if not _VALID_DB_NAME_RE.match(db_name):
             raise InvalidDatabaseNameError(
                 f"Invalid DB name '{db_name}': "
-                "must be alphanumeric and start with a letter"
+                "must be lowercase alphanumeric, start with a letter, and be 3-63 chars"
             )
 
         provision_uri = graph_uri or self._uri

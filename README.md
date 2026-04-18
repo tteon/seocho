@@ -154,8 +154,10 @@ public SDK entrypoints. The server side follows the same rule:
 service composition lives in `runtime/server_runtime.py`. The legacy
 `extraction/*` modules now preserve flat import compatibility while the
 deployment shell migrates to `runtime/`. The current local compose service is
-still named `extraction-service`; it bind-mounts `runtime/` and `seocho/` so
-the historical flat entrypoint can delegate to canonical runtime code.
+still named `extraction-service`; the default `make up` path now runs it from
+an image-backed source snapshot so port `8001` matches a known build. The live
+bind-mount edit loop remains available behind `docker-compose.dev.yml` and
+`make up-live`.
 Local-mode orchestration now lives in `seocho/local_engine.py` so `client.py`
 does not keep expanding as a second canonical engine owner. Remote transport
 setup and runtime-bundle import/export glue now live in `seocho/client_remote.py`

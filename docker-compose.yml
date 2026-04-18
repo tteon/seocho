@@ -24,15 +24,14 @@ services:
 
   # --- Application Services ---
   extraction-service:
-    build: ./extraction
+    build:
+      context: .
+      dockerfile: extraction/Dockerfile
     container_name: extraction-service
     ports:
       - "${SEOCHO_BIND_HOST:-127.0.0.1}:${EXTRACTION_NOTEBOOK_PORT:-8888}:8888"
       - "${SEOCHO_BIND_HOST:-127.0.0.1}:${EXTRACTION_API_PORT:-8001}:8001"
     volumes:
-      - ./extraction:/app
-      - ./runtime:/app/runtime:ro
-      - ./seocho:/app/seocho:ro
       - ./notebooks:/app/notebooks
       - ./demos:/app/demos
     environment:

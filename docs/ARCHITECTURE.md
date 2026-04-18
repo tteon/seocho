@@ -33,11 +33,11 @@ platform UX flow through `extraction-service`, not the standalone legacy
 semantic container.
 
 During the staged runtime rename, `extraction-service` still starts the legacy
-flat `agent_server` module. Compose therefore bind-mounts `runtime/` and
-`seocho/` into `/app`, and the flat `extraction/*` compatibility aliases
-bootstrap repo-root imports before delegating to canonical `runtime/*` modules.
-This keeps the local activation path stable while ownership moves out of the
-historically overloaded package.
+flat `agent_server` module. The default compose path now bakes `extraction/`,
+`runtime/`, and `seocho/` into the image so the runtime matches a known build
+snapshot. The flat `extraction/*` compatibility aliases still bootstrap
+canonical `runtime/*` modules inside that image. Live bind mounts remain
+available only through `docker-compose.dev.yml` for explicit development loops.
 
 ## Storage And Artifact Layout
 

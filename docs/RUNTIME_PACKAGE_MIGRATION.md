@@ -97,9 +97,10 @@ Current landed first slice:
 - compatibility aliases use `extraction/_runtime_alias.py` so legacy flat
   entrypoints such as `uvicorn agent_server:app` can resolve canonical
   `runtime/*` modules when started from the `extraction/` directory
-- the local `extraction-service` compose service bind-mounts `runtime/` and
-  `seocho/` into `/app` until the service itself is renamed or rebuilt around
-  a repo-root runtime image
+- the default local `extraction-service` compose path is now rebuilt from a
+  repo-root image that bakes `extraction/`, `runtime/`, and `seocho/`
+- explicit live bind mounts moved to `docker-compose.dev.yml` for development
+  loops that want host-edit reflection instead of snapshot reproducibility
 
 Target first modules:
 

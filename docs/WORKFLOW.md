@@ -137,9 +137,10 @@ Operational notes:
 - when using git worktrees, prefer `BEADS_NO_DAEMON=1` to prevent daemon writes
   landing in the wrong worktree
 - current dev quality gates in `Makefile` run against `extraction-service`.
-- while the service name remains `extraction-service`, compose mounts
-  `runtime/` and `seocho/` into `/app` so legacy flat entrypoints can import
-  canonical runtime and SDK modules during the staged rename.
+- default `make up` now rebuilds an image-backed `extraction-service` so the
+  running runtime matches a known source snapshot.
+- use `make up-live` or `make dev-up` only when you explicitly want bind-mounted
+  edits from `extraction/`, `runtime/`, and `seocho/` reflected immediately.
 - keep graph procedure privileges scoped (`apoc.*,n10s.*`) in `docker-compose.yml`.
 - default local compose stack is `neo4j + extraction-service + evaluation-interface`.
 - legacy `semantic-service` is opt-in only via `docker compose --profile legacy-semantic up -d semantic-service`.

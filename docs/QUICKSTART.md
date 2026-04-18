@@ -27,6 +27,8 @@ Important:
 - `pip install seocho` alone does not provision DozerDB/Neo4j for you.
 - local runtime success still depends on the graph backend being reachable.
 - `make up` starts the core local stack, not every legacy service in the repo.
+- `make up` rebuilds an image-backed `extraction-service`, so `localhost:8001`
+  reflects a known source snapshot instead of a dirty bind-mounted checkout.
 
 ## 2. Setup
 
@@ -41,6 +43,12 @@ make setup-env
 ```bash
 make up
 docker compose ps
+```
+
+If you explicitly want a live bind-mounted edit loop instead:
+
+```bash
+make up-live
 ```
 
 Or through the local CLI:

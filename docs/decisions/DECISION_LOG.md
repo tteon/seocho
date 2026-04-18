@@ -3,6 +3,17 @@
 This file is the lightweight index of architecture/product decisions.
 Each entry must link to a full ADR when impact is non-trivial.
 
+## 2026-04-18
+
+- Accepted `ADR-0087-ontology-readiness-gate.md`
+  - `POST /rules/profiles` gains an opt-in readiness gate via
+    `validation_graph` + `acknowledge_blocked_readiness`
+  - blocked verdicts now raise `ReadinessBlockedError` → HTTP 409 with
+    structured `readiness` body instead of silently persisting
+  - first governance surface where the ontology enforces rather than advises;
+    artifact-approval and raw-ingest gates deferred to follow-up beads
+  - bead: seocho-5vm
+
 ## 2026-04-13
 
 - Accepted `ADR-0049-pipeline-unification-canonical-modules.md`

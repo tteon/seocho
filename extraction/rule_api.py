@@ -11,6 +11,21 @@ from rule_export import export_ruleset_to_cypher, export_ruleset_to_shacl
 from rule_profile_store import get_rule_profile, list_rule_profiles, save_rule_profile
 
 
+class ReadinessBlockedError(Exception):
+    """Raised when a rule profile cannot be promoted because readiness is blocked.
+
+    Carries the full practical_readiness verdict so the caller can surface
+    actionable diagnostics (top violations, failed node counts, recommendations).
+    """
+
+    def __init__(self, verdict: Dict[str, Any]):
+        super().__init__(
+            f"readiness_blocked status={verdict.get('status')} "
+            f"pass_ratio={verdict.get('pass_ratio')}"
+        )
+        self.verdict = verdict
+
+
 class RuleInferRequest(BaseModel):
     """Infer SHACL-like constraints from an extracted graph."""
 
@@ -53,6 +68,22 @@ class RuleProfileCreateRequest(BaseModel):
     workspace_id: str = Field(default="default", pattern=r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$", description="Workspace scope.")
     name: Optional[str] = Field(default=None, description="Human-readable profile name; auto-generated if omitted.")
     rule_profile: Dict[str, Any] = Field(description="Rule profile payload to persist.")
+    validation_graph: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description=(
+            "Optional graph to assess the rule profile against before persistence. "
+            "When supplied, practical readiness is computed and the request is rejected "
+            "with HTTP 409 if status is 'blocked'. Omit to skip the gate."
+        ),
+    )
+    acknowledge_blocked_readiness: bool = Field(
+        default=False,
+        description=(
+            "Explicit override that allows persistence even when validation_graph "
+            "produces a 'blocked' verdict. Requires validation_graph to be meaningful. "
+            "The verdict is still returned on the response so the override is auditable."
+        ),
+    )
 
 
 class RuleProfileCreateResponse(BaseModel):
@@ -64,6 +95,10 @@ class RuleProfileCreateResponse(BaseModel):
     created_at: str = Field(description="ISO-8601 creation timestamp.")
     schema_version: str = Field(description="Rule schema version (e.g. 'rules.v1').")
     rule_count: int = Field(description="Number of rules in the profile.")
+    readiness_verdict: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Readiness verdict when validation_graph was supplied; null when the gate was skipped.",
+    )
 
 
 class RuleProfileGetResponse(BaseModel):
@@ -179,6 +214,11 @@ def validate_rule_profile(request: RuleValidateRequest) -> RuleValidateResponse:
 
 
 def create_rule_profile(request: RuleProfileCreateRequest) -> RuleProfileCreateResponse:
+    verdict = _enforce_readiness_gate(
+        rule_profile=request.rule_profile,
+        validation_graph=request.validation_graph,
+        acknowledge=request.acknowledge_blocked_readiness,
+    )
     saved = save_rule_profile(
         workspace_id=request.workspace_id,
         name=request.name,
@@ -192,7 +232,39 @@ def create_rule_profile(request: RuleProfileCreateRequest) -> RuleProfileCreateR
         created_at=saved["created_at"],
         schema_version=saved["schema_version"],
         rule_count=saved["rule_count"],
+        readiness_verdict=verdict,
     )
+
+
+def _enforce_readiness_gate(
+    *,
+    rule_profile: Dict[str, Any],
+    validation_graph: Optional[Dict[str, Any]],
+    acknowledge: bool,
+) -> Optional[Dict[str, Any]]:
+    """Return the readiness verdict, or raise ReadinessBlockedError on blocked.
+
+    Returns None when validation_graph is omitted (gate disengaged, legacy behavior).
+    When a graph is supplied, computes practical readiness exactly the same way
+    /rules/assess does. A 'blocked' verdict raises unless ``acknowledge`` is True,
+    in which case the verdict is returned for auditing but persistence proceeds.
+    """
+    if validation_graph is None:
+        return None
+
+    ruleset = RuleSet.from_dict(rule_profile)
+    validated_graph = apply_rules_to_graph(validation_graph, ruleset)
+    summary = validated_graph.get("rule_validation_summary", {})
+    exported = export_ruleset_to_cypher(ruleset.to_dict())
+    verdict = _compute_practical_readiness(
+        validation_summary=summary,
+        total_rules=len(ruleset.rules),
+        unsupported_count=len(exported.get("unsupported_rules", [])),
+    )
+    verdict["top_violations"] = _collect_violation_breakdown(validated_graph)[:5]
+    if verdict["status"] == "blocked" and not acknowledge:
+        raise ReadinessBlockedError(verdict=verdict)
+    return verdict
 
 
 def read_rule_profile(workspace_id: str, profile_id: str) -> RuleProfileGetResponse:

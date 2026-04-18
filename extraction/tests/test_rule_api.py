@@ -1,4 +1,7 @@
+import pytest
+
 from rule_api import (
+    ReadinessBlockedError,
     RuleInferRequest,
     RuleAssessRequest,
     RuleExportCypherRequest,
@@ -14,6 +17,16 @@ from rule_api import (
     read_rule_profiles,
     validate_rule_profile,
 )
+
+
+def _dirty_graph():
+    return {
+        "nodes": [
+            {"id": "1", "label": "Company", "properties": {"name": "Acme", "employees": 100}},
+            {"id": "2", "label": "Company", "properties": {"name": "", "employees": "many"}},
+        ],
+        "relationships": [],
+    }
 
 
 def _sample_graph():
@@ -133,3 +146,76 @@ def test_assess_rule_profile_detects_failed_nodes_with_reference_profile():
     assert assessed.validation_summary["failed_nodes"] == 1
     assert assessed.practical_readiness["status"] == "blocked"
     assert len(assessed.violation_breakdown) >= 1
+
+
+def test_create_rule_profile_without_validation_graph_skips_gate(tmp_path, monkeypatch):
+    monkeypatch.setenv("RULE_PROFILE_DIR", str(tmp_path))
+    inferred = infer_rule_profile(RuleInferRequest(workspace_id="default", graph=_sample_graph()))
+
+    created = create_rule_profile(
+        RuleProfileCreateRequest(
+            workspace_id="default",
+            name="unchecked_profile",
+            rule_profile=inferred.rule_profile,
+        )
+    )
+
+    assert created.readiness_verdict is None
+    assert created.rule_count >= 1
+
+
+def test_create_rule_profile_with_ready_verdict_allows_promotion(tmp_path, monkeypatch):
+    monkeypatch.setenv("RULE_PROFILE_DIR", str(tmp_path))
+    inferred = infer_rule_profile(RuleInferRequest(workspace_id="default", graph=_sample_graph()))
+
+    created = create_rule_profile(
+        RuleProfileCreateRequest(
+            workspace_id="default",
+            name="clean_profile",
+            rule_profile=inferred.rule_profile,
+            validation_graph=_sample_graph(),
+        )
+    )
+
+    assert created.readiness_verdict is not None
+    assert created.readiness_verdict["status"] == "ready"
+
+
+def test_create_rule_profile_blocked_verdict_raises(tmp_path, monkeypatch):
+    monkeypatch.setenv("RULE_PROFILE_DIR", str(tmp_path))
+    inferred = infer_rule_profile(RuleInferRequest(workspace_id="default", graph=_sample_graph()))
+
+    with pytest.raises(ReadinessBlockedError) as excinfo:
+        create_rule_profile(
+            RuleProfileCreateRequest(
+                workspace_id="default",
+                name="should_not_persist",
+                rule_profile=inferred.rule_profile,
+                validation_graph=_dirty_graph(),
+            )
+        )
+
+    verdict = excinfo.value.verdict
+    assert verdict["status"] == "blocked"
+    assert "top_violations" in verdict
+
+    listed = read_rule_profiles(workspace_id="default")
+    assert listed.profiles == []
+
+
+def test_create_rule_profile_blocked_with_acknowledge_allows_promotion(tmp_path, monkeypatch):
+    monkeypatch.setenv("RULE_PROFILE_DIR", str(tmp_path))
+    inferred = infer_rule_profile(RuleInferRequest(workspace_id="default", graph=_sample_graph()))
+
+    created = create_rule_profile(
+        RuleProfileCreateRequest(
+            workspace_id="default",
+            name="override_audit",
+            rule_profile=inferred.rule_profile,
+            validation_graph=_dirty_graph(),
+            acknowledge_blocked_readiness=True,
+        )
+    )
+
+    assert created.readiness_verdict is not None
+    assert created.readiness_verdict["status"] == "blocked"

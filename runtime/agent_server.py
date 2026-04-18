@@ -36,6 +36,7 @@ from seocho.runtime_contract import (
     WORKSPACE_ID_PATTERN,
 )
 from rule_api import (
+    ReadinessBlockedError,
     RuleInferRequest,
     RuleInferResponse,
     RuleAssessRequest,
@@ -1550,7 +1551,21 @@ async def rules_profiles_create(request: RuleProfileCreateRequest):
         require_runtime_permission(role="user", action="manage_rule_profiles", workspace_id=request.workspace_id)
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
-    return create_rule_profile(request)
+    try:
+        return create_rule_profile(request)
+    except ReadinessBlockedError as e:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "error": "readiness_blocked",
+                "message": (
+                    "Rule profile cannot be promoted: practical readiness is blocked. "
+                    "Fix violations surfaced in readiness.top_violations, or pass "
+                    "acknowledge_blocked_readiness=true to override explicitly."
+                ),
+                "readiness": e.verdict,
+            },
+        )
 
 
 @app.get("/rules/profiles", response_model=RuleProfileListResponse)

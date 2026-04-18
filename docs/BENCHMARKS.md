@@ -108,6 +108,11 @@ Interpretation:
   - `/run_agent_semantic`
   - `/run_debate`
   - `/platform/chat/send` with `mode=semantic`
+- runtime database names used by benchmark harnesses must match the runtime contract:
+  - lowercase alphanumeric only
+  - start with a letter
+  - length 3-63 chars
+  - use values like `kgruntimea`, not `FinderRuntimeA` or `finder_runtime_a`
 - remote benchmark artifacts include `runtime_setup` plus per-endpoint summaries:
   - `remote-semantic`
   - `remote-debate`

@@ -3,7 +3,8 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Sequence
 
 WORKSPACE_ID_PATTERN = r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$"
-DATABASE_NAME_PATTERN = r"^[A-Za-z][A-Za-z0-9]*$"
+# Keep API validation aligned with runtime/config and DozerDB provisioning rules.
+DATABASE_NAME_PATTERN = r"^[a-z][a-z0-9]{2,62}$"
 INDEX_NAME_PATTERN = r"^[A-Za-z_][A-Za-z0-9_]*$"
 SOURCE_TYPE_PATTERN = r"^(text|csv|pdf)$"
 SEMANTIC_ARTIFACT_POLICY_PATTERN = r"^(auto|draft_only|approved_only)$"

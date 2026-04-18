@@ -61,7 +61,7 @@ class DatabaseRegistry:
         """Register a new database name after validation."""
         if not _VALID_DB_NAME_RE.match(db_name):
             raise ValueError(
-                f"Invalid DB name '{db_name}': must be alphanumeric, start with letter"
+                f"Invalid DB name '{db_name}': must be lowercase alphanumeric, start with a letter, and be 3-63 chars"
             )
         self._databases.add(db_name)
 

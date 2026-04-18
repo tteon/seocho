@@ -737,6 +737,25 @@ class TestListEndpoints:
             assert payload["domain_error"] == ""
             assert payload["records_processed"] == 2
 
+    async def test_platform_raw_ingest_endpoint_rejects_noncanonical_database_names(self, client, app_module):
+        mock_ingestor = MagicMock()
+        with patch.object(app_module, "get_runtime_raw_ingestor", return_value=mock_ingestor):
+            response = await client.post(
+                "/platform/ingest/raw",
+                json={
+                    "workspace_id": "default",
+                    "target_database": "FinderRuntimeContainer20260418",
+                    "records": [
+                        {"id": "r1", "content": "Alpha acquires Beta."},
+                    ],
+                },
+            )
+
+            assert response.status_code == 422
+            payload = response.json()
+            assert payload["detail"][0]["loc"] == ["body", "target_database"]
+            mock_ingestor.ingest_records.assert_not_called()
+
     async def test_platform_raw_ingest_endpoint_surfaces_rule_profile_and_fallback_metadata(self, client, app_module):
         mock_ingestor = MagicMock()
         with patch.object(app_module, "get_runtime_raw_ingestor", return_value=mock_ingestor):

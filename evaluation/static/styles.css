@@ -212,6 +212,7 @@ body {
 .control select:focus,
 .control input:focus {
   border-color: var(--accent-blue);
+  box-shadow: 0 0 0 1px var(--accent-blue);
 }
 
 .ingest-controls {
@@ -245,6 +246,7 @@ body {
 
 .ingest-grow textarea:focus {
   border-color: var(--accent-blue);
+  box-shadow: 0 0 0 1px var(--accent-blue);
 }
 
 #ingestBtn {
@@ -526,6 +528,11 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #484f58;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--accent-blue);
+  outline-offset: 2px;
 }
 
 /* Animations */

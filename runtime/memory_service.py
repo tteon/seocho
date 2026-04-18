@@ -14,6 +14,7 @@ from semantic_query_flow import SemanticAgentFlow
 from seocho.ontology_context import (
     _clean_distinct_strings,
     assess_graph_ontology_context_status,
+    build_ontology_context_summary_query,
 )
 from seocho.query.answering import build_evidence_bundle
 from seocho.query.query_proxy import QueryProxy, QueryRequest as GraphQueryRequest
@@ -443,16 +444,7 @@ class GraphMemoryService:
             target = graph_registry.find_by_database(database)
             rows = self._run_query(
                 database,
-                """
-                MATCH (n)
-                WHERE coalesce(n._workspace_id, n.workspace_id, $workspace_id) = $workspace_id
-                RETURN collect(DISTINCT coalesce(n._ontology_context_hash, '')) AS raw_context_hashes,
-                       collect(DISTINCT coalesce(n._ontology_id, '')) AS raw_ontology_ids,
-                       collect(DISTINCT coalesce(n._ontology_profile, '')) AS raw_profiles,
-                       count(n) AS scoped_nodes,
-                       sum(CASE WHEN coalesce(n._ontology_context_hash, '') = '' AND coalesce(n._ontology_id, '') = '' THEN 1 ELSE 0 END) AS missing_context_nodes,
-                       sum(CASE WHEN coalesce(n._ontology_context_hash, '') = '' THEN 1 ELSE 0 END) AS missing_context_hash_nodes
-                """,
+                build_ontology_context_summary_query(include_runtime_fields=True),
                 {"workspace_id": workspace_id},
                 workspace_id=workspace_id,
             )

@@ -72,7 +72,10 @@ Required fields:
 
 5. Query/write graph.
    Ingest writes compact `_ontology_*` metadata. Query paths inspect indexed
-   context metadata and return non-blocking mismatch status.
+   context metadata and return non-blocking mismatch status. Provenance checks
+   should prefer document-scoped metadata queries over broad all-node scans so
+   mixed-property graphs do not flood runtime logs with missing-property
+   warnings.
 
 6. Emit response metadata.
    Every public response that can touch graph state should expose

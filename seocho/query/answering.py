@@ -146,6 +146,12 @@ class QueryAnswerSynthesizer:
             if people:
                 return f"The key executives at {source} include {', '.join(people)}."
 
+        if relationship_type == "INVOLVED_IN":
+            source = rows[0].get("source", "")
+            issues = self._unique_targets(rows)
+            if issues:
+                return f"{source} faces {self._join_items(issues)}."
+
         if relationship_type == "USES_STANDARD":
             source = rows[0].get("source", "")
             standards = [row.get("target", "") for row in rows if row.get("target")]
@@ -213,6 +219,24 @@ class QueryAnswerSynthesizer:
             )
         return rows
 
+    def _unique_targets(self, rows: Sequence[Dict[str, Any]]) -> List[str]:
+        ordered: List[str] = []
+        for row in rows:
+            target = str(row.get("target", "")).strip()
+            if target and target not in ordered:
+                ordered.append(target)
+        return ordered
+
+    def _join_items(self, items: Sequence[str]) -> str:
+        values = [str(item).strip() for item in items if str(item).strip()]
+        if not values:
+            return ""
+        if len(values) == 1:
+            return values[0]
+        if len(values) == 2:
+            return f"{values[0]} and {values[1]}"
+        return ", ".join(values[:-1]) + f", and {values[-1]}"
+
     def _supporting_fact(self, records: Sequence[Dict[str, Any]]) -> str:
         for record in records:
             for key, index in (
@@ -253,13 +277,38 @@ class QueryAnswerSynthesizer:
 
         if "executive" in question_terms or "executives" in question_terms:
             question_terms.update({"ceo", "cfo", "chairman", "board", "director", "officer"})
+        if "legal" in question_terms or "issues" in question_terms or "issue" in question_terms:
+            question_terms.update(
+                {
+                    "investigation",
+                    "investigations",
+                    "litigation",
+                    "claim",
+                    "claims",
+                    "proceeding",
+                    "proceedings",
+                    "antitrust",
+                    "patent",
+                    "bundling",
+                }
+            )
 
         def score(sentence: str) -> tuple[int, int]:
             terms = set(re.findall(r"[a-z0-9]+", sentence.lower()))
             numeric_hits = len(set(re.findall(r"\d+(?:\.\d+)?", sentence.lower())) & question_terms)
             return (len(terms & question_terms), numeric_hits, len(sentence))
 
-        best_sentence = max(sentences, key=score)
+        scored_sentences = [(index, sentence, score(sentence)) for index, sentence in enumerate(sentences)]
+        if "legal" in question_terms or "issues" in question_terms or "issue" in question_terms:
+            relevant = [
+                (index, sentence)
+                for index, sentence, sentence_score in scored_sentences
+                if sentence_score[0] >= 2 and len(sentence) >= 24
+            ]
+            if len(relevant) >= 2:
+                return " ".join(sentence for _, sentence in sorted(relevant, key=lambda item: item[0]))
+
+        best_sentence = max(scored_sentences, key=lambda item: item[2])[1]
         best_score = score(best_sentence)
         if best_score[0] < 2 or len(best_sentence) < 24:
             return supporting_fact

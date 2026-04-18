@@ -538,6 +538,15 @@ Each entry must link to a full ADR when impact is non-trivial.
   - move runtime-bundle import/export glue to `seocho/client_bundle.py`
   - keep `Seocho` as the stable public facade while shrinking `client.py`
 
+## 2026-04-18
+
+- Accepted `ADR-0085-image-backed-local-runtime-source-contract.md`
+  - make the default local `extraction-service` compose path image-backed
+    instead of bind-mounted from a dirty checkout
+  - move live source mounts behind `docker-compose.dev.yml` and `make up-live`
+  - keep port `8001` reproducible from a known build snapshot during benchmark
+    and support loops
+
 ## Template
 
 Use this block for new entries:

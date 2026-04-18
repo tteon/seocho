@@ -1,8 +1,9 @@
 # Makefile for Seocho - Data Lineage & GraphRAG Framework
 
 DOCKER_COMPOSE = docker compose
+DOCKER_COMPOSE_LIVE = docker compose -f docker-compose.yml -f docker-compose.dev.yml
 
-.PHONY: up up-legacy-semantic down restart logs clean bootstrap shell test test-integration e2e-smoke lint format help opik-up opik-down opik-logs demo-raw demo-meta demo-neo4j demo-graphrag-opik demo-all setup-env
+.PHONY: up up-live up-legacy-semantic down restart logs clean bootstrap shell test test-integration e2e-smoke lint format help opik-up opik-down opik-logs demo-raw demo-meta demo-neo4j demo-graphrag-opik demo-all setup-env
 
 ##@ Development
 
@@ -24,13 +25,19 @@ setup-env: ## Interactive .env setup (OpenAI key, Opik, ports)
 	@bash scripts/setup/init-env.sh
 
 up: ## Start core local stack (DozerDB + extraction API + platform UI)
-	@echo "🐳 Starting Seocho core local stack..."
-	@docker compose up -d
+	@echo "🐳 Starting Seocho core local stack from an image-backed source snapshot..."
+	@docker compose up -d --build
 	@echo "✅ Services started!"
 	@echo "🖥️  Platform UI: http://localhost:$${CHAT_INTERFACE_PORT:-8501}"
 	@echo "🧠 Backend API Docs: http://localhost:$${EXTRACTION_API_PORT:-8001}/docs"
 	@echo "🗄️  DozerDB Browser: http://localhost:$${NEO4J_HTTP_PORT:-7474}"
 	@echo "ℹ️  Legacy semantic-service is opt-in: docker compose --profile legacy-semantic up -d semantic-service"
+	@echo "ℹ️  For a bind-mounted live edit loop, use: make up-live"
+
+up-live: ## Start core local stack with live bind mounts for extraction/runtime/seocho
+	@echo "🐳 Starting Seocho core local stack with live source mounts..."
+	@$(DOCKER_COMPOSE_LIVE) up -d --build
+	@echo "✅ Live-mount services started."
 
 up-legacy-semantic: ## Start the legacy semantic-service profile too
 	@echo "🐳 Starting Seocho core stack with legacy semantic-service..."
@@ -117,4 +124,4 @@ prod-up: ## Start services in production mode
 	@docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 dev-up: ## Start services in development mode
-	@docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+	@$(DOCKER_COMPOSE_LIVE) up -d --build

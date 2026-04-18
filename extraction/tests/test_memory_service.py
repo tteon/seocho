@@ -207,7 +207,18 @@ def test_ontology_context_mismatch_summarizes_runtime_graph_status():
         runtime_raw_ingestor=_FakeIngestor(),
         semantic_agent_flow=_FakeSemanticFlow(),
     )
-    service._run_query = lambda *_args, **_kwargs: [
+    calls = []
+
+    def _recording_query(database, cypher, params, workspace_id="default"):
+        calls.append(
+            {
+                "database": database,
+                "cypher": cypher,
+                "params": params,
+                "workspace_id": workspace_id,
+            }
+        )
+        return [
         {
             "indexed_context_hashes": ["old", "new"],
             "indexed_ontology_ids": ["legacy"],
@@ -216,7 +227,9 @@ def test_ontology_context_mismatch_summarizes_runtime_graph_status():
             "missing_context_nodes": 0,
             "missing_context_hash_nodes": 1,
         }
-    ]
+        ]
+
+    service._run_query = _recording_query
 
     with patch.object(memory_service_mod.graph_registry, "find_by_database") as mock_find:
         mock_find.return_value = type(
@@ -240,6 +253,7 @@ def test_ontology_context_mismatch_summarizes_runtime_graph_status():
     assert status["graph_id"] == "kgfinance"
     assert "multiple_indexed_context_hashes" in status["mismatch_reasons"]
     assert "indexed_ontology_id_differs_from_target" in status["mismatch_reasons"]
+    assert "OPTIONAL MATCH (n:Document)" in calls[0]["cypher"]
 
 
 def test_run_query_prefers_query_proxy_with_workspace_scope():

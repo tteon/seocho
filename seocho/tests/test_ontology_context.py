@@ -6,6 +6,7 @@ from seocho.index.pipeline import IndexingPipeline
 from seocho.ontology_context import (
     OntologyContextCache,
     assess_ontology_context_mismatch,
+    build_ontology_context_summary_query,
     compile_ontology_context,
     query_ontology_context_mismatch,
 )
@@ -77,7 +78,12 @@ class _FakeGraphStore:
 
 
 class _MismatchGraphStore(_FakeGraphStore):
+    def __init__(self) -> None:
+        super().__init__()
+        self.queries = []
+
     def query(self, cypher: str, *, params=None, database="neo4j"):  # noqa: ANN001
+        self.queries.append(cypher)
         return [
             {
                 "indexed_context_hashes": ["old-context-hash"],
@@ -201,9 +207,10 @@ def test_local_engine_query_guardrail_surfaces_mismatch() -> None:
 
 def test_query_ontology_context_mismatch_helper_handles_graph_metadata() -> None:
     active = compile_ontology_context(_ontology(), workspace_id="acme")
+    store = _MismatchGraphStore()
 
     result = query_ontology_context_mismatch(
-        _MismatchGraphStore(),
+        store,
         active,
         workspace_id="acme",
         database="neo4j",
@@ -212,3 +219,15 @@ def test_query_ontology_context_mismatch_helper_handles_graph_metadata() -> None
     assert result["mismatch"] is True
     assert result["missing_context_nodes"] == 1
     assert result["indexed_context_hashes"] == ["old-context-hash"]
+    assert "OPTIONAL MATCH (n:Document)" in store.queries[0]
+
+
+def test_build_ontology_context_summary_query_uses_document_scope() -> None:
+    base = build_ontology_context_summary_query()
+    runtime = build_ontology_context_summary_query(include_runtime_fields=True)
+
+    assert "OPTIONAL MATCH (n:Document)" in base
+    assert "raw_ontology_ids" not in base
+    assert "OPTIONAL MATCH (n:Document)" in runtime
+    assert "raw_ontology_ids" in runtime
+    assert "raw_profiles" in runtime

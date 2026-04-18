@@ -5,30 +5,31 @@
 [![PyPI](https://img.shields.io/pypi/v/seocho)](https://pypi.org/project/seocho/)
 [![Tests](https://img.shields.io/badge/tests-139%20passed-green)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Docs](https://img.shields.io/badge/Docs-seocho.blog-0f172a)](https://seocho.blog/docs/)
+[![Quickstart](https://img.shields.io/badge/Quickstart-5_min-2563eb)](https://seocho.blog/docs/quickstart/)
+[![Examples](https://img.shields.io/badge/Examples-SDK-0f766e)](https://seocho.blog/sdk/examples/)
+[![Architecture Deep Dive](https://img.shields.io/badge/Architecture-Deep_Dive-7c3aed)](https://seocho.blog/docs/architecture/)
 
-You declare the ontology. You call `add()` and `ask()`. Under the hood, SEOCHO
-runs the agent reasoning and policy layer that keeps the graph database, the
-semantic artifacts, and the agent behavior all consistent with your one
-schema contract.
+You declare the ontology. You call `add()` and `ask()`. SEOCHO keeps graph
+writes, semantic artifacts, and agent behavior aligned to that one schema
+contract across local SDK and runtime paths.
 
-What this means in practice:
+SEOCHO is a fit when:
 
-- **Agents stay in-schema.** Every extraction, every Cypher query, every
-  answer is grounded in the ontology you defined — not in a prompt template
-  that drifts.
-- **The database stays in-schema.** Constraints, indexes, SHACL-like rules,
-  and runtime semantic artifacts are all derived from the same ontology.
-- **You stay in control.** One schema change propagates everywhere: agent
-  prompts, query planning, validation, and governance artifacts.
+- you need extraction, Cypher generation, and answers to stay in-schema
+- you want one ontology to drive SDK, runtime, and graph contracts together
+- you need files, artifacts, and traces to stay visible instead of disappearing
+  behind a managed memory black box
 
-Compared to peer libraries:
+Start here:
 
-| Library | Core value |
-|---------|------------|
-| mem0 | generic memory for agents |
-| Graphiti (Zep) | temporal knowledge graph |
-| LlamaIndex | ecosystem + integrations |
-| **SEOCHO** | **ontology alignment between agent and graph DB** |
+| If you want to... | Go here |
+|---|---|
+| get a first local success path | [Quickstart](docs/QUICKSTART.md) |
+| bring your own ontology and files | [Apply Your Data](docs/APPLY_YOUR_DATA.md) |
+| use the Python SDK directly | [Python SDK Quickstart](docs/PYTHON_INTERFACE_QUICKSTART.md) |
+| inspect files, artifacts, and traces | [Files and Artifacts](docs/FILES_AND_ARTIFACTS.md) |
+| understand the system design | [Architecture Deep Dive](docs/ARCHITECTURE.md) |
 
 ## Quick Start
 
@@ -62,44 +63,43 @@ s.add("Marie Curie worked at the University of Paris.")
 print(s.ask("Where did Marie Curie work?"))
 ```
 
-Use a production graph server when needed. The `llm=` value is a
-`provider/model` string for any OpenAI-compatible backend you configure —
-provider names are pluggable, not endorsements:
+Common next steps:
 
-```python
-s = Seocho.local(
-    ontology,
-    llm="<provider>/<model>",                   # any configured OpenAI-compatible backend
-    graph="bolt://neo4j.internal:7687",
-    neo4j_user="neo4j",
-    neo4j_password="••••",
-)
-```
-
-HTTP client mode (no local DB needed):
+Remote runtime client:
 
 ```python
 from seocho import Seocho
-s = Seocho.remote("http://localhost:8001")
+
+client = Seocho.remote("http://localhost:8001")
+print(client.ask("What do we know about ACME?"))
+```
+
+Promote the same ontology into runtime-safe artifacts:
+
+```python
+artifacts = s.approved_artifacts_from_ontology()
+prompt_context = s.prompt_context_from_ontology(
+    instructions=["Prefer finance ontology labels and relationships."]
+)
+draft = s.artifact_draft_from_ontology(name="finance_core_v1")
+```
+
+Run the local platform stack:
+
+```bash
+make setup-env
+make up
 ```
 
 Read next:
 
-- [Why SEOCHO](docs/WHY_SEOCHO.md)
 - [Quickstart (docs)](docs/QUICKSTART.md)
 - [Apply Your Data](docs/APPLY_YOUR_DATA.md)
 - [Python SDK Quickstart](docs/PYTHON_INTERFACE_QUICKSTART.md)
 - [Files and Artifacts](docs/FILES_AND_ARTIFACTS.md)
-- [OntologyRunContext Strategy](docs/ONTOLOGY_RUN_CONTEXT_STRATEGY.md)
-- [PropertyGraphLens Strategy](docs/PROPERTY_GRAPH_LENS_STRATEGY.md)
+- [Why SEOCHO](docs/WHY_SEOCHO.md)
+- [Architecture Deep Dive](docs/ARCHITECTURE.md)
 - [Benchmarks](docs/BENCHMARKS.md)
-- [Gastown Coordination](docs/GASTOWN_COORDINATION.md)
-
-Choose your path:
-
-- tutorial and first local success: `docs/QUICKSTART.md`
-- bring your ontology and your own data: `docs/APPLY_YOUR_DATA.md`
-- production runtime or SDK consumption: `docs/PYTHON_INTERFACE_QUICKSTART.md`
 
 The bundled tutorial sample is for onboarding only. Internal benchmark and
 engineering loops should use a private finance corpus, not the tutorial sample.
@@ -128,9 +128,8 @@ Notes:
 
 ## Why SEOCHO
 
-Most memory libraries optimize for the fastest generic demo. SEOCHO optimizes
-for graph-native teams that need a stronger contract between ontology, runtime,
-and agent behavior.
+SEOCHO is built for graph-native teams that need a stronger contract between
+ontology, runtime, and agent behavior.
 
 - ontology-first, not prompt-first
 - graph-native, not vector-only

@@ -257,6 +257,74 @@ class TestLadybugStore:
         finally:
             store.close()
 
+    def test_query_supports_legal_relationship_lookup(self, tmp_path):
+        ontology = Ontology(
+            name="finder_legal",
+            nodes={
+                "Company": NodeDef(properties={"name": Property(str, unique=True)}),
+                "LegalIssue": NodeDef(
+                    properties={
+                        "name": Property(str, unique=True),
+                        "status": Property(str),
+                    }
+                ),
+            },
+            relationships={
+                "INVOLVED_IN": RelDef(source="Company", target="LegalIssue"),
+            },
+        )
+        store = LadybugGraphStore(str(tmp_path / "finder_legal.lbug"))
+        store.ensure_constraints(ontology)
+        try:
+            store.write(
+                nodes=[
+                    {"id": "msft", "label": "Company", "properties": {"name": "Microsoft"}},
+                    {
+                        "id": "issue_1",
+                        "label": "LegalIssue",
+                        "properties": {
+                            "name": "EU antitrust investigation into Teams bundling with Office 365",
+                            "status": "open",
+                        },
+                    },
+                    {
+                        "id": "issue_2",
+                        "label": "LegalIssue",
+                        "properties": {
+                            "name": "ongoing LinkedIn acquisition litigation",
+                            "status": "open",
+                        },
+                    },
+                ],
+                relationships=[
+                    {"source": "msft", "target": "issue_1", "type": "INVOLVED_IN", "properties": {}},
+                    {"source": "msft", "target": "issue_2", "type": "INVOLVED_IN", "properties": {}},
+                ],
+                source_id="finder-legal-doc",
+            )
+
+            builder = CypherBuilder(ontology)
+            query, params = builder.build(
+                intent="relationship_lookup",
+                anchor_entity="Microsoft",
+                anchor_label="Company",
+                target_label="LegalIssue",
+                relationship_type="INVOLVED_IN",
+                workspace_id="default",
+                limit=5,
+            )
+
+            rows = store.query(query, params=params)
+
+            assert rows
+            assert any(
+                "Teams bundling with Office 365" in str(row.get("target", row.get("col_2", "")))
+                for row in rows
+            )
+            assert all(row.get("relationship", row.get("col_1")) == "INVOLVED_IN" for row in rows)
+        finally:
+            store.close()
+
     def test_embedded_creates_file_on_disk(self, tmp_path):
         path = str(tmp_path / "mygraph.lbug")
         store = LadybugGraphStore(path)

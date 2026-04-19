@@ -37,7 +37,20 @@ class FakeConnector:
                 )
             return json.dumps([])
 
-        if "any(key IN $properties" in query:
+        if "any(key IN $properties" in query or "n.name IS NOT NULL" in query:
+            text = str(params.get("query", "")).lower()
+            if "nvidia" in text:
+                return json.dumps(
+                    [
+                        {
+                            "node_id": 303,
+                            "labels": ["Company"],
+                            "display_name": "NVIDIA Corporation",
+                            "source_id": "mem_nvidia",
+                            "memory_id": "mem_nvidia",
+                        }
+                    ]
+                )
             return json.dumps(
                 [
                     {
@@ -116,6 +129,15 @@ def test_extract_question_entities():
     assert "GraphRAG" in entities
 
 
+def test_extract_question_entities_strips_leading_wrapper_tokens():
+    resolver = SemanticEntityResolver(FakeConnector())
+    entities = resolver.extract_question_entities(
+        "For Tesla Inc., how many vehicles were delivered in 2022 compared with 2021?"
+    )
+    assert "Tesla Inc" in entities
+    assert "For Tesla Inc" not in entities
+
+
 def test_resolve_entities_prefers_fulltext_then_fallback():
     resolver = SemanticEntityResolver(FakeConnector())
     result = resolver.resolve('Tell me about Neo4j and "GraphRAG"', ["kgnormal"])
@@ -129,6 +151,15 @@ def test_resolve_entities_prefers_fulltext_then_fallback():
     assert result["matches"]["GraphRAG"][0]["memory_id"] == "mem_graphrag"
     assert result["evidence_bundle_preview"]["intent_id"] == "entity_summary"
     assert result["evidence_bundle_preview"]["candidate_entities"]
+
+
+def test_resolve_entities_uses_explicit_property_contains_lookup():
+    resolver = SemanticEntityResolver(FakeConnector())
+    result = resolver.resolve("What drove NVIDIA's gross margin expansion?", ["kgnormal"])
+
+    assert result["matches"]["NVIDIA"][0]["source"] == "contains"
+    assert result["matches"]["NVIDIA"][0]["display_name"] == "NVIDIA Corporation"
+    assert result["unresolved_entities"] == []
 
 
 def test_router_rdf_detection():

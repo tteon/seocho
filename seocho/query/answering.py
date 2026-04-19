@@ -59,27 +59,49 @@ class QueryAnswerSynthesizer:
         intent_data: Dict[str, Any],
     ) -> Optional[str]:
         supporting_fact = self._supporting_fact(records)
-        direct_answer = self._direct_answer(question, supporting_fact)
-        if direct_answer:
-            return direct_answer
-
         years = [str(year) for year in intent_data.get("years", []) if str(year).strip()]
         rows = self._normalize_financial_rows(records)
         if not rows:
-            return None
+            return self._direct_answer(
+                question,
+                supporting_fact,
+                priority_terms=intent_data.get("metric_aliases", ()),
+            ) or None
 
         selected_rows = self._select_financial_rows(rows, intent_data)
         if not selected_rows:
-            return None
+            return self._direct_answer(
+                question,
+                supporting_fact,
+                priority_terms=intent_data.get("metric_aliases", ()),
+            ) or None
 
         intent = str(intent_data.get("intent", ""))
         metric_label = self._humanize_metric_label(intent_data)
         company = selected_rows[0].get("company", "")
 
+        if self._prefers_comparison_answer(question, years):
+            target_years = self._ordered_years(years)
+            by_year = {row["year"]: row for row in selected_rows if row.get("year")}
+            ordered_rows = [by_year[year] for year in target_years if year in by_year]
+            if len(ordered_rows) >= 2:
+                later_row = ordered_rows[-1]
+                earlier_row = ordered_rows[0]
+                return (
+                    f"For {company}, {metric_label} was "
+                    f"{self._format_metric_value(metric_label, later_row['value'])} in {later_row['year']} "
+                    f"compared to {self._format_metric_value(metric_label, earlier_row['value'])} "
+                    f"in {earlier_row['year']}."
+                )
+
         if intent == "financial_metric_delta":
             target_years = self._ordered_years(years or [row["year"] for row in selected_rows])
             if len(target_years) < 2:
-                return None
+                return self._direct_answer(
+                    question,
+                    supporting_fact,
+                    priority_terms=intent_data.get("metric_aliases", ()),
+                ) or None
             start_year, end_year = target_years[0], target_years[-1]
             by_year = {row["year"]: row for row in selected_rows if row.get("year")}
             start_row = by_year.get(start_year)
@@ -94,18 +116,39 @@ class QueryAnswerSynthesizer:
 
             delta = round(end_row["value"] - start_row["value"], 3)
             direction = "increased" if delta > 0 else "decreased" if delta < 0 else "was flat"
-            delta_abs = self._format_financial_number(abs(delta))
-            start_value = self._format_financial_number(start_row["value"])
-            end_value = self._format_financial_number(end_row["value"])
             if direction == "was flat":
                 return (
                     f"For {company}, {metric_label} was flat from {start_year} to {end_year} "
-                    f"at ${end_value}."
+                    f"at {self._format_metric_value(metric_label, end_row['value'])}."
                 )
             return (
-                f"For {company}, {metric_label} {direction} by ${delta_abs} from {start_year} to {end_year}, "
-                f"calculated as ${end_value} minus ${start_value}."
+                f"For {company}, {metric_label} {direction} by {self._format_metric_delta(metric_label, abs(delta))} "
+                f"from {start_year} to {end_year}, calculated as "
+                f"{self._format_metric_value(metric_label, end_row['value'])} minus "
+                f"{self._format_metric_value(metric_label, start_row['value'])}."
             )
+
+        if len(years) >= 2:
+            target_years = self._ordered_years(years)
+            by_year = {row["year"]: row for row in selected_rows if row.get("year")}
+            ordered_rows = [by_year[year] for year in target_years if year in by_year]
+            if len(ordered_rows) >= 2:
+                later_row = ordered_rows[-1]
+                earlier_row = ordered_rows[0]
+                return (
+                    f"For {company}, {metric_label} was "
+                    f"{self._format_metric_value(metric_label, later_row['value'])} in {later_row['year']} "
+                    f"compared to {self._format_metric_value(metric_label, earlier_row['value'])} "
+                    f"in {earlier_row['year']}."
+                )
+
+        direct_answer = self._direct_answer(
+            question,
+            supporting_fact,
+            priority_terms=intent_data.get("metric_aliases", ()),
+        )
+        if direct_answer:
+            return self._normalize_relative_year_references(direct_answer, years)
 
         best_row = selected_rows[-1]
         year_suffix = f" in {best_row['year']}" if best_row.get("year") else ""
@@ -114,7 +157,10 @@ class QueryAnswerSynthesizer:
                 f"For {company}, total shareholder return including dividends was approximately "
                 f"{self._format_financial_number(best_row['value'])}%{year_suffix}."
             )
-        return f"For {company}, {metric_label} was ${self._format_financial_number(best_row['value'])}{year_suffix}."
+        return (
+            f"For {company}, {metric_label} was "
+            f"{self._format_metric_value(metric_label, best_row['value'])}{year_suffix}."
+        )
 
     def _build_relationship_answer(
         self,
@@ -172,14 +218,19 @@ class QueryAnswerSynthesizer:
         rows: List[Dict[str, Any]] = []
         seen: set[tuple[str, str, float, str]] = set()
         for record in records:
-            if "metric_name" not in record or "value" not in record:
+            metric_name = str(self._record_value(record, "metric_name", 1)).strip()
+            raw_value = self._record_value(record, "value", 3)
+            if not metric_name or raw_value in (None, ""):
                 continue
-            value = self._coerce_number(record.get("value"))
+            value = self._coerce_number(raw_value)
             if value is None:
                 continue
-            year = self._coerce_year(record.get("year"), record.get("metric_name"), record.get("company"))
-            company = str(record.get("company", "")).strip()
-            metric_name = str(record.get("metric_name", "")).strip()
+            company = str(self._record_value(record, "company", 0)).strip()
+            year = self._coerce_year(
+                self._record_value(record, "year", 2),
+                metric_name,
+                company,
+            )
             key = (company, year, value, metric_name)
             if key in seen:
                 continue
@@ -190,7 +241,7 @@ class QueryAnswerSynthesizer:
                     "metric_name": metric_name,
                     "year": year,
                     "value": value,
-                    "relationship": str(record.get("relationship", "")),
+                    "relationship": str(self._record_value(record, "relationship", 4)),
                     "supporting_fact": str(self._record_value(record, "supporting_fact", 5)).strip(),
                 }
             )
@@ -256,7 +307,13 @@ class QueryAnswerSynthesizer:
                         return fact
         return ""
 
-    def _direct_answer(self, question: str, supporting_fact: str) -> str:
+    def _direct_answer(
+        self,
+        question: str,
+        supporting_fact: str,
+        *,
+        priority_terms: Sequence[str] = (),
+    ) -> str:
         if not supporting_fact:
             return ""
         sentences = [
@@ -270,6 +327,12 @@ class QueryAnswerSynthesizer:
         question_terms = {
             token
             for token in re.findall(r"[a-z0-9]+", question.lower())
+            if len(token) > 1
+        }
+        priority_tokens = {
+            token
+            for term in priority_terms
+            for token in re.findall(r"[a-z0-9]+", str(term).lower())
             if len(token) > 1
         }
         if not question_terms:
@@ -293,26 +356,44 @@ class QueryAnswerSynthesizer:
                 }
             )
 
-        def score(sentence: str) -> tuple[int, int]:
+        def score(sentence: str) -> tuple[int, int, int, int]:
             terms = set(re.findall(r"[a-z0-9]+", sentence.lower()))
+            priority_hits = len(terms & priority_tokens)
             numeric_hits = len(set(re.findall(r"\d+(?:\.\d+)?", sentence.lower())) & question_terms)
-            return (len(terms & question_terms), numeric_hits, len(sentence))
+            return (priority_hits, len(terms & question_terms), numeric_hits, len(sentence))
 
         scored_sentences = [(index, sentence, score(sentence)) for index, sentence in enumerate(sentences)]
         if "legal" in question_terms or "issues" in question_terms or "issue" in question_terms:
             relevant = [
                 (index, sentence)
                 for index, sentence, sentence_score in scored_sentences
-                if sentence_score[0] >= 2 and len(sentence) >= 24
+                if sentence_score[1] >= 2 and len(sentence) >= 24
             ]
             if len(relevant) >= 2:
                 return " ".join(sentence for _, sentence in sorted(relevant, key=lambda item: item[0]))
 
         best_sentence = max(scored_sentences, key=lambda item: item[2])[1]
         best_score = score(best_sentence)
-        if best_score[0] < 2 or len(best_sentence) < 24:
+        if (best_score[1] < 2 and best_score[0] == 0) or len(best_sentence) < 24:
             return supporting_fact
         return best_sentence
+
+    def _prefers_comparison_answer(self, question: str, years: Sequence[str]) -> bool:
+        if len(years) < 2:
+            return False
+        lower = question.lower()
+        return any(marker in lower for marker in (" vs ", " versus ", " compared", "compare ")) or "how many" in lower
+
+    def _normalize_relative_year_references(self, text: str, years: Sequence[str]) -> str:
+        ordered_years = self._ordered_years(years)
+        if len(ordered_years) < 2:
+            return text
+        earlier_year = ordered_years[0]
+        normalized = re.sub(r"\bthe prior year\b", earlier_year, text, flags=re.IGNORECASE)
+        normalized = re.sub(r"\bprior year\b", earlier_year, normalized, flags=re.IGNORECASE)
+        normalized = re.sub(r"\bthe previous year\b", earlier_year, normalized, flags=re.IGNORECASE)
+        normalized = re.sub(r"\bprevious year\b", earlier_year, normalized, flags=re.IGNORECASE)
+        return normalized
 
     @staticmethod
     def _record_value(record: Dict[str, Any], key: str, fallback_index: int) -> Any:
@@ -430,3 +511,59 @@ class QueryAnswerSynthesizer:
 
     def _format_financial_number(self, value: float) -> str:
         return f"{value:,.1f}".rstrip("0").rstrip(".")
+
+    def _format_metric_value(self, metric_label: str, value: float) -> str:
+        formatted = self._format_financial_number(value)
+        lower = metric_label.lower()
+        if any(token in lower for token in ("margin", "ratio", "return", "yield")):
+            return f"{formatted}%"
+        if any(
+            token in lower
+            for token in (
+                "revenue",
+                "income",
+                "expense",
+                "cost",
+                "assets",
+                "liabilities",
+                "cash flow",
+                "price",
+                "shareholder",
+            )
+        ):
+            return f"${self._format_large_number(value)}"
+        return formatted
+
+    def _format_metric_delta(self, metric_label: str, value: float) -> str:
+        lower = metric_label.lower()
+        formatted = self._format_financial_number(value)
+        if any(token in lower for token in ("margin", "ratio", "return", "yield")):
+            return f"{formatted} percentage points"
+        if any(
+            token in lower
+            for token in (
+                "revenue",
+                "income",
+                "expense",
+                "cost",
+                "assets",
+                "liabilities",
+                "cash flow",
+                "price",
+                "shareholder",
+            )
+        ):
+            return f"${self._format_large_number(value)}"
+        return formatted
+
+    def _format_large_number(self, value: float) -> str:
+        absolute = abs(value)
+        if absolute >= 1_000_000_000_000:
+            return f"{self._format_financial_number(value / 1_000_000_000_000)} trillion"
+        if absolute >= 1_000_000_000:
+            return f"{self._format_financial_number(value / 1_000_000_000)} billion"
+        if absolute >= 1_000_000:
+            return f"{self._format_financial_number(value / 1_000_000)} million"
+        if absolute >= 1_000:
+            return self._format_financial_number(value)
+        return self._format_financial_number(value)

@@ -193,6 +193,17 @@ def _extract_reasoning_cycle(payload: object) -> tuple[str, list[str]]:
     return status, sources
 
 
+def _default_reasoning_cycle_payload() -> dict:
+    return {
+        "enabled": True,
+        "anomaly_sources": [
+            "unsupported_answer",
+            "ontology_mismatch",
+            "query_execution_failed_or_contract_error",
+        ],
+    }
+
+
 def _remote_setup(args: argparse.Namespace, cases: list) -> dict:
     records = [
         {
@@ -396,6 +407,7 @@ def main() -> int:
                     "databases": [args.database],
                     "reasoning_mode": args.reasoning_mode,
                     "repair_budget": args.repair_budget if args.reasoning_mode else 0,
+                    "reasoning_cycle": _default_reasoning_cycle_payload(),
                 },
             )
         )
@@ -411,6 +423,7 @@ def main() -> int:
                     "workspace_id": args.workspace_id,
                     "user_id": "finder_runtime_benchmark",
                     "graph_ids": [args.database],
+                    "reasoning_cycle": _default_reasoning_cycle_payload(),
                 },
             )
         )
@@ -428,6 +441,7 @@ def main() -> int:
                     "workspace_id": args.workspace_id,
                     "user_id": "finder_runtime_benchmark",
                     "databases": [args.database],
+                    "reasoning_cycle": _default_reasoning_cycle_payload(),
                 },
             )
         )

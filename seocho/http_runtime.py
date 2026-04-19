@@ -8,6 +8,7 @@ from uuid import uuid4
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
+from .indexing_design import build_query_reasoning_cycle_report
 from .runtime_contract import (
     RuntimePath,
     WORKSPACE_ID_PATTERN,
@@ -45,6 +46,7 @@ class BundleSemanticRequest(BaseModel):
     databases: Optional[List[str]] = None
     reasoning_mode: bool = False
     repair_budget: int = Field(default=0, ge=0, le=8)
+    reasoning_cycle: Optional[Dict[str, Any]] = None
 
 
 def create_bundle_runtime_app(
@@ -278,6 +280,11 @@ def create_bundle_runtime_app(
             "registry_path": "",
             "timestamp": timestamp,
         }
+        reasoning_cycle = build_query_reasoning_cycle_report(
+            request.reasoning_cycle,
+            support_assessment=support_assessment,
+            query_diagnostics=[],
+        )
         return {
             "response": answer,
             "route": route,
@@ -296,6 +303,7 @@ def create_bundle_runtime_app(
                 "strategy_decision": strategy_decision,
                 "run_metadata": run_metadata,
                 "evidence_bundle_preview": evidence_bundle,
+                "reasoning_cycle": reasoning_cycle or {},
             },
             "lpg_result": {
                 "mode": route,
@@ -307,6 +315,7 @@ def create_bundle_runtime_app(
             "strategy_decision": strategy_decision,
             "run_metadata": run_metadata,
             "evidence_bundle": evidence_bundle,
+            "reasoning_cycle": reasoning_cycle or {},
         }
 
     @app.post(RuntimePath.RUN_DEBATE)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Sequence
 
+from ..indexing_design import build_query_reasoning_cycle_report
 from .answering import build_evidence_bundle
 from .constraints import SemanticConstraintSliceBuilder
 from .run_registry import RunMetadataRegistry
@@ -41,11 +42,13 @@ class SemanticAgentFlow:
         workspace_id: str = "default",
         reasoning_mode: bool = False,
         repair_budget: int = 0,
+        reasoning_cycle: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         trace_steps: List[Dict[str, Any]] = []
 
         semantic_context = self.resolver.resolve(question, databases, workspace_id=workspace_id)
         semantic_context.setdefault("query_diagnostics", [])
+        semantic_context["reasoning_cycle_config"] = dict(reasoning_cycle or {})
         constraint_slices = self.constraint_builder.build_for_databases(
             databases,
             workspace_id=workspace_id,
@@ -185,6 +188,13 @@ class SemanticAgentFlow:
             rdf_result=rdf_result,
             response=response,
         )
+        reasoning_cycle_report = build_query_reasoning_cycle_report(
+            reasoning_cycle,
+            support_assessment=semantic_context.get("support_assessment", {}),
+            query_diagnostics=semantic_context.get("query_diagnostics", []),
+        )
+        if reasoning_cycle_report is not None:
+            semantic_context["reasoning_cycle"] = reasoning_cycle_report
         trace_steps.append(
             {
                 "id": "5",
@@ -226,6 +236,7 @@ class SemanticAgentFlow:
             "run_metadata": semantic_context.get("run_metadata", {}),
             "evidence_bundle": semantic_context.get("evidence_bundle_preview", {}),
             "query_diagnostics": semantic_context.get("query_diagnostics", []),
+            "reasoning_cycle": reasoning_cycle_report or {},
         }
 
     @staticmethod

@@ -202,7 +202,17 @@ async def test_debate_orchestrator_falls_back_to_semantic_flow_on_no_data(monkey
             yield
 
     class _SemanticFlow:
-        def run(self, *, question, databases, entity_overrides, workspace_id, reasoning_mode, repair_budget):
+        def run(
+            self,
+            *,
+            question,
+            databases,
+            entity_overrides,
+            workspace_id,
+            reasoning_mode,
+            repair_budget,
+            reasoning_cycle,
+        ):
             nonlocal semantic_calls
             semantic_calls += 1
             assert question == "What was PTC revenue growth?"
@@ -211,6 +221,7 @@ async def test_debate_orchestrator_falls_back_to_semantic_flow_on_no_data(monkey
             assert workspace_id == "default"
             assert reasoning_mode is False
             assert repair_budget == 0
+            assert reasoning_cycle == {}
             if semantic_calls == 1:
                 return {
                     "response": "Ungrounded semantic answer.",
@@ -273,6 +284,12 @@ async def test_debate_orchestrator_runs_graph_agent_when_preflight_is_unsupporte
                 "response": "Ungrounded semantic answer.",
                 "trace_steps": [],
                 "support_assessment": {"status": "unsupported", "supported": False},
+                "reasoning_cycle": {
+                    "enabled": True,
+                    "status": "anomaly_detected",
+                    "observed_anomalies": [{"source": "unsupported_answer"}],
+                    "next_phase": "abduction",
+                },
                 "lpg_result": {"records": []},
                 "rdf_result": None,
             }
@@ -295,6 +312,8 @@ async def test_debate_orchestrator_runs_graph_agent_when_preflight_is_unsupporte
 
     assert result["debate_results"][0]["response"] == "Graph agent answer."
     assert not any(step["type"] == "DETERMINISTIC_PREFLIGHT" for step in result["trace_steps"])
+    assert result["reasoning_cycle"]["status"] == "anomaly_detected"
+    assert result["reasoning_cycle"]["observed_anomalies"][0]["source"] == "unsupported_answer"
 
 
 @pytest.mark.anyio

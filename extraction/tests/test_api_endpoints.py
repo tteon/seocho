@@ -237,12 +237,17 @@ class TestListEndpoints:
                     "workspace_id": "default",
                     "reasoning_mode": True,
                     "repair_budget": 2,
+                    "reasoning_cycle": {
+                        "enabled": True,
+                        "anomaly_sources": ["unsupported_answer"],
+                    },
                 },
             )
             assert response.status_code == 200
             _, kwargs = mock_run.call_args
             assert kwargs["reasoning_mode"] is True
             assert kwargs["repair_budget"] == 2
+            assert kwargs["reasoning_cycle"]["enabled"] is True
 
     async def test_run_agent_semantic_endpoint_returns_support_and_strategy_metadata(self, client, app_module):
         with patch.object(app_module.semantic_agent_flow, "run") as mock_run, patch.object(
@@ -260,6 +265,7 @@ class TestListEndpoints:
                 "strategy_decision": {"executed_mode": "semantic_direct"},
                 "run_metadata": {"run_id": "run_123", "recorded": True},
                 "evidence_bundle": {"intent_id": "relationship_lookup", "grounded_slots": ["target_entity"]},
+                "reasoning_cycle": {"enabled": True, "status": "clean", "observed_anomalies": []},
             }
             mock_context.return_value = {
                 "mismatch": False,
@@ -276,6 +282,7 @@ class TestListEndpoints:
             assert payload["support_assessment"]["status"] == "supported"
             assert payload["strategy_decision"]["executed_mode"] == "semantic_direct"
             assert payload["run_metadata"]["run_id"] == "run_123"
+            assert payload["reasoning_cycle"]["status"] == "clean"
             assert payload["ontology_context_mismatch"]["mismatch"] is False
             assert payload["semantic_context"]["ontology_context_mismatch"]["mismatch"] is False
 
@@ -650,6 +657,7 @@ class TestListEndpoints:
             async def run_debate(self, query, context):
                 assert query == "compare entities"
                 assert context.allowed_databases == [graph_id]
+                assert context.reasoning_cycle["enabled"] is True
                 return {
                     "response": "semantic debate response",
                     "trace_steps": [],
@@ -661,6 +669,11 @@ class TestListEndpoints:
                             "response": "semantic debate response",
                         }
                     ],
+                    "reasoning_cycle": {
+                        "enabled": True,
+                        "status": "anomaly_detected",
+                        "observed_anomalies": [{"source": "unsupported_answer"}],
+                    },
                 }
 
         with patch.object(app_module.graph_registry, "list_graph_ids", return_value=["kgnormal"]):
@@ -693,6 +706,7 @@ class TestListEndpoints:
                                                     "workspace_id": "default",
                                                     "user_id": "u1",
                                                     "graph_ids": [graph_id],
+                                                    "reasoning_cycle": {"enabled": True},
                                                 },
                                             )
 
@@ -700,6 +714,7 @@ class TestListEndpoints:
         payload = response.json()
         assert payload["response"] == "semantic debate response"
         assert payload["debate_state"] == "ready"
+        assert payload["reasoning_cycle"]["status"] == "anomaly_detected"
         mock_ensure.assert_called_once_with(graph_id)
         mock_create.assert_called_once()
         assert mock_create.call_args.args[0] == [graph_id]

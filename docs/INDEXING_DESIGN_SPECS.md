@@ -80,6 +80,12 @@ error under an enabled `reasoning_cycle`, SEOCHO records a compact
 stays in the anomaly phase and points the next step at abduction; it does not
 promote any candidate inference to fact.
 
+The same contract can now be supplied to semantic and debate query paths. When
+support is `partial` or `unsupported`, SEOCHO returns a compact top-level
+`reasoning_cycle` report in the semantic/debate response so the caller can
+decide whether to escalate into analyst review, additional tool use, or a
+separate inquiry pass.
+
 ## LPG Prompt Shaping
 
 For `graph_model: lpg`, SEOCHO installs a property-graph-oriented extraction
@@ -117,6 +123,35 @@ client = Seocho.from_indexing_design(
     llm="openai/gpt-4o-mini",
     graph="bolt://localhost:7687",
     workspace_id="finance-prod",
+)
+```
+
+## Query With The Same Inquiry Contract
+
+```python
+reasoning_cycle = {
+    "enabled": True,
+    "anomaly_sources": ["unsupported_answer", "query_diagnostic"],
+    "abduction": {"mode": "candidate_only"},
+    "deduction": {"require_testable_predictions": True},
+    "induction": {"require_support_assessment": True},
+    "promotion": {"analyst_approval_required": True},
+}
+
+semantic = client.semantic(
+    "What drove NVIDIA's gross margin expansion?",
+    databases=["finderrt20260417d"],
+    reasoning_cycle=reasoning_cycle,
+)
+
+if semantic.reasoning_cycle:
+    print(semantic.reasoning_cycle["status"])
+    print(semantic.reasoning_cycle["observed_anomalies"])
+
+debate = client.debate(
+    "Compare Tesla deliveries year over year.",
+    graph_ids=["finderrt20260417d"],
+    reasoning_cycle=reasoning_cycle,
 )
 ```
 

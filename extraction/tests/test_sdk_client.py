@@ -651,6 +651,7 @@ def test_runtime_client_methods_cover_semantic_debate_platform_and_admin_surface
                     "ontology_context_mismatch": {"mismatch": True, "databases": []},
                     "lpg_result": {"records": []},
                     "rdf_result": None,
+                    "reasoning_cycle": {"enabled": True, "status": "clean", "observed_anomalies": []},
                 }
             ),
             _FakeResponse(
@@ -662,6 +663,11 @@ def test_runtime_client_methods_cover_semantic_debate_platform_and_admin_surface
                     "debate_state": "ready",
                     "degraded": False,
                     "ontology_context_mismatch": {"mismatch": False, "databases": []},
+                    "reasoning_cycle": {
+                        "enabled": True,
+                        "status": "anomaly_detected",
+                        "observed_anomalies": [{"source": "unsupported_answer"}],
+                    },
                 }
             ),
             _FakeResponse(
@@ -738,8 +744,13 @@ def test_runtime_client_methods_cover_semantic_debate_platform_and_admin_surface
         entity_overrides=[EntityOverride(question_entity="Neo4j", database="kgnormal", node_id=1)],
         reasoning_mode=True,
         repair_budget=2,
+        reasoning_cycle={"enabled": True, "anomaly_sources": ["unsupported_answer"]},
     )
-    debated = client.debate("Compare graphs", graph_ids=["kgnormal"])
+    debated = client.debate(
+        "Compare graphs",
+        graph_ids=["kgnormal"],
+        reasoning_cycle={"enabled": True, "anomaly_sources": ["unsupported_answer"]},
+    )
     platform = client.platform_chat("hello", mode="debate", session_id="s1", graph_ids=["kgnormal"])
     history = client.session_history("s1")
     reset = client.reset_session("s1")
@@ -756,8 +767,10 @@ def test_runtime_client_methods_cover_semantic_debate_platform_and_admin_surface
     assert semantic.route == "lpg"
     assert semantic.semantic_context["entities"] == ["Neo4j"]
     assert semantic.ontology_context_mismatch["mismatch"] is True
+    assert semantic.reasoning_cycle["status"] == "clean"
     assert debated.debate_results[0]["graph"] == "kgnormal"
     assert debated.ontology_context_mismatch["mismatch"] is False
+    assert debated.reasoning_cycle["status"] == "anomaly_detected"
     assert platform.history[1].content == "platform answer"
     assert platform.ontology_context_mismatch["mismatch"] is False
     assert history.history[0].role == "user"
@@ -772,7 +785,9 @@ def test_runtime_client_methods_cover_semantic_debate_platform_and_admin_surface
     assert session.calls[1]["json"]["entity_overrides"][0]["question_entity"] == "Neo4j"
     assert session.calls[1]["json"]["reasoning_mode"] is True
     assert session.calls[1]["json"]["repair_budget"] == 2
+    assert session.calls[1]["json"]["reasoning_cycle"]["enabled"] is True
     assert session.calls[2]["url"] == "http://localhost:8001/run_debate"
+    assert session.calls[2]["json"]["reasoning_cycle"]["enabled"] is True
     assert session.calls[3]["url"] == "http://localhost:8001/platform/chat/send"
     assert session.calls[6]["url"] == "http://localhost:8001/platform/ingest/raw"
     assert session.calls[9]["url"] == "http://localhost:8001/indexes/fulltext/ensure"

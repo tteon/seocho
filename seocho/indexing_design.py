@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Mapping
+from typing import Any, Dict, Mapping, Sequence
 
 import yaml
 
@@ -380,9 +380,90 @@ def build_reasoning_cycle_report(
     }
 
 
+def build_query_reasoning_cycle_report(
+    reasoning_cycle: Mapping[str, Any] | None,
+    *,
+    support_assessment: Mapping[str, Any] | None = None,
+    query_diagnostics: Sequence[Mapping[str, Any] | Dict[str, Any]] | None = None,
+) -> Dict[str, Any] | None:
+    """Build a structured inquiry report from query-time anomalies.
+
+    The query-time report is intentionally compact. It records unsupported
+    semantic outcomes and query-contract diagnostics without promoting any
+    hypothesis or repair candidate to fact.
+    """
+
+    if not isinstance(reasoning_cycle, Mapping):
+        return None
+    if not bool(reasoning_cycle.get("enabled", False)):
+        return None
+
+    anomalies: list[Dict[str, Any]] = []
+    support_payload = dict(support_assessment or {})
+    support_status = str(support_payload.get("status", "")).strip().lower()
+    if support_status and support_status != "supported":
+        anomalies.append(
+            {
+                "source": "unsupported_answer",
+                "phase": "anomaly",
+                "status": "observed",
+                "support_status": support_status,
+                "reason": str(support_payload.get("reason", "")).strip(),
+                "coverage": float(support_payload.get("coverage", 0.0) or 0.0),
+                "grounded_slots": [
+                    str(item).strip()
+                    for item in support_payload.get("grounded_slots", [])
+                    if str(item).strip()
+                ],
+                "missing_slots": [
+                    str(item).strip()
+                    for item in support_payload.get("missing_slots", [])
+                    if str(item).strip()
+                ],
+            }
+        )
+
+    diagnostics = [
+        dict(item)
+        for item in (query_diagnostics or [])
+        if isinstance(item, Mapping)
+    ]
+    if diagnostics:
+        anomalies.append(
+            {
+                "source": "query_diagnostic",
+                "phase": "anomaly",
+                "status": "observed",
+                "diagnosis_codes": [
+                    str(item.get("diagnosis_code", "")).strip()
+                    for item in diagnostics[:5]
+                    if str(item.get("diagnosis_code", "")).strip()
+                ],
+                "messages": [
+                    str(item.get("message", "")).strip()
+                    for item in diagnostics[:5]
+                    if str(item.get("message", "")).strip()
+                ],
+            }
+        )
+
+    return {
+        "enabled": True,
+        "status": "anomaly_detected" if anomalies else "clean",
+        "anomaly_sources": list(reasoning_cycle.get("anomaly_sources", []) or []),
+        "observed_anomalies": anomalies,
+        "abduction": dict(reasoning_cycle.get("abduction", {})),
+        "deduction": dict(reasoning_cycle.get("deduction", {})),
+        "induction": dict(reasoning_cycle.get("induction", {})),
+        "promotion": dict(reasoning_cycle.get("promotion", {})),
+        "next_phase": "abduction" if anomalies else "",
+    }
+
+
 __all__ = [
     "IndexingDesignSpec",
     "IndexingOntologyBinding",
+    "build_query_reasoning_cycle_report",
     "build_reasoning_cycle_report",
     "load_indexing_design_spec",
 ]

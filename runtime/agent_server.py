@@ -390,6 +390,10 @@ class QueryRequest(BaseModel):
         default=None,
         description="Optional list of graph IDs to target for debate/runtime routing.",
     )
+    reasoning_cycle: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Optional anomaly-driven inquiry contract surfaced when semantic support is insufficient.",
+    )
 
 
 class EntityOverride(BaseModel):
@@ -445,6 +449,7 @@ class SemanticAgentResponse(AgentResponse):
     strategy_decision: Dict[str, Any] = Field(default_factory=dict, description="Execution strategy reasoning trace.")
     run_metadata: Dict[str, Any] = Field(default_factory=dict, description="Semantic run audit metadata (run_id, timestamps).")
     evidence_bundle: Dict[str, Any] = Field(default_factory=dict, description="Structured evidence bundle with slot fills and required relations.")
+    reasoning_cycle: Dict[str, Any] = Field(default_factory=dict, description="Compact inquiry-cycle anomaly report for unsupported semantic outcomes.")
     ontology_context_mismatch: Dict[str, Any] = Field(default_factory=dict, description="Runtime graph ontology-context parity metadata.")
 
 
@@ -484,6 +489,7 @@ class DebateResponse(BaseModel):
     agent_statuses: List[Dict[str, str]] = Field(default_factory=list, description="Per-agent readiness status (ready/degraded/blocked).")
     debate_state: Literal["ready", "degraded", "blocked"] = Field(default="ready", description="Overall debate readiness state.")
     degraded: bool = Field(default=False, description="True if one or more agents were unavailable.")
+    reasoning_cycle: Dict[str, Any] = Field(default_factory=dict, description="Compact inquiry-cycle anomaly report surfaced from semantic preflight or fallback.")
     ontology_context_mismatch: Dict[str, Any] = Field(
         default_factory=dict,
         description="Runtime graph ontology-context parity metadata for debated graph databases.",
@@ -1214,6 +1220,7 @@ async def run_agent_semantic(request: SemanticQueryRequest):
             workspace_id=request.workspace_id,
             reasoning_mode=request.reasoning_mode,
             repair_budget=request.repair_budget,
+            reasoning_cycle=request.reasoning_cycle,
         )
         ontology_context_mismatch = memory_service.ontology_context_mismatch(
             workspace_id=request.workspace_id,
@@ -1345,6 +1352,7 @@ async def run_debate(request: QueryRequest):
         shared_memory=memory,
         allowed_databases=scoped_databases,
         semantic_agent_flow=semantic_agent_flow,
+        reasoning_cycle=dict(request.reasoning_cycle or {}),
     )
 
     if not valid_graph_ids:
@@ -1380,6 +1388,7 @@ async def run_debate(request: QueryRequest):
             agent_statuses=agent_statuses,
             debate_state="blocked",
             degraded=True,
+            reasoning_cycle={},
             ontology_context_mismatch=ontology_context_mismatch,
         )
 

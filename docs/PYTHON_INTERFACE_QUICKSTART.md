@@ -666,6 +666,36 @@ with s.session("auto") as sess:
 | `RoutingPolicy.balanced()` | 33% | 33% | 34% | General use |
 | `RoutingPolicy.thorough()` | 10% | 10% | 80% | Accuracy matters most |
 
+### YAML agent design specs
+
+If you want a reviewable agent setup checked into git, declare it in YAML and
+let SEOCHO compile it into `AgentConfig` plus `ontology_profile`.
+
+```python
+from seocho import Ontology, Seocho
+
+onto = Ontology.from_jsonld("schema.jsonld")
+
+client = Seocho.from_agent_design(
+    "examples/agent_designs/planning_multi_agent_finance.yaml",
+    ontology=onto,
+    llm="openai/gpt-4o-mini",
+    workspace_id="finance-prod",
+)
+```
+
+The YAML must include an `ontology:` section. If the section is missing, or it
+does not declare a binding like `profile`, `ontology_id`, `package_id`, or
+`path`, SEOCHO raises a `ValueError`.
+
+See [AGENT_DESIGN_SPECS.md](AGENT_DESIGN_SPECS.md) and the
+[`examples/agent_designs/`](/tmp/seocho-land-finder-e2e/examples/agent_designs)
+directory for three starter patterns:
+
+- planning + multi-agent collaboration
+- reflection + chain-of-thought
+- memory + tool use
+
 ## 17. Ontology Merge
 
 Combine two ontologies when integrating new domains:

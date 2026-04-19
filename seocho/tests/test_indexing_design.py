@@ -37,6 +37,15 @@ def _ontology() -> Ontology:
     )
 
 
+class _FakeResponse:
+    def __init__(self, payload: dict) -> None:
+        self._payload = payload
+        self.text = ""
+
+    def json(self) -> dict:
+        return dict(self._payload)
+
+
 def test_indexing_design_requires_ontology_section() -> None:
     with pytest.raises(ValueError, match="requires an 'ontology' section"):
         IndexingDesignSpec.from_dict(
@@ -199,3 +208,87 @@ def test_seocho_from_indexing_design_requires_graph_for_neo4j_target(tmp_path) -
 
     with pytest.raises(ValueError, match="require graph='bolt://"):
         Seocho.from_indexing_design(path, ontology=_ontology(), llm="openai/gpt-4o", workspace_id="finance-core")
+
+
+def test_indexing_design_reasoning_cycle_records_shacl_anomaly_on_add(tmp_path) -> None:
+    path = tmp_path / "indexing-design.yaml"
+    path.write_text(
+        textwrap.dedent(
+            """
+            name: lpg-inquiry-finance
+            graph_model: lpg
+            storage_target: ladybug
+            ontology:
+              required: true
+              profile: finance-fast
+            ingestion:
+              validation_on_fail: reject
+              inference_mode: base
+            materialization:
+              metric_model: property
+              provenance_mode: full
+            reasoning_cycle:
+              enabled: true
+              anomaly_sources:
+                - shacl_violation
+              abduction:
+                mode: candidate_only
+              deduction:
+                require_testable_predictions: true
+              induction:
+                require_support_assessment: true
+            """
+        ).strip(),
+        encoding="utf-8",
+    )
+
+    class InvalidExtractionLLM:
+        def complete(self, *, system, user, temperature, response_format=None):  # noqa: ANN001
+            return _FakeResponse(
+                {
+                    "nodes": [
+                        {
+                            "id": "company-1",
+                            "label": "Company",
+                            "properties": {},
+                        }
+                    ],
+                    "relationships": [],
+                }
+            )
+
+    class RecordingGraphStore:
+        def __init__(self) -> None:
+            self.write_calls = []
+
+        def write(self, nodes, relationships, *, database="neo4j", workspace_id="default", source_id=""):  # noqa: ANN001
+            self.write_calls.append(
+                {
+                    "nodes": list(nodes),
+                    "relationships": list(relationships),
+                    "database": database,
+                    "workspace_id": workspace_id,
+                    "source_id": source_id,
+                }
+            )
+            return {"nodes_created": len(nodes), "relationships_created": len(relationships), "errors": []}
+
+    store = RecordingGraphStore()
+    client = Seocho.from_indexing_design(
+        path,
+        ontology=_ontology(),
+        graph_store=store,
+        llm=InvalidExtractionLLM(),
+        workspace_id="finance-indexing-test",
+    )
+    try:
+        memory = client.add("NVIDIA reported a new gross margin milestone.", database="neo4j")
+        assert memory.status == "failed"
+        assert memory.metadata["validation_errors"]
+        assert memory.metadata["reasoning_cycle"]["enabled"] is True
+        assert memory.metadata["reasoning_cycle"]["status"] == "anomaly_detected"
+        assert memory.metadata["reasoning_cycle"]["observed_anomalies"][0]["source"] == "shacl_violation"
+        assert memory.metadata["reasoning_cycle"]["next_phase"] == "abduction"
+        assert store.write_calls == []
+    finally:
+        client.close()

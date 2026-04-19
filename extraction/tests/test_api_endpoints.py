@@ -545,6 +545,7 @@ class TestListEndpoints:
                         "message": "hello",
                         "mode": "semantic",
                         "workspace_id": "default",
+                        "reasoning_cycle": {"enabled": True, "anomaly_sources": ["unsupported_answer"]},
                     },
                 )
                 assert response.status_code == 200
@@ -552,6 +553,8 @@ class TestListEndpoints:
                 assert data["session_id"] == "s1"
                 assert data["assistant_message"] == "platform response"
                 assert data["ontology_context_mismatch"]["mismatch"] is False
+                _, kwargs = mock_execute.call_args
+                assert kwargs["request_payload"]["reasoning_cycle"]["enabled"] is True
 
     async def test_run_agent_scopes_graph_ids_and_returns_ontology_context(self, client, app_module):
         class _FakeSemanticFlow:

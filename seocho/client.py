@@ -1659,6 +1659,7 @@ class Seocho:
                 resolved_plan.query,
                 user_id=resolved_plan.user_id,
                 graph_ids=resolved_plan.targets or None,
+                reasoning_cycle=resolved_plan.reasoning.reasoning_cycle or None,
             )
             return ExecutionResult.from_run_result(
                 requested_style="debate",
@@ -1688,6 +1689,7 @@ class Seocho:
             entity_overrides=resolved_plan.entity_overrides or None,
             reasoning_mode=resolved_plan.reasoning.repair_budget > 0,
             repair_budget=resolved_plan.reasoning.repair_budget,
+            reasoning_cycle=resolved_plan.reasoning.reasoning_cycle or None,
         )
         return ExecutionResult.from_run_result(
             requested_style="direct",
@@ -1706,6 +1708,7 @@ class Seocho:
         graph_ids: Optional[Sequence[str]] = None,
         databases: Optional[Sequence[str]] = None,
         entity_overrides: Optional[Sequence[EntityOverride | Dict[str, Any]]] = None,
+        reasoning_cycle: Optional[Dict[str, Any]] = None,
     ) -> PlatformChatResponse:
         """Send a message through the platform chat endpoint.
 
@@ -1737,6 +1740,8 @@ class Seocho:
             body["databases"] = list(databases)
         if entity_overrides:
             body["entity_overrides"] = serialize_entity_overrides(entity_overrides)
+        if reasoning_cycle:
+            body["reasoning_cycle"] = dict(reasoning_cycle)
         payload = self._request_json("POST", RuntimePath.PLATFORM_CHAT_SEND, json_body=body)
         return PlatformChatResponse.from_dict(payload)
 
@@ -2393,6 +2398,22 @@ class ExecutionPlanBuilder:
         ]
         return self
 
+    def with_reasoning_cycle(
+        self,
+        reasoning_cycle: Dict[str, Any],
+    ) -> "ExecutionPlanBuilder":
+        """Attach an anomaly-driven inquiry contract to semantic/debate execution."""
+        self._reasoning = ReasoningPolicy(
+            style=self._reasoning.normalized_style(),
+            max_steps=self._reasoning.max_steps,
+            tool_budget=self._reasoning.tool_budget,
+            require_grounded_evidence=self._reasoning.require_grounded_evidence,
+            repair_budget=self._reasoning.repair_budget,
+            fallback_style=self._reasoning.fallback_style,
+            reasoning_cycle=dict(reasoning_cycle or {}),
+        )
+        return self
+
     def with_reasoning(
         self,
         *,
@@ -2424,6 +2445,7 @@ class ExecutionPlanBuilder:
                 else max(0, int(repair_budget))
             ),
             fallback_style=(str(fallback_style).strip().lower() or None) if fallback_style else None,
+            reasoning_cycle=dict(self._reasoning.reasoning_cycle),
         )
         self._reasoning.normalized_style()
         return self
@@ -2491,6 +2513,7 @@ class ExecutionPlanBuilder:
             require_grounded_evidence=self._reasoning.require_grounded_evidence,
             repair_budget=max(0, int(repair_budget)),
             fallback_style=self._reasoning.fallback_style,
+            reasoning_cycle=dict(self._reasoning.reasoning_cycle),
         )
         return self
 

@@ -100,6 +100,13 @@ Each entry must link to a full ADR when impact is non-trivial.
   - classify finance benchmark query-contract failures under an explicit query
     diagnosis code
 
+## 2026-04-19
+
+- Accepted `ADR-0088-beads-bootstrap-and-sandbox-workflow.md`
+  - replace `bd sync` with `bd bootstrap` as the safe best-effort workspace recovery step
+  - replace `bd --no-daemon` guidance with `bd --sandbox ...` for repo-local lint and worktree-safe operations
+  - align active scripts and agent docs with the supported `bd 0.60` CLI
+
 ## 2026-03-12
 
 - Accepted `ADR-0028-graph-registry-and-multi-instance-debate-runtime.md`

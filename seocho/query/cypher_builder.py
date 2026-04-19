@@ -36,6 +36,16 @@ _FINANCE_METRIC_TERMS: Dict[str, List[str]] = {
     "income": ["income"],
     "expense": ["expense", "expenses", "cost", "costs"],
     "margin": ["margin", "margins"],
+    "vehicle deliveries": [
+        "vehicle deliveries",
+        "vehicle delivery",
+        "vehicles delivered",
+        "vehicle delivered",
+        "delivered",
+        "deliver",
+        "deliveries",
+        "delivery",
+    ],
     "assets": ["asset", "assets"],
     "liabilities": ["liability", "liabilities"],
     "cash flow": ["cash flow", "cashflow"],
@@ -44,6 +54,7 @@ _METRIC_TOKEN_STOPWORDS = {
     "delta", "difference", "change", "from", "to", "between", "compare", "comparison",
     "what", "was", "is", "the", "of", "in", "for", "did", "does", "how", "much",
     "many", "by", "show", "tell", "me", "and", "or", "fiscal", "year", "years",
+    "vs", "versus", "compared", "prior", "previous",
 }
 _GENERIC_METRIC_TOKENS = {
     "revenue", "revenues", "rev", "income", "profit", "expense", "expenses",
@@ -144,11 +155,16 @@ class CypherBuilder:
         intent_data = dict(raw_intent or {})
         raw_intent_name = str(intent_data.get("intent", "")).strip()
         years = self._extract_years(question, intent_data.get("years"))
+        anchor_entity = str(intent_data.get("anchor_entity") or "").strip()
         metric_name = str(intent_data.get("metric_name") or "").strip()
         if not metric_name:
             metric_name = self._extract_metric_phrase(question)
         metric_aliases = self._metric_aliases(metric_name or question)
-        metric_scope_tokens = self._metric_scope_tokens(metric_name or question)
+        metric_scope_tokens = self._metric_scope_tokens(
+            metric_name or question,
+            metric_aliases=metric_aliases,
+            anchor_entity=anchor_entity,
+        )
 
         if self._is_financial_delta_question(question, raw_intent_name, years, metric_aliases):
             intent = "financial_metric_delta"
@@ -519,12 +535,34 @@ class CypherBuilder:
                 deduped.append(alias)
         return deduped
 
-    def _metric_scope_tokens(self, text: str) -> List[str]:
+    def _metric_scope_tokens(
+        self,
+        text: str,
+        *,
+        metric_aliases: Sequence[str] = (),
+        anchor_entity: str = "",
+    ) -> List[str]:
         lower = text.lower().replace("&", " and ")
         tokens = re.findall(r"[a-z][a-z0-9]+", lower)
+        anchor_tokens = {
+            token
+            for token in re.findall(r"[a-z][a-z0-9]+", normalize_entity(anchor_entity).lower())
+            if token
+        }
+        alias_tokens = {
+            token
+            for alias in metric_aliases
+            for token in re.findall(r"[a-z][a-z0-9]+", str(alias).lower())
+            if token
+        }
         result: List[str] = []
         for token in tokens:
-            if token in _METRIC_TOKEN_STOPWORDS or token in _GENERIC_METRIC_TOKENS:
+            if (
+                token in _METRIC_TOKEN_STOPWORDS
+                or token in _GENERIC_METRIC_TOKENS
+                or token in anchor_tokens
+                or token in alias_tokens
+            ):
                 continue
             if token not in result:
                 result.append(token)

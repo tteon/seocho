@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from seocho import NodeDef, Ontology, P, RelDef, Seocho
+from seocho.query.answering import QueryAnswerSynthesizer
 from seocho.query.cypher_builder import CypherBuilder
 
 
@@ -45,6 +46,22 @@ def test_builder_normalizes_finance_delta_intent_from_question() -> None:
     assert intent["years"] == ["2021", "2023"]
     assert "revenue" in intent["metric_aliases"]
     assert set(intent["metric_scope_tokens"]) >= {"data", "access", "solutions"}
+
+
+def test_builder_normalizes_vehicle_delivery_question_as_financial_metric_lookup() -> None:
+    builder = CypherBuilder(_finance_ontology())
+
+    intent = builder.normalize_intent(
+        "How many vehicles did Tesla deliver in 2022 vs 2021?",
+        {"anchor_entity": "Tesla"},
+    )
+
+    assert intent["intent"] == "financial_metric_lookup"
+    assert intent["anchor_label"] == "Company"
+    assert intent["target_label"] == "FinancialMetric"
+    assert intent["years"] == ["2022", "2021"]
+    assert "vehicle deliveries" in intent["metric_aliases"]
+    assert intent["metric_scope_tokens"] == []
 
 
 def test_builder_normalizes_legal_relationship_lookup_from_question() -> None:
@@ -357,3 +374,151 @@ def test_local_engine_legal_neighbors_answer_keeps_specific_issue_sentences() ->
     assert "antitrust investigation into Microsoft's bundling of Teams with Office 365" in answer
     assert "LinkedIn acquisition" in answer
     assert "patent infringement claims" in answer
+
+
+def test_local_engine_financial_lookup_compares_multiple_years_without_currency_for_counts() -> None:
+    class DeliveryLLM:
+        def complete(self, *, system, user, temperature, response_format=None):  # noqa: ANN001
+            return _FakeLLMResponse(
+                {
+                    "anchor_entity": "Tesla",
+                }
+            )
+
+    class DeliveryGraphStore:
+        def get_schema(self, *, database: str = "neo4j") -> dict:
+            return {"labels": ["Company", "FinancialMetric"], "relationship_types": ["REPORTED"]}
+
+        def query(self, cypher: str, *, params=None, database: str = "neo4j"):  # noqa: ANN001
+            return [
+                {
+                    "company": "Tesla",
+                    "metric_name": "Vehicle Deliveries 2022",
+                    "year": "2022",
+                    "value": "1310000",
+                    "relationship": "REPORTED",
+                    "supporting_fact": (
+                        "Tesla Inc. recorded automotive revenue of $71.5 billion in 2022, "
+                        "up from $47.2 billion in 2021. The company delivered 1.31 million "
+                        "vehicles in 2022 compared to 936,000 in the prior year."
+                    ),
+                },
+                {
+                    "company": "Tesla",
+                    "metric_name": "Vehicle Deliveries 2021",
+                    "year": "2021",
+                    "value": "936000",
+                    "relationship": "REPORTED",
+                    "supporting_fact": (
+                        "Tesla Inc. recorded automotive revenue of $71.5 billion in 2022, "
+                        "up from $47.2 billion in 2021. The company delivered 1.31 million "
+                        "vehicles in 2022 compared to 936,000 in the prior year."
+                    ),
+                },
+            ]
+
+    client = Seocho(
+        ontology=_finance_ontology(),
+        graph_store=DeliveryGraphStore(),
+        llm=DeliveryLLM(),
+        workspace_id="finance_benchmark_test",
+    )
+
+    answer = client.ask("How many vehicles did Tesla deliver in 2022 vs 2021?", database="neo4j")
+
+    assert "1,310,000 in 2022" in answer
+    assert "936,000 in 2021" in answer
+    assert "$" not in answer
+
+
+def test_financial_answer_rewrites_prior_year_using_question_years() -> None:
+    synthesizer = QueryAnswerSynthesizer(query_strategy=object(), llm=object())
+
+    answer = synthesizer._normalize_relative_year_references(
+        "The company delivered 1.31 million vehicles in 2022 compared to 936,000 in the prior year.",
+        ["2021", "2022"],
+    )
+
+    assert "prior year" not in answer
+    assert "936,000 in 2021" in answer
+
+
+def test_financial_answer_handles_ladybug_column_alias_fallbacks() -> None:
+    synthesizer = QueryAnswerSynthesizer(query_strategy=object(), llm=object())
+
+    answer = synthesizer.build_deterministic_answer(
+        "How many vehicles did Tesla deliver in 2022 vs 2021?",
+        [
+            {
+                "col_0": "Tesla Inc.",
+                "col_1": "Vehicles Delivered 2021",
+                "col_2": "2021",
+                "col_3": "936000",
+                "col_4": "REPORTED",
+                "col_5": (
+                    "Tesla Inc. recorded automotive revenue of $71.5 billion in 2022, "
+                    "up from $47.2 billion in 2021. The company delivered 1.31 million "
+                    "vehicles in 2022 compared to 936,000 in the prior year."
+                ),
+            },
+            {
+                "col_0": "Tesla Inc.",
+                "col_1": "Vehicles Delivered 2022",
+                "col_2": "2022",
+                "col_3": "1310000",
+                "col_4": "REPORTED",
+                "col_5": (
+                    "Tesla Inc. recorded automotive revenue of $71.5 billion in 2022, "
+                    "up from $47.2 billion in 2021. The company delivered 1.31 million "
+                    "vehicles in 2022 compared to 936,000 in the prior year."
+                ),
+            },
+        ],
+        {
+            "intent": "financial_metric_delta",
+            "anchor_entity": "Tesla",
+            "metric_name": "vehicles delivered",
+            "metric_aliases": ["vehicle deliveries", "deliveries"],
+            "years": ["2021", "2022"],
+        },
+    )
+
+    assert answer is not None
+    assert "1,310,000 in 2022" in answer
+    assert "936,000 in 2021" in answer
+
+
+def test_financial_delta_answer_humanizes_large_currency_values() -> None:
+    synthesizer = QueryAnswerSynthesizer(query_strategy=object(), llm=object())
+
+    answer = synthesizer.build_deterministic_answer(
+        "What was JPMorgan's net interest income growth?",
+        [
+            {
+                "col_0": "JPMorgan Chase & Co.",
+                "col_1": "Net Interest Income 2022",
+                "col_2": "2022",
+                "col_3": "66700000000",
+                "col_4": "REPORTED",
+            },
+            {
+                "col_0": "JPMorgan Chase & Co.",
+                "col_1": "Net Interest Income 2023",
+                "col_2": "2023",
+                "col_3": "87100000000",
+                "col_4": "REPORTED",
+            },
+        ],
+        {
+            "intent": "financial_metric_delta",
+            "anchor_entity": "JPMorgan",
+            "metric_name": "net interest income",
+            "metric_aliases": ["net interest income", "income"],
+            "years": ["2022", "2023"],
+        },
+    )
+
+    assert answer is not None
+    assert "$87.1 billion" in answer
+    assert "$66.7 billion" in answer
+    assert "$20.4 billion" in answer

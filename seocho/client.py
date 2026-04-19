@@ -35,6 +35,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
 
 import requests
@@ -308,6 +309,84 @@ class Seocho:
         the intent explicit at the call site.
         """
         return cls(base_url=base_url, **kwargs)
+
+    @classmethod
+    def from_agent_design(
+        cls,
+        agent_design: Any,
+        *,
+        ontology: Optional[Any] = None,
+        graph_store: Optional[Any] = None,
+        llm: Any = None,
+        graph: Optional[str] = None,
+        base_url: Optional[str] = None,
+        workspace_id: Optional[str] = None,
+        neo4j_user: str = "neo4j",
+        neo4j_password: str = "password",
+        api_key: Optional[str] = None,
+        **kwargs: Any,
+    ) -> "Seocho":
+        """Create a client from a YAML-backed agent design specification.
+
+        ``agent_design`` may be an :class:`~seocho.agent_design.AgentDesignSpec`
+        instance or a path to a YAML file. The spec compiles into an
+        :class:`~seocho.agent_config.AgentConfig` plus a stable
+        ``ontology_profile`` default.
+
+        Remote mode:
+
+        ``Seocho.from_agent_design("design.yaml", base_url="http://localhost:8001")``
+
+        Local mode:
+
+        ``Seocho.from_agent_design("design.yaml", ontology=onto, graph_store=store, llm=llm)``
+        """
+        from .agent_design import AgentDesignSpec, load_agent_design_spec
+
+        if isinstance(agent_design, AgentDesignSpec):
+            spec = agent_design
+        else:
+            spec = load_agent_design_spec(Path(agent_design))
+
+        client_kwargs = spec.client_kwargs()
+        kwargs.setdefault("agent_config", client_kwargs["agent_config"])
+        kwargs.setdefault("ontology_profile", client_kwargs["ontology_profile"])
+
+        if base_url:
+            return cls(base_url=base_url, workspace_id=workspace_id, **kwargs)
+
+        if ontology is None and spec.ontology.required:
+            raise ValueError(
+                "Agent design specs with required ontology bindings need an ontology object "
+                "when constructing a local Seocho client."
+            )
+        if ontology is None:
+            raise ValueError("Local agent design construction requires an ontology object.")
+
+        if graph_store is not None or llm is not None and not isinstance(llm, str):
+            if graph_store is None or llm is None:
+                raise ValueError(
+                    "Provide both graph_store and llm when constructing a direct local "
+                    "Seocho client from an agent design."
+                )
+            return cls(
+                ontology=ontology,
+                graph_store=graph_store,
+                llm=llm,
+                workspace_id=workspace_id,
+                **kwargs,
+            )
+
+        return cls.local(
+            ontology,
+            llm=str(llm or "openai/gpt-4o"),
+            graph=graph,
+            neo4j_user=neo4j_user,
+            neo4j_password=neo4j_password,
+            api_key=api_key,
+            workspace_id=workspace_id,
+            **kwargs,
+        )
 
     def agent(self, kind: str = "indexing", *, name: Optional[str] = None, model: Optional[str] = None) -> Any:
         """Create an agent with this client's ontology, graph_store, and llm pre-wired.

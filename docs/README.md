@@ -13,6 +13,7 @@ now?
 |---|---|
 | get a first local success path | [QUICKSTART.md](QUICKSTART.md) |
 | use the Python SDK directly | [PYTHON_INTERFACE_QUICKSTART.md](PYTHON_INTERFACE_QUICKSTART.md) |
+| declare reusable agent patterns in YAML | [AGENT_DESIGN_SPECS.md](AGENT_DESIGN_SPECS.md) |
 | bring your own ontology and data | [APPLY_YOUR_DATA.md](APPLY_YOUR_DATA.md) |
 | inspect files, artifacts, and traces | [FILES_AND_ARTIFACTS.md](FILES_AND_ARTIFACTS.md) |
 | understand the system design | [ARCHITECTURE.md](ARCHITECTURE.md) |
@@ -34,6 +35,8 @@ Recommended onboarding order:
 - [QUICKSTART.md](QUICKSTART.md): shortest local success path
 - [PYTHON_INTERFACE_QUICKSTART.md](PYTHON_INTERFACE_QUICKSTART.md): public
   Python SDK path and API examples
+- [AGENT_DESIGN_SPECS.md](AGENT_DESIGN_SPECS.md): YAML-backed agent patterns
+  with required ontology bindings
 - [APPLY_YOUR_DATA.md](APPLY_YOUR_DATA.md): ingest your own records and query
   them safely
 - [FILES_AND_ARTIFACTS.md](FILES_AND_ARTIFACTS.md): where ontology files,

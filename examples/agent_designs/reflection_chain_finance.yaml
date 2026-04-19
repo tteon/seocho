@@ -1,0 +1,22 @@
+name: reflection-chain-finance
+pattern: reflection_chain
+description: >
+  Use one finance analyst agent that plans a deterministic query, checks the
+  answer against ontology-aligned evidence, and retries when support is weak.
+ontology:
+  required: true
+  profile: finance-core
+agent:
+  reasoning_mode: true
+  repair_budget: 4
+query:
+  query_strategy: template
+  answer_style: evidence
+indexing:
+  extraction_strategy: domain
+  validation_on_fail: retry
+tools:
+  - graph_query
+  - explanation_trace
+memory:
+  support_threshold: supported

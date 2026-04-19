@@ -1,0 +1,27 @@
+name: planning-multi-agent-finance
+pattern: planning_multi_agent
+description: >
+  Split complex finance analysis into planning, retrieval, and synthesis while
+  keeping every agent branch bound to the same finance ontology profile.
+ontology:
+  required: true
+  profile: finance-core
+  package_id: seocho.finance
+agent:
+  execution_mode: supervisor
+  handoff: true
+  routing_policy: thorough
+query:
+  query_strategy: template
+  answer_style: evidence
+indexing:
+  extraction_strategy: domain
+  linking_strategy: llm
+  validation_on_fail: retry
+tools:
+  - graph_query
+  - finance_table_lookup
+  - filing_search
+memory:
+  session_window: rolling
+  keep_last_turns: 8

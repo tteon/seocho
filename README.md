@@ -375,9 +375,17 @@ enable_tracing(backend="opik")          # optional exporter (hosted or self-host
 configure_tracing_from_env()            # SEOCHO_TRACE_BACKEND=none|console|jsonl|opik
 
 # Agent design configuration
-from seocho import AgentConfig, AGENT_PRESETS
+from seocho import AgentConfig, AGENT_PRESETS, Seocho
 onto = Ontology.from_jsonld("schema.jsonld")
 s = Seocho(ontology=onto, ..., agent_config=AGENT_PRESETS["strict"])
+
+# YAML-backed agent design (ontology slot is required)
+s = Seocho.from_agent_design(
+    "examples/agent_designs/planning_multi_agent_finance.yaml",
+    ontology=onto,
+    llm="openai/gpt-4o-mini",
+    workspace_id="finance-prod",
+)
 
 # Agent-level session (context persists across operations)
 with s.session("my_analysis") as sess:

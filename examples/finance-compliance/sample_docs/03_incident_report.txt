@@ -1,0 +1,6 @@
+Incident I-2026-007: On 2026-02-03, Acme Financial Services Inc. reported
+a client-data-access misconfiguration that exposed 42 client records to
+internal staff without a business-need justification. Severity: medium.
+The incident relates to the Client Privacy Regulation (CPR-210, US), which
+is enforced by the Financial Markets Supervisory Authority. No external
+exposure occurred. Remediation described in attestation A-2026-014.

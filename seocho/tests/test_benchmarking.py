@@ -19,13 +19,23 @@ from scripts.benchmarks.run_finder_benchmark import _local_graph_path_for_run
 
 
 class _FakeMemory:
-    def __init__(self, nodes: int, rels: int, *, fallback_used: bool = False, deduplicated: bool = False):
+    def __init__(
+        self,
+        nodes: int,
+        rels: int,
+        *,
+        fallback_used: bool = False,
+        deduplicated: bool = False,
+        reasoning_cycle: dict | None = None,
+    ):
         self.metadata = {
             "nodes_created": nodes,
             "relationships_created": rels,
             "fallback_used": fallback_used,
             "deduplicated": deduplicated,
         }
+        if reasoning_cycle is not None:
+            self.metadata["reasoning_cycle"] = reasoning_cycle
 
 
 class _FakeClient:
@@ -50,6 +60,19 @@ class _FailingClient(_FakeClient):
 class _FallbackClient(_FakeClient):
     def add(self, text: str, **kwargs):
         return _FakeMemory(nodes=0, rels=0, fallback_used=False, deduplicated=False)
+
+
+class _ReasoningCycleClient(_FakeClient):
+    def add(self, text: str, **kwargs):
+        return _FakeMemory(
+            nodes=1,
+            rels=0,
+            reasoning_cycle={
+                "enabled": True,
+                "status": "anomaly_detected",
+                "observed_anomalies": [{"source": "shacl_violation"}],
+            },
+        )
 
 
 def test_normalize_answer_collapses_case_and_punctuation():
@@ -188,6 +211,32 @@ def test_run_finder_benchmark_preserves_indexing_metadata_flags():
 
     assert summary.records[0].fallback_used is False
     assert summary.records[0].deduplicated is False
+
+
+def test_run_finder_benchmark_aggregates_reasoning_cycle_findings():
+    cases = [
+        FinDERBenchmarkCase(
+            case_id="finder_011",
+            text="Reasoning text",
+            question="What are Brown & Brown's business segments?",
+            expected_answer="Retail, National Programs, Wholesale Brokerage, and Services.",
+            category="Company Overview",
+            reasoning_type="Qualitative",
+        )
+    ]
+
+    summary = run_finder_benchmark(
+        client=_ReasoningCycleClient(),
+        cases=cases,
+        mode="local",
+        dataset="finder_sample.json",
+        database="neo4j",
+    )
+
+    assert summary.records[0].reasoning_cycle_status == "anomaly_detected"
+    assert summary.records[0].reasoning_cycle_sources == ["shacl_violation"]
+    assert summary.reasoning_cycle_status_counts["anomaly_detected"] == 1
+    assert summary.reasoning_cycle_source_counts["shacl_violation"] == 1
 
 
 def test_run_finance_benchmark_records_failures():

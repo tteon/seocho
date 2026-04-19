@@ -7,6 +7,19 @@ ontology:
   required: true
   profile: finance-core
   package_id: seocho.finance
+reasoning_cycle:
+  enabled: true
+  anomaly_sources:
+    - unsupported_answer
+    - query_diagnostic
+  abduction:
+    mode: candidate_only
+  deduction:
+    require_testable_predictions: true
+  induction:
+    require_support_assessment: true
+  promotion:
+    analyst_approval_required: true
 agent:
   execution_mode: supervisor
   handoff: true

@@ -16,6 +16,7 @@ Use agent design specs when you want:
 - reviewable agent behavior checked into git
 - a required ontology slot for every design
 - reusable pattern templates for product teams
+- a default inquiry contract that semantic/debate/plan/chat surfaces reuse
 
 If the YAML omits the top-level `ontology:` section, or the `ontology:` section
 does not declare a binding such as `profile`, `ontology_id`, `package_id`, or
@@ -38,6 +39,11 @@ pattern: planning_multi_agent
 ontology:
   required: true
   profile: finance-core
+reasoning_cycle:
+  enabled: true
+  anomaly_sources:
+    - unsupported_answer
+    - query_diagnostic
 agent:
   execution_mode: supervisor
   handoff: true
@@ -62,8 +68,7 @@ onto = Ontology.from_jsonld("schema.jsonld")
 
 client = Seocho.from_agent_design(
     "examples/agent_designs/planning_multi_agent_finance.yaml",
-    ontology=onto,
-    llm="openai/gpt-4o-mini",
+    base_url="http://localhost:8001",
     workspace_id="finance-prod",
 )
 ```
@@ -78,6 +83,15 @@ config = spec.to_agent_config()
 print(config.execution_mode)
 print(spec.client_kwargs()["ontology_profile"])
 ```
+
+The same `reasoning_cycle` block becomes the default for:
+
+- `client.semantic(...)`
+- `client.debate(...)`
+- `client.plan(...).run()`
+- `client.platform_chat(...)`
+
+You can still override it per call by passing an explicit `reasoning_cycle=...`.
 
 ## Included Examples
 

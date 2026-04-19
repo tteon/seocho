@@ -1,5 +1,6 @@
 import os
 import sys
+import textwrap
 from typing import Any, Dict, List, Optional
 
 import pytest
@@ -1046,6 +1047,55 @@ def test_execution_plan_builder_passes_reasoning_cycle_to_semantic_runtime():
 
     assert result.route == "lpg"
     assert session.calls[1]["json"]["reasoning_cycle"]["enabled"] is True
+
+
+def test_from_agent_design_defaults_reasoning_cycle_for_semantic_runtime(tmp_path):
+    path = tmp_path / "agent-design.yaml"
+    path.write_text(
+        textwrap.dedent(
+            """
+            name: planning-multi-agent-finance
+            pattern: planning_multi_agent
+            ontology:
+              required: true
+              profile: finance-core
+            reasoning_cycle:
+              enabled: true
+              anomaly_sources:
+                - unsupported_answer
+            """
+        ).strip(),
+        encoding="utf-8",
+    )
+    session = _FakeSession(
+        [
+            _FakeResponse(
+                payload={
+                    "response": "semantic answer",
+                    "trace_steps": [{"type": "SEMANTIC"}],
+                    "route": "lpg",
+                    "semantic_context": {"entities": ["Neo4j"]},
+                    "lpg_result": {"records": []},
+                    "rdf_result": None,
+                    "reasoning_cycle": {"enabled": True, "status": "clean", "observed_anomalies": []},
+                }
+            )
+        ]
+    )
+
+    client = Seocho.from_agent_design(
+        path,
+        ontology=object(),
+        base_url="http://localhost:8001",
+        session=session,
+    )
+    try:
+        result = client.semantic("Tell me about Neo4j", databases=["kgnormal"])
+    finally:
+        client.close()
+
+    assert result.route == "lpg"
+    assert session.calls[0]["json"]["reasoning_cycle"]["enabled"] is True
 
 
 def test_semantic_response_exposes_support_strategy_run_and_evidence_helpers():

@@ -225,6 +225,13 @@ class Seocho:
         self._ontology_registry: Dict[str, Any] = {}  # database -> Ontology
         self._indexing_design: Optional[Any] = None
 
+    def _default_reasoning_cycle(self) -> Dict[str, Any]:
+        extra = getattr(self.agent_config, "extra", {}) or {}
+        value = extra.get("agent_design_reasoning_cycle")
+        if isinstance(value, dict):
+            return dict(value)
+        return {}
+
     # ------------------------------------------------------------------
     # Convenience factories — shorten the 0→hello-world distance
     # ------------------------------------------------------------------
@@ -1538,13 +1545,14 @@ class Seocho:
                 resolved_graph_ids = [target.graph_id for target in resolved_targets if target.graph_id]
                 if not resolved_databases:
                     resolved_databases = [target.database for target in resolved_targets if target.database]
+        effective_reasoning_cycle = dict(reasoning_cycle or self._default_reasoning_cycle())
         body = build_query_payload(
             query=query,
             workspace_id=self.workspace_id,
             default_user_id=self.user_id,
             user_id=user_id,
             graph_ids=resolved_graph_ids,
-            reasoning_cycle=reasoning_cycle,
+            reasoning_cycle=effective_reasoning_cycle or None,
         )
         if resolved_databases:
             body["databases"] = resolved_databases
@@ -1586,13 +1594,14 @@ class Seocho:
                 inline_targets = [self._coerce_graph_ref(item) for item in graph_ids]
                 resolved_targets = inline_targets if all(target.database for target in inline_targets) else self.resolve_graphs(*graph_ids)
                 resolved_graph_ids = [target.graph_id for target in resolved_targets if target.graph_id]
+        effective_reasoning_cycle = dict(reasoning_cycle or self._default_reasoning_cycle())
         body = build_query_payload(
             query=query,
             workspace_id=self.workspace_id,
             default_user_id=self.user_id,
             user_id=user_id,
             graph_ids=resolved_graph_ids,
-            reasoning_cycle=reasoning_cycle,
+            reasoning_cycle=effective_reasoning_cycle or None,
         )
         payload = self._request_json("POST", RuntimePath.RUN_DEBATE, json_body=body)
         return DebateRunResponse.from_dict(payload)
@@ -1740,8 +1749,9 @@ class Seocho:
             body["databases"] = list(databases)
         if entity_overrides:
             body["entity_overrides"] = serialize_entity_overrides(entity_overrides)
-        if reasoning_cycle:
-            body["reasoning_cycle"] = dict(reasoning_cycle)
+        effective_reasoning_cycle = dict(reasoning_cycle or self._default_reasoning_cycle())
+        if effective_reasoning_cycle:
+            body["reasoning_cycle"] = effective_reasoning_cycle
         payload = self._request_json("POST", RuntimePath.PLATFORM_CHAT_SEND, json_body=body)
         return PlatformChatResponse.from_dict(payload)
 
@@ -2365,7 +2375,9 @@ class ExecutionPlanBuilder:
         self._client = client
         self._query = query
         self._targets: List[GraphRef] = []
-        self._reasoning = ReasoningPolicy()
+        self._reasoning = ReasoningPolicy(
+            reasoning_cycle=self._client._default_reasoning_cycle(),
+        )
         self._entity_overrides: List[EntityOverride] = []
         self._ontology_ids: List[str] = []
         self._vocabulary_profiles: List[str] = []

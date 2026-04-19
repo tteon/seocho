@@ -112,6 +112,8 @@ class FinDERBenchmarkRecord:
     relationships_created: int = 0
     fallback_used: bool = False
     deduplicated: bool = False
+    reasoning_cycle_status: str = ""
+    reasoning_cycle_sources: List[str] = field(default_factory=list)
     error: str = ""
 
 
@@ -129,6 +131,8 @@ class FinDERBenchmarkSummary:
     avg_nodes_created: float
     avg_relationships_created: float
     failure_count: int
+    reasoning_cycle_status_counts: Dict[str, int] = field(default_factory=dict)
+    reasoning_cycle_source_counts: Dict[str, int] = field(default_factory=dict)
     records: List[FinDERBenchmarkRecord] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -405,6 +409,18 @@ def summarize_finder_records(
     nodes = [record.nodes_created for record in records]
     rels = [record.relationships_created for record in records]
     failures = sum(1 for record in records if record.error)
+    reasoning_status_counts: Dict[str, int] = {}
+    reasoning_source_counts: Dict[str, int] = {}
+    for record in records:
+        status = str(record.reasoning_cycle_status or "").strip()
+        if status:
+            reasoning_status_counts[status] = int(reasoning_status_counts.get(status, 0)) + 1
+        for source in record.reasoning_cycle_sources:
+            normalized = str(source or "").strip()
+            if normalized:
+                reasoning_source_counts[normalized] = int(
+                    reasoning_source_counts.get(normalized, 0)
+                ) + 1
     count = len(records)
 
     return FinDERBenchmarkSummary(
@@ -420,6 +436,8 @@ def summarize_finder_records(
         avg_nodes_created=round(sum(nodes) / count, 2) if count else 0.0,
         avg_relationships_created=round(sum(rels) / count, 2) if count else 0.0,
         failure_count=failures,
+        reasoning_cycle_status_counts=reasoning_status_counts,
+        reasoning_cycle_source_counts=reasoning_source_counts,
         records=list(records),
     )
 
@@ -475,6 +493,8 @@ def run_finder_benchmark(
         relationships_created = 0
         fallback_used = False
         deduplicated = False
+        reasoning_cycle_status = ""
+        reasoning_cycle_sources: List[str] = []
         try:
             memory = client.add(case.text, database=database, category=case.category)
             add_latency_ms = (time.perf_counter() - add_started) * 1000.0
@@ -483,6 +503,14 @@ def run_finder_benchmark(
             relationships_created = int(metadata.get("relationships_created", 0) or 0)
             fallback_used = bool(metadata.get("fallback_used", False))
             deduplicated = bool(metadata.get("deduplicated", False))
+            reasoning_cycle = metadata.get("reasoning_cycle")
+            if isinstance(reasoning_cycle, Mapping):
+                reasoning_cycle_status = str(reasoning_cycle.get("status", "")).strip()
+                reasoning_cycle_sources = [
+                    str(item.get("source", "")).strip()
+                    for item in reasoning_cycle.get("observed_anomalies", [])
+                    if isinstance(item, Mapping) and str(item.get("source", "")).strip()
+                ]
 
             ask_started = time.perf_counter()
             answer = str(client.ask(case.question, database=database))
@@ -507,6 +535,8 @@ def run_finder_benchmark(
                 relationships_created=relationships_created,
                 fallback_used=fallback_used,
                 deduplicated=deduplicated,
+                reasoning_cycle_status=reasoning_cycle_status,
+                reasoning_cycle_sources=reasoning_cycle_sources,
                 error=error,
             )
         )

@@ -133,6 +133,7 @@ class AgentDesignSpec:
     agent: Dict[str, Any] = field(default_factory=dict)
     indexing: Dict[str, Any] = field(default_factory=dict)
     query: Dict[str, Any] = field(default_factory=dict)
+    reasoning_cycle: Dict[str, Any] = field(default_factory=dict)
     memory: Dict[str, Any] = field(default_factory=dict)
     tools: Sequence[str] = field(default_factory=tuple)
     metadata: Dict[str, Any] = field(default_factory=dict)
@@ -152,6 +153,7 @@ class AgentDesignSpec:
             agent=_dict(payload.get("agent"), field_name="agent"),
             indexing=_dict(payload.get("indexing"), field_name="indexing"),
             query=_dict(payload.get("query"), field_name="query"),
+            reasoning_cycle=_dict(payload.get("reasoning_cycle"), field_name="reasoning_cycle"),
             memory=_dict(payload.get("memory"), field_name="memory"),
             tools=tuple(str(item).strip() for item in payload.get("tools", []) or [] if str(item).strip()),
             metadata=_dict(payload.get("metadata"), field_name="metadata"),
@@ -188,6 +190,22 @@ class AgentDesignSpec:
                 raise ValueError(
                     f"{key} must be one of: {', '.join(sorted(allowed))}."
                 )
+
+        if self.reasoning_cycle and not isinstance(self.reasoning_cycle, dict):
+            raise ValueError("reasoning_cycle must be a mapping.")
+        enabled = self.reasoning_cycle.get("enabled")
+        if enabled is not None and not isinstance(enabled, bool):
+            raise ValueError("reasoning_cycle.enabled must be a boolean.")
+        anomaly_sources = self.reasoning_cycle.get("anomaly_sources")
+        if anomaly_sources is not None:
+            if not isinstance(anomaly_sources, list) or not all(
+                isinstance(item, str) and item.strip() for item in anomaly_sources
+            ):
+                raise ValueError("reasoning_cycle.anomaly_sources must be a list of strings.")
+        for section_name in ("abduction", "deduction", "induction", "promotion"):
+            value = self.reasoning_cycle.get(section_name)
+            if value is not None and not isinstance(value, dict):
+                raise ValueError(f"reasoning_cycle.{section_name} must be a mapping.")
 
         _routing_policy(_string(self.agent.get("routing_policy")))
 
@@ -240,6 +258,7 @@ class AgentDesignSpec:
                 "agent_design_tools": list(self.tools),
                 "agent_design_memory": dict(self.memory),
                 "agent_design_metadata": dict(self.metadata),
+                "agent_design_reasoning_cycle": dict(self.reasoning_cycle),
                 "agent_design_ontology": {
                     "required": self.ontology.required,
                     "profile": self.ontology.resolved_profile(),

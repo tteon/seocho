@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Fast gate: lint + compile ─────────────────────────────────
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install uv && uv sync --extra ci
+        env:
+          UV_CACHE_DIR: /tmp/uv-cache
+      - name: py_compile critical modules
+        run: |
+          python3 -m py_compile seocho/__init__.py
+          python3 -m py_compile seocho/client.py
+          python3 -m py_compile seocho/cli.py
+          python3 -m py_compile seocho/session.py
+          python3 -m py_compile seocho/agents.py
+          python3 -m py_compile seocho/tools.py
+          python3 -m py_compile seocho/ontology.py
+          python3 -m py_compile seocho/agent_config.py
+          python3 -m py_compile seocho/tracing.py
+          python3 -m py_compile seocho/experiment.py
+          python3 -m py_compile extraction/ingest_finder.py
+
+  # ── SDK tests (no external services needed) ───────────────────
+  sdk-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install uv && uv sync --extra ci
+        env:
+          UV_CACHE_DIR: /tmp/uv-cache
+      - name: Run SDK tests
+        run: uv run pytest seocho/tests/ -q --tb=short
+        env:
+          UV_CACHE_DIR: /tmp/uv-cache
+
+  # ── Extraction/server tests ───────────────────────────────────
+  server-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install uv && uv sync --extra ci
+        env:
+          UV_CACHE_DIR: /tmp/uv-cache
+      - name: Run extraction tests
+        run: |
+          uv run pytest \
+            extraction/tests/test_semantic_run_store.py \
+            extraction/tests/test_semantic_query_flow.py \
+            extraction/tests/test_api_endpoints.py \
+            extraction/tests/test_sdk_client.py \
+            extraction/tests/test_sdk_evaluation.py \
+            -q --tb=short
+        env:
+          UV_CACHE_DIR: /tmp/uv-cache
+
+  # ── Docs contract check ──────────────────────────────────────
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check doc contracts
+        run: bash scripts/ci/check-doc-contracts.sh
+      - name: Lint agent docs
+        run: bash scripts/pm/lint-agent-docs.sh

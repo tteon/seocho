@@ -40,18 +40,22 @@ if [ -f "${BEADS_DIR}/metadata.json" ] && grep -q '"backend"[[:space:]]*:[[:spac
   exit 0
 fi
 
-DB_PATH="${BEADS_DIR}/beads.db"
-if [ -f "${DB_PATH}" ]; then
-  if ! bd --no-daemon sync --flush-only --db "${DB_PATH}" >/dev/null 2>&1; then
-    echo "Error: bd flush failed (explicit DB mode)." >&2
-    echo "Run: bd --no-daemon sync --flush-only --db \"${DB_PATH}\"" >&2
-    exit 1
-  fi
-else
-  if ! bd --no-daemon sync --flush-only >/dev/null 2>&1; then
-    echo "Error: bd flush failed." >&2
-    echo "Run: bd --no-daemon sync --flush-only" >&2
-    exit 1
+# Newer bd versions dropped the `sync` subcommand. Probe for it before
+# calling so the hook stays compatible across installed bd versions.
+if bd sync --help >/dev/null 2>&1; then
+  DB_PATH="${BEADS_DIR}/beads.db"
+  if [ -f "${DB_PATH}" ]; then
+    if ! bd --no-daemon sync --flush-only --db "${DB_PATH}" >/dev/null 2>&1; then
+      echo "Error: bd flush failed (explicit DB mode)." >&2
+      echo "Run: bd --no-daemon sync --flush-only --db \"${DB_PATH}\"" >&2
+      exit 1
+    fi
+  else
+    if ! bd --no-daemon sync --flush-only >/dev/null 2>&1; then
+      echo "Error: bd flush failed." >&2
+      echo "Run: bd --no-daemon sync --flush-only" >&2
+      exit 1
+    fi
   fi
 fi
 

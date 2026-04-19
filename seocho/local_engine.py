@@ -145,6 +145,20 @@ class _LocalEngine:
         if result.fallback_used:
             result_metadata["fallback_used"] = True
             result_metadata["fallback_reason"] = result.fallback_reason
+        try:
+            from .indexing_design import build_reasoning_cycle_report
+
+            reasoning_cycle = build_reasoning_cycle_report(
+                result_metadata,
+                validation_errors=result.validation_errors,
+                write_errors=result.write_errors,
+                fallback_used=result.fallback_used,
+                fallback_reason=result.fallback_reason,
+            )
+            if reasoning_cycle is not None:
+                result_metadata["reasoning_cycle"] = reasoning_cycle
+        except Exception:
+            pass
 
         return Memory(
             memory_id=result.source_id,

@@ -3,6 +3,21 @@
 This file is the lightweight index of architecture/product decisions.
 Each entry must link to a full ADR when impact is non-trivial.
 
+## 2026-04-19
+
+- Removed scheduled Codex GitHub Actions automation
+  - deleted `.github/workflows/daily-codex-maintenance.yml`
+  - deleted `.github/workflows/periodic-codex-review.yml`
+  - deleted paired prompts under `.github/codex/prompts/` and skills under
+    `.agents/skills/daily-maintenance-pr/` / `periodic-review-pr/`
+  - replaced by local `scripts/codex/run_*.sh` lanes (PR ci/infra-refresh).
+    Rationale: two parallel Codex invocation paths (scheduled remote + local)
+    are redundant; local lanes give authors full control and remove the
+    dependency on `SEOCHO_GITHUB_APP_*` secrets.
+  - ADR-0032, ADR-0034, ADR-0040, and ADR-0078 are kept as historical record
+    of the previous scheduled design; the migration supersedes their runtime
+    behavior without rewriting the decisions.
+
 ## 2026-04-13
 
 - Accepted `ADR-0049-pipeline-unification-canonical-modules.md`

@@ -119,19 +119,17 @@ For architecture or workflow changes:
 
 - basic CI workflow lives in `.github/workflows/ci-basic.yml`
 - the local command behind basic CI is `bash scripts/ci/run_basic_ci.sh`
-- use repo-local skill `$daily-maintenance-pr` for scheduled or manual Codex
-  maintenance PR workflows
-- use repo-local skill `$periodic-review-pr` for scheduled or manual Codex
-  repository review PR workflows
-- scheduled automation prompts live in:
-  - `.github/codex/prompts/daily-maintenance-pr.md`
-  - `.github/codex/prompts/periodic-review-pr.md`
-- scheduled Codex workflows live in:
-  - `.github/workflows/daily-codex-maintenance.yml`
-  - `.github/workflows/periodic-codex-review.yml`
+- Codex PR authoring runs from local clean clones via
+  `scripts/codex/run_lane.sh` (lanes: `feature-improvement`, `refactor`,
+  `e2e-investigation`). GitHub Actions no longer invokes Codex directly.
+- paired skill contracts live under:
+  - `.agents/skills/feature-improvement-pr/SKILL.md`
+  - `.agents/skills/refactor-pr/SKILL.md`
+  - `.agents/skills/e2e-investigation-pr/SKILL.md`
+- lane prompts live under `scripts/codex/prompts/`
 - comment-based merge workflow lives in
   `.github/workflows/pr-comment-merge.yml`
-- scheduled automation must stay small, reviewable, and non-destructive:
+- Codex automation must stay small, reviewable, and non-destructive:
   - no direct push to `main`
   - no auto-merge
   - one cohesive change only

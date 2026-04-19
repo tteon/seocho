@@ -223,6 +223,7 @@ class Seocho:
 
         self._graph_catalog_cache: Optional[Dict[str, GraphTarget]] = None
         self._ontology_registry: Dict[str, Any] = {}  # database -> Ontology
+        self._indexing_design: Optional[Any] = None
 
     # ------------------------------------------------------------------
     # Convenience factories — shorten the 0→hello-world distance
@@ -386,6 +387,107 @@ class Seocho:
             api_key=api_key,
             workspace_id=workspace_id,
             **kwargs,
+        )
+
+    @classmethod
+    def from_indexing_design(
+        cls,
+        indexing_design: Any,
+        *,
+        ontology: Optional[Any] = None,
+        graph_store: Optional[Any] = None,
+        llm: Any = None,
+        graph: Optional[str] = None,
+        base_url: Optional[str] = None,
+        workspace_id: Optional[str] = None,
+        neo4j_user: str = "neo4j",
+        neo4j_password: str = "password",
+        api_key: Optional[str] = None,
+        **kwargs: Any,
+    ) -> "Seocho":
+        """Create a local client from a YAML-backed indexing design specification.
+
+        ``indexing_design`` may be an :class:`~seocho.indexing_design.IndexingDesignSpec`
+        instance or a path to a YAML file. The spec materializes an ontology
+        graph model (`lpg`, `rdf`, or `hybrid`) and injects stable local
+        indexing defaults for metadata and validation behavior.
+        """
+        from .indexing_design import IndexingDesignSpec, load_indexing_design_spec
+
+        if isinstance(indexing_design, IndexingDesignSpec):
+            spec = indexing_design
+        else:
+            spec = load_indexing_design_spec(Path(indexing_design))
+
+        if base_url:
+            raise ValueError(
+                "Indexing design specs currently apply to local SDK construction only. "
+                "Provide ontology plus a local graph target."
+            )
+        if ontology is None:
+            raise ValueError(
+                "Indexing design specs require an ontology object when constructing a local Seocho client."
+            )
+        if spec.requires_workspace_id() and not str(workspace_id or "").strip():
+            raise ValueError(
+                "Indexing design specs with constraints.require_workspace_id=true "
+                "need a workspace_id."
+            )
+
+        client_kwargs = spec.client_kwargs(ontology=ontology)
+        kwargs.setdefault("ontology_profile", client_kwargs["ontology_profile"])
+        extraction_prompt = client_kwargs.get("extraction_prompt")
+        if extraction_prompt is not None:
+            kwargs.setdefault("extraction_prompt", extraction_prompt)
+        materialized_ontology = client_kwargs["ontology"]
+
+        if graph_store is not None or llm is not None and not isinstance(llm, str):
+            if graph_store is None or llm is None:
+                raise ValueError(
+                    "Provide both graph_store and llm when constructing a direct local "
+                    "Seocho client from an indexing design."
+                )
+            client = cls(
+                ontology=materialized_ontology,
+                graph_store=graph_store,
+                llm=llm,
+                workspace_id=workspace_id,
+                **kwargs,
+            )
+        else:
+            if spec.storage_target in {"neo4j", "dozerdb"} and not graph:
+                raise ValueError(
+                    "Indexing design specs targeting Neo4j/DozerDB require graph='bolt://...'"
+                    " or an explicit graph_store."
+                )
+            client = cls.local(
+                materialized_ontology,
+                llm=str(llm or "openai/gpt-4o"),
+                graph=graph,
+                neo4j_user=neo4j_user,
+                neo4j_password=neo4j_password,
+                api_key=api_key,
+                workspace_id=workspace_id,
+                **kwargs,
+            )
+
+        client._indexing_design = spec
+        return client
+
+    def _resolve_indexing_design_add_kwargs(
+        self,
+        *,
+        metadata: Optional[Dict[str, Any]],
+        strict_validation: bool,
+    ) -> Dict[str, Any]:
+        if self._indexing_design is None:
+            return {
+                "metadata": metadata,
+                "strict_validation": strict_validation,
+            }
+        return self._indexing_design.apply_add_defaults(
+            metadata=metadata,
+            strict_validation=strict_validation,
         )
 
     def agent(self, kind: str = "indexing", *, name: Optional[str] = None, model: Optional[str] = None) -> Any:
@@ -674,6 +776,7 @@ class Seocho:
         content: str,
         *,
         metadata: Optional[Dict[str, Any]] = None,
+        strict_validation: bool = False,
         prompt_context: Optional[Dict[str, Any] | SemanticPromptContext] = None,
         user_id: Optional[str] = None,
         agent_id: Optional[str] = None,
@@ -694,11 +797,16 @@ class Seocho:
         """
         if self._local_mode:
             db = database or self.default_database
+            add_kwargs = self._resolve_indexing_design_add_kwargs(
+                metadata=metadata,
+                strict_validation=strict_validation,
+            )
             return self._engine.add(
                 content,
                 database=db,
                 category=category,
-                metadata=metadata,
+                metadata=add_kwargs["metadata"],
+                strict_validation=bool(add_kwargs["strict_validation"]),
                 ontology_override=self._ontology_registry.get(db),
             )
 
@@ -796,9 +904,13 @@ class Seocho:
         """
         if not self._local_mode:
             raise RuntimeError("add_batch() requires local engine mode")
+        add_kwargs = self._resolve_indexing_design_add_kwargs(
+            metadata=metadata,
+            strict_validation=strict_validation,
+        )
         return self._engine.add_batch(
             documents, database=database, category=category,
-            metadata=metadata, strict_validation=strict_validation,
+            metadata=add_kwargs["metadata"], strict_validation=bool(add_kwargs["strict_validation"]),
             on_progress=on_progress,
         )
 

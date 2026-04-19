@@ -1,0 +1,34 @@
+name: rdf-deductive-finance
+graph_model: rdf
+storage_target: neo4j
+description: RDF-first finance indexing with deductive expansion and explicit overlay materialization.
+ontology:
+  required: true
+  profile: finance-governed
+ingestion:
+  extraction_strategy: domain
+  linking_strategy: llm
+  validation_on_fail: reject
+  inference_mode: deductive
+materialization:
+  rdf_mode: neo4j_labels
+  metric_model: node
+  provenance_mode: source
+reasoning_cycle:
+  enabled: true
+  anomaly_sources:
+    - shacl_violation
+    - unsupported_answer
+  abduction:
+    mode: candidate_only
+  deduction:
+    require_testable_predictions: true
+  induction:
+    require_support_assessment: true
+  promotion:
+    analyst_approval_required: true
+constraints:
+  require_workspace_id: true
+metadata:
+  domain: finance
+  audience: governed-runtime

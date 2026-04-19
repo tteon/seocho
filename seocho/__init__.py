@@ -86,6 +86,11 @@ _MODULE_EXPORTS: Dict[str, Iterable[str]] = {
         "OntologyBinding",
         "load_agent_design_spec",
     ],
+    ".indexing_design": [
+        "IndexingDesignSpec",
+        "IndexingOntologyBinding",
+        "load_indexing_design_spec",
+    ],
     ".client": [
         "AsyncSeocho",
         "ExecutionPlanBuilder",
@@ -405,8 +410,11 @@ __all__ = [
     "health",
     "is_backend_enabled",
     "is_tracing_enabled",
+    "IndexingDesignSpec",
+    "IndexingOntologyBinding",
     "list_provider_specs",
     "load_agent_design_spec",
+    "load_indexing_design_spec",
     "ontology_context_graph_properties",
     "plan",
     "platform_chat",

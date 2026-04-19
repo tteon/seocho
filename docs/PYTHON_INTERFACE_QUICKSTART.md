@@ -696,6 +696,40 @@ directory for three starter patterns:
 - reflection + chain-of-thought
 - memory + tool use
 
+### YAML indexing design specs
+
+If you want graph-model-aware indexing checked into git, declare it in YAML and
+let SEOCHO materialize the ontology graph model plus local indexing defaults.
+
+```python
+from seocho import Ontology, Seocho
+
+onto = Ontology.from_jsonld("schema.jsonld")
+
+client = Seocho.from_indexing_design(
+    "examples/indexing_designs/lpg_finance_provenance.yaml",
+    ontology=onto,
+    llm="openai/gpt-4o-mini",
+    workspace_id="finance-prod",
+)
+```
+
+The YAML must include an `ontology:` section and must declare
+`graph_model` + `storage_target`. RDF-targeted designs must also declare a
+`materialization.rdf_mode`.
+
+For `graph_model: lpg`, SEOCHO installs a property-graph-oriented extraction
+prompt by default so the model can preserve source-grounded scalar properties
+without collapsing period-specific metrics.
+
+See [INDEXING_DESIGN_SPECS.md](INDEXING_DESIGN_SPECS.md) and the
+[`examples/indexing_designs/`](/tmp/seocho-land-finder-e2e/examples/indexing_designs)
+directory for starter designs covering:
+
+- LPG + provenance-first indexing
+- RDF + deductive expansion
+- hybrid + inquiry-cycle repair
+
 ## 17. Ontology Merge
 
 Combine two ontologies when integrating new domains:

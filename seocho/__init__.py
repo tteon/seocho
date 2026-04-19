@@ -89,6 +89,7 @@ _MODULE_EXPORTS: Dict[str, Iterable[str]] = {
     ".indexing_design": [
         "IndexingDesignSpec",
         "IndexingOntologyBinding",
+        "build_reasoning_cycle_report",
         "load_indexing_design_spec",
     ],
     ".client": [
@@ -381,6 +382,7 @@ __all__ = [
     "assess_ontology_context_mismatch",
     "ask",
     "begin_session",
+    "build_reasoning_cycle_report",
     "build_runtime_bundle",
     "build_local_ontology_run_context",
     "build_runtime_ontology_run_context",

@@ -307,8 +307,82 @@ def load_indexing_design_spec(path: str | Path) -> IndexingDesignSpec:
     return IndexingDesignSpec.from_yaml(path)
 
 
+def build_reasoning_cycle_report(
+    metadata: Mapping[str, Any] | None,
+    *,
+    validation_errors: list[str] | None = None,
+    write_errors: list[str] | None = None,
+    fallback_used: bool = False,
+    fallback_reason: str = "",
+) -> Dict[str, Any] | None:
+    """Build a structured inquiry report from indexing anomalies.
+
+    The report is intentionally lightweight: it records the anomaly phase plus
+    bounded next-step guidance for abduction/deduction/induction. It does not
+    promote any candidate inference to fact.
+    """
+
+    payload = dict(metadata or {})
+    design = payload.get("indexing_design")
+    if not isinstance(design, Mapping):
+        return None
+    reasoning_cycle = design.get("reasoning_cycle")
+    if not isinstance(reasoning_cycle, Mapping):
+        return None
+    if not bool(reasoning_cycle.get("enabled", False)):
+        return None
+
+    anomalies: list[Dict[str, Any]] = []
+    validation_messages = [str(item).strip() for item in (validation_errors or []) if str(item).strip()]
+    if validation_messages:
+        anomalies.append(
+            {
+                "source": "shacl_violation",
+                "phase": "anomaly",
+                "status": "observed",
+                "count": len(validation_messages),
+                "messages": validation_messages[:5],
+            }
+        )
+
+    write_messages = [str(item).strip() for item in (write_errors or []) if str(item).strip()]
+    if write_messages:
+        anomalies.append(
+            {
+                "source": "write_error",
+                "phase": "anomaly",
+                "status": "observed",
+                "count": len(write_messages),
+                "messages": write_messages[:5],
+            }
+        )
+
+    if fallback_used:
+        anomalies.append(
+            {
+                "source": "fallback_used",
+                "phase": "anomaly",
+                "status": "observed",
+                "reason": str(fallback_reason or "").strip(),
+            }
+        )
+
+    return {
+        "enabled": True,
+        "status": "anomaly_detected" if anomalies else "clean",
+        "anomaly_sources": list(reasoning_cycle.get("anomaly_sources", []) or []),
+        "observed_anomalies": anomalies,
+        "abduction": dict(reasoning_cycle.get("abduction", {})),
+        "deduction": dict(reasoning_cycle.get("deduction", {})),
+        "induction": dict(reasoning_cycle.get("induction", {})),
+        "promotion": dict(reasoning_cycle.get("promotion", {})),
+        "next_phase": "abduction" if anomalies else "",
+    }
+
+
 __all__ = [
     "IndexingDesignSpec",
     "IndexingOntologyBinding",
+    "build_reasoning_cycle_report",
     "load_indexing_design_spec",
 ]

@@ -74,6 +74,12 @@ Important guardrail:
 - analyst approval or explicit verification should be required before
   promotion into stable fact layers
 
+When a local `add()` run hits a SHACL rejection, fallback extraction, or write
+error under an enabled `reasoning_cycle`, SEOCHO records a compact
+`metadata.reasoning_cycle` report on the returned `Memory` object. That report
+stays in the anomaly phase and points the next step at abduction; it does not
+promote any candidate inference to fact.
+
 ## LPG Prompt Shaping
 
 For `graph_model: lpg`, SEOCHO installs a property-graph-oriented extraction

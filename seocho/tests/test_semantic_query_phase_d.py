@@ -197,6 +197,34 @@ def test_canonical_semantic_flow_reports_query_contract_failures():
     assert result["lpg_result"]["reasoning"]["query_failure_count"] >= 1
 
 
+def test_canonical_semantic_flow_surfaces_reasoning_cycle_for_unsupported_support():
+    class UnsupportedConnector(FakeConnector):
+        def run_cypher(self, query, database="neo4j", params=None):
+            if "AS source_entity" in query and "AS relation_type" in query:
+                return json.dumps([])
+            return super().run_cypher(query, database=database, params=params)
+
+    flow = SemanticAgentFlow(UnsupportedConnector())
+
+    result = flow.run(
+        "What is Neo4j related to GraphRAG?",
+        ["kgnormal"],
+        reasoning_cycle={
+            "enabled": True,
+            "anomaly_sources": ["unsupported_answer", "query_diagnostic"],
+            "abduction": {"mode": "candidate_only"},
+            "deduction": {"require_testable_predictions": True},
+            "induction": {"require_support_assessment": True},
+            "promotion": {"analyst_approval_required": True},
+        },
+    )
+
+    assert result["support_assessment"]["status"] == "partial"
+    assert result["reasoning_cycle"]["status"] == "anomaly_detected"
+    assert result["reasoning_cycle"]["observed_anomalies"][0]["source"] == "unsupported_answer"
+    assert result["semantic_context"]["reasoning_cycle"]["next_phase"] == "abduction"
+
+
 def test_canonical_semantic_flow_synthesizes_risk_summary_from_neighbors():
     flow = SemanticAgentFlow(EntitySummaryConnector())
 

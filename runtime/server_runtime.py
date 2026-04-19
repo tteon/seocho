@@ -40,6 +40,7 @@ class ServerContext:
     tool_budget: int = 4
     tool_invocations: int = 0
     semantic_agent_flow: Optional[Any] = None
+    reasoning_cycle: dict[str, Any] = field(default_factory=dict)
 
     def log_activity(self, agent_name: str) -> None:
         if not self.trace_path or self.trace_path[-1] != agent_name:

@@ -51,6 +51,7 @@ class DebateResult:
     support_assessment: Dict[str, Any] = field(default_factory=dict)
     evidence_bundle: Dict[str, Any] = field(default_factory=dict)
     strategy_decision: Dict[str, Any] = field(default_factory=dict)
+    reasoning_cycle: Dict[str, Any] = field(default_factory=dict)
 
 
 class DebateOrchestrator:
@@ -131,6 +132,7 @@ class DebateOrchestrator:
                     }
                     for r in debate_results
                 ],
+                "reasoning_cycle": direct_semantic.reasoning_cycle,
             }
 
         # 3. Synthesise with Supervisor
@@ -155,6 +157,7 @@ class DebateOrchestrator:
                 }
                 for r in debate_results
             ],
+            "reasoning_cycle": self._collect_reasoning_cycle(debate_results),
         }
 
     # ------------------------------------------------------------------
@@ -174,14 +177,15 @@ class DebateOrchestrator:
             },
             tags=[f"graph:{graph_id}", "debate-agent"],
         )
-        preflight = await self._semantic_graph_preflight(
-            graph_id=graph_id,
+        semantic_result = await self._run_semantic_graph_flow(
             db_name=db_name,
             query=query,
             context=context,
         )
-        if preflight is not None:
-            response_text = preflight["response"]
+        semantic_support = self._semantic_support_summary(semantic_result)
+        preflight_reasoning_cycle = dict(semantic_support.get("reasoning_cycle", {}))
+        if semantic_support["supported"]:
+            response_text = semantic_support["response"]
             update_current_span(
                 output={"response_preview": response_text[:300]},
                 metadata={"semantic_preflight_used": True},
@@ -191,12 +195,31 @@ class DebateOrchestrator:
                 graph_id=graph_id,
                 db_name=db_name,
                 response=response_text,
-                trace_steps=preflight["trace_steps"],
+                trace_steps=[
+                    {
+                        "id": "semantic-preflight",
+                        "type": "DETERMINISTIC_PREFLIGHT",
+                        "role": "system",
+                        "content": (
+                            "SemanticAgentFlow provided supported graph evidence before "
+                            "graph-agent debate execution."
+                        ),
+                        "tool_names": ["semantic_agent_flow"],
+                        "metadata": {
+                            "graph": graph_id,
+                            "db": db_name,
+                            "support_status": semantic_support["status"],
+                            "records": semantic_support["records"],
+                            "preflight_reason": "supported_graph_evidence",
+                        },
+                    }
+                ],
                 semantic_reused=True,
-                semantic_route=str(preflight.get("semantic_route", "")),
-                support_assessment=dict(preflight.get("support_assessment", {})),
-                evidence_bundle=dict(preflight.get("evidence_bundle", {})),
-                strategy_decision=dict(preflight.get("strategy_decision", {})),
+                semantic_route=str(semantic_support.get("route", "")),
+                support_assessment=dict(semantic_support.get("support_assessment", {})),
+                evidence_bundle=dict(semantic_support.get("evidence_bundle", {})),
+                strategy_decision=dict(semantic_support.get("strategy_decision", {})),
+                reasoning_cycle=preflight_reasoning_cycle,
             )
         try:
             with self._agents_runtime.trace(f"Debate:{agent.name}"):
@@ -226,6 +249,11 @@ class DebateOrchestrator:
                 db_name=db_name,
                 response=response_text,
                 trace_steps=trace_steps,
+                reasoning_cycle=(
+                    dict(fallback.get("reasoning_cycle", {}))
+                    if fallback is not None
+                    else preflight_reasoning_cycle
+                ) or preflight_reasoning_cycle,
             )
         except Exception as e:
             logger.error("Agent %s failed: %s", agent.name, e)
@@ -253,6 +281,7 @@ class DebateOrchestrator:
                     support_assessment=dict(fallback.get("support_assessment", {})),
                     evidence_bundle=dict(fallback.get("evidence_bundle", {})),
                     strategy_decision=dict(fallback.get("strategy_decision", {})),
+                    reasoning_cycle=dict(fallback.get("reasoning_cycle", {})) or preflight_reasoning_cycle,
                 )
             return DebateResult(
                 agent_name=agent.name,
@@ -260,51 +289,8 @@ class DebateOrchestrator:
                 db_name=db_name,
                 response=f"Error: {e}",
                 trace_steps=[],
+                reasoning_cycle=preflight_reasoning_cycle,
             )
-
-    async def _semantic_graph_preflight(
-        self,
-        *,
-        graph_id: str,
-        db_name: str,
-        query: str,
-        context: Any,
-    ) -> Optional[Dict[str, Any]]:
-        result = await self._run_semantic_graph_flow(
-            db_name=db_name,
-            query=query,
-            context=context,
-        )
-        semantic_support = self._semantic_support_summary(result)
-        if not semantic_support["supported"]:
-            return None
-
-        return {
-            "response": semantic_support["response"],
-            "trace_steps": [
-                {
-                    "id": "semantic-preflight",
-                    "type": "DETERMINISTIC_PREFLIGHT",
-                    "role": "system",
-                    "content": (
-                        "SemanticAgentFlow provided supported graph evidence before "
-                        "graph-agent debate execution."
-                    ),
-                    "tool_names": ["semantic_agent_flow"],
-                    "metadata": {
-                        "graph": graph_id,
-                        "db": db_name,
-                        "support_status": semantic_support["status"],
-                        "records": semantic_support["records"],
-                        "preflight_reason": "supported_graph_evidence",
-                    },
-                }
-            ],
-            "semantic_route": semantic_support["route"],
-            "support_assessment": semantic_support["support_assessment"],
-            "evidence_bundle": semantic_support["evidence_bundle"],
-            "strategy_decision": semantic_support["strategy_decision"],
-        }
 
     async def _run_semantic_graph_flow(
         self,
@@ -326,6 +312,7 @@ class DebateOrchestrator:
                 workspace_id=str(getattr(context, "workspace_id", "default")),
                 reasoning_mode=False,
                 repair_budget=0,
+                reasoning_cycle=dict(getattr(context, "reasoning_cycle", {}) or {}),
             )
         except Exception as exc:
             logger.debug(
@@ -361,6 +348,7 @@ class DebateOrchestrator:
         response = str(result.get("response", "")).strip()
         evidence_bundle = result.get("evidence_bundle") or result.get("evidence_bundle_preview") or {}
         strategy_decision = result.get("strategy_decision") or {}
+        reasoning_cycle = result.get("reasoning_cycle") or result.get("semantic_context", {}).get("reasoning_cycle") or {}
         return {
             "response": response,
             "status": status,
@@ -371,6 +359,7 @@ class DebateOrchestrator:
             "support_assessment": dict(support) if isinstance(support, dict) else {},
             "evidence_bundle": dict(evidence_bundle) if isinstance(evidence_bundle, dict) else {},
             "strategy_decision": dict(strategy_decision) if isinstance(strategy_decision, dict) else {},
+            "reasoning_cycle": dict(reasoning_cycle) if isinstance(reasoning_cycle, dict) else {},
         }
 
     async def _semantic_graph_fallback(
@@ -425,7 +414,30 @@ class DebateOrchestrator:
             "support_assessment": semantic_support["support_assessment"],
             "evidence_bundle": semantic_support["evidence_bundle"],
             "strategy_decision": semantic_support["strategy_decision"],
+            "reasoning_cycle": semantic_support["reasoning_cycle"],
         }
+
+    @staticmethod
+    def _collect_reasoning_cycle(debate_results: List[DebateResult]) -> Dict[str, Any]:
+        graph_reports = [
+            {
+                "graph": result.graph_id,
+                "database": result.db_name,
+                "report": result.reasoning_cycle,
+            }
+            for result in debate_results
+            if result.reasoning_cycle
+        ]
+        if not graph_reports:
+            return {}
+        if len(graph_reports) == 1:
+            return dict(graph_reports[0]["report"])
+
+        primary = dict(graph_reports[0]["report"])
+        primary["graph_reports"] = graph_reports
+        primary["status"] = "anomaly_detected"
+        primary["next_phase"] = "abduction"
+        return primary
 
     @staticmethod
     def _should_fallback_to_semantic(response_text: str) -> bool:

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 WORKSPACE_ID_PATTERN = r"^[a-zA-Z][a-zA-Z0-9_-]{1,63}$"
 # Keep API validation aligned with runtime/config and DozerDB provisioning rules.
@@ -73,6 +73,7 @@ def build_query_payload(
     default_user_id: Optional[str] = None,
     user_id: Optional[str] = None,
     graph_ids: Optional[Sequence[str]] = None,
+    reasoning_cycle: Optional[Mapping[str, Any]] = None,
 ) -> Dict[str, Any]:
     payload: Dict[str, Any] = {
         "query": query,
@@ -81,6 +82,8 @@ def build_query_payload(
     }
     if graph_ids:
         payload["graph_ids"] = list(graph_ids)
+    if reasoning_cycle:
+        payload["reasoning_cycle"] = dict(reasoning_cycle)
     return payload
 
 

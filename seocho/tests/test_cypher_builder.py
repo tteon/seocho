@@ -64,6 +64,19 @@ def test_builder_normalizes_vehicle_delivery_question_as_financial_metric_lookup
     assert intent["metric_scope_tokens"] == []
 
 
+def test_builder_drops_explanatory_scope_tokens_for_gross_margin_question() -> None:
+    builder = CypherBuilder(_finance_ontology())
+
+    intent = builder.normalize_intent(
+        "What drove NVIDIA's gross margin expansion?",
+        {"anchor_entity": "NVIDIA"},
+    )
+
+    assert intent["intent"] == "financial_metric_lookup"
+    assert "margin" in intent["metric_aliases"]
+    assert intent["metric_scope_tokens"] == ["gross"]
+
+
 def test_builder_normalizes_legal_relationship_lookup_from_question() -> None:
     ontology = Ontology(
         name="legal_graph",
@@ -429,6 +442,48 @@ def test_local_engine_financial_lookup_compares_multiple_years_without_currency_
     assert "1,310,000 in 2022" in answer
     assert "936,000 in 2021" in answer
     assert "$" not in answer
+
+
+def test_local_engine_financial_lookup_explains_nvidia_gross_margin_expansion() -> None:
+    class GrossMarginLLM:
+        def complete(self, *, system, user, temperature, response_format=None):  # noqa: ANN001
+            return _FakeLLMResponse(
+                {
+                    "anchor_entity": "NVIDIA",
+                }
+            )
+
+    class GrossMarginGraphStore:
+        def get_schema(self, *, database: str = "neo4j") -> dict:
+            return {"labels": ["Company", "FinancialMetric"], "relationship_types": ["REPORTED"]}
+
+        def query(self, cypher: str, *, params=None, database: str = "neo4j"):  # noqa: ANN001
+            return [
+                {
+                    "company": "NVIDIA",
+                    "metric_name": "Gross Margin 2023",
+                    "year": "2023",
+                    "value": "72.7%",
+                    "relationship": "REPORTED",
+                    "supporting_fact": (
+                        "The company's gross margin expanded to 72.7% from 56.9%, driven by strong demand "
+                        "for AI accelerator chips including the H100 and A100 product lines."
+                    ),
+                }
+            ]
+
+    client = Seocho(
+        ontology=_finance_ontology(),
+        graph_store=GrossMarginGraphStore(),
+        llm=GrossMarginLLM(),
+        workspace_id="finance_benchmark_test",
+    )
+
+    answer = client.ask("What drove NVIDIA's gross margin expansion?", database="neo4j")
+
+    assert "72.7%" in answer
+    assert "56.9%" in answer
+    assert "H100 and A100 product lines" in answer
 
 
 def test_financial_answer_rewrites_prior_year_using_question_years() -> None:

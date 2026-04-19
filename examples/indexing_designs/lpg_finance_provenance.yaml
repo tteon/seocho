@@ -1,0 +1,31 @@
+name: lpg-finance-provenance
+graph_model: lpg
+storage_target: ladybug
+description: Preserve finance facts in a property-graph-friendly shape with strong provenance.
+ontology:
+  required: true
+  profile: finance-fast
+ingestion:
+  extraction_strategy: domain
+  linking_strategy: llm
+  validation_on_fail: reject
+  inference_mode: base
+materialization:
+  metric_model: property
+  provenance_mode: full
+reasoning_cycle:
+  enabled: true
+  anomaly_sources:
+    - shacl_violation
+    - ontology_mismatch
+  abduction:
+    mode: candidate_only
+  deduction:
+    require_testable_predictions: true
+  induction:
+    require_support_assessment: true
+constraints:
+  require_workspace_id: true
+metadata:
+  domain: finance
+  audience: sdk

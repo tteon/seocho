@@ -1,0 +1,39 @@
+name: hybrid-inquiry-finance
+graph_model: hybrid
+storage_target: neo4j
+description: Hybrid finance indexing that keeps RDF semantics while answering through graph-friendly structures.
+ontology:
+  required: true
+  profile: finance-core
+ingestion:
+  extraction_strategy: domain
+  linking_strategy: llm
+  validation_on_fail: reject
+  inference_mode: abductive
+materialization:
+  rdf_mode: neo4j_labels
+  metric_model: node
+  provenance_mode: full
+reasoning_cycle:
+  enabled: true
+  anomaly_sources:
+    - shacl_violation
+    - unsupported_answer
+    - conflicting_fact
+  abduction:
+    mode: candidate_only
+  deduction:
+    require_testable_predictions: true
+  induction:
+    require_support_assessment: true
+    verification_sources:
+      - graph
+      - source_text
+      - tables
+  promotion:
+    analyst_approval_required: true
+constraints:
+  require_workspace_id: true
+metadata:
+  domain: finance
+  audience: inquiry

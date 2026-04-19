@@ -39,6 +39,7 @@ Start here:
 | see a runnable usecase demo | [Usecases](docs/USECASES.md) |
 | bring your own ontology and files | [Apply Your Data](docs/APPLY_YOUR_DATA.md) |
 | use the Python SDK directly | [Python SDK Quickstart](docs/PYTHON_INTERFACE_QUICKSTART.md) |
+| declare graph-model-aware indexing in YAML | [Indexing Design Specs](docs/INDEXING_DESIGN_SPECS.md) |
 | inspect files, artifacts, and traces | [Files and Artifacts](docs/FILES_AND_ARTIFACTS.md) |
 | understand the system design | [Architecture Deep Dive](docs/ARCHITECTURE.md) |
 

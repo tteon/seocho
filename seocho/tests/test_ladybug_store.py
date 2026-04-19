@@ -117,6 +117,59 @@ class TestLadybugStore:
         finally:
             store.close()
 
+    def test_write_accepts_linked_id_properties(self, tmp_path):
+        ontology = Ontology(
+            name="finder",
+            nodes={
+                "Company": NodeDef(properties={"name": Property(str, unique=True)}),
+                "FinancialMetric": NodeDef(
+                    properties={
+                        "name": Property(str, unique=True),
+                        "value": Property(str),
+                        "year": Property(str),
+                    }
+                ),
+            },
+            relationships={"REPORTED": RelDef(source="Company", target="FinancialMetric")},
+        )
+        store = LadybugGraphStore(str(tmp_path / "linked_id.lbug"))
+        store.ensure_constraints(ontology)
+        try:
+            summary = store.write(
+                nodes=[
+                    {
+                        "id": "ptc_inc",
+                        "label": "Company",
+                        "properties": {"name": "PTC Inc.", "linked_id": "urn:company:ptc_inc"},
+                    },
+                    {
+                        "id": "total_revenue_fy_2023",
+                        "label": "FinancialMetric",
+                        "properties": {
+                            "name": "Total Revenue FY 2023",
+                            "value": "2100000000",
+                            "year": "2023",
+                            "linked_id": "urn:metric:ptc_total_revenue_2023",
+                        },
+                    },
+                ],
+                relationships=[
+                    {
+                        "source": "ptc_inc",
+                        "target": "total_revenue_fy_2023",
+                        "type": "REPORTED",
+                        "properties": {},
+                    }
+                ],
+                source_id="doc-linked-id",
+            )
+
+            assert summary["nodes_created"] == 2
+            assert summary["relationships_created"] == 1
+            assert summary["errors"] == []
+        finally:
+            store.close()
+
     def test_delete_by_source_removes_written_nodes(self, store):
         store.write(
             nodes=[
@@ -254,6 +307,76 @@ class TestLadybugStore:
             assert "2023" in values
             assert "2.1 billion" in values
             assert "REPORTED" in values
+        finally:
+            store.close()
+
+    def test_query_supports_vehicle_delivery_lookup_without_scope_token_noise(self, tmp_path):
+        ontology = Ontology(
+            name="finder_vehicle_deliveries",
+            nodes={
+                "Company": NodeDef(properties={"name": Property(str, unique=True)}),
+                "FinancialMetric": NodeDef(
+                    properties={
+                        "name": Property(str, unique=True),
+                        "year": Property(str),
+                        "value": Property(str),
+                    }
+                ),
+            },
+            relationships={
+                "REPORTED": RelDef(source="Company", target="FinancialMetric"),
+            },
+        )
+        store = LadybugGraphStore(str(tmp_path / "finder_vehicle_deliveries.lbug"))
+        store.ensure_constraints(ontology)
+        try:
+            store.write(
+                nodes=[
+                    {"id": "tesla", "label": "Company", "properties": {"name": "Tesla Inc."}},
+                    {
+                        "id": "tesla_deliveries_2021",
+                        "label": "FinancialMetric",
+                        "properties": {"name": "Vehicle Deliveries 2021", "year": "2021", "value": "936000"},
+                    },
+                    {
+                        "id": "tesla_deliveries_2022",
+                        "label": "FinancialMetric",
+                        "properties": {"name": "Vehicle Deliveries 2022", "year": "2022", "value": "1310000"},
+                    },
+                ],
+                relationships=[
+                    {
+                        "source": "tesla",
+                        "target": "tesla_deliveries_2021",
+                        "type": "REPORTED",
+                        "properties": {},
+                    },
+                    {
+                        "source": "tesla",
+                        "target": "tesla_deliveries_2022",
+                        "type": "REPORTED",
+                        "properties": {},
+                    },
+                ],
+                source_id="finder-deliveries-doc",
+            )
+
+            builder = CypherBuilder(ontology)
+            intent = builder.normalize_intent(
+                "How many vehicles did Tesla deliver in 2022 vs 2021?",
+                {"anchor_entity": "Tesla"},
+            )
+            query, params = builder.build(
+                **intent,
+                workspace_id="default",
+                limit=5,
+            )
+
+            rows = store.query(query, params=params)
+
+            values = {tuple(row.values()) if isinstance(row, dict) else tuple(row) for row in rows}
+            assert any("Vehicle Deliveries 2021" in row for row in values)
+            assert any("Vehicle Deliveries 2022" in row for row in values)
         finally:
             store.close()
 

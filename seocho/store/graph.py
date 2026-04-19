@@ -630,6 +630,7 @@ _LADYBUG_TYPE_MAP = {
 }
 _LADYBUG_COMMON_NODE_STRING_COLUMNS = (
     "name",
+    "linked_id",
     "title",
     "uri",
     "description",
@@ -678,6 +679,7 @@ _LADYBUG_COMMON_REL_STRING_COLUMNS = (
 _LADYBUG_NODE_PROJECTION_KEYS = (
     "id",
     "name",
+    "linked_id",
     "title",
     "uri",
     "description",

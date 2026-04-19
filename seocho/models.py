@@ -178,6 +178,7 @@ class ReasoningPolicy(JsonSerializable):
     require_grounded_evidence: bool = True
     repair_budget: int = 0
     fallback_style: Optional[Literal["direct", "react", "debate"]] = None
+    reasoning_cycle: Dict[str, Any] = field(default_factory=dict)
 
     def normalized_style(self) -> Literal["direct", "react", "debate"]:
         normalized = str(self.style or "direct").strip().lower()

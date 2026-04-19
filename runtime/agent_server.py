@@ -539,6 +539,7 @@ class PlatformChatRequest(BaseModel):
     graph_ids: Optional[List[str]] = Field(default=None, description="Graph IDs for debate mode routing.")
     databases: Optional[List[str]] = Field(default=None, description="Databases for semantic mode entity resolution.")
     entity_overrides: Optional[List[EntityOverride]] = Field(default=None, description="UI-assisted entity disambiguation overrides.")
+    reasoning_cycle: Optional[Dict[str, Any]] = Field(default=None, description="Optional anomaly-driven inquiry contract forwarded to semantic/debate execution.")
 
 
 class PlatformTurn(BaseModel):
@@ -853,6 +854,7 @@ async def _platform_run_debate(payload: Dict[str, Any]) -> DebateResponse:
         user_id=payload["user_id"],
         workspace_id=payload["workspace_id"],
         graph_ids=payload.get("graph_ids"),
+        reasoning_cycle=payload.get("reasoning_cycle"),
     )
     return await run_debate(req)
 
@@ -867,6 +869,7 @@ async def _platform_run_semantic(payload: Dict[str, Any]) -> SemanticAgentRespon
         workspace_id=payload["workspace_id"],
         databases=databases,
         entity_overrides=payload.get("entity_overrides"),
+        reasoning_cycle=payload.get("reasoning_cycle"),
     )
     return await run_agent_semantic(req)
 
@@ -888,6 +891,7 @@ async def platform_chat_send(request: PlatformChatRequest):
         "graph_ids": request.graph_ids,
         "databases": request.databases,
         "entity_overrides": request.entity_overrides,
+        "reasoning_cycle": request.reasoning_cycle,
     }
 
     platform_session_store.append(

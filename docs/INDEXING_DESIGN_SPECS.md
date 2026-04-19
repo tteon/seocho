@@ -86,6 +86,10 @@ support is `partial` or `unsupported`, SEOCHO returns a compact top-level
 decide whether to escalate into analyst review, additional tool use, or a
 separate inquiry pass.
 
+The same payload also flows through `client.plan(...).with_reasoning_cycle(...).run()`
+and `client.platform_chat(..., reasoning_cycle=...)`, so SDK plans and UI
+chat surfaces can share the same inquiry contract.
+
 ## LPG Prompt Shaping
 
 For `graph_model: lpg`, SEOCHO installs a property-graph-oriented extraction

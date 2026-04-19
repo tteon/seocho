@@ -751,7 +751,13 @@ def test_runtime_client_methods_cover_semantic_debate_platform_and_admin_surface
         graph_ids=["kgnormal"],
         reasoning_cycle={"enabled": True, "anomaly_sources": ["unsupported_answer"]},
     )
-    platform = client.platform_chat("hello", mode="debate", session_id="s1", graph_ids=["kgnormal"])
+    platform = client.platform_chat(
+        "hello",
+        mode="debate",
+        session_id="s1",
+        graph_ids=["kgnormal"],
+        reasoning_cycle={"enabled": True, "anomaly_sources": ["unsupported_answer"]},
+    )
     history = client.session_history("s1")
     reset = client.reset_session("s1")
     ingested = client.raw_ingest(
@@ -789,6 +795,7 @@ def test_runtime_client_methods_cover_semantic_debate_platform_and_admin_surface
     assert session.calls[2]["url"] == "http://localhost:8001/run_debate"
     assert session.calls[2]["json"]["reasoning_cycle"]["enabled"] is True
     assert session.calls[3]["url"] == "http://localhost:8001/platform/chat/send"
+    assert session.calls[3]["json"]["reasoning_cycle"]["enabled"] is True
     assert session.calls[6]["url"] == "http://localhost:8001/platform/ingest/raw"
     assert session.calls[9]["url"] == "http://localhost:8001/indexes/fulltext/ensure"
 
@@ -995,6 +1002,50 @@ def test_execution_plan_builder_passes_semantic_repair_budget():
     assert result.route == "lpg"
     assert session.calls[1]["json"]["reasoning_mode"] is True
     assert session.calls[1]["json"]["repair_budget"] == 2
+
+
+def test_execution_plan_builder_passes_reasoning_cycle_to_semantic_runtime():
+    session = _FakeSession(
+        [
+            _FakeResponse(
+                payload={
+                    "graphs": [
+                        {
+                            "graph_id": "kgnormal",
+                            "database": "kgnormal",
+                            "uri": "bolt://neo4j:7687",
+                            "ontology_id": "baseline",
+                            "vocabulary_profile": "vocabulary.v2",
+                            "description": "Baseline graph",
+                            "workspace_scope": "default",
+                        }
+                    ]
+                }
+            ),
+            _FakeResponse(
+                payload={
+                    "response": "semantic answer",
+                    "trace_steps": [{"type": "SEMANTIC"}],
+                    "route": "lpg",
+                    "semantic_context": {"entities": ["Alex"]},
+                    "lpg_result": {"records": []},
+                    "rdf_result": None,
+                    "reasoning_cycle": {"enabled": True, "status": "clean", "observed_anomalies": []},
+                }
+            ),
+        ]
+    )
+    client = Seocho(base_url="http://localhost:8001", session=session)
+
+    result = (
+        client.plan("What do you know about Alex?")
+        .on_graph("kgnormal")
+        .with_reasoning_cycle({"enabled": True, "anomaly_sources": ["unsupported_answer"]})
+        .run()
+    )
+
+    assert result.route == "lpg"
+    assert session.calls[1]["json"]["reasoning_cycle"]["enabled"] is True
 
 
 def test_semantic_response_exposes_support_strategy_run_and_evidence_helpers():

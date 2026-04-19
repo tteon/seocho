@@ -174,6 +174,25 @@ def _extract_answer(payload: object) -> str:
     return ""
 
 
+def _extract_reasoning_cycle(payload: object) -> tuple[str, list[str]]:
+    if not isinstance(payload, dict):
+        return "", []
+    report = payload.get("reasoning_cycle")
+    if not isinstance(report, dict):
+        runtime_payload = payload.get("runtime_payload")
+        if isinstance(runtime_payload, dict):
+            report = runtime_payload.get("reasoning_cycle")
+    if not isinstance(report, dict):
+        return "", []
+    status = str(report.get("status", "")).strip()
+    sources = [
+        str(item.get("source", "")).strip()
+        for item in report.get("observed_anomalies", [])
+        if isinstance(item, dict) and str(item.get("source", "")).strip()
+    ]
+    return status, sources
+
+
 def _remote_setup(args: argparse.Namespace, cases: list) -> dict:
     records = [
         {
@@ -249,6 +268,8 @@ def _run_remote_endpoint_benchmark(
         error = ""
         exact = False
         contains = False
+        reasoning_cycle_status = ""
+        reasoning_cycle_sources: list[str] = []
         started = time.perf_counter()
         try:
             status_code, payload = _request_json(
@@ -261,6 +282,7 @@ def _run_remote_endpoint_benchmark(
             ask_latency_ms = round((time.perf_counter() - started) * 1000.0, 2)
             if 200 <= status_code < 300:
                 answer = _extract_answer(payload)
+                reasoning_cycle_status, reasoning_cycle_sources = _extract_reasoning_cycle(payload)
                 exact, contains = compare_answers(case.expected_answer, answer)
             else:
                 detail = payload.get("detail") if isinstance(payload, dict) else ""
@@ -281,6 +303,8 @@ def _run_remote_endpoint_benchmark(
                 contains_match=contains,
                 nodes_created=0,
                 relationships_created=0,
+                reasoning_cycle_status=reasoning_cycle_status,
+                reasoning_cycle_sources=reasoning_cycle_sources,
                 error=error,
             )
         )

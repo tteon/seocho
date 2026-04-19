@@ -55,6 +55,10 @@ def test_agent_design_pattern_defaults_compile_to_agent_config() -> None:
             "name": "planning-finance",
             "pattern": "planning_multi_agent",
             "ontology": {"profile": "finance-core"},
+            "reasoning_cycle": {
+                "enabled": True,
+                "anomaly_sources": ["unsupported_answer"],
+            },
         }
     )
 
@@ -67,6 +71,7 @@ def test_agent_design_pattern_defaults_compile_to_agent_config() -> None:
     assert config.answer_style == "evidence"
     assert config.routing_policy is not None
     assert config.extra["agent_design_pattern"] == "planning_multi_agent"
+    assert config.extra["agent_design_reasoning_cycle"]["enabled"] is True
 
 
 def test_agent_design_yaml_loader_reads_examples(tmp_path) -> None:
@@ -85,6 +90,10 @@ def test_agent_design_yaml_loader_reads_examples(tmp_path) -> None:
               repair_budget: 4
             query:
               answer_style: evidence
+            reasoning_cycle:
+              enabled: true
+              anomaly_sources:
+                - unsupported_answer
             indexing:
               validation_on_fail: retry
             tools:
@@ -101,6 +110,7 @@ def test_agent_design_yaml_loader_reads_examples(tmp_path) -> None:
     assert spec.ontology.resolved_profile() == "finance-core"
     assert spec.tools == ("graph_query", "finance_table_lookup")
     assert spec.to_agent_config().repair_budget == 4
+    assert spec.to_agent_config().extra["agent_design_reasoning_cycle"]["enabled"] is True
 
 
 def test_seocho_from_agent_design_applies_agent_config_and_ontology_profile(tmp_path) -> None:
@@ -113,6 +123,10 @@ def test_seocho_from_agent_design_applies_agent_config_and_ontology_profile(tmp_
             ontology:
               required: true
               profile: finance-session
+            reasoning_cycle:
+              enabled: true
+              anomaly_sources:
+                - unsupported_answer
             query:
               answer_style: concise
             """
@@ -131,6 +145,7 @@ def test_seocho_from_agent_design_applies_agent_config_and_ontology_profile(tmp_
         assert client.ontology_profile == "finance-session"
         assert client.agent_config.execution_mode == "agent"
         assert client.agent_config.answer_style == "concise"
+        assert client.agent_config.extra["agent_design_reasoning_cycle"]["enabled"] is True
     finally:
         client.close()
 

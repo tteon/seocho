@@ -19,7 +19,7 @@ Options:
   --events-file <path>   JSONL output path (default: logs/context/events.jsonl).
   --pull                 Run git pull --rebase as a required step.
   --push                 Run git push as a required step.
-  --skip-bd-sync         Skip best-effort bd sync step.
+  --skip-bd-sync         Skip best-effort bd bootstrap step.
   --skip-branch-check    Skip main-branch preflight check.
   --dry-run              Emit trace events without executing side-effecting commands.
   --quiet-events         Do not print event JSON to stdout.
@@ -146,10 +146,10 @@ do_push() {
   )
 }
 
-do_bd_sync() {
+do_bd_bootstrap() {
   (
     cd "${REPO_ROOT}"
-    bd sync
+    bd bootstrap
   )
 }
 
@@ -253,10 +253,10 @@ else
 fi
 
 if [[ "${skip_bd_sync}" -eq 1 ]]; then
-  emit_gate_status "bd_sync" "skipped"
-  echo "SKIP bd_sync"
+  emit_gate_status "bd_bootstrap" "skipped"
+  echo "SKIP bd_bootstrap"
 else
-  run_best_effort_gate "bd_sync" do_bd_sync
+  run_best_effort_gate "bd_bootstrap" do_bd_bootstrap
 fi
 
 if [[ "${with_push}" -eq 1 ]]; then

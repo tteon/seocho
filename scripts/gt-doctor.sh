@@ -193,7 +193,7 @@ def _collect_local_artifacts(beads_dir: Path) -> list[str]:
 
 
 def _load_issues_from_bd(repo_root: Path) -> tuple[list[dict[str, Any]], str]:
-    command = ["bd", "--no-daemon", "list", "--json", "--all", "--limit", "0"]
+    command = ["bd", "--sandbox", "list", "--json", "--all", "-n", "0"]
     proc = subprocess.run(
         command,
         check=False,
@@ -319,7 +319,7 @@ def _scan_wisp_findings(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _build_fix_command(issue_id: str, fix_args: list[str]) -> str:
-    return f"bd --no-daemon update {issue_id} {' '.join(fix_args)}"
+    return f"bd --sandbox update {issue_id} {' '.join(fix_args)}"
 
 
 def _apply_wisp_fixes(
@@ -335,7 +335,7 @@ def _apply_wisp_fixes(
             continue
 
         proc = subprocess.run(
-            ["bd", "--no-daemon", "update", issue_id, *fix_args],
+            ["bd", "--sandbox", "update", issue_id, *fix_args],
             check=False,
             capture_output=True,
             text=True,

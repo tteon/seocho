@@ -30,7 +30,7 @@ else
 fi
 
 issues_json="/tmp/pm_lint_issues.json"
-bd --no-daemon list --json --all --limit 0 > "${issues_json}"
+bd --sandbox list --json --all -n 0 > "${issues_json}"
 
 python3 - "${issues_json}" <<'PY' > /tmp/pm_lint_ids.txt
 import json, sys
@@ -52,7 +52,7 @@ PY
 missing=0
 while IFS= read -r issue_id; do
   [[ -z "${issue_id}" ]] && continue
-  labels_json="$(bd --no-daemon label list "${issue_id}" --json)"
+  labels_json="$(bd --sandbox label list "${issue_id}" --json)"
   if [[ -n "${sprint_label}" ]]; then
     in_sprint="$(LABELS_JSON="${labels_json}" SPRINT_LABEL="${sprint_label}" python3 - <<'PY'
 import json, os

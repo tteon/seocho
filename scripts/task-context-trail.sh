@@ -64,7 +64,7 @@ if ! [[ "${limit}" =~ ^[0-9]+$ ]]; then
   exit 1
 fi
 
-issue_json="$(bd --no-daemon show "${task_id}" --json 2>/dev/null || true)"
+issue_json="$(bd --sandbox show "${task_id}" --json 2>/dev/null || true)"
 if [[ -z "${issue_json}" ]]; then
   echo "Failed to load task '${task_id}' from bd." >&2
   exit 1

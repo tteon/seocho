@@ -81,12 +81,12 @@ scripts/pm/lint-agent-docs.sh
 4. land:
    - release or hand off any active Gastown reservation
    - `git pull --rebase`
-   - `bd sync` (best effort if workspace issue persists)
+   - `bd bootstrap` (best effort; safe no-op when the workspace DB is already healthy)
    - `git push`
    - `git status` (must show up to date with `origin/main`)
 
-When working in a git worktree, prefer `BEADS_NO_DAEMON=1` to avoid daemon
-cross-talk between worktrees.
+When working in a git worktree, prefer `bd --sandbox ...` for repo-local issue
+operations that should avoid auto-sync side effects.
 
 Push target is always `main`.
 

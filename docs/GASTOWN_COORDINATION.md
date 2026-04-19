@@ -77,8 +77,8 @@ Gastown and worktrees should move together:
 
 - reservation `branch` should match the worktree branch
 - reservation `worktree` should be the actual filesystem path
-- prefer `BEADS_NO_DAEMON=1` in worktrees to avoid daemon writes crossing
-  branches
+- prefer `bd --sandbox ...` in worktrees for repo-local issue operations so
+  auto-sync side effects do not cross branches
 
 ## Non-Goals
 

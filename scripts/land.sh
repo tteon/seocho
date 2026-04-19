@@ -29,7 +29,7 @@ Options:
   --push                 Run git push in gt-land.
   --skip-ops-check       Skip ops-check step.
   --skip-doctor          Skip doctor step.
-  --skip-bd-sync         Skip best-effort bd sync in gt-land.
+  --skip-bd-sync         Skip best-effort bd bootstrap in gt-land.
   --skip-branch-check    Skip branch check in gt-land.
   --fix                  Apply auto-fix for single-beads-path doctor failure.
   --dry-run              Pass dry-run mode to gt-land.

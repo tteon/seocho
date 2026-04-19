@@ -37,7 +37,7 @@ Default guidance:
 
 - 24-hour TTL
 - explicit release or handoff before merge
-- `BEADS_NO_DAEMON=1` preferred in worktrees
+- `bd --sandbox ...` preferred in worktrees for repo-local issue operations
 
 ## Consequences
 

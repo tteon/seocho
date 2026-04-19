@@ -193,48 +193,30 @@ Install repo-managed hooks once per clone:
 scripts/pm/install-git-hooks.sh
 ```
 
-6. Daily Codex Maintenance Automation
+6. Local Codex CLI Lanes
 
-- workflow: `.github/workflows/daily-codex-maintenance.yml`
-- cadence: daily at `00:15 UTC` (`09:15 Asia/Seoul`) plus `workflow_dispatch`
-- required secrets:
-  - `OPENAI_API_KEY`
-  - `SEOCHO_GITHUB_APP_ID`
-  - `SEOCHO_GITHUB_APP_PRIVATE_KEY`
-- if any required secret is missing, the workflow exits successfully after an
-  explicit skip notice and creates no PR
-- prompt contract: `.github/codex/prompts/daily-maintenance-pr.md`
-- skill contract: `.agents/skills/daily-maintenance-pr/SKILL.md`
+Codex PR authoring runs from local clean clones. GitHub Actions no longer
+invokes Codex directly (scheduled `daily-codex-maintenance.yml` and
+`periodic-codex-review.yml` were removed — see the 2026-04-19
+DECISION_LOG entry).
+
+- dispatcher: `scripts/codex/run_lane.sh`
+- available lanes:
+  - `scripts/codex/run_feature_improvement.sh`
+  - `scripts/codex/run_refactor.sh`
+  - `scripts/codex/run_e2e_investigation.sh`
+- lane prompts: `scripts/codex/prompts/*.md`
+- skill contracts: `.agents/skills/{feature-improvement,refactor,e2e-investigation}-pr/SKILL.md`
 - PR contract:
-  - draft PR only
-  - branch `codex/daily-maintenance`
-  - run `bash scripts/ci/run_basic_ci.sh` before creating/updating the PR
+  - run from a clean clone checked out to `main`
+  - draft PR only, one cohesive change per run
+  - choose exactly one lane per run
   - PR body must include `Feature`, `Why`, `Design`, `Expected Effect`,
     `Impact Results`, `Validation`, and `Risks`
+  - run `bash scripts/ci/run_basic_ci.sh` locally before opening or updating the PR
   - no direct push to `main`
 
-7. Periodic Codex Review Automation
-
-- workflow: `.github/workflows/periodic-codex-review.yml`
-- cadence: weekly on Monday at `00:45 UTC` (`09:45 Asia/Seoul`) plus
-  `workflow_dispatch`
-- required secrets:
-  - `OPENAI_API_KEY`
-  - `SEOCHO_GITHUB_APP_ID`
-  - `SEOCHO_GITHUB_APP_PRIVATE_KEY`
-- if any required secret is missing, the workflow exits successfully after an
-  explicit skip notice and creates no PR
-- prompt contract: `.github/codex/prompts/periodic-review-pr.md`
-- skill contract: `.agents/skills/periodic-review-pr/SKILL.md`
-- PR contract:
-  - draft PR only
-  - branch `codex/periodic-review`
-  - run `bash scripts/ci/run_basic_ci.sh` before creating/updating the PR
-  - PR body must include `Feature`, `Why`, `Design`, `Expected Effect`,
-    `Impact Results`, `Validation`, and `Risks`
-  - no direct push to `main`
-
-8. Comment-Based Merge Automation
+7. Comment-Based Merge Automation
 
 - workflow: `.github/workflows/pr-comment-merge.yml`
 - trigger: `issue_comment` on PRs with command exactly `/go`
@@ -246,7 +228,7 @@ scripts/pm/install-git-hooks.sh
   - merge method is `squash` with branch deletion
   - maintainers should mark automation PRs ready for review before `/go`
 
-9. Governance loop
+8. Governance loop
 - log architecture decisions as ADRs
 - track context graph events and quality metrics
 - schedule follow-up issues for unresolved risks

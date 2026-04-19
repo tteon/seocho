@@ -77,6 +77,15 @@ STOPWORDS = {
     "please",
 }
 
+LEADING_ENTITY_WRAPPER_TOKENS = {
+    "for",
+    "about",
+    "regarding",
+    "around",
+    "versus",
+    "vs",
+}
+
 ENTITY_PROPERTIES = (
     "name",
     "title",
@@ -667,20 +676,24 @@ class SemanticEntityResolver:
             vocabulary_resolved[entity] = vocabulary_text
             alias_resolved[entity] = resolved_text
             candidates: List[Dict[str, Any]] = []
+            lookup_terms = self._candidate_lookup_terms(entity, resolved_text)
             for db_name in databases:
-                db_candidates = self._query_fulltext_candidates(
-                    db_name=db_name,
-                    entity_text=resolved_text,
-                    indexes=fulltext_indexes.get(db_name, []),
-                    workspace_id=workspace_id,
-                )
-                if not db_candidates:
-                    db_candidates = self._query_contains_candidates(
+                for lookup_term in lookup_terms:
+                    db_candidates = self._query_fulltext_candidates(
                         db_name=db_name,
-                        entity_text=resolved_text,
+                        entity_text=lookup_term,
+                        indexes=fulltext_indexes.get(db_name, []),
                         workspace_id=workspace_id,
                     )
-                candidates.extend(db_candidates)
+                    if not db_candidates:
+                        db_candidates = self._query_contains_candidates(
+                            db_name=db_name,
+                            entity_text=lookup_term,
+                            workspace_id=workspace_id,
+                        )
+                    if db_candidates:
+                        candidates.extend(db_candidates)
+                        break
 
             ranked = self._rank_and_dedup(
                 entity_text=entity,
@@ -799,12 +812,21 @@ class SemanticEntityResolver:
         MATCH (n)
         WHERE coalesce(n.workspace_id, $workspace_id) = $workspace_id
           AND coalesce(n.status, 'active') <> 'archived'
-          AND any(key IN $properties
-              WHERE n[key] IS NOT NULL
-                AND toLower(toString(n[key])) CONTAINS toLower($query))
+          AND (
+              (n.name IS NOT NULL AND toLower(toString(n.name)) CONTAINS toLower($query))
+              OR (n.title IS NOT NULL AND toLower(toString(n.title)) CONTAINS toLower($query))
+              OR (n.id IS NOT NULL AND toLower(toString(n.id)) CONTAINS toLower($query))
+              OR (n.uri IS NOT NULL AND toLower(toString(n.uri)) CONTAINS toLower($query))
+              OR (n.code IS NOT NULL AND toLower(toString(n.code)) CONTAINS toLower($query))
+              OR (n.symbol IS NOT NULL AND toLower(toString(n.symbol)) CONTAINS toLower($query))
+              OR (n.alias IS NOT NULL AND toLower(toString(n.alias)) CONTAINS toLower($query))
+              OR (n.content_preview IS NOT NULL AND toLower(toString(n.content_preview)) CONTAINS toLower($query))
+              OR (n.content IS NOT NULL AND toLower(toString(n.content)) CONTAINS toLower($query))
+              OR (n.memory_id IS NOT NULL AND toLower(toString(n.memory_id)) CONTAINS toLower($query))
+          )
         RETURN elementId(n) AS node_id,
                labels(n) AS labels,
-               coalesce(n.name, n.title, n.id, n.uri, elementId(n)) AS display_name,
+               coalesce(n.name, n.title, n.id, n.uri, n.code, elementId(n)) AS display_name,
                coalesce(n.source_id, '') AS source_id,
                coalesce(n.memory_id, n.source_id, '') AS memory_id
         LIMIT $limit
@@ -813,7 +835,6 @@ class SemanticEntityResolver:
             db_name,
             query,
             params={
-                "properties": list(ENTITY_PROPERTIES),
                 "query": entity_text,
                 "limit": self.candidate_limit,
                 "workspace_id": workspace_id,
@@ -924,7 +945,38 @@ class SemanticEntityResolver:
     def _clean_span(value: str) -> str:
         cleaned = re.sub(r"\s+", " ", value.strip())
         cleaned = cleaned.strip(".,:;!?()[]{}")
+        cleaned = re.sub(r"'s\b", "", cleaned, flags=re.IGNORECASE)
+        tokens = cleaned.split()
+        while len(tokens) > 1 and tokens[0].lower() in LEADING_ENTITY_WRAPPER_TOKENS:
+            tokens = tokens[1:]
+        cleaned = " ".join(tokens).strip()
         return cleaned
+
+    @classmethod
+    def _candidate_lookup_terms(cls, entity_text: str, resolved_text: str) -> List[str]:
+        terms: List[str] = []
+        seen: Set[str] = set()
+        for raw in (resolved_text, entity_text):
+            cleaned = cls._clean_span(raw)
+            if not cleaned:
+                continue
+            normalized = cls._normalize(cleaned)
+            if not normalized or normalized in seen:
+                continue
+            seen.add(normalized)
+            terms.append(cleaned)
+
+        for raw in (resolved_text, entity_text):
+            compact = re.sub(r"\b(corporation|corp|company|co|incorporated)\b\.?", "", raw, flags=re.IGNORECASE)
+            compact = cls._clean_span(compact)
+            if not compact:
+                continue
+            normalized = cls._normalize(compact)
+            if not normalized or normalized in seen:
+                continue
+            seen.add(normalized)
+            terms.append(compact)
+        return terms
 
     @staticmethod
     def _normalize(value: str) -> str:

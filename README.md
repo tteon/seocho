@@ -3,16 +3,26 @@
 **Ontology-aligned middleware between your agents and your graph database.**
 
 [![PyPI](https://img.shields.io/pypi/v/seocho)](https://pypi.org/project/seocho/)
-[![Tests](https://img.shields.io/badge/tests-139%20passed-green)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Docs](https://img.shields.io/badge/Docs-seocho.blog-0f172a)](https://seocho.blog/docs/)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/tteon/seocho)
 [![Quickstart](https://img.shields.io/badge/Quickstart-5_min-2563eb)](https://seocho.blog/docs/quickstart/)
 [![Examples](https://img.shields.io/badge/Examples-SDK-0f766e)](https://seocho.blog/sdk/examples/)
-[![Architecture Deep Dive](https://img.shields.io/badge/Architecture-Deep_Dive-7c3aed)](https://seocho.blog/docs/architecture/)
 
-You declare the ontology. You call `add()` and `ask()`. SEOCHO keeps graph
-writes, semantic artifacts, and agent behavior aligned to that one schema
-contract across local SDK and runtime paths.
+You declare the ontology. You call `add()` and `ask()`.
+SEOCHO keeps graph writes, semantic artifacts, and agent behavior aligned
+to that one schema contract across local SDK and runtime paths.
+
+```mermaid
+flowchart LR
+    D["📄 Your docs"] --> E["Extraction"]
+    O{{"🧬 Ontology<br/>your schema"}} -.governs.-> E
+    O -.governs.-> V
+    E --> V["Validate<br/>+ readiness gate"]
+    V --> G[("Graph<br/>LadybugDB / DozerDB")]
+    G --> A["Ontology-grounded<br/>answers"]
+    style O fill:#fef3c7,stroke:#f59e0b,stroke-width:2px
+```
 
 SEOCHO is a fit when:
 
@@ -26,6 +36,7 @@ Start here:
 | If you want to... | Go here |
 |---|---|
 | get a first local success path | [Quickstart](docs/QUICKSTART.md) |
+| see a runnable usecase demo | [Usecases](docs/USECASES.md) |
 | bring your own ontology and files | [Apply Your Data](docs/APPLY_YOUR_DATA.md) |
 | use the Python SDK directly | [Python SDK Quickstart](docs/PYTHON_INTERFACE_QUICKSTART.md) |
 | inspect files, artifacts, and traces | [Files and Artifacts](docs/FILES_AND_ARTIFACTS.md) |
@@ -63,8 +74,6 @@ s.add("Marie Curie worked at the University of Paris.")
 print(s.ask("Where did Marie Curie work?"))
 ```
 
-Common next steps:
-
 Remote runtime client:
 
 ```python
@@ -74,16 +83,6 @@ client = Seocho.remote("http://localhost:8001")
 print(client.ask("What do we know about ACME?"))
 ```
 
-Promote the same ontology into runtime-safe artifacts:
-
-```python
-artifacts = s.approved_artifacts_from_ontology()
-prompt_context = s.prompt_context_from_ontology(
-    instructions=["Prefer finance ontology labels and relationships."]
-)
-draft = s.artifact_draft_from_ontology(name="finance_core_v1")
-```
-
 Run the local platform stack:
 
 ```bash
@@ -91,45 +90,24 @@ make setup-env
 make up
 ```
 
-Read next:
-
-- [Quickstart (docs)](docs/QUICKSTART.md)
-- [Apply Your Data](docs/APPLY_YOUR_DATA.md)
-- [Python SDK Quickstart](docs/PYTHON_INTERFACE_QUICKSTART.md)
-- [Files and Artifacts](docs/FILES_AND_ARTIFACTS.md)
-- [Why SEOCHO](docs/WHY_SEOCHO.md)
-- [Architecture Deep Dive](docs/ARCHITECTURE.md)
-- [Benchmarks](docs/BENCHMARKS.md)
-
-The bundled tutorial sample is for onboarding only. Internal benchmark and
-engineering loops should use a private finance corpus, not the tutorial sample.
-
-Scheduled Codex GitHub workflows are optional. If `OPENAI_API_KEY`,
-`SEOCHO_GITHUB_APP_ID`, or `SEOCHO_GITHUB_APP_PRIVATE_KEY` are not configured,
-the scheduled automation jobs skip cleanly; `Basic CI` remains the required
-repository check surface.
-
 ## Install Paths
 
 | Path | Install | What else you need |
 |------|---------|--------------------|
 | HTTP client mode | `pip install seocho` | a running SEOCHO runtime (`base_url=...`) |
-| Local SDK engine (published package) | `pip install "seocho[local]"` | provider credentials; Neo4j/DozerDB only if you pass a Bolt URI |
+| Local SDK engine | `pip install "seocho[local]"` | provider credentials; Neo4j/DozerDB only if you pass a Bolt URI |
 | Repository development | `pip install -e ".[dev]"` | local clone + test/tooling deps |
 | Offline ontology governance | `pip install "seocho[ontology]"` | local ontology files only |
 
-Notes:
-
-- `pip install seocho` is intentionally thin. It is enough for HTTP client mode and bundle consumption.
-- `Seocho.local(ontology)` defaults to embedded LadybugDB at `.seocho/local.lbug`; it does not require a running graph server.
-- DozerDB/Neo4j remains the production graph path: pass `graph="bolt://..."` or construct `Neo4jGraphStore(...)` explicitly.
-- `pip install "seocho[local]"` adds the dependencies needed for published-package local engine use without pulling the full repo development toolchain.
-- The fastest full local stack is still `make setup-env && make up`.
+- `pip install seocho` is intentionally thin — enough for HTTP client mode.
+- `Seocho.local(ontology)` defaults to embedded LadybugDB at `.seocho/local.lbug`.
+- DozerDB/Neo4j is the production graph path: pass `graph="bolt://..."` or construct `Neo4jGraphStore(...)` explicitly.
+- The fastest full local stack is `make setup-env && make up`.
 
 ## Why SEOCHO
 
-SEOCHO is built for graph-native teams that need a stronger contract between
-ontology, runtime, and agent behavior.
+Built for graph-native teams that need a stronger contract between ontology,
+runtime, and agent behavior.
 
 - ontology-first, not prompt-first
 - graph-native, not vector-only
@@ -139,83 +117,46 @@ ontology, runtime, and agent behavior.
 
 ## Architecture Overview
 
-Internally, the ontology layer is split into clear boundaries:
+Two planes share one ontology:
 
-- `seocho/ontology.py`: public schema facade
-- `seocho/ontology_serialization.py`: JSON-LD persistence
-- `seocho/ontology_artifacts.py`: runtime artifact and prompt-context promotion
-- `seocho/ontology_governance.py`: offline diff/check/export path
+- **Data Plane** (`seocho/index/`) — files → extraction → validation → graph write
+- **Control Plane** (`seocho/query/`) — ontology → prompt strategy → Cypher → answer synthesis
+- **Ontology** (`seocho/ontology.py`) — single source of truth for both planes, and for the runtime artifact contract
 
-`Seocho` itself is a facade: canonical query, agent, ontology, transport, and
-artifact helpers live under `seocho/*`, while `client.py` stays focused on the
-public SDK entrypoints. The server side follows the same rule:
-`runtime/agent_server.py` is the transport entrypoint, while shared runtime
-service composition lives in `runtime/server_runtime.py`. The legacy
-`extraction/*` modules now preserve flat import compatibility while the
-deployment shell migrates to `runtime/`. The current local compose service is
-still named `extraction-service`; the default `make up` path now runs it from
-an image-backed source snapshot so port `8001` matches a known build. The live
-bind-mount edit loop remains available behind `docker-compose.dev.yml` and
-`make up-live`.
-Local-mode orchestration now lives in `seocho/local_engine.py` so `client.py`
-does not keep expanding as a second canonical engine owner. Remote transport
-setup and runtime-bundle import/export glue now live in `seocho/client_remote.py`
-and `seocho/client_bundle.py` for the same reason.
+The `Seocho` class is a thin public facade. Canonical engine logic lives under
+`seocho/local_engine.py`, `seocho/client_remote.py`, and `seocho/client_bundle.py`
+so the facade stays small. Runtime transport is `runtime/agent_server.py`;
+shared runtime composition lives in `runtime/server_runtime.py`.
 
-Long-term, the overloaded `extraction/` package name is being retired in favor
-of a thinner `runtime/` deployment shell. The staged plan is documented in
+For the full story — control plane vs data plane, internal orchestration seams
+(`DomainEvent`, `IngestionFacade`, `QueryProxy`, `AgentFactory`,
+`AgentStateMachine`), and the staged `extraction/` → `runtime/` migration —
+see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and
 [docs/RUNTIME_PACKAGE_MIGRATION.md](docs/RUNTIME_PACKAGE_MIGRATION.md).
-
-Legacy extraction modules are being reduced to transport or compatibility
-adapters as canonical engine code moves under `seocho/*`. The shared extraction
-seam lives at `seocho/index/extraction_engine.py` — both the SDK and the server
-runtime call it instead of keeping a second prompt/normalization path.
-Deterministic runtime memory-graph shaping and semantic-artifact helpers live
-under `seocho/index/runtime_memory.py` and `seocho/index/runtime_artifacts.py`
-so runtime-only wrappers no longer own that logic outright.
-Basic CI also checks that extraction shims keep delegating to canonical
-`seocho/*` and `runtime/*` owners instead of quietly accreting new logic.
-The next modularization step uses internal seams such as `DomainEvent`,
-`IngestionFacade`, `QueryProxy`, `AgentFactory`, and `AgentStateMachine`
-without widening the public SDK surface.
-Current hot-path wiring is intentionally incremental:
-
-- `Seocho.add()` already enters `IngestionFacade` through `seocho/local_engine.py`
-- runtime semantic flow creation goes through the canonical `seocho.query.AgentFactory`
-- runtime graph reads and Cypher tool execution now pass through `QueryProxy`
-  - `QueryProxy` now normalizes legacy connector JSON/error payloads onto a
-    typed `list[dict]` row contract and emits explicit failure events when that
-    contract is violated
-- debate readiness summaries normalize onto `AgentStateMachine`
-
-The multi-agent debate specialist factory still lives behind the legacy
-`extraction/agent_factory.py` surface for now. That convergence step remains a
-follow-up, not part of the public SDK contract.
 
 ## Choose Your Runtime Shape
 
 | Mode | Constructor | Best for |
 |------|-------------|----------|
-| HTTP client mode | `Seocho(base_url="http://localhost:8001", workspace_id="default")` | consume an existing runtime over HTTP |
-| Embedded local mode | `Seocho.local(ontology)` | serverless hello world, SDK authoring, experiments |
-| Explicit local engine mode | `Seocho(ontology=..., graph_store=..., llm=...)` | direct graph-store control |
+| HTTP client | `Seocho(base_url="http://localhost:8001", workspace_id="default")` | consume an existing runtime over HTTP |
+| Embedded local | `Seocho.local(ontology)` | serverless hello world, SDK authoring, experiments |
+| Explicit local engine | `Seocho(ontology=..., graph_store=..., llm=...)` | direct graph-store control |
 | Local platform runtime | `make up` or `seocho serve` | UI + API + DozerDB on one machine |
 
-For production local engine mode, `Neo4jGraphStore` works against both Neo4j and DozerDB over Bolt:
+Core parameters you will hit early:
+
+- `base_url` — remote SEOCHO runtime root for HTTP client mode
+- `workspace_id` — logical scope passed through runtime-facing requests
+- `graph_store` — explicit graph store for local engine mode
+- `reasoning_mode` + `repair_budget` — bounded semantic repair loop for hard questions
+
+For production local engine, `Neo4jGraphStore` works against both Neo4j and DozerDB over Bolt:
 
 ```python
 from seocho.store import Neo4jGraphStore
 
 store = Neo4jGraphStore("bolt://localhost:7687", "neo4j", "password")
 ```
-
-Core runtime parameters you need to understand early:
-
-- `base_url`: remote SEOCHO runtime root for HTTP client mode
-- `workspace_id`: logical scope passed through runtime-facing requests
-- `graph_store`: explicit graph store for local engine mode; `Seocho.local(...)` creates an embedded store by default
-- `reasoning_mode`: bounded semantic repair loop for hard questions
-- `repair_budget`: max additional repair attempts when retrieval is insufficient
 
 ## Common Use Cases
 
@@ -250,13 +191,11 @@ client = Seocho(
     llm=OpenAIBackend(model="gpt-4o-mini"),
     workspace_id="default",
 )
-
 client.add("ACME acquired Beta in 2024.")
 print(client.ask("Who did ACME acquire?", reasoning_mode=True, repair_budget=2))
 ```
 
-The same ontology object can also be promoted into the runtime artifact
-contract instead of maintaining a second schema representation:
+### 4. Promote the same ontology into runtime artifacts
 
 ```python
 artifacts = client.approved_artifacts_from_ontology()
@@ -264,22 +203,14 @@ prompt_context = client.prompt_context_from_ontology(
     instructions=["Prefer finance ontology labels and relationships."]
 )
 draft = client.artifact_draft_from_ontology(name="finance_core_v1")
-
-client.add_with_details(
-    "ACME acquired Beta in 2024.",
-    prompt_context=prompt_context,
-    approved_artifacts=artifacts,
-)
 ```
 
-### 4. Run the local platform stack with UI + API + graph DB
+### 5. Run the local platform stack with UI + API + graph DB
 
 ```bash
 make setup-env
 make up
 ```
-
-Then open:
 
 - UI: `http://localhost:8501`
 - API docs: `http://localhost:8001/docs`
@@ -295,124 +226,52 @@ See [docs/FILES_AND_ARTIFACTS.md](docs/FILES_AND_ARTIFACTS.md) for where
 | **Extraction** | Entity types + relationships in LLM prompt |
 | **Querying** | Schema-aware Cypher generation and repair prompts |
 | **Validation** | SHACL shapes derived → catches type/cardinality errors |
-| **Constraints** | UNIQUE/INDEX generated from ontology and can be applied to Neo4j |
+| **Constraints** | UNIQUE/INDEX generated from ontology, applied to Neo4j |
 | **Denormalization** | Cardinality rules determine safe flattening |
-| **Glossary** | SKOS-style vocabulary terms, aliases, and hidden labels are compiled into the ontology context identity |
+| **Glossary** | SKOS-style vocabulary terms, aliases, and hidden labels compiled into the ontology context identity |
 | **Reasoning** | Optional low-quality retry re-extracts with ontology guidance |
-| **Runtime parity** | The same ontology can be converted into approved semantic artifacts and typed prompt context |
-| **Agent context** | A stable ontology context hash follows indexing, graph writes, query traces, and agent hand-off metadata |
+| **Runtime parity** | Same ontology can be converted into approved semantic artifacts and typed prompt context |
+| **Agent context** | Stable ontology context hash follows indexing, graph writes, query traces, and agent hand-off metadata |
 
-Local SDK writes now persist compact `_ontology_*` graph properties on nodes and
-relationships. Local queries and agent query tools compare the active ontology
-context hash with hashes already indexed in the graph and surface any mismatch
-in trace/tool metadata. This is a guardrail, not a hard blocker: it tells you
-when a graph may need re-indexing under the current ontology profile. HTTP
-runtime `search_with_context(...)`, `chat(...)`, and `semantic(...)` responses
-also expose `ontology_context_mismatch` so client code can audit graph/profile
-drift without dropping to raw API payloads. Router, debate, execution-plan, and
-platform chat responses expose the same field as a top-level typed SDK value,
-so application code can treat ontology/database parity as middleware metadata
-instead of scraping nested runtime payloads.
+Local SDK writes persist compact `_ontology_*` graph properties on nodes and
+relationships. Queries and agent tools compare the active ontology context
+hash with hashes in the graph and surface any mismatch as `ontology_context_mismatch`
+in trace/tool metadata — a guardrail that signals when a graph may need
+re-indexing under a new ontology profile.
 
 ## Key Features
 
 ```python
-# Index files from a directory
-s.index_directory("./my_data/")         # .txt, .md, .csv, .json, .jsonl, .pdf
+# Index a directory (supports .txt, .md, .csv, .json, .jsonl, .pdf)
+s.index_directory("./my_data/")
 
-# Category-specific extraction (auto-selects prompt)
-s.add(text, category="Financials")      # 8 filing-domain presets
+# Category-aware extraction (8 filing-domain presets)
+s.add(text, category="Financials")
 
 # Query with reasoning mode
 s.ask("question", reasoning_mode=True, repair_budget=2)
 
-# Multiple LLM providers
-from seocho.store import DeepSeekBackend, GrokBackend, KimiBackend, OpenAIBackend, QwenBackend
+# Swappable LLM providers (OpenAI, DeepSeek, Kimi, Grok, Qwen)
+from seocho.store import OpenAIBackend, DeepSeekBackend
+llm = OpenAIBackend(model="gpt-4o-mini")
 
-llm = OpenAIBackend(model="gpt-4o-mini")           # OpenAI
-llm = DeepSeekBackend(model="deepseek-chat")       # DeepSeek
-llm = KimiBackend(model="kimi-k2.5")               # Kimi
-llm = GrokBackend(model="grok-4.20-reasoning")     # Grok
-llm = QwenBackend(model="qwen-plus")               # Qwen via DashScope compatible-mode
-
-# Multi-ontology per database
-s.register_ontology("finance_db", finance_ontology)
-
-# Schema as code (JSON-LD canonical storage)
-ontology.to_jsonld("schema.jsonld")
-ontology = Ontology.from_jsonld("schema.jsonld")
-
-# Apply generated Neo4j constraints explicitly in local mode
-s.ensure_constraints(database="neo4j")
-
-# Offline ontology governance helpers
-# seocho ontology check --schema schema.jsonld
-# seocho ontology export --schema schema.jsonld --format shacl --output shacl.json
-# seocho ontology diff --left schema_v1.jsonld --right schema_v2.jsonld
-# diff output now includes package_id, recommended version bump, and migration warnings
-
-# Build runtime-safe semantic artifacts from the same ontology contract
-artifacts = s.approved_artifacts_from_ontology()
-draft = s.artifact_draft_from_ontology(name="finance_core_v1")
-prompt_context = s.prompt_context_from_ontology(
-    instructions=["Treat finance.core as authoritative."]
-)
-
-# Experiment workbench
-from seocho.experiment import Workbench
-wb = Workbench(input_texts=["text..."])
-wb.vary("ontology", ["v1.jsonld", "v2.jsonld"])
-wb.vary("model", ["gpt-4o", "gpt-4o-mini"])
-results = wb.run_all()
-print(results.leaderboard())
-
-# Pluggable tracing
-from seocho import enable_tracing, configure_tracing_from_env
-enable_tracing(backend="none")          # disable tracing explicitly
-enable_tracing(backend="console")       # stdout only
-enable_tracing(backend="jsonl")         # canonical neutral trace artifact
-enable_tracing(backend="opik")          # optional exporter (hosted or self-hosted)
-configure_tracing_from_env()            # SEOCHO_TRACE_BACKEND=none|console|jsonl|opik
-
-# Agent design configuration
-from seocho import AgentConfig, AGENT_PRESETS, Seocho
-onto = Ontology.from_jsonld("schema.jsonld")
-s = Seocho(ontology=onto, ..., agent_config=AGENT_PRESETS["strict"])
-
-# YAML-backed agent design (ontology slot is required)
-s = Seocho.from_agent_design(
-    "examples/agent_designs/planning_multi_agent_finance.yaml",
-    ontology=onto,
-    llm="openai/gpt-4o-mini",
-    workspace_id="finance-prod",
-)
-
-# Agent-level session (context persists across operations)
+# Agent session — context persists across add/ask within one session
 with s.session("my_analysis") as sess:
     sess.add("ACME acquired Beta in 2024.")
     sess.add("Beta provides risk analytics to ACME.")
     answer = sess.ask("What does ACME own or use?")
-    # → the same ontology from schema.jsonld drives indexing, query prompts, and session context
 
-# Optional: name the shared ontology profile used by indexing/query/agent metadata
-s = Seocho(ontology=onto, ..., ontology_profile="finance-core")
+# Schema as code (JSON-LD canonical storage + SHACL export)
+ontology.to_jsonld("schema.jsonld")
+ontology = Ontology.from_jsonld("schema.jsonld")
 
-# Supervisor with sub-agent hand-off (explicit opt-in)
-from seocho import RoutingPolicy
-s = Seocho(ontology=onto, ..., agent_config=AgentConfig(
-    execution_mode="supervisor", handoff=True,
-    routing_policy=RoutingPolicy(latency=0.1, token_efficiency=0.3, information_quality=0.6),
-))
-with s.session("auto") as sess:
-    sess.run("ACME acquired Beta in 2024.")  # → IndexingAgent
-    sess.run("What does ACME know about Beta?")  # → QueryAgent
-
-# Ontology merge (combine two schemas)
-finance = Ontology.from_jsonld("finance.jsonld")
-legal = Ontology.from_jsonld("legal.jsonld")
-combined = finance.merge(legal)  # union of nodes + relationships
-combined.to_jsonld("combined.jsonld")
+# Ontology merge + diff (for migration)
+combined = finance_onto.merge(legal_onto)
 ```
+
+For the rest — experiment workbench, tracing backends, supervisor + hand-off
+config, offline governance CLI, multi-ontology per database — see
+[seocho.blog/sdk](https://seocho.blog/sdk/).
 
 ## SDK Package Structure
 
@@ -420,58 +279,54 @@ combined.to_jsonld("combined.jsonld")
 seocho/
 ├── index/              ← Data Plane: putting data IN
 │   ├── pipeline.py     ← chunk → extract → validate → rule inference → write
-│   ├── linker.py       ← embedding-based entity relatedness (canonical)
+│   ├── linker.py       ← embedding-based entity relatedness
 │   └── file_reader.py  ← .txt/.md/.csv/.json/.jsonl/.pdf
 ├── query/              ← Control Plane: getting data OUT
 │   ├── strategy.py     ← ontology → LLM prompt generation (cached)
 │   └── cypher_builder.py ← deterministic Cypher from intent
 ├── store/              ← Storage backends
-│   ├── graph.py        ← Neo4j/DozerDB (with schema cache)
+│   ├── graph.py        ← Neo4j/DozerDB + LadybugDB
 │   ├── vector.py       ← FAISS / LanceDB
-│   └── llm.py          ← OpenAI, DeepSeek, Kimi, Grok
-├── rules.py            ← SHACL-like rule inference + validation (canonical)
-├── ontology.py         ← Schema: JSON-LD + SHACL + merge + migration + coverage
+│   └── llm.py          ← OpenAI, DeepSeek, Kimi, Grok, Qwen
+├── rules.py            ← SHACL-like rule inference + validation
+├── ontology.py         ← Schema: JSON-LD + SHACL + merge + migration
 ├── session.py          ← Agent session: context cache + hand-off
 ├── agents.py           ← IndexingAgent / QueryAgent / Supervisor
-├── tools.py            ← @function_tool definitions for agents
-├── agent_config.py     ← AgentConfig, RoutingPolicy, presets
-├── experiment.py       ← Workbench for parameter exploration
-├── tracing.py          ← Pluggable observability
-├── client_remote.py    ← HTTP transport/request helper behind the SDK facade
-├── client_bundle.py    ← Runtime-bundle import/export helper behind the facade
 ├── local_engine.py     ← Local-mode orchestration behind the SDK facade
+├── client_remote.py    ← HTTP transport behind the facade
+├── client_bundle.py    ← Runtime-bundle glue behind the facade
 └── client.py           ← Public SDK facade
 ```
 
 ## Three Ways to Use
 
-### Python SDK (developers)
+### Python SDK
 ```python
 from seocho import Seocho, Ontology, NodeDef, P
 ```
 
-### CLI (no code needed)
+### CLI
 ```bash
 seocho init                    # create ontology interactively
 seocho index ./data/           # index files
 seocho ask "your question"     # query
 seocho status                  # graph stats
-seocho experiment --input ...  # parameter exploration
 ```
 
-### Jupyter Notebook (data analysts)
+### Jupyter Notebook
 ```
 examples/quickstart.ipynb
 examples/bring_your_data.ipynb
+examples/finance-compliance/quickstart.py
 ```
 
 ## LPG and RDF Support
 
 ```python
-# LPG mode (default) — Cypher queries
+# LPG (default) — Cypher queries
 onto = Ontology(name="finance", graph_model="lpg", ...)
 
-# RDF mode — n10s Cypher (DozerDB + neosemantics)
+# RDF — n10s Cypher (DozerDB + neosemantics)
 onto = Ontology(name="fibo", graph_model="rdf",
                 namespace="https://spec.edmcouncil.org/fibo/", ...)
 ```
@@ -484,32 +339,27 @@ onto = Ontology(name="fibo", graph_model="rdf",
 | [SDK Overview](https://seocho.blog/sdk/) | SDK features and quick start |
 | [Ontology Guide](https://seocho.blog/sdk/ontology-guide/) | Schema design, JSON-LD, SHACL |
 | [API Reference](https://seocho.blog/sdk/api-reference/) | Complete method reference |
-| [Examples](https://seocho.blog/sdk/examples/) | Real-world patterns |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute |
+| [docs/USECASES.md](docs/USECASES.md) | Runnable usecase demos |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture |
 | [docs/FILES_AND_ARTIFACTS.md](docs/FILES_AND_ARTIFACTS.md) | Where ontology, rule, trace, and runtime files live |
 | [docs/BENCHMARKS.md](docs/BENCHMARKS.md) | Private finance corpus and GraphRAG-Bench evaluation tracks |
 | [docs/WORKFLOW.md](docs/WORKFLOW.md) | Operational workflow |
 | [docs/ISSUE_TASK_SYSTEM.md](docs/ISSUE_TASK_SYSTEM.md) | Sprint/task governance |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute |
 
-## Observability Modes
+## Observability
 
-- `none`: no tracing; smallest surface and lowest data retention risk.
-- `console`: ephemeral stdout debugging for local development.
-- `jsonl`: canonical neutral trace artifact for local files, replay, and vendor-neutral retention.
-- `opik`: optional exporter/backend for hosted or self-hosted team observability.
+Pluggable tracing backends selectable at runtime or via `SEOCHO_TRACE_BACKEND`:
 
-Recommended defaults:
+- `none` — no tracing; smallest surface
+- `console` — ephemeral stdout for local dev
+- `jsonl` — canonical neutral trace artifact; file-based retention
+- `opik` — optional exporter (hosted or self-hosted); `SEOCHO_TRACE_OPIK_MODE=self_host` for private infra
 
-- sensitive data or simple local usage: `none` or `jsonl`
-- team debugging and evaluation: `jsonl + opik`
-- private infra: self-hosted Opik with `SEOCHO_TRACE_OPIK_MODE=self_host`
-
-Retention and privacy guidance:
-
-- JSONL retention follows your filesystem policy; rotate or delete trace files explicitly.
-- Opik retention follows the target Opik deployment policy, whether hosted or self-hosted.
-- prompts, retrieval evidence, and metadata may appear in traces; avoid remote exporters for sensitive workloads unless governance is approved.
+Sensitive workloads: prefer `none` or `jsonl`. Prompts, retrieval evidence,
+and metadata may appear in traces — route remote exporters through your
+governance review. More detail at
+[docs/FILES_AND_ARTIFACTS.md](docs/FILES_AND_ARTIFACTS.md).
 
 ## Server Mode (Platform Operators)
 
@@ -522,17 +372,16 @@ make setup-env && make up
 # DozerDB: http://localhost:7474
 ```
 
-Default `make up` starts the core local stack only:
-
-- `neo4j`
-- `extraction-service`
-- `evaluation-interface`
-
-The old `semantic-service` remains available as an opt-in legacy profile:
+Default `make up` starts the core local stack: `neo4j`, `extraction-service`,
+`evaluation-interface`. The legacy `semantic-service` is opt-in:
 
 ```bash
 docker compose --profile legacy-semantic up -d semantic-service
 ```
+
+Scheduled Codex workflows skip cleanly when `OPENAI_API_KEY` /
+`SEOCHO_GITHUB_APP_ID` / `SEOCHO_GITHUB_APP_PRIVATE_KEY` are unset.
+`Basic CI` remains the required repository check surface.
 
 See [docs/QUICKSTART.md](docs/QUICKSTART.md) for the full server setup guide.
 
@@ -545,11 +394,8 @@ scripts/pm/install-git-hooks.sh
 python -m pytest seocho/tests/ -q
 ```
 
-For runtime-package migration work, also run
-`bash scripts/ci/check-runtime-shell-contract.sh`.
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/WORKFLOW.md](docs/WORKFLOW.md)
-for the full guide.
+Pick a usecase to build around: [docs/USECASES.md](docs/USECASES.md).
+Full guide in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 

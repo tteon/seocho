@@ -80,6 +80,7 @@ outputs/
 data/
 neo4j/data/
 neo4j/logs/
+.dolt/
 *.db
 neostore*
 *.lock

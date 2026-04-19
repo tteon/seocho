@@ -128,14 +128,13 @@ Semantic path summary:
 - run sprint label lint (`scripts/pm/lint-items.sh --sprint <id>`)
 - run agent docs lint (`scripts/pm/lint-agent-docs.sh`)
 - release or hand off any Gastown reservation before merge
-- close issue, rebase, sync, push
+- close issue, rebase, bootstrap, push
 - verify branch is up to date with origin
 
 Operational notes:
 
-- use `scripts/pm/lint-items.sh` with internal `bd --no-daemon` execution to avoid local daemon startup stalls.
-- when using git worktrees, prefer `BEADS_NO_DAEMON=1` to prevent daemon writes
-  landing in the wrong worktree
+- use `scripts/pm/lint-items.sh` with internal `bd --sandbox` execution so linting reads the local workspace without extra auto-sync behavior.
+- when using git worktrees, prefer `bd --sandbox ...` for repo-local issue operations to avoid cross-worktree side effects
 - current dev quality gates in `Makefile` run against `extraction-service`.
 - default `make up` now rebuilds an image-backed `extraction-service` so the
   running runtime matches a known source snapshot.

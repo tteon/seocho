@@ -9,9 +9,19 @@
 daemon.lock
 daemon.log
 daemon.pid
+daemon.*
 bd.sock
+bd.sock.startlock
 sync-state.json
 last-touched
+dolt-server.pid
+dolt-server.log
+dolt-server.lock
+dolt-server.port
+dolt-access.lock
+*.lock
+*.corrupt.backup/
+ephemeral.sqlite3
 
 # Local version tracking (prevents upgrade notification spam after git ops)
 .local_version
@@ -37,12 +47,14 @@ beads.right.meta.json
 .sync.lock
 sync_base.jsonl
 export-state/
+dolt/
 
 # Process semaphore slot files (runtime concurrency limiting)
 sem/
+interactions.jsonl
 
 # NOTE: Do NOT add negation patterns (e.g., !issues.jsonl) here.
 # They would override fork protection in .git/info/exclude, allowing
 # contributors to accidentally commit upstream issue databases.
-# The JSONL files (issues.jsonl, interactions.jsonl) and config files
-# are tracked by git by default since no pattern above ignores them.
+# issues.jsonl and config files remain tracked by git by default.
+# interactions.jsonl is local runtime output and should stay untracked.

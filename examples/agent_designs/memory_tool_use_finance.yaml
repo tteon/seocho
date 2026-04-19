@@ -1,0 +1,25 @@
+name: memory-tool-use-finance
+pattern: memory_tool_use
+description: >
+  Maintain finance conversation context across turns while using graph and
+  filing lookup tools under one stable ontology profile.
+ontology:
+  required: true
+  profile: finance-session
+agent:
+  execution_mode: agent
+  reasoning_mode: true
+query:
+  answer_style: concise
+  query_strategy: template
+indexing:
+  extraction_strategy: general
+  linking_strategy: embedding
+  validation_on_fail: warn
+tools:
+  - graph_query
+  - memory_search
+  - filing_search
+memory:
+  persist_session_context: true
+  keep_last_turns: 12

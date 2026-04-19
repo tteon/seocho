@@ -55,6 +55,10 @@ _METRIC_TOKEN_STOPWORDS = {
     "what", "was", "is", "the", "of", "in", "for", "did", "does", "how", "much",
     "many", "by", "show", "tell", "me", "and", "or", "fiscal", "year", "years",
     "vs", "versus", "compared", "prior", "previous",
+    # Explanation-style finance prompts should not turn causal wording into
+    # hard metric-name filters.
+    "drive", "drives", "drove", "driven", "cause", "caused", "causes",
+    "expand", "expanded", "expansion", "explain", "explained", "reason", "reasons",
 }
 _GENERIC_METRIC_TOKENS = {
     "revenue", "revenues", "rev", "income", "profit", "expense", "expenses",

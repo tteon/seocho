@@ -483,6 +483,7 @@ class SemanticRunResponse(JsonSerializable):
     strategy_decision: Dict[str, Any] = field(default_factory=dict)
     run_metadata: Dict[str, Any] = field(default_factory=dict)
     evidence_bundle: Dict[str, Any] = field(default_factory=dict)
+    reasoning_cycle: Dict[str, Any] = field(default_factory=dict)
     ontology_context_mismatch: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
@@ -498,6 +499,7 @@ class SemanticRunResponse(JsonSerializable):
             strategy_decision=dict(payload.get("strategy_decision", {})),
             run_metadata=dict(payload.get("run_metadata", {})),
             evidence_bundle=dict(payload.get("evidence_bundle", {})),
+            reasoning_cycle=dict(payload.get("reasoning_cycle", {})),
             ontology_context_mismatch=dict(payload.get("ontology_context_mismatch", {})),
         )
 
@@ -587,6 +589,7 @@ class DebateRunResponse(JsonSerializable):
     agent_statuses: List[Dict[str, str]] = field(default_factory=list)
     debate_state: str = "ready"
     degraded: bool = False
+    reasoning_cycle: Dict[str, Any] = field(default_factory=dict)
     ontology_context_mismatch: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
@@ -598,6 +601,7 @@ class DebateRunResponse(JsonSerializable):
             agent_statuses=list(payload.get("agent_statuses", [])),
             debate_state=str(payload.get("debate_state", "ready")),
             degraded=bool(payload.get("degraded", False)),
+            reasoning_cycle=dict(payload.get("reasoning_cycle", {})),
             ontology_context_mismatch=dict(payload.get("ontology_context_mismatch", {})),
         )
 

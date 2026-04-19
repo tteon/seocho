@@ -1487,9 +1487,15 @@ class Seocho:
         *,
         user_id: Optional[str] = None,
         graph_ids: Optional[Sequence[GraphRef | GraphTarget | Dict[str, Any] | str]] = None,
+        reasoning_cycle: Optional[Dict[str, Any]] = None,
     ) -> DebateRunResponse:
         """Run the explicit advanced multi-agent debate path."""
-        return self.debate(query, user_id=user_id, graph_ids=graph_ids)
+        return self.debate(
+            query,
+            user_id=user_id,
+            graph_ids=graph_ids,
+            reasoning_cycle=reasoning_cycle,
+        )
 
     def semantic(
         self,
@@ -1501,6 +1507,7 @@ class Seocho:
         entity_overrides: Optional[Sequence[EntityOverride | Dict[str, Any]]] = None,
         reasoning_mode: bool = False,
         repair_budget: int = 0,
+        reasoning_cycle: Optional[Dict[str, Any]] = None,
     ) -> SemanticRunResponse:
         """Run the semantic query path with ontology-aware Cypher generation.
 
@@ -1537,6 +1544,7 @@ class Seocho:
             default_user_id=self.user_id,
             user_id=user_id,
             graph_ids=resolved_graph_ids,
+            reasoning_cycle=reasoning_cycle,
         )
         if resolved_databases:
             body["databases"] = resolved_databases
@@ -1555,6 +1563,7 @@ class Seocho:
         *,
         user_id: Optional[str] = None,
         graph_ids: Optional[Sequence[GraphRef | GraphTarget | Dict[str, Any] | str]] = None,
+        reasoning_cycle: Optional[Dict[str, Any]] = None,
     ) -> DebateRunResponse:
         """Run the multi-agent debate path for complex queries.
 
@@ -1583,6 +1592,7 @@ class Seocho:
             default_user_id=self.user_id,
             user_id=user_id,
             graph_ids=resolved_graph_ids,
+            reasoning_cycle=reasoning_cycle,
         )
         payload = self._request_json("POST", RuntimePath.RUN_DEBATE, json_body=body)
         return DebateRunResponse.from_dict(payload)

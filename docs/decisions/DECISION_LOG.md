@@ -554,6 +554,17 @@ Each entry must link to a full ADR when impact is non-trivial.
   - keep mirrored website docs home aligned with the same source-of-truth docs
     structure
 
+## 2026-04-19
+
+- Accepted `ADR-0087-indexing-design-specs-for-graph-model-aware-ingestion.md`
+  - introduce YAML-backed indexing design specs with required ontology binding,
+    explicit graph model, and explicit storage target
+  - treat inquiry-cycle reasoning as a bounded anomaly-driven contract where
+    abductive output stays candidate-only by default
+  - install LPG-specific extraction prompt shaping in the local SDK so
+    property-graph strengths are expressed during extraction rather than
+    reconstructed after the fact
+
 ## Template
 
 Use this block for new entries:

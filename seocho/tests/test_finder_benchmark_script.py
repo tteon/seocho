@@ -11,6 +11,10 @@ MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
 
 
+def test_default_dataset_path_exists():
+    assert MODULE._default_dataset_path().exists()
+
+
 def test_default_reasoning_cycle_payload_is_enabled_and_actionable():
     payload = MODULE._default_reasoning_cycle_payload()
 

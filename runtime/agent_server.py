@@ -946,14 +946,30 @@ async def platform_chat_send(request: PlatformChatRequest):
 
 @app.get(RuntimePath.PLATFORM_CHAT_SESSION, response_model=PlatformSessionResponse)
 @track("agent_server.platform_chat_session_get")
-async def platform_chat_session_get(session_id: str):
+async def platform_chat_session_get(
+    session_id: str,
+    workspace_id: str = Query(default="default", pattern=WORKSPACE_ID_PATTERN)
+):
+    try:
+        require_runtime_permission(role="user", action="run_platform", workspace_id=workspace_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
     history = [PlatformTurn(**row) for row in platform_session_store.get(session_id)]
     return PlatformSessionResponse(session_id=session_id, history=history)
 
 
 @app.delete(RuntimePath.PLATFORM_CHAT_SESSION, response_model=PlatformSessionResponse)
 @track("agent_server.platform_chat_session_reset")
-async def platform_chat_session_reset(session_id: str):
+async def platform_chat_session_reset(
+    session_id: str,
+    workspace_id: str = Query(default="default", pattern=WORKSPACE_ID_PATTERN)
+):
+    try:
+        require_runtime_permission(role="user", action="run_platform", workspace_id=workspace_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
     platform_session_store.clear(session_id)
     return PlatformSessionResponse(session_id=session_id, history=[])
 
@@ -1505,20 +1521,38 @@ async def batch_health():
 
 
 @app.get(RuntimePath.DATABASES)
-async def list_databases():
+async def list_databases(
+    workspace_id: str = Query(default="default", pattern=WORKSPACE_ID_PATTERN)
+):
     """List all registered databases."""
+    try:
+        require_runtime_permission(role="viewer", action="read_databases", workspace_id=workspace_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     return {"databases": db_registry.list_databases()}
 
 
 @app.get(RuntimePath.GRAPHS)
-async def list_graphs():
+async def list_graphs(
+    workspace_id: str = Query(default="default", pattern=WORKSPACE_ID_PATTERN)
+):
     """List registered graph targets."""
+    try:
+        require_runtime_permission(role="viewer", action="read_databases", workspace_id=workspace_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     return {"graphs": [target.to_public_dict() for target in graph_registry.list_graphs()]}
 
 
 @app.get(RuntimePath.AGENTS)
-async def list_agents():
+async def list_agents(
+    workspace_id: str = Query(default="default", pattern=WORKSPACE_ID_PATTERN)
+):
     """List all active DB-bound agents."""
+    try:
+        require_runtime_permission(role="viewer", action="read_agents", workspace_id=workspace_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     return {"agents": agent_factory.list_agents()}
 
 

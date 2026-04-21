@@ -45,7 +45,7 @@ def _load_dotenv(path: Path) -> None:
 
 
 def _default_dataset_path() -> Path:
-    return ROOT / "examples" / "datasets" / "tutorial_filings_sample.json"
+    return ROOT / "examples" / "datasets" / "finder_sample.json"
 
 
 def _output_dir() -> Path:

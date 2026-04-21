@@ -106,6 +106,10 @@ UV_CACHE_DIR=/tmp/uv-cache-cognee uv pip install --python /tmp/cognee-bench-uv/b
 uv run python scripts/benchmarks/compare_finder_artifacts.py \
   outputs/evaluation/finder_benchmark/finder_benchmark_*.json \
   outputs/evaluation/finder_benchmark/cognee_finder_benchmark_*.json
+
+uv run python scripts/benchmarks/score_finder_artifacts.py \
+  outputs/evaluation/finder_benchmark/finder_benchmark_*.json \
+  outputs/evaluation/finder_benchmark/cognee_finder_benchmark_*.json
 ```
 
 Interpretation:
@@ -128,6 +132,13 @@ Interpretation:
   - `remember()` runs with `self_improvement=false` by default to stay closer to SEOCHO's `add()` hot path
   - node/edge deltas are measured directly from the per-run Kuzu graph file
 - `compare_finder_artifacts.py` flattens SEOCHO and Cognee benchmark JSON into a side-by-side metric table
+- `score_finder_artifacts.py` converts those metrics into engineering gates:
+  - `answer_quality`: `contains_match_rate >= 0.90` is good; `< 0.75` is bad
+  - `indexing_latency`: `add p50 <= 10s` is good; `> 20s` is bad
+  - `query_latency`: `ask p50 <= 1.5s` is good; `> 3s` is bad
+  - `graph_projection`: at least `5 nodes/doc` and `4 relationships/doc` is good
+  - `reliability`: any benchmark failure is bad
+  - overall verdict is `good`, `usable_with_gaps`, `needs_work`, or `not_ready`
 - runtime database names used by benchmark harnesses must match the runtime contract:
   - lowercase alphanumeric only
   - start with a letter

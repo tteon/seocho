@@ -76,7 +76,6 @@ Rule:
 FinDER-specific engineering loop:
 
 - use a user-supplied FinDER-format dataset with `scripts/benchmarks/run_finder_benchmark.py`
-- use `scripts/benchmarks/run_cognee_finder_benchmark.py` for a local Cognee peer baseline on the same FinDER slice
 - split runs into:
   - `--scenario beginner` for mostly single-hop qualitative onboarding flows
   - `--scenario advanced` for financial delta/compositional/legal synthesis flows
@@ -94,18 +93,6 @@ uv run python scripts/benchmarks/run_finder_benchmark.py \
   --dataset /path/to/finder_sample.json \
   --mode remote \
   --scenario advanced
-
-UV_CACHE_DIR=/tmp/uv-cache-cognee uv venv /tmp/cognee-bench-uv
-UV_CACHE_DIR=/tmp/uv-cache-cognee uv pip install --python /tmp/cognee-bench-uv/bin/python cognee
-/tmp/cognee-bench-uv/bin/python scripts/benchmarks/run_cognee_finder_benchmark.py \
-  --dataset /path/to/finder_sample.json \
-  --scenario advanced \
-  --embedding-model text-embedding-3-large \
-  --skip-connection-test
-
-uv run python scripts/benchmarks/compare_finder_artifacts.py \
-  outputs/evaluation/finder_benchmark/finder_benchmark_*.json \
-  outputs/evaluation/finder_benchmark/cognee_finder_benchmark_*.json
 ```
 
 Interpretation:
@@ -121,13 +108,6 @@ Interpretation:
   - `/run_agent_semantic`
   - `/run_debate`
   - `/platform/chat/send` with `mode=semantic`
-- `run_cognee_finder_benchmark.py` uses Cognee's local default stack (`SQLite + LanceDB + Kuzu`)
-  - the script normalizes the provider surface to OpenAI for both LLM and embeddings
-  - `--embedding-model text-embedding-3-large` avoids Cognee's 3072-dimension default conflicting with `text-embedding-3-small`
-  - `--skip-connection-test` keeps the score focused on `remember()`/`recall()` pipeline work instead of startup connectivity probes
-  - `remember()` runs with `self_improvement=false` by default to stay closer to SEOCHO's `add()` hot path
-  - node/edge deltas are measured directly from the per-run Kuzu graph file
-- `compare_finder_artifacts.py` flattens SEOCHO and Cognee benchmark JSON into a side-by-side metric table
 - runtime database names used by benchmark harnesses must match the runtime contract:
   - lowercase alphanumeric only
   - start with a letter

@@ -64,3 +64,37 @@ def test_score_artifacts_flattens_all_summaries(tmp_path):
     assert rows[0]["scenario"] == "advanced"
     assert rows[0]["overall"] == "needs_work"
     assert rows[0]["score"]["indexing_latency"] == "bad"
+
+
+def test_score_artifacts_can_group_by_category(tmp_path):
+    artifact = tmp_path / "finder.json"
+    artifact.write_text(
+        json.dumps(
+            {
+                "scenario": "all",
+                "summaries": [
+                    {
+                        "mode": "local",
+                        "records": [
+                            {
+                                "category": "Financials",
+                                "add_latency_ms": 12_000.0,
+                                "ask_latency_ms": 1_000.0,
+                                "contains_match": True,
+                                "exact_match": False,
+                                "nodes_created": 6,
+                                "relationships_created": 5,
+                                "error": "",
+                            }
+                        ],
+                    }
+                ],
+            }
+        )
+    )
+
+    rows = MODULE._score_artifacts([artifact], group_by="category")
+
+    assert rows[0]["category"] == "Financials"
+    assert rows[0]["score"]["answer_quality"] == "good"
+    assert rows[0]["score"]["indexing_latency"] == "watch"

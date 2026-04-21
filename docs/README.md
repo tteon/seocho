@@ -50,6 +50,7 @@ Recommended onboarding order:
 ## Architecture And Operations
 
 - [ARCHITECTURE.md](ARCHITECTURE.md): system architecture and runtime/module map
+- [INTERNAL_CLASS_DESIGN.md](INTERNAL_CLASS_DESIGN.md): core internal component relationships and bounded context boundaries
 - [RUNTIME_PACKAGE_MIGRATION.md](RUNTIME_PACKAGE_MIGRATION.md): staged
   `extraction/` to `runtime/` migration plan
 - [GRAPH_RAG_AGENT_HANDOFF_SPEC.md](GRAPH_RAG_AGENT_HANDOFF_SPEC.md):

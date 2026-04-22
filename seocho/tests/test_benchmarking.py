@@ -15,7 +15,11 @@ from seocho.benchmarking import (
     summarize_finance_contract_findings,
     summarize_finance_records,
 )
-from scripts.benchmarks.run_finder_benchmark import _local_graph_path_for_run
+from scripts.benchmarks.run_finder_benchmark import (
+    _benchmark_setup_payload,
+    _extract_agent_metrics,
+    _local_graph_path_for_run,
+)
 
 
 class _FakeMemory:
@@ -119,6 +123,30 @@ def test_compare_answers_treats_scaled_numeric_units_as_equivalent():
     assert contains is True
 
 
+def test_compare_answers_tolerates_omitted_financial_unit_when_slots_match():
+    exact, contains = compare_answers(
+        (
+            "The Data and Access Solutions revenue increased by $111.5 million "
+            "from 2021 to 2023, calculated as 539.2 million minus 427.7 million."
+        ),
+        (
+            "For Cboe Global Markets, Inc., Data and Access Solutions revenue "
+            "increased by $111.5 from 2021 to 2023, calculated as $539.2 minus $427.7."
+        ),
+    )
+    assert exact is False
+    assert contains is True
+
+
+def test_compare_answers_accepts_short_standard_answer_with_key_slot():
+    exact, contains = compare_answers(
+        "Meta uses the fair value method for stock-based compensation under ASC 718.",
+        "Meta follows ASC 718 for stock-based compensation.",
+    )
+    assert exact is False
+    assert contains is True
+
+
 def test_run_finance_benchmark_summarizes_latencies_and_matches():
     cases = [
         FinanceBenchmarkCase(
@@ -185,6 +213,7 @@ def test_run_finder_benchmark_summarizes_latencies_and_matches():
     assert summary.record_count == 2
     assert summary.failure_count == 0
     assert summary.contains_match_rate == 1.0
+    assert summary.records[0].question == "What was PTC's revenue growth in fiscal 2023?"
     assert summary.avg_nodes_created == 2.0
     assert summary.avg_relationships_created == 1.0
 
@@ -237,6 +266,49 @@ def test_run_finder_benchmark_aggregates_reasoning_cycle_findings():
     assert summary.records[0].reasoning_cycle_sources == ["shacl_violation"]
     assert summary.reasoning_cycle_status_counts["anomaly_detected"] == 1
     assert summary.reasoning_cycle_source_counts["shacl_violation"] == 1
+
+
+def test_summarize_finder_records_aggregates_agent_metrics():
+    from seocho.benchmarking import FinDERBenchmarkRecord
+
+    summary = summarize_finder_records(
+        mode="remote-semantic",
+        dataset="finder_sample.json",
+        records=[
+            FinDERBenchmarkRecord(
+                case_id="finder_012",
+                category="Financials",
+                question="What changed?",
+                add_latency_ms=10.0,
+                ask_latency_ms=20.0,
+                answer="answer",
+                expected_answer="answer",
+                exact_match=True,
+                contains_match=True,
+                route="lpg",
+                support_status="partial",
+                missing_slots=["period", "metric"],
+                evidence_bundle_size=4,
+                trace_step_count=6,
+                tool_call_count=2,
+                reasoning_attempt_count=1,
+                semantic_reused=True,
+                debate_state="ready",
+                token_usage={"total_tokens_est": 120},
+            )
+        ],
+    )
+
+    assert summary.route_counts == {"lpg": 1}
+    assert summary.support_status_counts == {"partial": 1}
+    assert summary.debate_state_counts == {"ready": 1}
+    assert summary.missing_slot_counts == {"period": 1, "metric": 1}
+    assert summary.semantic_reuse_count == 1
+    assert summary.avg_trace_step_count == 6.0
+    assert summary.avg_tool_call_count == 2.0
+    assert summary.avg_reasoning_attempt_count == 1.0
+    assert summary.avg_evidence_bundle_size == 4.0
+    assert summary.avg_total_tokens_est == 120.0
 
 
 def test_run_finance_benchmark_records_failures():
@@ -459,3 +531,81 @@ def test_local_graph_path_for_run_removes_stale_file_when_fresh(tmp_path):
 
     assert path == str(stale_path)
     assert not stale_path.exists()
+
+
+def test_finder_benchmark_setup_payload_records_model_and_trace_env(monkeypatch):
+    class _Args:
+        model = "gpt-4o-mini"
+
+    monkeypatch.setenv("SEOCHO_TRACE_BACKEND", "opik")
+    monkeypatch.setenv("OPIK_PROJECT_NAME", "seocho-e2e")
+    monkeypatch.setenv("OPIK_WORKSPACE", "tteon")
+
+    payload = _benchmark_setup_payload(_Args(), tracing_configured=True)
+
+    assert payload["provider"] == "openai"
+    assert payload["model"] == "gpt-4o-mini"
+    assert payload["trace_backend_env"] == "opik"
+    assert payload["tracing_configured"] is True
+    assert payload["opik_project"] == "seocho-e2e"
+    assert payload["opik_workspace"] == "tteon"
+
+
+def test_extract_agent_metrics_from_semantic_runtime_payload():
+    metrics = _extract_agent_metrics(
+        {
+            "route": "lpg",
+            "support_assessment": {"status": "partial", "coverage": 0.5},
+            "evidence_bundle": {
+                "selected_triples": [{"source": "A", "relation": "R", "target": "B"}],
+                "slot_fills": {"target_entity": "B"},
+                "grounded_slots": ["target_entity"],
+                "missing_slots": ["period"],
+            },
+            "lpg_result": {"reasoning": {"attempt_count": 2}},
+            "trace_steps": [
+                {"type": "SEMANTIC", "metadata": {}},
+                {"type": "SPECIALIST", "metadata": {"tool_calls": [{"query": "MATCH"}]}},
+                {
+                    "type": "METRIC",
+                    "metadata": {
+                        "usage": {
+                            "source": "estimated_char_count",
+                            "total_tokens_est": 42,
+                        }
+                    },
+                },
+            ],
+        }
+    )
+
+    assert metrics["route"] == "lpg"
+    assert metrics["support_status"] == "partial"
+    assert metrics["support_coverage"] == 0.5
+    assert metrics["missing_slots"] == ["period"]
+    assert metrics["evidence_bundle_size"] == 3
+    assert metrics["trace_step_count"] == 3
+    assert metrics["tool_call_count"] == 1
+    assert metrics["reasoning_attempt_count"] == 2
+    assert metrics["token_usage"]["total_tokens_est"] == 42
+
+
+def test_extract_agent_metrics_detects_debate_semantic_reuse():
+    metrics = _extract_agent_metrics(
+        {
+            "runtime_payload": {
+                "debate_state": "ready",
+                "debate_results": [{"semantic_reused": True}],
+            },
+            "trace_steps": [
+                {"type": "FANOUT", "metadata": {}},
+                {"type": "DETERMINISTIC_PREFLIGHT", "metadata": {"tool_names": ["semantic_agent_flow"]}},
+                {"type": "SYNTHESIS_BYPASSED", "metadata": {"bypass_reason": "single_supported_semantic_reuse"}},
+            ],
+        }
+    )
+
+    assert metrics["debate_state"] == "ready"
+    assert metrics["semantic_reused"] is True
+    assert metrics["tool_call_count"] == 1
+    assert metrics["trace_step_count"] == 3

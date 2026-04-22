@@ -34,6 +34,8 @@ services:
     volumes:
       - ./notebooks:/app/notebooks
       - ./demos:/app/demos
+      - ./runtime:/app/runtime:ro
+      - ./seocho:/app/seocho:ro
     environment:
       # Container-internal hostname. Host-side SDK/scripts should use
       # NEO4J_URI=bolt://localhost:7687 in .env.

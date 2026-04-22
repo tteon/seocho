@@ -78,3 +78,5 @@ Recommended onboarding order:
 - `tteon.github.io/` mirrors selected pages for `https://seocho.blog`.
 - If a source doc changes materially, update the mirrored website page and
   validate drift with the website repo checks.
+
+- [INTERNAL_CLASS_DESIGN.md](INTERNAL_CLASS_DESIGN.md): Internal component separation map.

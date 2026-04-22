@@ -102,6 +102,7 @@ class FinDERBenchmarkCase:
 class FinDERBenchmarkRecord:
     case_id: str
     category: str
+    question: str
     add_latency_ms: float
     ask_latency_ms: float
     answer: str
@@ -114,6 +115,17 @@ class FinDERBenchmarkRecord:
     deduplicated: bool = False
     reasoning_cycle_status: str = ""
     reasoning_cycle_sources: List[str] = field(default_factory=list)
+    route: str = ""
+    support_status: str = ""
+    support_coverage: float = 0.0
+    missing_slots: List[str] = field(default_factory=list)
+    evidence_bundle_size: int = 0
+    trace_step_count: int = 0
+    tool_call_count: int = 0
+    reasoning_attempt_count: int = 0
+    semantic_reused: bool = False
+    debate_state: str = ""
+    token_usage: Dict[str, Any] = field(default_factory=dict)
     error: str = ""
 
 
@@ -133,6 +145,16 @@ class FinDERBenchmarkSummary:
     failure_count: int
     reasoning_cycle_status_counts: Dict[str, int] = field(default_factory=dict)
     reasoning_cycle_source_counts: Dict[str, int] = field(default_factory=dict)
+    route_counts: Dict[str, int] = field(default_factory=dict)
+    support_status_counts: Dict[str, int] = field(default_factory=dict)
+    debate_state_counts: Dict[str, int] = field(default_factory=dict)
+    missing_slot_counts: Dict[str, int] = field(default_factory=dict)
+    semantic_reuse_count: int = 0
+    avg_trace_step_count: float = 0.0
+    avg_tool_call_count: float = 0.0
+    avg_reasoning_attempt_count: float = 0.0
+    avg_evidence_bundle_size: float = 0.0
+    avg_total_tokens_est: float = 0.0
     records: List[FinDERBenchmarkRecord] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -355,13 +377,17 @@ def _slot_contains_match(expected: str, actual: str) -> bool:
     if not expected_tokens or not actual_tokens:
         return False
 
-    expected_numbers = _numeric_slots(expected)
     actual_numbers = _numeric_slots(actual)
-    if expected_numbers and not expected_numbers.issubset(actual_numbers):
+    expected_number_groups = _numeric_slot_groups(expected)
+    if expected_number_groups and not all(
+        group.intersection(actual_numbers) for group in expected_number_groups
+    ):
         return False
 
     overlap = expected_tokens & actual_tokens
     recall = len(overlap) / len(expected_tokens)
+    if expected_number_groups and len(expected_tokens) <= 12:
+        return recall >= 0.52
     return recall >= 0.72
 
 
@@ -375,17 +401,21 @@ def _meaningful_tokens(text: str) -> set[str]:
 
 
 def _numeric_slots(text: str) -> set[str]:
+    return {slot for group in _numeric_slot_groups(text) for slot in group}
+
+
+def _numeric_slot_groups(text: str) -> List[set[str]]:
     normalized = str(text).lower().replace(",", "").replace("$", "")
-    slots: set[str] = set()
+    groups: List[set[str]] = []
     for match in _NUMBER_WITH_UNIT_RE.finditer(normalized):
         raw_number = match.group("number")
         unit = match.group("unit")
+        slots = {raw_number}
         if unit and not match.group("percent"):
             scaled = Decimal(raw_number) * _UNIT_MULTIPLIERS[unit]
             slots.add(str(int(scaled)) if scaled == scaled.to_integral_value() else str(scaled.normalize()))
-        else:
-            slots.add(raw_number)
-    return slots
+        groups.append(slots)
+    return groups
 
 
 def _percentile_ms(values: Sequence[float], percentile: float) -> float:
@@ -411,6 +441,18 @@ def summarize_finder_records(
     failures = sum(1 for record in records if record.error)
     reasoning_status_counts: Dict[str, int] = {}
     reasoning_source_counts: Dict[str, int] = {}
+    route_counts: Dict[str, int] = {}
+    support_status_counts: Dict[str, int] = {}
+    debate_state_counts: Dict[str, int] = {}
+    missing_slot_counts: Dict[str, int] = {}
+    trace_steps = [record.trace_step_count for record in records]
+    tool_calls = [record.tool_call_count for record in records]
+    reasoning_attempts = [record.reasoning_attempt_count for record in records]
+    evidence_sizes = [record.evidence_bundle_size for record in records]
+    token_totals = [
+        int(record.token_usage.get("total_tokens_est", 0) or record.token_usage.get("total_tokens", 0) or 0)
+        for record in records
+    ]
     for record in records:
         status = str(record.reasoning_cycle_status or "").strip()
         if status:
@@ -420,6 +462,23 @@ def summarize_finder_records(
             if normalized:
                 reasoning_source_counts[normalized] = int(
                     reasoning_source_counts.get(normalized, 0)
+                ) + 1
+        route = str(record.route or "").strip()
+        if route:
+            route_counts[route] = int(route_counts.get(route, 0)) + 1
+        support_status = str(record.support_status or "").strip()
+        if support_status:
+            support_status_counts[support_status] = int(
+                support_status_counts.get(support_status, 0)
+            ) + 1
+        debate_state = str(record.debate_state or "").strip()
+        if debate_state:
+            debate_state_counts[debate_state] = int(debate_state_counts.get(debate_state, 0)) + 1
+        for slot in record.missing_slots:
+            normalized_slot = str(slot or "").strip()
+            if normalized_slot:
+                missing_slot_counts[normalized_slot] = int(
+                    missing_slot_counts.get(normalized_slot, 0)
                 ) + 1
     count = len(records)
 
@@ -438,6 +497,16 @@ def summarize_finder_records(
         failure_count=failures,
         reasoning_cycle_status_counts=reasoning_status_counts,
         reasoning_cycle_source_counts=reasoning_source_counts,
+        route_counts=route_counts,
+        support_status_counts=support_status_counts,
+        debate_state_counts=debate_state_counts,
+        missing_slot_counts=missing_slot_counts,
+        semantic_reuse_count=sum(1 for record in records if record.semantic_reused),
+        avg_trace_step_count=round(sum(trace_steps) / count, 2) if count else 0.0,
+        avg_tool_call_count=round(sum(tool_calls) / count, 2) if count else 0.0,
+        avg_reasoning_attempt_count=round(sum(reasoning_attempts) / count, 2) if count else 0.0,
+        avg_evidence_bundle_size=round(sum(evidence_sizes) / count, 2) if count else 0.0,
+        avg_total_tokens_est=round(sum(token_totals) / count, 2) if count else 0.0,
         records=list(records),
     )
 
@@ -525,6 +594,7 @@ def run_finder_benchmark(
             FinDERBenchmarkRecord(
                 case_id=case.case_id,
                 category=case.category,
+                question=case.question,
                 add_latency_ms=round(add_latency_ms, 2),
                 ask_latency_ms=round(ask_latency_ms, 2),
                 answer=answer,

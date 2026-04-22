@@ -28,6 +28,11 @@ from seocho.benchmarking import (  # noqa: E402
     run_finder_benchmark,
     summarize_finder_records,
 )
+from seocho.tracing import (  # noqa: E402
+    configure_tracing_from_env,
+    current_backend_names,
+    flush_tracing,
+)
 
 
 def _load_dotenv(path: Path) -> None:
@@ -118,6 +123,19 @@ def _write_summary(payload: dict) -> Path:
     return target
 
 
+def _benchmark_setup_payload(args: argparse.Namespace, *, tracing_configured: bool) -> dict:
+    active_trace_backends = current_backend_names()
+    return {
+        "provider": "openai",
+        "model": args.model,
+        "trace_backend_env": os.getenv("SEOCHO_TRACE_BACKEND", "none"),
+        "active_trace_backends": active_trace_backends,
+        "tracing_configured": tracing_configured,
+        "opik_project": os.getenv("OPIK_PROJECT_NAME", ""),
+        "opik_workspace": os.getenv("OPIK_WORKSPACE", ""),
+    }
+
+
 def _scenario_counts(cases: list) -> dict[str, int]:
     counts = {"beginner": 0, "advanced": 0}
     for case in cases:
@@ -191,6 +209,120 @@ def _extract_reasoning_cycle(payload: object) -> tuple[str, list[str]]:
         if isinstance(item, dict) and str(item.get("source", "")).strip()
     ]
     return status, sources
+
+
+def _runtime_payload(payload: object) -> dict:
+    if not isinstance(payload, dict):
+        return {}
+    runtime_payload = payload.get("runtime_payload")
+    if isinstance(runtime_payload, dict):
+        return runtime_payload
+    return payload
+
+
+def _extract_trace_steps(payload: object) -> list[dict]:
+    steps: list[dict] = []
+    if isinstance(payload, dict) and isinstance(payload.get("trace_steps"), list):
+        steps.extend(item for item in payload["trace_steps"] if isinstance(item, dict))
+    runtime_payload = _runtime_payload(payload)
+    if runtime_payload is not payload and isinstance(runtime_payload.get("trace_steps"), list):
+        steps.extend(item for item in runtime_payload["trace_steps"] if isinstance(item, dict))
+    return steps
+
+
+def _extract_evidence_bundle(payload: object) -> dict:
+    runtime_payload = _runtime_payload(payload)
+    if isinstance(runtime_payload.get("evidence_bundle"), dict):
+        return runtime_payload["evidence_bundle"]
+    semantic_context = runtime_payload.get("semantic_context")
+    if isinstance(semantic_context, dict) and isinstance(semantic_context.get("evidence_bundle_preview"), dict):
+        return semantic_context["evidence_bundle_preview"]
+    return {}
+
+
+def _evidence_bundle_size(bundle: dict) -> int:
+    selected = bundle.get("selected_triples", [])
+    slot_fills = bundle.get("slot_fills", {})
+    grounded = bundle.get("grounded_slots", [])
+    return (
+        (len(selected) if isinstance(selected, list) else 0)
+        + (len(slot_fills) if isinstance(slot_fills, dict) else 0)
+        + (len(grounded) if isinstance(grounded, list) else 0)
+    )
+
+
+def _extract_token_usage(trace_steps: list[dict]) -> dict:
+    for step in reversed(trace_steps):
+        metadata = step.get("metadata")
+        if not isinstance(metadata, dict):
+            continue
+        usage = metadata.get("usage")
+        if isinstance(usage, dict):
+            return dict(usage)
+    return {}
+
+
+def _extract_agent_metrics(payload: object) -> dict:
+    runtime_payload = _runtime_payload(payload)
+    trace_steps = _extract_trace_steps(payload)
+    support_assessment = runtime_payload.get("support_assessment")
+    if not isinstance(support_assessment, dict):
+        support_assessment = {}
+    evidence_bundle = _extract_evidence_bundle(payload)
+    missing_slots = evidence_bundle.get("missing_slots") or support_assessment.get("missing_slots") or []
+    if not isinstance(missing_slots, list):
+        missing_slots = []
+
+    tool_call_count = 0
+    reasoning_attempt_count = 0
+    semantic_reused = False
+    for step in trace_steps:
+        step_type = str(step.get("type", "")).strip()
+        if step_type in {"TOOL_CALL", "DETERMINISTIC_PREFLIGHT", "DETERMINISTIC_FALLBACK"}:
+            tool_call_count += 1
+        if step_type in {"DETERMINISTIC_PREFLIGHT", "DETERMINISTIC_FALLBACK", "SYNTHESIS_BYPASSED"}:
+            semantic_reused = True
+        metadata = step.get("metadata")
+        if isinstance(metadata, dict):
+            tool_names = metadata.get("tool_names")
+            if isinstance(tool_names, list) and step_type == "TOOL_CALL":
+                tool_call_count += max(0, len(tool_names) - 1)
+            repair_trace = metadata.get("tool_calls")
+            if isinstance(repair_trace, list):
+                tool_call_count += len(repair_trace)
+            reasoning_attempt_count = max(
+                reasoning_attempt_count,
+                int(metadata.get("reasoning_attempts", 0) or 0),
+            )
+
+    lpg_result = runtime_payload.get("lpg_result")
+    if isinstance(lpg_result, dict):
+        reasoning = lpg_result.get("reasoning")
+        if isinstance(reasoning, dict):
+            reasoning_attempt_count = max(
+                reasoning_attempt_count,
+                int(reasoning.get("attempt_count", 0) or 0),
+            )
+
+    debate_results = runtime_payload.get("debate_results")
+    if isinstance(debate_results, list):
+        semantic_reused = semantic_reused or any(
+            bool(item.get("semantic_reused")) for item in debate_results if isinstance(item, dict)
+        )
+
+    return {
+        "route": str(runtime_payload.get("route", "") or ""),
+        "support_status": str(support_assessment.get("status", "") or ""),
+        "support_coverage": float(support_assessment.get("coverage", 0.0) or 0.0),
+        "missing_slots": [str(slot) for slot in missing_slots if str(slot).strip()],
+        "evidence_bundle_size": _evidence_bundle_size(evidence_bundle),
+        "trace_step_count": len(trace_steps),
+        "tool_call_count": tool_call_count,
+        "reasoning_attempt_count": reasoning_attempt_count,
+        "semantic_reused": semantic_reused,
+        "debate_state": str(runtime_payload.get("debate_state", "") or ""),
+        "token_usage": _extract_token_usage(trace_steps),
+    }
 
 
 def _default_reasoning_cycle_payload() -> dict:
@@ -281,6 +413,19 @@ def _run_remote_endpoint_benchmark(
         contains = False
         reasoning_cycle_status = ""
         reasoning_cycle_sources: list[str] = []
+        agent_metrics = {
+            "route": "",
+            "support_status": "",
+            "support_coverage": 0.0,
+            "missing_slots": [],
+            "evidence_bundle_size": 0,
+            "trace_step_count": 0,
+            "tool_call_count": 0,
+            "reasoning_attempt_count": 0,
+            "semantic_reused": False,
+            "debate_state": "",
+            "token_usage": {},
+        }
         started = time.perf_counter()
         try:
             status_code, payload = _request_json(
@@ -294,6 +439,7 @@ def _run_remote_endpoint_benchmark(
             if 200 <= status_code < 300:
                 answer = _extract_answer(payload)
                 reasoning_cycle_status, reasoning_cycle_sources = _extract_reasoning_cycle(payload)
+                agent_metrics = _extract_agent_metrics(payload)
                 exact, contains = compare_answers(case.expected_answer, answer)
             else:
                 detail = payload.get("detail") if isinstance(payload, dict) else ""
@@ -306,6 +452,7 @@ def _run_remote_endpoint_benchmark(
             FinDERBenchmarkRecord(
                 case_id=case.case_id,
                 category=case.category,
+                question=case.question,
                 add_latency_ms=amortized_add_latency_ms,
                 ask_latency_ms=round(ask_latency_ms, 2),
                 answer=answer,
@@ -316,6 +463,17 @@ def _run_remote_endpoint_benchmark(
                 relationships_created=0,
                 reasoning_cycle_status=reasoning_cycle_status,
                 reasoning_cycle_sources=reasoning_cycle_sources,
+                route=str(agent_metrics["route"]),
+                support_status=str(agent_metrics["support_status"]),
+                support_coverage=float(agent_metrics["support_coverage"]),
+                missing_slots=list(agent_metrics["missing_slots"]),
+                evidence_bundle_size=int(agent_metrics["evidence_bundle_size"]),
+                trace_step_count=int(agent_metrics["trace_step_count"]),
+                tool_call_count=int(agent_metrics["tool_call_count"]),
+                reasoning_attempt_count=int(agent_metrics["reasoning_attempt_count"]),
+                semantic_reused=bool(agent_metrics["semantic_reused"]),
+                debate_state=str(agent_metrics["debate_state"]),
+                token_usage=dict(agent_metrics["token_usage"]),
                 error=error,
             )
         )
@@ -328,6 +486,7 @@ def _run_remote_endpoint_benchmark(
 
 def main() -> int:
     _load_dotenv(ROOT / ".env")
+    tracing_configured = configure_tracing_from_env()
     parser = argparse.ArgumentParser(description="Run the SEOCHO FinDER benchmark.")
     parser.add_argument("--mode", choices=("local", "remote", "both"), default="local")
     parser.add_argument(
@@ -451,6 +610,7 @@ def main() -> int:
     output = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "dataset": str(dataset_path),
+        "benchmark_setup": _benchmark_setup_payload(args, tracing_configured=tracing_configured),
         "database": args.database,
         "workspace_id": args.workspace_id,
         "scenario": args.scenario,
@@ -461,6 +621,7 @@ def main() -> int:
         "summaries": summaries,
     }
     path = _write_summary(output)
+    flush_tracing()
     print(
         json.dumps(
             {

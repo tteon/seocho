@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class PromptManager:
     def __init__(self, cfg: Any):
         self.cfg = cfg
-        default_history = Path(__file__).resolve().parent / "prompt_history.json"
+        default_history = Path(__file__).resolve().parent / "prompt_history.jsonl"
         self.history_file = Path(os.getenv("PROMPT_HISTORY_FILE", str(default_history)))
         self.user_prompts = self._load_user_prompts()
 
@@ -40,26 +40,9 @@ class PromptManager:
             "latency": latency,
         }
 
-        history = []
-        if self.history_file.exists():
-            try:
-                history = json.loads(self.history_file.read_text(encoding="utf-8"))
-                if not isinstance(history, list):
-                    history = []
-            except json.JSONDecodeError:
-                logger.warning("Prompt history file contained invalid JSON: %s", self.history_file)
-                history = []
-            except OSError as exc:
-                logger.warning("Failed to read prompt history file %s: %s", self.history_file, exc)
-                history = []
-
-        history.append(entry)
-
         try:
-            self.history_file.write_text(
-                json.dumps(history, ensure_ascii=False, indent=2),
-                encoding="utf-8",
-            )
+            with open(self.history_file, "a", encoding="utf-8") as f:
+                f.write(json.dumps(entry, ensure_ascii=False) + "\n")
         except OSError as exc:
             logger.warning("Failed to write prompt history file %s: %s", self.history_file, exc)
 

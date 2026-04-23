@@ -12,28 +12,34 @@ now?
 | If you need to... | Start here |
 |---|---|
 | get a first local success path | [QUICKSTART.md](QUICKSTART.md) |
+| understand SEOCHO with architecture snippets | [BEGINNER_GUIDE.md](BEGINNER_GUIDE.md) |
 | use the Python SDK directly | [PYTHON_INTERFACE_QUICKSTART.md](PYTHON_INTERFACE_QUICKSTART.md) |
 | declare reusable agent patterns in YAML | [AGENT_DESIGN_SPECS.md](AGENT_DESIGN_SPECS.md) |
 | declare graph-model-aware indexing in YAML | [INDEXING_DESIGN_SPECS.md](INDEXING_DESIGN_SPECS.md) |
 | bring your own ontology and data | [APPLY_YOUR_DATA.md](APPLY_YOUR_DATA.md) |
 | inspect files, artifacts, and traces | [FILES_AND_ARTIFACTS.md](FILES_AND_ARTIFACTS.md) |
 | understand the system design | [ARCHITECTURE.md](ARCHITECTURE.md) |
+| present SEOCHO to a technical audience | [presentations/SEOCHO_OVERVIEW_DEEP_DIVE.md](presentations/SEOCHO_OVERVIEW_DEEP_DIVE.md) |
 | measure behavior with FinDER and benchmark tracks | [BENCHMARKS.md](BENCHMARKS.md) |
 
 Recommended onboarding order:
 
 1. [WHY_SEOCHO.md](WHY_SEOCHO.md)
 2. [QUICKSTART.md](QUICKSTART.md)
-3. [PYTHON_INTERFACE_QUICKSTART.md](PYTHON_INTERFACE_QUICKSTART.md)
-4. [APPLY_YOUR_DATA.md](APPLY_YOUR_DATA.md)
-5. [FILES_AND_ARTIFACTS.md](FILES_AND_ARTIFACTS.md)
-6. [ARCHITECTURE.md](ARCHITECTURE.md)
+3. [BEGINNER_GUIDE.md](BEGINNER_GUIDE.md)
+4. [PYTHON_INTERFACE_QUICKSTART.md](PYTHON_INTERFACE_QUICKSTART.md)
+5. [APPLY_YOUR_DATA.md](APPLY_YOUR_DATA.md)
+6. [FILES_AND_ARTIFACTS.md](FILES_AND_ARTIFACTS.md)
+7. [ARCHITECTURE.md](ARCHITECTURE.md)
+8. [presentations/SEOCHO_OVERVIEW_DEEP_DIVE.md](presentations/SEOCHO_OVERVIEW_DEEP_DIVE.md)
 
 ## Product Entry Points
 
 - [WHY_SEOCHO.md](WHY_SEOCHO.md): product framing and ontology-aligned value
   proposition
 - [QUICKSTART.md](QUICKSTART.md): shortest local success path
+- [BEGINNER_GUIDE.md](BEGINNER_GUIDE.md): first-run guide that connects SDK
+  snippets to architecture seams
 - [PYTHON_INTERFACE_QUICKSTART.md](PYTHON_INTERFACE_QUICKSTART.md): public
   Python SDK path and API examples
 - [AGENT_DESIGN_SPECS.md](AGENT_DESIGN_SPECS.md): YAML-backed agent patterns
@@ -50,6 +56,8 @@ Recommended onboarding order:
 ## Architecture And Operations
 
 - [ARCHITECTURE.md](ARCHITECTURE.md): system architecture and runtime/module map
+- [presentations/SEOCHO_OVERVIEW_DEEP_DIVE.md](presentations/SEOCHO_OVERVIEW_DEEP_DIVE.md):
+  20-30 minute beginner-friendly product and architecture deck
 - [RUNTIME_PACKAGE_MIGRATION.md](RUNTIME_PACKAGE_MIGRATION.md): staged
   `extraction/` to `runtime/` migration plan
 - [GRAPH_RAG_AGENT_HANDOFF_SPEC.md](GRAPH_RAG_AGENT_HANDOFF_SPEC.md):

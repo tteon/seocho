@@ -61,6 +61,7 @@ uv run pytest \
   seocho/tests/test_internal_design_seams.py \
   seocho/tests/test_ontology_context.py \
   seocho/tests/test_session_agent.py \
+  seocho/tests/test_semantic_query_phase_a.py \
   extraction/tests/test_sdk_evaluation.py \
   -q
 

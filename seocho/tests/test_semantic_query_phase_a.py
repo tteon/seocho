@@ -83,3 +83,61 @@ def test_support_validator_and_strategy_chooser_contract():
     assert support["supported"] is True
     assert support["status"] == "supported"
     assert decision["initial_mode"] == "semantic_direct"
+
+
+def test_query_insufficiency_requires_supporting_fact_when_requested():
+    classifier = QueryInsufficiencyClassifier()
+
+    assessment = classifier.assess(
+        {
+            "intent_id": "entity_summary",
+            "focus_slots": ["target_entity", "supporting_fact"],
+        },
+        [{"target_entity": "Amazon"}],
+    )
+
+    assert assessment.sufficient is False
+    assert assessment.reason == "partial_slot_fill"
+    assert assessment.missing_slots == ("supporting_fact",)
+    assert assessment.filled_slots == ("target_entity",)
+
+
+def test_finalize_runtime_support_downgrades_preflight_when_runtime_slots_missing():
+    support_validator = IntentSupportValidator()
+    plan = CypherPlan(
+        database="kgnormal",
+        query="MATCH (n:Company) RETURN n.name AS target_entity",
+        params={},
+        strategy="entity_summary",
+        anchor_entity="Amazon",
+    )
+    assessment = QueryInsufficiencyClassifier().assess(
+        {
+            "intent_id": "entity_summary",
+            "focus_slots": ["target_entity", "supporting_fact"],
+        },
+        [{"target_entity": "Amazon"}],
+    )
+
+    support = support_validator.finalize_runtime_support(
+        preflight={"supported": True, "status": "supported", "reason": "preflight_only"},
+        intent={
+            "intent_id": "entity_summary",
+            "focus_slots": ["target_entity", "supporting_fact"],
+        },
+        bundle={
+            "grounded_slots": ["target_entity"],
+            "missing_slots": ["supporting_fact"],
+            "selected_triples": [],
+        },
+        assessment=assessment,
+        plan=plan,
+        constraint_slice={"graph_id": "finder", "database": "kgnormal"},
+    )
+
+    assert support["supported"] is False
+    assert support["status"] == "partial"
+    assert support["reason"] == "partial_slot_fill"
+    assert support["coverage"] == 0.5
+    assert support["missing_slots"] == ["supporting_fact"]
+    assert support["selected_triple_count"] == 0

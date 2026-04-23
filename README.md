@@ -36,12 +36,14 @@ Start here:
 | If you want to... | Go here |
 |---|---|
 | get a first local success path | [Quickstart](docs/QUICKSTART.md) |
+| understand SEOCHO with a guided beginner walkthrough | [Beginner Guide](docs/BEGINNER_GUIDE.md) |
 | see a runnable usecase demo | [Usecases](docs/USECASES.md) |
 | bring your own ontology and files | [Apply Your Data](docs/APPLY_YOUR_DATA.md) |
 | use the Python SDK directly | [Python SDK Quickstart](docs/PYTHON_INTERFACE_QUICKSTART.md) |
 | declare graph-model-aware indexing in YAML | [Indexing Design Specs](docs/INDEXING_DESIGN_SPECS.md) |
 | inspect files, artifacts, and traces | [Files and Artifacts](docs/FILES_AND_ARTIFACTS.md) |
 | understand the system design | [Architecture Deep Dive](docs/ARCHITECTURE.md) |
+| present the product and architecture | [Overview Deep-Dive Deck](docs/presentations/SEOCHO_OVERVIEW_DEEP_DIVE.md) |
 
 ## Quick Start
 
@@ -341,7 +343,9 @@ onto = Ontology(name="fibo", graph_model="rdf",
 | [Ontology Guide](https://seocho.blog/sdk/ontology-guide/) | Schema design, JSON-LD, SHACL |
 | [API Reference](https://seocho.blog/sdk/api-reference/) | Complete method reference |
 | [docs/USECASES.md](docs/USECASES.md) | Runnable usecase demos |
+| [docs/BEGINNER_GUIDE.md](docs/BEGINNER_GUIDE.md) | Guided first-run path with architecture snippets |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture |
+| [docs/presentations/SEOCHO_OVERVIEW_DEEP_DIVE.md](docs/presentations/SEOCHO_OVERVIEW_DEEP_DIVE.md) | Beginner-friendly architecture deck |
 | [docs/FILES_AND_ARTIFACTS.md](docs/FILES_AND_ARTIFACTS.md) | Where ontology, rule, trace, and runtime files live |
 | [docs/BENCHMARKS.md](docs/BENCHMARKS.md) | Private finance corpus and GraphRAG-Bench evaluation tracks |
 | [docs/WORKFLOW.md](docs/WORKFLOW.md) | Operational workflow |

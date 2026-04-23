@@ -876,6 +876,15 @@ class Seocho:
             databases=databases,
         ).assistant_message
 
+    @property
+    def last_query_metadata(self) -> Dict[str, Any]:
+        """Return the latest local query observability payload, if available."""
+
+        if self._engine is None:
+            return {}
+        metadata = getattr(self._engine, "_last_query_metadata", {})
+        return dict(metadata) if isinstance(metadata, dict) else {}
+
     def add_batch(
         self,
         documents: Sequence[str],
@@ -2240,6 +2249,9 @@ class Seocho:
             databases=[database] if database else [],
             trace_steps=[],
             ontology_context_mismatch=dict(metadata.get("ontology_context_mismatch", {})),
+            answer_envelope=dict(metadata.get("answer_envelope", {})),
+            latency_breakdown_ms=dict(metadata.get("latency_breakdown_ms", {})),
+            agent_pattern=dict(metadata.get("agent_pattern", {})),
         )
 
     def _resolve_execution_plan(self, plan: ExecutionPlan) -> ExecutionPlan:

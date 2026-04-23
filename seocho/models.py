@@ -261,6 +261,9 @@ class ExecutionResult(JsonSerializable):
     databases: List[str] = field(default_factory=list)
     trace_steps: List[Dict[str, Any]] = field(default_factory=list)
     ontology_context_mismatch: Dict[str, Any] = field(default_factory=dict)
+    answer_envelope: Dict[str, Any] = field(default_factory=dict)
+    latency_breakdown_ms: Dict[str, float] = field(default_factory=dict)
+    agent_pattern: Dict[str, Any] = field(default_factory=dict)
     router_result: Optional["AgentRunResponse"] = None
     semantic_result: Optional["SemanticRunResponse"] = None
     debate_result: Optional["DebateRunResponse"] = None
@@ -302,7 +305,17 @@ class ExecutionResult(JsonSerializable):
             databases=databases,
             trace_steps=list(getattr(result, "trace_steps", [])),
             ontology_context_mismatch=dict(getattr(result, "ontology_context_mismatch", {}) or {}),
+            latency_breakdown_ms=dict(getattr(result, "latency_breakdown_ms", {}) or {}),
+            agent_pattern=dict(getattr(result, "agent_pattern", {}) or {}),
         )
+        payload.answer_envelope = {
+            "schema_version": "answer_envelope.v1",
+            "answer": payload.response,
+            "support_assessment": dict(getattr(result, "support_assessment", {}) or {}),
+            "evidence_bundle": dict(getattr(result, "evidence_bundle", {}) or {}),
+            "latency_breakdown_ms": dict(payload.latency_breakdown_ms),
+            "agent_pattern": dict(payload.agent_pattern),
+        }
         if runtime_mode == "semantic" and isinstance(result, SemanticRunResponse):
             payload.semantic_result = result
         elif runtime_mode == "debate" and isinstance(result, DebateRunResponse):
@@ -485,10 +498,16 @@ class SemanticRunResponse(JsonSerializable):
     run_metadata: Dict[str, Any] = field(default_factory=dict)
     evidence_bundle: Dict[str, Any] = field(default_factory=dict)
     reasoning_cycle: Dict[str, Any] = field(default_factory=dict)
+    latency_breakdown_ms: Dict[str, float] = field(default_factory=dict)
+    agent_pattern: Dict[str, Any] = field(default_factory=dict)
+    answer_envelope: Dict[str, Any] = field(default_factory=dict)
     ontology_context_mismatch: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, payload: Dict[str, Any]) -> "SemanticRunResponse":
+        latency_payload = payload.get("latency_breakdown_ms", {})
+        if not isinstance(latency_payload, dict):
+            latency_payload = {}
         return cls(
             response=str(payload.get("response", "")),
             route=str(payload.get("route", "")),
@@ -501,6 +520,13 @@ class SemanticRunResponse(JsonSerializable):
             run_metadata=dict(payload.get("run_metadata", {})),
             evidence_bundle=dict(payload.get("evidence_bundle", {})),
             reasoning_cycle=dict(payload.get("reasoning_cycle", {})),
+            latency_breakdown_ms={
+                str(key): float(value)
+                for key, value in latency_payload.items()
+                if isinstance(value, (int, float))
+            },
+            agent_pattern=dict(payload.get("agent_pattern", {})),
+            answer_envelope=dict(payload.get("answer_envelope", {})),
             ontology_context_mismatch=dict(payload.get("ontology_context_mismatch", {})),
         )
 

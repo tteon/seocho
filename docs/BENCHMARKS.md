@@ -188,10 +188,21 @@ Report at minimum:
 - documents per second
 - add latency p50/p95
 - ask latency p50/p95
+- retrieval latency p50/p95
+- generation latency p50/p95
 - nodes per document
 - relationships per document
 - exact-match rate
 - contains-match rate
+- slot-level answer diagnostics:
+  - token recall
+  - numeric slot recall
+  - period/year slot recall
+- support status counts
+- average evidence coverage
+- missing evidence slot counts
+- agent pattern counts
+- token usage or token estimate payloads
 - failure count
 
 Also report split contract findings:
@@ -201,6 +212,20 @@ Also report split contract findings:
 - whether the run was local embedded (`Ladybug`) or runtime server (`Neo4j`/DozerDB)
 - whether fallback or non-fallback paths were exercised
 - whether the provider matrix was exercised or skipped
+
+FinDER artifacts now include an observability envelope per record when the
+query path exposes it:
+
+- `latency_breakdown_ms`: stage timings such as retrieval, generation, and total
+- `support_status`: supported, partial, or unsupported
+- `evidence_coverage` and `missing_slots`
+- `slot_metrics`: deterministic token/numeric/period recall against the reference answer
+- `token_usage`: provider usage when available, otherwise deterministic estimates
+- `agent_pattern`: selected pattern receipt such as `semantic_direct` or `reflection_chain`
+
+Use these fields to decide whether a regression is caused by retrieval,
+evidence coverage, answer synthesis, or agent orchestration. Do not tune model
+choice from exact/contains score alone.
 
 ## GraphRAG-Bench Metrics
 

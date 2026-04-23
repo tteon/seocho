@@ -24,6 +24,7 @@ from seocho.benchmarking import (  # noqa: E402
     classify_finder_scenario,
     compare_answers,
     diagnose_finder_query_contract,
+    finder_record_observability,
     filter_finder_cases,
     load_finder_cases,
     run_finder_benchmark,
@@ -371,6 +372,43 @@ def _extract_agent_metrics(payload: object) -> dict:
     }
 
 
+def _extract_query_metadata(payload: object) -> dict:
+    if not isinstance(payload, dict):
+        return {}
+    source = _runtime_payload(payload)
+    metadata: dict = {}
+    for key in (
+        "support_assessment",
+        "evidence_bundle",
+        "query_diagnostics",
+        "latency_breakdown_ms",
+        "agent_pattern",
+        "answer_envelope",
+    ):
+        value = source.get(key)
+        if isinstance(value, dict) or isinstance(value, list):
+            metadata[key] = value
+
+    for step in _extract_trace_steps(payload):
+        step_type = str(step.get("type", "")).upper()
+        step_metadata = step.get("metadata", {})
+        if not isinstance(step_metadata, dict):
+            continue
+        if step_type == "GENERATION":
+            for key in ("latency_breakdown_ms", "agent_pattern"):
+                value = step_metadata.get(key)
+                if isinstance(value, dict):
+                    metadata[key] = value
+            usage = step_metadata.get("usage_estimate")
+            if isinstance(usage, dict):
+                metadata["token_usage"] = usage
+        elif step_type == "METRIC":
+            usage = step_metadata.get("usage")
+            if isinstance(usage, dict):
+                metadata["token_usage"] = usage
+    return metadata
+
+
 def _default_reasoning_cycle_payload() -> dict:
     return {
         "enabled": True,
@@ -472,6 +510,7 @@ def _run_remote_endpoint_benchmark(
             "debate_state": "",
             "token_usage": {},
         }
+        observability: dict = {}
         started = time.perf_counter()
         try:
             status_code, payload = _request_json(
@@ -487,6 +526,11 @@ def _run_remote_endpoint_benchmark(
                 reasoning_cycle_status, reasoning_cycle_sources = _extract_reasoning_cycle(payload)
                 agent_metrics = _extract_agent_metrics(payload)
                 exact, contains = compare_answers(case.expected_answer, answer)
+                observability = finder_record_observability(
+                    expected_answer=case.expected_answer,
+                    actual_answer=answer,
+                    query_metadata=_extract_query_metadata(payload),
+                )
             else:
                 detail = payload.get("detail") if isinstance(payload, dict) else ""
                 error = str(detail or payload)
@@ -528,9 +572,15 @@ def _run_remote_endpoint_benchmark(
                 reasoning_attempt_count=int(agent_metrics["reasoning_attempt_count"]),
                 semantic_reused=bool(agent_metrics["semantic_reused"]),
                 debate_state=str(agent_metrics["debate_state"]),
-                token_usage=dict(agent_metrics["token_usage"]),
+                token_usage=dict(agent_metrics["token_usage"] or observability.get("token_usage", {})),
                 support_answer_gap="support_claim_answer_mismatch" in diagnosis,
                 diagnosis=diagnosis,
+                latency_breakdown_ms=dict(observability.get("latency_breakdown_ms", {})),
+                retrieval_latency_ms=float(observability.get("retrieval_latency_ms", 0.0) or 0.0),
+                generation_latency_ms=float(observability.get("generation_latency_ms", 0.0) or 0.0),
+                evidence_coverage=float(observability.get("evidence_coverage", 0.0) or 0.0),
+                slot_metrics=dict(observability.get("slot_metrics", {})),
+                agent_pattern=dict(observability.get("agent_pattern", {})),
                 error=error,
             )
         )

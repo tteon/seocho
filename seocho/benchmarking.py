@@ -12,6 +12,7 @@ from typing import Any, Dict, Iterable, List, Mapping, Sequence
 
 _SPACE_RE = re.compile(r"\s+")
 _NON_ALNUM_RE = re.compile(r"[^a-z0-9\s]")
+_FOUR_DIGIT_YEAR_RE = re.compile(r"\b(20\d{2})\b")
 _NUMBER_WITH_UNIT_RE = re.compile(
     r"(?P<number>\d+(?:\.\d+)?)(?P<percent>%?)\s*"
     r"(?P<unit>thousand|million|billion|trillion)?"
@@ -129,6 +130,12 @@ class FinDERBenchmarkRecord:
     token_usage: Dict[str, Any] = field(default_factory=dict)
     support_answer_gap: bool = False
     diagnosis: List[str] = field(default_factory=list)
+    latency_breakdown_ms: Dict[str, float] = field(default_factory=dict)
+    retrieval_latency_ms: float = 0.0
+    generation_latency_ms: float = 0.0
+    evidence_coverage: float = 0.0
+    slot_metrics: Dict[str, Any] = field(default_factory=dict)
+    agent_pattern: Dict[str, Any] = field(default_factory=dict)
     error: str = ""
 
 
@@ -146,6 +153,12 @@ class FinDERBenchmarkSummary:
     avg_nodes_created: float
     avg_relationships_created: float
     failure_count: int
+    retrieval_latency_p50_ms: float = 0.0
+    retrieval_latency_p95_ms: float = 0.0
+    generation_latency_p50_ms: float = 0.0
+    generation_latency_p95_ms: float = 0.0
+    avg_evidence_coverage: float = 0.0
+    agent_pattern_counts: Dict[str, int] = field(default_factory=dict)
     reasoning_cycle_status_counts: Dict[str, int] = field(default_factory=dict)
     reasoning_cycle_source_counts: Dict[str, int] = field(default_factory=dict)
     route_counts: Dict[str, int] = field(default_factory=dict)
@@ -377,6 +390,44 @@ def compare_answers(expected: str, actual: str) -> tuple[bool, bool]:
     return exact, contains
 
 
+def score_answer_slots(expected: str, actual: str) -> Dict[str, Any]:
+    """Return slot-level answer diagnostics for finance-style QA.
+
+    Exact/contains match hides the failure mode we care about in FinDER:
+    whether the model retrieved and preserved the right numbers, periods, and
+    domain tokens. This helper is intentionally heuristic and deterministic so
+    local benchmark artifacts can be compared without an LLM judge.
+    """
+
+    expected_tokens = _meaningful_tokens(expected)
+    actual_tokens = _meaningful_tokens(actual)
+    expected_years = set(_FOUR_DIGIT_YEAR_RE.findall(str(expected)))
+    actual_years = set(_FOUR_DIGIT_YEAR_RE.findall(str(actual)))
+    expected_numbers = _numeric_slots(expected) - expected_years
+    actual_numbers = _numeric_slots(actual) - actual_years
+    token_overlap = expected_tokens & actual_tokens
+    token_recall = round(len(token_overlap) / max(1, len(expected_tokens)), 4)
+    numeric_recall = round(
+        len(expected_numbers & actual_numbers) / max(1, len(expected_numbers)),
+        4,
+    ) if expected_numbers else 1.0
+    period_recall = round(
+        len(expected_years & actual_years) / max(1, len(expected_years)),
+        4,
+    ) if expected_years else 1.0
+    return {
+        "token_recall": token_recall,
+        "numeric_recall": numeric_recall,
+        "period_recall": period_recall,
+        "numeric_slots_match": expected_numbers.issubset(actual_numbers) if expected_numbers else True,
+        "period_slots_match": expected_years.issubset(actual_years) if expected_years else True,
+        "expected_numeric_slots": sorted(expected_numbers),
+        "actual_numeric_slots": sorted(actual_numbers),
+        "expected_period_slots": sorted(expected_years),
+        "actual_period_slots": sorted(actual_years),
+    }
+
+
 def _slot_contains_match(expected: str, actual: str) -> bool:
     expected_tokens = _meaningful_tokens(expected)
     actual_tokens = _meaningful_tokens(actual)
@@ -480,12 +531,16 @@ def summarize_finder_records(
     nodes = [record.nodes_created for record in records]
     rels = [record.relationships_created for record in records]
     failures = sum(1 for record in records if record.error)
+    retrieval_latencies = [record.retrieval_latency_ms for record in records if record.retrieval_latency_ms > 0]
+    generation_latencies = [record.generation_latency_ms for record in records if record.generation_latency_ms > 0]
+    coverages = [record.evidence_coverage for record in records if record.evidence_coverage > 0]
+    support_status_counts: Dict[str, int] = {}
+    missing_slot_counts: Dict[str, int] = {}
+    agent_pattern_counts: Dict[str, int] = {}
     reasoning_status_counts: Dict[str, int] = {}
     reasoning_source_counts: Dict[str, int] = {}
     route_counts: Dict[str, int] = {}
-    support_status_counts: Dict[str, int] = {}
     debate_state_counts: Dict[str, int] = {}
-    missing_slot_counts: Dict[str, int] = {}
     diagnosis_counts: Dict[str, int] = {}
     trace_steps = [record.trace_step_count for record in records]
     tool_calls = [record.tool_call_count for record in records]
@@ -496,6 +551,16 @@ def summarize_finder_records(
         for record in records
     ]
     for record in records:
+        support_status = str(record.support_status or "").strip()
+        if support_status:
+            support_status_counts[support_status] = int(support_status_counts.get(support_status, 0)) + 1
+        for slot in record.missing_slots:
+            normalized_slot = str(slot or "").strip()
+            if normalized_slot:
+                missing_slot_counts[normalized_slot] = int(missing_slot_counts.get(normalized_slot, 0)) + 1
+        pattern = str(record.agent_pattern.get("pattern", "") if isinstance(record.agent_pattern, dict) else "").strip()
+        if pattern:
+            agent_pattern_counts[pattern] = int(agent_pattern_counts.get(pattern, 0)) + 1
         status = str(record.reasoning_cycle_status or "").strip()
         if status:
             reasoning_status_counts[status] = int(reasoning_status_counts.get(status, 0)) + 1
@@ -508,20 +573,9 @@ def summarize_finder_records(
         route = str(record.route or "").strip()
         if route:
             route_counts[route] = int(route_counts.get(route, 0)) + 1
-        support_status = str(record.support_status or "").strip()
-        if support_status:
-            support_status_counts[support_status] = int(
-                support_status_counts.get(support_status, 0)
-            ) + 1
         debate_state = str(record.debate_state or "").strip()
         if debate_state:
             debate_state_counts[debate_state] = int(debate_state_counts.get(debate_state, 0)) + 1
-        for slot in record.missing_slots:
-            normalized_slot = str(slot or "").strip()
-            if normalized_slot:
-                missing_slot_counts[normalized_slot] = int(
-                    missing_slot_counts.get(normalized_slot, 0)
-                ) + 1
         for finding in record.diagnosis:
             normalized_finding = str(finding or "").strip()
             if normalized_finding:
@@ -544,12 +598,18 @@ def summarize_finder_records(
         avg_nodes_created=round(sum(nodes) / count, 2) if count else 0.0,
         avg_relationships_created=round(sum(rels) / count, 2) if count else 0.0,
         failure_count=failures,
+        retrieval_latency_p50_ms=round(float(median(retrieval_latencies)), 2) if retrieval_latencies else 0.0,
+        retrieval_latency_p95_ms=_percentile_ms(retrieval_latencies, 0.95),
+        generation_latency_p50_ms=round(float(median(generation_latencies)), 2) if generation_latencies else 0.0,
+        generation_latency_p95_ms=_percentile_ms(generation_latencies, 0.95),
+        avg_evidence_coverage=round(sum(coverages) / len(coverages), 4) if coverages else 0.0,
+        support_status_counts=support_status_counts,
+        missing_slot_counts=missing_slot_counts,
+        agent_pattern_counts=agent_pattern_counts,
         reasoning_cycle_status_counts=reasoning_status_counts,
         reasoning_cycle_source_counts=reasoning_source_counts,
         route_counts=route_counts,
-        support_status_counts=support_status_counts,
         debate_state_counts=debate_state_counts,
-        missing_slot_counts=missing_slot_counts,
         semantic_reuse_count=sum(1 for record in records if record.semantic_reused),
         support_answer_gap_count=support_answer_gap_count,
         support_answer_gap_rate=round(support_answer_gap_count / count, 4) if count else 0.0,
@@ -561,6 +621,93 @@ def summarize_finder_records(
         avg_total_tokens_est=round(sum(token_totals) / count, 2) if count else 0.0,
         records=list(records),
     )
+
+
+def extract_query_metadata(client: Any) -> Dict[str, Any]:
+    """Best-effort query metadata extractor for SDK and test clients."""
+
+    direct = getattr(client, "last_query_metadata", None)
+    if isinstance(direct, dict):
+        return dict(direct)
+    engine = getattr(client, "_engine", None)
+    metadata = getattr(engine, "_last_query_metadata", None)
+    if isinstance(metadata, dict):
+        return dict(metadata)
+    metadata = getattr(client, "_last_query_metadata", None)
+    if isinstance(metadata, dict):
+        return dict(metadata)
+    return {}
+
+
+def finder_record_observability(
+    *,
+    expected_answer: str,
+    actual_answer: str,
+    query_metadata: Mapping[str, Any],
+) -> Dict[str, Any]:
+    """Normalize local/runtime query metadata into benchmark record fields."""
+
+    envelope = query_metadata.get("answer_envelope")
+    if not isinstance(envelope, Mapping):
+        envelope = {}
+    evidence_bundle = query_metadata.get("evidence_bundle")
+    if not isinstance(evidence_bundle, Mapping):
+        evidence_bundle = envelope.get("evidence_bundle", {})
+    if not isinstance(evidence_bundle, Mapping):
+        evidence_bundle = {}
+    support_assessment = query_metadata.get("support_assessment")
+    if not isinstance(support_assessment, Mapping):
+        support_assessment = envelope.get("support_assessment", {})
+    if not isinstance(support_assessment, Mapping):
+        support_assessment = {}
+    latency_breakdown = query_metadata.get("latency_breakdown_ms")
+    if not isinstance(latency_breakdown, Mapping):
+        latency_breakdown = envelope.get("latency_breakdown_ms", {})
+    if not isinstance(latency_breakdown, Mapping):
+        latency_breakdown = {}
+    agent_pattern = query_metadata.get("agent_pattern")
+    if not isinstance(agent_pattern, Mapping):
+        agent_pattern = envelope.get("agent_pattern", {})
+    if not isinstance(agent_pattern, Mapping):
+        agent_pattern = {}
+    token_usage = query_metadata.get("token_usage")
+    if not isinstance(token_usage, Mapping):
+        token_usage = envelope.get("token_usage", {})
+    if not isinstance(token_usage, Mapping):
+        token_usage = {}
+
+    def _float_field(key: str) -> float:
+        try:
+            return round(float(latency_breakdown.get(key, 0.0) or 0.0), 2)
+        except (TypeError, ValueError):
+            return 0.0
+
+    missing_slots = [
+        str(slot).strip()
+        for slot in evidence_bundle.get("missing_slots", [])
+        if str(slot).strip()
+    ] if isinstance(evidence_bundle.get("missing_slots", []), list) else []
+
+    try:
+        evidence_coverage = round(float(evidence_bundle.get("coverage", 0.0) or 0.0), 4)
+    except (TypeError, ValueError):
+        evidence_coverage = 0.0
+
+    return {
+        "latency_breakdown_ms": {
+            str(key): round(float(value), 2)
+            for key, value in latency_breakdown.items()
+            if isinstance(value, (int, float))
+        },
+        "retrieval_latency_ms": _float_field("retrieval_ms"),
+        "generation_latency_ms": _float_field("generation_ms"),
+        "support_status": str(support_assessment.get("status", "") or "").strip(),
+        "evidence_coverage": evidence_coverage,
+        "missing_slots": missing_slots,
+        "slot_metrics": score_answer_slots(expected_answer, actual_answer),
+        "token_usage": dict(token_usage),
+        "agent_pattern": dict(agent_pattern),
+    }
 
 
 def summarize_finance_records(
@@ -616,6 +763,7 @@ def run_finder_benchmark(
         deduplicated = False
         reasoning_cycle_status = ""
         reasoning_cycle_sources: List[str] = []
+        observability: Dict[str, Any] = {}
         try:
             memory = client.add(case.text, database=database, category=case.category)
             add_latency_ms = (time.perf_counter() - add_started) * 1000.0
@@ -637,10 +785,18 @@ def run_finder_benchmark(
             answer = str(client.ask(case.question, database=database))
             ask_latency_ms = (time.perf_counter() - ask_started) * 1000.0
             exact, contains = compare_answers(case.expected_answer, answer)
+            observability = finder_record_observability(
+                expected_answer=case.expected_answer,
+                actual_answer=answer,
+                query_metadata=extract_query_metadata(client),
+            )
         except Exception as exc:  # pragma: no cover
             add_latency_ms = (time.perf_counter() - add_started) * 1000.0
             ask_latency_ms = 0.0
             error = str(exc)
+            observability = {
+                "slot_metrics": score_answer_slots(case.expected_answer, answer),
+            }
 
         diagnosis = diagnose_finder_query_contract(
             error=error,
@@ -665,6 +821,15 @@ def run_finder_benchmark(
                 reasoning_cycle_status=reasoning_cycle_status,
                 reasoning_cycle_sources=reasoning_cycle_sources,
                 diagnosis=diagnosis,
+                latency_breakdown_ms=dict(observability.get("latency_breakdown_ms", {})),
+                retrieval_latency_ms=float(observability.get("retrieval_latency_ms", 0.0) or 0.0),
+                generation_latency_ms=float(observability.get("generation_latency_ms", 0.0) or 0.0),
+                support_status=str(observability.get("support_status", "") or ""),
+                evidence_coverage=float(observability.get("evidence_coverage", 0.0) or 0.0),
+                missing_slots=list(observability.get("missing_slots", [])),
+                slot_metrics=dict(observability.get("slot_metrics", {})),
+                token_usage=dict(observability.get("token_usage", {})),
+                agent_pattern=dict(observability.get("agent_pattern", {})),
                 error=error,
             )
         )

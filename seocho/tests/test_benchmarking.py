@@ -9,6 +9,7 @@ from seocho.benchmarking import (
     normalize_answer,
     run_finder_benchmark,
     run_finance_benchmark,
+    score_answer_slots,
     split_finder_diagnosis,
     split_finance_diagnosis,
     summarize_finder_contract_findings,
@@ -80,6 +81,25 @@ class _ReasoningCycleClient(_FakeClient):
         )
 
 
+class _ObservableClient(_FakeClient):
+    @property
+    def last_query_metadata(self):
+        return {
+            "latency_breakdown_ms": {
+                "retrieval_ms": 12.0,
+                "generation_ms": 3.0,
+                "total_ms": 15.0,
+            },
+            "support_assessment": {"status": "supported"},
+            "evidence_bundle": {
+                "coverage": 0.75,
+                "missing_slots": ["period"],
+            },
+            "token_usage": {"source": "estimated_char_count", "total_tokens_est": 42},
+            "agent_pattern": {"pattern": "semantic_direct"},
+        }
+
+
 def test_normalize_answer_collapses_case_and_punctuation():
     assert normalize_answer("PTC, Inc. reported  $2.1 billion!") == "ptc inc reported 2 1 billion"
 
@@ -146,6 +166,18 @@ def test_compare_answers_accepts_short_standard_answer_with_key_slot():
     )
     assert exact is False
     assert contains is True
+
+
+def test_score_answer_slots_reports_numeric_and_period_recall():
+    metrics = score_answer_slots(
+        "Revenue was $2.1 billion in 2023 versus $1.9 billion in 2022.",
+        "Revenue was 2.1 billion in 2023.",
+    )
+
+    assert metrics["numeric_recall"] == 0.5
+    assert metrics["period_recall"] == 0.5
+    assert metrics["numeric_slots_match"] is False
+    assert metrics["period_slots_match"] is False
 
 
 def test_run_finance_benchmark_summarizes_latencies_and_matches():
@@ -340,6 +372,41 @@ def test_diagnose_finder_query_contract_flags_empty_evidence_after_trace():
     )
 
     assert diagnosis == ["query_no_graph_records"]
+
+
+def test_run_finder_benchmark_records_query_observability_metadata():
+    cases = [
+        FinDERBenchmarkCase(
+            case_id="finder_012",
+            text="PTC text",
+            question="What was PTC's revenue growth in fiscal 2023?",
+            expected_answer="PTC reported total revenue of $2.1 billion in fiscal 2023, a 10% increase from $1.9 billion in the prior year.",
+            category="Financials",
+            reasoning_type="Subtraction",
+        )
+    ]
+
+    summary = run_finder_benchmark(
+        client=_ObservableClient(),
+        cases=cases,
+        mode="local",
+        dataset="finder_sample.json",
+        database="neo4j",
+    )
+
+    record = summary.records[0]
+    assert record.retrieval_latency_ms == 12.0
+    assert record.generation_latency_ms == 3.0
+    assert record.support_status == "supported"
+    assert record.evidence_coverage == 0.75
+    assert record.missing_slots == ["period"]
+    assert record.token_usage["total_tokens_est"] == 42
+    assert record.agent_pattern["pattern"] == "semantic_direct"
+    assert summary.retrieval_latency_p50_ms == 12.0
+    assert summary.generation_latency_p95_ms == 3.0
+    assert summary.support_status_counts["supported"] == 1
+    assert summary.missing_slot_counts["period"] == 1
+    assert summary.agent_pattern_counts["semantic_direct"] == 1
 
 
 def test_run_finance_benchmark_records_failures():

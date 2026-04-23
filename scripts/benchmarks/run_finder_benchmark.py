@@ -75,6 +75,50 @@ def _local_graph_path_for_run(
     return str(path)
 
 
+def _resolve_llm_selection(provider: str | None, model: str) -> dict[str, str]:
+    """Resolve benchmark provider/model flags into the SDK llm string."""
+
+    requested_provider = str(provider or "").strip().lower()
+    requested_model = str(model or "").strip()
+    if not requested_model:
+        raise ValueError("LLM model must not be empty.")
+    if "/" in requested_model:
+        embedded_provider, embedded_model = requested_model.split("/", 1)
+        embedded_provider = embedded_provider.strip().lower()
+        embedded_model = embedded_model.strip()
+        if requested_provider and requested_provider != embedded_provider:
+            raise ValueError(
+                "--provider conflicts with provider embedded in --model "
+                f"({requested_provider!r} != {embedded_provider!r})."
+            )
+        requested_provider = embedded_provider
+        requested_model = embedded_model
+    resolved_provider = requested_provider or "openai"
+    if not requested_model:
+        raise ValueError("LLM model must not be empty.")
+    return {
+        "provider": resolved_provider,
+        "model": requested_model,
+        "llm": f"{resolved_provider}/{requested_model}",
+    }
+
+
+def _limit_cases_per_category(cases: list, limit: int) -> list:
+    """Return a deterministic per-category subset while preserving dataset order."""
+
+    if limit <= 0:
+        return list(cases)
+    selected = []
+    counts: dict[str, int] = {}
+    for case in cases:
+        category = str(case.category or "general")
+        if int(counts.get(category, 0)) >= limit:
+            continue
+        selected.append(case)
+        counts[category] = int(counts.get(category, 0)) + 1
+    return selected
+
+
 def _build_finder_ontology() -> Ontology:
     return Ontology(
         name="finder_benchmark",
@@ -98,7 +142,7 @@ def _build_finder_ontology() -> Ontology:
 
 def _build_local_client(args: argparse.Namespace) -> Seocho:
     kwargs = {
-        "llm": args.model,
+        "llm": args.llm,
         "workspace_id": args.workspace_id,
     }
     if args.graph:
@@ -127,8 +171,9 @@ def _write_summary(payload: dict) -> Path:
 def _benchmark_setup_payload(args: argparse.Namespace, *, tracing_configured: bool) -> dict:
     active_trace_backends = current_backend_names()
     return {
-        "provider": "openai",
+        "provider": args.provider,
         "model": args.model,
+        "llm": args.llm,
         "trace_backend_env": os.getenv("SEOCHO_TRACE_BACKEND", "none"),
         "active_trace_backends": active_trace_backends,
         "tracing_configured": tracing_configured,
@@ -521,12 +566,34 @@ def main() -> int:
     )
     parser.add_argument("--neo4j-user", default=os.getenv("NEO4J_USER", "neo4j"))
     parser.add_argument("--neo4j-password", default=os.getenv("NEO4J_PASSWORD", "password"))
-    parser.add_argument("--model", default=os.getenv("OPENAI_MODEL", "gpt-4o-mini"))
+    parser.add_argument(
+        "--provider",
+        default=os.getenv("FINDER_LLM_PROVIDER", ""),
+        help="LLM provider preset. May also be embedded in --model as provider/model.",
+    )
+    parser.add_argument(
+        "--model",
+        default=os.getenv("FINDER_LLM_MODEL", os.getenv("OPENAI_MODEL", "gpt-4o-mini")),
+        help="LLM model name or provider/model string.",
+    )
+    parser.add_argument(
+        "--limit-per-category",
+        type=int,
+        default=0,
+        help="Limit selected FinDER cases per category; 0 means no limit.",
+    )
     parser.add_argument("--workspace-id", default=f"finder-benchmark-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}")
     parser.add_argument("--reasoning-mode", action="store_true")
     parser.add_argument("--repair-budget", type=int, default=0)
     parser.add_argument("--timeout", type=float, default=float(os.getenv("FINDER_RUNTIME_TIMEOUT", "180")))
     args = parser.parse_args()
+    try:
+        llm_selection = _resolve_llm_selection(args.provider, args.model)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+    args.provider = llm_selection["provider"]
+    args.model = llm_selection["model"]
+    args.llm = llm_selection["llm"]
 
     dataset_path = Path(args.dataset)
     if not dataset_path.exists():
@@ -540,7 +607,10 @@ def main() -> int:
         )
 
     all_cases = load_finder_cases(dataset_path)
-    cases = filter_finder_cases(all_cases, args.scenario)
+    cases = _limit_cases_per_category(
+        filter_finder_cases(all_cases, args.scenario),
+        args.limit_per_category,
+    )
     if not cases:
         raise SystemExit(f"No FinDER cases matched scenario={args.scenario}.")
 
@@ -626,6 +696,7 @@ def main() -> int:
         "database": args.database,
         "workspace_id": args.workspace_id,
         "scenario": args.scenario,
+        "limit_per_category": args.limit_per_category,
         "scenario_counts": _scenario_counts(all_cases),
         "selected_case_ids": [case.case_id for case in cases],
         "local_graph_path": args.local_graph_path if not args.graph else "",

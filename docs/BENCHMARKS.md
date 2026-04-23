@@ -120,6 +120,20 @@ Interpretation:
 - local benchmark records should retain indexing-path hints per case:
   - `fallback_used`
   - `deduplicated`
+- remote benchmark records retain query-path and agent-loop hints per case:
+  - `route`
+  - `support_status`
+  - `support_coverage`
+  - `missing_slots`
+  - `trace_step_count`
+  - `tool_call_count`
+  - `reasoning_attempt_count`
+  - `semantic_reused`
+  - `token_usage`
+- treat `support_answer_gap_count` as a first-order regression signal:
+  `support_status=supported` but `contains_match=false` means the evidence
+  contract claimed enough support while answer synthesis still missed the
+  reference answer
 - benchmark artifacts from active diagnosis runs stay local-only
 
 ### Track 2: GraphRAG-Bench

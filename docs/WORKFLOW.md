@@ -135,6 +135,9 @@ Operational notes:
 
 - use `scripts/pm/lint-items.sh` with internal `bd --sandbox` execution so linting reads the local workspace without extra auto-sync behavior.
 - when using git worktrees, prefer `bd --sandbox ...` for repo-local issue operations to avoid cross-worktree side effects
+- for Beads/Dolt lifecycle issues, run `scripts/pm/bd-recover.sh` before any
+  reinstall, reset, or deletion; use `--fix` only when `bd doctor` or
+  `bd dolt show` fails
 - current dev quality gates in `Makefile` run against `extraction-service`.
 - default `make up` now rebuilds an image-backed `extraction-service` so the
   running runtime matches a known source snapshot.

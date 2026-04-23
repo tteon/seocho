@@ -571,6 +571,22 @@ Each entry must link to a full ADR when impact is non-trivial.
   - install LPG-specific extraction prompt shaping in the local SDK so
     property-graph strengths are expressed during extraction rather than
     reconstructed after the fact
+- Accepted `ADR-0088-beads-bootstrap-and-sandbox-workflow.md`
+  - use `bd bootstrap` as the safe best-effort Beads workspace recovery step
+  - use `bd --sandbox ...` for repo-local issue operations that should avoid
+    auto-sync side effects
+  - use `scripts/pm/bd-recover.sh` as the first-line Beads/Dolt diagnostic
+    before deleting, reinstalling, or resetting `.beads`
+
+## 2026-04-23
+
+- Updated FinDER query benchmark contract
+  - record `support_claim_answer_mismatch` when runtime evidence claims
+    `support_status=supported` but the answer still misses the reference
+  - expose `support_answer_gap_count`, `support_answer_gap_rate`, and
+    `diagnosis_counts` in FinDER summaries
+  - document SEOCHO as an ontology-aligned modular monolith with data, control,
+    ontology, runtime, and compatibility planes
 
 ## Template
 

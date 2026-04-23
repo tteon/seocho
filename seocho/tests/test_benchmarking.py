@@ -3,6 +3,7 @@ from seocho.benchmarking import (
     classify_finder_scenario,
     FinanceBenchmarkCase,
     compare_answers,
+    diagnose_finder_query_contract,
     filter_finder_cases,
     load_finder_cases,
     normalize_answer,
@@ -295,6 +296,8 @@ def test_summarize_finder_records_aggregates_agent_metrics():
                 semantic_reused=True,
                 debate_state="ready",
                 token_usage={"total_tokens_est": 120},
+                support_answer_gap=True,
+                diagnosis=["support_claim_answer_mismatch"],
             )
         ],
     )
@@ -304,11 +307,39 @@ def test_summarize_finder_records_aggregates_agent_metrics():
     assert summary.debate_state_counts == {"ready": 1}
     assert summary.missing_slot_counts == {"period": 1, "metric": 1}
     assert summary.semantic_reuse_count == 1
+    assert summary.support_answer_gap_count == 1
+    assert summary.support_answer_gap_rate == 1.0
+    assert summary.diagnosis_counts == {"support_claim_answer_mismatch": 1}
     assert summary.avg_trace_step_count == 6.0
     assert summary.avg_tool_call_count == 2.0
     assert summary.avg_reasoning_attempt_count == 1.0
     assert summary.avg_evidence_bundle_size == 4.0
     assert summary.avg_total_tokens_est == 120.0
+
+
+def test_diagnose_finder_query_contract_flags_supported_but_wrong_answer():
+    diagnosis = diagnose_finder_query_contract(
+        contains_match=False,
+        support_status="supported",
+        evidence_bundle_size=3,
+        trace_step_count=5,
+    )
+
+    assert diagnosis == [
+        "support_claim_answer_mismatch",
+        "answer_quality_or_slot_selection_gap",
+    ]
+
+
+def test_diagnose_finder_query_contract_flags_empty_evidence_after_trace():
+    diagnosis = diagnose_finder_query_contract(
+        contains_match=True,
+        support_status="supported",
+        evidence_bundle_size=0,
+        trace_step_count=4,
+    )
+
+    assert diagnosis == ["query_no_graph_records"]
 
 
 def test_run_finance_benchmark_records_failures():
@@ -355,6 +386,7 @@ def test_split_finder_diagnosis_separates_indexing_and_query_findings():
             "query_no_graph_records",
             "query_execution_failed_or_contract_error",
             "answer_quality_or_slot_selection_gap",
+            "support_claim_answer_mismatch",
             "custom_follow_up",
             "query_no_graph_records",
         ]
@@ -365,6 +397,7 @@ def test_split_finder_diagnosis_separates_indexing_and_query_findings():
         "query_no_graph_records",
         "query_execution_failed_or_contract_error",
         "answer_quality_or_slot_selection_gap",
+        "support_claim_answer_mismatch",
     ]
     assert split["shared"] == ["custom_follow_up"]
 
@@ -406,6 +439,7 @@ def test_summarize_finder_contract_findings_counts_records_and_codes():
                 "diagnosis": [
                     "source_text_has_answer_but_graph_projection_lost_it",
                     "answer_quality_or_slot_selection_gap",
+                    "support_claim_answer_mismatch",
                     "custom_follow_up",
                 ],
             },
@@ -420,6 +454,7 @@ def test_summarize_finder_contract_findings_counts_records_and_codes():
     assert summary["query"]["finding_counts"]["query_no_graph_records"] == 1
     assert summary["query"]["finding_counts"]["query_execution_failed_or_contract_error"] == 1
     assert summary["query"]["finding_counts"]["answer_quality_or_slot_selection_gap"] == 1
+    assert summary["query"]["finding_counts"]["support_claim_answer_mismatch"] == 1
     assert summary["shared"]["record_count"] == 1
     assert summary["shared"]["finding_counts"]["custom_follow_up"] == 1
 

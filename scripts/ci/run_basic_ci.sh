@@ -63,6 +63,11 @@ uv run pytest \
   seocho/tests/test_session_agent.py \
   seocho/tests/test_semantic_query_phase_a.py \
   extraction/tests/test_sdk_evaluation.py \
+  seocho/tests/test_agent_design.py \
+  seocho/tests/test_benchmarking.py \
+  seocho/tests/test_finder_benchmark_script.py \
+  seocho/tests/test_indexing_design.py \
+  seocho/tests/test_llm_backends.py \
   -q
 
 git diff --check

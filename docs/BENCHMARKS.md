@@ -87,7 +87,10 @@ Example commands:
 uv run python scripts/benchmarks/run_finder_benchmark.py \
   --dataset /path/to/finder_sample.json \
   --mode local \
-  --scenario beginner
+  --scenario beginner \
+  --provider openai \
+  --model gpt-4o-mini \
+  --limit-per-category 2
 
 uv run python scripts/benchmarks/run_finder_benchmark.py \
   --dataset /path/to/finder_sample.json \
@@ -97,6 +100,11 @@ uv run python scripts/benchmarks/run_finder_benchmark.py \
 
 Interpretation:
 
+- `--provider` selects the OpenAI-compatible provider preset for local mode.
+- `--model` may be either a plain model name such as `gpt-4o-mini` or a
+  `provider/model` shorthand such as `deepseek/deepseek-chat`.
+- `--limit-per-category 2` is the recommended model-comparison setting when
+  checking category coverage without running the full FinDER dataset.
 - `local` without `--graph` means embedded `LadybugGraphStore`
 - `local` without `--graph` now uses an isolated per-run Ladybug file under `.seocho/benchmarks/local/`
   - this avoids false zero-write runs caused by reusing the default `.seocho/local.lbug` dedup state

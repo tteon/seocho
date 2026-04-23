@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+from types import SimpleNamespace
 from pathlib import Path
 
 
@@ -40,3 +41,46 @@ def test_extract_reasoning_cycle_reads_nested_runtime_payload():
         "unsupported_answer",
         "query_execution_failed_or_contract_error",
     ]
+
+
+def test_resolve_llm_selection_accepts_explicit_provider_and_model():
+    payload = MODULE._resolve_llm_selection("deepseek", "deepseek-chat")
+
+    assert payload == {
+        "provider": "deepseek",
+        "model": "deepseek-chat",
+        "llm": "deepseek/deepseek-chat",
+    }
+
+
+def test_resolve_llm_selection_accepts_provider_model_shorthand():
+    payload = MODULE._resolve_llm_selection("", "kimi/kimi-k2.5")
+
+    assert payload == {
+        "provider": "kimi",
+        "model": "kimi-k2.5",
+        "llm": "kimi/kimi-k2.5",
+    }
+
+
+def test_resolve_llm_selection_rejects_conflicting_provider():
+    try:
+        MODULE._resolve_llm_selection("openai", "deepseek/deepseek-chat")
+    except ValueError as exc:
+        assert "--provider conflicts" in str(exc)
+    else:  # pragma: no cover
+        raise AssertionError("Expected conflicting provider/model to fail")
+
+
+def test_limit_cases_per_category_preserves_order():
+    cases = [
+        SimpleNamespace(case_id="a1", category="A"),
+        SimpleNamespace(case_id="b1", category="B"),
+        SimpleNamespace(case_id="a2", category="A"),
+        SimpleNamespace(case_id="a3", category="A"),
+        SimpleNamespace(case_id="b2", category="B"),
+    ]
+
+    selected = MODULE._limit_cases_per_category(cases, 2)
+
+    assert [case.case_id for case in selected] == ["a1", "b1", "a2", "b2"]

@@ -570,7 +570,9 @@ def test_local_graph_path_for_run_removes_stale_file_when_fresh(tmp_path):
 
 def test_finder_benchmark_setup_payload_records_model_and_trace_env(monkeypatch):
     class _Args:
+        provider = "deepseek"
         model = "gpt-4o-mini"
+        llm = "deepseek/gpt-4o-mini"
 
     monkeypatch.setenv("SEOCHO_TRACE_BACKEND", "opik")
     monkeypatch.setenv("OPIK_PROJECT_NAME", "seocho-e2e")
@@ -578,8 +580,9 @@ def test_finder_benchmark_setup_payload_records_model_and_trace_env(monkeypatch)
 
     payload = _benchmark_setup_payload(_Args(), tracing_configured=True)
 
-    assert payload["provider"] == "openai"
+    assert payload["provider"] == "deepseek"
     assert payload["model"] == "gpt-4o-mini"
+    assert payload["llm"] == "deepseek/gpt-4o-mini"
     assert payload["trace_backend_env"] == "opik"
     assert payload["tracing_configured"] is True
     assert payload["opik_project"] == "seocho-e2e"

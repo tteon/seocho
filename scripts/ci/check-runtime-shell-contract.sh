@@ -94,10 +94,14 @@ check_present "import runtime.runtime_ingest as runtime_runtime_ingest" \
   extraction/tests/test_runtime_package_aliases.py
 
 echo "Checking local compose runtime visibility..."
+check_absent "./runtime:/app/runtime:ro" \
+  docker-compose.yml
+check_absent "./seocho:/app/seocho:ro" \
+  docker-compose.yml
 check_present "./runtime:/app/runtime:ro" \
-  docker-compose.yml
+  docker-compose.dev.yml
 check_present "./seocho:/app/seocho:ro" \
-  docker-compose.yml
+  docker-compose.dev.yml
 
 echo "Checking repo-owned runtime tests..."
 check_present "from runtime.agent_readiness import summarize_readiness" \

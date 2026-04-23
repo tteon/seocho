@@ -58,6 +58,10 @@ Recommended onboarding order:
   ontology context contract across indexing, query, and agents
 - [PROPERTY_GRAPH_LENS_STRATEGY.md](PROPERTY_GRAPH_LENS_STRATEGY.md):
   semantic overlay strategy for property graphs
+- [INTERNAL_CLASS_DESIGN.md](INTERNAL_CLASS_DESIGN.md): internal orchestration
+  seams for the modular monolith
+- [MODULE_OWNERSHIP_MAP.md](MODULE_OWNERSHIP_MAP.md): canonical module
+  ownership and compatibility boundaries
 - [WORKFLOW.md](WORKFLOW.md): operational workflow
 
 ## Contributor References

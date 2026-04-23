@@ -56,6 +56,7 @@ _FINDER_QUERY_FINDINGS = {
     "vector_substrate_not_in_local_answer_path",
     "fulltext_substrate_unavailable_or_unchecked",
     "answer_quality_or_slot_selection_gap",
+    "support_claim_answer_mismatch",
 }
 _FINDER_BEGINNER_CATEGORIES = {
     "Accounting",
@@ -126,6 +127,8 @@ class FinDERBenchmarkRecord:
     semantic_reused: bool = False
     debate_state: str = ""
     token_usage: Dict[str, Any] = field(default_factory=dict)
+    support_answer_gap: bool = False
+    diagnosis: List[str] = field(default_factory=list)
     error: str = ""
 
 
@@ -150,6 +153,9 @@ class FinDERBenchmarkSummary:
     debate_state_counts: Dict[str, int] = field(default_factory=dict)
     missing_slot_counts: Dict[str, int] = field(default_factory=dict)
     semantic_reuse_count: int = 0
+    support_answer_gap_count: int = 0
+    support_answer_gap_rate: float = 0.0
+    diagnosis_counts: Dict[str, int] = field(default_factory=dict)
     avg_trace_step_count: float = 0.0
     avg_tool_call_count: float = 0.0
     avg_reasoning_attempt_count: float = 0.0
@@ -426,6 +432,41 @@ def _percentile_ms(values: Sequence[float], percentile: float) -> float:
     return round(float(ordered[index]), 2)
 
 
+def diagnose_finder_query_contract(
+    *,
+    error: str = "",
+    contains_match: bool = False,
+    support_status: str = "",
+    missing_slots: Sequence[str] = (),
+    evidence_bundle_size: int = 0,
+    trace_step_count: int = 0,
+) -> List[str]:
+    """Classify FinDER query failures into stable engineering diagnosis codes."""
+
+    findings: List[str] = []
+    if str(error or "").strip():
+        findings.append("query_execution_failed_or_contract_error")
+        return findings
+
+    normalized_support = str(support_status or "").strip().lower()
+    if normalized_support == "supported" and not contains_match:
+        findings.append("support_claim_answer_mismatch")
+        findings.append("answer_quality_or_slot_selection_gap")
+    elif not contains_match:
+        findings.append("answer_quality_or_slot_selection_gap")
+
+    if normalized_support in {"partial", "unsupported"} and missing_slots:
+        findings.append("answer_quality_or_slot_selection_gap")
+    if evidence_bundle_size == 0 and trace_step_count > 0:
+        findings.append("query_no_graph_records")
+
+    deduped: List[str] = []
+    for finding in findings:
+        if finding not in deduped:
+            deduped.append(finding)
+    return deduped
+
+
 def summarize_finder_records(
     *,
     mode: str,
@@ -445,6 +486,7 @@ def summarize_finder_records(
     support_status_counts: Dict[str, int] = {}
     debate_state_counts: Dict[str, int] = {}
     missing_slot_counts: Dict[str, int] = {}
+    diagnosis_counts: Dict[str, int] = {}
     trace_steps = [record.trace_step_count for record in records]
     tool_calls = [record.tool_call_count for record in records]
     reasoning_attempts = [record.reasoning_attempt_count for record in records]
@@ -480,7 +522,14 @@ def summarize_finder_records(
                 missing_slot_counts[normalized_slot] = int(
                     missing_slot_counts.get(normalized_slot, 0)
                 ) + 1
+        for finding in record.diagnosis:
+            normalized_finding = str(finding or "").strip()
+            if normalized_finding:
+                diagnosis_counts[normalized_finding] = int(
+                    diagnosis_counts.get(normalized_finding, 0)
+                ) + 1
     count = len(records)
+    support_answer_gap_count = sum(1 for record in records if record.support_answer_gap)
 
     return FinDERBenchmarkSummary(
         mode=mode,
@@ -502,6 +551,9 @@ def summarize_finder_records(
         debate_state_counts=debate_state_counts,
         missing_slot_counts=missing_slot_counts,
         semantic_reuse_count=sum(1 for record in records if record.semantic_reused),
+        support_answer_gap_count=support_answer_gap_count,
+        support_answer_gap_rate=round(support_answer_gap_count / count, 4) if count else 0.0,
+        diagnosis_counts=diagnosis_counts,
         avg_trace_step_count=round(sum(trace_steps) / count, 2) if count else 0.0,
         avg_tool_call_count=round(sum(tool_calls) / count, 2) if count else 0.0,
         avg_reasoning_attempt_count=round(sum(reasoning_attempts) / count, 2) if count else 0.0,
@@ -590,6 +642,11 @@ def run_finder_benchmark(
             ask_latency_ms = 0.0
             error = str(exc)
 
+        diagnosis = diagnose_finder_query_contract(
+            error=error,
+            contains_match=contains,
+        )
+
         records.append(
             FinDERBenchmarkRecord(
                 case_id=case.case_id,
@@ -607,6 +664,7 @@ def run_finder_benchmark(
                 deduplicated=deduplicated,
                 reasoning_cycle_status=reasoning_cycle_status,
                 reasoning_cycle_sources=reasoning_cycle_sources,
+                diagnosis=diagnosis,
                 error=error,
             )
         )

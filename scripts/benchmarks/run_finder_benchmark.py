@@ -23,6 +23,7 @@ from seocho.benchmarking import (  # noqa: E402
     FinDERBenchmarkRecord,
     classify_finder_scenario,
     compare_answers,
+    diagnose_finder_query_contract,
     filter_finder_cases,
     load_finder_cases,
     run_finder_benchmark,
@@ -448,6 +449,15 @@ def _run_remote_endpoint_benchmark(
             ask_latency_ms = 0.0
             error = str(exc)
 
+        diagnosis = diagnose_finder_query_contract(
+            error=error,
+            contains_match=contains,
+            support_status=str(agent_metrics["support_status"]),
+            missing_slots=list(agent_metrics["missing_slots"]),
+            evidence_bundle_size=int(agent_metrics["evidence_bundle_size"]),
+            trace_step_count=int(agent_metrics["trace_step_count"]),
+        )
+
         records.append(
             FinDERBenchmarkRecord(
                 case_id=case.case_id,
@@ -474,6 +484,8 @@ def _run_remote_endpoint_benchmark(
                 semantic_reused=bool(agent_metrics["semantic_reused"]),
                 debate_state=str(agent_metrics["debate_state"]),
                 token_usage=dict(agent_metrics["token_usage"]),
+                support_answer_gap="support_claim_answer_mismatch" in diagnosis,
+                diagnosis=diagnosis,
                 error=error,
             )
         )

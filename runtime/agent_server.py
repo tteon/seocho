@@ -450,6 +450,9 @@ class SemanticAgentResponse(AgentResponse):
     run_metadata: Dict[str, Any] = Field(default_factory=dict, description="Semantic run audit metadata (run_id, timestamps).")
     evidence_bundle: Dict[str, Any] = Field(default_factory=dict, description="Structured evidence bundle with slot fills and required relations.")
     reasoning_cycle: Dict[str, Any] = Field(default_factory=dict, description="Compact inquiry-cycle anomaly report for unsupported semantic outcomes.")
+    latency_breakdown_ms: Dict[str, float] = Field(default_factory=dict, description="Stage-level retrieval/generation latency breakdown in milliseconds.")
+    agent_pattern: Dict[str, Any] = Field(default_factory=dict, description="Agent design pattern receipt for the selected execution path.")
+    answer_envelope: Dict[str, Any] = Field(default_factory=dict, description="Canonical answer/evidence/latency/cost envelope shared with local SDK query metadata.")
     ontology_context_mismatch: Dict[str, Any] = Field(default_factory=dict, description="Runtime graph ontology-context parity metadata.")
 
 

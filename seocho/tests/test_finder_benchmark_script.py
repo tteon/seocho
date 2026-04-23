@@ -84,3 +84,36 @@ def test_limit_cases_per_category_preserves_order():
     selected = MODULE._limit_cases_per_category(cases, 2)
 
     assert [case.case_id for case in selected] == ["a1", "b1", "a2", "b2"]
+
+
+def test_extract_query_metadata_reads_generation_and_metric_trace_steps():
+    metadata = MODULE._extract_query_metadata(
+        {
+            "runtime_payload": {
+                "support_assessment": {"status": "supported"},
+                "evidence_bundle": {"coverage": 1.0, "missing_slots": []},
+                "trace_steps": [
+                    {
+                        "type": "GENERATION",
+                        "metadata": {
+                            "latency_breakdown_ms": {"retrieval_ms": 10.0, "generation_ms": 2.0},
+                            "agent_pattern": {"pattern": "semantic_direct"},
+                            "usage_estimate": {"total_tokens_est": 12},
+                        },
+                    },
+                    {
+                        "type": "METRIC",
+                        "metadata": {
+                            "usage": {"source": "provider", "exact": True, "total_tokens": 9},
+                        },
+                    },
+                ],
+            }
+        }
+    )
+
+    assert metadata["support_assessment"]["status"] == "supported"
+    assert metadata["evidence_bundle"]["coverage"] == 1.0
+    assert metadata["latency_breakdown_ms"]["retrieval_ms"] == 10.0
+    assert metadata["agent_pattern"]["pattern"] == "semantic_direct"
+    assert metadata["token_usage"]["total_tokens"] == 9

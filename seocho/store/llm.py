@@ -23,6 +23,7 @@ class ProviderSpec:
 
     name: str
     api_key_env: str
+    api_key_env_aliases: tuple[str, ...] = ()
     base_url: str = ""
     default_model: str = "gpt-4o"
     default_embedding_model: Optional[str] = None
@@ -57,6 +58,7 @@ _PROVIDER_SPECS: Dict[str, ProviderSpec] = {
     "grok": ProviderSpec(
         name="grok",
         api_key_env="XAI_API_KEY",
+        api_key_env_aliases=("GROK_API_KEY",),
         base_url="https://api.x.ai/v1",
         default_model="grok-4.20-reasoning",
         default_embedding_model=None,
@@ -107,7 +109,12 @@ def _resolve_client_kwargs(
 ) -> tuple[ProviderSpec, Dict[str, Any], str, str]:
     spec = get_provider_spec(provider)
     resolved_base_url = _strip_text(base_url) or spec.base_url
-    resolved_api_key = _strip_text(api_key) or _strip_text(os.getenv(spec.api_key_env))
+    resolved_api_key = _strip_text(api_key)
+    if not resolved_api_key:
+        for env_name in (spec.api_key_env, *spec.api_key_env_aliases):
+            resolved_api_key = _strip_text(os.getenv(env_name))
+            if resolved_api_key:
+                break
     kwargs: Dict[str, Any] = {"timeout": timeout}
     if resolved_api_key:
         kwargs["api_key"] = resolved_api_key
@@ -243,6 +250,36 @@ class OpenAICompatibleBackend(LLMBackend):
             return 1.0
         return temperature
 
+    def _uses_openai_reasoning_parameters(self) -> bool:
+        """Return true for OpenAI reasoning models with chat-completions quirks."""
+        if self.provider != "openai":
+            return False
+        model = self.model.strip().lower()
+        return model.startswith(("o1", "o3", "o4", "gpt-5"))
+
+    def _completion_request_kwargs(
+        self,
+        *,
+        messages: list[dict[str, str]],
+        temperature: float,
+        max_tokens: Optional[int],
+        response_format: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        kwargs: Dict[str, Any] = {
+            "model": self.model,
+            "messages": messages,
+        }
+        if self._uses_openai_reasoning_parameters():
+            if max_tokens is not None:
+                kwargs["max_completion_tokens"] = max_tokens
+        else:
+            kwargs["temperature"] = self._safe_temperature(temperature)
+            if max_tokens is not None:
+                kwargs["max_tokens"] = max_tokens
+        if response_format is not None:
+            kwargs["response_format"] = response_format
+        return kwargs
+
     def complete(
         self,
         *,
@@ -256,15 +293,12 @@ class OpenAICompatibleBackend(LLMBackend):
             {"role": "system", "content": system},
             {"role": "user", "content": user},
         ]
-        kwargs: Dict[str, Any] = {
-            "model": self.model,
-            "messages": messages,
-            "temperature": self._safe_temperature(temperature),
-        }
-        if max_tokens is not None:
-            kwargs["max_tokens"] = max_tokens
-        if response_format is not None:
-            kwargs["response_format"] = response_format
+        kwargs = self._completion_request_kwargs(
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            response_format=response_format,
+        )
 
         try:
             resp = self._client.chat.completions.create(**kwargs)
@@ -292,15 +326,12 @@ class OpenAICompatibleBackend(LLMBackend):
             {"role": "system", "content": system},
             {"role": "user", "content": user},
         ]
-        kwargs: Dict[str, Any] = {
-            "model": self.model,
-            "messages": messages,
-            "temperature": self._safe_temperature(temperature),
-        }
-        if max_tokens is not None:
-            kwargs["max_tokens"] = max_tokens
-        if response_format is not None:
-            kwargs["response_format"] = response_format
+        kwargs = self._completion_request_kwargs(
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            response_format=response_format,
+        )
 
         try:
             resp = await self._async_client.chat.completions.create(**kwargs)

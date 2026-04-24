@@ -42,7 +42,8 @@ Recommended onboarding order:
 - [QUICKSTART.md](QUICKSTART.md): shortest local success path
 - [../examples/quickstart.ipynb](../examples/quickstart.ipynb): runnable
   notebook covering ontology, indexing design, agent design, indexing, query,
-  `.env`-backed provider setup, optional Neo4j/DozerDB, and provider comparison
+  `.env`-backed provider setup, safe Ladybug fallback, optional Neo4j/DozerDB,
+  and provider comparison
 - [BEGINNER_GUIDE.md](BEGINNER_GUIDE.md): first-run guide that connects SDK
   snippets to architecture seams
 - [PYTHON_INTERFACE_QUICKSTART.md](PYTHON_INTERFACE_QUICKSTART.md): public

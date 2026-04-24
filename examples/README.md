@@ -19,9 +19,11 @@ cp ../.env.example ../.env
 `quickstart.ipynb` loads provider credentials from `../.env`.
 
 - default first run: embedded LadybugDB
-- optional production-like path: set `NEO4J_URI`, `NEO4J_USER`, and
+- optional production-like path: set both `NEO4J_URI` and
   `NEO4J_PASSWORD` in `../.env` and the notebook switches to Bolt-backed
   Neo4j/DozerDB automatically
+- if `NEO4J_URI` is present but `NEO4J_PASSWORD` is empty, the notebook keeps
+  using LadybugDB and prints the fallback reason
 
 ## Running
 

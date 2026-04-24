@@ -48,7 +48,7 @@
       <section class="controls">
         <label class="control">
           <span>Mode</span>
-          <select id="modeSelect">
+          <select id="modeSelect" aria-label="Mode">
             <option value="semantic">Semantic (DAG)</option>
             <option value="debate">Debate (Parallel)</option>
             <option value="router">Router (Sequential)</option>
@@ -56,22 +56,22 @@
         </label>
         <label class="control">
           <span>Workspace</span>
-          <input id="workspaceInput" value="default" />
+          <input id="workspaceInput" value="default" aria-label="Workspace" />
         </label>
         <label class="control">
           <span>Databases</span>
-          <input id="databasesInput" value="kgnormal,kgfibo" />
+          <input id="databasesInput" value="kgnormal,kgfibo" aria-label="Databases" />
         </label>
       </section>
 
       <section class="ingest-controls">
         <label class="control">
           <span>Ingest DB</span>
-          <input id="ingestDbInput" value="kgnormal" />
+          <input id="ingestDbInput" value="kgnormal" aria-label="Ingest DB" />
         </label>
         <label class="control ingest-grow">
           <span>Raw Records (one line per record)</span>
-          <textarea id="ingestInput" rows="2"
+          <textarea id="ingestInput" rows="2" aria-label="Raw Records"
             placeholder="Example: ACME acquired Beta in 2024.&#10;Example: Beta provides risk analytics to ACME."></textarea>
         </label>
         <button id="ingestBtn" type="button">Ingest Raw</button>

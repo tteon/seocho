@@ -6,7 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Docs](https://img.shields.io/badge/Docs-seocho.blog-0f172a)](https://seocho.blog/docs/)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/tteon/seocho)
-[![Quickstart](https://img.shields.io/badge/Quickstart-5_min-2563eb)](https://seocho.blog/docs/quickstart/)
+[![Quickstart](https://img.shields.io/badge/Quickstart-5_min-2563eb)](QUICKSTART.md)
 [![Examples](https://img.shields.io/badge/Examples-SDK-0f766e)](https://seocho.blog/sdk/examples/)
 
 You declare the ontology. You call `add()` and `ask()`.
@@ -35,7 +35,7 @@ Start here:
 
 | If you want to... | Go here |
 |---|---|
-| get a first local success path | [Quickstart](docs/QUICKSTART.md) |
+| get a first local success path | [Quickstart](QUICKSTART.md) |
 | understand SEOCHO with a guided beginner walkthrough | [Beginner Guide](docs/BEGINNER_GUIDE.md) |
 | see a runnable usecase demo | [Usecases](docs/USECASES.md) |
 | bring your own ontology and files | [Apply Your Data](docs/APPLY_YOUR_DATA.md) |

@@ -36,6 +36,7 @@ Start here:
 | If you want to... | Go here |
 |---|---|
 | get a first local success path | [Quickstart](QUICKSTART.md) |
+| follow a runnable notebook walkthrough | [examples/quickstart.ipynb](examples/quickstart.ipynb) |
 | understand SEOCHO with a guided beginner walkthrough | [Beginner Guide](docs/BEGINNER_GUIDE.md) |
 | see a runnable usecase demo | [Usecases](docs/USECASES.md) |
 | bring your own ontology and files | [Apply Your Data](docs/APPLY_YOUR_DATA.md) |
@@ -106,6 +107,7 @@ make up
 - `Seocho.local(ontology)` defaults to embedded LadybugDB at `.seocho/local.lbug`.
 - DozerDB/Neo4j is the production graph path: pass `graph="bolt://..."` or construct `Neo4jGraphStore(...)` explicitly.
 - The fastest full local stack is `make setup-env && make up`.
+- `examples/quickstart.ipynb` reads provider keys from `.env`, stays on LadybugDB by default, and switches to Bolt-backed Neo4j/DozerDB when `NEO4J_URI` is set.
 
 ## Why SEOCHO
 

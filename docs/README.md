@@ -12,6 +12,7 @@ now?
 | If you need to... | Start here |
 |---|---|
 | get a first local success path | [QUICKSTART.md](QUICKSTART.md) |
+| follow a runnable notebook walkthrough | [../examples/quickstart.ipynb](../examples/quickstart.ipynb) |
 | understand SEOCHO with architecture snippets | [BEGINNER_GUIDE.md](BEGINNER_GUIDE.md) |
 | use the Python SDK directly | [PYTHON_INTERFACE_QUICKSTART.md](PYTHON_INTERFACE_QUICKSTART.md) |
 | declare reusable agent patterns in YAML | [AGENT_DESIGN_SPECS.md](AGENT_DESIGN_SPECS.md) |
@@ -26,18 +27,22 @@ Recommended onboarding order:
 
 1. [WHY_SEOCHO.md](WHY_SEOCHO.md)
 2. [QUICKSTART.md](QUICKSTART.md)
-3. [BEGINNER_GUIDE.md](BEGINNER_GUIDE.md)
-4. [PYTHON_INTERFACE_QUICKSTART.md](PYTHON_INTERFACE_QUICKSTART.md)
-5. [APPLY_YOUR_DATA.md](APPLY_YOUR_DATA.md)
-6. [FILES_AND_ARTIFACTS.md](FILES_AND_ARTIFACTS.md)
-7. [ARCHITECTURE.md](ARCHITECTURE.md)
-8. [presentations/SEOCHO_OVERVIEW_DEEP_DIVE.md](presentations/SEOCHO_OVERVIEW_DEEP_DIVE.md)
+3. [../examples/quickstart.ipynb](../examples/quickstart.ipynb)
+4. [BEGINNER_GUIDE.md](BEGINNER_GUIDE.md)
+5. [PYTHON_INTERFACE_QUICKSTART.md](PYTHON_INTERFACE_QUICKSTART.md)
+6. [APPLY_YOUR_DATA.md](APPLY_YOUR_DATA.md)
+7. [FILES_AND_ARTIFACTS.md](FILES_AND_ARTIFACTS.md)
+8. [ARCHITECTURE.md](ARCHITECTURE.md)
+9. [presentations/SEOCHO_OVERVIEW_DEEP_DIVE.md](presentations/SEOCHO_OVERVIEW_DEEP_DIVE.md)
 
 ## Product Entry Points
 
 - [WHY_SEOCHO.md](WHY_SEOCHO.md): product framing and ontology-aligned value
   proposition
 - [QUICKSTART.md](QUICKSTART.md): shortest local success path
+- [../examples/quickstart.ipynb](../examples/quickstart.ipynb): runnable
+  notebook covering ontology, indexing design, agent design, indexing, query,
+  `.env`-backed provider setup, optional Neo4j/DozerDB, and provider comparison
 - [BEGINNER_GUIDE.md](BEGINNER_GUIDE.md): first-run guide that connects SDK
   snippets to architecture seams
 - [PYTHON_INTERFACE_QUICKSTART.md](PYTHON_INTERFACE_QUICKSTART.md): public

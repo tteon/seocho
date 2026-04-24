@@ -6,16 +6,22 @@ Jupyter notebooks for learning SEOCHO by doing.
 
 | Notebook | What you'll learn |
 |----------|------------------|
-| [quickstart.ipynb](quickstart.ipynb) | Full walkthrough: ontology → inspect → index → extract → validate → query → denormalize |
+| [quickstart.ipynb](quickstart.ipynb) | Recommended first entry route: ontology, indexing design YAML, agent design YAML, local indexing/query, observability, and four-provider comparison |
 | [bring_your_data.ipynb](bring_your_data.ipynb) | Load your actual data: text files, CSV, JSON, and query it |
 
 ## Prerequisites
 
 ```bash
-pip install seocho neo4j openai jupyter
+uv pip install "seocho[local]" python-dotenv jupyter
+cp ../.env.example ../.env
 ```
 
-A running Neo4j or DozerDB instance (default: `bolt://localhost:7687`).
+`quickstart.ipynb` loads provider credentials from `../.env`.
+
+- default first run: embedded LadybugDB
+- optional production-like path: set `NEO4J_URI`, `NEO4J_USER`, and
+  `NEO4J_PASSWORD` in `../.env` and the notebook switches to Bolt-backed
+  Neo4j/DozerDB automatically
 
 ## Running
 
@@ -29,16 +35,14 @@ Then open the notebook and run cells top to bottom.
 ## What each notebook covers
 
 ### quickstart.ipynb
-1. Define an ontology (NodeDef, RelDef, P)
-2. Inspect derived prompts, SHACL shapes, Cypher constraints
-3. Save as JSON-LD
-4. Connect to Neo4j and index articles
-5. Extract and score quality
-6. Query with natural language
-7. Use reasoning mode (auto-retry)
-8. Run raw Cypher
-9. Index from files
-10. Denormalize for export
+1. Load and inspect one ontology-first domain contract
+2. Inspect indexing design specs and choose an LPG-first local path
+3. Inspect agent design specs and choose a reflection-chain pattern
+4. Index finance-compliance sample docs into embedded LadybugDB or optional
+   Neo4j/DozerDB from `.env`
+5. Query with natural language and inspect observability metadata
+6. Compare the same workflow across OpenAI, DeepSeek, Kimi, and Grok
+7. Use the notebook output as the basis for further tuning
 
 ### bring_your_data.ipynb
 1. Define your own ontology (editable template)

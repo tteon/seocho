@@ -1426,7 +1426,9 @@ async def run_debate(request: QueryRequest):
 
 
 @app.get(RuntimePath.HEALTH_RUNTIME, response_model=HealthResponse)
-async def runtime_health():
+async def runtime_health(
+    workspace_id: str = Query(default="runtime-health", pattern=WORKSPACE_ID_PATTERN),
+):
     components: List[HealthComponent] = [
         HealthComponent(name="api", status="ready", detail="agent_server reachable"),
     ]
@@ -1438,7 +1440,7 @@ async def runtime_health():
             GraphQueryRequest(
                 cypher="RETURN 1 AS ok",
                 database="neo4j",
-                workspace_id="runtime-health",
+                workspace_id=workspace_id,
             )
         )
     except Exception as exc:
@@ -1505,21 +1507,42 @@ async def batch_health():
 
 
 @app.get(RuntimePath.DATABASES)
-async def list_databases():
-    """List all registered databases."""
-    return {"databases": db_registry.list_databases()}
+async def list_databases(
+    workspace_id: str = Query(default="default", pattern=WORKSPACE_ID_PATTERN),
+):
+    """List registered databases.
+
+    ``workspace_id`` is accepted on the contract for tenancy uniformity;
+    multi-tenant filtering is not yet enforced (single-tenant MVP).
+    """
+    return {"workspace_id": workspace_id, "databases": db_registry.list_databases()}
 
 
 @app.get(RuntimePath.GRAPHS)
-async def list_graphs():
-    """List registered graph targets."""
-    return {"graphs": [target.to_public_dict() for target in graph_registry.list_graphs()]}
+async def list_graphs(
+    workspace_id: str = Query(default="default", pattern=WORKSPACE_ID_PATTERN),
+):
+    """List registered graph targets.
+
+    ``workspace_id`` is accepted on the contract for tenancy uniformity;
+    multi-tenant filtering is not yet enforced (single-tenant MVP).
+    """
+    return {
+        "workspace_id": workspace_id,
+        "graphs": [target.to_public_dict() for target in graph_registry.list_graphs()],
+    }
 
 
 @app.get(RuntimePath.AGENTS)
-async def list_agents():
-    """List all active DB-bound agents."""
-    return {"agents": agent_factory.list_agents()}
+async def list_agents(
+    workspace_id: str = Query(default="default", pattern=WORKSPACE_ID_PATTERN),
+):
+    """List active DB-bound agents.
+
+    ``workspace_id`` is accepted on the contract for tenancy uniformity;
+    multi-tenant filtering is not yet enforced (single-tenant MVP).
+    """
+    return {"workspace_id": workspace_id, "agents": agent_factory.list_agents()}
 
 
 @app.post("/rules/infer", response_model=RuleInferResponse)

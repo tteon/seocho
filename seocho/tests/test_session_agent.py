@@ -288,15 +288,12 @@ class TestSession:
 
         from seocho.session import Session
 
-        fake_agents = ModuleType("agents")
-
-        class _FailingRunner:
-            @staticmethod
-            async def run(agent, user_msg):
+        class _FailingAdapter:
+            async def run(self, **_kwargs):
                 raise RuntimeError("agent backend unavailable")
 
-        fake_agents.Runner = _FailingRunner
-        monkeypatch.setitem(sys.modules, "agents", fake_agents)
+        import extraction.agents_runtime as _agents_runtime
+        monkeypatch.setattr(_agents_runtime, "get_agents_runtime", lambda: _FailingAdapter())
         monkeypatch.setattr(Session, "_get_indexing_agent", lambda self: object())
         monkeypatch.setattr(Session, "_get_pipeline_engine", lambda self: FakePipelineEngine())
 
@@ -322,15 +319,12 @@ class TestSession:
 
         from seocho.session import Session
 
-        fake_agents = ModuleType("agents")
-
-        class _FailingRunner:
-            @staticmethod
-            async def run(agent, user_msg):
+        class _FailingAdapter:
+            async def run(self, **_kwargs):
                 raise RuntimeError("query agent unavailable")
 
-        fake_agents.Runner = _FailingRunner
-        monkeypatch.setitem(sys.modules, "agents", fake_agents)
+        import extraction.agents_runtime as _agents_runtime
+        monkeypatch.setattr(_agents_runtime, "get_agents_runtime", lambda: _FailingAdapter())
         monkeypatch.setattr(Session, "_get_query_agent", lambda self: object())
         monkeypatch.setattr(Session, "_get_pipeline_engine", lambda self: FakePipelineEngine())
 

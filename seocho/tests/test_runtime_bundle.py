@@ -9,10 +9,12 @@ from seocho.http_runtime import create_bundle_runtime_app
 from seocho.ontology import NodeDef, Ontology, P, RelDef
 from seocho.query.strategy import PromptTemplate
 from seocho.runtime_bundle import (
+    OntologyHashStabilityError,
     RuntimeBundle,
     RuntimeGraphBinding,
     RuntimeGraphStoreConfig,
     RuntimeLLMConfig,
+    assert_bundle_hash_stable,
 )
 
 
@@ -383,3 +385,49 @@ def test_bundle_runtime_app_rejects_workspace_mismatch() -> None:
     response = http.post("/api/chat", json={"workspace_id": "other", "message": "Who is Alex?"})
     assert response.status_code == 400
     assert "Workspace mismatch" in response.json()["detail"]
+
+
+def _round_tripable_ontology() -> Ontology:
+    return Ontology(
+        name="bundle_hash_stability_test",
+        description="Ontology for bundle round-trip hash stability tests.",
+        graph_model="lpg",
+        nodes={
+            "Company": NodeDef(properties={"name": P(required=True), "industry": P()}),
+            "Person": NodeDef(properties={"name": P(required=True)}),
+        },
+        relationships={
+            "EMPLOYS": RelDef(source="Company", target="Person", properties={"since": P()}),
+        },
+    )
+
+
+def test_assert_bundle_hash_stable_passes_for_clean_round_trip() -> None:
+    ontology = _round_tripable_ontology()
+    bundle = RuntimeBundle(
+        app_name="hash-stable",
+        workspace_id="default",
+        ontology=ontology.to_dict(),
+        ontology_registry={"kgnormal": ontology.to_dict()},
+        graphs=[RuntimeGraphBinding(graph_id="neo4j", database="neo4j", ontology_id=ontology.name)],
+    )
+
+    # Round trip is the structural property: any drift fails loudly here.
+    assert_bundle_hash_stable(bundle)
+
+
+def test_assert_bundle_hash_stable_rejects_corrupted_payload() -> None:
+    bundle = RuntimeBundle(
+        app_name="hash-corrupt",
+        workspace_id="default",
+        ontology={"graph_type": "x", "nodes": ["not_a_dict"]},
+    )
+
+    with pytest.raises(Exception):
+        assert_bundle_hash_stable(bundle)
+
+
+def test_assert_bundle_hash_stable_skips_empty_payloads() -> None:
+    bundle = RuntimeBundle(app_name="empty", workspace_id="default")
+    # Empty ontology + empty registry should be a no-op, not a failure.
+    assert_bundle_hash_stable(bundle)

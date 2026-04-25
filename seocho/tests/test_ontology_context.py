@@ -5,6 +5,7 @@ from seocho.client import _LocalEngine
 from seocho.index.pipeline import IndexingPipeline
 from seocho.ontology_context import (
     OntologyContextCache,
+    assess_graph_ontology_context_status,
     assess_ontology_context_mismatch,
     build_ontology_context_summary_query,
     compile_ontology_context,
@@ -220,6 +221,52 @@ def test_query_ontology_context_mismatch_helper_handles_graph_metadata() -> None
     assert result["missing_context_nodes"] == 1
     assert result["indexed_context_hashes"] == ["old-context-hash"]
     assert "OPTIONAL MATCH (n:Document)" in store.queries[0]
+
+
+def test_assess_graph_ontology_context_status_flags_indexed_hash_drift() -> None:
+    """Phase 1: when expected_context_hash is set, indexed hashes that differ
+    must surface as a structural mismatch reason, not just be reported."""
+
+    result = assess_graph_ontology_context_status(
+        database="kgnormal",
+        workspace_id="acme",
+        indexed_context_hashes=["old-context-hash"],
+        expected_context_hash="active-context-hash",
+        scoped_nodes=5,
+    )
+
+    assert result["mismatch"] is True
+    assert "indexed_context_hash_differs_from_active" in result["mismatch_reasons"]
+    assert result["expected_context_hash"] == "active-context-hash"
+    assert result["indexed_context_hashes"] == ["old-context-hash"]
+
+
+def test_assess_graph_ontology_context_status_passes_when_hash_matches() -> None:
+    result = assess_graph_ontology_context_status(
+        database="kgnormal",
+        workspace_id="acme",
+        indexed_context_hashes=["matching-hash"],
+        expected_context_hash="matching-hash",
+        scoped_nodes=5,
+    )
+
+    assert result["mismatch"] is False
+    assert "indexed_context_hash_differs_from_active" not in result["mismatch_reasons"]
+
+
+def test_assess_graph_ontology_context_status_skips_hash_check_when_unset() -> None:
+    """When expected_context_hash is empty (Phase 1 default), the hash drift
+    reason must not fire — Phase 1.5 wires the loader that populates it."""
+
+    result = assess_graph_ontology_context_status(
+        database="kgnormal",
+        workspace_id="acme",
+        indexed_context_hashes=["any-hash"],
+        expected_context_hash="",
+        scoped_nodes=5,
+    )
+
+    assert "indexed_context_hash_differs_from_active" not in result["mismatch_reasons"]
 
 
 def test_build_ontology_context_summary_query_uses_document_scope() -> None:

@@ -723,6 +723,7 @@ _LADYBUG_FULLTEXT_SHOW_PATTERNS = (
     "SHOW FULLTEXT INDEXES",
     "SHOW INDEXES",
 )
+_LADYBUG_REL_TABLE_DELIM = "__seocho__"
 
 
 def _ladybug_column_names(columns: Sequence[str]) -> set[str]:
@@ -741,6 +742,16 @@ def _append_ladybug_string_columns(columns: List[str], names: Sequence[str]) -> 
             continue
         columns.append(f"`{name}` STRING")
         existing.add(name)
+
+
+def _ladybug_rel_table_name(rel_type: str, source_label: str, target_label: str) -> str:
+    return f"{rel_type}{_LADYBUG_REL_TABLE_DELIM}{source_label}{_LADYBUG_REL_TABLE_DELIM}{target_label}"
+
+
+def _ladybug_semantic_rel_type(table_name: str) -> str:
+    if _LADYBUG_REL_TABLE_DELIM not in table_name:
+        return table_name
+    return table_name.split(_LADYBUG_REL_TABLE_DELIM, 1)[0]
 
 
 def _ladybug_property_projection(variable: str, *, relation: bool) -> str:
@@ -916,6 +927,8 @@ class LadybugGraphStore(GraphStore):
         self._conn = _lb.Connection(self._db)
         self._declared_node_tables: set = set()
         self._declared_rel_tables: set = set()
+        self._semantic_rel_types: set = set()
+        self._rel_signature_to_table: Dict[tuple[str, str, str], str] = {}
         self._load_existing_schema()
 
     def _load_existing_schema(self) -> None:
@@ -931,6 +944,7 @@ class LadybugGraphStore(GraphStore):
                         self._declared_node_tables.add(table_name)
                     elif "REL" in table_type:
                         self._declared_rel_tables.add(table_name)
+                        self._semantic_rel_types.add(_ladybug_semantic_rel_type(table_name))
         except Exception:
             # CALL show_tables() may not be supported; ignore
             pass
@@ -963,13 +977,21 @@ class LadybugGraphStore(GraphStore):
         source_label: str,
         target_label: str,
         sample_props: Dict[str, Any],
-    ) -> None:
-        if rel_type in self._declared_rel_tables or not _LABEL_RE.match(rel_type):
-            return
+    ) -> Optional[str]:
+        if not _LABEL_RE.match(rel_type):
+            return None
         if source_label not in self._declared_node_tables:
-            return
+            return None
         if target_label not in self._declared_node_tables:
-            return
+            return None
+        signature = (rel_type, source_label, target_label)
+        if signature in self._rel_signature_to_table:
+            return self._rel_signature_to_table[signature]
+
+        if rel_type in self._declared_rel_tables:
+            physical_name = _ladybug_rel_table_name(rel_type, source_label, target_label)
+        else:
+            physical_name = rel_type
         cols: List[str] = []
         for key, value in (sample_props or {}).items():
             if not _LABEL_RE.match(key):
@@ -977,13 +999,18 @@ class LadybugGraphStore(GraphStore):
             cols.append(f"`{key}` {_lbug_type(value)}")
         _append_ladybug_string_columns(cols, _LADYBUG_COMMON_REL_STRING_COLUMNS)
         col_list = (", " + ", ".join(cols)) if cols else ""
-        try:
-            self._conn.execute(
-                f"CREATE REL TABLE IF NOT EXISTS `{rel_type}`(FROM `{source_label}` TO `{target_label}`{col_list})"
-            )
-            self._declared_rel_tables.add(rel_type)
-        except Exception as exc:
-            logger.warning("Failed to create rel table %s: %s", rel_type, exc)
+        if physical_name not in self._declared_rel_tables:
+            try:
+                self._conn.execute(
+                    f"CREATE REL TABLE IF NOT EXISTS `{physical_name}`(FROM `{source_label}` TO `{target_label}`{col_list})"
+                )
+                self._declared_rel_tables.add(physical_name)
+            except Exception as exc:
+                logger.warning("Failed to create rel table %s: %s", physical_name, exc)
+                return None
+        self._semantic_rel_types.add(rel_type)
+        self._rel_signature_to_table[signature] = physical_name
+        return physical_name
 
     def write(
         self,
@@ -1050,7 +1077,12 @@ class LadybugGraphStore(GraphStore):
             rprops["_workspace_id"] = workspace_id
             rprops["_source_id"] = source_id
 
-            self._ensure_rel_table(rtype, src_label, tgt_label, rprops)
+            physical_rtype = self._ensure_rel_table(rtype, src_label, tgt_label, rprops)
+            if physical_rtype is None:
+                summary["errors"].append(
+                    f"Rel {src_id}-[{rtype}]->{tgt_id}: unable to declare rel table"
+                )
+                continue
 
             prop_keys = [k for k in rprops if _LABEL_RE.match(k)]
             set_clause = (
@@ -1062,7 +1094,7 @@ class LadybugGraphStore(GraphStore):
             try:
                 self._conn.execute(
                     f"MATCH (a:`{src_label}` {{id: $src}}), (b:`{tgt_label}` {{id: $tgt}}) "
-                    f"CREATE (a)-[r:`{rtype}`{(' ' + set_clause) if set_clause else ''}]->(b)",
+                    f"CREATE (a)-[r:`{physical_rtype}`{(' ' + set_clause) if set_clause else ''}]->(b)",
                     params,
                 )
                 summary["relationships_created"] += 1
@@ -1161,6 +1193,8 @@ class LadybugGraphStore(GraphStore):
                     f"(FROM `{src}` TO `{tgt}`, {', '.join(f'`{name}` STRING' for name in _LADYBUG_COMMON_REL_STRING_COLUMNS)})"
                 )
                 self._declared_rel_tables.add(rtype)
+                self._semantic_rel_types.add(rtype)
+                self._rel_signature_to_table[(rtype, src, tgt)] = rtype
                 summary["success"] += 1
             except Exception as exc:
                 summary["errors"].append(f"Rel table {rtype}: {exc}")
@@ -1170,7 +1204,7 @@ class LadybugGraphStore(GraphStore):
     def get_schema(self, *, database: str = "neo4j") -> Dict[str, Any]:
         return {
             "labels": sorted(self._declared_node_tables),
-            "relationship_types": sorted(self._declared_rel_tables),
+            "relationship_types": sorted(self._semantic_rel_types or self._declared_rel_tables),
             "property_keys": [],
         }
 

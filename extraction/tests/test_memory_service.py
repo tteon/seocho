@@ -279,6 +279,54 @@ def test_run_query_prefers_query_proxy_with_workspace_scope():
     assert request.params == {"limit": 5}
 
 
+def test_get_memory_row_collects_entities_by_memory_scope_not_mentions_edges():
+    service = GraphMemoryService(
+        db_manager=_FakeDbManager(),
+        runtime_raw_ingestor=_FakeIngestor(),
+        semantic_agent_flow=_FakeSemanticFlow(),
+    )
+    calls = []
+
+    def _recording_query(database, cypher, params, workspace_id="default"):
+        calls.append(
+            {
+                "database": database,
+                "cypher": cypher,
+                "params": params,
+                "workspace_id": workspace_id,
+            }
+        )
+        return [
+            {
+                "memory_id": "mem_1",
+                "workspace_id": workspace_id,
+                "content": "ACME must comply with FMSA guidance.",
+                "content_preview": "ACME must comply with FMSA guidance.",
+                "status": "active",
+                "source_type": "text",
+                "category": "memory",
+                "user_id": "",
+                "agent_id": "",
+                "session_id": "",
+                "created_at": "",
+                "updated_at": "",
+                "metadata_json": "{}",
+                "entities": [
+                    {"id": "company-1", "labels": ["Company"], "name": "ACME"},
+                    {"id": "regulator-1", "labels": ["Regulator"], "name": "FMSA"},
+                ],
+            }
+        ]
+
+    service._run_query = _recording_query
+
+    row = service._get_memory_row("kgnormal", "mem_1", "default")
+
+    assert row is not None
+    assert "OPTIONAL MATCH (e)" in calls[0]["cypher"]
+    assert "[:MENTIONS]" not in calls[0]["cypher"]
+
+
 def test_search_memories_surfaces_ontology_context_mismatch():
     service = GraphMemoryService(
         db_manager=_FakeDbManager(),

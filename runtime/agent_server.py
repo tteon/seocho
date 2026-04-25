@@ -721,12 +721,19 @@ def _ontology_context_middleware_status(
     *,
     workspace_id: str,
     databases: List[str],
+    active_context_hashes: Optional[Dict[str, str]] = None,
 ) -> Dict[str, Any]:
-    """Attach non-blocking ontology/database parity metadata to agent responses."""
+    """Attach non-blocking ontology/database parity metadata to agent responses.
+
+    ``active_context_hashes`` is an optional ``{database: context_hash}`` map
+    of the runtime's currently-loaded ontology hashes. Phase 1 plumbs the
+    parameter; Phase 1.5 (bd: seocho-4nl) wires the loader that populates it.
+    """
 
     return memory_service.ontology_context_mismatch(
         workspace_id=workspace_id,
         databases=databases or None,
+        active_context_hashes=active_context_hashes,
     )
 
 

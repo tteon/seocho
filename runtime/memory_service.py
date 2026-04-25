@@ -436,10 +436,20 @@ class GraphMemoryService:
         *,
         workspace_id: str,
         databases: Optional[Sequence[str]] = None,
+        active_context_hashes: Optional[Dict[str, str]] = None,
     ) -> Dict[str, Any]:
-        """Return ontology-context provenance status for runtime query responses."""
+        """Return ontology-context provenance status for runtime query responses.
+
+        ``active_context_hashes`` is an optional ``{database: context_hash}``
+        map carrying the runtime's currently-loaded ontology hash per graph.
+        When provided, indexed graph hashes that differ from the active hash
+        surface ``indexed_context_hash_differs_from_active`` in the result's
+        ``mismatch_reasons``. Phase 1 plumbs this parameter; Phase 1.5 wires
+        the runtime ontology loader that populates it (bd: seocho-4nl).
+        """
 
         statuses: List[Dict[str, Any]] = []
+        active_hashes = active_context_hashes or {}
         for database in self._candidate_databases_from_list(databases):
             target = graph_registry.find_by_database(database)
             rows = self._run_query(
@@ -480,6 +490,7 @@ class GraphMemoryService:
                     )
                 ),
                 expected_ontology_id=str(getattr(target, "ontology_id", "") or ""),
+                expected_context_hash=str(active_hashes.get(database, "") or ""),
                 missing_context_nodes=(
                     int(row.get("missing_context_nodes", 0) or 0)
                     if isinstance(row, dict)

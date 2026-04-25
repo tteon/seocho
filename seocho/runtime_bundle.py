@@ -9,7 +9,12 @@ from typing import Any, Dict, List, Optional
 from .agent_config import AgentConfig
 from .models import JsonSerializable
 from .ontology import Ontology
+from .ontology_context import compile_ontology_context
 from .query.strategy import PromptTemplate
+
+
+class OntologyHashStabilityError(RuntimeError):
+    """Raised when a runtime bundle ontology's context hash drifts across the to_dict/from_dict round trip."""
 
 _PORTABLE_AGENT_CONFIG_KEYS = {
     "extraction_strategy",
@@ -294,6 +299,38 @@ def build_runtime_bundle(
     )
 
 
+def assert_bundle_hash_stable(bundle: RuntimeBundle) -> None:
+    """Verify that every ontology in *bundle* survives a to_dict/from_dict round trip with a stable context hash.
+
+    The runtime trusts the ``OntologyContextDescriptor.context_hash`` to prove
+    that indexing, querying, and agent invocation share one ontology contract.
+    Any silent drift in the serialization round trip would let the runtime
+    register a hash that the SDK and graph never stamped — Phase 1 makes that
+    drift fail loudly at boot rather than degrade answers later.
+    """
+
+    def _stable(payload: Dict[str, Any], *, label: str) -> None:
+        if not payload:
+            return
+        ontology = Ontology.from_dict(payload)
+        first = compile_ontology_context(
+            ontology, workspace_id=bundle.workspace_id
+        ).descriptor.context_hash
+        ontology_round_trip = Ontology.from_dict(ontology.to_dict())
+        second = compile_ontology_context(
+            ontology_round_trip, workspace_id=bundle.workspace_id
+        ).descriptor.context_hash
+        if first != second:
+            raise OntologyHashStabilityError(
+                f"Ontology context hash drift detected for {label}: "
+                f"first={first} second={second}"
+            )
+
+    _stable(bundle.ontology, label="bundle.ontology")
+    for database, payload in bundle.ontology_registry.items():
+        _stable(payload, label=f"bundle.ontology_registry[{database!r}]")
+
+
 def create_client_from_runtime_bundle(bundle_source: RuntimeBundle | str | Path, *, workspace_id: Optional[str] = None) -> Any:
     from .client import Seocho
     from .store.graph import Neo4jGraphStore
@@ -304,6 +341,8 @@ def create_client_from_runtime_bundle(bundle_source: RuntimeBundle | str | Path,
         raise ValueError(f"Unsupported portable graph store kind: {bundle.graph_store.kind}")
     if bundle.llm.kind != "openai_compatible":
         raise ValueError(f"Unsupported portable LLM kind: {bundle.llm.kind}")
+
+    assert_bundle_hash_stable(bundle)
 
     ontology = Ontology.from_dict(bundle.ontology)
     graph_store = Neo4jGraphStore(

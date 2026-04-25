@@ -339,17 +339,26 @@ def assess_graph_ontology_context_status(
     indexed_profiles: Iterable[Any] = (),
     expected_ontology_id: str = "",
     expected_profile: str = "",
+    expected_context_hash: str = "",
     missing_context_nodes: int = 0,
     missing_context_hash_nodes: int = 0,
     scoped_nodes: int = 0,
 ) -> Dict[str, Any]:
-    """Summarize graph-level ontology context provenance for runtime responses."""
+    """Summarize graph-level ontology context provenance for runtime responses.
+
+    When ``expected_context_hash`` is non-empty, indexed context hashes that
+    differ from it surface as ``indexed_context_hash_differs_from_active`` in
+    ``mismatch_reasons``. This is the structural drift detection promised by
+    the middleware contract: ontology_id can match by name yet still index
+    against a different schema version.
+    """
 
     context_hashes = _clean_distinct_strings(indexed_context_hashes)
     ontology_ids = _clean_distinct_strings(indexed_ontology_ids)
     profiles = _clean_distinct_strings(indexed_profiles)
     expected_ontology = str(expected_ontology_id or "").strip()
     expected_profile_value = str(expected_profile or "").strip()
+    expected_hash = str(expected_context_hash or "").strip()
 
     reasons: List[str] = []
     if len(context_hashes) > 1:
@@ -358,6 +367,8 @@ def assess_graph_ontology_context_status(
         reasons.append("indexed_ontology_id_differs_from_target")
     if expected_profile_value and profiles and any(item != expected_profile_value for item in profiles):
         reasons.append("indexed_profile_differs_from_target")
+    if expected_hash and context_hashes and any(item != expected_hash for item in context_hashes):
+        reasons.append("indexed_context_hash_differs_from_active")
 
     missing_nodes = int(missing_context_nodes or 0)
     missing_hash_nodes = int(missing_context_hash_nodes or 0)
@@ -379,6 +390,7 @@ def assess_graph_ontology_context_status(
         "workspace_id": str(workspace_id or "default"),
         "expected_ontology_id": expected_ontology,
         "expected_profile": expected_profile_value,
+        "expected_context_hash": expected_hash,
         "indexed_context_hashes": context_hashes,
         "indexed_ontology_ids": ontology_ids,
         "indexed_profiles": profiles,

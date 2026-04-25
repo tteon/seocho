@@ -351,10 +351,10 @@ class Session:
 
     def _run_via_supervisor(self, message: str, database: str) -> str:
         """Run through supervisor agent with hand-off."""
-        from agents import Runner
+        from extraction.agents_runtime import get_agents_runtime
 
         supervisor = self._get_supervisor_agent()
-        result = asyncio.run(Runner.run(supervisor, message))
+        result = asyncio.run(get_agents_runtime().run(agent=supervisor, input=message))
         return result.final_output or "No response from agent."
 
     def _get_supervisor_agent(self) -> Any:
@@ -466,7 +466,7 @@ class Session:
         metadata: Optional[Dict[str, Any]],
     ) -> Dict[str, Any]:
         """Run indexing through the agent with tool use."""
-        from agents import Runner
+        from extraction.agents_runtime import get_agents_runtime
 
         agent = self._get_indexing_agent()
         user_msg = (
@@ -478,7 +478,7 @@ class Session:
         user_msg += f"\n\n{self._ontology_context.agent_context}"
 
         try:
-            result = asyncio.run(Runner.run(agent, user_msg))
+            result = asyncio.run(get_agents_runtime().run(agent=agent, input=user_msg))
             # Parse agent's final output for structured result
             parsed = self._parse_indexing_result(result.final_output, content)
             parsed["ontology_context"] = self._ontology_context.metadata(usage="agent_indexing")
@@ -493,7 +493,7 @@ class Session:
 
     def _ask_via_agent(self, question: str, database: str) -> Dict[str, Any]:
         """Run query through the agent with tool use."""
-        from agents import Runner
+        from extraction.agents_runtime import get_agents_runtime
 
         agent = self._get_query_agent()
         user_msg = (
@@ -502,7 +502,7 @@ class Session:
         )
 
         try:
-            result = asyncio.run(Runner.run(agent, user_msg))
+            result = asyncio.run(get_agents_runtime().run(agent=agent, input=user_msg))
             return {
                 "answer": result.final_output or "No answer could be generated.",
                 "mode": "agent",
@@ -672,11 +672,11 @@ class Session:
         full_msg = f"{question}{context_block}\n[Target database: {db}]"
 
         try:
-            from agents import Runner
+            from extraction.agents_runtime import get_agents_runtime
             agent = self._get_query_agent()
 
             async def _stream():
-                result = Runner.run_streamed(agent, full_msg)
+                result = get_agents_runtime().run_streamed(agent=agent, input=full_msg)
                 async for event in result.stream_events():
                     if hasattr(event, 'data') and hasattr(event.data, 'delta'):
                         yield event.data.delta

@@ -1,18 +1,21 @@
 """Contract tests for OpenAI Agents SDK adapter compatibility.
 
 Test isolation note. The adapter under test imports ``from agents import
-Runner, trace`` at module load. To exercise it without the real OpenAI
-Agents SDK installed, we install a stub at ``sys.modules["agents"]``
-*before* the adapter import below. That mutation must be reversed when
-this module's tests finish so subsequent test files in the same pytest
-process see the production import graph again — otherwise any code path
-that calls ``from agents import Agent`` resolves to the stub's
-``Agent = object`` and downstream imports break with subtle errors
-(e.g. ``TypeError: object() takes no arguments``).
+Runner, trace`` at module load. To exercise it without depending on the
+real OpenAI Agents SDK shape, we install a stub at
+``sys.modules["agents"]`` *before* the adapter import below. That
+mutation must be torn down when this module's tests finish so
+subsequent test files in the same pytest process see the production
+import graph again.
 
-``teardown_module`` below restores the original (or absence) and drops
-the cached ``agents_runtime`` so a later import re-resolves cleanly
-against the real ``agents``. Tracked in seocho-eug0.
+``teardown_module`` below pops ``agents`` from ``sys.modules`` rather
+than restoring a captured snapshot. Why pop, not restore: pytest runs
+every test file's module-level code at *collection* time before any
+tests run, which means a captured "original" can itself be a stub
+installed by an earlier test file's collection. Always popping is
+correct because (a) the real ``agents`` SDK is on disk and any later
+``import agents`` re-resolves cleanly, and (b) test files that need
+the stub install it at their own module-load. Tracked in seocho-eug0.
 """
 
 import os
@@ -26,10 +29,6 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-# Snapshot must happen BEFORE the sys.modules mutation below so we have a
-# handle on the original (or its absence) for teardown_module to restore.
-_ORIGINAL_AGENTS_MODULE = sys.modules.get("agents")
-
 fake_agents = types.SimpleNamespace(
     Runner=object,
     trace=lambda *_a, **_k: nullcontext(),
@@ -40,22 +39,9 @@ import agents_runtime
 
 
 def teardown_module(module):
-    """Restore production sys.modules state after this file's tests run.
+    """Pop the agents stub so subsequent test files re-resolve from disk."""
 
-    Without this, ``sys.modules["agents"]`` keeps pointing at the stub
-    namespace for the rest of the pytest process and poisons every
-    subsequent test that imports ``from agents import ...`` —
-    documented in seocho-eug0 as the cause of the cross-suite flake on
-    seocho/tests/test_session_agent.py and the alias_flat_import test.
-    """
-
-    if _ORIGINAL_AGENTS_MODULE is None:
-        sys.modules.pop("agents", None)
-    else:
-        sys.modules["agents"] = _ORIGINAL_AGENTS_MODULE
-
-    # Drop the cached agents_runtime that was loaded against the stub.
-    # Both names may exist depending on how a later import resolves.
+    sys.modules.pop("agents", None)
     for cached in ("agents_runtime", "extraction.agents_runtime"):
         sys.modules.pop(cached, None)
 

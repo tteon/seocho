@@ -1,4 +1,19 @@
-"""Contract tests for OpenAI Agents SDK adapter compatibility."""
+"""Contract tests for OpenAI Agents SDK adapter compatibility.
+
+Test isolation note. The adapter under test imports ``from agents import
+Runner, trace`` at module load. To exercise it without the real OpenAI
+Agents SDK installed, we install a stub at ``sys.modules["agents"]``
+*before* the adapter import below. That mutation must be reversed when
+this module's tests finish so subsequent test files in the same pytest
+process see the production import graph again — otherwise any code path
+that calls ``from agents import Agent`` resolves to the stub's
+``Agent = object`` and downstream imports break with subtle errors
+(e.g. ``TypeError: object() takes no arguments``).
+
+``teardown_module`` below restores the original (or absence) and drops
+the cached ``agents_runtime`` so a later import re-resolves cleanly
+against the real ``agents``. Tracked in seocho-eug0.
+"""
 
 import os
 import re
@@ -11,6 +26,10 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+# Snapshot must happen BEFORE the sys.modules mutation below so we have a
+# handle on the original (or its absence) for teardown_module to restore.
+_ORIGINAL_AGENTS_MODULE = sys.modules.get("agents")
+
 fake_agents = types.SimpleNamespace(
     Runner=object,
     trace=lambda *_a, **_k: nullcontext(),
@@ -18,6 +37,27 @@ fake_agents = types.SimpleNamespace(
 sys.modules["agents"] = fake_agents
 
 import agents_runtime
+
+
+def teardown_module(module):
+    """Restore production sys.modules state after this file's tests run.
+
+    Without this, ``sys.modules["agents"]`` keeps pointing at the stub
+    namespace for the rest of the pytest process and poisons every
+    subsequent test that imports ``from agents import ...`` —
+    documented in seocho-eug0 as the cause of the cross-suite flake on
+    seocho/tests/test_session_agent.py and the alias_flat_import test.
+    """
+
+    if _ORIGINAL_AGENTS_MODULE is None:
+        sys.modules.pop("agents", None)
+    else:
+        sys.modules["agents"] = _ORIGINAL_AGENTS_MODULE
+
+    # Drop the cached agents_runtime that was loaded against the stub.
+    # Both names may exist depending on how a later import resolves.
+    for cached in ("agents_runtime", "extraction.agents_runtime"):
+        sys.modules.pop(cached, None)
 
 
 @pytest.mark.anyio

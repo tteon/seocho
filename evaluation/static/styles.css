@@ -118,6 +118,11 @@ body {
   color: var(--text-main);
 }
 
+.rail-btn:focus-visible {
+  outline: 2px solid var(--accent-blue);
+  outline-offset: 2px;
+}
+
 .rail-btn.active {
   color: var(--accent-blue);
   border-left-color: var(--accent-blue);
@@ -164,6 +169,26 @@ body {
   display: flex;
   align-items: center;
   gap: 1rem;
+}
+
+.reset-btn {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.reset-btn:hover {
+  color: #fff;
+}
+
+.reset-btn:focus-visible {
+  outline: 2px solid var(--accent-blue);
+  outline-offset: 2px;
 }
 
 .status {

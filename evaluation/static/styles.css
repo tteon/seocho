@@ -114,6 +114,11 @@ body {
   border-left: 2px solid transparent;
 }
 
+.rail-btn:focus-visible {
+  outline: 2px solid var(--accent-blue);
+  outline-offset: -2px;
+}
+
 .rail-btn:hover {
   color: var(--text-main);
 }
@@ -580,4 +585,26 @@ button:focus-visible {
   to {
     stroke-dashoffset: -16;
   }
+}
+
+
+/* #resetSessionBtn Styles */
+#resetSessionBtn {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+#resetSessionBtn:hover {
+  color: #fff;
+}
+
+#resetSessionBtn:focus-visible {
+  outline: 2px solid var(--accent-blue);
+  outline-offset: 2px;
 }

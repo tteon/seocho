@@ -18,11 +18,30 @@ def save_rule_profile(
     rule_profile: Dict[str, Any],
     name: Optional[str] = None,
     base_dir: str = DEFAULT_RULE_PROFILE_DIR,
+    *,
+    ontology_identity_hash: str = "",
 ) -> Dict[str, Any]:
+    """Persist a rule profile to the workspace's sqlite store.
+
+    Phase 5: ``ontology_identity_hash`` (typically
+    ``OntologyContextDescriptor.context_hash``, or
+    ``RuleSet.ontology_identity_hash`` from the inferred profile) is
+    stamped on the row so the loader can refuse application across an
+    ontology version change. Empty string preserves legacy behavior.
+    The hash is also propagated into the stored ``rule_profile_json``
+    so a profile reconstructed from the JSON alone still carries it.
+    """
+
     profile_id = _new_profile_id()
     created_at = _now_iso()
     schema_version = rule_profile.get("schema_version", "rules.v1")
     rule_count = len(rule_profile.get("rules", []))
+
+    stamped_hash = str(
+        ontology_identity_hash or rule_profile.get("ontology_identity_hash", "") or ""
+    ).strip()
+    if stamped_hash:
+        rule_profile = {**rule_profile, "ontology_identity_hash": stamped_hash}
 
     with _connect(base_dir) as conn:
         _maybe_import_legacy_workspace(conn, base_dir, workspace_id)
@@ -31,9 +50,9 @@ def save_rule_profile(
             """
             INSERT INTO rule_profiles (
               profile_id, workspace_id, profile_version, name, created_at,
-              schema_version, rule_count, rule_profile_json
+              schema_version, rule_count, rule_profile_json, ontology_identity_hash
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 profile_id,
@@ -44,6 +63,7 @@ def save_rule_profile(
                 schema_version,
                 rule_count,
                 json.dumps(rule_profile, ensure_ascii=True),
+                stamped_hash,
             ),
         )
         _apply_retention(conn, workspace_id)
@@ -56,6 +76,7 @@ def save_rule_profile(
         "created_at": created_at,
         "schema_version": schema_version,
         "rule_count": rule_count,
+        "ontology_identity_hash": stamped_hash,
         "rule_profile": rule_profile,
     }
 
@@ -64,13 +85,24 @@ def get_rule_profile(
     workspace_id: str,
     profile_id: str,
     base_dir: str = DEFAULT_RULE_PROFILE_DIR,
+    *,
+    expected_ontology_hash: str = "",
 ) -> Dict[str, Any]:
+    """Load a rule profile by id.
+
+    Phase 5: when ``expected_ontology_hash`` is non-empty, the returned
+    payload carries an ``artifact_ontology_mismatch`` block summarizing
+    whether the stored ``ontology_identity_hash`` matches. Reads
+    themselves don't fail on mismatch — the caller decides whether to
+    refuse application.
+    """
+
     with _connect(base_dir) as conn:
         _maybe_import_legacy_workspace(conn, base_dir, workspace_id)
         row = conn.execute(
             """
             SELECT profile_id, workspace_id, profile_version, name, created_at,
-                   schema_version, rule_count, rule_profile_json
+                   schema_version, rule_count, rule_profile_json, ontology_identity_hash
             FROM rule_profiles
             WHERE workspace_id = ? AND profile_id = ?
             """,
@@ -79,7 +111,12 @@ def get_rule_profile(
 
     if row is None:
         raise FileNotFoundError(f"rule profile not found: workspace={workspace_id}, profile_id={profile_id}")
-    return _row_to_payload(row)
+    payload = _row_to_payload(row)
+    if expected_ontology_hash:
+        payload["artifact_ontology_mismatch"] = _assess_rule_profile_match(
+            payload, active_ontology_hash=expected_ontology_hash
+        )
+    return payload
 
 
 def list_rule_profiles(
@@ -91,7 +128,7 @@ def list_rule_profiles(
         rows = conn.execute(
             """
             SELECT profile_id, workspace_id, profile_version, name, created_at,
-                   schema_version, rule_count
+                   schema_version, rule_count, ontology_identity_hash
             FROM rule_profiles
             WHERE workspace_id = ?
             ORDER BY profile_version DESC, created_at DESC
@@ -108,9 +145,50 @@ def list_rule_profiles(
             "created_at": row["created_at"],
             "schema_version": row["schema_version"],
             "rule_count": row["rule_count"],
+            "ontology_identity_hash": row["ontology_identity_hash"],
         }
         for row in rows
     ]
+
+
+def _assess_rule_profile_match(
+    payload: Dict[str, Any],
+    *,
+    active_ontology_hash: str,
+) -> Dict[str, Any]:
+    """Compare a rule profile's stored ontology_identity_hash to the active hash."""
+
+    stored = str(payload.get("ontology_identity_hash", "") or "").strip()
+    active = str(active_ontology_hash or "").strip()
+    if not stored:
+        return {
+            "stored_ontology_hash": "",
+            "active_ontology_hash": active,
+            "mismatch": False,
+            "status": "unknown",
+            "warning": (
+                "Rule profile has no ontology_identity_hash stamped. "
+                "Re-save under Phase 5 to gain hash parity guarantees."
+            ),
+        }
+    if stored == active:
+        return {
+            "stored_ontology_hash": stored,
+            "active_ontology_hash": active,
+            "mismatch": False,
+            "status": "match",
+            "warning": "",
+        }
+    return {
+        "stored_ontology_hash": stored,
+        "active_ontology_hash": active,
+        "mismatch": True,
+        "status": "drift",
+        "warning": (
+            "Rule profile ontology_identity_hash differs from active runtime hash. "
+            "Refuse application or re-derive the profile from the active ontology."
+        ),
+    }
 
 
 def _connect(base_dir: str) -> sqlite3.Connection:
@@ -128,10 +206,20 @@ def _connect(base_dir: str) -> sqlite3.Connection:
           created_at TEXT NOT NULL,
           schema_version TEXT NOT NULL,
           rule_count INTEGER NOT NULL,
-          rule_profile_json TEXT NOT NULL
+          rule_profile_json TEXT NOT NULL,
+          ontology_identity_hash TEXT NOT NULL DEFAULT ''
         )
         """
     )
+    # Phase 5: ALTER existing tables to add the column. NOT NULL with a
+    # DEFAULT is sqlite-safe for ADD COLUMN; the default backfills rows
+    # written before Phase 5 with the empty-string sentinel.
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(rule_profiles)")}
+    if "ontology_identity_hash" not in columns:
+        conn.execute(
+            "ALTER TABLE rule_profiles "
+            "ADD COLUMN ontology_identity_hash TEXT NOT NULL DEFAULT ''"
+        )
     conn.execute(
         """
         CREATE INDEX IF NOT EXISTS idx_rule_profiles_workspace_version
@@ -188,9 +276,9 @@ def _maybe_import_legacy_workspace(conn: sqlite3.Connection, base_dir: str, work
             """
             INSERT OR IGNORE INTO rule_profiles (
               profile_id, workspace_id, profile_version, name, created_at,
-              schema_version, rule_count, rule_profile_json
+              schema_version, rule_count, rule_profile_json, ontology_identity_hash
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 profile_id,
@@ -201,6 +289,11 @@ def _maybe_import_legacy_workspace(conn: sqlite3.Connection, base_dir: str, work
                 str(payload.get("schema_version") or "rules.v1"),
                 int(payload.get("rule_count") or len(rule_profile.get("rules", []))),
                 json.dumps(rule_profile, ensure_ascii=True),
+                str(
+                    payload.get("ontology_identity_hash")
+                    or rule_profile.get("ontology_identity_hash")
+                    or ""
+                ),
             ),
         )
         version += 1
@@ -247,6 +340,14 @@ def _retention_limit() -> int:
 
 def _row_to_payload(row: sqlite3.Row) -> Dict[str, Any]:
     rule_profile = json.loads(row["rule_profile_json"])
+    # Read with sqlite3.Row .keys() since older rows may not have the column
+    # in the result set when the row was inserted before Phase 5's migration.
+    row_keys = set(row.keys())
+    stored_hash = (
+        str(row["ontology_identity_hash"] or "").strip()
+        if "ontology_identity_hash" in row_keys
+        else ""
+    )
     return {
         "profile_id": row["profile_id"],
         "workspace_id": row["workspace_id"],
@@ -255,6 +356,7 @@ def _row_to_payload(row: sqlite3.Row) -> Dict[str, Any]:
         "created_at": row["created_at"],
         "schema_version": row["schema_version"],
         "rule_count": row["rule_count"],
+        "ontology_identity_hash": stored_hash,
         "rule_profile": rule_profile,
     }
 

@@ -46,16 +46,25 @@ class Rule:
 
 @dataclass
 class RuleSet:
-    """Collection of inferred rules with serialization helpers."""
+    """Collection of inferred rules with serialization helpers.
+
+    Phase 5 added ``ontology_identity_hash`` so a stored rule profile can
+    be compared against the active ontology's
+    ``OntologyContextDescriptor.context_hash`` before being applied.
+    Empty string means "no hash recorded" (backward compatible with
+    pre-Phase-5 dicts and the unset-default path).
+    """
 
     schema_version: str = "rules.v1"
     rules: List[Rule] = field(default_factory=list)
+    ontology_identity_hash: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
         """Serialize to a portable dict (``schema_version`` + ``rules`` list)."""
         return {
             "schema_version": self.schema_version,
             "rules": [asdict(rule) for rule in self.rules],
+            "ontology_identity_hash": self.ontology_identity_hash,
         }
 
     @classmethod
@@ -72,7 +81,11 @@ class RuleSet:
                     params=item.get("params", {}),
                 )
             )
-        return cls(schema_version=schema_version, rules=rules)
+        return cls(
+            schema_version=schema_version,
+            rules=rules,
+            ontology_identity_hash=str(payload.get("ontology_identity_hash", "") or ""),
+        )
 
     def to_shacl_like(self) -> Dict[str, Any]:
         """Return a SHACL-inspired shape document."""
@@ -98,6 +111,8 @@ def infer_rules_from_graph(
     extracted_data: Dict[str, Any],
     required_threshold: float = 0.98,
     enum_max_size: int = 20,
+    *,
+    ontology_identity_hash: str = "",
 ) -> RuleSet:
     """Infer SHACL-like constraints from extracted node properties.
 
@@ -111,6 +126,12 @@ def infer_rules_from_graph(
         required_threshold: Minimum non-null ratio (0–1) to emit a
             ``required`` rule.
         enum_max_size: Maximum distinct values to emit an ``enum`` rule.
+        ontology_identity_hash: Optional ontology context hash (typically
+            ``OntologyContextDescriptor.context_hash``) stamped onto the
+            resulting :class:`RuleSet`. Phase 5: lets downstream rule
+            profile storage refuse application across an ontology
+            version change. Empty string preserves the legacy
+            no-hash-recorded path.
 
     Returns:
         A :class:`RuleSet` with the inferred rules.
@@ -119,7 +140,10 @@ def infer_rules_from_graph(
         nodes_json = _json.dumps(extracted_data.get("nodes", []))
         rules_json = _native_infer(nodes_json, required_threshold, enum_max_size)
         rules_list = _json.loads(rules_json)
-        return RuleSet(rules=[Rule(**r) for r in rules_list])
+        return RuleSet(
+            rules=[Rule(**r) for r in rules_list],
+            ontology_identity_hash=str(ontology_identity_hash or ""),
+        )
 
     buckets: Dict[Tuple[str, str], Dict[str, Any]] = {}
     for node in extracted_data.get("nodes", []):
@@ -136,7 +160,7 @@ def infer_rules_from_graph(
             if value is not None:
                 bucket["nonnull_values"].append(value)
 
-    ruleset = RuleSet()
+    ruleset = RuleSet(ontology_identity_hash=str(ontology_identity_hash or ""))
     for (label, prop_name), stats in buckets.items():
         values = stats["values"]
         nonnull = stats["nonnull_values"]

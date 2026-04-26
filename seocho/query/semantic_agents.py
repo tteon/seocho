@@ -15,9 +15,21 @@ from .contracts import CypherPlan, InsufficiencyAssessment
 from .cypher_validator import CypherQueryValidator
 from .insufficiency import QueryInsufficiencyClassifier
 from .query_proxy import QueryExecutionError, coerce_query_records
+
 from .run_registry import RunMetadataRegistry
 from .strategy_chooser import ExecutionStrategyChooser, IntentSupportValidator
 
+_RE_ALPHA_NUM = re.compile(r"[a-z0-9]+")
+_RE_NON_ALPHA_NUM = re.compile(r"[^a-z0-9]+")
+_RE_SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+")
+_RE_DECIMAL = re.compile(r"\d+(?:\.\d+)?")
+_RE_QUOTED = re.compile(r'"([^"]+)"')
+_RE_SINGLE_QUOTED = re.compile(r"'([^']+)'")
+_RE_POSSESSIVE = re.compile(r"'s\b", flags=re.IGNORECASE)
+_RE_CORP = re.compile(r"\b(corporation|corp|company|co|incorporated)\b\.?", flags=re.IGNORECASE)
+_RE_WHITESPACE = re.compile(r"\s+")
+_RE_TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9&._-]{2,}")
+_RE_TITLE_CASE = re.compile(r"\b(?:[A-Z][a-zA-Z0-9&.-]{1,}|[A-Z]{2,})(?:\s+[A-Z][a-zA-Z0-9&.-]{1,})*\b")
 logger = logging.getLogger(__name__)
 
 RDF_HINTS = {
@@ -113,11 +125,11 @@ QUERY_CONTRACT_FAILURE_CODE = "query_execution_failed_or_contract_error"
 
 
 def _normalize(value: str) -> str:
-    return re.sub(r"[^a-z0-9]+", " ", value.lower()).strip()
+    return _RE_NON_ALPHA_NUM.sub( " ", value.lower()).strip()
 
 
 def _normalize_symbol(value: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "", str(value).lower())
+    return _RE_NON_ALPHA_NUM.sub( "", str(value).lower())
 
 
 def _query_rows(
@@ -618,14 +630,11 @@ class SemanticEntityResolver:
         self._query_diagnostics: List[Dict[str, Any]] = []
 
     def extract_question_entities(self, question: str) -> List[str]:
-        quoted = [m.group(1).strip() for m in re.finditer(r'"([^"]+)"', question)]
-        single_quoted = [m.group(1).strip() for m in re.finditer(r"'([^']+)'", question)]
+        quoted = [m.group(1).strip() for m in _RE_QUOTED.finditer(question)]
+        single_quoted = [m.group(1).strip() for m in _RE_SINGLE_QUOTED.finditer(question)]
         caps = [
             m.group(0).strip()
-            for m in re.finditer(
-                r"\b(?:[A-Z][a-zA-Z0-9&.-]{1,}|[A-Z]{2,})(?:\s+[A-Z][a-zA-Z0-9&.-]{1,})*\b",
-                question,
-            )
+            for m in _RE_TITLE_CASE.finditer(question)
         ]
 
         entities: List[str] = []
@@ -641,7 +650,7 @@ class SemanticEntityResolver:
             entities.append(cleaned)
 
         if not entities:
-            for token in re.findall(r"[A-Za-z0-9][A-Za-z0-9&._-]{2,}", question):
+            for token in _RE_TOKEN.findall( question):
                 key = token.lower()
                 if key in STOPWORDS or key.isdigit():
                     continue
@@ -943,9 +952,9 @@ class SemanticEntityResolver:
 
     @staticmethod
     def _clean_span(value: str) -> str:
-        cleaned = re.sub(r"\s+", " ", value.strip())
+        cleaned = _RE_WHITESPACE.sub(" ", value.strip())
         cleaned = cleaned.strip(".,:;!?()[]{}")
-        cleaned = re.sub(r"'s\b", "", cleaned, flags=re.IGNORECASE)
+        cleaned = _RE_POSSESSIVE.sub("", cleaned)
         tokens = cleaned.split()
         while len(tokens) > 1 and tokens[0].lower() in LEADING_ENTITY_WRAPPER_TOKENS:
             tokens = tokens[1:]
@@ -967,7 +976,7 @@ class SemanticEntityResolver:
             terms.append(cleaned)
 
         for raw in (resolved_text, entity_text):
-            compact = re.sub(r"\b(corporation|corp|company|co|incorporated)\b\.?", "", raw, flags=re.IGNORECASE)
+            compact = _RE_CORP.sub("", raw)
             compact = cls._clean_span(compact)
             if not compact:
                 continue
@@ -980,7 +989,7 @@ class SemanticEntityResolver:
 
     @staticmethod
     def _normalize(value: str) -> str:
-        return re.sub(r"[^a-z0-9]+", " ", value.lower()).strip()
+        return _RE_NON_ALPHA_NUM.sub( " ", value.lower()).strip()
 
     @staticmethod
     def _lexical_similarity(a: str, b: str) -> float:
@@ -1001,8 +1010,8 @@ class SemanticEntityResolver:
     def _label_boost(labels: Sequence[str], label_hints: Set[str]) -> float:
         if not labels or not label_hints:
             return 0.0
-        normalized_labels = {re.sub(r"[^a-z0-9]+", "", str(label).lower()) for label in labels}
-        normalized_hints = {re.sub(r"[^a-z0-9]+", "", hint.lower()) for hint in label_hints}
+        normalized_labels = {_RE_NON_ALPHA_NUM.sub( "", str(label).lower()) for label in labels}
+        normalized_hints = {_RE_NON_ALPHA_NUM.sub( "", hint.lower()) for hint in label_hints}
         if normalized_labels & normalized_hints:
             return 0.15
         return 0.0
@@ -2004,7 +2013,7 @@ class AnswerGenerationAgent:
             return ""
         sentences = [
             sentence.strip()
-            for sentence in re.split(r"(?<=[.!?])\s+", supporting_fact)
+            for sentence in _RE_SENTENCE_SPLIT.split( supporting_fact)
             if sentence.strip()
         ]
         if not sentences:
@@ -2012,7 +2021,7 @@ class AnswerGenerationAgent:
 
         question_terms = {
             token
-            for token in re.findall(r"[a-z0-9]+", question.lower())
+            for token in _RE_ALPHA_NUM.findall( question.lower())
             if token not in STOPWORDS and len(token) > 1
         }
         if not question_terms:
@@ -2022,8 +2031,8 @@ class AnswerGenerationAgent:
             question_terms.update({"ceo", "cfo", "chairman", "board", "director", "officer"})
 
         def score(sentence: str) -> tuple[int, int, int]:
-            terms = set(re.findall(r"[a-z0-9]+", sentence.lower()))
-            numeric_hits = len(set(re.findall(r"\d+(?:\.\d+)?", sentence.lower())) & question_terms)
+            terms = set(_RE_ALPHA_NUM.findall( sentence.lower()))
+            numeric_hits = len(set(_RE_DECIMAL.findall( sentence.lower())) & question_terms)
             return (len(terms & question_terms), numeric_hits, len(sentence))
 
         best_sentence = max(sentences, key=score)

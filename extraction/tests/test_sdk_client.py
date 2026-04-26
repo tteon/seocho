@@ -1049,6 +1049,85 @@ def test_execution_plan_builder_passes_reasoning_cycle_to_semantic_runtime():
     assert session.calls[1]["json"]["reasoning_cycle"]["enabled"] is True
 
 
+def test_execution_plan_builder_passes_runtime_budgets_to_react_and_debate():
+    session = _FakeSession(
+        [
+            _FakeResponse(
+                payload={
+                    "graphs": [
+                        {
+                            "graph_id": "kgnormal",
+                            "database": "kgnormal",
+                            "uri": "bolt://neo4j:7687",
+                            "ontology_id": "baseline",
+                            "vocabulary_profile": "vocabulary.v2",
+                            "description": "Baseline graph",
+                            "workspace_scope": "default",
+                        }
+                    ]
+                }
+            ),
+            _FakeResponse(
+                payload={
+                    "response": "react answer",
+                    "trace_steps": [{"type": "GENERATION"}],
+                    "ontology_context_mismatch": {"mismatch": False, "databases": []},
+                }
+            ),
+            _FakeResponse(
+                payload={
+                    "graphs": [
+                        {
+                            "graph_id": "kgnormal",
+                            "database": "kgnormal",
+                            "uri": "bolt://neo4j:7687",
+                            "ontology_id": "baseline",
+                            "vocabulary_profile": "vocabulary.v2",
+                            "description": "Baseline graph",
+                            "workspace_scope": "default",
+                        }
+                    ]
+                }
+            ),
+            _FakeResponse(
+                payload={
+                    "response": "debate answer",
+                    "trace_steps": [],
+                    "debate_results": [{"graph": "kgnormal", "response": "agent answer"}],
+                    "agent_statuses": [{"graph": "kgnormal", "status": "ready"}],
+                    "debate_state": "ready",
+                    "degraded": False,
+                    "ontology_context_mismatch": {"mismatch": False, "databases": []},
+                }
+            ),
+        ]
+    )
+    client = Seocho(base_url="http://localhost:8001", session=session)
+
+    react_result = (
+        client.plan("What changed?")
+        .on_graph("kgnormal")
+        .react(max_steps=6, tool_budget=2)
+        .run()
+    )
+    debate_result = (
+        client.plan("Compare both graphs")
+        .on_graph("kgnormal")
+        .debate(max_steps=8, tool_budget=3)
+        .run()
+    )
+
+    assert react_result.response == "react answer"
+    assert debate_result.runtime_mode == "debate"
+    assert session.calls[1]["url"] == "http://localhost:8001/run_agent"
+    assert session.calls[1]["json"]["max_steps"] == 6
+    assert session.calls[1]["json"]["tool_budget"] == 2
+    assert session.calls[1]["json"]["prefer_agentic_tools"] is True
+    assert session.calls[-1]["url"] == "http://localhost:8001/run_debate"
+    assert session.calls[-1]["json"]["max_steps"] == 8
+    assert session.calls[-1]["json"]["tool_budget"] == 3
+
+
 def test_from_agent_design_defaults_reasoning_cycle_for_semantic_runtime(tmp_path):
     path = tmp_path / "agent-design.yaml"
     path.write_text(

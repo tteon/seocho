@@ -30,6 +30,27 @@ Important:
 - `make up` rebuilds an image-backed `extraction-service`, so `localhost:8001`
   reflects a known source snapshot instead of a dirty bind-mounted checkout.
 
+## 1.1 Execution Modes Matter
+
+SEOCHO exposes multiple query surfaces and they do not all use the same engine.
+
+| Surface | Execution path | Use this when |
+|---|---|---|
+| `Seocho.local(...).ask(...)` | local SDK query path | you want a serverless ontology-first local run |
+| `Seocho(base_url=...).ask(...)` | runtime `/api/chat` convenience path | you want app-style chat quickly |
+| `client.semantic(...)` | runtime semantic graph QA | you want deterministic graph-grounded QA first |
+| `client.react(...)` | runtime router agent | you want provider-native reasoning plus tool use |
+| `client.advanced(...)` / `client.debate(...)` | runtime debate orchestrator | you want explicit multi-agent comparison/synthesis |
+
+Important implications:
+
+- local `ask()` is not the same benchmark target as runtime `react()` or
+  `advanced()`
+- `reasoning_mode` + `repair_budget` belong to the semantic path
+- `max_steps` + `tool_budget` belong to the runtime agentic paths
+- if you are comparing providers fairly on tool use, do it on runtime
+  `react/debate`, not local `ask()`
+
 ## 2. Setup
 
 ```bash
@@ -157,7 +178,24 @@ recent = client.semantic_runs(limit=5, route="lpg")
 print(recent[0].run_id)
 ```
 
-## 7. Use Debate Only as an Advanced Mode
+## 7. Use React Or Debate Only As Explicit Agentic Modes
+
+If you want the runtime agent loop with bounded turns and tool usage:
+
+```python
+react = client.react(
+    "What changed in ACME's graph?",
+    graph_ids=["kgruntime"],
+    max_steps=6,
+    tool_budget=2,
+)
+
+print(react.response)
+```
+
+This is the correct surface for provider-native reasoning/tool-use experiments.
+
+## 8. Use Debate Only as an Advanced Mode
 
 If you explicitly want cross-graph comparison:
 
@@ -165,6 +203,8 @@ If you explicitly want cross-graph comparison:
 advanced = client.advanced(
     "Compare what each graph knows about ACME.",
     graph_ids=["kgnormal", "kgfibo"],
+    max_steps=8,
+    tool_budget=3,
 )
 
 print(advanced.debate_state)
@@ -173,19 +213,19 @@ print(advanced.debate_state)
 Stay on the semantic path first. Inspect `semantic.support`, `semantic.strategy`,
 and `semantic.evidence` before reaching for debate.
 
-## 8. Inspect Runtime Semantic History
+## 9. Inspect Runtime Semantic History
 
 ```bash
 curl -sS "http://localhost:8001/semantic/runs?workspace_id=default&limit=5&route=lpg" | jq .
 ```
 
-## 9. Validate the Runtime
+## 10. Validate the Runtime
 
 ```bash
 make e2e-smoke
 ```
 
-## 10. Keep One Ontology Contract
+## 11. Keep One Ontology Contract
 
 If you author locally with `schema.jsonld` but ingest/query through the runtime,
 do not maintain a second hand-written runtime payload. Use the same ontology to
@@ -201,7 +241,7 @@ artifacts = client.approved_artifacts_from_ontology()
 prompt_context = client.prompt_context_from_ontology()
 ```
 
-## 11. Troubleshooting
+## 12. Troubleshooting
 
 Check service state:
 
@@ -217,7 +257,7 @@ Common issues:
 - port collision on `8001`, `8501`, `7474`, or `7687`
 - graph database not ready yet
 
-## 12. Know Where Your Files Go
+## 13. Know Where Your Files Go
 
 The main local locations are:
 

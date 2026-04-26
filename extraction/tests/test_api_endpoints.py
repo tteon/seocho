@@ -4,7 +4,7 @@ import importlib
 import os
 import sys
 import types
-from contextlib import nullcontext
+from contextlib import contextmanager, nullcontext
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -602,6 +602,62 @@ class TestListEndpoints:
         assert payload["trace_steps"][-1]["type"] == "METRIC"
         assert payload["trace_steps"][-1]["metadata"]["usage"]["source"] == "estimated_char_count"
 
+    async def test_run_agent_can_force_agentic_router_with_runtime_budgets(self, client, app_module):
+        class _FakeRuntime:
+            def __init__(self):
+                self.calls = []
+
+            @contextmanager
+            def trace(self, _name):
+                yield
+
+            async def run(self, *, agent, input, context, max_turns=None):
+                self.calls.append(
+                    {
+                        "agent": agent,
+                        "input": input,
+                        "context": context,
+                        "max_turns": max_turns,
+                    }
+                )
+                return types.SimpleNamespace(
+                    final_output="router response",
+                    chat_history=[],
+                    messages=[],
+                )
+
+        fake_runtime = _FakeRuntime()
+        mismatch = {"mismatch": False, "databases": [{"database": "kgnormal"}]}
+        target = types.SimpleNamespace(database="kgnormal")
+        with patch.object(app_module.graph_registry, "list_graph_ids", return_value=["kgnormal"]):
+            with patch.object(app_module.graph_registry, "is_valid_graph", return_value=True):
+                with patch.object(app_module.graph_registry, "get_graph", return_value=target):
+                    with patch.object(app_module, "get_agents_runtime", return_value=fake_runtime):
+                        with patch.object(app_module.memory_service, "ontology_context_mismatch", return_value=mismatch):
+                            response = await client.post(
+                                "/run_agent",
+                                json={
+                                    "query": "hello",
+                                    "workspace_id": "default",
+                                    "user_id": "u1",
+                                    "graph_ids": ["kgnormal"],
+                                    "prefer_agentic_tools": True,
+                                    "max_steps": 7,
+                                    "tool_budget": 2,
+                                },
+                            )
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["response"] == "router response"
+        assert len(fake_runtime.calls) == 1
+        runtime_call = fake_runtime.calls[0]
+        assert runtime_call["input"] == "hello"
+        assert runtime_call["max_turns"] == 7
+        assert runtime_call["context"].allowed_databases == ["kgnormal"]
+        assert runtime_call["context"].max_turns == 7
+        assert runtime_call["context"].tool_budget == 2
+
     async def test_run_debate_returns_blocked_state_when_no_ready_agents(self, client, app_module):
         with patch.object(app_module.graph_registry, "list_graph_ids", return_value=["kgnormal"]):
             with patch.object(app_module.graph_registry, "is_valid_graph", return_value=True):
@@ -660,6 +716,8 @@ class TestListEndpoints:
             async def run_debate(self, query, context):
                 assert query == "compare entities"
                 assert context.allowed_databases == [graph_id]
+                assert context.max_turns == 9
+                assert context.tool_budget == 3
                 assert context.reasoning_cycle["enabled"] is True
                 return {
                     "response": "semantic debate response",
@@ -709,6 +767,8 @@ class TestListEndpoints:
                                                     "workspace_id": "default",
                                                     "user_id": "u1",
                                                     "graph_ids": [graph_id],
+                                                    "max_steps": 9,
+                                                    "tool_budget": 3,
                                                     "reasoning_cycle": {"enabled": True},
                                                 },
                                             )

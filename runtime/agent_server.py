@@ -185,6 +185,21 @@ async def seocho_error_handler(request: Request, exc: SeochoError):
 async def _startup():
     validate_config()
     configure_opik()
+    # Phase 1.5: populate the runtime ontology registry from
+    # SEOCHO_RUNTIME_ONTOLOGIES if set. Empty/missing manifest leaves the
+    # registry empty so Phases 1/2/3 stay inert (their backward-compatible
+    # default), which keeps boot deterministic during the transition.
+    try:
+        from runtime.ontology_registry import load_runtime_ontologies_from_env
+
+        loaded = load_runtime_ontologies_from_env()
+        if loaded:
+            logger.info("Runtime ontology registry: loaded %d entries.", loaded)
+    except Exception:
+        logger.warning(
+            "Runtime ontology registry boot failed; hash drift detection stays inert.",
+            exc_info=True,
+        )
 
 # ------------------------------------------------------------------
 # 2. Tools & Agents Definition
@@ -1369,8 +1384,27 @@ async def run_debate(request: QueryRequest):
     if not valid_graph_ids:
         raise HTTPException(status_code=400, detail="No target graphs available.")
 
+    # Phase 1.5 activates Phases 1/2/3: pull the registered runtime
+    # ontologies for this workspace and feed both consumers — the
+    # agent-creation skew probe (Phase 2) and the response-level mismatch
+    # rollup (Phase 1). Empty registry = legacy behavior.
+    from runtime.ontology_registry import get_runtime_ontology_registry
+
+    runtime_ontologies = get_runtime_ontology_registry()
+    runtime_ontology_contexts = runtime_ontologies.ontology_contexts(
+        workspace_id=request.workspace_id
+    )
+    runtime_active_hashes = runtime_ontologies.active_context_hashes(
+        workspace_id=request.workspace_id
+    )
+
     # Ensure agents exist for the requested graphs and capture readiness status.
-    agent_statuses = agent_factory.create_agents_for_graphs(valid_graph_ids, db_manager)
+    agent_statuses = agent_factory.create_agents_for_graphs(
+        valid_graph_ids,
+        db_manager,
+        ontology_contexts=runtime_ontology_contexts or None,
+        workspace_id=request.workspace_id,
+    )
     readiness = summarize_readiness(agent_statuses)
 
     all_agents = agent_factory.get_agents_for_graphs(valid_graph_ids)
@@ -1378,6 +1412,7 @@ async def run_debate(request: QueryRequest):
         ontology_context_mismatch = _ontology_context_middleware_status(
             workspace_id=request.workspace_id,
             databases=scoped_databases,
+            active_context_hashes=runtime_active_hashes or None,
         )
         return DebateResponse(
             response="Debate mode is blocked: no ready graph agents are available.",
@@ -1417,6 +1452,7 @@ async def run_debate(request: QueryRequest):
         result["ontology_context_mismatch"] = _ontology_context_middleware_status(
             workspace_id=request.workspace_id,
             databases=scoped_databases,
+            active_context_hashes=runtime_active_hashes or None,
         )
         result["trace_steps"] = _append_usage_trace_step(
             list(result.get("trace_steps", [])),

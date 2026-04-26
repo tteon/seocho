@@ -7,6 +7,7 @@ from typing import List, Dict, Any, Optional, Literal
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Request, Depends, Query
+
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
@@ -1529,21 +1530,48 @@ async def batch_health():
 
 
 @app.get(RuntimePath.DATABASES)
-async def list_databases():
+async def list_databases(
+    workspace_id: str = Query(default="default", pattern=WORKSPACE_ID_PATTERN),
+):
     """List all registered databases."""
+    try:
+        require_runtime_permission(role="user", action="read_databases", workspace_id=workspace_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    # Databases themselves are global in MVP, but filtering could be added here if database registry tracked workspace_scope.
     return {"databases": db_registry.list_databases()}
 
 
+
+
+
 @app.get(RuntimePath.GRAPHS)
-async def list_graphs():
+async def list_graphs(
+    workspace_id: str = Query(default="default", pattern=WORKSPACE_ID_PATTERN),
+):
     """List registered graph targets."""
-    return {"graphs": [target.to_public_dict() for target in graph_registry.list_graphs()]}
+    try:
+        require_runtime_permission(role="user", action="read_databases", workspace_id=workspace_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    graphs = [target.to_public_dict() for target in graph_registry.list_graphs()]
+    return {"graphs": graphs}
+
+
 
 
 @app.get(RuntimePath.AGENTS)
-async def list_agents():
-    """List all active DB-bound agents."""
+async def list_agents(
+    workspace_id: str = Query(default="default", pattern=WORKSPACE_ID_PATTERN),
+):
+    try:
+        require_runtime_permission(role="user", action="read_agents", workspace_id=workspace_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    # Agents are bound to graph targets. If graph targets become workspace-scoped, this could filter agent keys by graph workspace_scope.
     return {"agents": agent_factory.list_agents()}
+
+
 
 
 @app.post("/rules/infer", response_model=RuleInferResponse)

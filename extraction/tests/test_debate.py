@@ -1,4 +1,9 @@
-"""Tests for debate orchestrator runtime contracts."""
+"""Tests for debate orchestrator runtime contracts.
+
+See ``test_agents_runtime.py`` for the rationale on snapshot+restore
+around the import-time ``sys.modules['agents']`` mutation. Same
+pattern applies here (seocho-eug0).
+"""
 
 import os
 import sys
@@ -28,6 +33,14 @@ fake_agents = types.SimpleNamespace(
 sys.modules["agents"] = fake_agents
 
 import debate
+
+
+def teardown_module(module):
+    """Pop the agents stub so subsequent test files re-resolve from disk."""
+
+    sys.modules.pop("agents", None)
+    for cached in ("debate", "extraction.debate"):
+        sys.modules.pop(cached, None)
 
 
 class _DummyAgent:

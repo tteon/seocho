@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from collections import Counter
 from typing import Any, Dict, Literal, Optional
@@ -9,6 +10,97 @@ from pydantic import BaseModel, Field
 from rule_constraints import RuleSet, apply_rules_to_graph, infer_rules_from_graph
 from rule_export import export_ruleset_to_cypher, export_ruleset_to_shacl
 from rule_profile_store import get_rule_profile, list_rule_profiles, save_rule_profile
+
+logger = logging.getLogger(__name__)
+
+
+def _active_ontology_hash(workspace_id: str) -> str:
+    """Return the active ontology context hash for a workspace.
+
+    Phase 6 promotion-gate hook. Reads
+    ``RuntimeOntologyRegistry.active_context_hashes(workspace_id)`` and
+    returns the single unique hash if the workspace has exactly one
+    ontology registered. Returns empty string when:
+
+    - the registry holds no ontology for the workspace (Phase 1.5 not
+      activated);
+    - the workspace has multiple distinct ontologies registered (multi-
+      graph workspace; the rules API does not carry a graph_id, so we
+      cannot pick safely — Phase 5's "unknown" trichotomy applies);
+    - the registry import or lookup fails (defensive — drift detection
+      stays inert rather than blocking the legacy promotion path).
+
+    Empty string preserves the legacy behavior: ``infer_rules_from_graph``
+    and ``save_rule_profile`` accept an empty hash and produce
+    ``ontology_identity_hash=""`` artifacts that read as ``status=unknown``.
+    """
+
+    try:
+        from runtime.ontology_registry import get_runtime_ontology_registry
+    except Exception:  # pragma: no cover — defensive
+        logger.debug("Runtime ontology registry import failed in rule_api.", exc_info=True)
+        return ""
+
+    try:
+        registry = get_runtime_ontology_registry()
+        hashes = registry.active_context_hashes(workspace_id=workspace_id)
+    except Exception:
+        logger.debug(
+            "Active ontology hash lookup failed for workspace=%s",
+            workspace_id,
+            exc_info=True,
+        )
+        return ""
+
+    unique = {value for value in hashes.values() if value}
+    if len(unique) == 1:
+        return next(iter(unique))
+    return ""
+
+
+def _assess_rule_profile_against_active(
+    profile_payload: Dict[str, Any],
+    *,
+    active_hash: str,
+) -> Optional[Dict[str, Any]]:
+    """Compare a rule profile dict's stored hash against the active workspace hash.
+
+    Returns the artifact_ontology_mismatch trichotomy block (match / drift /
+    unknown) or None when there's nothing to compare (no active hash).
+    """
+
+    if not active_hash:
+        return None
+    stored = str(profile_payload.get("ontology_identity_hash", "") or "").strip()
+    if not stored:
+        return {
+            "stored_ontology_hash": "",
+            "active_ontology_hash": active_hash,
+            "mismatch": False,
+            "status": "unknown",
+            "warning": (
+                "Rule profile has no ontology_identity_hash stamped. "
+                "Re-infer or re-save under Phase 6 to gain hash parity."
+            ),
+        }
+    if stored == active_hash:
+        return {
+            "stored_ontology_hash": stored,
+            "active_ontology_hash": active_hash,
+            "mismatch": False,
+            "status": "match",
+            "warning": "",
+        }
+    return {
+        "stored_ontology_hash": stored,
+        "active_ontology_hash": active_hash,
+        "mismatch": True,
+        "status": "drift",
+        "warning": (
+            "Rule profile ontology_identity_hash differs from active runtime hash. "
+            "Refuse application or re-derive the profile from the active ontology."
+        ),
+    }
 
 
 class RuleInferRequest(BaseModel):
@@ -26,6 +118,7 @@ class RuleInferResponse(BaseModel):
     workspace_id: str = Field(description="Workspace scope.")
     rule_profile: Dict[str, Any] = Field(description="Inferred rules in internal format (schema_version + rules array).")
     shacl_like: Dict[str, Any] = Field(description="SHACL-inspired shape document for human review.")
+    ontology_identity_hash: str = Field(default="", description="Active ontology context hash stamped on the inferred profile (Phase 6). Empty when no unique active ontology is registered for the workspace.")
 
 
 class RuleValidateRequest(BaseModel):
@@ -64,6 +157,7 @@ class RuleProfileCreateResponse(BaseModel):
     created_at: str = Field(description="ISO-8601 creation timestamp.")
     schema_version: str = Field(description="Rule schema version (e.g. 'rules.v1').")
     rule_count: int = Field(description="Number of rules in the profile.")
+    ontology_identity_hash: str = Field(default="", description="Active ontology context hash stamped on the saved profile (Phase 6). Empty when no unique active ontology is registered for the workspace.")
 
 
 class RuleProfileGetResponse(BaseModel):
@@ -76,6 +170,8 @@ class RuleProfileGetResponse(BaseModel):
     schema_version: str = Field(description="Rule schema version.")
     rule_count: int = Field(description="Number of rules.")
     rule_profile: Dict[str, Any] = Field(description="Full rule profile payload.")
+    ontology_identity_hash: str = Field(default="", description="Stored ontology context hash (Phase 5).")
+    artifact_ontology_mismatch: Optional[Dict[str, Any]] = Field(default=None, description="Drift assessment vs the workspace's active ontology hash (Phase 6); status in {match, drift, unknown}.")
 
 
 class RuleProfileListResponse(BaseModel):
@@ -140,6 +236,8 @@ class RuleAssessResponse(BaseModel):
     violation_breakdown: list[Dict[str, Any]] = Field(description="Per-rule violation details.")
     export_preview: Dict[str, Any] = Field(description="Preview of Cypher and SHACL exports.")
     practical_readiness: Dict[str, Any] = Field(description="Readiness verdict for production promotion.")
+    ontology_identity_hash: str = Field(default="", description="Ontology context hash stamped on the rule profile (Phase 6).")
+    artifact_ontology_mismatch: Optional[Dict[str, Any]] = Field(default=None, description="Drift assessment vs the workspace's active ontology hash (Phase 6); status in {match, drift, unknown}.")
 
 
 def _rule_profile_dir() -> str:
@@ -147,15 +245,18 @@ def _rule_profile_dir() -> str:
 
 
 def infer_rule_profile(request: RuleInferRequest) -> RuleInferResponse:
+    active_hash = _active_ontology_hash(request.workspace_id)
     ruleset = infer_rules_from_graph(
         extracted_data=request.graph,
         required_threshold=request.required_threshold,
         enum_max_size=request.enum_max_size,
+        ontology_identity_hash=active_hash,
     )
     return RuleInferResponse(
         workspace_id=request.workspace_id,
         rule_profile=ruleset.to_dict(),
         shacl_like=ruleset.to_shacl_like(),
+        ontology_identity_hash=ruleset.ontology_identity_hash,
     )
 
 
@@ -179,11 +280,17 @@ def validate_rule_profile(request: RuleValidateRequest) -> RuleValidateResponse:
 
 
 def create_rule_profile(request: RuleProfileCreateRequest) -> RuleProfileCreateResponse:
+    # Phase 6: caller-provided rule_profile may already carry a hash
+    # (e.g. from /rules/infer); save_rule_profile honors that. Otherwise
+    # we stamp the active workspace hash so saved profiles always carry
+    # parity metadata when the registry has data.
+    active_hash = _active_ontology_hash(request.workspace_id)
     saved = save_rule_profile(
         workspace_id=request.workspace_id,
         name=request.name,
         rule_profile=request.rule_profile,
         base_dir=_rule_profile_dir(),
+        ontology_identity_hash=active_hash,
     )
     return RuleProfileCreateResponse(
         workspace_id=saved["workspace_id"],
@@ -192,14 +299,21 @@ def create_rule_profile(request: RuleProfileCreateRequest) -> RuleProfileCreateR
         created_at=saved["created_at"],
         schema_version=saved["schema_version"],
         rule_count=saved["rule_count"],
+        ontology_identity_hash=saved.get("ontology_identity_hash", ""),
     )
 
 
 def read_rule_profile(workspace_id: str, profile_id: str) -> RuleProfileGetResponse:
+    # Phase 6: surface drift detection automatically by comparing the
+    # stored hash against the workspace's active ontology hash. Empty
+    # active hash → no drift block (matches Phase 5's reads-don't-fail
+    # contract).
+    active_hash = _active_ontology_hash(workspace_id)
     payload = get_rule_profile(
         workspace_id=workspace_id,
         profile_id=profile_id,
         base_dir=_rule_profile_dir(),
+        expected_ontology_hash=active_hash,
     )
     return RuleProfileGetResponse(**payload)
 
@@ -255,13 +369,32 @@ def export_rule_profile_to_shacl(request: RuleExportShaclRequest) -> RuleExportS
 
 
 def assess_rule_profile(request: RuleAssessRequest) -> RuleAssessResponse:
+    active_hash = _active_ontology_hash(request.workspace_id)
+
     if request.rule_profile:
         ruleset = RuleSet.from_dict(request.rule_profile)
+        # Phase 6: assessing an externally-supplied profile compares its
+        # stored hash to the active workspace hash. Drift surfaces in
+        # the response without blocking the assessment itself —
+        # /rules/assess remains an inspection endpoint; promotion gates
+        # consume the trichotomy verdict.
+        mismatch = _assess_rule_profile_against_active(
+            ruleset.to_dict(),
+            active_hash=active_hash,
+        )
     else:
+        # Inferring fresh: stamp the active hash so the returned
+        # profile carries parity metadata that downstream callers can
+        # save via /rules/profiles without an extra registry lookup.
         ruleset = infer_rules_from_graph(
             extracted_data=request.graph,
             required_threshold=request.required_threshold,
             enum_max_size=request.enum_max_size,
+            ontology_identity_hash=active_hash,
+        )
+        mismatch = _assess_rule_profile_against_active(
+            ruleset.to_dict(),
+            active_hash=active_hash,
         )
 
     validated_graph = apply_rules_to_graph(request.graph, ruleset)
@@ -284,6 +417,8 @@ def assess_rule_profile(request: RuleAssessRequest) -> RuleAssessResponse:
         violation_breakdown=violation_breakdown,
         export_preview=exported,
         practical_readiness=practical_readiness,
+        ontology_identity_hash=ruleset.ontology_identity_hash,
+        artifact_ontology_mismatch=mismatch,
     )
 
 

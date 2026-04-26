@@ -390,6 +390,22 @@ class QueryRequest(BaseModel):
         default=None,
         description="Optional list of graph IDs to target for debate/runtime routing.",
     )
+    max_steps: Optional[int] = Field(
+        default=None,
+        ge=1,
+        le=50,
+        description="Maximum agent turns allowed for runtime react/debate execution.",
+    )
+    tool_budget: Optional[int] = Field(
+        default=None,
+        ge=1,
+        le=20,
+        description="Maximum tool calls allowed for runtime react/debate execution.",
+    )
+    prefer_agentic_tools: bool = Field(
+        default=False,
+        description="Bypass graph-scoped semantic shortcut and force the agentic router path.",
+    )
     reasoning_cycle: Optional[Dict[str, Any]] = Field(
         default=None,
         description="Optional anomaly-driven inquiry contract surfaced when semantic support is insufficient.",
@@ -1032,7 +1048,7 @@ async def run_agent(request: QueryRequest):
             "databases": scoped_databases,
         }
     )
-    if request.graph_ids:
+    if request.graph_ids and not request.prefer_agentic_tools:
         if not scoped_databases:
             raise HTTPException(status_code=400, detail="No target databases available for graph scope.")
         try:
@@ -1090,6 +1106,8 @@ async def run_agent(request: QueryRequest):
         last_query=request.query,
         shared_memory=SharedMemory(),
         allowed_databases=scoped_databases if request.graph_ids else [],
+        max_turns=max(1, int(request.max_steps or 10)),
+        tool_budget=max(1, int(request.tool_budget or 4)),
     )
 
     try:
@@ -1098,7 +1116,8 @@ async def run_agent(request: QueryRequest):
             result = await agents_runtime.run(
                 agent=agent_router,
                 input=request.query,
-                context=srv_context
+                context=srv_context,
+                max_turns=srv_context.max_turns,
             )
 
         # Extract Trace Steps from Result History
@@ -1358,6 +1377,8 @@ async def run_debate(request: QueryRequest):
         last_query=request.query,
         shared_memory=memory,
         allowed_databases=scoped_databases,
+        max_turns=max(1, int(request.max_steps or 10)),
+        tool_budget=max(1, int(request.tool_budget or 4)),
         semantic_agent_flow=semantic_agent_flow,
         reasoning_cycle=dict(request.reasoning_cycle or {}),
     )

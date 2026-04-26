@@ -1463,6 +1463,9 @@ class Seocho:
         *,
         user_id: Optional[str] = None,
         graph_ids: Optional[Sequence[str]] = None,
+        max_steps: Optional[int] = None,
+        tool_budget: Optional[int] = None,
+        prefer_agentic_tools: bool = False,
     ) -> AgentRunResponse:
         """Run the graph-scoped tool-using router agent.
 
@@ -1483,6 +1486,9 @@ class Seocho:
             default_user_id=self.user_id,
             user_id=user_id,
             graph_ids=graph_ids,
+            max_steps=max_steps,
+            tool_budget=tool_budget,
+            prefer_agentic_tools=prefer_agentic_tools,
         )
         payload = self._request_json("POST", RuntimePath.RUN_AGENT, json_body=body)
         return AgentRunResponse.from_dict(payload)
@@ -1493,9 +1499,18 @@ class Seocho:
         *,
         user_id: Optional[str] = None,
         graph_ids: Optional[Sequence[str]] = None,
+        max_steps: Optional[int] = None,
+        tool_budget: Optional[int] = None,
     ) -> AgentRunResponse:
         """Run the graph-scoped tool-using router path."""
-        return self.router(query, user_id=user_id, graph_ids=graph_ids)
+        return self.router(
+            query,
+            user_id=user_id,
+            graph_ids=graph_ids,
+            max_steps=max_steps,
+            tool_budget=tool_budget,
+            prefer_agentic_tools=True,
+        )
 
     def advanced(
         self,
@@ -1504,6 +1519,8 @@ class Seocho:
         user_id: Optional[str] = None,
         graph_ids: Optional[Sequence[GraphRef | GraphTarget | Dict[str, Any] | str]] = None,
         reasoning_cycle: Optional[Dict[str, Any]] = None,
+        max_steps: Optional[int] = None,
+        tool_budget: Optional[int] = None,
     ) -> DebateRunResponse:
         """Run the explicit advanced multi-agent debate path."""
         return self.debate(
@@ -1511,6 +1528,8 @@ class Seocho:
             user_id=user_id,
             graph_ids=graph_ids,
             reasoning_cycle=reasoning_cycle,
+            max_steps=max_steps,
+            tool_budget=tool_budget,
         )
 
     def semantic(
@@ -1581,6 +1600,8 @@ class Seocho:
         user_id: Optional[str] = None,
         graph_ids: Optional[Sequence[GraphRef | GraphTarget | Dict[str, Any] | str]] = None,
         reasoning_cycle: Optional[Dict[str, Any]] = None,
+        max_steps: Optional[int] = None,
+        tool_budget: Optional[int] = None,
     ) -> DebateRunResponse:
         """Run the multi-agent debate path for complex queries.
 
@@ -1611,6 +1632,8 @@ class Seocho:
             user_id=user_id,
             graph_ids=resolved_graph_ids,
             reasoning_cycle=effective_reasoning_cycle or None,
+            max_steps=max_steps,
+            tool_budget=tool_budget,
         )
         payload = self._request_json("POST", RuntimePath.RUN_DEBATE, json_body=body)
         return DebateRunResponse.from_dict(payload)
@@ -1678,6 +1701,8 @@ class Seocho:
                 user_id=resolved_plan.user_id,
                 graph_ids=resolved_plan.targets or None,
                 reasoning_cycle=resolved_plan.reasoning.reasoning_cycle or None,
+                max_steps=resolved_plan.reasoning.max_steps,
+                tool_budget=resolved_plan.reasoning.tool_budget,
             )
             return ExecutionResult.from_run_result(
                 requested_style="debate",
@@ -1691,6 +1716,8 @@ class Seocho:
                 resolved_plan.query,
                 user_id=resolved_plan.user_id,
                 graph_ids=resolved_plan.graph_ids or None,
+                max_steps=resolved_plan.reasoning.max_steps,
+                tool_budget=resolved_plan.reasoning.tool_budget,
             )
             return ExecutionResult.from_run_result(
                 requested_style="react",

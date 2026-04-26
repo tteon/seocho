@@ -74,6 +74,9 @@ def build_query_payload(
     user_id: Optional[str] = None,
     graph_ids: Optional[Sequence[str]] = None,
     reasoning_cycle: Optional[Mapping[str, Any]] = None,
+    max_steps: Optional[int] = None,
+    tool_budget: Optional[int] = None,
+    prefer_agentic_tools: bool = False,
 ) -> Dict[str, Any]:
     payload: Dict[str, Any] = {
         "query": query,
@@ -84,6 +87,12 @@ def build_query_payload(
         payload["graph_ids"] = list(graph_ids)
     if reasoning_cycle:
         payload["reasoning_cycle"] = dict(reasoning_cycle)
+    if max_steps is not None:
+        payload["max_steps"] = int(max_steps)
+    if tool_budget is not None:
+        payload["tool_budget"] = int(tool_budget)
+    if prefer_agentic_tools:
+        payload["prefer_agentic_tools"] = True
     return payload
 
 

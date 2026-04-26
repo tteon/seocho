@@ -12,6 +12,7 @@ now?
 | If you need to... | Start here |
 |---|---|
 | get a first local success path | [QUICKSTART.md](QUICKSTART.md) |
+| understand local `ask()` vs runtime `semantic/react/debate` | [QUICKSTART.md#11-execution-modes-matter](QUICKSTART.md#11-execution-modes-matter) |
 | follow a runnable notebook walkthrough | [../examples/quickstart.ipynb](../examples/quickstart.ipynb) |
 | understand SEOCHO with architecture snippets | [BEGINNER_GUIDE.md](BEGINNER_GUIDE.md) |
 | use the Python SDK directly | [PYTHON_INTERFACE_QUICKSTART.md](PYTHON_INTERFACE_QUICKSTART.md) |

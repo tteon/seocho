@@ -37,6 +37,7 @@ class ServerContext:
     last_query: str = ""
     shared_memory: Optional[SharedMemory] = None
     allowed_databases: List[str] = field(default_factory=list)
+    max_turns: int = 10
     tool_budget: int = 4
     tool_invocations: int = 0
     semantic_agent_flow: Optional[Any] = None

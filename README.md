@@ -87,6 +87,9 @@ client = Seocho.remote("http://localhost:8001")
 print(client.ask("What do we know about ACME?"))
 ```
 
+`client.ask(...)` above is the HTTP chat convenience surface. It is not the
+same execution engine as runtime `client.react(...)` or `client.advanced(...)`.
+
 Run the local platform stack:
 
 ```bash
@@ -108,6 +111,24 @@ make up
 - DozerDB/Neo4j is the production graph path: pass `graph="bolt://..."` or construct `Neo4jGraphStore(...)` explicitly.
 - The fastest full local stack is `make setup-env && make up`.
 - `examples/quickstart.ipynb` reads provider keys from `.env`, stays on LadybugDB by default, and switches to Bolt-backed Neo4j/DozerDB only when both `NEO4J_URI` and `NEO4J_PASSWORD` are set.
+
+## Execution Surfaces
+
+The same `Seocho` facade exposes different execution engines. This is the
+single most important thing to understand before benchmarking or comparing
+providers.
+
+| Surface | Where it runs | What it actually does | Tool use |
+|------|-------------|------------------------|----------|
+| `Seocho.local(...).ask(...)` | in-process local SDK | ontology-aware local query + answer synthesis | no runtime agent loop |
+| `Seocho(base_url=...).ask(...)` | HTTP runtime | `/api/chat` memory/chat convenience endpoint | not the explicit react/debate path |
+| `client.semantic(...)` | HTTP runtime | deterministic semantic graph QA with optional bounded repair | no agentic tool loop |
+| `client.react(...)` | HTTP runtime | router agent path backed by the Agents runtime | yes |
+| `client.advanced(...)` / `client.debate(...)` | HTTP runtime | multi-agent debate with semantic preflight + supervisor synthesis | yes |
+
+If you want provider-native reasoning and tool-use comparisons, use
+`client.react(...)` or `client.advanced(...)` against a running runtime. Do not
+use local `ask()` as that benchmark target.
 
 ## Why SEOCHO
 
@@ -154,6 +175,8 @@ Core parameters you will hit early:
 - `workspace_id` — logical scope passed through runtime-facing requests
 - `graph_store` — explicit graph store for local engine mode
 - `reasoning_mode` + `repair_budget` — bounded semantic repair loop for hard questions
+- `max_steps` — runtime agent turn limit for `react` / `debate`
+- `tool_budget` — runtime tool-call budget for `react` / `debate`
 
 For production local engine, `Neo4jGraphStore` works against both Neo4j and DozerDB over Bolt:
 
@@ -173,6 +196,10 @@ from seocho import Seocho
 client = Seocho(base_url="http://localhost:8001", workspace_id="default")
 print(client.ask("What do we know about ACME?"))
 ```
+
+Use `ask()` here as a convenience chat surface. When you need explicit runtime
+graph QA or agentic behavior, call `client.semantic(...)`, `client.react(...)`,
+or `client.advanced(...)` directly.
 
 ### 2. Build locally against your own ontology with no graph server
 

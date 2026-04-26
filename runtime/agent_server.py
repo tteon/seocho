@@ -732,6 +732,56 @@ def _resolve_graph_scope(graph_ids: Optional[List[str]]) -> tuple[List[str], Lis
     return valid_graph_ids, databases
 
 
+def _agent_factory_strategy() -> str:
+    """Phase 4b.2: select between the legacy direct factory call and the
+    Phase 4b.1 wrapper based on ``SEOCHO_AGENT_FACTORY``.
+
+    Default ``direct`` keeps the established hot path. ``runtime_backed``
+    delegates the registry coupling to ``RuntimeBackedAgentFactory`` so
+    the call site does not have to know about the registry. Any other
+    value falls back to ``direct`` — kill-switch friendliness.
+    """
+
+    raw = os.getenv("SEOCHO_AGENT_FACTORY", "").strip().lower()
+    if raw == "runtime_backed":
+        return "runtime_backed"
+    return "direct"
+
+
+def _create_agents_for_graphs_with_strategy(
+    graph_ids: List[str],
+    db_manager: Any,
+    *,
+    registry: Any,
+    workspace_id: str,
+) -> List[Dict[str, Any]]:
+    """Dispatch to the configured agent factory strategy (Phase 4b.2)."""
+
+    strategy = _agent_factory_strategy()
+    if strategy == "runtime_backed":
+        from seocho.agent import RuntimeBackedAgentFactory
+
+        wrapped = RuntimeBackedAgentFactory(
+            delegate=agent_factory,
+            registry=registry,
+        )
+        # Wrapper auto-fills ontology_contexts from registry.
+        return wrapped.create_agents_for_graphs(
+            graph_ids,
+            db_manager,
+            workspace_id=workspace_id,
+        )
+
+    # Default: explicit registry lookup at the call site.
+    runtime_ontology_contexts = registry.ontology_contexts(workspace_id=workspace_id)
+    return agent_factory.create_agents_for_graphs(
+        graph_ids,
+        db_manager,
+        ontology_contexts=runtime_ontology_contexts or None,
+        workspace_id=workspace_id,
+    )
+
+
 def _ontology_context_middleware_status(
     *,
     workspace_id: str,
@@ -1391,18 +1441,19 @@ async def run_debate(request: QueryRequest):
     from runtime.ontology_registry import get_runtime_ontology_registry
 
     runtime_ontologies = get_runtime_ontology_registry()
-    runtime_ontology_contexts = runtime_ontologies.ontology_contexts(
-        workspace_id=request.workspace_id
-    )
     runtime_active_hashes = runtime_ontologies.active_context_hashes(
         workspace_id=request.workspace_id
     )
 
-    # Ensure agents exist for the requested graphs and capture readiness status.
-    agent_statuses = agent_factory.create_agents_for_graphs(
+    # Phase 4b.2: env-flagged factory selection. Default "direct" runs the
+    # legacy inline registry lookup; "runtime_backed" wraps the module
+    # factory in RuntimeBackedAgentFactory so the registry coupling lives
+    # in the factory layer instead of here. Both paths produce equivalent
+    # agent_statuses; the flag exists so the migration is reversible.
+    agent_statuses = _create_agents_for_graphs_with_strategy(
         valid_graph_ids,
         db_manager,
-        ontology_contexts=runtime_ontology_contexts or None,
+        registry=runtime_ontologies,
         workspace_id=request.workspace_id,
     )
     readiness = summarize_readiness(agent_statuses)

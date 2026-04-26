@@ -18,7 +18,18 @@ def save_semantic_artifact(
     name: Optional[str] = None,
     source_summary: Optional[Dict[str, Any]] = None,
     base_dir: str = DEFAULT_SEMANTIC_ARTIFACT_DIR,
+    *,
+    ontology_identity_hash: str = "",
 ) -> Dict[str, Any]:
+    """Persist a semantic artifact draft for later approval/deprecation.
+
+    Phase 5: ``ontology_identity_hash`` (typically
+    ``OntologyContextDescriptor.context_hash``) is stamped on the
+    payload so the loader can refuse to apply an artifact whose source
+    ontology identity has drifted from the active runtime ontology.
+    Empty string preserves the pre-Phase-5 legacy behavior.
+    """
+
     workspace_path = _workspace_dir(base_dir, workspace_id)
     workspace_path.mkdir(parents=True, exist_ok=True)
 
@@ -34,6 +45,7 @@ def save_semantic_artifact(
         "ontology_candidate": ontology_candidate,
         "shacl_candidate": shacl_candidate,
         "vocabulary_candidate": vocabulary_candidate or {"schema_version": "vocabulary.v2", "profile": "skos", "terms": []},
+        "ontology_identity_hash": str(ontology_identity_hash or ""),
         "approved_by": None,
         "approval_note": None,
         "approved_at": None,
@@ -52,14 +64,79 @@ def get_semantic_artifact(
     workspace_id: str,
     artifact_id: str,
     base_dir: str = DEFAULT_SEMANTIC_ARTIFACT_DIR,
+    *,
+    expected_ontology_hash: str = "",
 ) -> Dict[str, Any]:
+    """Load a semantic artifact by id.
+
+    Phase 5: when ``expected_ontology_hash`` is non-empty, the returned
+    payload carries an ``artifact_ontology_mismatch`` block summarizing
+    whether the stored ``ontology_identity_hash`` matches. Reads
+    themselves don't fail on mismatch — the caller decides whether to
+    refuse application — so existing audit/inspection paths keep
+    working while promotion gates can hard-block.
+    """
+
     artifact_path = _workspace_dir(base_dir, workspace_id) / f"{artifact_id}.json"
     if not artifact_path.exists():
         raise FileNotFoundError(
             f"semantic artifact not found: workspace={workspace_id}, artifact_id={artifact_id}"
         )
     with artifact_path.open("r", encoding="utf-8") as fp:
-        return json.load(fp)
+        payload = json.load(fp)
+
+    if expected_ontology_hash:
+        payload["artifact_ontology_mismatch"] = assess_artifact_ontology_match(
+            payload, active_ontology_hash=expected_ontology_hash
+        )
+    return payload
+
+
+def assess_artifact_ontology_match(
+    payload: Dict[str, Any],
+    *,
+    active_ontology_hash: str,
+) -> Dict[str, Any]:
+    """Compare an artifact's stored ontology_identity_hash to the active hash.
+
+    Returns a structured dict callers can attach to responses or check
+    before applying the artifact's contents. ``mismatch`` is True only
+    when both sides are non-empty and differ — empty stored hash means
+    "pre-Phase-5 artifact, parity unknowable" and is reported with
+    ``status="unknown"`` rather than ``mismatch``.
+    """
+
+    stored = str(payload.get("ontology_identity_hash", "") or "").strip()
+    active = str(active_ontology_hash or "").strip()
+    if not stored:
+        return {
+            "stored_ontology_hash": "",
+            "active_ontology_hash": active,
+            "mismatch": False,
+            "status": "unknown",
+            "warning": (
+                "Artifact has no ontology_identity_hash stamped. "
+                "Re-save under Phase 5 to gain hash parity guarantees."
+            ),
+        }
+    if stored == active:
+        return {
+            "stored_ontology_hash": stored,
+            "active_ontology_hash": active,
+            "mismatch": False,
+            "status": "match",
+            "warning": "",
+        }
+    return {
+        "stored_ontology_hash": stored,
+        "active_ontology_hash": active,
+        "mismatch": True,
+        "status": "drift",
+        "warning": (
+            "Artifact ontology_identity_hash differs from active runtime hash. "
+            "Refuse application or re-derive the artifact from the active ontology."
+        ),
+    }
 
 
 def list_semantic_artifacts(

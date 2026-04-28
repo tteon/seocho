@@ -1,1 +1,2 @@
 When logging history, traces, or metadata (such as prompt history), prefer append-only `.jsonl` format over reading and rewriting full JSON arrays to prevent O(N^2) file I/O scaling bottlenecks.
+Codebase-specific learning: Regex patterns in `seocho/query/semantic_agents.py` used for tokenization and normalization (e.g., `r"[a-z0-9]+"`, `r"[^a-z0-9]+"`) should be pre-compiled as module-level constants (prefixed with `_RE_`) to optimize execution in hot paths and loops.

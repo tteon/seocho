@@ -439,7 +439,196 @@ not a single PR. Suggested split:
 Each step lands behind a feature flag (`SEOCHO_MIDDLEWARE_CHAIN=1`) until
 the migration is complete.
 
-## 5. Customization knobs (env vars)
+## 5. Agent system-prompt discipline (baseline prompts)
+
+The robustness, performance, and scalability rules above are enforced
+at the SDK and middleware layer. This section covers the **prompt
+layer** — the actual text the LLM sees. These are the defaults shipped
+with SEOCHO's indexing, query, and supervisor agents.
+
+> Opinionated by design. Every rule below is a default the user can
+> override via `AgentConfig(prompt_overrides=...)`. The point of writing
+> them down is that invisible defaults are worse than wrong ones.
+
+### 5.1 Output envelope discipline
+
+**Default:** every tool and agent response is a JSON envelope, never a
+free-form string. The envelope shape:
+
+```json
+{
+  "status": "ok" | "error" | "refused",
+  "data": { ... },
+  "error_class": "transient_upstream | client_input_invalid | policy_denied | not_found | conflict | unhandled",
+  "error_message": "<short, user-safe; no stack traces>",
+  "metadata": { "workspace_id": "...", "ontology_identity_hash": "...", "trace_span_id": "..." }
+}
+```
+
+**Why:** strings force the caller to parse intent (success? partial?
+refused? failed?). Envelopes let middleware (§4) and traces (§9) read
+status without prompt-sniffing. Maps 1:1 to the failure-mode
+classification in §1.5.
+
+**Override:** `AgentConfig(envelope_format="legacy_string")` — opt out
+explicitly when integrating with a system that can't parse JSON.
+
+### 5.2 Cache-friendly system prompt structure
+
+**Default:** every agent's system prompt is ordered:
+
+```
+1. Agent identity              (e.g., "You are SEOCHO IndexingAgent")
+2. Hard rules / non-negotiables (refusal contract, no-fabrication)
+3. Tool catalog                (signatures + when to use each)
+4. Ontology context            (labels, relationships, constraints)
+5. Output envelope spec        (5.1)
+6. Workspace + database scope  (workspace_id, target database)
+```
+
+**Why:** prefix-cache hits require byte-equal prefix across turns
+(§2.1). Sections 1–5 above are stable across a `Session`'s lifetime;
+section 6 changes only when the user explicitly switches database.
+Putting volatile content (timestamps, UUIDs, per-call deltas) inside
+sections 1–5 silently destroys the cache hit ratio.
+
+**Override:** the order is enforced by `SystemPromptBuilder`; replace
+the builder per agent if your provider has different requirements.
+
+**Hard rule:** never inline `datetime.now()`, request UUIDs, or
+per-call random data into sections 1–5. Append them after section 6 if
+needed.
+
+### 5.3 Tool-use parallelism
+
+**Default:** when an agent issues multiple tool calls with no data
+dependency between them, it must emit them in a single assistant turn,
+not in serial turns.
+
+**Why:** sequential tool turns multiply latency by N and re-bill the
+prompt prefix N times. Parallel tool calls land in one round-trip; the
+provider returns all results in the next assistant turn.
+
+**Override:** `AgentConfig(parallel_tools=False)` — disable for
+providers without parallel tool-call support, or for debugging.
+
+### 5.4 Verify-after-write
+
+**Default:** after any tool that mutates state (`write_to_graph`,
+`upsert_entity`, `create_constraint`), the agent's next tool call is a
+read-only probe that confirms the write landed. The probe result is
+folded into the final answer's `metadata.verification`.
+
+**Why:** tool returns describe what the tool *attempted*, not what
+persisted. DozerDB write failures, race conditions, and partial
+commits all silently produce a "success" return with no data on disk.
+The probe is cheap and turns "I think we wrote it" into "I confirmed
+the write".
+
+**Override:** `AgentConfig(verify_writes=False)` — opt out when the
+caller has its own verification layer, or for low-stakes ingest.
+
+### 5.5 Conversation-history compaction
+
+**Default:** prior tool outputs are summarized into structured deltas
+before being included in the next turn's prompt. Raw tool output
+verbatim is replaced with:
+
+```json
+{
+  "tool": "extract_entities",
+  "turn": 3,
+  "summary": {"nodes_added": 12, "labels": ["Company", "Person"]},
+  "ref": "trace_span_id://abc123"
+}
+```
+
+**Why:** raw tool outputs are large, repetitive, and rarely needed in
+full for the next reasoning step. Compaction keeps the conversation
+under `SEOCHO_MAX_HISTORY_TOKENS` (§3.4) without losing the audit
+trail (the `ref` points back to the full output in traces).
+
+**Override:** `AgentConfig(history_compaction="off"|"aggressive")` —
+`off` ships full outputs (debug only), `aggressive` summarizes earlier
+than the default threshold.
+
+### 5.6 No-fabrication rule
+
+**Default:** entity IDs, node labels, relationship types, and property
+names must come from one of:
+
+1. The ontology context (section 4 of the system prompt)
+2. A previous tool result in this conversation
+3. The user's literal input
+
+The agent **must not invent** identifiers. If a needed label or
+property does not exist in the ontology, the agent issues a `refused`
+envelope with `error_class="ontology_missing_term"`.
+
+**Why:** fabricated IDs collide across documents (`seocho-b79a`),
+break entity linking, and corrupt the graph. Refusal is cheaper than
+cleanup.
+
+**Override:** none for entity IDs and ontology terms. For free-text
+properties (descriptions, summaries), generation is allowed.
+
+### 5.7 Refusal contract
+
+**Default:** the agent refuses (returns `status: "refused"`) in these
+specific cases, mapped to specific error classes:
+
+| Condition | `error_class` | When |
+|-----------|---------------|------|
+| Caller's workspace_id doesn't match resource | `policy_denied` | enforced in middleware (§4); agent never sees out-of-scope data |
+| Ontology hash mismatch on apply | `conflict` | until `seocho-cimb` lands, this is advisory; after, it's a hard refusal |
+| Query cannot be answered with current ontology | `ontology_missing_term` | per §5.6 |
+| Tool budget exhausted (token / latency / count) | `transient_upstream` | enforced by `BudgetMiddleware` |
+| Drift between conversation history and current state | `conflict` | when graph state changed mid-session |
+
+**Why:** silent partial answers erode trust faster than refusals.
+Users can recover from a refusal (retry with different scope, fix the
+ontology, expand the budget); they can't recover from a confidently
+wrong answer they didn't know was wrong.
+
+**Override:** refusal text and tone can be customized via
+`AgentConfig(refusal_template=...)`, but the *conditions* and
+`error_class` mapping are fixed.
+
+### 5.8 Worked example (query agent system prompt skeleton)
+
+```
+You are SEOCHO QueryAgent.
+
+[HARD RULES]
+- Output every response as a JSON envelope per §5.1.
+- Never invent entity IDs, labels, or relationship types (§5.6).
+- Refuse cleanly per the refusal contract (§5.7); do not partial-answer.
+
+[TOOLS]
+- search_entities(query, label?) — retrieve candidate nodes
+- expand_neighbors(entity_id, hops=1) — traverse relationships
+- read_graph(cypher) — read-only Cypher (no writes)
+
+[ONTOLOGY]
+{ontology_context_block}        ← cache breakpoint (§2.2)
+
+[OUTPUT FORMAT]
+{envelope_spec}
+
+[SCOPE]
+workspace_id={workspace_id}, database={database}     ← stable per session
+
+[CONVERSATION]
+{compacted_history}              ← grows per §5.5
+{new_user_message}
+```
+
+The `{ontology_context_block}` and `{envelope_spec}` are the cache
+breakpoints. `{workspace_id}`/`{database}` change only when the user
+switches scope. Compacted history grows linearly but stays bounded by
+`SEOCHO_MAX_HISTORY_TOKENS`.
+
+## 6. Customization knobs (env vars)
 
 | Env var | Default | Effect |
 |---------|---------|--------|
@@ -450,8 +639,12 @@ the migration is complete.
 | `SEOCHO_TRACE_STRICT` | `0` | Trace backend init failure raises (vs. silent no-op; see `seocho-8k1h`) |
 | `SEOCHO_MIDDLEWARE_CHAIN` | `0` (today) / `1` (target) | Enable middleware chain dispatch |
 | `SEOCHO_MAX_HISTORY_TOKENS` | `100000` | Per-session history cap |
+| `SEOCHO_ENVELOPE_FORMAT` | `json` | `json` (§5.1) / `legacy_string` |
+| `SEOCHO_PARALLEL_TOOLS` | `1` | Allow parallel tool calls in one turn (§5.3) |
+| `SEOCHO_VERIFY_WRITES` | `1` | Probe-after-write contract (§5.4) |
+| `SEOCHO_HISTORY_COMPACTION` | `default` | `off` / `default` / `aggressive` (§5.5) |
 
-## 6. Cross-references
+## 7. Cross-references
 
 - SDK contract surface: `docs/SDK_CONTRACT.md`
 - Regression anchors: `seocho/tests/test_user_facing_edge_cases.py`

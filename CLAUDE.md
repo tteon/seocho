@@ -106,13 +106,13 @@ Tracking and notes split:
 3. close or handoff issue
 4. release or hand off any active Gastown reservation
 5. `git pull --rebase`
-6. `bd sync` (best effort; known workspace issue may fail)
+6. `bd bootstrap` (best effort; safe when the workspace DB is already present)
 7. `git push`
 8. `git status` must show up-to-date with `origin/main`
 
 Push target is always `main`.
 
-When using git worktrees, prefer `BEADS_NO_DAEMON=1`.
+When using git worktrees, prefer `bd --sandbox ...` for local issue commands.
 
 ## 5. Issue/Task Governance
 
@@ -233,7 +233,7 @@ Do not assume repo-side GitHub Actions automation for docs sync.
 - `Makefile` quality gates must target `extraction-service` (not `engine`).
 - Neo4j/DozerDB procedure privileges must stay scoped to `apoc.*,n10s.*` (no wildcard unrestricted).
 - API/middleware tests should prefer `httpx.ASGITransport` + `AsyncClient` over `TestClient` in this repo environment.
-- When local `bd` daemon startup is unstable, run lint via non-daemon mode (`bd --no-daemon`) to avoid hanging quality gates.
+- When local `bd` workspace state is noisy, run lint via sandbox mode (`bd --sandbox ...`) to avoid auto-sync side effects during validation.
 - `tteon.github.io/` can exist as a local nested workspace for website validation, but it should remain untracked by the parent `seocho` repository.
 - Repo-side automation is intentionally narrow:
   - `.github/workflows/ci-basic.yml` is the required GitHub check surface
@@ -308,3 +308,18 @@ Rules:
 - When finishing a work session, update relevant Obsidian `wiki/topics/*.md` pages
   with new insights or state changes. Keep `[[wikilinks]]` between topics current.
 - See `vault-schema.md` in the Obsidian vault for full conventions.
+
+## 18. Baseline Defaults (Robustness, Performance, Scalability, Prompts)
+
+`docs/BASELINE_INSTRUCTIONS.md` is the single normative document for
+SDK + agent defaults across:
+
+- robustness — silent-fallback discipline, idempotency, retry, atomic writes, failure-mode classification
+- performance — KV-cache for multi-turn (Anthropic-style `cache_control` breakpoints, ≥85% hit-ratio target)
+- scalability — workspace_id partitioning, cache key shape, per-Session resource caps
+- middleware-aware design — ordered chain (Validation → Policy → Cache → Budget → Retry → Observability)
+- agent system-prompt discipline — output envelope, cache-friendly ordering, tool-use parallelism, no-fabrication, refusal contract
+
+Every rule is structured as **Default → Why → Override** so users can recognize the baseline and customize without monkeypatching. Sections marked 🚧 describe target architecture not yet landed; cross-linked to `.beads` issues.
+
+Pairs with `docs/SDK_CONTRACT.md` (current vs. target SDK guarantees) and `seocho/tests/test_user_facing_edge_cases.py` (regression anchors).

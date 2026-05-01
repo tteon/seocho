@@ -120,10 +120,7 @@ def get_vector_store_service():
 def get_semantic_agent_flow_service() -> SemanticAgentFlow:
     global _semantic_agent_flow
     if _semantic_agent_flow is None:
-        from runtime.ontology_registry import get_runtime_ontology_registry
-
         graph_targets = graph_registry.list_graphs()
-        runtime_ontology_registry = get_runtime_ontology_registry()
         default_database = (
             str(getattr(graph_targets[0], "database", "") or "neo4j")
             if graph_targets
@@ -136,9 +133,6 @@ def get_semantic_agent_flow_service() -> SemanticAgentFlow:
                 database=default_database,
                 ontology_profile="default",
                 graph_targets=graph_targets,
-                metadata={
-                    "ontology_context_provider": runtime_ontology_registry.ontology_contexts,
-                },
             )
         )
     return _semantic_agent_flow

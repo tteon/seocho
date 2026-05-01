@@ -170,12 +170,6 @@ _MODULE_EXPORTS: Dict[str, Iterable[str]] = {
         "build_local_ontology_run_context",
         "build_runtime_ontology_run_context",
     ],
-    ".semantic_package": [
-        "SemanticPackage",
-        "SemanticPackageSelection",
-        "compile_semantic_package",
-        "select_semantic_packages",
-    ],
     ".session": [
         "Session",
     ],

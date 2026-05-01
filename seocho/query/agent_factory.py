@@ -75,13 +75,7 @@ class AgentFactory:
             from .semantic_flow import SemanticAgentFlow
 
             active_targets = config.graph_targets if config.graph_targets is not None else graph_targets
-            metadata = dict(config.metadata or {})
-            return SemanticAgentFlow(
-                connector,
-                graph_targets=active_targets,
-                ontology_contexts=metadata.get("ontology_contexts"),
-                ontology_context_provider=metadata.get("ontology_context_provider"),
-            )
+            return SemanticAgentFlow(connector, graph_targets=active_targets)
 
         factory.register("semantic", _build_semantic)
         return factory

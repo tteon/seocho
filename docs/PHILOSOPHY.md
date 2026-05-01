@@ -25,9 +25,6 @@ This document captures the non-negotiable design philosophy for SEOCHO and how i
   - Rule profiles must pass readiness checks (`/rules/assess`) before governance promotion/export.
 - Versioned ontology lifecycle:
   - Ontology files (`.ttl`, hint artifacts, profiles) are control-plane assets with explicit versioning and rollback.
-- User-owned semantic control plane:
-  - User-edited ontology should drive indexing, query, routing, and tool behavior through one compiled semantic package.
-  - Product stickiness should come from operationalizing user semantics everywhere, not from hiding schema logic in vendor prompts.
 - Observability as a product surface:
   - Trace artifacts must remain portable and reviewable outside any single vendor.
   - Opik traces are preferred team-facing evidence for trust and governance, not the only valid runtime contract.

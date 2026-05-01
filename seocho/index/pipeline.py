@@ -138,9 +138,6 @@ class IndexingResult:
     relatedness_summary: Optional[Dict[str, Any]] = None
     semantic_artifacts: Optional[Dict[str, Any]] = None
     ontology_context: Optional[Dict[str, Any]] = None
-    semantic_package: Optional[Dict[str, Any]] = None
-    stage_metrics: Dict[str, Any] = field(default_factory=dict)
-    policy_metrics: Dict[str, Any] = field(default_factory=dict)
     fallback_used: bool = False
     fallback_reason: str = ""
 
@@ -164,9 +161,6 @@ class IndexingResult:
             "relatedness_summary": self.relatedness_summary,
             "semantic_artifacts": self.semantic_artifacts,
             "ontology_context": self.ontology_context,
-            "semantic_package": self.semantic_package,
-            "stage_metrics": self.stage_metrics,
-            "policy_metrics": self.policy_metrics,
             "fallback_used": self.fallback_used,
             "fallback_reason": self.fallback_reason,
         }
@@ -384,32 +378,14 @@ class IndexingPipeline:
         -------
         IndexingResult with detailed metrics.
         """
-        import time as _time
-
         source_id = str(uuid.uuid4())
         result = IndexingResult(source_id=source_id)
-        stage_metrics: Dict[str, float] = {}
-        stage_started = _time.perf_counter()
         ontology_context = self._ontology_context_cache.get(
             self.ontology,
             workspace_id=self.workspace_id,
             profile=self.ontology_profile,
         )
         result.ontology_context = ontology_context.metadata(usage="indexing")
-        stage_metrics["ontology_context_ms"] = round((_time.perf_counter() - stage_started) * 1000.0, 2)
-        try:
-            from seocho.semantic_package import compile_semantic_package
-
-            stage_started = _time.perf_counter()
-            result.semantic_package = compile_semantic_package(
-                ontology_context,
-                graph_id=database,
-                database=database,
-                source="ontology_context",
-            ).to_dict()
-            stage_metrics["semantic_package_ms"] = round((_time.perf_counter() - stage_started) * 1000.0, 2)
-        except Exception:
-            logger.debug("Semantic package compilation skipped for indexing trace.", exc_info=True)
 
         # Dedup check
         if self.enable_dedup:
@@ -421,17 +397,14 @@ class IndexingPipeline:
                 return result
             self._seen_hashes.add(h)
 
+        # Chunk
+        import time as _time
         _pipeline_start = _time.time()
 
-        stage_started = _time.perf_counter()
         chunks = chunk_text(content, max_chars=self.max_chunk_chars)
-        stage_metrics["chunking_ms"] = round((_time.perf_counter() - stage_started) * 1000.0, 2)
         all_nodes: List[Dict[str, Any]] = []
         all_rels: List[Dict[str, Any]] = []
         _total_usage: Dict[str, int] = {}
-        extraction_ms = 0.0
-        validation_ms = 0.0
-        linking_ms = 0.0
 
         for i, chunk in enumerate(chunks):
             if on_chunk:
@@ -439,14 +412,12 @@ class IndexingPipeline:
 
             # Extract
             try:
-                extraction_started = _time.perf_counter()
                 response = self._graph_extraction.extract(
                     chunk,
                     category=category,
                     metadata=metadata,
                 )
                 extracted = response
-                extraction_ms += (_time.perf_counter() - extraction_started) * 1000.0
             except Exception as exc:
                 logger.warning(
                     "LLM extraction failed for chunk %d, using heuristic fallback: %s",
@@ -520,9 +491,7 @@ class IndexingPipeline:
                         break
 
             # Validate with SHACL
-            validation_started = _time.perf_counter()
             errors = self.ontology.validate_with_shacl(extracted)
-            validation_ms += (_time.perf_counter() - validation_started) * 1000.0
 
             # --- Callback: on_after_validate ---
             if self.on_after_validate:
@@ -538,12 +507,10 @@ class IndexingPipeline:
             # Link (deduplicate entities within chunk)
             if nodes:
                 try:
-                    linking_started = _time.perf_counter()
                     linked = self._graph_extraction.link(
                         {"nodes": nodes, "relationships": rels},
                         category=category,
                     )
-                    linking_ms += (_time.perf_counter() - linking_started) * 1000.0
                     linked_nodes = linked.get("nodes", [])
                     linked_rels = linked.get("relationships", [])
                     if linked_nodes:
@@ -558,17 +525,11 @@ class IndexingPipeline:
             result.chunks_processed += 1
 
         # Cross-chunk dedup: merge nodes with same label+name
-        stage_started = _time.perf_counter()
         all_nodes = self._cross_chunk_dedup(all_nodes)
-        stage_metrics["cross_chunk_dedup_ms"] = round((_time.perf_counter() - stage_started) * 1000.0, 2)
-        stage_metrics["extraction_ms"] = round(extraction_ms, 2)
-        stage_metrics["validation_ms"] = round(validation_ms, 2)
-        stage_metrics["linking_ms"] = round(linking_ms, 2)
 
         # --- Embedding relatedness (parity with server path) ---
         if self._embedding_linker is not None and all_nodes:
             try:
-                stage_started = _time.perf_counter()
                 candidate_names = {
                     str(n.get("properties", {}).get("name", "")).strip().lower()
                     for n in all_nodes
@@ -579,7 +540,6 @@ class IndexingPipeline:
                 # contract parity with the server, not for linking decisions.
                 relatedness = self._embedding_linker.compute_relatedness(candidate_names, set())
                 result.relatedness_summary = self._embedding_linker.summarize([relatedness])
-                stage_metrics["relatedness_ms"] = round((_time.perf_counter() - stage_started) * 1000.0, 2)
             except Exception as exc:
                 logger.warning("Embedding relatedness skipped: %s", exc)
 
@@ -592,14 +552,12 @@ class IndexingPipeline:
             try:
                 from seocho.rules import infer_rules_from_graph, apply_rules_to_graph
 
-                stage_started = _time.perf_counter()
                 graph_for_rules = {"nodes": all_nodes, "relationships": all_rels}
                 ruleset = infer_rules_from_graph(graph_for_rules)
                 annotated = apply_rules_to_graph(graph_for_rules, ruleset)
                 all_nodes = annotated.get("nodes", all_nodes)
                 result.rule_profile = annotated.get("rule_profile")
                 result.rule_validation_summary = annotated.get("rule_validation_summary")
-                stage_metrics["rule_inference_ms"] = round((_time.perf_counter() - stage_started) * 1000.0, 2)
             except Exception as exc:
                 logger.warning("Rule inference skipped: %s", exc)
 
@@ -609,7 +567,6 @@ class IndexingPipeline:
         # server's RuntimeRawIngestor.semantic_artifacts.
         if all_nodes:
             try:
-                stage_started = _time.perf_counter()
                 draft = self.ontology.to_semantic_artifact_draft()
                 draft_dict = draft.to_dict() if hasattr(draft, "to_dict") else dict(draft)
                 result.semantic_artifacts = {
@@ -623,7 +580,6 @@ class IndexingPipeline:
                     },
                     "relatedness_summary": result.relatedness_summary,
                 }
-                stage_metrics["semantic_artifact_ms"] = round((_time.perf_counter() - stage_started) * 1000.0, 2)
             except Exception as exc:
                 logger.warning("Semantic artifact draft skipped: %s", exc)
 
@@ -632,7 +588,6 @@ class IndexingPipeline:
             try:
                 from seocho.index.runtime_memory import build_record_metadata, ensure_memory_graph
 
-                stage_started = _time.perf_counter()
                 source_type = "text"
                 if isinstance(metadata, dict):
                     source_type = str(metadata.get("source_type") or "text")
@@ -655,7 +610,6 @@ class IndexingPipeline:
                 )
                 all_nodes = shaped.get("nodes", all_nodes)
                 all_rels = shaped.get("relationships", all_rels)
-                stage_metrics["memory_graph_ms"] = round((_time.perf_counter() - stage_started) * 1000.0, 2)
             except Exception as exc:
                 logger.warning("Memory graph shaping skipped: %s", exc)
 
@@ -664,7 +618,6 @@ class IndexingPipeline:
             try:
                 from seocho.ontology_context import apply_ontology_context_to_graph_payload
 
-                stage_started = _time.perf_counter()
                 all_nodes, all_rels = apply_ontology_context_to_graph_payload(
                     all_nodes,
                     all_rels,
@@ -679,7 +632,6 @@ class IndexingPipeline:
                 result.total_nodes = summary.get("nodes_created", 0)
                 result.total_relationships = summary.get("relationships_created", 0)
                 result.write_errors = summary.get("errors", [])
-                stage_metrics["graph_write_ms"] = round((_time.perf_counter() - stage_started) * 1000.0, 2)
 
                 # --- Callback: on_after_write ---
                 if self.on_after_write:
@@ -690,21 +642,6 @@ class IndexingPipeline:
 
         # --- Compute extraction score ---
         _pipeline_elapsed = _time.time() - _pipeline_start
-        stage_metrics["total_ms"] = round(_pipeline_elapsed * 1000.0, 2)
-        result.stage_metrics = stage_metrics
-        result.policy_metrics = {
-            "mode": "indexing",
-            "strict_validation": bool(self.strict_validation),
-            "chunks_total": len(chunks),
-            "chunks_processed": int(result.chunks_processed),
-            "skipped_chunks": int(result.skipped_chunks),
-            "validation_error_count": len(result.validation_errors),
-            "write_error_count": len(result.write_errors),
-            "fallback_used": bool(result.fallback_used),
-            "deduplicated": bool(result.deduplicated),
-            "nodes_created": int(result.total_nodes),
-            "relationships_created": int(result.total_relationships),
-        }
         _score = 0.0
         if all_nodes or all_rels:
             try:
@@ -717,13 +654,6 @@ class IndexingPipeline:
         try:
             from seocho.tracing import log_extraction, is_tracing_enabled
             if is_tracing_enabled():
-                trace_metadata: Dict[str, Any] = {}
-                if _total_usage:
-                    trace_metadata["usage"] = _total_usage
-                if result.ontology_context is not None:
-                    trace_metadata["ontology_context"] = result.ontology_context
-                if result.semantic_package is not None:
-                    trace_metadata["semantic_package"] = result.semantic_package
                 log_extraction(
                     text_preview=content[:200] if content else "",
                     ontology_name=self.ontology.name,
@@ -733,7 +663,7 @@ class IndexingPipeline:
                     score=_score,
                     validation_errors=len(result.validation_errors),
                     elapsed_seconds=_pipeline_elapsed,
-                    metadata=trace_metadata or None,
+                    metadata={"usage": _total_usage} if _total_usage else None,
                 )
         except Exception:
             pass

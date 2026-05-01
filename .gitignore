@@ -80,6 +80,7 @@ outputs/
 data/
 neo4j/data/
 neo4j/logs/
+.dolt/
 *.db
 neostore*
 *.lock
@@ -91,6 +92,8 @@ sharepoint/
 # Jupyter checkpoints
 .ipynb_checkpoints/
 **/.ipynb_checkpoints/
+examples/.notebook_runs/
+traces/
 
 # Large exports
 kgbuild_export.*

@@ -55,6 +55,9 @@ extraction/                 ← HTTP transport layer (server-only)
 | Extend ontology features | `seocho/ontology.py` |
 | Fix a bug in the HTTP client | `seocho/client.py` |
 
+Looking for a concrete place to contribute? Pick a usecase and add a starter
+ontology or sample docs alongside it: [`docs/USECASES.md`](docs/USECASES.md).
+
 ## Running Tests
 
 ```bash

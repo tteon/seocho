@@ -227,6 +227,7 @@ class DebateOrchestrator:
                     agent=agent,
                     input=query,
                     context=context,
+                    max_turns=max(1, int(getattr(context, "max_turns", 10) or 10)),
                 )
             response_text = str(result.final_output)
             trace_steps = self._extract_trace(result)
@@ -465,6 +466,7 @@ class DebateOrchestrator:
                 agent=self.supervisor,
                 input=synthesis_input,
                 context=context,
+                max_turns=max(1, int(getattr(context, "max_turns", 10) or 10)),
             )
         update_current_span(
             output={"synthesis_preview": str(result.final_output)[:300]},

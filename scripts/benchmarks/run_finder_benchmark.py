@@ -23,10 +23,17 @@ from seocho.benchmarking import (  # noqa: E402
     FinDERBenchmarkRecord,
     classify_finder_scenario,
     compare_answers,
+    diagnose_finder_query_contract,
+    finder_record_observability,
     filter_finder_cases,
     load_finder_cases,
     run_finder_benchmark,
     summarize_finder_records,
+)
+from seocho.tracing import (  # noqa: E402
+    configure_tracing_from_env,
+    current_backend_names,
+    flush_tracing,
 )
 
 
@@ -69,6 +76,50 @@ def _local_graph_path_for_run(
     return str(path)
 
 
+def _resolve_llm_selection(provider: str | None, model: str) -> dict[str, str]:
+    """Resolve benchmark provider/model flags into the SDK llm string."""
+
+    requested_provider = str(provider or "").strip().lower()
+    requested_model = str(model or "").strip()
+    if not requested_model:
+        raise ValueError("LLM model must not be empty.")
+    if "/" in requested_model:
+        embedded_provider, embedded_model = requested_model.split("/", 1)
+        embedded_provider = embedded_provider.strip().lower()
+        embedded_model = embedded_model.strip()
+        if requested_provider and requested_provider != embedded_provider:
+            raise ValueError(
+                "--provider conflicts with provider embedded in --model "
+                f"({requested_provider!r} != {embedded_provider!r})."
+            )
+        requested_provider = embedded_provider
+        requested_model = embedded_model
+    resolved_provider = requested_provider or "openai"
+    if not requested_model:
+        raise ValueError("LLM model must not be empty.")
+    return {
+        "provider": resolved_provider,
+        "model": requested_model,
+        "llm": f"{resolved_provider}/{requested_model}",
+    }
+
+
+def _limit_cases_per_category(cases: list, limit: int) -> list:
+    """Return a deterministic per-category subset while preserving dataset order."""
+
+    if limit <= 0:
+        return list(cases)
+    selected = []
+    counts: dict[str, int] = {}
+    for case in cases:
+        category = str(case.category or "general")
+        if int(counts.get(category, 0)) >= limit:
+            continue
+        selected.append(case)
+        counts[category] = int(counts.get(category, 0)) + 1
+    return selected
+
+
 def _build_finder_ontology() -> Ontology:
     return Ontology(
         name="finder_benchmark",
@@ -92,7 +143,7 @@ def _build_finder_ontology() -> Ontology:
 
 def _build_local_client(args: argparse.Namespace) -> Seocho:
     kwargs = {
-        "llm": args.model,
+        "llm": args.llm,
         "workspace_id": args.workspace_id,
     }
     if args.graph:
@@ -116,6 +167,20 @@ def _write_summary(payload: dict) -> Path:
     target = _output_dir() / f"finder_benchmark_{timestamp}.json"
     target.write_text(json.dumps(payload, indent=2))
     return target
+
+
+def _benchmark_setup_payload(args: argparse.Namespace, *, tracing_configured: bool) -> dict:
+    active_trace_backends = current_backend_names()
+    return {
+        "provider": args.provider,
+        "model": args.model,
+        "llm": args.llm,
+        "trace_backend_env": os.getenv("SEOCHO_TRACE_BACKEND", "none"),
+        "active_trace_backends": active_trace_backends,
+        "tracing_configured": tracing_configured,
+        "opik_project": os.getenv("OPIK_PROJECT_NAME", ""),
+        "opik_workspace": os.getenv("OPIK_WORKSPACE", ""),
+    }
 
 
 def _scenario_counts(cases: list) -> dict[str, int]:
@@ -191,6 +256,157 @@ def _extract_reasoning_cycle(payload: object) -> tuple[str, list[str]]:
         if isinstance(item, dict) and str(item.get("source", "")).strip()
     ]
     return status, sources
+
+
+def _runtime_payload(payload: object) -> dict:
+    if not isinstance(payload, dict):
+        return {}
+    runtime_payload = payload.get("runtime_payload")
+    if isinstance(runtime_payload, dict):
+        return runtime_payload
+    return payload
+
+
+def _extract_trace_steps(payload: object) -> list[dict]:
+    steps: list[dict] = []
+    if isinstance(payload, dict) and isinstance(payload.get("trace_steps"), list):
+        steps.extend(item for item in payload["trace_steps"] if isinstance(item, dict))
+    runtime_payload = _runtime_payload(payload)
+    if runtime_payload is not payload and isinstance(runtime_payload.get("trace_steps"), list):
+        steps.extend(item for item in runtime_payload["trace_steps"] if isinstance(item, dict))
+    return steps
+
+
+def _extract_evidence_bundle(payload: object) -> dict:
+    runtime_payload = _runtime_payload(payload)
+    if isinstance(runtime_payload.get("evidence_bundle"), dict):
+        return runtime_payload["evidence_bundle"]
+    semantic_context = runtime_payload.get("semantic_context")
+    if isinstance(semantic_context, dict) and isinstance(semantic_context.get("evidence_bundle_preview"), dict):
+        return semantic_context["evidence_bundle_preview"]
+    return {}
+
+
+def _evidence_bundle_size(bundle: dict) -> int:
+    selected = bundle.get("selected_triples", [])
+    slot_fills = bundle.get("slot_fills", {})
+    grounded = bundle.get("grounded_slots", [])
+    return (
+        (len(selected) if isinstance(selected, list) else 0)
+        + (len(slot_fills) if isinstance(slot_fills, dict) else 0)
+        + (len(grounded) if isinstance(grounded, list) else 0)
+    )
+
+
+def _extract_token_usage(trace_steps: list[dict]) -> dict:
+    for step in reversed(trace_steps):
+        metadata = step.get("metadata")
+        if not isinstance(metadata, dict):
+            continue
+        usage = metadata.get("usage")
+        if isinstance(usage, dict):
+            return dict(usage)
+    return {}
+
+
+def _extract_agent_metrics(payload: object) -> dict:
+    runtime_payload = _runtime_payload(payload)
+    trace_steps = _extract_trace_steps(payload)
+    support_assessment = runtime_payload.get("support_assessment")
+    if not isinstance(support_assessment, dict):
+        support_assessment = {}
+    evidence_bundle = _extract_evidence_bundle(payload)
+    missing_slots = evidence_bundle.get("missing_slots") or support_assessment.get("missing_slots") or []
+    if not isinstance(missing_slots, list):
+        missing_slots = []
+
+    tool_call_count = 0
+    reasoning_attempt_count = 0
+    semantic_reused = False
+    for step in trace_steps:
+        step_type = str(step.get("type", "")).strip()
+        if step_type in {"TOOL_CALL", "DETERMINISTIC_PREFLIGHT", "DETERMINISTIC_FALLBACK"}:
+            tool_call_count += 1
+        if step_type in {"DETERMINISTIC_PREFLIGHT", "DETERMINISTIC_FALLBACK", "SYNTHESIS_BYPASSED"}:
+            semantic_reused = True
+        metadata = step.get("metadata")
+        if isinstance(metadata, dict):
+            tool_names = metadata.get("tool_names")
+            if isinstance(tool_names, list) and step_type == "TOOL_CALL":
+                tool_call_count += max(0, len(tool_names) - 1)
+            repair_trace = metadata.get("tool_calls")
+            if isinstance(repair_trace, list):
+                tool_call_count += len(repair_trace)
+            reasoning_attempt_count = max(
+                reasoning_attempt_count,
+                int(metadata.get("reasoning_attempts", 0) or 0),
+            )
+
+    lpg_result = runtime_payload.get("lpg_result")
+    if isinstance(lpg_result, dict):
+        reasoning = lpg_result.get("reasoning")
+        if isinstance(reasoning, dict):
+            reasoning_attempt_count = max(
+                reasoning_attempt_count,
+                int(reasoning.get("attempt_count", 0) or 0),
+            )
+
+    debate_results = runtime_payload.get("debate_results")
+    if isinstance(debate_results, list):
+        semantic_reused = semantic_reused or any(
+            bool(item.get("semantic_reused")) for item in debate_results if isinstance(item, dict)
+        )
+
+    return {
+        "route": str(runtime_payload.get("route", "") or ""),
+        "support_status": str(support_assessment.get("status", "") or ""),
+        "support_coverage": float(support_assessment.get("coverage", 0.0) or 0.0),
+        "missing_slots": [str(slot) for slot in missing_slots if str(slot).strip()],
+        "evidence_bundle_size": _evidence_bundle_size(evidence_bundle),
+        "trace_step_count": len(trace_steps),
+        "tool_call_count": tool_call_count,
+        "reasoning_attempt_count": reasoning_attempt_count,
+        "semantic_reused": semantic_reused,
+        "debate_state": str(runtime_payload.get("debate_state", "") or ""),
+        "token_usage": _extract_token_usage(trace_steps),
+    }
+
+
+def _extract_query_metadata(payload: object) -> dict:
+    if not isinstance(payload, dict):
+        return {}
+    source = _runtime_payload(payload)
+    metadata: dict = {}
+    for key in (
+        "support_assessment",
+        "evidence_bundle",
+        "query_diagnostics",
+        "latency_breakdown_ms",
+        "agent_pattern",
+        "answer_envelope",
+    ):
+        value = source.get(key)
+        if isinstance(value, dict) or isinstance(value, list):
+            metadata[key] = value
+
+    for step in _extract_trace_steps(payload):
+        step_type = str(step.get("type", "")).upper()
+        step_metadata = step.get("metadata", {})
+        if not isinstance(step_metadata, dict):
+            continue
+        if step_type == "GENERATION":
+            for key in ("latency_breakdown_ms", "agent_pattern"):
+                value = step_metadata.get(key)
+                if isinstance(value, dict):
+                    metadata[key] = value
+            usage = step_metadata.get("usage_estimate")
+            if isinstance(usage, dict):
+                metadata["token_usage"] = usage
+        elif step_type == "METRIC":
+            usage = step_metadata.get("usage")
+            if isinstance(usage, dict):
+                metadata["token_usage"] = usage
+    return metadata
 
 
 def _default_reasoning_cycle_payload() -> dict:
@@ -281,6 +497,20 @@ def _run_remote_endpoint_benchmark(
         contains = False
         reasoning_cycle_status = ""
         reasoning_cycle_sources: list[str] = []
+        agent_metrics = {
+            "route": "",
+            "support_status": "",
+            "support_coverage": 0.0,
+            "missing_slots": [],
+            "evidence_bundle_size": 0,
+            "trace_step_count": 0,
+            "tool_call_count": 0,
+            "reasoning_attempt_count": 0,
+            "semantic_reused": False,
+            "debate_state": "",
+            "token_usage": {},
+        }
+        observability: dict = {}
         started = time.perf_counter()
         try:
             status_code, payload = _request_json(
@@ -294,7 +524,13 @@ def _run_remote_endpoint_benchmark(
             if 200 <= status_code < 300:
                 answer = _extract_answer(payload)
                 reasoning_cycle_status, reasoning_cycle_sources = _extract_reasoning_cycle(payload)
+                agent_metrics = _extract_agent_metrics(payload)
                 exact, contains = compare_answers(case.expected_answer, answer)
+                observability = finder_record_observability(
+                    expected_answer=case.expected_answer,
+                    actual_answer=answer,
+                    query_metadata=_extract_query_metadata(payload),
+                )
             else:
                 detail = payload.get("detail") if isinstance(payload, dict) else ""
                 error = str(detail or payload)
@@ -302,10 +538,20 @@ def _run_remote_endpoint_benchmark(
             ask_latency_ms = 0.0
             error = str(exc)
 
+        diagnosis = diagnose_finder_query_contract(
+            error=error,
+            contains_match=contains,
+            support_status=str(agent_metrics["support_status"]),
+            missing_slots=list(agent_metrics["missing_slots"]),
+            evidence_bundle_size=int(agent_metrics["evidence_bundle_size"]),
+            trace_step_count=int(agent_metrics["trace_step_count"]),
+        )
+
         records.append(
             FinDERBenchmarkRecord(
                 case_id=case.case_id,
                 category=case.category,
+                question=case.question,
                 add_latency_ms=amortized_add_latency_ms,
                 ask_latency_ms=round(ask_latency_ms, 2),
                 answer=answer,
@@ -316,6 +562,25 @@ def _run_remote_endpoint_benchmark(
                 relationships_created=0,
                 reasoning_cycle_status=reasoning_cycle_status,
                 reasoning_cycle_sources=reasoning_cycle_sources,
+                route=str(agent_metrics["route"]),
+                support_status=str(agent_metrics["support_status"]),
+                support_coverage=float(agent_metrics["support_coverage"]),
+                missing_slots=list(agent_metrics["missing_slots"]),
+                evidence_bundle_size=int(agent_metrics["evidence_bundle_size"]),
+                trace_step_count=int(agent_metrics["trace_step_count"]),
+                tool_call_count=int(agent_metrics["tool_call_count"]),
+                reasoning_attempt_count=int(agent_metrics["reasoning_attempt_count"]),
+                semantic_reused=bool(agent_metrics["semantic_reused"]),
+                debate_state=str(agent_metrics["debate_state"]),
+                token_usage=dict(agent_metrics["token_usage"] or observability.get("token_usage", {})),
+                support_answer_gap="support_claim_answer_mismatch" in diagnosis,
+                diagnosis=diagnosis,
+                latency_breakdown_ms=dict(observability.get("latency_breakdown_ms", {})),
+                retrieval_latency_ms=float(observability.get("retrieval_latency_ms", 0.0) or 0.0),
+                generation_latency_ms=float(observability.get("generation_latency_ms", 0.0) or 0.0),
+                evidence_coverage=float(observability.get("evidence_coverage", 0.0) or 0.0),
+                slot_metrics=dict(observability.get("slot_metrics", {})),
+                agent_pattern=dict(observability.get("agent_pattern", {})),
                 error=error,
             )
         )
@@ -328,6 +593,7 @@ def _run_remote_endpoint_benchmark(
 
 def main() -> int:
     _load_dotenv(ROOT / ".env")
+    tracing_configured = configure_tracing_from_env()
     parser = argparse.ArgumentParser(description="Run the SEOCHO FinDER benchmark.")
     parser.add_argument("--mode", choices=("local", "remote", "both"), default="local")
     parser.add_argument(
@@ -350,12 +616,34 @@ def main() -> int:
     )
     parser.add_argument("--neo4j-user", default=os.getenv("NEO4J_USER", "neo4j"))
     parser.add_argument("--neo4j-password", default=os.getenv("NEO4J_PASSWORD", "password"))
-    parser.add_argument("--model", default=os.getenv("OPENAI_MODEL", "gpt-4o-mini"))
+    parser.add_argument(
+        "--provider",
+        default=os.getenv("FINDER_LLM_PROVIDER", ""),
+        help="LLM provider preset. May also be embedded in --model as provider/model.",
+    )
+    parser.add_argument(
+        "--model",
+        default=os.getenv("FINDER_LLM_MODEL", os.getenv("OPENAI_MODEL", "gpt-4o-mini")),
+        help="LLM model name or provider/model string.",
+    )
+    parser.add_argument(
+        "--limit-per-category",
+        type=int,
+        default=0,
+        help="Limit selected FinDER cases per category; 0 means no limit.",
+    )
     parser.add_argument("--workspace-id", default=f"finder-benchmark-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}")
     parser.add_argument("--reasoning-mode", action="store_true")
     parser.add_argument("--repair-budget", type=int, default=0)
     parser.add_argument("--timeout", type=float, default=float(os.getenv("FINDER_RUNTIME_TIMEOUT", "180")))
     args = parser.parse_args()
+    try:
+        llm_selection = _resolve_llm_selection(args.provider, args.model)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+    args.provider = llm_selection["provider"]
+    args.model = llm_selection["model"]
+    args.llm = llm_selection["llm"]
 
     dataset_path = Path(args.dataset)
     if not dataset_path.exists():
@@ -369,7 +657,10 @@ def main() -> int:
         )
 
     all_cases = load_finder_cases(dataset_path)
-    cases = filter_finder_cases(all_cases, args.scenario)
+    cases = _limit_cases_per_category(
+        filter_finder_cases(all_cases, args.scenario),
+        args.limit_per_category,
+    )
     if not cases:
         raise SystemExit(f"No FinDER cases matched scenario={args.scenario}.")
 
@@ -451,9 +742,11 @@ def main() -> int:
     output = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "dataset": str(dataset_path),
+        "benchmark_setup": _benchmark_setup_payload(args, tracing_configured=tracing_configured),
         "database": args.database,
         "workspace_id": args.workspace_id,
         "scenario": args.scenario,
+        "limit_per_category": args.limit_per_category,
         "scenario_counts": _scenario_counts(all_cases),
         "selected_case_ids": [case.case_id for case in cases],
         "local_graph_path": args.local_graph_path if not args.graph else "",
@@ -461,6 +754,7 @@ def main() -> int:
         "summaries": summaries,
     }
     path = _write_summary(output)
+    flush_tracing()
     print(
         json.dumps(
             {

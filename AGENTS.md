@@ -52,6 +52,21 @@ scripts/pm/sprint-board.sh --sprint 2026-S03
 scripts/pm/lint-agent-docs.sh
 ```
 
+Beads/Dolt operations:
+
+- do not delete, reinstall, or reset `.beads` as the first response to a Beads
+  issue
+- run `scripts/pm/bd-recover.sh` first; it is read-only by default and checks
+  `bd doctor`, `bd dolt status`, the configured Dolt listener, and
+  `bd dolt show`
+- if `bd dolt status` says `not running` but `bd dolt show` reports connection
+  OK, treat the SQL connection as the health source and avoid destructive
+  recovery
+- use `scripts/pm/bd-recover.sh --fix` only when `bd doctor` or `bd dolt show`
+  fails; it only restarts the Dolt SQL server bound to this repo's Beads port
+- in Codex sandboxed tool calls, local Dolt socket checks may require elevated
+  execution even when the underlying Beads database is healthy
+
 ## 4. Coding Rules
 
 - use type hints
@@ -81,12 +96,12 @@ scripts/pm/lint-agent-docs.sh
 4. land:
    - release or hand off any active Gastown reservation
    - `git pull --rebase`
-   - `bd sync` (best effort if workspace issue persists)
+   - `bd bootstrap` (best effort; safe no-op when the workspace DB is already healthy)
    - `git push`
    - `git status` (must show up to date with `origin/main`)
 
-When working in a git worktree, prefer `BEADS_NO_DAEMON=1` to avoid daemon
-cross-talk between worktrees.
+When working in a git worktree, prefer `bd --sandbox ...` for repo-local issue
+operations that should avoid auto-sync side effects.
 
 Push target is always `main`.
 

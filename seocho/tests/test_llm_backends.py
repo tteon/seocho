@@ -14,7 +14,11 @@ from seocho.tracing import disable_tracing
 
 
 class _FakeChatCompletions:
+    def __init__(self):
+        self.calls = []
+
     def create(self, **kwargs):
+        self.calls.append(kwargs)
         return SimpleNamespace(
             choices=[SimpleNamespace(message=SimpleNamespace(content="ok"))],
             model=kwargs["model"],
@@ -84,6 +88,20 @@ def test_provider_presets_resolve_openai_compatible_defaults(
     assert backend.model == model
     assert backend._base_url == base_url
     assert backend._api_key_env == env_name
+
+
+def test_grok_provider_accepts_legacy_grok_api_key_alias(
+    fake_openai: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("XAI_API_KEY", raising=False)
+    monkeypatch.setenv("GROK_API_KEY", "grok-secret")
+
+    backend = create_llm_backend(provider="grok")
+
+    assert backend.provider == "grok"
+    assert backend._api_key == "grok-secret"
+    assert backend._api_key_env == "XAI_API_KEY"
 
 
 def test_openai_embedding_backend_uses_default_embedding_model(
@@ -209,3 +227,44 @@ def test_openai_clients_are_wrapped_only_when_opik_backend_is_enabled(
     assert len(calls) == 2
     assert getattr(backend._client, "opik_wrapped", False) is True
     assert getattr(backend._async_client, "opik_wrapped", False) is True
+
+
+def test_openai_reasoning_model_uses_max_completion_tokens(
+    fake_openai: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "openai-secret")
+    backend = create_llm_backend(provider="openai", model="o4-mini")
+
+    response = backend.complete(
+        system="Reply exactly ok.",
+        user="ok",
+        temperature=0.0,
+        max_tokens=12,
+    )
+
+    call = backend._client.chat.completions.calls[0]
+    assert response.text == "ok"
+    assert call["max_completion_tokens"] == 12
+    assert "max_tokens" not in call
+    assert "temperature" not in call
+
+
+def test_non_openai_reasoning_provider_keeps_openai_compatible_token_parameter(
+    fake_openai: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "deepseek-secret")
+    backend = create_llm_backend(provider="deepseek", model="deepseek-reasoner")
+
+    backend.complete(
+        system="Reply exactly ok.",
+        user="ok",
+        temperature=0.25,
+        max_tokens=12,
+    )
+
+    call = backend._client.chat.completions.calls[0]
+    assert call["max_tokens"] == 12
+    assert call["temperature"] == 0.25
+    assert "max_completion_tokens" not in call

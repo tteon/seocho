@@ -3,11 +3,13 @@ from seocho.benchmarking import (
     classify_finder_scenario,
     FinanceBenchmarkCase,
     compare_answers,
+    diagnose_finder_query_contract,
     filter_finder_cases,
     load_finder_cases,
     normalize_answer,
     run_finder_benchmark,
     run_finance_benchmark,
+    score_answer_slots,
     split_finder_diagnosis,
     split_finance_diagnosis,
     summarize_finder_contract_findings,
@@ -15,7 +17,11 @@ from seocho.benchmarking import (
     summarize_finance_contract_findings,
     summarize_finance_records,
 )
-from scripts.benchmarks.run_finder_benchmark import _local_graph_path_for_run
+from scripts.benchmarks.run_finder_benchmark import (
+    _benchmark_setup_payload,
+    _extract_agent_metrics,
+    _local_graph_path_for_run,
+)
 
 
 class _FakeMemory:
@@ -75,6 +81,25 @@ class _ReasoningCycleClient(_FakeClient):
         )
 
 
+class _ObservableClient(_FakeClient):
+    @property
+    def last_query_metadata(self):
+        return {
+            "latency_breakdown_ms": {
+                "retrieval_ms": 12.0,
+                "generation_ms": 3.0,
+                "total_ms": 15.0,
+            },
+            "support_assessment": {"status": "supported"},
+            "evidence_bundle": {
+                "coverage": 0.75,
+                "missing_slots": ["period"],
+            },
+            "token_usage": {"source": "estimated_char_count", "total_tokens_est": 42},
+            "agent_pattern": {"pattern": "semantic_direct"},
+        }
+
+
 def test_normalize_answer_collapses_case_and_punctuation():
     assert normalize_answer("PTC, Inc. reported  $2.1 billion!") == "ptc inc reported 2 1 billion"
 
@@ -117,6 +142,42 @@ def test_compare_answers_treats_scaled_numeric_units_as_equivalent():
     )
     assert exact is False
     assert contains is True
+
+
+def test_compare_answers_tolerates_omitted_financial_unit_when_slots_match():
+    exact, contains = compare_answers(
+        (
+            "The Data and Access Solutions revenue increased by $111.5 million "
+            "from 2021 to 2023, calculated as 539.2 million minus 427.7 million."
+        ),
+        (
+            "For Cboe Global Markets, Inc., Data and Access Solutions revenue "
+            "increased by $111.5 from 2021 to 2023, calculated as $539.2 minus $427.7."
+        ),
+    )
+    assert exact is False
+    assert contains is True
+
+
+def test_compare_answers_accepts_short_standard_answer_with_key_slot():
+    exact, contains = compare_answers(
+        "Meta uses the fair value method for stock-based compensation under ASC 718.",
+        "Meta follows ASC 718 for stock-based compensation.",
+    )
+    assert exact is False
+    assert contains is True
+
+
+def test_score_answer_slots_reports_numeric_and_period_recall():
+    metrics = score_answer_slots(
+        "Revenue was $2.1 billion in 2023 versus $1.9 billion in 2022.",
+        "Revenue was 2.1 billion in 2023.",
+    )
+
+    assert metrics["numeric_recall"] == 0.5
+    assert metrics["period_recall"] == 0.5
+    assert metrics["numeric_slots_match"] is False
+    assert metrics["period_slots_match"] is False
 
 
 def test_run_finance_benchmark_summarizes_latencies_and_matches():
@@ -185,6 +246,7 @@ def test_run_finder_benchmark_summarizes_latencies_and_matches():
     assert summary.record_count == 2
     assert summary.failure_count == 0
     assert summary.contains_match_rate == 1.0
+    assert summary.records[0].question == "What was PTC's revenue growth in fiscal 2023?"
     assert summary.avg_nodes_created == 2.0
     assert summary.avg_relationships_created == 1.0
 
@@ -239,6 +301,114 @@ def test_run_finder_benchmark_aggregates_reasoning_cycle_findings():
     assert summary.reasoning_cycle_source_counts["shacl_violation"] == 1
 
 
+def test_summarize_finder_records_aggregates_agent_metrics():
+    from seocho.benchmarking import FinDERBenchmarkRecord
+
+    summary = summarize_finder_records(
+        mode="remote-semantic",
+        dataset="finder_sample.json",
+        records=[
+            FinDERBenchmarkRecord(
+                case_id="finder_012",
+                category="Financials",
+                question="What changed?",
+                add_latency_ms=10.0,
+                ask_latency_ms=20.0,
+                answer="answer",
+                expected_answer="answer",
+                exact_match=True,
+                contains_match=True,
+                route="lpg",
+                support_status="partial",
+                missing_slots=["period", "metric"],
+                evidence_bundle_size=4,
+                trace_step_count=6,
+                tool_call_count=2,
+                reasoning_attempt_count=1,
+                semantic_reused=True,
+                debate_state="ready",
+                token_usage={"total_tokens_est": 120},
+                support_answer_gap=True,
+                diagnosis=["support_claim_answer_mismatch"],
+            )
+        ],
+    )
+
+    assert summary.route_counts == {"lpg": 1}
+    assert summary.support_status_counts == {"partial": 1}
+    assert summary.debate_state_counts == {"ready": 1}
+    assert summary.missing_slot_counts == {"period": 1, "metric": 1}
+    assert summary.semantic_reuse_count == 1
+    assert summary.support_answer_gap_count == 1
+    assert summary.support_answer_gap_rate == 1.0
+    assert summary.diagnosis_counts == {"support_claim_answer_mismatch": 1}
+    assert summary.avg_trace_step_count == 6.0
+    assert summary.avg_tool_call_count == 2.0
+    assert summary.avg_reasoning_attempt_count == 1.0
+    assert summary.avg_evidence_bundle_size == 4.0
+    assert summary.avg_total_tokens_est == 120.0
+
+
+def test_diagnose_finder_query_contract_flags_supported_but_wrong_answer():
+    diagnosis = diagnose_finder_query_contract(
+        contains_match=False,
+        support_status="supported",
+        evidence_bundle_size=3,
+        trace_step_count=5,
+    )
+
+    assert diagnosis == [
+        "support_claim_answer_mismatch",
+        "answer_quality_or_slot_selection_gap",
+    ]
+
+
+def test_diagnose_finder_query_contract_flags_empty_evidence_after_trace():
+    diagnosis = diagnose_finder_query_contract(
+        contains_match=True,
+        support_status="supported",
+        evidence_bundle_size=0,
+        trace_step_count=4,
+    )
+
+    assert diagnosis == ["query_no_graph_records"]
+
+
+def test_run_finder_benchmark_records_query_observability_metadata():
+    cases = [
+        FinDERBenchmarkCase(
+            case_id="finder_012",
+            text="PTC text",
+            question="What was PTC's revenue growth in fiscal 2023?",
+            expected_answer="PTC reported total revenue of $2.1 billion in fiscal 2023, a 10% increase from $1.9 billion in the prior year.",
+            category="Financials",
+            reasoning_type="Subtraction",
+        )
+    ]
+
+    summary = run_finder_benchmark(
+        client=_ObservableClient(),
+        cases=cases,
+        mode="local",
+        dataset="finder_sample.json",
+        database="neo4j",
+    )
+
+    record = summary.records[0]
+    assert record.retrieval_latency_ms == 12.0
+    assert record.generation_latency_ms == 3.0
+    assert record.support_status == "supported"
+    assert record.evidence_coverage == 0.75
+    assert record.missing_slots == ["period"]
+    assert record.token_usage["total_tokens_est"] == 42
+    assert record.agent_pattern["pattern"] == "semantic_direct"
+    assert summary.retrieval_latency_p50_ms == 12.0
+    assert summary.generation_latency_p95_ms == 3.0
+    assert summary.support_status_counts["supported"] == 1
+    assert summary.missing_slot_counts["period"] == 1
+    assert summary.agent_pattern_counts["semantic_direct"] == 1
+
+
 def test_run_finance_benchmark_records_failures():
     cases = [
         FinanceBenchmarkCase(
@@ -283,6 +453,7 @@ def test_split_finder_diagnosis_separates_indexing_and_query_findings():
             "query_no_graph_records",
             "query_execution_failed_or_contract_error",
             "answer_quality_or_slot_selection_gap",
+            "support_claim_answer_mismatch",
             "custom_follow_up",
             "query_no_graph_records",
         ]
@@ -293,6 +464,7 @@ def test_split_finder_diagnosis_separates_indexing_and_query_findings():
         "query_no_graph_records",
         "query_execution_failed_or_contract_error",
         "answer_quality_or_slot_selection_gap",
+        "support_claim_answer_mismatch",
     ]
     assert split["shared"] == ["custom_follow_up"]
 
@@ -334,6 +506,7 @@ def test_summarize_finder_contract_findings_counts_records_and_codes():
                 "diagnosis": [
                     "source_text_has_answer_but_graph_projection_lost_it",
                     "answer_quality_or_slot_selection_gap",
+                    "support_claim_answer_mismatch",
                     "custom_follow_up",
                 ],
             },
@@ -348,6 +521,7 @@ def test_summarize_finder_contract_findings_counts_records_and_codes():
     assert summary["query"]["finding_counts"]["query_no_graph_records"] == 1
     assert summary["query"]["finding_counts"]["query_execution_failed_or_contract_error"] == 1
     assert summary["query"]["finding_counts"]["answer_quality_or_slot_selection_gap"] == 1
+    assert summary["query"]["finding_counts"]["support_claim_answer_mismatch"] == 1
     assert summary["shared"]["record_count"] == 1
     assert summary["shared"]["finding_counts"]["custom_follow_up"] == 1
 
@@ -459,3 +633,84 @@ def test_local_graph_path_for_run_removes_stale_file_when_fresh(tmp_path):
 
     assert path == str(stale_path)
     assert not stale_path.exists()
+
+
+def test_finder_benchmark_setup_payload_records_model_and_trace_env(monkeypatch):
+    class _Args:
+        provider = "deepseek"
+        model = "gpt-4o-mini"
+        llm = "deepseek/gpt-4o-mini"
+
+    monkeypatch.setenv("SEOCHO_TRACE_BACKEND", "opik")
+    monkeypatch.setenv("OPIK_PROJECT_NAME", "seocho-e2e")
+    monkeypatch.setenv("OPIK_WORKSPACE", "tteon")
+
+    payload = _benchmark_setup_payload(_Args(), tracing_configured=True)
+
+    assert payload["provider"] == "deepseek"
+    assert payload["model"] == "gpt-4o-mini"
+    assert payload["llm"] == "deepseek/gpt-4o-mini"
+    assert payload["trace_backend_env"] == "opik"
+    assert payload["tracing_configured"] is True
+    assert payload["opik_project"] == "seocho-e2e"
+    assert payload["opik_workspace"] == "tteon"
+
+
+def test_extract_agent_metrics_from_semantic_runtime_payload():
+    metrics = _extract_agent_metrics(
+        {
+            "route": "lpg",
+            "support_assessment": {"status": "partial", "coverage": 0.5},
+            "evidence_bundle": {
+                "selected_triples": [{"source": "A", "relation": "R", "target": "B"}],
+                "slot_fills": {"target_entity": "B"},
+                "grounded_slots": ["target_entity"],
+                "missing_slots": ["period"],
+            },
+            "lpg_result": {"reasoning": {"attempt_count": 2}},
+            "trace_steps": [
+                {"type": "SEMANTIC", "metadata": {}},
+                {"type": "SPECIALIST", "metadata": {"tool_calls": [{"query": "MATCH"}]}},
+                {
+                    "type": "METRIC",
+                    "metadata": {
+                        "usage": {
+                            "source": "estimated_char_count",
+                            "total_tokens_est": 42,
+                        }
+                    },
+                },
+            ],
+        }
+    )
+
+    assert metrics["route"] == "lpg"
+    assert metrics["support_status"] == "partial"
+    assert metrics["support_coverage"] == 0.5
+    assert metrics["missing_slots"] == ["period"]
+    assert metrics["evidence_bundle_size"] == 3
+    assert metrics["trace_step_count"] == 3
+    assert metrics["tool_call_count"] == 1
+    assert metrics["reasoning_attempt_count"] == 2
+    assert metrics["token_usage"]["total_tokens_est"] == 42
+
+
+def test_extract_agent_metrics_detects_debate_semantic_reuse():
+    metrics = _extract_agent_metrics(
+        {
+            "runtime_payload": {
+                "debate_state": "ready",
+                "debate_results": [{"semantic_reused": True}],
+            },
+            "trace_steps": [
+                {"type": "FANOUT", "metadata": {}},
+                {"type": "DETERMINISTIC_PREFLIGHT", "metadata": {"tool_names": ["semantic_agent_flow"]}},
+                {"type": "SYNTHESIS_BYPASSED", "metadata": {"bypass_reason": "single_supported_semantic_reuse"}},
+            ],
+        }
+    )
+
+    assert metrics["debate_state"] == "ready"
+    assert metrics["semantic_reused"] is True
+    assert metrics["tool_call_count"] == 1
+    assert metrics["trace_step_count"] == 3

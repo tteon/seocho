@@ -556,7 +556,10 @@ class GraphMemoryService:
         MATCH (m:Document)
         WHERE coalesce(m.memory_id, m.source_id) = $memory_id
           AND coalesce(m.workspace_id, $workspace_id) = $workspace_id
-        OPTIONAL MATCH (m)-[:MENTIONS]->(e)
+        OPTIONAL MATCH (e)
+        WHERE coalesce(e.memory_id, e.source_id) = coalesce(m.memory_id, m.source_id)
+          AND coalesce(e.workspace_id, $workspace_id) = $workspace_id
+          AND NOT e:Document
         WITH m, collect(DISTINCT {
           id: coalesce(e.id, elementId(e)),
           labels: labels(e),

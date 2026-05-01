@@ -104,7 +104,7 @@ Required sequence:
 2. `scripts/ops-check.sh --task-id <id> --rig seocho`
 3. `scripts/gt-doctor.sh`
 4. `git pull --rebase`
-5. `bd sync`
+5. `bd bootstrap`
 6. `git push`
 7. `git status`
 

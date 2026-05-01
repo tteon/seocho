@@ -1134,6 +1134,7 @@ class Seocho:
             agent_config=self.agent_config,
             workspace_id=self.workspace_id,
             ontology_profile=self.ontology_profile,
+            user_id=self.user_id,
         )
 
     def ensure_constraints(self, *, database: str = "neo4j") -> Dict[str, Any]:

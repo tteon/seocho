@@ -32,9 +32,10 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import threading
 import time
 import uuid
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Coroutine, Dict, List, Optional, Sequence, TypeVar
 
 from .agent.context import SessionContext
 from .agent.contracts import normalize_execution_mode
@@ -45,6 +46,41 @@ from .agent.factory import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+_T = TypeVar("_T")
+
+
+def _run_sync(coro: "Coroutine[Any, Any, _T]") -> _T:
+    """Run *coro* to completion from a synchronous context.
+
+    ``asyncio.run()`` raises ``RuntimeError`` when invoked from a thread
+    that already has a running loop (Jupyter cells, FastAPI request
+    handlers, ``pytest-asyncio`` fixtures). When that happens we hand the
+    coroutine to a worker thread that owns its own loop, so the caller's
+    loop is undisturbed and no monkey-patching (e.g. ``nest_asyncio``) is
+    required. In the simple "plain script" case there is no running loop
+    and we use ``asyncio.run`` directly — same behaviour as before.
+    """
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro)
+
+    box: Dict[str, Any] = {}
+
+    def _runner() -> None:
+        try:
+            box["value"] = asyncio.run(coro)
+        except BaseException as exc:  # noqa: BLE001
+            box["error"] = exc
+
+    worker = threading.Thread(target=_runner, name="seocho-run-sync", daemon=True)
+    worker.start()
+    worker.join()
+    if "error" in box:
+        raise box["error"]
+    return box["value"]
 
 
 class Session:
@@ -89,6 +125,7 @@ class Session:
         agent_config: Any = None,
         workspace_id: str = "default",
         ontology_profile: str = "default",
+        user_id: Optional[str] = None,
     ) -> None:
         self.session_id = str(uuid.uuid4())[:12]
         self.name = name or f"session-{self.session_id}"
@@ -101,6 +138,7 @@ class Session:
         self.agent_config = agent_config
         self.workspace_id = workspace_id
         self.ontology_profile = str(ontology_profile or "default")
+        self.user_id = user_id
 
         self.context = SessionContext()
         from .ontology_context import OntologyContextCache
@@ -259,6 +297,8 @@ class Session:
                     "degraded": bool(result.get("degraded", False)),
                     "fallback_from": str(result.get("fallback_from", "")),
                     "fallback_reason": str(result.get("fallback_reason", "")),
+                    "user_id": self.user_id,
+                    "workspace_id": self.workspace_id,
                     "ontology_context": result.get(
                         "ontology_context",
                         self._ontology_context.metadata(usage="agent_indexing"),
@@ -342,6 +382,8 @@ class Session:
                 output_data={"response_preview": result_text[:300]},
                 metadata={
                     "elapsed_seconds": round(elapsed, 2),
+                    "user_id": self.user_id,
+                    "workspace_id": self.workspace_id,
                     "ontology_context": self._ontology_context.metadata(usage="agent"),
                 },
                 tags=["supervisor", "handoff"],
@@ -351,10 +393,10 @@ class Session:
 
     def _run_via_supervisor(self, message: str, database: str) -> str:
         """Run through supervisor agent with hand-off."""
-        from extraction.agents_runtime import get_agents_runtime
+        from .agents_runtime import get_agents_runtime
 
         supervisor = self._get_supervisor_agent()
-        result = asyncio.run(get_agents_runtime().run(agent=supervisor, input=message))
+        result = _run_sync(get_agents_runtime().run(agent=supervisor, input=message))
         return result.final_output or "No response from agent."
 
     def _get_supervisor_agent(self) -> Any:
@@ -451,6 +493,8 @@ class Session:
                     "degraded": bool(query_result.get("degraded", False)),
                     "fallback_from": str(query_result.get("fallback_from", "")),
                     "fallback_reason": str(query_result.get("fallback_reason", "")),
+                    "user_id": self.user_id,
+                    "workspace_id": self.workspace_id,
                     "ontology_context": self._ontology_context.metadata(usage="agent_query"),
                 },
                 tags=["query"],
@@ -466,7 +510,7 @@ class Session:
         metadata: Optional[Dict[str, Any]],
     ) -> Dict[str, Any]:
         """Run indexing through the agent with tool use."""
-        from extraction.agents_runtime import get_agents_runtime
+        from .agents_runtime import get_agents_runtime
 
         agent = self._get_indexing_agent()
         user_msg = (
@@ -478,7 +522,7 @@ class Session:
         user_msg += f"\n\n{self._ontology_context.agent_context}"
 
         try:
-            result = asyncio.run(get_agents_runtime().run(agent=agent, input=user_msg))
+            result = _run_sync(get_agents_runtime().run(agent=agent, input=user_msg))
             # Parse agent's final output for structured result
             parsed = self._parse_indexing_result(result.final_output, content)
             parsed["ontology_context"] = self._ontology_context.metadata(usage="agent_indexing")
@@ -493,7 +537,7 @@ class Session:
 
     def _ask_via_agent(self, question: str, database: str) -> Dict[str, Any]:
         """Run query through the agent with tool use."""
-        from extraction.agents_runtime import get_agents_runtime
+        from .agents_runtime import get_agents_runtime
 
         agent = self._get_query_agent()
         user_msg = (
@@ -502,7 +546,7 @@ class Session:
         )
 
         try:
-            result = asyncio.run(get_agents_runtime().run(agent=agent, input=user_msg))
+            result = _run_sync(get_agents_runtime().run(agent=agent, input=user_msg))
             return {
                 "answer": result.final_output or "No answer could be generated.",
                 "mode": "agent",
@@ -672,7 +716,7 @@ class Session:
         full_msg = f"{question}{context_block}\n[Target database: {db}]"
 
         try:
-            from extraction.agents_runtime import get_agents_runtime
+            from .agents_runtime import get_agents_runtime
             agent = self._get_query_agent()
 
             async def _stream():

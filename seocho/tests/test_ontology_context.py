@@ -161,13 +161,6 @@ def test_indexing_result_records_ontology_context() -> None:
     assert payload["ontology_context"]["workspace_id"] == "acme"
     assert payload["ontology_context"]["profile"] == "finder-financials"
     assert payload["ontology_context"]["context_hash"]
-    assert payload["semantic_package"]["package_id"]
-    assert payload["semantic_package"]["package_hash"]
-    assert payload["semantic_package"]["ontology_id"] == "company-finance"
-    assert payload["semantic_package"]["ontology_profile"] == "finder-financials"
-    assert payload["stage_metrics"]["total_ms"] >= 0.0
-    assert payload["policy_metrics"]["mode"] == "indexing"
-    assert payload["policy_metrics"]["chunks_processed"] == 1
     written_node = graph_store.writes[0]["nodes"][0]
     written_rel = graph_store.writes[0]["relationships"][0]
     assert written_node["properties"]["_ontology_context_hash"] == payload["ontology_context"]["context_hash"]

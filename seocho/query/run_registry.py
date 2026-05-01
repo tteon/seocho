@@ -42,11 +42,8 @@ class RunMetadataRegistry:
         evidence_bundle = semantic_context.get("evidence_bundle_preview", {})
         support_assessment = semantic_context.get("support_assessment", {})
         strategy_decision = semantic_context.get("strategy_decision", {})
-        semantic_package = semantic_context.get("semantic_package", {})
-        stage_metrics = semantic_context.get("stage_metrics", {})
-        policy_metrics = semantic_context.get("policy_metrics", {})
         record = {
-            "schema_version": "semantic_run_registry.v3",
+            "schema_version": "semantic_run_registry.v1",
             "run_id": run_id,
             "timestamp": timestamp,
             "workspace_id": workspace_id,
@@ -54,11 +51,6 @@ class RunMetadataRegistry:
             "query_hash": sha1(question.encode("utf-8")).hexdigest(),
             "route": route,
             "intent_id": str(semantic_context.get("intent", {}).get("intent_id", "")).strip(),
-            "semantic_package": semantic_package,
-            "semantic_package_id": str(semantic_package.get("package_id", "")).strip(),
-            "semantic_package_hash": str(semantic_package.get("package_hash", "")).strip(),
-            "stage_metrics": stage_metrics,
-            "policy_metrics": policy_metrics,
             "support_assessment": support_assessment,
             "strategy_decision": strategy_decision,
             "reasoning": semantic_context.get("reasoning", {}),
@@ -82,21 +74,14 @@ class RunMetadataRegistry:
             logger.warning("Failed to persist semantic run metadata.", exc_info=True)
 
         return {
-            "schema_version": "semantic_run_registry.v3",
+            "schema_version": "semantic_run_registry.v1",
             "run_id": run_id,
             "recorded": recorded,
             "registry_path": str(stored.get("db_path", self.path)),
             "timestamp": timestamp,
-            "semantic_package_id": str(record.get("semantic_package_id", "")).strip(),
-            "semantic_package_hash": str(record.get("semantic_package_hash", "")).strip(),
         }
 
     def _save_semantic_run(self, record: Dict[str, Any]) -> Dict[str, Any]:
-        semantic_package = (
-            record.get("semantic_package", {})
-            if isinstance(record.get("semantic_package", {}), dict)
-            else {}
-        )
         with self._connect() as conn:
             conn.execute(
                 """
@@ -108,11 +93,6 @@ class RunMetadataRegistry:
                   intent_id,
                   query_preview,
                   query_hash,
-                  semantic_package_id,
-                  semantic_package_hash,
-                  semantic_package_json,
-                  stage_metrics_json,
-                  policy_metrics_json,
                   support_status,
                   support_reason,
                   support_coverage,
@@ -125,7 +105,7 @@ class RunMetadataRegistry:
                   response_preview,
                   record_json
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     str(record.get("run_id", "")).strip(),
@@ -135,11 +115,6 @@ class RunMetadataRegistry:
                     str(record.get("intent_id", "")).strip(),
                     str(record.get("query_preview", "")),
                     str(record.get("query_hash", "")),
-                    str(record.get("semantic_package_id") or semantic_package.get("package_id", "")).strip(),
-                    str(record.get("semantic_package_hash") or semantic_package.get("package_hash", "")).strip(),
-                    json.dumps(semantic_package, ensure_ascii=True),
-                    json.dumps(record.get("stage_metrics", {}), ensure_ascii=True),
-                    json.dumps(record.get("policy_metrics", {}), ensure_ascii=True),
                     str(record.get("support_assessment", {}).get("status", "")).strip(),
                     str(record.get("support_assessment", {}).get("reason", "")).strip(),
                     float(record.get("support_assessment", {}).get("coverage", 0.0) or 0.0),
@@ -174,11 +149,6 @@ class RunMetadataRegistry:
               intent_id TEXT NOT NULL,
               query_preview TEXT NOT NULL,
               query_hash TEXT NOT NULL,
-              semantic_package_id TEXT NOT NULL DEFAULT '',
-              semantic_package_hash TEXT NOT NULL DEFAULT '',
-              semantic_package_json TEXT NOT NULL DEFAULT '{}',
-              stage_metrics_json TEXT NOT NULL DEFAULT '{}',
-              policy_metrics_json TEXT NOT NULL DEFAULT '{}',
               support_status TEXT NOT NULL,
               support_reason TEXT NOT NULL,
               support_coverage REAL NOT NULL,
@@ -193,7 +163,6 @@ class RunMetadataRegistry:
             )
             """
         )
-        _ensure_semantic_run_columns(conn)
         conn.execute(
             """
             CREATE INDEX IF NOT EXISTS idx_semantic_runs_workspace_time
@@ -218,30 +187,3 @@ class RunMetadataRegistry:
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
-
-
-def _ensure_semantic_run_columns(conn: sqlite3.Connection) -> None:
-    existing = {
-        str(row["name"])
-        for row in conn.execute("PRAGMA table_info(semantic_runs)").fetchall()
-    }
-    if "semantic_package_id" not in existing:
-        conn.execute(
-            "ALTER TABLE semantic_runs ADD COLUMN semantic_package_id TEXT NOT NULL DEFAULT ''"
-        )
-    if "semantic_package_hash" not in existing:
-        conn.execute(
-            "ALTER TABLE semantic_runs ADD COLUMN semantic_package_hash TEXT NOT NULL DEFAULT ''"
-        )
-    if "semantic_package_json" not in existing:
-        conn.execute(
-            "ALTER TABLE semantic_runs ADD COLUMN semantic_package_json TEXT NOT NULL DEFAULT '{}'"
-        )
-    if "stage_metrics_json" not in existing:
-        conn.execute(
-            "ALTER TABLE semantic_runs ADD COLUMN stage_metrics_json TEXT NOT NULL DEFAULT '{}'"
-        )
-    if "policy_metrics_json" not in existing:
-        conn.execute(
-            "ALTER TABLE semantic_runs ADD COLUMN policy_metrics_json TEXT NOT NULL DEFAULT '{}'"
-        )

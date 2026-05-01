@@ -403,8 +403,6 @@ class RunMetadata(JsonSerializable):
     recorded: bool = False
     registry_path: str = ""
     timestamp: str = ""
-    semantic_package_id: str = ""
-    semantic_package_hash: str = ""
 
     @classmethod
     def from_dict(cls, payload: Dict[str, Any]) -> "RunMetadata":
@@ -413,8 +411,6 @@ class RunMetadata(JsonSerializable):
             recorded=bool(payload.get("recorded", False)),
             registry_path=str(payload.get("registry_path", "")),
             timestamp=str(payload.get("timestamp", "")),
-            semantic_package_id=str(payload.get("semantic_package_id", "")),
-            semantic_package_hash=str(payload.get("semantic_package_hash", "")),
         )
 
 
@@ -501,9 +497,6 @@ class SemanticRunResponse(JsonSerializable):
     strategy_decision: Dict[str, Any] = field(default_factory=dict)
     run_metadata: Dict[str, Any] = field(default_factory=dict)
     evidence_bundle: Dict[str, Any] = field(default_factory=dict)
-    semantic_package: Dict[str, Any] = field(default_factory=dict)
-    stage_metrics: Dict[str, Any] = field(default_factory=dict)
-    policy_metrics: Dict[str, Any] = field(default_factory=dict)
     reasoning_cycle: Dict[str, Any] = field(default_factory=dict)
     latency_breakdown_ms: Dict[str, float] = field(default_factory=dict)
     agent_pattern: Dict[str, Any] = field(default_factory=dict)
@@ -526,9 +519,6 @@ class SemanticRunResponse(JsonSerializable):
             strategy_decision=dict(payload.get("strategy_decision", {})),
             run_metadata=dict(payload.get("run_metadata", {})),
             evidence_bundle=dict(payload.get("evidence_bundle", {})),
-            semantic_package=dict(payload.get("semantic_package", {})),
-            stage_metrics=dict(payload.get("stage_metrics", {})),
-            policy_metrics=dict(payload.get("policy_metrics", {})),
             reasoning_cycle=dict(payload.get("reasoning_cycle", {})),
             latency_breakdown_ms={
                 str(key): float(value)
@@ -569,11 +559,6 @@ class SemanticRunRecord(JsonSerializable):
     route: str
     intent_id: str
     query_preview: str
-    semantic_package_id: str = ""
-    semantic_package_hash: str = ""
-    semantic_package: Dict[str, Any] = field(default_factory=dict)
-    stage_metrics: Dict[str, Any] = field(default_factory=dict)
-    policy_metrics: Dict[str, Any] = field(default_factory=dict)
     support_status: str = ""
     support_reason: str = ""
     support_coverage: float = 0.0
@@ -594,11 +579,6 @@ class SemanticRunRecord(JsonSerializable):
             route=str(payload.get("route", "")),
             intent_id=str(payload.get("intent_id", "")),
             query_preview=str(payload.get("query_preview", "")),
-            semantic_package_id=str(payload.get("semantic_package_id", "")),
-            semantic_package_hash=str(payload.get("semantic_package_hash", "")),
-            semantic_package=dict(payload.get("semantic_package", {})),
-            stage_metrics=dict(payload.get("stage_metrics", {})),
-            policy_metrics=dict(payload.get("policy_metrics", {})),
             support_status=str(payload.get("support_status", "")),
             support_reason=str(payload.get("support_reason", "")),
             support_coverage=float(payload.get("support_coverage", 0.0) or 0.0),

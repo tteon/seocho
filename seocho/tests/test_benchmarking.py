@@ -33,6 +33,9 @@ class _FakeMemory:
         fallback_used: bool = False,
         deduplicated: bool = False,
         reasoning_cycle: dict | None = None,
+        semantic_package: dict | None = None,
+        stage_metrics: dict | None = None,
+        policy_metrics: dict | None = None,
     ):
         self.metadata = {
             "nodes_created": nodes,
@@ -42,6 +45,12 @@ class _FakeMemory:
         }
         if reasoning_cycle is not None:
             self.metadata["reasoning_cycle"] = reasoning_cycle
+        if semantic_package is not None:
+            self.metadata["semantic_package"] = semantic_package
+        if stage_metrics is not None:
+            self.metadata["stage_metrics"] = stage_metrics
+        if policy_metrics is not None:
+            self.metadata["policy_metrics"] = policy_metrics
 
 
 class _FakeClient:
@@ -50,11 +59,55 @@ class _FakeClient:
             "What was PTC's revenue growth in fiscal 2023?": "PTC reported total revenue of 2.1 billion in fiscal 2023, a 10 increase from 1.9 billion in the prior year.",
             "What are Brown & Brown's business segments?": "Brown & Brown operates through Retail, National Programs, Wholesale Brokerage, and Services.",
         }
+        self._last_query_metadata = {}
 
     def add(self, text: str, **kwargs):
-        return _FakeMemory(nodes=2, rels=1)
+        return _FakeMemory(
+            nodes=2,
+            rels=1,
+            semantic_package={
+                "package_id": "benchmark-finance:default:1.0.0:neo4j",
+                "package_hash": "pkg_add_123",
+            },
+            stage_metrics={
+                "chunking_ms": 0.7,
+                "extraction_ms": 8.4,
+                "graph_write_ms": 3.1,
+                "total_ms": 15.6,
+            },
+            policy_metrics={
+                "mode": "indexing",
+                "strict_validation": False,
+                "chunks_total": 1,
+                "chunks_processed": 1,
+                "fallback_used": False,
+                "deduplicated": False,
+                "nodes_created": 2,
+                "relationships_created": 1,
+            },
+        )
 
     def ask(self, question: str, **kwargs):
+        self._last_query_metadata = {
+            "semantic_package": {
+                "package_id": "benchmark-finance:default:1.0.0:neo4j",
+                "package_hash": "pkg_query_123",
+            },
+            "stage_metrics": {
+                "schema_ms": 1.2,
+                "plan_generation_ms": 4.8,
+                "execute_ms": 6.4,
+                "total_ms": 12.9,
+            },
+            "policy_metrics": {
+                "mode": "local_direct",
+                "reasoning_mode_requested": False,
+                "repair_budget": 0,
+                "repair_attempt_count": 0,
+                "deterministic_answer_used": True,
+                "result_count": 1,
+            },
+        }
         return self._answers[question]
 
 
@@ -65,7 +118,32 @@ class _FailingClient(_FakeClient):
 
 class _FallbackClient(_FakeClient):
     def add(self, text: str, **kwargs):
-        return _FakeMemory(nodes=0, rels=0, fallback_used=False, deduplicated=False)
+        return _FakeMemory(
+            nodes=0,
+            rels=0,
+            fallback_used=False,
+            deduplicated=False,
+            semantic_package={
+                "package_id": "benchmark-finance:default:1.0.0:neo4j",
+                "package_hash": "pkg_add_123",
+            },
+            stage_metrics={
+                "chunking_ms": 0.5,
+                "extraction_ms": 4.2,
+                "graph_write_ms": 0.0,
+                "total_ms": 7.3,
+            },
+            policy_metrics={
+                "mode": "indexing",
+                "strict_validation": False,
+                "chunks_total": 1,
+                "chunks_processed": 1,
+                "fallback_used": False,
+                "deduplicated": False,
+                "nodes_created": 0,
+                "relationships_created": 0,
+            },
+        )
 
 
 class _ReasoningCycleClient(_FakeClient):
@@ -77,6 +155,26 @@ class _ReasoningCycleClient(_FakeClient):
                 "enabled": True,
                 "status": "anomaly_detected",
                 "observed_anomalies": [{"source": "shacl_violation"}],
+            },
+            semantic_package={
+                "package_id": "benchmark-finance:default:1.0.0:neo4j",
+                "package_hash": "pkg_add_123",
+            },
+            stage_metrics={
+                "chunking_ms": 0.6,
+                "extraction_ms": 5.1,
+                "graph_write_ms": 1.4,
+                "total_ms": 9.8,
+            },
+            policy_metrics={
+                "mode": "indexing",
+                "strict_validation": False,
+                "chunks_total": 1,
+                "chunks_processed": 1,
+                "fallback_used": False,
+                "deduplicated": False,
+                "nodes_created": 1,
+                "relationships_created": 0,
             },
         )
 
@@ -212,6 +310,20 @@ def test_run_finance_benchmark_summarizes_latencies_and_matches():
     assert summary.contains_match_rate == 1.0
     assert summary.avg_nodes_created == 2.0
     assert summary.avg_relationships_created == 1.0
+    assert summary.indexing_semantic_package_counts["benchmark-finance:default:1.0.0:neo4j"] == 2
+    assert summary.query_semantic_package_counts["benchmark-finance:default:1.0.0:neo4j"] == 2
+    assert summary.records[0].indexing_semantic_package_hash == "pkg_add_123"
+    assert summary.records[0].query_semantic_package_hash == "pkg_query_123"
+    assert summary.records[0].indexing_stage_metrics["graph_write_ms"] == 3.1
+    assert summary.indexing_stage_timing_p50_ms["graph_write_ms"] == 3.1
+    assert summary.indexing_policy_metric_counts["mode"]["indexing"] == 2
+    assert summary.indexing_policy_metric_counts["strict_validation"]["false"] == 2
+    assert summary.indexing_policy_metric_averages["nodes_created"] == 2.0
+    assert summary.records[0].query_stage_metrics["execute_ms"] == 6.4
+    assert summary.query_stage_timing_p50_ms["execute_ms"] == 6.4
+    assert summary.query_policy_metric_counts["mode"]["local_direct"] == 2
+    assert summary.query_policy_metric_counts["deterministic_answer_used"]["true"] == 2
+    assert summary.query_policy_metric_averages["result_count"] == 1.0
 
 
 def test_run_finder_benchmark_summarizes_latencies_and_matches():
@@ -249,6 +361,13 @@ def test_run_finder_benchmark_summarizes_latencies_and_matches():
     assert summary.records[0].question == "What was PTC's revenue growth in fiscal 2023?"
     assert summary.avg_nodes_created == 2.0
     assert summary.avg_relationships_created == 1.0
+    assert summary.indexing_semantic_package_counts["benchmark-finance:default:1.0.0:neo4j"] == 2
+    assert summary.query_semantic_package_counts["benchmark-finance:default:1.0.0:neo4j"] == 2
+    assert summary.records[0].indexing_stage_metrics["extraction_ms"] == 8.4
+    assert summary.indexing_stage_timing_p95_ms["graph_write_ms"] == 3.1
+    assert summary.query_stage_timing_p95_ms["plan_generation_ms"] == 4.8
+    assert summary.indexing_policy_metric_averages["relationships_created"] == 1.0
+    assert summary.query_policy_metric_averages["repair_budget"] == 0.0
 
 
 def test_run_finder_benchmark_preserves_indexing_metadata_flags():
@@ -273,6 +392,8 @@ def test_run_finder_benchmark_preserves_indexing_metadata_flags():
 
     assert summary.records[0].fallback_used is False
     assert summary.records[0].deduplicated is False
+    assert summary.records[0].indexing_semantic_package_id == "benchmark-finance:default:1.0.0:neo4j"
+    assert summary.records[0].indexing_policy_metrics["mode"] == "indexing"
 
 
 def test_run_finder_benchmark_aggregates_reasoning_cycle_findings():
@@ -299,6 +420,8 @@ def test_run_finder_benchmark_aggregates_reasoning_cycle_findings():
     assert summary.records[0].reasoning_cycle_sources == ["shacl_violation"]
     assert summary.reasoning_cycle_status_counts["anomaly_detected"] == 1
     assert summary.reasoning_cycle_source_counts["shacl_violation"] == 1
+    assert summary.records[0].query_semantic_package_id == "benchmark-finance:default:1.0.0:neo4j"
+    assert summary.query_policy_metric_counts["mode"]["local_direct"] == 1
 
 
 def test_summarize_finder_records_aggregates_agent_metrics():

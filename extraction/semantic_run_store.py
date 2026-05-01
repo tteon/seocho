@@ -16,6 +16,11 @@ def save_semantic_run(
     *,
     base_dir: str = DEFAULT_SEMANTIC_METADATA_DIR,
 ) -> Dict[str, Any]:
+    semantic_package = (
+        record.get("semantic_package", {})
+        if isinstance(record.get("semantic_package", {}), dict)
+        else {}
+    )
     with _connect(base_dir) as conn:
         conn.execute(
             """
@@ -27,6 +32,11 @@ def save_semantic_run(
               intent_id,
               query_preview,
               query_hash,
+              semantic_package_id,
+              semantic_package_hash,
+              semantic_package_json,
+              stage_metrics_json,
+              policy_metrics_json,
               support_status,
               support_reason,
               support_coverage,
@@ -39,7 +49,7 @@ def save_semantic_run(
               response_preview,
               record_json
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 str(record.get("run_id", "")).strip(),
@@ -49,6 +59,11 @@ def save_semantic_run(
                 str(record.get("intent_id", "")).strip(),
                 str(record.get("query_preview", "")),
                 str(record.get("query_hash", "")),
+                str(record.get("semantic_package_id") or semantic_package.get("package_id", "")).strip(),
+                str(record.get("semantic_package_hash") or semantic_package.get("package_hash", "")).strip(),
+                json.dumps(semantic_package, ensure_ascii=True),
+                json.dumps(record.get("stage_metrics", {}), ensure_ascii=True),
+                json.dumps(record.get("policy_metrics", {}), ensure_ascii=True),
                 str(record.get("support_assessment", {}).get("status", "")).strip(),
                 str(record.get("support_assessment", {}).get("reason", "")).strip(),
                 float(record.get("support_assessment", {}).get("coverage", 0.0) or 0.0),
@@ -117,9 +132,18 @@ def list_semantic_runs(
               route,
               intent_id,
               query_preview,
+              semantic_package_id,
+              semantic_package_hash,
+              semantic_package_json,
+              stage_metrics_json,
+              policy_metrics_json,
               support_status,
               support_reason,
               support_coverage,
+              support_assessment_json,
+              strategy_decision_json,
+              reasoning_json,
+              evidence_summary_json,
               lpg_record_count,
               rdf_record_count,
               response_preview
@@ -138,9 +162,18 @@ def list_semantic_runs(
             "route": row["route"],
             "intent_id": row["intent_id"],
             "query_preview": row["query_preview"],
+            "semantic_package_id": row["semantic_package_id"],
+            "semantic_package_hash": row["semantic_package_hash"],
+            "semantic_package": json.loads(str(row["semantic_package_json"] or "{}")),
+            "stage_metrics": json.loads(str(row["stage_metrics_json"] or "{}")),
+            "policy_metrics": json.loads(str(row["policy_metrics_json"] or "{}")),
             "support_status": row["support_status"],
             "support_reason": row["support_reason"],
             "support_coverage": row["support_coverage"],
+            "support_assessment": json.loads(str(row["support_assessment_json"] or "{}")),
+            "strategy_decision": json.loads(str(row["strategy_decision_json"] or "{}")),
+            "reasoning": json.loads(str(row["reasoning_json"] or "{}")),
+            "evidence_summary": json.loads(str(row["evidence_summary_json"] or "{}")),
             "lpg_record_count": row["lpg_record_count"],
             "rdf_record_count": row["rdf_record_count"],
             "response_preview": row["response_preview"],
@@ -164,6 +197,11 @@ def _connect(base_dir: str) -> sqlite3.Connection:
           intent_id TEXT NOT NULL,
           query_preview TEXT NOT NULL,
           query_hash TEXT NOT NULL,
+          semantic_package_id TEXT NOT NULL DEFAULT '',
+          semantic_package_hash TEXT NOT NULL DEFAULT '',
+          semantic_package_json TEXT NOT NULL DEFAULT '{}',
+          stage_metrics_json TEXT NOT NULL DEFAULT '{}',
+          policy_metrics_json TEXT NOT NULL DEFAULT '{}',
           support_status TEXT NOT NULL,
           support_reason TEXT NOT NULL,
           support_coverage REAL NOT NULL,
@@ -178,6 +216,7 @@ def _connect(base_dir: str) -> sqlite3.Connection:
         )
         """
     )
+    _ensure_semantic_run_columns(conn)
     conn.execute(
         """
         CREATE INDEX IF NOT EXISTS idx_semantic_runs_workspace_time
@@ -203,3 +242,30 @@ def _resolve_db_path(base_dir: str) -> Path:
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _ensure_semantic_run_columns(conn: sqlite3.Connection) -> None:
+    existing = {
+        str(row["name"])
+        for row in conn.execute("PRAGMA table_info(semantic_runs)").fetchall()
+    }
+    if "semantic_package_id" not in existing:
+        conn.execute(
+            "ALTER TABLE semantic_runs ADD COLUMN semantic_package_id TEXT NOT NULL DEFAULT ''"
+        )
+    if "semantic_package_hash" not in existing:
+        conn.execute(
+            "ALTER TABLE semantic_runs ADD COLUMN semantic_package_hash TEXT NOT NULL DEFAULT ''"
+        )
+    if "semantic_package_json" not in existing:
+        conn.execute(
+            "ALTER TABLE semantic_runs ADD COLUMN semantic_package_json TEXT NOT NULL DEFAULT '{}'"
+        )
+    if "stage_metrics_json" not in existing:
+        conn.execute(
+            "ALTER TABLE semantic_runs ADD COLUMN stage_metrics_json TEXT NOT NULL DEFAULT '{}'"
+        )
+    if "policy_metrics_json" not in existing:
+        conn.execute(
+            "ALTER TABLE semantic_runs ADD COLUMN policy_metrics_json TEXT NOT NULL DEFAULT '{}'"
+        )

@@ -17,6 +17,15 @@ def test_semantic_run_store_roundtrip(tmp_path):
         "query_hash": "hash_123",
         "route": "lpg",
         "intent_id": "relationship_lookup",
+        "semantic_package": {
+            "package_id": "semantic-selection:abc123",
+            "package_hash": "abc123",
+            "source": "ontology_context",
+        },
+        "semantic_package_id": "semantic-selection:abc123",
+        "semantic_package_hash": "abc123",
+        "stage_metrics": {"resolver_ms": 1.2, "total_ms": 8.4},
+        "policy_metrics": {"route": "lpg", "support_status": "supported"},
         "support_assessment": {
             "status": "supported",
             "reason": "sufficient",
@@ -38,5 +47,13 @@ def test_semantic_run_store_roundtrip(tmp_path):
     assert stored["db_path"].endswith("semantic_runs.db")
     assert len(rows) == 1
     assert rows[0]["run_id"] == "run_123"
+    assert rows[0]["semantic_package_id"] == "semantic-selection:abc123"
+    assert rows[0]["semantic_package_hash"] == "abc123"
+    assert rows[0]["semantic_package"]["source"] == "ontology_context"
+    assert rows[0]["stage_metrics"]["resolver_ms"] == 1.2
+    assert rows[0]["policy_metrics"]["support_status"] == "supported"
     assert rows[0]["support_status"] == "supported"
     assert fetched["strategy_decision"]["executed_mode"] == "semantic_direct"
+    assert fetched["semantic_package"]["source"] == "ontology_context"
+    assert fetched["stage_metrics"]["total_ms"] == 8.4
+    assert fetched["policy_metrics"]["route"] == "lpg"

@@ -63,6 +63,9 @@ Recommended onboarding order:
 ## Architecture And Operations
 
 - [ARCHITECTURE.md](ARCHITECTURE.md): system architecture and runtime/module map
+- [AGENT_SERVER_REFACTOR_PLAN.md](AGENT_SERVER_REFACTOR_PLAN.md): repo-current
+  runtime-shell target shape and slice-1 plan for splitting
+  `runtime/agent_server.py`
 - [INTERNAL_CLASS_DESIGN.md](INTERNAL_CLASS_DESIGN.md): internal orchestration
   seam classes (`DomainEvent`, `IngestionFacade`, `QueryProxy`,
   `AgentFactory`, `AgentStateMachine`) used while the modular monolith is
@@ -73,6 +76,9 @@ Recommended onboarding order:
   `extraction/` to `runtime/` migration plan
 - [GRAPH_RAG_AGENT_HANDOFF_SPEC.md](GRAPH_RAG_AGENT_HANDOFF_SPEC.md):
   intent-first graph answer contract
+- [SEMANTIC_CONTROL_PLANE.md](SEMANTIC_CONTROL_PLANE.md):
+  user-owned ontology contract that drives indexing, query, routing, and
+  evaluation through one compiled semantic package
 - [ONTOLOGY_RUN_CONTEXT_STRATEGY.md](ONTOLOGY_RUN_CONTEXT_STRATEGY.md):
   ontology context contract across indexing, query, and agents
 - [PROPERTY_GRAPH_LENS_STRATEGY.md](PROPERTY_GRAPH_LENS_STRATEGY.md):

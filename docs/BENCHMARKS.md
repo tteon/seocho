@@ -87,7 +87,10 @@ Example commands:
 uv run python scripts/benchmarks/run_finder_benchmark.py \
   --dataset /path/to/finder_sample.json \
   --mode local \
-  --scenario beginner
+  --scenario beginner \
+  --provider openai \
+  --model gpt-4o-mini \
+  --limit-per-category 2
 
 uv run python scripts/benchmarks/run_finder_benchmark.py \
   --dataset /path/to/finder_sample.json \
@@ -97,6 +100,11 @@ uv run python scripts/benchmarks/run_finder_benchmark.py \
 
 Interpretation:
 
+- `--provider` selects the OpenAI-compatible provider preset for local mode.
+- `--model` may be either a plain model name such as `gpt-4o-mini` or a
+  `provider/model` shorthand such as `deepseek/deepseek-chat`.
+- `--limit-per-category 2` is the recommended model-comparison setting when
+  checking category coverage without running the full FinDER dataset.
 - `local` without `--graph` means embedded `LadybugGraphStore`
 - `local` without `--graph` now uses an isolated per-run Ladybug file under `.seocho/benchmarks/local/`
   - this avoids false zero-write runs caused by reusing the default `.seocho/local.lbug` dedup state
@@ -120,6 +128,20 @@ Interpretation:
 - local benchmark records should retain indexing-path hints per case:
   - `fallback_used`
   - `deduplicated`
+- remote benchmark records retain query-path and agent-loop hints per case:
+  - `route`
+  - `support_status`
+  - `support_coverage`
+  - `missing_slots`
+  - `trace_step_count`
+  - `tool_call_count`
+  - `reasoning_attempt_count`
+  - `semantic_reused`
+  - `token_usage`
+- treat `support_answer_gap_count` as a first-order regression signal:
+  `support_status=supported` but `contains_match=false` means the evidence
+  contract claimed enough support while answer synthesis still missed the
+  reference answer
 - benchmark artifacts from active diagnosis runs stay local-only
 
 ### Track 2: GraphRAG-Bench
@@ -166,10 +188,21 @@ Report at minimum:
 - documents per second
 - add latency p50/p95
 - ask latency p50/p95
+- retrieval latency p50/p95
+- generation latency p50/p95
 - nodes per document
 - relationships per document
 - exact-match rate
 - contains-match rate
+- slot-level answer diagnostics:
+  - token recall
+  - numeric slot recall
+  - period/year slot recall
+- support status counts
+- average evidence coverage
+- missing evidence slot counts
+- agent pattern counts
+- token usage or token estimate payloads
 - failure count
 
 Also report split contract findings:
@@ -179,6 +212,20 @@ Also report split contract findings:
 - whether the run was local embedded (`Ladybug`) or runtime server (`Neo4j`/DozerDB)
 - whether fallback or non-fallback paths were exercised
 - whether the provider matrix was exercised or skipped
+
+FinDER artifacts now include an observability envelope per record when the
+query path exposes it:
+
+- `latency_breakdown_ms`: stage timings such as retrieval, generation, and total
+- `support_status`: supported, partial, or unsupported
+- `evidence_coverage` and `missing_slots`
+- `slot_metrics`: deterministic token/numeric/period recall against the reference answer
+- `token_usage`: provider usage when available, otherwise deterministic estimates
+- `agent_pattern`: selected pattern receipt such as `semantic_direct` or `reflection_chain`
+
+Use these fields to decide whether a regression is caused by retrieval,
+evidence coverage, answer synthesis, or agent orchestration. Do not tune model
+choice from exact/contains score alone.
 
 ## GraphRAG-Bench Metrics
 

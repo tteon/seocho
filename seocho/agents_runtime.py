@@ -27,6 +27,9 @@ class AgentsRuntimeAdapter:
         self._runner_run = getattr(runner_cls, "run", None)
         self._runner_run_streamed = getattr(runner_cls, "run_streamed", None)
         self._primary_agent_param = self._detect_agent_parameter(self._runner_run)
+        self._supports_max_turns = self._detect_supports_parameter(
+            self._runner_run, "max_turns"
+        )
 
     @staticmethod
     def _detect_agent_parameter(run_callable: Any) -> str:
@@ -46,11 +49,29 @@ class AgentsRuntimeAdapter:
         return "starting_agent"
 
     @staticmethod
+    def _detect_supports_parameter(run_callable: Any, parameter_name: str) -> bool:
+        """Check whether the runner accepts a given keyword argument."""
+        if run_callable is None:
+            return False
+        try:
+            params = inspect.signature(run_callable).parameters
+        except (TypeError, ValueError):
+            return False
+        return parameter_name in params
+
+    @staticmethod
     def _is_parameter_mismatch(exc: TypeError, parameter_name: str) -> bool:
         message = str(exc)
         return "unexpected keyword argument" in message and parameter_name in message
 
-    async def run(self, *, agent: Any, input: str, context: Any = None):
+    async def run(
+        self,
+        *,
+        agent: Any,
+        input: str,
+        context: Any = None,
+        max_turns: int | None = None,
+    ):
         """Execute an agent run with signature compatibility fallback."""
         if self._runner_run is None:
             raise RuntimeError("Agents Runner.run is unavailable.")
@@ -64,9 +85,18 @@ class AgentsRuntimeAdapter:
             kwargs: dict[str, Any] = {param_name: agent, "input": input}
             if context is not None:
                 kwargs["context"] = context
+            if max_turns is not None and self._supports_max_turns:
+                kwargs["max_turns"] = max(1, int(max_turns))
             try:
                 return await self._runner_run(**kwargs)
             except TypeError as exc:
+                if (
+                    self._supports_max_turns
+                    and self._is_parameter_mismatch(exc, "max_turns")
+                ):
+                    kwargs.pop("max_turns", None)
+                    self._supports_max_turns = False
+                    return await self._runner_run(**kwargs)
                 if not self._is_parameter_mismatch(exc, param_name):
                     raise
                 last_error = exc

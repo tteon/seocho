@@ -12,28 +12,41 @@ now?
 | If you need to... | Start here |
 |---|---|
 | get a first local success path | [QUICKSTART.md](QUICKSTART.md) |
+| understand local `ask()` vs runtime `semantic/react/debate` | [QUICKSTART.md#11-execution-modes-matter](QUICKSTART.md#11-execution-modes-matter) |
+| follow a runnable notebook walkthrough | [../examples/quickstart.ipynb](../examples/quickstart.ipynb) |
+| understand SEOCHO with architecture snippets | [BEGINNER_GUIDE.md](BEGINNER_GUIDE.md) |
 | use the Python SDK directly | [PYTHON_INTERFACE_QUICKSTART.md](PYTHON_INTERFACE_QUICKSTART.md) |
 | declare reusable agent patterns in YAML | [AGENT_DESIGN_SPECS.md](AGENT_DESIGN_SPECS.md) |
 | declare graph-model-aware indexing in YAML | [INDEXING_DESIGN_SPECS.md](INDEXING_DESIGN_SPECS.md) |
 | bring your own ontology and data | [APPLY_YOUR_DATA.md](APPLY_YOUR_DATA.md) |
 | inspect files, artifacts, and traces | [FILES_AND_ARTIFACTS.md](FILES_AND_ARTIFACTS.md) |
 | understand the system design | [ARCHITECTURE.md](ARCHITECTURE.md) |
+| present SEOCHO to a technical audience | [presentations/SEOCHO_OVERVIEW_DEEP_DIVE.md](presentations/SEOCHO_OVERVIEW_DEEP_DIVE.md) |
 | measure behavior with FinDER and benchmark tracks | [BENCHMARKS.md](BENCHMARKS.md) |
 
 Recommended onboarding order:
 
 1. [WHY_SEOCHO.md](WHY_SEOCHO.md)
 2. [QUICKSTART.md](QUICKSTART.md)
-3. [PYTHON_INTERFACE_QUICKSTART.md](PYTHON_INTERFACE_QUICKSTART.md)
-4. [APPLY_YOUR_DATA.md](APPLY_YOUR_DATA.md)
-5. [FILES_AND_ARTIFACTS.md](FILES_AND_ARTIFACTS.md)
-6. [ARCHITECTURE.md](ARCHITECTURE.md)
+3. [../examples/quickstart.ipynb](../examples/quickstart.ipynb)
+4. [BEGINNER_GUIDE.md](BEGINNER_GUIDE.md)
+5. [PYTHON_INTERFACE_QUICKSTART.md](PYTHON_INTERFACE_QUICKSTART.md)
+6. [APPLY_YOUR_DATA.md](APPLY_YOUR_DATA.md)
+7. [FILES_AND_ARTIFACTS.md](FILES_AND_ARTIFACTS.md)
+8. [ARCHITECTURE.md](ARCHITECTURE.md)
+9. [presentations/SEOCHO_OVERVIEW_DEEP_DIVE.md](presentations/SEOCHO_OVERVIEW_DEEP_DIVE.md)
 
 ## Product Entry Points
 
 - [WHY_SEOCHO.md](WHY_SEOCHO.md): product framing and ontology-aligned value
   proposition
 - [QUICKSTART.md](QUICKSTART.md): shortest local success path
+- [../examples/quickstart.ipynb](../examples/quickstart.ipynb): runnable
+  notebook covering ontology, indexing design, agent design, indexing, query,
+  `.env`-backed provider setup, safe Ladybug fallback, optional Neo4j/DozerDB,
+  and provider comparison
+- [BEGINNER_GUIDE.md](BEGINNER_GUIDE.md): first-run guide that connects SDK
+  snippets to architecture seams
 - [PYTHON_INTERFACE_QUICKSTART.md](PYTHON_INTERFACE_QUICKSTART.md): public
   Python SDK path and API examples
 - [AGENT_DESIGN_SPECS.md](AGENT_DESIGN_SPECS.md): YAML-backed agent patterns
@@ -54,6 +67,8 @@ Recommended onboarding order:
   seam classes (`DomainEvent`, `IngestionFacade`, `QueryProxy`,
   `AgentFactory`, `AgentStateMachine`) used while the modular monolith is
   still being decomposed
+- [presentations/SEOCHO_OVERVIEW_DEEP_DIVE.md](presentations/SEOCHO_OVERVIEW_DEEP_DIVE.md):
+  20-30 minute beginner-friendly product and architecture deck
 - [RUNTIME_PACKAGE_MIGRATION.md](RUNTIME_PACKAGE_MIGRATION.md): staged
   `extraction/` to `runtime/` migration plan
 - [GRAPH_RAG_AGENT_HANDOFF_SPEC.md](GRAPH_RAG_AGENT_HANDOFF_SPEC.md):
@@ -62,6 +77,10 @@ Recommended onboarding order:
   ontology context contract across indexing, query, and agents
 - [PROPERTY_GRAPH_LENS_STRATEGY.md](PROPERTY_GRAPH_LENS_STRATEGY.md):
   semantic overlay strategy for property graphs
+- [INTERNAL_CLASS_DESIGN.md](INTERNAL_CLASS_DESIGN.md): internal orchestration
+  seams for the modular monolith
+- [MODULE_OWNERSHIP_MAP.md](MODULE_OWNERSHIP_MAP.md): canonical module
+  ownership and compatibility boundaries
 - [WORKFLOW.md](WORKFLOW.md): operational workflow
 
 ## Contributor References

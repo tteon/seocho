@@ -12,6 +12,41 @@ Current baseline:
 - Canonical neutral artifact: JSONL
 - Graph backend: DozerDB (Neo4j protocol compatible)
 
+## Architecture In One Page
+
+SEOCHO is an ontology-aligned modular monolith. The product boundary is one
+Python SDK plus one runtime shell, but the internal system is split into clear
+planes:
+
+- **Public facade**: `Seocho.add()`, `Seocho.ask()`, `Seocho.local()`, and
+  `Seocho.remote()` stay stable for users.
+- **Data plane**: `seocho/index/*` owns document/file ingestion, extraction,
+  linking, rule assessment, and graph writes.
+- **Control plane**: `seocho/query/*` owns intent extraction, ontology-aware
+  strategy selection, evidence bundles, semantic routing, debate reuse, and
+  answer synthesis.
+- **Ontology plane**: `seocho/ontology.py` and `seocho/ontology_context.py`
+  provide the schema contract and compact context hash that both indexing and
+  querying carry.
+- **Runtime shell**: `runtime/*` owns HTTP routes, request validation, policy,
+  readiness, workspace/database registry, and deployment-specific health.
+- **Compatibility shell**: `extraction/*` is being reduced to legacy import
+  compatibility and batch-only helpers while canonical logic moves into
+  `seocho/*` and `runtime/*`.
+
+The key invariant is that ontology context must survive the full loop:
+
+```text
+ontology -> indexing prompt -> graph write metadata -> query intent/evidence
+         -> agent/debate trace -> answer support assessment
+```
+
+FinDER-style evaluation is useful because it exercises that invariant end to
+end. A case is not considered healthy just because the runtime returns
+`support_status=supported`; benchmark artifacts also track answer matching,
+missing slots, semantic evidence reuse, tool calls, reasoning attempts, and
+token usage so false support claims become visible.
+
 ## Local Runtime Shape
 
 Default local activation is intentionally smaller than the full historical repo:

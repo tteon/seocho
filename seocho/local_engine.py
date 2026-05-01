@@ -6,10 +6,12 @@ import re
 from typing import Any, Dict, List, Optional, Sequence
 
 from .models import Memory
+from .observability import StageTimer
 from .query.answering import QueryAnswerSynthesizer
 from .query.contracts import QueryPlan
 from .query.executor import GraphQueryExecutor
 from .query.planner import DeterministicQueryPlanner
+from .query.run_metadata import build_local_query_metadata
 
 logger = logging.getLogger(__name__)
 _FOUR_DIGIT_YEAR_RE = re.compile(r"\b(20\d{2})\b")
@@ -247,11 +249,11 @@ class _LocalEngine:
         if repair_budget is None:
             repair_budget = self.agent_config.repair_budget
 
-        import time as _time
+        timer = StageTimer()
+        agent_design_pattern = str(self.agent_config.extra.get("agent_design_pattern", "") or "")
 
-        _query_start = _time.time()
-
-        schema_info = self._get_schema_info(database)
+        with timer.stage("schema"):
+            schema_info = self._get_schema_info(database)
         self._query.schema_info = schema_info
         planner = DeterministicQueryPlanner(
             ontology=active_ontology,
@@ -264,89 +266,135 @@ class _LocalEngine:
             llm=self.llm,
         )
 
-        cypher, params, intent_data, error = self._generate_cypher(
-            question,
-            active_ontology,
-            planner=planner,
-        )
+        with timer.stage("plan"):
+            cypher, params, intent_data, error = self._generate_cypher(
+                question,
+                active_ontology,
+                planner=planner,
+            )
         if error:
+            timer.mark_total()
+            self._last_query_metadata = build_local_query_metadata(
+                workspace_id=self.workspace_id,
+                agent_design_pattern=agent_design_pattern,
+                question=question,
+                database=database,
+                ontology=active_ontology,
+                ontology_context=ontology_context,
+                ontology_context_mismatch={},
+                cypher=cypher,
+                params=params,
+                intent_data=intent_data,
+                records=[],
+                answer_text=error,
+                attempts=[],
+                repair_budget=repair_budget,
+                latency_breakdown_ms=timer.to_dict(),
+                vector_context="",
+                error=error,
+                answer_source="plan_error",
+            )
             return error
 
-        records, exec_error = self._execute_cypher(
-            cypher,
-            params,
-            database,
-            executor=executor,
-        )
+        with timer.stage("execute"):
+            records, exec_error = self._execute_cypher(
+                cypher,
+                params,
+                database,
+                executor=executor,
+            )
         if exec_error:
+            timer.mark_total()
+            self._last_query_metadata = build_local_query_metadata(
+                workspace_id=self.workspace_id,
+                agent_design_pattern=agent_design_pattern,
+                question=question,
+                database=database,
+                ontology=active_ontology,
+                ontology_context=ontology_context,
+                ontology_context_mismatch={},
+                cypher=cypher,
+                params=params,
+                intent_data=intent_data,
+                records=records or [],
+                answer_text=exec_error,
+                attempts=[],
+                repair_budget=repair_budget,
+                latency_breakdown_ms=timer.to_dict(),
+                vector_context="",
+                error=exec_error,
+                answer_source="execution_error",
+            )
             return exec_error
 
         if not records and intent_data.get("intent") in ("relationship_lookup", "entity_lookup"):
-            from .query.cypher_builder import CypherBuilder
+            with timer.stage("neighbor_fallback"):
+                from .query.cypher_builder import CypherBuilder
 
-            fb_builder = CypherBuilder(active_ontology)
-            fb_cypher, fb_params = fb_builder.build(
-                intent="neighbors",
-                anchor_entity=intent_data.get("anchor_entity", ""),
-                anchor_label=intent_data.get("anchor_label", ""),
-                workspace_id=self.workspace_id,
-            )
-            fb_records, _ = self._execute_cypher(fb_cypher, fb_params, database)
-            if fb_records:
-                records = fb_records
-                cypher = fb_cypher
+                fb_builder = CypherBuilder(active_ontology)
+                fb_cypher, fb_params = fb_builder.build(
+                    intent="neighbors",
+                    anchor_entity=intent_data.get("anchor_entity", ""),
+                    anchor_label=intent_data.get("anchor_label", ""),
+                    workspace_id=self.workspace_id,
+                )
+                fb_records, _ = self._execute_cypher(fb_cypher, fb_params, database)
+                if fb_records:
+                    records = fb_records
+                    cypher = fb_cypher
+                    params = fb_params
 
         attempts = []
         if reasoning_mode and repair_budget > 0 and not records:
-            attempts.append({"cypher": cypher, "result_count": 0, "error": None})
+            with timer.stage("repair"):
+                attempts.append({"cypher": cypher, "result_count": 0, "error": None})
 
-            for _attempt_num in range(repair_budget):
-                repair_cypher, repair_params, repair_error = self._generate_repair_query(
-                    question,
-                    attempts,
-                    schema_info,
-                    intent_data,
-                    active_ontology,
-                    planner=planner,
-                )
-                if repair_error or not repair_cypher:
-                    break
+                for _attempt_num in range(repair_budget):
+                    repair_cypher, repair_params, repair_error = self._generate_repair_query(
+                        question,
+                        attempts,
+                        schema_info,
+                        intent_data,
+                        active_ontology,
+                        planner=planner,
+                    )
+                    if repair_error or not repair_cypher:
+                        break
 
-                repair_records, repair_exec_error = self._execute_cypher(
-                    repair_cypher,
-                    repair_params,
-                    database,
-                    executor=executor,
-                )
-                attempts.append(
-                    {
-                        "cypher": repair_cypher,
-                        "result_count": len(repair_records) if repair_records else 0,
-                        "error": repair_exec_error,
-                    }
-                )
+                    repair_records, repair_exec_error = self._execute_cypher(
+                        repair_cypher,
+                        repair_params,
+                        database,
+                        executor=executor,
+                    )
+                    attempts.append(
+                        {
+                            "cypher": repair_cypher,
+                            "result_count": len(repair_records) if repair_records else 0,
+                            "error": repair_exec_error,
+                        }
+                    )
 
-                if repair_records:
-                    records = repair_records
-                    cypher = repair_cypher
-                    break
+                    if repair_records:
+                        records = repair_records
+                        cypher = repair_cypher
+                        params = repair_params
+                        break
 
         vector_context = ""
         if not records and hasattr(self, "_vector_store") and self._vector_store is not None:
-            try:
-                vs = self._vector_store
-                if hasattr(vs, "search"):
-                    vresults = vs.search(question, limit=3)
-                    if vresults:
-                        vector_context = "\n".join(f"[Vector result] {r.text[:300]}" for r in vresults)
-            except Exception:
-                pass
+            with timer.stage("vector"):
+                try:
+                    vs = self._vector_store
+                    if hasattr(vs, "search"):
+                        vresults = vs.search(question, limit=3)
+                        if vresults:
+                            vector_context = "\n".join(f"[Vector result] {r.text[:300]}" for r in vresults)
+                except Exception:
+                    pass
 
-        ontology_context_mismatch = self._query_ontology_context_mismatch(database, ontology_context)
-        self._last_query_metadata = {
-            "ontology_context": ontology_context.metadata(usage="query"),
-            "ontology_context_mismatch": ontology_context_mismatch,
-        }
+        with timer.stage("ontology_context_check"):
+            ontology_context_mismatch = self._query_ontology_context_mismatch(database, ontology_context)
         if ontology_context_mismatch.get("mismatch"):
             logger.warning(
                 "Ontology context mismatch for database=%s active=%s indexed=%s",
@@ -355,14 +403,36 @@ class _LocalEngine:
                 ontology_context_mismatch.get("indexed_context_hashes", []),
             )
 
-        deterministic_answer = self._build_deterministic_answer(
-            question,
-            records,
-            intent_data,
-            answer_synthesizer=answer_synthesizer,
-        )
+        with timer.stage("deterministic_answer"):
+            deterministic_answer = self._build_deterministic_answer(
+                question,
+                records,
+                intent_data,
+                answer_synthesizer=answer_synthesizer,
+            )
         if deterministic_answer:
-            _query_elapsed = _time.time() - _query_start
+            timer.mark_total()
+            self._last_query_metadata = build_local_query_metadata(
+                workspace_id=self.workspace_id,
+                agent_design_pattern=agent_design_pattern,
+                question=question,
+                database=database,
+                ontology=active_ontology,
+                ontology_context=ontology_context,
+                ontology_context_mismatch=ontology_context_mismatch,
+                cypher=cypher,
+                params=params,
+                intent_data=intent_data,
+                records=records,
+                answer_text=deterministic_answer,
+                attempts=attempts,
+                repair_budget=repair_budget,
+                latency_breakdown_ms=timer.to_dict(),
+                vector_context=vector_context,
+                error="",
+                answer_source="deterministic",
+            )
+            _query_elapsed = timer.to_dict().get("total_ms", 0.0) / 1000.0
             self._log_query_trace(
                 question=question,
                 ontology=active_ontology,
@@ -377,14 +447,36 @@ class _LocalEngine:
         if reasoning_mode and attempts:
             reasoning_trace = json.dumps(attempts, default=str)
 
-        answer_text = answer_synthesizer.synthesize(
-            question,
-            records,
-            reasoning_trace=reasoning_trace,
-            vector_context=vector_context,
-        )
+        with timer.stage("generation"):
+            answer_text = answer_synthesizer.synthesize(
+                question,
+                records,
+                reasoning_trace=reasoning_trace,
+                vector_context=vector_context,
+            )
 
-        _query_elapsed = _time.time() - _query_start
+        timer.mark_total()
+        self._last_query_metadata = build_local_query_metadata(
+            workspace_id=self.workspace_id,
+            agent_design_pattern=agent_design_pattern,
+            question=question,
+            database=database,
+            ontology=active_ontology,
+            ontology_context=ontology_context,
+            ontology_context_mismatch=ontology_context_mismatch,
+            cypher=cypher,
+            params=params,
+            intent_data=intent_data,
+            records=records,
+            answer_text=answer_text,
+            attempts=attempts,
+            repair_budget=repair_budget,
+            latency_breakdown_ms=timer.to_dict(),
+            vector_context=vector_context,
+            error="",
+            answer_source="llm_synthesis",
+        )
+        _query_elapsed = timer.to_dict().get("total_ms", 0.0) / 1000.0
         self._log_query_trace(
             question=question,
             ontology=active_ontology,

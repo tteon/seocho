@@ -166,6 +166,44 @@ Primary modules:
 - `runtime/policy.py`
 - `docs/decisions/`
 
+## Semantic Control Plane (Active Direction)
+
+Within the control plane, SEOCHO should converge on a semantic control plane:
+
+- user-authored ontology and vocabulary stay the semantic source of truth
+- JSON-LD remains the primary portable authoring format
+- indexing and query consume one compiled semantic package
+- runtime traces and evaluation runs record semantic package identity
+
+This is the core product position:
+
+```text
+edit ontology
+-> compile semantic package
+-> apply indexing, query, routing, tool use, and evaluation consistently
+```
+
+Target architecture direction:
+
+- `seocho/ontology.py`
+  - stable public ontology facade
+- `seocho/ontology_context.py`
+  - hashes, mismatch metadata, and compact runtime context helpers
+- target `seocho/semantic_package.py`
+  - typed compiled semantic package consumed by indexing and query
+- target `seocho/ontology_compiler.py`
+  - authoring-input to package compilation seam
+- target `seocho/semantic_control_plane.py`
+  - package resolution and run-context shaping seam
+
+The rule is more important than the exact filenames:
+
+- indexing must not parse raw ontology independently from query
+- query must not invent a separate hidden semantic contract
+- both planes should consume one compiled package
+
+See `docs/SEMANTIC_CONTROL_PLANE.md`.
+
 ## Runtime Package Target (Active Direction)
 
 `extraction/` is a historical package name, not the desired long-term runtime
@@ -183,7 +221,8 @@ Long-term package shape:
 We are intentionally choosing `runtime/` over `server/` because the shell owns
 more than HTTP route files. The staged migration contract lives in
 `docs/RUNTIME_PACKAGE_MIGRATION.md`. Contributor-facing placement guidance
-lives in `docs/MODULE_OWNERSHIP_MAP.md`.
+lives in `docs/MODULE_OWNERSHIP_MAP.md`. The concrete shell-splitting plan for
+`runtime/agent_server.py` lives in `docs/AGENT_SERVER_REFACTOR_PLAN.md`.
 
 ## Internal Orchestration Seams (2026-04-17)
 
@@ -236,11 +275,20 @@ one monolithic implementation file.
   - approved artifacts, semantic prompt context, vocabulary shaping
 - `seocho/ontology_governance.py`
   - offline check/diff/export/OWL inspection path
+- target `seocho/semantic_package.py`
+  - typed compiled semantic package carrying extraction, entity-resolution,
+    intent, evidence, lens, tool, and evaluation hints
+- target `seocho/ontology_compiler.py`
+  - canonical authoring-input to semantic-package compiler
+- target `seocho/semantic_control_plane.py`
+  - package selection and runtime/index/query consumption boundary
 
 Canonical direction:
 
 - local SDK and runtime promotion paths should consume explicit ontology-side
   contracts instead of hand-built client glue
+- indexing and query should converge on one compiled semantic package keyed by
+  ontology/profile/glossary identity
 - public API compatibility should stay centered on `Ontology`
 - heavy governance and OWL inspection stays out of the request hot path
 
@@ -297,7 +345,9 @@ Measurement order:
 3. peer baselines
 
 That rule prevents us from confusing deployment overhead with canonical engine
-quality. See `docs/BENCHMARKS.md`.
+quality. Benchmark and runtime summaries should also record semantic package or
+ontology-context identity so ontology revisions are measured as first-class
+variants. See `docs/BENCHMARKS.md` and `docs/SEMANTIC_CONTROL_PLANE.md`.
 
 ## End-to-End Data Flow
 

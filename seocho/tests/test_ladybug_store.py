@@ -170,6 +170,48 @@ class TestLadybugStore:
         finally:
             store.close()
 
+    def test_write_supports_same_semantic_relation_across_multiple_target_labels(self, tmp_path):
+        ontology = Ontology(
+            name="memory",
+            nodes={
+                "Document": NodeDef(properties={"name": Property(str, unique=True)}),
+                "Company": NodeDef(properties={"name": Property(str, unique=True)}),
+                "Regulator": NodeDef(properties={"name": Property(str, unique=True)}),
+            },
+            relationships={},
+        )
+        store = LadybugGraphStore(str(tmp_path / "heterogeneous_mentions.lbug"))
+        store.ensure_constraints(ontology)
+        try:
+            summary = store.write(
+                nodes=[
+                    {"id": "doc-1", "label": "Document", "properties": {"name": "finder memo"}},
+                    {"id": "company-1", "label": "Company", "properties": {"name": "ACME"}},
+                    {"id": "regulator-1", "label": "Regulator", "properties": {"name": "FMSA"}},
+                ],
+                relationships=[
+                    {"source": "doc-1", "target": "company-1", "type": "MENTIONS", "properties": {}},
+                    {"source": "doc-1", "target": "regulator-1", "type": "MENTIONS", "properties": {}},
+                ],
+                source_id="doc-1",
+            )
+
+            assert summary["relationships_created"] == 2
+            assert summary["errors"] == []
+
+            rows = store.query(
+                """
+                MATCH (d:Document)-[r]->(e)
+                RETURN e.name AS entity_name, type(r) AS relation_type
+                ORDER BY entity_name
+                """
+            )
+            values = [list(row.values()) for row in rows]
+            assert [row[0] for row in values] == ["ACME", "FMSA"]
+            assert {row[1] for row in values} == {"MENTIONS"}
+        finally:
+            store.close()
+
     def test_delete_by_source_removes_written_nodes(self, store):
         store.write(
             nodes=[

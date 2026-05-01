@@ -1,250 +1,421 @@
-# Agent Server Refactor Plan
+# Runtime Shell Refactor Plan
 
-Date: 2026-03-12
+Date: 2026-04-26
 Status: Draft
 
-This document describes how to split `extraction/agent_server.py` into a clearer architecture that supports a memory-first public interface while preserving current runtime behavior.
+This document is the repo-current architecture target and slice-1 refactor
+plan for the runtime shell.
 
-## 1. Why Refactor
+It replaces the older assumption that `extraction/agent_server.py` is the
+server implementation. In the current repository, `runtime/agent_server.py` is
+the canonical runtime shell and `extraction/agent_server.py` is a compatibility
+alias.
 
-`extraction/agent_server.py` currently combines too many concerns:
+## 1. Architecture Thesis
 
-- FastAPI app creation
-- middleware setup
-- error handling
-- request and response models
-- import-time singleton creation
-- route definitions
-- runtime orchestration wiring
-- admin and expert APIs
+SEOCHO should converge to a modular monolith with:
 
-This makes it harder to:
+- a tiny stable public facade for SDK users
+- canonical engine behavior in `seocho/*`
+- deployment-shell behavior in `runtime/*`
+- `extraction/*` limited to compatibility wrappers and offline helpers
 
-- evolve public APIs cleanly
-- test behavior in isolation
-- reuse services across routes
-- distinguish stable public contracts from internal runtime surfaces
+That means:
 
-## 2. Refactor Goals
+- complexity should be hidden at the API boundary
+- complexity should be named explicitly inside the codebase
+- each concern should have one canonical owner
 
-1. introduce a memory-first public facade
-2. separate public APIs from expert/internal APIs
-3. remove unnecessary import-time side effects
-4. make dependencies explicit and injectable
-5. keep current behavior working during migration
+This plan is aligned with:
 
-## 3. Target Architecture
+- `docs/ARCHITECTURE.md`
+- `docs/INTERNAL_CLASS_DESIGN.md`
+- `docs/MODULE_OWNERSHIP_MAP.md`
+- `docs/RUNTIME_PACKAGE_MIGRATION.md`
 
-Suggested shape:
+## 1.5 Architecture Principles
 
-```text
-extraction/
-  api/
-    app.py
-    errors.py
-    dependencies.py
-    models/
-      common.py
-      memories.py
-      chat.py
-      health.py
-      rules.py
-      semantic_artifacts.py
-    routes/
-      public_memories.py
-      public_chat.py
-      health.py
-      expert_runtime.py
-      rules.py
-      semantic_artifacts.py
-  services/
-    memory_service.py
-    chat_service.py
-    semantic_query_service.py
-    ingest_service.py
-  runtime/
-    connectors.py
-    factories.py
-    state.py
-```
+The runtime-shell refactor should preserve the product idea, not only move
+files around.
 
-This does not require rewriting all business logic at once. It gives a stable destination.
+Principles:
 
-## 4. Public vs Expert Route Split
+- ontology is a middleware contract, not a rigid total schema
+- the property graph stays flexible; the ontology supplies the semantic overlay
+- complexity should be hidden from users, but named explicitly for maintainers
+- provenance, policy, and traceability are first-class runtime concerns
+- `seocho/*` owns canonical behavior; `runtime/*` composes it; `extraction/*`
+  should not regain ownership through convenience
+- hot-path behavior must stay lightweight: no heavy ontology reasoning in
+  request-time routes
 
-### Public
+In practical terms:
 
-These routes should become the long-term stable interface:
+- users should keep a small interface such as `Seocho.add()` and `Seocho.ask()`
+- agents should receive compact ontology/run-context metadata instead of raw,
+  magical prompt shaping
+- runtime routes should expose mismatch and evidence metadata rather than
+  silently hiding ontology drift or weak grounding
 
-- `/api/memories`
-- `/api/memories/batch`
-- `/api/memories/search`
-- `/api/chat`
-- `/api/traces/{trace_id}`
-- `/health/runtime`
-- `/health/batch`
+## 2. Desired Package Ownership
 
-### Expert / Internal
+### `seocho/*` — canonical engine
 
-These routes may continue to exist but should be treated as implementation surfaces:
+Owns:
 
-- `/platform/ingest/raw`
+- public SDK facade
+- local orchestration
+- ontology contracts and artifacts
+- indexing and linking
+- query orchestration
+- graph/vector/LLM adapters
+- vendor-neutral tracing
+
+Must not depend on:
+
+- `runtime/*`
+- `extraction/*` business logic
+
+### `runtime/*` — deployment shell
+
+Owns:
+
+- FastAPI application wiring
+- HTTP route modules
+- request/response translation
+- runtime policy checks
+- readiness and degraded-state handling
+- runtime composition root and shared service initialization
+
+Should compose `seocho/*`, not duplicate its logic.
+
+### `extraction/*` — compatibility and offline helpers
+
+Allowed:
+
+- flat import aliases
+- migration shims
+- batch-only or offline utilities where a canonical owner is not yet moved
+
+Disallowed:
+
+- new canonical runtime features
+- new canonical query or ontology logic
+
+## 3. Public Surface Rules
+
+The public product surface should stay intentionally small.
+
+### SDK surface
+
+Primary SDK entrypoints:
+
+- `Seocho.local()`
+- `Seocho.add()`
+- `Seocho.ask()`
+- runtime bundle helpers
+
+The `Seocho` facade should remain stable while orchestration moves behind:
+
+- `seocho/local_engine.py`
+- `seocho/index/ingestion_facade.py`
+- `seocho/query/*`
+- `seocho/ontology_*`
+
+### Runtime HTTP surface
+
+Public-facing or user-facing routes should be stable in contract even if their
+implementation moves:
+
 - `/platform/chat/send`
+- `/platform/ingest/raw`
 - `/run_agent`
 - `/run_agent_semantic`
 - `/run_debate`
+- `/health/runtime`
+- `/health/batch`
 - `/rules/*`
 - `/semantic/artifacts/*`
-- `/indexes/fulltext/ensure`
+- public memory router under `runtime/public_memory_api.py`
 
-## 5. Module Responsibilities
+### Extension surface
 
-### `api/app.py`
+The supported plugin surface remains narrow:
 
-- create FastAPI application
-- register middleware
-- register routers
-- wire exception handlers
+- graph store
+- vector store
+- LLM backend
+- embedding backend
 
-### `api/dependencies.py`
+Everything else is internal and may be refactored freely.
 
-- create dependency providers
-- move runtime initialization behind callables
-- avoid global import-time singleton construction where possible
+## 4. Target Runtime Shell Shape
 
-### `api/models/*`
+Current problem: `runtime/agent_server.py` combines too many concerns:
 
-- request and response models only
-- no business logic
+- FastAPI app creation
+- middleware and exception handling
+- startup boot logic
+- local tool definitions
+- inline agent definitions
+- request and response models
+- route implementations
+- router inclusion
 
-### `api/routes/*`
+The target shape is:
 
-- thin handlers
-- policy checks
-- request validation
-- call into service layer
+```text
+runtime/
+  agent_server.py           # temporary composition root only
+  app_factory.py            # target home for app creation
+  middleware.py
+  policy.py
+  server_runtime.py         # shared service factories
+  agent_state.py
+  agent_readiness.py
+  memory_service.py
+  public_memory_api.py
 
-### `services/*`
+  models/
+    common.py
+    platform.py
+    query.py
+    debate.py
+    health.py
+    semantic.py
 
-- orchestration and application logic
-- mapping between public resources and graph runtime
+  routes/
+    platform.py
+    query.py
+    debate.py
+    health.py
+    admin.py
+    rules.py
+    semantic_artifacts.py
 
-### `runtime/*`
+  tools/
+    graph.py
+    runtime_metadata.py
+```
 
-- connectors
-- low-level factories
-- shared runtime state
+Target responsibilities:
 
-## 6. Migration Phases
+- `agent_server.py`
+  - create app
+  - register middleware
+  - register exception handlers
+  - include routers
+- `server_runtime.py`
+  - own shared service factories and lazy initialization
+- `models/*`
+  - request/response schemas only
+- `routes/*`
+  - thin route handlers, policy checks, response mapping
+- `tools/*`
+  - temporary home for route-internal tool helpers until they converge into
+    canonical `seocho/*` seams
 
-### Phase 0: Characterization
+## 5. Internal Seams To Preserve
 
-Before moving code:
+The runtime shell should not invent new orchestration seams when we already
+have the correct internal shapes.
 
-- keep or expand existing endpoint tests
-- identify current response shapes
-- mark routes as public versus expert
+Keep and strengthen:
 
-### Phase 1: Model Extraction
+- `IngestionFacade`
+- `QueryProxy`
+- `AgentFactory`
+- `AgentStateMachine`
+- `DomainEvent`
 
-- move request and response models out of `agent_server.py`
-- keep imports wired back into the existing file
+Runtime import direction should be:
 
-Low risk, high clarity gain.
+```text
+runtime/routes/*
+  -> runtime/server_runtime.py
+  -> runtime/policy.py
+  -> seocho/query/*
+  -> seocho/index/*
+  -> seocho/events.py
+```
 
-### Phase 2: Dependency Extraction
+Avoid:
 
-- move connector and manager initialization into dependency providers
-- reduce import-time state creation
+```text
+runtime/routes/* -> extraction/* business logic
+seocho/* -> runtime/*
+seocho/query/* -> FastAPI request models
+```
 
-This is the most important technical cleanup.
+## 6. Slice 1: Concrete Refactor Plan For `runtime/agent_server.py`
 
-### Phase 3: Router Extraction
+This slice is intentionally narrow. It is a readability and maintainability
+slice, not a behavior redesign.
 
-- split route handlers by surface
-- keep the same route paths initially
-- preserve tests to prevent accidental contract drift
+### 6.1 Scope
 
-### Phase 4: Public Memory Facade
+In scope:
 
-- add `/api/memories*` and `/api/chat`
-- implement as thin facade over existing services
-- normalize response and error envelopes
+- split `runtime/agent_server.py` by concern
+- keep route paths unchanged
+- keep response contracts unchanged
+- move models and route handlers into dedicated modules
 
-### Phase 5: Internal Route Clarification
+Out of scope:
 
-- document old endpoints as expert/internal
-- decide deprecation policy
-- migrate UI and clients gradually
+- changing runtime semantics
+- redesigning ontology/routing policy
+- replacing `server_runtime.py`
+- converging the legacy debate agent factory
 
-## 7. API Consistency Improvements
+### 6.2 Phase 1A — extract runtime API models
 
-If the goal is a mem0-graph-memory-like interface, these improvements matter most:
+Move request/response classes out of `runtime/agent_server.py` into
+`runtime/models/*`.
 
-### Naming
+Suggested first split:
 
-- stop mixing `run_*`, `platform/*`, and resource-style names at the same public level
-- use noun-based public APIs
+- `runtime/models/query.py`
+  - `QueryRequest`
+  - `EntityOverride`
+  - `SemanticQueryRequest`
+  - `AgentResponse`
+  - `SemanticAgentResponse`
+  - `SemanticRunRecordResponse`
+  - `SemanticRunRecordListResponse`
+  - `DebateResponse`
+- `runtime/models/platform.py`
+  - `PlatformChatRequest`
+  - `PlatformTurn`
+  - `PlatformChatResponse`
+  - `PlatformSessionResponse`
+  - `RawIngestRecord`
+  - `PlatformRawIngestRequest`
+  - `RawIngestError`
+  - `RawIngestWarning`
+  - `PlatformRawIngestResponse`
+- `runtime/models/health.py`
+  - `HealthComponent`
+  - `HealthResponse`
+- `runtime/models/common.py`
+  - `ErrorDetail`
+  - `ErrorResponse`
 
-### Response shape
+Acceptance:
 
-- standardize success envelopes
-- standardize error envelopes
-- include `trace_id` consistently for inference-heavy operations
+- `runtime/agent_server.py` imports these models instead of defining them inline
+- no route behavior changes
 
-### IDs
+### 6.3 Phase 1B — extract route modules
 
-- return stable `memory_id` for stored memory
-- keep graph node IDs internal unless explicitly debugging
+Create `runtime/routes/*` modules and move endpoint functions there.
 
-### Scoping
+Suggested split:
 
-- keep `workspace_id` required
-- define optional `user_id`, `agent_id`, and `session_id` uniformly across memory endpoints
+- `runtime/routes/platform.py`
+  - `/platform/chat/send`
+  - `/platform/chat/session`
+  - `/platform/ingest/raw`
+- `runtime/routes/query.py`
+  - `/run_agent`
+  - `/run_agent_semantic`
+  - `/semantic/runs`
+  - `/semantic/runs/{id}`
+  - `/indexes/fulltext/ensure`
+  - `/databases`
+  - `/graphs`
+  - `/agents`
+- `runtime/routes/debate.py`
+  - `/run_debate`
+- `runtime/routes/health.py`
+  - `/health/runtime`
+  - `/health/batch`
+- `runtime/routes/rules.py`
+  - `/rules/*`
+- `runtime/routes/semantic_artifacts.py`
+  - `/semantic/artifacts/*`
 
-### Modes
+Acceptance:
 
-- hide route-selection detail from public callers by default
-- expose semantic versus debate only as debug or expert metadata when needed
+- `agent_server.py` becomes router inclusion plus startup wiring
+- route paths and models stay stable
 
-## 8. Risks During Refactor
+### 6.4 Phase 1C — isolate shell-only helpers
 
-- accidental response shape drift
-- auth or policy regressions
-- duplicated logic between old and new endpoints
-- dependency initialization changes breaking startup behavior
+Move shell-local helper logic into dedicated modules without changing behavior.
 
-Mitigation:
+Candidates:
 
-- characterization tests first
-- move code in thin slices
-- keep old endpoints until facade is stable
+- `get_databases_impl()`
+- `get_graphs_impl()`
+- `get_schema_impl()`
+- any inline tool wrappers that exist only for runtime shell composition
 
-## 9. Recommended Immediate Work
+Preferred destination:
 
-### P0
+- `runtime/tools/runtime_metadata.py`
+- `runtime/tools/graph.py`
 
-1. extract models from `agent_server.py`
-2. extract dependency wiring
-3. add `public_memories` and `public_chat` routers as facades
+Do not move canonical query logic out of `seocho/query/*` into these helpers.
 
-### P1
+### 6.5 Phase 1D — reduce `agent_server.py` to composition root
 
-4. normalize error envelopes
-5. define stable memory resource IDs
-6. move graph-specific fields behind expert mode
+The end state for slice 1 is that `runtime/agent_server.py` contains only:
 
-### P2
+- imports
+- `FastAPI(...)`
+- middleware registration
+- exception handlers
+- startup/shutdown hooks
+- router inclusion
 
-7. deprecate or hide legacy public-facing route names
-8. move toward an app-factory structure
+Rough target:
 
-## 10. Definition Of Done
+```text
+runtime/agent_server.py
+  app = FastAPI(...)
+  app.add_middleware(...)
+  @app.exception_handler(...)
+  @app.on_event("startup")
+  app.include_router(...)
+```
 
-This refactor is successful when:
+That file should stop being the main home for runtime behavior.
 
-1. public memory-first routes exist
-2. internal expert routes are clearly separated
-3. `agent_server.py` stops being the single source of every API concern
-4. dependency initialization becomes easier to test
-5. current critical path still passes smoke validation
+## 7. Guardrails During Refactor
+
+The refactor must preserve these contracts:
+
+- `workspace_id` remains propagated
+- runtime policy checks remain explicit
+- no Owlready2 or heavy governance in request hot path
+- JSONL/Opik tracing semantics remain intact
+- user activation critical path still passes:
+  - raw ingest
+  - semantic/debate query
+  - UI trace inspection
+  - `make e2e-smoke`
+
+## 8. Definition Of Done
+
+This plan is successful when:
+
+1. `runtime/agent_server.py` is readable as a shell/composition file
+2. route handlers are organized by surface, not by historical growth order
+3. request/response models are separated from orchestration code
+4. canonical engine logic stays in `seocho/*`
+5. `extraction/*` does not gain new canonical runtime behavior
+
+## 9. Follow-On Slices
+
+After slice 1 lands, the next architecture slices should be:
+
+1. converge any remaining live query/orchestration seams from legacy
+   `extraction/*` into canonical `seocho/query/*`
+2. formalize `runtime/app_factory.py` if route/module growth makes
+   `agent_server.py` still too large
+3. add contract tests that assert route-module extraction did not change:
+   - response shape
+   - policy behavior
+   - trace metadata presence
+   - critical-path UX flows

@@ -1,4 +1,5 @@
 import json
+import sqlite3
 
 from seocho.models import GraphTarget
 from seocho.query.constraints import SemanticConstraintSliceBuilder
@@ -97,6 +98,27 @@ def test_run_metadata_registry_persists_semantic_run(tmp_path):
         route="lpg",
         semantic_context={
             "intent": {"intent_id": "relationship_lookup"},
+            "semantic_package": {
+                "package_id": "semantic-selection:abc123",
+                "package_hash": "abc123",
+                "source": "ontology_context",
+                "packages_by_database": {
+                    "kgnormal": {
+                        "package_id": "company-finance:default:1.0.0:kgnormal",
+                        "package_hash": "pkg123",
+                    }
+                },
+            },
+            "stage_metrics": {
+                "resolver_ms": 1.1,
+                "routing_ms": 0.5,
+                "total_ms": 9.7,
+            },
+            "policy_metrics": {
+                "route": "lpg",
+                "support_status": "supported",
+                "repair_attempt_count": 0,
+            },
             "support_assessment": {"status": "supported", "reason": "grounded", "coverage": 1.0},
             "strategy_decision": {"executed_mode": "semantic_direct"},
             "reasoning": {"requested": False},
@@ -113,4 +135,19 @@ def test_run_metadata_registry_persists_semantic_run(tmp_path):
     )
 
     assert result["recorded"] is True
+    assert result["semantic_package_id"] == "semantic-selection:abc123"
+    assert result["semantic_package_hash"] == "abc123"
     assert registry_path.exists()
+    with sqlite3.connect(str(registry_path)) as conn:
+        row = conn.execute(
+            "SELECT semantic_package_id, semantic_package_hash, stage_metrics_json, policy_metrics_json, record_json FROM semantic_runs"
+        ).fetchone()
+    assert row is not None
+    assert row[0] == "semantic-selection:abc123"
+    assert row[1] == "abc123"
+    assert json.loads(str(row[2]))["routing_ms"] == 0.5
+    assert json.loads(str(row[3]))["support_status"] == "supported"
+    stored_record = json.loads(str(row[4]))
+    assert stored_record["semantic_package"]["source"] == "ontology_context"
+    assert stored_record["stage_metrics"]["resolver_ms"] == 1.1
+    assert stored_record["policy_metrics"]["route"] == "lpg"

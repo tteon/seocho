@@ -136,28 +136,30 @@ Built for graph-native teams that need a stronger contract between ontology,
 runtime, and agent behavior.
 
 - ontology-first, not prompt-first
+- edit `schema.jsonld`, not hidden prompts
 - graph-native, not vector-only
 - schemaless property graph plus agent-visible semantic overlay
 - governed artifacts, not ad hoc schema drift
-- local SDK authoring and runtime consumption on one contract
+- user-owned semantic control plane across indexing, query, and runtime
 
 ## Architecture Overview
 
-Two planes share one ontology:
+One semantic control plane governs two execution planes:
 
+- **Semantic Control Plane** (`seocho/ontology*`, design specs, runtime artifacts) — compile user ontology into a reusable semantic package
 - **Data Plane** (`seocho/index/`) — files → extraction → validation → graph write
-- **Control Plane** (`seocho/query/`) — ontology → prompt strategy → Cypher → answer synthesis
-- **Ontology** (`seocho/ontology.py`) — single source of truth for both planes, and for the runtime artifact contract
+- **Query/Agent Plane** (`seocho/query/`, `runtime/*`) — intent → retrieval → tool use → answer synthesis
 
 The `Seocho` class is a thin public facade. Canonical engine logic lives under
 `seocho/local_engine.py`, `seocho/client_remote.py`, and `seocho/client_bundle.py`
 so the facade stays small. Runtime transport is `runtime/agent_server.py`;
 shared runtime composition lives in `runtime/server_runtime.py`.
 
-For the full story — control plane vs data plane, internal orchestration seams
+For the full story — semantic control plane, internal orchestration seams
 (`DomainEvent`, `IngestionFacade`, `QueryProxy`, `AgentFactory`,
 `AgentStateMachine`), and the staged `extraction/` → `runtime/` migration —
-see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and
+see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
+[docs/SEMANTIC_CONTROL_PLANE.md](docs/SEMANTIC_CONTROL_PLANE.md), and
 [docs/RUNTIME_PACKAGE_MIGRATION.md](docs/RUNTIME_PACKAGE_MIGRATION.md).
 
 ## Choose Your Runtime Shape

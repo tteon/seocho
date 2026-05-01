@@ -97,6 +97,7 @@ notebook = [
 ]
 ontology = [
     "owlready2",
+    "rdflib>=6.0",
 ]
 embedded = [
     "real_ladybug>=0.15.0",

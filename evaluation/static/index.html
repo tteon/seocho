@@ -37,9 +37,7 @@
           <span class="subtext" id="sessionMeta">Session</span>
         </div>
         <div class="status-wrap">
-          <button id="resetSessionBtn"
-            style="background:transparent; border:1px solid var(--border-color); color:var(--text-muted); padding:4px 8px; border-radius:4px; font-size:0.75rem; cursor:pointer;"
-            onmouseover="this.style.color='#fff'" onmouseout="this.style.color='var(--text-muted)'">Reset Trace</button>
+          <button id="resetSessionBtn" class="reset-session-btn">Reset Trace</button>
           <div class="status" id="statusPill" role="status" aria-live="polite">Initializing</div>
         </div>
       </header>
@@ -83,7 +81,7 @@
         <!-- Left: Chat & Reasoning Pane -->
         <div class="chat-pane">
           <div class="chat-log" id="chatLog" aria-live="polite">
-            <div style="font-family:var(--font-mono); font-size:0.7rem; color:var(--text-muted); text-align:center;">//
+            <div class="chat-system-msg">//
               System Authenticated. Trace visualization ready.</div>
           </div>
 
@@ -100,9 +98,8 @@
             [ NO ACTIVE RUN ]<br /><br />
             Awaiting payload to render DAG Trace...
           </div>
-          <div id="dagScrollLayer" style="position:relative; width:100%; min-height:100%;">
-            <svg id="dagEdges"
-              style="position: absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:0;"></svg>
+          <div id="dagScrollLayer" class="dag-scroll-layer">
+            <svg id="dagEdges" class="dag-edges-svg"></svg>
             <div id="dagContainer" class="dag-container"></div>
           </div>
         </div>

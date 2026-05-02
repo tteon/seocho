@@ -50,6 +50,28 @@ class DatabaseNameError(ValueError):
     """Raised when a database name violates Neo4j naming rules."""
 
 
+class EnsureConstraintsError(RuntimeError):
+    """Raised by ``ensure_constraints(..., strict=True)`` when one or more
+    constraint writes fail.
+
+    The original errors list is preserved on the exception's ``errors``
+    attribute so callers can inspect each failed statement.
+
+    Closes seocho-hvoe — without strict mode, ensure_constraints returns
+    a success-shaped dict even on partial failure, and callers who don't
+    inspect ``summary['errors']`` write data into a database with a
+    half-applied schema.
+    """
+
+    def __init__(self, summary: Dict[str, Any]) -> None:
+        errors = summary.get("errors", [])
+        super().__init__(
+            f"ensure_constraints failed in strict mode: {len(errors)} statement(s) errored"
+        )
+        self.summary = summary
+        self.errors = list(errors)
+
+
 def validate_database_name(name: str) -> str:
     """Validate a Neo4j database name.
 
@@ -164,12 +186,30 @@ class GraphStore(ABC):
         ontology: Ontology,
         *,
         database: str = "neo4j",
+        strict: bool = False,
     ) -> Dict[str, Any]:
         """Apply ontology-derived constraints and indexes to the database.
+
+        Parameters
+        ----------
+        ontology:
+            The ontology whose schema constraints should be applied.
+        database:
+            Target database name.
+        strict:
+            seocho-hvoe — when ``True``, raise :class:`EnsureConstraintsError`
+            if any individual constraint write fails. Default ``False``
+            preserves the back-compat partial-success summary; callers that
+            want to short-circuit on schema-write failure should opt in.
 
         Returns
         -------
         Summary dict with ``success`` count and ``errors`` list.
+
+        Raises
+        ------
+        EnsureConstraintsError
+            When ``strict=True`` and at least one constraint failed.
         """
 
     @abstractmethod
@@ -383,6 +423,7 @@ class Neo4jGraphStore(GraphStore):
         ontology: Ontology,
         *,
         database: str = "neo4j",
+        strict: bool = False,
     ) -> Dict[str, Any]:
         stmts = ontology.to_cypher_constraints()
         summary = {"success": 0, "errors": []}
@@ -395,6 +436,9 @@ class Neo4jGraphStore(GraphStore):
                 except Exception as exc:
                     summary["errors"].append(f"{stmt}: {exc}")
 
+        # seocho-hvoe: opt-in loud failure — back-compat default is False.
+        if strict and summary["errors"]:
+            raise EnsureConstraintsError(summary)
         return summary
 
     @staticmethod
@@ -1186,8 +1230,14 @@ class LadybugGraphStore(GraphStore):
         ontology: Ontology,
         *,
         database: str = "neo4j",
+        strict: bool = False,
     ) -> Dict[str, Any]:
-        """Create NODE/REL tables declared by the ontology."""
+        """Create NODE/REL tables declared by the ontology.
+
+        ``strict`` (seocho-hvoe): when True, raise ``EnsureConstraintsError``
+        if any individual table-create fails. Default False keeps the
+        partial-success summary for back-compat.
+        """
         summary = {"success": 0, "errors": []}
 
         for label, node_def in ontology.nodes.items():
@@ -1235,6 +1285,9 @@ class LadybugGraphStore(GraphStore):
             except Exception as exc:
                 summary["errors"].append(f"Rel table {rtype}: {exc}")
 
+        # seocho-hvoe: opt-in loud failure for Ladybug too.
+        if strict and summary["errors"]:
+            raise EnsureConstraintsError(summary)
         return summary
 
     def get_schema(self, *, database: str = "neo4j") -> Dict[str, Any]:

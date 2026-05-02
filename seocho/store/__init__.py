@@ -8,7 +8,7 @@ Where to look:
 - ``llm``: OpenAI-compatible LLM and embedding backends
 """
 
-from .graph import GraphStore, LadybugGraphStore, Neo4jGraphStore
+from .graph import EnsureConstraintsError, GraphStore, LadybugGraphStore, Neo4jGraphStore
 from .llm import (
     DeepSeekBackend,
     EmbeddingBackend,

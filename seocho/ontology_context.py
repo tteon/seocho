@@ -291,6 +291,74 @@ def apply_ontology_context_to_graph_payload(
     return out_nodes, out_relationships
 
 
+class OntologyDriftError(RuntimeError):
+    """Raised by ``enforce_drift_policy(..., policy='raise')`` when the
+    active ontology context_hash does not match what the graph was
+    indexed with.
+
+    Closes seocho-mcj0 (depends-on seocho-cimb). Lets callers — rule
+    apply, semantic artifact approve, runtime middleware — opt into
+    loud drift errors instead of the back-compat advisory log warning.
+
+    The ``assessment`` dict produced by
+    :func:`assess_ontology_context_mismatch` is preserved on the
+    exception's ``assessment`` attribute so callers can surface it.
+    """
+
+    def __init__(self, assessment: Dict[str, Any]) -> None:
+        active = assessment.get("active_context_hash") or "(unset)"
+        observed = assessment.get("indexed_context_hashes") or []
+        super().__init__(
+            f"Ontology context drift: active context_hash={active!r} but "
+            f"graph carries {observed!r} (configure drift_policy='warn' to "
+            f"downgrade to a logged warning)."
+        )
+        self.assessment = dict(assessment)
+
+
+def enforce_drift_policy(
+    assessment: Dict[str, Any],
+    *,
+    policy: str = "warn",
+    logger_obj: Any = None,
+) -> Dict[str, Any]:
+    """Apply a drift policy to an assessment from
+    :func:`assess_ontology_context_mismatch`.
+
+    seocho-mcj0 — closes the gap between drift detection and drift
+    enforcement. Callers (rule apply, artifact approve, etc.) used to
+    inspect ``assessment['mismatch']`` and at most log a warning. This
+    helper centralises the choice:
+
+    - ``policy='warn'`` (default, back-compat): if mismatch, attach
+      ``policy='warn'`` and ``enforced=False`` to the assessment dict
+      and log a warning. Caller proceeds.
+    - ``policy='raise'``: if mismatch, raise :class:`OntologyDriftError`.
+    - ``policy='block'``: if mismatch, attach ``policy='block'``,
+      ``enforced=True``, ``blocked=True`` to the assessment dict so the
+      caller can refuse the operation without raising. Useful in
+      HTTP handlers that want to return 409 Conflict instead of 500.
+    """
+    out = dict(assessment)
+    out["drift_policy"] = policy
+    out["enforced"] = False
+    out["blocked"] = False
+    if not out.get("mismatch"):
+        return out
+
+    pol = str(policy).lower()
+    if pol == "raise":
+        raise OntologyDriftError(out)
+    if pol == "block":
+        out["enforced"] = True
+        out["blocked"] = True
+        return out
+    # 'warn' or unknown — log and proceed.
+    if logger_obj is not None:
+        logger_obj.warning(out.get("warning") or "Ontology context drift detected")
+    return out
+
+
 def assess_ontology_context_mismatch(
     active_context: CompiledOntologyContext | Dict[str, Any],
     indexed_hashes: Iterable[Any],

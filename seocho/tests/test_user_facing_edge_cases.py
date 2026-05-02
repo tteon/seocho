@@ -152,7 +152,7 @@ class TestSilentAgentModeFallback:
             def run_streamed(self, **_: Any) -> Any:
                 raise RuntimeError("boom: streaming backend offline")
 
-        import extraction.agents_runtime as ar  # type: ignore
+        import seocho.agents_runtime as ar  # type: ignore
 
         monkeypatch.setattr(ar, "get_agents_runtime", lambda: _BoomRuntime())
 

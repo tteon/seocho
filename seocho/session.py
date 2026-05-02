@@ -214,6 +214,24 @@ class Session:
             return normalize_execution_mode(getattr(self.agent_config, 'execution_mode', 'pipeline'))
         return "pipeline"
 
+    def _stamp_observability_health(self, result: Dict[str, Any]) -> None:
+        """Stamp degraded_observability=True on result when traces are silently dropped.
+
+        Closes seocho-qr74 (depends-on seocho-8k1h). When OpikBackend (or any
+        future backend) initialises but its underlying client fails, every
+        ``log_span`` call becomes a no-op. The Session result needs to carry
+        a flag so callers can fail fast when observability is required —
+        otherwise the run looks healthy while traces evaporate.
+        """
+        try:
+            from .tracing import tracing_degraded_reasons
+        except Exception:
+            return
+        reasons = tracing_degraded_reasons()
+        if reasons:
+            result["degraded_observability"] = True
+            result["observability_degradation_reasons"] = reasons
+
     def add(
         self,
         content: str,
@@ -258,6 +276,10 @@ class Session:
             # "pipeline" and "supervisor" both use deterministic pipeline for add()
             result = self._add_via_pipeline(content, db, category, metadata)
 
+        # seocho-qr74: stamp degraded_observability if any tracing backend
+        # is silently dropping spans (e.g., OpikBackend init failure).
+        self._stamp_observability_health(result)
+
         elapsed = time.time() - start
 
         # Update context
@@ -299,6 +321,8 @@ class Session:
                     "fallback_reason": str(result.get("fallback_reason", "")),
                     "user_id": self.user_id,
                     "workspace_id": self.workspace_id,
+                    "degraded_observability": bool(result.get("degraded_observability", False)),
+                    "observability_degradation_reasons": list(result.get("observability_degradation_reasons", [])),
                     "ontology_context": result.get(
                         "ontology_context",
                         self._ontology_context.metadata(usage="agent_indexing"),
@@ -376,6 +400,11 @@ class Session:
         elapsed = time.time() - start
 
         if self._trace:
+            try:
+                from .tracing import tracing_degraded_reasons
+                obs_reasons = tracing_degraded_reasons()
+            except Exception:
+                obs_reasons = []
             self._trace.log_span(
                 "session.run",
                 input_data={"message": message[:200], "database": db},
@@ -384,6 +413,8 @@ class Session:
                     "elapsed_seconds": round(elapsed, 2),
                     "user_id": self.user_id,
                     "workspace_id": self.workspace_id,
+                    "degraded_observability": bool(obs_reasons),
+                    "observability_degradation_reasons": obs_reasons,
                     "ontology_context": self._ontology_context.metadata(usage="agent"),
                 },
                 tags=["supervisor", "handoff"],
@@ -466,6 +497,10 @@ class Session:
         else:
             query_result = self._ask_via_pipeline(question, db, reasoning_mode)
 
+        # seocho-qr74: stamp observability health on the local result dict
+        # so the trace span below carries it.
+        self._stamp_observability_health(query_result)
+
         answer = str(query_result.get("answer", "") or "")
 
         elapsed = time.time() - start
@@ -495,6 +530,8 @@ class Session:
                     "fallback_reason": str(query_result.get("fallback_reason", "")),
                     "user_id": self.user_id,
                     "workspace_id": self.workspace_id,
+                    "degraded_observability": bool(query_result.get("degraded_observability", False)),
+                    "observability_degradation_reasons": list(query_result.get("observability_degradation_reasons", [])),
                     "ontology_context": self._ontology_context.metadata(usage="agent_query"),
                 },
                 tags=["query"],

@@ -131,9 +131,11 @@ class OpikBackend(TracingBackend):
 
         try:
             self._client = self._opik.Opik(project_name=self._project)
+            self._init_error: Optional[str] = None
         except Exception as exc:
             logger.warning("Opik client init failed: %s", exc)
             self._client = None
+            self._init_error = f"{type(exc).__name__}: {exc}"
 
     def log_span(
         self,
@@ -272,6 +274,28 @@ def is_backend_enabled(name: str) -> bool:
     """Return True when the given built-in backend is active."""
     normalized = str(name).strip().lower()
     return normalized in _BACKEND_NAMES
+
+
+def tracing_degraded_reasons() -> List[str]:
+    """Return reasons why tracing is silently dropping spans (empty if healthy).
+
+    Closes seocho-qr74. A backend is "degraded" when it is enabled but its
+    underlying client failed to initialize — every subsequent ``log_span``
+    becomes a no-op and the caller sees nothing. The Session layer stamps
+    ``degraded_observability=True`` on results when this returns non-empty.
+    """
+    reasons: List[str] = []
+    for backend, name in zip(_BACKENDS, _BACKEND_NAMES):
+        # OpikBackend exposes _init_error; other backends don't (currently) fail init silently.
+        init_error = getattr(backend, "_init_error", None)
+        if init_error:
+            reasons.append(f"{name}: {init_error}")
+    return reasons
+
+
+def is_observability_degraded() -> bool:
+    """True if at least one enabled backend is silently dropping spans."""
+    return bool(tracing_degraded_reasons())
 
 
 def configure_tracing_from_env() -> bool:

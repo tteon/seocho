@@ -397,11 +397,24 @@ class Neo4jGraphStore(GraphStore):
 
         return summary
 
-    def get_schema(self, *, database: str = "neo4j") -> Dict[str, Any]:
+    @staticmethod
+    def _schema_cache_key(database: str, workspace_id: str = "default") -> str:
+        """Composite cache key — seocho-ni4u: workspace-aware invalidation."""
+        return f"{database}::{workspace_id or 'default'}"
+
+    def get_schema(
+        self,
+        *,
+        database: str = "neo4j",
+        workspace_id: str = "default",
+    ) -> Dict[str, Any]:
+        # seocho-ni4u: cache key now includes workspace_id so two workspaces
+        # sharing a database don't see each other's stale schema.
+        key = self._schema_cache_key(database, workspace_id)
         now = time.monotonic()
-        cached_ts = self._schema_cache_ts.get(database, 0.0)
-        if database in self._schema_cache and (now - cached_ts) < self._schema_cache_ttl:
-            return self._schema_cache[database]
+        cached_ts = self._schema_cache_ts.get(key, 0.0)
+        if key in self._schema_cache and (now - cached_ts) < self._schema_cache_ttl:
+            return self._schema_cache[key]
 
         try:
             with self._driver.session(database=database) as session:
@@ -419,21 +432,44 @@ class Neo4jGraphStore(GraphStore):
                 "relationship_types": rel_types,
                 "property_keys": prop_keys,
             }
-            self._schema_cache[database] = schema
-            self._schema_cache_ts[database] = now
+            self._schema_cache[key] = schema
+            self._schema_cache_ts[key] = now
             return schema
         except Exception as exc:
             logger.warning("get_schema failed for database '%s': %s", database, exc)
             return {"labels": [], "relationship_types": [], "property_keys": []}
 
-    def invalidate_schema_cache(self, database: Optional[str] = None) -> None:
-        """Clear the schema cache for a database or all databases."""
-        if database is not None:
-            self._schema_cache.pop(database, None)
-            self._schema_cache_ts.pop(database, None)
-        else:
+    def invalidate_schema_cache(
+        self,
+        database: Optional[str] = None,
+        *,
+        workspace_id: Optional[str] = None,
+    ) -> None:
+        """Clear the schema cache.
+
+        - ``invalidate_schema_cache()`` clears everything.
+        - ``invalidate_schema_cache(database)`` clears every workspace under
+          that database (back-compat: callers that didn't pass workspace_id
+          want to invalidate broadly when they wrote anything).
+        - ``invalidate_schema_cache(database, workspace_id=...)`` clears
+          exactly that (database, workspace) pair (per seocho-ni4u).
+        """
+        if database is None and workspace_id is None:
             self._schema_cache.clear()
             self._schema_cache_ts.clear()
+            return
+        if database is not None and workspace_id is not None:
+            key = self._schema_cache_key(database, workspace_id)
+            self._schema_cache.pop(key, None)
+            self._schema_cache_ts.pop(key, None)
+            return
+        # Partial key — drop every entry whose composite key starts with database::
+        if database is not None:
+            prefix = f"{database}::"
+            stale = [k for k in self._schema_cache if k.startswith(prefix)]
+            for k in stale:
+                self._schema_cache.pop(k, None)
+                self._schema_cache_ts.pop(k, None)
 
     def delete_by_source(
         self,

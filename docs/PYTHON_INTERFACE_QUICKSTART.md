@@ -689,7 +689,7 @@ does not declare a binding like `profile`, `ontology_id`, `package_id`, or
 `path`, SEOCHO raises a `ValueError`.
 
 See [AGENT_DESIGN_SPECS.md](AGENT_DESIGN_SPECS.md) and the
-[`examples/agent_designs/`](/tmp/seocho-land-finder-e2e/examples/agent_designs)
+[`examples/agent_designs/`](../examples/agent_designs/)
 directory for three starter patterns:
 
 - planning + multi-agent collaboration
@@ -723,7 +723,7 @@ prompt by default so the model can preserve source-grounded scalar properties
 without collapsing period-specific metrics.
 
 See [INDEXING_DESIGN_SPECS.md](INDEXING_DESIGN_SPECS.md) and the
-[`examples/indexing_designs/`](/tmp/seocho-land-finder-e2e/examples/indexing_designs)
+[`examples/indexing_designs/`](../examples/indexing_designs/)
 directory for starter designs covering:
 
 - LPG + provenance-first indexing

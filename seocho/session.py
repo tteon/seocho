@@ -51,7 +51,11 @@ logger = logging.getLogger(__name__)
 _T = TypeVar("_T")
 
 
-def _run_sync(coro: "Coroutine[Any, Any, _T]") -> _T:
+def _run_sync(
+    coro: "Coroutine[Any, Any, _T]",
+    *,
+    timeout: Optional[float] = None,
+) -> _T:
     """Run *coro* to completion from a synchronous context.
 
     ``asyncio.run()`` raises ``RuntimeError`` when invoked from a thread
@@ -61,6 +65,13 @@ def _run_sync(coro: "Coroutine[Any, Any, _T]") -> _T:
     loop is undisturbed and no monkey-patching (e.g. ``nest_asyncio``) is
     required. In the simple "plain script" case there is no running loop
     and we use ``asyncio.run`` directly — same behaviour as before.
+
+    seocho-hnf9: ``timeout`` (seconds) optionally bounds how long the
+    caller waits for the worker thread. On timeout, raise
+    ``asyncio.TimeoutError``; the daemon worker is left running but will
+    exit with the process. The caller's KeyboardInterrupt during
+    ``worker.join()`` propagates immediately rather than blocking
+    indefinitely on a stuck coroutine.
     """
     try:
         asyncio.get_running_loop()
@@ -70,6 +81,8 @@ def _run_sync(coro: "Coroutine[Any, Any, _T]") -> _T:
     box: Dict[str, Any] = {}
 
     def _runner() -> None:
+        # The worker owns its own loop; any task cleanup happens inside
+        # asyncio.run which cancels pending tasks on shutdown.
         try:
             box["value"] = asyncio.run(coro)
         except BaseException as exc:  # noqa: BLE001
@@ -77,7 +90,17 @@ def _run_sync(coro: "Coroutine[Any, Any, _T]") -> _T:
 
     worker = threading.Thread(target=_runner, name="seocho-run-sync", daemon=True)
     worker.start()
-    worker.join()
+    try:
+        worker.join(timeout=timeout)
+    except KeyboardInterrupt:
+        # Caller pressed Ctrl-C / kernel interrupt. Don't wait further;
+        # the daemon worker will be cleaned up on process exit.
+        raise
+    if worker.is_alive():
+        # Hit the timeout — coroutine is still executing in the worker.
+        raise asyncio.TimeoutError(
+            f"_run_sync coroutine did not complete within {timeout}s"
+        )
     if "error" in box:
         raise box["error"]
     return box["value"]
@@ -787,8 +810,8 @@ class Session:
 
             import asyncio
             loop = asyncio.new_event_loop()
+            ait = _stream().__aiter__()
             try:
-                ait = _stream().__aiter__()
                 while True:
                     try:
                         chunk = loop.run_until_complete(ait.__anext__())
@@ -796,6 +819,24 @@ class Session:
                     except StopAsyncIteration:
                         break
             finally:
+                # seocho-hnf9: drain the async iterator + cancel any
+                # pending tasks before closing the loop so resources
+                # bound to the iterator (HTTP connections, etc.) are
+                # released even if the consumer raised mid-stream.
+                try:
+                    loop.run_until_complete(ait.aclose())
+                except Exception:
+                    pass
+                try:
+                    pending = asyncio.all_tasks(loop=loop)
+                    for task in pending:
+                        task.cancel()
+                    if pending:
+                        loop.run_until_complete(
+                            asyncio.gather(*pending, return_exceptions=True)
+                        )
+                except Exception:
+                    pass
                 loop.close()
         except Exception as exc:
             logger.warning("Streaming failed, falling back: %s", exc)

@@ -1,0 +1,256 @@
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@100..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Geist+Mono:wght@100..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,700&display=swap');
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard-dynamic-subset.css');
+
+:root {
+    /* Starlight Overrides for a Premium 'Pitch Black' Glassmorphic Theme */
+    --sl-color-bg: #000000;
+    --sl-color-bg-nav: rgba(0, 0, 0, 0.6);
+    --sl-color-text: #E4E4E7;
+    --sl-color-white: #FFFFFF;
+    --sl-color-gray-1: #F4F4F5;
+    --sl-color-gray-2: #D4D4D8;
+    --sl-color-gray-3: #A1A1AA;
+    --sl-color-gray-4: #52525B;
+    --sl-color-gray-5: #27272A;
+    --sl-color-gray-6: #18181B;
+    --sl-color-accent: #22d3ee;
+    /* cyan-400 */
+    --sl-color-accent-high: #f59e0b;
+    /* amber-500 */
+
+    /* SEOCHO typography */
+    --sl-font: 'Geist', 'Pretendard', sans-serif;
+    --sl-font-mono: 'Geist Mono', 'Pretendard', monospace;
+    --seocho-font-display: 'Newsreader', 'Pretendard', serif;
+}
+
+body {
+    background-color: var(--sl-color-bg);
+    color: var(--sl-color-text);
+    font-family: var(--sl-font);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background-image:
+        radial-gradient(ellipse at 50% -20%, rgba(255, 255, 255, 0.08), transparent 60%);
+    background-attachment: fixed;
+    word-break: keep-all;
+    /* Prevent Korean words from breaking aggressively */
+}
+
+.seocho-display {
+    font-family: var(--seocho-font-display);
+    font-variation-settings: "opsz" 48;
+    letter-spacing: -0.04em;
+}
+
+code,
+pre,
+.font-mono {
+    font-family: var(--sl-font-mono) !important;
+}
+
+/* Glassmorphism Navigation Starlight Override */
+header.header {
+    backdrop-filter: blur(16px) saturate(200%);
+    -webkit-backdrop-filter: blur(16px) saturate(200%);
+    background-color: rgba(0, 0, 0, 0.5) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03) !important;
+}
+
+/* Premium Orbs Animation */
+@keyframes slowPulse {
+
+    0%,
+    100% {
+        transform: scale(1) translateY(0);
+        opacity: 0.1;
+    }
+
+    50% {
+        transform: scale(1.1) translateY(-20px);
+        opacity: 0.2;
+    }
+}
+
+.animate-slow-pulse {
+    animation: slowPulse 12s ease-in-out infinite;
+}
+
+.animation-delay-2000 {
+    animation-delay: 2s;
+}
+
+/* Force Dark Mode - Hide Theme Toggle */
+starlight-theme-select {
+    display: none !important;
+}
+
+/* Minimalist gradient styling for the restored "SEOCHO" title */
+.site-title {
+    background: linear-gradient(110deg, #ffffff 0%, #b6f3ff 45%, #f5d38f 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    font-weight: 700 !important;
+    letter-spacing: -0.04em;
+}
+
+.sl-markdown-content h1,
+.sl-markdown-content h2 {
+    font-family: var(--seocho-font-display);
+    letter-spacing: -0.035em;
+}
+
+.sl-markdown-content h1 {
+    font-size: clamp(2.6rem, 5vw, 4.5rem);
+    line-height: 0.95;
+}
+
+.sl-markdown-content h2 {
+    line-height: 1.02;
+}
+
+/* Subtle styling for the restored Search Bar to match Glassmorphic theme */
+site-search button {
+    background-color: rgba(255, 255, 255, 0.05) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 9999px !important;
+    transition: all 0.2s ease;
+    width: 250px !important;
+    /* Make the search bar longer */
+    justify-content: flex-start !important;
+    /* Align content to the left */
+    position: relative;
+}
+
+/* Add a subtle guideline placeholder */
+site-search button::after {
+    content: "Search 'Routing', 'Agent' ...";
+    color: rgba(255, 255, 255, 0.3);
+    font-size: 0.85rem;
+    position: absolute;
+    left: 40px;
+    /* Offset to make room for magnifying glass icon */
+    pointer-events: none;
+}
+
+site-search button .sl-icon {
+    margin-right: 12px;
+}
+
+/* Hide the default generic 'Search' text if it exists to replace it with our placeholder */
+site-search button .sl-hidden {
+    display: none !important;
+}
+
+site-search button:hover {
+    background-color: rgba(255, 255, 255, 0.1) !important;
+    border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+/* Subtle animation delays for staggered fade up */
+.delay-100 {
+    animation-delay: 100ms;
+}
+
+.delay-200 {
+    animation-delay: 200ms;
+}
+
+.delay-300 {
+    animation-delay: 300ms;
+}
+
+/*
+ * UI Refinements requested by User
+ */
+
+/* 1. Hide the "Blog" link from the Starlight Top Header (Desktop & Mobile) */
+site-search~a[href="/blog/"],
+header .sl-flex a[href="/blog/"],
+starlight-header a[href="/blog/"] {
+    display: none !important;
+}
+
+/* 2. Fix Starlight / Pagefind Search Modal Styling (especially the 'X' clear button & spacing) */
+#starlight__searchdialog {
+    --pagefind-ui-bg: #09090b !important;
+    /* Extremely dark zinc background for the modal */
+    --pagefind-ui-border: rgba(255, 255, 255, 0.1) !important;
+    --pagefind-ui-text: #e4e4e7 !important;
+    --pagefind-ui-primary: #ffffff !important;
+}
+
+/* Fix the ugly 'Clear' X button layout in the search input */
+.pagefind-ui__search-clear {
+    border-radius: 9999px !important;
+    background-color: rgba(255, 255, 255, 0.1) !important;
+    width: 24px !important;
+    height: 24px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 !important;
+    margin-right: 10px !important;
+}
+
+.pagefind-ui__search-clear:hover {
+    background-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+/* Ensure the search input box inside the modal looks premium */
+.pagefind-ui__search-input {
+    background-color: rgba(255, 255, 255, 0.05) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 12px !important;
+    padding-left: 48px !important;
+    /* space for the glass icon */
+}
+
+.pagefind-ui__search-input:focus {
+    border-color: rgba(255, 255, 255, 0.3) !important;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.05) !important;
+}
+
+/* Landing Page Overrides (Letta style) */
+/* When .landing-override is present, hide the Starlight sidebar and force full width */
+:root:has(.landing-override) starlight-sidebar {
+    display: none !important;
+}
+
+:root:has(.landing-override) .main-frame {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    padding-top: 0 !important;
+}
+
+:root:has(.landing-override) .main-pane {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+:root:has(.landing-override) .content-panel {
+    padding: 0 !important;
+}
+
+:root:has(.landing-override) .sl-container {
+    max-width: none !important;
+    margin: 0 !important;
+}
+
+:root:has(.landing-override) .sl-markdown-content {
+
+    h1:first-child,
+    .heading-wrapper {
+        display: none !important;
+        /* Hide the default generated H1 title from frontmatter on landing */
+    }
+}

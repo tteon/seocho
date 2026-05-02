@@ -134,6 +134,12 @@ For architecture or workflow changes:
 
 - basic CI workflow lives in `.github/workflows/ci-basic.yml`
 - the local command behind basic CI is `bash scripts/ci/run_basic_ci.sh`
+- docs site quality workflow lives in `.github/workflows/docs-site-quality.yml`
+- docs site deploy workflow lives in `.github/workflows/docs-site-deploy.yml`
+- the tracked Astro/Starlight app for `seocho.blog` lives in `website/`
+- generated mirrored docs under `website/src/content/docs/docs/` are derived
+  from repo-root docs via `website/scripts/generate-docs.mjs`; do not edit
+  those generated files directly
 - use repo-local skill `$daily-maintenance-pr` for scheduled or manual Codex
   maintenance PR workflows
 - use repo-local skill `$periodic-review-pr` for scheduled or manual Codex

@@ -79,6 +79,8 @@ outputs/
 # Data & Database
 data/
 neo4j/data/
+!website/src/data/
+!website/src/data/**
 neo4j/logs/
 .dolt/
 *.db
@@ -101,7 +103,6 @@ kgbuild_export.*
 # Local scratch / nested workspaces (do not track)
 daemon/
 gnnllm/
-tteon.github.io/
 
 # Claude Code — personal/ad-hoc permission overlay (shared settings in .claude/settings.json are tracked)
 .claude/settings.local.json

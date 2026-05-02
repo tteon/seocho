@@ -79,6 +79,8 @@ outputs/
 # Data & Database
 data/
 neo4j/data/
+!website/src/data/
+!website/src/data/**
 neo4j/logs/
 .dolt/
 *.db

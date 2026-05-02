@@ -141,6 +141,59 @@ class CompiledOntologyContext:
         }
 
 
+def compile_ontology_context_delta(
+    v1: CompiledOntologyContext,
+    v2: CompiledOntologyContext,
+) -> Dict[str, Any]:
+    """Compute a delta between two compiled ontology contexts.
+
+    Closes seocho-a9ay. ``compile_ontology_context`` recomputes the entire
+    payload whenever the ontology changes. For long-lived workers serving
+    multiple ontology versions concurrently, that's wasteful — the diff is
+    usually small. This helper emits a structural patch in JSON-serialisable
+    form so a worker can apply it incrementally instead of round-tripping
+    through full recompilation.
+
+    Returns
+    -------
+    Dict with the following keys:
+
+    - ``from_context_hash``: descriptor hash of v1.
+    - ``to_context_hash``: descriptor hash of v2.
+    - ``hash_changed``: True iff the two hashes differ.
+    - ``added_node_labels`` / ``removed_node_labels``: label diff.
+    - ``added_relationship_types`` / ``removed_relationship_types``: rel diff.
+    - ``stable_prefix_changed``: True iff the kv-cache-aware
+      ``stable_prefix()`` differs between v1 and v2 — useful for cache
+      invalidation decisions.
+    - ``identity``: subset of v2 descriptor metadata for routing.
+    """
+    d1 = v1.descriptor
+    d2 = v2.descriptor
+    v1_labels = set(d1.node_labels or [])
+    v2_labels = set(d2.node_labels or [])
+    v1_rels = set(d1.relationship_types or [])
+    v2_rels = set(d2.relationship_types or [])
+
+    return {
+        "from_context_hash": d1.context_hash,
+        "to_context_hash": d2.context_hash,
+        "hash_changed": d1.context_hash != d2.context_hash,
+        "added_node_labels": sorted(v2_labels - v1_labels),
+        "removed_node_labels": sorted(v1_labels - v2_labels),
+        "added_relationship_types": sorted(v2_rels - v1_rels),
+        "removed_relationship_types": sorted(v1_rels - v2_rels),
+        "stable_prefix_changed": v1.stable_prefix() != v2.stable_prefix(),
+        "identity": {
+            "ontology_id": d2.ontology_id,
+            "ontology_name": d2.ontology_name,
+            "ontology_version": d2.ontology_version,
+            "profile": d2.profile,
+            "workspace_id": d2.workspace_id,
+        },
+    }
+
+
 def apply_anthropic_cache_control(
     *,
     stable_prefix: str,

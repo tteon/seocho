@@ -1,0 +1,48 @@
+name: docs-site-quality
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "website/**"
+      - "docs/**"
+      - "README.md"
+      - ".github/workflows/docs-site-quality.yml"
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "website/**"
+      - "docs/**"
+      - "README.md"
+      - ".github/workflows/docs-site-quality.yml"
+
+jobs:
+  docs-site-quality:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+
+      - name: Install dependencies
+        working-directory: website
+        run: npm ci
+
+      - name: Run website docs checks
+        working-directory: website
+        run: npm run check:docs
+
+      - name: Build site
+        working-directory: website
+        run: npm run build
+
+      - name: Check built internal links
+        working-directory: website
+        run: bash scripts/check-built-links.sh

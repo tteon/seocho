@@ -28,7 +28,7 @@ Regulator`, etc.). Ingestion populates the graph from plain text. Questions
 like "which control evidence mitigates incident I-2026-007" return an
 answer grounded in typed paths, not a free-text paragraph.
 
-**Blog walk-through**: *(coming soon — drafted in `tteon.github.io`)*
+**Blog walk-through**: *(coming soon — site narrative draft pending)*
 
 ## Contributing a new usecase
 

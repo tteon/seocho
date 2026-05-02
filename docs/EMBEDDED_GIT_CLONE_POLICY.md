@@ -16,7 +16,8 @@ Rig-local clone policy is **ignored paths only**.
 
 ## Allowed Pattern
 
-- local helper clone path is present in `.gitignore` (for example `tteon.github.io/`)
+- local helper clone path is present in `.gitignore`
+- helper clones stay outside tracked product paths such as `website/`
 
 ## Disallowed Pattern
 

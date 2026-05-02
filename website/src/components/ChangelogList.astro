@@ -1,0 +1,18 @@
+---
+import updates from '../data/updates.json';
+---
+<div class="not-content bg-black border border-white/10 rounded-xl overflow-hidden shadow-2xl mt-8 relative z-10">
+  <div class="absolute inset-0 bg-gradient-to-b from-white/[0.02] to-transparent pointer-events-none"></div>
+  <ul class="divide-y divide-white/10 relative z-10">
+    {updates.map((update) => (
+      <li class="p-4 sm:p-6 flex flex-col sm:flex-row sm:items-center gap-4 hover:bg-white/[0.03] transition-colors">
+        <span class="text-zinc-500 text-sm font-mono w-28 shrink-0">{update.date}</span>
+        <span class="text-zinc-200 text-sm flex-1">{update.message}</span>
+        <a href={update.url} target="_blank" rel="noopener noreferrer" aria-label={`View commit ${update.hash} on GitHub`} class="text-xs font-mono text-zinc-400 bg-white/5 border border-white/5 hover:bg-white/10 hover:text-white px-3 py-1.5 rounded-md transition-colors inline-flex items-center gap-1.5">
+          #{update.hash}
+          <svg aria-hidden="true" class="w-3 h-3 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+        </a>
+      </li>
+    ))}
+  </ul>
+</div>

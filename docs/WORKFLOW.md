@@ -151,7 +151,7 @@ Operational notes:
 - local SDK orchestration extracted from `seocho/client.py` should land in
   `seocho/local_engine.py` before any broader facade redesign
 
-## Docs Website Sync
+## Docs Website
 
 - source of truth: `README.md` + `docs/*` in this repository
 - publish-critical docs for seocho.blog sync:
@@ -159,19 +159,24 @@ Operational notes:
   - `docs/QUICKSTART.md`
   - `docs/APPLY_YOUR_DATA.md`
   - `docs/PYTHON_INTERFACE_QUICKSTART.md`
+  - `docs/TUTORIAL_FIRST_RUN.md`
+  - `docs/OPEN_SOURCE_PLAYBOOK.md`
   - `docs/ARCHITECTURE.md`
   - `docs/WORKFLOW.md`
 - repo-side source-doc contract is checked by `.github/workflows/docs-consistency.yml`
   using `bash scripts/ci/check-doc-contracts.sh`
-- website updates are maintained directly in the `tteon.github.io/` workspace
-- website validation currently includes:
-  - `npm run check:sync`
-  - `bash scripts/check-doc-quality.sh`
-  - `npm run build`
-  - `bash scripts/check-built-links.sh`
-- `tteon.github.io/scripts/sync.mjs` can be used as a local helper when syncing
-  selected docs, but mirrored pages are still reviewable content, not a blind
-  publish target
+- the tracked website app lives in `website/`
+- `website/scripts/generate-docs.mjs` materializes selected `/docs/*` and
+  `/blog/*` pages from repo-root source docs at build/dev time
+- generated mirror files under `website/src/content/docs/docs/` are derived
+  artifacts; edit the repo-root source docs instead
+- website validation currently lives in `.github/workflows/docs-site-quality.yml`
+  and includes:
+  - `cd website && npm ci`
+  - `cd website && npm run check:docs`
+  - `cd website && npm run build`
+  - `cd website && bash scripts/check-built-links.sh`
+- deployment to GitHub Pages lives in `.github/workflows/docs-site-deploy.yml`
 
 5. Basic CI
 

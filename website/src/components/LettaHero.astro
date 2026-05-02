@@ -1,0 +1,90 @@
+---
+---
+
+<div class="relative w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-32 pb-20 flex flex-col items-center justify-center min-h-[80vh] overflow-hidden">
+
+  {/* Ambient Background Glow */}
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[600px] bg-gradient-to-tr from-zinc-500/10 to-zinc-800/20 blur-[120px] rounded-full pointer-events-none -z-10 animate-slow-pulse"></div>
+
+  {/* Text Content */}
+  <div class="text-center z-10 animate-fade-up">
+    <div class="inline-flex items-center gap-2 px-3 py-1 mb-8 rounded-full bg-white/5 border border-white/10 text-sm font-medium text-zinc-300 backdrop-blur-sm">
+      <span class="flex h-2 w-2 rounded-full bg-zinc-400"></span>
+      SEOCHO is open source
+    </div>
+
+    <h1 class="seocho-display text-6xl md:text-8xl font-black tracking-tight mb-6 text-white leading-[0.92]">
+      Ontology-First <br />
+      <span class="site-title">Graph Memory for Agents</span>
+    </h1>
+
+    <div class="text-lg md:text-xl text-zinc-400 max-w-3xl mx-auto mb-10 font-light tracking-wide leading-relaxed space-y-2">
+      <p class="border-l-2 border-zinc-700 pl-4 text-left">1. Define one ontology and use it across extraction, querying, validation, and runtime artifacts.</p>
+      <p class="border-l-2 border-zinc-700 pl-4 text-left">2. Keep graph behavior inspectable with schema-aware query planning and bounded repair.</p>
+      <p class="border-l-2 border-zinc-700 pl-4 text-left">3. Promote the same local contract into a runtime other agents can consume over HTTP.</p>
+    </div>
+
+    <div class="flex flex-col sm:flex-row flex-wrap items-center justify-center gap-4">
+      <a href="/docs/quickstart/" class="px-6 py-3 bg-white text-black font-semibold rounded-lg hover:bg-zinc-200 transition-colors shadow-[0_0_30px_-10px_rgba(255,255,255,0.2)]">
+        Get Started
+      </a>
+      <a href="/docs/why_seocho/" class="px-6 py-3 bg-white/5 border border-white/10 text-zinc-300 font-medium rounded-lg hover:bg-white/10 hover:text-white transition-colors backdrop-blur-sm">
+        Why SEOCHO
+      </a>
+      <a href="/docs/apply_your_data/" class="px-6 py-3 bg-white/5 border border-white/10 text-zinc-300 font-medium rounded-lg hover:bg-white/10 hover:text-white transition-colors backdrop-blur-sm">
+        Bring Your Data
+      </a>
+      <a href="/docs/python_sdk/" class="px-6 py-3 bg-white/5 border border-white/10 text-zinc-300 font-medium rounded-lg hover:bg-white/10 hover:text-white transition-colors backdrop-blur-sm">
+        Python SDK
+      </a>
+      <a href="https://github.com/TTEON/seocho" target="_blank" rel="noopener noreferrer" class="px-6 py-3 bg-transparent text-zinc-400 font-medium rounded-lg hover:text-white transition-colors flex items-center gap-2">
+        <svg fill="currentColor" viewBox="0 0 24 24" class="w-5 h-5" aria-hidden="true"><path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd"></path></svg>
+        GitHub
+      </a>
+    </div>
+  </div>
+
+  {/* 3D Graph Image from User - Faded at the bottom to mask the watermark */}
+  <div class="mt-16 sm:mt-24 w-full max-w-4xl z-10 animate-fade-up delay-100 flex justify-center relative">
+    <div class="w-full absolute inset-0 bg-gradient-to-t from-[#000000] via-transparent to-transparent z-20 h-full pointer-events-none"></div>
+    <img src="/images/hero-graph.png" alt="Neuro-symbolic Knowledge Graph Visualization" class="w-full h-auto object-contain drop-shadow-[0_0_80px_rgba(255,255,255,0.05)] rounded-3xl [mask-image:linear-gradient(to_bottom,black_70%,transparent_100%)] -webkit-mask-image:-webkit-linear-gradient(top,black_70%,transparent_100%)" />
+  </div>
+
+  {/* Mockup Showcase */}
+  <div class="mt-20 w-full max-w-5xl z-10 animate-fade-up delay-200">
+    <div class="relative rounded-xl bg-black border border-white/10 shadow-[0_0_100px_-20px_rgba(255,255,255,0.05)] overflow-hidden">
+      <div class="flex items-center px-4 py-3 border-b border-white/5 bg-white/[0.02]">
+        <div class="flex gap-2">
+          <div class="w-3 h-3 rounded-full bg-zinc-700"></div>
+          <div class="w-3 h-3 rounded-full bg-zinc-700"></div>
+          <div class="w-3 h-3 rounded-full bg-zinc-700"></div>
+        </div>
+        <div class="mx-auto text-xs text-zinc-500 font-mono">seocho-ontology-first</div>
+      </div>
+      <div class="p-6 text-sm font-mono text-zinc-300 overflow-x-auto">
+        <Fragment set:html={`<pre class="!bg-transparent !m-0 !p-0"><code class="language-python">from seocho import Seocho, Ontology, NodeDef, RelDef, P
+from seocho.store import Neo4jGraphStore, OpenAIBackend
+
+ontology = Ontology(
+    name="finance_core",
+    nodes={
+        "Company": NodeDef(properties={"name": P(str, unique=True)}),
+    },
+    relationships={
+        "ACQUIRED": RelDef(source="Company", target="Company"),
+    },
+)
+
+client = Seocho(
+    ontology=ontology,
+    graph_store=Neo4jGraphStore("bolt://localhost:7687", "neo4j", "password"),
+    llm=OpenAIBackend(model="gpt-4o-mini"),
+)
+
+client.add("ACME acquired Beta in 2024.")
+print(client.ask("Who did ACME acquire?", reasoning_mode=True))
+</code></pre>`} />
+      </div>
+    </div>
+  </div>
+</div>

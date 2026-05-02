@@ -190,3 +190,6 @@ Docs sync critical set for seocho.blog:
 - `docs/QUICKSTART.md`
 - `docs/ARCHITECTURE.md`
 - `docs/WORKFLOW.md`
+
+The tracked site source lives in `website/`, and generated mirror files under
+`website/src/content/docs/docs/` are derived from the repo-root docs.

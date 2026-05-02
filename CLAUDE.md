@@ -225,8 +225,10 @@ We enforce STRICT Semantic Versioning style commit prefixes to keep our history 
 
 ### Website Syncing
 The `seocho` primary repository acts as the source of truth for core docs.
-Website sync is handled manually in the local `tteon.github.io` workspace.
-Do not assume repo-side GitHub Actions automation for docs sync.
+The tracked Astro/Starlight site now lives in `website/`.
+Selected docs are generated into `website/src/content/docs/` at build time via
+`website/scripts/generate-docs.mjs`, and repo-side GitHub Actions validate and
+deploy the site from this repository.
 
 ## 13. Reliability Notes (2026-02-20)
 
@@ -234,7 +236,8 @@ Do not assume repo-side GitHub Actions automation for docs sync.
 - Neo4j/DozerDB procedure privileges must stay scoped to `apoc.*,n10s.*` (no wildcard unrestricted).
 - API/middleware tests should prefer `httpx.ASGITransport` + `AsyncClient` over `TestClient` in this repo environment.
 - When local `bd` workspace state is noisy, run lint via sandbox mode (`bd --sandbox ...`) to avoid auto-sync side effects during validation.
-- `tteon.github.io/` can exist as a local nested workspace for website validation, but it should remain untracked by the parent `seocho` repository.
+- `website/` is tracked; generated mirrors under `website/src/content/docs/docs/`
+  are derived artifacts and should not be edited directly.
 - Repo-side automation is intentionally narrow:
   - `.github/workflows/ci-basic.yml` is the required GitHub check surface
   - Codex PR automation is limited to bounded daily/periodic draft PR workflows
@@ -281,12 +284,15 @@ If this path is broken, do not treat the release as complete.
 
 ## 17. Documentation Sync Contract
 
-For seocho.blog sync, keep these docs current as first-class release artifacts:
+For seocho.blog publishing, keep these docs current as first-class release
+artifacts:
 
 - `docs/README.md`
 - `docs/QUICKSTART.md`
 - `docs/ARCHITECTURE.md`
 - `docs/WORKFLOW.md`
+- `docs/TUTORIAL_FIRST_RUN.md`
+- `docs/OPEN_SOURCE_PLAYBOOK.md`
 
 Docs updates that change user behavior or architecture intent must include a decision log update (and ADR when non-trivial).
 

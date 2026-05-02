@@ -1,0 +1,246 @@
+---
+// Starlight Page Wrapper to keep the Navbar but have a custom landing
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import ChangelogList from '../components/ChangelogList.astro';
+import LettaHero from '../components/LettaHero.astro';
+import LettaFeatures from '../components/LettaFeatures.astro';
+import Pathways from '../components/Pathways.astro';
+import LatestBlog from '../components/LatestBlog.astro';
+---
+
+<StarlightPage frontmatter={{ title: 'SEOCHO | The OS for Agentic Knowledge Graphs', template: 'splash' }} hasSidebar={false}>
+
+  <main class="relative min-h-screen w-full flex flex-col items-center overflow-x-hidden font-sans pb-24 selection:bg-zinc-500/30">
+
+    <!-- Ultra Premium SVG Grain Noise Overlay -->
+    <div class="pointer-events-none fixed inset-0 z-50 h-full w-full opacity-[0.03] mix-blend-overlay" style="background-image: url('data:image/svg+xml,%3Csvg viewBox=%220 0 200 200%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter id=%22noiseFilter%22%3E%3CfeTurbulence type=%22fractalNoise%22 baseFrequency=%220.85%22 numOctaves=%223%22 stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23noiseFilter)%22/%3E%3C/svg%3E');"></div>
+
+    <!-- Architectural Grid Background Overlay -->
+    <div class="pointer-events-none absolute inset-0 -z-10 h-full w-full bg-[linear-gradient(to_right,#80808010_1px,transparent_1px),linear-gradient(to_bottom,#80808010_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]"></div>
+
+    <!-- Pitch Black Background Environment -->
+    <div class="absolute inset-0 bg-[#000000] -z-20"></div>
+
+    <!-- Letta Aesthetic Components -->
+    <div class="landing-override w-full">
+      <LettaHero />
+      <LettaFeatures />
+      <Pathways />
+    </div>
+
+    <!-- Quickstart Section (Glass Panel) -->
+    <section class="max-w-4xl mx-auto px-6 py-16 w-full animate-fade-up delay-100 z-10">
+      <div class="mb-10 text-center md:text-left">
+        <p class="uppercase tracking-[0.28em] text-[0.72rem] text-amber-300/75 mb-3 font-medium">Runtime Walkthrough</p>
+        <h2 class="seocho-display text-3xl md:text-5xl text-white mb-2">Quickstart</h2>
+        <p class="text-zinc-400 text-lg font-light">Stand up the runtime, ingest data, and ask ontology-aware questions without starting from the full architecture first.</p>
+      </div>
+
+      <div class="bg-[#040404] border border-white/10 rounded-2xl overflow-hidden p-8 md:p-10 shadow-2xl relative group transition-colors">
+        <div class="absolute inset-0 bg-gradient-to-br from-white/[0.02] to-transparent pointer-events-none"></div>
+        <div class="space-y-8 relative z-10">
+          <div>
+            <h3 class="text-zinc-100 font-semibold mb-3 flex items-center"><span class="flex items-center justify-center w-6 h-6 rounded-md bg-white/10 text-white text-xs mr-3 border border-white/10">1</span> Start Services</h3>
+            <div class="bg-white/5 border border-white/5 rounded-lg p-4 text-sm font-mono text-zinc-300 shadow-inner">
+              git clone https://github.com/tteon/seocho.git
+              <br />
+              cd seocho && make setup-env && make up
+            </div>
+          </div>
+          <div>
+            <h3 class="text-zinc-100 font-semibold mb-3 flex items-center"><span class="flex items-center justify-center w-6 h-6 rounded-md bg-white/10 text-white text-xs mr-3 border border-white/10">2</span> Ingest Your Data</h3>
+            <div class="bg-white/5 border border-white/5 rounded-lg p-4 text-sm font-mono text-zinc-300 shadow-inner whitespace-pre overflow-x-auto">
+{`from seocho import Seocho
+
+client = Seocho(base_url="http://localhost:8001", workspace_id="default")
+
+client.raw_ingest(
+    [
+        {"id": "r1", "content": "ACME acquired Beta in 2024."},
+        {"id": "r2", "content": "Beta provides risk analytics to ACME."},
+    ],
+    target_database="kgruntime",
+)`}
+            </div>
+          </div>
+          <div>
+            <h3 class="text-zinc-100 font-semibold mb-3 flex items-center"><span class="flex items-center justify-center w-6 h-6 rounded-md bg-white/10 text-white text-xs mr-3 border border-white/10">3</span> Query Through the Semantic Layer</h3>
+            <div class="bg-white/5 border border-white/5 rounded-lg p-4 text-sm font-mono text-zinc-300 shadow-inner whitespace-pre overflow-x-auto">
+{`from seocho import Seocho
+
+client = Seocho(base_url="http://localhost:8001", workspace_id="default")
+
+semantic = client.semantic(
+    "What is ACME related to?",
+    databases=["kgruntime"],
+    reasoning_mode=True,
+    repair_budget=2,
+)
+
+print(semantic.response)`}
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="mt-6 flex gap-4 justify-center md:justify-start">
+        <a href="/docs/apply_your_data/" class="inline-flex items-center px-5 py-2.5 rounded-lg bg-white/10 border border-white/10 text-white text-sm font-medium hover:bg-white/15 transition-colors">Bring Your Data</a>
+        <a href="/docs/python_sdk/" class="inline-flex items-center px-5 py-2.5 rounded-lg border border-white/5 text-zinc-300 text-sm font-medium hover:text-zinc-100 transition-colors">Python SDK</a>
+        <a href="/docs/quickstart/" class="inline-flex items-center px-5 py-2.5 rounded-lg border border-white/5 text-zinc-400 text-sm font-medium hover:text-zinc-200 transition-colors">Runtime Quickstart</a>
+      </div>
+    </section>
+
+    <!-- Architecture Section -->
+    <section class="max-w-6xl mx-auto px-6 py-20 w-full animate-fade-up delay-300 z-10">
+      <div class="mb-14 text-center md:text-left">
+          <p class="uppercase tracking-[0.28em] text-[0.72rem] text-cyan-300/75 mb-3 font-medium">System Map</p>
+          <h2 class="seocho-display text-3xl md:text-5xl text-white mb-3">System Architecture</h2>
+          <p class="text-zinc-400 text-lg font-light max-w-2xl">From raw ingestion to semantic-layer-constrained retrieval, with advanced debate only when needed.</p>
+      </div>
+
+      <div class="bg-[#040404] border border-white/10 rounded-2xl overflow-hidden p-8 md:p-12 flex justify-center items-center shadow-2xl text-xs md:text-sm relative">
+        <div class="absolute inset-0 bg-gradient-to-b from-white/[0.02] to-transparent pointer-events-none"></div>
+        <pre class="mermaid bg-transparent mx-auto relative z-10">
+graph TD
+    classDef external fill:transparent,stroke:#52525B,stroke-width:1px,stroke-dasharray:5 5,color:#A1A1AA
+    classDef pipeline fill:#ffffff10,stroke:#d4d4d8,stroke-width:1px,color:#e4e4e7
+    classDef db fill:#ffffff05,stroke:#a1a1aa,stroke-width:1px,color:#d4d4d8
+    classDef agent fill:#ffffff15,stroke:#f4f4f5,stroke-width:1px,color:#ffffff
+    classDef user fill:transparent,stroke:none,color:#E4E4E7,font-weight:bold
+    classDef mode fill:#ffffff05,stroke:#a1a1aa,stroke-width:1px,color:#ffffff,stroke-dasharray:5 5
+
+    User(("User Query")):::user -->|Chat| UI[Custom Platform :8501]:::external
+    UI -->|Toggle| Mode{"Execution Mode"}:::mode
+
+    Mode -->|Router| Router[Router Agent]:::agent
+    Mode -->|Debate| Debate[DebateOrchestrator]:::agent
+    Mode -->|Semantic QA| Sem[Semantic Layer]:::agent
+
+    subgraph Router_Mode[Router Mode]
+        Router --> Graph[GraphAgent]:::agent
+        Router --> Vector[VectorAgent]:::agent
+        Router --> Web[WebAgent]:::agent
+        Graph --> DBA[GraphDBA]:::pipeline
+        DBA -->|Cypher| Neo4j[(Neo4j / DozerDB Partitions)]:::db
+        Vector -->|Search| FAISS[(FAISS)]:::db
+        DBA --> Sup1[Supervisor]:::agent
+        Vector --> Sup1
+    end
+
+    subgraph Debate_Mode[Parallel Debate Mode]
+        Debate -->|Fan-out| A1[Agent_kgnormal]:::agent
+        Debate -->|Fan-out| A2[Agent_kgfibo]:::agent
+        Debate -->|Fan-out| AN[Agent_...]:::agent
+        A1 --> Collect[Collect]:::pipeline
+        A2 --> Collect
+        AN --> Collect
+        Collect --> Sup2[Supervisor Synthesis]:::agent
+    end
+
+    subgraph Semantic_Mode[Semantic Agent Flow]
+        Sem --> DedupResolve[Entity Dedup & Fulltext Resolve]:::pipeline
+        DedupResolve --> Route2[RouterAgent]:::agent
+        Route2 --> LPG[LPGAgent]:::agent
+        Route2 --> RDF[RDFAgent]:::agent
+        LPG --> Ans[AnswerGenerationAgent]:::agent
+        RDF --> Ans
+    end
+
+    subgraph Pipeline[Data Extraction Pipeline]
+        DS[Raw Sources]:::external --> Bridge[OntologyPromptBridge]:::pipeline
+        Bridge --> Extract[EntityExtractor]:::pipeline
+        Extract --> Link[EntityLinker]:::pipeline
+        Link --> Dedup[EntityDeduplicator]:::pipeline
+        Dedup --> DBM[DatabaseManager]:::pipeline
+        DBM -->|CREATE DB| Neo4j
+        DBM --> AF[AgentFactory]:::pipeline
+    end
+        </pre>
+      </div>
+    </section>
+
+    <!-- Latest Blog Section -->
+    <section class="max-w-5xl mx-auto px-6 py-24 w-full animate-fade-up delay-300 z-10">
+      <div class="flex items-end justify-between border-b border-white/10 pb-6 mb-8">
+        <div>
+          <p class="uppercase tracking-[0.28em] text-[0.72rem] text-amber-300/75 mb-3 font-medium">Writing</p>
+          <h2 class="seocho-display text-3xl md:text-5xl text-white mb-2">The SEOCHO Blog</h2>
+          <p class="text-zinc-500 text-sm font-light">Concepts, reasoning, and major release announcements.</p>
+        </div>
+        <a href="/blog/" class="text-sm font-medium text-zinc-300 hover:text-white transition-colors flex items-center">All Posts <span aria-hidden="true" class="ml-1 text-lg leading-none">→</span></a>
+      </div>
+      <LatestBlog />
+    </section>
+
+    <!-- Updates Section -->
+    <section class="max-w-4xl mx-auto px-6 py-12 w-full animate-fade-up delay-300 z-10">
+      <div class="flex items-end justify-between border-b border-white/10 pb-6 mb-8">
+        <div>
+          <p class="uppercase tracking-[0.28em] text-[0.72rem] text-cyan-300/75 mb-3 font-medium">Repository Signal</p>
+          <h2 class="seocho-display text-2xl md:text-4xl text-white mb-2">Latest Updates</h2>
+          <p class="text-zinc-500 text-sm font-light">Continuously integrated signals from GitHub Releases.</p>
+        </div>
+        <a href="https://github.com/TTEON/seocho/commits/main/" target="_blank" class="text-sm font-medium text-zinc-300 hover:text-white transition-colors flex items-center">View Commits <span aria-hidden="true" class="ml-1 text-lg leading-none">→</span></a>
+      </div>
+
+      <ChangelogList />
+    </section>
+
+    <!-- FAQ Section -->
+    <section class="max-w-4xl mx-auto px-6 py-12 w-full animate-fade-up delay-300 z-10 mb-20">
+      <div class="mb-12 text-center">
+        <p class="uppercase tracking-[0.28em] text-[0.72rem] text-amber-300/75 mb-3 font-medium">Operator Notes</p>
+        <h2 class="seocho-display text-3xl md:text-5xl text-white mb-2">FAQ</h2>
+      </div>
+      <div class="space-y-4">
+        <details class="group bg-[#040404] border border-white/10 p-6 md:p-8 rounded-2xl cursor-pointer hover:bg-white/[0.02] transition-colors">
+          <summary class="flex justify-between items-center text-zinc-100 font-semibold list-none text-lg">
+            How do I put my own data into SEOCHO?
+            <span class="transition-transform group-open:rotate-180 text-zinc-500">↓</span>
+          </summary>
+          <p class="text-zinc-400 text-sm mt-4 leading-relaxed font-light border-t border-white/5 pt-4">Start with `raw_ingest(...)` if you already have records or documents, or `add(...)` for one-off text. Use one `target_database` per dataset, then query it through `ask(...)`, `semantic(...)`, and only later `advanced(...)` if you need graph comparison.</p>
+        </details>
+
+        <details class="group bg-[#040404] border border-white/10 p-6 md:p-8 rounded-2xl cursor-pointer hover:bg-white/[0.02] transition-colors">
+          <summary class="flex justify-between items-center text-zinc-100 font-semibold list-none text-lg">
+            When should I turn on reasoning mode?
+            <span class="transition-transform group-open:rotate-180 text-zinc-500">↓</span>
+          </summary>
+          <p class="text-zinc-400 text-sm mt-4 leading-relaxed font-light border-t border-white/5 pt-4">Turn on `reasoning_mode=True` when the first semantic retrieval pass is too weak, a relation path is missing, or slot fill is incomplete. It is the preferred escalation path before debate because it stays bounded and evidence-focused.</p>
+        </details>
+
+        <details class="group bg-[#040404] border border-white/10 p-6 md:p-8 rounded-2xl cursor-pointer hover:bg-white/[0.02] transition-colors">
+          <summary class="flex justify-between items-center text-zinc-100 font-semibold list-none text-lg">
+            When should I use advanced debate?
+            <span class="transition-transform group-open:rotate-180 text-zinc-500">↓</span>
+          </summary>
+          <p class="text-zinc-400 text-sm mt-4 leading-relaxed font-light border-t border-white/5 pt-4">Use `advanced(...)` when the point of the request is explicit cross-graph comparison, disagreement analysis, or multi-agent synthesis. It is not the default retrieval mode and it should not replace the semantic-layer-first path for ordinary developer queries.</p>
+        </details>
+
+        <details class="group bg-[#040404] border border-white/10 p-6 md:p-8 rounded-2xl cursor-pointer hover:bg-white/[0.02] transition-colors">
+          <summary class="flex justify-between items-center text-zinc-100 font-semibold list-none text-lg">
+            Do I need to author ontology, JSON-LD, or SHACL before first use?
+            <span class="transition-transform group-open:rotate-180 text-zinc-500">↓</span>
+          </summary>
+          <p class="text-zinc-400 text-sm mt-4 leading-relaxed font-light border-t border-white/5 pt-4">No. Start by ingesting representative data and validating the semantic path. Add approved ontology or shape artifacts when you need stronger constraints, more repeatable retrieval, or tighter governance around graph behavior.</p>
+        </details>
+      </div>
+    </section>
+
+  </main>
+</StarlightPage>
+
+<style>
+:global(.sl-container) {
+  max-width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+:global(.sl-markdown-content) {
+  display: contents !important;
+}
+</style>
+
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({ startOnLoad: true, theme: 'dark', backgroundColor: 'transparent' });
+</script>

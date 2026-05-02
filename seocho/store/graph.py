@@ -211,6 +211,7 @@ class GraphStore(ABC):
         *,
         database: str = "neo4j",
         strict: bool = False,
+        transactional: bool = False,
     ) -> Dict[str, Any]:
         """Apply ontology-derived constraints and indexes to the database.
 
@@ -225,6 +226,11 @@ class GraphStore(ABC):
             if any individual constraint write fails. Default ``False``
             preserves the back-compat partial-success summary; callers that
             want to short-circuit on schema-write failure should opt in.
+        transactional:
+            seocho-c2ck — when ``True``, run all statements inside a
+            single transaction so partial failures roll back atomically.
+            Default ``False`` for back-compat (some Neo4j configurations
+            forbid DDL inside transactions).
 
         Returns
         -------
@@ -479,17 +485,50 @@ class Neo4jGraphStore(GraphStore):
         *,
         database: str = "neo4j",
         strict: bool = False,
+        transactional: bool = False,
     ) -> Dict[str, Any]:
+        """Apply ontology constraints to a Neo4j database.
+
+        seocho-c2ck: when ``transactional=True``, all statements execute
+        inside a single ``begin_transaction`` block — any statement
+        failing rolls back the entire migration so the database is never
+        left in a mixed-version state.
+
+        Default ``transactional=False`` preserves the per-statement
+        behaviour for back-compat (some Neo4j configurations forbid DDL
+        inside transactions; opt in only when you've verified your
+        deployment supports it).
+        """
         stmts = ontology.to_cypher_constraints()
         summary = {"success": 0, "errors": []}
 
         with self._driver.session(database=database) as session:
-            for stmt in stmts:
+            if transactional:
+                # All-or-nothing: atomic schema migration.
+                tx = session.begin_transaction()
                 try:
-                    session.run(stmt)
-                    summary["success"] += 1
+                    for stmt in stmts:
+                        tx.run(stmt)
+                        summary["success"] += 1
+                    tx.commit()
                 except Exception as exc:
-                    summary["errors"].append(f"{stmt}: {exc}")
+                    try:
+                        tx.rollback()
+                    except Exception:
+                        pass
+                    # Reset success counter — the rollback undid everything
+                    # that successfully ran in this transaction.
+                    summary["success"] = 0
+                    summary["errors"].append(
+                        f"transactional ensure_constraints rolled back: {exc}"
+                    )
+            else:
+                for stmt in stmts:
+                    try:
+                        session.run(stmt)
+                        summary["success"] += 1
+                    except Exception as exc:
+                        summary["errors"].append(f"{stmt}: {exc}")
 
         # seocho-hvoe: opt-in loud failure — back-compat default is False.
         if strict and summary["errors"]:
@@ -1304,12 +1343,18 @@ class LadybugGraphStore(GraphStore):
         *,
         database: str = "neo4j",
         strict: bool = False,
+        transactional: bool = False,
     ) -> Dict[str, Any]:
         """Create NODE/REL tables declared by the ontology.
 
         ``strict`` (seocho-hvoe): when True, raise ``EnsureConstraintsError``
         if any individual table-create fails. Default False keeps the
         partial-success summary for back-compat.
+
+        ``transactional`` (seocho-c2ck): no-op for LadybugGraphStore at
+        the moment — the embedded engine does not expose explicit
+        transaction control through the seocho contract. Accepted for
+        API parity with Neo4jGraphStore.
         """
         summary = {"success": 0, "errors": []}
 

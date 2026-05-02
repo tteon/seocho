@@ -292,7 +292,7 @@ class TestSession:
             async def run(self, **_kwargs):
                 raise RuntimeError("agent backend unavailable")
 
-        import extraction.agents_runtime as _agents_runtime
+        import seocho.agents_runtime as _agents_runtime
         monkeypatch.setattr(_agents_runtime, "get_agents_runtime", lambda: _FailingAdapter())
         monkeypatch.setattr(Session, "_get_indexing_agent", lambda self: object())
         monkeypatch.setattr(Session, "_get_pipeline_engine", lambda self: FakePipelineEngine())

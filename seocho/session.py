@@ -565,6 +565,11 @@ class Session:
             parsed["ontology_context"] = self._ontology_context.metadata(usage="agent_indexing")
             return parsed
         except Exception as exc:
+            # seocho-lrvn (depends-on seocho-1zck): caller can opt into loud errors.
+            on_failure = getattr(self.agent_config, "on_agent_failure", "fallback")
+            if str(on_failure).lower() == "raise":
+                logger.warning("Agent indexing failed and on_agent_failure='raise': %s", exc)
+                raise
             logger.warning("Agent indexing failed, falling back to pipeline: %s", exc)
             fallback = self._add_via_pipeline(content, database, category, metadata)
             fallback["degraded"] = True
@@ -593,6 +598,11 @@ class Session:
                 "ontology_context": self._ontology_context.metadata(usage="agent_query"),
             }
         except Exception as exc:
+            # seocho-lrvn (depends-on seocho-1zck): same loud-error opt-in for query path.
+            on_failure = getattr(self.agent_config, "on_agent_failure", "fallback")
+            if str(on_failure).lower() == "raise":
+                logger.warning("Agent query failed and on_agent_failure='raise': %s", exc)
+                raise
             logger.warning("Agent query failed, falling back to pipeline: %s", exc)
             fallback = self._ask_via_pipeline(question, database, True)
             fallback["degraded"] = True

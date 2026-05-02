@@ -93,6 +93,92 @@ class CompiledOntologyContext:
         payload["usage"] = usage
         return payload
 
+    # ------------------------------------------------------------------
+    # seocho-x0t5 — KV-cache-aware layout helpers
+    #
+    # Anthropic's prompt caching reuses identical prefix bytes across
+    # calls. OpenAI's API does prefix caching automatically. The seocho
+    # contract is: the ontology context is the "stable" portion that
+    # should sit BEFORE any per-call user input. Compose system prompts
+    # as ``stable_prefix() + variable_suffix(user_input)`` to maximise
+    # cache reuse across multi-turn sessions.
+    # ------------------------------------------------------------------
+
+    def stable_prefix(self) -> str:
+        """Return the cacheable system-prompt portion (ontology + tools header).
+
+        Two calls in the same Session under the same ontology version
+        produce identical bytes here — the prefix-cache hits as long as
+        the consumer composes the system prompt consistently.
+        """
+        ext = self.extraction_context
+        return (
+            f"{self.agent_context}\n"
+            f"=== Ontology Vocabulary ===\n"
+            f"Entity types:\n{ext.get('entity_types', '')}\n"
+            f"Relationship types:\n{ext.get('relationship_types', '')}\n"
+            f"Constraints:\n{ext.get('constraints_summary', '')}\n"
+        )
+
+    @staticmethod
+    def variable_suffix(user_input: str) -> str:
+        """Return the per-call portion appended after the stable prefix."""
+        return f"=== User Input ===\n{user_input}\n"
+
+    def kv_cache_layout(self) -> Dict[str, Any]:
+        """Layout metadata for instrumentation and cache-aware composition."""
+        prefix = self.stable_prefix()
+        # SHA256 of the prefix bytes — useful as a cache_hit probe in trace
+        # metadata, and as the cache key when the consumer wraps the LLM
+        # call in their own response cache.
+        import hashlib as _hashlib
+        prefix_hash = _hashlib.sha256(prefix.encode("utf-8")).hexdigest()[:16]
+        return {
+            "stable_prefix": prefix,
+            "stable_prefix_bytes": len(prefix.encode("utf-8")),
+            "stable_prefix_hash": prefix_hash,
+            "context_hash": self.descriptor.context_hash,
+        }
+
+
+def apply_anthropic_cache_control(
+    *,
+    stable_prefix: str,
+    user_input: str,
+    cache_breakpoints: int = 1,
+) -> Dict[str, Any]:
+    """Compose Anthropic-format system + user messages with cache_control markers.
+
+    Closes seocho-x0t5. Returns a dict the caller can spread into
+    ``anthropic.messages.create(...)``::
+
+        layout = compiled.kv_cache_layout()
+        msg = apply_anthropic_cache_control(
+            stable_prefix=layout["stable_prefix"],
+            user_input="Who runs Apple?",
+        )
+        client.messages.create(model="claude-...", **msg)
+
+    The system block carries ``cache_control={"type": "ephemeral"}``
+    so Anthropic's prompt cache reuses the stable bytes across calls.
+    OpenAI consumers can ignore this layout — OpenAI prefix-caches
+    automatically once the same prefix is repeated.
+    """
+    return {
+        "system": [
+            {
+                "type": "text",
+                "text": stable_prefix,
+                # Anthropic-only field; the OpenAI / Kimi / DeepSeek SDKs ignore it.
+                "cache_control": {"type": "ephemeral"},
+            }
+        ],
+        "messages": [
+            {"role": "user", "content": user_input},
+        ],
+        "_cache_breakpoints": int(cache_breakpoints),
+    }
+
 
 def compile_ontology_context(
     ontology: Any,

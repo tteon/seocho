@@ -1093,22 +1093,43 @@ class LadybugGraphStore(GraphStore):
             ) from exc
 
         import os as _os
+        import threading as _threading
 
         self._lb = _lb
         self._path = path
         _os.makedirs(_os.path.dirname(_os.path.abspath(path)) or ".", exist_ok=True)
         self._db = _lb.Database(path)
         self._conn = _lb.Connection(self._db)
+        # seocho-sdtq: Ladybug's Connection is not thread-safe — concurrent
+        # writes from multiple threads can corrupt or interleave statements.
+        # An RLock is sufficient because seocho's hot path is mostly
+        # write-then-query, not high-contention read parallelism. Real
+        # contention (e.g. ThreadPoolExecutor extraction in
+        # runtime/runtime_ingest.py) serialises through this lock; other
+        # patterns (one Session per request) see no contention.
+        self._conn_lock = _threading.RLock()
         self._declared_node_tables: set = set()
+        # seocho-sdtq helper installed below init via class method.
         self._declared_rel_tables: set = set()
         self._semantic_rel_types: set = set()
         self._rel_signature_to_table: Dict[tuple[str, str, str], str] = {}
         self._load_existing_schema()
 
+    def _locked_execute(self, *args, **kwargs):
+        """Thread-safe wrapper around self._conn.execute (seocho-sdtq).
+
+        The Ladybug ``Connection`` is not safe for concurrent use; serialising
+        through this lock prevents cross-thread interleaving on a single
+        store instance. Reads and writes share the same lock because Ladybug
+        does not separate reader / writer connections.
+        """
+        with self._conn_lock:
+            return self._conn.execute(*args, **kwargs)
+
     def _load_existing_schema(self) -> None:
         """Populate declared-table sets from the existing database."""
         try:
-            result = self._conn.execute("CALL show_tables() RETURN *")
+            result = self._locked_execute("CALL show_tables() RETURN *")
             for row in result:
                 row_list = row if isinstance(row, list) else list(row)
                 if len(row_list) >= 2:
@@ -1138,7 +1159,7 @@ class LadybugGraphStore(GraphStore):
             cols.append("`_node_id` STRING")
         col_list = ", ".join(cols)
         try:
-            self._conn.execute(
+            self._locked_execute(
                 f"CREATE NODE TABLE IF NOT EXISTS `{label}` ({col_list}, PRIMARY KEY (`{pk}`))"
             )
             self._declared_node_tables.add(label)
@@ -1175,7 +1196,7 @@ class LadybugGraphStore(GraphStore):
         col_list = (", " + ", ".join(cols)) if cols else ""
         if physical_name not in self._declared_rel_tables:
             try:
-                self._conn.execute(
+                self._locked_execute(
                     f"CREATE REL TABLE IF NOT EXISTS `{physical_name}`(FROM `{source_label}` TO `{target_label}`{col_list})"
                 )
                 self._declared_rel_tables.add(physical_name)
@@ -1219,7 +1240,7 @@ class LadybugGraphStore(GraphStore):
             set_clause = ", ".join(f"`{k}`: $p_{i}" for i, k in enumerate(prop_keys))
             params = {f"p_{i}": props[k] for i, k in enumerate(prop_keys)}
             try:
-                self._conn.execute(
+                self._locked_execute(
                     f"MERGE (n:`{label}` {{id: $id}}) SET n = {{{set_clause}}}",
                     {"id": node_id, **params},
                 )
@@ -1227,7 +1248,7 @@ class LadybugGraphStore(GraphStore):
             except Exception:
                 # Fallback: CREATE if MERGE dialect differs
                 try:
-                    self._conn.execute(
+                    self._locked_execute(
                         f"CREATE (n:`{label}` {{{set_clause}}})",
                         params,
                     )
@@ -1266,7 +1287,7 @@ class LadybugGraphStore(GraphStore):
             params = {"src": src_id, "tgt": tgt_id,
                       **{f"p_{i}": rprops[k] for i, k in enumerate(prop_keys)}}
             try:
-                self._conn.execute(
+                self._locked_execute(
                     f"MATCH (a:`{src_label}` {{id: $src}}), (b:`{tgt_label}` {{id: $tgt}}) "
                     f"CREATE (a)-[r:`{physical_rtype}`{(' ' + set_clause) if set_clause else ''}]->(b)",
                     params,
@@ -1300,7 +1321,7 @@ class LadybugGraphStore(GraphStore):
             return []
         cypher, query_params = _rewrite_ladybug_query(cypher, params=params)
         try:
-            result = self._conn.execute(cypher, query_params)
+            result = self._locked_execute(cypher, query_params)
             out: List[Dict[str, Any]] = []
             # Ladybug returns rows as lists; convert to dicts using column names
             col_names = getattr(result, "column_names", None) or []
@@ -1332,7 +1353,7 @@ class LadybugGraphStore(GraphStore):
             raise WorkspaceFilterMissingError(cypher)
         params = merged_params
         try:
-            self._conn.execute(cypher, params or {})
+            self._locked_execute(cypher, params or {})
             return {"nodes_affected": 0, "relationships_affected": 0, "properties_set": 0}
         except Exception as exc:
             return {"error": str(exc)}
@@ -1376,7 +1397,7 @@ class LadybugGraphStore(GraphStore):
             pk_col = pk_col or "id"
 
             try:
-                self._conn.execute(
+                self._locked_execute(
                     f"CREATE NODE TABLE IF NOT EXISTS `{label}` "
                     f"({', '.join(cols)}, PRIMARY KEY (`{pk_col}`))"
                 )
@@ -1392,7 +1413,7 @@ class LadybugGraphStore(GraphStore):
             if src not in self._declared_node_tables or tgt not in self._declared_node_tables:
                 continue
             try:
-                self._conn.execute(
+                self._locked_execute(
                     f"CREATE REL TABLE IF NOT EXISTS `{rtype}`"
                     f"(FROM `{src}` TO `{tgt}`, {', '.join(f'`{name}` STRING' for name in _LADYBUG_COMMON_REL_STRING_COLUMNS)})"
                 )
@@ -1424,7 +1445,7 @@ class LadybugGraphStore(GraphStore):
         }
 
         try:
-            self._conn.execute(
+            self._locked_execute(
                 "MATCH ()-[r]->() WHERE r._source_id = $sid DELETE r",
                 {"sid": source_id},
             )
@@ -1432,7 +1453,7 @@ class LadybugGraphStore(GraphStore):
             summary["errors"].append(f"relationship delete: {exc}")
 
         try:
-            self._conn.execute(
+            self._locked_execute(
                 "MATCH (n) WHERE n._source_id = $sid DETACH DELETE n",
                 {"sid": source_id},
             )
@@ -1450,7 +1471,7 @@ class LadybugGraphStore(GraphStore):
 
         for label in self._declared_node_tables:
             try:
-                result = self._conn.execute(
+                result = self._locked_execute(
                     f"MATCH (n:`{label}`) WHERE n._source_id = $sid RETURN count(n)",
                     {"sid": source_id},
                 )
@@ -1460,7 +1481,7 @@ class LadybugGraphStore(GraphStore):
                 pass
 
         try:
-            result = self._conn.execute(
+            result = self._locked_execute(
                 "MATCH ()-[r]->() WHERE r._source_id = $sid RETURN count(r)",
                 {"sid": source_id},
             )

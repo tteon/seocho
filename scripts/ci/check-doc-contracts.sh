@@ -63,19 +63,28 @@ check_absent "sync-docs-website.yml" "${ACTIVE_DOCS[@]}"
 check_absent "repository_dispatch" "${ACTIVE_DOCS[@]}"
 check_absent "seocho-docs-sync" "${ACTIVE_DOCS[@]}"
 check_absent "Synced automatically from" "${ACTIVE_DOCS[@]}"
+check_absent "tteon.github.io/" "${ACTIVE_DOCS[@]}"
+check_absent "check:sync" "${ACTIVE_DOCS[@]}"
 
 echo "Checking active docs for required current runtime guidance..."
 check_present "http://localhost:8001/platform/chat/send" \
   "docs/TUTORIAL_FIRST_RUN.md" \
   "docs/OPEN_SOURCE_PLAYBOOK.md"
-check_present "tteon.github.io/" \
-  "docs/README.md"
+check_present "website/" \
+  "CLAUDE.md" \
+  "docs/README.md" \
+  "docs/WORKFLOW.md"
 check_present ".github/workflows/docs-consistency.yml" \
   "README.md" \
   "docs/WORKFLOW.md"
-check_present "npm run build" \
+check_present ".github/workflows/docs-site-quality.yml" \
   "docs/WORKFLOW.md"
-check_present "website repository will run its own docs quality workflow" \
-  "docs/decisions/ADR-0036-documentation-consistency-ci-contract.md"
+check_present ".github/workflows/docs-site-deploy.yml" \
+  "docs/WORKFLOW.md"
+check_present "npm run check:docs" \
+  "docs/WORKFLOW.md"
+check_present "website/scripts/generate-docs.mjs" \
+  "docs/README.md" \
+  "docs/WORKFLOW.md"
 
 echo "Docs contract checks passed."

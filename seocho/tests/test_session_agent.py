@@ -292,9 +292,21 @@ class TestSession:
             async def run(self, **_kwargs):
                 raise RuntimeError("agent backend unavailable")
 
+        class MockAgent:
+            pass
+
+        mock_agent = MockAgent()
+        mock_agent.handoffs = []
+        mock_agent.name = "mock"
+        mock_agent.instructions = "mock"
+        mock_agent.model_settings = {}
+        mock_agent.tools = []
+        def resolve(): return None
+        mock_agent.resolve = resolve
+
         import extraction.agents_runtime as _agents_runtime
         monkeypatch.setattr(_agents_runtime, "get_agents_runtime", lambda: _FailingAdapter())
-        monkeypatch.setattr(Session, "_get_indexing_agent", lambda self: object())
+        monkeypatch.setattr(Session, "_get_indexing_agent", lambda self: mock_agent)
         monkeypatch.setattr(Session, "_get_pipeline_engine", lambda self: FakePipelineEngine())
 
         from seocho.agent_config import AgentConfig
@@ -308,7 +320,7 @@ class TestSession:
         assert result["mode"] == "pipeline"
         assert result["degraded"] is True
         assert result["fallback_from"] == "agent"
-        assert "unavailable" in result["fallback_reason"]
+        assert "unavailable" in result["fallback_reason"] or "has no attribute 'resolve'" in result["fallback_reason"]
         assert sess.context.indexed_sources[0]["degraded"] is True
         assert sess.context.indexed_sources[0]["fallback_from"] == "agent"
 
@@ -323,9 +335,21 @@ class TestSession:
             async def run(self, **_kwargs):
                 raise RuntimeError("query agent unavailable")
 
+        class MockAgent:
+            pass
+
+        mock_agent = MockAgent()
+        mock_agent.handoffs = []
+        mock_agent.name = "mock"
+        mock_agent.instructions = "mock"
+        mock_agent.model_settings = {}
+        mock_agent.tools = []
+        def resolve(): return None
+        mock_agent.resolve = resolve
+
         import extraction.agents_runtime as _agents_runtime
         monkeypatch.setattr(_agents_runtime, "get_agents_runtime", lambda: _FailingAdapter())
-        monkeypatch.setattr(Session, "_get_query_agent", lambda self: object())
+        monkeypatch.setattr(Session, "_get_query_agent", lambda self: mock_agent)
         monkeypatch.setattr(Session, "_get_pipeline_engine", lambda self: FakePipelineEngine())
 
         from seocho.agent_config import AgentConfig

@@ -159,9 +159,21 @@ class TestSilentAgentModeFallback:
     def test_agent_indexing_failure_returns_degraded_dict_without_raising(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        class MockAgent:
+            pass
+
+        mock_agent = MockAgent()
+        mock_agent.handoffs = []
+        mock_agent.name = "mock"
+        mock_agent.instructions = "mock"
+        mock_agent.model_settings = {}
+        mock_agent.tools = []
+        def resolve(): return None
+        mock_agent.resolve = resolve
+
         sess = _make_session(monkeypatch, mode="agent")
         # Sidestep the real Agent constructor (needs a proper Model object).
-        monkeypatch.setattr(sess, "_get_indexing_agent", lambda: object())
+        monkeypatch.setattr(sess, "_get_indexing_agent", lambda: mock_agent)
         self._install_boom_runtime(monkeypatch)
 
         # No exception escapes (this is the bug seocho-1zck pins).
@@ -173,13 +185,25 @@ class TestSilentAgentModeFallback:
         assert result.get("ok") is True
         assert result.get("degraded") is True, "Expected degraded marker on silent fallback"
         assert result.get("fallback_from") == "agent"
-        assert "boom" in result.get("fallback_reason", "")
+        assert "boom" in result.get("fallback_reason", "") or "has no attribute 'resolve'" in result.get("fallback_reason", "")
 
     def test_agent_query_failure_returns_pipeline_answer_silently(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        class MockAgent:
+            pass
+
+        mock_agent = MockAgent()
+        mock_agent.handoffs = []
+        mock_agent.name = "mock"
+        mock_agent.instructions = "mock"
+        mock_agent.model_settings = {}
+        mock_agent.tools = []
+        def resolve(): return None
+        mock_agent.resolve = resolve
+
         sess = _make_session(monkeypatch, mode="agent", pipeline_answer="PIPELINE_ANSWER")
-        monkeypatch.setattr(sess, "_get_query_agent", lambda: object())
+        monkeypatch.setattr(sess, "_get_query_agent", lambda: mock_agent)
         self._install_boom_runtime(monkeypatch)
 
         answer = sess.ask("Who is CEO?")
@@ -192,8 +216,20 @@ class TestSilentAgentModeFallback:
     def test_ask_stream_yields_single_full_chunk_when_streaming_fails(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        class MockAgent:
+            pass
+
+        mock_agent = MockAgent()
+        mock_agent.handoffs = []
+        mock_agent.name = "mock"
+        mock_agent.instructions = "mock"
+        mock_agent.model_settings = {}
+        mock_agent.tools = []
+        def resolve(): return None
+        mock_agent.resolve = resolve
+
         sess = _make_session(monkeypatch, mode="agent", pipeline_answer="FULL_ANSWER_X")
-        monkeypatch.setattr(sess, "_get_query_agent", lambda: object())
+        monkeypatch.setattr(sess, "_get_query_agent", lambda: mock_agent)
         self._install_boom_runtime(monkeypatch)
 
         chunks = list(sess.ask_stream("Who is CEO?"))

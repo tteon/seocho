@@ -371,6 +371,12 @@ class AgentConfig:
     execution_mode: str = "pipeline"  # "pipeline", "agent", "supervisor"
     handoff: bool = False  # enable sub-agent hand-off (requires execution_mode="supervisor")
     routing_policy: Optional[RoutingPolicy] = None  # debate pool routing policy
+    # seocho-lrvn (depends-on seocho-1zck): control silent agent→pipeline fallback.
+    # "fallback" (default, back-compat) — agent exception is caught, pipeline runs,
+    #     result stamps degraded=True / fallback_from='agent' / fallback_reason=str(exc).
+    # "raise"   — agent exception propagates to caller; no pipeline fallback.
+    # Useful when callers paid for agent quality and want loud errors.
+    on_agent_failure: str = "fallback"  # "fallback" | "raise"
 
     # --- Advanced: strategy injection ---
     custom_indexing_strategy: Optional[IndexingStrategy] = None
@@ -393,6 +399,7 @@ class AgentConfig:
             "routing": self.routing,
             "execution_mode": self.execution_mode,
             "handoff": self.handoff,
+            "on_agent_failure": self.on_agent_failure,
             "routing_policy": self.routing_policy.to_dict() if self.routing_policy else None,
             "has_custom_indexing": self.custom_indexing_strategy is not None,
             "has_custom_query": self.custom_query_strategy is not None,

@@ -95,6 +95,6 @@ You can still override it per call by passing an explicit `reasoning_cycle=...`.
 
 ## Included Examples
 
-- [planning_multi_agent_finance.yaml](/tmp/seocho-land-finder-e2e/examples/agent_designs/planning_multi_agent_finance.yaml)
-- [reflection_chain_finance.yaml](/tmp/seocho-land-finder-e2e/examples/agent_designs/reflection_chain_finance.yaml)
-- [memory_tool_use_finance.yaml](/tmp/seocho-land-finder-e2e/examples/agent_designs/memory_tool_use_finance.yaml)
+- [planning_multi_agent_finance.yaml](../examples/agent_designs/planning_multi_agent_finance.yaml)
+- [reflection_chain_finance.yaml](../examples/agent_designs/reflection_chain_finance.yaml)
+- [memory_tool_use_finance.yaml](../examples/agent_designs/memory_tool_use_finance.yaml)

@@ -161,6 +161,6 @@ debate = client.debate(
 
 ## Included Examples
 
-- [lpg_finance_provenance.yaml](/tmp/seocho-land-finder-e2e/examples/indexing_designs/lpg_finance_provenance.yaml)
-- [rdf_deductive_finance.yaml](/tmp/seocho-land-finder-e2e/examples/indexing_designs/rdf_deductive_finance.yaml)
-- [hybrid_inquiry_finance.yaml](/tmp/seocho-land-finder-e2e/examples/indexing_designs/hybrid_inquiry_finance.yaml)
+- [lpg_finance_provenance.yaml](../examples/indexing_designs/lpg_finance_provenance.yaml)
+- [rdf_deductive_finance.yaml](../examples/indexing_designs/rdf_deductive_finance.yaml)
+- [hybrid_inquiry_finance.yaml](../examples/indexing_designs/hybrid_inquiry_finance.yaml)

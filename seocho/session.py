@@ -476,8 +476,14 @@ class Session:
 
         db = database or self.database
 
-        # Check query cache first
-        cached = self.context.get_cached_answer(question)
+        # seocho-9gdm: scope cache lookup by (workspace_id, database, ontology_hash)
+        identity_hash = getattr(self._ontology_context.descriptor, "context_hash", "") or ""
+        cached = self.context.get_cached_answer(
+            question,
+            workspace_id=self.workspace_id,
+            database=db,
+            ontology_identity_hash=identity_hash,
+        )
         if cached is not None:
             self.context.add_query(question, cached, mode="cache")
             return cached
@@ -512,7 +518,14 @@ class Session:
             fallback_from=str(query_result.get("fallback_from", "")),
             fallback_reason=str(query_result.get("fallback_reason", "")),
         )
-        self.context.cache_query(question, answer)
+        # seocho-9gdm: scope cache write with the same identity tuple
+        self.context.cache_query(
+            question,
+            answer,
+            workspace_id=self.workspace_id,
+            database=db,
+            ontology_identity_hash=identity_hash,
+        )
 
         # Trace
         if self._trace:

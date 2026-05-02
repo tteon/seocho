@@ -1,9 +1,39 @@
 from __future__ import annotations
 
+import time
+from collections import OrderedDict
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from .contracts import EntityRecord, RelationshipRecord
+
+
+# seocho-9gdm (depends-on seocho-vncn): query cache key shape and bounds.
+# - Key tuple: (workspace_id, database, ontology_identity_hash, normalized_question)
+# - LRU bound: cap entries to QUERY_CACHE_MAX_ENTRIES
+# - TTL: each entry stamped with a monotonic timestamp; reads beyond
+#   QUERY_CACHE_TTL_SECONDS miss the cache.
+QUERY_CACHE_MAX_ENTRIES = 256
+QUERY_CACHE_TTL_SECONDS = 3600.0  # 1 hour
+
+
+def _normalize_query_for_cache(question: str) -> str:
+    return question.strip().lower()
+
+
+def _compose_query_cache_key(
+    question: str,
+    *,
+    workspace_id: str = "",
+    database: str = "",
+    ontology_identity_hash: str = "",
+) -> Tuple[str, str, str, str]:
+    return (
+        str(workspace_id or ""),
+        str(database or ""),
+        str(ontology_identity_hash or ""),
+        _normalize_query_for_cache(question),
+    )
 
 
 @dataclass
@@ -16,7 +46,13 @@ class SessionContext:
     total_relationships: int = 0
     entities: Dict[str, EntityRecord] = field(default_factory=dict)
     relationships: List[RelationshipRecord] = field(default_factory=list)
-    _query_cache: Dict[str, str] = field(default_factory=dict)
+    # Composite cache: key tuple → (answer, monotonic_ts). OrderedDict gives
+    # us O(1) move-to-end for LRU semantics.
+    _query_cache: "OrderedDict[Tuple[str, str, str, str], Tuple[str, float]]" = field(
+        default_factory=OrderedDict
+    )
+    _query_cache_max_entries: int = QUERY_CACHE_MAX_ENTRIES
+    _query_cache_ttl_seconds: float = QUERY_CACHE_TTL_SECONDS
 
     def register_entities(self, nodes: List[Dict[str, Any]], source_id: str = "", database: str = "") -> None:
         for node in nodes:
@@ -50,11 +86,58 @@ class SessionContext:
                 )
             )
 
-    def cache_query(self, question: str, answer: str) -> None:
-        self._query_cache[question.strip().lower()] = answer
+    def cache_query(
+        self,
+        question: str,
+        answer: str,
+        *,
+        workspace_id: str = "",
+        database: str = "",
+        ontology_identity_hash: str = "",
+    ) -> None:
+        """Cache an answer keyed by (workspace, database, ontology_hash, question).
 
-    def get_cached_answer(self, question: str) -> Optional[str]:
-        return self._query_cache.get(question.strip().lower())
+        seocho-9gdm: identity fields default to empty strings so legacy
+        callers (no identity wiring) still get a working cache scoped to
+        their Session — but two workspaces or two ontology versions in
+        the same Session no longer collide.
+        """
+        key = _compose_query_cache_key(
+            question,
+            workspace_id=workspace_id,
+            database=database,
+            ontology_identity_hash=ontology_identity_hash,
+        )
+        # Move-to-end then prune: classic LRU.
+        self._query_cache[key] = (answer, time.monotonic())
+        self._query_cache.move_to_end(key)
+        while len(self._query_cache) > self._query_cache_max_entries:
+            self._query_cache.popitem(last=False)
+
+    def get_cached_answer(
+        self,
+        question: str,
+        *,
+        workspace_id: str = "",
+        database: str = "",
+        ontology_identity_hash: str = "",
+    ) -> Optional[str]:
+        """Look up a cached answer. Honours TTL + bumps LRU recency on hit."""
+        key = _compose_query_cache_key(
+            question,
+            workspace_id=workspace_id,
+            database=database,
+            ontology_identity_hash=ontology_identity_hash,
+        )
+        record = self._query_cache.get(key)
+        if record is None:
+            return None
+        answer, ts = record
+        if (time.monotonic() - ts) > self._query_cache_ttl_seconds:
+            self._query_cache.pop(key, None)
+            return None
+        self._query_cache.move_to_end(key)
+        return answer
 
     def add_indexing(
         self,

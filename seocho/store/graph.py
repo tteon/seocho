@@ -50,6 +50,23 @@ class DatabaseNameError(ValueError):
     """Raised when a database name violates Neo4j naming rules."""
 
 
+class WorkspaceFilterMissingError(ValueError):
+    """Raised by ``query(..., enforce_workspace_filter=True)`` when the
+    Cypher does not reference ``$workspace_id``.
+
+    Closes part of seocho-y4at — multi-tenant deployments can opt into
+    this safety net to refuse cross-tenant queries at the store layer.
+    """
+
+    def __init__(self, cypher: str) -> None:
+        super().__init__(
+            "Cypher does not reference $workspace_id; refusing to run "
+            "with enforce_workspace_filter=True. Add 'WHERE "
+            "<var>._workspace_id = $workspace_id' to scope the query."
+        )
+        self.cypher = cypher
+
+
 class EnsureConstraintsError(RuntimeError):
     """Raised by ``ensure_constraints(..., strict=True)`` when one or more
     constraint writes fail.
@@ -177,8 +194,15 @@ class GraphStore(ABC):
         *,
         params: Optional[Dict[str, Any]] = None,
         database: str = "neo4j",
+        workspace_id: Optional[str] = None,
+        enforce_workspace_filter: bool = False,
     ) -> List[Dict[str, Any]]:
-        """Execute a read-only Cypher query and return result records."""
+        """Execute a read-only Cypher query and return result records.
+
+        seocho-y4at: ``workspace_id`` is auto-injected into params; when
+        ``enforce_workspace_filter=True`` the cypher must reference
+        ``$workspace_id`` or :class:`WorkspaceFilterMissingError` is raised.
+        """
 
     @abstractmethod
     def ensure_constraints(
@@ -219,6 +243,8 @@ class GraphStore(ABC):
         *,
         params: Optional[Dict[str, Any]] = None,
         database: str = "neo4j",
+        workspace_id: Optional[str] = None,
+        enforce_workspace_filter: bool = False,
     ) -> Dict[str, Any]:
         """Execute a write Cypher statement (MERGE, DELETE, SET, REMOVE, etc.).
 
@@ -387,11 +413,33 @@ class Neo4jGraphStore(GraphStore):
         *,
         params: Optional[Dict[str, Any]] = None,
         database: str = "neo4j",
+        workspace_id: Optional[str] = None,
+        enforce_workspace_filter: bool = False,
     ) -> List[Dict[str, Any]]:
+        """Run a read-only Cypher query.
+
+        seocho-y4at: writes stamp ``_workspace_id`` on every node/rel,
+        but raw queries don't filter by it. The fix layered here:
+
+        - ``workspace_id``: when provided, the value is injected into
+          ``params`` as ``$workspace_id`` so the caller can write
+          ``WHERE n._workspace_id = $workspace_id`` and have it resolve
+          without manually copying the value into params.
+        - ``enforce_workspace_filter``: when True, raises
+          ``WorkspaceFilterMissingError`` if the cypher does not reference
+          ``$workspace_id`` AT ALL. Conservative substring check —
+          there's no auto-rewriting of arbitrary Cypher because that's
+          unsafe (existing WHERE clauses, multi-MATCH, path patterns).
+        """
         if database != "neo4j":
             validate_database_name(database)
+        merged_params = dict(params or {})
+        if workspace_id is not None and "workspace_id" not in merged_params:
+            merged_params["workspace_id"] = workspace_id
+        if enforce_workspace_filter and "$workspace_id" not in cypher:
+            raise WorkspaceFilterMissingError(cypher)
         with self._driver.session(database=database) as session:
-            result = session.run(cypher, parameters=params or {})
+            result = session.run(cypher, parameters=merged_params)
             return [record.data() for record in result]
 
     def execute_write(
@@ -400,11 +448,18 @@ class Neo4jGraphStore(GraphStore):
         *,
         params: Optional[Dict[str, Any]] = None,
         database: str = "neo4j",
+        workspace_id: Optional[str] = None,
+        enforce_workspace_filter: bool = False,
     ) -> Dict[str, Any]:
         if database != "neo4j":
             validate_database_name(database)
+        merged_params = dict(params or {})
+        if workspace_id is not None and "workspace_id" not in merged_params:
+            merged_params["workspace_id"] = workspace_id
+        if enforce_workspace_filter and "$workspace_id" not in cypher:
+            raise WorkspaceFilterMissingError(cypher)
         with self._driver.session(database=database) as session:
-            result = session.run(cypher, parameters=params or {})
+            result = session.run(cypher, parameters=merged_params)
             counters = result.consume().counters
             return {
                 "nodes_affected": (
@@ -1189,7 +1244,16 @@ class LadybugGraphStore(GraphStore):
         *,
         params: Optional[Dict[str, Any]] = None,
         database: str = "neo4j",
+        workspace_id: Optional[str] = None,
+        enforce_workspace_filter: bool = False,
     ) -> List[Dict[str, Any]]:
+        # seocho-y4at: same workspace_id contract as Neo4jGraphStore.query.
+        merged_params = dict(params or {})
+        if workspace_id is not None and "workspace_id" not in merged_params:
+            merged_params["workspace_id"] = workspace_id
+        if enforce_workspace_filter and "$workspace_id" not in cypher:
+            raise WorkspaceFilterMissingError(cypher)
+        params = merged_params
         compact = " ".join(str(cypher).upper().split())
         if any(compact.startswith(pattern) for pattern in _LADYBUG_FULLTEXT_SHOW_PATTERNS):
             return []
@@ -1218,7 +1282,16 @@ class LadybugGraphStore(GraphStore):
         *,
         params: Optional[Dict[str, Any]] = None,
         database: str = "neo4j",
+        workspace_id: Optional[str] = None,
+        enforce_workspace_filter: bool = False,
     ) -> Dict[str, Any]:
+        # seocho-y4at: workspace-scoped write parameter merge + opt-in enforcement.
+        merged_params = dict(params or {})
+        if workspace_id is not None and "workspace_id" not in merged_params:
+            merged_params["workspace_id"] = workspace_id
+        if enforce_workspace_filter and "$workspace_id" not in cypher:
+            raise WorkspaceFilterMissingError(cypher)
+        params = merged_params
         try:
             self._conn.execute(cypher, params or {})
             return {"nodes_affected": 0, "relationships_affected": 0, "properties_set": 0}

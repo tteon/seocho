@@ -744,9 +744,11 @@ def export_traces_csv(
             "elapsed_seconds",
         ]
 
-    records = []
-    with open(jsonl_path, "r") as f:
-        for line in f:
+    count = 0
+    with open(jsonl_path, "r", encoding="utf-8") as f_in, open(csv_path, "w", newline="", encoding="utf-8") as f_out:
+        writer = csv_mod.DictWriter(f_out, fieldnames=fields, extrasaction="ignore")
+        writer.writeheader()
+        for line in f_in:
             line = line.strip()
             if not line:
                 continue
@@ -774,11 +776,7 @@ def export_traces_csv(
                 "reasoning_attempts": out.get("reasoning_attempts", ""),
                 "elapsed_seconds": meta.get("elapsed_seconds", ""),
             }
-            records.append(record)
+            writer.writerow(record)
+            count += 1
 
-    with open(csv_path, "w", newline="", encoding="utf-8") as f:
-        writer = csv_mod.DictWriter(f, fieldnames=fields, extrasaction="ignore")
-        writer.writeheader()
-        writer.writerows(records)
-
-    return len(records)
+    return count

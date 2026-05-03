@@ -1,1 +1,2 @@
 When logging history, traces, or metadata (such as prompt history), prefer append-only `.jsonl` format over reading and rewriting full JSON arrays to prevent O(N^2) file I/O scaling bottlenecks.
+When converting or exporting JSONL files to CSV format, prefer iterative streaming by reading row-by-row with `for line in f:` rather than eagerly reading the entire file into memory as a list using `readlines()` or `.append()`. This eliminates O(N) memory scaling bottlenecks and handles extremely large trace artifacts natively.

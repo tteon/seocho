@@ -1037,14 +1037,28 @@ async def platform_chat_send(request: PlatformChatRequest):
 
 @app.get(RuntimePath.PLATFORM_CHAT_SESSION, response_model=PlatformSessionResponse)
 @track("agent_server.platform_chat_session_get")
-async def platform_chat_session_get(session_id: str):
+async def platform_chat_session_get(
+    session_id: str,
+    workspace_id: str = Query(default="default", pattern=WORKSPACE_ID_PATTERN),
+):
+    try:
+        require_runtime_permission(role="user", action="run_platform", workspace_id=workspace_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     history = [PlatformTurn(**row) for row in platform_session_store.get(session_id)]
     return PlatformSessionResponse(session_id=session_id, history=history)
 
 
 @app.delete(RuntimePath.PLATFORM_CHAT_SESSION, response_model=PlatformSessionResponse)
 @track("agent_server.platform_chat_session_reset")
-async def platform_chat_session_reset(session_id: str):
+async def platform_chat_session_reset(
+    session_id: str,
+    workspace_id: str = Query(default="default", pattern=WORKSPACE_ID_PATTERN),
+):
+    try:
+        require_runtime_permission(role="user", action="run_platform", workspace_id=workspace_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     platform_session_store.clear(session_id)
     return PlatformSessionResponse(session_id=session_id, history=[])
 
@@ -1633,6 +1647,10 @@ async def list_databases(
     ``workspace_id`` is accepted on the contract for tenancy uniformity;
     multi-tenant filtering is not yet enforced (single-tenant MVP).
     """
+    try:
+        require_runtime_permission(role="user", action="read_databases", workspace_id=workspace_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     return {"workspace_id": workspace_id, "databases": db_registry.list_databases()}
 
 
@@ -1645,6 +1663,10 @@ async def list_graphs(
     ``workspace_id`` is accepted on the contract for tenancy uniformity;
     multi-tenant filtering is not yet enforced (single-tenant MVP).
     """
+    try:
+        require_runtime_permission(role="user", action="read_databases", workspace_id=workspace_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     return {
         "workspace_id": workspace_id,
         "graphs": [target.to_public_dict() for target in graph_registry.list_graphs()],
@@ -1660,6 +1682,10 @@ async def list_agents(
     ``workspace_id`` is accepted on the contract for tenancy uniformity;
     multi-tenant filtering is not yet enforced (single-tenant MVP).
     """
+    try:
+        require_runtime_permission(role="user", action="read_agents", workspace_id=workspace_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     return {"workspace_id": workspace_id, "agents": agent_factory.list_agents()}
 
 

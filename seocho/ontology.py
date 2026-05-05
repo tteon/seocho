@@ -55,6 +55,10 @@ import yaml
 
 _LABEL_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
+def _safe_cypher_name(name: str) -> str:
+    """Sanitize identifier names for safe Cypher interpolation."""
+    return name.replace('`', '').replace('\n', '')
+
 _PY_TO_GRAPH_TYPE: Dict[type, str] = {
     str: "STRING",
     int: "INTEGER",
@@ -1327,17 +1331,21 @@ class Ontology:
         for label, nd in self.nodes.items():
             for pname, p in nd.properties.items():
                 if p.unique:
-                    cname = f"constraint_{label}_{pname}_unique"
+                    safe_label = _safe_cypher_name(label)
+                    safe_pname = _safe_cypher_name(pname)
+                    cname = f"constraint_{safe_label}_{safe_pname}_unique"
                     stmts.append(
                         f"CREATE CONSTRAINT {cname} IF NOT EXISTS "
-                        f"FOR (n:{label}) REQUIRE n.{pname} IS UNIQUE"
+                        f"FOR (n:`{safe_label}`) REQUIRE n.`{safe_pname}` IS UNIQUE"
                     )
             for pname, p in nd.properties.items():
                 if p.index and not p.unique:
-                    iname = f"index_{label}_{pname}"
+                    safe_label = _safe_cypher_name(label)
+                    safe_pname = _safe_cypher_name(pname)
+                    iname = f"index_{safe_label}_{safe_pname}"
                     stmts.append(
                         f"CREATE INDEX {iname} IF NOT EXISTS "
-                        f"FOR (n:{label}) ON (n.{pname})"
+                        f"FOR (n:`{safe_label}`) ON (n.`{safe_pname}`)"
                     )
         return stmts
 
@@ -1907,9 +1915,10 @@ class Ontology:
         for label in sorted(old_labels - new_labels):
             plan["removals"].append({"type": "node", "label": label})
             plan["breaking"] = True
+            safe_label = _safe_cypher_name(label)
             plan["cypher_statements"].append({
                 "description": f"Remove all :{label} nodes",
-                "cypher": f"MATCH (n:{label}) DETACH DELETE n",
+                "cypher": f"MATCH (n:`{safe_label}`) DETACH DELETE n",
                 "breaking": True,
             })
 
@@ -1923,9 +1932,11 @@ class Ontology:
 
             for prop in sorted(old_props - new_props):
                 plan["removals"].append({"type": "property", "label": label, "property": prop})
+                safe_label = _safe_cypher_name(label)
+                safe_prop = _safe_cypher_name(prop)
                 plan["cypher_statements"].append({
                     "description": f"Remove property {prop} from :{label}",
-                    "cypher": f"MATCH (n:{label}) REMOVE n.`{prop}`",
+                    "cypher": f"MATCH (n:`{safe_label}`) REMOVE n.`{safe_prop}`",
                     "breaking": False,
                 })
 
@@ -1939,9 +1950,10 @@ class Ontology:
         for rtype in sorted(old_rels - new_rels):
             plan["removals"].append({"type": "relationship", "relationship": rtype})
             plan["breaking"] = True
+            safe_rtype = _safe_cypher_name(rtype)
             plan["cypher_statements"].append({
                 "description": f"Remove all [{rtype}] relationships",
-                "cypher": f"MATCH ()-[r:{rtype}]->() DELETE r",
+                "cypher": f"MATCH ()-[r:`{safe_rtype}`]->() DELETE r",
                 "breaking": True,
             })
 
@@ -2047,8 +2059,9 @@ class Ontology:
 
         for label in self.nodes:
             try:
+                safe_label = _safe_cypher_name(label)
                 result = graph_store.query(
-                    f"MATCH (n:`{label}`) RETURN count(n) AS cnt",
+                    f"MATCH (n:`{safe_label}`) RETURN count(n) AS cnt",
                     database=database,
                 )
                 count = int(result[0]["cnt"]) if result else 0
@@ -2064,8 +2077,9 @@ class Ontology:
 
         for rtype in self.relationships:
             try:
+                safe_rtype = _safe_cypher_name(rtype)
                 result = graph_store.query(
-                    f"MATCH ()-[r:`{rtype}`]->() RETURN count(r) AS cnt",
+                    f"MATCH ()-[r:`{safe_rtype}`]->() RETURN count(r) AS cnt",
                     database=database,
                 )
                 count = int(result[0]["cnt"]) if result else 0

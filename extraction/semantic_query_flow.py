@@ -235,6 +235,9 @@ def build_evidence_bundle(
     )
 
 
+_RE_NON_ALNUM = re.compile(r"[^a-z0-9]+")
+_RE_SPACES = re.compile(r"\s+")
+
 def _entity_name(payload: Dict[str, Any]) -> str:
     return str(payload.get("name") or payload.get("display_name") or "").strip()
 
@@ -245,10 +248,10 @@ def _first_entity_with_labels(entities: Sequence[Dict[str, Any]], normalized_tar
         if not isinstance(labels, list):
             continue
         normalized_labels = {
-            re.sub(r"[^a-z0-9]+", "", str(label).lower())
+            _RE_NON_ALNUM.sub("", str(label).lower())
             for label in labels
         }
-        if normalized_labels & {re.sub(r"[^a-z0-9]+", "", item.lower()) for item in normalized_targets}:
+        if normalized_labels & {_RE_NON_ALNUM.sub("", item.lower()) for item in normalized_targets}:
             entity_name = _entity_name(entity)
             if entity_name:
                 return entity_name
@@ -256,11 +259,11 @@ def _first_entity_with_labels(entities: Sequence[Dict[str, Any]], normalized_tar
 
 
 def _normalize_symbol(value: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "", str(value).lower())
+    return _RE_NON_ALNUM.sub("", str(value).lower())
 
 
 def _slugify_symbol(value: str) -> str:
-    slug = re.sub(r"[^a-z0-9]+", "-", str(value).lower()).strip("-")
+    slug = _RE_NON_ALNUM.sub("-", str(value).lower()).strip("-")
     return slug or "term"
 
 
@@ -589,7 +592,7 @@ class CypherQueryValidator:
     """Validate constrained Cypher plans before execution."""
 
     def validate(self, plan: CypherPlan, constraint_slice: Dict[str, Any]) -> Dict[str, Any]:
-        normalized_query = " " + re.sub(r"\s+", " ", plan.query.upper()) + " "
+        normalized_query = " " + _RE_SPACES.sub(" ", plan.query.upper()) + " "
         violations: List[str] = []
         if "$node_id" not in plan.query:
             violations.append("missing_node_binding")
@@ -1447,13 +1450,13 @@ class SemanticEntityResolver:
 
     @staticmethod
     def _clean_span(value: str) -> str:
-        cleaned = re.sub(r"\s+", " ", value.strip())
+        cleaned = _RE_SPACES.sub(" ", value.strip())
         cleaned = cleaned.strip(".,:;!?()[]{}")
         return cleaned
 
     @staticmethod
     def _normalize(value: str) -> str:
-        return re.sub(r"[^a-z0-9]+", " ", value.lower()).strip()
+        return _RE_NON_ALNUM.sub(" ", value.lower()).strip()
 
     @staticmethod
     def _lexical_similarity(a: str, b: str) -> float:
@@ -1474,8 +1477,8 @@ class SemanticEntityResolver:
     def _label_boost(labels: Sequence[str], label_hints: Set[str]) -> float:
         if not labels or not label_hints:
             return 0.0
-        normalized_labels = {re.sub(r"[^a-z0-9]+", "", str(label).lower()) for label in labels}
-        normalized_hints = {re.sub(r"[^a-z0-9]+", "", hint.lower()) for hint in label_hints}
+        normalized_labels = {_RE_NON_ALNUM.sub("", str(label).lower()) for label in labels}
+        normalized_hints = {_RE_NON_ALNUM.sub("", hint.lower()) for hint in label_hints}
         if normalized_labels & normalized_hints:
             return 0.15
         return 0.0

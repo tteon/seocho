@@ -124,7 +124,7 @@ tutorials-up: ## Start the tutorial Jupyter + Neo4j browser stack
 	@echo "📓 Starting FinDER tutorial environment..."
 	@$(DOCKER_COMPOSE_TUTORIALS) up -d --build
 	@echo "✅ Tutorial environment started."
-	@echo "📓 JupyterLab:    http://localhost:$${TUTORIALS_JUPYTER_PORT:-28888}/lab/tree/examples/finder"
+	@echo "📓 JupyterLab:    http://localhost:$${TUTORIALS_JUPYTER_PORT:-8888}/lab/tree/examples/finder"
 	@echo "🌐 Neo4j Browser: http://localhost:$${TUTORIALS_NEO4J_HTTP_PORT:-7474}  (neo4j / $${TUTORIALS_NEO4J_PASSWORD:-tutorialspw})"
 
 tutorials-down: ## Stop the tutorial stack

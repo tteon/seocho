@@ -1,0 +1,45 @@
+graph_type: "fibo_be"
+package_id: "fibo_be"
+version: "1.0.0"
+description: "FIBO Business Entities module — legal entities, ownership and corporate structure"
+graph_model: "lpg"
+nodes:
+  LegalEntity:
+    description: "A registered business, corporation, or organization (FIBO BE)"
+    aliases: [Company, Corporation, Firm, Issuer]
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+      ticker:
+        type: STRING
+        index: true
+        description: "Equity ticker symbol where applicable"
+      jurisdiction:
+        type: STRING
+        description: "Jurisdiction of incorporation"
+      legal_form:
+        type: STRING
+        description: "e.g. Inc., Corp., LLC"
+  Subsidiary:
+    description: "A legal entity controlled by another legal entity"
+    aliases: [Affiliate]
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+      jurisdiction:
+        type: STRING
+relationships:
+  HAS_SUBSIDIARY:
+    source: LegalEntity
+    target: Subsidiary
+    description: "Parent–subsidiary corporate relationship"
+    cardinality: ONE_TO_MANY
+  CONTROLS:
+    source: LegalEntity
+    target: LegalEntity
+    description: "FIBO control relationship between legal entities"
+    cardinality: MANY_TO_MANY

@@ -1,0 +1,53 @@
+graph_type: "fibo_fbc"
+package_id: "fibo_fbc"
+version: "1.0.0"
+description: "FIBO Financial Business and Commerce module — products, services, segments, regulators"
+graph_model: "lpg"
+nodes:
+  BusinessSegment:
+    description: "A reportable operating segment of a business"
+    aliases: [Segment, OperatingSegment, ReportableSegment]
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+      description:
+        type: STRING
+  ProductOrService:
+    description: "A commercial product or service offered by a legal entity"
+    aliases: [Product, Service, Offering]
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+      classification:
+        type: STRING
+        description: "Industry classification code if known"
+  Regulator:
+    description: "A regulatory authority (e.g. SEC, FTC)"
+    aliases: [RegulatoryAuthority]
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+      jurisdiction:
+        type: STRING
+relationships:
+  HAS_SEGMENT:
+    source: LegalEntity
+    target: BusinessSegment
+    description: "Reportable segment of an entity"
+    cardinality: ONE_TO_MANY
+  PROVIDES:
+    source: LegalEntity
+    target: ProductOrService
+    description: "Entity provides product/service"
+    cardinality: ONE_TO_MANY
+  REGULATED_BY:
+    source: LegalEntity
+    target: Regulator
+    description: "Entity is supervised by regulator"
+    cardinality: MANY_TO_MANY

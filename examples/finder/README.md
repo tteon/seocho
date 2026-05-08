@@ -59,6 +59,10 @@ For a clean pass:
 3. T3 — reads `finder_tutorial` (set `SEOCHO_NETWORK_WORKSPACE` in env to point elsewhere)
 4. T4 — self-contained; uses `private-<USER_ID>` workspace
 
+## Build your own seocho project
+
+Once you've worked through the tutorials and want to start your own project on top, see [`PROJECT_GUIDE.md`](PROJECT_GUIDE.md) for the naming convention (`seocho-{{model_provider}}`), the recommended `.env` fields for author / project metadata, and how that metadata flows into Opik traces, entity properties, and workspace separation. The companion [`.env.project.example`](.env.project.example) is the template to copy into your project root.
+
 ## Notes
 
 - **lance-graph upstream**: `lib/lance_graph_store.py` is a tutorial-only property-graph adapter on two LanceDB tables. It's kept as a forward-compatible reference for [lance-graph#91](https://github.com/lance-format/lance-graph/issues/91); current tutorials use Neo4j because lance-graph isn't usable yet.

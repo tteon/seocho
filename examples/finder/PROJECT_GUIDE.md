@@ -1,0 +1,131 @@
+# Build your own seocho project
+
+A short guide for users who want to take what they learned from the FinDER tutorial bundle and turn it into their own project — with a consistent name, traceable authorship, and metadata that flows into the graph and the traces automatically.
+
+## 1. Naming convention
+
+Name your project `seocho-{{model_provider}}` where `{{model_provider}}` is the provider whose LLM you used. Concrete examples:
+
+| Project name | LLM you used |
+|---|---|
+| `seocho-openai` | `openai/gpt-4o-mini` |
+| `seocho-grok` | `grok/grok-4.20-reasoning` |
+| `seocho-kimi` | `kimi/kimi-k2.5` |
+| `seocho-deepseek` | `deepseek/deepseek-chat` |
+| `seocho-qwen` | `qwen/qwen-plus` |
+
+Why this scheme: it pairs *what you built* with *the model that made it*. When somebody finds your project on GitHub or in a paper, they immediately know which model generated the extractions — important for reproducibility and for honest comparison against another project that used a different model.
+
+If you ran a head-to-head between two providers, name your project `seocho-{{primary}}-vs-{{other}}` (e.g., `seocho-grok-vs-openai`).
+
+## 2. Required `.env` fields
+
+Copy `.env.project.example` to `.env` in your project root and fill it in:
+
+```bash
+# === Identity ===
+SEOCHO_PROJECT_NAME=seocho-openai          # the seocho-{{model_provider}} name
+SEOCHO_LLM=openai/gpt-4o-mini              # provider/model — flows everywhere
+
+# === LLM provider key (the matching one — only one is required) ===
+OPENAI_API_KEY=sk-...
+# DEEPSEEK_API_KEY=sk-...
+# MOONSHOT_API_KEY=sk-...                  # for kimi
+# XAI_API_KEY=xai-...                      # for grok
+# DASHSCOPE_API_KEY=sk-...                 # for qwen
+
+# === Author metadata ===
+SEOCHO_AUTHOR_NAME=Hardy Jeong
+SEOCHO_AUTHOR_EMAIL=hardy.jeong@example.com
+SEOCHO_AUTHOR_GITHUB=tteon                 # GitHub username (no @, no URL)
+SEOCHO_AUTHOR_AFFILIATION=Xcena            # company / lab / personal
+
+# === Optional run metadata ===
+SEOCHO_RUN_NOTES=baseline run on FinDER subset, no prompt tweaks
+```
+
+The four `SEOCHO_AUTHOR_*` values give your project provenance. They land:
+
+- on every Opik trace span (Tutorial 4 demonstrates this) so traces are auditable to *who*;
+- on every extracted entity via the `extracted_by` property (Tutorial 2 advanced section); and
+- in the project name itself (`SEOCHO_PROJECT_NAME` becomes the default workspace_id prefix).
+
+## 3. How the metadata flows
+
+Once `.env` is filled in, three things happen automatically when you run a notebook in this bundle:
+
+**Workspace separation** — set `WORKSPACE_ID = SEOCHO_PROJECT_NAME` at the top of any cell that creates a `Seocho` client or `IndexingPipeline`. Every node and relationship gets stamped with `_workspace_id="seocho-openai"` (or whatever you chose), so two projects can share a Neo4j without their data colliding.
+
+**Trace identity** — Tutorial 4's `traced(...)` helper reads `SEOCHO_USER_ID` and the rest of the identity dict from env at startup. Add the four `SEOCHO_AUTHOR_*` values to that dict and they show up on every Opik span:
+
+```python
+IDENTITY = {
+    "user_id": os.environ.get("SEOCHO_AUTHOR_GITHUB", "anonymous"),
+    "workspace_id": os.environ["SEOCHO_PROJECT_NAME"],
+    "llm_provider": LLM_PROVIDER,
+    "llm_model": LLM_MODEL,
+    "author_name": os.environ.get("SEOCHO_AUTHOR_NAME"),
+    "author_email": os.environ.get("SEOCHO_AUTHOR_EMAIL"),
+    "author_affiliation": os.environ.get("SEOCHO_AUTHOR_AFFILIATION"),
+    "run_notes": os.environ.get("SEOCHO_RUN_NOTES"),
+}
+```
+
+**Entity provenance** — Tutorial 2's advanced section demonstrates the `on_before_write` callback that stamps `extracted_at` and `extracted_by` on every entity. Extend it to also record the project name:
+
+```python
+def stamp_runtime_metadata(nodes, rels):
+    for n in nodes:
+        props = n.setdefault("properties", {})
+        props.setdefault("project", os.environ["SEOCHO_PROJECT_NAME"])
+        props.setdefault("extracted_at", RUN_AT)
+        props.setdefault("extracted_by", f"{LLM_PROVIDER}/{LLM_MODEL}")
+        props.setdefault("author", os.environ.get("SEOCHO_AUTHOR_GITHUB"))
+    return nodes, rels
+```
+
+After indexing, every entity in your graph is now traceable back to:
+- which project it came from
+- which model produced it
+- when it was produced
+- who ran the project
+
+That's enough provenance for honest reproducibility and for citing your work later.
+
+## 4. Recommended project layout
+
+```
+seocho-openai/                          ← your project root
+├── README.md                           ← describe what you built + what FinDER subset
+├── .env                                ← (gitignored) your filled-in secrets + identity
+├── .env.example                        ← copy of this guide's template, no secrets
+├── notebooks/
+│   ├── 01_my_extraction.ipynb          ← your customized version of T2
+│   ├── 02_my_analytics.ipynb           ← your customized version of T3
+│   └── ...
+├── ontology/
+│   ├── base.jsonld                     ← your ontology in JSON-LD
+│   └── overlays/                       ← TTL overlays you compose in (`+` / `-`)
+├── results/
+│   ├── extraction_metrics.json         ← entity counts, confidence histograms
+│   ├── network_metrics.json            ← PageRank top-N, communities, etc.
+│   ├── traces/                         ← JSONL traces or Opik export
+│   └── viz/                            ← saved matplotlib figures
+└── seocho_pinned_version.txt           ← `pip freeze | grep seocho` snapshot
+```
+
+The `seocho_pinned_version.txt` matters: seocho's API stabilizes over time but extraction prompts and default behaviors evolve. A reader six months later wants to know exactly which seocho they need to reproduce your numbers.
+
+## 5. When you publish
+
+Three things to include in your project README so others can build on your work:
+
+1. **Provider + model** — already in `SEOCHO_PROJECT_NAME` and `SEOCHO_LLM`, but say it again in plain English at the top of the README.
+2. **Ontology** — link to the file in your repo, *and* mention if you composed it from FIBO modules or TTL overlays. Other readers want to fork the ontology, not just the notebook.
+3. **Cost / token / latency budget** — the metrics from your `results/` directory. Your replication baseline.
+
+Optional but generous: link back to the upstream `tteon/seocho` repo and the FinDER tutorial bundle so readers know the origin of the patterns.
+
+## 6. Sharing back
+
+If you find a pattern that should be in the upstream tutorial — a new ontology module, a useful helper for `examples/finder/lib/`, a fix to one of the four notebooks — open a PR against `tteon/seocho`. Mark your project name and provider in the PR description so reviewers can see what context the change came from.

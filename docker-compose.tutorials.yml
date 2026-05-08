@@ -57,6 +57,8 @@ services:
         condition: service_healthy
 
   tutorials-neo4j:
+    # OpenGDS 2.12.0 (the DozerDB-compatible GDS plugin we install via
+    # `make tutorials-gds`) supports Neo4j Core 5.23 and up.
     image: graphstack/dozerdb:5.26.3.0
     container_name: seocho-tutorials-neo4j
     ports:
@@ -69,9 +71,18 @@ services:
       - "${SEOCHO_BIND_HOST:-127.0.0.1}:${TUTORIALS_NEO4J_BOLT_PORT:-7687}:7687"
     environment:
       - NEO4J_AUTH=${NEO4J_USER:-neo4j}/${TUTORIALS_NEO4J_PASSWORD:-tutorialspw}
+      # We only list apoc + n10s in NEO4J_PLUGINS (the manifest fetcher).
+      # OpenGDS is dropped directly into the plugins/ volume by
+      # `make tutorials-gds` (which calls setup_opengds.sh) — this
+      # avoids the manifest pulling GDS *Enterprise*, which crashes on
+      # Community/DozerDB at startup.
       - NEO4J_PLUGINS=["apoc","n10s"]
-      - dbms.security.procedures.unrestricted=apoc.*,n10s.*
-      - dbms.security.procedures.allowlist=apoc.*,n10s.*
+      - NEO4J_dbms_security_procedures_unrestricted=apoc.*,n10s.*,gds.*
+      - NEO4J_dbms_security_procedures_allowlist=apoc.*,n10s.*,gds.*
+      # Keep the dotted forms too for backwards-compat with older
+      # Neo4j entrypoint scripts that recognize them.
+      - dbms.security.procedures.unrestricted=apoc.*,n10s.*,gds.*
+      - dbms.security.procedures.allowlist=apoc.*,n10s.*,gds.*
       - NEO4J_apoc_export_file_enabled=true
       - NEO4J_apoc_import_file_enabled=true
     volumes:

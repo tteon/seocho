@@ -6,7 +6,7 @@ Four runnable Jupyter notebooks teaching how SEOCHO turns ontology-driven prompt
 |---|---|---|
 | 1 | [`01_vector_vs_graph_rag.ipynb`](01_vector_vs_graph_rag.ipynb) | Vector RAG (LanceDB) vs Graph RAG (Neo4j), plus a text2Cypher variant where the LLM writes the Cypher itself |
 | 2 | [`02_fibo_module_impact.ipynb`](02_fibo_module_impact.ipynb) | The ontology *is* the prompt — see seocho's live extraction prompt, compare a generic baseline vs FIBO on the same doc, then add your own class and watch the new label appear |
-| 3 | [`03_network_analytics.ipynb`](03_network_analytics.ipynb) | Pull T1's graph into NetworkX and find impactful entities/relationships via degree, PageRank, betweenness, and community detection |
+| 3 | [`03_network_analytics.ipynb`](03_network_analytics.ipynb) | Run Neo4j Graph Data Science (GDS) algorithms — degree, PageRank, betweenness, Louvain — to find impactful entities and relationships |
 | 4 | [`04_private_opik.ipynb`](04_private_opik.ipynb) | Personal template — your USER_ID + metadata threaded through ontology design (TTL +/-), LLM backend, agent tool_use, and pattern design; every span tagged for Opik |
 
 The notebooks build on each other: T1 populates a Neo4j workspace that T3 reads. T2 and T4 are self-contained.
@@ -38,6 +38,7 @@ finder/
 echo 'OPENAI_API_KEY=sk-...' >> .env
 
 make tutorials-up         # JupyterLab + Neo4j (DozerDB + apoc + n10s)
+make tutorials-gds        # one-time: install OpenGDS for Tutorial 3
 open http://localhost:8888/lab/tree/examples/finder    # notebooks
 open http://localhost:7474                              # Neo4j Browser
 ```
@@ -61,4 +62,5 @@ For a clean pass:
 ## Notes
 
 - **lance-graph upstream**: `lib/lance_graph_store.py` is a tutorial-only property-graph adapter on two LanceDB tables. It's kept as a forward-compatible reference for [lance-graph#91](https://github.com/lance-format/lance-graph/issues/91); current tutorials use Neo4j because lance-graph isn't usable yet.
+- **OpenGDS for Tutorial 3**: the standard Neo4j plugin manifest pulls GDS *Enterprise*, which requires Enterprise-only classes that DozerDB Community doesn't ship. We use OpenGDS (DozerDB's Community-compatible GDS distribution) instead. `make tutorials-gds` runs `setup_opengds.sh` which downloads `open-gds-2.12.0.jar` from `dist.dozerdb.org` and restarts the tutorial Neo4j.
 - **Per-ontology Neo4j databases**: Seocho derives a database name from `ontology.name + graph_model` by default. Since the bundled DozerDB only has `neo4j`, the notebooks pin `client.default_database = "neo4j"` after construction and rely on `workspace_id` for separation.

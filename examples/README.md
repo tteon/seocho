@@ -8,10 +8,7 @@ Jupyter notebooks for learning SEOCHO by doing.
 |----------|------------------|
 | [quickstart.ipynb](quickstart.ipynb) | Recommended first entry route: ontology, indexing design YAML, agent design YAML, local indexing/query, observability, and four-provider comparison |
 | [bring_your_data.ipynb](bring_your_data.ipynb) | Load your actual data: text files, CSV, JSON, and query it |
-| [finder_lance_vector_vs_graph_rag.ipynb](finder_lance_vector_vs_graph_rag.ipynb) | FinDER tutorial — Vector RAG (LanceDB) vs Graph RAG (LanceDB-backed graph) |
-| [finder_fibo_module_impact.ipynb](finder_fibo_module_impact.ipynb) | FinDER tutorial — measure how each FIBO module changes KG quality |
-| [finder_rdf_vs_lpg_evaluation.ipynb](finder_rdf_vs_lpg_evaluation.ipynb) | FinDER tutorial — RDF vs LPG across five evaluation tracks (fully embedded — owlready2 + LanceDB) |
-| [private_opik_workflow.ipynb](private_opik_workflow.ipynb) | Personal template — your USER_ID/AGENT_ID/SESSION_ID + metadata threaded through ontology design (TTL +/-), LLM backend, agent tool_use, and pattern design, with every span tagged for Opik (or JSONL fallback) |
+| [finder/](finder/) | FinDER tutorial bundle — four notebooks (Vector vs Graph RAG, FIBO module impact, RDF vs LPG, private Opik workflow) plus their helper modules and Docker env. See [finder/README.md](finder/README.md) for the bundle's index. |
 
 ## Prerequisites
 
@@ -40,10 +37,10 @@ Then open the notebook and run cells top to bottom.
 
 ## Running the FinDER tutorials in Docker (recommended)
 
-The three FinDER notebooks have a packaged Docker environment with JupyterLab
-and every embedded backend they need: **LanceDB** for vectors and the LPG side,
-**owlready2 + rdflib** for the OWL/RDF side, plus **NetworkX** and **matplotlib**.
-No external graph servers — everything runs inside the single container.
+The four FinDER notebooks have a packaged Docker environment with JupyterLab
+plus a bundled **Neo4j (DozerDB + apoc + n10s)** for the LPG graph backend.
+T1, T3, and T4 talk to Neo4j via Bolt; T2 stays on the embedded LadybugDB; T3's
+RDF side uses embedded **owlready2**. Vector search is **LanceDB**.
 
 ```bash
 # 1. Once: put your OpenAI key in the repo .env
@@ -59,15 +56,22 @@ open http://localhost:28888/lab/tree/examples
 
 What ships:
 
-- `tutorials-jupyter` — JupyterLab on `localhost:28888` (chosen to dodge the 8888-range that local IDEs and notebook servers commonly grab). Bind-mounts `examples/`
-  and `seocho/` so edits on the host show up live in the container.
-- All three notebooks run with embedded storage under `./.seocho/`. No Neo4j,
-  no external services.
+- `tutorials-jupyter` — JupyterLab on `localhost:28888` (chosen to dodge the 8888-range that local IDEs and notebook servers commonly grab). Bind-mounts `examples/` and `seocho/` so edits on the host show up live in the container.
+- `tutorials-neo4j` — DozerDB 5.26 with `apoc` + `n10s` plugins.
+  - **Neo4j Browser:** http://localhost:7474  (login `neo4j` / `tutorialspw`)
+  - **Bolt URI:** `bolt://tutorials-neo4j:7687` (container-internal — notebooks read it from `NEO4J_URI`)
+  - If the main `make up` stack is also running it'll claim 7474/7687 first;
+    set `TUTORIALS_NEO4J_HTTP_PORT` / `TUTORIALS_NEO4J_BOLT_PORT` in `.env`
+    to move the tutorial stack out of the way.
+- LanceDB tables, owlready2 SQLite, JSONL traces all live under `./.seocho/`.
 
 Customize via `.env`:
 
 ```bash
 TUTORIALS_JUPYTER_PORT=28888
+TUTORIALS_NEO4J_HTTP_PORT=7474
+TUTORIALS_NEO4J_BOLT_PORT=7687
+TUTORIALS_NEO4J_PASSWORD=tutorialspw
 FINDER_PATH=/workspace/examples/datasets/finder_tutorial_subset.json
 ```
 

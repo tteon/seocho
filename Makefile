@@ -120,11 +120,12 @@ opik-logs: ## View Opik service logs
 
 ##@ FinDER Tutorials
 
-tutorials-up: ## Start the tutorial Jupyter container (fully embedded — no graph server)
+tutorials-up: ## Start the tutorial Jupyter + Neo4j browser stack
 	@echo "📓 Starting FinDER tutorial environment..."
 	@$(DOCKER_COMPOSE_TUTORIALS) up -d --build
 	@echo "✅ Tutorial environment started."
-	@echo "📓 JupyterLab: http://localhost:$${TUTORIALS_JUPYTER_PORT:-28888}/lab/tree/examples"
+	@echo "📓 JupyterLab:    http://localhost:$${TUTORIALS_JUPYTER_PORT:-28888}/lab/tree/examples/finder"
+	@echo "🌐 Neo4j Browser: http://localhost:$${TUTORIALS_NEO4J_HTTP_PORT:-7474}  (neo4j / $${TUTORIALS_NEO4J_PASSWORD:-tutorialspw})"
 
 tutorials-down: ## Stop the tutorial stack
 	@echo "🛑 Stopping FinDER tutorial environment..."
@@ -145,15 +146,17 @@ tutorials-smoke: ## Fast smoke test — import every module each tutorial uses
 from seocho.benchmarking import load_finder_cases; \
 from seocho.store.vector import create_vector_store; \
 from seocho.store.llm import create_llm_backend; \
-from examples.lance_graph_store import LanceGraphStore; \
 from seocho import Ontology, Seocho; \
 from seocho.index.pipeline import IndexingPipeline; \
-from seocho.store.graph import LadybugGraphStore; \
-from examples.datasets.fibo_modules.compose import compose_modules; \
-from examples.fibo_module_metrics import entity_coverage, graph_volume; \
-from examples.owlready_graph_store import OwlreadyGraphStore; \
-from examples.lpg_metrics import compute_lpg_structure_metrics; \
-from examples.rdf_lpg_comparison import golden_standard_overlap, task_track_aggregate; \
+from seocho.store.graph import Neo4jGraphStore, LadybugGraphStore; \
+from examples.finder.datasets.fibo_modules.compose import compose_modules; \
+from examples.finder.lib.fibo_module_metrics import entity_coverage, graph_volume; \
+from examples.finder.lib.lance_graph_store import LanceGraphStore; \
+from examples.finder.lib.owlready_graph_store import OwlreadyGraphStore; \
+from examples.finder.lib.lpg_metrics import compute_lpg_structure_metrics; \
+from examples.finder.lib.rdf_lpg_comparison import golden_standard_overlap, task_track_aggregate; \
+from examples.finder.lib.graph_viz import draw_lpg, draw_rdf, fetch_lpg_subgraph; \
+from examples.finder.lib.ontology_io import ontology_plus, ontology_minus; \
 from seocho.tracing import enable_tracing, log_span, flush_tracing; \
 from seocho.agent_config import AgentConfig, RoutingPolicy; \
 from extraction.agent_base.base import BaseAgent, register_tool; \
@@ -170,15 +173,15 @@ tutorials-test: ## Headless nbconvert run of every tutorial notebook (reads OPEN
 			exit 1; \
 		fi; \
 		set -e; mkdir -p /workspace/.seocho/test_runs; cd /workspace; \
-		for nb in examples/finder_lance_vector_vs_graph_rag.ipynb \
-		           examples/finder_fibo_module_impact.ipynb \
-		           examples/private_opik_workflow.ipynb; do \
+		for nb in examples/finder/01_vector_vs_graph_rag.ipynb \
+		           examples/finder/02_fibo_module_impact.ipynb \
+		           examples/finder/04_private_opik.ipynb; do \
 			echo "▶️  Executing $$nb"; \
 			jupyter nbconvert --to notebook --execute "$$nb" \
 				--ExecutePreprocessor.timeout=900 \
 				--output "/workspace/.seocho/test_runs/$$(basename $$nb)"; \
 		done; \
-		echo "ℹ️   finder_rdf_vs_lpg_evaluation.ipynb skipped — needs JVM for OWL reasoner cell"; \
+		echo "ℹ️   03_rdf_vs_lpg.ipynb skipped — needs JVM for OWL reasoner cell"; \
 		echo "✅ Tutorial notebooks executed; outputs under .seocho/test_runs/"'
 
 ##@ Production

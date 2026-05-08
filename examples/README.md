@@ -74,10 +74,21 @@ FINDER_PATH=/workspace/examples/datasets/finder_tutorial_subset.json
 Useful commands:
 
 ```bash
-make tutorials-logs    # tail container logs
-make tutorials-shell   # bash inside the Jupyter container
-make tutorials-down    # stop everything (data persists in ./.seocho)
+make tutorials-logs     # tail container logs
+make tutorials-shell    # bash inside the Jupyter container
+make tutorials-down     # stop everything (data persists in ./.seocho)
+
+make tutorials-build    # rebuild the image (no container start)
+make tutorials-smoke    # fast import-check for all four notebooks (~10s, no API calls)
+make tutorials-pytest   # run the seocho/tests/test_ontology_ttl.py suite in the container
+make tutorials-test     # headless nbconvert run of every notebook (needs OPENAI_API_KEY)
 ```
+
+`tutorials-test` skips `finder_rdf_vs_lpg_evaluation.ipynb` because the OWL
+reasoner cell needs a JVM (HermiT) which the slim image doesn't ship; open
+that notebook in JupyterLab to run it interactively, or install `default-jre-headless`
+in the container first (`make tutorials-shell` then
+`apt-get update && apt-get install -y default-jre-headless`).
 
 The bonus *OWL reasoning* cell in Tutorial 3 invokes HermiT (Java). The cell
 reports gracefully if no JVM is present in the image; install one with

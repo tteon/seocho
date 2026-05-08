@@ -139,8 +139,10 @@ Three correct configurations, in increasing order of privacy concern:
 | Option | What you set | Where traces go | Sharing scope |
 |---|---|---|---|
 | **A. No tracing** (default) | nothing | `./.seocho/private_<user>/traces.jsonl` | local file only |
-| **B. Self-hosted Opik** | `OPIK_URL=http://your-host:5173`, no API key needed if internal | your own server | whoever can reach the URL |
-| **C. Per-user Opik cloud account** | `OPIK_URL=https://www.comet.com/opik`, `OPIK_API_KEY=<your-own-key>` | Comet/Opik cloud, your workspace | only you (one account per person) |
+| **B. Self-hosted Opik** | `OPIK_URL_OVERRIDE=http://your-host:5173/api/` (note `/api/` suffix), `OPIK_WORKSPACE=default` | your own server | whoever can reach the URL |
+| **C. Per-user Opik cloud account** | `OPIK_API_KEY=<your-own-key>` and `OPIK_WORKSPACE=<your-workspace>` — leave `OPIK_URL` *unset* | Comet/Opik cloud, your workspace | only you (one account per person) |
+
+> **Common mistake.** Setting `OPIK_URL=https://www.comet.com/opik` (the UI URL) breaks with `405 Not Allowed` from nginx — Opik's API lives at `/opik/api/`, not `/opik/`. For cloud, leave the URL unset; the SDK auto-routes to the right endpoint.
 
 > **Do not share `OPIK_API_KEY`.** A typical key has read access to *all* projects in the workspace — handing it to a colleague leaks every other project you have. If multiple people need to land traces in the same place, use option B (self-hosted) or have each person sign up for their own cloud account in option C. **Never** commit the key; `.env` is gitignored for a reason.
 
@@ -202,3 +204,51 @@ That keeps the `seocho-{{model_provider}}` repo-naming convention (Section 1) in
 - **Trim old projects.** Opik never auto-deletes; expose a janitor script or set a retention policy in the Opik admin UI.
 - **Backups.** The state lives in `data/opik-mysql` + `data/opik-clickhouse` + `data/opik-minio`. Snapshot those volumes if the traces are decision-critical.
 - **Version pin.** Set `OPIK_VERSION` in the operator's `.env` and *don't bump it without warning users* — minor versions occasionally rename span fields, and your historical traces won't migrate.
+
+## 9. Adding observability to your own code
+
+Once you start a `seocho-{provider}` project on top of the tutorial bundle, you'll want tracing on the new code you write — not just the parts borrowed from T4. Three ways, in increasing manual effort:
+
+### A. Let an AI coding agent do it (fastest)
+
+The Opik team ships a skill that any agent supporting the skills protocol (Claude Code, Codex, Cursor, OpenCode, Aider, …) can install. The skill reads your code, picks the right Opik integration for the framework you're using, and writes the tracing wiring for you.
+
+```bash
+# 1. Install the skill once into your agent
+npx skills add comet-ml/opik-skills
+
+# 2. In your agent, ask it to instrument the project
+#    "Instrument my agent with Opik using the /instrument command."
+```
+
+The agent will: detect your LLM SDK + agent framework, pick the matching Opik integration (`opik.integrations.openai`, `opik.integrations.langchain`, etc.), wrap the entry points with `@track`, thread the project name through, and update your `.env` with the right keys. Re-run; traces show up in your Opik project.
+
+This works on top of what T4 already wires up — the skill won't fight your existing `enable_tracing(...)` call, it'll just add `@track` decorators and integration wrappers to the new files you've written.
+
+### B. Opik Connect
+
+For frameworks the Opik SDK already integrates with directly (OpenAI, LangChain, LlamaIndex, LangGraph, Anthropic, etc.), you don't need an agent. Add the matching wrapper near your client construction:
+
+```python
+from openai import OpenAI
+from opik.integrations.openai import track_openai
+
+client = track_openai(OpenAI())   # every chat.completions.create() now traced
+```
+
+This is the minimum for projects that don't have unusual control flow — `track_openai`/`track_anthropic`/etc. capture the LLM I/O without you having to write the span yourself.
+
+### C. Manual integration (what T4 does)
+
+When the integration wrappers don't cover your code path — custom retrieval pipelines, tool dispatch, multi-agent orchestration — you write spans by hand. T4's `traced(name, input_data=..., output_data=..., tags=...)` helper is the pattern: it wraps `seocho.tracing.log_span` to stamp the active `IDENTITY` on every span. Use it where the integration wrappers can't see — around your retrieval call, your tool selection, your synthesis step.
+
+```python
+traced(
+    "retrieval.graph",
+    input_data={"question": q},
+    output_data={"records": len(records)},
+    tags=["routing:graph"],
+)
+```
+
+After running, every span lands in the same Opik project under your `workspace_id`, regardless of whether it came from the skill, an integration wrapper, or a hand-written `traced(...)` call. **Ollie**, the Opik coding agent, can then read those traces and propose code changes for the failing assertions — that's the loop the test suite in T4 §8 sets up.

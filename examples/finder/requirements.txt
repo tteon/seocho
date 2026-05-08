@@ -5,6 +5,9 @@
 jupyterlab>=4.0
 notebook>=7.0
 ipykernel>=6.0
+# Required by Opik SDK's progress bars in evaluate()/dataset.insert().
+# Without it, headless `nbconvert` runs raise "IProgress not found".
+ipywidgets>=8.0
 matplotlib>=3.7
 networkx>=3.0
 # scipy backs networkx's pagerank/eigenvector centrality (Tutorial 3)

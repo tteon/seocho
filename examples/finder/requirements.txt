@@ -10,9 +10,6 @@ networkx>=3.0
 pandas>=2.0
 python-dotenv>=1.0
 pyarrow>=14.0
-# OWL-aware embedded RDF store for Tutorial 3.
-# owlready2 loads FIBO OWL files natively, exposes class/individual/property
-# semantics, and supports SPARQL via projection to rdflib.  This matches the
-# seocho[ontology] extra and CLAUDE.md's "Owlready2 in offline path" boundary.
-owlready2>=0.46
+# rdflib is used by seocho.Ontology.from_ttl/to_ttl (Tutorial 4 TTL plus/minus)
+# and by graph_viz.draw_rdf if you ever want to visualize triples.
 rdflib>=7.0

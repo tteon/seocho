@@ -124,7 +124,7 @@ tutorials-up: ## Start the tutorial Jupyter container (fully embedded — no gra
 	@echo "📓 Starting FinDER tutorial environment..."
 	@$(DOCKER_COMPOSE_TUTORIALS) up -d --build
 	@echo "✅ Tutorial environment started."
-	@echo "📓 JupyterLab: http://localhost:$${TUTORIALS_JUPYTER_PORT:-8889}/lab/tree/examples"
+	@echo "📓 JupyterLab: http://localhost:$${TUTORIALS_JUPYTER_PORT:-28888}/lab/tree/examples"
 
 tutorials-down: ## Stop the tutorial stack
 	@echo "🛑 Stopping FinDER tutorial environment..."

@@ -14,7 +14,7 @@ services:
       dockerfile: examples/Dockerfile.tutorials
     container_name: seocho-tutorials-jupyter
     ports:
-      - "${SEOCHO_BIND_HOST:-127.0.0.1}:${TUTORIALS_JUPYTER_PORT:-8889}:8889"
+      - "${SEOCHO_BIND_HOST:-127.0.0.1}:${TUTORIALS_JUPYTER_PORT:-28888}:8889"
     volumes:
       # Bind the entire repo so notebook edits, the tutorial-only adapter
       # modules, and the seocho/ package are all live-edited on host.

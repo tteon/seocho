@@ -4,7 +4,7 @@ DOCKER_COMPOSE = docker compose
 DOCKER_COMPOSE_LIVE = docker compose -f docker-compose.yml -f docker-compose.dev.yml
 DOCKER_COMPOSE_TUTORIALS = docker compose -f docker-compose.tutorials.yml
 
-.PHONY: up up-live up-legacy-semantic down restart logs clean bootstrap shell test test-integration e2e-smoke lint format help opik-up opik-down opik-logs demo-raw demo-meta demo-neo4j demo-graphrag-opik demo-all setup-env tutorials-up tutorials-down tutorials-logs tutorials-shell
+.PHONY: up up-live up-legacy-semantic down restart logs clean bootstrap shell test test-integration e2e-smoke lint format help opik-up opik-down opik-logs demo-raw demo-meta demo-neo4j demo-graphrag-opik demo-all setup-env tutorials-up tutorials-down tutorials-logs tutorials-shell tutorials-build tutorials-smoke tutorials-test tutorials-pytest
 
 ##@ Development
 
@@ -135,6 +135,51 @@ tutorials-logs: ## Tail logs from the tutorial stack
 
 tutorials-shell: ## Open a shell inside the tutorial Jupyter container
 	@$(DOCKER_COMPOSE_TUTORIALS) exec tutorials-jupyter bash
+
+tutorials-build: ## Build the tutorial Docker image without starting the container
+	@OPENAI_API_KEY=$${OPENAI_API_KEY:-build} $(DOCKER_COMPOSE_TUTORIALS) build
+
+tutorials-smoke: ## Fast smoke test — import every module each tutorial uses
+	@OPENAI_API_KEY=$${OPENAI_API_KEY:-smoke} $(DOCKER_COMPOSE_TUTORIALS) run --rm --no-deps tutorials-jupyter \
+		python -c "import sys; \
+from seocho.benchmarking import load_finder_cases; \
+from seocho.store.vector import create_vector_store; \
+from seocho.store.llm import create_llm_backend; \
+from examples.lance_graph_store import LanceGraphStore; \
+from seocho import Ontology, Seocho; \
+from seocho.index.pipeline import IndexingPipeline; \
+from seocho.store.graph import LadybugGraphStore; \
+from examples.datasets.fibo_modules.compose import compose_modules; \
+from examples.fibo_module_metrics import entity_coverage, graph_volume; \
+from examples.owlready_graph_store import OwlreadyGraphStore; \
+from examples.lpg_metrics import compute_lpg_structure_metrics; \
+from examples.rdf_lpg_comparison import golden_standard_overlap, task_track_aggregate; \
+from seocho.tracing import enable_tracing, log_span, flush_tracing; \
+from seocho.agent_config import AgentConfig, RoutingPolicy; \
+from extraction.agent_base.base import BaseAgent, register_tool; \
+print('✅ All four tutorial import chains resolve cleanly')"
+
+tutorials-pytest: ## Run the seocho test suite inside the tutorials container
+	@OPENAI_API_KEY=$${OPENAI_API_KEY:-test} $(DOCKER_COMPOSE_TUTORIALS) run --rm --no-deps tutorials-jupyter \
+		python -m pytest seocho/tests/test_ontology_ttl.py -v
+
+tutorials-test: ## Headless nbconvert run of every tutorial notebook
+	@if [ -z "$$OPENAI_API_KEY" ] || [ "$$OPENAI_API_KEY" = "test" ] || [ "$$OPENAI_API_KEY" = "build" ]; then \
+		echo "❌ tutorials-test needs a real OPENAI_API_KEY (LLM calls happen at execute-time)."; \
+		exit 1; \
+	fi
+	@$(DOCKER_COMPOSE_TUTORIALS) run --rm --no-deps tutorials-jupyter bash -lc '\
+		set -e; mkdir -p /workspace/.seocho/test_runs; cd /workspace; \
+		for nb in examples/finder_lance_vector_vs_graph_rag.ipynb \
+		           examples/finder_fibo_module_impact.ipynb \
+		           examples/private_opik_workflow.ipynb; do \
+			echo "▶️  Executing $$nb"; \
+			jupyter nbconvert --to notebook --execute "$$nb" \
+				--ExecutePreprocessor.timeout=900 \
+				--output "/workspace/.seocho/test_runs/$$(basename $$nb)"; \
+		done; \
+		echo "ℹ️   finder_rdf_vs_lpg_evaluation.ipynb skipped — needs JVM for OWL reasoner cell"; \
+		echo "✅ Tutorial notebooks executed; outputs under .seocho/test_runs/"'
 
 ##@ Production
 

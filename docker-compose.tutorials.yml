@@ -20,6 +20,7 @@ services:
       # modules, and the seocho/ package are all live-edited on host.
       - ./examples:/workspace/examples
       - ./seocho:/workspace/seocho
+      - ./extraction:/workspace/extraction:ro
       - ./scripts:/workspace/scripts:ro
       # Persistent on-host artifacts directory the tutorials write to
       # (LanceDB tables, captured spans, scoreboards, RDF dumps).

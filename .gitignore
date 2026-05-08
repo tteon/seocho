@@ -28,6 +28,11 @@ eggs/
 .eggs/
 lib/
 lib64/
+# But the FinDER tutorial bundle's lib/ contains adapter/helper modules
+# that must be tracked. Explicit allowlist of file types we ship there.
+!examples/finder/lib/
+!examples/finder/lib/*.py
+!examples/finder/lib/*.md
 parts/
 sdist/
 var/

@@ -474,6 +474,39 @@ class Ontology:
 
         return ontology_from_jsonld_dict(cls, data)
 
+    # ------------------------------------------------------------------
+    # Turtle (TTL / OWL)
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def from_ttl(
+        cls,
+        path: Union[str, Path],
+        *,
+        name: Optional[str] = None,
+        namespace: Optional[str] = None,
+    ) -> "Ontology":
+        """Load an OWL/Turtle file (e.g. a FIBO module) into an ``Ontology``.
+
+        Maps:
+        - ``owl:Class`` -> :class:`NodeDef`
+        - ``owl:ObjectProperty`` (with ``rdfs:domain``/``rdfs:range``) -> :class:`RelDef`
+        - ``owl:DatatypeProperty`` -> property on its domain class
+        - ``skos:altLabel`` -> aliases
+        - ``rdfs:label`` -> description
+
+        Requires ``rdflib`` (ships in the ``seocho[ontology]`` extra).
+        """
+        from .ontology_serialization import ontology_from_ttl
+
+        return ontology_from_ttl(cls, path, name=name, namespace=namespace)
+
+    def to_ttl(self, path: Union[str, Path]) -> Path:
+        """Write this ontology out as Turtle. Inverse of :meth:`from_ttl`."""
+        from .ontology_serialization import ontology_to_ttl
+
+        return ontology_to_ttl(self, path)
+
     @classmethod
     def _from_jsonld_dict(cls, data: Dict[str, Any]) -> "Ontology":
         from .ontology_serialization import ontology_from_jsonld_dict
@@ -1778,6 +1811,37 @@ class Ontology:
             nodes=merged_nodes,
             relationships=merged_rels,
         )
+
+    def subtract(self, other: "Ontology") -> "Ontology":
+        """Return a copy of this ontology with everything declared in ``other`` removed.
+
+        Removes:
+        - any node label present in ``other.nodes``
+        - any relationship type present in ``other.relationships``
+        - any relationship whose ``source`` or ``target`` references a removed node
+
+        Mirrors :meth:`merge` but in the opposite direction.
+
+        Example::
+
+            base       = Ontology.from_ttl("fibo_base.ttl")
+            extension  = Ontology.from_ttl("fibo_fbc.ttl")
+            restricted = Ontology.from_ttl("restricted.ttl")
+            composed = base.merge(extension).subtract(restricted)
+            # or use the operator form:
+            composed = base + extension - restricted
+        """
+        from .ontology_serialization import ontology_subtract
+
+        return ontology_subtract(self, other)
+
+    def __add__(self, other: "Ontology") -> "Ontology":
+        """``a + b`` is shorthand for ``a.merge(b)`` (union strategy)."""
+        return self.merge(other)
+
+    def __sub__(self, other: "Ontology") -> "Ontology":
+        """``a - b`` is shorthand for ``a.subtract(b)``."""
+        return self.subtract(other)
 
     @staticmethod
     def _merge_node_def(

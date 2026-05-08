@@ -30,6 +30,36 @@ answer grounded in typed paths, not a free-text paragraph.
 
 **Blog walk-through**: *(coming soon — site narrative draft pending)*
 
+## 2. FinDER tutorial set — Vector + Graph RAG, FIBO impact, RDF vs LPG
+
+**What**: Three runnable notebooks built around the **FinDER** SEC 10-K Q&A
+benchmark. They show three orthogonal questions a graph-RAG team has to
+answer when adopting SEOCHO on a finance corpus.
+
+**Who benefits**: Teams evaluating SEOCHO on financial filings; researchers
+benchmarking RAG architectures; anyone deciding how much of FIBO they
+actually need.
+
+**Try them**:
+
+- [`examples/finder_lance_vector_vs_graph_rag.ipynb`](../examples/finder_lance_vector_vs_graph_rag.ipynb)
+  — side-by-side Vector RAG (vanilla `LanceDBVectorStore`) and Graph RAG
+  (a tutorial-only `LanceGraphStore` adapter, forward-compatible with
+  upstream [lance-graph#91](https://github.com/lance-format/lance-graph/issues/91)).
+- [`examples/finder_fibo_module_impact.ipynb`](../examples/finder_fibo_module_impact.ipynb)
+  — sweep five FIBO module configurations (none / BE / BE+FBC / BE+FBC+SEC /
+  full) over the same FinDER corpus and measure how each module changes
+  KG volume, coverage, SHACL-style violations, and FinDER QA score.
+- [`examples/finder_rdf_vs_lpg_evaluation.ipynb`](../examples/finder_rdf_vs_lpg_evaluation.ipynb)
+  — index the same corpus twice (LPG and RDF via n10s) and score both
+  on Golden Standard, Data-Driven, Application/Task, User-based, and
+  Structure-based evaluation tracks.
+
+All three default to `examples/datasets/finder_tutorial_subset.json` so
+they run end-to-end without external data; set `FINDER_PATH` to your
+real FinDER JSON when you're ready. Notebook 3 additionally requires
+Neo4j+neosemantics (RDF path).
+
 ## Contributing a new usecase
 
 A new usecase entry lands here only when the accompanying repo example

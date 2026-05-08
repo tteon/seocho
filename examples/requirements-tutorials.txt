@@ -1,0 +1,18 @@
+# Tutorial-specific Python dependencies on top of the seocho [ci] extra.
+# The Dockerfile installs seocho first (which pulls in lancedb, neo4j, openai,
+# pyyaml, fastapi, etc. via the ci extra), then layers these on top.
+
+jupyterlab>=4.0
+notebook>=7.0
+ipykernel>=6.0
+matplotlib>=3.7
+networkx>=3.0
+pandas>=2.0
+python-dotenv>=1.0
+pyarrow>=14.0
+# OWL-aware embedded RDF store for Tutorial 3.
+# owlready2 loads FIBO OWL files natively, exposes class/individual/property
+# semantics, and supports SPARQL via projection to rdflib.  This matches the
+# seocho[ontology] extra and CLAUDE.md's "Owlready2 in offline path" boundary.
+owlready2>=0.46
+rdflib>=7.0

@@ -2,8 +2,9 @@
 
 DOCKER_COMPOSE = docker compose
 DOCKER_COMPOSE_LIVE = docker compose -f docker-compose.yml -f docker-compose.dev.yml
+DOCKER_COMPOSE_TUTORIALS = docker compose -f docker-compose.tutorials.yml
 
-.PHONY: up up-live up-legacy-semantic down restart logs clean bootstrap shell test test-integration e2e-smoke lint format help opik-up opik-down opik-logs demo-raw demo-meta demo-neo4j demo-graphrag-opik demo-all setup-env
+.PHONY: up up-live up-legacy-semantic down restart logs clean bootstrap shell test test-integration e2e-smoke lint format help opik-up opik-down opik-logs demo-raw demo-meta demo-neo4j demo-graphrag-opik demo-all setup-env tutorials-up tutorials-down tutorials-logs tutorials-shell
 
 ##@ Development
 
@@ -116,6 +117,24 @@ opik-down: ## Stop all services including Opik
 
 opik-logs: ## View Opik service logs
 	@docker compose --profile opik logs -f --tail=100 opik-backend opik-python-backend opik-frontend
+
+##@ FinDER Tutorials
+
+tutorials-up: ## Start the tutorial Jupyter container (fully embedded — no graph server)
+	@echo "📓 Starting FinDER tutorial environment..."
+	@$(DOCKER_COMPOSE_TUTORIALS) up -d --build
+	@echo "✅ Tutorial environment started."
+	@echo "📓 JupyterLab: http://localhost:$${TUTORIALS_JUPYTER_PORT:-8889}/lab/tree/examples"
+
+tutorials-down: ## Stop the tutorial stack
+	@echo "🛑 Stopping FinDER tutorial environment..."
+	@$(DOCKER_COMPOSE_TUTORIALS) down
+
+tutorials-logs: ## Tail logs from the tutorial stack
+	@$(DOCKER_COMPOSE_TUTORIALS) logs -f --tail=100
+
+tutorials-shell: ## Open a shell inside the tutorial Jupyter container
+	@$(DOCKER_COMPOSE_TUTORIALS) exec tutorials-jupyter bash
 
 ##@ Production
 

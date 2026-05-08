@@ -1,0 +1,43 @@
+@prefix owl:    <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix skos:   <http://www.w3.org/2004/02/skos/core#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+@prefix priv:   <https://seocho.dev/private/> .
+
+priv:Ontology   a owl:Ontology ;
+                rdfs:label "Private base ontology" .
+
+# Classes
+priv:LegalEntity    a owl:Class ;
+                    rdfs:label "Legal Entity" ;
+                    skos:altLabel "Company", "Corporation", "Issuer" .
+
+priv:Person         a owl:Class ;
+                    rdfs:label "Person" ;
+                    skos:altLabel "Executive", "Director" .
+
+priv:FinancialMetric a owl:Class ;
+                     rdfs:label "Financial Metric" ;
+                     skos:altLabel "Metric", "KPI" .
+
+# Object properties
+priv:employs        a owl:ObjectProperty ;
+                    rdfs:label "Employs" ;
+                    rdfs:domain priv:LegalEntity ;
+                    rdfs:range  priv:Person .
+
+priv:reported       a owl:ObjectProperty ;
+                    rdfs:label "Reported" ;
+                    rdfs:domain priv:LegalEntity ;
+                    rdfs:range  priv:FinancialMetric .
+
+# Datatype properties
+priv:hasName        a owl:DatatypeProperty ;
+                    rdfs:label "Has name" ;
+                    rdfs:range xsd:string .
+
+priv:hasTicker      a owl:DatatypeProperty ;
+                    rdfs:label "Has ticker" ;
+                    rdfs:domain priv:LegalEntity ;
+                    rdfs:range xsd:string .

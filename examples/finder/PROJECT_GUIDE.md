@@ -129,3 +129,76 @@ Optional but generous: link back to the upstream `tteon/seocho` repo and the Fin
 ## 6. Sharing back
 
 If you find a pattern that should be in the upstream tutorial — a new ontology module, a useful helper for `examples/finder/lib/`, a fix to one of the four notebooks — open a PR against `tteon/seocho`. Mark your project name and provider in the PR description so reviewers can see what context the change came from.
+
+## 7. Tracing and data privacy
+
+When tracing is on, **the LLM prompts and completions appear in your Opik traces**. For the FinDER tutorial that's fine (synthetic 10-K snippets), but if you point the same notebooks at your own corporate documents, those documents' text shows up in Opik. Decide where it lands before you turn tracing on.
+
+Three correct configurations, in increasing order of privacy concern:
+
+| Option | What you set | Where traces go | Sharing scope |
+|---|---|---|---|
+| **A. No tracing** (default) | nothing | `./.seocho/private_<user>/traces.jsonl` | local file only |
+| **B. Self-hosted Opik** | `OPIK_URL=http://your-host:5173`, no API key needed if internal | your own server | whoever can reach the URL |
+| **C. Per-user Opik cloud account** | `OPIK_URL=https://www.comet.com/opik`, `OPIK_API_KEY=<your-own-key>` | Comet/Opik cloud, your workspace | only you (one account per person) |
+
+> **Do not share `OPIK_API_KEY`.** A typical key has read access to *all* projects in the workspace — handing it to a colleague leaks every other project you have. If multiple people need to land traces in the same place, use option B (self-hosted) or have each person sign up for their own cloud account in option C. **Never** commit the key; `.env` is gitignored for a reason.
+
+## 8. Centralized Opik for sharing tutorial results
+
+If your team wants one place where everyone's `seocho-{provider}` runs land together — so you can compare traces side by side, cite each other's work, or do code review on extraction quality — the right setup is **one self-hosted Opik that everyone points at**. No keys to share, no per-person cloud accounts.
+
+### Operator setup (do this once on a host you control)
+
+```bash
+# On the host machine — say, internal-tools.your-company.local
+git clone https://github.com/tteon/seocho.git && cd seocho
+cp .env.example .env
+# Edit .env: set OPIK_VERSION pin, optionally non-default OPIK_*_PASSWORD
+make opik-up                                   # starts the full Opik stack
+# UI:           http://that-host:5173
+# Backend API:  http://that-host:8000
+```
+
+The default `SEOCHO_BIND_HOST=127.0.0.1` keeps Opik bound to localhost. To expose it to teammates on the same VPN, set `SEOCHO_BIND_HOST=0.0.0.0` in `.env` and re-run `make opik-up`. **Do not expose it to the public internet without a reverse proxy that adds auth and TLS** — the default Opik install has no built-in user authentication.
+
+### What each user puts in their `.env`
+
+```bash
+# Centralized Opik instance (the URL the operator gave you)
+OPIK_URL=http://internal-tools.your-company.local:5173
+
+# A workspace shared by the whole team
+OPIK_WORKSPACE=seocho-tutorials
+
+# Project name = your seocho-{provider}-{your-handle} so projects don't collide
+OPIK_PROJECT_NAME=seocho-openai-tteon
+```
+
+### What it looks like in the Opik UI
+
+```
+seocho-tutorials/                           ← shared workspace
+├── seocho-openai-tteon                     ← Hardy's OpenAI run
+├── seocho-openai-alice                     ← Alice's OpenAI run (same model, different ontology)
+├── seocho-grok-bob                         ← Bob's Grok run
+└── seocho-kimi-tteon-vs-grok               ← Hardy's head-to-head comparison
+```
+
+Every span carries the author identity from the `SEOCHO_AUTHOR_*` env vars (Section 3), so even within one project you can tell *which user* generated which run. Comparing two providers becomes a single Opik filter: `tag:user:tteon`.
+
+### Project name = composite identifier
+
+The `OPIK_PROJECT_NAME` value should encode *what was built* + *who built it* + *which model*. Recommended template:
+
+    seocho-{provider}-{author_github}
+
+That keeps the `seocho-{{model_provider}}` repo-naming convention (Section 1) intact while still distinguishing two people who used the same provider. For comparison runs, append the second provider:
+
+    seocho-{primary}-vs-{other}-{author_github}
+
+### Cleanup / maintenance
+
+- **Trim old projects.** Opik never auto-deletes; expose a janitor script or set a retention policy in the Opik admin UI.
+- **Backups.** The state lives in `data/opik-mysql` + `data/opik-clickhouse` + `data/opik-minio`. Snapshot those volumes if the traces are decision-critical.
+- **Version pin.** Set `OPIK_VERSION` in the operator's `.env` and *don't bump it without warning users* — minor versions occasionally rename span fields, and your historical traces won't migrate.

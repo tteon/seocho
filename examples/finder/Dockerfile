@@ -5,7 +5,7 @@
 #   - tutorial-only deps (jupyterlab, networkx, matplotlib, pandas)
 #
 # Build context must be the repo root so seocho/, pyproject.toml, and
-# examples/requirements-tutorials.txt are all reachable.
+# examples/finder/requirements.txt are all reachable.
 
 FROM python:3.11-slim
 
@@ -31,8 +31,8 @@ COPY seocho /tmp/build/seocho
 RUN uv pip install --system --no-cache ".[ci,local]"
 
 # Stage 2 — tutorial-only Python deps (jupyterlab, networkx, matplotlib, …)
-COPY examples/requirements-tutorials.txt /tmp/requirements-tutorials.txt
-RUN uv pip install --system --no-cache -r /tmp/requirements-tutorials.txt
+COPY examples/finder/requirements.txt /tmp/requirements.txt
+RUN uv pip install --system --no-cache -r /tmp/requirements.txt
 
 WORKDIR /workspace
 ENV PYTHONPATH=/workspace
@@ -47,4 +47,4 @@ CMD ["jupyter", "lab", \
      "--ServerApp.token=", \
      "--ServerApp.password=", \
      "--ServerApp.root_dir=/workspace", \
-     "--ServerApp.default_url=/lab/tree/examples"]
+     "--ServerApp.default_url=/lab/tree/examples/finder"]

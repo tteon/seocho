@@ -40,25 +40,26 @@ answer when adopting SEOCHO on a finance corpus.
 benchmarking RAG architectures; anyone deciding how much of FIBO they
 actually need.
 
-**Try them**:
+**Try them**: the four FinDER notebooks live under
+[`examples/finder/`](../examples/finder/) with their own
+[README](../examples/finder/README.md), helper modules, datasets, and
+Docker env. Bring up the bundle with `make tutorials-up`.
 
-- [`examples/finder_lance_vector_vs_graph_rag.ipynb`](../examples/finder_lance_vector_vs_graph_rag.ipynb)
-  — side-by-side Vector RAG (vanilla `LanceDBVectorStore`) and Graph RAG
-  (a tutorial-only `LanceGraphStore` adapter, forward-compatible with
-  upstream [lance-graph#91](https://github.com/lance-format/lance-graph/issues/91)).
-- [`examples/finder_fibo_module_impact.ipynb`](../examples/finder_fibo_module_impact.ipynb)
-  — sweep five FIBO module configurations (none / BE / BE+FBC / BE+FBC+SEC /
-  full) over the same FinDER corpus and measure how each module changes
+- `01_vector_vs_graph_rag.ipynb` — side-by-side Vector RAG (LanceDB) and
+  Graph RAG (Neo4j) over FinDER.
+- `02_fibo_module_impact.ipynb` — sweep five FIBO module compositions
+  (none / BE / BE+FBC / BE+FBC+SEC / full) and measure how each changes
   KG volume, coverage, SHACL-style violations, and FinDER QA score.
-- [`examples/finder_rdf_vs_lpg_evaluation.ipynb`](../examples/finder_rdf_vs_lpg_evaluation.ipynb)
-  — index the same corpus twice (LPG and RDF via n10s) and score both
-  on Golden Standard, Data-Driven, Application/Task, User-based, and
-  Structure-based evaluation tracks.
+- `03_rdf_vs_lpg.ipynb` — index the same corpus as LPG (Neo4j) and
+  RDF/OWL (owlready2); score both on Golden Standard, Data-Driven,
+  Application/Task, User-based, and Structure-based tracks.
+- `04_private_opik.ipynb` — personal template threading USER_ID /
+  metadata through ontology design (TTL +/-), LLM backend, agent
+  tool_use, and pattern design; every span tagged for Opik.
 
-All three default to `examples/datasets/finder_tutorial_subset.json` so
-they run end-to-end without external data; set `FINDER_PATH` to your
-real FinDER JSON when you're ready. Notebook 3 additionally requires
-Neo4j+neosemantics (RDF path).
+All four default to a synthetic 10-K subset that ships with the bundle
+so they run end-to-end without external data; set `FINDER_PATH` to your
+real FinDER JSON when ready.
 
 ## Contributing a new usecase
 

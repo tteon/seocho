@@ -163,12 +163,12 @@ tutorials-pytest: ## Run the seocho test suite inside the tutorials container
 	@OPENAI_API_KEY=$${OPENAI_API_KEY:-test} $(DOCKER_COMPOSE_TUTORIALS) run --rm --no-deps tutorials-jupyter \
 		python -m pytest seocho/tests/test_ontology_ttl.py -v
 
-tutorials-test: ## Headless nbconvert run of every tutorial notebook
-	@if [ -z "$$OPENAI_API_KEY" ] || [ "$$OPENAI_API_KEY" = "test" ] || [ "$$OPENAI_API_KEY" = "build" ]; then \
-		echo "❌ tutorials-test needs a real OPENAI_API_KEY (LLM calls happen at execute-time)."; \
-		exit 1; \
-	fi
+tutorials-test: ## Headless nbconvert run of every tutorial notebook (reads OPENAI_API_KEY from .env)
 	@$(DOCKER_COMPOSE_TUTORIALS) run --rm --no-deps tutorials-jupyter bash -lc '\
+		if [ -z "$$OPENAI_API_KEY" ] || [ "$$OPENAI_API_KEY" = "placeholder" ] || [ "$$OPENAI_API_KEY" = "test" ]; then \
+			echo "❌ OPENAI_API_KEY not set inside the container. Put a real key in .env."; \
+			exit 1; \
+		fi; \
 		set -e; mkdir -p /workspace/.seocho/test_runs; cd /workspace; \
 		for nb in examples/finder_lance_vector_vs_graph_rag.ipynb \
 		           examples/finder_fibo_module_impact.ipynb \

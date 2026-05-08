@@ -148,18 +148,15 @@ from seocho.store.vector import create_vector_store; \
 from seocho.store.llm import create_llm_backend; \
 from seocho import Ontology, Seocho; \
 from seocho.index.pipeline import IndexingPipeline; \
-from seocho.store.graph import Neo4jGraphStore, LadybugGraphStore; \
-from examples.finder.datasets.fibo_modules.compose import compose_modules; \
-from examples.finder.lib.fibo_module_metrics import entity_coverage, graph_volume; \
+from seocho.store.graph import Neo4jGraphStore; \
+from seocho.query.strategy import ExtractionStrategy; \
 from examples.finder.lib.lance_graph_store import LanceGraphStore; \
-from examples.finder.lib.owlready_graph_store import OwlreadyGraphStore; \
-from examples.finder.lib.lpg_metrics import compute_lpg_structure_metrics; \
-from examples.finder.lib.rdf_lpg_comparison import golden_standard_overlap, task_track_aggregate; \
-from examples.finder.lib.graph_viz import draw_lpg, draw_rdf, fetch_lpg_subgraph; \
+from examples.finder.lib.graph_viz import draw_lpg, fetch_lpg_subgraph; \
 from examples.finder.lib.ontology_io import ontology_plus, ontology_minus; \
 from seocho.tracing import enable_tracing, log_span, flush_tracing; \
 from seocho.agent_config import AgentConfig, RoutingPolicy; \
 from extraction.agent_base.base import BaseAgent, register_tool; \
+import networkx as nx; \
 print('✅ All four tutorial import chains resolve cleanly')"
 
 tutorials-pytest: ## Run the seocho test suite inside the tutorials container
@@ -175,13 +172,14 @@ tutorials-test: ## Headless nbconvert run of every tutorial notebook (reads OPEN
 		set -e; mkdir -p /workspace/.seocho/test_runs; cd /workspace; \
 		for nb in examples/finder/01_vector_vs_graph_rag.ipynb \
 		           examples/finder/02_fibo_module_impact.ipynb \
+		           examples/finder/03_network_analytics.ipynb \
 		           examples/finder/04_private_opik.ipynb; do \
 			echo "▶️  Executing $$nb"; \
 			jupyter nbconvert --to notebook --execute "$$nb" \
 				--ExecutePreprocessor.timeout=900 \
 				--output "/workspace/.seocho/test_runs/$$(basename $$nb)"; \
 		done; \
-		echo "ℹ️   03_rdf_vs_lpg.ipynb skipped — needs JVM for OWL reasoner cell"; \
+		echo "ℹ️   T3 needs T1 to run first to populate the workspace it reads."; \
 		echo "✅ Tutorial notebooks executed; outputs under .seocho/test_runs/"'
 
 ##@ Production

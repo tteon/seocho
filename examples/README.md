@@ -56,23 +56,26 @@ open http://localhost:28888/lab/tree/examples
 
 What ships:
 
-- `tutorials-jupyter` — JupyterLab on `localhost:28888` (chosen to dodge the 8888-range that local IDEs and notebook servers commonly grab). Bind-mounts `examples/` and `seocho/` so edits on the host show up live in the container.
+- `tutorials-jupyter` — JupyterLab on `localhost:8888`. Bind-mounts
+  `examples/` and `seocho/` so edits on the host show up live in the container.
 - `tutorials-neo4j` — DozerDB 5.26 with `apoc` + `n10s` plugins.
   - **Neo4j Browser:** http://localhost:7474  (login `neo4j` / `tutorialspw`)
   - **Bolt URI:** `bolt://tutorials-neo4j:7687` (container-internal — notebooks read it from `NEO4J_URI`)
-  - If the main `make up` stack is also running it'll claim 7474/7687 first;
-    set `TUTORIALS_NEO4J_HTTP_PORT` / `TUTORIALS_NEO4J_BOLT_PORT` in `.env`
-    to move the tutorial stack out of the way.
+  - If something else on the host already binds 7474/7687 (the main
+    `make up` stack, a system Neo4j install, or a leftover Docker
+    proxy), override `TUTORIALS_NEO4J_HTTP_PORT` /
+    `TUTORIALS_NEO4J_BOLT_PORT` in `.env`. `make tutorials-down` is
+    usually enough to release stale Docker bindings.
 - LanceDB tables, owlready2 SQLite, JSONL traces all live under `./.seocho/`.
 
 Customize via `.env`:
 
 ```bash
-TUTORIALS_JUPYTER_PORT=28888
+TUTORIALS_JUPYTER_PORT=8888
 TUTORIALS_NEO4J_HTTP_PORT=7474
 TUTORIALS_NEO4J_BOLT_PORT=7687
 TUTORIALS_NEO4J_PASSWORD=tutorialspw
-FINDER_PATH=/workspace/examples/datasets/finder_tutorial_subset.json
+FINDER_PATH=/workspace/examples/finder/datasets/finder_tutorial_subset.json
 ```
 
 Useful commands:

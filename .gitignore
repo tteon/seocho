@@ -1,3 +1,7 @@
+# Tutorial work directories (LanceDB tables, owlready2 sqlite, JSONL traces,
+# DozerDB data, captured spans). Anything under .seocho/ is local state.
+.seocho/
+
 # Rust (seocho-core)
 seocho-core/target/
 seocho-core/Cargo.lock

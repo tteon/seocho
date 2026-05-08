@@ -42,7 +42,7 @@ finder/
 echo 'OPENAI_API_KEY=sk-...' >> .env
 
 make tutorials-up        # JupyterLab + Neo4j (DozerDB + apoc + n10s)
-open http://localhost:28888/lab/tree/examples/finder    # notebooks
+open http://localhost:8888/lab/tree/examples/finder    # notebooks
 open http://localhost:7474                              # Neo4j Browser
 ```
 

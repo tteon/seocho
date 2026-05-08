@@ -54,12 +54,12 @@ make tutorials-up
 # or: docker compose -f docker-compose.tutorials.yml up -d --build
 
 # 3. Open JupyterLab (token disabled in this dev image)
-open http://localhost:8889/lab/tree/examples
+open http://localhost:28888/lab/tree/examples
 ```
 
 What ships:
 
-- `tutorials-jupyter` — JupyterLab on `localhost:8889`. Bind-mounts `examples/`
+- `tutorials-jupyter` — JupyterLab on `localhost:28888` (chosen to dodge the 8888-range that local IDEs and notebook servers commonly grab). Bind-mounts `examples/`
   and `seocho/` so edits on the host show up live in the container.
 - All three notebooks run with embedded storage under `./.seocho/`. No Neo4j,
   no external services.
@@ -67,7 +67,7 @@ What ships:
 Customize via `.env`:
 
 ```bash
-TUTORIALS_JUPYTER_PORT=8889
+TUTORIALS_JUPYTER_PORT=28888
 FINDER_PATH=/workspace/examples/datasets/finder_tutorial_subset.json
 ```
 

@@ -1,0 +1,13 @@
+@prefix owl:    <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix priv:   <https://seocho.dev/private/> .
+
+priv:Ontology   a owl:Ontology ;
+                rdfs:label "Restricted classes — subtract these from any composition" .
+
+# Anything declared here is removed by ontology_minus.
+priv:Lawsuit        a owl:Class ;
+                    rdfs:label "Lawsuit (restricted — excluded by compliance policy)" .
+
+priv:defendantIn    a owl:ObjectProperty ;
+                    rdfs:label "Defendant in (restricted)" .

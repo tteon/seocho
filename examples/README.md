@@ -8,6 +8,10 @@ Jupyter notebooks for learning SEOCHO by doing.
 |----------|------------------|
 | [quickstart.ipynb](quickstart.ipynb) | Recommended first entry route: ontology, indexing design YAML, agent design YAML, local indexing/query, observability, and four-provider comparison |
 | [bring_your_data.ipynb](bring_your_data.ipynb) | Load your actual data: text files, CSV, JSON, and query it |
+| [finder_lance_vector_vs_graph_rag.ipynb](finder_lance_vector_vs_graph_rag.ipynb) | FinDER tutorial — Vector RAG (LanceDB) vs Graph RAG (LanceDB-backed graph) |
+| [finder_fibo_module_impact.ipynb](finder_fibo_module_impact.ipynb) | FinDER tutorial — measure how each FIBO module changes KG quality |
+| [finder_rdf_vs_lpg_evaluation.ipynb](finder_rdf_vs_lpg_evaluation.ipynb) | FinDER tutorial — RDF vs LPG across five evaluation tracks (fully embedded — owlready2 + LanceDB) |
+| [private_opik_workflow.ipynb](private_opik_workflow.ipynb) | Personal template — your USER_ID/AGENT_ID/SESSION_ID + metadata threaded through ontology design (TTL +/-), LLM backend, agent tool_use, and pattern design, with every span tagged for Opik (or JSONL fallback) |
 
 ## Prerequisites
 
@@ -33,6 +37,52 @@ jupyter notebook
 ```
 
 Then open the notebook and run cells top to bottom.
+
+## Running the FinDER tutorials in Docker (recommended)
+
+The three FinDER notebooks have a packaged Docker environment with JupyterLab
+and every embedded backend they need: **LanceDB** for vectors and the LPG side,
+**owlready2 + rdflib** for the OWL/RDF side, plus **NetworkX** and **matplotlib**.
+No external graph servers — everything runs inside the single container.
+
+```bash
+# 1. Once: put your OpenAI key in the repo .env
+echo 'OPENAI_API_KEY=sk-...' >> ../.env
+
+# 2. Bring up JupyterLab
+make tutorials-up
+# or: docker compose -f docker-compose.tutorials.yml up -d --build
+
+# 3. Open JupyterLab (token disabled in this dev image)
+open http://localhost:8889/lab/tree/examples
+```
+
+What ships:
+
+- `tutorials-jupyter` — JupyterLab on `localhost:8889`. Bind-mounts `examples/`
+  and `seocho/` so edits on the host show up live in the container.
+- All three notebooks run with embedded storage under `./.seocho/`. No Neo4j,
+  no external services.
+
+Customize via `.env`:
+
+```bash
+TUTORIALS_JUPYTER_PORT=8889
+FINDER_PATH=/workspace/examples/datasets/finder_tutorial_subset.json
+```
+
+Useful commands:
+
+```bash
+make tutorials-logs    # tail container logs
+make tutorials-shell   # bash inside the Jupyter container
+make tutorials-down    # stop everything (data persists in ./.seocho)
+```
+
+The bonus *OWL reasoning* cell in Tutorial 3 invokes HermiT (Java). The cell
+reports gracefully if no JVM is present in the image; install one with
+`apt-get install -y default-jre-headless` inside the container if you want
+to run that step.
 
 ## What each notebook covers
 

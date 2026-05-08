@@ -1,0 +1,62 @@
+graph_type: "fibo_fnd"
+package_id: "fibo_fnd"
+version: "1.0.0"
+description: "FIBO Foundations module — dates, agreements, ownership and control"
+graph_model: "lpg"
+nodes:
+  Person:
+    description: "A natural person (executive, director, named officer)"
+    aliases: [Executive, Director, Officer]
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+      title:
+        type: STRING
+  LegalAgreement:
+    description: "A contract, settlement, or covenant"
+    aliases: [Contract, Settlement, Covenant, Agreement]
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+      effective_date:
+        type: STRING
+      counterparties:
+        type: STRING
+        description: "Comma-separated parties to the agreement"
+      amount:
+        type: STRING
+        description: "Monetary value where stated"
+  Lawsuit:
+    description: "A legal proceeding the entity is party to"
+    aliases: [Litigation, Action]
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+      filed_date:
+        type: STRING
+      counterparty:
+        type: STRING
+      status:
+        type: STRING
+relationships:
+  EMPLOYS:
+    source: LegalEntity
+    target: Person
+    description: "Employment / officer role"
+    cardinality: ONE_TO_MANY
+  PARTY_TO:
+    source: LegalEntity
+    target: LegalAgreement
+    description: "Entity is party to agreement"
+    cardinality: MANY_TO_MANY
+  DEFENDANT_IN:
+    source: LegalEntity
+    target: Lawsuit
+    description: "Entity is defendant in lawsuit"
+    cardinality: ONE_TO_MANY

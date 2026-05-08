@@ -385,6 +385,9 @@ Selected long-form docs are generated there from this repo's canonical
 | [docs/WORKFLOW.md](docs/WORKFLOW.md) | Operational workflow |
 | [docs/ISSUE_TASK_SYSTEM.md](docs/ISSUE_TASK_SYSTEM.md) | Sprint/task governance |
 | [docs/SHACL_GRAPHRAG_PLAYBOOK.md](docs/SHACL_GRAPHRAG_PLAYBOOK.md) | SHACL + GraphRAG playbook |
+| [examples/finder_lance_vector_vs_graph_rag.ipynb](examples/finder_lance_vector_vs_graph_rag.ipynb) | FinDER tutorial — Vector RAG vs Graph RAG with Lance for both stores |
+| [examples/finder_fibo_module_impact.ipynb](examples/finder_fibo_module_impact.ipynb) | FinDER tutorial — how each FIBO module (BE/FBC/SEC/FND/IND) changes KG quality |
+| [examples/finder_rdf_vs_lpg_evaluation.ipynb](examples/finder_rdf_vs_lpg_evaluation.ipynb) | FinDER tutorial — RDF vs LPG across five evaluation tracks |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute |
 
 ## Observability

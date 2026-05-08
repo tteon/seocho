@@ -1,0 +1,33 @@
+# Self-contained docker-compose for the FinDER tutorial notebooks.
+#
+#   docker compose -f docker-compose.tutorials.yml up --build
+#   open http://localhost:8889/lab/tree/examples
+#
+# Everything is embedded: LanceDB for vectors and LPG, rdflib for RDF.
+# No external graph server required. The main docker-compose.yml is
+# untouched — bring this up alongside or instead of it.
+
+services:
+  tutorials-jupyter:
+    build:
+      context: .
+      dockerfile: examples/Dockerfile.tutorials
+    container_name: seocho-tutorials-jupyter
+    ports:
+      - "${SEOCHO_BIND_HOST:-127.0.0.1}:${TUTORIALS_JUPYTER_PORT:-8889}:8889"
+    volumes:
+      # Bind the entire repo so notebook edits, the tutorial-only adapter
+      # modules, and the seocho/ package are all live-edited on host.
+      - ./examples:/workspace/examples
+      - ./seocho:/workspace/seocho
+      - ./scripts:/workspace/scripts:ro
+      # Persistent on-host artifacts directory the tutorials write to
+      # (LanceDB tables, captured spans, scoreboards, RDF dumps).
+      - ./.seocho:/workspace/.seocho
+    environment:
+      # Required for embeddings + LLM calls in all three tutorials.
+      - OPENAI_API_KEY=${OPENAI_API_KEY:?Set OPENAI_API_KEY in .env before bringing tutorials up}
+      # FinDER subset path — defaults to the synthetic 10-K excerpt that
+      # ships with the tutorials.  Point this at a real FinDER JSON to
+      # run against the published dataset.
+      - FINDER_PATH=${FINDER_PATH:-/workspace/examples/datasets/finder_tutorial_subset.json}

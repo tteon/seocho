@@ -4,7 +4,7 @@ DOCKER_COMPOSE = docker compose
 DOCKER_COMPOSE_LIVE = docker compose -f docker-compose.yml -f docker-compose.dev.yml
 DOCKER_COMPOSE_TUTORIALS = docker compose -f docker-compose.tutorials.yml
 
-.PHONY: up up-live up-legacy-semantic down restart logs clean bootstrap shell test test-integration e2e-smoke lint format help opik-up opik-down opik-logs demo-raw demo-meta demo-neo4j demo-graphrag-opik demo-all setup-env tutorials-up tutorials-down tutorials-logs tutorials-shell tutorials-build tutorials-smoke tutorials-test tutorials-pytest
+.PHONY: up up-live up-legacy-semantic down restart logs clean bootstrap shell test test-integration e2e-smoke lint format help opik-up opik-down opik-logs demo-raw demo-meta demo-neo4j demo-graphrag-opik demo-all setup-env tutorials-up tutorials-down tutorials-logs tutorials-shell tutorials-build tutorials-smoke tutorials-test tutorials-pytest tutorials-gds
 
 ##@ Development
 
@@ -136,6 +136,12 @@ tutorials-logs: ## Tail logs from the tutorial stack
 
 tutorials-shell: ## Open a shell inside the tutorial Jupyter container
 	@$(DOCKER_COMPOSE_TUTORIALS) exec tutorials-jupyter bash
+
+tutorials-gds: ## Install OpenGDS (DozerDB-compatible Graph Data Science) into the tutorial Neo4j
+	@bash setup_opengds.sh
+	@$(DOCKER_COMPOSE_TUTORIALS) restart tutorials-neo4j
+	@echo "✅ OpenGDS installed and Neo4j restarted."
+	@echo "ℹ️   Verify in cypher-shell: RETURN gds.version() AS version"
 
 tutorials-build: ## Build the tutorial Docker image without starting the container
 	@OPENAI_API_KEY=$${OPENAI_API_KEY:-build} $(DOCKER_COMPOSE_TUTORIALS) build

@@ -26,8 +26,19 @@ services:
       # (LanceDB tables, captured spans, scoreboards, RDF dumps).
       - ./.seocho:/workspace/.seocho
     environment:
-      # Required for embeddings + LLM calls in all three tutorials.
-      - OPENAI_API_KEY=${OPENAI_API_KEY:?Set OPENAI_API_KEY in .env before bringing tutorials up}
+      # LLM provider for completions — defaults to openai/gpt-4o-mini.
+      # Override with SEOCHO_LLM=grok/grok-2-mini, kimi/kimi-k2.5,
+      # deepseek/deepseek-chat, qwen/qwen-plus, etc.
+      - SEOCHO_LLM=${SEOCHO_LLM:-openai/gpt-4o-mini}
+      # Provider keys (set whichever ones you actually use). Only the one
+      # selected by SEOCHO_LLM must be present. OPENAI_API_KEY is also
+      # used by Tutorial 1's vector path — embeddings require OpenAI.
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - MOONSHOT_API_KEY=${MOONSHOT_API_KEY:-}
+      - XAI_API_KEY=${XAI_API_KEY:-}
+      - GROK_API_KEY=${GROK_API_KEY:-}
+      - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY:-}
       # FinDER subset path — defaults to the synthetic 10-K excerpt that
       # ships with the tutorials.  Point this at a real FinDER JSON to
       # run against the published dataset.

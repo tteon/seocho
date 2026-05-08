@@ -28,7 +28,7 @@ WORKDIR /tmp/build
 COPY pyproject.toml /tmp/build/pyproject.toml
 COPY README.md /tmp/build/README.md
 COPY seocho /tmp/build/seocho
-RUN uv pip install --system --no-cache ".[ci]"
+RUN uv pip install --system --no-cache ".[ci,local]"
 
 # Stage 2 — tutorial-only Python deps (jupyterlab, networkx, matplotlib, …)
 COPY examples/requirements-tutorials.txt /tmp/requirements-tutorials.txt

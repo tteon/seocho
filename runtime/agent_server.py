@@ -1039,12 +1039,25 @@ async def platform_chat_send(request: PlatformChatRequest):
 @track("agent_server.platform_chat_session_get")
 async def platform_chat_session_get(session_id: str):
     history = [PlatformTurn(**row) for row in platform_session_store.get(session_id)]
+    if history:
+        workspace_id = next((turn.metadata.get("workspace_id") for turn in history if "workspace_id" in turn.metadata), "default")
+        try:
+            require_runtime_permission(role="user", action="run_platform", workspace_id=workspace_id)
+        except PermissionError as e:
+            raise HTTPException(status_code=403, detail=str(e))
     return PlatformSessionResponse(session_id=session_id, history=history)
 
 
 @app.delete(RuntimePath.PLATFORM_CHAT_SESSION, response_model=PlatformSessionResponse)
 @track("agent_server.platform_chat_session_reset")
 async def platform_chat_session_reset(session_id: str):
+    history = [PlatformTurn(**row) for row in platform_session_store.get(session_id)]
+    if history:
+        workspace_id = next((turn.metadata.get("workspace_id") for turn in history if "workspace_id" in turn.metadata), "default")
+        try:
+            require_runtime_permission(role="user", action="run_platform", workspace_id=workspace_id)
+        except PermissionError as e:
+            raise HTTPException(status_code=403, detail=str(e))
     platform_session_store.clear(session_id)
     return PlatformSessionResponse(session_id=session_id, history=[])
 

@@ -232,20 +232,21 @@ def read_json_file(path: Path) -> List[Dict[str, Any]]:
 def read_jsonl_file(path: Path) -> List[Dict[str, Any]]:
     """Read a .jsonl file — one JSON object per line."""
     records: List[Dict[str, Any]] = []
-    for i, line in enumerate(path.read_text(encoding="utf-8").splitlines()):
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            item = json.loads(line)
-            if isinstance(item, dict):
-                content = item.get("content", json.dumps(item))
-                meta = {k: v for k, v in item.items() if k != "content"}
-                meta["source_file"] = str(path)
-                meta["line_index"] = i
-                records.append({"content": content, "metadata": meta})
-        except json.JSONDecodeError:
-            logger.warning("Skipping malformed JSON at %s line %d", path, i)
+    with open(path, "r", encoding="utf-8") as f:
+        for i, line in enumerate(f):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                item = json.loads(line)
+                if isinstance(item, dict):
+                    content = item.get("content", json.dumps(item))
+                    meta = {k: v for k, v in item.items() if k != "content"}
+                    meta["source_file"] = str(path)
+                    meta["line_index"] = i
+                    records.append({"content": content, "metadata": meta})
+            except json.JSONDecodeError:
+                logger.warning("Skipping malformed JSON at %s line %d", path, i)
     return records
 
 

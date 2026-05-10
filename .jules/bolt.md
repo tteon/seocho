@@ -1,1 +1,2 @@
 When logging history, traces, or metadata (such as prompt history), prefer append-only `.jsonl` format over reading and rewriting full JSON arrays to prevent O(N^2) file I/O scaling bottlenecks.
+Regex patterns used for text normalization and tokenization in hot paths (like iterating over rows, facts, labels, or relationships during semantic resolution or Cypher construction) should be pre-compiled as module-level constants to avoid recompilation overhead inside loops.

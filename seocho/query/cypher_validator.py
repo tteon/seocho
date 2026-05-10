@@ -20,11 +20,13 @@ FORBIDDEN_CYPHER_TOKENS = (
 )
 
 
+_RE_WHITESPACE = re.compile(r"\s+")
+
 class CypherQueryValidator:
     """Validate constrained Cypher plans before execution."""
 
     def validate(self, plan: CypherPlan, constraint_slice: Dict[str, Any]) -> Dict[str, Any]:
-        normalized_query = " " + re.sub(r"\s+", " ", plan.query.upper()) + " "
+        normalized_query = " " + _RE_WHITESPACE.sub(" ", plan.query.upper()) + " "
         violations: List[str] = []
         if "$node_id" not in plan.query:
             violations.append("missing_node_binding")

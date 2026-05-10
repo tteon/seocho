@@ -38,6 +38,8 @@ INTENT_CATALOG: tuple[IntentSpec, ...] = (
 )
 
 
+_RE_NON_ALNUM_TO_EMPTY = re.compile(r"[^a-z0-9]+")
+
 def infer_question_intent(question: str, entities: Sequence[str]) -> Dict[str, Any]:
     normalized = question.lower()
     best_spec = INTENT_CATALOG[-1]
@@ -200,13 +202,13 @@ def _entity_name(payload: Dict[str, Any]) -> str:
 
 
 def _first_entity_with_labels(entities: Sequence[Dict[str, Any]], normalized_targets: Set[str]) -> str:
-    normalized_target_keys = {re.sub(r"[^a-z0-9]+", "", item.lower()) for item in normalized_targets}
+    normalized_target_keys = {_RE_NON_ALNUM_TO_EMPTY.sub("", item.lower()) for item in normalized_targets}
     for entity in entities:
         labels = entity.get("labels", [])
         if not isinstance(labels, list):
             continue
         normalized_labels = {
-            re.sub(r"[^a-z0-9]+", "", str(label).lower())
+            _RE_NON_ALNUM_TO_EMPTY.sub("", str(label).lower())
             for label in labels
         }
         if normalized_labels & normalized_target_keys:

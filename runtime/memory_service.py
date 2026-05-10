@@ -20,6 +20,8 @@ from seocho.query.answering import build_evidence_bundle
 from seocho.query.query_proxy import QueryProxy, QueryRequest as GraphQueryRequest
 
 
+_RE_NON_ALNUM_TO_SPACE = re.compile(r"[^a-z0-9]+")
+
 class GraphMemoryService:
     """Memory-first facade over runtime ingest and semantic graph search."""
 
@@ -811,7 +813,7 @@ def _overlap_score(query: str, content: str) -> float:
 
 
 def _normalize_text(value: str) -> str:
-    return re.sub(r"[^a-z0-9]+", " ", str(value).lower()).strip()
+    return _RE_NON_ALNUM_TO_SPACE.sub(" ", str(value).lower()).strip()
 
 
 def _utc_now_iso() -> str:

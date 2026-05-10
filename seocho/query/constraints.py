@@ -36,6 +36,8 @@ COMMON_ALLOWED_PROPERTIES = {
 }
 
 
+_RE_NON_ALNUM_TO_EMPTY = re.compile(r"[^a-z0-9]+")
+
 @dataclass(frozen=True)
 class _CanonicalGraphTarget:
     graph_id: str
@@ -45,11 +47,11 @@ class _CanonicalGraphTarget:
 
 
 def _normalize_symbol(value: Any) -> str:
-    return re.sub(r"[^a-z0-9]+", "", str(value).lower())
+    return _RE_NON_ALNUM_TO_EMPTY.sub("", str(value).lower())
 
 
 def _slugify_symbol(value: Any) -> str:
-    slug = re.sub(r"[^a-z0-9]+", "-", str(value).lower()).strip("-")
+    slug = _RE_NON_ALNUM_TO_EMPTY.sub("-", str(value).lower()).strip("-")
     return slug or "term"
 
 

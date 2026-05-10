@@ -6,8 +6,10 @@ from typing import Any, Dict, List, Sequence
 from .contracts import CypherPlan, InsufficiencyAssessment
 
 
+_RE_NON_ALNUM_TO_EMPTY = re.compile(r"[^a-z0-9]+")
+
 def _normalize_symbol(value: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "", str(value).lower())
+    return _RE_NON_ALNUM_TO_EMPTY.sub("", str(value).lower())
 
 
 class IntentSupportValidator:

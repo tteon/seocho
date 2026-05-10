@@ -66,13 +66,16 @@ _GENERIC_METRIC_TOKENS = {
 }
 
 
+_RE_WHITESPACE = re.compile(r"\s+")
+_RE_TRAILING_AMPERSAND = re.compile(r"\s*&\s*$")
+
 def normalize_entity(name: str) -> str:
     """Normalize an entity name for fuzzy matching."""
     text = name.strip()
     text = text.replace("\u2019s", "").replace("'s", "")
     text = _ENTITY_SUFFIXES.sub("", text).strip()
-    text = re.sub(r"\s*&\s*$", "", text)
-    text = re.sub(r"\s+", " ", text).strip()
+    text = _RE_TRAILING_AMPERSAND.sub("", text)
+    text = _RE_WHITESPACE.sub(" ", text).strip()
     return text
 
 

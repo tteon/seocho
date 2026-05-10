@@ -13,11 +13,13 @@ import os
 import re
 from typing import Dict, List, Set
 
+_RE_NON_ALNUM_TO_SPACE = re.compile(r"[^a-z0-9]+")
+
 logger = logging.getLogger(__name__)
 
 
 def _normalize(value: str) -> str:
-    return re.sub(r"[^a-z0-9]+", " ", value.lower()).strip()
+    return _RE_NON_ALNUM_TO_SPACE.sub(" ", value.lower()).strip()
 
 
 class OntologyHintStore:

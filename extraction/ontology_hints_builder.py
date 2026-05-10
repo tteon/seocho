@@ -10,8 +10,10 @@ import re
 from typing import Dict, Iterable, List, Sequence, Set
 
 
+_RE_NON_ALNUM_TO_SPACE = re.compile(r"[^a-z0-9]+")
+
 def normalize_text(value: str) -> str:
-    return re.sub(r"[^a-z0-9]+", " ", value.lower()).strip()
+    return _RE_NON_ALNUM_TO_SPACE.sub(" ", value.lower()).strip()
 
 
 def keyword_tokens(value: str) -> Set[str]:

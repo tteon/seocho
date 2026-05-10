@@ -21,11 +21,13 @@ from semantic_artifact_store import (
     list_semantic_artifacts,
 )
 
+_RE_NON_ALNUM_TO_SPACE = re.compile(r"[^a-z0-9]+")
+
 logger = logging.getLogger(__name__)
 
 
 def _normalize(value: str) -> str:
-    return re.sub(r"[^a-z0-9]+", " ", value.lower()).strip()
+    return _RE_NON_ALNUM_TO_SPACE.sub(" ", value.lower()).strip()
 
 
 class ManagedVocabularyResolver:

@@ -10,6 +10,12 @@ from .intent import build_evidence_bundle, infer_question_intent
 _FOUR_DIGIT_YEAR_RE = re.compile(r"\b(20\d{2})\b")
 
 
+_RE_NON_ALNUM_TO_SPACE = re.compile(r"[^a-z0-9]+")
+_RE_PRIOR_YEAR_1 = re.compile(r"\bthe prior year\b", flags=re.IGNORECASE)
+_RE_PRIOR_YEAR_2 = re.compile(r"\bprior year\b", flags=re.IGNORECASE)
+_RE_PREVIOUS_YEAR_1 = re.compile(r"\bthe previous year\b", flags=re.IGNORECASE)
+_RE_PREVIOUS_YEAR_2 = re.compile(r"\bprevious year\b", flags=re.IGNORECASE)
+
 class QueryAnswerSynthesizer:
     """Canonical answer synthesis for local deterministic query execution."""
 
@@ -389,10 +395,10 @@ class QueryAnswerSynthesizer:
         if len(ordered_years) < 2:
             return text
         earlier_year = ordered_years[0]
-        normalized = re.sub(r"\bthe prior year\b", earlier_year, text, flags=re.IGNORECASE)
-        normalized = re.sub(r"\bprior year\b", earlier_year, normalized, flags=re.IGNORECASE)
-        normalized = re.sub(r"\bthe previous year\b", earlier_year, normalized, flags=re.IGNORECASE)
-        normalized = re.sub(r"\bprevious year\b", earlier_year, normalized, flags=re.IGNORECASE)
+        normalized = _RE_PRIOR_YEAR_1.sub(earlier_year, text)
+        normalized = _RE_PRIOR_YEAR_2.sub(earlier_year, normalized)
+        normalized = _RE_PREVIOUS_YEAR_1.sub(earlier_year, normalized)
+        normalized = _RE_PREVIOUS_YEAR_2.sub(earlier_year, normalized)
         return normalized
 
     @staticmethod
@@ -463,8 +469,8 @@ class QueryAnswerSynthesizer:
     def _company_match_score(self, company: str, anchor: str) -> int:
         if not anchor:
             return 0
-        company_norm = re.sub(r"[^a-z0-9]+", " ", company.lower())
-        anchor_norm = re.sub(r"[^a-z0-9]+", " ", anchor.lower())
+        company_norm = _RE_NON_ALNUM_TO_SPACE.sub(" ", company.lower())
+        anchor_norm = _RE_NON_ALNUM_TO_SPACE.sub(" ", anchor.lower())
         anchor_tokens = [token for token in anchor_norm.split() if token]
         return sum(2 for token in anchor_tokens if token in company_norm)
 

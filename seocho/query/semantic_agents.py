@@ -18,6 +18,12 @@ from .query_proxy import QueryExecutionError, coerce_query_records
 from .run_registry import RunMetadataRegistry
 from .strategy_chooser import ExecutionStrategyChooser, IntentSupportValidator
 
+_RE_NON_ALNUM_TO_SPACE = re.compile(r"[^a-z0-9]+")
+_RE_NON_ALNUM_TO_EMPTY = re.compile(r"[^a-z0-9]+")
+_RE_WHITESPACE = re.compile(r"\s+")
+_RE_POSSESSIVE = re.compile(r"'s\b", flags=re.IGNORECASE)
+_RE_COMPANY_SUFFIX = re.compile(r"\b(corporation|corp|company|co|incorporated)\b\.?", flags=re.IGNORECASE)
+
 logger = logging.getLogger(__name__)
 
 RDF_HINTS = {
@@ -113,11 +119,11 @@ QUERY_CONTRACT_FAILURE_CODE = "query_execution_failed_or_contract_error"
 
 
 def _normalize(value: str) -> str:
-    return re.sub(r"[^a-z0-9]+", " ", value.lower()).strip()
+    return _RE_NON_ALNUM_TO_SPACE.sub(" ", value.lower()).strip()
 
 
 def _normalize_symbol(value: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "", str(value).lower())
+    return _RE_NON_ALNUM_TO_EMPTY.sub("", str(value).lower())
 
 
 def _query_rows(
@@ -943,9 +949,9 @@ class SemanticEntityResolver:
 
     @staticmethod
     def _clean_span(value: str) -> str:
-        cleaned = re.sub(r"\s+", " ", value.strip())
+        cleaned = _RE_WHITESPACE.sub(" ", value.strip())
         cleaned = cleaned.strip(".,:;!?()[]{}")
-        cleaned = re.sub(r"'s\b", "", cleaned, flags=re.IGNORECASE)
+        cleaned = _RE_POSSESSIVE.sub("", cleaned)
         tokens = cleaned.split()
         while len(tokens) > 1 and tokens[0].lower() in LEADING_ENTITY_WRAPPER_TOKENS:
             tokens = tokens[1:]
@@ -967,7 +973,7 @@ class SemanticEntityResolver:
             terms.append(cleaned)
 
         for raw in (resolved_text, entity_text):
-            compact = re.sub(r"\b(corporation|corp|company|co|incorporated)\b\.?", "", raw, flags=re.IGNORECASE)
+            compact = _RE_COMPANY_SUFFIX.sub("", raw)
             compact = cls._clean_span(compact)
             if not compact:
                 continue
@@ -980,7 +986,7 @@ class SemanticEntityResolver:
 
     @staticmethod
     def _normalize(value: str) -> str:
-        return re.sub(r"[^a-z0-9]+", " ", value.lower()).strip()
+        return _RE_NON_ALNUM_TO_SPACE.sub(" ", value.lower()).strip()
 
     @staticmethod
     def _lexical_similarity(a: str, b: str) -> float:
@@ -1001,8 +1007,8 @@ class SemanticEntityResolver:
     def _label_boost(labels: Sequence[str], label_hints: Set[str]) -> float:
         if not labels or not label_hints:
             return 0.0
-        normalized_labels = {re.sub(r"[^a-z0-9]+", "", str(label).lower()) for label in labels}
-        normalized_hints = {re.sub(r"[^a-z0-9]+", "", hint.lower()) for hint in label_hints}
+        normalized_labels = {_RE_NON_ALNUM_TO_EMPTY.sub("", str(label).lower()) for label in labels}
+        normalized_hints = {_RE_NON_ALNUM_TO_EMPTY.sub("", hint.lower()) for hint in label_hints}
         if normalized_labels & normalized_hints:
             return 0.15
         return 0.0

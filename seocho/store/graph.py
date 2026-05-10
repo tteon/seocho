@@ -29,6 +29,8 @@ from typing import Any, Callable, Dict, List, Optional, Sequence
 
 from seocho.ontology import Ontology
 
+_RE_NON_ALNUM_TO_EMPTY = re.compile(r"[^a-z0-9]+")
+
 logger = logging.getLogger(__name__)
 
 _LABEL_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -134,7 +136,7 @@ def sanitize_database_name(raw: str) -> str:
     - Ensures minimum length
     - Prepends 'db' if starts with digit
     """
-    name = re.sub(r"[^a-z0-9]", "", raw.lower())
+    name = _RE_NON_ALNUM_TO_EMPTY.sub("", raw.lower())
     if not name:
         name = "seocho"
     if name[0].isdigit():

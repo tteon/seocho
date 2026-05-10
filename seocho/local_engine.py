@@ -13,6 +13,8 @@ from .query.executor import GraphQueryExecutor
 from .query.planner import DeterministicQueryPlanner
 from .query.run_metadata import build_local_query_metadata
 
+_RE_NON_ALNUM_TO_SPACE = re.compile(r"[^a-z0-9]+")
+
 logger = logging.getLogger(__name__)
 _FOUR_DIGIT_YEAR_RE = re.compile(r"\b(20\d{2})\b")
 
@@ -750,8 +752,8 @@ class _LocalEngine:
     def _company_match_score(self, company: str, anchor: str) -> int:
         if not anchor:
             return 0
-        company_norm = re.sub(r"[^a-z0-9]+", " ", company.lower())
-        anchor_norm = re.sub(r"[^a-z0-9]+", " ", anchor.lower())
+        company_norm = _RE_NON_ALNUM_TO_SPACE.sub(" ", company.lower())
+        anchor_norm = _RE_NON_ALNUM_TO_SPACE.sub(" ", anchor.lower())
         anchor_tokens = [token for token in anchor_norm.split() if token]
         return sum(2 for token in anchor_tokens if token in company_norm)
 

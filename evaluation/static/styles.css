@@ -166,6 +166,22 @@ body {
   gap: 1rem;
 }
 
+.reset-btn {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.reset-btn:hover,
+.reset-btn:focus-visible {
+  color: #fff;
+}
+
 .status {
   padding: 0.25rem 0.75rem;
   font-size: 0.75rem;

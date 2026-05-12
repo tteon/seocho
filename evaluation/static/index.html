@@ -22,9 +22,9 @@
         <p>SEOCHO</p>
       </div>
       <nav class="rail-nav">
-        <button class="rail-btn active" id="railSemantic" data-mode="semantic">Semantic</button>
-        <button class="rail-btn" id="railDebate" data-mode="debate">Debate</button>
-        <button class="rail-btn" id="railRouter" data-mode="router">Router</button>
+        <button class="rail-btn active" id="railSemantic" data-mode="semantic" aria-label="Semantic Mode">Semantic</button>
+        <button class="rail-btn" id="railDebate" data-mode="debate" aria-label="Debate Mode">Debate</button>
+        <button class="rail-btn" id="railRouter" data-mode="router" aria-label="Router Mode">Router</button>
       </nav>
     </aside>
 
@@ -37,9 +37,7 @@
           <span class="subtext" id="sessionMeta">Session</span>
         </div>
         <div class="status-wrap">
-          <button id="resetSessionBtn"
-            style="background:transparent; border:1px solid var(--border-color); color:var(--text-muted); padding:4px 8px; border-radius:4px; font-size:0.75rem; cursor:pointer;"
-            onmouseover="this.style.color='#fff'" onmouseout="this.style.color='var(--text-muted)'">Reset Trace</button>
+          <button id="resetSessionBtn" class="reset-btn" aria-label="Reset session trace">Reset Trace</button>
           <div class="status" id="statusPill" role="status" aria-live="polite">Initializing</div>
         </div>
       </header>
@@ -74,8 +72,8 @@
           <textarea id="ingestInput" aria-label="Raw records for ingestion" rows="2"
             placeholder="Example: ACME acquired Beta in 2024.&#10;Example: Beta provides risk analytics to ACME."></textarea>
         </label>
-        <button id="ingestBtn" type="button">Ingest Raw</button>
-        <button id="oneClickDemoBtn" type="button">Load Sample & Ask</button>
+        <button id="ingestBtn" type="button" aria-label="Ingest Raw Records">Ingest Raw</button>
+        <button id="oneClickDemoBtn" type="button" aria-label="Load Sample & Ask">Load Sample & Ask</button>
       </section>
 
       <!-- Dual Pane Interaction Area -->
@@ -88,8 +86,8 @@
           </div>
 
           <form id="chatForm" class="composer">
-            <textarea id="chatInput" placeholder="Awaiting query injection..." aria-label="Query input" rows="3"></textarea>
-            <button type="submit" id="sendBtn">Execute Pipeline</button>
+            <textarea id="chatInput" placeholder="Enter your query here..." aria-label="Query input" rows="3"></textarea>
+            <button type="submit" id="sendBtn" aria-label="Execute Pipeline">Execute Pipeline</button>
           </form>
         </div>
 

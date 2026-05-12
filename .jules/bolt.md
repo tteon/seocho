@@ -1,1 +1,2 @@
 When logging history, traces, or metadata (such as prompt history), prefer append-only `.jsonl` format over reading and rewriting full JSON arrays to prevent O(N^2) file I/O scaling bottlenecks.
+When parsing large append-only JSONL files periodically (like response cache or traces), track file size/offsets and incrementally parse instead of re-reading the entire file every time to prevent O(N^2) read bottlenecks.

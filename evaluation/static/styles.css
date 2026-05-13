@@ -581,3 +581,20 @@ button:focus-visible {
     stroke-dashoffset: -16;
   }
 }
+
+/* Reset Session Button */
+.reset-session-btn {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.reset-session-btn:hover,
+.reset-session-btn:focus-visible {
+  color: #fff;
+}

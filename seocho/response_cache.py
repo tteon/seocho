@@ -115,20 +115,42 @@ class JSONLResponseCache(ResponseCache):
         self._path = path
         self._lock = threading.RLock()
         os.makedirs(os.path.dirname(os.path.abspath(path)) or ".", exist_ok=True)
+        self._index: Dict[CacheKey, CachedResponse] = {}
+        self._last_offset = 0
 
     def _load_index(self) -> Dict[CacheKey, CachedResponse]:
-        index: Dict[CacheKey, CachedResponse] = {}
         if not os.path.exists(self._path):
-            return index
+            self._index.clear()
+            self._last_offset = 0
+            return self._index
         try:
+            current_size = os.path.getsize(self._path)
+            if current_size < self._last_offset:
+                self._index.clear()
+                self._last_offset = 0
+
+            if current_size == self._last_offset:
+                return self._index
+
             with open(self._path, "r", encoding="utf-8") as fh:
-                for line in fh:
-                    line = line.strip()
+                fh.seek(self._last_offset)
+                while True:
+                    line = fh.readline()
                     if not line:
+                        break
+
+                    if not line.endswith("\n"):
+                        # Partial write, stop here and wait for next read
+                        break
+
+                    stripped = line.strip()
+                    if not stripped:
+                        self._last_offset = fh.tell()
                         continue
                     try:
-                        rec = json.loads(line)
+                        rec = json.loads(stripped)
                     except json.JSONDecodeError:
+                        self._last_offset = fh.tell()
                         continue
                     key = (
                         str(rec.get("workspace_id", "")),
@@ -136,14 +158,15 @@ class JSONLResponseCache(ResponseCache):
                         str(rec.get("ontology_identity_hash", "")),
                         str(rec.get("question", "")),
                     )
-                    index[key] = CachedResponse(
+                    self._index[key] = CachedResponse(
                         answer=str(rec.get("answer", "")),
                         written_at=float(rec.get("written_at", 0.0)),
                         metadata=dict(rec.get("metadata") or {}),
                     )
+                    self._last_offset = fh.tell()
         except OSError:
             pass
-        return index
+        return self._index
 
     def get(self, key: CacheKey) -> Optional[CachedResponse]:
         with self._lock:
@@ -169,3 +192,5 @@ class JSONLResponseCache(ResponseCache):
                 os.unlink(self._path)
             except FileNotFoundError:
                 pass
+            self._index.clear()
+            self._last_offset = 0

@@ -222,6 +222,7 @@ class Seocho:
         self._transport = self._remote.transport
 
         self._graph_catalog_cache: Optional[Dict[str, GraphTarget]] = None
+        self._platform_session_users: Dict[str, str] = {}
         self._ontology_registry: Dict[str, Any] = {}  # database -> Ontology
         self._indexing_design: Optional[Any] = None
 
@@ -1790,30 +1791,52 @@ class Seocho:
         if effective_reasoning_cycle:
             body["reasoning_cycle"] = effective_reasoning_cycle
         payload = self._request_json("POST", RuntimePath.PLATFORM_CHAT_SEND, json_body=body)
-        return PlatformChatResponse.from_dict(payload)
+        response = PlatformChatResponse.from_dict(payload)
+        if response.session_id:
+            self._platform_session_users[response.session_id] = body["user_id"]
+        return response
 
-    def session_history(self, session_id: str) -> PlatformSessionResponse:
+    def session_history(self, session_id: str, *, user_id: Optional[str] = None) -> PlatformSessionResponse:
         """Retrieve the message history for a platform chat session.
 
         Args:
             session_id: The session identifier.
+            user_id: Optional user override for session ownership checks.
 
         Returns:
             A :class:`PlatformSessionResponse` with the conversation history.
         """
-        payload = self._request_json("GET", platform_chat_session_path(session_id))
+        resolved_user_id = user_id or self._platform_session_users.get(session_id) or self.user_id or "user_default"
+        payload = self._request_json(
+            "GET",
+            platform_chat_session_path(session_id),
+            params={
+                "workspace_id": self.workspace_id,
+                "user_id": resolved_user_id,
+            },
+        )
         return PlatformSessionResponse.from_dict(payload)
 
-    def reset_session(self, session_id: str) -> PlatformSessionResponse:
+    def reset_session(self, session_id: str, *, user_id: Optional[str] = None) -> PlatformSessionResponse:
         """Clear the message history for a platform chat session.
 
         Args:
             session_id: The session identifier to reset.
+            user_id: Optional user override for session ownership checks.
 
         Returns:
             A :class:`PlatformSessionResponse` confirming the reset.
         """
-        payload = self._request_json("DELETE", platform_chat_session_path(session_id))
+        resolved_user_id = user_id or self._platform_session_users.get(session_id) or self.user_id or "user_default"
+        payload = self._request_json(
+            "DELETE",
+            platform_chat_session_path(session_id),
+            params={
+                "workspace_id": self.workspace_id,
+                "user_id": resolved_user_id,
+            },
+        )
+        self._platform_session_users.pop(session_id, None)
         return PlatformSessionResponse.from_dict(payload)
 
     def raw_ingest(
@@ -1872,7 +1895,11 @@ class Seocho:
         Returns:
             List of :class:`GraphTarget` objects.
         """
-        payload = self._request_json("GET", RuntimePath.GRAPHS)
+        payload = self._request_json(
+            "GET",
+            RuntimePath.GRAPHS,
+            params={"workspace_id": self.workspace_id},
+        )
         graphs = [GraphTarget.from_dict(item) for item in payload.get("graphs", [])]
         self._graph_catalog_cache = {target.graph_id: target for target in graphs}
         return graphs
@@ -1883,7 +1910,11 @@ class Seocho:
         Returns:
             List of database name strings.
         """
-        payload = self._request_json("GET", RuntimePath.DATABASES)
+        payload = self._request_json(
+            "GET",
+            RuntimePath.DATABASES,
+            params={"workspace_id": self.workspace_id},
+        )
         return [str(item) for item in payload.get("databases", [])]
 
     def agents(self) -> List[str]:
@@ -1892,7 +1923,11 @@ class Seocho:
         Returns:
             List of agent name strings.
         """
-        payload = self._request_json("GET", RuntimePath.AGENTS)
+        payload = self._request_json(
+            "GET",
+            RuntimePath.AGENTS,
+            params={"workspace_id": self.workspace_id},
+        )
         return [str(item) for item in payload.get("agents", [])]
 
     def health(self, *, scope: str = "runtime") -> Dict[str, Any]:
@@ -2712,13 +2747,13 @@ class AsyncSeocho:
         """Async version of :meth:`Seocho.platform_chat`."""
         return await asyncio.to_thread(self._client.platform_chat, message, **kwargs)
 
-    async def session_history(self, session_id: str) -> PlatformSessionResponse:
+    async def session_history(self, session_id: str, *, user_id: Optional[str] = None) -> PlatformSessionResponse:
         """Async version of :meth:`Seocho.session_history`."""
-        return await asyncio.to_thread(self._client.session_history, session_id)
+        return await asyncio.to_thread(self._client.session_history, session_id, user_id=user_id)
 
-    async def reset_session(self, session_id: str) -> PlatformSessionResponse:
+    async def reset_session(self, session_id: str, *, user_id: Optional[str] = None) -> PlatformSessionResponse:
         """Async version of :meth:`Seocho.reset_session`."""
-        return await asyncio.to_thread(self._client.reset_session, session_id)
+        return await asyncio.to_thread(self._client.reset_session, session_id, user_id=user_id)
 
     async def raw_ingest(self, records: Sequence[Dict[str, Any]], **kwargs: Any) -> RawIngestResult:
         """Async version of :meth:`Seocho.raw_ingest`."""

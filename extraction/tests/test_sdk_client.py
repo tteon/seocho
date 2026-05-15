@@ -218,6 +218,7 @@ def test_add_search_chat_and_graphs_use_public_api_contract():
     assert session.calls[1]["json"]["graph_ids"] == ["kgnormal"]
     assert session.calls[2]["url"] == "http://localhost:8001/api/chat"
     assert session.calls[3]["url"] == "http://localhost:8001/graphs"
+    assert session.calls[3]["params"] == {"workspace_id": "default"}
 
 
 def test_get_delete_and_ask_return_convenience_shapes():
@@ -797,8 +798,54 @@ def test_runtime_client_methods_cover_semantic_debate_platform_and_admin_surface
     assert session.calls[2]["json"]["reasoning_cycle"]["enabled"] is True
     assert session.calls[3]["url"] == "http://localhost:8001/platform/chat/send"
     assert session.calls[3]["json"]["reasoning_cycle"]["enabled"] is True
+    assert session.calls[4]["params"] == {"workspace_id": "default", "user_id": "alex"}
+    assert session.calls[5]["params"] == {"workspace_id": "default", "user_id": "alex"}
     assert session.calls[6]["url"] == "http://localhost:8001/platform/ingest/raw"
+    assert session.calls[7]["params"] == {"workspace_id": "default"}
+    assert session.calls[8]["params"] == {"workspace_id": "default"}
     assert session.calls[9]["url"] == "http://localhost:8001/indexes/fulltext/ensure"
+
+
+def test_platform_session_history_reuses_per_call_user_scope():
+    session = _FakeSession(
+        [
+            _FakeResponse(
+                payload={
+                    "session_id": "s1",
+                    "mode": "semantic",
+                    "assistant_message": "platform answer",
+                    "trace_steps": [],
+                    "ui_payload": {},
+                    "runtime_payload": {},
+                    "ontology_context_mismatch": {},
+                    "history": [
+                        {"role": "user", "content": "hello", "metadata": {}},
+                        {"role": "assistant", "content": "platform answer", "metadata": {}},
+                    ],
+                }
+            ),
+            _FakeResponse(
+                payload={
+                    "session_id": "s1",
+                    "history": [
+                        {"role": "user", "content": "hello", "metadata": {}},
+                        {"role": "assistant", "content": "platform answer", "metadata": {}},
+                    ],
+                }
+            ),
+            _FakeResponse(payload={"session_id": "s1", "history": []}),
+        ]
+    )
+    client = Seocho(base_url="http://localhost:8001", workspace_id="default", session=session)
+
+    client.platform_chat("hello", mode="semantic", session_id="s1", user_id="alice")
+    history = client.session_history("s1")
+    reset = client.reset_session("s1")
+
+    assert history.history[0].role == "user"
+    assert reset.history == []
+    assert session.calls[1]["params"] == {"workspace_id": "default", "user_id": "alice"}
+    assert session.calls[2]["params"] == {"workspace_id": "default", "user_id": "alice"}
 
 
 def test_module_level_convenience_api_uses_configured_default_client():

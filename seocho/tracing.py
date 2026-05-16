@@ -744,41 +744,41 @@ def export_traces_csv(
             "elapsed_seconds",
         ]
 
-    records = []
-    with open(jsonl_path, "r") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                raw = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-
-            out = raw.get("output", {})
-            meta = raw.get("metadata", {})
-            usage = meta.get("usage", {})
-
-            record = {
-                "timestamp": raw.get("timestamp", ""),
-                "name": raw.get("name", ""),
-                "model": meta.get("model", raw.get("input", {}).get("model", "")),
-                "input_tokens": usage.get("prompt_tokens", ""),
-                "output_tokens": usage.get("completion_tokens", ""),
-                "total_tokens": usage.get("total_tokens", ""),
-                "nodes": out.get("nodes", ""),
-                "relationships": out.get("relationships", ""),
-                "score": out.get("score", ""),
-                "validation_errors": out.get("validation_errors", ""),
-                "result_count": out.get("result_count", ""),
-                "reasoning_attempts": out.get("reasoning_attempts", ""),
-                "elapsed_seconds": meta.get("elapsed_seconds", ""),
-            }
-            records.append(record)
-
-    with open(csv_path, "w", newline="", encoding="utf-8") as f:
-        writer = csv_mod.DictWriter(f, fieldnames=fields, extrasaction="ignore")
+    exported_count = 0
+    with open(csv_path, "w", newline="", encoding="utf-8") as f_out:
+        writer = csv_mod.DictWriter(f_out, fieldnames=fields, extrasaction="ignore")
         writer.writeheader()
-        writer.writerows(records)
 
-    return len(records)
+        with open(jsonl_path, "r", encoding="utf-8") as f_in:
+            for line in f_in:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    raw = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+
+                out = raw.get("output", {})
+                meta = raw.get("metadata", {})
+                usage = meta.get("usage", {})
+
+                record = {
+                    "timestamp": raw.get("timestamp", ""),
+                    "name": raw.get("name", ""),
+                    "model": meta.get("model", raw.get("input", {}).get("model", "")),
+                    "input_tokens": usage.get("prompt_tokens", ""),
+                    "output_tokens": usage.get("completion_tokens", ""),
+                    "total_tokens": usage.get("total_tokens", ""),
+                    "nodes": out.get("nodes", ""),
+                    "relationships": out.get("relationships", ""),
+                    "score": out.get("score", ""),
+                    "validation_errors": out.get("validation_errors", ""),
+                    "result_count": out.get("result_count", ""),
+                    "reasoning_attempts": out.get("reasoning_attempts", ""),
+                    "elapsed_seconds": meta.get("elapsed_seconds", ""),
+                }
+                writer.writerow(record)
+                exported_count += 1
+
+    return exported_count

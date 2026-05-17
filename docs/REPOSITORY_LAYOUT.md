@@ -27,6 +27,7 @@ These directories are intentional and remain part of the tracked repo contract.
 |---|---|
 | `.agents/` | Codex skills and Gastown shared-seam registry |
 | `.beads/` | Canonical task/status tracker metadata |
+| `.claude/` | Shared Claude settings, hooks, and repo-managed skills |
 | `.githooks/` | Repo-managed Git hooks |
 
 ## Developer-Local Tool Overlays
@@ -36,7 +37,6 @@ ignored and should not be treated as part of the public GitHub surface.
 
 | Path | Role |
 |---|---|
-| `.claude/` | Claude local settings, hooks, and personal skills |
 | `.jules/` | Jules local configuration/prompts |
 | `.serena/` | Serena local configuration/cache |
 
@@ -92,7 +92,7 @@ layout.
   depending on purpose.
 - Keep generated local state under ignored artifact paths such as `data/`,
   `logs/`, `outputs/`, `.seocho/`, and `extraction/output/`.
-- Keep AI-tool-specific local overlays out of Git tracking unless the repo
-  explicitly adopts them as a shared contract.
+- Keep local AI tool overlays such as `.jules/` and `.serena/` out of Git
+  tracking unless the repo explicitly adopts them as a shared contract.
 - If you add a new top-level directory, update this document and the relevant
   README entry point in the same change.

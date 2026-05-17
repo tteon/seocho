@@ -1,6 +1,7 @@
 import os
 import sys
 import textwrap
+import importlib
 from typing import Any, Dict, List, Optional
 
 import pytest
@@ -891,6 +892,40 @@ def test_module_level_convenience_api_uses_configured_default_client():
     assert answer == "Stored memory"
     assert debate.debate_state == "blocked"
     assert databases == ["kgnormal"]
+
+
+def test_module_level_convenience_api_survives_debate_submodule_import():
+    session = _FakeSession(
+        [
+            _FakeResponse(
+                payload={
+                    "response": "debate answer",
+                    "trace_steps": [],
+                    "debate_results": [],
+                    "agent_statuses": [],
+                    "debate_state": "blocked",
+                    "degraded": True,
+                }
+            )
+        ]
+    )
+
+    importlib.import_module("seocho.debate")
+
+    seocho_module.close()
+    seocho_module.configure(
+        base_url="http://localhost:8001",
+        workspace_id="default",
+        user_id="alex",
+        session=session,
+    )
+    try:
+        result = seocho_module.debate("Compare graphs")
+    finally:
+        seocho_module.close()
+
+    assert result.debate_state == "blocked"
+    assert hasattr(seocho_module.debate, "DebatePolicy")
 
 
 

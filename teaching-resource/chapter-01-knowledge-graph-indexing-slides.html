@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ch 1 · Knowledge Graph Indexing</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reset.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/black.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/highlight/monokai.css">
+<style>
+
+:root {
+  --r-background-color: #1d2329;
+  --r-main-color: #d8dee9;
+  --r-heading-color: #88c0d0;
+  --r-link-color: #88c0d0;
+  --r-selection-background-color: #88c0d0;
+  --r-main-font: 'Inter', 'Pretendard', system-ui, sans-serif;
+  --r-heading-font: 'Inter', 'Pretendard', system-ui, sans-serif;
+  --r-code-font: 'JetBrains Mono', Menlo, monospace;
+}
+.reveal h1 { font-size: 2.2em; color: #88c0d0; }
+.reveal h2 { font-size: 1.5em; color: #88c0d0; margin-bottom: 0.4em; }
+.reveal h3 { font-size: 1.15em; color: #a3be8c; }
+.reveal .subtitle { color: #d8dee9; opacity: 0.75; font-size: 0.9em; }
+.reveal .meta { color: #d8dee9; opacity: 0.55; font-size: 0.7em; margin-top: 1.5em; }
+.reveal pre { box-shadow: none; width: 100%; }
+.reveal pre code {
+  max-height: 460px;
+  padding: 18px 22px;
+  background: #2e3440;
+  border-radius: 6px;
+  font-size: 0.72em;
+  line-height: 1.45;
+}
+.reveal .code-caption {
+  color: #d8dee9; opacity: 0.6; font-size: 0.7em; margin-top: 6px;
+}
+.reveal blockquote {
+  border-left: 3px solid #5e81ac;
+  background: rgba(94, 129, 172, 0.12);
+  padding: 12px 18px; font-style: normal;
+}
+.reveal .callout {
+  background: rgba(163, 190, 140, 0.15);
+  border-left: 3px solid #a3be8c;
+  padding: 14px 20px; border-radius: 4px; margin: 18px 0;
+  text-align: left; font-size: 0.85em;
+}
+.reveal .warn {
+  background: rgba(208, 135, 112, 0.15);
+  border-left: 3px solid #d08770;
+  padding: 14px 20px; border-radius: 4px; margin: 18px 0;
+  text-align: left; font-size: 0.85em;
+}
+.reveal ul { display: inline-block; text-align: left; }
+.reveal li { margin-bottom: 0.35em; }
+.reveal table { font-size: 0.7em; }
+.reveal table th { color: #88c0d0; }
+.reveal .twocol {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 24px; text-align: left;
+}
+.reveal .tiny { font-size: 0.6em; opacity: 0.7; }
+
+</style>
+</head>
+<body>
+<div class="reveal">
+  <div class="slides">
+<section>
+<h1>Chapter 1 — Knowledge Graph Indexing</h1>
+<div class="subtitle">Source · Chunk · Entity 3-layer + Ontology-aware Extraction</div>
+<div class="meta">seocho · ontology lab · 2026-S03</div>
+</section>
+<section>
+<h2>왜 이 챕터부터인가?</h2>
+<ul>
+  <li>그래프 품질·라우팅·debate 모두 인덱싱의 결과물 위에 얹힌다.</li>
+  <li>여기서 만든 (:Source)-(:Chunk)-(:Entity) 구조와 community_id가 Ch 2~5의 입력.</li>
+  <li>4-provider 비교는 인덱싱 단계가 가장 명확 — 같은 청크에 대한 추출 결과 직접 비교.</li>
+</ul>
+<div class="callout">이 노트북이 통과하지 않으면 다음 4개 챕터가 모두 막힌다.</div>
+</section>
+<section>
+<h2>1.1 Source → Chunk → Entity (3-layer)</h2>
+<div class="twocol">
+<div>
+<h3>분리하지 않으면</h3>
+<ul>
+<li>출처 추적 불가</li>
+<li>청크 단위 재계산 불가</li>
+<li>동일 엔터티 중복 노드 폭증</li>
+<li>cascade 정책 모호</li>
+</ul>
+</div>
+<div>
+<h3>분리하면</h3>
+<ul>
+<li>(:Source)에 메타데이터 응집</li>
+<li>(:Chunk) 부분 재인덱싱</li>
+<li>(:Entity) dedup + 다대다 MENTIONS</li>
+<li>DETACH DELETE 명확한 lineage</li>
+</ul>
+</div>
+</div>
+<aside class="notes">RDF로 같은 표현을 하려면 reification이 필요. LPG는 edge property로 끝.</aside>
+</section>
+<section>
+<h2>Cypher: 3-layer 카운트</h2>
+<pre><code class="language-cypher" data-trim data-noescape>MATCH (src:Source)
+OPTIONAL MATCH (src)-[:HAS_CHUNK]-&gt;(c:Chunk)
+OPTIONAL MATCH (c)-[m:MENTIONS]-&gt;(e)
+RETURN count(DISTINCT src) AS sources,
+       count(DISTINCT c)   AS chunks,
+       count(DISTINCT e)   AS entities,
+       count(m)            AS mentions</code></pre>
+<div class="code-caption">회사명이 청크 5개에 등장 → Entity 1개 / MENTIONS 5개</div>
+</section>
+<section>
+<h2>1.2 Ontology Slice — 왜 발췌하는가</h2>
+<ul>
+  <li>전체 ontology를 prompt에 부으면 token + attention 낭비.</li>
+  <li>intent별로 관련 class/property만 선별 → 정확도 ↑, 비용 ↓.</li>
+  <li>Ch 3(text2cypher)에서 다시 등장 — query intent별 slice.</li>
+</ul>
+<pre><code class="language-python" data-trim data-noescape>from seocho.ontology_slice import slice_ontology
+sliced = slice_ontology(ontology, intent='risk', max_classes=8)</code></pre>
+</section>
+<section>
+<h2>1.2 Extraction Prompt — 3 블록</h2>
+<ul>
+  <li>Block 1: ontology slice (허용 class/property만)</li>
+  <li>Block 2: 강제 JSON schema {entities: [{class, name, evidence_span}]}</li>
+  <li>Block 3: evidence_span은 원문의 verbatim substring</li>
+</ul>
+<div class="callout">evidence_span 강제는 hallucination을 가장 효과적으로 차단한다.</div>
+</section>
+<section>
+<h2>왜 4-provider 동시 시연인가</h2>
+<table>
+<thead><tr><th>provider</th><th>model</th><th>강점</th><th>주의</th></tr></thead>
+<tbody>
+<tr><td>OpenAI</td><td>gpt-4o-mini</td><td>tool-use 생태계, 기본 baseline</td><td>비용 중간</td></tr>
+<tr><td>Kimi</td><td>kimi-k2.5</td><td>long-context, 한국어/중국어</td><td>temp=1.0 고정</td></tr>
+<tr><td>DeepSeek</td><td>deepseek-chat</td><td>저비용, JSON-mode 안정</td><td>영문 응답 경향</td></tr>
+<tr><td>Grok</td><td>grok-4.20-reasoning</td><td>fresh web grounding, reasoning</td><td>스타일 발산 큼</td></tr>
+</tbody>
+</table>
+<aside class="notes">강의 청중이 "왜 굳이 4개?" 라 물어보면 — 모델별 quirk 자체가 학습 컨텐츠.</aside>
+</section>
+<section>
+<h2>1.3 LPG Metadata 우위</h2>
+<pre><code class="language-cypher" data-trim data-noescape>MATCH (c:Chunk)-[r:MENTIONS]-&gt;(e)
+WHERE r.confidence &gt; 0.8
+  AND r.extracted_by STARTS WITH 'gpt-4o'
+RETURN e.name, r.confidence, r.extracted_at</code></pre>
+<div class="callout">edge property — RDF는 reification 없이는 못함.</div>
+</section>
+<section>
+<h2>1.4 Community Detection (Louvain)</h2>
+<ul>
+  <li>Entity 그래프 위에 community 자동 분해.</li>
+  <li>결과를 community_id property로 노드에 write-back.</li>
+  <li>Ch 4 라우팅에서 "이 질문은 어느 community?" 판단의 근거.</li>
+</ul>
+<pre><code class="language-cypher" data-trim data-noescape>CALL gds.graph.project.cypher('ch01-finder',
+  'MATCH (e) WHERE NOT e:Source AND NOT e:Chunk RETURN id(e) AS id',
+  'MATCH (e1)&lt;-[:MENTIONS]-(c:Chunk)-[:MENTIONS]-&gt;(e2)
+   WHERE id(e1)&lt;id(e2) RETURN id(e1) AS source, id(e2) AS target')
+CALL gds.louvain.write('ch01-finder', {writeProperty: 'community_id'})
+  YIELD communityCount, modularity</code></pre>
+</section>
+<section>
+<h2>Opik에서 확인할 것</h2>
+<ul>
+  <li>프로젝트: teaching-ch01-{본인}</li>
+  <li>trace: client.add() · 4-provider extraction · GDS Louvain.</li>
+  <li>metadata에서 provider/model/total_tokens/latency_ms 비교.</li>
+  <li>workspace 'seocho' 안에서 멤버 간 결과 공유 가능.</li>
+</ul>
+<div class="warn">OPIK_API_KEY가 없으면 JSONL만 기록됨 — 강의 후 동기화 권장.</div>
+</section>
+<section>
+<h2>체크포인트</h2>
+<ul>
+  <li>Source 삭제 시 cascade 범위와 그 정책의 위치(코드/제약/노트북)?</li>
+  <li>evidence_span 강제로 차단되는 hallucination 유형은?</li>
+  <li>community_id를 Entity property로 둘 때와 별도 노드로 둘 때의 트레이드오프?</li>
+</ul>
+</section>
+<section>
+<h2>다음 챕터 (Ch 2 — Qualification)</h2>
+<ul>
+  <li>오늘 만든 그래프 위에 GDS 4종 지표를 측정.</li>
+  <li>각 지표를 @function_tool로 노출해 agent가 자율적으로 호출.</li>
+  <li>4-provider agent의 도구 선택 reasoning을 Opik에서 비교.</li>
+</ul>
+<div class="callout">"그래프 품질 평가해줘" — 한 줄 prompt로 agent가 도구 4개를 어떻게 조합하는지 보기.</div>
+</section>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/highlight/highlight.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/notes/notes.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/markdown/markdown.js"></script>
+<script>
+  Reveal.initialize({
+    hash: true,
+    slideNumber: 'c/t',
+    transition: 'slide',
+    plugins: [ RevealHighlight, RevealNotes, RevealMarkdown ]
+  });
+</script>
+</body>
+</html>

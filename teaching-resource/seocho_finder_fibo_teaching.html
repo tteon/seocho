@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Applying seocho to real datasets — FinDER + FIBO</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reset.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/black.css" id="theme">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/highlight/monokai.css">
+
+<style>
+  :root { --r-main-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  .reveal h1, .reveal h2, .reveal h3 { letter-spacing: -0.02em; text-transform: none; }
+  .reveal h1 { font-size: 2.0em; }
+  .reveal h2 { font-size: 1.45em; color: #88c0d0; }
+  .reveal h3 { font-size: 1.05em; color: #a3be8c; }
+  .reveal pre { width: 100%; box-shadow: none; font-size: 0.55em; line-height: 1.35; }
+  .reveal pre code { padding: 14px 18px; max-height: 480px; }
+  .reveal code { color: #ebcb8b; }
+  .reveal table { font-size: 0.55em; }
+  .reveal table th { color: #88c0d0; border-bottom: 1px solid #4c566a; }
+  .reveal table td { border-bottom: 1px solid #2e3440; padding: 6px 12px; }
+  .reveal blockquote { background: #2e3440; border-left: 3px solid #88c0d0; padding: 12px 18px; font-size: 0.85em; }
+  .reveal .small  { font-size: 0.7em; color: #d8dee9; }
+  .reveal .tiny   { font-size: 0.5em; color: #81a1c1; }
+  .reveal .callout { background: #3b4252; border-left: 4px solid #a3be8c; padding: 10px 18px; border-radius: 4px; font-size: 0.75em; text-align: left; }
+  .reveal .warn    { background: #3b4252; border-left: 4px solid #bf616a; padding: 10px 18px; border-radius: 4px; font-size: 0.75em; text-align: left; }
+  .reveal .twocol { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
+  .reveal .twocol > div { text-align: left; font-size: 0.7em; }
+  .reveal ul li, .reveal ol li { margin: 0.25em 0; }
+  .reveal a { color: #88c0d0; }
+  .reveal section.center { text-align: center; }
+  .reveal .kbd { background: #2e3440; border: 1px solid #4c566a; border-radius: 3px; padding: 1px 6px; font-size: 0.85em; }
+</style>
+</head>
+<body>
+<div class="reveal">
+<div class="slides">
+
+<!-- =================================================================== -->
+<section class="center" data-background-color="#1d2329">
+  <h1>Applying seocho to real data</h1>
+  <h2 style="color:#a3be8c;">FinDER (10-K queries) × FIBO (ontology) × seocho (runtime)</h2>
+  <p class="small" style="margin-top:50px;">For people who already finished <code>tutorial_01 → 02 → 03</code> and now want to use a real benchmark dataset.</p>
+  <p class="tiny">teaching-resource/ companion deck · 14 slides · seocho 0.3.1</p>
+</section>
+
+<!-- =================================================================== -->
+<section>
+  <h2>Where we are coming from</h2>
+  <p class="small">You've already done the seocho tutorials. Three layers, each a strict superset of the one below:</p>
+  <table>
+  <thead><tr><th>Layer</th><th>API surface</th><th>Mastered in</th></tr></thead>
+  <tbody>
+    <tr><td>Vanilla LLM</td><td><code>backend.complete(system, user)</code></td><td>Tutorial 1</td></tr>
+    <tr><td>Agent</td><td><code>Session.add() / ask() / run()</code> + tools, multi-turn, RoutingPolicy</td><td>Tutorial 2</td></tr>
+    <tr><td>Ontology</td><td><code>Ontology + IndexingPipeline + compile_ontology_context()</code></td><td>Tutorial 3</td></tr>
+  </tbody>
+  </table>
+  <div class="callout" style="margin-top:24px;">
+    <strong>This deck is the next step:</strong> drop a real-world QA benchmark (FinDER) and a real-world ontology (FIBO subset) on top of that stack — and read what the contract gives you back.
+  </div>
+</section>
+
+<!-- =================================================================== -->
+<section>
+  <h2>The dataset — FinDER</h2>
+  <div class="twocol">
+    <div>
+      <h3>What it is</h3>
+      <ul>
+        <li><strong>5,703 expert-annotated</strong> query–evidence–answer triplets</li>
+        <li>Source: real 10-K filings from <strong>490 S&amp;P 500 companies</strong></li>
+        <li>Scraped from EDGAR; annotated by an investment-bank analyst + a CPA</li>
+        <li>Available at <code>huggingface.co/datasets/Linq-AI-Research/FinDER</code></li>
+      </ul>
+    </div>
+    <div>
+      <h3>Why it is hard</h3>
+      <ul>
+        <li>Queries are <strong>brief and ambiguous</strong> — real search behavior, not textbook QA</li>
+        <li><strong>43.45%</strong> of queries use 3–4 jargon terms; <strong>46.41%</strong> use 5+</li>
+        <li>Acronyms collapse meaning: <em>"MS trading revenue CAGR"</em></li>
+        <li>49.83% of quantitative queries require <strong>compositional</strong> reasoning</li>
+      </ul>
+    </div>
+  </div>
+  <p class="tiny" style="margin-top:20px;">Source: Choi et al., FinDER (ICLR '25 Advances in Financial AI). PDF in this folder.</p>
+</section>
+
+<!-- =================================================================== -->
+<section>
+  <h2>FinDER — the eight question categories</h2>
+  <table>
+  <thead><tr><th>Category</th><th>Count</th><th>Share</th><th>Tutorial-sample case</th></tr></thead>
+  <tbody>
+    <tr><td>Company Overview</td><td>1,081</td><td>18.95%</td><td><code>case_002</code> Brown &amp; Brown segments</td></tr>
+    <tr><td>Financials</td><td>990</td><td>17.36%</td><td><code>case_001</code> PTC revenue, <code>case_004</code> Tesla deliveries</td></tr>
+    <tr><td>Footnotes</td><td>953</td><td>16.71%</td><td>—</td></tr>
+    <tr><td>Governance</td><td>718</td><td>12.59%</td><td><code>case_003</code> Alphabet executives</td></tr>
+    <tr><td>Accounting</td><td>491</td><td>8.61%</td><td><code>case_010</code> Meta ASC 718</td></tr>
+    <tr><td>Legal</td><td>490</td><td>8.59%</td><td><code>case_005</code> Microsoft EU antitrust</td></tr>
+    <tr><td>Risk</td><td>490</td><td>8.59%</td><td><code>case_008</code> Amazon risk factors</td></tr>
+    <tr><td>Shareholder Return</td><td>490</td><td>8.59%</td><td><code>case_007</code> Apple 48.9% TSR</td></tr>
+  </tbody>
+  </table>
+  <p class="small" style="margin-top:16px;">
+    The seocho repo ships <code>examples/datasets/tutorial_filings_sample.json</code> — <strong>10 cases that mirror exactly the FinDER category schema</strong>.
+    Use the bundled file for onboarding/smoke; switch to the HuggingFace download for benchmark-grade evaluation.
+  </p>
+</section>
+
+<!-- =================================================================== -->
+<section>
+  <h2>FinDER's headline result — the context ceiling</h2>
+  <p class="small">From Table 8 of the paper: response correctness on the same models, same questions, only <strong>context provision</strong> changes:</p>
+  <table>
+  <thead><tr><th>Setting</th><th>Claude-3.7-Sonnet</th><th>GPT-o1</th><th>DeepSeek-R1-Distill</th><th>Qwen-QWQ</th></tr></thead>
+  <tbody>
+    <tr><td>Without context</td><td>9.37</td><td>10.14</td><td>9.88</td><td>9.13</td></tr>
+    <tr><td>Top-10 retrieved (E5-Mistral)</td><td>33.89</td><td>32.96</td><td>28.79</td><td>29.41</td></tr>
+    <tr><td><strong>Perfect (gold) context</strong></td><td><strong>66.48</strong></td><td><strong>68.13</strong></td><td>59.69</td><td>61.03</td></tr>
+  </tbody>
+  </table>
+  <div class="callout" style="margin-top:18px;">
+    <strong>The lesson:</strong> the dominant lever in financial QA isn't the LLM, it's the <em>quality of the retrieved context</em>. Closed-book LLMs answer ~10% of expert-grade queries. Top-10 dense retrieval recovers ~30%. Gold context recovers ~65%.
+    <br><br>This is exactly the gap an <strong>ontology-grounded</strong> retrieval pipeline tries to close.
+  </div>
+</section>
+
+<!-- =================================================================== -->
+<section>
+  <h2>Why ontology — the disambiguation gap</h2>
+  <p class="small">The FinDER paper opens with this canonical example:</p>
+  <blockquote>
+    User query: <code>"MS trading revenue CAGR"</code><br>
+    Inaccurate retriever returns: <em>Microsoft</em>'s talent acquisition page → LLM says "Sorry, no trading revenue for Microsoft."<br>
+    Accurate retriever returns: <em>Morgan Stanley</em>'s investment-banking statements → LLM computes 9% CAGR correctly.
+  </blockquote>
+  <p class="small" style="margin-top:18px;">
+    The fix is <strong>not</strong> a bigger LLM. The fix is <strong>schema</strong> — a structure that distinguishes <code>Corporation { ticker: "MS", name: "Morgan Stanley" }</code> from <code>Corporation { ticker: "MSFT", name: "Microsoft" }</code> at retrieval time.
+  </p>
+  <p class="small">FIBO already encodes that structure for the financial domain.</p>
+</section>
+
+<!-- =================================================================== -->
+<section>
+  <h2>FIBO — what it is &amp; what we use</h2>
+  <div class="twocol">
+    <div>
+      <h3>FIBO at a glance</h3>
+      <ul>
+        <li><strong>Financial Industry Business Ontology</strong> — open standard from the EDM Council</li>
+        <li>OWL 2 DL, MIT-licensed, polyhierarchical</li>
+        <li>Built by SMEs across banks, regulators, vendors</li>
+        <li>Authoritative URL: <code>spec.edmcouncil.org/fibo/</code></li>
+      </ul>
+    </div>
+    <div>
+      <h3>What this repo ships</h3>
+      <ul>
+        <li><code>examples/datasets/fibo_be_minimal.ttl</code></li>
+        <li>5 classes: Party · Person · LegalPerson · FormalOrganization · Corporation</li>
+        <li>4 datatype properties: hasName · hasTitle · hasIdentifier · hasLegalName</li>
+        <li>2 object properties: isOfficerOf · hasShareholder</li>
+        <li>Every class carries <code>skos:exactMatch</code> back to the canonical FIBO IRI</li>
+      </ul>
+    </div>
+  </div>
+  <p class="small" style="margin-top:18px;">Hand-curated for tutorials. The pattern transfers to any OWL/Turtle source — including the full FIBO release.</p>
+</section>
+
+<!-- =================================================================== -->
+<section>
+  <h2>FIBO's quality discipline (read before you extend it)</h2>
+  <p class="small">From the FIBO best-practices guide (companion file in this folder). The principles are not optional:</p>
+  <table>
+  <thead><tr><th>Principle</th><th>What it means in seocho</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Use-case driven</strong> — every element ties to a competency question</td><td>Each <code>NodeDef</code>/<code>RelDef</code> you add should answer at least one FinDER-style query</td></tr>
+    <tr><td><strong>ISO 704 definitions</strong> — partial sentence, genus/differentia, non-circular</td><td>Goes into <code>NodeDef(description=...)</code> — it ends up in the LLM extraction prompt verbatim</td></tr>
+    <tr><td><strong>Naming</strong> — UpperCamelCase classes, lowerCamelCase verb properties, no abbreviations</td><td>seocho passes names through unchanged into Cypher labels — keep them clean from day one</td></tr>
+    <tr><td><strong>Logical consistency</strong> — provably consistent under multiple OWL 2 reasoners</td><td>Owlready2 reasoning is the offline gate (<code>CLAUDE.md §6.3</code>); never run heavy reasoning in the request hot path</td></tr>
+    <tr><td><strong>Unique labels</strong> — no two classes/properties share a label across namespaces</td><td>Hash collision in <code>compile_ontology_context()</code> if you violate this</td></tr>
+    <tr><td><strong>Hygiene tests (21 of them)</strong> — labels present, no circular defs, no <code>min 1</code></td><td>Mirrored by <code>seocho/tests/test_ontology_*.py</code> — your extension PR runs these</td></tr>
+  </tbody>
+  </table>
+</section>
+
+<!-- =================================================================== -->
+<section>
+  <h2>The hands-on workflow — bundled sample</h2>
+  <p class="small">Loop the FinDER-shaped sample through the full seocho stack. Run from <code>examples/</code>:</p>
+<pre><code class="language-python">import json
+from pathlib import Path
+from seocho import Seocho, AGENT_PRESETS
+
+# 1. Load FIBO subset (Tutorial 3 §2 covered this loader)
+from tutorial_03_helpers import load_fibo_ontology
+ontology = load_fibo_ontology(Path('datasets/fibo_be_minimal.ttl'))
+
+# 2. Stand up a workspace-stamped client
+s = Seocho.local(
+    ontology,
+    llm='openai/gpt-4o-mini',
+    agent_config=AGENT_PRESETS['agent'],
+    user_id='analyst@team',
+    workspace_id='finder-eval',
+)
+
+# 3. Ingest the FinDER-shaped sample (10 cases, same 8 categories)
+sample = json.loads(Path('datasets/tutorial_filings_sample.json').read_text())
+with s.session('finder-smoke') as sess:
+    for case in sample:
+        sess.add(case['text'])
+
+# 4. Ask each query and compare to expected_answer
+    for case in sample:
+        got = sess.ask(case['question'])
+        print(case['id'], case['category'], '→', got[:120])
+</code></pre>
+  <p class="small">Every span emitted carries <code>workspace_id="finder-eval"</code>, <code>user_id="analyst@team"</code>, and the <code>context_hash</code> of <code>fibo_be_minimal</code>. That is your audit log.</p>
+</section>
+
+<!-- =================================================================== -->
+<section>
+  <h2>Scaling up — the real FinDER corpus</h2>
+  <p class="small">The bundled sample is for smoke. For benchmark-grade evaluation:</p>
+<pre><code class="language-python">from datasets import load_dataset
+
+finder = load_dataset('Linq-AI-Research/FinDER', split='test')
+# columns: query · evidence · answer · category · reasoning_type · company
+
+with s.session('finder-full') as sess:
+    # ingest ground-truth evidence (gold-context setting from Table 8)
+    for row in finder:
+        sess.add(row['evidence'], metadata={'company': row['company']})
+
+    correct, faithful = 0, 0
+    for row in finder:
+        got = sess.ask(row['query'])
+        # use RAGAS metrics (Correctness + Faithfulness) to score
+        correct  += score_correctness(got, row['answer'])
+        faithful += score_faithfulness(got, row['evidence'])
+</code></pre>
+  <div class="warn" style="margin-top:14px;">
+    <strong>Boundary:</strong> never publish results of the bundled tutorial sample as benchmark evidence. Use the HuggingFace dataset, run RAGAS, report the same Correctness/Faithfulness pair as the FinDER paper (Table 7).
+  </div>
+</section>
+
+<!-- =================================================================== -->
+<section>
+  <h2>What seocho gives you that the FinDER baseline doesn't</h2>
+  <p class="small">The FinDER paper's baseline pipeline is <em>retriever (E5-Mistral) → reranker → LLM</em>. seocho adds three things that move from "good evaluation" to "production audit":</p>
+  <table>
+  <thead><tr><th>Need</th><th>FinDER baseline</th><th>seocho</th></tr></thead>
+  <tbody>
+    <tr><td>Why this answer?</td><td>Top-k passage IDs</td><td><code>context_hash</code> + ontology-typed nodes/edges + <code>elementId(...)</code> in Cypher</td></tr>
+    <tr><td>Whose run was that?</td><td>Notebook cell metadata</td><td><code>user_id</code> + <code>workspace_id</code> on every span (JSONL or Opik)</td></tr>
+    <tr><td>What does v2 of the schema break?</td><td>Manual diff</td><td><code>ontology_v1.migration_plan(ontology_v2)</code> → inspectable Cypher list</td></tr>
+    <tr><td>Did the retriever silently fall back?</td><td>—</td><td><code>span.metadata.degraded</code> + <code>fallback_from</code> + <code>fallback_reason</code></td></tr>
+    <tr><td>Are inferred rules pinned to the schema?</td><td>n/a</td><td><code>infer_rules_from_graph()</code> stamps <code>ontology_identity_hash</code></td></tr>
+  </tbody>
+  </table>
+</section>
+
+<!-- =================================================================== -->
+<section>
+  <h2>Suggested teaching plan (90 min)</h2>
+  <ol style="font-size:0.85em;">
+    <li><strong>10 min</strong> — Recap the three-layer stack from the seocho tutorials.</li>
+    <li><strong>15 min</strong> — Walk the FinDER paper: motivation, 8 categories, MS-vs-MSFT, the context-ceiling table.</li>
+    <li><strong>10 min</strong> — Walk the FIBO best-practices guide (use-case discipline, ISO 704, hygiene tests).</li>
+    <li><strong>20 min</strong> — Hands-on: load FIBO subset, ingest <code>tutorial_filings_sample.json</code>, ask each query, inspect spans.</li>
+    <li><strong>15 min</strong> — Extend the ontology with one new class motivated by an unmet competency question (e.g. <code>BusinessSegment</code> for <code>case_002</code>); run <code>migration_plan</code>.</li>
+    <li><strong>10 min</strong> — Switch to the HuggingFace FinDER split, score Correctness + Faithfulness, compare to Table 7.</li>
+    <li><strong>10 min</strong> — Inspect Opik traces; filter by <code>workspace_id</code>; show drift detection on the v1→v2 hash change.</li>
+  </ol>
+</section>
+
+<!-- =================================================================== -->
+<section>
+  <h2>The contract, restated for this dataset</h2>
+  <table>
+  <thead><tr><th>Field</th><th>For FinDER specifically</th></tr></thead>
+  <tbody>
+    <tr><td><code>context_hash</code></td><td>One hash per FIBO subset version → re-running with FIBO-2025-Q3 produces a different hash, every span tells you which</td></tr>
+    <tr><td><code>workspace_id</code></td><td>Use one workspace per evaluation split (<code>finder-test</code>, <code>finder-train</code>) so you never cross-contaminate retrieval indexes</td></tr>
+    <tr><td><code>user_id</code></td><td>One per analyst running the eval — Opik filter by <code>metadata.user_id</code> shows exactly that person's runs</td></tr>
+    <tr><td><code>category</code> (FinDER native)</td><td>Pass into <code>session.add(metadata={'category': row['category']})</code>; it shows up on the persisted node</td></tr>
+    <tr><td><code>degraded</code> / <code>fallback_from</code></td><td>If the agent path raised, the pipeline path took over — your eval row is not invalid, but it should be flagged separately</td></tr>
+  </tbody>
+  </table>
+  <p class="small" style="margin-top:20px;">If FIBO ships a new release and you re-run, every old artifact stays tagged with the old hash. <strong>You can prove which schema produced which answer.</strong></p>
+</section>
+
+<!-- =================================================================== -->
+<section>
+  <h2>Where to go after this deck</h2>
+  <ul>
+    <li><strong>FinDER paper PDF</strong> in this folder — read §3 (dataset construction) and Table 8 (the context-ceiling result) carefully.</li>
+    <li><strong>FIBO best practices</strong> in <code>ONTOLOGY_GUIDE (2).md</code> — the 21 hygiene tests are the bar your extensions need to clear.</li>
+    <li><strong>seocho tutorials</strong> — refresher: <code>examples/tutorial_01_vanilla_llm.ipynb</code>, <code>02_agent_enhancement.ipynb</code>, <code>03_ontology_indexing.ipynb</code>.</li>
+    <li><strong>Full FIBO release</strong>: <code>spec.edmcouncil.org/fibo/</code>; load with the same <code>load_fibo_ontology(...)</code> pattern from Tutorial 3 §2.</li>
+    <li><strong>SDK contract</strong>: <code>docs/SDK_CONTRACT.md</code> + <code>docs/BASELINE_INSTRUCTIONS.md</code> — every public guarantee paired with a regression test.</li>
+    <li><strong>HuggingFace dataset</strong>: <code>huggingface.co/datasets/Linq-AI-Research/FinDER</code></li>
+  </ul>
+</section>
+
+<!-- =================================================================== -->
+<section class="center" data-background-color="#1d2329">
+  <h1 style="font-size:2.2em;">Real dataset. Real schema. Same six lines.</h1>
+  <p class="small" style="margin-top:36px;">
+    <code>Seocho.local(load_fibo_ontology('fibo.ttl'), user_id=..., workspace_id=...)</code><br>
+    <code>with s.session('finder-eval') as sess: sess.add(case['text']); sess.ask(case['question'])</code>
+  </p>
+  <p class="tiny" style="margin-top:36px;">
+    seocho 0.3.1 · FinDER (ICLR '25) · FIBO (EDM Council) · <a href="https://github.com/tteon/seocho">github.com/tteon/seocho</a>
+  </p>
+</section>
+
+</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/highlight/highlight.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/notes/notes.js"></script>
+<script>
+  Reveal.initialize({
+    hash: true,
+    slideNumber: 'c/t',
+    transition: 'fade',
+    width: 1280,
+    height: 800,
+    margin: 0.06,
+    minScale: 0.4,
+    maxScale: 1.6,
+    plugins: [ RevealHighlight, RevealNotes ],
+  });
+</script>
+</body>
+</html>

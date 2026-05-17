@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ch 4 · Routing Agent</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reset.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/black.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/highlight/monokai.css">
+<style>
+
+:root {
+  --r-background-color: #1d2329;
+  --r-main-color: #d8dee9;
+  --r-heading-color: #88c0d0;
+  --r-link-color: #88c0d0;
+  --r-selection-background-color: #88c0d0;
+  --r-main-font: 'Inter', 'Pretendard', system-ui, sans-serif;
+  --r-heading-font: 'Inter', 'Pretendard', system-ui, sans-serif;
+  --r-code-font: 'JetBrains Mono', Menlo, monospace;
+}
+.reveal h1 { font-size: 2.2em; color: #88c0d0; }
+.reveal h2 { font-size: 1.5em; color: #88c0d0; margin-bottom: 0.4em; }
+.reveal h3 { font-size: 1.15em; color: #a3be8c; }
+.reveal .subtitle { color: #d8dee9; opacity: 0.75; font-size: 0.9em; }
+.reveal .meta { color: #d8dee9; opacity: 0.55; font-size: 0.7em; margin-top: 1.5em; }
+.reveal pre { box-shadow: none; width: 100%; }
+.reveal pre code {
+  max-height: 460px;
+  padding: 18px 22px;
+  background: #2e3440;
+  border-radius: 6px;
+  font-size: 0.72em;
+  line-height: 1.45;
+}
+.reveal .code-caption {
+  color: #d8dee9; opacity: 0.6; font-size: 0.7em; margin-top: 6px;
+}
+.reveal blockquote {
+  border-left: 3px solid #5e81ac;
+  background: rgba(94, 129, 172, 0.12);
+  padding: 12px 18px; font-style: normal;
+}
+.reveal .callout {
+  background: rgba(163, 190, 140, 0.15);
+  border-left: 3px solid #a3be8c;
+  padding: 14px 20px; border-radius: 4px; margin: 18px 0;
+  text-align: left; font-size: 0.85em;
+}
+.reveal .warn {
+  background: rgba(208, 135, 112, 0.15);
+  border-left: 3px solid #d08770;
+  padding: 14px 20px; border-radius: 4px; margin: 18px 0;
+  text-align: left; font-size: 0.85em;
+}
+.reveal ul { display: inline-block; text-align: left; }
+.reveal li { margin-bottom: 0.35em; }
+.reveal table { font-size: 0.7em; }
+.reveal table th { color: #88c0d0; }
+.reveal .twocol {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 24px; text-align: left;
+}
+.reveal .tiny { font-size: 0.6em; opacity: 0.7; }
+
+</style>
+</head>
+<body>
+<div class="reveal">
+  <div class="slides">
+<section>
+<h1>Chapter 4 — Routing Agent</h1>
+<div class="subtitle">4-Axis Augmentation · Parallel Search · RRF · Citation Envelope</div>
+<div class="meta">seocho · ontology lab · 2026-S03</div>
+</section>
+<section>
+<h2>4.1 4-axis Question Augmentation</h2>
+<table>
+<thead><tr><th>Axis</th><th>출력</th><th>후속 결정</th></tr></thead>
+<tbody>
+<tr><td>Intent</td><td>lookup / aggregation / comparison / explanation</td><td>backend 가중치</td></tr>
+<tr><td>Entity</td><td>ontology class로 lift</td><td>Cypher 패턴</td></tr>
+<tr><td>Topic</td><td>community_id 후보</td><td>검색 범위</td></tr>
+<tr><td>Rewrite</td><td>sub-question 분해</td><td>multi-hop 처리</td></tr>
+</tbody>
+</table>
+<div class="callout">4축을 별 호출로 분리 → Opik에서 라우팅 근거를 따로 추적 가능.</div>
+</section>
+<section>
+<h2>4.2 Routing Table</h2>
+<table>
+<thead><tr><th>Intent</th><th>Vector</th><th>Fulltext</th><th>Cypher</th></tr></thead>
+<tbody>
+<tr><td>lookup (entity 식별)</td><td>low</td><td>low</td><td><b>high</b></td></tr>
+<tr><td>lookup (모호)</td><td>mid</td><td><b>high</b></td><td>mid</td></tr>
+<tr><td>aggregation</td><td>low</td><td>low</td><td><b>high</b></td></tr>
+<tr><td>comparison</td><td><b>high</b></td><td><b>high</b></td><td><b>high</b></td></tr>
+<tr><td>explanation</td><td><b>high</b></td><td>mid</td><td>low</td></tr>
+</tbody>
+</table>
+</section>
+<section>
+<h2>4.3 RRF — score scale 무시, rank만</h2>
+<pre><code class="language-python" data-trim data-noescape>def reciprocal_rank_fusion(per_backend, k=60, top_n=10):
+    scores = defaultdict(float)
+    for backend, ranked in per_backend.items():
+        for rank, item in enumerate(ranked, start=1):
+            scores[item['doc_id']] += 1.0 / (k + rank)
+    return sorted(scores.items(), key=lambda kv: kv[1], reverse=True)[:top_n]</code></pre>
+<div class="callout">vector cosine 과 BM25 raw score 합산은 위험. RRF는 rank만 보므로 robust.</div>
+</section>
+<section>
+<h2>4.4 Citation Envelope + Refusal</h2>
+<pre><code class="language-text" data-trim data-noescape>&lt;answer&gt;본문 with [src:chunk] inline 인용&lt;/answer&gt;
+&lt;citations&gt;
+  - src:finder-A, chunk:1 — "...verbatim span..."
+&lt;/citations&gt;
+&lt;confidence&gt;high | medium | low&lt;/confidence&gt;</code></pre>
+<div class="warn">컨텍스트에 근거 없으면 fabrication 금지 — 표준 거절 응답 사용.</div>
+</section>
+<section>
+<h2>인용 검증 — invalid count = fabrication 신호</h2>
+<pre><code class="language-python" data-trim data-noescape>CITE_RE = re.compile(r'\[src:([^,\]]+),\s*chunk:(\d+)\]')
+
+def validate_citations(answer, context):
+    found = set(CITE_RE.findall(answer))
+    valid = set(CITE_RE.findall(context))
+    return {'invalid': sorted(found - valid),
+            'all_valid': found.issubset(valid)}</code></pre>
+<aside class="notes">invalid 카운트가 0이 아니면 — Ch 5의 self-reflect 또는 debate가 필요한 시그널.</aside>
+</section>
+<section>
+<h2>다음 챕터 (Ch 5 — Debate Pool)</h2>
+<ul>
+  <li>Ch 4 답변 = 단일 모델 + 인용 강제.</li>
+  <li>Ch 5: 4 provider 동시 debate, self-reflect + debate hybrid.</li>
+  <li>수렴 곡선 (Opik) 으로 reasoning depth vs 정확도 산점도.</li>
+</ul>
+</section>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/highlight/highlight.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/notes/notes.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/markdown/markdown.js"></script>
+<script>
+  Reveal.initialize({
+    hash: true,
+    slideNumber: 'c/t',
+    transition: 'slide',
+    plugins: [ RevealHighlight, RevealNotes, RevealMarkdown ]
+  });
+</script>
+</body>
+</html>

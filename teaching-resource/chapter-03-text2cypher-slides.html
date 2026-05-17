@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ch 3 · Text2Cypher</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reset.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/black.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/highlight/monokai.css">
+<style>
+
+:root {
+  --r-background-color: #1d2329;
+  --r-main-color: #d8dee9;
+  --r-heading-color: #88c0d0;
+  --r-link-color: #88c0d0;
+  --r-selection-background-color: #88c0d0;
+  --r-main-font: 'Inter', 'Pretendard', system-ui, sans-serif;
+  --r-heading-font: 'Inter', 'Pretendard', system-ui, sans-serif;
+  --r-code-font: 'JetBrains Mono', Menlo, monospace;
+}
+.reveal h1 { font-size: 2.2em; color: #88c0d0; }
+.reveal h2 { font-size: 1.5em; color: #88c0d0; margin-bottom: 0.4em; }
+.reveal h3 { font-size: 1.15em; color: #a3be8c; }
+.reveal .subtitle { color: #d8dee9; opacity: 0.75; font-size: 0.9em; }
+.reveal .meta { color: #d8dee9; opacity: 0.55; font-size: 0.7em; margin-top: 1.5em; }
+.reveal pre { box-shadow: none; width: 100%; }
+.reveal pre code {
+  max-height: 460px;
+  padding: 18px 22px;
+  background: #2e3440;
+  border-radius: 6px;
+  font-size: 0.72em;
+  line-height: 1.45;
+}
+.reveal .code-caption {
+  color: #d8dee9; opacity: 0.6; font-size: 0.7em; margin-top: 6px;
+}
+.reveal blockquote {
+  border-left: 3px solid #5e81ac;
+  background: rgba(94, 129, 172, 0.12);
+  padding: 12px 18px; font-style: normal;
+}
+.reveal .callout {
+  background: rgba(163, 190, 140, 0.15);
+  border-left: 3px solid #a3be8c;
+  padding: 14px 20px; border-radius: 4px; margin: 18px 0;
+  text-align: left; font-size: 0.85em;
+}
+.reveal .warn {
+  background: rgba(208, 135, 112, 0.15);
+  border-left: 3px solid #d08770;
+  padding: 14px 20px; border-radius: 4px; margin: 18px 0;
+  text-align: left; font-size: 0.85em;
+}
+.reveal ul { display: inline-block; text-align: left; }
+.reveal li { margin-bottom: 0.35em; }
+.reveal table { font-size: 0.7em; }
+.reveal table th { color: #88c0d0; }
+.reveal .twocol {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 24px; text-align: left;
+}
+.reveal .tiny { font-size: 0.6em; opacity: 0.7; }
+
+</style>
+</head>
+<body>
+<div class="reveal">
+  <div class="slides">
+<section>
+<h1>Chapter 3 — Text2Cypher</h1>
+<div class="subtitle">3-Block Prompt · Failure Patterns · Korean Labels</div>
+<div class="meta">seocho · ontology lab · 2026-S03</div>
+</section>
+<section>
+<h2>3.1 3-블록 Prompt</h2>
+<ul>
+  <li>Block 1: ontology slice (관련 class/property만)</li>
+  <li>Block 2: few-shot 예제 3개 (easy / medium / hard)</li>
+  <li>Block 3: 출력 제약 — read-only, elementId, LIMIT 강제</li>
+</ul>
+<div class="callout">3-블록 구조는 token 효율과 정확도를 동시에 끌어올린다.</div>
+</section>
+<section>
+<h2>Block 3 — Output Constraints</h2>
+<pre><code class="language-text" data-trim data-noescape>- Read-only: NO CREATE/MERGE/DELETE/SET
+- Use elementId() instead of deprecated id()
+- MANDATORY: every query must end with LIMIT (default 25)
+- Output a single fenced cypher block, nothing else</code></pre>
+<div class="warn">LLM이 unbounded path (`*..`)를 생성하면 graph OOM. LIMIT 강제는 비용 안전장치.</div>
+</section>
+<section>
+<h2>3.2 4-provider Cypher 생성 — 5종 의도</h2>
+<table>
+<thead><tr><th>Intent</th><th>예시</th></tr></thead>
+<tbody>
+<tr><td>lookup</td><td>위험 요인 수가 가장 많은 5개 회사</td></tr>
+<tr><td>aggregation</td><td>community별 entity 수 평균/최대</td></tr>
+<tr><td>comparison</td><td>두 community 공통 entity</td></tr>
+<tr><td>explanation</td><td>metadata category=Risk 인 Source 개수</td></tr>
+<tr><td>hard</td><td>최근 추출 entity 와 출처 Source 조인</td></tr>
+</tbody>
+</table>
+<aside class="notes">각 provider 의 executable rate(실행 가능률)와 의미 정확도를 분리해서 측정.</aside>
+</section>
+<section>
+<h2>3.3 실패 패턴 5종</h2>
+<table>
+<thead><tr><th>패턴</th><th>처방</th></tr></thead>
+<tbody>
+<tr><td>Label hallucination</td><td>Block 1에 허용 라벨 명시 + "이외 금지"</td></tr>
+<tr><td>Property 오타</td><td>Block 1에 property 이름 verbatim 인용</td></tr>
+<tr><td>양방향 관계 누락</td><td>관계 방향성 의미 명시</td></tr>
+<tr><td>LIMIT 누락</td><td>Block 3 강제 + post-validation</td></tr>
+<tr><td>Cypher injection</td><td>동적 라벨 화이트리스트 검증 (CLAUDE.md §8)</td></tr>
+</tbody>
+</table>
+<div class="callout">injection 시도는 prompt에서 1차, 백엔드 write-guard에서 2차로 차단.</div>
+</section>
+<section>
+<h2>3.4 TTL Korean Labels — 효과</h2>
+<pre><code class="language-turtle" data-trim data-noescape>fibo-be:Company
+    rdfs:label "Company"@en ,
+               "회사"@ko ,
+               "기업"@ko ;
+    skos:altLabel "Corporation"@en ,
+                  "법인"@ko ;
+    rdfs:comment "법인격을 갖는 사업체..."@ko .</code></pre>
+<div class="callout">ontology governance plane에서 label/synonym 풍부도가 한국어 질의 정확도를 결정한다.</div>
+<aside class="notes">TTL 수정은 data plane 인덱스에 영향 없음 (governance vs data 분리).</aside>
+</section>
+<section>
+<h2>다음 챕터 (Ch 4 — Routing Agent)</h2>
+<ul>
+  <li>Ch 3 Cypher 생성기는 단독 도구.</li>
+  <li>Ch 4: 4-axis augmentation → vector/fulltext/Cypher 병렬 → RRF.</li>
+  <li>라우팅 결정 자체를 Opik trace로 추적.</li>
+</ul>
+</section>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/highlight/highlight.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/notes/notes.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/markdown/markdown.js"></script>
+<script>
+  Reveal.initialize({
+    hash: true,
+    slideNumber: 'c/t',
+    transition: 'slide',
+    plugins: [ RevealHighlight, RevealNotes, RevealMarkdown ]
+  });
+</script>
+</body>
+</html>

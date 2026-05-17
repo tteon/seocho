@@ -123,7 +123,7 @@ line_length = 88
 
 [tool.flake8]
 max-line-length = 88
-exclude = ["__pycache__", "*.pyc", ".git", "demos"]
+exclude = ["__pycache__", "*.pyc", ".git", "examples/demos", "examples/labs/legacy"]
 
 [tool.setuptools]
 include-package-data = false

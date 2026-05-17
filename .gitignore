@@ -124,8 +124,9 @@ deacon/
 dolt/
 runs/
 
-# Local AI tool overlays (not part of the repo contract)
-.claude/
+# Local AI tool overlays — personal/private state only
+# (Shared .claude/settings.json + .claude/skills/ + .claude/hooks/ ARE tracked.)
+.claude/settings.local.json
 .jules/
 .serena/
 

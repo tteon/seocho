@@ -20,8 +20,9 @@ class DeterministicQueryPlanner:
 
     def plan(self, question: str) -> QueryPlan:
         builder = CypherBuilder(self.ontology)
+        question_hints = builder.derive_schema_hints(question)
         response = self.llm.complete(
-            system=builder.intent_extraction_prompt(),
+            system=builder.intent_extraction_prompt(schema_hints=question_hints),
             user=f"Question: {question}",
             temperature=0.0,
             response_format={"type": "json_object"},
@@ -34,6 +35,16 @@ class DeterministicQueryPlanner:
             intent_data = {"intent": "neighbors", "anchor_entity": question}
 
         intent_data = builder.normalize_intent(question, intent_data)
+        schema_hints = builder.derive_schema_hints(
+            question,
+            raw_intent=intent_data,
+            resolved_entities=[
+                str(intent_data.get("anchor_entity", "") or "").strip(),
+                str(intent_data.get("target_entity", "") or "").strip(),
+            ],
+            label_hints=question_hints.get("label_candidates", []),
+        )
+        intent_data["schema_hints"] = schema_hints
 
         try:
             cypher, params = builder.build(
@@ -48,6 +59,7 @@ class DeterministicQueryPlanner:
                 metric_scope_tokens=intent_data.get("metric_scope_tokens", ()),
                 years=intent_data.get("years", ()),
                 workspace_id=self.workspace_id,
+                schema_hints=schema_hints,
             )
         except Exception as exc:
             logger.error("Cypher build failed: %s", exc)
@@ -129,4 +141,3 @@ class DeterministicQueryPlanner:
             intent_data=dict(intent_data or {}),
             error=None,
         )
-

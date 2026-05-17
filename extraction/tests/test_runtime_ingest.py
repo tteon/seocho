@@ -267,6 +267,54 @@ def test_runtime_ingest_uses_canonical_engine_for_direct_extract_and_link():
     assert "Graph ID: kgfinance" in fake_llm.calls[1]["user"]
 
 
+def test_extract_graph_preserves_semantic_artifacts_when_empty_entity_graph_falls_back():
+    fake_neo4j = types.ModuleType("neo4j")
+    fake_neo4j.GraphDatabase = MagicMock()
+    fake_neo4j_exceptions = types.ModuleType("neo4j.exceptions")
+    fake_neo4j_exceptions.ServiceUnavailable = RuntimeError
+    fake_neo4j_exceptions.SessionExpired = RuntimeError
+
+    with patch.dict(sys.modules, {"neo4j": fake_neo4j, "neo4j.exceptions": fake_neo4j_exceptions}):
+        runtime_ingest = importlib.import_module("runtime.runtime_ingest")
+        runtime_ingest = importlib.reload(runtime_ingest)
+
+    db = _FakeDbManager()
+    ingestor = runtime_ingest.RuntimeRawIngestor(db_manager=db)
+    ingestor._llm_stack_ready = True
+    ingestor._extractor = object()
+
+    class _FakeSemanticPassOrchestrator:
+        def run_three_pass(self, **_kwargs):  # noqa: ANN001
+            return {
+                "ontology_candidate": {
+                    "ontology_name": "approved_finance",
+                    "classes": [{"name": "Company"}],
+                    "relationships": [],
+                },
+                "shacl_candidate": {"shapes": [{"target_class": "Company", "properties": []}]},
+                "entity_graph": {"nodes": [], "relationships": []},
+                "metadata": {"ontology_pass": "ok", "shacl_pass": "ok"},
+                "prompt_context": {"entity_types": "Company"},
+            }
+
+    ingestor._semantic_orchestrator = _FakeSemanticPassOrchestrator()
+
+    graph, used_fallback, reason = ingestor._extract_graph(
+        source_id="mem_1",
+        text="ACME acquired Beta in 2024.",
+        category="finance",
+        target_database="kgnormal",
+        record_metadata={"source": "tutorial"},
+        source_type="text",
+        approved_artifacts=None,
+    )
+
+    assert used_fallback is True
+    assert reason == "LLM semantic extraction failed: ValueError"
+    assert graph["_semantic"]["ontology_candidate"]["ontology_name"] == "approved_finance"
+    assert graph["_semantic"]["shacl_candidate"]["shapes"][0]["target_class"] == "Company"
+
+
 def test_embedding_cache_lru_eviction():
     """LRU cache evicts oldest entry when max_size is exceeded."""
     fake_neo4j = types.ModuleType("neo4j")

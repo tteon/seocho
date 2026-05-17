@@ -103,6 +103,91 @@ class TestYAML:
         Path(path).unlink()
 
 
+class TestLoad:
+    def test_load_dispatches_yaml_and_jsonld(self, simple_ontology):
+        with tempfile.NamedTemporaryFile(suffix=".yaml", delete=False) as yaml_file:
+            yaml_path = yaml_file.name
+        with tempfile.NamedTemporaryFile(suffix=".jsonld", delete=False) as jsonld_file:
+            jsonld_path = jsonld_file.name
+
+        simple_ontology.to_yaml(yaml_path)
+        simple_ontology.to_jsonld(jsonld_path)
+
+        loaded_yaml = Ontology.load(yaml_path)
+        loaded_jsonld = Ontology.load(jsonld_path)
+
+        assert loaded_yaml == simple_ontology
+        assert loaded_jsonld == simple_ontology
+
+        Path(yaml_path).unlink()
+        Path(jsonld_path).unlink()
+
+    def test_load_dispatches_ttl_suffix(self, monkeypatch):
+        sentinel = object()
+
+        monkeypatch.setattr(
+            Ontology,
+            "from_ttl",
+            classmethod(lambda cls, path: sentinel),
+        )
+
+        assert Ontology.load("schema.ttl") is sentinel
+
+    def test_load_rejects_unknown_suffix(self):
+        with pytest.raises(ValueError, match="Unsupported ontology file extension"):
+            Ontology.load("schema.rdf")
+
+    def test_from_ttl_loads_metadata_and_datatype_properties(self, tmp_path: Path):
+        ttl_path = tmp_path / "finance.ttl"
+        ttl_path.write_text(
+            """
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix ex: <https://example.com/finance#> .
+
+ex:FinanceOntology a owl:Ontology ;
+    rdfs:label "Finance TTL" ;
+    rdfs:comment "Finance governance ontology" ;
+    owl:versionInfo "1.2.0" .
+
+ex:Company a owl:Class ;
+    rdfs:label "Issuer" .
+
+ex:FinancialMetric a owl:Class .
+
+ex:reported a owl:ObjectProperty ;
+    rdfs:domain ex:Company ;
+    rdfs:range ex:FinancialMetric ;
+    rdfs:comment "Company reported metric" .
+
+ex:name a owl:DatatypeProperty ;
+    rdfs:domain ex:Company ;
+    rdfs:range xsd:string ;
+    rdfs:label "legal name" .
+
+ex:year a owl:DatatypeProperty ;
+    rdfs:domain ex:FinancialMetric ;
+    rdfs:range xsd:integer .
+""".strip(),
+            encoding="utf-8",
+        )
+
+        ontology = Ontology.load(ttl_path)
+
+        assert ontology.name == "Finance TTL"
+        assert ontology.package_id == "FinanceOntology"
+        assert ontology.version == "1.2.0"
+        assert ontology.namespace == "https://example.com/finance#"
+        assert ontology.description == "Finance governance ontology"
+        assert "Issuer" in ontology.nodes["Company"].aliases
+        assert ontology.nodes["Company"].properties["name"].property_type == PropertyType.STRING
+        assert ontology.nodes["Company"].properties["name"].aliases == ["legal name"]
+        assert ontology.nodes["FinancialMetric"].properties["year"].property_type == PropertyType.INTEGER
+        assert ontology.relationships["reported"].source == "Company"
+        assert ontology.relationships["reported"].target == "FinancialMetric"
+
+
 # ---------------------------------------------------------------------------
 # JSON-LD
 # ---------------------------------------------------------------------------

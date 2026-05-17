@@ -178,6 +178,10 @@ Core parameters you will hit early:
 - `max_steps` — runtime agent turn limit for `react` / `debate`
 - `tool_budget` — runtime tool-call budget for `react` / `debate`
 
+For explicit local engine mode, all three of `ontology`, `graph_store`, and
+`llm` must be provided together. Passing only one or two of them does not
+activate the in-process SDK engine.
+
 For production local engine, `Neo4jGraphStore` works against both Neo4j and DozerDB over Bolt:
 
 ```python
@@ -206,10 +210,13 @@ or `client.advanced(...)` directly.
 ```python
 from seocho import Seocho, Ontology
 
-client = Seocho.local(Ontology.from_jsonld("schema.jsonld"))
+client = Seocho.local(Ontology.load("schema.jsonld"))
 client.add("ACME acquired Beta in 2024.")
 print(client.ask("Who did ACME acquire?", reasoning_mode=True, repair_budget=2))
 ```
+
+`Ontology.load(...)` also accepts `.ttl`, so tutorial/prototype flows can start
+directly from Turtle without a manual conversion step.
 
 ### 3. Build locally against a production graph server
 
@@ -235,6 +242,14 @@ prompt_context = client.prompt_context_from_ontology(
     instructions=["Prefer finance ontology labels and relationships."]
 )
 draft = client.artifact_draft_from_ontology(name="finance_core_v1")
+```
+
+Before promoting a new ontology version, use the offline governance CLI:
+
+```bash
+seocho ontology check --schema schema.ttl
+seocho ontology diff --left schema_v1.ttl --right schema_v2.ttl
+seocho ontology report --schema schema_v2.ttl --output outputs/ontology_report.json
 ```
 
 ### 5. Run the local platform stack with UI + API + graph DB

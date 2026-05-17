@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Ontology-Driven LLM Engineering with FIBO — seocho tutorial</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reset.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/black.css" id="theme">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/highlight/monokai.css">
+
+<style>
+  :root { --r-main-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  .reveal h1, .reveal h2, .reveal h3 { letter-spacing: -0.02em; text-transform: none; }
+  .reveal h1 { font-size: 2.0em; }
+  .reveal h2 { font-size: 1.5em; color: #88c0d0; }
+  .reveal h3 { font-size: 1.1em; color: #a3be8c; }
+  .reveal pre { width: 100%; box-shadow: none; font-size: 0.55em; line-height: 1.35; }
+  .reveal pre code { padding: 14px 18px; max-height: 480px; }
+  .reveal code { color: #ebcb8b; }
+  .reveal table { font-size: 0.55em; }
+  .reveal table th { color: #88c0d0; border-bottom: 1px solid #4c566a; }
+  .reveal table td { border-bottom: 1px solid #2e3440; padding: 8px 12px; }
+  .reveal blockquote { background: #2e3440; border-left: 3px solid #88c0d0; padding: 12px 18px; font-size: 0.85em; }
+  .reveal .small { font-size: 0.7em; color: #d8dee9; }
+  .reveal .tiny { font-size: 0.5em; color: #81a1c1; }
+  .reveal .callout { background: #3b4252; border-left: 4px solid #a3be8c; padding: 10px 18px; border-radius: 4px; font-size: 0.75em; text-align: left; }
+  .reveal .warn    { background: #3b4252; border-left: 4px solid #bf616a; padding: 10px 18px; border-radius: 4px; font-size: 0.75em; text-align: left; }
+  .reveal .twocol { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
+  .reveal .twocol > div { text-align: left; font-size: 0.7em; }
+  .reveal ul li, .reveal ol li { margin: 0.3em 0; }
+  .reveal a { color: #88c0d0; }
+  .reveal section.center { text-align: center; }
+  .footer { position: absolute; bottom: 12px; right: 22px; font-size: 0.4em; color: #4c566a; }
+</style>
+</head>
+<body>
+<div class="reveal">
+<div class="slides">
+
+<!-- =================================================================== -->
+<section class="center" data-background-color="#1d2329">
+  <h1>Ontology-Driven LLM Engineering</h1>
+  <h2 style="color:#a3be8c;">FIBO + seocho — from prompt to versioned schema</h2>
+  <p class="small" style="margin-top:50px;">A hands-on tutorial covering instruction design, agent enhancement, and ontology integration with a real financial-industry ontology.</p>
+  <p class="tiny">3 notebooks · ~60 min · seocho 0.3.1</p>
+</section>
+
+<!-- =================================================================== -->
+<section>
+  <h2>What you'll leave with</h2>
+  <ol>
+    <li><strong>A working Jupyter setup</strong> — provider keys loaded, agent mode enabled, traces flowing.</li>
+    <li><strong>The instruction-design lever</strong> — same LLM, three different output shapes, no API change.</li>
+    <li><strong>Ontology as compiled context</strong> — a versioned schema that stamps every span with a <code>context_hash</code>.</li>
+    <li><strong>FIBO as a real schema</strong> — load it, extend it, migrate it, audit its trace lineage.</li>
+  </ol>
+  <p class="small" style="margin-top:32px;">Prereq: a provider API key (OpenAI / xAI / Moonshot / DeepSeek). Tutorial 3 also needs <code>owlready2</code> + <code>rdflib</code>.</p>
+</section>
+
+<!-- =================================================================== -->
+<section>
+  <h2>The three-layer stack</h2>
+  <table>
+  <thead><tr><th>Layer</th><th>API</th><th>What it adds</th><th>Notebook</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Vanilla LLM</strong></td><td><code>backend.complete(system, user)</code></td><td>One-shot prompt → text. Foundation.</td><td>Tutorial 1</td></tr>
+    <tr><td><strong>Agent</strong></td><td><code>Session.add() / ask() / run()</code></td><td>Tool use, multi-turn cache, tracing.</td><td>Tutorial 2</td></tr>
+    <tr><td><strong>Ontology</strong></td><td><code>Ontology + IndexingPipeline</code></td><td>Schema-grounded extraction, provenance, migration.</td><td>Tutorial 3</td></tr>
+  </tbody>
+  </table>
+  <p class="small" style="margin-top:32px;">Each layer is a strict superset of the one below it. You can stop at any layer when the previous one is enough.</p>
+</section>
+
+<!-- =================================================================== -->
+<section>
+  <h2>Tutorial 1 — the floor</h2>
+<pre><code class="language-python">from seocho import create_llm_backend
+
+backend = create_llm_backend(provider='openai', model='gpt-4o-mini')
+
+resp = backend.complete(
+    system='You answer in one short sentence.',
+    user='What is the capital of France?',
+)
+print(resp.text)   # → "Paris."
+</code></pre>
+  <p class="small" style="margin-top:24px;">
+  One primitive. Five providers (OpenAI / xAI / Kimi / DeepSeek / Qwen) behind one interface.
+  Provider quirks (Kimi temperature clamp, JSON-mode fallback, reasoning-content fallback) are handled internally.
+  </p>
+</section>
+
+<!-- =================================================================== -->
+<section>
+  <h2>The instruction-design lever</h2>
+  <p class="small">Same model, same backend. Three system prompts produce three different output shapes:</p>
+<pre><code class="language-python"># Pattern 1 — role + scope
+system='You extract company names ONLY. Reply as a comma-separated list.'
+
+# Pattern 2 — format constraint with JSON mode
+system='Return JSON: {"pairs": [{"person": str, "organization": str}]}'
+backend.complete(system=..., user=..., response_format={'type': 'json_object'})
+
+# Pattern 3 — few-shot in the system prompt
+system='''Extract executive titles. Return JSON: {name, title, organization}.
+
+Example:
+  Input: "Sundar Pichai is the CEO of Google."
+  Output: {"name": "Sundar Pichai", "title": "CEO", "organization": "Google"}
+'''
+</code></pre>
+  <p class="small" style="margin-top:18px;">
+    The system prompt is the largest quality lever you have. <strong>The next slide is why that matters.</strong>
+  </p>
+</section>
+
+<!-- =================================================================== -->
+<section>
+  <h2>...but hand-written prompts don't scale</h2>
+  <div class="warn">
+    Each new entity type, each new constraint, each new SHACL rule = another paragraph in the system prompt.
+    Drift is invisible. Output schema is a string convention, not a contract.
+  </div>
+  <p style="margin-top:32px;">An <strong>ontology</strong> is a structured way to <em>generate</em> the relevant part of that prompt automatically — and to validate the output against it.</p>
+  <pre><code class="language-python">ext_ctx = ontology.to_extraction_context()
+system = (
+    f'You extract entities for the {ext_ctx["ontology_name"]} graph.\n'
+    f'Entity types:\n{ext_ctx["entity_types"]}\n'
+    f'Relationship types:\n{ext_ctx["relationship_types"]}\n'
+    'Return JSON: {"nodes": [...], "relationships": [...]}'
+)
+</code></pre>
+</section>
+
+<!-- =================================================================== -->
+<section>
+  <h2>Tutorial 2 — agents in three pillars</h2>
+  <table>
+  <thead><tr><th>Pillar</th><th>Without it</th><th>With it</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Tool use</strong></td><td>One LLM call → text.</td><td>LLM picks among 8 typed tools (extract, validate, score, link, write, text2cypher, execute, search).</td></tr>
+    <tr><td><strong>Multi-turn cache</strong></td><td>Re-ship every prior fact.</td><td>Session entity + query cache; same question = cache hit, no LLM call.</td></tr>
+    <tr><td><strong>Observability</strong></td><td>Black-box answer.</td><td>JSONL + Opik spans for every <code>add() / ask() / run()</code>.</td></tr>
+  </tbody>
+  </table>
+  <pre style="margin-top:18px;"><code class="language-python">from seocho import Seocho, AGENT_PRESETS
+
+s = Seocho.local(ontology, llm='openai/gpt-4o-mini',
+                 agent_config=AGENT_PRESETS['agent'],
+                 user_id='openai-yitae')   # ← stamped on every trace span
+with s.session('finance-demo') as sess:
+    sess.add('Tim Cook is the CEO of Apple.')
+    print(sess.ask('Who runs Apple?'))
+</code></pre>
+</section>
+
+<!-- =================================================================== -->
+<section>
+  <h2>RoutingPolicy — three named modes</h2>
+  <p class="small">Single API surface. Different policy = different trace shape.</p>
+  <table>
+  <thead><tr><th>Preset</th><th>dominant axis</th><th>quality threshold</th><th>retries</th><th>repair</th></tr></thead>
+  <tbody>
+    <tr><td><code>fast()</code></td><td>latency</td><td>0.55</td><td>0</td><td>off</td></tr>
+    <tr><td><code>balanced()</code></td><td>—</td><td>0.70</td><td>1</td><td>1</td></tr>
+    <tr><td><code>thorough()</code></td><td>information_quality</td><td>0.85</td><td>2</td><td>3</td></tr>
+  </tbody>
+  </table>
+<pre style="margin-top:18px;"><code class="language-python">from seocho import RoutingPolicy, AgentConfig
+
+cfg = AgentConfig(execution_mode='supervisor',
+                  handoff=True,
+                  routing_policy=RoutingPolicy.thorough())
+</code></pre>
+  <p class="small" style="margin-top:18px;">In Tutorial 2, run the supervisor under <code>fast()</code> and <code>thorough()</code> — same call, two distinct traces. Compare span counts in <code>traces/tutorial_02.jsonl</code> or in Opik (project <code>seocho-openai</code>).</p>
+</section>
+
+<!-- =================================================================== -->
+<section>
+  <h2>Tutorial 3 — what is FIBO?</h2>
+  <div class="twocol">
+    <div>
+      <h3>FIBO in one paragraph</h3>
+      <p>The <strong>Financial Industry Business Ontology</strong> is the EDM Council's open-standard ontology for finance. MIT-licensed. Released by domain experts (banks, regulators).</p>
+      <p class="tiny">Authoritative URL: <a href="https://spec.edmcouncil.org/fibo/">spec.edmcouncil.org/fibo/</a></p>
+    </div>
+    <div>
+      <h3>What we use today</h3>
+      <p>A teaching subset: <code>fibo_be_minimal.ttl</code></p>
+      <ul>
+        <li><strong>5 classes</strong>: Party · Person · LegalPerson · FormalOrganization · Corporation</li>
+        <li><strong>4 datatype properties</strong>: hasName · hasTitle · hasIdentifier · hasLegalName</li>
+        <li><strong>2 object properties</strong>: isOfficerOf · hasShareholder</li>
+      </ul>
+      <p class="tiny">All five classes carry <code>skos:exactMatch</code> back to canonical FIBO IRIs.</p>
+    </div>
+  </div>
+  <p class="small" style="margin-top:32px;">Hand-curated for tutorials — <strong>not</strong> a FIBO release. The pattern transfers to any OWL ontology.</p>
+</section>
+
+<!-- =================================================================== -->
+<section>
+  <h2>From .ttl to <code>seocho.Ontology</code></h2>
+  <p class="small">owlready2 doesn't parse Turtle natively — it dispatches to NTriples. We pre-convert via rdflib:</p>
+<pre><code class="language-python">def load_fibo_ontology(ttl_path, *, ontology_name='fibo_be_minimal'):
+    import owlready2 as o2, rdflib, tempfile, os
+    g = rdflib.Graph()
+    g.parse(str(ttl_path), format='turtle')
+
+    # owlready2 → RDF/XML hand-off via tempfile
+    with tempfile.NamedTemporaryFile(suffix='.owl', delete=False) as tmp:
+        owl_path = tmp.name
+    try:
+        g.serialize(destination=owl_path, format='xml')
+        onto = o2.get_ontology(f'file://{owl_path}').load()
+    finally:
+        os.unlink(owl_path)
+
+    # walk classes / data_properties / object_properties → seocho.Ontology
+    return Ontology(name=ontology_name, nodes={...}, relationships={...})
+</code></pre>
+  <p class="small" style="margin-top:14px;">Output: <code>Ontology(nodes=5, relationships=2, validate=OK)</code>.</p>
+</section>
+
+<!-- =================================================================== -->
+<section>
+  <h2>The "FIBO modifying" approach</h2>
+  <p class="small">FIBO doesn't model product offerings (it stops at the financial-instrument boundary). To capture "Apple announced the iPhone", we extend FIBO with a non-FIBO <code>Product</code> node — <strong>without editing the source TTL</strong>.</p>
+<pre><code class="language-python">extension = Ontology(
+    name='product_extension', version='1.1.0',
+    description='Non-FIBO product extension layered on top of FIBO BE.',
+    nodes={
+        'Product': NodeDef(
+            description='A named product offered by a corporation.',
+            properties={'hasName': P(str, unique=True),
+                        'hasCategory': P(str)},
+        ),
+    },
+    relationships={
+        'MAKES': RelDef(source='Corporation', target='Product',
+                        cardinality='ONE_TO_MANY'),
+    },
+)
+
+ontology_v2 = ontology_v1.merge(extension, strategy='union',
+                                 name='fibo_be_minimal+product')
+ontology_v2.version = '2.0.0'
+</code></pre>
+  <p class="small" style="margin-top:18px;"><strong>Why merge instead of edit?</strong> Your derivation stays transparent. <code>migration_plan</code> works out of the box. Lineage back to canonical FIBO is preserved.</p>
+</section>
+
+<!-- =================================================================== -->
+<section>
+  <h2>migration_plan: what changed?</h2>
+<pre><code class="language-python">plan = ontology_v1.migration_plan(ontology_v2)
+
+# {
+#   'summary': 'fibo_be_minimal v1.0.0 → fibo_be_minimal+product v2.0.0',
+#   'breaking': False,
+#   'additions': {'nodes': ['Product'], 'relationships': ['MAKES']},
+#   'removals':  {'nodes': [], 'relationships': []},
+#   'cypher_statements': [
+#       {'description': 'Add Product node label',
+#        'cypher': 'CREATE CONSTRAINT FOR (n:Product) ...'},
+#       {'description': 'Add MAKES relationship type',
+#        'cypher': '...'},
+#   ]
+# }
+</code></pre>
+  <p class="small" style="margin-top:24px;">A migration is a <strong>plan</strong>, not a side effect. The Cypher statements are inspectable, runnable on demand, and can be replayed.</p>
+</section>
+
+<!-- =================================================================== -->
+<section>
+  <h2>Why ontology compile_context matters</h2>
+<pre><code class="language-python">from seocho import compile_ontology_context
+
+compiled_v1 = compile_ontology_context(ontology_v1, workspace_id='tutorial')
+compiled_v2 = compile_ontology_context(ontology_v2, workspace_id='tutorial')
+
+print(compiled_v1.descriptor.context_hash)   # → '7a4b...'
+print(compiled_v2.descriptor.context_hash)   # → 'c3f0...'  (changed!)
+</code></pre>
+  <div class="callout" style="margin-top:18px;">
+  Every <code>IndexingResult</code> stamps the <code>context_hash</code> on its output.<br>
+  Every trace span carries <code>context_hash</code> in metadata.<br>
+  Every <code>RuleSet</code> from <code>infer_rules_from_graph</code> carries an <code>ontology_identity_hash</code>.
+  </div>
+  <p class="small" style="margin-top:18px;">Promotion gates compare hashes: <strong>match</strong> → apply / <strong>drift</strong> → block / <strong>unknown</strong> → require review. The audit trail is built into the data.</p>
+</section>
+
+<!-- =================================================================== -->
+<section>
+  <h2>End-to-end indexing under the ontology</h2>
+<pre><code class="language-python">from seocho import Seocho, create_llm_backend
+from seocho.index.pipeline import IndexingPipeline
+
+llm = create_llm_backend(provider='openai', model='gpt-4o-mini')
+
+pipeline_v2 = IndexingPipeline(
+    ontology=ontology_v2,
+    graph_store=store_v2,
+    llm=llm,
+    workspace_id='tutorial',
+    ontology_profile='default',
+    enable_rule_constraints=True,
+)
+result = pipeline_v2.index(
+    'Tim Cook leads Apple. Apple announced the iPhone at WWDC 2025.',
+    database='tutorial_fibo_v2', category='general',
+)
+
+# result.ontology_context['context_hash']  →  same as compiled_v2 above
+# result.rule_profile.rules               →  inferred SHACL-like constraints
+# result.validation_errors                →  empty list (or specifics)
+</code></pre>
+</section>
+
+<!-- =================================================================== -->
+<section>
+  <h2>Identity: <code>user_id</code> + <code>workspace_id</code></h2>
+  <p class="small">Multi-user projects need to attribute traces. seocho 0.3.1 wires both fields through every emitted span.</p>
+<pre><code class="language-python">s = Seocho.local(
+    ontology=ontology_v2,
+    llm='openai/gpt-4o-mini',
+    user_id='openai-yitae',     # ← attribution
+    workspace_id='acme',        # ← tenancy
+)
+with s.session('demo') as sess:
+    sess.add('Tim Cook leads Apple.')
+# Span metadata now carries:
+#   user_id      = 'openai-yitae'
+#   workspace_id = 'acme'
+#   context_hash = 'c3f0...'
+</code></pre>
+  <p class="small" style="margin-top:14px;">Filter Opik for <code>metadata.user_id = 'openai-yitae'</code> and you see exactly that user's runs across the whole project.</p>
+</section>
+
+<!-- =================================================================== -->
+<section>
+  <h2>The contract, end-to-end</h2>
+  <table>
+  <thead><tr><th>Layer</th><th>Field</th><th>Where set</th><th>Where read</th></tr></thead>
+  <tbody>
+    <tr><td>Schema</td><td><code>context_hash</code></td><td><code>compile_ontology_context()</code></td><td>span metadata · IndexingResult · RuleSet</td></tr>
+    <tr><td>Schema</td><td><code>ontology_identity_hash</code></td><td><code>infer_rules_from_graph()</code></td><td>RuleSet promotion gate</td></tr>
+    <tr><td>Identity</td><td><code>user_id</code></td><td><code>Seocho(user_id=...)</code></td><td>every span metadata</td></tr>
+    <tr><td>Identity</td><td><code>workspace_id</code></td><td><code>Seocho(workspace_id=...)</code></td><td>every span metadata + Cypher partition</td></tr>
+    <tr><td>Run</td><td><code>session_id</code></td><td>auto, per <code>s.session(...)</code></td><td>parent trace ID</td></tr>
+    <tr><td>Run</td><td><code>degraded</code> / <code>fallback_from</code></td><td>Session._add_via_agent on exception</td><td>span metadata</td></tr>
+  </tbody>
+  </table>
+  <p class="small" style="margin-top:24px;">If FIBO version changes, every artifact tagged with the old hash is traceable as such. <strong>That is the contract.</strong></p>
+</section>
+
+<!-- =================================================================== -->
+<section>
+  <h2>The hands-on plan</h2>
+  <ol style="font-size:0.85em;">
+    <li><strong>10 min</strong> — Tutorial 1 setup + provider keys + first <code>complete()</code> call.</li>
+    <li><strong>15 min</strong> — Tutorial 2 agent mode + multi-turn + <code>fast/thorough</code> traces.</li>
+    <li><strong>20 min</strong> — Tutorial 3 FIBO load → extend → migrate → re-index.</li>
+    <li><strong>10 min</strong> — Inspect traces in Opik / JSONL; query <code>metadata.user_id</code>.</li>
+    <li><strong>5 min</strong> — Q&A.</li>
+  </ol>
+  <div class="callout" style="margin-top:32px;">
+  All three notebooks are <strong>idempotent</strong>: setup cell installs only what's missing, <code>load_dotenv()</code> won't override existing keys, <code>nbformat</code> validates clean.
+  </div>
+</section>
+
+<!-- =================================================================== -->
+<section>
+  <h2>Common gotchas (read this first)</h2>
+  <table>
+  <thead><tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr></thead>
+  <tbody>
+    <tr><td><code>(none — set at least one *_API_KEY)</code></td><td>No provider key in env or .env</td><td>Re-run setup cell · or set via <code>getpass</code> prompt cell</td></tr>
+    <tr><td><code>ModuleNotFoundError: No module named 'agents'</code></td><td>Installed bare <code>seocho</code>; agent mode needs <code>[local]</code> extra</td><td>Re-run setup with <code>seocho[local]</code></td></tr>
+    <tr><td><code>OwlReadyOntologyParsingError</code> on .ttl</td><td>owlready2 dispatches Turtle to NTriples parser</td><td>Already fixed: rdflib pre-converts in 0.3.1+</td></tr>
+    <tr><td><code>asyncio.run() cannot be called from a running event loop</code></td><td>Pre-0.3.1 SDK with Jupyter</td><td>Upgrade to 0.3.1 — it uses a loop-aware <code>_run_sync</code></td></tr>
+    <tr><td><code>degraded=True</code> / <code>fallback_from='agent'</code></td><td>Agent path raised; pipeline picked up</td><td>Read <code>fallback_reason</code> in result; common: model rate-limit</td></tr>
+  </tbody>
+  </table>
+</section>
+
+<!-- =================================================================== -->
+<section>
+  <h2>Where to go after this</h2>
+  <ul>
+    <li><strong>Full FIBO</strong>: <a href="https://spec.edmcouncil.org/fibo/">spec.edmcouncil.org/fibo/</a> · <a href="https://github.com/edmcouncil/html-pages/blob/develop/general/best-practices.md">best practices guide</a></li>
+    <li><strong>Bring your own ontology</strong>: any OWL/Turtle source. The loader pattern in Tutorial 3 transfers directly.</li>
+    <li><strong>Production deployment</strong>: <code>docs/QUICKSTART.md</code> for the full ingest → query → trace flow.</li>
+    <li><strong>SHACL validation</strong>: <code>docs/SHACL_PRACTICAL_GUIDE.md</code> covers <code>ontology.to_shacl()</code> and validation gates.</li>
+    <li><strong>API + contract</strong>: <code>docs/SDK_CONTRACT.md</code> pairs every public guarantee with a regression test.</li>
+  </ul>
+</section>
+
+<!-- =================================================================== -->
+<section class="center" data-background-color="#1d2329">
+  <h1 style="font-size:2.5em;">Open the notebooks.</h1>
+  <p class="small" style="margin-top:32px;">
+    <code>examples/tutorial_01_vanilla_llm.ipynb</code><br>
+    <code>examples/tutorial_02_agent_enhancement.ipynb</code><br>
+    <code>examples/tutorial_03_ontology_indexing.ipynb</code>
+  </p>
+  <p class="tiny" style="margin-top:36px;">
+    seocho 0.3.1 · <a href="https://pypi.org/project/seocho/">pypi.org/project/seocho</a> · <a href="https://github.com/tteon/seocho">github.com/tteon/seocho</a>
+  </p>
+</section>
+
+</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/highlight/highlight.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/notes/notes.js"></script>
+<script>
+  Reveal.initialize({
+    hash: true,
+    slideNumber: 'c/t',
+    transition: 'fade',
+    width: 1280,
+    height: 800,
+    margin: 0.06,
+    minScale: 0.4,
+    maxScale: 1.6,
+    plugins: [ RevealHighlight, RevealNotes ],
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+%%{init: {'theme': 'dark', 'themeVariables': {'primaryColor': '#6c63ff', 'primaryTextColor': '#e8e8f0', 'primaryBorderColor': '#6c63ff', 'lineColor': '#9090a8', 'secondaryColor': '#1a1a2e', 'tertiaryColor': '#12121a', 'background': '#0a0a0f', 'mainBkg': '#1a1a2e', 'nodeBorder': '#6c63ff', 'clusterBkg': '#12121a', 'clusterBorder': '#2a2a40', 'titleColor': '#e8e8f0', 'edgeLabelBackground': '#1a1a2e'}}}%%
+flowchart TD
+    Q["User Question"] --> DO["Debate Orchestrator"]
+
+    DO -->|"fan-out"| A1["Agent<br/>Graph A"]
+    DO -->|"fan-out"| A2["Agent<br/>Graph B"]
+    DO -->|"fan-out"| A3["Agent<br/>Graph N"]
+
+    A1 -->|"result"| SM["Shared Memory<br/><small>request-scoped cache</small>"]
+    A2 -->|"result"| SM
+    A3 -->|"result"| SM
+
+    SM -->|"all results"| SUP["Supervisor Agent<br/><small>aggregate + synthesize</small>"]
+    SUP --> ANS["Final Answer"]
+
+    style Q fill:#2a1a4e,stroke:#6c63ff,color:#e8e8f0
+    style DO fill:#2a2a1e,stroke:#ffd93d,color:#e8e8f0
+    style A1 fill:#1a1a3e,stroke:#6c63ff,color:#e8e8f0
+    style A2 fill:#1a1a3e,stroke:#6c63ff,color:#e8e8f0
+    style A3 fill:#1a1a3e,stroke:#6c63ff,color:#e8e8f0
+    style SM fill:#2a1a1e,stroke:#ff6b6b,color:#e8e8f0
+    style SUP fill:#1a2a2e,stroke:#00d4aa,color:#e8e8f0
+    style ANS fill:#1a2a2e,stroke:#00d4aa,color:#e8e8f0

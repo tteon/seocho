@@ -32,7 +32,8 @@ testable and stable across versions.
 
 from importlib import import_module
 from importlib.metadata import PackageNotFoundError, version
-from typing import Dict, Iterable
+from types import ModuleType
+from typing import Dict, Iterable, Mapping
 
 try:
     __version__ = version("seocho")
@@ -255,6 +256,59 @@ _NAME_TO_MODULE = {
     for name in exported_names
 }
 
+_CALLABLE_SUBMODULE_EXPORTS: Mapping[str, str] = {
+    "agents": ".agents",
+    "debate": ".debate",
+    "semantic": ".semantic",
+}
+
+
+class _CallableSubmoduleProxy:
+    """Expose a root convenience call and submodule attributes together."""
+
+    def __init__(self, package_name: str, export_name: str, submodule_name: str) -> None:
+        self._package_name = package_name
+        self._export_name = export_name
+        self._submodule_name = submodule_name
+
+    def __call__(self, *args, **kwargs):
+        api_module = import_module(".api", self._package_name)
+        api_fn = getattr(api_module, self._export_name)
+        return api_fn(*args, **kwargs)
+
+    def __getattr__(self, name: str):
+        submodule = import_module(self._submodule_name, self._package_name)
+        return getattr(submodule, name)
+
+    def __dir__(self):
+        submodule = import_module(self._submodule_name, self._package_name)
+        return sorted(set(dir(submodule)))
+
+    def __repr__(self) -> str:
+        return (
+            f"<callable submodule proxy {self._package_name}.{self._export_name}"
+            f" -> {self._submodule_name}>"
+        )
+
+
+class _SeochoModule(ModuleType):
+    """Preserve convenience-call exports even after submodule imports."""
+
+    def __getattribute__(self, name: str):
+        if name in _CALLABLE_SUBMODULE_EXPORTS:
+            module_dict = ModuleType.__getattribute__(self, "__dict__")
+            proxy_cache = module_dict.setdefault("_callable_submodule_proxy_cache", {})
+            proxy = proxy_cache.get(name)
+            if proxy is None:
+                proxy = _CallableSubmoduleProxy(
+                    package_name=ModuleType.__getattribute__(self, "__name__"),
+                    export_name=name,
+                    submodule_name=_CALLABLE_SUBMODULE_EXPORTS[name],
+                )
+                proxy_cache[name] = proxy
+            return proxy
+        return ModuleType.__getattribute__(self, name)
+
 
 def __getattr__(name: str):
     if name == "__version__":
@@ -435,3 +489,7 @@ __all__ = [
     "semantic_runs",
     "session_history",
 ]
+
+import sys as _sys
+
+_sys.modules[__name__].__class__ = _SeochoModule

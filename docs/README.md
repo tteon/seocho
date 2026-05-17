@@ -21,6 +21,7 @@ now?
 | bring your own ontology and data | [APPLY_YOUR_DATA.md](APPLY_YOUR_DATA.md) |
 | inspect files, artifacts, and traces | [FILES_AND_ARTIFACTS.md](FILES_AND_ARTIFACTS.md) |
 | understand the system design | [ARCHITECTURE.md](ARCHITECTURE.md) |
+| understand the top-level repository layout | [REPOSITORY_LAYOUT.md](REPOSITORY_LAYOUT.md) |
 | present SEOCHO to a technical audience | [presentations/SEOCHO_OVERVIEW_DEEP_DIVE.md](presentations/SEOCHO_OVERVIEW_DEEP_DIVE.md) |
 | measure behavior with FinDER and benchmark tracks | [BENCHMARKS.md](BENCHMARKS.md) |
 
@@ -88,6 +89,8 @@ Recommended onboarding order:
 - [ISSUE_TASK_SYSTEM.md](ISSUE_TASK_SYSTEM.md): sprint and task governance
 - [BEADS_OPERATING_MODEL.md](BEADS_OPERATING_MODEL.md): `.beads` execution
   contract
+- [REPOSITORY_LAYOUT.md](REPOSITORY_LAYOUT.md): root directory intent,
+  canonical edit surfaces, and legacy/local-only paths
 - [OPEN_SOURCE_PLAYBOOK.md](OPEN_SOURCE_PLAYBOOK.md): contributor onboarding
 - [decisions/DECISION_LOG.md](decisions/DECISION_LOG.md): architecture decision
   history

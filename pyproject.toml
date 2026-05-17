@@ -125,8 +125,13 @@ line_length = 88
 max-line-length = 88
 exclude = ["__pycache__", "*.pyc", ".git", "demos"]
 
+[tool.setuptools]
+include-package-data = false
+
 [tool.setuptools.packages.find]
-include = ["seocho*"]
+include = ["seocho", "seocho.*"]
+exclude = ["seocho.tests", "seocho.tests.*"]
+namespaces = false
 
 [tool.setuptools.package-data]
 seocho = ["py.typed"]

@@ -117,11 +117,4 @@ opik-down: ## Stop all services including Opik
 opik-logs: ## View Opik service logs
 	@docker compose --profile opik logs -f --tail=100 opik-backend opik-python-backend opik-frontend
 
-##@ Production
-
-prod-up: ## Start services in production mode
-	@echo "🚀 Starting production services..."
-	@docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
-
-dev-up: ## Start services in development mode
-	@$(DOCKER_COMPOSE_LIVE) up -d --build
+dev-up: up-live ## Alias for up-live

@@ -1,6 +1,9 @@
 # Examples
 
 Hands-on Jupyter notebooks for learning SEOCHO by climbing one layer at a time.
+This is the canonical home for runnable notebooks and example assets.
+Top-level `notebooks/` is legacy exploratory material and should not receive
+new onboarding or public example content.
 
 ## The teaching arc
 

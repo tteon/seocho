@@ -70,6 +70,8 @@ Thumbs.db
 *.temp
 temp/
 tmp/
+.tmp-land-ontology-cli/
+.experiment_runs/
 
 # Logs
 logs/
@@ -81,6 +83,7 @@ data/
 neo4j/data/
 neo4j/logs/
 .dolt/
+.seocho/
 *.db
 neostore*
 *.lock
@@ -111,6 +114,9 @@ runs/
 
 # Empty placeholders
 examples/untitled.txt
+
+# Per-PR scratch bodies (the actual PR description lives on GitHub)
+PR_BODY.md
 
 # Claude Code — personal/ad-hoc permission overlay (shared settings in .claude/settings.json are tracked)
 .claude/settings.local.json

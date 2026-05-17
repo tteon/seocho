@@ -44,6 +44,7 @@ Start here:
 | declare graph-model-aware indexing in YAML | [Indexing Design Specs](docs/INDEXING_DESIGN_SPECS.md) |
 | inspect files, artifacts, and traces | [Files and Artifacts](docs/FILES_AND_ARTIFACTS.md) |
 | understand the system design | [Architecture Deep Dive](docs/ARCHITECTURE.md) |
+| understand which top-level directories are active, legacy, or local-only | [Repository Layout](docs/REPOSITORY_LAYOUT.md) |
 | present the product and architecture | [Overview Deep-Dive Deck](docs/presentations/SEOCHO_OVERVIEW_DEEP_DIVE.md) |
 
 ## Quick Start
@@ -433,6 +434,10 @@ Scheduled Codex workflows skip cleanly when `OPENAI_API_KEY` /
 `Basic CI` remains the required repository check surface.
 
 See [docs/QUICKSTART.md](docs/QUICKSTART.md) for the full server setup guide.
+
+Contributor repo map: [docs/REPOSITORY_LAYOUT.md](docs/REPOSITORY_LAYOUT.md)
+explains which root directories are canonical product code, contributor-tool
+metadata, learning assets, or local runtime state.
 
 ## Contributing
 

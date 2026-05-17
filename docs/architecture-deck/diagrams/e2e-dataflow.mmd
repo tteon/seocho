@@ -1,0 +1,20 @@
+%%{init: {'theme': 'dark', 'themeVariables': {'primaryColor': '#6c63ff', 'primaryTextColor': '#e8e8f0', 'primaryBorderColor': '#6c63ff', 'lineColor': '#9090a8', 'secondaryColor': '#1a1a2e', 'tertiaryColor': '#12121a', 'background': '#0a0a0f', 'mainBkg': '#1a1a2e', 'nodeBorder': '#6c63ff', 'clusterBkg': '#12121a', 'clusterBorder': '#2a2a40', 'titleColor': '#e8e8f0', 'edgeLabelBackground': '#1a1a2e'}}}%%
+flowchart TD
+    A["External Data<br/><small>CSV / JSON / Parquet / API</small>"] --> B["Ontology Prompt Bridge<br/><small>ontology → LLM prompt injection</small>"]
+    B --> C["Entity Extractor<br/><small>LLM-based entity & relationship extraction</small>"]
+    C --> D["Entity Linker<br/><small>LLM-based entity resolution</small>"]
+    D --> E["Entity Deduplicator<br/><small>embedding cosine similarity dedup</small>"]
+    E --> F["Rule Constraints<br/><small>SHACL-like inference + validation</small>"]
+    F --> G["Database Manager<br/><small>DozerDB provisioning + schema + load</small>"]
+    G --> H["Agent Factory<br/><small>DB-specific agent provisioning</small>"]
+    H --> I["Query Execution<br/><small>Router / Debate / Semantic QA</small>"]
+
+    style A fill:#2a1a4e,stroke:#6c63ff,color:#e8e8f0
+    style B fill:#1a2a3e,stroke:#00d4aa,color:#e8e8f0
+    style C fill:#1a2a3e,stroke:#00d4aa,color:#e8e8f0
+    style D fill:#1a2a3e,stroke:#00d4aa,color:#e8e8f0
+    style E fill:#1a2a3e,stroke:#00d4aa,color:#e8e8f0
+    style F fill:#2a1a3e,stroke:#ffd93d,color:#e8e8f0
+    style G fill:#1a1a3e,stroke:#6c63ff,color:#e8e8f0
+    style H fill:#2a1a2e,stroke:#ff6b6b,color:#e8e8f0
+    style I fill:#2a1a2e,stroke:#ff6b6b,color:#e8e8f0

@@ -171,6 +171,7 @@ class _LocalEngine:
             database=database,
             category=category,
             source_type="text",
+            entities=list(getattr(result, "nodes", []) or []),
         )
 
     def add_batch(

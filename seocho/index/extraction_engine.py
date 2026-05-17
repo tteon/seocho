@@ -17,6 +17,14 @@ from jinja2 import Template
 from seocho.query.strategy import ExtractionStrategy, LinkingStrategy
 
 _SLUG_RE = re.compile(r"[^a-z0-9]+")
+_ONTOLOGY_RELAXED_RETRY_GUIDANCE = (
+    "Previous ontology-guided extraction returned an empty graph. "
+    "Retry once in relaxed mode. Prefer ontology labels and relationships when "
+    "they are clearly grounded in the text, but do not return an empty graph "
+    "just because the text does not fit the ontology perfectly. If needed, use "
+    "the closest supported label or a generic Entity node. When the text names "
+    "concrete entities, emit at least one useful node."
+)
 
 
 class CanonicalExtractionEngine:
@@ -64,7 +72,37 @@ class CanonicalExtractionEngine:
             temperature=0.0,
             response_format={"type": "json_object"},
         )
-        return self.normalize_payload(response.json())
+        normalized = self.normalize_payload(response.json())
+        if not self._should_retry_relaxed_extraction(normalized, extra_context):
+            return normalized
+
+        retry_metadata = {
+            "attempted": True,
+            "mode": "ontology_relaxed",
+            "succeeded": False,
+        }
+        retry_system, retry_user = self._build_relaxed_retry_prompts(
+            system=system,
+            user=user,
+            extra_context=extra_context,
+        )
+        try:
+            retry_response = self.llm.complete(
+                system=retry_system,
+                user=retry_user,
+                temperature=0.15,
+                response_format={"type": "json_object"},
+            )
+            retried = self.normalize_payload(retry_response.json())
+            if retried.get("nodes") or retried.get("relationships"):
+                retry_metadata["succeeded"] = True
+                retried["_retry"] = retry_metadata
+                return retried
+        except Exception as exc:
+            retry_metadata["error"] = type(exc).__name__
+
+        normalized["_retry"] = retry_metadata
+        return normalized
 
     def link(
         self,
@@ -101,6 +139,68 @@ class CanonicalExtractionEngine:
         if "relationships" not in linked or not linked["relationships"]:
             linked["relationships"] = extracted.get("relationships", []) or []
         return linked
+
+    def _should_retry_relaxed_extraction(
+        self,
+        normalized: Dict[str, Any],
+        extra_context: Optional[Dict[str, Any]],
+    ) -> bool:
+        if normalized.get("nodes") or normalized.get("relationships"):
+            return False
+        if self.ontology is not None:
+            return True
+        return self._has_relaxable_context(extra_context)
+
+    @staticmethod
+    def _has_relaxable_context(extra_context: Optional[Dict[str, Any]]) -> bool:
+        if not isinstance(extra_context, dict):
+            return False
+        for key in (
+            "ontology_name",
+            "entity_types",
+            "relationship_types",
+            "shacl_constraints",
+            "vocabulary_terms",
+            "entity_guidance",
+            "developer_instructions",
+        ):
+            value = extra_context.get(key)
+            if isinstance(value, str) and value.strip():
+                return True
+        return False
+
+    def _build_relaxed_retry_prompts(
+        self,
+        *,
+        system: str,
+        user: str,
+        extra_context: Optional[Dict[str, Any]],
+    ) -> tuple[str, str]:
+        retry_system = f"{system}\n\n{_ONTOLOGY_RELAXED_RETRY_GUIDANCE}"
+        retry_user = user
+        hint_block = self._render_relaxation_hints(extra_context)
+        if hint_block:
+            retry_user = f"{retry_user}\n\nRelaxed retry hints:\n{hint_block}"
+        return retry_system, retry_user
+
+    @staticmethod
+    def _render_relaxation_hints(extra_context: Optional[Dict[str, Any]]) -> str:
+        if not isinstance(extra_context, dict):
+            return ""
+        lines = []
+        for label, key in (
+            ("Ontology", "ontology_name"),
+            ("Entity hints", "entity_types"),
+            ("Relationship hints", "relationship_types"),
+            ("SHACL hints", "shacl_constraints"),
+            ("Vocabulary hints", "vocabulary_terms"),
+            ("Known entities", "entity_guidance"),
+            ("Developer instructions", "developer_instructions"),
+        ):
+            value = extra_context.get(key)
+            if isinstance(value, str) and value.strip():
+                lines.append(f"{label}: {value}")
+        return "\n".join(lines)
 
     def normalize_payload(self, extracted: Dict[str, Any]) -> Dict[str, Any]:
         """Normalize arbitrary LLM payloads into the graph write contract."""

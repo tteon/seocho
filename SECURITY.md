@@ -72,7 +72,7 @@ Seocho is designed to support:
 
 ### Production Hardening
 ```yaml
-# docker-compose.prod.yml
+# Example override file, not tracked in this repo
 services:
   dozerdb:
     environment:

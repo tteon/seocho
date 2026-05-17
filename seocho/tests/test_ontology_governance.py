@@ -5,6 +5,7 @@ import types
 
 from seocho.ontology import NodeDef, Ontology, P, RelDef
 from seocho.ontology_governance import (
+    build_ontology_governance_report,
     check_ontology,
     diff_ontologies,
     export_ontology_payload,
@@ -128,3 +129,49 @@ def test_inspect_owl_ontology_uses_optional_owlready2(monkeypatch) -> None:
     assert result.error is None
     assert result.stats["class_count"] == 2
     assert result.stats["property_count"] == 1
+
+
+def test_governance_report_includes_context_hash_and_shacl_stats(tmp_path) -> None:
+    ttl_path = tmp_path / "finance.ttl"
+    ttl_path.write_text(
+        """
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix ex: <https://example.com/finance#> .
+
+ex:FinanceOntology a owl:Ontology ;
+    rdfs:label "Finance TTL" ;
+    owl:versionInfo "1.2.0" .
+
+ex:Company a owl:Class .
+ex:FinancialMetric a owl:Class .
+
+ex:reported a owl:ObjectProperty ;
+    rdfs:domain ex:Company ;
+    rdfs:range ex:FinancialMetric .
+
+ex:name a owl:DatatypeProperty ;
+    rdfs:domain ex:Company ;
+    rdfs:range xsd:string .
+
+ex:year a owl:DatatypeProperty ;
+    rdfs:domain ex:FinancialMetric ;
+    rdfs:range xsd:integer .
+""".strip(),
+        encoding="utf-8",
+    )
+
+    report = build_ontology_governance_report(
+        ttl_path,
+        include_owl_inspection=False,
+    )
+
+    assert report.ok is True
+    assert report.context_descriptor["ontology_id"] == "FinanceOntology"
+    assert report.context_descriptor["ontology_version"] == "1.2.0"
+    assert report.context_descriptor["context_hash"]
+    assert report.shacl_export["stats"]["node_shape_count"] == 2
+    assert report.shacl_export["stats"]["property_shape_count"] >= 2
+    assert report.sample_data_validation.ok is True
+    assert report.owlready2_inspection is None

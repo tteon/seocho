@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>beads · Dolt · git worktree — SEOCHO 활용기</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg-primary: #0a0a0f;
+    --bg-secondary: #12121a;
+    --bg-card: #1a1a2e;
+    --bg-card-hover: #222240;
+    --accent: #6c63ff;
+    --accent-light: #8b83ff;
+    --accent-glow: rgba(108, 99, 255, 0.15);
+    --accent-secondary: #00d4aa;
+    --accent-third: #ff6b6b;
+    --accent-fourth: #ffd93d;
+    --text-primary: #e8e8f0;
+    --text-secondary: #9090a8;
+    --text-dim: #606078;
+    --border: #2a2a40;
+    --border-light: #3a3a55;
+    --gradient-1: linear-gradient(135deg, #6c63ff, #00d4aa);
+    --gradient-2: linear-gradient(135deg, #ff6b6b, #ffd93d);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%; height: 100%;
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    overflow: hidden;
+  }
+
+  .deck { width: 100%; height: 100%; position: relative; }
+  .slide {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    justify-content: center; align-items: center;
+    padding: 60px 80px;
+    opacity: 0; visibility: hidden;
+    transition: opacity 0.5s ease, transform 0.5s ease;
+    transform: translateX(40px);
+    overflow-y: auto;
+  }
+  .slide.active { opacity: 1; visibility: visible; transform: translateX(0); }
+  .slide.prev { transform: translateX(-40px); }
+
+  h1 { font-size: 3.2rem; font-weight: 800; line-height: 1.15; letter-spacing: -0.03em; }
+  h2 { font-size: 2.2rem; font-weight: 700; line-height: 1.2; letter-spacing: -0.02em; }
+  h3 { font-size: 1.5rem; font-weight: 600; line-height: 1.3; }
+  h4 { font-size: 1.15rem; font-weight: 600; }
+  p, li { font-size: 1.05rem; line-height: 1.7; color: var(--text-secondary); }
+  .subtitle { font-size: 1.25rem; color: var(--text-secondary); font-weight: 400; margin-top: 12px; }
+  .accent { color: var(--accent-light); }
+  .green { color: var(--accent-secondary); }
+  .red { color: var(--accent-third); }
+  .yellow { color: var(--accent-fourth); }
+  code {
+    font-family: 'JetBrains Mono', monospace;
+    background: rgba(108,99,255,0.12);
+    color: var(--accent-light);
+    padding: 2px 8px; border-radius: 4px;
+    font-size: 0.9em;
+  }
+  pre {
+    font-family: 'JetBrains Mono', monospace;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    padding: 16px 20px;
+    border-radius: 10px;
+    font-size: 0.88rem;
+    line-height: 1.55;
+    overflow-x: auto;
+    margin: 16px 0;
+  }
+
+  .slide-content { max-width: 1100px; width: 100%; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 36px; margin-top: 28px; }
+  .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 22px; margin-top: 28px; }
+  .four-col { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 18px; margin-top: 28px; }
+
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 26px;
+    transition: all 0.3s ease;
+  }
+  .card:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--border-light);
+    transform: translateY(-2px);
+  }
+  .card h4 { margin-bottom: 10px; color: var(--text-primary); }
+  .card p, .card li { font-size: 0.95rem; }
+
+  .card-accent { border-left: 3px solid var(--accent); }
+  .card-green { border-left: 3px solid var(--accent-secondary); }
+  .card-red { border-left: 3px solid var(--accent-third); }
+  .card-yellow { border-left: 3px solid var(--accent-fourth); }
+
+  .badge {
+    display: inline-block;
+    padding: 4px 14px;
+    border-radius: 20px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .badge-accent { background: rgba(108,99,255,0.18); color: var(--accent-light); }
+  .badge-green { background: rgba(0,212,170,0.18); color: var(--accent-secondary); }
+  .badge-red { background: rgba(255,107,107,0.18); color: var(--accent-third); }
+  .badge-yellow { background: rgba(255,217,61,0.18); color: var(--accent-fourth); }
+  .badge-dim { background: rgba(144,144,168,0.15); color: var(--text-secondary); }
+
+  ul { list-style: none; padding: 0; }
+  ul.spaced li { margin-bottom: 12px; }
+  ul.check li::before {
+    content: ""; display: inline-block;
+    width: 6px; height: 6px; background: var(--accent);
+    border-radius: 50%; margin-right: 12px; vertical-align: middle;
+  }
+  ul.arrow li::before {
+    content: "->"; color: var(--accent); margin-right: 10px;
+    font-family: 'JetBrains Mono', monospace; font-size: 0.85em;
+  }
+  ul.cross li::before {
+    content: "x"; color: var(--accent-third); margin-right: 12px;
+    font-family: 'JetBrains Mono', monospace; font-weight: 700;
+  }
+  ul.tick li::before {
+    content: "OK"; color: var(--accent-secondary); margin-right: 12px;
+    font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 0.8em;
+  }
+  ol { padding-left: 24px; }
+  ol li { margin-bottom: 10px; }
+  ol li::marker { color: var(--accent-light); font-weight: 600; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+    font-size: 0.92rem;
+  }
+  th {
+    text-align: left;
+    padding: 12px 16px;
+    border-bottom: 2px solid var(--border);
+    color: var(--accent-light);
+    font-weight: 600;
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  td {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-secondary);
+  }
+  tr:hover td { background: var(--bg-card); }
+  td code { font-size: 0.85em; }
+
+  .nav {
+    position: fixed; bottom: 28px; right: 40px;
+    display: flex; gap: 10px; z-index: 100;
+    align-items: center;
+  }
+  .nav button {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    width: 44px; height: 44px;
+    border-radius: 12px;
+    cursor: pointer;
+    font-size: 1.1rem;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+  }
+  .nav button:hover { background: var(--accent); border-color: var(--accent); }
+  .nav .counter {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.82rem;
+    color: var(--text-dim);
+    padding: 0 8px;
+  }
+
+  .progress-bar {
+    position: fixed; top: 0; left: 0;
+    height: 3px;
+    background: var(--gradient-1);
+    transition: width 0.4s ease;
+    z-index: 200;
+  }
+
+  .slide-number {
+    position: fixed; bottom: 32px; left: 40px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    z-index: 100;
+  }
+
+  .title-slide { text-align: center; }
+  .title-slide h1 {
+    font-size: 4.5rem;
+    background: var(--gradient-1);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 8px;
+  }
+  .title-slide .meta {
+    margin-top: 40px;
+    color: var(--text-dim);
+    font-size: 0.95rem;
+  }
+  .title-slide .meta span { margin: 0 16px; }
+
+  .section-slide { text-align: center; }
+  .section-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 5rem; font-weight: 800;
+    background: var(--gradient-1);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1;
+    margin-bottom: 16px;
+  }
+
+  .sep { width: 60px; height: 3px; background: var(--gradient-1); border-radius: 2px; margin: 20px 0; }
+
+  .quote {
+    border-left: 3px solid var(--accent);
+    padding: 16px 24px;
+    background: var(--accent-glow);
+    border-radius: 0 12px 12px 0;
+    margin: 20px 0;
+    font-style: italic;
+    color: var(--text-secondary);
+  }
+
+  .kw {
+    display: inline-block;
+    background: rgba(108,99,255,0.12);
+    border: 1px solid rgba(108,99,255,0.25);
+    padding: 2px 10px; border-radius: 6px;
+    font-size: 0.85rem; font-weight: 500;
+    color: var(--accent-light);
+    margin: 2px 3px;
+  }
+  .kw-green { background: rgba(0,212,170,0.12); border-color: rgba(0,212,170,0.25); color: var(--accent-secondary); }
+  .kw-red   { background: rgba(255,107,107,0.12); border-color: rgba(255,107,107,0.25); color: var(--accent-third); }
+  .kw-yellow{ background: rgba(255,217,61,0.12); border-color: rgba(255,217,61,0.25); color: var(--accent-fourth); }
+
+  .bg-pattern {
+    position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    background-image:
+      radial-gradient(circle at 20% 30%, rgba(108,99,255,0.04) 0%, transparent 50%),
+      radial-gradient(circle at 80% 70%, rgba(0,212,170,0.03) 0%, transparent 50%);
+  }
+
+  .metric-big {
+    font-size: 3rem; font-weight: 800;
+    background: var(--gradient-1);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1;
+  }
+  .metric-label {
+    font-size: 0.82rem; color: var(--text-dim);
+    text-transform: uppercase; letter-spacing: 0.08em;
+    margin-top: 8px;
+  }
+
+  .arrow-flow {
+    display: flex; align-items: center; justify-content: center;
+    gap: 12px; margin: 24px 0;
+    flex-wrap: wrap;
+  }
+  .flow-box {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 20px;
+    font-size: 0.92rem;
+    color: var(--text-primary);
+    font-weight: 500;
+  }
+  .flow-box.accent { border-color: var(--accent); color: var(--accent-light); }
+  .flow-box.green  { border-color: var(--accent-secondary); color: var(--accent-secondary); }
+  .flow-arrow { color: var(--accent); font-family: 'JetBrains Mono', monospace; font-weight: 700; }
+
+  .case-hdr {
+    display: flex; align-items: baseline; gap: 16px;
+    margin-bottom: 14px;
+  }
+  .case-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 2.2rem; font-weight: 800;
+    color: var(--accent-light);
+    line-height: 1;
+  }
+  .case-title { font-size: 1.8rem; font-weight: 700; }
+
+  .stage {
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    gap: 14px;
+    padding: 14px 0;
+    border-bottom: 1px dashed var(--border);
+  }
+  .stage:last-child { border-bottom: 0; }
+  .stage .tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding-top: 4px;
+  }
+  .stage p { font-size: 0.98rem; }
+</style>
+</head>
+<body>
+
+<div class="bg-pattern"></div>
+<div class="progress-bar" id="progress"></div>
+<div class="slide-number" id="slideNum">01 / 14</div>
+
+<div class="deck" id="deck">
+
+  <!-- ====== 01 Title ====== -->
+  <section class="slide active title-slide">
+    <div class="slide-content">
+      <span class="badge badge-accent">SEOCHO • Internal</span>
+      <h1 style="margin-top:24px;">beads · Dolt · git worktree</h1>
+      <p class="subtitle">AI 에이전트 규모의 이슈 추적 — 우리가 고른 세 도구</p>
+      <div class="meta">
+        <span>dependency graph</span>
+        <span>·</span>
+        <span>cell-level merge</span>
+        <span>·</span>
+        <span>filesystem isolation</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====== 02 Problem ====== -->
+  <section class="slide">
+    <div class="slide-content">
+      <span class="badge badge-red">Problem</span>
+      <h2 style="margin-top:16px;">markdown TODO로는 <span class="accent">에이전트 규모</span>가 안 버텨진다</h2>
+      <div class="sep"></div>
+      <p>에이전트가 여러 세션·여러 브랜치에서 동시에 일할 때 일반 이슈 트래커가 깨지는 지점들:</p>
+      <div class="three-col" style="margin-top:20px;">
+        <div class="card card-red">
+          <h4 class="red">컨텍스트 휘발</h4>
+          <p>세션이 끝나면 에이전트 머릿속이 리셋. "이 이슈가 왜 만들어졌는지" 단서가 PR 설명 밖에 없음.</p>
+        </div>
+        <div class="card card-red">
+          <h4 class="red">ID 충돌</h4>
+          <p>시퀀셜 ID(#123)는 브랜치마다 다른 값이 배정됨 → 머지 시 충돌.</p>
+        </div>
+        <div class="card card-red">
+          <h4 class="red">동시 쓰기 손실</h4>
+          <p>여러 에이전트가 같은 이슈를 동시에 업데이트하면 "last write wins"로 필드가 지워짐.</p>
+        </div>
+      </div>
+      <p style="margin-top:24px;">필요한 건 세 축: <span class="kw">영속 메모리</span><span class="kw">안전한 동시성</span><span class="kw">물리적 격리</span>. 각각 <strong>beads · Dolt · git worktree</strong>가 맡는다.</p>
+    </div>
+  </section>
+
+  <!-- ====== 03 Section: beads ====== -->
+  <section class="slide section-slide">
+    <div class="slide-content">
+      <div class="section-num">01</div>
+      <h2>beads</h2>
+      <p class="subtitle" style="margin-top:20px;">AI 에이전트용 <span class="accent">dependency-aware</span> 이슈 그래프</p>
+      <p style="margin-top:12px; color:var(--text-dim); font-size:0.9rem;">github.com/gastownhall/beads · 21.1k stars</p>
+    </div>
+  </section>
+
+  <!-- ====== 04 beads concept ====== -->
+  <section class="slide">
+    <div class="slide-content">
+      <span class="badge badge-green">Concept</span>
+      <h2 style="margin-top:16px;">beads가 <span class="green">일반 트래커와 다른</span> 네 가지</h2>
+      <div class="sep"></div>
+      <div class="two-col">
+        <div class="card card-green">
+          <h4 class="green">1. 의존성 그래프</h4>
+          <p>이슈 사이에 <code>blocks</code>, <code>blocked-by</code>, <code>discovered-from</code>, <code>relates-to</code>, <code>supersedes</code> 관계가 1급 시민.</p>
+          <p style="margin-top:10px;"><code>bd ready</code>가 <strong>지금 풀린(=블로커가 없는) 일만</strong> 돌려준다 — 에이전트에게 "다음 뭐 할까"를 자동으로 알려주는 핵심.</p>
+        </div>
+        <div class="card card-green">
+          <h4 class="green">2. 해시 기반 ID</h4>
+          <p>시퀀셜 번호가 아니라 <code>bd-a1b2</code> 같은 해시. 두 브랜치가 동시에 이슈를 만들어도 ID 충돌 0.</p>
+          <p style="margin-top:10px;"><strong>머지가 깨끗</strong>해진다. 에픽은 <code>bd-a3f8.1.1</code>처럼 점 표기로 계층 확장.</p>
+        </div>
+        <div class="card card-green">
+          <h4 class="green">3. 에이전트 전용 출력</h4>
+          <p>기본적으로 <code>--json</code>. 모든 필드가 기계 파싱 친화적.</p>
+          <p style="margin-top:10px;"><code>bd ready --json</code>, <code>bd show bd-42 --json</code> → 스크립트/에이전트가 바로 사용.</p>
+        </div>
+        <div class="card card-green">
+          <h4 class="green">4. 영속성 + 감사</h4>
+          <p>백엔드가 Dolt(=버전 SQL). <strong>모든 변경이 커밋</strong>으로 남음.</p>
+          <p style="margin-top:10px;">"이 라벨이 언제 왜 바뀌었지?" → <code>bd dolt log</code>로 되짚기.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====== 05 beads commands ====== -->
+  <section class="slide">
+    <div class="slide-content">
+      <span class="badge badge-green">Commands</span>
+      <h2 style="margin-top:16px;">에이전트 한 사이클의 <code>bd</code> 호출</h2>
+      <div class="sep"></div>
+      <div class="two-col">
+        <div>
+          <pre># ① 준비된 일 탐지
+bd ready --json
+
+# ② 원자적 claim
+bd update bd-42 --claim --json
+
+# ③ 상세 & 히스토리
+bd show bd-42 --json
+
+# ④ 작업 중 파생 이슈를 부모에 연결
+bd create "Found edge case in loader" \
+  --description "..." -p 1 \
+  --deps discovered-from:bd-42 --json
+
+# ⑤ 의존성 추가
+bd dep add bd-99 bd-42   # 99가 42를 블록
+
+# ⑥ 완료
+bd close bd-42 --reason "Done"</pre>
+        </div>
+        <div>
+          <h3 style="margin-bottom:10px;">세 가지 포인트</h3>
+          <ul class="spaced" style="margin-top:12px;">
+            <li><span class="kw-green kw">--claim</span> 한 명령으로 "내 것" + "in_progress" 두 상태를 <strong>원자적으로</strong> 전이. 두 에이전트가 동시에 <code>--claim</code> 해도 한 쪽만 성공.</li>
+            <li><span class="kw-green kw">discovered-from</span>이 가장 저평가된 관계. 작업 중 발견한 새 이슈를 부모에 링크해두면 "왜 이 이슈가 생겼지?" 답이 그래프에 남는다.</li>
+            <li><span class="kw-green kw">--json</span>은 에이전트가 제어문으로 반응할 수 있게 해주는 기본 플래그. <code>jq</code> 조합과 궁합이 좋다.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====== 06 Section: Dolt ====== -->
+  <section class="slide section-slide">
+    <div class="slide-content">
+      <div class="section-num">02</div>
+      <h2>Dolt</h2>
+      <p class="subtitle" style="margin-top:20px;"><span class="green">git for data</span> — 버전 관리되는 SQL 데이터베이스</p>
+    </div>
+  </section>
+
+  <!-- ====== 07 Dolt cell-merge ====== -->
+  <section class="slide">
+    <div class="slide-content">
+      <span class="badge badge-green">Cell-Level Merge</span>
+      <h2 style="margin-top:16px;">같은 행을 <span class="green">두 명이 동시에</span> 고쳐도 — 살아남는다</h2>
+      <div class="sep"></div>
+      <p>Dolt의 핵심 차별점. 머지가 <strong>셀(cell) 단위</strong>로 일어난다.</p>
+      <div class="two-col" style="margin-top:20px;">
+        <div class="card card-red">
+          <h4 class="red">보통 DB / last-write-wins</h4>
+          <pre>T1 writes: bd-42.priority = 1
+T2 writes: bd-42.status   = done
+---
+최종: priority=2(디폴트), status=done
+     ← T1의 priority 업데이트 유실</pre>
+          <p style="margin-top:10px;">같은 <strong>row</strong>를 둘이 건드리면 한 쪽이 덮어써진다.</p>
+        </div>
+        <div class="card card-green">
+          <h4 class="green">Dolt / cell-level merge</h4>
+          <pre>T1 writes: bd-42.priority = 1  (branch A)
+T2 writes: bd-42.status   = done (branch B)
+---
+merge A + B → priority=1, status=done
+     ← 둘 다 살아남음</pre>
+          <p style="margin-top:10px;">서로 다른 <strong>컬럼</strong>을 고쳤으면 자동 병합. 같은 컬럼일 때만 충돌 처리.</p>
+        </div>
+      </div>
+      <div class="quote" style="margin-top:20px;">
+        beads가 AI 에이전트 여러 명이 동시에 돌아가도 데이터를 안 잃는 이유가 여기에 있다. <strong>이슈 레코드는 협업 문서처럼 부분 업데이트된다.</strong>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====== 08 Dolt branching + modes ====== -->
+  <section class="slide">
+    <div class="slide-content">
+      <span class="badge badge-green">Branching & Modes</span>
+      <h2 style="margin-top:16px;">DB도 <span class="green">브랜치</span>한다 — 그리고 두 가지 구동 모드</h2>
+      <div class="sep"></div>
+      <div class="two-col">
+        <div class="card card-green">
+          <h4 class="green">DB-native branching</h4>
+          <ul class="arrow spaced">
+            <li>테이블 스키마·데이터 전체를 branch/merge</li>
+            <li>feature 브랜치에서 이슈 그래프를 마음껏 실험 → 본 main에 영향 0</li>
+            <li><code>dolt log</code> / <code>dolt diff</code>로 데이터 변경을 코드처럼 리뷰</li>
+            <li><code>dolt push</code> / <code>dolt pull</code>로 원격 DB와 동기화 (beads는 <code>bd dolt push</code>)</li>
+          </ul>
+        </div>
+        <div class="card card-green">
+          <h4 class="green">두 가지 모드</h4>
+          <table>
+            <tr><th>모드</th><th>Writer</th><th>언제</th></tr>
+            <tr><td><code>embedded</code></td><td>1</td><td>단일 에이전트·단일 CLI. 기본값, 가볍다.</td></tr>
+            <tr><td><code>server</code></td><td>N</td><td>다중 워크트리 / 다중 에이전트 동시 쓰기. <code>dolt sql-server</code>.</td></tr>
+          </table>
+          <p style="margin-top:12px;">SEOCHO <code>.beads/</code>는 on-demand로 sql-server를 띄운다. 워크트리 여러 개에서 동시에 <code>bd</code>가 돌 때 자동 승격.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====== 09 Section: worktree ====== -->
+  <section class="slide section-slide">
+    <div class="slide-content">
+      <div class="section-num">03</div>
+      <h2>git worktree</h2>
+      <p class="subtitle" style="margin-top:20px;"><span class="green">한 레포 · 여러 브랜치 · 여러 디렉터리</span></p>
+    </div>
+  </section>
+
+  <!-- ====== 10 worktree concept ====== -->
+  <section class="slide">
+    <div class="slide-content">
+      <span class="badge badge-green">Concept</span>
+      <h2 style="margin-top:16px;"><code>git worktree</code> — 브랜치 전환의 <span class="green">블로킹을 제거</span></h2>
+      <div class="sep"></div>
+      <p>보통 워크플로는 브랜치 전환이 <strong>디렉터리 내용을 덮어쓰는</strong> 방식이다. 동시에 두 브랜치 작업 = 불가능.</p>
+      <div class="arrow-flow" style="margin:28px 0;">
+        <div class="flow-box">repo 하나 <code>.git/</code></div>
+        <span class="flow-arrow">=&gt;</span>
+        <div class="flow-box accent">wt-runtime/<br><span style="font-size:0.78rem;color:var(--text-dim);">feat/runtime</span></div>
+        <div class="flow-box accent">wt-query/<br><span style="font-size:0.78rem;color:var(--text-dim);">fix/query-edge</span></div>
+        <div class="flow-box accent">wt-docs/<br><span style="font-size:0.78rem;color:var(--text-dim);">docs/readme</span></div>
+      </div>
+      <div class="two-col">
+        <div class="card">
+          <h4>명령</h4>
+          <pre># 새 워크트리를 브랜치로
+git worktree add ../wt-runtime feat/runtime-readiness
+
+# 등록된 워크트리 목록
+git worktree list
+
+# 정리
+git worktree remove ../wt-runtime</pre>
+        </div>
+        <div class="card">
+          <h4>얻는 것</h4>
+          <ul class="check spaced">
+            <li>디렉터리 <strong>격리</strong> — 한 쪽에서 <code>pytest</code> 돌려도 다른 쪽 파일 안 흔들림</li>
+            <li>에이전트 한 명당 한 워크트리 = <strong>병렬 실행</strong> 기본 단위</li>
+            <li><code>git stash</code> 안 쓰고 컨텍스트 전환</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====== 11 worktree mechanics ====== -->
+  <section class="slide">
+    <div class="slide-content">
+      <span class="badge badge-green">How It Works</span>
+      <h2 style="margin-top:16px;">worktree는 <span class="green">어떻게</span> 격리를 만드는가</h2>
+      <div class="sep"></div>
+      <p>"디렉터리 여러 개 = 저장소 여러 개"가 아니다. <strong>하나의 object store(<code>.git/objects</code>)를 공유</strong>하고, <strong>작업 상태만 분리</strong>한다.</p>
+      <div class="two-col" style="margin-top:20px;">
+        <div class="card">
+          <h4>원 워크트리 (메인)</h4>
+          <pre>seocho/
+├── .git/
+│   ├── objects/      ← 공유됨
+│   ├── refs/         ← 공유됨
+│   ├── HEAD          ← 자기 전용
+│   ├── index         ← 자기 전용
+│   └── worktrees/
+│       └── wt-runtime/
+│           ├── HEAD
+│           └── index
+└── (working files on HEAD)</pre>
+        </div>
+        <div class="card">
+          <h4>linked 워크트리</h4>
+          <pre>wt-runtime/
+├── .git              ← 파일 1개 (포인터)
+│   "gitdir: /seocho/.git/
+│    worktrees/wt-runtime"
+└── (working files on
+   feat/runtime-readiness)</pre>
+          <p style="margin-top:8px; font-size:0.9rem;"><code>.git</code>이 디렉터리가 아닌 <strong>작은 텍스트 파일</strong>. 메인 레포의 하위 상태를 가리킴.</p>
+        </div>
+      </div>
+      <div class="three-col" style="margin-top:20px;">
+        <div class="card card-green">
+          <h4 class="green">공유되는 것</h4>
+          <p><code>objects/</code> (모든 커밋·트리·블롭), <code>refs/</code> (브랜치·태그), <code>config</code></p>
+        </div>
+        <div class="card card-green">
+          <h4 class="green">분리되는 것</h4>
+          <p>각 워크트리의 <code>HEAD</code>, <code>index</code>(staging), working tree 파일, <code>hooks</code>(선택)</p>
+        </div>
+        <div class="card card-green">
+          <h4 class="green">불변</h4>
+          <p>한 브랜치를 <strong>동시에 두 워크트리에 체크아웃 불가</strong> (git이 거부). 안전장치.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====== 12 Section: SEOCHO usage ====== -->
+  <section class="slide section-slide">
+    <div class="slide-content">
+      <div class="section-num">04</div>
+      <h2>SEOCHO에서의 활용</h2>
+      <p class="subtitle" style="margin-top:20px;">세 도구를 우리 워크플로에 어떻게 얹었나</p>
+    </div>
+  </section>
+
+  <!-- ====== 13 bd policy in SEOCHO ====== -->
+  <section class="slide">
+    <div class="slide-content">
+      <span class="badge badge-accent">Usage ①</span>
+      <h2 style="margin-top:16px;">이슈 정책 — <code>bd</code> 위에 얹은 <span class="accent">라벨 축</span>과 스크립트</h2>
+      <div class="sep"></div>
+      <div class="two-col">
+        <div class="card card-accent">
+          <h4 class="accent">active 이슈에 강제되는 7축 라벨</h4>
+          <p style="margin-top:8px;">
+            <span class="kw">sev-*</span><span class="kw">impact-*</span><span class="kw">urgency-*</span>
+            <span class="kw">sprint-*</span><span class="kw">roadmap-*</span>
+            <span class="kw">area-*</span><span class="kw">kind-*</span>
+          </p>
+          <p style="margin-top:12px;">한 이슈를 보면 "얼마나 급한지 · 어디 영역인지 · 어느 스프린트/로드맵인지"가 한눈에 읽힌다. 누락 이슈는 린트가 실패시킨다.</p>
+          <p style="margin-top:10px;">계약서: <code>docs/ISSUE_TASK_SYSTEM.md</code></p>
+        </div>
+        <div class="card card-accent">
+          <h4 class="accent">운영 스크립트</h4>
+          <pre style="margin-top:8px;">scripts/pm/new-issue.sh       # 표준 이슈 생성
+scripts/pm/new-task.sh        # 표준 task 생성
+scripts/pm/sprint-board.sh \
+  --sprint 2026-S03           # 보드 뷰
+scripts/pm/lint-items.sh \
+  --sprint 2026-S03           # 라벨·관계 검증
+scripts/pm/bd-recover.sh      # 손상 DB 복구</pre>
+        </div>
+      </div>
+      <div class="quote" style="margin-top:20px;">
+        CLAUDE.md §4.1~§4.3: <strong>에이전트 전체 워크플로가 bd 중심</strong>으로 돈다. <code>bd ready</code>로 시작해서 <code>bd close</code>로 끝난다.
+      </div>
+    </div>
+  </section>
+
+  <!-- ====== 14 worktree + dolt in SEOCHO ====== -->
+  <section class="slide">
+    <div class="slide-content">
+      <span class="badge badge-accent">Usage ②</span>
+      <h2 style="margin-top:16px;">워크트리 + Dolt — <span class="accent">병렬 슬라이스</span>의 기술 받침</h2>
+      <div class="sep"></div>
+      <div class="two-col">
+        <div class="card card-accent">
+          <h4 class="accent">슬라이스 하나 = 워크트리 하나</h4>
+          <pre style="margin-top:6px;"># 새 슬라이스 시작
+git worktree add \
+  ../wt-runtime-readiness \
+  feat/runtime-readiness
+
+# 워크트리 안에서는 --sandbox 권장
+cd ../wt-runtime-readiness
+bd --sandbox list
+bd --sandbox update bd-42 \
+  --status in_progress</pre>
+          <p style="margin-top:10px;"><code>--sandbox</code>는 auto-sync 부수효과가 다른 브랜치로 새지 않게 한다. (CLAUDE.md §4.3)</p>
+        </div>
+        <div class="card card-accent">
+          <h4 class="accent">Dolt가 뒤에서 하는 일</h4>
+          <ul class="arrow spaced">
+            <li>첫 <code>bd</code> 호출 시 embedded 모드로 붙음</li>
+            <li>두 번째 워크트리에서 동시에 쓰면 자동으로 <code>sql-server</code> 승격</li>
+            <li>각 <code>bd update</code>가 Dolt 커밋 1건 ← 감사 로그</li>
+            <li>셀 단위 merge 덕분에 두 워크트리가 같은 이슈를 고쳐도 안전</li>
+          </ul>
+          <p style="margin-top:10px;">서버 상태: <code>bd dolt status</code>로 확인. 문제 생기면 진단(<code>kill -QUIT</code>) <strong>먼저</strong>, 재시작은 나중.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====== 15 Section: Best use cases ====== -->
+  <section class="slide section-slide">
+    <div class="slide-content">
+      <div class="section-num">05</div>
+      <h2>Best Use Cases</h2>
+      <p class="subtitle" style="margin-top:20px;">세 도구가 각자 <span class="accent">빛나는 순간</span> 3가지</p>
+    </div>
+  </section>
+
+  <!-- ====== 16 Use case 1 ====== -->
+  <section class="slide">
+    <div class="slide-content">
+      <div class="case-hdr">
+        <div class="case-num">01</div>
+        <div class="case-title"><span class="accent">장기 에픽</span>의 의존성 기반 진행</div>
+      </div>
+      <div class="sep"></div>
+      <p>시나리오: <strong>"runtime contract stability"</strong> 같은 몇 주짜리 에픽. 하위 task가 수십 개, 순서도 있고, 작업 중 새 하위 task가 끊임없이 발견됨.</p>
+      <div class="two-col" style="margin-top:16px;">
+        <div>
+          <div class="stage">
+            <span class="tag">step 1</span>
+            <p>에픽 생성 <code>bd create "..." -t epic -p 1</code>. 하위 task들을 <code>--deps blocks:&lt;epic&gt;</code>로 연결.</p>
+          </div>
+          <div class="stage">
+            <span class="tag">step 2</span>
+            <p>에이전트가 세션 시작마다 <code>bd ready</code> → <strong>블로커 없는 task만 노출</strong>. "어디부터 하지" 고민 제거.</p>
+          </div>
+          <div class="stage">
+            <span class="tag">step 3</span>
+            <p>작업 중 엣지케이스 발견 → <code>bd create --deps discovered-from:&lt;parent&gt;</code>. 부모와 링크된 채 그래프에 남는다.</p>
+          </div>
+          <div class="stage">
+            <span class="tag">step 4</span>
+            <p>6주 뒤 에픽 회고: <code>bd dep tree &lt;epic&gt;</code> + <code>bd dolt log</code>로 <strong>왜 이 task들이 생겼는지 전부 추적 가능</strong>.</p>
+          </div>
+        </div>
+        <div>
+          <h4 class="accent" style="margin-bottom:10px;">왜 이게 베스트인가</h4>
+          <ul class="check spaced">
+            <li><strong>세션 경계를 넘어 기억이 유지됨</strong> — 에이전트가 내일 붙어도 오늘의 맥락이 그래프에 있다</li>
+            <li><strong>자동 스케줄링</strong> — <code>bd ready</code>가 다음 할 일을 결정해주니 사람이 중재 안 해도 됨</li>
+            <li><strong>감사 가능</strong> — Dolt 커밋 로그가 "왜 이렇게 결정됐는지"를 그대로 보관</li>
+          </ul>
+          <div class="quote" style="margin-top:14px;">
+            일반 이슈 트래커로 이걸 하면 두 달 뒤 "이 task가 왜 있더라?" 답이 안 나온다.
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====== 17 Use case 2 ====== -->
+  <section class="slide">
+    <div class="slide-content">
+      <div class="case-hdr">
+        <div class="case-num">02</div>
+        <div class="case-title"><span class="accent">병렬 슬라이스</span> — 충돌 없는 다중 에이전트 개발</div>
+      </div>
+      <div class="sep"></div>
+      <p>시나리오: 에이전트 A가 <code>sdk-facade</code>, B가 <code>query-canonical</code>, C가 <code>runtime-shell</code>을 <strong>같은 오후</strong>에 개발 중.</p>
+      <div class="two-col" style="margin-top:16px;">
+        <div>
+          <pre># 각 에이전트가 자기 워크트리 만든다
+git worktree add ../wt-sdk    feat/sdk-split
+git worktree add ../wt-query  fix/query-rerank
+git worktree add ../wt-rt     feat/runtime-ready
+
+# 각자 독립 bd claim
+# A
+cd ../wt-sdk && bd --sandbox update bd-a1 --claim
+# B
+cd ../wt-query && bd --sandbox update bd-b2 --claim
+# C
+cd ../wt-rt && bd --sandbox update bd-c3 --claim
+
+# 각자 테스트 돌린다 — 파일 안 섞임
+pytest tests/ -k sdk      # A
+pytest tests/ -k query    # B
+pytest tests/ -k runtime  # C</pre>
+        </div>
+        <div>
+          <h4 class="accent" style="margin-bottom:10px;">세 도구가 각자 맡는 역할</h4>
+          <div class="stage">
+            <span class="tag">worktree</span>
+            <p>파일 시스템 격리 — A의 편집이 B의 <code>pytest</code>에 안 보임. 세 브랜치가 동시에 살아있음.</p>
+          </div>
+          <div class="stage">
+            <span class="tag">beads</span>
+            <p>세 에이전트가 각자 다른 <code>bd-*</code>를 claim. 의존 그래프는 공유되지만 작업 단위는 독립.</p>
+          </div>
+          <div class="stage">
+            <span class="tag">Dolt</span>
+            <p><code>sql-server</code> 모드로 승격돼 세 워크트리의 bd 쓰기를 동시에 받는다. <code>--sandbox</code>로 auto-sync 부수효과 차단.</p>
+          </div>
+          <p style="margin-top:10px;"><span class="badge badge-green">결과</span> 리베이스 지옥 없음, 머지 충돌 최소, 리뷰 단위 명확.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====== 18 Use case 3 ====== -->
+  <section class="slide">
+    <div class="slide-content">
+      <div class="case-hdr">
+        <div class="case-num">03</div>
+        <div class="case-title"><span class="accent">스프린트 린트</span> — 셀 단위 머지로 살아남는 동시 업데이트</div>
+      </div>
+      <div class="sep"></div>
+      <p>시나리오: 스프린트 마감 날, <strong>자동화 여러 개가 같은 이슈를 동시에</strong> 업데이트한다.</p>
+      <div class="two-col" style="margin-top:16px;">
+        <div class="card card-green">
+          <h4 class="green">동시 쓰기 3갈래</h4>
+          <ul class="spaced" style="margin-top:8px;">
+            <li><span class="kw">lint-items</span> — 라벨 누락 보정: <code>bd-42.sprint = 2026-S03</code></li>
+            <li><span class="kw">sprint-board</span> — 상태 전이: <code>bd-42.status = in_progress</code></li>
+            <li><span class="kw">에이전트</span> — 코멘트 추가: <code>bd-42.comments +=</code> "작업 시작"</li>
+          </ul>
+          <p style="margin-top:10px;">셋이 1초 안에 같은 행을 건드린다.</p>
+        </div>
+        <div class="card card-green">
+          <h4 class="green">일반 DB였다면</h4>
+          <pre>T1 write sprint
+T2 read row → write status
+  ← T1의 sprint 값 덮어쓰기
+T3 write comments
+  ← T2의 status 덮어쓰기
+결과: comments만 살아남음</pre>
+          <p style="margin-top:8px;">린트가 지워지고, 상태가 지워진다. 복구 스크립트 필요.</p>
+        </div>
+      </div>
+      <div class="card card-green" style="margin-top:20px;">
+        <h4 class="green">Dolt cell-merge로 실제 일어나는 일</h4>
+        <p>세 쓰기가 각각 <strong>다른 컬럼</strong>을 건드리므로 전부 살아남는다. 동일 컬럼 충돌만 수동 resolve. <code>bd dolt log</code>에 세 커밋이 그대로 남아 <strong>누가 뭘 바꿨는지 감사</strong> 가능.</p>
+        <p style="margin-top:10px;"><span class="badge badge-green">실전 체감</span> 스프린트 자동화·에이전트·사람이 부딪혀도 데이터 유실 0. 이게 평범한 이슈 트래커였다면 매주 한 번은 복구 작업 필요.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====== 19 Takeaway ====== -->
+  <section class="slide">
+    <div class="slide-content">
+      <span class="badge badge-accent">Takeaway</span>
+      <h2 style="margin-top:16px;">세 도구, 세 <span class="accent">레이어</span></h2>
+      <div class="sep"></div>
+      <table>
+        <tr><th>레이어</th><th>도구</th><th>책임</th><th>우리가 얻는 것</th></tr>
+        <tr>
+          <td><strong>의미론</strong></td><td><code>beads</code></td>
+          <td>무엇이 작업인가, 무엇이 뭘 막는가</td>
+          <td>세션 경계를 넘는 메모리, 자동 스케줄링</td>
+        </tr>
+        <tr>
+          <td><strong>데이터</strong></td><td><code>Dolt</code></td>
+          <td>다중 writer 하에서 데이터 무결성</td>
+          <td>셀 단위 머지, 커밋 단위 감사</td>
+        </tr>
+        <tr>
+          <td><strong>물리</strong></td><td><code>git worktree</code></td>
+          <td>파일 시스템·브랜치 격리</td>
+          <td>병렬 실행, 충돌 제로 체크아웃</td>
+        </tr>
+      </table>
+      <div class="quote" style="margin-top:24px;">
+        세 개가 서로의 약점을 덮는다. beads는 Dolt 없이는 동시 쓰기에 약하고, 워크트리 없이는 병렬 실행이 막힌다. <strong>묶어야 AI 에이전트 규모를 감당한다.</strong>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====== 20 References ====== -->
+  <section class="slide">
+    <div class="slide-content">
+      <span class="badge badge-dim">References</span>
+      <h2 style="margin-top:16px;">더 읽을거리</h2>
+      <div class="sep"></div>
+      <div class="two-col">
+        <div class="card">
+          <h4>외부</h4>
+          <ul class="arrow spaced" style="margin-top:10px;">
+            <li><code>github.com/gastownhall/beads</code> — 21.1k ★</li>
+            <li><code>dolthub.com</code> — Dolt 공식</li>
+            <li><code>git-scm.com/docs/git-worktree</code></li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>저장소 안</h4>
+          <ul class="arrow spaced" style="margin-top:10px;">
+            <li><code>docs/ISSUE_TASK_SYSTEM.md</code> — 라벨 정책</li>
+            <li><code>docs/WORKFLOW.md</code> — 에이전트 워크플로</li>
+            <li><code>scripts/pm/</code> — 운영 스크립트</li>
+            <li><code>CLAUDE.md §4, §5</code> — 규약 전문</li>
+            <li><code>.beads/README.md</code> — 로컬 bd 셋업</li>
+          </ul>
+        </div>
+      </div>
+      <p style="margin-top:28px; text-align:center; color:var(--text-dim); font-size:0.9rem;">
+        ← / → 또는 스페이스로 이동  ·  Home/End로 처음·마지막
+      </p>
+    </div>
+  </section>
+
+</div>
+
+<div class="nav">
+  <button id="prev" aria-label="previous">&#x2039;</button>
+  <span class="counter" id="counter">1 / 14</span>
+  <button id="next" aria-label="next">&#x203A;</button>
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const total = slides.length;
+  let current = 0;
+
+  const progress = document.getElementById('progress');
+  const counter = document.getElementById('counter');
+  const slideNum = document.getElementById('slideNum');
+
+  function render() {
+    slides.forEach((s, i) => {
+      s.classList.remove('active', 'prev');
+      if (i === current) s.classList.add('active');
+      else if (i < current) s.classList.add('prev');
+    });
+    const pct = ((current + 1) / total) * 100;
+    progress.style.width = pct + '%';
+    counter.textContent = (current + 1) + ' / ' + total;
+    slideNum.textContent = String(current + 1).padStart(2, '0') + ' / ' + String(total).padStart(2, '0');
+  }
+
+  function go(delta) {
+    const next = current + delta;
+    if (next < 0 || next >= total) return;
+    current = next;
+    render();
+  }
+
+  document.getElementById('prev').addEventListener('click', () => go(-1));
+  document.getElementById('next').addEventListener('click', () => go(1));
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') { e.preventDefault(); go(1); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); go(-1); }
+    else if (e.key === 'Home') { current = 0; render(); }
+    else if (e.key === 'End')  { current = total - 1; render(); }
+  });
+
+  render();
+</script>
+
+</body>
+</html>

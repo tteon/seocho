@@ -19,6 +19,7 @@ cat schema.jsonld | jq .
 seocho ontology check --schema schema.jsonld
 seocho ontology export --schema schema.jsonld --format shacl --output shacl.json
 seocho ontology diff --left schema_v1.jsonld --right schema_v2.jsonld
+seocho ontology report --schema schema_v2.ttl --output outputs/ontology_report.json
 ```
 
 What they are for:
@@ -26,6 +27,7 @@ What they are for:
 - define node types, relationships, properties, and cardinality
 - drive extraction prompts, validation, and query generation
 - act as the portable schema contract you can version in git
+- provide a promotion report with `context_hash`, semantic artifact draft, SHACL export, and sample validation
 
 How the same ontology reaches both local SDK and runtime paths:
 

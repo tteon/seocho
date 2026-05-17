@@ -22,6 +22,35 @@ def _write_schema(tmp_path) -> str:
     return str(path)
 
 
+def _write_ttl_schema(tmp_path) -> str:
+    path = tmp_path / "schema.ttl"
+    path.write_text(
+        """
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix ex: <https://example.com/finance#> .
+
+ex:FinanceOntology a owl:Ontology ;
+    rdfs:label "Finance TTL" ;
+    owl:versionInfo "1.2.0" .
+
+ex:Company a owl:Class .
+ex:FinancialMetric a owl:Class .
+
+ex:reported a owl:ObjectProperty ;
+    rdfs:domain ex:Company ;
+    rdfs:range ex:FinancialMetric .
+
+ex:name a owl:DatatypeProperty ;
+    rdfs:domain ex:Company ;
+    rdfs:range xsd:string .
+""".strip(),
+        encoding="utf-8",
+    )
+    return str(path)
+
+
 def test_cli_ontology_check_json(tmp_path, capsys) -> None:
     schema_path = _write_schema(tmp_path)
 
@@ -98,3 +127,26 @@ def test_cli_ontology_diff_json(tmp_path, capsys) -> None:
     assert payload["requires_migration"] is False
     assert "version" in payload["changes"]["metadata"]["changed"]
     assert "Metric" in payload["changes"]["nodes"]["added"]
+
+
+def test_cli_ontology_report_json_supports_ttl(tmp_path, capsys) -> None:
+    schema_path = _write_ttl_schema(tmp_path)
+
+    exit_code = main(
+        [
+            "ontology",
+            "report",
+            "--schema",
+            schema_path,
+            "--skip-owl-inspection",
+            "--json",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert exit_code == 0
+    assert payload["ok"] is True
+    assert payload["context_descriptor"]["ontology_id"] == "FinanceOntology"
+    assert payload["context_descriptor"]["context_hash"]
+    assert payload["shacl_export"]["stats"]["node_shape_count"] == 2

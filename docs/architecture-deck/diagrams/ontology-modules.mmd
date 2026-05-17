@@ -1,0 +1,36 @@
+%%{init: {'theme': 'dark', 'themeVariables': {'primaryColor': '#6c63ff', 'primaryTextColor': '#e8e8f0', 'primaryBorderColor': '#6c63ff', 'lineColor': '#9090a8', 'secondaryColor': '#1a1a2e', 'tertiaryColor': '#12121a', 'background': '#0a0a0f', 'mainBkg': '#1a1a2e', 'nodeBorder': '#6c63ff', 'clusterBkg': '#12121a', 'clusterBorder': '#2a2a40', 'titleColor': '#e8e8f0', 'edgeLabelBackground': '#1a1a2e'}}}%%
+flowchart TB
+    subgraph PUBLIC ["Public API Surface"]
+        ONT["ontology.py<br/><small>Ontology, NodeDef, RelDef, P<br/>schema validation, SHACL derivation</small>"]
+    end
+
+    subgraph RUNTIME_PATH ["Runtime Hot Path"]
+        CTX["ontology_context.py<br/><small>context hash, glossary,<br/>in-process cache</small>"]
+        ART["ontology_artifacts.py<br/><small>typed artifact promotion,<br/>vocabulary shaping</small>"]
+    end
+
+    subgraph PERSIST ["Persistence"]
+        SER["ontology_serialization.py<br/><small>JSON-LD load / save</small>"]
+    end
+
+    subgraph OFFLINE ["Offline Governance"]
+        GOV["ontology_governance.py<br/><small>diff / check / export / OWL</small>"]
+        OWL["owlready2<br/><small>heavy reasoning</small>"]
+    end
+
+    ONT --> CTX
+    ONT --> ART
+    ONT --> SER
+    ONT --> GOV
+    GOV --> OWL
+
+    style PUBLIC fill:#12121a,stroke:#6c63ff,color:#e8e8f0
+    style RUNTIME_PATH fill:#12121a,stroke:#00d4aa,color:#e8e8f0
+    style PERSIST fill:#12121a,stroke:#ffd93d,color:#e8e8f0
+    style OFFLINE fill:#12121a,stroke:#ff6b6b,color:#e8e8f0
+    style ONT fill:#1a1a3e,stroke:#6c63ff,color:#e8e8f0
+    style CTX fill:#1a2a2e,stroke:#00d4aa,color:#e8e8f0
+    style ART fill:#1a2a2e,stroke:#00d4aa,color:#e8e8f0
+    style SER fill:#2a2a1e,stroke:#ffd93d,color:#e8e8f0
+    style GOV fill:#2a1a1e,stroke:#ff6b6b,color:#e8e8f0
+    style OWL fill:#2a1a1e,stroke:#ff6b6b,color:#e8e8f0

@@ -1,0 +1,7 @@
+# Generated FinDER cache + per-run traces
+data/
+traces/
+
+# Notebook checkpoints
+.ipynb_checkpoints/
+**/.ipynb_checkpoints/

@@ -257,6 +257,7 @@ def make_text2cypher_tool(ontology: Any):
         target_entity: str = "",
         target_label: str = "",
         relationship_type: str = "",
+        schema_hints_json: str = "{}",
     ) -> str:
         """Build a deterministic Cypher query from structured intent.
 
@@ -270,11 +271,13 @@ def make_text2cypher_tool(ontology: Any):
             target_entity: Target entity name for relationship queries.
             target_label: Node label for the target.
             relationship_type: Relationship type (e.g. "EMPLOYS", "INVESTED_IN").
+            schema_hints_json: Optional JSON payload with ontology-derived namespace/schema hints.
 
         Returns:
             JSON string with cypher query and parameters.
         """
         try:
+            schema_hints = json.loads(schema_hints_json) if schema_hints_json else {}
             cypher, params = builder.build(
                 intent=intent,
                 anchor_entity=anchor_entity,
@@ -282,11 +285,13 @@ def make_text2cypher_tool(ontology: Any):
                 target_entity=target_entity,
                 target_label=target_label,
                 relationship_type=relationship_type,
+                schema_hints=schema_hints if isinstance(schema_hints, dict) else {},
             )
             return json.dumps({
                 "cypher": cypher,
                 "params": params,
                 "intent": intent,
+                "schema_hints": schema_hints if isinstance(schema_hints, dict) else {},
             }, default=str)
         except Exception as exc:
             logger.error("text2cypher failed: %s", exc)

@@ -1,0 +1,31 @@
+%%{init: {'theme': 'dark', 'themeVariables': {'primaryColor': '#6c63ff', 'primaryTextColor': '#e8e8f0', 'primaryBorderColor': '#6c63ff', 'lineColor': '#9090a8', 'secondaryColor': '#1a1a2e', 'tertiaryColor': '#12121a', 'background': '#0a0a0f', 'mainBkg': '#1a1a2e', 'nodeBorder': '#6c63ff', 'clusterBkg': '#12121a', 'clusterBorder': '#2a2a40', 'titleColor': '#e8e8f0', 'edgeLabelBackground': '#1a1a2e'}}}%%
+flowchart LR
+    subgraph CP ["Control Plane"]
+        direction TB
+        CP1["Agent Orchestration<br/>&amp; Routing Policy"]
+        CP2["Runtime Authorization<br/>&amp; Policy Enforcement"]
+        CP3["Quality Gates<br/>&amp; ADR Governance"]
+        CP4["Ontology Facade<br/>&amp; Vocabulary Lifecycle"]
+    end
+
+    subgraph DP ["Data Plane"]
+        direction TB
+        DP1["Data Ingestion<br/><small>CSV / JSON / API</small>"]
+        DP2["Extraction &amp; Linking<br/><small>LLM 3-pass semantic</small>"]
+        DP3["Rule Inference<br/><small>SHACL-like validation</small>"]
+        DP4["Graph Load &amp; Query<br/><small>DozerDB / Cypher</small>"]
+    end
+
+    CP -->|"policies &amp;<br/>routing"| DP
+    DP -->|"traces &amp;<br/>metadata"| CP
+
+    style CP fill:#12121a,stroke:#6c63ff,color:#e8e8f0
+    style DP fill:#12121a,stroke:#00d4aa,color:#e8e8f0
+    style CP1 fill:#1a1a3e,stroke:#6c63ff,color:#e8e8f0
+    style CP2 fill:#1a1a3e,stroke:#6c63ff,color:#e8e8f0
+    style CP3 fill:#1a1a3e,stroke:#6c63ff,color:#e8e8f0
+    style CP4 fill:#1a1a3e,stroke:#6c63ff,color:#e8e8f0
+    style DP1 fill:#1a2a2e,stroke:#00d4aa,color:#e8e8f0
+    style DP2 fill:#1a2a2e,stroke:#00d4aa,color:#e8e8f0
+    style DP3 fill:#1a2a2e,stroke:#00d4aa,color:#e8e8f0
+    style DP4 fill:#1a2a2e,stroke:#00d4aa,color:#e8e8f0

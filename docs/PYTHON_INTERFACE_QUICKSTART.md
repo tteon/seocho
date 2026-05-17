@@ -57,12 +57,14 @@ If you are iterating on schema evolution, use the offline governance CLI:
 seocho ontology check --schema schema.jsonld
 seocho ontology export --schema schema.jsonld --format shacl --output shacl.json
 seocho ontology diff --left schema_v1.jsonld --right schema_v2.jsonld
+seocho ontology report --schema schema_v2.ttl --output outputs/ontology_report.json
 ```
 
 Recommendation:
 
 - keep a stable `package_id` on the ontology and bump `version` semantically
 - treat `seocho ontology diff` as the first migration warning gate before runtime rollout
+- use `seocho ontology report` before rollout when you want one bundle with `context_hash`, semantic artifact draft, SHACL export, and synthetic sample-data validation
 
 ## 2. Configure
 
@@ -137,7 +139,7 @@ This is the intended product shape:
 ```python
 from seocho import Ontology, Seocho
 
-ontology = Ontology.from_jsonld("schema.jsonld")
+ontology = Ontology.load("schema.jsonld")
 client = Seocho(ontology=ontology)
 
 artifacts = client.approved_artifacts_from_ontology()
@@ -154,6 +156,12 @@ Use the helpers like this:
 - `artifact_draft_from_ontology()`: build a draft payload for the semantic artifact lifecycle APIs
 
 That keeps `schema.jsonld`, local SDK prompts, SHACL validation, and runtime semantic artifacts on one contract.
+
+Important:
+
+- `Seocho.local(ontology)` is the shortest serverless path.
+- Explicit local engine mode is `Seocho(ontology=..., graph_store=..., llm=...)`.
+- Passing only `ontology`, only `graph_store`, or only `llm` does not enable the in-process local engine.
 
 ## 3. Put Your Data In
 
@@ -182,6 +190,10 @@ result = client.add_with_details(
 
 print(result.ingest_summary)
 ```
+
+`add()` is intentionally the opinionated default path. Use
+`add_with_details()` when you explicitly want the expert surface for
+`prompt_context`, approved artifacts, or governance-controlled overrides.
 
 ### 3.2 Ingest a batch of raw records
 

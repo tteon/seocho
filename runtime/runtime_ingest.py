@@ -328,6 +328,16 @@ class RuntimeRawIngestor:
                 ontology_candidates.append(semantic_payload["ontology_candidate"])
             if semantic_payload.get("shacl_candidate"):
                 shacl_candidates.append(semantic_payload["shacl_candidate"])
+            retry_metadata = semantic_payload.get("entity_extraction_retry")
+            if isinstance(retry_metadata, dict) and retry_metadata.get("attempted"):
+                retry_status = "succeeded" if retry_metadata.get("succeeded") else "did not recover nodes"
+                warnings.append(
+                    {
+                        "record_id": source_id,
+                        "warning_type": "ExtractionRetry",
+                        "message": f"ontology-relaxed extraction retry {retry_status}",
+                    }
+                )
 
             candidate_names = self._collect_entity_names(graph_data)
             relatedness = self._compute_relatedness(candidate_names, known_entities)
@@ -500,15 +510,15 @@ class RuntimeRawIngestor:
         source_type: str = "text",
         approved_artifacts: Optional[Dict[str, Any]] = None,
     ) -> Tuple[Dict[str, Any], bool, str]:
+        semantic_payload: Dict[str, Any] = {}
         if not self._llm_stack_ready or self._extractor is None:
             return (
-                self._fallback_extract(source_id=source_id, text=text, semantic_payload={}),
+                self._fallback_extract(source_id=source_id, text=text, semantic_payload=semantic_payload),
                 True,
                 "LLM extraction stack unavailable",
             )
 
         try:
-            semantic_payload: Dict[str, Any] = {}
             graph_metadata = self._build_graph_prompt_metadata(target_database)
             if self._semantic_orchestrator is not None:
                 pass_result = self._semantic_orchestrator.run_three_pass(
@@ -547,6 +557,9 @@ class RuntimeRawIngestor:
                     "graph_metadata": graph_metadata,
                 }
 
+            retry_metadata = extracted.get("_retry") if isinstance(extracted, dict) else None
+            if isinstance(retry_metadata, dict):
+                semantic_payload["entity_extraction_retry"] = retry_metadata
             nodes = extracted.get("nodes", []) if isinstance(extracted, dict) else []
             relationships = extracted.get("relationships", []) if isinstance(extracted, dict) else []
             if not nodes:
@@ -557,7 +570,11 @@ class RuntimeRawIngestor:
             return graph_data, False, ""
         except Exception as exc:
             logger.warning("LLM extraction failed for '%s'; falling back to rule-based extraction: %s", source_id, exc)
-            fallback_graph = self._fallback_extract(source_id=source_id, text=text, semantic_payload={})
+            fallback_graph = self._fallback_extract(
+                source_id=source_id,
+                text=text,
+                semantic_payload=semantic_payload,
+            )
             reason = f"LLM semantic extraction failed: {type(exc).__name__}"
             return fallback_graph, True, reason
 

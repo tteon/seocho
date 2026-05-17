@@ -262,6 +262,28 @@ class Ontology:
     # ------------------------------------------------------------------
 
     @classmethod
+    def load(cls, path: Union[str, Path]) -> "Ontology":
+        """Load an ontology from a path by file extension.
+
+        Supported suffixes:
+
+        - ``.jsonld`` / ``.json`` → :meth:`from_jsonld`
+        - ``.yaml`` / ``.yml`` → :meth:`from_yaml`
+        - ``.ttl`` → :meth:`from_ttl`
+        """
+        suffix = Path(path).suffix.lower()
+        if suffix in {".yaml", ".yml"}:
+            return cls.from_yaml(path)
+        if suffix in {".jsonld", ".json"}:
+            return cls.from_jsonld(path)
+        if suffix == ".ttl":
+            return cls.from_ttl(path)
+        raise ValueError(
+            "Unsupported ontology file extension. Use .jsonld/.json, .yaml/.yml, or .ttl "
+            "or call the explicit loader directly."
+        )
+
+    @classmethod
     def from_yaml(cls, path: Union[str, Path]) -> "Ontology":
         """Load an ontology from a YAML file.
 
@@ -512,6 +534,241 @@ class Ontology:
         from .ontology_serialization import ontology_from_jsonld_dict
 
         return ontology_from_jsonld_dict(cls, data)
+
+    @classmethod
+    def from_ttl(cls, path: Union[str, Path]) -> "Ontology":
+        """Load an ontology from an OWL/SKOS Turtle (.ttl) file.
+
+        Only the structural pieces useful for ontology-aware extraction
+        are read: ``owl:Class`` declarations, ``owl:ObjectProperty``
+        relations with ``rdfs:domain`` / ``rdfs:range``, plus
+        ``rdfs:label`` / ``rdfs:comment`` / ``skos:definition`` for
+        descriptions. Subclass hierarchies and most annotations are not
+        materialised — callers needing a faithful OWL round-trip should
+        use a dedicated triplestore instead.
+
+        Requires :mod:`rdflib` (``pip install rdflib``).
+        """
+        try:
+            import rdflib
+        except ImportError as exc:
+            raise ImportError(
+                "Ontology.from_ttl requires rdflib. Install it via "
+                "`pip install rdflib`."
+            ) from exc
+
+        from rdflib.namespace import RDF, RDFS, OWL, XSD
+
+        SKOS = rdflib.Namespace("http://www.w3.org/2004/02/skos/core#")
+        g = rdflib.Graph()
+        g.parse(str(path), format="turtle")
+
+        def _local(uri: Any) -> str:
+            s = str(uri)
+            return s.rsplit("#", 1)[-1].rsplit("/", 1)[-1]
+
+        def _label(uri: Any) -> str:
+            for lit in g.objects(uri, RDFS.label):
+                return str(lit)
+            return _local(uri)
+
+        def _description(uri: Any) -> str:
+            for lit in g.objects(uri, SKOS.definition):
+                return str(lit)
+            for lit in g.objects(uri, RDFS.comment):
+                return str(lit)
+            return ""
+
+        def _aliases(uri: Any, canonical_name: str) -> List[str]:
+            aliases: List[str] = []
+            for lit in g.objects(uri, RDFS.label):
+                value = str(lit).strip()
+                if value and value != canonical_name and value not in aliases:
+                    aliases.append(value)
+            return aliases
+
+        def _namespace(uri: Any) -> str:
+            text = str(uri).strip()
+            if not text:
+                return ""
+            if "#" in text:
+                return text.rsplit("#", 1)[0] + "#"
+            if "/" in text:
+                return text.rsplit("/", 1)[0] + "/"
+            return ""
+
+        def _normalize_semver(raw: str) -> str:
+            text = str(raw).strip()
+            if not text:
+                return "1.0.0"
+            if re.fullmatch(r"\d+", text):
+                return f"{text}.0.0"
+            if re.fullmatch(r"\d+\.\d+", text):
+                return f"{text}.0"
+            return text
+
+        def _ontology_version(uri: Any) -> str:
+            for predicate in (OWL.versionInfo,):
+                for value in g.objects(uri, predicate):
+                    normalized = _normalize_semver(str(value))
+                    if normalized:
+                        return normalized
+            for version_iri in g.objects(uri, OWL.versionIRI):
+                text = str(version_iri).strip()
+                if not text:
+                    continue
+                match = re.search(r"(\d+\.\d+\.\d+|\d+\.\d+|\d+)", text)
+                if match:
+                    return _normalize_semver(match.group(1))
+            return "1.0.0"
+
+        def _property_type(range_uri: Any) -> str:
+            text = str(range_uri)
+            mapping = {
+                str(XSD.string): "STRING",
+                str(XSD.normalizedString): "STRING",
+                str(XSD.token): "STRING",
+                str(XSD.integer): "INTEGER",
+                str(XSD.int): "INTEGER",
+                str(XSD.long): "INTEGER",
+                str(XSD.short): "INTEGER",
+                str(XSD.decimal): "FLOAT",
+                str(XSD.float): "FLOAT",
+                str(XSD.double): "FLOAT",
+                str(XSD.boolean): "BOOLEAN",
+                str(XSD.date): "DATE",
+                str(XSD.dateTime): "DATETIME",
+            }
+            return mapping.get(text, "STRING")
+
+        ontology_uris = [
+            uri for uri in g.subjects(RDF.type, OWL.Ontology)
+            if not isinstance(uri, rdflib.BNode)
+        ]
+        ontology_uri = ontology_uris[0] if ontology_uris else None
+
+        nodes: Dict[str, Dict[str, Any]] = {}
+        for cls_uri in (
+            set(g.subjects(RDF.type, OWL.Class))
+            | set(g.subjects(RDF.type, RDFS.Class))
+        ):
+            if isinstance(cls_uri, rdflib.BNode):
+                continue
+            name = _local(cls_uri)
+            label = _label(cls_uri)
+            nodes.setdefault(
+                name,
+                {
+                    "description": _description(cls_uri),
+                    "properties": {},
+                    "aliases": _aliases(cls_uri, name) or ([label] if label != name else []),
+                    "sameAs": str(cls_uri),
+                },
+            )
+
+        relationships: Dict[str, Dict[str, Any]] = {}
+        for prop in set(g.subjects(RDF.type, OWL.ObjectProperty)):
+            domains = [
+                _local(d)
+                for d in g.objects(prop, RDFS.domain)
+                if not isinstance(d, rdflib.BNode)
+            ]
+            ranges = [
+                _local(r)
+                for r in g.objects(prop, RDFS.range)
+                if not isinstance(r, rdflib.BNode)
+            ]
+            if not (domains and ranges):
+                continue
+            rname = _local(prop)
+            relationships.setdefault(
+                rname,
+                {
+                    "source": domains[0],
+                    "target": ranges[0],
+                    "description": _description(prop),
+                    "aliases": _aliases(prop, rname),
+                    "sameAs": str(prop),
+                },
+            )
+            for endpoint in (domains[0], ranges[0]):
+                nodes.setdefault(
+                    endpoint,
+                    {"description": "", "properties": {}, "aliases": [], "sameAs": ""},
+                )
+
+        datatype_props = {
+            prop
+            for prop in g.subjects(RDF.type, OWL.DatatypeProperty)
+            if not isinstance(prop, rdflib.BNode)
+        }
+        for prop in set(g.subjects(RDFS.range, None)):
+            if isinstance(prop, rdflib.BNode):
+                continue
+            ranges = [rng for rng in g.objects(prop, RDFS.range) if not isinstance(rng, rdflib.BNode)]
+            if any(str(rng).startswith(str(XSD)) for rng in ranges):
+                datatype_props.add(prop)
+
+        for prop in datatype_props:
+            pname = _local(prop)
+            domains = [
+                _local(domain)
+                for domain in g.objects(prop, RDFS.domain)
+                if not isinstance(domain, rdflib.BNode)
+            ]
+            ranges = [
+                rng
+                for rng in g.objects(prop, RDFS.range)
+                if not isinstance(rng, rdflib.BNode)
+            ]
+            if not domains:
+                continue
+
+            prop_payload: Dict[str, Any] = {
+                "type": _property_type(ranges[0]) if ranges else "STRING",
+                "description": _description(prop),
+            }
+            aliases = _aliases(prop, pname)
+            if aliases:
+                prop_payload["aliases"] = aliases
+
+            for domain_name in domains:
+                node_payload = nodes.setdefault(
+                    domain_name,
+                    {"description": "", "properties": {}, "aliases": [], "sameAs": ""},
+                )
+                node_payload.setdefault("properties", {})
+                node_payload["properties"].setdefault(pname, dict(prop_payload))
+
+        default_name = Path(path).stem
+        ontology_name = _label(ontology_uri) if ontology_uri is not None else default_name
+        ontology_namespace = (
+            _namespace(ontology_uri)
+            if ontology_uri is not None
+            else next(
+                (
+                    _namespace(uri)
+                    for uri in list(g.subjects(RDF.type, OWL.Class)) + list(g.subjects(RDF.type, OWL.ObjectProperty))
+                    if not isinstance(uri, rdflib.BNode) and _namespace(uri)
+                ),
+                "",
+            )
+        )
+        package_id = _local(ontology_uri) if ontology_uri is not None else default_name
+        ontology_version = _ontology_version(ontology_uri) if ontology_uri is not None else "1.0.0"
+        ontology_description = _description(ontology_uri) if ontology_uri is not None else ""
+
+        return cls.from_dict(
+            {
+                "name": ontology_name or default_name,
+                "package_id": package_id or default_name,
+                "version": ontology_version,
+                "description": ontology_description,
+                "namespace": ontology_namespace,
+                "nodes": nodes,
+                "relationships": relationships,
+            }
+        )
 
     @classmethod
     def from_artifact(

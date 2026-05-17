@@ -234,11 +234,26 @@ build runtime-safe artifacts:
 ```python
 from seocho import Ontology, Seocho
 
-ontology = Ontology.from_jsonld("schema.jsonld")
+ontology = Ontology.load("schema.jsonld")
 client = Seocho(ontology=ontology)
 
 artifacts = client.approved_artifacts_from_ontology()
 prompt_context = client.prompt_context_from_ontology()
+```
+
+`Ontology.load(...)` also accepts `.ttl`, so local authoring and governance can
+start from Turtle directly.
+
+If you want the explicit local engine instead of `Seocho.local(...)`, construct
+`Seocho(ontology=..., graph_store=..., llm=...)`. All three are required to
+activate in-process extraction and query execution.
+
+For ontology version review before rollout:
+
+```bash
+seocho ontology check --schema schema.ttl
+seocho ontology diff --left schema_v1.ttl --right schema_v2.ttl
+seocho ontology report --schema schema_v2.ttl --output outputs/ontology_report.json
 ```
 
 ## 12. Troubleshooting

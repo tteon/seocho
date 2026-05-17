@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ch 2 · Knowledge Graph Qualification</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reset.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/black.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/highlight/monokai.css">
+<style>
+
+:root {
+  --r-background-color: #1d2329;
+  --r-main-color: #d8dee9;
+  --r-heading-color: #88c0d0;
+  --r-link-color: #88c0d0;
+  --r-selection-background-color: #88c0d0;
+  --r-main-font: 'Inter', 'Pretendard', system-ui, sans-serif;
+  --r-heading-font: 'Inter', 'Pretendard', system-ui, sans-serif;
+  --r-code-font: 'JetBrains Mono', Menlo, monospace;
+}
+.reveal h1 { font-size: 2.2em; color: #88c0d0; }
+.reveal h2 { font-size: 1.5em; color: #88c0d0; margin-bottom: 0.4em; }
+.reveal h3 { font-size: 1.15em; color: #a3be8c; }
+.reveal .subtitle { color: #d8dee9; opacity: 0.75; font-size: 0.9em; }
+.reveal .meta { color: #d8dee9; opacity: 0.55; font-size: 0.7em; margin-top: 1.5em; }
+.reveal pre { box-shadow: none; width: 100%; }
+.reveal pre code {
+  max-height: 460px;
+  padding: 18px 22px;
+  background: #2e3440;
+  border-radius: 6px;
+  font-size: 0.72em;
+  line-height: 1.45;
+}
+.reveal .code-caption {
+  color: #d8dee9; opacity: 0.6; font-size: 0.7em; margin-top: 6px;
+}
+.reveal blockquote {
+  border-left: 3px solid #5e81ac;
+  background: rgba(94, 129, 172, 0.12);
+  padding: 12px 18px; font-style: normal;
+}
+.reveal .callout {
+  background: rgba(163, 190, 140, 0.15);
+  border-left: 3px solid #a3be8c;
+  padding: 14px 20px; border-radius: 4px; margin: 18px 0;
+  text-align: left; font-size: 0.85em;
+}
+.reveal .warn {
+  background: rgba(208, 135, 112, 0.15);
+  border-left: 3px solid #d08770;
+  padding: 14px 20px; border-radius: 4px; margin: 18px 0;
+  text-align: left; font-size: 0.85em;
+}
+.reveal ul { display: inline-block; text-align: left; }
+.reveal li { margin-bottom: 0.35em; }
+.reveal table { font-size: 0.7em; }
+.reveal table th { color: #88c0d0; }
+.reveal .twocol {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 24px; text-align: left;
+}
+.reveal .tiny { font-size: 0.6em; opacity: 0.7; }
+
+</style>
+</head>
+<body>
+<div class="reveal">
+  <div class="slides">
+<section>
+<h1>Chapter 2 — Knowledge Graph Qualification</h1>
+<div class="subtitle">GDS 4지표 · @function_tool · 4-provider Agent</div>
+<div class="meta">seocho · ontology lab · 2026-S03</div>
+</section>
+<section>
+<h2>2.1 GDS 4지표 — 진단 신호로 읽기</h2>
+<table>
+<thead><tr><th>지표</th><th>본다</th><th>품질 신호</th></tr></thead>
+<tbody>
+<tr><td>Node Similarity</td><td>이웃 집합 겹침</td><td>중복 후보 → 디듀프 트리거</td></tr>
+<tr><td>Degree Centrality</td><td>연결 수</td><td>hub 식별 · 핵심 개체 누락</td></tr>
+<tr><td>Clustering Coef.</td><td>삼각형 closure</td><td>도메인 응집성 · 관계 추출 부실</td></tr>
+<tr><td>Link Prediction</td><td>누락 가능 엣지</td><td>재추출 큐</td></tr>
+</tbody>
+</table>
+<div class="callout">"수치가 이상하다" = 인덱싱의 어느 단계가 깨진 것인지 식별하는 진단 신호.</div>
+</section>
+<section>
+<h2>2.2 GDS Pipeline 한 사이클</h2>
+<pre><code class="language-cypher" data-trim data-noescape>CALL gds.graph.project.cypher('ch02-quality',
+  'MATCH (e) WHERE NOT e:Source AND NOT e:Chunk RETURN id(e) AS id',
+  'MATCH (e1)&lt;-[:MENTIONS]-(c:Chunk)-[:MENTIONS]-&gt;(e2)
+   WHERE id(e1)&lt;id(e2) RETURN id(e1) AS source, id(e2) AS target')
+
+CALL gds.nodeSimilarity.stream('ch02-quality')
+  YIELD node1, node2, similarity WHERE similarity &gt; 0.5
+  RETURN gds.util.asNode(node1).name AS a,
+         gds.util.asNode(node2).name AS b, similarity
+  ORDER BY similarity DESC LIMIT 10
+
+CALL gds.graph.drop('ch02-quality')</code></pre>
+<div class="warn">projection은 사용 후 반드시 drop. CLAUDE.md §8에 따라 id() 사용 금지.</div>
+</section>
+<section>
+<h2>진단 체크리스트</h2>
+<ul>
+  <li>degree 분포가 power-law를 따르지 않는다 → hub 추출 누락</li>
+  <li>node similarity &gt; 0.9 다수 → 자동 머지 후보 (휴먼 확인 권장)</li>
+  <li>mean clustering &lt; 0.1 → 관계 추출 부실</li>
+  <li>Adamic-Adar 상위 페어가 의미적으로 무관 → false positive</li>
+</ul>
+</section>
+<section>
+<h2>2.3 @function_tool 4종</h2>
+<pre><code class="language-python" data-trim data-noescape>@function_tool
+def compute_node_similarity(top_k: int = 10):
+    """USE WHEN: 사용자가 '중복', '머지', '디듀프'를 언급할 때."""
+    ...
+
+@function_tool
+def find_hub_entities(top_k: int = 10):
+    """USE WHEN: '핵심 엔터티', '추출 누락' 진단할 때."""
+    ...</code></pre>
+<div class="callout">docstring 첫 줄에 USE WHEN 시나리오. agent 의 tool 선택 정확도는 여기서 결정.</div>
+</section>
+<section>
+<h2>2.4 4-provider Agent — 같은 시나리오</h2>
+<ul>
+  <li>USER: '이 그래프 품질을 4가지 관점에서 평가해줘.'</li>
+  <li>각 provider 가 4개 도구를 어떤 순서/조합으로 호출하는지 비교.</li>
+  <li>Opik trace 의 tool_call_item 으로 그대로 캡처.</li>
+</ul>
+<aside class="notes">Kimi는 비교적 더 많은 도구를 호출, OpenAI는 가장 짧은 chain, Grok은 reasoning step이 길다 (대체로).</aside>
+</section>
+<section>
+<h2>Opik에서 보는 4가지</h2>
+<ul>
+  <li>호출 수 — 4개를 다 부르는가?</li>
+  <li>병렬화 — 독립 호출을 직렬화하지 않았는가?</li>
+  <li>인용 — 도구 결과를 final answer에 실제 인용?</li>
+  <li>reasoning depth ↔ 응답 품질 산점도</li>
+</ul>
+<div class="warn">호출만 하고 결과를 버리는 패턴 = 안티. prompt 보강 신호.</div>
+</section>
+<section>
+<h2>다음 챕터 (Ch 3 — Text2Cypher)</h2>
+<ul>
+  <li>Ch 2 도구는 수치 진단에 강함, 자연어 질의에는 약함.</li>
+  <li>Ch 3: ontology slice + 3-block prompt 로 자연어 → Cypher 생성.</li>
+  <li>4-provider Cypher 정확도와 실패 패턴 5종 차단.</li>
+</ul>
+</section>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/highlight/highlight.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/notes/notes.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/markdown/markdown.js"></script>
+<script>
+  Reveal.initialize({
+    hash: true,
+    slideNumber: 'c/t',
+    transition: 'slide',
+    plugins: [ RevealHighlight, RevealNotes, RevealMarkdown ]
+  });
+</script>
+</body>
+</html>

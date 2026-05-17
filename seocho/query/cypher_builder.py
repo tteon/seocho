@@ -14,7 +14,7 @@ classify the user question.
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 from ..ontology import Ontology
 
@@ -64,6 +64,12 @@ _GENERIC_METRIC_TOKENS = {
     "revenue", "revenues", "rev", "income", "profit", "expense", "expenses",
     "cost", "costs", "margin", "margins", "assets", "liabilities", "cash", "flow",
 }
+_SCHEMA_HINT_STOPWORDS = {
+    "what", "which", "who", "whom", "where", "when", "why", "how", "tell", "show", "find",
+    "about", "with", "from", "into", "onto", "than", "then", "that", "this", "those",
+    "does", "did", "were", "was", "are", "and", "for", "the", "all", "any", "many",
+    "list", "count", "lookup", "query", "graph", "database", "neo4j",
+}
 
 
 def normalize_entity(name: str) -> str:
@@ -111,10 +117,36 @@ class CypherBuilder:
         years: Optional[Sequence[str]] = None,
         workspace_id: str = "",
         limit: int = 20,
+        schema_hints: Optional[Dict[str, Any]] = None,
     ) -> Tuple[str, Dict[str, Any]]:
+        hint_payload = dict(schema_hints or {})
         if anchor_label and anchor_label not in self.ontology.nodes:
             anchor_label = ""
+        if target_label and target_label not in self.ontology.nodes:
+            target_label = ""
 
+        anchor_label = self._resolve_hint_label(
+            current=anchor_label,
+            hinted=hint_payload.get("anchor_label"),
+            candidates=hint_payload.get("label_candidates", []),
+        )
+        target_label = self._resolve_hint_label(
+            current=target_label,
+            hinted=hint_payload.get("target_label"),
+            candidates=hint_payload.get("label_candidates", []),
+            exclude={anchor_label} if anchor_label else set(),
+        )
+
+        hinted_relationship = str(hint_payload.get("relationship_type", "")).strip()
+        relationship_candidates = hint_payload.get("relationship_candidates", [])
+        if not relationship_type:
+            if hinted_relationship:
+                relationship_type = hinted_relationship
+            elif isinstance(relationship_candidates, list) and relationship_candidates:
+                relationship_type = str(relationship_candidates[0]).strip()
+
+        if anchor_label and anchor_label not in self.ontology.nodes:
+            anchor_label = ""
         if relationship_type and relationship_type not in self.ontology.relationships:
             relationship_type = self._match_relationship(
                 relationship_type,
@@ -201,7 +233,7 @@ class CypherBuilder:
         intent_data["years"] = years
         return intent_data
 
-    def intent_extraction_prompt(self) -> str:
+    def intent_extraction_prompt(self, *, schema_hints: Optional[Dict[str, Any]] = None) -> str:
         profile = self.ontology.to_query_profile()
         labels = list(self.ontology.nodes.keys())
         rel_descriptions = []
@@ -216,6 +248,8 @@ class CypherBuilder:
             desc = nd.description or label
             node_descriptions.append(f"  - {label}: {desc} (properties: {props})")
         node_block = "\n".join(node_descriptions)
+        hint_block = self.render_schema_hints(schema_hints)
+        hint_prefix = f"Question-scoped schema hints:\n{hint_block}\n\n" if hint_block else ""
 
         return (
             "You are a question analyzer for a knowledge graph.\n"
@@ -227,6 +261,7 @@ class CypherBuilder:
             f"Ontology query profile: package_id={profile['package_id']}, "
             f"version={profile['version']}, graph_model={profile['graph_model']}.\n"
             f"Deterministic intents supported: {', '.join(profile['deterministic_intents'])}.\n\n"
+            f"{hint_prefix}"
             f"Node types:\n{node_block}\n\n"
             f"Relationship types (ONLY these exist in the graph):\n{rel_block}\n\n"
             "Return a JSON object with:\n"
@@ -244,6 +279,151 @@ class CypherBuilder:
             '  "How many companies?" → {"intent": "count", "anchor_label": "Company"}\n'
             '  "Delta in CBOE Data & Access Solutions rev from 2021-23." → {"intent": "financial_metric_delta", "anchor_entity": "CBOE", "anchor_label": "Company", "metric_name": "Data & Access Solutions revenue", "years": ["2021", "2023"]}\n'
         )
+
+    def derive_schema_hints(
+        self,
+        question: str,
+        *,
+        raw_intent: Optional[Dict[str, Any]] = None,
+        resolved_entities: Sequence[str] = (),
+        label_hints: Sequence[str] = (),
+    ) -> Dict[str, Any]:
+        intent_data = dict(raw_intent or {})
+        raw_texts: List[str] = [question]
+        raw_texts.extend(str(item) for item in resolved_entities if str(item).strip())
+        for key in (
+            "intent",
+            "anchor_entity",
+            "anchor_label",
+            "target_entity",
+            "target_label",
+            "relationship_type",
+            "metric_name",
+        ):
+            value = str(intent_data.get(key, "") or "").strip()
+            if value:
+                raw_texts.append(value)
+        raw_texts.extend(str(item) for item in label_hints if str(item).strip())
+
+        normalized_blob = " ".join(self._normalize_hint_text(text) for text in raw_texts if str(text).strip())
+        topic_terms: List[str] = []
+        for text in raw_texts:
+            for token in re.findall(r"[a-z][a-z0-9_]+", str(text).lower().replace("&", " and ")):
+                if token in _SCHEMA_HINT_STOPWORDS or token in _METRIC_TOKEN_STOPWORDS:
+                    continue
+                if token not in topic_terms:
+                    topic_terms.append(token)
+
+        label_scores: Dict[str, int] = {}
+        property_candidates: List[str] = []
+        for label, node_def in self.ontology.nodes.items():
+            score = self._hint_match_score(normalized_blob, [label, *node_def.aliases])
+            for property_name, prop in node_def.properties.items():
+                property_score = self._hint_match_score(
+                    normalized_blob,
+                    [property_name, *prop.aliases],
+                )
+                if property_score > 0:
+                    score += property_score
+                    property_key = f"{label}.{property_name}"
+                    if property_key not in property_candidates:
+                        property_candidates.append(property_key)
+            if score > 0:
+                label_scores[label] = score
+
+        relationship_scores: Dict[str, int] = {}
+        for rel_name, rel_def in self.ontology.relationships.items():
+            score = self._hint_match_score(
+                normalized_blob,
+                [rel_name, *rel_def.aliases, rel_def.description],
+            )
+            if rel_def.source in label_scores:
+                score += 1
+            if rel_def.target in label_scores:
+                score += 1
+            if score > 0:
+                relationship_scores[rel_name] = score
+
+        label_candidates = [
+            label
+            for label, _ in sorted(label_scores.items(), key=lambda item: (-item[1], item[0]))
+        ]
+        relationship_candidates = [
+            rel_name
+            for rel_name, _ in sorted(relationship_scores.items(), key=lambda item: (-item[1], item[0]))
+        ]
+
+        raw_anchor_label = str(intent_data.get("anchor_label", "") or "").strip()
+        raw_target_label = str(intent_data.get("target_label", "") or "").strip()
+        anchor_label = raw_anchor_label if raw_anchor_label in self.ontology.nodes else ""
+        target_label = raw_target_label if raw_target_label in self.ontology.nodes else ""
+        if not anchor_label and label_candidates:
+            anchor_label = label_candidates[0]
+        if not target_label:
+            for candidate in label_candidates:
+                if candidate != anchor_label:
+                    target_label = candidate
+                    break
+
+        relationship_type = str(intent_data.get("relationship_type", "") or "").strip()
+        if relationship_type and relationship_type not in self.ontology.relationships:
+            relationship_type = self._match_relationship(
+                relationship_type,
+                anchor_label=anchor_label,
+                target_label=target_label,
+            )
+        if not relationship_type and relationship_candidates:
+            relationship_type = self._match_relationship(
+                relationship_candidates[0],
+                anchor_label=anchor_label,
+                target_label=target_label,
+            ) or relationship_candidates[0]
+
+        return {
+            "namespace": self.ontology.namespace,
+            "ontology_package_id": self.ontology.package_id,
+            "ontology_version": self.ontology.version,
+            "topic_terms": topic_terms[:12],
+            "label_candidates": label_candidates[:6],
+            "relationship_candidates": relationship_candidates[:6],
+            "property_candidates": property_candidates[:10],
+            "anchor_label": anchor_label,
+            "target_label": target_label,
+            "relationship_type": relationship_type,
+        }
+
+    def render_schema_hints(self, schema_hints: Optional[Dict[str, Any]]) -> str:
+        hints = dict(schema_hints or {})
+        if not hints:
+            return ""
+        lines: List[str] = []
+        namespace = str(hints.get("namespace", "")).strip()
+        if namespace:
+            lines.append(f"- Namespace: {namespace}")
+        topic_terms = hints.get("topic_terms", [])
+        if isinstance(topic_terms, list) and topic_terms:
+            lines.append(f"- Topic terms: {', '.join(str(item) for item in topic_terms)}")
+        label_candidates = hints.get("label_candidates", [])
+        if isinstance(label_candidates, list) and label_candidates:
+            lines.append(f"- Candidate labels: {', '.join(str(item) for item in label_candidates)}")
+        relationship_candidates = hints.get("relationship_candidates", [])
+        if isinstance(relationship_candidates, list) and relationship_candidates:
+            lines.append(
+                f"- Candidate relationships: {', '.join(str(item) for item in relationship_candidates)}"
+            )
+        property_candidates = hints.get("property_candidates", [])
+        if isinstance(property_candidates, list) and property_candidates:
+            lines.append(f"- Candidate properties: {', '.join(str(item) for item in property_candidates)}")
+        anchor_label = str(hints.get("anchor_label", "")).strip()
+        target_label = str(hints.get("target_label", "")).strip()
+        relationship_type = str(hints.get("relationship_type", "")).strip()
+        if anchor_label:
+            lines.append(f"- Preferred anchor label: {anchor_label}")
+        if target_label:
+            lines.append(f"- Preferred target label: {target_label}")
+        if relationship_type:
+            lines.append(f"- Preferred relationship: {relationship_type}")
+        return "\n".join(lines)
 
     def _entity_lookup(self, entity: str, label: str, workspace_id: str, limit: int) -> Tuple[str, Dict[str, Any]]:
         label_clause = f":`{label.replace('`', '')}`" if label else ""
@@ -468,6 +648,23 @@ class CypherBuilder:
 
         return ""
 
+    def _resolve_hint_label(
+        self,
+        *,
+        current: str,
+        hinted: Any,
+        candidates: Sequence[Any],
+        exclude: Optional[Set[str]] = None,
+    ) -> str:
+        if current in self.ontology.nodes:
+            return current
+        excluded = set(exclude or set())
+        for candidate in [hinted, *list(candidates)]:
+            label = str(candidate or "").strip()
+            if label in self.ontology.nodes and label not in excluded:
+                return label
+        return ""
+
     def _relationship_candidates(self, *, source_label: str, target_label: str) -> List[str]:
         candidates: List[str] = []
         for rel_name, rel_def in self.ontology.relationships.items():
@@ -482,6 +679,18 @@ class CypherBuilder:
                 if value and value not in candidates:
                     candidates.append(value)
         return candidates
+
+    @staticmethod
+    def _normalize_hint_text(value: str) -> str:
+        return re.sub(r"[^a-z0-9]+", " ", str(value).lower()).strip()
+
+    def _hint_match_score(self, normalized_blob: str, candidates: Sequence[Any]) -> int:
+        score = 0
+        for candidate in candidates:
+            normalized = self._normalize_hint_text(str(candidate or ""))
+            if normalized and normalized in normalized_blob:
+                score += 1
+        return score
 
     def _extract_years(self, question: str, raw_years: Any) -> List[str]:
         years: List[str] = []

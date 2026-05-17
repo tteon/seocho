@@ -1,0 +1,22 @@
+%%{init: {'theme': 'dark', 'themeVariables': {'primaryColor': '#6c63ff', 'primaryTextColor': '#e8e8f0', 'primaryBorderColor': '#6c63ff', 'lineColor': '#9090a8', 'secondaryColor': '#1a1a2e', 'tertiaryColor': '#12121a', 'background': '#0a0a0f', 'mainBkg': '#1a1a2e', 'nodeBorder': '#6c63ff', 'clusterBkg': '#12121a', 'clusterBorder': '#2a2a40', 'titleColor': '#e8e8f0', 'edgeLabelBackground': '#1a1a2e'}}}%%
+flowchart TD
+    RT["Runtime / SDK<br/><small>@track decorator + span metadata</small>"]
+
+    RT --> SWITCH{"SEOCHO_TRACE_BACKEND"}
+
+    SWITCH -->|"none"| NONE["No-op<br/><small>silent</small>"]
+    SWITCH -->|"console"| CON["Console<br/><small>stdout logging</small>"]
+    SWITCH -->|"jsonl"| JSONL["JSONL Files<br/><small>portable artifact</small>"]
+    SWITCH -->|"opik"| OPIK["Opik<br/><small>team dashboard</small>"]
+
+    JSONL --> AUDIT["Offline Audit<br/>&amp; Replay"]
+    OPIK --> DASH["Opik Dashboard<br/><small>span trees, LLM costs,<br/>scoring, experiments</small>"]
+
+    style RT fill:#2a1a4e,stroke:#6c63ff,color:#e8e8f0
+    style SWITCH fill:#2a2a1e,stroke:#ffd93d,color:#e8e8f0
+    style NONE fill:#1a1a2e,stroke:#2a2a40,color:#9090a8
+    style CON fill:#1a1a2e,stroke:#2a2a40,color:#9090a8
+    style JSONL fill:#1a2a3e,stroke:#00d4aa,color:#e8e8f0
+    style OPIK fill:#1a2a3e,stroke:#00d4aa,color:#e8e8f0
+    style AUDIT fill:#1a2a2e,stroke:#00d4aa,color:#e8e8f0
+    style DASH fill:#1a2a2e,stroke:#00d4aa,color:#e8e8f0

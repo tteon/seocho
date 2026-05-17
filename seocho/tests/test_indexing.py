@@ -225,3 +225,47 @@ class TestExtractionNormalization:
         assert company["properties"]["content_preview"] == "Cboe data"
         assert document["properties"]["content_preview"] == "Cboe data"
         assert any(rel["type"] == "MENTIONS" for rel in store.last_relationships)
+
+    def test_empty_extraction_uses_heuristic_fallback_instead_of_skipping_chunk(self):
+        ontology = Ontology(
+            name="finder",
+            nodes={"Company": NodeDef(properties={"name": P(str, unique=True)})},
+            relationships={},
+        )
+
+        class FakeResponse:
+            def __init__(self, payload):
+                self._payload = payload
+                self.usage = None
+
+            def json(self):
+                return self._payload
+
+        class FakeLLM:
+            def complete(self, *, system, user, temperature, response_format=None):  # noqa: ANN001
+                return FakeResponse({"nodes": [], "relationships": []})
+
+        class FakeGraphStore:
+            def __init__(self):
+                self.last_nodes = []
+                self.last_relationships = []
+
+            def write(self, nodes, relationships, *, database="neo4j", workspace_id="default", source_id=""):  # noqa: ANN001
+                self.last_nodes = list(nodes)
+                self.last_relationships = list(relationships)
+                return {"nodes_created": len(nodes), "relationships_created": len(relationships), "errors": []}
+
+        store = FakeGraphStore()
+        pipeline = IndexingPipeline(
+            ontology=ontology,
+            graph_store=store,
+            llm=FakeLLM(),
+        )
+
+        result = pipeline.index("ACME expanded into Asia.")
+
+        assert result.fallback_used is True
+        assert "EmptyExtraction" in result.fallback_reason
+        assert result.chunks_processed == 1
+        assert result.total_nodes > 0
+        assert any(node["label"] == "Entity" for node in store.last_nodes)

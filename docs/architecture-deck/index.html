@@ -1,0 +1,1110 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SEOCHO Architecture Overview — 2026</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg-primary: #0a0a0f;
+    --bg-secondary: #12121a;
+    --bg-card: #1a1a2e;
+    --bg-card-hover: #222240;
+    --accent: #6c63ff;
+    --accent-light: #8b83ff;
+    --accent-glow: rgba(108, 99, 255, 0.15);
+    --accent-secondary: #00d4aa;
+    --accent-third: #ff6b6b;
+    --accent-fourth: #ffd93d;
+    --text-primary: #e8e8f0;
+    --text-secondary: #9090a8;
+    --text-dim: #606078;
+    --border: #2a2a40;
+    --border-light: #3a3a55;
+    --gradient-1: linear-gradient(135deg, #6c63ff, #00d4aa);
+    --gradient-2: linear-gradient(135deg, #ff6b6b, #ffd93d);
+    --gradient-3: linear-gradient(135deg, #6c63ff, #ff6b6b);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%; height: 100%;
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    overflow: hidden;
+  }
+
+  /* ── Slide Container ── */
+  .deck { width: 100%; height: 100%; position: relative; }
+  .slide {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    justify-content: center; align-items: center;
+    padding: 60px 80px;
+    opacity: 0; visibility: hidden;
+    transition: opacity 0.5s ease, transform 0.5s ease;
+    transform: translateX(40px);
+    overflow-y: auto;
+  }
+  .slide.active {
+    opacity: 1; visibility: visible;
+    transform: translateX(0);
+  }
+  .slide.prev {
+    transform: translateX(-40px);
+  }
+
+  /* ── Typography ── */
+  h1 { font-size: 3.2rem; font-weight: 800; line-height: 1.15; letter-spacing: -0.03em; }
+  h2 { font-size: 2.2rem; font-weight: 700; line-height: 1.2; letter-spacing: -0.02em; }
+  h3 { font-size: 1.5rem; font-weight: 600; line-height: 1.3; }
+  h4 { font-size: 1.15rem; font-weight: 600; }
+  p, li { font-size: 1.05rem; line-height: 1.7; color: var(--text-secondary); }
+  .subtitle { font-size: 1.25rem; color: var(--text-secondary); font-weight: 400; margin-top: 12px; }
+  .accent { color: var(--accent-light); }
+  .green { color: var(--accent-secondary); }
+  .red { color: var(--accent-third); }
+  .yellow { color: var(--accent-fourth); }
+  code {
+    font-family: 'JetBrains Mono', monospace;
+    background: rgba(108,99,255,0.12);
+    color: var(--accent-light);
+    padding: 2px 8px; border-radius: 4px;
+    font-size: 0.9em;
+  }
+
+  /* ── Layouts ── */
+  .slide-content { max-width: 1100px; width: 100%; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; margin-top: 36px; }
+  .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 28px; margin-top: 36px; }
+  .four-col { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 20px; margin-top: 36px; }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    transition: all 0.3s ease;
+  }
+  .card:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--border-light);
+    transform: translateY(-2px);
+  }
+  .card h4 { margin-bottom: 12px; }
+  .card p, .card li { font-size: 0.95rem; }
+
+  .card-accent { border-left: 3px solid var(--accent); }
+  .card-green { border-left: 3px solid var(--accent-secondary); }
+  .card-red { border-left: 3px solid var(--accent-third); }
+  .card-yellow { border-left: 3px solid var(--accent-fourth); }
+
+  /* ── Badge / Tag ── */
+  .badge {
+    display: inline-block;
+    padding: 4px 14px;
+    border-radius: 20px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .badge-accent { background: rgba(108,99,255,0.18); color: var(--accent-light); }
+  .badge-green { background: rgba(0,212,170,0.18); color: var(--accent-secondary); }
+  .badge-red { background: rgba(255,107,107,0.18); color: var(--accent-third); }
+  .badge-yellow { background: rgba(255,217,61,0.18); color: var(--accent-fourth); }
+  .badge-dim { background: rgba(144,144,168,0.15); color: var(--text-secondary); }
+
+  /* ── Lists ── */
+  ul { list-style: none; padding: 0; }
+  ul.spaced li { margin-bottom: 14px; }
+  ul.check li::before { content: ""; display: inline-block; width: 6px; height: 6px; background: var(--accent); border-radius: 50%; margin-right: 12px; vertical-align: middle; }
+  ul.arrow li::before { content: "->"; color: var(--accent); margin-right: 10px; font-family: 'JetBrains Mono', monospace; font-size: 0.85em; }
+  ol { padding-left: 24px; }
+  ol li { margin-bottom: 10px; }
+  ol li::marker { color: var(--accent-light); font-weight: 600; }
+
+  /* ── Diagram container ── */
+  .diagram-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 28px 0;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px;
+    overflow: hidden;
+  }
+  .diagram-container img {
+    max-width: 100%;
+    max-height: 55vh;
+    height: auto;
+  }
+  .diagram-container.tall img {
+    max-height: 65vh;
+  }
+  .diagram-container.wide img {
+    max-width: 100%;
+    max-height: 50vh;
+  }
+
+  /* ── API Table ── */
+  .api-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+    font-size: 0.92rem;
+  }
+  .api-table th {
+    text-align: left;
+    padding: 12px 16px;
+    border-bottom: 2px solid var(--border);
+    color: var(--accent-light);
+    font-weight: 600;
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .api-table td {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-secondary);
+  }
+  .api-table tr:hover td {
+    background: var(--bg-card);
+  }
+  .api-table code {
+    font-size: 0.85em;
+  }
+
+  /* ── Navigation ── */
+  .nav {
+    position: fixed; bottom: 28px; right: 40px;
+    display: flex; gap: 10px; z-index: 100;
+    align-items: center;
+  }
+  .nav button {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    width: 44px; height: 44px;
+    border-radius: 12px;
+    cursor: pointer;
+    font-size: 1.1rem;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+  }
+  .nav button:hover {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .nav .counter {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.82rem;
+    color: var(--text-dim);
+    padding: 0 8px;
+  }
+
+  /* ── Progress bar ── */
+  .progress-bar {
+    position: fixed; top: 0; left: 0;
+    height: 3px;
+    background: var(--gradient-1);
+    transition: width 0.4s ease;
+    z-index: 200;
+  }
+
+  /* ── Slide number ── */
+  .slide-number {
+    position: fixed; bottom: 32px; left: 40px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    z-index: 100;
+  }
+
+  /* ── Title slide special ── */
+  .title-slide { text-align: center; }
+  .title-slide h1 {
+    font-size: 4.5rem;
+    background: var(--gradient-1);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 8px;
+  }
+  .title-slide .meta {
+    margin-top: 40px;
+    color: var(--text-dim);
+    font-size: 0.95rem;
+  }
+  .title-slide .meta span { margin: 0 16px; }
+
+  /* ── Section divider ── */
+  .section-slide { text-align: center; }
+  .section-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 5rem; font-weight: 800;
+    background: var(--gradient-1);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1;
+    margin-bottom: 16px;
+  }
+
+  /* ── Separator ── */
+  .sep { width: 60px; height: 3px; background: var(--gradient-1); border-radius: 2px; margin: 20px 0; }
+
+  /* ── Quote block ── */
+  .quote {
+    border-left: 3px solid var(--accent);
+    padding: 16px 24px;
+    background: var(--accent-glow);
+    border-radius: 0 12px 12px 0;
+    margin: 20px 0;
+    font-style: italic;
+    color: var(--text-secondary);
+  }
+
+  /* ── Keyword highlight ── */
+  .kw {
+    display: inline-block;
+    background: rgba(108,99,255,0.12);
+    border: 1px solid rgba(108,99,255,0.25);
+    padding: 2px 10px; border-radius: 6px;
+    font-size: 0.85rem; font-weight: 500;
+    color: var(--accent-light);
+    margin: 2px 3px;
+  }
+  .kw-green {
+    background: rgba(0,212,170,0.12);
+    border-color: rgba(0,212,170,0.25);
+    color: var(--accent-secondary);
+  }
+  .kw-red {
+    background: rgba(255,107,107,0.12);
+    border-color: rgba(255,107,107,0.25);
+    color: var(--accent-third);
+  }
+  .kw-yellow {
+    background: rgba(255,217,61,0.12);
+    border-color: rgba(255,217,61,0.25);
+    color: var(--accent-fourth);
+  }
+
+  /* ── Scrollable area ── */
+  .scroll-area {
+    max-height: calc(100vh - 200px);
+    overflow-y: auto;
+    padding-right: 12px;
+  }
+  .scroll-area::-webkit-scrollbar { width: 4px; }
+  .scroll-area::-webkit-scrollbar-track { background: transparent; }
+  .scroll-area::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  /* ── Animated bg ── */
+  .bg-pattern {
+    position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    background-image:
+      radial-gradient(circle at 20% 30%, rgba(108,99,255,0.04) 0%, transparent 50%),
+      radial-gradient(circle at 80% 70%, rgba(0,212,170,0.03) 0%, transparent 50%);
+  }
+
+  /* ── Code block ── */
+  .code-block {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 24px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    line-height: 1.8;
+    color: var(--text-primary);
+    overflow-x: auto;
+    margin: 16px 0;
+  }
+  .code-block .comment { color: var(--text-dim); }
+  .code-block .keyword { color: var(--accent-light); }
+  .code-block .string { color: var(--accent-secondary); }
+  .code-block .fn { color: var(--accent-fourth); }
+
+  /* ── Stack item ── */
+  .stack-item {
+    display: flex; align-items: center; gap: 16px;
+    padding: 14px 20px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    margin-bottom: 10px;
+    transition: all 0.2s;
+  }
+  .stack-item:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--border-light);
+  }
+  .stack-label {
+    font-weight: 600; font-size: 0.9rem;
+    min-width: 180px; color: var(--text-primary);
+  }
+  .stack-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.88rem; color: var(--accent-light);
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 900px) {
+    .slide { padding: 32px 28px; }
+    h1 { font-size: 2.2rem; }
+    .title-slide h1 { font-size: 3rem; }
+    .two-col, .three-col, .four-col { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="bg-pattern"></div>
+<div class="progress-bar" id="progress"></div>
+<div class="slide-number" id="slideNum"></div>
+
+<div class="deck" id="deck">
+
+<!-- ════════ SLIDE 0: Title ════════ -->
+<div class="slide active title-slide" data-slide="0">
+  <h1>SEOCHO</h1>
+  <p class="subtitle">Architecture Overview for Developers</p>
+  <div class="sep" style="margin: 20px auto;"></div>
+  <p style="color: var(--text-secondary); font-size: 1.1rem;">
+    Agent-Driven Knowledge Graph Platform
+  </p>
+  <div class="meta">
+    <span>2026-04</span>
+    <span>github.com/tteon/seocho</span>
+  </div>
+</div>
+
+<!-- ════════ SLIDE 1: Agenda ════════ -->
+<div class="slide" data-slide="1">
+  <div class="slide-content">
+    <span class="badge badge-accent">AGENDA</span>
+    <h2 style="margin-top: 16px;">Contents</h2>
+    <div class="sep"></div>
+    <div class="two-col">
+      <div>
+        <ol>
+          <li><strong>What is SEOCHO?</strong><br/><span style="color:var(--text-dim);">Vision & Stack Baseline</span></li>
+          <li><strong>Package Structure</strong><br/><span style="color:var(--text-dim);">seocho / runtime / extraction / evaluation</span></li>
+          <li><strong>Control Plane vs Data Plane</strong><br/><span style="color:var(--text-dim);">Responsibilities & module mapping</span></li>
+          <li><strong>End-to-End Data Flow</strong><br/><span style="color:var(--text-dim);">Ingestion through graph query</span></li>
+        </ol>
+      </div>
+      <div>
+        <ol start="5">
+          <li><strong>3 Execution Modes</strong><br/><span style="color:var(--text-dim);">Router / Debate / Semantic QA</span></li>
+          <li><strong>Ontology Module Design</strong><br/><span style="color:var(--text-dim);">Split architecture & boundary rules</span></li>
+          <li><strong>Observability</strong><br/><span style="color:var(--text-dim);">Vendor-neutral tracing & Opik</span></li>
+          <li><strong>Local Runtime & API Endpoints</strong><br/><span style="color:var(--text-dim);">Docker Compose & REST surface</span></li>
+        </ol>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ SLIDE 2: Section — What is SEOCHO ════════ -->
+<div class="slide section-slide" data-slide="2">
+  <div class="section-num">01</div>
+  <h2>What is SEOCHO?</h2>
+  <p class="subtitle">Unstructured Data to Structured Knowledge Graphs</p>
+</div>
+
+<!-- ════════ SLIDE 3: Vision & Stack ════════ -->
+<div class="slide" data-slide="3">
+  <div class="slide-content">
+    <span class="badge badge-accent">OVERVIEW</span>
+    <h2 style="margin-top: 16px;">Vision & Stack Baseline</h2>
+    <div class="sep"></div>
+    <div class="quote">
+      SEOCHO transforms unstructured data into ontology-governed Knowledge Graphs,
+      then uses a dynamic Agent Pool with a <strong>Parallel Debate</strong> pattern
+      to answer complex queries across multiple graph targets.
+    </div>
+    <div style="margin-top: 32px;">
+      <div class="stack-item">
+        <span class="stack-label">Agent Runtime</span>
+        <span class="stack-value">OpenAI Agents SDK</span>
+      </div>
+      <div class="stack-item">
+        <span class="stack-label">Graph Backend</span>
+        <span class="stack-value">DozerDB (Neo4j protocol compatible)</span>
+      </div>
+      <div class="stack-item">
+        <span class="stack-label">Trace / Evaluation</span>
+        <span class="stack-value">vendor-neutral (none | console | jsonl | opik)</span>
+      </div>
+      <div class="stack-item">
+        <span class="stack-label">Tenancy Mode</span>
+        <span class="stack-value">single-tenant MVP with workspace_id</span>
+      </div>
+      <div class="stack-item">
+        <span class="stack-label">Ontology Engine</span>
+        <span class="stack-value">Owlready2 (offline governance only)</span>
+      </div>
+      <div class="stack-item">
+        <span class="stack-label">SDK Package</span>
+        <span class="stack-value">pip install seocho</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ SLIDE 4: Section — Package Structure ════════ -->
+<div class="slide section-slide" data-slide="4">
+  <div class="section-num">02</div>
+  <h2>Package Structure</h2>
+  <p class="subtitle">4-Layer Module Architecture</p>
+</div>
+
+<!-- ════════ SLIDE 5: Package Structure Diagram ════════ -->
+<div class="slide" data-slide="5">
+  <div class="slide-content">
+    <span class="badge badge-accent">PACKAGES</span>
+    <h2 style="margin-top: 16px;">Module Architecture</h2>
+    <div class="sep"></div>
+    <div class="diagram-container tall">
+      <img src="diagrams/package-structure.svg" alt="Package Structure Diagram"/>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ SLIDE 6: Package Detail ════════ -->
+<div class="slide" data-slide="6">
+  <div class="slide-content">
+    <span class="badge badge-accent">PACKAGES</span>
+    <h2 style="margin-top: 16px;">Package Roles</h2>
+    <div class="sep"></div>
+    <div class="two-col">
+      <div class="card card-accent">
+        <h4><span class="accent">seocho/</span> — Canonical SDK Engine</h4>
+        <ul class="check spaced">
+          <li><code>ontology*.py</code> — ontology facade, context, serialization, artifacts, governance</li>
+          <li><code>query/</code> — intent, strategy, cypher builder, semantic agents, answer generation</li>
+          <li><code>agent/</code> — factory, context, contracts</li>
+          <li><code>index/</code> — pipeline, linker, extraction engine</li>
+          <li><code>store/</code> — graph, vector, LLM adapters</li>
+          <li><code>rules.py</code> — SHACL-like inference & validation</li>
+          <li><code>client.py</code> — public SDK facade</li>
+          <li><code>session.py</code> — context persistence & caching</li>
+        </ul>
+      </div>
+      <div>
+        <div class="card card-green" style="margin-bottom: 20px;">
+          <h4><span class="green">runtime/</span> — Deployment Shell</h4>
+          <ul class="check spaced">
+            <li><code>agent_server.py</code> — FastAPI transport</li>
+            <li><code>server_runtime.py</code> — service composition</li>
+            <li><code>memory_service.py</code> — memory-first facade</li>
+            <li><code>policy.py</code> — authorization</li>
+            <li><code>agent_readiness.py</code> — ready / degraded / blocked</li>
+          </ul>
+        </div>
+        <div class="card card-yellow">
+          <h4><span class="yellow">extraction/</span> — Compatibility Layer</h4>
+          <p>Shims and aliases that delegate to <code>seocho/*</code> and <code>runtime/*</code>. Shrinking toward extraction-only concerns.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ SLIDE 7: Section — Control vs Data Plane ════════ -->
+<div class="slide section-slide" data-slide="7">
+  <div class="section-num">03</div>
+  <h2>Control Plane vs Data Plane</h2>
+  <p class="subtitle">Separation of Concerns</p>
+</div>
+
+<!-- ════════ SLIDE 8: Control vs Data Plane Diagram ════════ -->
+<div class="slide" data-slide="8">
+  <div class="slide-content">
+    <span class="badge badge-accent">PLANES</span>
+    <h2 style="margin-top: 16px;">Two-Plane Architecture</h2>
+    <div class="sep"></div>
+    <div class="diagram-container wide">
+      <img src="diagrams/control-data-plane.svg" alt="Control Plane vs Data Plane"/>
+    </div>
+    <div class="two-col" style="margin-top: 24px;">
+      <div class="card card-accent">
+        <h4>Control Plane</h4>
+        <p>Agent orchestration, routing policy, runtime authorization, quality gates, ADR governance, ontology vocabulary lifecycle</p>
+      </div>
+      <div class="card card-green">
+        <h4>Data Plane</h4>
+        <p>Data ingestion (CSV/JSON/API), LLM 3-pass extraction, SHACL-like rule inference, graph load & Cypher query on DozerDB</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ SLIDE 9: Section — E2E Data Flow ════════ -->
+<div class="slide section-slide" data-slide="9">
+  <div class="section-num">04</div>
+  <h2>End-to-End Data Flow</h2>
+  <p class="subtitle">From Raw Data to Agent Answers</p>
+</div>
+
+<!-- ════════ SLIDE 10: E2E Data Flow Diagram ════════ -->
+<div class="slide" data-slide="10">
+  <div class="slide-content">
+    <span class="badge badge-green">DATA FLOW</span>
+    <h2 style="margin-top: 16px;">Ingestion to Query</h2>
+    <div class="sep"></div>
+    <div class="diagram-container tall">
+      <img src="diagrams/e2e-dataflow.svg" alt="End-to-End Data Flow"/>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ SLIDE 11: E2E Detail ════════ -->
+<div class="slide" data-slide="11">
+  <div class="slide-content scroll-area">
+    <span class="badge badge-green">DATA FLOW</span>
+    <h2 style="margin-top: 16px;">Pipeline Steps Detail</h2>
+    <div class="sep"></div>
+    <div class="three-col">
+      <div class="card card-accent">
+        <h4>1. Ontology Prompt Bridge</h4>
+        <p>Ontology YAML/JSON-LD definitions are injected into LLM prompts as extraction context. Node types, relationship types, and property constraints guide the extraction.</p>
+        <div style="margin-top:12px;">
+          <span class="kw">NodeDef</span>
+          <span class="kw">RelDef</span>
+          <span class="kw">Jinja2</span>
+        </div>
+      </div>
+      <div class="card card-accent">
+        <h4>2. Extraction & Linking</h4>
+        <p>LLM-based entity extraction followed by entity resolution. Embedding cosine similarity deduplicates entities across documents.</p>
+        <div style="margin-top:12px;">
+          <span class="kw">LLM 3-pass</span>
+          <span class="kw">cosine dedup</span>
+        </div>
+      </div>
+      <div class="card card-accent">
+        <h4>3. Rule Constraints</h4>
+        <p>SHACL-like rule inference annotates entities with <code>required</code>, <code>datatype</code>, <code>enum</code>, and <code>range</code> constraints before graph load.</p>
+        <div style="margin-top:12px;">
+          <span class="kw-green">SHACL</span>
+          <span class="kw-green">Cypher constraints</span>
+        </div>
+      </div>
+    </div>
+    <div class="three-col" style="margin-top: 20px;">
+      <div class="card card-green">
+        <h4>4. Graph Provisioning</h4>
+        <p><code>DatabaseManager</code> creates databases in DozerDB, applies schema constraints, and loads MERGE operations via <code>GraphLoader</code>.</p>
+      </div>
+      <div class="card card-green">
+        <h4>5. Agent Factory</h4>
+        <p>Dynamically provisions one agent per graph target. Each agent's query tool is closure-bound to its specific DB context.</p>
+      </div>
+      <div class="card card-green">
+        <h4>6. Query Execution</h4>
+        <p>Three modes available: Legacy Router, Parallel Debate, or Semantic Graph QA. Details in the next section.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ SLIDE 12: Section — 3 Execution Modes ════════ -->
+<div class="slide section-slide" data-slide="12">
+  <div class="section-num">05</div>
+  <h2>3 Execution Modes</h2>
+  <p class="subtitle">Router / Debate / Semantic QA</p>
+</div>
+
+<!-- ════════ SLIDE 13: Mode Overview ════════ -->
+<div class="slide" data-slide="13">
+  <div class="slide-content">
+    <span class="badge badge-yellow">EXECUTION</span>
+    <h2 style="margin-top: 16px;">Three Query Execution Modes</h2>
+    <div class="sep"></div>
+    <div class="three-col">
+      <div class="card card-yellow">
+        <span class="badge badge-dim" style="margin-bottom: 14px;">LEGACY</span>
+        <h4>1. Router Mode</h4>
+        <p style="margin-bottom:12px;"><code>POST /run_agent</code></p>
+        <p>Static 7-agent pipeline. Router delegates to exactly 1 specialist agent. Sequential hand-off chain.</p>
+        <div style="margin-top:16px;">
+          <span class="kw">GraphAgent</span>
+          <span class="kw">VectorAgent</span>
+          <span class="kw">WebAgent</span>
+        </div>
+      </div>
+      <div class="card card-accent" style="border-width: 2px;">
+        <span class="badge badge-accent" style="margin-bottom: 14px;">PRIMARY</span>
+        <h4>2. Parallel Debate</h4>
+        <p style="margin-bottom:12px;"><code>POST /run_debate</code></p>
+        <p>All DB-bound agents execute concurrently via <code>asyncio.gather()</code>. Supervisor synthesizes from Shared Memory. Fault-isolated.</p>
+        <div style="margin-top:16px;">
+          <span class="kw-green">fan-out</span>
+          <span class="kw-green">shared memory</span>
+          <span class="kw-green">synthesis</span>
+        </div>
+      </div>
+      <div class="card card-green">
+        <span class="badge badge-green" style="margin-bottom: 14px;">SEMANTIC</span>
+        <h4>3. Semantic Graph QA</h4>
+        <p style="margin-bottom:12px;"><code>POST /run_agent_semantic</code></p>
+        <p>4-agent model with entity disambiguation. Fulltext lookup + semantic dedup before LPG/RDF routing.</p>
+        <div style="margin-top:16px;">
+          <span class="kw-green">entity resolution</span>
+          <span class="kw-green">LPG/RDF split</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ SLIDE 14: Parallel Debate Diagram ════════ -->
+<div class="slide" data-slide="14">
+  <div class="slide-content">
+    <span class="badge badge-accent">DEBATE</span>
+    <h2 style="margin-top: 16px;">Parallel Debate Pattern</h2>
+    <div class="sep"></div>
+    <div class="diagram-container">
+      <img src="diagrams/parallel-debate.svg" alt="Parallel Debate Pattern"/>
+    </div>
+    <div class="two-col" style="margin-top: 16px;">
+      <div class="card card-accent">
+        <h4>Fan-Out</h4>
+        <p>DebateOrchestrator spawns one agent per graph target. All agents execute concurrently. Each stores its isolated conclusion in request-scoped SharedMemory.</p>
+      </div>
+      <div class="card card-green">
+        <h4>Synthesis</h4>
+        <p>Supervisor Agent aggregates all results. If any agent fails, Supervisor synthesizes from remaining successful answers. Runtime payload includes <code>agent_statuses</code> and <code>degraded</code> flag.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ SLIDE 15: Semantic QA Diagram ════════ -->
+<div class="slide" data-slide="15">
+  <div class="slide-content">
+    <span class="badge badge-green">SEMANTIC QA</span>
+    <h2 style="margin-top: 16px;">Semantic Graph QA Flow</h2>
+    <div class="sep"></div>
+    <div class="diagram-container">
+      <img src="diagrams/semantic-qa.svg" alt="Semantic QA Flow"/>
+    </div>
+    <div class="two-col" style="margin-top: 16px;">
+      <div class="card card-accent">
+        <h4>Semantic Layer</h4>
+        <ul class="check spaced">
+          <li>Question entity extraction</li>
+          <li>Fulltext index candidate search</li>
+          <li>Contains-based fallback search</li>
+          <li>Ontology-hint alias/label boost</li>
+          <li>Lightweight semantic dedup</li>
+        </ul>
+      </div>
+      <div class="card card-green">
+        <h4>Routing Policy</h4>
+        <ul class="check spaced">
+          <li>RDF hints (owl, shacl, sparql) -> <code>RDFAgent</code></li>
+          <li>Default -> <code>LPGAgent</code></li>
+          <li>Mixed hints -> hybrid path (both)</li>
+          <li>Frontend can pin <code>entity_overrides</code></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ SLIDE 16: Ontology Integration ════════ -->
+<div class="slide" data-slide="16">
+  <div class="slide-content">
+    <span class="badge badge-accent">EXTRACTION</span>
+    <h2 style="margin-top: 16px;">6. Ontology Integration</h2>
+    <div class="sep"></div>
+    <p style="max-width: 980px;">
+      SEOCHO does not treat ontology as an external reference. We inject ontology context directly into the
+      extraction prompt so the model produces graph candidates against an explicit semantic contract.
+    </p>
+    <div class="two-col">
+      <div class="card card-yellow">
+        <h4>Without Ontology Grounding</h4>
+        <ul class="check spaced">
+          <li>Entity labels drift across chunks and documents</li>
+          <li>Relationship choices become inconsistent</li>
+          <li>Dedup and downstream validation become harder</li>
+        </ul>
+      </div>
+      <div class="card card-green">
+        <h4>With Ontology Prompt Injection</h4>
+        <ul class="check spaced">
+          <li>Entity naming stays more stable and interpretable</li>
+          <li>Relationship extraction follows a clearer schema contract</li>
+          <li>Graph structure is easier to validate, trace, and explain</li>
+        </ul>
+      </div>
+    </div>
+    <div class="quote" style="margin-top: 24px;">
+      Ontology acts as a <strong>semantic constraint layer</strong>: lightweight enough for prompt-time use,
+      strong enough to reduce extraction drift before graph write.
+    </div>
+  </div>
+</div>
+
+<!-- ════════ SLIDE 17: LPG + RDF ════════ -->
+<div class="slide" data-slide="17">
+  <div class="slide-content">
+    <span class="badge badge-yellow">GRAPH MODEL</span>
+    <h2 style="margin-top: 16px;">7. Unified Modeling: LPG and RDF</h2>
+    <div class="sep"></div>
+    <div class="three-col">
+      <div class="card card-accent">
+        <h4>LPG Strengths</h4>
+        <p>Property graphs are flexible, operationally convenient, and well-suited for Cypher-driven retrieval and application queries.</p>
+        <div style="margin-top: 14px;">
+          <span class="kw">operational queries</span>
+          <span class="kw">flexible schema</span>
+        </div>
+      </div>
+      <div class="card card-green">
+        <h4>RDF Strengths</h4>
+        <p>RDF provides stronger semantic guarantees and a cleaner path for standardization, explicit vocabulary control, and reasoning-oriented workflows.</p>
+        <div style="margin-top: 14px;">
+          <span class="kw-green">semantic guarantees</span>
+          <span class="kw-green">standardization</span>
+        </div>
+      </div>
+      <div class="card card-yellow">
+        <h4>Hybrid Answer</h4>
+        <p>SEOCHO uses both. LPG handles flexible operational access; RDF carries semantic structure and reasoning hints. The Router Agent can select either path or combine both.</p>
+        <div style="margin-top: 14px;">
+          <span class="kw-yellow">hybrid routing</span>
+          <span class="kw-yellow">balance</span>
+        </div>
+      </div>
+    </div>
+    <div class="quote" style="margin-top: 24px;">
+      The design goal is not to pick a winner. It is to combine <strong>flexibility</strong> and <strong>correctness</strong>
+      in one query stack.
+    </div>
+  </div>
+</div>
+
+<!-- ════════ SLIDE 18: Agent Orchestration ════════ -->
+<div class="slide" data-slide="18">
+  <div class="slide-content">
+    <span class="badge badge-green">ORCHESTRATION</span>
+    <h2 style="margin-top: 16px;">8. Agent Orchestration</h2>
+    <div class="sep"></div>
+    <div class="two-col">
+      <div class="diagram-container tall" style="margin: 0;">
+        <img src="diagrams/semantic-qa.svg" alt="Router Agent orchestration flow"/>
+      </div>
+      <div>
+        <div class="card card-accent" style="margin-bottom: 18px;">
+          <h4>Router Agent</h4>
+          <p>Analyzes the user query, determines the dominant intent, and selects the most appropriate graph-specialist path.</p>
+        </div>
+        <div class="card card-green" style="margin-bottom: 18px;">
+          <h4>Factual Queries</h4>
+          <p>Route toward the simplest retrieval path first, typically the LPG-oriented agent with explicit entity resolution.</p>
+        </div>
+        <div class="card card-yellow" style="margin-bottom: 18px;">
+          <h4>Multi-Hop Reasoning</h4>
+          <p>Escalate to reasoning-focused graph execution when the query needs chained relationships or broader synthesis.</p>
+        </div>
+        <div class="card card-red">
+          <h4>Ambiguous Queries</h4>
+          <p>Use hybrid paths, multiple agents, or fallback strategies when intent is uncertain or evidence conflicts across routes.</p>
+        </div>
+      </div>
+    </div>
+    <p style="margin-top: 20px;">
+      This decouples complexity, scales specialist behavior cleanly, and aligns execution with <strong>query intent</strong> rather than forcing one monolithic agent policy.
+    </p>
+  </div>
+</div>
+
+<!-- ════════ SLIDE 19: Test Cases ════════ -->
+<div class="slide" data-slide="19">
+  <div class="slide-content">
+    <span class="badge badge-accent">EVALUATION</span>
+    <h2 style="margin-top: 16px;">9. Test Cases</h2>
+    <div class="sep"></div>
+    <p style="max-width: 980px;">
+      The evaluation set is organized around four query families that mirror real usage, not only synthetic benchmark prompts.
+    </p>
+    <div class="four-col">
+      <div class="card card-accent">
+        <h4>Simple Factual</h4>
+        <p>Single-entity or single-relation questions that should resolve with direct retrieval and minimal reasoning.</p>
+      </div>
+      <div class="card card-green">
+        <h4>Multi-Hop Reasoning</h4>
+        <p>Questions that require traversing multiple relations or combining evidence across documents and graph neighborhoods.</p>
+      </div>
+      <div class="card card-red">
+        <h4>Compliance-Critical</h4>
+        <p>High-precision questions where correctness matters more than fluency and unsupported answers should be avoided.</p>
+      </div>
+      <div class="card card-yellow">
+        <h4>Ambiguous Intent</h4>
+        <p>Queries where the system must disambiguate meaning, select a route carefully, or expose fallback behavior.</p>
+      </div>
+    </div>
+    <div class="quote" style="margin-top: 24px;">
+      These four buckets make the Router Agent measurable: we can see where routing policy helps, where it overfits, and where fallback logic is still weak.
+    </div>
+  </div>
+</div>
+
+<!-- ════════ SLIDE 20: Evaluation with Opik ════════ -->
+<div class="slide" data-slide="20">
+  <div class="slide-content">
+    <span class="badge badge-green">TRACING</span>
+    <h2 style="margin-top: 16px;">10. Evaluation with Opik</h2>
+    <div class="sep"></div>
+    <div class="diagram-container">
+      <img src="diagrams/observability.svg" alt="Observability Architecture"/>
+    </div>
+    <div class="three-col" style="margin-top: 20px;">
+      <div class="card card-accent">
+        <h4>Trace the Whole Pipeline</h4>
+        <p>We capture extraction behavior, retrieval steps, routing decisions, and final answer synthesis rather than scoring only the final response.</p>
+      </div>
+      <div class="card card-green">
+        <h4>Preferred Team Backend</h4>
+        <p>JSONL remains the portable trace artifact. Opik is the preferred team backend when richer dashboards, spans, and experiments are needed.</p>
+      </div>
+      <div class="card card-yellow">
+        <h4>Failure Localization</h4>
+        <p>Traces make it clear whether an error comes from extraction drift, retrieval misses, router misclassification, or answer synthesis.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ SLIDE 21: Results and Insights ════════ -->
+<div class="slide" data-slide="21">
+  <div class="slide-content">
+    <span class="badge badge-yellow">INSIGHTS</span>
+    <h2 style="margin-top: 16px;">11. Results and Insights</h2>
+    <div class="sep"></div>
+    <div class="three-col">
+      <div class="card card-green">
+        <h4>Ontology Integration</h4>
+        <p>Directional improvement in entity consistency and relationship stability because extraction is anchored to an explicit semantic frame.</p>
+      </div>
+      <div class="card card-accent">
+        <h4>Hybrid Modeling</h4>
+        <p>Using LPG and RDF together preserves operational flexibility while keeping a path to stronger semantic correctness and standardization.</p>
+      </div>
+      <div class="card card-yellow">
+        <h4>Router Agent</h4>
+        <p>Intent-aware routing shows the most value on complex and ambiguous queries, where a single static retrieval path is usually too brittle.</p>
+      </div>
+    </div>
+    <div class="quote" style="margin-top: 24px;">
+      The practical outcome is not only better answers. The system becomes more <strong>measurable</strong>, more <strong>interpretable</strong>,
+      and easier to debug when extraction, modeling, and orchestration are all observable.
+    </div>
+  </div>
+</div>
+
+<!-- ════════ SLIDE 22: Section — Local Runtime ════════ -->
+<div class="slide section-slide" data-slide="22">
+  <div class="section-num">08</div>
+  <h2>Local Runtime & API</h2>
+  <p class="subtitle">Docker Compose & REST Surface</p>
+</div>
+
+<!-- ════════ SLIDE 23: Local Runtime Diagram ════════ -->
+<div class="slide" data-slide="23">
+  <div class="slide-content">
+    <span class="badge badge-accent">RUNTIME</span>
+    <h2 style="margin-top: 16px;">Local Docker Compose Stack</h2>
+    <div class="sep"></div>
+    <div class="diagram-container wide">
+      <img src="diagrams/local-runtime.svg" alt="Local Runtime Stack"/>
+    </div>
+    <div class="code-block" style="font-size:0.88rem;">
+      <span class="comment"># Default activation (3 services)</span><br/>
+      docker compose up -d<br/><br/>
+      <span class="comment"># Optional: Opik observability</span><br/>
+      docker compose --profile opik up -d<br/><br/>
+      <span class="comment"># Optional: Legacy semantic service</span><br/>
+      docker compose --profile legacy-semantic up -d semantic-service
+    </div>
+  </div>
+</div>
+
+<!-- ════════ SLIDE 24: API Endpoints ════════ -->
+<div class="slide" data-slide="24">
+  <div class="slide-content scroll-area">
+    <span class="badge badge-accent">API</span>
+    <h2 style="margin-top: 16px;">REST API Surface</h2>
+    <div class="sep"></div>
+    <table class="api-table">
+      <thead>
+        <tr><th>Endpoint</th><th>Method</th><th>Description</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>/run_agent</code></td><td><span class="badge badge-dim">POST</span></td><td>Legacy router mode</td></tr>
+        <tr><td><code>/run_debate</code></td><td><span class="badge badge-accent">POST</span></td><td>Parallel debate mode</td></tr>
+        <tr><td><code>/run_agent_semantic</code></td><td><span class="badge badge-green">POST</span></td><td>Semantic entity-resolution flow</td></tr>
+        <tr><td><code>/platform/chat/send</code></td><td><span class="badge badge-accent">POST</span></td><td>Interactive platform chat</td></tr>
+        <tr><td><code>/platform/ingest/raw</code></td><td><span class="badge badge-accent">POST</span></td><td>Runtime raw record ingestion</td></tr>
+        <tr><td><code>/indexes/fulltext/ensure</code></td><td><span class="badge badge-accent">POST</span></td><td>Ensure fulltext index for semantic routing</td></tr>
+        <tr><td><code>/semantic/artifacts/drafts</code></td><td><span class="badge badge-accent">POST</span></td><td>Save ontology/SHACL candidates as draft</td></tr>
+        <tr><td><code>/semantic/artifacts</code></td><td><span class="badge badge-green">GET</span></td><td>List semantic artifacts</td></tr>
+        <tr><td><code>/semantic/artifacts/{id}/approve</code></td><td><span class="badge badge-yellow">POST</span></td><td>Promote draft to approved</td></tr>
+        <tr><td><code>/databases</code></td><td><span class="badge badge-green">GET</span></td><td>List registered databases</td></tr>
+        <tr><td><code>/agents</code></td><td><span class="badge badge-green">GET</span></td><td>List active DB-bound agents</td></tr>
+        <tr><td><code>/health/runtime</code></td><td><span class="badge badge-dim">GET</span></td><td>Runtime API health</td></tr>
+        <tr><td><code>/health/batch</code></td><td><span class="badge badge-dim">GET</span></td><td>Batch pipeline health</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ════════ SLIDE 25: User Activation Critical Path ════════ -->
+<div class="slide" data-slide="25">
+  <div class="slide-content">
+    <span class="badge badge-red">CRITICAL PATH</span>
+    <h2 style="margin-top: 16px;">User Activation Smoke Test</h2>
+    <div class="sep"></div>
+    <p style="margin-bottom: 24px;">Architecture changes are <strong>not complete</strong> unless this path works end-to-end:</p>
+    <div class="code-block" style="font-size: 0.95rem; line-height: 2.2;">
+<span class="comment"># 1. Ingest raw data</span>
+<span class="keyword">POST</span> <span class="string">/platform/ingest/raw</span>
+
+<span class="comment"># 2. Ensure semantic index</span>
+<span class="keyword">POST</span> <span class="string">/indexes/fulltext/ensure</span>
+
+<span class="comment"># 3. Ask questions (semantic + debate)</span>
+<span class="keyword">POST</span> <span class="string">/api/chat/send</span>
+
+<span class="comment"># 4. Inspect trace & runtime payload in UI</span>
+<span class="fn">http://localhost:8501</span>
+
+<span class="comment"># 5. Automated acceptance gate</span>
+<span class="fn">make e2e-smoke</span>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ SLIDE 26: Key Design Decisions ════════ -->
+<div class="slide" data-slide="26">
+  <div class="slide-content">
+    <span class="badge badge-yellow">GUARDRAILS</span>
+    <h2 style="margin-top: 16px;">Key Design Decisions</h2>
+    <div class="sep"></div>
+    <div class="three-col">
+      <div class="card card-accent">
+        <h4>workspace_id Everywhere</h4>
+        <p>All runtime write/compute APIs must include <code>workspace_id</code>. Single-tenant MVP but wired for multi-tenant.</p>
+      </div>
+      <div class="card card-green">
+        <h4>DozerDB Safety</h4>
+        <ul class="check spaced">
+          <li><code>elementId()</code> over deprecated <code>id()</code></li>
+          <li>Dynamic labels validated before Cypher interpolation</li>
+          <li>Query tools read-safe by default</li>
+        </ul>
+      </div>
+      <div class="card card-red">
+        <h4>Owlready2 Boundary</h4>
+        <p><strong class="red">Forbidden</strong> in request hot path. Only allowed in offline governance flows.</p>
+      </div>
+    </div>
+    <div class="three-col" style="margin-top: 20px;">
+      <div class="card card-yellow">
+        <h4>Agent SDK Isolation</h4>
+        <p>All Agent SDK execution routed through <code>agents_runtime.py</code>. Never call <code>Runner.run</code> directly in feature modules.</p>
+      </div>
+      <div class="card card-accent">
+        <h4>Runtime Package Migration</h4>
+        <p><code>extraction/</code> is shrinking. <code>runtime/</code> is the target deployment shell. See <code>docs/RUNTIME_PACKAGE_MIGRATION.md</code>.</p>
+      </div>
+      <div class="card card-green">
+        <h4>Trace Vendor Neutrality</h4>
+        <p>JSONL as portable artifact. Opik as optional team exporter. Backend selectable via <code>SEOCHO_TRACE_BACKEND</code> env var.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ SLIDE 27: Thank You ════════ -->
+<div class="slide title-slide" data-slide="27">
+  <h1>SEOCHO</h1>
+  <p class="subtitle">Questions?</p>
+  <div class="sep" style="margin: 24px auto;"></div>
+  <div style="margin-top: 20px;">
+    <span class="kw">github.com/tteon/seocho</span>
+    <span class="kw-green">pip install seocho</span>
+  </div>
+  <div class="meta" style="margin-top: 32px;">
+    <span>docs/ARCHITECTURE.md</span>
+    <span>docs/WORKFLOW.md</span>
+    <span>docs/GRAPH_MODEL_STRATEGY.md</span>
+  </div>
+</div>
+
+</div><!-- /deck -->
+
+<!-- Navigation -->
+<nav class="nav">
+  <button id="prevBtn" onclick="go(-1)">&#8592;</button>
+  <span class="counter" id="counter"></span>
+  <button id="nextBtn" onclick="go(1)">&#8594;</button>
+</nav>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const total = slides.length;
+  let current = 0;
+
+  function show(n) {
+    slides.forEach((s, i) => {
+      s.classList.remove('active', 'prev');
+      if (i === n) s.classList.add('active');
+      else if (i < n) s.classList.add('prev');
+    });
+    document.getElementById('progress').style.width = ((n / (total - 1)) * 100) + '%';
+    document.getElementById('slideNum').textContent = (n + 1) + ' / ' + total;
+    document.getElementById('counter').textContent = (n + 1) + ' / ' + total;
+  }
+
+  function go(dir) {
+    current = Math.max(0, Math.min(total - 1, current + dir));
+    show(current);
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); go(1); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); go(-1); }
+    if (e.key === 'Home') { e.preventDefault(); current = 0; show(0); }
+    if (e.key === 'End') { e.preventDefault(); current = total - 1; show(current); }
+  });
+
+  // Touch support
+  let touchStartX = 0;
+  document.addEventListener('touchstart', e => { touchStartX = e.changedTouches[0].screenX; });
+  document.addEventListener('touchend', e => {
+    const diff = touchStartX - e.changedTouches[0].screenX;
+    if (Math.abs(diff) > 50) go(diff > 0 ? 1 : -1);
+  });
+
+  show(0);
+</script>
+</body>
+</html>

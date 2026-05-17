@@ -1,0 +1,128 @@
+# =====================================================================
+# fibo_be_minimal.ttl
+#
+# Minimal FIBO Business Entities (BE) slice for the SEOCHO tutorial.
+#
+# This is a HAND-CURATED teaching subset — it is NOT a FIBO release. The
+# upstream EDM Council Financial Industry Business Ontology is at
+# https://spec.edmcouncil.org/fibo/ (MIT license).
+#
+# Authentic FIBO IRIs are linked via skos:exactMatch so a learner can
+# follow each concept back to its canonical definition. Class names,
+# property names, and definition style follow the FIBO best-practices
+# guide (upper-camel-case classes, verb-prefixed lower-camel-case
+# properties, ISO-704 genus/differentia definitions).
+#
+# This file is loaded in examples/tutorial_03_ontology_indexing.ipynb.
+# =====================================================================
+
+@prefix owl:   <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+@prefix skos:  <http://www.w3.org/2004/02/skos/core#> .
+@prefix dct:   <http://purl.org/dc/terms/> .
+@prefix :      <https://seocho.dev/tutorial/fibo-be-minimal#> .
+@base          <https://seocho.dev/tutorial/fibo-be-minimal> .
+
+
+# --- Ontology header ---------------------------------------------------
+
+<https://seocho.dev/tutorial/fibo-be-minimal> a owl:Ontology ;
+    rdfs:label "FIBO BE Tutorial Minimal" ;
+    dct:abstract "A minimal slice of FIBO Business Entities for teaching the SEOCHO ontology contract." ;
+    dct:license <https://opensource.org/licenses/MIT> ;
+    rdfs:comment "Hand-curated teaching subset — not a FIBO release. See https://spec.edmcouncil.org/fibo/ for the canonical source." .
+
+
+# --- Classes -----------------------------------------------------------
+# Hierarchy:
+#   Party
+#     ├── Person
+#     └── LegalPerson
+#           └── FormalOrganization
+#                 └── Corporation
+#                 └── Bank
+#                 └── RichCustomer
+
+
+
+:Party a owl:Class ;
+    rdfs:label "Party" ;
+    skos:definition "A natural or legal person that is a participant in a business activity." ;
+    skos:exactMatch <https://spec.edmcouncil.org/fibo/ontology/FND/Parties/Parties/AutonomousAgent> .
+
+:Person a owl:Class ;
+    rdfs:label "Person" ;
+    rdfs:subClassOf :Party ;
+    skos:definition "A party that is a natural human being capable of holding rights and responsibilities." ;
+    skos:exactMatch <https://spec.edmcouncil.org/fibo/ontology/FND/AgentsAndPeople/People/Person> .
+
+:LegalPerson a owl:Class ;
+    rdfs:label "LegalPerson" ;
+    rdfs:subClassOf :Party ;
+    skos:definition "A party recognized by law as having rights, obligations, and a legal personality distinct from its members." ;
+    skos:exactMatch <https://spec.edmcouncil.org/fibo/ontology/BE/LegalEntities/LegalPersons/LegalPerson> .
+
+:FormalOrganization a owl:Class ;
+    rdfs:label "FormalOrganization" ;
+    rdfs:subClassOf :LegalPerson ;
+    skos:definition "A legal person that is a formally constituted organization, recognized as a legal entity under the laws of a jurisdiction." ;
+    skos:exactMatch <https://spec.edmcouncil.org/fibo/ontology/BE/LegalEntities/FormalBusinessOrganizations/FormalOrganization> .
+
+:Corporation a owl:Class ;
+    rdfs:label "Corporation" ;
+    rdfs:subClassOf :FormalOrganization ;
+    skos:definition "A formal organization chartered as a separate legal entity, with shareholders, the capacity to issue shares, and limited liability." ;
+    skos:exactMatch <https://spec.edmcouncil.org/fibo/ontology/BE/Corporations/Corporations/Corporation> .
+
+:RichCustomer a owl:Class ;
+    rdfs:label "RichCustomer" ;
+    rdfs:subClassOf :Bank ;
+    skos:definition "은행에 일정 금액 이상의 자산을 예치한 우대 고객." .
+
+# --- Datatype properties ----------------------------------------------
+# Property names are verb-prefixed lower-camel-case per FIBO best practices.
+
+:hasName a owl:DatatypeProperty ;
+    rdfs:label "hasName" ;
+    rdfs:domain :Party ;
+    rdfs:range xsd:string ;
+    skos:definition "Indicates the common name by which a party is known." ;
+    skos:exactMatch <https://spec.edmcouncil.org/fibo/ontology/FND/RelativeDates/Dates/hasName> .
+
+:hasLegalName a owl:DatatypeProperty ;
+    rdfs:label "hasLegalName" ;
+    rdfs:domain :LegalPerson ;
+    rdfs:range xsd:string ;
+    skos:definition "Indicates the officially registered name of a legal person." ;
+    skos:exactMatch <https://spec.edmcouncil.org/fibo/ontology/BE/LegalEntities/LegalPersons/hasLegalName> .
+
+:hasIdentifier a owl:DatatypeProperty ;
+    rdfs:label "hasIdentifier" ;
+    rdfs:domain :LegalPerson ;
+    rdfs:range xsd:string ;
+    skos:definition "Indicates a unique registered identifier such as an LEI, DUNS, or jurisdiction-issued company number." .
+
+:hasTitle a owl:DatatypeProperty ;
+    rdfs:label "hasTitle" ;
+    rdfs:domain :Person ;
+    rdfs:range xsd:string ;
+    skos:definition "Indicates the role or position held by a person within an organization." .
+
+
+# --- Object properties ------------------------------------------------
+
+:isOfficerOf a owl:ObjectProperty ;
+    rdfs:label "isOfficerOf" ;
+    rdfs:domain :Person ;
+    rdfs:range :Corporation ;
+    skos:definition "Indicates that a person serves as an officer of the corporation." ;
+    skos:exactMatch <https://spec.edmcouncil.org/fibo/ontology/BE/LegalEntities/CorporateBodies/isOfficerOf> .
+
+:hasShareholder a owl:ObjectProperty ;
+    rdfs:label "hasShareholder" ;
+    rdfs:domain :Corporation ;
+    rdfs:range :Party ;
+    skos:definition "Indicates a party that owns shares in this corporation." ;
+    skos:exactMatch <https://spec.edmcouncil.org/fibo/ontology/BE/OwnershipAndControl/Ownership/hasShareholder> .

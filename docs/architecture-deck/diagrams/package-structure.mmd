@@ -1,0 +1,45 @@
+%%{init: {'theme': 'dark', 'themeVariables': {'primaryColor': '#6c63ff', 'primaryTextColor': '#e8e8f0', 'primaryBorderColor': '#6c63ff', 'lineColor': '#9090a8', 'secondaryColor': '#1a1a2e', 'tertiaryColor': '#12121a', 'background': '#0a0a0f', 'mainBkg': '#1a1a2e', 'nodeBorder': '#6c63ff', 'clusterBkg': '#12121a', 'clusterBorder': '#2a2a40', 'titleColor': '#e8e8f0', 'edgeLabelBackground': '#1a1a2e'}}}%%
+flowchart TB
+    subgraph SDK ["seocho/ — Canonical SDK Engine"]
+        direction TB
+        ONT["ontology*.py<br/><small>Ontology facade + context +<br/>serialization + artifacts + governance</small>"]
+        QRY["query/<br/><small>intent → strategy → cypher →<br/>semantic agents → answer</small>"]
+        AGT["agent/<br/><small>factory + context + contracts</small>"]
+        IDX["index/<br/><small>pipeline + linker +<br/>extraction engine</small>"]
+        STR["store/<br/><small>graph + vector + llm</small>"]
+        RUL["rules.py<br/><small>SHACL-like inference</small>"]
+        CLI["client.py<br/><small>public SDK facade</small>"]
+        SES["session.py<br/><small>context persistence</small>"]
+    end
+
+    subgraph RT ["runtime/ — Deployment Shell"]
+        direction TB
+        SRV["agent_server.py<br/><small>FastAPI transport</small>"]
+        SRT["server_runtime.py<br/><small>service composition</small>"]
+        MEM["memory_service.py<br/><small>memory-first facade</small>"]
+        POL["policy.py<br/><small>authorization</small>"]
+        RDY["agent_readiness.py<br/><small>ready/degraded/blocked</small>"]
+        ING["runtime_ingest.py<br/><small>raw text ingestion</small>"]
+    end
+
+    subgraph EXT ["extraction/ — Compatibility Layer"]
+        direction TB
+        SHIM["shims + aliases<br/><small>delegates to seocho/* & runtime/*</small>"]
+        PIPE["pipeline.py<br/><small>legacy batch</small>"]
+    end
+
+    subgraph UI ["evaluation/ — Platform UI"]
+        direction TB
+        EVSRV["server.py<br/><small>chat backend proxy</small>"]
+        EVUI["static/<br/><small>interactive chat UI</small>"]
+    end
+
+    RT --> SDK
+    EXT -.->|"compatibility"| RT
+    EXT -.->|"compatibility"| SDK
+    UI --> RT
+
+    style SDK fill:#12121a,stroke:#6c63ff,color:#e8e8f0
+    style RT fill:#12121a,stroke:#00d4aa,color:#e8e8f0
+    style EXT fill:#12121a,stroke:#ffd93d,color:#e8e8f0
+    style UI fill:#12121a,stroke:#ff6b6b,color:#e8e8f0

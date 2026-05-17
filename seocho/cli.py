@@ -272,11 +272,11 @@ def build_parser() -> argparse.ArgumentParser:
     ontology_subparsers = ontology_parser.add_subparsers(dest="ontology_command", required=True)
 
     ontology_check_parser = ontology_subparsers.add_parser("check", help="Validate one ontology definition")
-    ontology_check_parser.add_argument("--schema", required=True, help="Ontology file (JSON-LD or YAML)")
+    ontology_check_parser.add_argument("--schema", required=True, help="Ontology file (JSON-LD, YAML, or TTL)")
     ontology_check_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
 
     ontology_export_parser = ontology_subparsers.add_parser("export", help="Export ontology-derived artifacts")
-    ontology_export_parser.add_argument("--schema", required=True, help="Ontology file (JSON-LD or YAML)")
+    ontology_export_parser.add_argument("--schema", required=True, help="Ontology file (JSON-LD, YAML, or TTL)")
     ontology_export_parser.add_argument(
         "--format",
         required=True,
@@ -290,6 +290,20 @@ def build_parser() -> argparse.ArgumentParser:
     ontology_diff_parser.add_argument("--left", required=True, help="Left ontology file")
     ontology_diff_parser.add_argument("--right", required=True, help="Right ontology file")
     ontology_diff_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
+
+    ontology_report_parser = ontology_subparsers.add_parser(
+        "report",
+        help="Compile a promotion-oriented ontology governance report",
+    )
+    ontology_report_parser.add_argument("--schema", required=True, help="Ontology file (JSON-LD, YAML, or TTL)")
+    ontology_report_parser.add_argument("--artifact-name", default=None, help="Optional semantic artifact draft name")
+    ontology_report_parser.add_argument("--output", default=None, help="Optional output JSON file path")
+    ontology_report_parser.add_argument(
+        "--skip-owl-inspection",
+        action="store_true",
+        help="Skip optional Owlready2 offline inspection",
+    )
+    ontology_report_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
 
     ontology_inspect_parser = ontology_subparsers.add_parser(
         "inspect-owl",
@@ -1120,6 +1134,7 @@ def _cmd_bundle_show(args: argparse.Namespace) -> int:
 
 def _cmd_ontology(args: argparse.Namespace) -> int:
     from .ontology_governance import (
+        build_ontology_governance_report,
         check_ontology,
         diff_ontologies,
         export_ontology_payload,
@@ -1187,6 +1202,39 @@ def _cmd_ontology(args: argparse.Namespace) -> int:
             for warning in diff.migration_warnings:
                 print(f"warning: {warning}")
         return 0
+
+    if args.ontology_command == "report":
+        report = build_ontology_governance_report(
+            args.schema,
+            artifact_name=args.artifact_name,
+            include_owl_inspection=not args.skip_owl_inspection,
+        )
+        payload = report.to_dict()
+        rendered = json.dumps(payload, indent=2, ensure_ascii=False)
+        if args.output:
+            Path(args.output).write_text(rendered + "\n", encoding="utf-8")
+        if getattr(args, "output_json", False):
+            print(rendered)
+        else:
+            descriptor = payload.get("context_descriptor", {})
+            print(f"ontology report: {payload['source']}")
+            print(
+                "  "
+                f"package_id={descriptor.get('ontology_id', '')} "
+                f"version={descriptor.get('ontology_version', '')} "
+                f"context_hash={descriptor.get('context_hash', '')}"
+            )
+            print(
+                "  "
+                f"shapes={payload['shacl_export']['stats'].get('node_shape_count', 0)} "
+                f"properties={payload['shacl_export']['stats'].get('property_shape_count', 0)} "
+                f"sample_data_ok={'yes' if payload['sample_data_validation'].get('ok') else 'no'}"
+            )
+            for note in payload.get("notes", []):
+                print(f"note: {note}")
+            if args.output:
+                print(f"written: {args.output}")
+        return 0 if report.ok else 1
 
     if args.ontology_command == "inspect-owl":
         inspection = inspect_owl_ontology(args.source)

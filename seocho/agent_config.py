@@ -56,8 +56,8 @@ logger = logging.getLogger(__name__)
 class RoutingPolicy:
     """Policy that guides supervisor routing decisions.
 
-    Three axes define the trade-off space. Each is a weight (0.0–1.0)
-    that tells the supervisor what to prioritize.
+    Three core axes define the routing trade-off space; two FIBO-specific
+    axes govern ontology selection. All values are weights in [0.0, 1.0].
 
     Usage::
 
@@ -84,14 +84,31 @@ class RoutingPolicy:
     information_quality:
         How much to prioritize answer/extraction correctness.
         High → enable reasoning, retries, SHACL validation, multi-pass.
+    fibo_coverage:
+        FIBO-aware selector breadth. High → load more modules at lower
+        confidence; low → strict subset. ``0.0`` disables FIBO selection
+        side-effects on threshold (back-compat with non-FIBO callers).
+    audit_strictness:
+        Audit gate for FIBO grounding. When the selector returns no
+        match and ``audit_strictness > 0.7``, the runtime refuses rather
+        than silently falling back. Default ``0.5`` keeps slice-1 callers
+        permissive.
     """
 
     latency: float = 0.33
     token_efficiency: float = 0.33
     information_quality: float = 0.34
+    fibo_coverage: float = 0.0
+    audit_strictness: float = 0.5
 
     def __post_init__(self) -> None:
-        for name in ("latency", "token_efficiency", "information_quality"):
+        for name in (
+            "latency",
+            "token_efficiency",
+            "information_quality",
+            "fibo_coverage",
+            "audit_strictness",
+        ):
             val = getattr(self, name)
             if not (0.0 <= val <= 1.0):
                 raise ValueError(f"{name} must be between 0.0 and 1.0, got {val}")
@@ -175,6 +192,8 @@ class RoutingPolicy:
             "latency": self.latency,
             "token_efficiency": self.token_efficiency,
             "information_quality": self.information_quality,
+            "fibo_coverage": self.fibo_coverage,
+            "audit_strictness": self.audit_strictness,
         }
 
     def to_prompt_context(self) -> str:
@@ -184,6 +203,31 @@ class RoutingPolicy:
             f"token_efficiency={self.token_efficiency:.0%}, "
             f"information_quality={self.information_quality:.0%}. "
             f"Dominant axis: {self.dominant_axis}."
+        )
+
+    def to_selection_policy(self) -> "Any":
+        """Derive a FIBO ``SelectionPolicy`` from this routing policy.
+
+        Mapping:
+        - ``min_confidence`` shrinks as ``fibo_coverage`` grows (high
+          coverage admits more modules).
+        - ``audit_strictness`` passes through.
+        - ``max_candidates`` widens with ``information_quality``.
+
+        Imported lazily so callers that never use FIBO don't pay the
+        import cost.
+        """
+
+        from .fibo.selector import SelectionPolicy
+
+        base_min = 0.5
+        floor = 0.05
+        min_confidence = max(floor, base_min - self.fibo_coverage * (base_min - floor))
+        max_candidates = int(round(5 + 10 * self.information_quality))
+        return SelectionPolicy(
+            min_confidence=min_confidence,
+            audit_strictness=self.audit_strictness,
+            max_candidates=max(1, max_candidates),
         )
 
 

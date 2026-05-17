@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ch 5 · Debate Pool</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reset.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/black.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/highlight/monokai.css">
+<style>
+
+:root {
+  --r-background-color: #1d2329;
+  --r-main-color: #d8dee9;
+  --r-heading-color: #88c0d0;
+  --r-link-color: #88c0d0;
+  --r-selection-background-color: #88c0d0;
+  --r-main-font: 'Inter', 'Pretendard', system-ui, sans-serif;
+  --r-heading-font: 'Inter', 'Pretendard', system-ui, sans-serif;
+  --r-code-font: 'JetBrains Mono', Menlo, monospace;
+}
+.reveal h1 { font-size: 2.2em; color: #88c0d0; }
+.reveal h2 { font-size: 1.5em; color: #88c0d0; margin-bottom: 0.4em; }
+.reveal h3 { font-size: 1.15em; color: #a3be8c; }
+.reveal .subtitle { color: #d8dee9; opacity: 0.75; font-size: 0.9em; }
+.reveal .meta { color: #d8dee9; opacity: 0.55; font-size: 0.7em; margin-top: 1.5em; }
+.reveal pre { box-shadow: none; width: 100%; }
+.reveal pre code {
+  max-height: 460px;
+  padding: 18px 22px;
+  background: #2e3440;
+  border-radius: 6px;
+  font-size: 0.72em;
+  line-height: 1.45;
+}
+.reveal .code-caption {
+  color: #d8dee9; opacity: 0.6; font-size: 0.7em; margin-top: 6px;
+}
+.reveal blockquote {
+  border-left: 3px solid #5e81ac;
+  background: rgba(94, 129, 172, 0.12);
+  padding: 12px 18px; font-style: normal;
+}
+.reveal .callout {
+  background: rgba(163, 190, 140, 0.15);
+  border-left: 3px solid #a3be8c;
+  padding: 14px 20px; border-radius: 4px; margin: 18px 0;
+  text-align: left; font-size: 0.85em;
+}
+.reveal .warn {
+  background: rgba(208, 135, 112, 0.15);
+  border-left: 3px solid #d08770;
+  padding: 14px 20px; border-radius: 4px; margin: 18px 0;
+  text-align: left; font-size: 0.85em;
+}
+.reveal ul { display: inline-block; text-align: left; }
+.reveal li { margin-bottom: 0.35em; }
+.reveal table { font-size: 0.7em; }
+.reveal table th { color: #88c0d0; }
+.reveal .twocol {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 24px; text-align: left;
+}
+.reveal .tiny { font-size: 0.6em; opacity: 0.7; }
+
+</style>
+</head>
+<body>
+<div class="reveal">
+  <div class="slides">
+<section>
+<h1>Chapter 5 — Debate Pool</h1>
+<div class="subtitle">Single · Self-Reflect · Multi-LLM Debate · Hybrid</div>
+<div class="meta">seocho · ontology lab · 2026-S03</div>
+</section>
+<section>
+<h2>5.1 Single — Baseline</h2>
+<ul>
+  <li>1 model × 1 call.</li>
+  <li>측정: 정확도 · 환각률 · 토큰비용 · latency.</li>
+  <li>이후 전략들의 기준점.</li>
+</ul>
+</section>
+<section>
+<h2>5.2 Self-Reflect — 2-Pass</h2>
+<pre><code class="language-text" data-trim data-noescape>draft → critic ("NO_ISSUES?") → revise(if needed)</code></pre>
+<div class="callout">Critic이 "NO_ISSUES"면 Pass 2 생략 — 비용 절감.</div>
+<div class="warn">Critic이 잘못된 비판을 하면 revise 답변이 더 나빠진다 → Pass 1과 비교 후 더 잘 인용된 쪽 채택.</div>
+</section>
+<section>
+<h2>5.3 Multi-LLM Debate — 4 Provider</h2>
+<ul>
+  <li>Round 0: 각 participant 독립 draft.</li>
+  <li>Round 1: 다른 participant draft에 cross-critique.</li>
+  <li>Moderator: 합성 + citation 통합 + uncertainty 명시.</li>
+</ul>
+<aside class="notes">participants = Kimi, DeepSeek, OpenAI, Grok 4개 동시. Moderator는 OpenAI (가장 안정적인 합성).</aside>
+</section>
+<section>
+<h2>5.4 Hybrid — Self-Reflect + Debate</h2>
+<pre><code class="language-text">[Model A] draft → A's critic → A's revised
+[Model B] draft → B's critic → B's revised
+                                  ↓
+                          Debate Round 1
+                                  ↓
+                       Moderator final answer</code></pre>
+<div class="callout">이미 self-reflect 한 draft 끼리 debate → 발산 ↓, 수렴 속도 ↑.</div>
+</section>
+<section>
+<h2>5.5 비용·정확도 트레이드오프 (기대값)</h2>
+<table>
+<thead><tr><th>Strategy</th><th>정확도</th><th>환각률</th><th>토큰(상대)</th><th>Latency(상대)</th></tr></thead>
+<tbody>
+<tr><td>Single</td><td>baseline</td><td>baseline</td><td>1.0×</td><td>1.0×</td></tr>
+<tr><td>Self-Reflect</td><td>↑</td><td>↓↓</td><td>2.0×</td><td>2.0×</td></tr>
+<tr><td>Debate (4 prov)</td><td>↑↑</td><td>↓</td><td>3~5×</td><td>3×</td></tr>
+<tr><td>Hybrid</td><td>↑↑↑</td><td>↓↓</td><td>4~6×</td><td>3~4×</td></tr>
+</tbody>
+</table>
+</section>
+<section>
+<h2>Opik에서 본다</h2>
+<ul>
+  <li>reasoning step 수 vs 정확도 산점도.</li>
+  <li>모델별 token 비용 분포.</li>
+  <li>debate round별 panel answer 유사도 — 수렴 곡선.</li>
+</ul>
+<div class="callout">자기 챕터-05 프로젝트(teaching-ch05-{본인})에서 비교 가능.</div>
+</section>
+<section>
+<h2>시리즈 마무리</h2>
+<ul>
+  <li>Ch 1 indexing → Ch 2 quality → Ch 3 text2cypher → Ch 4 routing → Ch 5 debate.</li>
+  <li>동일한 4-provider 인터페이스, Opik per-user 프로젝트.</li>
+  <li>FinDER 8 카테고리를 임의의 샘플링 패턴으로 활용.</li>
+</ul>
+<div class="warn">후속: BenchmarkRunner 통합, 카테고리별 win-rate, 비용 dashboard.</div>
+</section>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/highlight/highlight.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/notes/notes.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/markdown/markdown.js"></script>
+<script>
+  Reveal.initialize({
+    hash: true,
+    slideNumber: 'c/t',
+    transition: 'slide',
+    plugins: [ RevealHighlight, RevealNotes, RevealMarkdown ]
+  });
+</script>
+</body>
+</html>

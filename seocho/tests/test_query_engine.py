@@ -62,6 +62,34 @@ def test_deterministic_query_planner_returns_canonical_query_plan() -> None:
     assert "MATCH" in plan.cypher
 
 
+def test_deterministic_query_planner_attaches_schema_hints_to_prompt_and_plan() -> None:
+    class RecordingLLM(_FakeLLM):
+        def __init__(self) -> None:
+            self.system_prompt = ""
+
+        def complete(self, *, system, user, temperature, response_format=None):  # noqa: ANN001
+            self.system_prompt = system
+            return super().complete(
+                system=system,
+                user=user,
+                temperature=temperature,
+                response_format=response_format,
+            )
+
+    llm = RecordingLLM()
+    planner = DeterministicQueryPlanner(
+        ontology=_finance_ontology(),
+        llm=llm,
+        workspace_id="finance_benchmark_test",
+    )
+
+    plan = planner.plan("Delta in CBOE Data & Access Solutions rev from 2021-23.")
+
+    assert "Question-scoped schema hints" in llm.system_prompt
+    assert plan.intent_data["schema_hints"]["anchor_label"] == "Company"
+    assert "REPORTED" in plan.intent_data["schema_hints"]["relationship_candidates"]
+
+
 def test_graph_query_executor_returns_canonical_execution_result() -> None:
     planner = DeterministicQueryPlanner(
         ontology=_finance_ontology(),

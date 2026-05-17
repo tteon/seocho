@@ -187,6 +187,27 @@ class LLMBackend(ABC):
     ) -> LLMResponse:
         """Async completion."""
 
+    def chat(
+        self,
+        text: str,
+        *,
+        system: Optional[str] = None,
+        temperature: float = 0.2,
+        max_tokens: Optional[int] = None,
+    ) -> LLMResponse:
+        """Single-shot convenience for notebooks / REPL.
+
+        Production code should call :meth:`complete` directly with explicit
+        ``system`` and ``user`` roles. This shortcut supplies a benign default
+        ``system`` so quick demos and provider comparisons don't have to.
+        """
+        return self.complete(
+            system=system or "You are a careful, concise assistant.",
+            user=text,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+
 
 class EmbeddingBackend(ABC):
     """Abstract interface for embedding generation."""

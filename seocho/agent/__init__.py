@@ -13,12 +13,16 @@ from .factory import (
     query_system_prompt,
     supervisor_system_prompt,
 )
+from .graph_loop import GraphAgenticLoop, LoopIteration, LoopResult
 from .runtime_factory import RuntimeBackedAgentFactory
 
 __all__ = [
     "AGENT_EXECUTION_MODES",
     "EntityRecord",
     "RelationshipRecord",
+    "GraphAgenticLoop",
+    "LoopIteration",
+    "LoopResult",
     "RuntimeBackedAgentFactory",
     "SessionContext",
     "normalize_execution_mode",

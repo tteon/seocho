@@ -141,6 +141,12 @@ class IndexingResult:
     fallback_used: bool = False
     fallback_reason: str = ""
 
+    # Materialised extracted graph payload — the post-write graph view that the
+    # caller (e.g. ``_LocalEngine.add``) can surface to users via
+    # :class:`seocho.models.Memory`. Empty when no nodes survived validation.
+    nodes: List[Dict[str, Any]] = field(default_factory=list)
+    relationships: List[Dict[str, Any]] = field(default_factory=list)
+
     @property
     def ok(self) -> bool:
         return len(self.write_errors) == 0 and self.chunks_processed > 0
@@ -435,8 +441,21 @@ class IndexingPipeline:
             rels = extracted.get("relationships", [])
 
             if not nodes and not rels:
-                result.skipped_chunks += 1
-                continue
+                logger.warning(
+                    "LLM extraction returned an empty graph for chunk %d, using heuristic fallback.",
+                    i,
+                )
+                extracted = self._fallback_extract(chunk, source_id=source_id)
+                nodes = extracted.get("nodes", [])
+                rels = extracted.get("relationships", [])
+                result.fallback_used = True
+                result.fallback_reason = (
+                    result.fallback_reason
+                    or "EmptyExtraction: entity extraction returned no nodes or relationships"
+                )
+                if not nodes and not rels:
+                    result.skipped_chunks += 1
+                    continue
 
             # --- Callback: on_after_extract ---
             if self.on_after_extract:
@@ -632,6 +651,12 @@ class IndexingPipeline:
                 result.total_nodes = summary.get("nodes_created", 0)
                 result.total_relationships = summary.get("relationships_created", 0)
                 result.write_errors = summary.get("errors", [])
+
+                # Surface the materialised graph so callers can show users
+                # what was extracted (Memory.entities, etc.) without having
+                # to issue a second graph query.
+                result.nodes = list(all_nodes)
+                result.relationships = list(all_rels)
 
                 # --- Callback: on_after_write ---
                 if self.on_after_write:

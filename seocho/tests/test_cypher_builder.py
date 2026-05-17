@@ -146,6 +146,42 @@ def test_builder_relationship_lookup_returns_target_properties_and_supporting_fa
     assert "supporting_fact" in cypher
 
 
+def test_builder_derives_schema_hints_from_question_and_namespace() -> None:
+    builder = CypherBuilder(_finance_ontology("rdf"))
+
+    hints = builder.derive_schema_hints(
+        "What revenue did CBOE report in 2023?",
+        raw_intent={
+            "intent": "financial_metric_lookup",
+            "anchor_entity": "CBOE",
+            "anchor_label": "Company",
+            "target_label": "FinancialMetric",
+        },
+    )
+
+    assert hints["namespace"] == "https://seocho.dev/fibo/"
+    assert hints["anchor_label"] == "Company"
+    assert hints["target_label"] == "FinancialMetric"
+    assert "reported" in hints["relationship_candidates"]
+
+
+def test_builder_uses_schema_hints_when_labels_and_relationship_are_missing() -> None:
+    builder = CypherBuilder(_finance_ontology())
+
+    cypher, _ = builder.build(
+        intent="relationship_lookup",
+        anchor_entity="CBOE",
+        target_entity="Revenue",
+        schema_hints={
+            "anchor_label": "Company",
+            "target_label": "FinancialMetric",
+            "relationship_candidates": ["REPORTED"],
+        },
+    )
+
+    assert "MATCH (a:`Company`)-[r:`REPORTED`]-(b:`FinancialMetric`)" in cypher
+
+
 class _FakeLLMResponse:
     def __init__(self, payload: dict) -> None:
         self._payload = payload

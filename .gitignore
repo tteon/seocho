@@ -79,6 +79,8 @@ Thumbs.db
 *.temp
 temp/
 tmp/
+.tmp-land-ontology-cli/
+.experiment_runs/
 
 # Logs
 logs/
@@ -92,6 +94,7 @@ neo4j/data/
 !website/src/data/**
 neo4j/logs/
 .dolt/
+.seocho/
 *.db
 neostore*
 *.lock
@@ -106,12 +109,31 @@ sharepoint/
 examples/.notebook_runs/
 traces/
 
+# Generated extraction scratch artifacts
+extraction/output/
+extraction/prompt_history.json*
+
 # Large exports
 kgbuild_export.*
 
 # Local scratch / nested workspaces (do not track)
 daemon/
 gnnllm/
+tteon.github.io/
+deacon/
+dolt/
+runs/
 
-# Claude Code — personal/ad-hoc permission overlay (shared settings in .claude/settings.json are tracked)
-.claude/settings.local.json
+# Local AI tool overlays (not part of the repo contract)
+.claude/
+.jules/
+.serena/
+
+# .beads backup snapshots (the .beads DB itself is tracked, backups are not)
+.beads/backup/
+
+# Empty placeholders
+examples/untitled.txt
+
+# Per-PR scratch bodies (the actual PR description lives on GitHub)
+PR_BODY.md

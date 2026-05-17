@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
+from urllib.parse import unquote, urlparse
 
 from .ontology import Ontology
 
@@ -12,9 +14,7 @@ def load_ontology_file(path: str | Path) -> Ontology:
     source = Path(path)
     if not source.exists():
         raise FileNotFoundError(f"Ontology file not found: {source}")
-    if source.suffix.lower() in {".yaml", ".yml"}:
-        return Ontology.from_yaml(source)
-    return Ontology.from_jsonld(source)
+    return Ontology.load(source)
 
 
 @dataclass(slots=True)
@@ -77,6 +77,56 @@ class Owlready2InspectionResult:
         }
 
 
+@dataclass(slots=True)
+class GovernanceValidationResult:
+    name: str
+    available: bool
+    ok: bool
+    error: Optional[str]
+    errors: List[str]
+    stats: Dict[str, Any]
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "name": self.name,
+            "available": self.available,
+            "ok": self.ok,
+            "error": self.error,
+            "errors": list(self.errors),
+            "stats": dict(self.stats),
+        }
+
+
+@dataclass(slots=True)
+class OntologyGovernanceReport:
+    source: str
+    ok: bool
+    ontology_check: OntologyCheckResult
+    context_descriptor: Dict[str, Any]
+    artifact_draft: Dict[str, Any]
+    shacl_export: Dict[str, Any]
+    sample_data_validation: GovernanceValidationResult
+    owlready2_inspection: Optional[Owlready2InspectionResult]
+    notes: List[str]
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "source": self.source,
+            "ok": self.ok,
+            "ontology_check": self.ontology_check.to_dict(),
+            "context_descriptor": dict(self.context_descriptor),
+            "artifact_draft": dict(self.artifact_draft),
+            "shacl_export": dict(self.shacl_export),
+            "sample_data_validation": self.sample_data_validation.to_dict(),
+            "owlready2_inspection": (
+                self.owlready2_inspection.to_dict()
+                if self.owlready2_inspection is not None
+                else None
+            ),
+            "notes": list(self.notes),
+        }
+
+
 def check_ontology(ontology: Ontology) -> OntologyCheckResult:
     raw_findings = ontology.validate()
     errors: List[str] = []
@@ -135,6 +185,73 @@ def export_ontology_payload(
     if normalized == "shacl":
         return ontology.to_shacl()
     raise ValueError(f"Unsupported ontology export format: {output_format}")
+
+
+def build_ontology_governance_report(
+    source: str | Path,
+    *,
+    artifact_name: Optional[str] = None,
+    include_owl_inspection: bool = True,
+) -> OntologyGovernanceReport:
+    from .ontology_context import compile_ontology_context
+
+    ontology = load_ontology_file(source)
+    source_path = str(source)
+    ontology_check = check_ontology(ontology)
+    compiled_context = compile_ontology_context(ontology)
+    artifact_draft_obj = ontology.to_semantic_artifact_draft(name=artifact_name)
+    artifact_draft = (
+        artifact_draft_obj.to_dict()
+        if hasattr(artifact_draft_obj, "to_dict")
+        else dict(artifact_draft_obj)
+    )
+    shacl_export = _build_shacl_export(ontology)
+    sample_data = _build_sample_instance_graph(ontology)
+    sample_errors = ontology.validate_with_shacl(sample_data)
+    sample_validation = GovernanceValidationResult(
+        name="synthetic_sample_data",
+        available=True,
+        ok=len(sample_errors) == 0,
+        error=None,
+        errors=sample_errors,
+        stats={
+            "node_count": len(sample_data.get("nodes", [])),
+            "relationship_count": len(sample_data.get("relationships", [])),
+        },
+    )
+
+    owlready2_inspection: Optional[Owlready2InspectionResult] = None
+    notes: List[str] = []
+    if include_owl_inspection:
+        owlready2_inspection = inspect_owl_ontology(source_path)
+        if owlready2_inspection.available and owlready2_inspection.error is None:
+            notes.append("owlready2 inspection available for offline ontology governance.")
+        elif not owlready2_inspection.available:
+            notes.append("owlready2 is unavailable; heavy reasoning remains disabled for this environment.")
+        elif owlready2_inspection.error:
+            notes.append("owlready2 inspection failed; review the ontology source before promotion.")
+
+    if shacl_export["stats"]["node_shape_count"] == 0:
+        notes.append("Generated SHACL export contains no node shapes.")
+    if shacl_export["stats"]["property_shape_count"] == 0:
+        notes.append("Generated SHACL export contains no property constraints.")
+
+    ok = ontology_check.ok and sample_validation.ok
+    if shacl_export.get("unsupported_rules"):
+        ok = False
+        notes.append("Generated SHACL export contains unsupported rules.")
+
+    return OntologyGovernanceReport(
+        source=source_path,
+        ok=ok,
+        ontology_check=ontology_check,
+        context_descriptor=compiled_context.descriptor.to_dict(),
+        artifact_draft=artifact_draft,
+        shacl_export=shacl_export,
+        sample_data_validation=sample_validation,
+        owlready2_inspection=owlready2_inspection,
+        notes=notes,
+    )
 
 
 def diff_ontologies(left: Ontology, right: Ontology) -> OntologyDiffResult:
@@ -312,8 +429,27 @@ def inspect_owl_ontology(source: str | Path) -> Owlready2InspectionResult:
             stats={},
         )
 
+    cleanup_path: Optional[Path] = None
     try:
-        onto = get_ontology(source_str).load()
+        prepared_source, cleanup_path = _prepare_owlready2_source(source_str)
+        onto = get_ontology(prepared_source).load()
+        classes: Sequence[Any] = list(onto.classes())
+        individuals: Sequence[Any] = list(onto.individuals())
+        properties: Sequence[Any] = list(onto.properties())
+        imports: Sequence[Any] = list(getattr(onto, "imported_ontologies", []))
+        return Owlready2InspectionResult(
+            source=source_str,
+            available=True,
+            error=None,
+            stats={
+                "class_count": len(classes),
+                "individual_count": len(individuals),
+                "property_count": len(properties),
+                "import_count": len(imports),
+                "sample_classes": [str(getattr(item, "name", item)) for item in classes[:10]],
+                "sample_properties": [str(getattr(item, "name", item)) for item in properties[:10]],
+            },
+        )
     except Exception as exc:
         return Owlready2InspectionResult(
             source=source_str,
@@ -321,22 +457,148 @@ def inspect_owl_ontology(source: str | Path) -> Owlready2InspectionResult:
             error=str(exc),
             stats={},
         )
+    finally:
+        if cleanup_path is not None:
+            cleanup_path.unlink(missing_ok=True)
 
-    classes: Sequence[Any] = list(onto.classes())
-    individuals: Sequence[Any] = list(onto.individuals())
-    properties: Sequence[Any] = list(onto.properties())
-    imports: Sequence[Any] = list(getattr(onto, "imported_ontologies", []))
 
-    return Owlready2InspectionResult(
-        source=source_str,
-        available=True,
-        error=None,
-        stats={
-            "class_count": len(classes),
-            "individual_count": len(individuals),
-            "property_count": len(properties),
-            "import_count": len(imports),
-            "sample_classes": [str(getattr(item, "name", item)) for item in classes[:10]],
-            "sample_properties": [str(getattr(item, "name", item)) for item in properties[:10]],
+def _build_shacl_export(ontology: Ontology) -> Dict[str, Any]:
+    shacl_document = ontology.to_shacl()
+    return {
+        "document": shacl_document,
+        "turtle": _render_shacl_turtle(shacl_document),
+        "unsupported_rules": [],
+        "stats": {
+            "node_shape_count": len(shacl_document.get("shapes", [])),
+            "property_shape_count": sum(
+                len(shape.get("properties", []))
+                for shape in shacl_document.get("shapes", [])
+                if isinstance(shape, dict)
+            ),
         },
-    )
+    }
+
+
+def _render_shacl_turtle(shacl_document: Dict[str, Any]) -> str:
+    lines = [
+        "@prefix sh: <http://www.w3.org/ns/shacl#> .",
+        "@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .",
+        "@prefix seocho: <https://seocho.dev/ontology/> .",
+        "",
+    ]
+    for shape in shacl_document.get("shapes", []):
+        if not isinstance(shape, dict):
+            continue
+        target_class = str(shape.get("targetClass", "")).strip()
+        if not target_class:
+            continue
+        shape_name = target_class.split(":", 1)[-1] + "Shape"
+        lines.append(f"seocho:{shape_name} a sh:NodeShape ;")
+        lines.append(f"  sh:targetClass {target_class} ;")
+        properties = [
+            prop
+            for prop in shape.get("properties", [])
+            if isinstance(prop, dict)
+        ]
+        if not properties:
+            lines[-1] = lines[-1].rstrip(" ;") + " ."
+            lines.append("")
+            continue
+        for index, prop in enumerate(properties):
+            block_suffix = " ;" if index < len(properties) - 1 else " ."
+            lines.append("  sh:property [")
+            terms = [f"sh:path {prop.get('path')}"]
+            if prop.get("datatype"):
+                terms.append(f"sh:datatype {prop.get('datatype')}")
+            if prop.get("minCount") is not None:
+                terms.append(f"sh:minCount {int(prop.get('minCount', 0))}")
+            if prop.get("maxCount") is not None:
+                terms.append(f"sh:maxCount {int(prop.get('maxCount', 0))}")
+            for term_index, term in enumerate(terms):
+                suffix = " ;" if term_index < len(terms) - 1 else ""
+                lines.append(f"    {term}{suffix}")
+            lines.append(f"  ]{block_suffix}")
+        lines.append("")
+    return "\n".join(lines).strip() + "\n"
+
+
+def _build_sample_instance_graph(ontology: Ontology) -> Dict[str, Any]:
+    nodes: List[Dict[str, Any]] = []
+    relationships: List[Dict[str, Any]] = []
+    node_ids: Dict[str, str] = {}
+
+    for label, node_def in ontology.nodes.items():
+        node_id = f"sample_{label.lower()}"
+        node_ids[label] = node_id
+        properties: Dict[str, Any] = {}
+        for prop_name, prop_def in node_def.properties.items():
+            properties[prop_name] = _sample_property_value(label, prop_name, prop_def.property_type.value)
+        nodes.append(
+            {
+                "id": node_id,
+                "label": label,
+                "properties": properties,
+            }
+        )
+
+    for rel_type, rel_def in ontology.relationships.items():
+        source_id = node_ids.get(rel_def.source)
+        target_id = node_ids.get(rel_def.target)
+        if not source_id or not target_id:
+            continue
+        relationships.append(
+            {
+                "source": source_id,
+                "target": target_id,
+                "type": rel_type,
+                "properties": {},
+            }
+        )
+
+    return {"nodes": nodes, "relationships": relationships}
+
+
+def _sample_property_value(label: str, property_name: str, property_type: str) -> Any:
+    normalized = str(property_type).strip().upper()
+    if normalized == "INTEGER":
+        return 1
+    if normalized == "FLOAT":
+        return 1.0
+    if normalized == "BOOLEAN":
+        return True
+    if normalized == "DATE":
+        return "2026-01-01"
+    if normalized == "DATETIME":
+        return "2026-01-01T00:00:00Z"
+    return f"{label}_{property_name}"
+
+
+def _prepare_owlready2_source(source: str) -> Tuple[str, Optional[Path]]:
+    local_path = _coerce_local_path(source)
+    if local_path is None or local_path.suffix.lower() != ".ttl":
+        return source, None
+
+    try:
+        import rdflib
+    except Exception as exc:
+        raise RuntimeError(f"rdflib unavailable for TTL -> RDF/XML conversion: {exc}") from exc
+
+    graph = rdflib.Graph()
+    graph.parse(str(local_path), format="turtle")
+    with tempfile.NamedTemporaryFile(suffix=".rdf", delete=False) as tmp:
+        tmp_path = Path(tmp.name)
+    graph.serialize(destination=str(tmp_path), format="xml")
+    return tmp_path.as_uri(), tmp_path
+
+
+def _coerce_local_path(source: str) -> Optional[Path]:
+    raw = str(source).strip()
+    if not raw:
+        return None
+    if raw.startswith("file://"):
+        parsed = urlparse(raw)
+        return Path(unquote(parsed.path))
+    candidate = Path(raw)
+    if candidate.exists():
+        return candidate
+    return None

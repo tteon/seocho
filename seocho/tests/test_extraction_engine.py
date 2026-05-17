@@ -109,3 +109,31 @@ def test_canonical_extraction_engine_flattens_nested_relationship_properties():
     extracted = engine.extract("Acme acquired Beta in 2024.", category="general")
 
     assert extracted["relationships"][0]["properties"] == {"year": 2024}
+
+
+def test_canonical_extraction_engine_retries_in_relaxed_mode_after_empty_ontology_guided_pass():
+    ontology = Ontology(
+        name="companies",
+        nodes={"Company": NodeDef(properties={"name": P(str)})},
+        relationships={"ACQUIRED": RelDef(source="Company", target="Company")},
+    )
+    llm = _FakeLLM(
+        [
+            {"nodes": [], "relationships": []},
+            {
+                "nodes": [
+                    {"id": "acme", "label": "Company", "properties": {"name": "Acme"}},
+                ],
+                "relationships": [],
+            },
+        ]
+    )
+    engine = CanonicalExtractionEngine(ontology=ontology, llm=llm)
+
+    extracted = engine.extract("Acme expanded into Asia.", category="general")
+
+    assert len(llm.calls) == 2
+    assert extracted["nodes"][0]["label"] == "Company"
+    assert extracted["_retry"]["attempted"] is True
+    assert extracted["_retry"]["succeeded"] is True
+    assert "Retry once in relaxed mode" in llm.calls[1]["system"]

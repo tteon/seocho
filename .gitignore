@@ -102,6 +102,15 @@ kgbuild_export.*
 daemon/
 gnnllm/
 tteon.github.io/
+deacon/
+dolt/
+runs/
+
+# .beads backup snapshots (the .beads DB itself is tracked, backups are not)
+.beads/backup/
+
+# Empty placeholders
+examples/untitled.txt
 
 # Claude Code — personal/ad-hoc permission overlay (shared settings in .claude/settings.json are tracked)
 .claude/settings.local.json

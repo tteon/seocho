@@ -2,8 +2,8 @@
 
 Hands-on Jupyter notebooks for learning SEOCHO by climbing one layer at a time.
 This is the canonical home for runnable notebooks and example assets.
-Top-level `notebooks/` is legacy exploratory material and should not receive
-new onboarding or public example content.
+Legacy exploratory notebooks now live under `examples/labs/legacy/` and should
+not receive new onboarding or public example content.
 
 ## The teaching arc
 
@@ -21,6 +21,12 @@ Companion entry points:
 |----------|------------------|
 | [quickstart.ipynb](quickstart.ipynb) | The "run-everything-once" tour: ontology, indexing/agent design YAML, four-provider comparison, observability. |
 | [bring_your_data.ipynb](bring_your_data.ipynb) | Plug in your own data — text files, CSV, JSON. Reuse the patterns from tutorials 1–3. |
+
+Supporting subtrees:
+
+- `demos/` — demo scripts and tracing-focused examples.
+- `labs/legacy/` — older exploratory notebooks preserved for reference.
+- `teaching/` — longer-form teaching curriculum, slide decks, and chapter notes.
 
 ## What each tutorial actually teaches
 
@@ -66,7 +72,7 @@ If the FIBO version changes, every artifact tagged with the old hash is traceabl
 A 14-slide HTML deck rendering the same arc against the **FinDER** financial-QA benchmark (5,703 expert-annotated 10-K queries) and the **FIBO** best-practices guide:
 
 - [`tutorial_slides.html`](tutorial_slides.html) — the arc as taught in these three notebooks.
-- [`../teaching-resource/seocho_finder_fibo_teaching.html`](../teaching-resource/seocho_finder_fibo_teaching.html) — apply that arc to a real benchmark dataset (FinDER) with the FIBO subset shipped here.
+- [`teaching/seocho_finder_fibo_teaching.html`](teaching/seocho_finder_fibo_teaching.html) — apply that arc to a real benchmark dataset (FinDER) with the FIBO subset shipped here.
 
 Open either with any browser; both use Reveal.js from CDN — no build step.
 

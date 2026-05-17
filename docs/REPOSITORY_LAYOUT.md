@@ -21,25 +21,33 @@ should actually go.
 
 ## Contributor Tooling Metadata
 
-These directories are intentional. They are not product runtime code.
+These directories are intentional and remain part of the tracked repo contract.
 
 | Path | Role |
 |---|---|
 | `.agents/` | Codex skills and Gastown shared-seam registry |
 | `.beads/` | Canonical task/status tracker metadata |
-| `.claude/` | Claude-specific shared settings and skills |
 | `.githooks/` | Repo-managed Git hooks |
-| `.jules/` | Jules tool configuration/prompts |
-| `.serena/` | Serena tool configuration |
+
+## Developer-Local Tool Overlays
+
+These paths are local tool state or personal agent overlays. They should stay
+ignored and should not be treated as part of the public GitHub surface.
+
+| Path | Role |
+|---|---|
+| `.claude/` | Claude local settings, hooks, and personal skills |
+| `.jules/` | Jules local configuration/prompts |
+| `.serena/` | Serena local configuration/cache |
 
 ## Learning And Reference Assets
 
 | Path | Status | Notes |
 |---|---|---|
-| `examples/` | Canonical | Preferred home for runnable notebooks, datasets, and example configs. |
-| `notebooks/` | Legacy | Exploratory notebooks retained for reference; do not add new onboarding notebooks here. |
-| `demos/` | Active reference | Demo scripts and tracing examples; useful for targeted walkthroughs, not the primary docs path. |
-| `teaching-resource/` | Active reference | Longer-form teaching/course material. |
+| `examples/` | Canonical hub | Preferred home for runnable notebooks, datasets, demos, and example configs. |
+| `examples/demos/` | Active reference | Demo scripts and tracing examples; useful for targeted walkthroughs, not the primary docs path. |
+| `examples/labs/legacy/` | Legacy | Older exploratory notebooks retained for reference; do not add new onboarding notebooks here. |
+| `examples/teaching/` | Active reference | Longer-form teaching/course material. |
 | `docs/archive/` | Historical | Kept for reference only, not current contract. |
 
 ## Secondary Or Compatibility Surfaces
@@ -77,11 +85,14 @@ layout.
 
 ## Placement Rules
 
-- Put new runnable notebooks, datasets, and sample configs under `examples/`.
-- Do not add new onboarding material under top-level `notebooks/`.
+- Put new runnable notebooks, datasets, demos, and sample configs under `examples/`.
+- Keep exploratory or deprecated notebook material under `examples/labs/legacy/`,
+  not as new repo-root directories.
 - Put new contributor automation under `scripts/`, `.agents/`, or `.githooks`
   depending on purpose.
 - Keep generated local state under ignored artifact paths such as `data/`,
-  `logs/`, `outputs/`, and `.seocho/`.
+  `logs/`, `outputs/`, `.seocho/`, and `extraction/output/`.
+- Keep AI-tool-specific local overlays out of Git tracking unless the repo
+  explicitly adopts them as a shared contract.
 - If you add a new top-level directory, update this document and the relevant
   README entry point in the same change.

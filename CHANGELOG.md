@@ -17,7 +17,7 @@ All notable changes to this project are documented here. Versioning follows
 ## [0.4.0] — 2026-05-16
 
 Minor release that consolidates the engineering-improvement candidates
-surfaced while building the `teaching-resource/` curriculum (8 bd tickets
+surfaced while building the `examples/teaching/` curriculum (8 bd tickets
 closed). All additions are new top-level submodules; nothing in 0.3.x is
 removed or renamed, so 0.3.x consumers upgrade without code changes.
 
@@ -66,7 +66,7 @@ removed or renamed, so 0.3.x consumers upgrade without code changes.
   to a follow-up).
 
 ### Curriculum
-- New `teaching-resource/` with 5 chapter notebooks + Reveal.js slide
+- New `examples/teaching/` curriculum with 5 chapter notebooks + Reveal.js slide
   decks + chapter-by-chapter depth appendices (property design, GDS
   engineering, Cypher failure taxonomy, routing decision design, debate
   convergence). All chapters demonstrate the 4-provider (OpenAI / Kimi /

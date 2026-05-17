@@ -8,7 +8,7 @@
 ## Prerequisites
 - Neo4j/DozerDB 인스턴스 (`bolt://localhost:7687`), `apoc.*`, `n10s.*`, `gds.*` 권한
 - `pip install seocho`
-- 데이터셋: `teaching-resource/context_dataset_FinDER.pdf` (1차 인덱싱 대상), `examples/datasets/fibo_be_minimal.ttl` (스키마)
+- 데이터셋: `examples/teaching/context_dataset_FinDER.pdf` (1차 인덱싱 대상), `examples/datasets/fibo_be_minimal.ttl` (스키마)
 
 ## 1.1 Source, Chunk, Entity (3-layer)
 

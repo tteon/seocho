@@ -1,6 +1,7 @@
 # Colab 사용 가이드
 
-Colab 에서 teaching-resource 노트북을 돌릴 때 첫 셀에 아래 블록 하나만 붙이면 환경이 준비됩니다.
+Colab 에서 `examples/teaching/` 노트북을 돌릴 때 첫 셀에 아래 블록
+하나만 붙이면 환경이 준비됩니다.
 
 ## 1단계 — 자격증명 (Colab Secrets 사용 권장)
 
@@ -28,13 +29,13 @@ subprocess.run([sys.executable, '-m', 'pip', 'install', '-q',
                 'openai-agents'],
                check=True)
 
-# (b) teaching-resource _shared 모듈 (개별 업로드 또는 git clone)
+# (b) examples/teaching _shared 모듈 (개별 업로드 또는 git clone)
 #  옵션 1: GitHub 에서 raw 파일 가져오기  (저장소 공개일 때)
-#    !git clone -q https://github.com/<your-org>/seocho-teaching /content/teaching
-#    %cd /content/teaching/teaching-resource
-#  옵션 2: 좌측 파일 패널에 teaching-resource/_shared/ 와 .env.example 업로드 후
-#    %cd /content/teaching-resource
-HERE = '/content/teaching-resource'  # 환경에 맞게 수정
+#    !git clone -q https://github.com/<your-org>/seocho /content/seocho
+#    %cd /content/seocho/examples/teaching
+#  옵션 2: 좌측 파일 패널에 examples/teaching/_shared/ 와 .env.example 업로드 후
+#    %cd /content/examples/teaching
+HERE = '/content/examples/teaching'  # 환경에 맞게 수정
 if HERE not in sys.path:
     sys.path.insert(0, HERE)
 os.chdir(HERE)

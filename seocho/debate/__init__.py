@@ -3,7 +3,7 @@
 Closes seocho-vij5.
 
 This module promotes the convergence-curve + early-stop logic from
-``teaching-resource/chapter-05-debate-convergence-analysis.md`` (the Ch 5
+``examples/teaching/chapter-05-debate-convergence-analysis.md`` (the Ch 5
 appendix) to a stable SDK surface. The heavyweight orchestration (Society of
 Mind / supervisor synthesis) already lives in ``extraction/debate.py``; this
 module focuses on the *telemetry contract* learners and evaluators need:

@@ -3,7 +3,7 @@
 Closes seocho-le4c.
 
 The 5 checks are taken verbatim from
-``teaching-resource/chapter-01-property-design.md`` §10 (the curriculum's
+``examples/teaching/chapter-01-property-design.md`` §10 (the curriculum's
 property-design appendix). They are:
 
 1. ``future_dated_mentions``    — ``r.extracted_at > now()``

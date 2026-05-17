@@ -15,7 +15,7 @@ practice:
   calling ``gds.graph.project.estimate``.
 
 This module wraps the safe operating pattern from
-``teaching-resource/chapter-02-gds-engineering.md`` (the Ch 2 appendix)
+``examples/teaching/chapter-02-gds-engineering.md`` (the Ch 2 appendix)
 into a context manager:
 
 ::

@@ -6,7 +6,7 @@ Background
 ----------
 Routing inside the runtime today is implicit: intent inference happens, then
 weights and refusal logic are inlined per call site. The Ch 4 appendix
-(``teaching-resource/chapter-04-routing-decision-design.md``) consolidates
+(``examples/teaching/chapter-04-routing-decision-design.md``) consolidates
 the decision tree, confidence thresholds, context-window budget, temporal
 staleness penalty, and refusal contract — this module codifies the same
 contract as a single object so we can:

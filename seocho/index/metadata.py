@@ -3,7 +3,7 @@
 Closes seocho-hpml (MVP).
 
 This module formalises the 7-category property model documented in
-``teaching-resource/chapter-01-property-design.md``:
+``examples/teaching/chapter-01-property-design.md``:
 
     Identity · Provenance · Trust · Lineage · Temporal · Tenancy · Performance
 

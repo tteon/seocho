@@ -27,8 +27,8 @@ Make the default local compose path image-backed.
 
 - `docker-compose.yml` now builds `extraction-service` from repo-root context
   using `extraction/Dockerfile`.
-- That image bakes `extraction/`, `runtime/`, `seocho/`, `notebooks/`, and
-  `demos/` into the container image.
+- That image bakes `extraction/`, `runtime/`, `seocho/`, and the curated
+  example assets used for legacy notebooks and demos into the container image.
 - The default `make up` path now runs `docker compose up -d --build` so the
   running runtime matches the source snapshot that was just built.
 

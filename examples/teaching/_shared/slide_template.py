@@ -2,11 +2,12 @@
 
 Matches the existing repo style (Nord palette, monospaced code blocks,
 callout/warn boxes) so chapter slides feel consistent with
-``examples/tutorial_slides.html`` and ``teaching-resource/seocho_finder_fibo_teaching.html``.
+``examples/tutorial_slides.html`` and
+``examples/teaching/seocho_finder_fibo_teaching.html``.
 
 Quick start
 -----------
-    from teaching_resource._shared.slide_template import build_deck, slide
+    from _shared.slide_template import build_deck, slide
 
     html = build_deck(
         title="Chapter 1 — Knowledge Graph Indexing",

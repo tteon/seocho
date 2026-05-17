@@ -98,6 +98,10 @@ sharepoint/
 examples/.notebook_runs/
 traces/
 
+# Generated extraction scratch artifacts
+extraction/output/
+extraction/prompt_history.json*
+
 # Large exports
 kgbuild_export.*
 
@@ -109,6 +113,11 @@ deacon/
 dolt/
 runs/
 
+# Local AI tool overlays (not part of the repo contract)
+.claude/
+.jules/
+.serena/
+
 # .beads backup snapshots (the .beads DB itself is tracked, backups are not)
 .beads/backup/
 
@@ -117,6 +126,3 @@ examples/untitled.txt
 
 # Per-PR scratch bodies (the actual PR description lives on GitHub)
 PR_BODY.md
-
-# Claude Code — personal/ad-hoc permission overlay (shared settings in .claude/settings.json are tracked)
-.claude/settings.local.json

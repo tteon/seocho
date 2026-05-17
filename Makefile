@@ -188,11 +188,4 @@ tutorials-test: ## Headless nbconvert run of every tutorial notebook (reads OPEN
 		echo "ℹ️   T3 needs T1 to run first to populate the workspace it reads."; \
 		echo "✅ Tutorial notebooks executed; outputs under .seocho/test_runs/"'
 
-##@ Production
-
-prod-up: ## Start services in production mode
-	@echo "🚀 Starting production services..."
-	@docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
-
-dev-up: ## Start services in development mode
-	@$(DOCKER_COMPOSE_LIVE) up -d --build
+dev-up: up-live ## Alias for up-live

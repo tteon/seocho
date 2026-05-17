@@ -101,6 +101,9 @@ Recommended onboarding order:
 - GitHub `README.md` is the fastest product landing page.
 - `docs/*` is the source of truth for long-form product, operator, and system
   contracts.
-- `tteon.github.io/` mirrors selected pages for `https://seocho.blog`.
-- If a source doc changes materially, update the mirrored website page and
-  validate drift with the website repo checks.
+- `website/` is the tracked Astro/Starlight source for `https://seocho.blog`.
+- `website/scripts/generate-docs.mjs` materializes selected `/docs/*` and
+  `/blog/*` pages from the repo-root source docs at build time.
+- Generated mirror files under `website/src/content/docs/docs/` are derived
+  artifacts; edit the repo-root source docs instead.
+- Validate the site with `cd website && npm ci && npm run check:docs && npm run build && bash scripts/check-built-links.sh`.

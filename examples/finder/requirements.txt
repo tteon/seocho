@@ -1,0 +1,20 @@
+# Tutorial-specific Python dependencies on top of the seocho [ci] extra.
+# The Dockerfile installs seocho first (which pulls in lancedb, neo4j, openai,
+# pyyaml, fastapi, etc. via the ci extra), then layers these on top.
+
+jupyterlab>=4.0
+notebook>=7.0
+ipykernel>=6.0
+# Required by Opik SDK's progress bars in evaluate()/dataset.insert().
+# Without it, headless `nbconvert` runs raise "IProgress not found".
+ipywidgets>=8.0
+matplotlib>=3.7
+networkx>=3.0
+# scipy backs networkx's pagerank/eigenvector centrality (Tutorial 3)
+scipy>=1.11
+pandas>=2.0
+python-dotenv>=1.0
+pyarrow>=14.0
+# rdflib is used by seocho.Ontology.from_ttl/to_ttl (Tutorial 4 TTL plus/minus)
+# and by graph_viz.draw_rdf if you ever want to visualize triples.
+rdflib>=7.0

@@ -1,0 +1,34 @@
+@prefix owl:    <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+@prefix priv:   <https://seocho.dev/private/> .
+
+priv:Ontology   a owl:Ontology ;
+                rdfs:label "Private extension — adds IP and litigation" .
+
+# Classes
+priv:Patent         a owl:Class ;
+                    rdfs:label "Patent" .
+
+priv:Lawsuit        a owl:Class ;
+                    rdfs:label "Lawsuit" .
+
+priv:Regulator      a owl:Class ;
+                    rdfs:label "Regulator" .
+
+# Object properties
+priv:owns           a owl:ObjectProperty ;
+                    rdfs:label "Owns" ;
+                    rdfs:domain priv:LegalEntity ;
+                    rdfs:range  priv:Patent .
+
+priv:defendantIn    a owl:ObjectProperty ;
+                    rdfs:label "Defendant in" ;
+                    rdfs:domain priv:LegalEntity ;
+                    rdfs:range  priv:Lawsuit .
+
+priv:regulatedBy    a owl:ObjectProperty ;
+                    rdfs:label "Regulated by" ;
+                    rdfs:domain priv:LegalEntity ;
+                    rdfs:range  priv:Regulator .

@@ -2,8 +2,9 @@
 
 DOCKER_COMPOSE = docker compose
 DOCKER_COMPOSE_LIVE = docker compose -f docker-compose.yml -f docker-compose.dev.yml
+DOCKER_COMPOSE_TUTORIALS = docker compose -f docker-compose.tutorials.yml
 
-.PHONY: up up-live up-legacy-semantic down restart logs clean bootstrap shell test test-integration e2e-smoke lint format help opik-up opik-down opik-logs demo-raw demo-meta demo-neo4j demo-graphrag-opik demo-all setup-env
+.PHONY: up up-live up-legacy-semantic down restart logs clean bootstrap shell test test-integration e2e-smoke lint format help opik-up opik-down opik-logs demo-raw demo-meta demo-neo4j demo-graphrag-opik demo-all setup-env tutorials-up tutorials-down tutorials-logs tutorials-shell tutorials-build tutorials-smoke tutorials-test tutorials-pytest tutorials-gds
 
 ##@ Development
 
@@ -117,4 +118,81 @@ opik-down: ## Stop all services including Opik
 opik-logs: ## View Opik service logs
 	@docker compose --profile opik logs -f --tail=100 opik-backend opik-python-backend opik-frontend
 
-dev-up: up-live ## Alias for up-live
+##@ FinDER Tutorials
+
+tutorials-up: ## Start the tutorial Jupyter + Neo4j browser stack
+	@echo "📓 Starting FinDER tutorial environment..."
+	@$(DOCKER_COMPOSE_TUTORIALS) up -d --build
+	@echo "✅ Tutorial environment started."
+	@echo "📓 JupyterLab:    http://localhost:$${TUTORIALS_JUPYTER_PORT:-8888}/lab/tree/examples/finder"
+	@echo "🌐 Neo4j Browser: http://localhost:$${TUTORIALS_NEO4J_HTTP_PORT:-7474}  (neo4j / $${TUTORIALS_NEO4J_PASSWORD:-tutorialspw})"
+
+tutorials-down: ## Stop the tutorial stack
+	@echo "🛑 Stopping FinDER tutorial environment..."
+	@$(DOCKER_COMPOSE_TUTORIALS) down
+
+tutorials-logs: ## Tail logs from the tutorial stack
+	@$(DOCKER_COMPOSE_TUTORIALS) logs -f --tail=100
+
+tutorials-shell: ## Open a shell inside the tutorial Jupyter container
+	@$(DOCKER_COMPOSE_TUTORIALS) exec tutorials-jupyter bash
+
+tutorials-gds: ## Install OpenGDS (DozerDB-compatible Graph Data Science) into the tutorial Neo4j
+	@bash setup_opengds.sh
+	@$(DOCKER_COMPOSE_TUTORIALS) restart tutorials-neo4j
+	@echo "✅ OpenGDS installed and Neo4j restarted."
+	@echo "ℹ️   Verify in cypher-shell: RETURN gds.version() AS version"
+
+tutorials-build: ## Build the tutorial Docker image without starting the container
+	@OPENAI_API_KEY=$${OPENAI_API_KEY:-build} $(DOCKER_COMPOSE_TUTORIALS) build
+
+tutorials-smoke: ## Fast smoke test — import every module each tutorial uses
+	@OPENAI_API_KEY=$${OPENAI_API_KEY:-smoke} $(DOCKER_COMPOSE_TUTORIALS) run --rm --no-deps tutorials-jupyter \
+		python -c "import sys; \
+from seocho.benchmarking import load_finder_cases; \
+from seocho.store.vector import create_vector_store; \
+from seocho.store.llm import create_llm_backend; \
+from seocho import Ontology, Seocho; \
+from seocho.index.pipeline import IndexingPipeline; \
+from seocho.store.graph import Neo4jGraphStore; \
+from seocho.query.strategy import ExtractionStrategy; \
+from examples.finder.lib.lance_graph_store import LanceGraphStore; \
+from examples.finder.lib.graph_viz import draw_lpg, fetch_lpg_subgraph; \
+from examples.finder.lib.ontology_io import ontology_plus, ontology_minus; \
+from seocho.tracing import enable_tracing, log_span, flush_tracing; \
+from seocho.agent_config import AgentConfig, RoutingPolicy; \
+from extraction.agent_base.base import BaseAgent, register_tool; \
+import networkx as nx; \
+print('✅ All four tutorial import chains resolve cleanly')"
+
+tutorials-pytest: ## Run the seocho test suite inside the tutorials container
+	@OPENAI_API_KEY=$${OPENAI_API_KEY:-test} $(DOCKER_COMPOSE_TUTORIALS) run --rm --no-deps tutorials-jupyter \
+		python -m pytest seocho/tests/test_ontology_ttl.py -v
+
+tutorials-test: ## Headless nbconvert run of every tutorial notebook (reads OPENAI_API_KEY from .env)
+	@$(DOCKER_COMPOSE_TUTORIALS) run --rm --no-deps tutorials-jupyter bash -lc '\
+		if [ -z "$$OPENAI_API_KEY" ] || [ "$$OPENAI_API_KEY" = "placeholder" ] || [ "$$OPENAI_API_KEY" = "test" ]; then \
+			echo "❌ OPENAI_API_KEY not set inside the container. Put a real key in .env."; \
+			exit 1; \
+		fi; \
+		set -e; mkdir -p /workspace/.seocho/test_runs; cd /workspace; \
+		for nb in examples/finder/01_vector_vs_graph_rag.ipynb \
+		           examples/finder/02_fibo_module_impact.ipynb \
+		           examples/finder/03_network_analytics.ipynb \
+		           examples/finder/04_private_opik.ipynb; do \
+			echo "▶️  Executing $$nb"; \
+			jupyter nbconvert --to notebook --execute "$$nb" \
+				--ExecutePreprocessor.timeout=900 \
+				--output "/workspace/.seocho/test_runs/$$(basename $$nb)"; \
+		done; \
+		echo "ℹ️   T3 needs T1 to run first to populate the workspace it reads."; \
+		echo "✅ Tutorial notebooks executed; outputs under .seocho/test_runs/"'
+
+##@ Production
+
+prod-up: ## Start services in production mode
+	@echo "🚀 Starting production services..."
+	@docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+dev-up: ## Start services in development mode
+	@$(DOCKER_COMPOSE_LIVE) up -d --build

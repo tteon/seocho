@@ -105,7 +105,6 @@ These affect everyone and may have repo-wide consequences.
 - `opik/`
 - `extraction/output/`
 - bundled sample/binary folders inside `extraction/`
-- `tteon.github.io/`
 
 These are runtime artifacts, embedded workspaces, or high-noise areas.
 

@@ -1,0 +1,62 @@
+graph_type: "fibo_sec"
+package_id: "fibo_sec"
+version: "1.0.0"
+description: "FIBO Securities module — equities, dividends, share buybacks, capital structure"
+graph_model: "lpg"
+nodes:
+  Equity:
+    description: "Equity security of a legal entity"
+    aliases: [Stock, CommonStock, Share]
+    properties:
+      ticker:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+      class:
+        type: STRING
+        description: "e.g. Common, Class A, Class B"
+      shares_outstanding:
+        type: STRING
+  Dividend:
+    description: "A dividend declaration or payment event"
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+      amount_per_share:
+        type: STRING
+      payment_date:
+        type: STRING
+      total_paid:
+        type: STRING
+  ShareBuyback:
+    description: "A share repurchase event"
+    aliases: [Repurchase, Buyback]
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+      amount:
+        type: STRING
+      shares_repurchased:
+        type: STRING
+      period:
+        type: STRING
+relationships:
+  ISSUES:
+    source: LegalEntity
+    target: Equity
+    description: "Entity issues equity security"
+    cardinality: ONE_TO_MANY
+  DECLARED:
+    source: LegalEntity
+    target: Dividend
+    description: "Entity declared dividend"
+    cardinality: ONE_TO_MANY
+  EXECUTED:
+    source: LegalEntity
+    target: ShareBuyback
+    description: "Entity executed buyback"
+    cardinality: ONE_TO_MANY

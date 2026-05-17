@@ -137,12 +137,12 @@ def platform_chat(message: str, **kwargs: Any) -> PlatformChatResponse:
     return get_client().platform_chat(message, **kwargs)
 
 
-def session_history(session_id: str) -> PlatformSessionResponse:
-    return get_client().session_history(session_id)
+def session_history(session_id: str, **kwargs: Any) -> PlatformSessionResponse:
+    return get_client().session_history(session_id, **kwargs)
 
 
-def reset_session(session_id: str) -> PlatformSessionResponse:
-    return get_client().reset_session(session_id)
+def reset_session(session_id: str, **kwargs: Any) -> PlatformSessionResponse:
+    return get_client().reset_session(session_id, **kwargs)
 
 
 def raw_ingest(

@@ -381,12 +381,17 @@ onto = Ontology(name="fibo", graph_model="rdf",
 
 ## Documentation
 
+`seocho.blog` is built from the tracked Astro/Starlight site under `website/`.
+Selected long-form docs are generated there from this repo's canonical
+`README.md` and `docs/*` tree at build time.
+
 | Doc | Description |
 |-----|-------------|
 | [seocho.blog](https://seocho.blog) | Full documentation site |
 | [SDK Overview](https://seocho.blog/sdk/) | SDK features and quick start |
 | [Ontology Guide](https://seocho.blog/sdk/ontology-guide/) | Schema design, JSON-LD, SHACL |
 | [API Reference](https://seocho.blog/sdk/api-reference/) | Complete method reference |
+| [website/](website/) | In-repo Astro/Starlight source for `seocho.blog` |
 | [docs/USECASES.md](docs/USECASES.md) | Runnable usecase demos |
 | [docs/BEGINNER_GUIDE.md](docs/BEGINNER_GUIDE.md) | Guided first-run path with architecture snippets |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture |
@@ -395,6 +400,8 @@ onto = Ontology(name="fibo", graph_model="rdf",
 | [docs/BENCHMARKS.md](docs/BENCHMARKS.md) | Private finance corpus and GraphRAG-Bench evaluation tracks |
 | [docs/WORKFLOW.md](docs/WORKFLOW.md) | Operational workflow |
 | [docs/ISSUE_TASK_SYSTEM.md](docs/ISSUE_TASK_SYSTEM.md) | Sprint/task governance |
+| [docs/SHACL_GRAPHRAG_PLAYBOOK.md](docs/SHACL_GRAPHRAG_PLAYBOOK.md) | SHACL + GraphRAG playbook |
+| [examples/finder/](examples/finder/) | FinDER tutorial bundle — four notebooks (Vector vs Graph RAG, FIBO module impact, RDF vs LPG, private Opik workflow) plus Docker env |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute |
 
 ## Observability

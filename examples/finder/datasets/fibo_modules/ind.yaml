@@ -1,0 +1,63 @@
+graph_type: "fibo_ind"
+package_id: "fibo_ind"
+version: "1.0.0"
+description: "FIBO Indices and Indicators module — financial metrics, ratios, monetary amounts"
+graph_model: "lpg"
+nodes:
+  FinancialMetric:
+    description: "A reported financial figure (revenue, operating income, EPS, ratios)"
+    aliases: [Metric, KPI, FinancialFigure]
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+      value:
+        type: STRING
+        description: "Numeric value with units"
+      period:
+        type: STRING
+        description: "Reporting period (e.g. FY2023)"
+      basis:
+        type: STRING
+        description: "GAAP / non-GAAP / segment basis"
+  MonetaryAmount:
+    description: "A specific monetary figure cited in disclosures"
+    aliases: [Amount, Figure]
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+      currency:
+        type: STRING
+      amount:
+        type: STRING
+  CapitalRatio:
+    description: "A regulatory capital ratio (CET1, Tier 1, leverage)"
+    aliases: [RegulatoryRatio]
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+      value:
+        type: STRING
+      period:
+        type: STRING
+relationships:
+  REPORTED_METRIC:
+    source: LegalEntity
+    target: FinancialMetric
+    description: "Entity reported metric"
+    cardinality: ONE_TO_MANY
+  HAS_AMOUNT:
+    source: FinancialMetric
+    target: MonetaryAmount
+    description: "Metric resolves to monetary amount"
+    cardinality: ONE_TO_ONE
+  REPORTED_RATIO:
+    source: LegalEntity
+    target: CapitalRatio
+    description: "Entity reported regulatory capital ratio"
+    cardinality: ONE_TO_MANY

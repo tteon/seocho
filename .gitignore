@@ -1,3 +1,7 @@
+# Tutorial work directories (LanceDB tables, owlready2 sqlite, JSONL traces,
+# DozerDB data, captured spans). Anything under .seocho/ is local state.
+.seocho/
+
 # Rust (seocho-core)
 seocho-core/target/
 seocho-core/Cargo.lock
@@ -24,6 +28,11 @@ eggs/
 .eggs/
 lib/
 lib64/
+# But the FinDER tutorial bundle's lib/ contains adapter/helper modules
+# that must be tracked. Explicit allowlist of file types we ship there.
+!examples/finder/lib/
+!examples/finder/lib/*.py
+!examples/finder/lib/*.md
 parts/
 sdist/
 var/
@@ -81,6 +90,8 @@ outputs/
 # Data & Database
 data/
 neo4j/data/
+!website/src/data/
+!website/src/data/**
 neo4j/logs/
 .dolt/
 .seocho/

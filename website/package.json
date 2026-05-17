@@ -1,0 +1,26 @@
+{
+  "name": "seocho-site",
+  "type": "module",
+  "version": "0.0.1",
+  "scripts": {
+    "docs:generate": "node scripts/generate-docs.mjs",
+    "dev": "npm run docs:generate && astro dev",
+    "start": "npm run dev",
+    "build": "npm run docs:generate && astro build",
+    "preview": "astro preview",
+    "astro": "astro",
+    "check:docs": "npm run docs:generate && bash scripts/check-doc-quality.sh"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.37.6",
+    "@tailwindcss/vite": "^4.2.0",
+    "astro": "^5.6.1",
+    "sharp": "^0.34.2",
+    "starlight-blog": "^0.25.2"
+  },
+  "devDependencies": {
+    "@astrojs/mdx": "^4.3.13",
+    "@astrojs/tailwind": "^6.0.2",
+    "tailwindcss": "^3.4.19"
+  }
+}

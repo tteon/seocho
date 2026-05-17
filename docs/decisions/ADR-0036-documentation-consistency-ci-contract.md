@@ -1,11 +1,11 @@
 # ADR-0036: Documentation Consistency CI Contract
 
 Date: 2026-04-11
-Status: Accepted
+Status: Superseded by ADR-0089
 
 ## Context
 
-SEOCHO now has two documentation surfaces:
+SEOCHO then had two documentation surfaces:
 
 - repository docs in `README.md` and `docs/*`
 - website docs in `tteon.github.io`

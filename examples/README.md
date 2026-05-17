@@ -21,6 +21,7 @@ Companion entry points:
 |----------|------------------|
 | [quickstart.ipynb](quickstart.ipynb) | The "run-everything-once" tour: ontology, indexing/agent design YAML, four-provider comparison, observability. |
 | [bring_your_data.ipynb](bring_your_data.ipynb) | Plug in your own data — text files, CSV, JSON. Reuse the patterns from tutorials 1–3. |
+| [finder/](finder/) | FinDER tutorial bundle — four notebooks (Vector vs Graph RAG, FIBO module impact, RDF vs LPG, private Opik workflow) plus their helper modules and Docker env. See [finder/README.md](finder/README.md) for the bundle's index. |
 
 Supporting subtrees:
 
@@ -97,6 +98,73 @@ jupyter notebook
 ```
 
 Then open the notebook and run cells top to bottom. All three tutorials are **idempotent** — setup cells install only what's missing, `load_dotenv()` won't override existing keys, `nbformat` validates clean.
+
+## Running the FinDER tutorials in Docker (recommended)
+
+The four FinDER notebooks have a packaged Docker environment with JupyterLab
+plus a bundled **Neo4j (DozerDB + apoc + n10s)** for the LPG graph backend.
+T1, T3, and T4 talk to Neo4j via Bolt; T2 stays on the embedded LadybugDB; T3's
+RDF side uses embedded **owlready2**. Vector search is **LanceDB**.
+
+```bash
+# 1. Once: put your OpenAI key in the repo .env
+echo 'OPENAI_API_KEY=sk-...' >> ../.env
+
+# 2. Bring up JupyterLab
+make tutorials-up
+# or: docker compose -f docker-compose.tutorials.yml up -d --build
+
+# 3. Open JupyterLab (token disabled in this dev image)
+open http://localhost:28888/lab/tree/examples
+```
+
+What ships:
+
+- `tutorials-jupyter` — JupyterLab on `localhost:8888`. Bind-mounts
+  `examples/` and `seocho/` so edits on the host show up live in the container.
+- `tutorials-neo4j` — DozerDB 5.26 with `apoc` + `n10s` plugins.
+  - **Neo4j Browser:** http://localhost:7474  (login `neo4j` / `tutorialspw`)
+  - **Bolt URI:** `bolt://tutorials-neo4j:7687` (container-internal — notebooks read it from `NEO4J_URI`)
+  - If something else on the host already binds 7474/7687 (the main
+    `make up` stack, a system Neo4j install, or a leftover Docker
+    proxy), override `TUTORIALS_NEO4J_HTTP_PORT` /
+    `TUTORIALS_NEO4J_BOLT_PORT` in `.env`. `make tutorials-down` is
+    usually enough to release stale Docker bindings.
+- LanceDB tables, owlready2 SQLite, JSONL traces all live under `./.seocho/`.
+
+Customize via `.env`:
+
+```bash
+TUTORIALS_JUPYTER_PORT=8888
+TUTORIALS_NEO4J_HTTP_PORT=7474
+TUTORIALS_NEO4J_BOLT_PORT=7687
+TUTORIALS_NEO4J_PASSWORD=tutorialspw
+FINDER_PATH=/workspace/examples/finder/datasets/finder_tutorial_subset.json
+```
+
+Useful commands:
+
+```bash
+make tutorials-logs     # tail container logs
+make tutorials-shell    # bash inside the Jupyter container
+make tutorials-down     # stop everything (data persists in ./.seocho)
+
+make tutorials-build    # rebuild the image (no container start)
+make tutorials-smoke    # fast import-check for all four notebooks (~10s, no API calls)
+make tutorials-pytest   # run the seocho/tests/test_ontology_ttl.py suite in the container
+make tutorials-test     # headless nbconvert run of every notebook (needs OPENAI_API_KEY)
+```
+
+`tutorials-test` skips `finder_rdf_vs_lpg_evaluation.ipynb` because the OWL
+reasoner cell needs a JVM (HermiT) which the slim image doesn't ship; open
+that notebook in JupyterLab to run it interactively, or install `default-jre-headless`
+in the container first (`make tutorials-shell` then
+`apt-get update && apt-get install -y default-jre-headless`).
+
+The bonus *OWL reasoning* cell in Tutorial 3 invokes HermiT (Java). The cell
+reports gracefully if no JVM is present in the image; install one with
+`apt-get install -y default-jre-headless` inside the container if you want
+to run that step.
 
 ## Common gotchas
 

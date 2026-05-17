@@ -107,6 +107,13 @@ Each entry must link to a full ADR when impact is non-trivial.
   - replace `bd --no-daemon` guidance with `bd --sandbox ...` for repo-local lint and worktree-safe operations
   - align active scripts and agent docs with the supported `bd 0.60` CLI
 
+## 2026-05-03
+
+- Accepted `ADR-0089-in-repo-docs-site-and-pages-deploy.md`
+  - move the `seocho.blog` Astro/Starlight app into `website/` in the main repository
+  - keep repo-root `README.md` + `docs/*` as the canonical docs source and generate selected site pages at build time
+  - replace the separate-repository website sync contract with in-repo quality and GitHub Pages deploy workflows
+
 ## 2026-03-12
 
 - Accepted `ADR-0028-graph-registry-and-multi-instance-debate-runtime.md`

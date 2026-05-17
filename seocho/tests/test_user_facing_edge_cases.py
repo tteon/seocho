@@ -360,23 +360,22 @@ class TestQueryCacheCrossDatabase:
     """REGRESSION ANCHOR: seocho-vncn.
 
     SessionContext._query_cache is keyed only on the question string. A
-    cached answer for database='alpha' is returned to a follow-up call for
-    database='beta'. Pin so the fix (key includes database, plus TTL) is
-    deliberate.
+    cached answer for database='alpha' used to be returned to a follow-up
+    call for database='beta'. Keep the regression anchor, but assert the
+    fixed behavior now that the cache key includes database scope.
     """
 
-    def test_cached_answer_leaks_across_databases(
+    def test_cached_answer_is_scoped_per_database(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         sess = _make_session(monkeypatch, mode="pipeline", pipeline_answer="ANSWER_FOR_ALPHA")
 
-        # First call populates cache for 'alpha' under the bare question key.
+        # First call populates cache for 'alpha'.
         first = sess.ask("Who is CEO?", database="alpha")
         assert first == "ANSWER_FOR_ALPHA"
 
-        # Swap pipeline answer; if the cache were database-scoped this call
-        # would re-run and yield the new value. Today, the cache hit returns
-        # alpha's answer for beta.
+        # Swap pipeline answer; the beta call should re-run instead of leaking
+        # alpha's cached answer across database scope.
         class _NewPipeline:
             def ask(self, *_: Any, **__: Any) -> str:
                 return "ANSWER_FOR_BETA"
@@ -387,8 +386,8 @@ class TestQueryCacheCrossDatabase:
         monkeypatch.setattr(sess, "_get_pipeline_engine", lambda: _NewPipeline())
 
         second = sess.ask("Who is CEO?", database="beta")
-        assert second == "ANSWER_FOR_ALPHA", (
-            "Cross-database cache poisoning regression — see seocho-vncn"
+        assert second == "ANSWER_FOR_BETA", (
+            "Cross-database cache scope fix regressed — see seocho-vncn"
         )
 
 

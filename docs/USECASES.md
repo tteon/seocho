@@ -28,7 +28,38 @@ Regulator`, etc.). Ingestion populates the graph from plain text. Questions
 like "which control evidence mitigates incident I-2026-007" return an
 answer grounded in typed paths, not a free-text paragraph.
 
-**Blog walk-through**: *(coming soon — drafted in `tteon.github.io`)*
+**Blog walk-through**: *(coming soon — site narrative draft pending)*
+
+## 2. FinDER tutorial set — Vector + Graph RAG, FIBO impact, RDF vs LPG
+
+**What**: Three runnable notebooks built around the **FinDER** SEC 10-K Q&A
+benchmark. They show three orthogonal questions a graph-RAG team has to
+answer when adopting SEOCHO on a finance corpus.
+
+**Who benefits**: Teams evaluating SEOCHO on financial filings; researchers
+benchmarking RAG architectures; anyone deciding how much of FIBO they
+actually need.
+
+**Try them**: the four FinDER notebooks live under
+[`examples/finder/`](../examples/finder/) with their own
+[README](../examples/finder/README.md), helper modules, datasets, and
+Docker env. Bring up the bundle with `make tutorials-up`.
+
+- `01_vector_vs_graph_rag.ipynb` — side-by-side Vector RAG (LanceDB) and
+  Graph RAG (Neo4j) over FinDER.
+- `02_fibo_module_impact.ipynb` — sweep five FIBO module compositions
+  (none / BE / BE+FBC / BE+FBC+SEC / full) and measure how each changes
+  KG volume, coverage, SHACL-style violations, and FinDER QA score.
+- `03_rdf_vs_lpg.ipynb` — index the same corpus as LPG (Neo4j) and
+  RDF/OWL (owlready2); score both on Golden Standard, Data-Driven,
+  Application/Task, User-based, and Structure-based tracks.
+- `04_private_opik.ipynb` — personal template threading USER_ID /
+  metadata through ontology design (TTL +/-), LLM backend, agent
+  tool_use, and pattern design; every span tagged for Opik.
+
+All four default to a synthetic 10-K subset that ships with the bundle
+so they run end-to-end without external data; set `FINDER_PATH` to your
+real FinDER JSON when ready.
 
 ## Contributing a new usecase
 

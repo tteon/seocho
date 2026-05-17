@@ -1,0 +1,125 @@
+# Self-contained docker-compose for the FinDER tutorial notebooks.
+#
+#   docker compose -f docker-compose.tutorials.yml up --build
+#   open http://localhost:8888/lab/tree/examples/finder   (JupyterLab)
+#   open http://localhost:7474                             (Neo4j Browser)
+#
+# Three graph backends are available inside the tutorial notebooks:
+#   - Neo4jGraphStore  -> bolt://tutorials-neo4j:7687 (default for T1/T3/T4)
+#   - LadybugGraphStore -> embedded sqlite-backed (T2)
+#   - OwlreadyGraphStore -> embedded RDF/OWL (T3 RDF side)
+#
+# Vector store is LanceDB (T1) for embeddings.
+
+services:
+  tutorials-jupyter:
+    build:
+      context: .
+      dockerfile: examples/finder/Dockerfile
+    container_name: seocho-tutorials-jupyter
+    ports:
+      - "${SEOCHO_BIND_HOST:-127.0.0.1}:${TUTORIALS_JUPYTER_PORT:-8888}:8889"
+    volumes:
+      # Bind the entire repo so notebook edits, the tutorial-only adapter
+      # modules, and the seocho/ package are all live-edited on host.
+      - ./examples:/workspace/examples
+      - ./seocho:/workspace/seocho
+      - ./extraction:/workspace/extraction:ro
+      - ./scripts:/workspace/scripts:ro
+      # Persistent on-host artifacts directory the tutorials write to
+      # (LanceDB tables, captured spans, scoreboards, RDF dumps).
+      - ./.seocho:/workspace/.seocho
+    environment:
+      # LLM provider for completions — defaults to openai/gpt-4o-mini.
+      # Override with SEOCHO_LLM=grok/grok-2-mini, kimi/kimi-k2.5,
+      # deepseek/deepseek-chat, qwen/qwen-plus, etc.
+      - SEOCHO_LLM=${SEOCHO_LLM:-openai/gpt-4o-mini}
+      # Provider keys (set whichever ones you actually use). Only the one
+      # selected by SEOCHO_LLM must be present. OPENAI_API_KEY is also
+      # used by Tutorial 1's vector path — embeddings require OpenAI.
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - MOONSHOT_API_KEY=${MOONSHOT_API_KEY:-}
+      - XAI_API_KEY=${XAI_API_KEY:-}
+      - GROK_API_KEY=${GROK_API_KEY:-}
+      - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY:-}
+      # Neo4j connection (T1, T3 LPG side, T4) — points at the bundled
+      # tutorials-neo4j service. Notebooks read these directly.
+      - NEO4J_URI=bolt://tutorials-neo4j:7687
+      - NEO4J_USER=${NEO4J_USER:-neo4j}
+      - NEO4J_PASSWORD=${TUTORIALS_NEO4J_PASSWORD:-tutorialspw}
+      # FinDER subset path — defaults to the synthetic 10-K excerpt that
+      # ships with the tutorials.  Point this at a real FinDER JSON to
+      # run against the published dataset.
+      - FINDER_PATH=${FINDER_PATH:-/workspace/examples/finder/datasets/finder_tutorial_subset.json}
+      # Project identity (PROJECT_GUIDE.md §2). Becomes the workspace_id on
+      # graph entities, the project name in Opik, and the IDENTITY dict on
+      # every span. Safe to leave unset — notebooks fall back to defaults.
+      - SEOCHO_PROJECT_NAME=${SEOCHO_PROJECT_NAME:-}
+      - SEOCHO_AUTHOR_NAME=${SEOCHO_AUTHOR_NAME:-}
+      - SEOCHO_AUTHOR_EMAIL=${SEOCHO_AUTHOR_EMAIL:-}
+      - SEOCHO_AUTHOR_GITHUB=${SEOCHO_AUTHOR_GITHUB:-}
+      - SEOCHO_AUTHOR_AFFILIATION=${SEOCHO_AUTHOR_AFFILIATION:-}
+      - SEOCHO_RUN_NOTES=${SEOCHO_RUN_NOTES:-}
+      # T4-specific identity fallbacks (the notebook reads these directly).
+      # If unset, T4 derives them from SEOCHO_PROJECT_NAME / AUTHOR_NAME.
+      - SEOCHO_USER_ID=${SEOCHO_USER_ID:-}
+      - SEOCHO_WORKSPACE_ID=${SEOCHO_WORKSPACE_ID:-}
+      - SEOCHO_AGENT_ID=${SEOCHO_AGENT_ID:-}
+      - SEOCHO_SESSION_ID=${SEOCHO_SESSION_ID:-}
+      - SEOCHO_USER_META=${SEOCHO_USER_META:-}
+      # Opik tracing — set OPIK_API_KEY to send traces to Opik cloud,
+      # otherwise the notebooks fall back to local JSONL traces.
+      # Each user uses their OWN OPIK_API_KEY; only OPIK_WORKSPACE is
+      # shared across teammates landing in the same workspace.
+      - OPIK_API_KEY=${OPIK_API_KEY:-}
+      - OPIK_WORKSPACE=${OPIK_WORKSPACE:-}
+      - OPIK_URL_OVERRIDE=${OPIK_URL_OVERRIDE:-}
+      - OPIK_PROJECT_NAME=${OPIK_PROJECT_NAME:-}
+    depends_on:
+      tutorials-neo4j:
+        condition: service_healthy
+
+  tutorials-neo4j:
+    # OpenGDS 2.12.0 (the DozerDB-compatible GDS plugin we install via
+    # `make tutorials-gds`) supports Neo4j Core 5.23 and up.
+    image: graphstack/dozerdb:5.26.3.0
+    container_name: seocho-tutorials-neo4j
+    ports:
+      # Standard Neo4j ports. If something else on the host already binds
+      # 7474/7687 (the main `make up` stack, a system Neo4j install, or a
+      # leftover Docker proxy from a prior run), override via
+      # TUTORIALS_NEO4J_HTTP_PORT / TUTORIALS_NEO4J_BOLT_PORT in .env.
+      # `make tutorials-down` is also enough to release stale bindings.
+      - "${SEOCHO_BIND_HOST:-127.0.0.1}:${TUTORIALS_NEO4J_HTTP_PORT:-7474}:7474"
+      - "${SEOCHO_BIND_HOST:-127.0.0.1}:${TUTORIALS_NEO4J_BOLT_PORT:-7687}:7687"
+    environment:
+      - NEO4J_AUTH=${NEO4J_USER:-neo4j}/${TUTORIALS_NEO4J_PASSWORD:-tutorialspw}
+      # We only list apoc + n10s in NEO4J_PLUGINS (the manifest fetcher).
+      # OpenGDS is dropped directly into the plugins/ volume by
+      # `make tutorials-gds` (which calls setup_opengds.sh) — this
+      # avoids the manifest pulling GDS *Enterprise*, which crashes on
+      # Community/DozerDB at startup.
+      - NEO4J_PLUGINS=["apoc","n10s"]
+      - NEO4J_dbms_security_procedures_unrestricted=apoc.*,n10s.*,gds.*
+      - NEO4J_dbms_security_procedures_allowlist=apoc.*,n10s.*,gds.*
+      # Keep the dotted forms too for backwards-compat with older
+      # Neo4j entrypoint scripts that recognize them.
+      - dbms.security.procedures.unrestricted=apoc.*,n10s.*,gds.*
+      - dbms.security.procedures.allowlist=apoc.*,n10s.*,gds.*
+      - NEO4J_apoc_export_file_enabled=true
+      - NEO4J_apoc_import_file_enabled=true
+    volumes:
+      - ./.seocho/tutorials-neo4j/data:/data
+      - ./.seocho/tutorials-neo4j/logs:/logs
+      - ./.seocho/tutorials-neo4j/plugins:/plugins
+    healthcheck:
+      # Authoritative auth check via cypher-shell. Interpolated by compose
+      # at start-time so the password env var doesn't leak into Neo4j's
+      # config (NEO4J_PASSWORD would be parsed as the `password` setting
+      # under strict-validation and crash startup).
+      test: ["CMD-SHELL", "cypher-shell -u ${NEO4J_USER:-neo4j} -p ${TUTORIALS_NEO4J_PASSWORD:-tutorialspw} 'RETURN 1' >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 60s

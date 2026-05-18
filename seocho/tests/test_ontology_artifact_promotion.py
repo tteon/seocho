@@ -40,8 +40,35 @@ class FakeGraphStore:
         self._node_counts = node_counts or {}
         self._rel_counts = rel_counts or {}
 
+    def get_schema(self, *, database: str = "neo4j"):
+        return {
+            "labels": list(self._node_counts.keys()),
+            "relationship_types": list(self._rel_counts.keys()),
+            "property_keys": []
+        }
+
     def query(self, cypher: str, *, params=None, database="neo4j") -> List[Dict[str, Any]]:
-        # Parse label/type from the Cypher MATCH pattern
+        # Handle UNION ALL style multi-queries added for optimization
+        if "UNION ALL" in cypher:
+            result = []
+            for part in cypher.split(" UNION ALL "):
+                if "MATCH (n:`" in part:
+                    label = part.split("MATCH (n:`")[1].split("`)")[0]
+                    result.append({"key": label, "cnt": self._node_counts.get(label, 0)})
+                elif "MATCH ()-[r:`" in part:
+                    rtype = part.split("MATCH ()-[r:`")[1].split("`]->()")[0]
+                    result.append({"key": rtype, "cnt": self._rel_counts.get(rtype, 0)})
+            return result
+        # Handle single count queries matching the optimized format
+        if "RETURN '" in cypher and "AS key" in cypher:
+            if "MATCH (n:`" in cypher:
+                label = cypher.split("MATCH (n:`")[1].split("`)")[0]
+                return [{"key": label, "cnt": self._node_counts.get(label, 0)}]
+            elif "MATCH ()-[r:`" in cypher:
+                rtype = cypher.split("MATCH ()-[r:`")[1].split("`]->()")[0]
+                return [{"key": rtype, "cnt": self._rel_counts.get(rtype, 0)}]
+
+        # Legacy individual query parsing fallback
         for label, count in self._node_counts.items():
             if f"`{label}`" in cypher and "count(n)" in cypher:
                 return [{"cnt": count}]

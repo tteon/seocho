@@ -585,6 +585,42 @@ Each entry must link to a full ADR when impact is non-trivial.
   - use `scripts/pm/bd-recover.sh` as the first-line Beads/Dolt diagnostic
     before deleting, reinstalling, or resetting `.beads`
 
+## 2026-05-19
+
+- Proposed `ADR-0092-graph-cot-lpg-property-schema.md`
+  - properties are an agent control surface, not descriptive metadata;
+    five groups (identity, retrieval/use, reasoning, evidence, scope)
+  - required node properties: `id, title, claim, agentSummary,
+    semanticRole, reasoningRole, answers, useWhen, confidence,
+    sourceRefs, embeddingText`; required relationship properties:
+    `relationSummary, reasoningRole, confidence, sourceRefs`
+  - fixed enums for `semanticRole`/`reasoningRole`/relationship types;
+    promotion rule (long nested values become nodes); pipeline ensures
+    fulltext + vector + property indexes per workspace
+
+- Proposed `ADR-0091-query-enrichment-router-and-parallel-fan-out.md`
+  - `QueryEnrichmentRouter` runs as a pre-stage in `Session.ask()` and
+    as the canonical `augment_fn` for `GraphAgenticLoop`; one
+    implementation, two callers
+  - augmentation (entity/intent/topic/rewrite) feeds existing
+    `RoutingPolicy.decide()`; parallel fan-out across
+    Cypher/vector/fulltext/GDS via `asyncio.gather` with per-backend
+    weight cutoff and timeout; short-circuits to Tier-1 NL→Cypher on
+    high-confidence single-entity lookups
+  - Reciprocal Rank Fusion as the deterministic baseline behind a
+    pluggable `Fusion` interface
+
+- Proposed `ADR-0090-tiered-nl2cypher-query-agent.md`
+  - evolve `QueryAgent` in place with a tiered NL→Cypher policy
+    (template lookup → similar past queries → schema-grounded generation
+    → validate → execute → cache write-back)
+  - add `cypher_template_lookup`, `similar_query_search`, and
+    `schema_introspect` tools in `seocho/tools.py`; expose
+    `validate_cypher` explicitly
+  - add a per-workspace `NLCypherExampleStore` alongside FAISS/LanceDB in
+    `seocho/store/vector.py`; tracked as subtask of `seocho-j965`
+    (GraphAgenticLoop)
+
 ## 2026-04-23
 
 - Updated FinDER query benchmark contract

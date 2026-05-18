@@ -213,7 +213,10 @@ class TestToolCreation:
             ontology_context=context,
             workspace_id="acme",
         )
-        assert len(tools) == 2  # text2cypher, execute_cypher
+        # ADR-0090 adds schema_introspect, validate_cypher, similar_query_search
+        # alongside the original text2cypher and execute_cypher.
+        names = {getattr(t, "name", getattr(t, "__name__", "")) for t in tools}
+        assert {"text2cypher", "execute_cypher", "schema_introspect", "validate_cypher", "similar_query_search"} <= names
 
     def test_create_query_tools_with_vector_store(self, monkeypatch):
         self._patch_agents(monkeypatch)
@@ -224,7 +227,10 @@ class TestToolCreation:
         vstore = MagicMock()
 
         tools = create_query_tools(ontology=onto, graph_store=store, vector_store=vstore)
-        assert len(tools) == 3  # text2cypher, execute_cypher, search_similar
+        names = {getattr(t, "name", getattr(t, "__name__", "")) for t in tools}
+        # ADR-0090 tier-1/2/3 tools plus the optional document-corpus search_similar.
+        assert "search_similar" in names
+        assert {"text2cypher", "execute_cypher", "schema_introspect", "validate_cypher", "similar_query_search"} <= names
 
     @staticmethod
     def _patch_agents(monkeypatch):
@@ -454,7 +460,9 @@ class TestAgentCreation:
             ontology=onto, graph_store=store, llm=llm,
         )
         assert agent.name == "QueryAgent"
-        assert len(agent.tools) == 2
+        # ADR-0090: QueryAgent now carries the tier-1/2/3 tool set.
+        names = {getattr(t, "name", getattr(t, "__name__", "")) for t in agent.tools}
+        assert {"text2cypher", "execute_cypher", "schema_introspect", "validate_cypher", "similar_query_search"} <= names
 
     def test_indexing_agent_system_prompt_contains_ontology(self):
         onto = _make_test_ontology()

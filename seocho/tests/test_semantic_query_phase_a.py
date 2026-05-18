@@ -27,6 +27,51 @@ def test_infer_question_intent_and_evidence_bundle_contract():
     assert bundle["slot_fills"]["target_entity"] == "Cypher"
 
 
+def test_tradeoff_intent_and_evidence_bundle_surface_limitations_and_alternatives():
+    semantic_context = {
+        "entities": ["Python"],
+        "matches": {
+            "Python": [
+                {
+                    "display_name": "Python",
+                    "database": "kgnormal",
+                    "node_id": "11",
+                    "labels": ["Language"],
+                    "source": "fulltext",
+                    "final_score": 0.95,
+                }
+            ]
+        },
+    }
+
+    intent = infer_question_intent(
+        "What limits Python parallel work, and what alternatives avoid the GIL?",
+        semantic_context["entities"],
+    )
+    bundle = build_evidence_bundle(
+        question="What limits Python parallel work, and what alternatives avoid the GIL?",
+        semantic_context={**semantic_context, "intent": intent},
+        memory={
+            "memory_id": "mem_python",
+            "database": "kgnormal",
+            "content_preview": "Python's main limitation for CPU-bound parallel work is the GIL. Use multiprocessing or Ray instead.",
+            "entities": [
+                {"name": "GIL", "labels": ["Limitation"]},
+                {"name": "multiprocessing", "labels": ["Alternative"]},
+                {"name": "Ray", "labels": ["Alternative"]},
+            ],
+        },
+        matched_entities=["Python"],
+        reasons=["entity_match"],
+        score=0.95,
+    )
+
+    assert intent["intent_id"] == "engineering_tradeoff_lookup"
+    assert bundle["slot_fills"]["target_entity"] == "Python"
+    assert bundle["slot_fills"]["limitation_points"] == ["GIL"]
+    assert bundle["slot_fills"]["alternative_points"] == ["multiprocessing", "Ray"]
+
+
 def test_cypher_validator_and_insufficiency_classifier_contract():
     validator = CypherQueryValidator()
     classifier = QueryInsufficiencyClassifier()

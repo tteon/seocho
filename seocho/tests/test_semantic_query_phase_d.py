@@ -122,6 +122,58 @@ class EntitySummaryConnector(FakeConnector):
         return super().run_cypher(query, database=database, params=params)
 
 
+class EngineeringTradeoffConnector(FakeConnector):
+    def run_cypher(self, query, database="neo4j", params=None):
+        params = params or {}
+
+        if "CALL db.index.fulltext.queryNodes" in query:
+            text = str(params.get("query", "")).lower()
+            if "python" in text:
+                return json.dumps(
+                    [
+                        {
+                            "node_id": 303,
+                            "labels": ["Language"],
+                            "display_name": "Python",
+                            "source_id": "mem_python",
+                            "memory_id": "mem_python",
+                            "score": 3.6,
+                        }
+                    ]
+                )
+            return json.dumps([])
+
+        if "properties(n) AS properties" in query and "AS neighbors" in query:
+            return json.dumps(
+                [
+                    {
+                        "target_entity": "Python",
+                        "properties": {"name": "Python"},
+                        "neighbors": [
+                            {
+                                "relation": "LIMITED_BY",
+                                "target": "GIL",
+                                "target_labels": ["Limitation"],
+                            },
+                            {
+                                "relation": "PARALLELIZED_WITH",
+                                "target": "multiprocessing",
+                                "target_labels": ["Alternative"],
+                            },
+                            {
+                                "relation": "PARALLELIZED_WITH",
+                                "target": "Ray",
+                                "target_labels": ["Alternative"],
+                            },
+                        ],
+                        "supporting_fact": "",
+                    }
+                ]
+            )
+
+        return super().run_cypher(query, database=database, params=params)
+
+
 def test_canonical_semantic_agent_flow_runs_end_to_end():
     flow = SemanticAgentFlow(FakeConnector())
     result = flow.run("What is Neo4j connected to?", ["kgnormal"])
@@ -247,3 +299,17 @@ def test_canonical_semantic_flow_synthesizes_risk_summary_from_neighbors():
         "significant capital expenditure requirements for AWS infrastructure, "
         "competition in e-commerce and cloud computing markets."
     )
+
+
+def test_canonical_semantic_flow_synthesizes_engineering_tradeoff_answer():
+    flow = SemanticAgentFlow(EngineeringTradeoffConnector())
+
+    result = flow.run("What limits Python parallel work, and what alternatives avoid the GIL?", ["kgnormal"])
+
+    assert result["route"] == "lpg"
+    assert result["semantic_context"]["intent"]["intent_id"] == "engineering_tradeoff_lookup"
+    assert result["support_assessment"]["status"] == "supported"
+    assert result["response"].startswith("Python is limited by GIL.")
+    assert "Alternatives for Python parallel work include multiprocessing, Ray." in result["response"]
+    assert result["evidence_bundle"]["slot_fills"]["limitation_points"] == ["GIL"]
+    assert result["evidence_bundle"]["slot_fills"]["alternative_points"] == ["multiprocessing", "Ray"]

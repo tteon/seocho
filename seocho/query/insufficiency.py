@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, Dict, Sequence, Set
 
 from .contracts import InsufficiencyAssessment
+from .intent import extract_tradeoff_points_from_triples
 
 
 class QueryInsufficiencyClassifier:
@@ -32,6 +33,18 @@ class QueryInsufficiencyClassifier:
                 filled_slots.add("owner_or_operator")
             if row.get("supporting_fact") or row.get("properties") or row.get("neighbors"):
                 filled_slots.add("supporting_fact")
+            if row.get("limitation_points"):
+                filled_slots.add("limitation_points")
+            if row.get("alternative_points"):
+                filled_slots.add("alternative_points")
+
+        tradeoff_points = extract_tradeoff_points_from_triples(
+            selected_triples=_triples_from_rows(rows),
+        )
+        if tradeoff_points["limitation_points"]:
+            filled_slots.add("limitation_points")
+        if tradeoff_points["alternative_points"]:
+            filled_slots.add("alternative_points")
 
         if intent_id == "relationship_lookup" and not any(row.get("relation_type") for row in rows):
             return InsufficiencyAssessment(
@@ -66,3 +79,35 @@ class QueryInsufficiencyClassifier:
             row_count=row_count,
             filled_slots=tuple(sorted(filled_slots)),
         )
+
+
+def _triples_from_rows(rows: Sequence[Dict[str, Any]]) -> list[Dict[str, Any]]:
+    triples: list[Dict[str, Any]] = []
+    for row in rows:
+        relation_type = str(row.get("relation_type", "")).strip()
+        target_entity = str(row.get("target_entity", "")).strip()
+        if relation_type and target_entity:
+            triples.append(
+                {
+                    "source": row.get("source_entity") or row.get("owner_or_operator") or "",
+                    "relation": relation_type,
+                    "target": target_entity,
+                    "target_labels": row.get("target_labels", []),
+                }
+            )
+        for neighbor in row.get("neighbors", []) if isinstance(row.get("neighbors"), list) else []:
+            if not isinstance(neighbor, dict):
+                continue
+            relation = str(neighbor.get("relation", "")).strip()
+            target = str(neighbor.get("target", "")).strip()
+            if not relation or not target:
+                continue
+            triples.append(
+                {
+                    "source": row.get("target_entity") or row.get("source_entity") or "",
+                    "relation": relation,
+                    "target": target,
+                    "target_labels": neighbor.get("target_labels", []),
+                }
+            )
+    return triples

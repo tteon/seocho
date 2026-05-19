@@ -8,6 +8,14 @@ from .intent import build_evidence_bundle, infer_question_intent
 
 
 _FOUR_DIGIT_YEAR_RE = re.compile(r"\b(20\d{2})\b")
+_RE_SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+")
+_RE_ALNUM_TOKEN = re.compile(r"[a-z0-9]+")
+_RE_NUMERIC = re.compile(r"\d+(?:\.\d+)?")
+_RE_THE_PRIOR_YEAR = re.compile(r"\bthe prior year\b", flags=re.IGNORECASE)
+_RE_PRIOR_YEAR = re.compile(r"\bprior year\b", flags=re.IGNORECASE)
+_RE_THE_PREVIOUS_YEAR = re.compile(r"\bthe previous year\b", flags=re.IGNORECASE)
+_RE_PREVIOUS_YEAR = re.compile(r"\bprevious year\b", flags=re.IGNORECASE)
+_RE_NON_ALNUM = re.compile(r"[^a-z0-9]+")
 
 
 class QueryAnswerSynthesizer:
@@ -318,7 +326,7 @@ class QueryAnswerSynthesizer:
             return ""
         sentences = [
             sentence.strip()
-            for sentence in re.split(r"(?<=[.!?])\s+", supporting_fact)
+            for sentence in _RE_SENTENCE_SPLIT.split(supporting_fact)
             if sentence.strip()
         ]
         if not sentences:
@@ -326,13 +334,13 @@ class QueryAnswerSynthesizer:
 
         question_terms = {
             token
-            for token in re.findall(r"[a-z0-9]+", question.lower())
+            for token in _RE_ALNUM_TOKEN.findall(question.lower())
             if len(token) > 1
         }
         priority_tokens = {
             token
             for term in priority_terms
-            for token in re.findall(r"[a-z0-9]+", str(term).lower())
+            for token in _RE_ALNUM_TOKEN.findall(str(term).lower())
             if len(token) > 1
         }
         if not question_terms:
@@ -357,9 +365,9 @@ class QueryAnswerSynthesizer:
             )
 
         def score(sentence: str) -> tuple[int, int, int, int]:
-            terms = set(re.findall(r"[a-z0-9]+", sentence.lower()))
+            terms = set(_RE_ALNUM_TOKEN.findall(sentence.lower()))
             priority_hits = len(terms & priority_tokens)
-            numeric_hits = len(set(re.findall(r"\d+(?:\.\d+)?", sentence.lower())) & question_terms)
+            numeric_hits = len(set(_RE_NUMERIC.findall(sentence.lower())) & question_terms)
             return (priority_hits, len(terms & question_terms), numeric_hits, len(sentence))
 
         scored_sentences = [(index, sentence, score(sentence)) for index, sentence in enumerate(sentences)]
@@ -389,10 +397,10 @@ class QueryAnswerSynthesizer:
         if len(ordered_years) < 2:
             return text
         earlier_year = ordered_years[0]
-        normalized = re.sub(r"\bthe prior year\b", earlier_year, text, flags=re.IGNORECASE)
-        normalized = re.sub(r"\bprior year\b", earlier_year, normalized, flags=re.IGNORECASE)
-        normalized = re.sub(r"\bthe previous year\b", earlier_year, normalized, flags=re.IGNORECASE)
-        normalized = re.sub(r"\bprevious year\b", earlier_year, normalized, flags=re.IGNORECASE)
+        normalized = _RE_THE_PRIOR_YEAR.sub(earlier_year, text)
+        normalized = _RE_PRIOR_YEAR.sub(earlier_year, normalized)
+        normalized = _RE_THE_PREVIOUS_YEAR.sub(earlier_year, normalized)
+        normalized = _RE_PREVIOUS_YEAR.sub(earlier_year, normalized)
         return normalized
 
     @staticmethod
@@ -463,8 +471,8 @@ class QueryAnswerSynthesizer:
     def _company_match_score(self, company: str, anchor: str) -> int:
         if not anchor:
             return 0
-        company_norm = re.sub(r"[^a-z0-9]+", " ", company.lower())
-        anchor_norm = re.sub(r"[^a-z0-9]+", " ", anchor.lower())
+        company_norm = _RE_NON_ALNUM.sub(" ", company.lower())
+        anchor_norm = _RE_NON_ALNUM.sub(" ", anchor.lower())
         anchor_tokens = [token for token in anchor_norm.split() if token]
         return sum(2 for token in anchor_tokens if token in company_norm)
 

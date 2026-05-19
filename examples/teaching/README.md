@@ -74,11 +74,11 @@ examples/teaching/
 │   ├── preflight.py                ← `python -m _shared.preflight`
 │   └── build_slides_chXX.py        ← 슬라이드 데크 빌더 (5개)
 │
-├── datasets/
-│   └── fibo_be_minimal.ttl         ← 강의용 minimal FIBO
-│
 ├── data/                           ← gitignored: finder_corpus.parquet 캐시
 └── traces/                         ← gitignored: 챕터별 JSONL 트레이스
+
+The teaching arc loads the canonical FIBO TTL from
+`examples/datasets/fibo_be_minimal.ttl` — there is no per-chapter copy.
 ```
 
 ## 챕터 진행 순서

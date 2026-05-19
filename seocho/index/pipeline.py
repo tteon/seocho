@@ -33,6 +33,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 import re
 import uuid
 from dataclasses import dataclass, field
@@ -42,6 +43,12 @@ logger = logging.getLogger(__name__)
 _SLUG_RE = re.compile(r"[^a-z0-9]+")
 
 from .extraction_engine import CanonicalExtractionEngine
+from .property_shaper import PropertyShaper
+
+
+def _graph_cot_properties_enabled() -> bool:
+    """ADR-0092 feature flag — opt-in until the integration milestone."""
+    return os.environ.get("SEOCHO_GRAPH_COT_PROPERTIES", "").strip() in {"1", "true", "TRUE"}
 
 
 # ---------------------------------------------------------------------------
@@ -642,6 +649,21 @@ class IndexingPipeline:
                     all_rels,
                     ontology_context,
                 )
+
+                if _graph_cot_properties_enabled():
+                    shaper = PropertyShaper()
+                    for node in all_nodes:
+                        props = node.get("properties") or {}
+                        props.setdefault("id", node.get("id"))
+                        props.setdefault("name", props.get("name") or node.get("id"))
+                        node["properties"] = shaper.shape_node(props)
+                    for rel in all_rels:
+                        edge_type = str(rel.get("type") or "MENTIONS")
+                        rel["properties"] = shaper.shape_edge(
+                            rel.get("properties") or {},
+                            edge_type=edge_type,
+                        )
+
                 summary = self.graph_store.write(
                     all_nodes, all_rels,
                     database=database,

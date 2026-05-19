@@ -325,6 +325,11 @@ sess = Session(
 > The middleware chain below is the design contract for landing the
 > robustness, performance, and scalability rules above as composable
 > components rather than inline code.
+>
+> **2026-05-15 review:** partial progress — Cache, Budget, and Observability
+> units have standalone implementations but are not yet wired into a chain
+> dispatch path. Validation, Policy, and Retry have no SDK chain-form code
+> and are deferred. See per-unit status table in §4.1.
 
 ### 4.1 The chain
 
@@ -344,6 +349,17 @@ middleware chain. Default stack, in order:
   ↓ CacheMiddleware         (write-through on miss)
 [ Outbound ]
 ```
+
+#### Per-unit status (2026-05-15 review)
+
+| Middleware | Status | Notes |
+|------------|--------|-------|
+| `ValidationMiddleware` | deferred — no active work tracked | Logic exists inline in `runtime/` HTTP layer (`DataValidationError`, workspace format checks). No SDK chain-form class; no commits in past 14 days. last checked: 2026-05-15 |
+| `PolicyMiddleware` | deferred — no active work tracked | `require_runtime_permission()` exists inline in `runtime/policy.py` and all HTTP endpoints. No SDK chain-form class; no commits in past 14 days. last checked: 2026-05-15 |
+| `CacheMiddleware` 🚧 | PARTIAL | `ResponseCache` backend landed (`seocho/response_cache.py`, commit `0697e15`, 2026-05-03). Cache key shape matches §3.3. Inline integration in `Session.ask()` via `context.get_cached_answer()` / `cache_query()`. No `CacheMiddleware` class; not in chain dispatch path. |
+| `BudgetMiddleware` 🚧 | PARTIAL | `TokenBudgetTracker` + `BudgetExceededError` landed (`seocho/budget.py`, commit `8126d34`, 2026-05-03, closes seocho-oilg). Not imported in `session.py`; callers must wire manually. No `BudgetMiddleware` class; not in chain dispatch path. |
+| `RetryMiddleware` | deferred — no active work tracked | No code found anywhere in the repo. No commits referencing it. last checked: 2026-05-15 |
+| `ObservabilityMiddleware` 🚧 | PARTIAL | `SessionTrace` / `TracingBackend` / `OpikBackend` / `JSONLBackend` active in `seocho/tracing.py`. `tracing_degraded_reasons()` + `Session._stamp_observability_health()` landed (commit `74a7de8`, 2026-05-03). Session uses tracing inline. No `ObservabilityMiddleware` class; not in chain dispatch path. |
 
 ### 4.2 Hook surface
 

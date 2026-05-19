@@ -180,6 +180,76 @@ def test_search_memories_adds_evidence_bundle_to_ranked_results():
     assert result["evidence_bundle"]["slot_fills"]["target_entity"] == "Seoul"
 
 
+def test_search_memories_surfaces_tradeoff_points_in_evidence_bundle():
+    class _ResolverWithTradeoffIntent:
+        def resolve(self, question, databases, workspace_id="default"):
+            return {
+                "entities": ["Python"],
+                "matches": {
+                    "Python": [
+                        {
+                            "database": "kgnormal",
+                            "memory_id": "mem_python",
+                            "source_id": "mem_python",
+                            "display_name": "Python",
+                            "node_id": "501",
+                            "labels": ["Language"],
+                            "source": "fulltext",
+                            "final_score": 0.96,
+                        }
+                    ]
+                },
+                "unresolved_entities": [],
+                "intent": {
+                    "intent_id": "engineering_tradeoff_lookup",
+                    "required_relations": [],
+                    "required_entity_types": ["Entity"],
+                    "focus_slots": ["target_entity", "limitation_points", "alternative_points", "supporting_fact"],
+                },
+                "evidence_bundle_preview": {"intent_id": "engineering_tradeoff_lookup"},
+            }
+
+    class _SemanticFlowWithTradeoffIntent:
+        def __init__(self):
+            self.resolver = _ResolverWithTradeoffIntent()
+
+    service = GraphMemoryService(
+        db_manager=_FakeDbManager(),
+        runtime_raw_ingestor=_FakeIngestor(),
+        semantic_agent_flow=_SemanticFlowWithTradeoffIntent(),
+    )
+
+    service.get_memory = lambda **_: {
+        "memory_id": "mem_python",
+        "workspace_id": "default",
+        "content": "Python's main limitation for CPU-bound parallel work is the GIL. Use multiprocessing or Ray instead.",
+        "content_preview": "Python's main limitation for CPU-bound parallel work is the GIL. Use multiprocessing or Ray instead.",
+        "metadata": {"source": "note"},
+        "status": "active",
+        "created_at": "2026-05-19T00:00:00Z",
+        "updated_at": "2026-05-19T00:00:00Z",
+        "database": "kgnormal",
+        "entities": [
+            {"id": "n1", "labels": ["Language"], "name": "Python"},
+            {"id": "n2", "labels": ["Limitation"], "name": "GIL"},
+            {"id": "n3", "labels": ["Alternative"], "name": "multiprocessing"},
+            {"id": "n4", "labels": ["Alternative"], "name": "Ray"},
+        ],
+    }
+
+    payload = service.search_memories(
+        workspace_id="default",
+        query="What limits Python parallel work, and what alternatives avoid the GIL?",
+        limit=3,
+    )
+
+    result = payload["results"][0]
+    assert result["evidence_bundle"]["intent_id"] == "engineering_tradeoff_lookup"
+    assert result["evidence_bundle"]["slot_fills"]["target_entity"] == "Python"
+    assert result["evidence_bundle"]["slot_fills"]["limitation_points"] == ["GIL"]
+    assert result["evidence_bundle"]["slot_fills"]["alternative_points"] == ["multiprocessing", "Ray"]
+
+
 def test_scope_filter_allows_workspace_level_memory_for_scoped_query():
     service = GraphMemoryService(
         db_manager=_FakeDbManager(),

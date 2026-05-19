@@ -402,3 +402,77 @@ def create_vector_store(
             region=region,
         )
     raise ValueError(f"Unsupported vector store kind '{kind}'. Known kinds: faiss, lancedb")
+
+
+# ======================================================================
+# NL→Cypher example store (ADR-0090)
+# ======================================================================
+
+
+@dataclass(frozen=True)
+class NLCypherExample:
+    """A previously-validated (question, Cypher) pair for few-shot reuse."""
+
+    question: str
+    cypher: str
+    success: bool = True
+    metadata: Optional[Dict[str, Any]] = None
+
+
+class NLCypherExampleStore:
+    """Per-workspace store of validated (NL, Cypher) pairs.
+
+    Thin slice: in-memory dict, no embeddings, no eviction. ADR-0090
+    follow-up replaces this with a real per-workspace vector index keyed by
+    question embedding and gated on ``success == True``.
+
+    The Protocol is intentionally narrow:
+
+    - ``add(workspace_id, question, cypher, success, metadata)`` writes a
+      new validated pair. No-op when ``success`` is False (the ADR-0090
+      contract forbids poisoning the store with failed examples).
+    - ``search(workspace_id, question, k)`` returns the top-k examples.
+      Thin slice: returns up to ``k`` most-recent successful entries for
+      this workspace; embedding-based ranking is a follow-up.
+    """
+
+    def __init__(self) -> None:
+        self._by_workspace: Dict[str, List[NLCypherExample]] = {}
+
+    def add(
+        self,
+        *,
+        workspace_id: str,
+        question: str,
+        cypher: str,
+        success: bool = True,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        if not success:
+            return
+        if not question or not cypher:
+            return
+        bucket = self._by_workspace.setdefault(workspace_id, [])
+        bucket.append(
+            NLCypherExample(
+                question=question.strip(),
+                cypher=cypher.strip(),
+                success=True,
+                metadata=dict(metadata or {}),
+            )
+        )
+
+    def search(
+        self,
+        *,
+        workspace_id: str,
+        question: str,
+        k: int = 5,
+    ) -> List[NLCypherExample]:
+        if k <= 0:
+            return []
+        bucket = self._by_workspace.get(workspace_id) or []
+        return list(reversed(bucket))[:k]
+
+    def __len__(self) -> int:
+        return sum(len(v) for v in self._by_workspace.values())

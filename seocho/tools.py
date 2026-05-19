@@ -384,6 +384,157 @@ def make_search_similar_tool(vector_store: Any):
 
 
 # ======================================================================
+# ADR-0090: tiered NL→Cypher support tools
+# ======================================================================
+
+
+def make_schema_introspect_tool(
+    graph_store: Any,
+    *,
+    workspace_id: str = "default",
+    default_database: str = "neo4j",
+):
+    """Wrap ``graph_store.get_schema()`` as a function tool (ADR-0090).
+
+    Returns ``{labels, relationship_types, property_keys}`` for the active
+    workspace. The tool lets the agent ground Cypher generation in the
+    live schema instead of hallucinating labels.
+    """
+    from agents import function_tool
+
+    @function_tool
+    def schema_introspect(database: str = "") -> str:
+        """Return the live label / relationship / property keys for the workspace.
+
+        Args:
+            database: Optional database name; defaults to the configured one.
+
+        Returns:
+            JSON string with ``labels``, ``relationship_types``, ``property_keys``.
+        """
+        db = database.strip() or default_database
+        try:
+            schema = graph_store.get_schema(database=db, workspace_id=workspace_id)
+            return json.dumps(schema, default=str)
+        except Exception as exc:  # noqa: BLE001
+            logger.error("schema_introspect failed: %s", exc)
+            return json.dumps(
+                {"labels": [], "relationship_types": [], "property_keys": [], "error": str(exc)}
+            )
+
+    return schema_introspect
+
+
+def make_validate_cypher_tool(*, workspace_id: str = "default"):
+    """Wrap ``CypherQueryValidator.validate()`` as a function tool (ADR-0090).
+
+    Lets the agent pre-flight a generated query (forbidden keywords +
+    label/relationship/property allow-lists) before calling
+    ``execute_cypher``. Thin slice: agent supplies allow-lists explicitly
+    via the tool args; the integration milestone wires them automatically
+    from ``schema_introspect`` output.
+    """
+    from agents import function_tool
+
+    from .query.contracts import CypherPlan
+    from .query.cypher_validator import CypherQueryValidator
+
+    validator = CypherQueryValidator()
+
+    @function_tool
+    def validate_cypher(
+        cypher: str,
+        params_json: str = "{}",
+        allowed_labels_csv: str = "",
+        allowed_relationship_types_csv: str = "",
+        allowed_properties_csv: str = "",
+    ) -> str:
+        """Validate a Cypher plan against forbidden tokens + workspace allow-lists.
+
+        Args:
+            cypher: The Cypher query text.
+            params_json: JSON-encoded parameter dict (must include ``$node_id``).
+            allowed_labels_csv: Comma-separated labels permitted in the query.
+            allowed_relationship_types_csv: Comma-separated rel-type allow-list.
+            allowed_properties_csv: Comma-separated property allow-list.
+
+        Returns:
+            JSON with ``ok``, ``violations``, observed ``labels`` / ``relation_types`` / ``properties``.
+        """
+        try:
+            params = json.loads(params_json) if params_json else {}
+        except json.JSONDecodeError:
+            params = {}
+
+        plan = CypherPlan(
+            database="",
+            query=cypher,
+            params=params if isinstance(params, dict) else {},
+            strategy="agent_validate",
+            anchor_entity="",
+        )
+        constraint_slice = {
+            "allowed_labels": [s for s in allowed_labels_csv.split(",") if s.strip()],
+            "allowed_relationship_types": [
+                s for s in allowed_relationship_types_csv.split(",") if s.strip()
+            ],
+            "allowed_properties": [s for s in allowed_properties_csv.split(",") if s.strip()],
+        }
+        try:
+            result = validator.validate(plan, constraint_slice)
+            result["workspace_id"] = workspace_id
+            return json.dumps(result, default=str)
+        except Exception as exc:  # noqa: BLE001
+            logger.error("validate_cypher failed: %s", exc)
+            return json.dumps({"ok": False, "violations": ["validator_error"], "error": str(exc)})
+
+    return validate_cypher
+
+
+def make_similar_query_search_tool(
+    example_store: Any = None,
+    *,
+    workspace_id: str = "default",
+):
+    """Wrap ``NLCypherExampleStore.search()`` as a function tool (ADR-0090).
+
+    Thin slice: returns an empty list when no store is configured; when a
+    store is configured, returns up to ``k`` most-recent successful
+    examples for this workspace. The embedding-based retrieval upgrade is
+    a follow-up.
+    """
+    from agents import function_tool
+
+    @function_tool
+    def similar_query_search(question: str, k: int = 5) -> str:
+        """Retrieve previously-validated (question, Cypher) pairs as few-shot context.
+
+        Args:
+            question: The user's NL question.
+            k: Maximum number of past examples to return.
+
+        Returns:
+            JSON with ``examples`` (list of ``{question, cypher}``) and ``count``.
+        """
+        if example_store is None:
+            return json.dumps({"examples": [], "count": 0})
+        try:
+            examples = example_store.search(workspace_id=workspace_id, question=question, k=k)
+            payload = {
+                "examples": [
+                    {"question": ex.question, "cypher": ex.cypher} for ex in examples
+                ],
+                "count": len(examples),
+            }
+            return json.dumps(payload, default=str)
+        except Exception as exc:  # noqa: BLE001
+            logger.error("similar_query_search failed: %s", exc)
+            return json.dumps({"examples": [], "count": 0, "error": str(exc)})
+
+    return similar_query_search
+
+
+# ======================================================================
 # Tool collection factory
 # ======================================================================
 
@@ -418,13 +569,33 @@ def create_query_tools(
     vector_store: Any = None,
     ontology_context: Any = None,
     workspace_id: str = "default",
+    nl_cypher_example_store: Any = None,
+    default_database: str = "neo4j",
 ) -> List[Any]:
-    """Create the full set of query tools."""
+    """Create the full set of query tools.
+
+    ADR-0090: the tiered NL→Cypher policy gets three additional support
+    tools (``schema_introspect``, ``validate_cypher``,
+    ``similar_query_search``) alongside the existing ``text2cypher`` and
+    ``execute_cypher``. The latter two are unchanged; the new tools are
+    additive and safe to expose even when the agent prompt is the
+    pre-ADR-0090 version.
+    """
     tools = [
         make_text2cypher_tool(ontology),
         make_execute_cypher_tool(
             graph_store,
             ontology_context=ontology_context,
+            workspace_id=workspace_id,
+        ),
+        make_schema_introspect_tool(
+            graph_store,
+            workspace_id=workspace_id,
+            default_database=default_database,
+        ),
+        make_validate_cypher_tool(workspace_id=workspace_id),
+        make_similar_query_search_tool(
+            nl_cypher_example_store,
             workspace_id=workspace_id,
         ),
     ]

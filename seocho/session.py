@@ -518,6 +518,29 @@ class Session:
         agent_ctx = "\n\n".join(
             item for item in [self._ontology_context.agent_context, agent_ctx] if item
         )
+
+        # ADR-0091: opt-in QueryEnrichmentRouter pre-stage. The thin slice
+        # only stamps the augmentation into the agent context; full fan-out
+        # arrives with the integration milestone.
+        try:
+            from seocho.agent.enrichment_router import enrichment_router_enabled
+
+            if enrichment_router_enabled():
+                from seocho.agent.enrichment_router import QueryEnrichmentRouter
+                from seocho.routing import RoutingPolicy
+
+                router = QueryEnrichmentRouter(policy=RoutingPolicy.default())
+                augmentation = router.augment(question, workspace_id=self.workspace_id)
+                intent_label = augmentation["intent"].get("intent", "lookup")
+                entities = ", ".join(augmentation.get("entities", []) or [])
+                aug_lines = [f"[Enrichment intent: {intent_label}]"]
+                if entities:
+                    aug_lines.append(f"[Enrichment entities: {entities}]")
+                agent_ctx = "\n".join([*aug_lines, agent_ctx]) if agent_ctx else "\n".join(aug_lines)
+        except Exception:
+            # Enrichment is opt-in and must never break Session.ask().
+            pass
+
         context_msg = f"\n\n{agent_ctx}\n[Target database: {db}]" if agent_ctx else ""
 
         mode = self._execution_mode

@@ -13,6 +13,7 @@ from .answering import build_evidence_bundle, infer_question_intent
 from .constraints import SemanticConstraintSliceBuilder
 from .contracts import CypherPlan, InsufficiencyAssessment
 from .cypher_validator import CypherQueryValidator
+from .intent import extract_tradeoff_points_from_triples
 from .insufficiency import QueryInsufficiencyClassifier
 from .query_proxy import QueryExecutionError, coerce_query_records
 from .run_registry import RunMetadataRegistry
@@ -197,6 +198,26 @@ def _compose_selected_triple_fact(
             seen.add(key)
             values.append(target)
         return values
+
+    tradeoff_points = extract_tradeoff_points_from_triples(
+        question=question,
+        selected_triples=selected_triples,
+    )
+    limitation_points = tradeoff_points["limitation_points"]
+    alternative_points = tradeoff_points["alternative_points"]
+    if limitation_points or alternative_points:
+        lines: List[str] = []
+        if limitation_points:
+            prefix = f"{subject} is limited by" if subject else "Key limitations include"
+            lines.append(f"{prefix} {', '.join(limitation_points[:5])}.")
+        if alternative_points:
+            prefix = (
+                f"Alternatives for {subject} parallel work include"
+                if subject
+                else "Alternatives include"
+            )
+            lines.append(f"{prefix} {', '.join(alternative_points[:5])}.")
+        return " ".join(lines)
 
     risk_targets = _unique_targets(
         lambda relation, labels: relation == "faces" or "risk" in labels or "risk" in normalized_question
@@ -1754,6 +1775,15 @@ class LPGAgent:
             if synthesized_fact:
                 slot_fills["supporting_fact"] = synthesized_fact
 
+        tradeoff_points = extract_tradeoff_points_from_triples(
+            question=question,
+            selected_triples=selected_triples,
+        )
+        if tradeoff_points["limitation_points"]:
+            slot_fills["limitation_points"] = tradeoff_points["limitation_points"]
+        if tradeoff_points["alternative_points"]:
+            slot_fills["alternative_points"] = tradeoff_points["alternative_points"]
+
         focus_slots = [str(slot).strip() for slot in intent.get("focus_slots", []) if str(slot).strip()]
         bundle["slot_fills"] = slot_fills
         bundle["selected_triples"] = selected_triples[:10]
@@ -1942,7 +1972,10 @@ class AnswerGenerationAgent:
                 target_entity=target_entity or (entities[0] if entities else ""),
                 selected_triples=evidence_bundle.get("selected_triples", []),
             )
-        direct_answer = self._direct_answer(question, supporting_fact)
+        if str(intent.get("intent_id", "")).strip() == "engineering_tradeoff_lookup":
+            direct_answer = self._tradeoff_answer(evidence_bundle) or self._direct_answer(question, supporting_fact)
+        else:
+            direct_answer = self._direct_answer(question, supporting_fact)
         lines: List[str] = []
         if direct_answer:
             lines.append(direct_answer)
@@ -2031,6 +2064,39 @@ class AnswerGenerationAgent:
         if best_score[0] < 2 or len(best_sentence) < 24:
             return supporting_fact
         return best_sentence
+
+    @staticmethod
+    def _tradeoff_answer(evidence_bundle: Dict[str, Any]) -> str:
+        slot_fills = evidence_bundle.get("slot_fills", {})
+        if not isinstance(slot_fills, dict):
+            return ""
+        target_entity = str(slot_fills.get("target_entity") or "").strip()
+        limitation_points = AnswerGenerationAgent._point_list(slot_fills.get("limitation_points"))
+        alternative_points = AnswerGenerationAgent._point_list(slot_fills.get("alternative_points"))
+        if not limitation_points and not alternative_points:
+            return ""
+
+        lines: List[str] = []
+        if limitation_points:
+            prefix = f"{target_entity} is limited by" if target_entity else "Key limitations include"
+            lines.append(f"{prefix} {', '.join(limitation_points[:5])}.")
+        if alternative_points:
+            prefix = (
+                f"Alternatives for {target_entity} parallel work include"
+                if target_entity
+                else "Alternatives include"
+            )
+            lines.append(f"{prefix} {', '.join(alternative_points[:5])}.")
+        return " ".join(lines)
+
+    @staticmethod
+    def _point_list(value: Any) -> List[str]:
+        if isinstance(value, list):
+            return [str(item).strip() for item in value if str(item).strip()]
+        if value is None:
+            return []
+        text = str(value).strip()
+        return [text] if text else []
 
 
 __all__ = [

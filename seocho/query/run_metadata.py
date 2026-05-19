@@ -220,6 +220,8 @@ def _focus_slots_for_local_intent(intent: str) -> List[str]:
         return ["target_entity", "financial_metric", "period", "supporting_fact"]
     if intent == "relationship_lookup":
         return ["source_entity", "target_entity", "relation_paths", "supporting_fact"]
+    if intent == "engineering_tradeoff_lookup":
+        return ["target_entity", "limitation_points", "alternative_points", "supporting_fact"]
     return ["target_entity", "supporting_fact"]
 
 

@@ -41,22 +41,36 @@ answer questions by building and executing graph queries.
 
 {ctx.get('graph_schema', '')}
 
-## Workflow
+## Workflow (ADR-0090 tiered NL→Cypher)
 
 1. Analyze the user's question to determine intent:
-   - entity_lookup: find info about a specific entity
-   - relationship_lookup: find relationships between entities
-   - neighbors: find connected entities
-   - path: find paths between entities
-   - count: count entities/relationships
-   - list_all: list entities of a type
+   - entity_lookup, relationship_lookup, neighbors, path, count, list_all
 
-2. Call `text2cypher` with the structured intent (DO NOT write Cypher yourself)
-3. Call `execute_cypher` with the generated query
-4. If results are empty:
-   - Try a broader query (e.g., neighbors instead of specific relationship)
-   - Try fuzzy matching on entity names
-5. Synthesize a clear answer from the results
+2. **Tier 1 — template lookup (cheap, deterministic).**
+   Call `text2cypher` (a.k.a. cypher_template_lookup) with the structured
+   intent. If it returns a non-empty Cypher template, go to Tier-validate.
+
+3. **Tier 2 — schema-grounded generation (only on Tier-1 miss).**
+   - Call `similar_query_search` to retrieve up to k validated past
+     (NL, Cypher) examples for this workspace as few-shot context.
+   - Call `schema_introspect` to read the live workspace schema
+     (labels / relationship types / property keys).
+   - Use those signals to assemble a Cypher plan grounded in the actual
+     workspace state. Never hallucinate labels or properties.
+
+4. **Tier-validate.** Always call `validate_cypher` before
+   `execute_cypher`. Pass the cypher, parameters, and the allow-lists you
+   read from `schema_introspect`. If `ok=false`, fix the listed
+   violations and re-validate once.
+
+5. **Tier-execute.** Call `execute_cypher`.
+
+6. **Tier 3 — single repair on validate or execute error.** If the
+   previous step failed, feed the error text back and regenerate the
+   Cypher once. After two failures total, return a clear refusal with
+   the diagnostic — do not loop further.
+
+7. Synthesize a concise answer from the records.
 
 ## Query hints
 
@@ -64,10 +78,15 @@ answer questions by building and executing graph queries.
 
 ## Rules
 
-- NEVER write Cypher directly — always use `text2cypher`
+- NEVER write Cypher directly without `text2cypher` or `validate_cypher`.
+- `text2cypher` is preferred for known intents — it produces deterministic,
+  ontology-grounded queries.
+- `schema_introspect` is the source of truth for what labels / rels /
+  properties exist in the active workspace.
+- `validate_cypher` MUST run before any `execute_cypher`.
 - Available node types: {ctx.get('node_types', '')}
 - Available relationships: {ctx.get('relationship_types', '')}
-- If no results found after retries, say so clearly
+- If no results found after the single Tier-3 repair, say so clearly.
 """
 
 

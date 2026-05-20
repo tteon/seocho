@@ -2366,35 +2366,49 @@ class Ontology:
         total_defined_nodes = len(self.nodes)
         populated_nodes = 0
 
-        for label in self.nodes:
+        node_labels = list(self.nodes.keys())
+        for i in range(0, len(node_labels), 50):
+            chunk = node_labels[i:i + 50]
+            queries = [
+                f"MATCH (n:`{label}`) RETURN '{label}' AS element, count(n) AS cnt"
+                for label in chunk
+            ]
+            combined_query = " UNION ALL ".join(queries)
             try:
-                result = graph_store.query(
-                    f"MATCH (n:`{label}`) RETURN count(n) AS cnt",
-                    database=database,
-                )
-                count = int(result[0]["cnt"]) if result else 0
+                results = graph_store.query(combined_query, database=database)
+                for row in results:
+                    label = row.get("element")
+                    count = int(row.get("cnt", 0))
+                    node_stats.append({"label": label, "count": count})
+                    if count > 0:
+                        populated_nodes += 1
             except Exception:
-                count = 0
-            node_stats.append({"label": label, "count": count})
-            if count > 0:
-                populated_nodes += 1
+                for label in chunk:
+                    node_stats.append({"label": label, "count": 0})
 
         rel_stats: List[Dict[str, Any]] = []
         total_defined_rels = len(self.relationships)
         populated_rels = 0
 
-        for rtype in self.relationships:
+        rel_types = list(self.relationships.keys())
+        for i in range(0, len(rel_types), 50):
+            chunk = rel_types[i:i + 50]
+            queries = [
+                f"MATCH ()-[r:`{rtype}`]->() RETURN '{rtype}' AS element, count(r) AS cnt"
+                for rtype in chunk
+            ]
+            combined_query = " UNION ALL ".join(queries)
             try:
-                result = graph_store.query(
-                    f"MATCH ()-[r:`{rtype}`]->() RETURN count(r) AS cnt",
-                    database=database,
-                )
-                count = int(result[0]["cnt"]) if result else 0
+                results = graph_store.query(combined_query, database=database)
+                for row in results:
+                    rtype = row.get("element")
+                    count = int(row.get("cnt", 0))
+                    rel_stats.append({"type": rtype, "count": count})
+                    if count > 0:
+                        populated_rels += 1
             except Exception:
-                count = 0
-            rel_stats.append({"type": rtype, "count": count})
-            if count > 0:
-                populated_rels += 1
+                for rtype in chunk:
+                    rel_stats.append({"type": rtype, "count": 0})
 
         node_score = populated_nodes / total_defined_nodes if total_defined_nodes else 1.0
         rel_score = populated_rels / total_defined_rels if total_defined_rels else 1.0

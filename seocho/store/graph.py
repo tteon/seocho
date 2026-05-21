@@ -1469,16 +1469,24 @@ class LadybugGraphStore(GraphStore):
         node_total = 0
         relationship_total = 0
 
-        for label in self._declared_node_tables:
-            try:
-                result = self._locked_execute(
-                    f"MATCH (n:`{label}`) WHERE n._source_id = $sid RETURN count(n)",
-                    {"sid": source_id},
-                )
-                for row in result:
-                    node_total += int(row[0] if isinstance(row, list) else list(row)[0])
-            except Exception:
-                pass
+        labels = list(self._declared_node_tables)
+        chunk_size = 50
+        for i in range(0, len(labels), chunk_size):
+            chunk = labels[i:i + chunk_size]
+            subqueries = []
+            for label in chunk:
+                safe_label = label.replace('\n', '').replace('\\n', '').replace('`', '')
+                subqueries.append(f"MATCH (n:`{safe_label}`) WHERE n._source_id = $sid RETURN '{safe_label}' AS element, count(n) AS cnt")
+
+            query = " UNION ALL ".join(subqueries)
+            if query:
+                try:
+                    result = self._locked_execute(query, {"sid": source_id})
+                    for row in result:
+                        cnt = row[1] if isinstance(row, list) else list(row)[1]
+                        node_total += int(cnt)
+                except Exception:
+                    pass
 
         try:
             result = self._locked_execute(

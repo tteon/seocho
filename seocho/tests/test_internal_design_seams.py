@@ -27,7 +27,7 @@ class _FakeIndexingPipeline:
         self.strict_validation = False
         self.calls: list[dict[str, object]] = []
 
-    def index(self, content: str, *, database: str, category: str, metadata=None, source_id=None):  # noqa: ANN001
+    def index(self, content: str, *, database: str, category: str, metadata=None, source_id=None, **kwargs):  # noqa: ANN001
         self.calls.append(
             {
                 "content": content,

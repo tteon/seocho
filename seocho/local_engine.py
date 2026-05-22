@@ -29,6 +29,7 @@ class _LocalEngine:
         ontology: Any,  # Ontology
         graph_store: Any,  # GraphStore
         llm: Any,  # LLMBackend
+        vector_store: Any = None,
         workspace_id: str,
         extraction_prompt: Optional[Any] = None,  # PromptTemplate
         agent_config: Optional[Any] = None,  # AgentConfig
@@ -44,6 +45,7 @@ class _LocalEngine:
         self.ontology: Ontology = ontology
         self.graph_store = graph_store
         self.llm = llm
+        self._vector_store = vector_store
         self.workspace_id = workspace_id
         self.agent_config: AgentConfig = agent_config or AgentConfig()
         self.extraction_prompt = extraction_prompt
@@ -66,6 +68,7 @@ class _LocalEngine:
             ontology=ontology,
             graph_store=graph_store,
             llm=llm,
+            vector_store=vector_store,
             workspace_id=workspace_id,
             extraction_prompt=extraction_prompt,
             enable_rule_constraints=True,
@@ -101,6 +104,7 @@ class _LocalEngine:
                 ontology=ontology_override,
                 graph_store=self.graph_store,
                 llm=self.llm,
+                vector_store=self._vector_store,
                 workspace_id=self.workspace_id,
                 extraction_prompt=self.extraction_prompt,
                 strict_validation=strict_validation,
@@ -144,6 +148,8 @@ class _LocalEngine:
             result_metadata["ontology_context"] = result.ontology_context
             result_metadata["ontology_context_hash"] = result.ontology_context.get("context_hash", "")
             result_metadata["ontology_profile"] = result.ontology_context.get("profile", self.ontology_profile)
+        if result.layered_graph_summary is not None:
+            result_metadata["layered_graph_summary"] = result.layered_graph_summary
         if result.fallback_used:
             result_metadata["fallback_used"] = True
             result_metadata["fallback_reason"] = result.fallback_reason

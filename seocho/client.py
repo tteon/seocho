@@ -199,6 +199,7 @@ class Seocho:
                 ontology=ontology,
                 graph_store=graph_store,
                 llm=llm,
+                vector_store=vector_store,
                 workspace_id=self.workspace_id,
                 extraction_prompt=extraction_prompt,
                 agent_config=agent_config,

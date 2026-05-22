@@ -53,6 +53,7 @@ class IngestionFacade:
             database=request.database,
             category=request.category,
             metadata=request.metadata,
+            source_id=request.source_id,
         )
 
         if original_strict is not None:

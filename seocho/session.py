@@ -223,6 +223,7 @@ class Session:
                 ontology=self.ontology,
                 graph_store=self.graph_store,
                 llm=self.llm,
+                vector_store=self.vector_store,
                 workspace_id=self.workspace_id,
                 extraction_prompt=self.extraction_prompt,
                 agent_config=self.agent_config,

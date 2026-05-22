@@ -218,13 +218,20 @@ class TestExtractionNormalization:
 
         result = pipeline.index("Cboe data")
 
-        assert result.total_nodes == 2
-        assert result.total_relationships == 2
+        assert result.total_nodes == len(store.last_nodes)
+        assert result.total_relationships == len(store.last_relationships)
+        assert result.layered_graph_summary is not None
+        assert result.layered_graph_summary["chunk_count"] == 1
         company = next(node for node in store.last_nodes if node["label"] == "Company")
         document = next(node for node in store.last_nodes if node["label"] == "Document")
+        document_version = next(node for node in store.last_nodes if node["label"] == "DocumentVersion")
+        chunk = next(node for node in store.last_nodes if node["label"] == "Chunk")
         assert company["properties"]["content_preview"] == "Cboe data"
         assert document["properties"]["content_preview"] == "Cboe data"
+        assert document_version["properties"]["chunk_count"] == 1
+        assert chunk["properties"]["chunk_id"].endswith("_chunk_0000")
         assert any(rel["type"] == "MENTIONS" for rel in store.last_relationships)
+        assert any(rel["type"] == "HAS_CHUNK" for rel in store.last_relationships)
 
     def test_empty_extraction_uses_heuristic_fallback_instead_of_skipping_chunk(self):
         ontology = Ontology(
@@ -269,3 +276,61 @@ class TestExtractionNormalization:
         assert result.chunks_processed == 1
         assert result.total_nodes > 0
         assert any(node["label"] == "Entity" for node in store.last_nodes)
+
+    def test_vector_store_receives_chunk_rows_with_layered_metadata(self):
+        ontology = Ontology(
+            name="finder",
+            nodes={"Company": NodeDef(properties={"name": P(str, unique=True)})},
+            relationships={},
+        )
+
+        class FakeResponse:
+            def __init__(self, payload):
+                self._payload = payload
+                self.usage = None
+
+            def json(self):
+                return self._payload
+
+        class FakeLLM:
+            def complete(self, *, system, user, temperature, response_format=None):  # noqa: ANN001
+                return FakeResponse(
+                    {
+                        "nodes": [{"id": "acme", "label": "Company", "properties": {"name": "ACME"}}],
+                        "relationships": [],
+                    }
+                )
+
+        class FakeGraphStore:
+            def write(self, nodes, relationships, *, database="neo4j", workspace_id="default", source_id=""):  # noqa: ANN001
+                return {
+                    "nodes_created": len(nodes),
+                    "relationships_created": len(relationships),
+                    "errors": [],
+                }
+
+        class FakeVectorStore:
+            def __init__(self):
+                self.rows = []
+
+            def add_batch(self, items):
+                self.rows.extend(items)
+                return len(items)
+
+        vector_store = FakeVectorStore()
+        pipeline = IndexingPipeline(
+            ontology=ontology,
+            graph_store=FakeGraphStore(),
+            llm=FakeLLM(),
+            vector_store=vector_store,
+        )
+
+        result = pipeline.index("ACME expanded into Asia.", metadata={"source_type": "text"})
+
+        assert len(vector_store.rows) == 1
+        row = vector_store.rows[0]
+        assert row["id"].endswith("_chunk_0000")
+        assert row["metadata"]["memory_id"] == result.source_id
+        assert row["metadata"]["version_id"] == result.layered_graph_summary["version_id"]
+        assert row["metadata"]["entity_ids"] == ["acme"]
+        assert result.layered_graph_summary["vector_indexed_chunks"] == 1

@@ -15,6 +15,7 @@ from .pipeline import (
     chunk_text,
     content_hash,
 )
+from .chunk import Chunk, build_chunk_id, chunk
 from .extraction_engine import CanonicalExtractionEngine
 from .ingestion_facade import IngestRequest, IngestionFacade
 from .file_reader import (
@@ -32,6 +33,9 @@ __all__ = [
     "IngestionFacade",
     "IndexingResult",
     "BatchIndexingResult",
+    "Chunk",
+    "chunk",
+    "build_chunk_id",
     "chunk_text",
     "content_hash",
     "FileIndexer",

@@ -114,6 +114,13 @@ Each entry must link to a full ADR when impact is non-trivial.
   - keep repo-root `README.md` + `docs/*` as the canonical docs source and generate selected site pages at build time
   - replace the separate-repository website sync contract with in-repo quality and GitHub Pages deploy workflows
 
+## 2026-05-23
+
+- Accepted `ADR-0093-layered-document-version-chunk-ingest-contract.md`
+  - local SDK ingest now materializes `Document -> DocumentVersion -> Chunk -> Entity`
+  - chunk embeddings are written through the local `vector_store` only after a successful graph write
+  - vector rows preserve `workspace_id`, `memory_id`, `document_id`, `version_id`, and `chunk_id` so retrieval remains joinable to graph provenance
+
 ## 2026-03-12
 
 - Accepted `ADR-0028-graph-registry-and-multi-instance-debate-runtime.md`

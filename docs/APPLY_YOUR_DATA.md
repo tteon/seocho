@@ -57,6 +57,26 @@ print(result.status)
 print(result.records_processed)
 ```
 
+Use `add_graph(...)` when you are working in the local SDK, already have
+ontology-shaped `nodes` / `relationships`, and want SEOCHO to keep SHACL
+validation, provenance shaping, and layered `Document -> DocumentVersion ->
+Section -> Chunk` materialization without re-running text extraction.
+
+```python
+memory = client.add_graph(
+    {
+        "nodes": [
+            {"id": "acme", "label": "Company", "properties": {"name": "ACME"}},
+        ],
+        "relationships": [],
+    },
+    content="# Overview\n\nACME entered Asia.\n\n## Risks\n\nACME faces supply chain pressure.",
+)
+
+print(memory.memory_id)
+print(memory.metadata["layered_graph_summary"]["section_count"])
+```
+
 ## 2. Structure Records for Raw Ingest
 
 The minimum useful record is:

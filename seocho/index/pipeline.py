@@ -333,6 +333,294 @@ class IndexingPipeline:
     def _normalize_relationship_type(self, raw_type: str) -> str:
         return self._graph_extraction._normalize_relationship_type(raw_type)
 
+    @staticmethod
+    def _graph_payload_hash(graph_data: Dict[str, Any]) -> str:
+        payload = json.dumps(
+            {
+                "nodes": graph_data.get("nodes", []) or [],
+                "relationships": graph_data.get("relationships", []) or [],
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+            default=str,
+        )
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+
+    @staticmethod
+    def _system_layer_label(label: Any) -> bool:
+        return str(label or "").strip() in {"Document", "DocumentVersion", "Section", "Chunk"}
+
+    def _match_entity_ids_to_text(
+        self,
+        text: str,
+        nodes: Sequence[Dict[str, Any]],
+    ) -> List[str]:
+        content = str(text or "").strip().lower()
+        if not content:
+            return []
+        entity_ids: List[str] = []
+        seen: set[str] = set()
+        for node in nodes:
+            label = str(node.get("label", "")).strip()
+            if self._system_layer_label(label):
+                continue
+            node_id = str(node.get("id", "")).strip()
+            name = str(node.get("properties", {}).get("name", "")).strip().lower()
+            if not node_id or not name:
+                continue
+            if name in content and node_id not in seen:
+                seen.add(node_id)
+                entity_ids.append(node_id)
+        return entity_ids
+
+    def _coerce_chunk_records(
+        self,
+        *,
+        source_id: str,
+        document_id: str,
+        version_id: str,
+        content: str,
+        chunk_records: Optional[Sequence[Dict[str, Any]]],
+        nodes: Sequence[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        provided_records = [dict(item) for item in (chunk_records or []) if isinstance(item, dict)]
+        if not provided_records and not content:
+            return []
+
+        if provided_records:
+            normalized_records: List[Dict[str, Any]] = []
+            for index, record in enumerate(
+                sorted(
+                    provided_records,
+                    key=lambda item: int(item.get("ordinal", 0) or 0),
+                )
+            ):
+                ordinal = int(record.get("ordinal", index) or index)
+                chunk_text = str(record.get("text") or "")
+                entity_ids = [
+                    str(entity_id).strip()
+                    for entity_id in (record.get("entity_ids") or [])
+                    if str(entity_id).strip()
+                ]
+                if not entity_ids and chunk_text:
+                    entity_ids = self._match_entity_ids_to_text(chunk_text, nodes)
+                normalized_records.append(
+                    {
+                        "chunk_id": str(record.get("chunk_id") or build_chunk_id(source_id, ordinal)),
+                        "document_id": str(record.get("document_id") or document_id),
+                        "version_id": str(record.get("version_id") or version_id),
+                        "ordinal": ordinal,
+                        "text": chunk_text,
+                        "char_start": record.get("char_start"),
+                        "char_end": record.get("char_end"),
+                        "token_count": int(record.get("token_count") or len(chunk_text.split())),
+                        "embedding_vector_id": str(record.get("embedding_vector_id") or build_chunk_id(source_id, ordinal)),
+                        "embedding_model": str(record.get("embedding_model") or ""),
+                        "embeddingText": str(record.get("embeddingText") or chunk_text),
+                        "entity_ids": entity_ids,
+                        "section_path": str(record.get("section_path") or ""),
+                        "section_title": str(record.get("section_title") or ""),
+                        "section_level": record.get("section_level"),
+                    }
+                )
+            return normalized_records
+
+        normalized_records = []
+        for chunk_obj in _canonical_chunk(
+            content,
+            source_id=source_id,
+            max_chars=self.max_chunk_chars,
+        ):
+            normalized_records.append(
+                {
+                    "chunk_id": chunk_obj.chunk_id,
+                    "document_id": document_id,
+                    "version_id": version_id,
+                    "ordinal": chunk_obj.ordinal,
+                    "text": chunk_obj.text,
+                    "char_start": chunk_obj.char_start,
+                    "char_end": chunk_obj.char_end,
+                    "token_count": chunk_obj.token_count
+                    if chunk_obj.token_count is not None
+                    else len(chunk_obj.text.split()),
+                    "embedding_vector_id": chunk_obj.chunk_id,
+                    "embedding_model": "",
+                    "embeddingText": chunk_obj.text,
+                    "entity_ids": self._match_entity_ids_to_text(chunk_obj.text, nodes),
+                    "section_path": chunk_obj.section_path,
+                    "section_title": chunk_obj.section_title,
+                    "section_level": chunk_obj.section_level,
+                }
+            )
+        return normalized_records
+
+    def _build_record_metadata(
+        self,
+        *,
+        source_id: str,
+        document_id: str,
+        version_id: str,
+        category: str,
+        source_type: str,
+        metadata: Optional[Dict[str, Any]],
+        checksum: str,
+    ) -> Dict[str, Any]:
+        from seocho.index.runtime_memory import build_record_metadata
+
+        return build_record_metadata(
+            source_id=source_id,
+            category=category,
+            source_type=source_type,
+            content_encoding="utf-8",
+            parser_metadata=None,
+            user_metadata={
+                **(metadata if isinstance(metadata, dict) else {}),
+                "document_id": document_id,
+                "version_id": version_id,
+                "checksum": checksum,
+            },
+        )
+
+    def _maybe_build_semantic_artifacts(self, result: IndexingResult) -> None:
+        try:
+            draft = self.ontology.to_semantic_artifact_draft()
+            draft_dict = draft.to_dict() if hasattr(draft, "to_dict") else dict(draft)
+            result.semantic_artifacts = {
+                "ontology_candidate": draft_dict.get("ontology_candidate"),
+                "shacl_candidate": draft_dict.get("shacl_candidate"),
+                "vocabulary_candidate": draft_dict.get("vocabulary_candidate"),
+                "artifact_decision": {
+                    "policy": "auto",
+                    "applied": "draft",
+                    "status": "auto_applied",
+                },
+                "relatedness_summary": result.relatedness_summary,
+            }
+        except Exception as exc:
+            logger.warning("Semantic artifact draft skipped: %s", exc)
+
+    def _shape_and_write_graph(
+        self,
+        *,
+        result: IndexingResult,
+        all_nodes: List[Dict[str, Any]],
+        all_rels: List[Dict[str, Any]],
+        chunk_records: List[Dict[str, Any]],
+        ontology_context: Any,
+        source_id: str,
+        document_id: str,
+        version_id: str,
+        content: str,
+        database: str,
+        category: str,
+        metadata: Optional[Dict[str, Any]],
+        checksum: str,
+    ) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+        from seocho.index.runtime_memory import ensure_memory_graph
+        from seocho.ontology_context import apply_ontology_context_to_graph_payload
+
+        source_type = "text"
+        if isinstance(metadata, dict):
+            source_type = str(metadata.get("source_type") or "text")
+
+        if all_nodes or all_rels:
+            try:
+                record_metadata = self._build_record_metadata(
+                    source_id=source_id,
+                    document_id=document_id,
+                    version_id=version_id,
+                    category=category,
+                    source_type=source_type,
+                    metadata=metadata,
+                    checksum=checksum,
+                )
+                shaped = ensure_memory_graph(
+                    graph_data={"nodes": all_nodes, "relationships": all_rels},
+                    source_id=source_id,
+                    workspace_id=self.workspace_id,
+                    text=content,
+                    category=category,
+                    source_type=source_type,
+                    record_metadata=record_metadata,
+                    chunk_records=chunk_records,
+                )
+                all_nodes = shaped.get("nodes", all_nodes)
+                all_rels = shaped.get("relationships", all_rels)
+                result.layered_graph_summary = shaped.get("layered_graph_summary")
+            except Exception as exc:
+                logger.warning("Memory graph shaping skipped: %s", exc)
+
+        if not (all_nodes or all_rels):
+            return all_nodes, all_rels
+
+        all_nodes, all_rels = apply_ontology_context_to_graph_payload(
+            all_nodes,
+            all_rels,
+            ontology_context,
+        )
+
+        if _graph_cot_properties_enabled():
+            shaper = PropertyShaper()
+            for node in all_nodes:
+                props = node.get("properties") or {}
+                props.setdefault("id", node.get("id"))
+                props.setdefault("name", props.get("name") or node.get("id"))
+                node["properties"] = shaper.shape_node(props)
+            for rel in all_rels:
+                edge_type = str(rel.get("type") or "MENTIONS")
+                rel["properties"] = shaper.shape_edge(
+                    rel.get("properties") or {},
+                    edge_type=edge_type,
+                )
+
+        summary = self.graph_store.write(
+            all_nodes,
+            all_rels,
+            database=database,
+            workspace_id=self.workspace_id,
+            source_id=source_id,
+        )
+        result.total_nodes = summary.get("nodes_created", 0)
+        result.total_relationships = summary.get("relationships_created", 0)
+        result.write_errors = summary.get("errors", [])
+
+        if not result.write_errors and self.vector_store is not None and chunk_records:
+            try:
+                vector_rows = [
+                    {
+                        "id": str(record["chunk_id"]),
+                        "text": str(record.get("embeddingText") or record.get("text") or ""),
+                        "metadata": {
+                            "workspace_id": self.workspace_id,
+                            "memory_id": source_id,
+                            "source_id": source_id,
+                            "document_id": document_id,
+                            "version_id": version_id,
+                            "chunk_id": str(record["chunk_id"]),
+                            "ordinal": int(record.get("ordinal", 0) or 0),
+                            "source_type": source_type,
+                            "category": category,
+                            "section_path": str(record.get("section_path") or ""),
+                            "entity_ids": list(record.get("entity_ids", []) or []),
+                        },
+                    }
+                    for record in chunk_records
+                ]
+                indexed = self.vector_store.add_batch(vector_rows)
+                layered_summary = dict(result.layered_graph_summary or {})
+                layered_summary["vector_indexed_chunks"] = int(indexed)
+                result.layered_graph_summary = layered_summary
+            except Exception as exc:
+                result.write_errors.append(f"Vector index: {exc}")
+
+        result.nodes = list(all_nodes)
+        result.relationships = list(all_rels)
+
+        if self.on_after_write:
+            self.on_after_write(all_nodes, all_rels, summary)
+
+        return all_nodes, all_rels
+
     def index(
         self,
         content: str,
@@ -391,7 +679,8 @@ class IndexingPipeline:
             source_id=source_id,
             max_chars=self.max_chunk_chars,
         )
-        version_id = f"{source_id}_ver_{content_hash(content)}"
+        checksum = content_hash(content)
+        version_id = f"{source_id}_ver_{checksum}"
         document_id = f"{source_id}_doc"
         all_nodes: List[Dict[str, Any]] = []
         all_rels: List[Dict[str, Any]] = []
@@ -540,6 +829,9 @@ class IndexingPipeline:
                     else len(chunk_obj.text.split()),
                     "embedding_vector_id": chunk_obj.chunk_id,
                     "embeddingText": chunk_obj.text,
+                    "section_path": chunk_obj.section_path,
+                    "section_title": chunk_obj.section_title,
+                    "section_level": chunk_obj.section_level,
                     "entity_ids": [
                         str(node.get("id", "")).strip()
                         for node in nodes
@@ -606,136 +898,26 @@ class IndexingPipeline:
         # ontology so local mode reports the same artifact contract as the
         # server's RuntimeRawIngestor.semantic_artifacts.
         if all_nodes:
-            try:
-                draft = self.ontology.to_semantic_artifact_draft()
-                draft_dict = draft.to_dict() if hasattr(draft, "to_dict") else dict(draft)
-                result.semantic_artifacts = {
-                    "ontology_candidate": draft_dict.get("ontology_candidate"),
-                    "shacl_candidate": draft_dict.get("shacl_candidate"),
-                    "vocabulary_candidate": draft_dict.get("vocabulary_candidate"),
-                    "artifact_decision": {
-                        "policy": "auto",
-                        "applied": "draft",
-                        "status": "auto_applied",
-                    },
-                    "relatedness_summary": result.relatedness_summary,
-                }
-            except Exception as exc:
-                logger.warning("Semantic artifact draft skipped: %s", exc)
-
-        # --- Memory graph shaping ---
-        if all_nodes or all_rels:
-            try:
-                from seocho.index.runtime_memory import build_record_metadata, ensure_memory_graph
-
-                source_type = "text"
-                if isinstance(metadata, dict):
-                    source_type = str(metadata.get("source_type") or "text")
-                record_metadata = build_record_metadata(
-                    source_id=source_id,
-                    category=category,
-                    source_type=source_type,
-                    content_encoding="utf-8",
-                    parser_metadata=None,
-                    user_metadata={
-                        **(metadata if isinstance(metadata, dict) else {}),
-                        "document_id": document_id,
-                        "version_id": version_id,
-                        "checksum": content_hash(content),
-                    },
-                )
-                shaped = ensure_memory_graph(
-                    graph_data={"nodes": all_nodes, "relationships": all_rels},
-                    source_id=source_id,
-                    workspace_id=self.workspace_id,
-                    text=content,
-                    category=category,
-                    source_type=source_type,
-                    record_metadata=record_metadata,
-                    chunk_records=chunk_records,
-                )
-                all_nodes = shaped.get("nodes", all_nodes)
-                all_rels = shaped.get("relationships", all_rels)
-                result.layered_graph_summary = shaped.get("layered_graph_summary")
-            except Exception as exc:
-                logger.warning("Memory graph shaping skipped: %s", exc)
+            self._maybe_build_semantic_artifacts(result)
 
         # Write to graph
         if all_nodes or all_rels:
             try:
-                from seocho.ontology_context import apply_ontology_context_to_graph_payload
-
-                all_nodes, all_rels = apply_ontology_context_to_graph_payload(
-                    all_nodes,
-                    all_rels,
-                    ontology_context,
-                )
-
-                if _graph_cot_properties_enabled():
-                    shaper = PropertyShaper()
-                    for node in all_nodes:
-                        props = node.get("properties") or {}
-                        props.setdefault("id", node.get("id"))
-                        props.setdefault("name", props.get("name") or node.get("id"))
-                        node["properties"] = shaper.shape_node(props)
-                    for rel in all_rels:
-                        edge_type = str(rel.get("type") or "MENTIONS")
-                        rel["properties"] = shaper.shape_edge(
-                            rel.get("properties") or {},
-                            edge_type=edge_type,
-                        )
-
-                summary = self.graph_store.write(
-                    all_nodes, all_rels,
-                    database=database,
-                    workspace_id=self.workspace_id,
+                all_nodes, all_rels = self._shape_and_write_graph(
+                    result=result,
+                    all_nodes=all_nodes,
+                    all_rels=all_rels,
+                    chunk_records=chunk_records,
+                    ontology_context=ontology_context,
                     source_id=source_id,
+                    document_id=document_id,
+                    version_id=version_id,
+                    content=content,
+                    database=database,
+                    category=category,
+                    metadata=metadata,
+                    checksum=checksum,
                 )
-                result.total_nodes = summary.get("nodes_created", 0)
-                result.total_relationships = summary.get("relationships_created", 0)
-                result.write_errors = summary.get("errors", [])
-
-                if not result.write_errors and self.vector_store is not None and chunk_records:
-                    try:
-                        source_type = "text"
-                        if isinstance(metadata, dict):
-                            source_type = str(metadata.get("source_type") or "text")
-                        vector_rows = [
-                            {
-                                "id": str(record["chunk_id"]),
-                                "text": str(record.get("embeddingText") or record.get("text") or ""),
-                                "metadata": {
-                                    "workspace_id": self.workspace_id,
-                                    "memory_id": source_id,
-                                    "source_id": source_id,
-                                    "document_id": document_id,
-                                    "version_id": version_id,
-                                    "chunk_id": str(record["chunk_id"]),
-                                    "ordinal": int(record.get("ordinal", 0) or 0),
-                                    "source_type": source_type,
-                                    "category": category,
-                                    "entity_ids": list(record.get("entity_ids", []) or []),
-                                },
-                            }
-                            for record in chunk_records
-                        ]
-                        indexed = self.vector_store.add_batch(vector_rows)
-                        layered_summary = dict(result.layered_graph_summary or {})
-                        layered_summary["vector_indexed_chunks"] = int(indexed)
-                        result.layered_graph_summary = layered_summary
-                    except Exception as exc:
-                        result.write_errors.append(f"Vector index: {exc}")
-
-                # Surface the materialised graph so callers can show users
-                # what was extracted (Memory.entities, etc.) without having
-                # to issue a second graph query.
-                result.nodes = list(all_nodes)
-                result.relationships = list(all_rels)
-
-                # --- Callback: on_after_write ---
-                if self.on_after_write:
-                    self.on_after_write(all_nodes, all_rels, summary)
-
             except Exception as exc:
                 result.write_errors.append(str(exc))
 
@@ -766,6 +948,146 @@ class IndexingPipeline:
                 )
         except Exception:
             pass
+
+        return result
+
+    def index_graph(
+        self,
+        graph_data: Dict[str, Any],
+        *,
+        content: str = "",
+        database: str = "neo4j",
+        category: str = "general",
+        metadata: Optional[Dict[str, Any]] = None,
+        source_id: Optional[str] = None,
+        chunk_records: Optional[Sequence[Dict[str, Any]]] = None,
+    ) -> IndexingResult:
+        """Index a pre-structured graph payload under the active ontology.
+
+        This path is for callers who already designed their graph schema and
+        want SEOCHO to enforce ontology validation, provenance shaping, and
+        vector/document join metadata without running text extraction.
+        """
+
+        source_id = str(source_id or uuid.uuid4())
+        result = IndexingResult(source_id=source_id)
+        ontology_context = self._ontology_context_cache.get(
+            self.ontology,
+            workspace_id=self.workspace_id,
+            profile=self.ontology_profile,
+        )
+        result.ontology_context = ontology_context.metadata(usage="indexing")
+
+        normalized = self._normalize_extraction_payload(graph_data or {})
+        all_nodes = list(normalized.get("nodes", []) or [])
+        all_rels = list(normalized.get("relationships", []) or [])
+        if self.on_after_extract:
+            all_nodes, all_rels = self.on_after_extract(all_nodes, all_rels)
+
+        validation_payload = {"nodes": all_nodes, "relationships": all_rels}
+        errors = self.ontology.validate_with_shacl(validation_payload)
+        if self.on_after_validate:
+            all_nodes, all_rels, errors = self.on_after_validate(all_nodes, all_rels, errors)
+        if errors:
+            result.validation_errors.extend(errors)
+            if self.strict_validation:
+                result.skipped_chunks = 1
+                return result
+
+        if not all_nodes and not all_rels:
+            result.write_errors.append("Structured graph payload produced no nodes or relationships.")
+            return result
+
+        all_nodes, canonical_id_by_original = self._cross_chunk_dedup(all_nodes)
+        all_rels = self._rewrite_relationship_ids(all_rels, canonical_id_by_original)
+
+        canonical_content = str(content or "").strip()
+        chunk_body = self._coerce_chunk_records(
+            source_id=source_id,
+            document_id=f"{source_id}_doc",
+            version_id="",
+            content=canonical_content,
+            chunk_records=chunk_records,
+            nodes=all_nodes,
+        )
+        if not canonical_content and chunk_body:
+            canonical_content = "\n\n".join(
+                str(record.get("text") or "").strip()
+                for record in chunk_body
+                if str(record.get("text") or "").strip()
+            ).strip()
+        if not canonical_content:
+            canonical_content = "\n".join(
+                str(node.get("properties", {}).get("name") or node.get("id") or "").strip()
+                for node in all_nodes
+                if str(node.get("properties", {}).get("name") or node.get("id") or "").strip()
+            )
+
+        checksum = (
+            content_hash(canonical_content)
+            if canonical_content.strip()
+            else self._graph_payload_hash(validation_payload)
+        )
+        document_id = f"{source_id}_doc"
+        version_id = f"{source_id}_ver_{checksum}"
+        resolved_chunk_records = self._coerce_chunk_records(
+            source_id=source_id,
+            document_id=document_id,
+            version_id=version_id,
+            content=canonical_content,
+            chunk_records=chunk_records,
+            nodes=all_nodes,
+        )
+        for record in resolved_chunk_records:
+            canonical_entity_ids: List[str] = []
+            seen_entity_ids: set[str] = set()
+            for entity_id in record.get("entity_ids", []) or []:
+                canonical_id = canonical_id_by_original.get(str(entity_id), str(entity_id))
+                if not canonical_id or canonical_id in seen_entity_ids:
+                    continue
+                seen_entity_ids.add(canonical_id)
+                canonical_entity_ids.append(canonical_id)
+            record["entity_ids"] = canonical_entity_ids
+
+        result.chunks_processed = len(resolved_chunk_records) if resolved_chunk_records else 1
+
+        if self.on_before_write:
+            all_nodes, all_rels = self.on_before_write(all_nodes, all_rels)
+
+        if self.enable_rule_constraints and all_nodes:
+            try:
+                from seocho.rules import infer_rules_from_graph, apply_rules_to_graph
+
+                graph_for_rules = {"nodes": all_nodes, "relationships": all_rels}
+                ruleset = infer_rules_from_graph(graph_for_rules)
+                annotated = apply_rules_to_graph(graph_for_rules, ruleset)
+                all_nodes = annotated.get("nodes", all_nodes)
+                result.rule_profile = annotated.get("rule_profile")
+                result.rule_validation_summary = annotated.get("rule_validation_summary")
+            except Exception as exc:
+                logger.warning("Rule inference skipped: %s", exc)
+
+        if all_nodes:
+            self._maybe_build_semantic_artifacts(result)
+
+        try:
+            all_nodes, all_rels = self._shape_and_write_graph(
+                result=result,
+                all_nodes=all_nodes,
+                all_rels=all_rels,
+                chunk_records=resolved_chunk_records,
+                ontology_context=ontology_context,
+                source_id=source_id,
+                document_id=document_id,
+                version_id=version_id,
+                content=canonical_content,
+                database=database,
+                category=category,
+                metadata=metadata,
+                checksum=checksum,
+            )
+        except Exception as exc:
+            result.write_errors.append(str(exc))
 
         return result
 

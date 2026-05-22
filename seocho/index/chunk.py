@@ -16,10 +16,12 @@ not migrate existing graph data.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 from typing import List, Optional
 
 
 CHUNK_ID_FORMAT = "{source_id}_chunk_{ordinal:04d}"
+_SECTION_HEADING_RE = re.compile(r"(?m)^(#{1,6})[ \t]+(.+?)\s*$")
 
 
 @dataclass(frozen=True)
@@ -42,6 +44,14 @@ class Chunk:
         chunking paths).
     token_count:
         Whitespace-token count of ``text``, populated by the chunker.
+    section_path:
+        Hierarchical markdown heading path active at this chunk's starting
+        offset, for example ``Overview / Risks``.
+    section_title:
+        Leaf section title for ``section_path``.
+    section_level:
+        Markdown heading depth of ``section_title`` (``1``-``6``), or ``None``
+        when the document has no heading structure.
     """
 
     chunk_id: str
@@ -50,6 +60,9 @@ class Chunk:
     char_start: int
     char_end: int
     token_count: Optional[int] = None
+    section_path: str = ""
+    section_title: str = ""
+    section_level: Optional[int] = None
 
 
 def build_chunk_id(source_id: str, ordinal: int) -> str:
@@ -84,17 +97,45 @@ def chunk(
         separator=separator,
     )
     offsets = _locate_bodies(text, bodies)
+    section_annotations = _locate_sections(text)
     return [
-        Chunk(
-            chunk_id=build_chunk_id(source_id, i),
-            text=body,
+        _build_chunk(
+            body=body,
+            source_id=source_id,
             ordinal=i,
-            char_start=start,
-            char_end=end,
-            token_count=_rough_token_count(body),
+            start=start,
+            end=end,
+            section_annotations=section_annotations,
         )
         for i, (body, (start, end)) in enumerate(zip(bodies, offsets))
     ]
+
+
+def _build_chunk(
+    *,
+    body: str,
+    source_id: str,
+    ordinal: int,
+    start: int,
+    end: int,
+    section_annotations: List[dict[str, object]],
+) -> Chunk:
+    section_path, section_title, section_level = _section_for_range(
+        start,
+        end,
+        section_annotations,
+    )
+    return Chunk(
+        chunk_id=build_chunk_id(source_id, ordinal),
+        text=body,
+        ordinal=ordinal,
+        char_start=start,
+        char_end=end,
+        token_count=_rough_token_count(body),
+        section_path=section_path,
+        section_title=section_title,
+        section_level=section_level,
+    )
 
 
 def _split_bodies(
@@ -157,6 +198,60 @@ def _locate_bodies(content: str, bodies: List[str]) -> List[tuple[int, int]]:
         if end >= 0:
             search_start = end
     return offsets
+
+
+def _locate_sections(text: str) -> List[dict[str, object]]:
+    """Return ordered section annotations extracted from markdown headings."""
+    annotations: List[dict[str, object]] = []
+    stack: List[str] = []
+    for match in _SECTION_HEADING_RE.finditer(text):
+        level = len(match.group(1))
+        title = re.sub(r"\s+", " ", match.group(2).strip())
+        if not title:
+            continue
+        if len(stack) >= level:
+            stack = stack[: level - 1]
+        while len(stack) < level - 1:
+            stack.append("")
+        stack.append(title)
+        path = " / ".join(part for part in stack if part)
+        annotations.append(
+            {
+                "start": match.start(),
+                "path": path,
+                "title": title,
+                "level": level,
+            }
+        )
+    return annotations
+
+
+def _section_for_range(
+    start_offset: int,
+    end_offset: int,
+    section_annotations: List[dict[str, object]],
+) -> tuple[str, str, Optional[int]]:
+    if end_offset < 0 or not section_annotations:
+        return "", "", None
+    for annotation in reversed(section_annotations):
+        annotation_start = int(annotation.get("start", -1))
+        if start_offset <= annotation_start < end_offset:
+            return (
+                str(annotation.get("path", "")),
+                str(annotation.get("title", "")),
+                int(annotation["level"]) if annotation.get("level") is not None else None,
+            )
+    if start_offset < 0:
+        return "", "", None
+    for annotation in reversed(section_annotations):
+        annotation_start = int(annotation.get("start", -1))
+        if annotation_start <= start_offset:
+            return (
+                str(annotation.get("path", "")),
+                str(annotation.get("title", "")),
+                int(annotation["level"]) if annotation.get("level") is not None else None,
+            )
+    return "", "", None
 
 
 def _rough_token_count(text: str) -> Optional[int]:

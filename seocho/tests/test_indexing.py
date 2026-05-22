@@ -2,6 +2,7 @@
 
 import pytest
 
+from seocho.client import Seocho
 from seocho.indexing import (
     BatchIndexingResult,
     IndexingResult,
@@ -334,3 +335,147 @@ class TestExtractionNormalization:
         assert row["metadata"]["version_id"] == result.layered_graph_summary["version_id"]
         assert row["metadata"]["entity_ids"] == ["acme"]
         assert result.layered_graph_summary["vector_indexed_chunks"] == 1
+
+    def test_markdown_headings_materialize_section_layer(self):
+        ontology = Ontology(
+            name="finder",
+            nodes={"Company": NodeDef(properties={"name": P(str, unique=True)})},
+            relationships={},
+        )
+
+        class FakeResponse:
+            def __init__(self, payload):
+                self._payload = payload
+                self.usage = None
+
+            def json(self):
+                return self._payload
+
+        class FakeLLM:
+            def complete(self, *, system, user, temperature, response_format=None):  # noqa: ANN001
+                return FakeResponse(
+                    {
+                        "nodes": [{"id": "acme", "label": "Company", "properties": {"name": "ACME"}}],
+                        "relationships": [],
+                    }
+                )
+
+        class FakeGraphStore:
+            def __init__(self):
+                self.last_nodes = []
+                self.last_relationships = []
+
+            def write(self, nodes, relationships, *, database="neo4j", workspace_id="default", source_id=""):  # noqa: ANN001
+                self.last_nodes = list(nodes)
+                self.last_relationships = list(relationships)
+                return {
+                    "nodes_created": len(nodes),
+                    "relationships_created": len(relationships),
+                    "errors": [],
+                }
+
+        store = FakeGraphStore()
+        pipeline = IndexingPipeline(
+            ontology=ontology,
+            graph_store=store,
+            llm=FakeLLM(),
+            max_chunk_chars=45,
+        )
+
+        text = (
+            "# Overview\n\n"
+            "ACME launched a new product in Asia.\n\n"
+            "## Risks\n\n"
+            "ACME faces supply chain risk in the region."
+        )
+        result = pipeline.index(text, metadata={"source_type": "text"})
+
+        section_nodes = [node for node in store.last_nodes if node["label"] == "Section"]
+        chunk_nodes = [node for node in store.last_nodes if node["label"] == "Chunk"]
+        assert result.layered_graph_summary["section_count"] == 2
+        assert len(section_nodes) == 2
+        assert {node["properties"]["section_path"] for node in chunk_nodes} == {"Overview", "Overview / Risks"}
+        assert any(rel["type"] == "HAS_SECTION" for rel in store.last_relationships)
+        assert any(rel["type"] == "PART_OF" for rel in store.last_relationships)
+
+
+class TestStructuredGraphIngest:
+    def test_seocho_add_graph_materializes_sections_and_chunks(self):
+        ontology = Ontology(
+            name="contracts",
+            nodes={"Company": NodeDef(properties={"name": P(str, unique=True)})},
+            relationships={},
+        )
+
+        class FakeGraphStore:
+            def __init__(self):
+                self.write_calls = 0
+                self.last_nodes = []
+                self.last_relationships = []
+
+            def write(self, nodes, relationships, *, database="neo4j", workspace_id="default", source_id=""):  # noqa: ANN001
+                self.write_calls += 1
+                self.last_nodes = list(nodes)
+                self.last_relationships = list(relationships)
+                return {
+                    "nodes_created": len(nodes),
+                    "relationships_created": len(relationships),
+                    "errors": [],
+                }
+
+        store = FakeGraphStore()
+        client = Seocho(ontology=ontology, graph_store=store, llm=object())
+
+        memory = client.add_graph(
+            {
+                "nodes": [{"id": "acme", "label": "Company", "properties": {"name": "ACME"}}],
+                "relationships": [],
+            },
+            content=(
+                "# Overview\n\n"
+                "ACME entered Asia.\n\n"
+                "## Risks\n\n"
+                "ACME faces supply chain pressure."
+            ),
+        )
+
+        assert memory.status == "active"
+        assert memory.source_type == "structured_graph"
+        assert memory.metadata["layered_graph_summary"]["section_count"] == 2
+        assert any(node["label"] == "Section" for node in memory.entities)
+        assert any(node["label"] == "Chunk" for node in store.last_nodes)
+        assert store.write_calls == 1
+
+    def test_seocho_add_graph_strict_validation_rejects_invalid_payload(self):
+        ontology = Ontology(
+            name="contracts",
+            nodes={"Company": NodeDef(properties={"name": P(str, unique=True)})},
+            relationships={},
+        )
+
+        class FakeGraphStore:
+            def __init__(self):
+                self.write_calls = 0
+
+            def write(self, nodes, relationships, *, database="neo4j", workspace_id="default", source_id=""):  # noqa: ANN001
+                self.write_calls += 1
+                return {
+                    "nodes_created": len(nodes),
+                    "relationships_created": len(relationships),
+                    "errors": [],
+                }
+
+        store = FakeGraphStore()
+        client = Seocho(ontology=ontology, graph_store=store, llm=object())
+
+        memory = client.add_graph(
+            {
+                "nodes": [{"id": "broken-company", "label": "Company", "properties": {}}],
+                "relationships": [],
+            },
+            strict_validation=True,
+        )
+
+        assert memory.status == "failed"
+        assert memory.metadata["validation_errors"]
+        assert store.write_calls == 0

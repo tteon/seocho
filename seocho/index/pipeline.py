@@ -37,11 +37,12 @@ import os
 import re
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Sequence
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 logger = logging.getLogger(__name__)
 _SLUG_RE = re.compile(r"[^a-z0-9]+")
 
+from .chunk import Chunk, build_chunk_id, chunk as _canonical_chunk
 from .extraction_engine import CanonicalExtractionEngine
 from .property_shaper import PropertyShaper
 
@@ -61,57 +62,23 @@ def chunk_text(
     overlap_chars: int = 200,
     separator: str = "\n\n",
 ) -> List[str]:
-    """Split text into overlapping chunks for extraction.
+    """Back-compat shim — split text into overlapping chunk strings.
 
-    Strategy:
-    1. Split on ``separator`` (paragraph breaks by default)
-    2. Merge paragraphs until ``max_chars`` is reached
-    3. Add ``overlap_chars`` from previous chunk to preserve context
-
-    Parameters
-    ----------
-    text:
-        The full document text.
-    max_chars:
-        Maximum characters per chunk (~1500 tokens at 4 chars/token).
-    overlap_chars:
-        Characters to repeat from previous chunk for context continuity.
-    separator:
-        Primary split point (paragraph breaks).
-
-    Returns
-    -------
-    List of text chunks. Single-chunk list if text is short enough.
+    New code should use :func:`seocho.index.chunk.chunk` which returns
+    :class:`~seocho.index.chunk.Chunk` instances with deterministic
+    ``chunk_id`` and char offsets. This wrapper exists for SDK consumers
+    that still expect ``list[str]``.
     """
-    if len(text) <= max_chars:
-        return [text]
-
-    paragraphs = text.split(separator)
-    chunks: List[str] = []
-    current: List[str] = []
-    current_len = 0
-
-    for para in paragraphs:
-        para = para.strip()
-        if not para:
-            continue
-
-        if current_len + len(para) + len(separator) > max_chars and current:
-            chunk_text_str = separator.join(current)
-            chunks.append(chunk_text_str)
-
-            # Overlap: keep last portion of current chunk
-            overlap_text = chunk_text_str[-overlap_chars:] if overlap_chars > 0 else ""
-            current = [overlap_text] if overlap_text else []
-            current_len = len(overlap_text)
-
-        current.append(para)
-        current_len += len(para) + len(separator)
-
-    if current:
-        chunks.append(separator.join(current))
-
-    return chunks if chunks else [text]
+    return [
+        c.text
+        for c in _canonical_chunk(
+            text,
+            source_id="_text",
+            max_chars=max_chars,
+            overlap_chars=overlap_chars,
+            separator=separator,
+        )
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -145,6 +112,7 @@ class IndexingResult:
     relatedness_summary: Optional[Dict[str, Any]] = None
     semantic_artifacts: Optional[Dict[str, Any]] = None
     ontology_context: Optional[Dict[str, Any]] = None
+    layered_graph_summary: Optional[Dict[str, Any]] = None
     fallback_used: bool = False
     fallback_reason: str = ""
 
@@ -174,6 +142,7 @@ class IndexingResult:
             "relatedness_summary": self.relatedness_summary,
             "semantic_artifacts": self.semantic_artifacts,
             "ontology_context": self.ontology_context,
+            "layered_graph_summary": self.layered_graph_summary,
             "fallback_used": self.fallback_used,
             "fallback_reason": self.fallback_reason,
         }
@@ -247,6 +216,7 @@ class IndexingPipeline:
         enable_dedup: bool = True,
         enable_rule_constraints: bool = False,
         embedding_backend: Any = None,
+        vector_store: Any = None,
         ontology_profile: str = "default",
         ontology_context_cache: Any = None,
         on_after_extract: Optional[Callable] = None,
@@ -265,6 +235,7 @@ class IndexingPipeline:
         self.max_chunk_chars = max_chunk_chars
         self.enable_dedup = enable_dedup
         self.enable_rule_constraints = enable_rule_constraints
+        self.vector_store = vector_store
         self._seen_hashes: set = set()
         self.extraction_prompt = extraction_prompt
         self.ontology_profile = str(ontology_profile or "default")
@@ -370,6 +341,7 @@ class IndexingPipeline:
         category: str = "general",
         metadata: Optional[Dict[str, Any]] = None,
         on_chunk: Optional[Callable[[int, int], None]] = None,
+        source_id: Optional[str] = None,
     ) -> IndexingResult:
         """Index a single document (with automatic chunking).
 
@@ -391,7 +363,7 @@ class IndexingPipeline:
         -------
         IndexingResult with detailed metrics.
         """
-        source_id = str(uuid.uuid4())
+        source_id = str(source_id or uuid.uuid4())
         result = IndexingResult(source_id=source_id)
         ontology_context = self._ontology_context_cache.get(
             self.ontology,
@@ -414,12 +386,20 @@ class IndexingPipeline:
         import time as _time
         _pipeline_start = _time.time()
 
-        chunks = chunk_text(content, max_chars=self.max_chunk_chars)
+        chunks: List[Chunk] = _canonical_chunk(
+            content,
+            source_id=source_id,
+            max_chars=self.max_chunk_chars,
+        )
+        version_id = f"{source_id}_ver_{content_hash(content)}"
+        document_id = f"{source_id}_doc"
         all_nodes: List[Dict[str, Any]] = []
         all_rels: List[Dict[str, Any]] = []
+        chunk_records: List[Dict[str, Any]] = []
         _total_usage: Dict[str, int] = {}
 
-        for i, chunk in enumerate(chunks):
+        for i, chunk_obj in enumerate(chunks):
+            chunk = chunk_obj.text
             if on_chunk:
                 on_chunk(i, len(chunks))
 
@@ -546,12 +526,46 @@ class IndexingPipeline:
                 except Exception as exc:
                     logger.warning("Linking failed for chunk %d, using raw extraction: %s", i, exc)
 
+            chunk_records.append(
+                {
+                    "chunk_id": chunk_obj.chunk_id,
+                    "document_id": document_id,
+                    "version_id": version_id,
+                    "ordinal": chunk_obj.ordinal,
+                    "text": chunk_obj.text,
+                    "char_start": chunk_obj.char_start,
+                    "char_end": chunk_obj.char_end,
+                    "token_count": chunk_obj.token_count
+                    if chunk_obj.token_count is not None
+                    else len(chunk_obj.text.split()),
+                    "embedding_vector_id": chunk_obj.chunk_id,
+                    "embeddingText": chunk_obj.text,
+                    "entity_ids": [
+                        str(node.get("id", "")).strip()
+                        for node in nodes
+                        if str(node.get("label", "")).strip() != "Document"
+                        and str(node.get("id", "")).strip()
+                    ],
+                }
+            )
+
             all_nodes.extend(nodes)
             all_rels.extend(rels)
             result.chunks_processed += 1
 
         # Cross-chunk dedup: merge nodes with same label+name
-        all_nodes = self._cross_chunk_dedup(all_nodes)
+        all_nodes, canonical_id_by_original = self._cross_chunk_dedup(all_nodes)
+        all_rels = self._rewrite_relationship_ids(all_rels, canonical_id_by_original)
+        for record in chunk_records:
+            canonical_entity_ids: List[str] = []
+            seen_entity_ids: set[str] = set()
+            for entity_id in record.get("entity_ids", []) or []:
+                canonical_id = canonical_id_by_original.get(str(entity_id), str(entity_id))
+                if canonical_id in seen_entity_ids:
+                    continue
+                seen_entity_ids.add(canonical_id)
+                canonical_entity_ids.append(canonical_id)
+            record["entity_ids"] = canonical_entity_ids
 
         # --- Embedding relatedness (parity with server path) ---
         if self._embedding_linker is not None and all_nodes:
@@ -623,7 +637,12 @@ class IndexingPipeline:
                     source_type=source_type,
                     content_encoding="utf-8",
                     parser_metadata=None,
-                    user_metadata=metadata if isinstance(metadata, dict) else None,
+                    user_metadata={
+                        **(metadata if isinstance(metadata, dict) else {}),
+                        "document_id": document_id,
+                        "version_id": version_id,
+                        "checksum": content_hash(content),
+                    },
                 )
                 shaped = ensure_memory_graph(
                     graph_data={"nodes": all_nodes, "relationships": all_rels},
@@ -633,9 +652,11 @@ class IndexingPipeline:
                     category=category,
                     source_type=source_type,
                     record_metadata=record_metadata,
+                    chunk_records=chunk_records,
                 )
                 all_nodes = shaped.get("nodes", all_nodes)
                 all_rels = shaped.get("relationships", all_rels)
+                result.layered_graph_summary = shaped.get("layered_graph_summary")
             except Exception as exc:
                 logger.warning("Memory graph shaping skipped: %s", exc)
 
@@ -673,6 +694,37 @@ class IndexingPipeline:
                 result.total_nodes = summary.get("nodes_created", 0)
                 result.total_relationships = summary.get("relationships_created", 0)
                 result.write_errors = summary.get("errors", [])
+
+                if not result.write_errors and self.vector_store is not None and chunk_records:
+                    try:
+                        source_type = "text"
+                        if isinstance(metadata, dict):
+                            source_type = str(metadata.get("source_type") or "text")
+                        vector_rows = [
+                            {
+                                "id": str(record["chunk_id"]),
+                                "text": str(record.get("embeddingText") or record.get("text") or ""),
+                                "metadata": {
+                                    "workspace_id": self.workspace_id,
+                                    "memory_id": source_id,
+                                    "source_id": source_id,
+                                    "document_id": document_id,
+                                    "version_id": version_id,
+                                    "chunk_id": str(record["chunk_id"]),
+                                    "ordinal": int(record.get("ordinal", 0) or 0),
+                                    "source_type": source_type,
+                                    "category": category,
+                                    "entity_ids": list(record.get("entity_ids", []) or []),
+                                },
+                            }
+                            for record in chunk_records
+                        ]
+                        indexed = self.vector_store.add_batch(vector_rows)
+                        layered_summary = dict(result.layered_graph_summary or {})
+                        layered_summary["vector_indexed_chunks"] = int(indexed)
+                        result.layered_graph_summary = layered_summary
+                    except Exception as exc:
+                        result.write_errors.append(f"Vector index: {exc}")
 
                 # Surface the materialised graph so callers can show users
                 # what was extracted (Memory.entities, etc.) without having
@@ -767,16 +819,24 @@ class IndexingPipeline:
         return batch
 
     @staticmethod
-    def _cross_chunk_dedup(nodes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Merge nodes across chunks that have the same label + name."""
+    def _cross_chunk_dedup(
+        nodes: List[Dict[str, Any]]
+    ) -> Tuple[List[Dict[str, Any]], Dict[str, str]]:
+        """Merge nodes across chunks that have the same label + name.
+
+        Returns the deduplicated nodes and a map from original node id to the
+        canonical surviving node id.
+        """
         seen: Dict[str, Dict[str, Any]] = {}  # (label, name) -> merged node
         deduped: List[Dict[str, Any]] = []
+        canonical_id_by_original: Dict[str, str] = {}
 
         for node in nodes:
             label = node.get("label", "")
             props = node.get("properties", {})
             name = props.get("name", "")
             key = f"{label}::{name}" if name else ""
+            node_id = str(node.get("id", "")).strip()
 
             if key and key in seen:
                 # Merge properties (later values override)
@@ -784,13 +844,46 @@ class IndexingPipeline:
                 existing_props = existing.get("properties", {})
                 existing_props.update(props)
                 existing["properties"] = existing_props
+                if node_id:
+                    canonical_id_by_original[node_id] = str(existing.get("id", node_id))
             elif key:
                 seen[key] = dict(node)
                 deduped.append(seen[key])
+                if node_id:
+                    canonical_id_by_original[node_id] = node_id
             else:
                 deduped.append(node)
+                if node_id:
+                    canonical_id_by_original[node_id] = node_id
 
-        return deduped
+        return deduped, canonical_id_by_original
+
+    @staticmethod
+    def _rewrite_relationship_ids(
+        relationships: List[Dict[str, Any]],
+        canonical_id_by_original: Dict[str, str],
+    ) -> List[Dict[str, Any]]:
+        rewritten: List[Dict[str, Any]] = []
+        seen: set[tuple[str, str, str]] = set()
+        for rel in relationships:
+            source = canonical_id_by_original.get(str(rel.get("source", "")), str(rel.get("source", "")))
+            target = canonical_id_by_original.get(str(rel.get("target", "")), str(rel.get("target", "")))
+            rel_type = str(rel.get("type", "RELATED_TO")).strip() or "RELATED_TO"
+            if not source or not target:
+                continue
+            key = (source, target, rel_type)
+            if key in seen:
+                continue
+            seen.add(key)
+            rewritten.append(
+                {
+                    **rel,
+                    "source": source,
+                    "target": target,
+                    "type": rel_type,
+                }
+            )
+        return rewritten
 
     # ------------------------------------------------------------------
     # Incremental indexing
@@ -843,8 +936,8 @@ class IndexingPipeline:
             database=database,
             category=category,
             metadata=metadata,
+            source_id=source_id,
         )
-        result.source_id = source_id  # preserve original source_id
         return result
 
     def delete_source(

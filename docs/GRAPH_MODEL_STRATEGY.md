@@ -45,14 +45,14 @@ Retriever alignment:
 
 Layer A — Document Structure Graph:
 
-- nodes: `Document`, `Section`, `Chunk`
-- edges: `HAS_SECTION`, `HAS_CHUNK`, `PART_OF`
-- purpose: preserve source hierarchy and provenance
+- nodes: `Document`, `DocumentVersion`, `Section`, `Chunk`
+- edges: `HAS_VERSION`, `CURRENT_VERSION`, `HAS_SECTION`, `HAS_CHUNK`, `PART_OF`, `NEXT`
+- purpose: preserve source hierarchy, immutable ingest snapshots, and provenance
 
 Layer B — Entity Interaction Graph:
 
 - nodes: `Entity` (+ optional typed labels)
-- edges: `HAS_ENTITY`, `RELATES_TO`
+- edges: `MENTIONS`, `HAS_ENTITY`, `RELATES_TO`
 - purpose: semantic connectivity beyond pure vector proximity
 
 Layer C — Community / Topic Graph:
@@ -69,6 +69,24 @@ Inference: Start with A + B first. Add C once corpus size and global-query deman
 - Extract entities/relations with prompt-guided but not hard-coded ontology.
 - Stabilize ontology iteratively from observed graph + rule violations.
 - Only promote stable concepts into curated ontology classes/properties.
+
+## 4.3 Local SDK Ingest Contract
+
+For the current local SDK path, treat the layers this way:
+
+- `Document`: logical source-of-truth anchor for one memory/document id
+- `DocumentVersion`: immutable ingest snapshot keyed by content/version metadata
+- `Chunk`: vector retrieval unit keyed by `chunk_id`
+- `Entity`: graph reasoning and cross-document join unit
+
+Operational rule:
+
+- chunk embeddings live in the vector backend, not as the primary graph answer
+  substrate
+- the vector row must carry `workspace_id`, `memory_id`, `document_id`,
+  `version_id`, and `chunk_id`
+- graph-grounded answers should retrieve chunks first, then expand through the
+  graph using the preserved join keys and provenance edges
 
 ## 5. Owlready2 Role (Important Boundary)
 
@@ -87,14 +105,15 @@ Runtime request path should not depend on synchronous heavyweight reasoning.
 
 1. Upload document(s) in frontend
 2. Parse structure (document -> sections -> chunks)
-3. Generate chunk embeddings
-4. Extract entities + relations
-5. Build layered graph (A/B; optionally C)
-6. Infer/validate rule profile (`/rules/infer`, `/rules/validate`)
-7. Save rule profile (`/rules/profiles`)
-8. Export constraint plan (`/rules/export/cypher`)
-9. Run offline ontology consolidation with Owlready2
-10. Publish query-ready graph in DozerDB
+3. Create immutable `DocumentVersion` + `Chunk` records for this ingest pass
+4. Generate chunk embeddings keyed by `chunk_id`
+5. Extract entities + relations
+6. Build layered graph (A/B; optionally C)
+7. Infer/validate rule profile (`/rules/infer`, `/rules/validate`)
+8. Save rule profile (`/rules/profiles`)
+9. Export constraint plan (`/rules/export/cypher`)
+10. Run offline ontology consolidation with Owlready2
+11. Publish query-ready graph in DozerDB
 
 ## 7. Retrieval Routing Policy
 

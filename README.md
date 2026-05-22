@@ -155,6 +155,12 @@ The `Seocho` class is a thin public facade. Canonical engine logic lives under
 so the facade stays small. Runtime transport is `runtime/agent_server.py`;
 shared runtime composition lives in `runtime/server_runtime.py`.
 
+Local indexing now materializes a layered memory graph contract:
+`Document -> DocumentVersion -> Chunk -> Entity`. When a `vector_store` is
+provided to the local SDK client, chunk embeddings are written with
+`chunk_id`/`document_id`/`version_id` metadata so vector retrieval and graph
+provenance stay joinable.
+
 For the full story — control plane vs data plane, internal orchestration seams
 (`DomainEvent`, `IngestionFacade`, `QueryProxy`, `AgentFactory`,
 `AgentStateMachine`), and the staged `extraction/` → `runtime/` migration —

@@ -53,6 +53,7 @@ class DummyLocalEngine:
         ontology,
         graph_store,
         llm,
+        vector_store=None,
         workspace_id,
         extraction_prompt=None,
         agent_config=None,
@@ -61,6 +62,7 @@ class DummyLocalEngine:
         self.ontology = ontology
         self.graph_store = graph_store
         self.llm = llm
+        self.vector_store = vector_store
         self.workspace_id = workspace_id
         self.extraction_prompt = extraction_prompt
         self.agent_config = agent_config

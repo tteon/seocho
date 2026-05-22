@@ -7,9 +7,10 @@ depending on extraction-side transport modules.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional, Set, Tuple
+from typing import Any, Dict, Iterable, Optional, Set, Tuple
 
 
 CONTENT_PREVIEW_CHAR_LIMIT = 1200
@@ -58,8 +59,9 @@ def ensure_memory_graph(
     category: str,
     source_type: str,
     record_metadata: Dict[str, Any],
+    chunk_records: Optional[Iterable[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
-    document_id = f"{source_id}_doc"
+    document_id = str(record_metadata.get("document_id") or f"{source_id}_doc")
     preview = _content_preview(text)
     metadata_json = json.dumps(record_metadata, ensure_ascii=False, sort_keys=True)
     timestamp = str(
@@ -167,12 +169,31 @@ def ensure_memory_graph(
             }
         )
 
+    layered_summary = _attach_chunk_layer(
+        node_map=node_map,
+        relationships=normalized_relationships,
+        relationship_seen=relationship_seen,
+        chunk_records=chunk_records,
+        document_id=document_id,
+        source_id=source_id,
+        workspace_id=workspace_id,
+        text=text,
+        category=category,
+        source_type=source_type,
+        record_metadata=record_metadata,
+        metadata_json=metadata_json,
+        timestamp=timestamp,
+    )
+
     semantic_payload = dict(graph_data.get("_semantic", {}))
     semantic_payload["record_context"] = record_metadata
+    if layered_summary:
+        semantic_payload["layered_graph_summary"] = layered_summary
     return {
         "nodes": list(node_map.values()),
         "relationships": normalized_relationships,
         "_semantic": semantic_payload,
+        "layered_graph_summary": layered_summary,
     }
 
 
@@ -192,6 +213,206 @@ def _content_preview(text: str, limit: int = CONTENT_PREVIEW_CHAR_LIMIT) -> str:
     if len(content) <= limit:
         return content
     return content[:limit].rsplit(" ", 1)[0].rstrip()
+
+
+def _attach_chunk_layer(
+    *,
+    node_map: Dict[str, Dict[str, Any]],
+    relationships: list[Dict[str, Any]],
+    relationship_seen: Set[Tuple[str, str, str]],
+    chunk_records: Optional[Iterable[Dict[str, Any]]],
+    document_id: str,
+    source_id: str,
+    workspace_id: str,
+    text: str,
+    category: str,
+    source_type: str,
+    record_metadata: Dict[str, Any],
+    metadata_json: str,
+    timestamp: str,
+) -> Dict[str, Any]:
+    records = [dict(item) for item in (chunk_records or []) if isinstance(item, dict)]
+    if not records:
+        return {}
+
+    version_id = str(
+        records[0].get("version_id")
+        or record_metadata.get("version_id")
+        or f"{source_id}_ver"
+    )
+    version_props: Dict[str, Any] = {
+        "version_id": version_id,
+        "document_id": document_id,
+        "checksum": str(record_metadata.get("checksum") or _content_checksum(text)),
+        "chunk_count": len(records),
+        "memory_id": source_id,
+        "source_id": source_id,
+        "workspace_id": workspace_id,
+        "source_type": source_type,
+        "category": category,
+        "status": "active",
+        "metadata_json": metadata_json,
+        "created_at": timestamp,
+        "updated_at": timestamp,
+    }
+    copy_scope_properties(version_props, record_metadata)
+    node_map[version_id] = {"id": version_id, "label": "DocumentVersion", "properties": version_props}
+
+    _add_relationship(
+        relationships,
+        relationship_seen,
+        source=document_id,
+        target=version_id,
+        rel_type="HAS_VERSION",
+        properties={
+            "memory_id": source_id,
+            "source_id": source_id,
+            "workspace_id": workspace_id,
+        },
+    )
+    _add_relationship(
+        relationships,
+        relationship_seen,
+        source=document_id,
+        target=version_id,
+        rel_type="CURRENT_VERSION",
+        properties={
+            "memory_id": source_id,
+            "source_id": source_id,
+            "workspace_id": workspace_id,
+            "is_current": True,
+        },
+    )
+
+    previous_chunk_id: Optional[str] = None
+    chunk_ids: list[str] = []
+    chunk_mentions = 0
+
+    for record in sorted(records, key=lambda item: int(item.get("ordinal", 0) or 0)):
+        chunk_id = str(record.get("chunk_id") or f"{source_id}_chunk_{len(chunk_ids):04d}")
+        chunk_text = str(record.get("text") or "")
+        chunk_props: Dict[str, Any] = {
+            "chunk_id": chunk_id,
+            "document_id": document_id,
+            "version_id": version_id,
+            "ordinal": int(record.get("ordinal", len(chunk_ids)) or 0),
+            "text": chunk_text,
+            "content_preview": _content_preview(chunk_text, limit=400),
+            "char_start": record.get("char_start"),
+            "char_end": record.get("char_end"),
+            "token_count": int(record.get("token_count") or _rough_token_count(chunk_text)),
+            "embedding_vector_id": str(record.get("embedding_vector_id") or chunk_id),
+            "embedding_model": str(record.get("embedding_model") or ""),
+            "embeddingText": str(record.get("embeddingText") or chunk_text),
+            "section_path": str(record.get("section_path") or ""),
+            "memory_id": source_id,
+            "source_id": source_id,
+            "workspace_id": workspace_id,
+            "source_type": source_type,
+            "category": category,
+            "status": "active",
+            "created_at": timestamp,
+            "updated_at": timestamp,
+        }
+        copy_scope_properties(chunk_props, record_metadata)
+        node_map[chunk_id] = {"id": chunk_id, "label": "Chunk", "properties": chunk_props}
+        chunk_ids.append(chunk_id)
+
+        _add_relationship(
+            relationships,
+            relationship_seen,
+            source=version_id,
+            target=chunk_id,
+            rel_type="HAS_CHUNK",
+            properties={
+                "memory_id": source_id,
+                "source_id": source_id,
+                "workspace_id": workspace_id,
+                "ordinal": chunk_props["ordinal"],
+            },
+        )
+        if previous_chunk_id:
+            _add_relationship(
+                relationships,
+                relationship_seen,
+                source=previous_chunk_id,
+                target=chunk_id,
+                rel_type="NEXT",
+                properties={
+                    "memory_id": source_id,
+                    "source_id": source_id,
+                    "workspace_id": workspace_id,
+                },
+            )
+        previous_chunk_id = chunk_id
+
+        for entity_id in [
+            str(entity_id).strip()
+            for entity_id in (record.get("entity_ids") or [])
+            if str(entity_id).strip()
+        ]:
+            if entity_id not in node_map:
+                continue
+            mention_props: Dict[str, Any] = {
+                "memory_id": source_id,
+                "source_id": source_id,
+                "workspace_id": workspace_id,
+            }
+            for key in ("confidence", "char_start", "char_end"):
+                value = record.get(key)
+                if value not in (None, ""):
+                    mention_props[key] = value
+            _add_relationship(
+                relationships,
+                relationship_seen,
+                source=chunk_id,
+                target=entity_id,
+                rel_type="MENTIONS",
+                properties=mention_props,
+            )
+            chunk_mentions += 1
+
+    return {
+        "document_id": document_id,
+        "version_id": version_id,
+        "chunk_count": len(chunk_ids),
+        "chunk_ids": chunk_ids,
+        "chunk_mentions": chunk_mentions,
+    }
+
+
+def _add_relationship(
+    relationships: list[Dict[str, Any]],
+    relationship_seen: Set[Tuple[str, str, str]],
+    *,
+    source: str,
+    target: str,
+    rel_type: str,
+    properties: Dict[str, Any],
+) -> None:
+    key = (source, target, rel_type)
+    if key in relationship_seen:
+        return
+    relationship_seen.add(key)
+    relationships.append(
+        {
+            "source": source,
+            "target": target,
+            "type": rel_type,
+            "properties": properties,
+        }
+    )
+
+
+def _content_checksum(text: str) -> str:
+    return hashlib.sha256(str(text or "").encode("utf-8")).hexdigest()
+
+
+def _rough_token_count(text: str) -> int:
+    content = str(text or "").strip()
+    if not content:
+        return 0
+    return len(content.split())
 
 
 __all__ = [

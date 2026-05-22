@@ -75,6 +75,63 @@ def test_ensure_memory_graph_preview_preserves_tutorial_support_sentence():
     assert "H100 and A100 product lines" in document["properties"]["content_preview"]
 
 
+def test_ensure_memory_graph_adds_document_version_and_chunk_layer():
+    result = ensure_memory_graph(
+        graph_data={
+            "nodes": [
+                {"id": "company-1", "label": "Company", "properties": {"name": "ACME"}},
+            ],
+            "relationships": [],
+        },
+        source_id="rec-2",
+        workspace_id="default",
+        text="ACME launched a new product.\n\nThe launch expanded into Asia.",
+        category="general",
+        source_type="text",
+        record_metadata={
+            "source_id": "rec-2",
+            "document_id": "rec-2_doc",
+            "version_id": "rec-2_ver_hash",
+            "checksum": "abc123",
+        },
+        chunk_records=[
+            {
+                "chunk_id": "rec-2_chunk_0000",
+                "version_id": "rec-2_ver_hash",
+                "ordinal": 0,
+                "text": "ACME launched a new product.",
+                "entity_ids": ["company-1"],
+            },
+            {
+                "chunk_id": "rec-2_chunk_0001",
+                "version_id": "rec-2_ver_hash",
+                "ordinal": 1,
+                "text": "The launch expanded into Asia.",
+                "entity_ids": ["company-1"],
+            },
+        ],
+    )
+
+    labels = {node["label"] for node in result["nodes"]}
+    assert {"Document", "DocumentVersion", "Chunk", "Company"} <= labels
+
+    layered = result["layered_graph_summary"]
+    assert layered["version_id"] == "rec-2_ver_hash"
+    assert layered["chunk_count"] == 2
+    assert layered["chunk_mentions"] == 2
+
+    has_chunk = [rel for rel in result["relationships"] if rel["type"] == "HAS_CHUNK"]
+    next_edges = [rel for rel in result["relationships"] if rel["type"] == "NEXT"]
+    chunk_mentions = [
+        rel
+        for rel in result["relationships"]
+        if rel["type"] == "MENTIONS" and rel["source"].startswith("rec-2_chunk_")
+    ]
+    assert len(has_chunk) == 2
+    assert len(next_edges) == 1
+    assert len(chunk_mentions) == 2
+
+
 def test_runtime_artifact_helpers_merge_candidates_and_build_vocabulary():
     merged_ontology = merge_ontology_candidates(
         [

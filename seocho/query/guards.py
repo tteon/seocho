@@ -99,6 +99,11 @@ _TEMPORAL_FILTER_RE = re.compile(
     re.IGNORECASE,
 )
 
+_RE_WRONG_DIRECTION = re.compile(
+    r"\(\s*[^()]*?:(\w+)[^()]*?\)\s*-\[[^\]]*:\s*(\w+)[^\]]*\]\s*->\s*\(\s*[^()]*?:(\w+)",
+    re.IGNORECASE,
+)
+
 
 # ---------------------------------------------------------------------------
 # Individual detectors
@@ -174,11 +179,7 @@ def detect_wrong_direction(
         return []
     bad: List[str] = []
     # Pattern with explicit direction: (lbl1)-[:REL]->(lbl2)
-    pattern = re.compile(
-        r"\(\s*[^()]*?:(\w+)[^()]*?\)\s*-\[[^\]]*:\s*(\w+)[^\]]*\]\s*->\s*\(\s*[^()]*?:(\w+)",
-        re.IGNORECASE,
-    )
-    for left, rel, right in pattern.findall(cypher):
+    for left, rel, right in _RE_WRONG_DIRECTION.findall(cypher):
         spec = ontology_relationships.get(rel)
         if spec is None:
             continue

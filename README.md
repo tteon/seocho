@@ -156,10 +156,13 @@ so the facade stays small. Runtime transport is `runtime/agent_server.py`;
 shared runtime composition lives in `runtime/server_runtime.py`.
 
 Local indexing now materializes a layered memory graph contract:
-`Document -> DocumentVersion -> Chunk -> Entity`. When a `vector_store` is
-provided to the local SDK client, chunk embeddings are written with
-`chunk_id`/`document_id`/`version_id` metadata so vector retrieval and graph
-provenance stay joinable.
+`Document -> DocumentVersion -> Section -> Chunk -> Entity`. When a
+`vector_store` is provided to the local SDK client, chunk embeddings are
+written with `chunk_id`/`document_id`/`version_id`/`section_path` metadata so
+vector retrieval and graph provenance stay joinable. For callers that already
+have ontology-shaped nodes and relationships, local mode also exposes
+`client.add_graph(...)` to validate and materialize structured payloads without
+re-running text extraction.
 
 For the full story — control plane vs data plane, internal orchestration seams
 (`DomainEvent`, `IngestionFacade`, `QueryProxy`, `AgentFactory`,
@@ -212,6 +215,9 @@ Use `ask()` here as a convenience chat surface. When you need explicit runtime
 graph QA or agentic behavior, call `client.semantic(...)`, `client.react(...)`,
 or `client.advanced(...)` directly.
 
+When you want the semantic path to run in Graph-CoT mode, pass
+`query_mode="graph_cot"` to `client.semantic(...)` or `client.ask(...)`.
+
 ### 2. Build locally against your own ontology with no graph server
 
 ```python
@@ -220,6 +226,19 @@ from seocho import Seocho, Ontology
 client = Seocho.local(Ontology.load("schema.jsonld"))
 client.add("ACME acquired Beta in 2024.")
 print(client.ask("Who did ACME acquire?", reasoning_mode=True, repair_budget=2))
+```
+
+Graph-CoT query mode uses the same semantic surface but records and executes
+under a dedicated query contract:
+
+```python
+result = client.semantic(
+    "Who did ACME acquire?",
+    graph_ids=["news_kg"],
+    query_mode="graph_cot",
+)
+print(result.query_mode)
+print(result.strategy.executed_mode)
 ```
 
 `Ontology.load(...)` also accepts `.ttl`, so tutorial/prototype flows can start

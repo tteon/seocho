@@ -100,6 +100,9 @@ def test_ensure_memory_graph_adds_document_version_and_chunk_layer():
                 "version_id": "rec-2_ver_hash",
                 "ordinal": 0,
                 "text": "ACME launched a new product.",
+                "section_path": "Overview",
+                "section_title": "Overview",
+                "section_level": 1,
                 "entity_ids": ["company-1"],
             },
             {
@@ -107,27 +110,35 @@ def test_ensure_memory_graph_adds_document_version_and_chunk_layer():
                 "version_id": "rec-2_ver_hash",
                 "ordinal": 1,
                 "text": "The launch expanded into Asia.",
+                "section_path": "Overview / Risks",
+                "section_title": "Risks",
+                "section_level": 2,
                 "entity_ids": ["company-1"],
             },
         ],
     )
 
     labels = {node["label"] for node in result["nodes"]}
-    assert {"Document", "DocumentVersion", "Chunk", "Company"} <= labels
+    assert {"Document", "DocumentVersion", "Section", "Chunk", "Company"} <= labels
 
     layered = result["layered_graph_summary"]
     assert layered["version_id"] == "rec-2_ver_hash"
+    assert layered["section_count"] == 2
     assert layered["chunk_count"] == 2
     assert layered["chunk_mentions"] == 2
 
+    has_section = [rel for rel in result["relationships"] if rel["type"] == "HAS_SECTION"]
     has_chunk = [rel for rel in result["relationships"] if rel["type"] == "HAS_CHUNK"]
+    part_of = [rel for rel in result["relationships"] if rel["type"] == "PART_OF"]
     next_edges = [rel for rel in result["relationships"] if rel["type"] == "NEXT"]
     chunk_mentions = [
         rel
         for rel in result["relationships"]
         if rel["type"] == "MENTIONS" and rel["source"].startswith("rec-2_chunk_")
     ]
-    assert len(has_chunk) == 2
+    assert len(has_section) == 1
+    assert len(has_chunk) == 4
+    assert len(part_of) == 1
     assert len(next_edges) == 1
     assert len(chunk_mentions) == 2
 

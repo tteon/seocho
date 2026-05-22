@@ -14,6 +14,7 @@ from typing import Any, Dict, Iterable, Optional, Set, Tuple
 
 
 CONTENT_PREVIEW_CHAR_LIMIT = 1200
+ROOT_SECTION_PATH = "Document"
 
 
 def build_record_metadata(
@@ -287,10 +288,21 @@ def _attach_chunk_layer(
     previous_chunk_id: Optional[str] = None
     chunk_ids: list[str] = []
     chunk_mentions = 0
+    section_ids: list[str] = []
+    section_paths: list[str] = []
+    section_state: Dict[str, Dict[str, Any]] = {}
 
     for record in sorted(records, key=lambda item: int(item.get("ordinal", 0) or 0)):
         chunk_id = str(record.get("chunk_id") or f"{source_id}_chunk_{len(chunk_ids):04d}")
         chunk_text = str(record.get("text") or "")
+        normalized_section_path = _normalize_section_path(record.get("section_path"))
+        normalized_section_title = str(record.get("section_title") or "").strip()
+        normalized_section_level = record.get("section_level")
+        if normalized_section_level not in (None, ""):
+            try:
+                normalized_section_level = int(normalized_section_level)
+            except (TypeError, ValueError):
+                normalized_section_level = None
         chunk_props: Dict[str, Any] = {
             "chunk_id": chunk_id,
             "document_id": document_id,
@@ -304,7 +316,9 @@ def _attach_chunk_layer(
             "embedding_vector_id": str(record.get("embedding_vector_id") or chunk_id),
             "embedding_model": str(record.get("embedding_model") or ""),
             "embeddingText": str(record.get("embeddingText") or chunk_text),
-            "section_path": str(record.get("section_path") or ""),
+            "section_path": normalized_section_path if normalized_section_path != ROOT_SECTION_PATH else "",
+            "section_title": normalized_section_title,
+            "section_level": normalized_section_level,
             "memory_id": source_id,
             "source_id": source_id,
             "workspace_id": workspace_id,
@@ -346,6 +360,86 @@ def _attach_chunk_layer(
             )
         previous_chunk_id = chunk_id
 
+        section_entries = _section_entries_for_record(
+            normalized_section_path,
+            normalized_section_title,
+            normalized_section_level,
+        )
+        parent_section_id: Optional[str] = None
+        leaf_section_id: Optional[str] = None
+        for entry in section_entries:
+            section_key = str(entry["path"])
+            section_id = _section_node_id(version_id, section_key)
+            leaf_section_id = section_id
+            if section_key not in section_state:
+                section_props: Dict[str, Any] = {
+                    "section_id": section_id,
+                    "document_id": document_id,
+                    "version_id": version_id,
+                    "section_path": section_key if section_key != ROOT_SECTION_PATH else "",
+                    "title": str(entry["title"]),
+                    "level": entry["level"],
+                    "ordinal": len(section_state),
+                    "memory_id": source_id,
+                    "source_id": source_id,
+                    "workspace_id": workspace_id,
+                    "source_type": source_type,
+                    "category": category,
+                    "status": "active",
+                    "created_at": timestamp,
+                    "updated_at": timestamp,
+                }
+                copy_scope_properties(section_props, record_metadata)
+                node_map[section_id] = {"id": section_id, "label": "Section", "properties": section_props}
+                section_state[section_key] = {"id": section_id, "level": entry["level"]}
+                section_ids.append(section_id)
+                section_paths.append(section_key if section_key != ROOT_SECTION_PATH else "")
+            else:
+                section_id = str(section_state[section_key]["id"])
+
+            if parent_section_id is None:
+                _add_relationship(
+                    relationships,
+                    relationship_seen,
+                    source=version_id,
+                    target=section_id,
+                    rel_type="HAS_SECTION",
+                    properties={
+                        "memory_id": source_id,
+                        "source_id": source_id,
+                        "workspace_id": workspace_id,
+                    },
+                )
+            else:
+                _add_relationship(
+                    relationships,
+                    relationship_seen,
+                    source=section_id,
+                    target=parent_section_id,
+                    rel_type="PART_OF",
+                    properties={
+                        "memory_id": source_id,
+                        "source_id": source_id,
+                        "workspace_id": workspace_id,
+                    },
+                )
+            parent_section_id = section_id
+
+        if leaf_section_id:
+            _add_relationship(
+                relationships,
+                relationship_seen,
+                source=leaf_section_id,
+                target=chunk_id,
+                rel_type="HAS_CHUNK",
+                properties={
+                    "memory_id": source_id,
+                    "source_id": source_id,
+                    "workspace_id": workspace_id,
+                    "ordinal": chunk_props["ordinal"],
+                },
+            )
+
         for entity_id in [
             str(entity_id).strip()
             for entity_id in (record.get("entity_ids") or [])
@@ -375,6 +469,9 @@ def _attach_chunk_layer(
     return {
         "document_id": document_id,
         "version_id": version_id,
+        "section_count": len(section_ids),
+        "section_ids": section_ids,
+        "section_paths": section_paths,
         "chunk_count": len(chunk_ids),
         "chunk_ids": chunk_ids,
         "chunk_mentions": chunk_mentions,
@@ -413,6 +510,49 @@ def _rough_token_count(text: str) -> int:
     if not content:
         return 0
     return len(content.split())
+
+
+def _normalize_section_path(value: Any) -> str:
+    section_path = str(value or "").strip()
+    return section_path or ROOT_SECTION_PATH
+
+
+def _section_entries_for_record(
+    section_path: str,
+    section_title: str,
+    section_level: Any,
+) -> list[Dict[str, Any]]:
+    path = _normalize_section_path(section_path)
+    parts = [part.strip() for part in path.split("/") if part.strip()]
+    if not parts:
+        parts = [ROOT_SECTION_PATH]
+    target_level: Optional[int]
+    try:
+        target_level = int(section_level) if section_level not in (None, "") else None
+    except (TypeError, ValueError):
+        target_level = None
+    entries: list[Dict[str, Any]] = []
+    for index in range(len(parts)):
+        prefix = " / ".join(parts[: index + 1])
+        inferred_level = index + 1
+        entries.append(
+            {
+                "path": prefix,
+                "title": parts[index],
+                "level": target_level if index == len(parts) - 1 and target_level is not None else inferred_level,
+            }
+        )
+    if entries and section_title and section_title.strip():
+        entries[-1]["title"] = section_title.strip()
+    return entries
+
+
+def _section_node_id(version_id: str, section_path: str) -> str:
+    normalized = _normalize_section_path(section_path)
+    if normalized == ROOT_SECTION_PATH:
+        return f"{version_id}_section_root"
+    suffix = hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:12]
+    return f"{version_id}_section_{suffix}"
 
 
 __all__ = [

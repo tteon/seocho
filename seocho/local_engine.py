@@ -12,6 +12,7 @@ from .query.contracts import QueryPlan
 from .query.executor import GraphQueryExecutor
 from .query.planner import DeterministicQueryPlanner
 from .query.run_metadata import build_local_query_metadata
+from .runtime_contract import DEFAULT_QUERY_MODE, normalize_query_mode
 
 logger = logging.getLogger(__name__)
 _FOUR_DIGIT_YEAR_RE = re.compile(r"\b(20\d{2})\b")
@@ -85,48 +86,16 @@ class _LocalEngine:
         self._linking = LinkingStrategy(ontology)
         self._query = QueryStrategy(ontology)
 
-    def add(
+    def _build_memory_from_indexing_result(
         self,
-        content: str,
+        result: Any,
         *,
-        database: str = "neo4j",
-        category: str = "memory",
-        metadata: Optional[Dict[str, Any]] = None,
-        strict_validation: bool = False,
-        ontology_override: Optional[Any] = None,
+        content: str,
+        database: str,
+        category: str,
+        metadata: Optional[Dict[str, Any]],
+        source_type: str,
     ) -> Memory:
-        """Chunk -> Extract -> Validate -> Link -> Write pipeline."""
-        if ontology_override is not None:
-            from .index.ingestion_facade import IngestionFacade
-            from .indexing import IndexingPipeline
-
-            pipeline = IndexingPipeline(
-                ontology=ontology_override,
-                graph_store=self.graph_store,
-                llm=self.llm,
-                vector_store=self._vector_store,
-                workspace_id=self.workspace_id,
-                extraction_prompt=self.extraction_prompt,
-                strict_validation=strict_validation,
-                enable_rule_constraints=True,
-                ontology_profile=self.ontology_profile,
-                ontology_context_cache=self._ontology_context_cache,
-            )
-            ingestion = IngestionFacade(pipeline, publisher=self._events)
-        else:
-            ingestion = self._ingestion
-
-        result = ingestion.ingest(
-            self._ingest_request_cls(
-                content=content,
-                workspace_id=self.workspace_id,
-                database=database,
-                category=category,
-                metadata=metadata,
-                strict_validation=strict_validation,
-            )
-        )
-
         result_metadata: Dict[str, Any] = {
             "category": category,
             "nodes_created": result.total_nodes,
@@ -168,16 +137,131 @@ class _LocalEngine:
         except Exception:
             pass
 
+        content_preview = content[:500]
+        if not content_preview:
+            content_preview = ", ".join(
+                str(node.get("properties", {}).get("name") or node.get("id") or "").strip()
+                for node in list(getattr(result, "nodes", []) or [])[:6]
+                if str(node.get("properties", {}).get("name") or node.get("id") or "").strip()
+            )[:500]
+
         return Memory(
             memory_id=result.source_id,
             workspace_id=self.workspace_id,
-            content=content[:500],
+            content=content_preview,
             metadata=result_metadata,
             status="active" if result.ok else "failed",
             database=database,
             category=category,
-            source_type="text",
+            source_type=source_type,
             entities=list(getattr(result, "nodes", []) or []),
+        )
+
+    def add(
+        self,
+        content: str,
+        *,
+        database: str = "neo4j",
+        category: str = "memory",
+        metadata: Optional[Dict[str, Any]] = None,
+        strict_validation: bool = False,
+        ontology_override: Optional[Any] = None,
+    ) -> Memory:
+        """Chunk -> Extract -> Validate -> Link -> Write pipeline."""
+        if ontology_override is not None:
+            from .index.ingestion_facade import IngestionFacade
+            from .indexing import IndexingPipeline
+
+            pipeline = IndexingPipeline(
+                ontology=ontology_override,
+                graph_store=self.graph_store,
+                llm=self.llm,
+                vector_store=self._vector_store,
+                workspace_id=self.workspace_id,
+                extraction_prompt=self.extraction_prompt,
+                strict_validation=strict_validation,
+                enable_rule_constraints=True,
+                ontology_profile=self.ontology_profile,
+                ontology_context_cache=self._ontology_context_cache,
+            )
+            ingestion = IngestionFacade(pipeline, publisher=self._events)
+        else:
+            ingestion = self._ingestion
+
+        result = ingestion.ingest(
+            self._ingest_request_cls(
+                content=content,
+                workspace_id=self.workspace_id,
+                database=database,
+                category=category,
+                metadata=metadata,
+                strict_validation=strict_validation,
+            )
+        )
+        return self._build_memory_from_indexing_result(
+            result,
+            content=content,
+            database=database,
+            category=category,
+            metadata=metadata,
+            source_type="text",
+        )
+
+    def add_graph(
+        self,
+        graph_data: Dict[str, Any],
+        *,
+        content: str = "",
+        database: str = "neo4j",
+        category: str = "memory",
+        metadata: Optional[Dict[str, Any]] = None,
+        strict_validation: bool = False,
+        chunk_records: Optional[Sequence[Dict[str, Any]]] = None,
+        ontology_override: Optional[Any] = None,
+    ) -> Memory:
+        """Validate and write a caller-supplied graph payload."""
+        if ontology_override is not None:
+            from .indexing import IndexingPipeline
+
+            pipeline = IndexingPipeline(
+                ontology=ontology_override,
+                graph_store=self.graph_store,
+                llm=self.llm,
+                vector_store=self._vector_store,
+                workspace_id=self.workspace_id,
+                extraction_prompt=self.extraction_prompt,
+                strict_validation=strict_validation,
+                enable_rule_constraints=True,
+                ontology_profile=self.ontology_profile,
+                ontology_context_cache=self._ontology_context_cache,
+            )
+        else:
+            pipeline = self._indexing
+
+        original_strict = pipeline.strict_validation
+        pipeline.strict_validation = bool(strict_validation)
+        try:
+            result = pipeline.index_graph(
+                graph_data,
+                content=content,
+                database=database,
+                category=category,
+                metadata=metadata,
+                chunk_records=chunk_records,
+            )
+        finally:
+            pipeline.strict_validation = original_strict
+
+        source_type = "structured_graph"
+        if isinstance(metadata, dict):
+            source_type = str(metadata.get("source_type") or source_type)
+        return self._build_memory_from_indexing_result(
+            result,
+            content=content,
+            database=database,
+            category=category,
+            metadata=metadata,
+            source_type=source_type,
         )
 
     def add_batch(
@@ -237,9 +321,11 @@ class _LocalEngine:
         database: str = "neo4j",
         reasoning_mode: Optional[bool] = None,
         repair_budget: Optional[int] = None,
+        query_mode: str = DEFAULT_QUERY_MODE,
         ontology_override: Optional[Any] = None,
     ) -> str:
         """Ontology-aware query: generate Cypher -> execute -> synthesize answer."""
+        query_mode = normalize_query_mode(query_mode)
         active_ontology = ontology_override or self.ontology
         ontology_context = self._ontology_context_cache.get(
             active_ontology,
@@ -255,9 +341,14 @@ class _LocalEngine:
             reasoning_mode = self.agent_config.reasoning_mode
         if repair_budget is None:
             repair_budget = self.agent_config.repair_budget
+        if query_mode == "graph_cot":
+            reasoning_mode = True
+            repair_budget = max(1, int(repair_budget or 0))
 
         timer = StageTimer()
         agent_design_pattern = str(self.agent_config.extra.get("agent_design_pattern", "") or "")
+        if query_mode == "graph_cot" and not agent_design_pattern:
+            agent_design_pattern = "graph_cot"
 
         with timer.stage("schema"):
             schema_info = self._get_schema_info(database)
@@ -296,6 +387,7 @@ class _LocalEngine:
                 answer_text=error,
                 attempts=[],
                 repair_budget=repair_budget,
+                query_mode=query_mode,
                 latency_breakdown_ms=timer.to_dict(),
                 vector_context="",
                 error=error,
@@ -327,6 +419,7 @@ class _LocalEngine:
                 answer_text=exec_error,
                 attempts=[],
                 repair_budget=repair_budget,
+                query_mode=query_mode,
                 latency_breakdown_ms=timer.to_dict(),
                 vector_context="",
                 error=exec_error,
@@ -434,6 +527,7 @@ class _LocalEngine:
                 answer_text=deterministic_answer,
                 attempts=attempts,
                 repair_budget=repair_budget,
+                query_mode=query_mode,
                 latency_breakdown_ms=timer.to_dict(),
                 vector_context=vector_context,
                 error="",
@@ -478,6 +572,7 @@ class _LocalEngine:
             answer_text=answer_text,
             attempts=attempts,
             repair_budget=repair_budget,
+            query_mode=query_mode,
             latency_breakdown_ms=timer.to_dict(),
             vector_context=vector_context,
             error="",

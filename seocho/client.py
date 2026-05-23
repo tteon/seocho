@@ -84,6 +84,13 @@ from .models import (
     SemanticRunRecord,
     SemanticRunResponse,
 )
+from .qualification import (
+    CurationDecisionResult,
+    CurationPreview,
+    GraphProjectionResult,
+    QualificationCase,
+    QualificationRunResult,
+)
 from .runtime_contract import (
     DEFAULT_QUERY_MODE,
     RuntimePath,
@@ -146,6 +153,9 @@ class Seocho:
         session_id: Optional[str] = None,
         timeout: Optional[float] = None,
         session: Optional[requests.Session] = None,
+        qualification_store_path: Optional[str] = None,
+        qualification_store_backend: str = "sqlite",
+        curation_design: Optional[Any] = None,
     ) -> None:
         """Initialize the Seocho client.
 
@@ -175,6 +185,11 @@ class Seocho:
         self.agent_id = agent_id or os.getenv("SEOCHO_AGENT_ID")
         self.session_id = session_id or os.getenv("SEOCHO_SESSION_ID")
         self.timeout = timeout if timeout is not None else _env_float("SEOCHO_TIMEOUT", 30.0)
+        self.qualification_store_path = (
+            str(qualification_store_path or "").strip() or None
+        )
+        self.qualification_store_backend = str(qualification_store_backend or "sqlite")
+        self.curation_design = curation_design
 
         # Local engine components
         self.ontology = ontology
@@ -206,6 +221,9 @@ class Seocho:
                 extraction_prompt=extraction_prompt,
                 agent_config=agent_config,
                 ontology_profile=self.ontology_profile,
+                qualification_store_path=self.qualification_store_path,
+                qualification_store_backend=self.qualification_store_backend,
+                curation_design=self.curation_design,
             )
             self._session = session or requests.Session()
         else:
@@ -875,6 +893,117 @@ class Seocho:
             strict_validation=bool(add_kwargs["strict_validation"]),
             chunk_records=chunk_records,
             ontology_override=self._ontology_registry.get(db),
+        )
+
+    def qualify_graph(
+        self,
+        *,
+        database: Optional[str] = None,
+        graph_id: Optional[str] = None,
+        curation_design: Optional[Any] = None,
+        modes: Sequence[str] = ("text", "graph", "llm"),
+        scope: Optional[Dict[str, Any]] = None,
+        qualification_store_path: Optional[str] = None,
+        qualification_store_backend: Optional[str] = None,
+    ) -> QualificationRunResult:
+        if not self._local_mode:
+            raise RuntimeError("qualify_graph() currently requires local engine mode.")
+        db = database or self.default_database
+        return self._engine.qualify_graph(
+            database=db,
+            graph_id=graph_id or db,
+            curation_design=curation_design or self.curation_design,
+            modes=modes,
+            scope=scope,
+            qualification_store_path=qualification_store_path,
+            qualification_store_backend=qualification_store_backend,
+        )
+
+    def list_curation_cases(
+        self,
+        *,
+        run_id: Optional[str] = None,
+        status: Optional[str] = None,
+        case_type: Optional[str] = None,
+        limit: int = 100,
+        qualification_store_path: Optional[str] = None,
+        qualification_store_backend: Optional[str] = None,
+    ) -> List[QualificationCase]:
+        if not self._local_mode:
+            raise RuntimeError("list_curation_cases() currently requires local engine mode.")
+        return self._engine.list_curation_cases(
+            run_id=run_id,
+            status=status,
+            case_type=case_type,
+            limit=limit,
+            qualification_store_path=qualification_store_path,
+            qualification_store_backend=qualification_store_backend,
+        )
+
+    def preview_curation_decision(
+        self,
+        case_id: str,
+        *,
+        action: str,
+        chosen_canonical_id: Optional[str] = None,
+        property_resolution: Optional[Dict[str, Any]] = None,
+        qualification_store_path: Optional[str] = None,
+        qualification_store_backend: Optional[str] = None,
+    ) -> CurationPreview:
+        if not self._local_mode:
+            raise RuntimeError("preview_curation_decision() currently requires local engine mode.")
+        return self._engine.preview_curation_decision(
+            case_id,
+            action=action,
+            chosen_canonical_id=chosen_canonical_id,
+            property_resolution=property_resolution,
+            qualification_store_path=qualification_store_path,
+            qualification_store_backend=qualification_store_backend,
+        )
+
+    def apply_curation_decision(
+        self,
+        case_id: str,
+        *,
+        action: str,
+        actor_id: str = "local-user",
+        actor_type: str = "user",
+        chosen_canonical_id: Optional[str] = None,
+        property_resolution: Optional[Dict[str, Any]] = None,
+        qualification_store_path: Optional[str] = None,
+        qualification_store_backend: Optional[str] = None,
+    ) -> CurationDecisionResult:
+        if not self._local_mode:
+            raise RuntimeError("apply_curation_decision() currently requires local engine mode.")
+        return self._engine.apply_curation_decision(
+            case_id,
+            action=action,
+            actor_id=actor_id,
+            actor_type=actor_type,
+            chosen_canonical_id=chosen_canonical_id,
+            property_resolution=property_resolution,
+            qualification_store_path=qualification_store_path,
+            qualification_store_backend=qualification_store_backend,
+        )
+
+    def project_canonical_graph(
+        self,
+        *,
+        database: Optional[str] = None,
+        graph_id: Optional[str] = None,
+        run_id: Optional[str] = None,
+        qualification_store_path: Optional[str] = None,
+        qualification_store_backend: Optional[str] = None,
+    ) -> GraphProjectionResult:
+        if not self._local_mode:
+            raise RuntimeError("project_canonical_graph() currently requires local engine mode.")
+        db = database or self.default_database
+        return self._engine.project_canonical_graph(
+            database=db,
+            graph_id=graph_id or db,
+            run_id=run_id,
+            qualification_store_path=qualification_store_path,
+            qualification_store_backend=qualification_store_backend,
         )
 
     def ask(
@@ -2279,6 +2408,8 @@ class Seocho:
         """
         self._graph_catalog_cache = None
         self._session.close()
+        if self._local_mode and self._engine is not None and hasattr(self._engine, "close"):
+            self._engine.close()
         if self._local_mode and hasattr(self.graph_store, "close"):
             self.graph_store.close()
 
@@ -2773,6 +2904,26 @@ class AsyncSeocho:
     async def add_graph(self, graph_data: Dict[str, Any], **kwargs: Any) -> Memory:
         """Async version of :meth:`Seocho.add_graph`."""
         return await asyncio.to_thread(self._client.add_graph, graph_data, **kwargs)
+
+    async def qualify_graph(self, **kwargs: Any) -> QualificationRunResult:
+        """Async version of :meth:`Seocho.qualify_graph`."""
+        return await asyncio.to_thread(self._client.qualify_graph, **kwargs)
+
+    async def list_curation_cases(self, **kwargs: Any) -> List[QualificationCase]:
+        """Async version of :meth:`Seocho.list_curation_cases`."""
+        return await asyncio.to_thread(self._client.list_curation_cases, **kwargs)
+
+    async def preview_curation_decision(self, case_id: str, **kwargs: Any) -> CurationPreview:
+        """Async version of :meth:`Seocho.preview_curation_decision`."""
+        return await asyncio.to_thread(self._client.preview_curation_decision, case_id, **kwargs)
+
+    async def apply_curation_decision(self, case_id: str, **kwargs: Any) -> CurationDecisionResult:
+        """Async version of :meth:`Seocho.apply_curation_decision`."""
+        return await asyncio.to_thread(self._client.apply_curation_decision, case_id, **kwargs)
+
+    async def project_canonical_graph(self, **kwargs: Any) -> GraphProjectionResult:
+        """Async version of :meth:`Seocho.project_canonical_graph`."""
+        return await asyncio.to_thread(self._client.project_canonical_graph, **kwargs)
 
     async def add_with_details(self, content: str, **kwargs: Any) -> MemoryCreateResult:
         """Async version of :meth:`Seocho.add_with_details`."""

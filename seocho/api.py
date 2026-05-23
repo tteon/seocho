@@ -26,6 +26,13 @@ from .models import (
     SemanticRunRecord,
     SemanticRunResponse,
 )
+from .qualification import (
+    CurationDecisionResult,
+    CurationPreview,
+    GraphProjectionResult,
+    QualificationCase,
+    QualificationRunResult,
+)
 
 _client_lock = RLock()
 _default_client: Optional[Seocho] = None
@@ -66,6 +73,26 @@ def add(content: str, **kwargs: Any) -> Memory:
 
 def add_graph(graph_data: Dict[str, Any], **kwargs: Any) -> Memory:
     return get_client().add_graph(graph_data, **kwargs)
+
+
+def qualify_graph(**kwargs: Any) -> QualificationRunResult:
+    return get_client().qualify_graph(**kwargs)
+
+
+def list_curation_cases(**kwargs: Any) -> List[QualificationCase]:
+    return get_client().list_curation_cases(**kwargs)
+
+
+def preview_curation_decision(case_id: str, **kwargs: Any) -> CurationPreview:
+    return get_client().preview_curation_decision(case_id, **kwargs)
+
+
+def apply_curation_decision(case_id: str, **kwargs: Any) -> CurationDecisionResult:
+    return get_client().apply_curation_decision(case_id, **kwargs)
+
+
+def project_canonical_graph(**kwargs: Any) -> GraphProjectionResult:
+    return get_client().project_canonical_graph(**kwargs)
 
 
 def add_with_details(content: str, **kwargs: Any) -> MemoryCreateResult:

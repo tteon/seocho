@@ -597,6 +597,15 @@ Each entry must link to a full ADR when impact is non-trivial.
   - use `scripts/pm/bd-recover.sh` as the first-line Beads/Dolt diagnostic
     before deleting, reinstalling, or resetting `.beads`
 
+## 2026-05-23
+
+- Accepted `ADR-0096-sqlite-default-qualification-store-and-canonical-projection-contract.md`
+  - keep observed ingest and canonical serving in separate persistence planes
+  - use SQLite as the default mutable qualification store, with DuckDB as an
+    optional analytics backend
+  - project canonical entities/relations back into the graph store instead of
+    destructively rewriting raw observed ingest
+
 ## 2026-05-19
 
 - Proposed `ADR-0092-graph-cot-lpg-property-schema.md`

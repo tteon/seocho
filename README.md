@@ -164,6 +164,14 @@ have ontology-shaped nodes and relationships, local mode also exposes
 `client.add_graph(...)` to validate and materialize structured payloads without
 re-running text extraction.
 
+When you need to curate duplicate entities without losing provenance, local
+mode can also record the observed graph into a tabular qualification store via
+`qualification_store_path=...`. SQLite is the default mutable store; DuckDB is
+available as an optional analytics backend. That enables
+`qualify_graph() -> list_curation_cases() -> apply_curation_decision() ->
+project_canonical_graph()` so entity identity decisions and canonical serving
+projection stay separate from the raw observed ingest.
+
 For the full story — control plane vs data plane, internal orchestration seams
 (`DomainEvent`, `IngestionFacade`, `QueryProxy`, `AgentFactory`,
 `AgentStateMachine`), and the staged `extraction/` → `runtime/` migration —

@@ -30,6 +30,7 @@ Usage::
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import logging
@@ -119,6 +120,9 @@ class IndexingResult:
     # Materialised extracted graph payload — the post-write graph view that the
     # caller (e.g. ``_LocalEngine.add``) can surface to users via
     # :class:`seocho.models.Memory`. Empty when no nodes survived validation.
+    observed_nodes: List[Dict[str, Any]] = field(default_factory=list)
+    observed_relationships: List[Dict[str, Any]] = field(default_factory=list)
+    chunk_records: List[Dict[str, Any]] = field(default_factory=list)
     nodes: List[Dict[str, Any]] = field(default_factory=list)
     relationships: List[Dict[str, Any]] = field(default_factory=list)
 
@@ -846,6 +850,8 @@ class IndexingPipeline:
             result.chunks_processed += 1
 
         # Cross-chunk dedup: merge nodes with same label+name
+        result.observed_nodes = copy.deepcopy(all_nodes)
+        result.observed_relationships = copy.deepcopy(all_rels)
         all_nodes, canonical_id_by_original = self._cross_chunk_dedup(all_nodes)
         all_rels = self._rewrite_relationship_ids(all_rels, canonical_id_by_original)
         for record in chunk_records:
@@ -858,6 +864,7 @@ class IndexingPipeline:
                 seen_entity_ids.add(canonical_id)
                 canonical_entity_ids.append(canonical_id)
             record["entity_ids"] = canonical_entity_ids
+        result.chunk_records = copy.deepcopy(chunk_records)
 
         # --- Embedding relatedness (parity with server path) ---
         if self._embedding_linker is not None and all_nodes:
@@ -985,6 +992,8 @@ class IndexingPipeline:
             all_nodes, all_rels = self.on_after_extract(all_nodes, all_rels)
 
         validation_payload = {"nodes": all_nodes, "relationships": all_rels}
+        result.observed_nodes = copy.deepcopy(all_nodes)
+        result.observed_relationships = copy.deepcopy(all_rels)
         errors = self.ontology.validate_with_shacl(validation_payload)
         if self.on_after_validate:
             all_nodes, all_rels, errors = self.on_after_validate(all_nodes, all_rels, errors)
@@ -1048,6 +1057,7 @@ class IndexingPipeline:
                 seen_entity_ids.add(canonical_id)
                 canonical_entity_ids.append(canonical_id)
             record["entity_ids"] = canonical_entity_ids
+        result.chunk_records = copy.deepcopy(resolved_chunk_records)
 
         result.chunks_processed = len(resolved_chunk_records) if resolved_chunk_records else 1
 

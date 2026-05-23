@@ -77,6 +77,34 @@ print(memory.memory_id)
 print(memory.metadata["layered_graph_summary"]["section_count"])
 ```
 
+When you also want a curation workflow for duplicate entities, configure a
+local qualification store up front. SEOCHO records the observed graph there
+before cross-chunk dedup, then lets you review and project canonical entities
+separately from the raw ingest graph.
+
+```python
+from seocho import Seocho
+
+client = Seocho(
+    ontology=ontology,
+    graph_store=graph_store,
+    llm=llm,
+    qualification_store_path=".seocho/qualification.db",
+)
+
+memory = client.add_graph(graph_payload, content=raw_text)
+run = client.qualify_graph(database="contractslpg", modes=("text", "graph"))
+case = client.list_curation_cases(run_id=run.run_id)[0]
+client.apply_curation_decision(case.case_id, action="merge")
+projection = client.project_canonical_graph(database="contractslpg", run_id=run.run_id)
+
+print(projection.nodes_written)
+```
+
+SQLite is the default curation backend because qualification is mostly mutable
+case/decision work. If you want larger offline analytical scans, install the
+optional DuckDB extra and pass `qualification_store_backend="duckdb"`.
+
 ## 2. Structure Records for Raw Ingest
 
 The minimum useful record is:

@@ -93,6 +93,30 @@ Operational rule:
   provenance shaping, and chunk/vector join contract for caller-supplied graph
   payloads instead of bypassing the layered memory graph
 
+## 4.4 Qualification / Curation Plane
+
+Do not treat observed ingest and canonical serving as the same persistence
+problem.
+
+- `add(...)` / `add_graph(...)` produce the observed graph
+- a tabular qualification store records observed entities, observed relations,
+  chunks, cases, and curation decisions
+- canonical serving projection is built later from those decisions and written
+  back to the graph store with distinct canonical IDs
+
+Recommended split:
+
+- semantic/control plane: ontology + indexing design + curation design
+- qualification plane: SQLite-default tabular store for cases and decisions
+- serving plane: DozerDB graph projection for canonical entities and relations
+
+DuckDB remains useful as an optional analytics backend, but not as the default
+mutable curation store.
+
+This keeps ontology-sensitive merge rules explicit and reviewable while letting
+Graph-RAG answer from the projected canonical graph instead of destructively
+rewriting raw observed ingest.
+
 ## 5. Owlready2 Role (Important Boundary)
 
 Use Owlready2 as **ontology control plane**, not as hot-path retriever:

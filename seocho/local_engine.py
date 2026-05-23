@@ -5,8 +5,18 @@ import logging
 import re
 from typing import Any, Dict, List, Optional, Sequence
 
+from .curation_design import CurationDesignSpec, load_curation_design_spec
+from .graph_projector import GraphProjector
 from .models import Memory
 from .observability import StageTimer
+from .qualification import (
+    CurationDecisionResult,
+    CurationPreview,
+    GraphProjectionResult,
+    QualificationCase,
+    QualificationRunResult,
+)
+from .qualification_store import QualificationStore
 from .query.answering import QueryAnswerSynthesizer
 from .query.contracts import QueryPlan
 from .query.executor import GraphQueryExecutor
@@ -35,6 +45,9 @@ class _LocalEngine:
         extraction_prompt: Optional[Any] = None,  # PromptTemplate
         agent_config: Optional[Any] = None,  # AgentConfig
         ontology_profile: str = "default",
+        qualification_store_path: Optional[str] = None,
+        qualification_store_backend: str = "sqlite",
+        curation_design: Optional[Any] = None,
     ) -> None:
         from .agent_config import AgentConfig
         from .events import NullEventPublisher
@@ -51,6 +64,10 @@ class _LocalEngine:
         self.agent_config: AgentConfig = agent_config or AgentConfig()
         self.extraction_prompt = extraction_prompt
         self.ontology_profile = str(ontology_profile or "default")
+        self.qualification_store_path = str(qualification_store_path or "").strip() or None
+        self.qualification_store_backend = str(qualification_store_backend or "sqlite")
+        self._curation_design = load_curation_design_spec(curation_design)
+        self._qualification_store: Optional[QualificationStore] = None
 
         from .ontology_context import OntologyContextCache
 
@@ -85,6 +102,32 @@ class _LocalEngine:
         self._extraction = ExtractionStrategy(ontology, extraction_prompt=extraction_prompt)
         self._linking = LinkingStrategy(ontology)
         self._query = QueryStrategy(ontology)
+
+    def _resolve_qualification_store(
+        self,
+        *,
+        path: Optional[str] = None,
+        backend: Optional[str] = None,
+    ) -> QualificationStore:
+        resolved_path = str(path or self.qualification_store_path or "").strip()
+        if not resolved_path:
+            raise RuntimeError(
+                "qualification store is not configured. Set qualification_store_path "
+                "on Seocho(...) or pass one to qualify_graph()."
+            )
+        resolved_backend = str(backend or self.qualification_store_backend or "sqlite")
+        if (
+            self._qualification_store is None
+            or self._qualification_store.path != resolved_path
+            or self._qualification_store.backend != resolved_backend
+        ):
+            if self._qualification_store is not None:
+                self._qualification_store.close()
+            self._qualification_store = QualificationStore(
+                resolved_path,
+                backend=resolved_backend,
+            )
+        return self._qualification_store
 
     def _build_memory_from_indexing_result(
         self,
@@ -122,6 +165,20 @@ class _LocalEngine:
         if result.fallback_used:
             result_metadata["fallback_used"] = True
             result_metadata["fallback_reason"] = result.fallback_reason
+        if self.qualification_store_path:
+            try:
+                capture = self._resolve_qualification_store().record_indexing_result(
+                    result=result,
+                    workspace_id=self.workspace_id,
+                    graph_id=database,
+                    database=database,
+                    content=content,
+                    metadata=metadata,
+                )
+                result_metadata["qualification_capture"] = capture
+            except Exception as exc:
+                logger.warning("Qualification artifact capture skipped: %s", exc)
+                result_metadata["qualification_capture_error"] = str(exc)
         try:
             from .indexing_design import build_reasoning_cycle_report
 
@@ -156,6 +213,130 @@ class _LocalEngine:
             source_type=source_type,
             entities=list(getattr(result, "nodes", []) or []),
         )
+
+    def close(self) -> None:
+        if self._qualification_store is not None:
+            self._qualification_store.close()
+            self._qualification_store = None
+
+    def qualify_graph(
+        self,
+        *,
+        database: str,
+        graph_id: Optional[str] = None,
+        curation_design: Optional[Any] = None,
+        modes: Sequence[str] = ("text", "graph", "llm"),
+        scope: Optional[Dict[str, Any]] = None,
+        qualification_store_path: Optional[str] = None,
+        qualification_store_backend: Optional[str] = None,
+    ) -> QualificationRunResult:
+        store = self._resolve_qualification_store(
+            path=qualification_store_path,
+            backend=qualification_store_backend,
+        )
+        design = load_curation_design_spec(curation_design or self._curation_design)
+        return store.qualify_graph(
+            workspace_id=self.workspace_id,
+            graph_id=str(graph_id or database),
+            database=database,
+            ontology=self.ontology,
+            curation_design=design,
+            llm=self.llm,
+            modes=modes,
+            scope=scope,
+        )
+
+    def list_curation_cases(
+        self,
+        *,
+        run_id: Optional[str] = None,
+        status: Optional[str] = None,
+        case_type: Optional[str] = None,
+        limit: int = 100,
+        qualification_store_path: Optional[str] = None,
+        qualification_store_backend: Optional[str] = None,
+    ) -> List[QualificationCase]:
+        store = self._resolve_qualification_store(
+            path=qualification_store_path,
+            backend=qualification_store_backend,
+        )
+        return store.list_cases(
+            run_id=run_id,
+            status=status,
+            case_type=case_type,
+            limit=limit,
+        )
+
+    def preview_curation_decision(
+        self,
+        case_id: str,
+        *,
+        action: str,
+        chosen_canonical_id: Optional[str] = None,
+        property_resolution: Optional[Dict[str, Any]] = None,
+        qualification_store_path: Optional[str] = None,
+        qualification_store_backend: Optional[str] = None,
+    ) -> CurationPreview:
+        store = self._resolve_qualification_store(
+            path=qualification_store_path,
+            backend=qualification_store_backend,
+        )
+        return store.preview_decision(
+            case_id,
+            action=action,
+            chosen_canonical_id=chosen_canonical_id,
+            property_resolution=property_resolution,
+        )
+
+    def apply_curation_decision(
+        self,
+        case_id: str,
+        *,
+        action: str,
+        actor_id: str = "local-user",
+        actor_type: str = "user",
+        chosen_canonical_id: Optional[str] = None,
+        property_resolution: Optional[Dict[str, Any]] = None,
+        qualification_store_path: Optional[str] = None,
+        qualification_store_backend: Optional[str] = None,
+    ) -> CurationDecisionResult:
+        store = self._resolve_qualification_store(
+            path=qualification_store_path,
+            backend=qualification_store_backend,
+        )
+        return store.apply_decision(
+            case_id,
+            action=action,
+            actor_id=actor_id,
+            actor_type=actor_type,
+            chosen_canonical_id=chosen_canonical_id,
+            property_resolution=property_resolution,
+        )
+
+    def project_canonical_graph(
+        self,
+        *,
+        database: str,
+        graph_id: Optional[str] = None,
+        run_id: Optional[str] = None,
+        qualification_store_path: Optional[str] = None,
+        qualification_store_backend: Optional[str] = None,
+    ) -> GraphProjectionResult:
+        store = self._resolve_qualification_store(
+            path=qualification_store_path,
+            backend=qualification_store_backend,
+        )
+        snapshot = store.build_projection_snapshot(
+            workspace_id=self.workspace_id,
+            graph_id=str(graph_id or database),
+            database=database,
+            run_id=run_id,
+        )
+        projector = GraphProjector(
+            graph_store=self.graph_store,
+            workspace_id=self.workspace_id,
+        )
+        return projector.project(snapshot, database=database)
 
     def add(
         self,

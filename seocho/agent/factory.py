@@ -3,6 +3,22 @@ from __future__ import annotations
 from typing import Any, Optional
 
 
+def _tool_agent_model_settings(llm: Any, *, temperature: float) -> Any:
+    """Build provider-aware Agents SDK settings for tool-using agents."""
+
+    from agents import ModelSettings
+
+    provider = str(getattr(llm, "provider", "") or "").strip().lower()
+    if provider == "kimi":
+        # Kimi tool-call turns fail under thinking mode because follow-up tool
+        # messages omit provider-specific reasoning content. Force instant mode.
+        return ModelSettings(
+            temperature=0.6,
+            extra_body={"thinking": {"type": "disabled"}},
+        )
+    return ModelSettings(temperature=temperature)
+
+
 def indexing_system_prompt(ontology: Any) -> str:
     ctx = ontology.to_query_context()
     return f"""You are an indexing agent for a knowledge graph. Your job is to
@@ -146,7 +162,7 @@ def create_indexing_agent(
     model: Optional[str] = None,
     name: str = "IndexingAgent",
 ) -> Any:
-    from agents import Agent, ModelSettings
+    from agents import Agent
     from ..tools import create_indexing_tools
 
     tools = create_indexing_tools(
@@ -162,7 +178,7 @@ def create_indexing_agent(
         instructions=indexing_system_prompt(ontology),
         tools=tools,
         model=llm.to_agents_sdk_model(model=model),
-        model_settings=ModelSettings(temperature=0.0),
+        model_settings=_tool_agent_model_settings(llm, temperature=0.0),
     )
 
 
@@ -177,7 +193,7 @@ def create_query_agent(
     model: Optional[str] = None,
     name: str = "QueryAgent",
 ) -> Any:
-    from agents import Agent, ModelSettings
+    from agents import Agent
     from ..tools import create_query_tools
 
     tools = create_query_tools(
@@ -192,7 +208,7 @@ def create_query_agent(
         instructions=query_system_prompt(ontology),
         tools=tools,
         model=llm.to_agents_sdk_model(model=model),
-        model_settings=ModelSettings(temperature=0.1),
+        model_settings=_tool_agent_model_settings(llm, temperature=0.1),
     )
 
 
@@ -209,7 +225,7 @@ def create_supervisor_agent(
     model: Optional[str] = None,
     name: str = "Supervisor",
 ) -> Any:
-    from agents import Agent, ModelSettings, handoff
+    from agents import Agent, handoff
 
     idx_agent = create_indexing_agent(
         ontology=ontology,
@@ -249,5 +265,5 @@ def create_supervisor_agent(
             ),
         ],
         model=llm.to_agents_sdk_model(model=model),
-        model_settings=ModelSettings(temperature=0.0),
+        model_settings=_tool_agent_model_settings(llm, temperature=0.0),
     )

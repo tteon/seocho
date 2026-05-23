@@ -5,6 +5,7 @@ from seocho.agent import (
     SessionContext,
     create_indexing_agent,
     create_query_agent,
+    create_supervisor_agent,
     normalize_execution_mode,
 )
 
@@ -47,6 +48,11 @@ class _FakeGraphStore:
     pass
 
 
+class _FakeKimiLLM(_FakeLLM):
+    provider = "kimi"
+    model = "kimi-k2.5"
+
+
 def test_normalize_execution_mode_uses_canonical_contract() -> None:
     assert normalize_execution_mode("agent") == "agent"
     assert normalize_execution_mode("SUPERVISOR") == "supervisor"
@@ -79,3 +85,25 @@ def test_canonical_agent_factory_creates_indexing_and_query_agents() -> None:
 
     assert indexing_agent.name == "IndexingAgent"
     assert query_agent.name == "QueryAgent"
+
+
+def test_canonical_agent_factory_applies_kimi_tool_agent_settings() -> None:
+    try:
+        import agents  # noqa: F401
+    except ImportError:  # pragma: no cover
+        return
+
+    ontology = _make_test_ontology()
+    llm = _FakeKimiLLM()
+    store = _FakeGraphStore()
+
+    indexing_agent = create_indexing_agent(ontology=ontology, graph_store=store, llm=llm)
+    query_agent = create_query_agent(ontology=ontology, graph_store=store, llm=llm)
+    supervisor_agent = create_supervisor_agent(ontology=ontology, graph_store=store, llm=llm)
+
+    assert indexing_agent.model_settings.temperature == 0.6
+    assert query_agent.model_settings.temperature == 0.6
+    assert supervisor_agent.model_settings.temperature == 0.6
+    assert indexing_agent.model_settings.extra_body == {"thinking": {"type": "disabled"}}
+    assert query_agent.model_settings.extra_body == {"thinking": {"type": "disabled"}}
+    assert supervisor_agent.model_settings.extra_body == {"thinking": {"type": "disabled"}}

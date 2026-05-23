@@ -1,0 +1,5 @@
+# Per-store data created at seed time — large binary blobs, not source.
+.lancedb/
+.ladybug.lbug
+.ladybug.lbug.*
+__pycache__/

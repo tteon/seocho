@@ -24,6 +24,7 @@ from .qualification import (
     QualificationCase,
     QualificationRunResult,
 )
+from .store.llm import complete_with_task_hints
 
 logger = logging.getLogger(__name__)
 
@@ -1306,11 +1307,14 @@ class QualificationStore:
             }
         )
         try:
-            response = llm.complete(
+            response = complete_with_task_hints(
+                llm,
                 system=system,
                 user=user,
                 temperature=0.0,
                 response_format={"type": "json_object"},
+                reasoning_mode=False,
+                task_hint="entity_resolution_scoring",
             )
             payload = response.json() if hasattr(response, "json") else {}
             confidence = payload.get("confidence")

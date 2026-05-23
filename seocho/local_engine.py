@@ -23,6 +23,7 @@ from .query.executor import GraphQueryExecutor
 from .query.planner import DeterministicQueryPlanner
 from .query.run_metadata import build_local_query_metadata
 from .runtime_contract import DEFAULT_QUERY_MODE, normalize_query_mode
+from .store.llm import complete_with_task_hints
 
 logger = logging.getLogger(__name__)
 _FOUR_DIGIT_YEAR_RE = re.compile(r"\b(20\d{2})\b")
@@ -477,11 +478,14 @@ class _LocalEngine:
         self._extraction.category = category
         system, user = self._extraction.render(content, metadata=metadata)
 
-        response = self.llm.complete(
+        response = complete_with_task_hints(
+            self.llm,
             system=system,
             user=user,
             temperature=0.0,
             response_format={"type": "json_object"},
+            reasoning_mode=False,
+            task_hint="json_extraction",
         )
 
         try:
@@ -1095,11 +1099,14 @@ class _LocalEngine:
         entities_json = json.dumps({"nodes": nodes, "relationships": relationships}, default=str)
         system, user = self._linking.render(entities_json)
 
-        response = self.llm.complete(
+        response = complete_with_task_hints(
+            self.llm,
             system=system,
             user=user,
             temperature=0.0,
             response_format={"type": "json_object"},
+            reasoning_mode=False,
+            task_hint="entity_linking",
         )
 
         try:

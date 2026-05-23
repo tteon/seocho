@@ -34,6 +34,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, Union
 
 from .ontology import Ontology
+from .store.llm import complete_with_task_hints
 
 logger = logging.getLogger(__name__)
 
@@ -138,22 +139,26 @@ class ExperimentRunner:
         strategy = ExtractionStrategy(ontology)
         system, user = strategy.render(text)
 
-        # Kimi K2.5 only accepts temperature=1
         safe_temp = 0.0
-        if hasattr(llm, 'model') and 'kimi' in getattr(llm, 'model', '').lower():
-            safe_temp = 1.0
 
         try:
-            response = llm.complete(
-                system=system, user=user,
+            response = complete_with_task_hints(
+                llm,
+                system=system,
+                user=user,
                 temperature=safe_temp,
                 response_format={"type": "json_object"},
+                reasoning_mode=False,
+                task_hint="json_extraction",
             )
         except Exception:
-            response = llm.complete(
+            response = complete_with_task_hints(
+                llm,
                 system=system + "\n\nReturn ONLY valid JSON.",
                 user=user,
                 temperature=safe_temp,
+                reasoning_mode=False,
+                task_hint="json_extraction",
             )
 
         try:
@@ -494,23 +499,27 @@ class Workbench:
         for chunk in chunks:
             system, user = strategy.render(chunk)
 
-            # Some models (e.g. kimi-k2.5) only accept temperature=1
             safe_temp = temperature
-            if hasattr(llm, 'model') and 'kimi' in getattr(llm, 'model', '').lower():
-                safe_temp = 1.0
 
             try:
-                response = llm.complete(
-                    system=system, user=user,
+                response = complete_with_task_hints(
+                    llm,
+                    system=system,
+                    user=user,
                     temperature=safe_temp,
                     response_format={"type": "json_object"},
+                    reasoning_mode=False,
+                    task_hint="json_extraction",
                 )
             except Exception:
                 # Fallback: some models don't support response_format
-                response = llm.complete(
+                response = complete_with_task_hints(
+                    llm,
                     system=system + "\n\nReturn ONLY valid JSON.",
                     user=user,
                     temperature=safe_temp,
+                    reasoning_mode=False,
+                    task_hint="json_extraction",
                 )
 
             # Track usage

@@ -35,7 +35,9 @@ class TestExtractionStrategy:
         assert "Person" in system
         assert "Company" in system
         assert "WORKS_AT" in system
-        assert "JSON format" in system
+        assert "Output format:" in system
+        assert "Verification:" in system
+        assert '"""' in user
 
     def test_render_user_contains_text(self, ontology):
         ext = ExtractionStrategy(ontology)
@@ -119,6 +121,10 @@ class TestQueryStrategy:
         assert "Ontology Query Profile" in system
         assert "UNIQUE" in system
         assert "many-to-one" in system.lower()
+        assert "Task:" in system
+        assert "Constraints:" in system
+        assert "Verification:" in system
+        assert '"""' in user
 
     def test_render_user_has_question(self, ontology):
         qs = QueryStrategy(ontology)
@@ -136,6 +142,7 @@ class TestQueryStrategy:
         assert "test" in system  # ontology name
         assert "Alice" in user
         assert "Who?" in user
+        assert "Verification:" in system
 
     def test_schema_info_sanitized(self, ontology):
         qs = QueryStrategy(ontology, schema_info={"bad\x00key": "val" * 1000})

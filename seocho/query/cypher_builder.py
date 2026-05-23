@@ -253,18 +253,25 @@ class CypherBuilder:
 
         return (
             "You are a question analyzer for a knowledge graph.\n"
-            "Given a user question, extract the INTENT — do NOT generate Cypher.\n\n"
-            "IMPORTANT: The graph was built using the ontology below.\n"
-            "You MUST use ONLY the node types and relationship types listed here.\n"
-            "Do NOT invent new types — if the question implies a relationship not in the list,\n"
-            "use the closest matching relationship or set relationship_type to empty.\n\n"
-            f"Ontology query profile: package_id={profile['package_id']}, "
+            "\n"
+            "Task:\n"
+            "- Extract the question intent and the minimal structured fields needed for deterministic query planning.\n"
+            "- Do NOT generate Cypher.\n\n"
+            "Context:\n"
+            "- The graph was built using the ontology below.\n"
+            "- You MUST use ONLY the node types and relationship types listed here.\n"
+            f"- Ontology query profile: package_id={profile['package_id']}, "
             f"version={profile['version']}, graph_model={profile['graph_model']}.\n"
-            f"Deterministic intents supported: {', '.join(profile['deterministic_intents'])}.\n\n"
+            f"- Deterministic intents supported: {', '.join(profile['deterministic_intents'])}.\n\n"
             f"{hint_prefix}"
             f"Node types:\n{node_block}\n\n"
             f"Relationship types (ONLY these exist in the graph):\n{rel_block}\n\n"
-            "Return a JSON object with:\n"
+            "Constraints:\n"
+            "- Do NOT invent new node or relationship types.\n"
+            "- If the question implies a relationship not in the list, use the closest supported relationship or set relationship_type to empty.\n"
+            "- Keep entity strings close to the original user wording.\n\n"
+            "Output format:\n"
+            "- Return exactly one valid json object with:\n"
             '  "intent": one of "entity_lookup", "relationship_lookup", "neighbors", "path", "count", "list_all", "financial_metric_lookup", "financial_metric_delta"\n'
             '  "anchor_entity": the main entity name mentioned\n'
             f'  "anchor_label": one of [{", ".join(labels)}] or empty\n'
@@ -273,6 +280,10 @@ class CypherBuilder:
             f'  "relationship_type": one of [{", ".join(self.ontology.relationships.keys())}] or empty\n'
             '  "metric_name": financial metric or line-item phrase when asking about a metric value or delta\n'
             '  "years": list of years mentioned in the question\n\n'
+            "Verification:\n"
+            "- Before finalizing, check that the json is valid.\n"
+            "- Check that labels and relationship types are from the allowed ontology lists.\n"
+            "- Check that empty fields stay empty instead of being guessed.\n\n"
             "Examples with this ontology:\n"
             '  "Who works at Samsung?" → {"intent": "relationship_lookup", "anchor_entity": "Samsung", "anchor_label": "Company", "relationship_type": "EMPLOYS"}\n'
             '  "Tell me about Apple" → {"intent": "neighbors", "anchor_entity": "Apple", "anchor_label": "Company"}\n'

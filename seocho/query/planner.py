@@ -4,6 +4,7 @@ import json
 import logging
 from typing import Any, Dict, Optional, Sequence
 
+from ..store.llm import complete_with_task_hints
 from .contracts import QueryPlan
 from .cypher_builder import CypherBuilder
 
@@ -21,11 +22,13 @@ class DeterministicQueryPlanner:
     def plan(self, question: str) -> QueryPlan:
         builder = CypherBuilder(self.ontology)
         question_hints = builder.derive_schema_hints(question)
-        response = self.llm.complete(
+        response = self._complete(
             system=builder.intent_extraction_prompt(schema_hints=question_hints),
-            user=f"Question: {question}",
+            user=f'Question:\n"""\n{question}\n"""',
             temperature=0.0,
             response_format={"type": "json_object"},
+            reasoning_mode=False,
+            task_hint="intent_classification",
         )
 
         try:
@@ -108,21 +111,32 @@ class DeterministicQueryPlanner:
 
         system = (
             "You are a knowledge graph query repair agent.\n"
-            f"Working with ontology \"{ctx['ontology_name']}\".\n\n"
+            "\n"
+            "Task:\n"
+            "- Generate one relaxed alternative query plan after earlier attempts failed.\n\n"
+            "Context:\n"
+            f'- Ontology: "{ctx["ontology_name"]}".\n'
             f"--- Graph Schema ---\n{ctx['graph_schema']}\n\n"
-            f"The previous queries returned no results:\n{attempts_summary}\n\n"
-            "Generate a RELAXED alternative query that:\n"
-            "- Uses broader match patterns (CONTAINS instead of exact match)\n"
-            "- Tries alternative relationship paths\n"
-            "- Removes overly specific filters\n"
-            "- Falls back to listing available entities if all else fails\n\n"
-            'Return JSON: {"cypher": "...", "params": {...}, "strategy": "..."}'
+            f"Previous attempts:\n{attempts_summary}\n\n"
+            "Constraints:\n"
+            "- Use broader match patterns such as CONTAINS instead of exact match when needed.\n"
+            "- Try alternative relationship paths supported by the schema.\n"
+            "- Remove overly specific filters that likely caused zero results.\n"
+            "- Fall back to listing available entities only if relationship lookup is unsupported.\n"
+            "- Keep the query read-only.\n\n"
+            "Output format:\n"
+            '- Return exactly one valid json object: {"cypher": "...", "params": {...}, "strategy": "..."}\n\n'
+            "Verification:\n"
+            "- Before finalizing, check that the Cypher uses only schema-supported labels, properties, and relationships.\n"
+            "- Check that every parameter referenced in the Cypher exists in params."
         )
-        response = self.llm.complete(
+        response = self._complete(
             system=system,
-            user=f"Original question: {question}",
+            user=f'Original question:\n"""\n{question}\n"""',
             temperature=0.2,
             response_format={"type": "json_object"},
+            reasoning_mode=True,
+            task_hint="query_repair",
         )
         try:
             payload = response.json()
@@ -140,4 +154,24 @@ class DeterministicQueryPlanner:
             params=dict(payload.get("params", {}) or {}),
             intent_data=dict(intent_data or {}),
             error=None,
+        )
+
+    def _complete(
+        self,
+        *,
+        system: str,
+        user: str,
+        temperature: float,
+        response_format: Optional[Dict[str, Any]] = None,
+        reasoning_mode: Optional[bool] = None,
+        task_hint: Optional[str] = None,
+    ) -> Any:
+        return complete_with_task_hints(
+            self.llm,
+            system=system,
+            user=user,
+            temperature=temperature,
+            response_format=response_format,
+            reasoning_mode=reasoning_mode,
+            task_hint=task_hint,
         )

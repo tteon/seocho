@@ -128,6 +128,35 @@ line_length = 88
 max-line-length = 88
 exclude = ["__pycache__", "*.pyc", ".git", "examples/demos", "examples/labs/legacy"]
 
+# Dead-code detection (Track A quick-win — surface metric only, not yet a CI gate).
+# Run: `ruff check seocho/ extraction/ runtime/ --statistics`
+# When ready to enforce, add a CI step; until then this just makes the metric easy
+# to inspect locally without contradicting the existing flake8/black/isort setup.
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+extend-exclude = [
+    ".archive",
+    "build",
+    "dist",
+    "outputs",
+    "data",
+    "experiments",
+    ".tmp-land-ontology-cli",
+    ".experiment_runs",
+    "examples/demos",
+    "examples/labs/legacy",
+    "tteon.github.io",
+]
+
+[tool.ruff.lint]
+select = [
+    "F401",  # unused imports
+    "F811",  # redefined while unused
+    "F841",  # unused local variables
+    "F541",  # f-string without placeholders
+]
+
 [tool.setuptools]
 include-package-data = false
 

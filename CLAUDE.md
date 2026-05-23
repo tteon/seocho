@@ -288,7 +288,7 @@ For seocho.blog publishing, keep these docs current as first-class release
 artifacts:
 
 - `docs/README.md`
-- `docs/QUICKSTART.md`
+- `docs/RUNTIME_DEPLOYMENT.md`
 - `docs/ARCHITECTURE.md`
 - `docs/WORKFLOW.md`
 - `docs/TUTORIAL_FIRST_RUN.md`

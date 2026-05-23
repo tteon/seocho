@@ -59,7 +59,13 @@ def _warn_deprecated_factory(name: str, migration_hint: str) -> None:
         stacklevel=3,
     )
 
-from .client_bundle import RuntimeBundleClientHelper
+# NOTE: `.client_bundle` and `.local_engine` are imported lazily inside
+# Seocho.__init__ / Seocho.from_runtime_bundle. Both transitively pull in
+# `seocho.store.graph` (via `runtime_bundle` → `query.strategy` → query
+# package init, and via local_engine's index pipeline imports). Keeping
+# them off the module-top preserves the lazy-import contract verified by
+# tests/test_import_surface.py — accessing `seocho.Seocho` (the class
+# object) must NOT eagerly load the storage backends.
 from .client_artifacts import (
     approved_artifacts_from_ontology as build_approved_artifacts_from_ontology,
 )
@@ -72,7 +78,6 @@ from .client_artifacts import (
 from .client_remote import RemoteClientHelper
 from .exceptions import SeochoConnectionError, SeochoHTTPError
 from .governance import ArtifactDiff, ArtifactValidationResult, diff_artifact_payloads, validate_artifact_payload
-from .local_engine import _LocalEngine
 from .semantic import (
     ApprovedArtifacts,
     SemanticArtifact,
@@ -268,6 +273,7 @@ class Seocho:
         self._local_mode = ontology is not None and graph_store is not None and llm is not None
 
         if self._local_mode:
+            from .local_engine import _LocalEngine  # lazy: pulls in store backends
             self._engine = _LocalEngine(
                 ontology=ontology,
                 graph_store=graph_store,
@@ -286,6 +292,7 @@ class Seocho:
             self._engine = None
             self._session = session or requests.Session()
 
+        from .client_bundle import RuntimeBundleClientHelper  # lazy: pulls in runtime_bundle → query → store
         self._bundle_helper = RuntimeBundleClientHelper()
         resolved_base_url = ""
         if not self._local_mode:
@@ -2562,6 +2569,7 @@ class Seocho:
             "from_runtime_bundle",
             "use create_client_from_runtime_bundle() or Seocho.remote(...).",
         )
+        from .client_bundle import RuntimeBundleClientHelper  # lazy
         return RuntimeBundleClientHelper.create_client(bundle_source, workspace_id=workspace_id)
 
     def close(self) -> None:
@@ -3336,3 +3344,31 @@ class AsyncSeocho:
     async def aclose(self) -> None:
         """Async version of :meth:`Seocho.close`."""
         await asyncio.to_thread(self._client.close)
+
+
+# ---------------------------------------------------------------------------
+# PEP 562 lazy re-exports.
+#
+# Both `_LocalEngine` and `RuntimeBundleClientHelper` are intentionally NOT
+# imported at module top (see comment near the top of the file) — that would
+# eagerly pull in `seocho.store.graph` via their transitive import chains,
+# violating the lazy-import contract verified by
+# `tests/test_import_surface.py::test_import_seocho_stays_lazy_for_optional_heavy_modules`.
+#
+# However, several internal consumers (`seocho.session`, the runtime-bundle
+# monkeypatch in `tests/test_runtime_bundle.py`, `tests/test_ontology_context.py`)
+# legitimately read these from `seocho.client.<name>`. PEP 562 module-level
+# __getattr__ resolves them on first access, preserving backward compatibility
+# without paying the eager-import cost.
+# ---------------------------------------------------------------------------
+
+def __getattr__(name: str):  # noqa: D401  (module-level dunder)
+    if name == "_LocalEngine":
+        from .local_engine import _LocalEngine as _LE
+        globals()["_LocalEngine"] = _LE
+        return _LE
+    if name == "RuntimeBundleClientHelper":
+        from .client_bundle import RuntimeBundleClientHelper as _RBCH
+        globals()["RuntimeBundleClientHelper"] = _RBCH
+        return _RBCH
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

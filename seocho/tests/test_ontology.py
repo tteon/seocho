@@ -138,6 +138,7 @@ class TestLoad:
             Ontology.load("schema.rdf")
 
     def test_from_ttl_loads_metadata_and_datatype_properties(self, tmp_path: Path):
+        pytest.importorskip("rdflib", reason="TTL ontology loading requires rdflib (install via [ontology] extra)")
         ttl_path = tmp_path / "finance.ttl"
         ttl_path.write_text(
             """

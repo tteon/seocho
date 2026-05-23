@@ -128,4 +128,8 @@ def test_local_query_builder_uses_registered_ontology_override() -> None:
     assert error is None
     assert params["workspace_id"] == client.workspace_id
     assert intent_data["anchor_label"] == "Customer"
-    assert "MATCH (n:Customer)" in cypher
+    # Accept either MATCH (n:Customer) or MATCH (n:`Customer`) — the
+    # cypher builder now backtick-quotes labels (a quote-safe default).
+    # The contract being tested is that the *override* propagated to the
+    # cypher, not the surface syntax of label quoting.
+    assert ("MATCH (n:Customer)" in cypher) or ("MATCH (n:`Customer`)" in cypher)

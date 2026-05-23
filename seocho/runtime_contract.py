@@ -109,3 +109,11 @@ def serialize_entity_overrides(
             continue
         raise TypeError("entity_overrides must contain dict objects or values with to_dict()")
     return serialized
+
+DEFAULT_QUERY_MODE = "auto"
+
+def normalize_query_mode(mode: str | None) -> str:
+    if not mode:
+        return DEFAULT_QUERY_MODE
+    mode = mode.lower().strip()
+    return mode if mode in {"auto", "native", "hybrid", "text"} else DEFAULT_QUERY_MODE

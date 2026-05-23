@@ -85,10 +85,12 @@ from .models import (
     SemanticRunResponse,
 )
 from .runtime_contract import (
+    DEFAULT_QUERY_MODE,
     RuntimePath,
     build_query_payload,
     build_scope_payload,
     memory_path,
+    normalize_query_mode,
     platform_chat_session_path,
     semantic_run_path,
     serialize_entity_overrides,
@@ -835,6 +837,46 @@ class Seocho:
         )
         return payload.memory
 
+    def add_graph(
+        self,
+        graph_data: Dict[str, Any],
+        *,
+        content: str = "",
+        metadata: Optional[Dict[str, Any]] = None,
+        strict_validation: bool = False,
+        database: Optional[str] = None,
+        category: str = "memory",
+        source_type: str = "structured_graph",
+        chunk_records: Optional[Sequence[Dict[str, Any]]] = None,
+    ) -> Memory:
+        """Add a caller-supplied graph payload under the active ontology.
+
+        This surface is local-engine-only. Use it when you already have
+        ontology-shaped nodes/relationships and want SEOCHO to apply SHACL
+        validation, provenance shaping, and vector/document join metadata
+        without re-running text extraction.
+        """
+        if not self._local_mode:
+            raise RuntimeError("add_graph() requires local engine mode; use raw_ingest() against a runtime")
+
+        db = database or self.default_database
+        structured_metadata = dict(metadata or {})
+        structured_metadata.setdefault("source_type", source_type)
+        add_kwargs = self._resolve_indexing_design_add_kwargs(
+            metadata=structured_metadata,
+            strict_validation=strict_validation,
+        )
+        return self._engine.add_graph(
+            graph_data,
+            content=content,
+            database=db,
+            category=category,
+            metadata=add_kwargs["metadata"],
+            strict_validation=bool(add_kwargs["strict_validation"]),
+            chunk_records=chunk_records,
+            ontology_override=self._ontology_registry.get(db),
+        )
+
     def ask(
         self,
         message: str,
@@ -848,6 +890,7 @@ class Seocho:
         database: Optional[str] = None,
         reasoning_mode: bool = False,
         repair_budget: int = 0,
+        query_mode: str = DEFAULT_QUERY_MODE,
     ) -> str:
         """Ask a natural-language question against the knowledge graph.
 
@@ -858,6 +901,7 @@ class Seocho:
 
         In HTTP mode: delegates to the SEOCHO chat endpoint.
         """
+        normalized_query_mode = normalize_query_mode(query_mode)
         if self._local_mode:
             db = database or (databases[0] if databases and len(databases) > 0 else self.default_database)
             return self._engine.ask(
@@ -865,8 +909,21 @@ class Seocho:
                 database=db,
                 reasoning_mode=reasoning_mode,
                 repair_budget=repair_budget,
+                query_mode=normalized_query_mode,
                 ontology_override=self._ontology_registry.get(db),
             )
+
+        if normalized_query_mode == "graph_cot":
+            resolved_databases = list(databases or ([] if database is None else [database]))
+            return self.semantic(
+                message,
+                user_id=user_id,
+                graph_ids=graph_ids,
+                databases=resolved_databases or None,
+                reasoning_mode=True,
+                repair_budget=max(1, int(repair_budget or 0)),
+                query_mode=normalized_query_mode,
+            ).response
 
         return self.chat(
             message,
@@ -1545,6 +1602,7 @@ class Seocho:
         entity_overrides: Optional[Sequence[EntityOverride | Dict[str, Any]]] = None,
         reasoning_mode: bool = False,
         repair_budget: int = 0,
+        query_mode: str = DEFAULT_QUERY_MODE,
         reasoning_cycle: Optional[Dict[str, Any]] = None,
     ) -> SemanticRunResponse:
         """Run the semantic query path with ontology-aware Cypher generation.
@@ -1564,6 +1622,7 @@ class Seocho:
         Returns:
             A :class:`SemanticRunResponse` with the answer, Cypher, and trace.
         """
+        normalized_query_mode = normalize_query_mode(query_mode)
         resolved_graph_ids: Optional[List[str]] = None
         resolved_databases = [str(item).strip() for item in databases or [] if str(item).strip()]
         if graph_ids:
@@ -1593,6 +1652,7 @@ class Seocho:
             body["reasoning_mode"] = True
         if repair_budget > 0:
             body["repair_budget"] = int(repair_budget)
+        body["query_mode"] = normalized_query_mode
         payload = self._request_json("POST", RuntimePath.RUN_AGENT_SEMANTIC, json_body=body)
         return SemanticRunResponse.from_dict(payload)
 
@@ -1737,6 +1797,7 @@ class Seocho:
             entity_overrides=resolved_plan.entity_overrides or None,
             reasoning_mode=resolved_plan.reasoning.repair_budget > 0,
             repair_budget=resolved_plan.reasoning.repair_budget,
+
             reasoning_cycle=resolved_plan.reasoning.reasoning_cycle or None,
         )
         return ExecutionResult.from_run_result(
@@ -1756,6 +1817,7 @@ class Seocho:
         graph_ids: Optional[Sequence[str]] = None,
         databases: Optional[Sequence[str]] = None,
         entity_overrides: Optional[Sequence[EntityOverride | Dict[str, Any]]] = None,
+        query_mode: str = DEFAULT_QUERY_MODE,
         reasoning_cycle: Optional[Dict[str, Any]] = None,
     ) -> PlatformChatResponse:
         """Send a message through the platform chat endpoint.
@@ -1788,6 +1850,8 @@ class Seocho:
             body["databases"] = list(databases)
         if entity_overrides:
             body["entity_overrides"] = serialize_entity_overrides(entity_overrides)
+        if mode == "semantic" or query_mode != DEFAULT_QUERY_MODE:
+            body["query_mode"] = normalize_query_mode(query_mode)
         effective_reasoning_cycle = dict(reasoning_cycle or self._default_reasoning_cycle())
         if effective_reasoning_cycle:
             body["reasoning_cycle"] = effective_reasoning_cycle
@@ -2302,7 +2366,12 @@ class Seocho:
             )
         databases = plan.databases or ([plan.graph_ids[0]] if plan.graph_ids else [])
         database = databases[0] if databases else "neo4j"
-        response = self.ask(plan.query, database=database, user_id=plan.user_id)
+        response = self.ask(
+            plan.query,
+            database=database,
+            user_id=plan.user_id,
+
+        )
         metadata = getattr(self._engine, "_last_query_metadata", {}) if self._engine is not None else {}
         return ExecutionResult(
             requested_style="direct",
@@ -2497,7 +2566,7 @@ class ExecutionPlanBuilder:
             tool_budget=self._reasoning.tool_budget,
             require_grounded_evidence=self._reasoning.require_grounded_evidence,
             repair_budget=self._reasoning.repair_budget,
-            fallback_style=self._reasoning.fallback_style,
+                        fallback_style=self._reasoning.fallback_style,
             reasoning_cycle=dict(reasoning_cycle or {}),
         )
         return self
@@ -2532,7 +2601,7 @@ class ExecutionPlanBuilder:
                 if repair_budget is None
                 else max(0, int(repair_budget))
             ),
-            fallback_style=(str(fallback_style).strip().lower() or None) if fallback_style else None,
+                        fallback_style=(str(fallback_style).strip().lower() or None) if fallback_style else None,
             reasoning_cycle=dict(self._reasoning.reasoning_cycle),
         )
         self._reasoning.normalized_style()
@@ -2600,10 +2669,28 @@ class ExecutionPlanBuilder:
             tool_budget=self._reasoning.tool_budget,
             require_grounded_evidence=self._reasoning.require_grounded_evidence,
             repair_budget=max(0, int(repair_budget)),
+                        fallback_style=self._reasoning.fallback_style,
+            reasoning_cycle=dict(self._reasoning.reasoning_cycle),
+        )
+        return self
+
+    def with_query_mode(self, query_mode: str) -> "ExecutionPlanBuilder":
+        """Set the semantic direct-query execution sub-mode."""
+        self._reasoning = ReasoningPolicy(
+            style=self._reasoning.normalized_style(),
+            max_steps=self._reasoning.max_steps,
+            tool_budget=self._reasoning.tool_budget,
+            require_grounded_evidence=self._reasoning.require_grounded_evidence,
+            repair_budget=self._reasoning.repair_budget,
+            query_mode=normalize_query_mode(query_mode),
             fallback_style=self._reasoning.fallback_style,
             reasoning_cycle=dict(self._reasoning.reasoning_cycle),
         )
         return self
+
+    def graph_cot(self) -> "ExecutionPlanBuilder":
+        """Run the direct semantic path in Graph-CoT mode."""
+        return self.with_query_mode("graph_cot")
 
     def with_entity_overrides(
         self,
@@ -2679,6 +2766,10 @@ class AsyncSeocho:
     async def add(self, content: str, **kwargs: Any) -> Memory:
         """Async version of :meth:`Seocho.add`."""
         return await asyncio.to_thread(self._client.add, content, **kwargs)
+
+    async def add_graph(self, graph_data: Dict[str, Any], **kwargs: Any) -> Memory:
+        """Async version of :meth:`Seocho.add_graph`."""
+        return await asyncio.to_thread(self._client.add_graph, graph_data, **kwargs)
 
     async def add_with_details(self, content: str, **kwargs: Any) -> MemoryCreateResult:
         """Async version of :meth:`Seocho.add_with_details`."""

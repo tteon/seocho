@@ -74,6 +74,21 @@ class TestChunkFunctionHappyPath:
         first = chunks[0]
         assert text[first.char_start : first.char_end] == first.text
 
+    def test_markdown_headings_attach_section_paths(self):
+        text = (
+            "# Overview\n\n"
+            "ACME launched a new product.\n\n"
+            "## Risks\n\n"
+            "Supply chain pressure remained elevated."
+        )
+        chunks = chunk(text, source_id="doc1", max_chars=35, overlap_chars=0)
+        section_paths = {c.section_path for c in chunks}
+        assert "Overview" in section_paths
+        assert "Overview / Risks" in section_paths
+        leaf_chunk = next(c for c in chunks if c.section_path == "Overview / Risks")
+        assert leaf_chunk.section_title == "Risks"
+        assert leaf_chunk.section_level == 2
+
 
 class TestChunkTextBackCompatShim:
     def test_shim_matches_chunk_text_outputs(self):

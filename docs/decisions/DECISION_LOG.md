@@ -121,6 +121,11 @@ Each entry must link to a full ADR when impact is non-trivial.
   - chunk embeddings are written through the local `vector_store` only after a successful graph write
   - vector rows preserve `workspace_id`, `memory_id`, `document_id`, `version_id`, and `chunk_id` so retrieval remains joinable to graph provenance
 
+- Accepted `ADR-0094-section-layer-and-structured-local-ingest-contract.md`
+  - local text ingest now materializes `Document -> DocumentVersion -> Section -> Chunk -> Entity`
+  - chunk metadata and vector rows preserve `section_path` so retrieval can expand through structure before broad document context
+  - local `Seocho.add_graph(...)` reuses ontology validation, layered memory shaping, and vector join metadata for caller-supplied graph payloads
+
 ## 2026-03-12
 
 - Accepted `ADR-0028-graph-registry-and-multi-instance-debate-runtime.md`

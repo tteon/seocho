@@ -64,6 +64,10 @@ def add(content: str, **kwargs: Any) -> Memory:
     return get_client().add(content, **kwargs)
 
 
+def add_graph(graph_data: Dict[str, Any], **kwargs: Any) -> Memory:
+    return get_client().add_graph(graph_data, **kwargs)
+
+
 def add_with_details(content: str, **kwargs: Any) -> MemoryCreateResult:
     return get_client().add_with_details(content, **kwargs)
 

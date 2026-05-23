@@ -268,3 +268,113 @@ def test_non_openai_reasoning_provider_keeps_openai_compatible_token_parameter(
     assert call["max_tokens"] == 12
     assert call["temperature"] == 0.25
     assert "max_completion_tokens" not in call
+
+
+def test_deepseek_non_reasoning_request_disables_thinking_mode(
+    fake_openai: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "deepseek-secret")
+    backend = create_llm_backend(provider="deepseek", model="deepseek-v4-flash")
+
+    backend.complete(
+        system="Return valid json.",
+        user="ok",
+        temperature=0.0,
+        response_format={"type": "json_object"},
+        reasoning_mode=False,
+        task_hint="intent_classification",
+    )
+
+    call = backend._client.chat.completions.calls[0]
+    assert call["extra_body"] == {"thinking": {"type": "disabled"}}
+    assert "reasoning_effort" not in call
+    assert call["temperature"] == 0.0
+
+
+def test_deepseek_reasoning_request_enables_thinking_and_effort(
+    fake_openai: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "deepseek-secret")
+    backend = create_llm_backend(provider="deepseek", model="deepseek-v4-pro")
+
+    backend.complete(
+        system="Return valid json.",
+        user="ok",
+        temperature=0.0,
+        response_format={"type": "json_object"},
+        reasoning_mode=True,
+        task_hint="graph_cot",
+    )
+
+    call = backend._client.chat.completions.calls[0]
+    assert call["extra_body"] == {"thinking": {"type": "enabled"}}
+    assert call["reasoning_effort"] == "max"
+    assert "temperature" not in call
+
+
+def test_kimi_non_reasoning_request_uses_instant_mode_override(
+    fake_openai: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("MOONSHOT_API_KEY", "kimi-secret")
+    backend = create_llm_backend(provider="kimi", model="kimi-k2.5")
+
+    backend.complete(
+        system="Return valid json.",
+        user="ok",
+        temperature=0.0,
+        response_format={"type": "json_object"},
+        reasoning_mode=False,
+        task_hint="json_extraction",
+    )
+
+    call = backend._client.chat.completions.calls[0]
+    assert call["extra_body"] == {"thinking": {"type": "disabled"}}
+    assert call["temperature"] == 0.0
+
+
+def test_provider_retry_strips_reasoning_overrides_after_payload_rejection(
+    fake_openai: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _FallbackChatCompletions:
+        def __init__(self) -> None:
+            self.calls = []
+
+        def create(self, **kwargs):
+            self.calls.append(kwargs)
+            if "reasoning_effort" in kwargs or "extra_body" in kwargs:
+                raise RuntimeError("unsupported provider override")
+            if "response_format" in kwargs:
+                raise RuntimeError("unsupported response format")
+            return SimpleNamespace(
+                choices=[SimpleNamespace(message=SimpleNamespace(content='{"ok": true}'))],
+                model=kwargs["model"],
+                usage=SimpleNamespace(prompt_tokens=1, completion_tokens=2, total_tokens=3),
+            )
+
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "deepseek-secret")
+    backend = create_llm_backend(provider="deepseek", model="deepseek-v4-pro")
+    backend._client.chat.completions = _FallbackChatCompletions()
+
+    response = backend.complete(
+        system="Return valid json.",
+        user="ok",
+        temperature=0.0,
+        response_format={"type": "json_object"},
+        reasoning_mode=True,
+        task_hint="graph_cot",
+    )
+
+    calls = backend._client.chat.completions.calls
+    assert response.json() == {"ok": True}
+    assert len(calls) == 4
+    assert calls[0]["response_format"] == {"type": "json_object"}
+    assert calls[0]["extra_body"] == {"thinking": {"type": "enabled"}}
+    assert calls[0]["reasoning_effort"] == "max"
+    assert calls[-1].get("response_format") is None
+    assert "extra_body" not in calls[-1]
+    assert "reasoning_effort" not in calls[-1]
+    assert calls[-1]["messages"][0]["content"].endswith("Return ONLY valid JSON.")

@@ -427,51 +427,63 @@ class ExtractionStrategy(PromptStrategy):
         parts: List[str] = []
 
         parts.append("You are an expert entity extraction system.")
-        parts.append(f'You are working with the "{ctx["ontology_name"]}" ontology.')
         parts.append("")
-        parts.append("Extract entities of the following types:")
+        parts.append("Task:")
+        parts.append("- Extract ontology-grounded entities and relationships from the user text.")
+        parts.append("")
+        parts.append("Context:")
+        parts.append(f'- Ontology: "{ctx["ontology_name"]}".')
+        parts.append("")
+        parts.append("- Allowed entity types:")
         parts.append(ctx["entity_types"])
         parts.append("")
-        parts.append("Extract relationships of the following types:")
+        parts.append("- Allowed relationship types:")
         parts.append(ctx["relationship_types"])
+
+        parts.append("")
+        parts.append("Constraints:")
+        parts.append("- Use only labels and relationship types supported by the ontology when the text grounds them.")
+        parts.append("- Preserve exact names, dates, quantities, and other literal values from the text.")
+        parts.append("- Do not invent facts that are not explicitly supported by the text.")
 
         if ctx.get("constraints_summary"):
             parts.append("")
-            parts.append("Property constraints to respect:")
+            parts.append("- Property constraints to respect:")
             parts.append(ctx["constraints_summary"])
 
         if self.shacl_constraints:
             parts.append("")
-            parts.append("SHACL-like constraint hints:")
+            parts.append("- SHACL-like constraint hints:")
             parts.append(self.shacl_constraints)
 
         if self.vocabulary_terms:
             parts.append("")
-            parts.append("Vocabulary / SKOS term hints for canonicalization:")
+            parts.append("- Vocabulary / SKOS term hints for canonicalization:")
             parts.append(self.vocabulary_terms)
 
         if self.developer_instructions:
             parts.append("")
-            parts.append("Developer instructions:")
+            parts.append("- Developer instructions:")
             parts.append(self.developer_instructions)
 
         if metadata:
             parts.append("")
-            parts.append(f"Source metadata: {_sanitize_prompt_value(metadata)}")
+            parts.append(f"- Source metadata: {_sanitize_prompt_value(metadata)}")
 
         parts.append("")
-        parts.append(
-            'Return the output in JSON format with two keys: "nodes" and "relationships".\n'
-            "\n"
-            'Nodes format: {"id": "unique_id", "label": "EntityType", '
-            '"properties": {"name": "Entity Name", ...}}\n'
-            'Relationships format: {"source": "source_id", "target": "target_id", '
-            '"type": "RELATIONSHIP_TYPE", "properties": {...}}'
-        )
+        parts.append("Output format:")
+        parts.append('- Return exactly one valid json object with keys "nodes" and "relationships".')
+        parts.append('  Example node: {"id": "unique_id", "label": "EntityType", "properties": {"name": "Entity Name"}}')
+        parts.append('  Example relationship: {"source": "source_id", "target": "target_id", "type": "RELATIONSHIP_TYPE", "properties": {}}')
+        parts.append("")
+        parts.append("Verification:")
+        parts.append("- Before finalizing, check that the json is valid.")
+        parts.append("- Check that every node label and relationship type is allowed by the ontology.")
+        parts.append("- Check that relationship source/target ids reference emitted nodes.")
 
         system = "\n".join(parts)
         self._system_prompt_cache[cache_key] = system
-        user = f"Text to extract:\n{text}"
+        user = f'Text to extract:\n"""\n{text}\n"""'
         return system, user
 
 
@@ -521,10 +533,13 @@ class QueryStrategy(PromptStrategy):
         parts: List[str] = []
 
         parts.append("You are a knowledge graph query agent.")
+        parts.append("")
+        parts.append("Task:")
+        parts.append("- Generate a read-only Cypher plan that answers the user question.")
+        parts.append("")
+        parts.append("Context:")
         parts.append(
-            "Given a user question, generate a Cypher query that answers it. "
-            "Only use node labels, relationship types, and properties "
-            "defined in the schema below."
+            "- Only use node labels, relationship types, and properties defined in the schema below."
         )
         parts.append("")
         parts.append("--- Graph Schema ---")
@@ -552,16 +567,22 @@ class QueryStrategy(PromptStrategy):
             parts.append(self.vocabulary_terms)
 
         parts.append("")
-        parts.append(
-            "Return a JSON object with:\n"
-            '  "cypher": the Cypher query string\n'
-            '  "params": dict of query parameters (use $param syntax in cypher)\n'
-            '  "explanation": brief explanation of your query strategy'
-        )
+        parts.append("Constraints:")
+        parts.append("- Generate read-only Cypher only.")
+        parts.append("- Prefer ontology-grounded matches over broad guesses.")
+        parts.append("- Keep literal values in params and use $param syntax inside Cypher.")
+        parts.append("- If the schema does not support a requested field or relation, leave it out instead of inventing it.")
+        parts.append("")
+        parts.append("Output format:")
+        parts.append('- Return exactly one valid json object with keys "cypher", "params", and "explanation".')
+        parts.append("")
+        parts.append("Verification:")
+        parts.append("- Before finalizing, check that every referenced label, relationship, and property appears in the schema.")
+        parts.append("- Check that params is a json object and every $param used in Cypher exists in params.")
 
         system = "\n".join(parts)
         self._system_prompt_cache[cache_key] = system
-        user = f"Question: {question}"
+        user = f'Question:\n"""\n{question}\n"""'
         return system, user
 
     def render_answer(self, question: str, cypher_result: Any, **kwargs: Any) -> tuple[str, str]:
@@ -591,10 +612,12 @@ class QueryStrategy(PromptStrategy):
             "produce a clear, factual answer. Only state facts supported "
             "by the query results. If the results are empty, say so."
         )
+        parts.append("")
+        parts.append("Verification: Check that every answer claim is grounded in the provided query results.")
 
         system = "\n".join(parts)
         user = (
-            f"Question: {question}\n\n"
+            f'Question:\n"""\n{question}\n"""\n\n'
             f"Query results:\n{cypher_result}"
         )
         return system, user

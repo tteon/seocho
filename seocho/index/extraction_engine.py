@@ -15,6 +15,7 @@ from typing import Any, Dict, Optional
 from jinja2 import Template
 
 from seocho.query.strategy import ExtractionStrategy, LinkingStrategy
+from seocho.store.llm import complete_with_task_hints
 
 _SLUG_RE = re.compile(r"[^a-z0-9]+")
 _ONTOLOGY_RELAXED_RETRY_GUIDANCE = (
@@ -66,11 +67,14 @@ class CanonicalExtractionEngine:
             metadata=metadata,
             extra_context=extra_context,
         )
-        response = self.llm.complete(
+        response = complete_with_task_hints(
+            self.llm,
             system=system,
             user=user,
             temperature=0.0,
             response_format={"type": "json_object"},
+            reasoning_mode=False,
+            task_hint="json_extraction",
         )
         normalized = self.normalize_payload(response.json())
         if not self._should_retry_relaxed_extraction(normalized, extra_context):
@@ -87,11 +91,14 @@ class CanonicalExtractionEngine:
             extra_context=extra_context,
         )
         try:
-            retry_response = self.llm.complete(
+            retry_response = complete_with_task_hints(
+                self.llm,
                 system=retry_system,
                 user=retry_user,
                 temperature=0.15,
                 response_format={"type": "json_object"},
+                reasoning_mode=False,
+                task_hint="json_extraction_retry",
             )
             retried = self.normalize_payload(retry_response.json())
             if retried.get("nodes") or retried.get("relationships"):
@@ -129,11 +136,14 @@ class CanonicalExtractionEngine:
             category=category,
             extra_context=extra_context,
         )
-        response = self.llm.complete(
+        response = complete_with_task_hints(
+            self.llm,
             system=system,
             user=user,
             temperature=0.0,
             response_format={"type": "json_object"},
+            reasoning_mode=False,
+            task_hint="entity_linking",
         )
         linked = self.normalize_payload(response.json())
         if "relationships" not in linked or not linked["relationships"]:

@@ -46,6 +46,7 @@ _SLUG_RE = re.compile(r"[^a-z0-9]+")
 from .chunk import Chunk, build_chunk_id, chunk as _canonical_chunk
 from .extraction_engine import CanonicalExtractionEngine
 from .property_shaper import PropertyShaper
+from ..store.llm import complete_with_task_hints
 
 
 def _graph_cot_properties_enabled() -> bool:
@@ -769,10 +770,14 @@ class IndexingPipeline:
                     try:
                         retry_system, retry_user = self._extraction.render(chunk, metadata=metadata)
                         retry_system += f"\n\n{guidance}"
-                        retry_response = self.llm.complete(
-                            system=retry_system, user=retry_user,
+                        retry_response = complete_with_task_hints(
+                            self.llm,
+                            system=retry_system,
+                            user=retry_user,
                             temperature=0.1 * (retry + 1),
                             response_format={"type": "json_object"},
+                            reasoning_mode=False,
+                            task_hint="json_extraction_retry",
                         )
                         retry_extracted = self._normalize_extraction_payload(retry_response.json())
                         retry_score = self.ontology.score_extraction(retry_extracted).get("overall", 0)

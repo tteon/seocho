@@ -172,6 +172,8 @@ class LLMBackend(ABC):
         temperature: float = 0.0,
         max_tokens: Optional[int] = None,
         response_format: Optional[Dict[str, Any]] = None,
+        reasoning_mode: Optional[bool] = None,
+        task_hint: Optional[str] = None,
     ) -> LLMResponse:
         """Synchronous completion."""
 
@@ -184,6 +186,8 @@ class LLMBackend(ABC):
         temperature: float = 0.0,
         max_tokens: Optional[int] = None,
         response_format: Optional[Dict[str, Any]] = None,
+        reasoning_mode: Optional[bool] = None,
+        task_hint: Optional[str] = None,
     ) -> LLMResponse:
         """Async completion."""
 
@@ -194,6 +198,8 @@ class LLMBackend(ABC):
         system: Optional[str] = None,
         temperature: float = 0.2,
         max_tokens: Optional[int] = None,
+        reasoning_mode: Optional[bool] = None,
+        task_hint: Optional[str] = None,
     ) -> LLMResponse:
         """Single-shot convenience for notebooks / REPL.
 
@@ -206,7 +212,45 @@ class LLMBackend(ABC):
             user=text,
             temperature=temperature,
             max_tokens=max_tokens,
+            reasoning_mode=reasoning_mode,
+            task_hint=task_hint,
         )
+
+
+def complete_with_task_hints(
+    llm: Any,
+    *,
+    system: str,
+    user: str,
+    temperature: float = 0.0,
+    max_tokens: Optional[int] = None,
+    response_format: Optional[Dict[str, Any]] = None,
+    reasoning_mode: Optional[bool] = None,
+    task_hint: Optional[str] = None,
+) -> Any:
+    """Call ``llm.complete`` while remaining compatible with older test doubles."""
+
+    kwargs: Dict[str, Any] = {
+        "system": system,
+        "user": user,
+        "temperature": temperature,
+    }
+    if max_tokens is not None:
+        kwargs["max_tokens"] = max_tokens
+    if response_format is not None:
+        kwargs["response_format"] = response_format
+    if reasoning_mode is not None:
+        kwargs["reasoning_mode"] = reasoning_mode
+    if task_hint is not None:
+        kwargs["task_hint"] = task_hint
+    try:
+        return llm.complete(**kwargs)
+    except TypeError as exc:
+        if "unexpected keyword argument" not in str(exc):
+            raise
+        kwargs.pop("reasoning_mode", None)
+        kwargs.pop("task_hint", None)
+        return llm.complete(**kwargs)
 
 
 class EmbeddingBackend(ABC):
@@ -261,15 +305,66 @@ class OpenAICompatibleBackend(LLMBackend):
         self._client = client
         self._async_client = async_client
 
-    def _safe_temperature(self, temperature: float) -> float:
+    def _safe_temperature(
+        self,
+        temperature: float,
+        *,
+        reasoning_mode: Optional[bool] = None,
+    ) -> float:
         """Clamp temperature for providers with restrictions.
 
-        Kimi K2.5 only accepts temperature=1.  Rather than patching
-        every call-site, we enforce the constraint here.
+        Kimi reasoning endpoints have been the only provider-specific case
+        that needed temperature coercion in practice. Keep structured
+        non-reasoning calls deterministic unless the caller explicitly enables
+        reasoning mode.
         """
-        if self.provider == "kimi":
-            return 1.0
+        if self.provider == "kimi" and float(temperature) == 0.0:
+            if reasoning_mode:
+                return 1.0
         return temperature
+
+    @staticmethod
+    def _merge_extra_body(
+        current: Optional[Dict[str, Any]],
+        updates: Optional[Dict[str, Any]],
+    ) -> Optional[Dict[str, Any]]:
+        if not current and not updates:
+            return None
+        merged: Dict[str, Any] = {}
+        if isinstance(current, dict):
+            merged.update(current)
+        if isinstance(updates, dict):
+            for key, value in updates.items():
+                if isinstance(value, dict) and isinstance(merged.get(key), dict):
+                    nested = dict(merged[key])
+                    nested.update(value)
+                    merged[key] = nested
+                else:
+                    merged[key] = value
+        return merged
+
+    def _reasoning_request_overrides(
+        self,
+        *,
+        reasoning_mode: Optional[bool],
+        task_hint: Optional[str],
+    ) -> Dict[str, Any]:
+        task = _strip_text(task_hint).lower()
+        kwargs: Dict[str, Any] = {}
+        if self.provider == "deepseek":
+            if reasoning_mode is not None:
+                kwargs["extra_body"] = {
+                    "thinking": {"type": "enabled" if reasoning_mode else "disabled"}
+                }
+            if reasoning_mode:
+                kwargs["reasoning_effort"] = (
+                    "max"
+                    if task in {"graph_cot", "tool_agent", "tool_loop"}
+                    else "high"
+                )
+        elif self.provider == "kimi" and reasoning_mode is False:
+            kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
+        return kwargs
 
     def _uses_openai_reasoning_parameters(self) -> bool:
         """Return true for OpenAI reasoning models with chat-completions quirks."""
@@ -285,21 +380,82 @@ class OpenAICompatibleBackend(LLMBackend):
         temperature: float,
         max_tokens: Optional[int],
         response_format: Optional[Dict[str, Any]],
+        reasoning_mode: Optional[bool],
+        task_hint: Optional[str],
     ) -> Dict[str, Any]:
         kwargs: Dict[str, Any] = {
             "model": self.model,
             "messages": messages,
         }
+        reasoning_overrides = self._reasoning_request_overrides(
+            reasoning_mode=reasoning_mode,
+            task_hint=task_hint,
+        )
         if self._uses_openai_reasoning_parameters():
             if max_tokens is not None:
                 kwargs["max_completion_tokens"] = max_tokens
         else:
-            kwargs["temperature"] = self._safe_temperature(temperature)
+            if not (self.provider == "deepseek" and reasoning_mode):
+                kwargs["temperature"] = self._safe_temperature(
+                    temperature,
+                    reasoning_mode=reasoning_mode,
+                )
             if max_tokens is not None:
                 kwargs["max_tokens"] = max_tokens
         if response_format is not None:
             kwargs["response_format"] = response_format
+        if "extra_body" in reasoning_overrides:
+            kwargs["extra_body"] = self._merge_extra_body(
+                kwargs.get("extra_body"),
+                reasoning_overrides.pop("extra_body"),
+            )
+        kwargs.update(reasoning_overrides)
         return kwargs
+
+    @staticmethod
+    def _clone_completion_request_kwargs(kwargs: Dict[str, Any]) -> Dict[str, Any]:
+        cloned = dict(kwargs)
+        messages = cloned.get("messages")
+        if isinstance(messages, list):
+            cloned["messages"] = [dict(message) for message in messages]
+        return cloned
+
+    @staticmethod
+    def _ensure_json_only_instruction(kwargs: Dict[str, Any]) -> None:
+        messages = kwargs.get("messages")
+        if not isinstance(messages, list) or not messages:
+            return
+        content = str(messages[0].get("content", ""))
+        if "Return ONLY valid JSON." not in content:
+            messages[0]["content"] = f"{content}\n\nReturn ONLY valid JSON."
+
+    def _completion_retry_variants(self, kwargs: Dict[str, Any]) -> List[Dict[str, Any]]:
+        variants = [self._clone_completion_request_kwargs(kwargs)]
+        has_provider_overrides = any(
+            key in kwargs for key in ("extra_body", "reasoning_effort")
+        )
+
+        if has_provider_overrides:
+            stripped_overrides = self._clone_completion_request_kwargs(kwargs)
+            stripped_overrides.pop("extra_body", None)
+            stripped_overrides.pop("reasoning_effort", None)
+            variants.append(stripped_overrides)
+
+        if "response_format" in kwargs:
+            json_prompt_variant = self._clone_completion_request_kwargs(kwargs)
+            json_prompt_variant.pop("response_format", None)
+            self._ensure_json_only_instruction(json_prompt_variant)
+            variants.append(json_prompt_variant)
+
+        if has_provider_overrides and "response_format" in kwargs:
+            stripped_json_prompt = self._clone_completion_request_kwargs(kwargs)
+            stripped_json_prompt.pop("extra_body", None)
+            stripped_json_prompt.pop("reasoning_effort", None)
+            stripped_json_prompt.pop("response_format", None)
+            self._ensure_json_only_instruction(stripped_json_prompt)
+            variants.append(stripped_json_prompt)
+
+        return variants
 
     def complete(
         self,
@@ -309,6 +465,8 @@ class OpenAICompatibleBackend(LLMBackend):
         temperature: float = 0.0,
         max_tokens: Optional[int] = None,
         response_format: Optional[Dict[str, Any]] = None,
+        reasoning_mode: Optional[bool] = None,
+        task_hint: Optional[str] = None,
     ) -> LLMResponse:
         messages = [
             {"role": "system", "content": system},
@@ -319,20 +477,18 @@ class OpenAICompatibleBackend(LLMBackend):
             temperature=temperature,
             max_tokens=max_tokens,
             response_format=response_format,
+            reasoning_mode=reasoning_mode,
+            task_hint=task_hint,
         )
-
-        try:
-            resp = self._client.chat.completions.create(**kwargs)
-        except Exception:
-            # Fallback: some providers don't support response_format
-            if response_format is not None:
-                kwargs.pop("response_format", None)
-                if "Return ONLY valid JSON" not in system:
-                    kwargs["messages"][0]["content"] = system + "\n\nReturn ONLY valid JSON."
-                resp = self._client.chat.completions.create(**kwargs)
-            else:
-                raise
-        return self._build_response(resp)
+        last_exc: Optional[Exception] = None
+        for attempt_kwargs in self._completion_retry_variants(kwargs):
+            try:
+                resp = self._client.chat.completions.create(**attempt_kwargs)
+                return self._build_response(resp)
+            except Exception as exc:
+                last_exc = exc
+        assert last_exc is not None
+        raise last_exc
 
     async def acomplete(
         self,
@@ -342,6 +498,8 @@ class OpenAICompatibleBackend(LLMBackend):
         temperature: float = 0.0,
         max_tokens: Optional[int] = None,
         response_format: Optional[Dict[str, Any]] = None,
+        reasoning_mode: Optional[bool] = None,
+        task_hint: Optional[str] = None,
     ) -> LLMResponse:
         messages = [
             {"role": "system", "content": system},
@@ -352,19 +510,18 @@ class OpenAICompatibleBackend(LLMBackend):
             temperature=temperature,
             max_tokens=max_tokens,
             response_format=response_format,
+            reasoning_mode=reasoning_mode,
+            task_hint=task_hint,
         )
-
-        try:
-            resp = await self._async_client.chat.completions.create(**kwargs)
-        except Exception:
-            if response_format is not None:
-                kwargs.pop("response_format", None)
-                if "Return ONLY valid JSON" not in system:
-                    kwargs["messages"][0]["content"] = system + "\n\nReturn ONLY valid JSON."
-                resp = await self._async_client.chat.completions.create(**kwargs)
-            else:
-                raise
-        return self._build_response(resp)
+        last_exc: Optional[Exception] = None
+        for attempt_kwargs in self._completion_retry_variants(kwargs):
+            try:
+                resp = await self._async_client.chat.completions.create(**attempt_kwargs)
+                return self._build_response(resp)
+            except Exception as exc:
+                last_exc = exc
+        assert last_exc is not None
+        raise last_exc
 
     def embed(
         self,

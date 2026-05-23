@@ -4,6 +4,7 @@ import json
 import re
 from typing import Any, Dict, List, Optional, Sequence
 
+from ..store.llm import complete_with_task_hints
 from .intent import build_evidence_bundle, infer_question_intent
 
 
@@ -50,7 +51,14 @@ class QueryAnswerSynthesizer:
             user_ans += f"\n\nReasoning trace (query attempts):\n{reasoning_trace}"
         if vector_context:
             user_ans += f"\n\nAdditional context from vector search:\n{vector_context}"
-        return self.llm.complete(system=system_ans, user=user_ans, temperature=0.1).text
+        return complete_with_task_hints(
+            self.llm,
+            system=system_ans,
+            user=user_ans,
+            temperature=0.1,
+            reasoning_mode=False,
+            task_hint="answer_synthesis",
+        ).text
 
     def _build_financial_answer(
         self,

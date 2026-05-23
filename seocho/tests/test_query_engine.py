@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from seocho import NodeDef, Ontology, P, RelDef
+from seocho.query.answering import QueryAnswerSynthesizer
 from seocho.query.answering import build_evidence_bundle
 from seocho.query.executor import GraphQueryExecutor
 from seocho.query.planner import DeterministicQueryPlanner
@@ -30,7 +31,16 @@ class _FakeLLMResponse:
 
 
 class _FakeLLM:
-    def complete(self, *, system, user, temperature, response_format=None):  # noqa: ANN001
+    def complete(
+        self,
+        *,
+        system,
+        user,
+        temperature,
+        response_format=None,
+        reasoning_mode=None,
+        task_hint=None,
+    ):  # noqa: ANN001
         return _FakeLLMResponse(
             {
                 "intent": "financial_metric_delta",
@@ -66,14 +76,32 @@ def test_deterministic_query_planner_attaches_schema_hints_to_prompt_and_plan() 
     class RecordingLLM(_FakeLLM):
         def __init__(self) -> None:
             self.system_prompt = ""
+            self.calls = []
 
-        def complete(self, *, system, user, temperature, response_format=None):  # noqa: ANN001
+        def complete(
+            self,
+            *,
+            system,
+            user,
+            temperature,
+            response_format=None,
+            reasoning_mode=None,
+            task_hint=None,
+        ):  # noqa: ANN001
             self.system_prompt = system
+            self.calls.append(
+                {
+                    "reasoning_mode": reasoning_mode,
+                    "task_hint": task_hint,
+                }
+            )
             return super().complete(
                 system=system,
                 user=user,
                 temperature=temperature,
                 response_format=response_format,
+                reasoning_mode=reasoning_mode,
+                task_hint=task_hint,
             )
 
     llm = RecordingLLM()
@@ -86,8 +114,14 @@ def test_deterministic_query_planner_attaches_schema_hints_to_prompt_and_plan() 
     plan = planner.plan("Delta in CBOE Data & Access Solutions rev from 2021-23.")
 
     assert "Question-scoped schema hints" in llm.system_prompt
+    assert "Output format:" in llm.system_prompt
+    assert "Verification:" in llm.system_prompt
     assert plan.intent_data["schema_hints"]["anchor_label"] == "Company"
     assert "REPORTED" in plan.intent_data["schema_hints"]["relationship_candidates"]
+    assert llm.calls[0] == {
+        "reasoning_mode": False,
+        "task_hint": "intent_classification",
+    }
 
 
 def test_graph_query_executor_returns_canonical_execution_result() -> None:
@@ -143,3 +177,56 @@ def test_build_evidence_bundle_shared_contract() -> None:
     assert bundle["intent_id"] == "responsibility_lookup"
     assert bundle["slot_fills"]["owner_or_operator"] == "Alex"
     assert bundle["slot_fills"]["target_entity"] == "Seoul Retail"
+
+
+def test_query_answer_synthesizer_marks_answer_generation_non_reasoning() -> None:
+    class _RecordingStrategy:
+        def render_answer(self, question: str, records_json: str) -> tuple[str, str]:
+            return "System answer prompt", f"Question: {question}\nRecords: {records_json}"
+
+    class _TextResponse:
+        def __init__(self, text: str) -> None:
+            self.text = text
+
+    class _RecordingLLM:
+        def __init__(self) -> None:
+            self.calls = []
+
+        def complete(
+            self,
+            *,
+            system,
+            user,
+            temperature,
+            reasoning_mode=None,
+            task_hint=None,
+        ):  # noqa: ANN001
+            self.calls.append(
+                {
+                    "system": system,
+                    "user": user,
+                    "temperature": temperature,
+                    "reasoning_mode": reasoning_mode,
+                    "task_hint": task_hint,
+                }
+            )
+            return _TextResponse("final answer")
+
+    llm = _RecordingLLM()
+    synthesizer = QueryAnswerSynthesizer(query_strategy=_RecordingStrategy(), llm=llm)
+
+    answer = synthesizer.synthesize(
+        "What happened?",
+        [{"company": "Acme", "fact": "Acme acquired Beta"}],
+    )
+
+    assert answer == "final answer"
+    assert llm.calls == [
+        {
+            "system": "System answer prompt",
+            "user": 'Question: What happened?\nRecords: [{"company": "Acme", "fact": "Acme acquired Beta"}]',
+            "temperature": 0.1,
+            "reasoning_mode": False,
+            "task_hint": "answer_synthesis",
+        }
+    ]

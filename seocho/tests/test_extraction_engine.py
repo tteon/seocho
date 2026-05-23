@@ -15,13 +15,24 @@ class _FakeLLM:
         self.payloads = list(payloads)
         self.calls = []
 
-    def complete(self, *, system, user, temperature, response_format=None):  # noqa: ANN001
+    def complete(
+        self,
+        *,
+        system,
+        user,
+        temperature,
+        response_format=None,
+        reasoning_mode=None,
+        task_hint=None,
+    ):  # noqa: ANN001
         self.calls.append(
             {
                 "system": system,
                 "user": user,
                 "temperature": temperature,
                 "response_format": response_format,
+                "reasoning_mode": reasoning_mode,
+                "task_hint": task_hint,
             }
         )
         return _FakeResponse(self.payloads.pop(0))
@@ -57,9 +68,13 @@ def test_canonical_extraction_engine_normalizes_and_preserves_relationships():
     assert extracted["nodes"][0]["label"] == "Company"
     assert extracted["nodes"][0]["id"] == "acme"
     assert extracted["relationships"][0]["type"] == "ACQUIRED"
+    assert llm.calls[0]["reasoning_mode"] is False
+    assert llm.calls[0]["task_hint"] == "json_extraction"
 
     linked = engine.link(extracted, category="general")
     assert linked["relationships"] == extracted["relationships"]
+    assert llm.calls[1]["reasoning_mode"] is False
+    assert llm.calls[1]["task_hint"] == "entity_linking"
 
 
 def test_canonical_extraction_engine_uses_custom_prompt_templates_without_ontology():
@@ -137,3 +152,5 @@ def test_canonical_extraction_engine_retries_in_relaxed_mode_after_empty_ontolog
     assert extracted["_retry"]["attempted"] is True
     assert extracted["_retry"]["succeeded"] is True
     assert "Retry once in relaxed mode" in llm.calls[1]["system"]
+    assert llm.calls[1]["reasoning_mode"] is False
+    assert llm.calls[1]["task_hint"] == "json_extraction_retry"

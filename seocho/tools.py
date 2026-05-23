@@ -15,6 +15,8 @@ import json
 import logging
 from typing import Any, Dict, List, Optional
 
+from .store.llm import complete_with_task_hints
+
 logger = logging.getLogger(__name__)
 
 
@@ -53,11 +55,14 @@ def make_extract_entities_tool(ontology: Any, llm: Any, extraction_prompt: Any =
         strategy.category = category
         system, user = strategy.render(text)
         try:
-            response = llm.complete(
+            response = complete_with_task_hints(
+                llm,
                 system=system,
                 user=user,
                 temperature=0.0,
                 response_format={"type": "json_object"},
+                reasoning_mode=False,
+                task_hint="json_extraction",
             )
             result = _safe_json(response.text)
             result["_usage"] = response.usage

@@ -75,6 +75,22 @@ class TestLadybugStore:
         assert "Alice" in values
         assert "Apple" in values
 
+    def test_query_preserves_return_aliases(self, store):
+        """seocho-qv30: RETURN <expr> AS <name> must keep <name>, not col_0."""
+        store.write(
+            nodes=[{"id": "n1", "label": "Person", "properties": {"name": "Nina"}}],
+            relationships=[],
+            source_id="doc1",
+        )
+        rows = store.query(
+            "MATCH (p:Person) RETURN p.name AS person_name, p.id AS person_id"
+        )
+        assert rows, "expected at least one row"
+        row = rows[0]
+        assert "person_name" in row, f"missing alias 'person_name' in {row!r}"
+        assert "person_id" in row, f"missing alias 'person_id' in {row!r}"
+        assert row["person_name"] == "Nina"
+
     def test_write_returns_counts(self, store):
         summary = store.write(
             nodes=[

@@ -1323,8 +1323,19 @@ class LadybugGraphStore(GraphStore):
         try:
             result = self._locked_execute(cypher, query_params)
             out: List[Dict[str, Any]] = []
-            # Ladybug returns rows as lists; convert to dicts using column names
-            col_names = getattr(result, "column_names", None) or []
+            # Ladybug returns rows as lists; convert to dicts using column names.
+            # real_ladybug exposes get_column_names() as a method (not an
+            # attribute) — calling it preserves user-supplied RETURN aliases
+            # instead of falling through to positional col_0/col_1 keys.
+            col_names_getter = getattr(result, "get_column_names", None)
+            col_names: List[str] = []
+            if callable(col_names_getter):
+                try:
+                    col_names = list(col_names_getter())
+                except Exception:
+                    col_names = []
+            if not col_names:
+                col_names = list(getattr(result, "column_names", None) or [])
             for row in result:
                 row_list = row if isinstance(row, list) else list(row)
                 if col_names and len(col_names) == len(row_list):

@@ -360,6 +360,36 @@ Why this path exists:
 - fulltext-first lookup improves recall for imperfect user entity strings
 - semantic re-ranking + dedup reduces wrong-node selection before Cypher generation
 
+Planned `graph_cot` semantic sub-mode:
+
+```text
+User Question
+    │
+    ▼
+SemanticLayer
+    │
+    ▼
+QuerySupervisorAgent
+    │
+    ▼
+Text2CypherAgent
+    │
+    ▼
+AnswerGenerationAgent
+    │
+    ▼
+AnswerGuardrailAgent
+    │
+    ▼
+Finalize
+```
+
+`query_mode="graph_cot"` keeps the same public semantic API surface, but the
+intended internal lane is more explicit than the baseline semantic flow. The
+typed artifacts for this lane live in `seocho/query/graph_cot_contracts.py`,
+and the per-agent reasoning/tool specs live in
+`seocho/query/graph_cot_design.py`.
+
 Canonical direction:
 
 - `seocho/query/` is the canonical query engine surface

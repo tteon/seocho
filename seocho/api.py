@@ -8,6 +8,7 @@ from .semantic import ApprovedArtifacts
 from .models import (
     AgentRunResponse,
     ArchiveResult,
+    AskResponse,
     ChatResponse,
     DebateRunResponse,
     EntityOverride,
@@ -113,6 +114,10 @@ def search(query: str, **kwargs: Any) -> List[SearchResult]:
 
 def ask(message: str, **kwargs: Any) -> str:
     return get_client().ask(message, **kwargs)
+
+
+def ask_response(message: str, **kwargs: Any) -> AskResponse:
+    return get_client().ask_response(message, **kwargs)
 
 
 def chat(message: str, **kwargs: Any) -> ChatResponse:

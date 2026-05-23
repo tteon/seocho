@@ -5,7 +5,11 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
-from seocho.runtime_contract import DATABASE_NAME_PATTERN, WORKSPACE_ID_PATTERN
+from seocho.runtime_contract import (
+    DATABASE_NAME_PATTERN,
+    DEFAULT_QUERY_MODE,
+    WORKSPACE_ID_PATTERN,
+)
 
 from .query import EntityOverride
 
@@ -21,6 +25,10 @@ class PlatformChatRequest(BaseModel):
     graph_ids: Optional[List[str]] = Field(default=None, description="Graph IDs for debate mode routing.")
     databases: Optional[List[str]] = Field(default=None, description="Databases for semantic mode entity resolution.")
     entity_overrides: Optional[List[EntityOverride]] = Field(default=None, description="UI-assisted entity disambiguation overrides.")
+    query_mode: Literal["semantic", "graph_cot"] = Field(
+        default=DEFAULT_QUERY_MODE,
+        description="Semantic execution sub-mode used when mode='semantic'.",
+    )
     reasoning_cycle: Optional[Dict[str, Any]] = Field(default=None, description="Optional anomaly-driven inquiry contract forwarded to semantic/debate execution.")
 
 

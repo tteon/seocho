@@ -31,6 +31,7 @@ from tracing import configure_opik, track, update_current_span, update_current_t
 from runtime.policy import require_runtime_permission
 from seocho.runtime_contract import (
     DATABASE_NAME_PATTERN,
+    DEFAULT_QUERY_MODE,
     INDEX_NAME_PATTERN,
     RuntimePath,
     WORKSPACE_ID_PATTERN,
@@ -456,6 +457,10 @@ class SemanticQueryRequest(QueryRequest):
         le=5,
         description="Maximum number of additional constrained retrieval repair attempts.",
     )
+    query_mode: Literal["semantic", "graph_cot"] = Field(
+        default=DEFAULT_QUERY_MODE,
+        description="Semantic query execution sub-mode: 'semantic' or 'graph_cot'.",
+    )
 
 
 class AgentResponse(BaseModel):
@@ -473,6 +478,10 @@ class SemanticAgentResponse(AgentResponse):
     """Extended response for semantic entity-resolution query flow."""
 
     route: str = Field(description="Selected query route: 'lpg', 'rdf', or 'hybrid'.")
+    query_mode: Literal["semantic", "graph_cot"] = Field(
+        default=DEFAULT_QUERY_MODE,
+        description="Semantic execution sub-mode that handled the request.",
+    )
     semantic_context: Dict[str, Any] = Field(description="Resolved entities and disambiguation metadata.")
     lpg_result: Optional[Dict[str, Any]] = Field(default=None, description="Raw LPG agent query results.")
     rdf_result: Optional[Dict[str, Any]] = Field(default=None, description="Raw RDF agent query results.")
@@ -484,6 +493,10 @@ class SemanticAgentResponse(AgentResponse):
     latency_breakdown_ms: Dict[str, float] = Field(default_factory=dict, description="Stage-level retrieval/generation latency breakdown in milliseconds.")
     agent_pattern: Dict[str, Any] = Field(default_factory=dict, description="Agent design pattern receipt for the selected execution path.")
     answer_envelope: Dict[str, Any] = Field(default_factory=dict, description="Canonical answer/evidence/latency/cost envelope shared with local SDK query metadata.")
+    graph_cot: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Structured Graph-CoT lane artifacts: supervisor directive, evidence packet, answer draft, guardrail verdict, and final answer.",
+    )
     ontology_context_mismatch: Dict[str, Any] = Field(default_factory=dict, description="Runtime graph ontology-context parity metadata.")
 
 
@@ -573,6 +586,10 @@ class PlatformChatRequest(BaseModel):
     graph_ids: Optional[List[str]] = Field(default=None, description="Graph IDs for debate mode routing.")
     databases: Optional[List[str]] = Field(default=None, description="Databases for semantic mode entity resolution.")
     entity_overrides: Optional[List[EntityOverride]] = Field(default=None, description="UI-assisted entity disambiguation overrides.")
+    query_mode: Literal["semantic", "graph_cot"] = Field(
+        default=DEFAULT_QUERY_MODE,
+        description="Semantic execution sub-mode used when mode='semantic'.",
+    )
     reasoning_cycle: Optional[Dict[str, Any]] = Field(default=None, description="Optional anomaly-driven inquiry contract forwarded to semantic/debate execution.")
 
 
@@ -960,6 +977,7 @@ async def _platform_run_semantic(payload: Dict[str, Any]) -> SemanticAgentRespon
         workspace_id=payload["workspace_id"],
         databases=databases,
         entity_overrides=payload.get("entity_overrides"),
+        query_mode=payload.get("query_mode", DEFAULT_QUERY_MODE),
         reasoning_cycle=payload.get("reasoning_cycle"),
     )
     return await run_agent_semantic(req)
@@ -982,6 +1000,7 @@ async def platform_chat_send(request: PlatformChatRequest):
         "graph_ids": request.graph_ids,
         "databases": request.databases,
         "entity_overrides": request.entity_overrides,
+        "query_mode": request.query_mode,
         "reasoning_cycle": request.reasoning_cycle,
     }
 
@@ -1297,8 +1316,9 @@ async def run_agent_semantic(request: SemanticQueryRequest):
             "workspace_id": request.workspace_id,
             "query": request.query[:200],
             "databases": valid_dbs,
+            "query_mode": request.query_mode,
         },
-        tags=["semantic-route-mode"],
+        tags=["semantic-route-mode", f"query-mode:{request.query_mode}"],
     )
     update_current_span(
         metadata={
@@ -1306,10 +1326,15 @@ async def run_agent_semantic(request: SemanticQueryRequest):
             "user_id": request.user_id,
             "workspace_id": request.workspace_id,
             "databases": valid_dbs,
+            "query_mode": request.query_mode,
         }
     )
 
     try:
+        ontology_context_mismatch = memory_service.ontology_context_mismatch(
+            workspace_id=request.workspace_id,
+            databases=valid_dbs,
+        )
         result = await asyncio.to_thread(
             semantic_agent_flow.run,
             question=request.query,
@@ -1318,11 +1343,9 @@ async def run_agent_semantic(request: SemanticQueryRequest):
             workspace_id=request.workspace_id,
             reasoning_mode=request.reasoning_mode,
             repair_budget=request.repair_budget,
+            query_mode=request.query_mode,
             reasoning_cycle=request.reasoning_cycle,
-        )
-        ontology_context_mismatch = memory_service.ontology_context_mismatch(
-            workspace_id=request.workspace_id,
-            databases=valid_dbs,
+            ontology_context_mismatch=ontology_context_mismatch,
         )
         result.setdefault("semantic_context", {})[
             "ontology_context_mismatch"

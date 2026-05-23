@@ -4,8 +4,10 @@ from typing import Any, Dict, List, Optional, Sequence
 
 from ..indexing_design import build_query_reasoning_cycle_report
 from ..observability import StageTimer
+from ..runtime_contract import DEFAULT_QUERY_MODE, normalize_query_mode
 from .answering import build_evidence_bundle
 from .constraints import SemanticConstraintSliceBuilder
+from .graph_cot_flow import GraphCoTQueryOrchestrator
 from .run_registry import RunMetadataRegistry
 from .semantic_agents import (
     AnswerGenerationAgent,
@@ -31,6 +33,11 @@ class SemanticAgentFlow:
         self.lpg_agent = LPGAgent(connector, graph_targets=graph_targets)
         self.rdf_agent = RDFAgent(connector)
         self.answer_agent = AnswerGenerationAgent()
+        self.graph_cot_orchestrator = GraphCoTQueryOrchestrator(
+            lpg_agent=self.lpg_agent,
+            rdf_agent=self.rdf_agent,
+            answer_agent=self.answer_agent,
+        )
         self.constraint_builder = SemanticConstraintSliceBuilder(graph_targets=graph_targets)
         self.strategy_chooser = ExecutionStrategyChooser()
         self.run_registry = RunMetadataRegistry()
@@ -43,8 +50,17 @@ class SemanticAgentFlow:
         workspace_id: str = "default",
         reasoning_mode: bool = False,
         repair_budget: int = 0,
+        query_mode: str = DEFAULT_QUERY_MODE,
         reasoning_cycle: Optional[Dict[str, Any]] = None,
+        ontology_context_mismatch: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
+        query_mode = normalize_query_mode(query_mode)
+        effective_reasoning_mode = bool(reasoning_mode)
+        effective_repair_budget = max(0, int(repair_budget or 0))
+        if query_mode == "graph_cot":
+            effective_reasoning_mode = True
+            effective_repair_budget = max(1, effective_repair_budget)
+
         trace_steps: List[Dict[str, Any]] = []
         timer = StageTimer()
 
@@ -52,6 +68,8 @@ class SemanticAgentFlow:
             semantic_context = self.resolver.resolve(question, databases, workspace_id=workspace_id)
         semantic_context.setdefault("query_diagnostics", [])
         semantic_context["reasoning_cycle_config"] = dict(reasoning_cycle or {})
+        semantic_context["query_mode"] = query_mode
+        semantic_context["ontology_context_mismatch"] = dict(ontology_context_mismatch or {})
         with timer.stage("constraint_context"):
             constraint_slices = self.constraint_builder.build_for_databases(
                 databases,
@@ -78,8 +96,9 @@ class SemanticAgentFlow:
                     "overrides_applied": sorted(
                         list(semantic_context.get("overrides_applied", {}).keys())
                     ),
-                    "reasoning_mode": reasoning_mode,
-                    "repair_budget": max(0, int(repair_budget or 0)),
+                    "query_mode": query_mode,
+                    "reasoning_mode": effective_reasoning_mode,
+                    "repair_budget": effective_repair_budget,
                     "support_status": semantic_context.get("preflight_support_assessment", {}).get("status"),
                 },
             }
@@ -89,8 +108,9 @@ class SemanticAgentFlow:
             route = self.router.route(question)
         semantic_context["strategy_decision"] = self.strategy_chooser.choose_initial(
             route=route,
-            reasoning_mode=reasoning_mode,
-            repair_budget=repair_budget,
+            reasoning_mode=effective_reasoning_mode,
+            repair_budget=effective_repair_budget,
+            query_mode=query_mode,
             support_assessment=semantic_context.get("preflight_support_assessment", {}),
             graph_count=len(databases),
             cross_graph_analysis=semantic_context.get("cross_graph_analysis"),
@@ -119,76 +139,90 @@ class SemanticAgentFlow:
 
         lpg_result: Optional[Dict[str, Any]] = None
         rdf_result: Optional[Dict[str, Any]] = None
-
-        if route in {"lpg", "hybrid"}:
-            with timer.stage("lpg_retrieval"):
-                lpg_result = self.lpg_agent.run(
-                    question,
-                    databases,
-                    semantic_context,
-                    workspace_id=workspace_id,
-                    reasoning_mode=reasoning_mode,
-                    repair_budget=repair_budget,
-                    constraint_slices=constraint_slices,
-                    ranked_matches=support_ranked_matches,
-                )
-            if isinstance(lpg_result.get("evidence_bundle"), dict):
-                semantic_context["evidence_bundle_preview"] = lpg_result["evidence_bundle"]
-            if isinstance(lpg_result.get("reasoning"), dict):
-                semantic_context["reasoning"] = lpg_result["reasoning"]
-            if isinstance(lpg_result.get("support_assessment"), dict):
-                semantic_context["support_assessment"] = lpg_result["support_assessment"]
-            if isinstance(lpg_result.get("query_diagnostics"), list):
-                semantic_context["query_diagnostics"] = list(lpg_result["query_diagnostics"])
-            trace_steps.append(
-                {
-                    "id": "3",
-                    "type": "SPECIALIST",
-                    "agent": "LPGAgent",
-                    "content": lpg_result.get("summary", ""),
-                    "metadata": {
-                        "records": len(lpg_result.get("records", [])),
-                        "reasoning_attempts": int(
-                            lpg_result.get("reasoning", {}).get("attempt_count", 0)
-                        ),
-                        "terminal_reason": lpg_result.get("reasoning", {}).get("terminal_reason"),
-                        "support_status": lpg_result.get("support_assessment", {}).get("status"),
-                        "tool_calls": lpg_result.get("reasoning", {}).get("repair_trace", []),
-                    },
-                }
-            )
-
-        if route in {"rdf", "hybrid"}:
-            with timer.stage("rdf_retrieval"):
-                rdf_result = self.rdf_agent.run(question, databases, semantic_context)
-            trace_steps.append(
-                {
-                    "id": "4",
-                    "type": "SPECIALIST",
-                    "agent": "RDFAgent",
-                    "content": rdf_result.get("summary", ""),
-                    "metadata": {"records": len(rdf_result.get("records", []))},
-                }
-            )
-
-        with timer.stage("strategy_finalize"):
-            semantic_context["strategy_decision"] = self.strategy_chooser.finalize(
-                initial_decision=semantic_context.get("strategy_decision", {}),
-                route=route,
-                graph_count=len(databases),
-                support_assessment=semantic_context.get("support_assessment", {}),
-                reasoning=semantic_context.get("reasoning"),
-                cross_graph_analysis=semantic_context.get("cross_graph_analysis"),
-            )
-
-        with timer.stage("generation"):
-            response = self.answer_agent.synthesize(
+        if query_mode == "graph_cot":
+            response, lpg_result, rdf_result = self._run_graph_cot_lane(
                 question=question,
+                databases=databases,
+                workspace_id=workspace_id,
                 route=route,
+                repair_budget=effective_repair_budget,
                 semantic_context=semantic_context,
-                lpg_result=lpg_result,
-                rdf_result=rdf_result,
+                constraint_slices=constraint_slices,
+                support_ranked_matches=support_ranked_matches,
+                trace_steps=trace_steps,
+                timer=timer,
             )
+        else:
+            if route in {"lpg", "hybrid"}:
+                with timer.stage("lpg_retrieval"):
+                    lpg_result = self.lpg_agent.run(
+                        question,
+                        databases,
+                        semantic_context,
+                        workspace_id=workspace_id,
+                        reasoning_mode=effective_reasoning_mode,
+                        repair_budget=effective_repair_budget,
+                        constraint_slices=constraint_slices,
+                        ranked_matches=support_ranked_matches,
+                    )
+                if isinstance(lpg_result.get("evidence_bundle"), dict):
+                    semantic_context["evidence_bundle_preview"] = lpg_result["evidence_bundle"]
+                if isinstance(lpg_result.get("reasoning"), dict):
+                    semantic_context["reasoning"] = lpg_result["reasoning"]
+                if isinstance(lpg_result.get("support_assessment"), dict):
+                    semantic_context["support_assessment"] = lpg_result["support_assessment"]
+                if isinstance(lpg_result.get("query_diagnostics"), list):
+                    semantic_context["query_diagnostics"] = list(lpg_result["query_diagnostics"])
+                trace_steps.append(
+                    {
+                        "id": "3",
+                        "type": "SPECIALIST",
+                        "agent": "LPGAgent",
+                        "content": lpg_result.get("summary", ""),
+                        "metadata": {
+                            "records": len(lpg_result.get("records", [])),
+                            "reasoning_attempts": int(
+                                lpg_result.get("reasoning", {}).get("attempt_count", 0)
+                            ),
+                            "terminal_reason": lpg_result.get("reasoning", {}).get("terminal_reason"),
+                            "support_status": lpg_result.get("support_assessment", {}).get("status"),
+                            "tool_calls": lpg_result.get("reasoning", {}).get("repair_trace", []),
+                        },
+                    }
+                )
+
+            if route in {"rdf", "hybrid"}:
+                with timer.stage("rdf_retrieval"):
+                    rdf_result = self.rdf_agent.run(question, databases, semantic_context)
+                trace_steps.append(
+                    {
+                        "id": "4",
+                        "type": "SPECIALIST",
+                        "agent": "RDFAgent",
+                        "content": rdf_result.get("summary", ""),
+                        "metadata": {"records": len(rdf_result.get("records", []))},
+                    }
+                )
+
+            with timer.stage("strategy_finalize"):
+                semantic_context["strategy_decision"] = self.strategy_chooser.finalize(
+                    initial_decision=semantic_context.get("strategy_decision", {}),
+                    route=route,
+                    graph_count=len(databases),
+                    query_mode=query_mode,
+                    support_assessment=semantic_context.get("support_assessment", {}),
+                    reasoning=semantic_context.get("reasoning"),
+                    cross_graph_analysis=semantic_context.get("cross_graph_analysis"),
+                )
+
+            with timer.stage("generation"):
+                response = self.answer_agent.synthesize(
+                    question=question,
+                    route=route,
+                    semantic_context=semantic_context,
+                    lpg_result=lpg_result,
+                    rdf_result=rdf_result,
+                )
         with timer.stage("run_registry"):
             semantic_context["run_metadata"] = self.run_registry.record_run(
                 question=question,
@@ -211,8 +245,9 @@ class SemanticAgentFlow:
         agent_pattern = self._agent_pattern_receipt(
             trace_steps=trace_steps,
             semantic_context=semantic_context,
-            reasoning_mode=reasoning_mode,
-            repair_budget=repair_budget,
+            reasoning_mode=effective_reasoning_mode,
+            repair_budget=effective_repair_budget,
+            query_mode=query_mode,
         )
         usage_estimate = self._estimate_usage(
             question=question,
@@ -225,6 +260,7 @@ class SemanticAgentFlow:
             "schema_version": "answer_envelope.v1",
             "answer": response,
             "answer_source": "semantic_flow",
+            "query_mode": query_mode,
             "support_assessment": semantic_context.get("support_assessment", {}),
             "evidence_bundle": semantic_context.get("evidence_bundle_preview", {}),
             "query_diagnostics": semantic_context.get("query_diagnostics", []),
@@ -232,6 +268,13 @@ class SemanticAgentFlow:
             "token_usage": usage_estimate,
             "agent_pattern": agent_pattern,
         }
+        if isinstance(semantic_context.get("graph_cot"), dict):
+            answer_envelope["graph_cot"] = {
+                "status": semantic_context["graph_cot"].get("final_answer", {}).get("status", ""),
+                "revision_count": int(semantic_context["graph_cot"].get("revision_count", 0) or 0),
+                "guardrail_verdict": semantic_context["graph_cot"].get("guardrail_verdict", {}),
+                "supervisor_directive": semantic_context["graph_cot"].get("supervisor_directive", {}),
+            }
         semantic_context["latency_breakdown_ms"] = latency_breakdown_ms
         semantic_context["agent_pattern"] = agent_pattern
         semantic_context["answer_envelope"] = answer_envelope
@@ -255,6 +298,7 @@ class SemanticAgentFlow:
             "response": response,
             "trace_steps": trace_steps,
             "route": route,
+            "query_mode": query_mode,
             "semantic_context": semantic_context,
             "lpg_result": lpg_result,
             "rdf_result": rdf_result,
@@ -267,7 +311,249 @@ class SemanticAgentFlow:
             "latency_breakdown_ms": latency_breakdown_ms,
             "agent_pattern": agent_pattern,
             "answer_envelope": answer_envelope,
+            "graph_cot": semantic_context.get("graph_cot", {}),
         }
+
+    def _run_graph_cot_lane(
+        self,
+        *,
+        question: str,
+        databases: Sequence[str],
+        workspace_id: str,
+        route: str,
+        repair_budget: int,
+        semantic_context: Dict[str, Any],
+        constraint_slices: Dict[str, Dict[str, Any]],
+        support_ranked_matches: Sequence[Dict[str, Any]],
+        trace_steps: List[Dict[str, Any]],
+        timer: StageTimer,
+    ) -> tuple[str, Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
+        with timer.stage("graph_cot_supervision"):
+            question_frame = self.graph_cot_orchestrator.supervisor.build_question_frame(
+                question=question,
+                workspace_id=workspace_id,
+                databases=databases,
+                semantic_context=semantic_context,
+                ontology_context_mismatch=semantic_context.get("ontology_context_mismatch", {}),
+            )
+            directive = self.graph_cot_orchestrator.supervisor.plan(
+                question_frame=question_frame,
+                semantic_context=semantic_context,
+                route=route,
+                repair_budget=repair_budget,
+            )
+        trace_steps.append(
+            {
+                "id": "3",
+                "type": "SUPERVISOR",
+                "agent": "QuerySupervisorAgent",
+                "content": f"Planned Graph-CoT route {directive.route} for objective {directive.objective}.",
+                "metadata": directive.to_dict(),
+            }
+        )
+
+        lpg_result: Optional[Dict[str, Any]] = None
+        rdf_result: Optional[Dict[str, Any]] = None
+        if directive.route in {"lpg", "hybrid"}:
+            with timer.stage("lpg_retrieval"):
+                retrieval = self.graph_cot_orchestrator.text2cypher.retrieve(
+                    question=question,
+                    databases=databases,
+                    workspace_id=workspace_id,
+                    semantic_context=semantic_context,
+                    directive=directive,
+                    constraint_slices=constraint_slices,
+                    ranked_matches=support_ranked_matches,
+                )
+            lpg_result = retrieval.lpg_result
+            rdf_result = retrieval.rdf_result
+        elif directive.route == "rdf":
+            with timer.stage("rdf_retrieval"):
+                retrieval = self.graph_cot_orchestrator.text2cypher.retrieve(
+                    question=question,
+                    databases=databases,
+                    workspace_id=workspace_id,
+                    semantic_context=semantic_context,
+                    directive=directive,
+                    constraint_slices=constraint_slices,
+                    ranked_matches=support_ranked_matches,
+                )
+            lpg_result = retrieval.lpg_result
+            rdf_result = retrieval.rdf_result
+        else:
+            retrieval = self.graph_cot_orchestrator.text2cypher.retrieve(
+                question=question,
+                databases=databases,
+                workspace_id=workspace_id,
+                semantic_context=semantic_context,
+                directive=directive,
+                constraint_slices=constraint_slices,
+                ranked_matches=support_ranked_matches,
+            )
+
+        packet = retrieval.packet
+        semantic_context.setdefault("reasoning", {})
+        if isinstance(lpg_result, dict) and isinstance(lpg_result.get("reasoning"), dict):
+            semantic_context["reasoning"] = lpg_result["reasoning"]
+        else:
+            semantic_context["reasoning"] = {
+                "requested": True,
+                "repair_budget": max(0, int(directive.max_repair_attempts or 0)),
+                "attempt_count": len(packet.repair_trace),
+                "repair_trace": list(packet.repair_trace),
+                "terminal_reason": packet.support_reason or "graph_cot",
+                "self_reflection_used": False,
+                "query_failure_count": len(packet.query_diagnostics),
+            }
+
+        if isinstance(lpg_result, dict) and isinstance(lpg_result.get("evidence_bundle"), dict):
+            semantic_context["evidence_bundle_preview"] = lpg_result["evidence_bundle"]
+        else:
+            semantic_context["evidence_bundle_preview"] = {
+                "slot_fills": dict(packet.slot_fills),
+                "selected_triples": list(packet.selected_triples),
+                "grounded_slots": list(packet.grounded_slots),
+                "missing_slots": list(packet.missing_slots),
+                "database": packet.database,
+            }
+        base_support_assessment = (
+            lpg_result.get("support_assessment", {})
+            if isinstance(lpg_result, dict) and isinstance(lpg_result.get("support_assessment"), dict)
+            else rdf_result.get("support_assessment", {})
+            if isinstance(rdf_result, dict) and isinstance(rdf_result.get("support_assessment"), dict)
+            else semantic_context.get("support_assessment", {})
+        )
+        semantic_context["support_assessment"] = {
+            **base_support_assessment,
+            "status": packet.support_status,
+            "reason": packet.support_reason,
+            "grounded_slots": list(packet.grounded_slots),
+            "missing_slots": list(packet.missing_slots),
+            "supported": packet.support_status == "supported",
+        }
+        semantic_context["query_diagnostics"] = [dict(item) for item in packet.query_diagnostics]
+
+        trace_steps.append(
+            {
+                "id": "4",
+                "type": "SPECIALIST",
+                "agent": "Text2CypherAgent",
+                "content": (
+                    (lpg_result or {}).get("summary")
+                    or (rdf_result or {}).get("summary")
+                    or "Graph-CoT retrieval completed."
+                ),
+                "metadata": {
+                    "route": directive.route,
+                    "database": packet.database,
+                    "records": len(packet.records),
+                    "grounded_slots": list(packet.grounded_slots),
+                    "missing_slots": list(packet.missing_slots),
+                    "support_status": packet.support_status,
+                    "tool_calls": list(packet.repair_trace),
+                    "query_diagnostics": list(packet.query_diagnostics),
+                },
+            }
+        )
+        if isinstance(rdf_result, dict):
+            trace_steps.append(
+                {
+                    "id": "4-rdf",
+                    "type": "SPECIALIST",
+                    "agent": "RDFAgent",
+                    "content": rdf_result.get("summary", ""),
+                    "metadata": {"records": len(rdf_result.get("records", []))},
+                }
+            )
+
+        with timer.stage("strategy_finalize"):
+            semantic_context["strategy_decision"] = self.strategy_chooser.finalize(
+                initial_decision=semantic_context.get("strategy_decision", {}),
+                route=route,
+                graph_count=len(databases),
+                query_mode="graph_cot",
+                support_assessment=semantic_context.get("support_assessment", {}),
+                reasoning=semantic_context.get("reasoning"),
+                cross_graph_analysis=semantic_context.get("cross_graph_analysis"),
+            )
+
+        with timer.stage("generation"):
+            draft = self.graph_cot_orchestrator.answer_generation.draft(
+                question=question,
+                route=route,
+                semantic_context=semantic_context,
+                lpg_result=lpg_result,
+                rdf_result=rdf_result,
+                packet=packet,
+                unresolved_entities=question_frame.unresolved_entities,
+            )
+        trace_steps.append(
+            {
+                "id": "5",
+                "type": "GENERATION",
+                "agent": "AnswerGenerationAgent",
+                "content": draft.answer_text,
+                "metadata": draft.to_dict(),
+            }
+        )
+
+        with timer.stage("guardrail"):
+            review_history: List[Dict[str, Any]] = []
+            verdict = self.graph_cot_orchestrator.guardrail.review(
+                question_frame=question_frame,
+                packet=packet,
+                draft=draft,
+            )
+            review_history.append(verdict.to_dict())
+            revision_count = 0
+            if verdict.decision == "revise" and directive.require_guardrail:
+                revision_count += 1
+                draft = self.graph_cot_orchestrator.answer_generation.revise(
+                    draft=draft,
+                    question_frame=question_frame,
+                    packet=packet,
+                    verdict=verdict,
+                )
+                verdict = self.graph_cot_orchestrator.guardrail.review(
+                    question_frame=question_frame,
+                    packet=packet,
+                    draft=draft,
+                )
+                review_history.append(verdict.to_dict())
+        trace_steps.append(
+            {
+                "id": "6",
+                "type": "GUARDRAIL",
+                "agent": "AnswerGuardrailAgent",
+                "content": verdict.summary,
+                "metadata": {
+                    "decision": verdict.decision,
+                    "required_repairs": list(verdict.required_repairs),
+                    "hard_findings": [item.to_dict() for item in verdict.hard_findings],
+                    "soft_findings": [item.to_dict() for item in verdict.soft_findings],
+                    "revision_count": revision_count,
+                },
+            }
+        )
+
+        final_answer = self.graph_cot_orchestrator.supervisor.finalize(
+            answer_text=draft.answer_text,
+            draft=draft,
+            verdict=verdict,
+            evidence=packet,
+        )
+        semantic_context["graph_cot"] = {
+            "schema_version": "graph_cot_lane.v1",
+            "question_frame": question_frame.to_dict(),
+            "supervisor_directive": directive.to_dict(),
+            "evidence_packet": packet.to_dict(),
+            "answer_draft": draft.to_dict(),
+            "guardrail_verdict": verdict.to_dict(),
+            "review_history": review_history,
+            "revision_count": revision_count,
+            "final_answer": final_answer.to_dict(),
+        }
+        return final_answer.answer_text, lpg_result, rdf_result
 
     @staticmethod
     def _apply_entity_overrides(
@@ -355,6 +641,7 @@ class SemanticAgentFlow:
             "constraint_context_ms",
             "support_preview_ms",
             "route_ms",
+            "graph_cot_supervision_ms",
             "lpg_retrieval_ms",
             "rdf_retrieval_ms",
             "strategy_finalize_ms",
@@ -364,7 +651,12 @@ class SemanticAgentFlow:
             sum(float(payload.get(key, 0.0) or 0.0) for key in retrieval_keys),
             2,
         )
-        payload["generation_ms"] = round(float(payload.get("generation_ms", 0.0) or 0.0), 2)
+        payload["guardrail_ms"] = round(float(payload.get("guardrail_ms", 0.0) or 0.0), 2)
+        payload["generation_ms"] = round(
+            float(payload.get("generation_ms", 0.0) or 0.0)
+            + float(payload.get("guardrail_ms", 0.0) or 0.0),
+            2,
+        )
         return payload
 
     @staticmethod
@@ -374,7 +666,9 @@ class SemanticAgentFlow:
         semantic_context: Dict[str, Any],
         reasoning_mode: bool,
         repair_budget: int,
+        query_mode: str = DEFAULT_QUERY_MODE,
     ) -> Dict[str, Any]:
+        query_mode = normalize_query_mode(query_mode)
         strategy = semantic_context.get("strategy_decision", {})
         if not isinstance(strategy, dict):
             strategy = {}
@@ -386,6 +680,9 @@ class SemanticAgentFlow:
         if executed_mode in {"debate", "planning_multi_agent"}:
             pattern = "planning_multi_agent"
             reason = "strategy_escalation"
+        elif query_mode == "graph_cot":
+            pattern = "graph_cot"
+            reason = "query_mode_requested"
         elif reasoning_mode or support_status in {"partial", "unsupported"}:
             pattern = "reflection_chain"
             reason = "reasoning_or_partial_support"
@@ -403,6 +700,7 @@ class SemanticAgentFlow:
             ),
             "repair_budget": max(0, int(repair_budget or 0)),
             "support_status": support_status,
+            "query_mode": query_mode,
         }
 
 

@@ -98,6 +98,25 @@ If required slots are absent:
 
 Conservative incompleteness is better than fluent fabrication.
 
+### 3b. Graph-CoT Agent Lane Stays Typed
+
+When the semantic query surface runs with `query_mode="graph_cot"`, keep the
+answering lane explicit:
+
+`SemanticLayer -> QuerySupervisorAgent -> Text2CypherAgent -> AnswerGenerationAgent -> AnswerGuardrailAgent -> Finalize`
+
+Recommended artifact chain:
+
+- `GraphCoTQuestionFrame`
+- `SupervisorDirective`
+- `QueryEvidencePacket`
+- `AnswerDraft`
+- `GuardrailVerdict`
+
+The answer guardrail may use ontology checks and model suspicion to revise or
+refuse, but that suspicion must stay evidence-negative only: it can flag a leap
+or ask for abstention, never invent a missing fact.
+
 ### 4. Quality Signals Must Change Evidence Selection
 
 Keep quality-aware logic only when it changes one of:

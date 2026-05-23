@@ -273,6 +273,80 @@ def test_get_delete_and_ask_return_convenience_shapes():
     assert session.calls[0]["params"]["workspace_id"] == "default"
 
 
+def test_ask_response_exposes_chat_runtime_metadata():
+    session = _FakeSession(
+        [
+            _FakeResponse(
+                payload={
+                    "assistant_message": "Stored memory",
+                    "memory_hits": [],
+                    "search_results": [],
+                    "semantic_context": {},
+                    "trace_id": "tr_chat",
+                }
+            ),
+        ]
+    )
+    client = Seocho(base_url="http://localhost:8001", session=session)
+
+    result = client.ask_response("What do we know?")
+
+    assert result.response == "Stored memory"
+    assert result.runtime_mode == "chat"
+    assert result.answer_envelope["query_mode"] == "chat"
+    assert session.calls[0]["url"] == "http://localhost:8001/api/chat"
+
+
+def test_ask_with_graph_scope_routes_to_semantic_runtime():
+    session = _FakeSession(
+        [
+            _FakeResponse(
+                payload={
+                    "response": "semantic answer",
+                    "trace_steps": [{"type": "SEMANTIC"}],
+                    "route": "lpg",
+                    "query_mode": "semantic",
+                    "semantic_context": {
+                        "entities": ["Alex"],
+                        "support_assessment": {"intent_id": "profile_lookup", "status": "supported"},
+                    },
+                    "support_assessment": {"intent_id": "profile_lookup", "status": "supported"},
+                    "strategy_decision": {"executed_mode": "semantic_direct"},
+                    "lpg_result": {"records": []},
+                    "rdf_result": None,
+                }
+            ),
+            _FakeResponse(
+                payload={
+                    "response": "semantic answer",
+                    "trace_steps": [{"type": "SEMANTIC"}],
+                    "route": "lpg",
+                    "query_mode": "semantic",
+                    "semantic_context": {
+                        "entities": ["Alex"],
+                        "support_assessment": {"intent_id": "profile_lookup", "status": "supported"},
+                    },
+                    "support_assessment": {"intent_id": "profile_lookup", "status": "supported"},
+                    "strategy_decision": {"executed_mode": "semantic_direct"},
+                    "lpg_result": {"records": []},
+                    "rdf_result": None,
+                }
+            ),
+        ]
+    )
+    client = Seocho(base_url="http://localhost:8001", session=session)
+
+    answer = client.ask("What do we know about Alex?", graph_ids=["kgnormal"])
+    result = client.ask_response("What do we know about Alex?", graph_ids=["kgnormal"])
+
+    assert answer == "semantic answer"
+    assert result.runtime_mode == "semantic"
+    assert result.routing_decision["executed_mode"] == "semantic_direct"
+    assert session.calls[0]["url"] == "http://localhost:8001/run_agent_semantic"
+    assert session.calls[0]["json"]["graph_ids"] == ["kgnormal"]
+    assert session.calls[1]["url"] == "http://localhost:8001/run_agent_semantic"
+
+
 def test_http_errors_are_promoted_to_sdk_exceptions():
     session = _FakeSession(
         [
@@ -794,6 +868,7 @@ def test_runtime_client_methods_cover_semantic_debate_platform_and_admin_surface
     assert session.calls[1]["json"]["entity_overrides"][0]["question_entity"] == "Neo4j"
     assert session.calls[1]["json"]["reasoning_mode"] is True
     assert session.calls[1]["json"]["repair_budget"] == 2
+    assert session.calls[1]["json"]["query_mode"] == "semantic"
     assert session.calls[1]["json"]["reasoning_cycle"]["enabled"] is True
     assert session.calls[2]["url"] == "http://localhost:8001/run_debate"
     assert session.calls[2]["json"]["reasoning_cycle"]["enabled"] is True
@@ -863,6 +938,15 @@ def test_module_level_convenience_api_uses_configured_default_client():
             ),
             _FakeResponse(
                 payload={
+                    "assistant_message": "Stored memory",
+                    "memory_hits": [],
+                    "search_results": [],
+                    "semantic_context": {},
+                    "trace_id": "tr_chat_2",
+                }
+            ),
+            _FakeResponse(
+                payload={
                     "response": "debate answer",
                     "trace_steps": [],
                     "debate_results": [],
@@ -884,12 +968,14 @@ def test_module_level_convenience_api_uses_configured_default_client():
     )
     try:
         answer = seocho_module.ask("What do we know?")
+        ask_response = seocho_module.ask_response("What do we know?")
         debate = seocho_module.debate("Compare graphs")
         databases = seocho_module.databases()
     finally:
         seocho_module.close()
 
     assert answer == "Stored memory"
+    assert ask_response.runtime_mode == "chat"
     assert debate.debate_state == "blocked"
     assert databases == ["kgnormal"]
 
@@ -1085,6 +1171,127 @@ def test_execution_plan_builder_passes_semantic_repair_budget():
     assert result.route == "lpg"
     assert session.calls[1]["json"]["reasoning_mode"] is True
     assert session.calls[1]["json"]["repair_budget"] == 2
+    assert session.calls[1]["json"]["query_mode"] == "semantic"
+
+
+def test_execution_plan_builder_supports_graph_cot_query_mode():
+    session = _FakeSession(
+        [
+            _FakeResponse(
+                payload={
+                    "graphs": [
+                        {
+                            "graph_id": "kgnormal",
+                            "database": "kgnormal",
+                            "uri": "bolt://neo4j:7687",
+                            "ontology_id": "baseline",
+                            "vocabulary_profile": "vocabulary.v2",
+                            "description": "Baseline graph",
+                            "workspace_scope": "default",
+                        }
+                    ]
+                }
+            ),
+            _FakeResponse(
+                payload={
+                    "response": "graph cot answer",
+                    "trace_steps": [{"type": "SEMANTIC"}],
+                    "route": "lpg",
+                    "query_mode": "graph_cot",
+                    "semantic_context": {"entities": ["Alex"], "query_mode": "graph_cot"},
+                    "lpg_result": {"records": []},
+                    "rdf_result": None,
+                    "strategy_decision": {"requested_mode": "graph_cot", "executed_mode": "graph_cot_repair"},
+                    "graph_cot": {
+                        "guardrail_verdict": {"decision": "pass"},
+                        "final_answer": {"status": "answered"},
+                    },
+                }
+            ),
+        ]
+    )
+    client = Seocho(base_url="http://localhost:8001", session=session)
+
+    result = client.plan("What do you know about Alex?").on_graph("kgnormal").graph_cot().run()
+
+    assert result.route == "lpg"
+    assert result.query_mode == "graph_cot"
+    assert result.graph_cot["guardrail_verdict"]["decision"] == "pass"
+    assert session.calls[1]["json"]["query_mode"] == "graph_cot"
+
+
+def test_semantic_supports_cot_mode_alias():
+    session = _FakeSession(
+        [
+            _FakeResponse(
+                payload={
+                    "response": "graph cot answer",
+                    "trace_steps": [{"type": "SEMANTIC"}],
+                    "route": "lpg",
+                    "query_mode": "graph_cot",
+                    "semantic_context": {"entities": ["Alex"], "query_mode": "graph_cot"},
+                    "lpg_result": {"records": []},
+                    "rdf_result": None,
+                    "graph_cot": {
+                        "guardrail_verdict": {"decision": "pass"},
+                        "final_answer": {"status": "answered"},
+                    },
+                }
+            ),
+        ]
+    )
+    client = Seocho(base_url="http://localhost:8001", session=session)
+
+    result = client.semantic(
+        "What do you know about Alex?",
+        databases=["kgnormal"],
+        cot_mode=True,
+    )
+
+    assert result.query_mode == "graph_cot"
+    assert result.graph_cot["final_answer"]["status"] == "answered"
+    assert session.calls[0]["json"]["query_mode"] == "graph_cot"
+
+
+def test_ask_supports_cot_mode_alias():
+    session = _FakeSession(
+        [
+            _FakeResponse(
+                payload={
+                    "response": "graph cot answer",
+                    "trace_steps": [{"type": "SEMANTIC"}],
+                    "route": "lpg",
+                    "query_mode": "graph_cot",
+                    "semantic_context": {"entities": ["Alex"], "query_mode": "graph_cot"},
+                    "lpg_result": {"records": []},
+                    "rdf_result": None,
+                }
+            ),
+        ]
+    )
+    client = Seocho(base_url="http://localhost:8001", session=session)
+
+    answer = client.ask(
+        "What do you know about Alex?",
+        databases=["kgnormal"],
+        cot_mode=True,
+    )
+
+    assert answer == "graph cot answer"
+    assert session.calls[0]["url"] == "http://localhost:8001/run_agent_semantic"
+    assert session.calls[0]["json"]["query_mode"] == "graph_cot"
+
+
+def test_semantic_rejects_conflicting_cot_mode_and_query_mode():
+    client = Seocho(base_url="http://localhost:8001", session=_FakeSession([]))
+
+    with pytest.raises(ValueError, match="cot_mode=True conflicts"):
+        client.semantic(
+            "What do you know about Alex?",
+            databases=["kgnormal"],
+            query_mode="semantic",
+            cot_mode=True,
+        )
 
 
 def test_execution_plan_builder_passes_reasoning_cycle_to_semantic_runtime():

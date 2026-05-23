@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 from typing import Any, Dict, List, Sequence
 
+from ..runtime_contract import DEFAULT_QUERY_MODE, normalize_query_mode
+
 from .contracts import CypherPlan, InsufficiencyAssessment
 
 
@@ -197,15 +199,20 @@ class ExecutionStrategyChooser:
         route: str,
         reasoning_mode: bool,
         repair_budget: int,
+        query_mode: str = DEFAULT_QUERY_MODE,
         support_assessment: Dict[str, Any],
         graph_count: int,
         cross_graph_analysis: Dict[str, Any] | None = None,
     ) -> Dict[str, Any]:
+        query_mode = normalize_query_mode(query_mode)
         support_status = str(support_assessment.get("status", "unsupported")).strip() or "unsupported"
         cross_graph_analysis = cross_graph_analysis if isinstance(cross_graph_analysis, dict) else {}
         if route == "rdf":
             initial_mode = "rdf"
             reason = "question matched RDF-oriented cues"
+        elif query_mode == "graph_cot":
+            initial_mode = "graph_cot_repair" if reasoning_mode or repair_budget > 0 else "graph_cot_direct"
+            reason = "Graph-CoT query mode was explicitly requested"
         elif reasoning_mode or repair_budget > 0:
             initial_mode = "semantic_repair"
             reason = "bounded repair was explicitly requested"
@@ -224,7 +231,7 @@ class ExecutionStrategyChooser:
 
         return {
             "schema_version": "strategy_decision.v1",
-            "requested_mode": "semantic",
+            "requested_mode": query_mode,
             "initial_mode": initial_mode,
             "executed_mode": initial_mode,
             "reasoning_mode_requested": bool(reasoning_mode),
@@ -244,11 +251,13 @@ class ExecutionStrategyChooser:
         initial_decision: Dict[str, Any],
         route: str,
         graph_count: int,
+        query_mode: str = DEFAULT_QUERY_MODE,
         support_assessment: Dict[str, Any],
         reasoning: Dict[str, Any] | None,
         cross_graph_analysis: Dict[str, Any] | None = None,
     ) -> Dict[str, Any]:
         decision = dict(initial_decision or {})
+        query_mode = normalize_query_mode(query_mode)
         reasoning = reasoning if isinstance(reasoning, dict) else {}
         cross_graph_analysis = cross_graph_analysis if isinstance(cross_graph_analysis, dict) else {}
         support_status = str(support_assessment.get("status", "unsupported")).strip() or "unsupported"
@@ -256,6 +265,15 @@ class ExecutionStrategyChooser:
 
         if route == "rdf":
             executed_mode = "rdf"
+        elif query_mode == "graph_cot":
+            if self_reflection_used:
+                executed_mode = "graph_cot_self_reflect"
+            elif reasoning.get("requested"):
+                executed_mode = "graph_cot_repair"
+            elif route == "hybrid":
+                executed_mode = "graph_cot_hybrid"
+            else:
+                executed_mode = "graph_cot_direct"
         elif route == "hybrid":
             executed_mode = "hybrid"
         elif self_reflection_used:

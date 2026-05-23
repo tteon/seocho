@@ -606,6 +606,17 @@ Each entry must link to a full ADR when impact is non-trivial.
   - project canonical entities/relations back into the graph store instead of
     destructively rewriting raw observed ingest
 
+- Proposed `ADR-0095-agentic-graph-cot-query-lane-and-guardrail-contract.md`
+  - keep `query_mode="graph_cot"` on the public semantic surface but route it
+    toward a dedicated internal lane:
+    `SemanticLayer -> QuerySupervisorAgent -> Text2CypherAgent ->
+    AnswerGenerationAgent -> AnswerGuardrailAgent -> Finalize`
+  - define typed handoff artifacts:
+    `GraphCoTQuestionFrame`, `SupervisorDirective`,
+    `QueryEvidencePacket`, `AnswerDraft`, and `GuardrailVerdict`
+  - treat ontology guardrail "intuition" as a soft suspicion signal only; it
+    may revise or refuse, but it may not add new facts
+
 ## 2026-05-19
 
 - Proposed `ADR-0092-graph-cot-lpg-property-schema.md`

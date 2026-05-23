@@ -212,6 +212,27 @@ def test_canonical_semantic_agent_flow_applies_entity_overrides():
     assert applied["Neo4j"]["node_id"] == 777
 
 
+def test_canonical_semantic_agent_flow_supports_graph_cot_query_mode():
+    flow = SemanticAgentFlow(FakeConnector())
+    result = flow.run(
+        "What is Neo4j connected to?",
+        ["kgnormal"],
+        query_mode="graph_cot",
+    )
+
+    assert result["query_mode"] == "graph_cot"
+    assert result["strategy_decision"]["requested_mode"] == "graph_cot"
+    assert result["strategy_decision"]["executed_mode"] == "graph_cot_repair"
+    assert result["semantic_context"]["query_mode"] == "graph_cot"
+    assert result["agent_pattern"]["pattern"] == "graph_cot"
+    assert result["answer_envelope"]["query_mode"] == "graph_cot"
+    assert result["graph_cot"]["supervisor_directive"]["route"] == "lpg"
+    assert result["graph_cot"]["guardrail_verdict"]["decision"] == "pass"
+    assert any(step["agent"] == "QuerySupervisorAgent" for step in result["trace_steps"])
+    assert any(step["agent"] == "Text2CypherAgent" for step in result["trace_steps"])
+    assert any(step["agent"] == "AnswerGuardrailAgent" for step in result["trace_steps"])
+
+
 def test_answer_generation_preserves_long_supporting_sentence_product_ids():
     supporting_fact = (
         "NVIDIA Corporation reported data center revenue of $15.0 billion in fiscal 2024, "
@@ -313,3 +334,42 @@ def test_canonical_semantic_flow_synthesizes_engineering_tradeoff_answer():
     assert "Alternatives for Python parallel work include multiprocessing, Ray." in result["response"]
     assert result["evidence_bundle"]["slot_fills"]["limitation_points"] == ["GIL"]
     assert result["evidence_bundle"]["slot_fills"]["alternative_points"] == ["multiprocessing", "Ray"]
+
+
+def test_graph_cot_guardrail_revises_unsupported_answer_to_abstention():
+    class UnsupportedConnector(FakeConnector):
+        def run_cypher(self, query, database="neo4j", params=None):
+            if "AS source_entity" in query and "AS relation_type" in query:
+                return json.dumps([])
+            return super().run_cypher(query, database=database, params=params)
+
+    flow = SemanticAgentFlow(UnsupportedConnector())
+
+    result = flow.run(
+        "What is Neo4j related to GraphRAG?",
+        ["kgnormal"],
+        query_mode="graph_cot",
+    )
+
+    assert result["graph_cot"]["revision_count"] == 1
+    assert result["graph_cot"]["review_history"][0]["decision"] == "revise"
+    assert result["graph_cot"]["final_answer"]["status"] == "abstained"
+    assert "I could not verify a grounded answer from the current graph evidence." in result["response"]
+
+
+def test_graph_cot_guardrail_adds_ontology_drift_caveat():
+    flow = SemanticAgentFlow(FakeConnector())
+
+    result = flow.run(
+        "What is Neo4j connected to?",
+        ["kgnormal"],
+        query_mode="graph_cot",
+        ontology_context_mismatch={
+            "mismatch": True,
+            "warning": "active profile differs from indexed graph context",
+        },
+    )
+
+    assert result["graph_cot"]["revision_count"] == 1
+    assert result["graph_cot"]["review_history"][0]["decision"] == "revise"
+    assert "Ontology context warning:" in result["response"]

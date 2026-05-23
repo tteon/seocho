@@ -37,8 +37,8 @@ SEOCHO exposes multiple query surfaces and they do not all use the same engine.
 | Surface | Execution path | Use this when |
 |---|---|---|
 | `Seocho.local(...).ask(...)` | local SDK query path | you want a serverless ontology-first local run |
-| `Seocho(base_url=...).ask(...)` | runtime `/api/chat` convenience path | you want app-style chat quickly |
-| `client.semantic(...)` | runtime semantic graph QA | you want deterministic graph-grounded QA first |
+| `Seocho(base_url=...).ask(...)` | runtime primary query facade | you want one public surface that auto-routes to chat or semantic graph QA |
+| `client.semantic(...)` | runtime advanced semantic graph QA | you want direct control of the semantic lane for debugging or expert use |
 | `client.react(...)` | runtime router agent | you want provider-native reasoning plus tool use |
 | `client.advanced(...)` / `client.debate(...)` | runtime debate orchestrator | you want explicit multi-agent comparison/synthesis |
 
@@ -142,6 +142,7 @@ curl -sS -X POST http://localhost:8001/run_agent_semantic \
     "workspace_id": "default",
     "query": "What is ACME related to?",
     "databases": ["kgruntime"],
+    "query_mode": "graph_cot",
     "reasoning_mode": true,
     "repair_budget": 2
   }' | jq '{route, response, reasoning: .semantic_context.reasoning}'
@@ -162,17 +163,20 @@ client.raw_ingest(
     target_database="kgruntime",
 )
 
-semantic = client.semantic(
+receipt = client.ask_response(
     "What is ACME related to?",
     databases=["kgruntime"],
+    cot_mode=True,
     reasoning_mode=True,
     repair_budget=2,
 )
 
-print(semantic.response)
-print(semantic.semantic_context["reasoning"])
-print(semantic.support.status)
-print(semantic.strategy.next_mode_hint)
+print(receipt.response)
+print(receipt.runtime_mode)
+print(receipt.semantic_context["reasoning"])
+print(receipt.support.status)
+print(receipt.strategy.next_mode_hint)
+print(receipt.graph_cot["guardrail_verdict"]["decision"])
 
 recent = client.semantic_runs(limit=5, route="lpg")
 print(recent[0].run_id)

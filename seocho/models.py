@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Literal, Optional, Sequence
 
+from .runtime_contract import DEFAULT_QUERY_MODE
+
 
 @dataclass(slots=True)
 class JsonSerializable:
@@ -177,6 +179,7 @@ class ReasoningPolicy(JsonSerializable):
     tool_budget: Optional[int] = None
     require_grounded_evidence: bool = True
     repair_budget: int = 0
+    query_mode: Literal["semantic", "graph_cot"] = DEFAULT_QUERY_MODE
     fallback_style: Optional[Literal["direct", "react", "debate"]] = None
     reasoning_cycle: Dict[str, Any] = field(default_factory=dict)
 
@@ -285,6 +288,50 @@ class ExecutionResult(JsonSerializable):
             return getattr(delegated, name)
         raise AttributeError(f"{type(self).__name__!s} object has no attribute {name!r}")
 
+    @property
+    def semantic_context(self) -> Dict[str, Any]:
+        delegated = self._delegated_result()
+        if delegated is not None and hasattr(delegated, "semantic_context"):
+            value = getattr(delegated, "semantic_context", {})
+            return dict(value) if isinstance(value, dict) else {}
+        return dict(self.answer_envelope.get("semantic_context", {}) or {})
+
+    @property
+    def support(self) -> "SupportAssessment":
+        payload = (
+            self.answer_envelope.get("support_assessment", {})
+            or self.semantic_context.get("support_assessment", {})
+        )
+        return SupportAssessment.from_dict(payload if isinstance(payload, dict) else {})
+
+    @property
+    def strategy(self) -> "StrategyDecision":
+        payload = self.answer_envelope.get("strategy_decision", {})
+        return StrategyDecision.from_dict(payload if isinstance(payload, dict) else {})
+
+    @property
+    def run_record(self) -> "RunMetadata":
+        payload = self.answer_envelope.get("run_metadata", {})
+        return RunMetadata.from_dict(payload if isinstance(payload, dict) else {})
+
+    @property
+    def evidence(self) -> "EvidenceBundle":
+        payload = self.answer_envelope.get("evidence_bundle", {})
+        return EvidenceBundle.from_dict(payload if isinstance(payload, dict) else {})
+
+    @property
+    def agent_pattern(self) -> Dict[str, Any]:
+        return dict(self.answer_envelope.get("agent_pattern", {}) or {})
+
+    @property
+    def graph_cot(self) -> Dict[str, Any]:
+        payload = self.answer_envelope.get("graph_cot", {})
+        if payload:
+            return dict(payload if isinstance(payload, dict) else {})
+        if self.semantic_result is not None:
+            return dict(self.semantic_result.graph_cot)
+        return {}
+
     @classmethod
     def from_run_result(
         cls,
@@ -311,11 +358,18 @@ class ExecutionResult(JsonSerializable):
         payload.answer_envelope = {
             "schema_version": "answer_envelope.v1",
             "answer": payload.response,
+            "query_mode": str(getattr(result, "query_mode", DEFAULT_QUERY_MODE) or DEFAULT_QUERY_MODE),
             "support_assessment": dict(getattr(result, "support_assessment", {}) or {}),
             "evidence_bundle": dict(getattr(result, "evidence_bundle", {}) or {}),
             "latency_breakdown_ms": dict(payload.latency_breakdown_ms),
             "agent_pattern": dict(payload.agent_pattern),
+            "strategy_decision": dict(getattr(result, "strategy_decision", {}) or {}),
+            "run_metadata": dict(getattr(result, "run_metadata", {}) or {}),
+            "semantic_context": dict(getattr(result, "semantic_context", {}) or {}),
         }
+        graph_cot_payload = dict(getattr(result, "graph_cot", {}) or {})
+        if graph_cot_payload:
+            payload.answer_envelope["graph_cot"] = graph_cot_payload
         if runtime_mode == "semantic" and isinstance(result, SemanticRunResponse):
             payload.semantic_result = result
         elif runtime_mode == "debate" and isinstance(result, DebateRunResponse):
@@ -323,6 +377,151 @@ class ExecutionResult(JsonSerializable):
         elif runtime_mode == "router" and isinstance(result, AgentRunResponse):
             payload.router_result = result
         return payload
+
+
+@dataclass(slots=True)
+class AskResponse(JsonSerializable):
+    response: str
+    runtime_mode: Literal["semantic", "chat"]
+    trace_steps: List[Dict[str, Any]] = field(default_factory=list)
+    ontology_context_mismatch: Dict[str, Any] = field(default_factory=dict)
+    answer_envelope: Dict[str, Any] = field(default_factory=dict)
+    question_frame: Dict[str, Any] = field(default_factory=dict)
+    routing_decision: Dict[str, Any] = field(default_factory=dict)
+    rewrite_trace: List[Dict[str, Any]] = field(default_factory=list)
+    semantic_result: Optional["SemanticRunResponse"] = None
+    chat_response: Optional["ChatResponse"] = None
+
+    def _delegated_result(self) -> Optional["SemanticRunResponse | ChatResponse"]:
+        if self.runtime_mode == "semantic":
+            return self.semantic_result
+        if self.runtime_mode == "chat":
+            return self.chat_response
+        return None
+
+    def __getattr__(self, name: str) -> Any:
+        delegated = self._delegated_result()
+        if delegated is not None and hasattr(delegated, name):
+            return getattr(delegated, name)
+        raise AttributeError(f"{type(self).__name__!s} object has no attribute {name!r}")
+
+    @property
+    def semantic_context(self) -> Dict[str, Any]:
+        delegated = self._delegated_result()
+        if delegated is not None and hasattr(delegated, "semantic_context"):
+            value = getattr(delegated, "semantic_context", {})
+            return dict(value) if isinstance(value, dict) else {}
+        return dict(self.answer_envelope.get("semantic_context", {}) or {})
+
+    @property
+    def support(self) -> "SupportAssessment":
+        payload = (
+            self.answer_envelope.get("support_assessment", {})
+            or self.semantic_context.get("support_assessment", {})
+        )
+        return SupportAssessment.from_dict(payload if isinstance(payload, dict) else {})
+
+    @property
+    def strategy(self) -> "StrategyDecision":
+        payload = self.routing_decision or self.answer_envelope.get("strategy_decision", {})
+        return StrategyDecision.from_dict(payload if isinstance(payload, dict) else {})
+
+    @property
+    def run_record(self) -> "RunMetadata":
+        payload = self.answer_envelope.get("run_metadata", {})
+        return RunMetadata.from_dict(payload if isinstance(payload, dict) else {})
+
+    @property
+    def evidence(self) -> "EvidenceBundle":
+        payload = self.answer_envelope.get("evidence_bundle", {})
+        return EvidenceBundle.from_dict(payload if isinstance(payload, dict) else {})
+
+    @property
+    def agent_pattern(self) -> Dict[str, Any]:
+        return dict(self.answer_envelope.get("agent_pattern", {}) or {})
+
+    @property
+    def graph_cot(self) -> Dict[str, Any]:
+        payload = self.answer_envelope.get("graph_cot", {})
+        if isinstance(payload, dict) and payload:
+            return dict(payload)
+        if self.semantic_result is not None:
+            return dict(self.semantic_result.graph_cot)
+        return {}
+
+    @classmethod
+    def from_semantic_result(cls, result: "SemanticRunResponse") -> "AskResponse":
+        question_frame = {}
+        if isinstance(result.graph_cot, dict):
+            question_frame = dict(result.graph_cot.get("question_frame", {}) or {})
+        answer_envelope = dict(result.answer_envelope)
+        if not answer_envelope:
+            answer_envelope = {
+                "schema_version": "answer_envelope.v1",
+                "answer": result.response,
+                "query_mode": result.query_mode or DEFAULT_QUERY_MODE,
+                "support_assessment": dict(result.support_assessment),
+                "evidence_bundle": dict(result.evidence_bundle),
+                "latency_breakdown_ms": dict(result.latency_breakdown_ms),
+                "agent_pattern": dict(result.agent_pattern),
+                "strategy_decision": dict(result.strategy_decision),
+                "run_metadata": dict(result.run_metadata),
+                "question_frame": question_frame,
+                "rewrite_trace": [],
+            }
+            if result.graph_cot:
+                answer_envelope["graph_cot"] = dict(result.graph_cot)
+        return cls(
+            response=result.response,
+            runtime_mode="semantic",
+            trace_steps=list(result.trace_steps),
+            ontology_context_mismatch=dict(result.ontology_context_mismatch),
+            answer_envelope=answer_envelope,
+            question_frame=question_frame or dict(answer_envelope.get("question_frame", {}) or {}),
+            routing_decision=dict(
+                answer_envelope.get("routing_decision", {})
+                or answer_envelope.get("strategy_decision", {})
+                or result.strategy_decision
+            ),
+            rewrite_trace=list(answer_envelope.get("rewrite_trace", []) or []),
+            semantic_result=result,
+        )
+
+    @classmethod
+    def from_chat_response(cls, result: "ChatResponse") -> "AskResponse":
+        support_assessment = {}
+        if isinstance(result.semantic_context, dict):
+            support_assessment = dict(result.semantic_context.get("support_assessment", {}) or {})
+        answer_envelope = {
+            "schema_version": "answer_envelope.v1",
+            "answer": result.assistant_message,
+            "query_mode": "chat",
+            "support_assessment": support_assessment,
+            "evidence_bundle": dict(result.evidence_bundle),
+            "latency_breakdown_ms": {},
+            "agent_pattern": {
+                "schema_version": "agent_pattern_receipt.v1",
+                "pattern": "memory_tool_use",
+                "reason": "chat_surface",
+                "executed_mode": "chat",
+                "turn_count": 1,
+                "tool_like_steps": len(result.search_results),
+                "repair_budget": 0,
+                "support_status": str(support_assessment.get("status", "") or "").strip(),
+                "query_mode": "chat",
+            },
+        }
+        return cls(
+            response=result.assistant_message,
+            runtime_mode="chat",
+            trace_steps=[],
+            ontology_context_mismatch=dict(result.ontology_context_mismatch),
+            answer_envelope=answer_envelope,
+            question_frame={},
+            routing_decision={},
+            rewrite_trace=[],
+            chat_response=result,
+        )
 
 
 @dataclass(slots=True)
@@ -489,6 +688,7 @@ class EntityOverride(JsonSerializable):
 class SemanticRunResponse(JsonSerializable):
     response: str
     route: str
+    query_mode: str = DEFAULT_QUERY_MODE
     trace_steps: List[Dict[str, Any]] = field(default_factory=list)
     semantic_context: Dict[str, Any] = field(default_factory=dict)
     lpg_result: Optional[Dict[str, Any]] = None
@@ -501,6 +701,7 @@ class SemanticRunResponse(JsonSerializable):
     latency_breakdown_ms: Dict[str, float] = field(default_factory=dict)
     agent_pattern: Dict[str, Any] = field(default_factory=dict)
     answer_envelope: Dict[str, Any] = field(default_factory=dict)
+    graph_cot: Dict[str, Any] = field(default_factory=dict)
     ontology_context_mismatch: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
@@ -511,6 +712,7 @@ class SemanticRunResponse(JsonSerializable):
         return cls(
             response=str(payload.get("response", "")),
             route=str(payload.get("route", "")),
+            query_mode=str(payload.get("query_mode", DEFAULT_QUERY_MODE) or DEFAULT_QUERY_MODE),
             trace_steps=list(payload.get("trace_steps", [])),
             semantic_context=dict(payload.get("semantic_context", {})),
             lpg_result=payload.get("lpg_result"),
@@ -527,6 +729,7 @@ class SemanticRunResponse(JsonSerializable):
             },
             agent_pattern=dict(payload.get("agent_pattern", {})),
             answer_envelope=dict(payload.get("answer_envelope", {})),
+            graph_cot=dict(payload.get("graph_cot", {})),
             ontology_context_mismatch=dict(payload.get("ontology_context_mismatch", {})),
         )
 

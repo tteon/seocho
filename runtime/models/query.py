@@ -4,7 +4,11 @@ from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
-from seocho.runtime_contract import INDEX_NAME_PATTERN, WORKSPACE_ID_PATTERN
+from seocho.runtime_contract import (
+    DEFAULT_QUERY_MODE,
+    INDEX_NAME_PATTERN,
+    WORKSPACE_ID_PATTERN,
+)
 
 
 class QueryRequest(BaseModel):
@@ -52,6 +56,10 @@ class SemanticQueryRequest(QueryRequest):
         le=5,
         description="Maximum number of additional constrained retrieval repair attempts.",
     )
+    query_mode: Literal["semantic", "graph_cot"] = Field(
+        default=DEFAULT_QUERY_MODE,
+        description="Semantic query execution mode: 'semantic' (default) or 'graph_cot' (Graph-CoT-oriented traversal mode).",
+    )
 
 
 class AgentResponse(BaseModel):
@@ -69,6 +77,10 @@ class SemanticAgentResponse(AgentResponse):
     """Extended response for semantic entity-resolution query flow."""
 
     route: str = Field(description="Selected query route: 'lpg', 'rdf', or 'hybrid'.")
+    query_mode: Literal["semantic", "graph_cot"] = Field(
+        default=DEFAULT_QUERY_MODE,
+        description="Semantic execution sub-mode that handled the request.",
+    )
     semantic_context: Dict[str, Any] = Field(description="Resolved entities and disambiguation metadata.")
     lpg_result: Optional[Dict[str, Any]] = Field(default=None, description="Raw LPG agent query results.")
     rdf_result: Optional[Dict[str, Any]] = Field(default=None, description="Raw RDF agent query results.")
@@ -81,6 +93,10 @@ class SemanticAgentResponse(AgentResponse):
     policy_metrics: Dict[str, Any] = Field(default_factory=dict, description="Decision-policy metrics covering routing, repair/tool use, and next-mode hints.")
     reasoning_cycle: Dict[str, Any] = Field(default_factory=dict, description="Compact inquiry-cycle anomaly report for unsupported semantic outcomes.")
     ontology_context_mismatch: Dict[str, Any] = Field(default_factory=dict, description="Runtime graph ontology-context parity metadata.")
+    graph_cot: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Structured Graph-CoT lane artifacts: supervisor directive, evidence packet, answer draft, guardrail verdict, and final answer.",
+    )
 
 
 class SemanticRunRecordResponse(BaseModel):

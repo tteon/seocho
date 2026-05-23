@@ -76,6 +76,8 @@ For the current local SDK path, treat the layers this way:
 
 - `Document`: logical source-of-truth anchor for one memory/document id
 - `DocumentVersion`: immutable ingest snapshot keyed by content/version metadata
+- `Section`: document hierarchy anchor inferred from source headings or supplied
+  explicitly by the caller
 - `Chunk`: vector retrieval unit keyed by `chunk_id`
 - `Entity`: graph reasoning and cross-document join unit
 
@@ -84,9 +86,12 @@ Operational rule:
 - chunk embeddings live in the vector backend, not as the primary graph answer
   substrate
 - the vector row must carry `workspace_id`, `memory_id`, `document_id`,
-  `version_id`, and `chunk_id`
+  `version_id`, `chunk_id`, and `section_path`
 - graph-grounded answers should retrieve chunks first, then expand through the
   graph using the preserved join keys and provenance edges
+- local `Seocho.add_graph(...)` should reuse the same ontology validation,
+  provenance shaping, and chunk/vector join contract for caller-supplied graph
+  payloads instead of bypassing the layered memory graph
 
 ## 5. Owlready2 Role (Important Boundary)
 

@@ -44,6 +44,7 @@ _MODULE_EXPORTS: Dict[str, Iterable[str]] = {
     ".api": [
         "advanced",
         "add",
+        "add_graph",
         "add_with_details",
         "agents",
         "apply_artifact",

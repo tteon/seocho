@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Sequence
 
+from ..runtime_contract import DEFAULT_QUERY_MODE, normalize_query_mode
+
 
 def build_local_query_metadata(
     *,
@@ -23,6 +25,7 @@ def build_local_query_metadata(
     vector_context: str,
     error: str,
     answer_source: str,
+    query_mode: str = DEFAULT_QUERY_MODE,
 ) -> Dict[str, Any]:
     """Build the local SDK query observability contract.
 
@@ -31,6 +34,7 @@ def build_local_query_metadata(
     adapters.
     """
 
+    query_mode = normalize_query_mode(query_mode)
     normalized_breakdown = _roll_up_latency(latency_breakdown_ms)
     support_assessment = _local_support_assessment(
         records=records,
@@ -49,6 +53,7 @@ def build_local_query_metadata(
         answer_source=answer_source,
         reasoning_attempts=len(attempts),
         repair_budget=repair_budget,
+        query_mode=query_mode,
         support_assessment=support_assessment,
     )
     token_usage = _estimate_local_token_usage(
@@ -67,6 +72,7 @@ def build_local_query_metadata(
         "schema_version": "answer_envelope.v1",
         "answer": answer_text,
         "answer_source": answer_source,
+        "query_mode": query_mode,
         "support_assessment": support_assessment,
         "evidence_bundle": evidence_bundle,
         "query_diagnostics": diagnostics,
@@ -79,6 +85,7 @@ def build_local_query_metadata(
         "schema_version": "query_run_metadata.v1",
         "workspace_id": workspace_id,
         "database": database,
+        "query_mode": query_mode,
         "ontology_context": ontology_context.metadata(usage="query"),
         "ontology_context_mismatch": ontology_context_mismatch,
         "ontology_name": getattr(ontology, "name", ""),
@@ -240,12 +247,17 @@ def _local_agent_pattern_receipt(
     answer_source: str,
     reasoning_attempts: int,
     repair_budget: int,
+    query_mode: str,
     support_assessment: Dict[str, Any],
 ) -> Dict[str, Any]:
+    query_mode = normalize_query_mode(query_mode)
     support_status = str(support_assessment.get("status", "") or "").strip()
     if configured_pattern:
         pattern = configured_pattern
         reason = "agent_design_spec"
+    elif query_mode == "graph_cot":
+        pattern = "graph_cot"
+        reason = "query_mode_requested"
     elif reasoning_attempts > 0 or support_status in {"partial", "unsupported"}:
         pattern = "reflection_chain"
         reason = "repair_or_partial_support"
@@ -261,6 +273,7 @@ def _local_agent_pattern_receipt(
         "tool_like_steps": 2 + max(0, reasoning_attempts),
         "repair_budget": max(0, int(repair_budget or 0)),
         "support_status": support_status,
+        "query_mode": query_mode,
     }
 
 

@@ -50,6 +50,7 @@ _MODULE_EXPORTS: Dict[str, Iterable[str]] = {
         "apply_curation_decision",
         "apply_artifact",
         "ask",
+        "ask_response",
         "chat",
         "close",
         "configure",
@@ -246,6 +247,7 @@ _MODULE_EXPORTS: Dict[str, Iterable[str]] = {
     ".models": [
         "AgentRunResponse",
         "ArchiveResult",
+        "AskResponse",
         "ChatResponse",
         "DebateRunResponse",
         "EvidenceBundle",

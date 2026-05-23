@@ -1238,6 +1238,7 @@ class LPGAgent:
         best_assessment: Optional[InsufficiencyAssessment] = None
         best_bundle: Optional[Dict[str, Any]] = None
         best_support_assessment: Optional[Dict[str, Any]] = None
+        best_plan: Optional[Dict[str, Any]] = None
         selected_constraint_slice: Optional[Dict[str, Any]] = None
         attempt_limit = 1 + max(0, int(repair_budget or 0)) if reasoning_mode else 1
 
@@ -1267,6 +1268,7 @@ class LPGAgent:
                 best_assessment = execution["assessment"]
                 best_bundle = execution["evidence_bundle"]
                 best_support_assessment = execution["support_assessment"]
+                best_plan = execution["query_plan"]
                 selected_constraint_slice = constraint_slice
             if execution["assessment"].sufficient:
                 break
@@ -1307,6 +1309,7 @@ class LPGAgent:
                 },
                 "evidence_bundle": best_bundle or semantic_context.get("evidence_bundle_preview", {}),
                 "support_assessment": best_support_assessment or semantic_context.get("support_assessment", {}),
+                "query_plan": best_plan or {},
                 "execution_strategy": semantic_context.get("strategy_decision", {}),
                 "query_diagnostics": query_diagnostics,
             }
@@ -1332,6 +1335,7 @@ class LPGAgent:
             },
             "evidence_bundle": best_bundle or semantic_context.get("evidence_bundle_preview", {}),
             "support_assessment": best_support_assessment or semantic_context.get("support_assessment", {}),
+            "query_plan": best_plan or {},
             "execution_strategy": semantic_context.get("strategy_decision", {}),
             "query_diagnostics": query_diagnostics,
         }
@@ -1357,6 +1361,7 @@ class LPGAgent:
         intent = semantic_context.get("intent", {})
         records: List[Dict[str, Any]] = []
         repair_trace: List[Dict[str, Any]] = []
+        last_query_plan: Dict[str, Any] = {}
         last_assessment = InsufficiencyAssessment(
             sufficient=False,
             reason="no_attempts",
@@ -1375,6 +1380,17 @@ class LPGAgent:
                 strategy=strategy,
             )
             validation = self.validator.validate(plan, constraint_slice)
+            last_query_plan = {
+                "database": plan.database,
+                "query": plan.query,
+                "params": dict(plan.params),
+                "strategy": plan.strategy,
+                "anchor_entity": plan.anchor_entity,
+                "anchor_label": plan.anchor_label,
+                "relation_types": list(plan.relation_types),
+                "profile_id": plan.profile_id,
+                "query_kind": plan.query_kind,
+            }
             if not validation["ok"]:
                 repair_trace.append(
                     {
@@ -1489,6 +1505,7 @@ class LPGAgent:
             "repair_trace": repair_trace,
             "assessment": last_assessment,
             "evidence_bundle": last_bundle,
+            "query_plan": last_query_plan,
             "support_assessment": last_bundle.get("support_assessment", anchor_match.get("support_assessment", {})),
         }
 

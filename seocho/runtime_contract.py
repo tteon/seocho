@@ -8,6 +8,9 @@ DATABASE_NAME_PATTERN = r"^[a-z][a-z0-9]{2,62}$"
 INDEX_NAME_PATTERN = r"^[A-Za-z_][A-Za-z0-9_]*$"
 SOURCE_TYPE_PATTERN = r"^(text|csv|pdf)$"
 SEMANTIC_ARTIFACT_POLICY_PATTERN = r"^(auto|draft_only|approved_only)$"
+QUERY_MODE_PATTERN = r"^(semantic|graph_cot)$"
+DEFAULT_QUERY_MODE = "semantic"
+QUERY_MODE_VALUES = ("semantic", "graph_cot")
 
 
 class RuntimePath:
@@ -94,6 +97,16 @@ def build_query_payload(
     if prefer_agentic_tools:
         payload["prefer_agentic_tools"] = True
     return payload
+
+
+def normalize_query_mode(value: Optional[str]) -> str:
+    normalized = str(value or DEFAULT_QUERY_MODE).strip().lower()
+    if normalized not in QUERY_MODE_VALUES:
+        raise ValueError(
+            f"Unsupported query_mode '{value}'. "
+            f"Expected one of: {', '.join(QUERY_MODE_VALUES)}."
+        )
+    return normalized
 
 
 def serialize_entity_overrides(

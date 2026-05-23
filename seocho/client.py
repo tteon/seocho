@@ -65,6 +65,7 @@ from .semantic import (
 from .models import (
     AgentRunResponse,
     ArchiveResult,
+    AskResponse,
     ChatResponse,
     DebateRunResponse,
     EntityOverride,
@@ -121,6 +122,42 @@ def _env_float(name: str, default: float) -> float:
         return float(raw)
     except ValueError:
         return default
+
+
+def _resolve_semantic_query_mode(
+    *,
+    query_mode: Optional[str],
+    cot_mode: bool,
+) -> str:
+    """Resolve public Graph-CoT aliases onto the canonical query_mode contract."""
+
+    if cot_mode:
+        if query_mode is not None and normalize_query_mode(query_mode) != "graph_cot":
+            raise ValueError(
+                "cot_mode=True conflicts with query_mode={!r}. "
+                "Use either cot_mode=True or query_mode='graph_cot'.".format(query_mode)
+            )
+        return "graph_cot"
+    return normalize_query_mode(query_mode or DEFAULT_QUERY_MODE)
+
+
+def _should_route_ask_to_semantic(
+    *,
+    graph_ids: Optional[Sequence[Any]],
+    databases: Optional[Sequence[str]],
+    database: Optional[str],
+    reasoning_mode: bool,
+    repair_budget: int,
+    query_mode: str,
+) -> bool:
+    return bool(
+        graph_ids
+        or databases
+        or database
+        or reasoning_mode
+        or int(repair_budget or 0) > 0
+        or query_mode != DEFAULT_QUERY_MODE
+    )
 
 
 class Seocho:
@@ -1019,42 +1056,18 @@ class Seocho:
         database: Optional[str] = None,
         reasoning_mode: bool = False,
         repair_budget: int = 0,
-        query_mode: str = DEFAULT_QUERY_MODE,
+        query_mode: Optional[str] = None,
+        cot_mode: bool = False,
     ) -> str:
-        """Ask a natural-language question against the knowledge graph.
+        """Ask a question through the primary public query facade.
 
-        In local mode: generates ontology-aware Cypher, executes it,
-        and synthesizes an answer.  With ``reasoning_mode=True``,
-        automatically retries with relaxed queries when results are
-        empty (up to ``repair_budget`` attempts).
+        `ask()` is the default query entry point. In local mode it runs the
+        in-process graph QA path. In HTTP mode it auto-routes:
 
-        In HTTP mode: delegates to the SEOCHO chat endpoint.
+        - semantic graph QA when graph scope or semantic controls are present
+        - chat when you only want the lightweight memory/chat path
         """
-        normalized_query_mode = normalize_query_mode(query_mode)
-        if self._local_mode:
-            db = database or (databases[0] if databases and len(databases) > 0 else self.default_database)
-            return self._engine.ask(
-                message,
-                database=db,
-                reasoning_mode=reasoning_mode,
-                repair_budget=repair_budget,
-                query_mode=normalized_query_mode,
-                ontology_override=self._ontology_registry.get(db),
-            )
-
-        if normalized_query_mode == "graph_cot":
-            resolved_databases = list(databases or ([] if database is None else [database]))
-            return self.semantic(
-                message,
-                user_id=user_id,
-                graph_ids=graph_ids,
-                databases=resolved_databases or None,
-                reasoning_mode=True,
-                repair_budget=max(1, int(repair_budget or 0)),
-                query_mode=normalized_query_mode,
-            ).response
-
-        return self.chat(
+        return self.ask_response(
             message,
             limit=limit,
             user_id=user_id,
@@ -1062,7 +1075,105 @@ class Seocho:
             session_id=session_id,
             graph_ids=graph_ids,
             databases=databases,
-        ).assistant_message
+            database=database,
+            reasoning_mode=reasoning_mode,
+            repair_budget=repair_budget,
+            query_mode=query_mode,
+            cot_mode=cot_mode,
+        ).response
+
+    def ask_response(
+        self,
+        message: str,
+        *,
+        limit: int = 5,
+        user_id: Optional[str] = None,
+        agent_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        graph_ids: Optional[Sequence[str]] = None,
+        databases: Optional[Sequence[str]] = None,
+        database: Optional[str] = None,
+        reasoning_mode: bool = False,
+        repair_budget: int = 0,
+        query_mode: Optional[str] = None,
+        cot_mode: bool = False,
+    ) -> AskResponse:
+        """Return the primary query answer plus runtime metadata."""
+        normalized_query_mode = _resolve_semantic_query_mode(
+            query_mode=query_mode,
+            cot_mode=bool(cot_mode),
+        )
+        if self._local_mode:
+            db = database or (databases[0] if databases and len(databases) > 0 else self.default_database)
+            response = self._engine.ask(
+                message,
+                database=db,
+                reasoning_mode=reasoning_mode,
+                repair_budget=repair_budget,
+                query_mode=normalized_query_mode,
+                ontology_override=self._ontology_registry.get(db),
+            )
+            metadata = self.last_query_metadata
+            semantic_context = dict(metadata.get("semantic_context", {}) or {})
+            answer_envelope = {
+                "schema_version": "answer_envelope.v1",
+                "answer": response,
+                "query_mode": str(metadata.get("query_mode", normalized_query_mode) or normalized_query_mode),
+                "support_assessment": dict(metadata.get("support_assessment", {}) or {}),
+                "evidence_bundle": dict(metadata.get("evidence_bundle", {}) or {}),
+                "latency_breakdown_ms": dict(metadata.get("latency_breakdown_ms", {}) or {}),
+                "agent_pattern": dict(metadata.get("agent_pattern", {}) or {}),
+                "run_metadata": dict(metadata.get("run_metadata", {}) or {}),
+                "question_frame": dict(metadata.get("question_frame", {}) or {}),
+                "routing_decision": dict(metadata.get("strategy_decision", {}) or {}),
+                "rewrite_trace": list(metadata.get("rewrite_trace", []) or []),
+            }
+            if semantic_context:
+                answer_envelope["semantic_context"] = semantic_context
+            return AskResponse(
+                response=response,
+                runtime_mode="semantic",
+                trace_steps=list(metadata.get("trace_steps", []) or []),
+                ontology_context_mismatch=dict(metadata.get("ontology_context_mismatch", {}) or {}),
+                answer_envelope=answer_envelope,
+                question_frame=dict(answer_envelope.get("question_frame", {}) or {}),
+                routing_decision=dict(answer_envelope.get("routing_decision", {}) or {}),
+                rewrite_trace=list(answer_envelope.get("rewrite_trace", []) or []),
+            )
+
+        resolved_databases = list(databases or ([] if database is None else [database]))
+        if _should_route_ask_to_semantic(
+            graph_ids=graph_ids,
+            databases=resolved_databases or None,
+            database=database,
+            reasoning_mode=reasoning_mode,
+            repair_budget=repair_budget,
+            query_mode=normalized_query_mode,
+        ):
+            semantic_result = self.semantic(
+                message,
+                user_id=user_id,
+                graph_ids=graph_ids,
+                databases=resolved_databases or None,
+                reasoning_mode=reasoning_mode or normalized_query_mode == "graph_cot",
+                repair_budget=max(1, int(repair_budget or 0))
+                if normalized_query_mode == "graph_cot"
+                else int(repair_budget or 0),
+                query_mode=normalized_query_mode,
+                cot_mode=False,
+            )
+            return AskResponse.from_semantic_result(semantic_result)
+
+        chat_result = self.chat(
+            message,
+            limit=limit,
+            user_id=user_id,
+            agent_id=agent_id,
+            session_id=session_id,
+            graph_ids=graph_ids,
+            databases=resolved_databases or None,
+        )
+        return AskResponse.from_chat_response(chat_result)
 
     @property
     def last_query_metadata(self) -> Dict[str, Any]:
@@ -1731,14 +1842,16 @@ class Seocho:
         entity_overrides: Optional[Sequence[EntityOverride | Dict[str, Any]]] = None,
         reasoning_mode: bool = False,
         repair_budget: int = 0,
-        query_mode: str = DEFAULT_QUERY_MODE,
+        query_mode: Optional[str] = None,
+        cot_mode: bool = False,
         reasoning_cycle: Optional[Dict[str, Any]] = None,
     ) -> SemanticRunResponse:
-        """Run the semantic query path with ontology-aware Cypher generation.
+        """Run the advanced semantic graph-QA path with ontology-aware Cypher generation.
 
-        Resolves graph targets, generates Cypher from the ontology, executes
-        against the graph store, and synthesizes an answer.  Supports
-        entity overrides and reasoning mode with query repair.  HTTP mode only.
+        This is the expert/debug surface behind `ask()`. Resolves graph
+        targets, generates Cypher from the ontology, executes against the graph
+        store, and synthesizes an answer. Supports entity overrides and
+        reasoning mode with query repair. HTTP mode only.
 
         Args:
             query: Natural-language query.
@@ -1747,11 +1860,15 @@ class Seocho:
             entity_overrides: Entity disambiguation hints.
             reasoning_mode: Enable automatic query repair on empty results.
             repair_budget: Maximum repair attempts when reasoning_mode is enabled.
+            cot_mode: Convenience alias for ``query_mode="graph_cot"``.
 
         Returns:
             A :class:`SemanticRunResponse` with the answer, Cypher, and trace.
         """
-        normalized_query_mode = normalize_query_mode(query_mode)
+        normalized_query_mode = _resolve_semantic_query_mode(
+            query_mode=query_mode,
+            cot_mode=bool(cot_mode),
+        )
         resolved_graph_ids: Optional[List[str]] = None
         resolved_databases = [str(item).strip() for item in databases or [] if str(item).strip()]
         if graph_ids:
@@ -2948,6 +3065,10 @@ class AsyncSeocho:
     async def ask(self, message: str, **kwargs: Any) -> str:
         """Async version of :meth:`Seocho.ask`."""
         return await asyncio.to_thread(self._client.ask, message, **kwargs)
+
+    async def ask_response(self, message: str, **kwargs: Any) -> AskResponse:
+        """Async version of :meth:`Seocho.ask_response`."""
+        return await asyncio.to_thread(self._client.ask_response, message, **kwargs)
 
     async def chat(self, message: str, **kwargs: Any) -> ChatResponse:
         """Async version of :meth:`Seocho.chat`."""

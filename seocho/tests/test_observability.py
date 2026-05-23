@@ -66,3 +66,31 @@ def test_build_local_query_metadata_mirrors_runtime_envelope():
     assert metadata["evidence_bundle"]["slot_fills"]["financial_metric"] == "revenue"
     assert metadata["answer_envelope"]["schema_version"] == "answer_envelope.v1"
     assert metadata["agent_pattern"]["pattern"] == "semantic_direct"
+
+
+def test_build_local_query_metadata_marks_graph_cot_mode():
+    metadata = build_local_query_metadata(
+        workspace_id="workspace-a",
+        agent_design_pattern="",
+        question="What is Neo4j connected to?",
+        database="neo4j",
+        ontology=type("Ontology", (), {"name": "graph"})(),
+        ontology_context=_OntologyContext(),
+        ontology_context_mismatch={},
+        cypher="MATCH (n)-[r]->(m) RETURN n, r, m",
+        params={},
+        intent_data={"intent": "relationship_lookup", "anchor_entity": "Neo4j"},
+        records=[{"source_entity": "Neo4j", "relation_type": "USES", "target_entity": "Cypher"}],
+        answer_text="Neo4j uses Cypher.",
+        attempts=[{"cypher": "MATCH ...", "result_count": 1, "error": None}],
+        repair_budget=1,
+        latency_breakdown_ms={"plan_ms": 1.0, "execute_ms": 2.0, "generation_ms": 0.5},
+        vector_context="",
+        error="",
+        answer_source="llm_synthesis",
+        query_mode="graph_cot",
+    )
+
+    assert metadata["query_mode"] == "graph_cot"
+    assert metadata["answer_envelope"]["query_mode"] == "graph_cot"
+    assert metadata["agent_pattern"]["pattern"] == "graph_cot"

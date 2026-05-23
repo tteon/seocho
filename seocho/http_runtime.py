@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from difflib import SequenceMatcher
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Literal, Optional, Sequence
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException
@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from .indexing_design import build_query_reasoning_cycle_report
 from .runtime_contract import (
+    DEFAULT_QUERY_MODE,
     RuntimePath,
     WORKSPACE_ID_PATTERN,
 )
@@ -46,6 +47,7 @@ class BundleSemanticRequest(BaseModel):
     databases: Optional[List[str]] = None
     reasoning_mode: bool = False
     repair_budget: int = Field(default=0, ge=0, le=8)
+    query_mode: Literal["semantic", "graph_cot"] = DEFAULT_QUERY_MODE
     reasoning_cycle: Optional[Dict[str, Any]] = None
 
 
@@ -233,11 +235,17 @@ def create_bundle_runtime_app(
         database = _resolve_database(request.databases)
         route = _route_for_database(database)
         search_results = _search_graph(request.query, database=database, limit=5)
+        effective_reasoning_mode = bool(request.reasoning_mode or request.query_mode == "graph_cot")
+        effective_repair_budget = max(
+            int(request.repair_budget or 0),
+            1 if request.query_mode == "graph_cot" else 0,
+        )
         answer = runtime_client.ask(
             request.query,
             database=database,
-            reasoning_mode=request.reasoning_mode,
-            repair_budget=request.repair_budget,
+            reasoning_mode=effective_reasoning_mode,
+            repair_budget=effective_repair_budget,
+            query_mode=request.query_mode,
         )
         supported = bool(search_results)
         timestamp = datetime.now(timezone.utc).isoformat()
@@ -251,12 +259,20 @@ def create_bundle_runtime_app(
         }
         strategy_decision = {
             "schema_version": "strategy_decision.v1",
-            "requested_mode": "semantic",
-            "initial_mode": "semantic_repair" if request.reasoning_mode else "semantic_direct",
-            "executed_mode": "semantic_repair" if request.reasoning_mode else "semantic_direct",
+            "requested_mode": request.query_mode,
+            "initial_mode": (
+                "graph_cot_repair"
+                if request.query_mode == "graph_cot"
+                else ("semantic_repair" if request.reasoning_mode else "semantic_direct")
+            ),
+            "executed_mode": (
+                "graph_cot_repair"
+                if request.query_mode == "graph_cot"
+                else ("semantic_repair" if request.reasoning_mode else "semantic_direct")
+            ),
             "reason": "bundle runtime proxied a local-engine query over HTTP.",
-            "repair_budget": request.repair_budget,
-            "reasoning_mode_requested": request.reasoning_mode,
+            "repair_budget": effective_repair_budget,
+            "reasoning_mode_requested": effective_reasoning_mode,
             "advanced_debate_recommended": False,
         }
         evidence_bundle = {
@@ -288,6 +304,7 @@ def create_bundle_runtime_app(
         return {
             "response": answer,
             "route": route,
+            "query_mode": request.query_mode,
             "trace_steps": [
                 {
                     "id": "bundle-runtime-1",
@@ -303,6 +320,7 @@ def create_bundle_runtime_app(
                 "strategy_decision": strategy_decision,
                 "run_metadata": run_metadata,
                 "evidence_bundle_preview": evidence_bundle,
+                "query_mode": request.query_mode,
                 "reasoning_cycle": reasoning_cycle or {},
             },
             "lpg_result": {

@@ -122,8 +122,8 @@ providers.
 | Surface | Where it runs | What it actually does | Tool use |
 |------|-------------|------------------------|----------|
 | `Seocho.local(...).ask(...)` | in-process local SDK | ontology-aware local query + answer synthesis | no runtime agent loop |
-| `Seocho(base_url=...).ask(...)` | HTTP runtime | `/api/chat` memory/chat convenience endpoint | not the explicit react/debate path |
-| `client.semantic(...)` | HTTP runtime | deterministic semantic graph QA with optional bounded repair | no agentic tool loop |
+| `Seocho(base_url=...).ask(...)` | HTTP runtime | primary query facade; auto-routes to chat or semantic graph QA | not the explicit react/debate path |
+| `client.semantic(...)` | HTTP runtime | advanced semantic graph QA with optional bounded repair | no agentic tool loop |
 | `client.react(...)` | HTTP runtime | router agent path backed by the Agents runtime | yes |
 | `client.advanced(...)` / `client.debate(...)` | HTTP runtime | multi-agent debate with semantic preflight + supervisor synthesis | yes |
 
@@ -219,12 +219,16 @@ client = Seocho(base_url="http://localhost:8001", workspace_id="default")
 print(client.ask("What do we know about ACME?"))
 ```
 
-Use `ask()` here as a convenience chat surface. When you need explicit runtime
-graph QA or agentic behavior, call `client.semantic(...)`, `client.react(...)`,
-or `client.advanced(...)` directly.
+Use `ask()` as the default public query surface. When you pass graph scope
+(`graph_ids` / `databases`) or semantic controls (`reasoning_mode`,
+`repair_budget`, `cot_mode=True`), it routes into semantic graph QA
+automatically.
+
+Use `ask_response()` when you want the same ergonomics but also need runtime
+metadata such as the selected mode, answer envelope, or trace receipt.
 
 When you want the semantic path to run in Graph-CoT mode, pass
-`query_mode="graph_cot"` to `client.semantic(...)` or `client.ask(...)`.
+`cot_mode=True` to `client.ask(...)` or `client.ask_response(...)`.
 
 ### 2. Build locally against your own ontology with no graph server
 
@@ -236,18 +240,26 @@ client.add("ACME acquired Beta in 2024.")
 print(client.ask("Who did ACME acquire?", reasoning_mode=True, repair_budget=2))
 ```
 
-Graph-CoT query mode uses the same semantic surface but records and executes
-under a dedicated query contract:
+Graph-CoT query mode stays behind the same public `ask()` surface but records
+and executes under a dedicated query contract:
 
 ```python
-result = client.semantic(
+result = client.ask_response(
     "Who did ACME acquire?",
     graph_ids=["news_kg"],
-    query_mode="graph_cot",
+    cot_mode=True,
 )
-print(result.query_mode)
-print(result.strategy.executed_mode)
+print(result.runtime_mode)
+print(result.answer_envelope["query_mode"])
+print(result.graph_cot["guardrail_verdict"]["decision"])
 ```
+
+The planned internal multi-agent contract for this mode is documented in
+`ADR-0095` and the repo-local specs under `seocho/query/graph_cot_*.py`.
+
+For SDK callers, `cot_mode=True` is a convenience alias for
+`query_mode="graph_cot"` on `client.ask(...)`, `client.ask_response(...)`, and
+the advanced `client.semantic(...)` surface.
 
 `Ontology.load(...)` also accepts `.ttl`, so tutorial/prototype flows can start
 directly from Turtle without a manual conversion step.

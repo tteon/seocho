@@ -216,11 +216,20 @@ class TestListEndpoints:
             assert kwargs["workspace_id"] == "default"
 
     async def test_run_agent_semantic_endpoint_passes_reasoning_mode(self, client, app_module):
-        with patch.object(app_module.semantic_agent_flow, "run") as mock_run:
+        with patch.object(app_module.semantic_agent_flow, "run") as mock_run, patch.object(
+            app_module.memory_service,
+            "ontology_context_mismatch",
+            return_value={"mismatch": False, "databases": []},
+        ):
             mock_run.return_value = {
                 "response": "Route selected: LPG.",
                 "trace_steps": [],
                 "route": "lpg",
+                "query_mode": "graph_cot",
+                "graph_cot": {
+                    "guardrail_verdict": {"decision": "pass"},
+                    "final_answer": {"status": "answered"},
+                },
                 "semantic_context": {
                     "entities": ["Neo4j"],
                     "matches": {},
@@ -237,6 +246,7 @@ class TestListEndpoints:
                     "workspace_id": "default",
                     "reasoning_mode": True,
                     "repair_budget": 2,
+                    "query_mode": "graph_cot",
                     "reasoning_cycle": {
                         "enabled": True,
                         "anomaly_sources": ["unsupported_answer"],
@@ -244,10 +254,14 @@ class TestListEndpoints:
                 },
             )
             assert response.status_code == 200
+            assert response.json()["query_mode"] == "graph_cot"
+            assert response.json()["graph_cot"]["guardrail_verdict"]["decision"] == "pass"
             _, kwargs = mock_run.call_args
             assert kwargs["reasoning_mode"] is True
             assert kwargs["repair_budget"] == 2
+            assert kwargs["query_mode"] == "graph_cot"
             assert kwargs["reasoning_cycle"]["enabled"] is True
+            assert "ontology_context_mismatch" in kwargs
 
     async def test_run_agent_semantic_endpoint_returns_support_and_strategy_metadata(self, client, app_module):
         with patch.object(app_module.semantic_agent_flow, "run") as mock_run, patch.object(

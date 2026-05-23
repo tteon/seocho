@@ -58,6 +58,9 @@ class DummyLocalEngine:
         extraction_prompt=None,
         agent_config=None,
         ontology_profile="default",
+        qualification_store_path=None,
+        qualification_store_backend="sqlite",
+        curation_design=None,
     ) -> None:
         self.ontology = ontology
         self.graph_store = graph_store
@@ -67,6 +70,9 @@ class DummyLocalEngine:
         self.extraction_prompt = extraction_prompt
         self.agent_config = agent_config
         self.ontology_profile = ontology_profile
+        self.qualification_store_path = qualification_store_path
+        self.qualification_store_backend = qualification_store_backend
+        self.curation_design = curation_design
 
 
 class FakeBundleRuntimeClient:
@@ -98,13 +104,22 @@ class FakeBundleRuntimeClient:
 
         return _Memory()
 
-    def ask(self, query: str, *, database: str = "neo4j", reasoning_mode: bool = False, repair_budget: int = 0) -> str:
+    def ask(
+        self,
+        query: str,
+        *,
+        database: str = "neo4j",
+        reasoning_mode: bool = False,
+        repair_budget: int = 0,
+        query_mode: str = "semantic",
+    ) -> str:
         self.ask_calls.append(
             {
                 "query": query,
                 "database": database,
                 "reasoning_mode": reasoning_mode,
                 "repair_budget": repair_budget,
+                "query_mode": query_mode,
             }
         )
         return f"answer:{database}:{query}"
@@ -372,6 +387,46 @@ def test_bundle_runtime_app_exposes_http_compatibility_surface() -> None:
     assert payload["route"] == "rdf"
     assert payload["strategy_decision"]["executed_mode"] == "semantic_repair"
     assert payload["support_assessment"]["status"] == "supported"
+
+
+def test_bundle_runtime_app_supports_graph_cot_query_mode() -> None:
+    runtime_client = FakeBundleRuntimeClient()
+    bundle = RuntimeBundle(
+        app_name="portable-app",
+        workspace_id="default",
+        ontology={"graph_type": "portable_company_graph", "graph_model": "lpg"},
+        graph_store=RuntimeGraphStoreConfig(default_database="finance"),
+        graphs=[
+            RuntimeGraphBinding(
+                graph_id="finance",
+                database="finance",
+                ontology_id="portable_company_graph",
+                graph_model="lpg",
+                uri="bolt://bundle:7687",
+            )
+        ],
+    )
+    app = create_bundle_runtime_app(bundle, client=runtime_client)
+    http = TestClient(app)
+
+    semantic = http.post(
+        "/run_agent_semantic",
+        json={
+            "workspace_id": "default",
+            "query": "Who is Alex?",
+            "databases": ["finance"],
+            "query_mode": "graph_cot",
+        },
+    )
+
+    assert semantic.status_code == 200
+    payload = semantic.json()
+    assert payload["query_mode"] == "graph_cot"
+    assert payload["strategy_decision"]["requested_mode"] == "graph_cot"
+    assert payload["strategy_decision"]["executed_mode"] == "graph_cot_repair"
+    assert runtime_client.ask_calls[0]["query_mode"] == "graph_cot"
+    assert runtime_client.ask_calls[0]["reasoning_mode"] is True
+    assert runtime_client.ask_calls[0]["repair_budget"] == 1
 
 
 def test_bundle_runtime_app_rejects_workspace_mismatch() -> None:

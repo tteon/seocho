@@ -35,10 +35,29 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
 
 import requests
+
+
+def _warn_deprecated_factory(name: str, migration_hint: str) -> None:
+    """Emit a one-time DeprecationWarning for a non-canonical factory.
+
+    Track B: Seocho.local() and Seocho.remote() are the two canonical
+    construction paths. The design-spec / runtime-bundle factories remain
+    functional but will be moved into seocho.advanced / seocho.bundle in a
+    later major release. ``stacklevel=3`` puts the warning on the caller
+    that called the factory, not on this helper.
+    """
+    warnings.warn(
+        f"Seocho.{name}() is deprecated; {migration_hint} "
+        f"This factory still works in v0.3.x but may be removed in a future "
+        f"major release.",
+        DeprecationWarning,
+        stacklevel=3,
+    )
 
 from .client_bundle import RuntimeBundleClientHelper
 from .client_artifacts import (
@@ -407,7 +426,18 @@ class Seocho:
         Local mode:
 
         ``Seocho.from_agent_design("design.yaml", ontology=onto, graph_store=store, llm=llm)``
+
+        .. deprecated::
+            Track B: prefer ``Seocho.local(...)`` or ``Seocho.remote(...)`` as
+            canonical construction paths; pass the design as
+            ``agent_config=AgentConfig.from_design(...)`` or apply it via
+            ``client.apply_agent_design(...)`` once instantiated.
         """
+        _warn_deprecated_factory(
+            "from_agent_design",
+            "use Seocho.local(...) or Seocho.remote(...) + apply the design "
+            "via agent_config / apply_agent_design().",
+        )
         from .agent_design import AgentDesignSpec, load_agent_design_spec
 
         if isinstance(agent_design, AgentDesignSpec):
@@ -477,7 +507,14 @@ class Seocho:
         instance or a path to a YAML file. The spec materializes an ontology
         graph model (`lpg`, `rdf`, or `hybrid`) and injects stable local
         indexing defaults for metadata and validation behavior.
+
+        .. deprecated::
+            Track B: prefer ``Seocho.local(...)`` + ``client.apply_indexing_design(...)``.
         """
+        _warn_deprecated_factory(
+            "from_indexing_design",
+            "use Seocho.local(...) + apply_indexing_design().",
+        )
         from .indexing_design import IndexingDesignSpec, load_indexing_design_spec
 
         if isinstance(indexing_design, IndexingDesignSpec):
@@ -2515,7 +2552,16 @@ class Seocho:
 
         Returns:
             A configured :class:`Seocho` client.
+
+        .. deprecated::
+            Track B: prefer ``create_client_from_runtime_bundle()`` (the
+            top-level helper) or ``Seocho.remote(base_url=...)`` to the
+            runtime that already has the bundle loaded.
         """
+        _warn_deprecated_factory(
+            "from_runtime_bundle",
+            "use create_client_from_runtime_bundle() or Seocho.remote(...).",
+        )
         return RuntimeBundleClientHelper.create_client(bundle_source, workspace_id=workspace_id)
 
     def close(self) -> None:

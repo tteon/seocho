@@ -39,10 +39,14 @@ class TestNodeDefAlias:
         assert NodeDefinition is NodeDef
 
     def test_nodedefinition_exported(self):
+        """Track B: legacy alias is Tier 2 — accessible via explicit import,
+        intentionally excluded from `__all__` to keep the headline surface
+        narrow. `NodeDef` is the Tier 1 name."""
         import seocho
 
         assert hasattr(seocho, "NodeDefinition")
-        assert "NodeDefinition" in seocho.__all__
+        assert "NodeDef" in seocho.__all__
+        assert "NodeDefinition" not in seocho.__all__
 
     def test_nodedefinition_instance_works(self):
         from seocho import NodeDefinition, Property
@@ -61,10 +65,14 @@ class TestRelDefAlias:
         assert RelationshipDefinition is RelDef
 
     def test_relationshipdefinition_exported(self):
+        """Track B: legacy alias is Tier 2 — accessible via explicit import,
+        intentionally excluded from `__all__` to keep the headline surface
+        narrow. `RelDef` is the Tier 1 name."""
         import seocho
 
         assert hasattr(seocho, "RelationshipDefinition")
-        assert "RelationshipDefinition" in seocho.__all__
+        assert "RelDef" in seocho.__all__
+        assert "RelationshipDefinition" not in seocho.__all__
 
     def test_relationshipdefinition_instance_works(self):
         from seocho import RelationshipDefinition

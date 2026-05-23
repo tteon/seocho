@@ -58,7 +58,8 @@ SEOCHO transforms into a fully **agent-driven development platform** where AI ag
 ### 1.3 Developer Onboarding
 
 **Documentation**:
-- `docs/QUICKSTART.md` - 5-minute setup guide
+- `QUICKSTART.md` - 5-minute setup guide (root)
+- `docs/RUNTIME_DEPLOYMENT.md` - full runtime deployment guide
 - `docs/ARCHITECTURE.md` - System design document  
 - `docs/AGENT_DEVELOPMENT.md` - Creating custom agents
 - `examples/custom_ontology/` - Working ontology example

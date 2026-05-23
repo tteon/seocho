@@ -2,7 +2,8 @@
 
 Fastest GitHub-first path to one successful SEOCHO run.
 
-For the full runtime onboarding guide, see [docs/QUICKSTART.md](docs/QUICKSTART.md).
+For the full runtime deployment guide (Docker stack, services, env), see
+[docs/RUNTIME_DEPLOYMENT.md](docs/RUNTIME_DEPLOYMENT.md).
 For the SDK-focused guide, see [docs/PYTHON_INTERFACE_QUICKSTART.md](docs/PYTHON_INTERFACE_QUICKSTART.md).
 For a runnable notebook, see [examples/quickstart.ipynb](examples/quickstart.ipynb).
 
@@ -60,7 +61,7 @@ print(client.ask("What do we know about ACME?"))
 
 ## Next
 
-- [docs/QUICKSTART.md](docs/QUICKSTART.md): full runtime first-run flow
+- [docs/RUNTIME_DEPLOYMENT.md](docs/RUNTIME_DEPLOYMENT.md): full runtime deployment (Docker stack, services, env)
 - [docs/PYTHON_INTERFACE_QUICKSTART.md](docs/PYTHON_INTERFACE_QUICKSTART.md): SDK path and parameters
 - [docs/APPLY_YOUR_DATA.md](docs/APPLY_YOUR_DATA.md): bring your own ontology and records
 - [docs/FILES_AND_ARTIFACTS.md](docs/FILES_AND_ARTIFACTS.md): where ontology files, artifacts, and traces go

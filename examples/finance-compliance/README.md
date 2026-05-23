@@ -1,5 +1,9 @@
 # Finance Compliance Usecase
 
+> **TL;DR** — 6 mock filings + a 6-type finance ontology, ingested with
+> `Seocho.local(...)`, then queried with 4 cross-entity questions. Read
+> end-to-end in ~5 minutes. Swap in your own filings and ontology.
+
 A complete, runnable example showing how a regulated finance team can turn a
 folder of filings, inquiries, incidents, and policy documents into an
 ontology-governed knowledge graph — and ask questions that cross entity

@@ -31,22 +31,6 @@ SEOCHO is a fit when:
 - you need files, artifacts, and traces to stay visible instead of disappearing
   behind a managed memory black box
 
-Start here:
-
-| If you want to... | Go here |
-|---|---|
-| get a first local success path | [Quickstart](QUICKSTART.md) |
-| follow a runnable notebook walkthrough | [examples/quickstart.ipynb](examples/quickstart.ipynb) |
-| understand SEOCHO with a guided beginner walkthrough | [Beginner Guide](docs/BEGINNER_GUIDE.md) |
-| see a runnable usecase demo | [Usecases](docs/USECASES.md) |
-| bring your own ontology and files | [Apply Your Data](docs/APPLY_YOUR_DATA.md) |
-| use the Python SDK directly | [Python SDK Quickstart](docs/PYTHON_INTERFACE_QUICKSTART.md) |
-| declare graph-model-aware indexing in YAML | [Indexing Design Specs](docs/INDEXING_DESIGN_SPECS.md) |
-| inspect files, artifacts, and traces | [Files and Artifacts](docs/FILES_AND_ARTIFACTS.md) |
-| understand the system design | [Architecture Deep Dive](docs/ARCHITECTURE.md) |
-| understand which top-level directories are active, legacy, or local-only | [Repository Layout](docs/REPOSITORY_LAYOUT.md) |
-| present the product and architecture | [Overview Deep-Dive Deck](docs/presentations/SEOCHO_OVERVIEW_DEEP_DIVE.md) |
-
 ## Quick Start
 
 ```bash
@@ -312,6 +296,20 @@ make up
 See [docs/FILES_AND_ARTIFACTS.md](docs/FILES_AND_ARTIFACTS.md) for where
 `schema.jsonld`, graph data, rule profiles, semantic artifacts, and traces live.
 
+## Real-World Examples
+
+End-to-end runnable demos with their own ontology, data, and questions:
+
+- **[examples/finance-compliance/](examples/finance-compliance/)** — regulated finance
+  use case: 6 mock filings (quarterly disclosure, regulator inquiry, incident,
+  control attestation, board minutes, policy update) → finance-compliance ontology
+  (`Company` / `Regulator` / `Regulation` / `ComplianceIncident` /
+  `ControlEvidence` / `Policy`) → cross-entity Q&A. Read end-to-end in a few
+  minutes; swap in your own filings.
+- **[examples/finder/](examples/finder/)** — FinDER tutorial bundle: vector vs
+  graph RAG, FIBO module impact, RDF vs LPG, private Opik workflow. Four
+  notebooks + Docker env.
+
 ## What the Ontology Controls
 
 | Stage | What happens |
@@ -426,6 +424,25 @@ onto = Ontology(name="fibo", graph_model="rdf",
 
 ## Documentation
 
+### Map: where to go next
+
+| If you want to... | Go here |
+|---|---|
+| get a first local success path | [Quickstart](QUICKSTART.md) |
+| follow a runnable notebook walkthrough | [examples/quickstart.ipynb](examples/quickstart.ipynb) |
+| see a real-world example end-to-end | [examples/finance-compliance/](examples/finance-compliance/) |
+| understand SEOCHO with a guided beginner walkthrough | [Beginner Guide](docs/BEGINNER_GUIDE.md) |
+| see a runnable usecase demo | [Usecases](docs/USECASES.md) |
+| bring your own ontology and files | [Apply Your Data](docs/APPLY_YOUR_DATA.md) |
+| use the Python SDK directly | [Python SDK Quickstart](docs/PYTHON_INTERFACE_QUICKSTART.md) |
+| declare graph-model-aware indexing in YAML | [Indexing Design Specs](docs/INDEXING_DESIGN_SPECS.md) |
+| inspect files, artifacts, and traces | [Files and Artifacts](docs/FILES_AND_ARTIFACTS.md) |
+| understand the system design | [Architecture Deep Dive](docs/ARCHITECTURE.md) |
+| understand which top-level directories are active, legacy, or local-only | [Repository Layout](docs/REPOSITORY_LAYOUT.md) |
+| present the product and architecture | [Overview Deep-Dive Deck](docs/presentations/SEOCHO_OVERVIEW_DEEP_DIVE.md) |
+
+### Site
+
 `seocho.blog` is built from the tracked Astro/Starlight site under `website/`.
 Selected long-form docs are generated there from this repo's canonical
 `README.md` and `docs/*` tree at build time.
@@ -485,7 +502,7 @@ Scheduled Codex workflows skip cleanly when `OPENAI_API_KEY` /
 `SEOCHO_GITHUB_APP_ID` / `SEOCHO_GITHUB_APP_PRIVATE_KEY` are unset.
 `Basic CI` remains the required repository check surface.
 
-See [docs/QUICKSTART.md](docs/QUICKSTART.md) for the full server setup guide.
+See [docs/RUNTIME_DEPLOYMENT.md](docs/RUNTIME_DEPLOYMENT.md) for the full server setup guide.
 
 Contributor repo map: [docs/REPOSITORY_LAYOUT.md](docs/REPOSITORY_LAYOUT.md)
 explains which root directories are canonical product code, contributor-tool

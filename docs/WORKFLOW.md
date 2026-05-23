@@ -156,7 +156,7 @@ Operational notes:
 - source of truth: `README.md` + `docs/*` in this repository
 - publish-critical docs for seocho.blog sync:
   - `docs/README.md`
-  - `docs/QUICKSTART.md`
+  - `docs/RUNTIME_DEPLOYMENT.md`
   - `docs/APPLY_YOUR_DATA.md`
   - `docs/PYTHON_INTERFACE_QUICKSTART.md`
   - `docs/TUTORIAL_FIRST_RUN.md`

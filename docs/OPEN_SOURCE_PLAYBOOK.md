@@ -187,7 +187,7 @@ For architecture or workflow changes, update all applicable:
 Docs sync critical set for seocho.blog:
 
 - `docs/README.md`
-- `docs/QUICKSTART.md`
+- `docs/RUNTIME_DEPLOYMENT.md`
 - `docs/ARCHITECTURE.md`
 - `docs/WORKFLOW.md`
 

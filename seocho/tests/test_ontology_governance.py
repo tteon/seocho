@@ -3,6 +3,8 @@ from __future__ import annotations
 import sys
 import types
 
+import pytest
+
 from seocho.ontology import NodeDef, Ontology, P, RelDef
 from seocho.ontology_governance import (
     build_ontology_governance_report,
@@ -132,6 +134,7 @@ def test_inspect_owl_ontology_uses_optional_owlready2(monkeypatch) -> None:
 
 
 def test_governance_report_includes_context_hash_and_shacl_stats(tmp_path) -> None:
+    pytest.importorskip("rdflib", reason="TTL governance report requires rdflib (install via [ontology] extra)")
     ttl_path = tmp_path / "finance.ttl"
     ttl_path.write_text(
         """

@@ -534,7 +534,6 @@ class Ontology:
         from .ontology_serialization import ontology_from_jsonld_dict
 
         return ontology_from_jsonld_dict(cls, data)
-
     @classmethod
     def from_ttl(cls, path: Union[str, Path]) -> "Ontology":
         """Load an ontology from an OWL/SKOS Turtle (.ttl) file.
@@ -581,10 +580,15 @@ class Ontology:
 
         def _aliases(uri: Any, canonical_name: str) -> List[str]:
             aliases: List[str] = []
-            for lit in g.objects(uri, RDFS.label):
-                value = str(lit).strip()
-                if value and value != canonical_name and value not in aliases:
-                    aliases.append(value)
+            # skos:altLabel is the canonical alias predicate; rdfs:label is
+            # secondary (used when authors didn't separate primary vs alt).
+            # Reading both keeps to_ttl / from_ttl alias round-tripping intact
+            # (seocho.ontology_serialization emits aliases as skos:altLabel).
+            for predicate in (SKOS.altLabel, RDFS.label):
+                for lit in g.objects(uri, predicate):
+                    value = str(lit).strip()
+                    if value and value != canonical_name and value not in aliases:
+                        aliases.append(value)
             return aliases
 
         def _namespace(uri: Any) -> str:
@@ -769,6 +773,7 @@ class Ontology:
                 "relationships": relationships,
             }
         )
+
 
     @classmethod
     def from_artifact(

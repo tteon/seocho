@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from seocho.cli import main
 from seocho.ontology import NodeDef, Ontology, P, RelDef
 
@@ -130,6 +132,7 @@ def test_cli_ontology_diff_json(tmp_path, capsys) -> None:
 
 
 def test_cli_ontology_report_json_supports_ttl(tmp_path, capsys) -> None:
+    pytest.importorskip("rdflib", reason="TTL ontology loading requires rdflib (install via [ontology] extra)")
     schema_path = _write_ttl_schema(tmp_path)
 
     exit_code = main(

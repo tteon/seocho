@@ -313,12 +313,13 @@ class OpenAICompatibleBackend(LLMBackend):
     ) -> float:
         """Clamp temperature for providers with restrictions.
 
-        Kimi reasoning endpoints have been the only provider-specific case
-        that needed temperature coercion in practice. Keep structured
-        non-reasoning calls deterministic unless the caller explicitly enables
-        reasoning mode.
+        Kimi requires provider-specific temperatures for both instant and
+        thinking modes. Keep the coercion centralized so callers can keep using
+        the repo-wide deterministic defaults.
         """
         if self.provider == "kimi" and float(temperature) == 0.0:
+            if reasoning_mode is False:
+                return 0.6
             if reasoning_mode:
                 return 1.0
         return temperature

@@ -332,7 +332,7 @@ def test_kimi_non_reasoning_request_uses_instant_mode_override(
 
     call = backend._client.chat.completions.calls[0]
     assert call["extra_body"] == {"thinking": {"type": "disabled"}}
-    assert call["temperature"] == 0.0
+    assert call["temperature"] == 0.6
 
 
 def test_provider_retry_strips_reasoning_overrides_after_payload_rejection(

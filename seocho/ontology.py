@@ -499,29 +499,14 @@ class Ontology:
     # ------------------------------------------------------------------
     # Turtle (TTL / OWL)
     # ------------------------------------------------------------------
-
-    @classmethod
-    def from_ttl(
-        cls,
-        path: Union[str, Path],
-        *,
-        name: Optional[str] = None,
-        namespace: Optional[str] = None,
-    ) -> "Ontology":
-        """Load an OWL/Turtle file (e.g. a FIBO module) into an ``Ontology``.
-
-        Maps:
-        - ``owl:Class`` -> :class:`NodeDef`
-        - ``owl:ObjectProperty`` (with ``rdfs:domain``/``rdfs:range``) -> :class:`RelDef`
-        - ``owl:DatatypeProperty`` -> property on its domain class
-        - ``skos:altLabel`` -> aliases
-        - ``rdfs:label`` -> description
-
-        Requires ``rdflib`` (ships in the ``seocho[ontology]`` extra).
-        """
-        from .ontology_serialization import ontology_from_ttl
-
-        return ontology_from_ttl(cls, path, name=name, namespace=namespace)
+    #
+    # ``from_ttl`` is defined further down with an inline rdflib
+    # implementation (seocho-aom8 removed an earlier delegate to
+    # ``ontology_serialization.ontology_from_ttl`` that was unreachable —
+    # Python class body uses the last definition, and no caller passed
+    # the delegate's ``name=`` / ``namespace=`` kwargs). The inline
+    # version handles ``skos:altLabel`` and a wider ``owl:versionInfo``
+    # / version-IRI fallback that the delegate did not.
 
     def to_ttl(self, path: Union[str, Path]) -> Path:
         """Write this ontology out as Turtle. Inverse of :meth:`from_ttl`."""

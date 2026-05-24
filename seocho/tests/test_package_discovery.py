@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
-import tomllib
+
+if sys.version_info >= (3, 11):
+    import tomllib
+else:  # pragma: no cover - py310 fallback
+    import tomli as tomllib  # type: ignore[import-not-found]
 
 from setuptools import find_packages
 

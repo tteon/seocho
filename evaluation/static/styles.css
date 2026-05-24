@@ -209,8 +209,9 @@ body {
   outline: none;
 }
 
-.control select:focus,
-.control input:focus {
+input:focus,
+select:focus,
+textarea:focus {
   border-color: var(--accent-blue);
   box-shadow: 0 0 0 1px var(--accent-blue);
 }
@@ -242,11 +243,6 @@ body {
   font-size: 0.8rem;
   outline: none;
   resize: vertical;
-}
-
-.ingest-grow textarea:focus {
-  border-color: var(--accent-blue);
-  box-shadow: 0 0 0 1px var(--accent-blue);
 }
 
 #ingestBtn {
@@ -358,11 +354,6 @@ body {
   font-family: var(--font-sans);
   font-size: 0.9rem;
   outline: none;
-}
-
-.composer textarea:focus {
-  border-color: var(--accent-blue);
-  box-shadow: 0 0 0 1px var(--accent-blue);
 }
 
 .composer button {

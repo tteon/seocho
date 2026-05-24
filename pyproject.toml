@@ -92,6 +92,7 @@ dev = [
     "pyyaml",
     "rdflib>=6.0",
     "tenacity>=8.2.0",
+    "tomli; python_version < '3.11'",
     "uvicorn",
 ]
 notebook = [

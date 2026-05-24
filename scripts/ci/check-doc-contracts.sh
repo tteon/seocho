@@ -8,7 +8,7 @@ ACTIVE_DOCS=(
   "README.md"
   "CLAUDE.md"
   "docs/README.md"
-  "docs/QUICKSTART.md"
+  "QUICKSTART.md"
   "docs/PYTHON_INTERFACE_QUICKSTART.md"
   "docs/APPLY_YOUR_DATA.md"
   "docs/TUTORIAL_FIRST_RUN.md"

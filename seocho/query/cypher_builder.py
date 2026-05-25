@@ -154,37 +154,30 @@ class CypherBuilder:
                 target_label=target_label,
             )
 
-        if intent == "entity_lookup":
-            return self._entity_lookup(anchor_entity, anchor_label, workspace_id, limit)
-        if intent == "relationship_lookup":
-            return self._relationship_lookup(
-                anchor_entity,
-                anchor_label,
-                target_entity,
-                target_label,
-                relationship_type,
-                workspace_id,
-                limit,
-            )
-        if intent in {"financial_metric_lookup", "financial_metric_delta"}:
-            return self._financial_metric_lookup(
-                anchor_entity=anchor_entity,
-                metric_name=metric_name or target_entity,
-                metric_aliases=metric_aliases or (),
-                metric_scope_tokens=metric_scope_tokens or (),
-                years=years or (),
-                workspace_id=workspace_id,
-                limit=limit,
-            )
-        if intent == "neighbors":
-            return self._neighbors(anchor_entity, anchor_label, workspace_id, limit)
-        if intent == "path":
-            return self._path(anchor_entity, target_entity, workspace_id, limit)
-        if intent == "count":
-            return self._count(anchor_label, workspace_id)
-        if intent == "list_all":
-            return self._list_all(anchor_label, workspace_id, limit)
-        return self._neighbors(anchor_entity, anchor_label, workspace_id, limit)
+        # ADR-0097 G3: dispatch via externalized PatternSpec catalog.
+        # Behavior is bit-identical to the pre-G3 inline if/elif chain;
+        # G2 will widen this to enumerate K candidates and cost-rank.
+        from . import pattern_catalog
+
+        spec = pattern_catalog.get_by_cypher_shape(intent)
+        if spec is None:
+            spec = pattern_catalog.get_by_cypher_shape("neighbors")
+            assert spec is not None, "neighbors fallback pattern must be registered"
+        return spec.template_factory(
+            self,
+            intent=intent,
+            anchor_entity=anchor_entity,
+            anchor_label=anchor_label,
+            target_entity=target_entity,
+            target_label=target_label,
+            relationship_type=relationship_type,
+            metric_name=metric_name,
+            metric_aliases=metric_aliases,
+            metric_scope_tokens=metric_scope_tokens,
+            years=years,
+            workspace_id=workspace_id,
+            limit=limit,
+        )
 
     def normalize_intent(self, question: str, raw_intent: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         """Coerce an LLM intent payload into a safer structured form."""

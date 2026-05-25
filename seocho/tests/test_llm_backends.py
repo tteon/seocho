@@ -7,6 +7,7 @@ import pytest
 
 from seocho.store.llm import (
     KimiBackend,
+    VLLMBackend,
     create_embedding_backend,
     create_llm_backend,
 )
@@ -378,3 +379,187 @@ def test_provider_retry_strips_reasoning_overrides_after_payload_rejection(
     assert "extra_body" not in calls[-1]
     assert "reasoning_effort" not in calls[-1]
     assert calls[-1]["messages"][0]["content"].endswith("Return ONLY valid JSON.")
+
+
+# ---------------------------------------------------------------------------
+# ADR-0098: vLLM on-prem profile (V1 preset + V2 factory + V5 smoke)
+# ---------------------------------------------------------------------------
+
+
+def test_vllm_provider_preset_resolves_localhost_default(
+    fake_openai: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """V1: vllm preset has localhost:8000/v1 base_url and the
+    SEOCHO_VLLM_API_KEY env var."""
+    monkeypatch.delenv("SEOCHO_VLLM_API_KEY", raising=False)
+    monkeypatch.delenv("VLLM_API_KEY", raising=False)
+
+    backend = create_llm_backend(provider="vllm", model="Qwen2.5-7B-Instruct")
+
+    assert backend.provider == "vllm"
+    assert backend.model == "Qwen2.5-7B-Instruct"
+    assert backend._base_url == "http://localhost:8000/v1"
+    assert backend._api_key_env == "SEOCHO_VLLM_API_KEY"
+
+
+def test_vllm_falls_back_to_empty_api_key_when_unset(
+    fake_openai: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """V1: vLLM runs unauthenticated by default; backend passes the
+    documented "EMPTY" sentinel so the OpenAI client doesn't refuse the
+    request when no key is configured."""
+    monkeypatch.delenv("SEOCHO_VLLM_API_KEY", raising=False)
+    monkeypatch.delenv("VLLM_API_KEY", raising=False)
+
+    backend = create_llm_backend(provider="vllm", model="Qwen2.5-7B-Instruct")
+
+    assert backend._api_key == "EMPTY"
+    assert backend._client.kwargs["api_key"] == "EMPTY"
+
+
+def test_vllm_env_var_overrides_default(
+    fake_openai: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """V1: an explicit env-var key wins over the EMPTY default."""
+    monkeypatch.setenv("SEOCHO_VLLM_API_KEY", "vllm-token")
+    monkeypatch.delenv("VLLM_API_KEY", raising=False)
+
+    backend = create_llm_backend(provider="vllm", model="Qwen2.5-7B-Instruct")
+
+    assert backend._api_key == "vllm-token"
+
+
+def test_vllm_legacy_env_alias(
+    fake_openai: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """V1: VLLM_API_KEY is the legacy alias for SEOCHO_VLLM_API_KEY."""
+    monkeypatch.delenv("SEOCHO_VLLM_API_KEY", raising=False)
+    monkeypatch.setenv("VLLM_API_KEY", "legacy-vllm-token")
+
+    backend = create_llm_backend(provider="vllm", model="Qwen2.5-7B-Instruct")
+
+    assert backend._api_key == "legacy-vllm-token"
+
+
+def test_vllm_factory_requires_explicit_model(
+    fake_openai: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """V2: vllm provider has no sensible default_model — the factory
+    raises if the caller doesn't pass one."""
+    monkeypatch.delenv("SEOCHO_VLLM_API_KEY", raising=False)
+    monkeypatch.delenv("VLLM_API_KEY", raising=False)
+
+    with pytest.raises(ValueError, match="requires an explicit model"):
+        create_llm_backend(provider="vllm")
+
+
+def test_vllm_explicit_base_url_overrides_localhost_default(
+    fake_openai: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """V2: callers can point at any vLLM HTTP endpoint by passing
+    base_url through the factory."""
+    monkeypatch.delenv("SEOCHO_VLLM_API_KEY", raising=False)
+    monkeypatch.delenv("VLLM_API_KEY", raising=False)
+
+    backend = create_llm_backend(
+        provider="vllm",
+        model="Qwen2.5-7B-Instruct",
+        base_url="https://vllm.internal.example:8443/v1",
+    )
+
+    assert backend._base_url == "https://vllm.internal.example:8443/v1"
+
+
+def test_vllm_seocho_local_style_provider_slash_model_resolves(
+    fake_openai: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """V5 smoke: the ``Seocho.local(llm="vllm/<model>")`` codepath in
+    seocho/client.py:370 splits on '/' and forwards provider+model to
+    create_llm_backend. Verify the round-trip resolves to a working
+    backend."""
+    monkeypatch.delenv("SEOCHO_VLLM_API_KEY", raising=False)
+    monkeypatch.delenv("VLLM_API_KEY", raising=False)
+
+    llm_str = "vllm/Qwen2.5-7B-Instruct"
+    provider, model = llm_str.split("/", 1)
+    backend = create_llm_backend(provider=provider, model=model)
+
+    assert backend.provider == "vllm"
+    assert backend.model == "Qwen2.5-7B-Instruct"
+
+
+def test_vllm_complete_round_trip_against_mocked_endpoint(
+    fake_openai: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """V5 smoke: complete() against the fake OpenAI client returns the
+    canned 'ok' response and records the call with the right model."""
+    monkeypatch.delenv("SEOCHO_VLLM_API_KEY", raising=False)
+    monkeypatch.delenv("VLLM_API_KEY", raising=False)
+
+    backend = create_llm_backend(provider="vllm", model="Qwen2.5-7B-Instruct")
+    response = backend.complete(
+        system="reply ok",
+        user="ok",
+        temperature=0.0,
+        max_tokens=8,
+    )
+
+    assert response.text == "ok"
+    call = backend._client.chat.completions.calls[0]
+    assert call["model"] == "Qwen2.5-7B-Instruct"
+
+
+def test_vllm_to_agents_sdk_model_binding(
+    fake_openai: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """V5 smoke: to_agents_sdk_model() binds the vLLM backend to the
+    Agents SDK chat-completions adapter without complaint."""
+    agents_module = ModuleType("agents")
+
+    class FakeRunConfig:
+        def __init__(self, *, model):
+            self.model = model
+
+    agents_module.RunConfig = FakeRunConfig
+    monkeypatch.setitem(sys.modules, "agents", agents_module)
+
+    chat_module = ModuleType("agents.models.openai_chatcompletions")
+
+    class FakeAgentsModel:
+        def __init__(self, *, model, openai_client):
+            self.model = model
+            self.openai_client = openai_client
+
+    chat_module.OpenAIChatCompletionsModel = FakeAgentsModel
+    monkeypatch.setitem(sys.modules, "agents.models.openai_chatcompletions", chat_module)
+
+    provider_module = ModuleType("agents.models.openai_provider")
+
+    class FakeProvider:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    provider_module.OpenAIProvider = FakeProvider
+    monkeypatch.setitem(sys.modules, "agents.models.openai_provider", provider_module)
+
+    monkeypatch.delenv("SEOCHO_VLLM_API_KEY", raising=False)
+    monkeypatch.delenv("VLLM_API_KEY", raising=False)
+
+    backend = VLLMBackend(model="Qwen2.5-7B-Instruct")
+    sdk_model = backend.to_agents_sdk_model()
+    sdk_provider = backend.to_agents_provider(use_responses=False)
+    run_config = backend.to_agents_run_config()
+
+    assert sdk_model.model == "Qwen2.5-7B-Instruct"
+    assert sdk_provider.kwargs["base_url"] == "http://localhost:8000/v1"
+    assert sdk_provider.kwargs["use_responses"] is False
+    assert run_config.model.model == "Qwen2.5-7B-Instruct"

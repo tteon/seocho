@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 
 @dataclass(frozen=True)
@@ -13,6 +13,37 @@ class IntentSpec:
     required_entity_types: Tuple[str, ...]
     focus_slots: Tuple[str, ...]
     trigger_keywords: Tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class PatternSpec:
+    """One Cypher generation pattern in the GOPTS catalog (ADR-0097).
+
+    PatternSpec is the registry entry consumed by the cost-ranked plan
+    enumerator (G2). G3 lifts the inline pattern branches out of
+    CypherBuilder.build() and registers each one here, one PatternSpec
+    per branch. For G3 the dispatcher is 1:1 (one cypher_shape →
+    one pattern); G2 will widen to K candidates per intent_id.
+
+    Fields:
+        pattern_id:           registry key, e.g. "pattern:relationship_lookup_hop1"
+        intent_id:            link to IntentSpec.intent_id vocabulary (best-effort)
+        cypher_shape:         link to CypherBuilder.build() dispatch string
+        required_labels:      labels the pattern needs present in schema
+        required_relations:   relationship types the pattern needs present
+        schema_preconditions: opaque preconditions for the cost ranker (G2 uses)
+        cost_hints:           cost-model hints (e.g. {"prefers_indexed": [...]})
+        template_factory:     (builder, **build_kwargs) -> (cypher, params)
+    """
+
+    pattern_id: str
+    intent_id: str
+    cypher_shape: str
+    required_labels: Tuple[str, ...]
+    required_relations: Tuple[str, ...]
+    schema_preconditions: Tuple[str, ...]
+    cost_hints: Dict[str, Any]
+    template_factory: Callable[..., Tuple[str, Dict[str, Any]]]
 
 
 @dataclass(frozen=True)

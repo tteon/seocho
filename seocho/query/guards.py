@@ -98,6 +98,10 @@ _TEMPORAL_FILTER_RE = re.compile(
     r"\b(temporal_range|valid_from|valid_until|extracted_at|published_at)\b",
     re.IGNORECASE,
 )
+_WRONG_DIRECTION_RE = re.compile(
+    r"\(\s*[^()]*?:(\w+)[^()]*?\)\s*-\[[^\]]*:\s*(\w+)[^\]]*\]\s*->\s*\(\s*[^()]*?:(\w+)",
+    re.IGNORECASE,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -174,11 +178,7 @@ def detect_wrong_direction(
         return []
     bad: List[str] = []
     # Pattern with explicit direction: (lbl1)-[:REL]->(lbl2)
-    pattern = re.compile(
-        r"\(\s*[^()]*?:(\w+)[^()]*?\)\s*-\[[^\]]*:\s*(\w+)[^\]]*\]\s*->\s*\(\s*[^()]*?:(\w+)",
-        re.IGNORECASE,
-    )
-    for left, rel, right in pattern.findall(cypher):
+    for left, rel, right in _WRONG_DIRECTION_RE.findall(cypher):
         spec = ontology_relationships.get(rel)
         if spec is None:
             continue

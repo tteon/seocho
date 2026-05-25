@@ -2352,19 +2352,44 @@ class Ontology:
             print(stats["overall_score"])        # 0.75
             print(stats["unused"]["node_types"]) # ["OldEntity"]
         """
+        try:
+            schema = graph_store.get_schema(database=database)
+            existing_labels = set(schema.get("labels", []))
+            existing_rtypes = set(schema.get("relationship_types", []))
+        except Exception:
+            existing_labels = None
+            existing_rtypes = None
+
         node_stats: List[Dict[str, Any]] = []
         total_defined_nodes = len(self.nodes)
         populated_nodes = 0
 
+        node_counts = {}
+        labels_to_count = []
         for label in self.nodes:
+            if existing_labels is not None and label not in existing_labels:
+                node_counts[label] = 0
+            else:
+                labels_to_count.append(label)
+
+        chunk_size = 50
+        for i in range(0, len(labels_to_count), chunk_size):
+            chunk = labels_to_count[i:i + chunk_size]
+            queries = [
+                f"MATCH (n:`{label}`) RETURN '{label}' AS key, count(n) AS cnt"
+                for label in chunk
+            ]
+            union_query = " UNION ALL ".join(queries)
             try:
-                result = graph_store.query(
-                    f"MATCH (n:`{label}`) RETURN count(n) AS cnt",
-                    database=database,
-                )
-                count = int(result[0]["cnt"]) if result else 0
+                result = graph_store.query(union_query, database=database)
+                chunk_counts = {row["key"]: int(row["cnt"]) for row in result}
             except Exception:
-                count = 0
+                chunk_counts = {}
+            for label in chunk:
+                node_counts[label] = chunk_counts.get(label, 0)
+
+        for label in self.nodes:
+            count = node_counts.get(label, 0)
             node_stats.append({"label": label, "count": count})
             if count > 0:
                 populated_nodes += 1
@@ -2373,15 +2398,31 @@ class Ontology:
         total_defined_rels = len(self.relationships)
         populated_rels = 0
 
+        rel_counts = {}
+        rtypes_to_count = []
         for rtype in self.relationships:
+            if existing_rtypes is not None and rtype not in existing_rtypes:
+                rel_counts[rtype] = 0
+            else:
+                rtypes_to_count.append(rtype)
+
+        for i in range(0, len(rtypes_to_count), chunk_size):
+            chunk = rtypes_to_count[i:i + chunk_size]
+            queries = [
+                f"MATCH ()-[r:`{rtype}`]->() RETURN '{rtype}' AS key, count(r) AS cnt"
+                for rtype in chunk
+            ]
+            union_query = " UNION ALL ".join(queries)
             try:
-                result = graph_store.query(
-                    f"MATCH ()-[r:`{rtype}`]->() RETURN count(r) AS cnt",
-                    database=database,
-                )
-                count = int(result[0]["cnt"]) if result else 0
+                result = graph_store.query(union_query, database=database)
+                chunk_counts = {row["key"]: int(row["cnt"]) for row in result}
             except Exception:
-                count = 0
+                chunk_counts = {}
+            for rtype in chunk:
+                rel_counts[rtype] = chunk_counts.get(rtype, 0)
+
+        for rtype in self.relationships:
+            count = rel_counts.get(rtype, 0)
             rel_stats.append({"type": rtype, "count": count})
             if count > 0:
                 populated_rels += 1

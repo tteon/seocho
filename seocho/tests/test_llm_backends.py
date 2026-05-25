@@ -517,6 +517,286 @@ def test_vllm_complete_round_trip_against_mocked_endpoint(
     assert call["model"] == "Qwen2.5-7B-Instruct"
 
 
+def test_vllm_pipeline_mode_translates_json_object_to_guided_json(
+    fake_openai: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """V3: pipeline-mode + response_format={'type':'json_object'} on vLLM
+    translates to extra_body.guided_json. response_format is dropped
+    because guided decoding supersedes it on the vLLM endpoint."""
+    monkeypatch.delenv("SEOCHO_VLLM_API_KEY", raising=False)
+    monkeypatch.delenv("VLLM_API_KEY", raising=False)
+
+    backend = create_llm_backend(provider="vllm", model="Qwen2.5-7B-Instruct")
+    backend.complete(
+        system="reply json",
+        user="ok",
+        temperature=0.0,
+        response_format={"type": "json_object"},
+        mode="pipeline",
+    )
+
+    call = backend._client.chat.completions.calls[0]
+    assert "response_format" not in call
+    assert call["extra_body"] == {"guided_json": {"type": "object"}}
+
+
+def test_vllm_pipeline_mode_translates_json_schema(
+    fake_openai: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """V3: pipeline-mode + response_format={'type':'json_schema',...}
+    on vLLM translates to extra_body.guided_json with the schema."""
+    monkeypatch.delenv("SEOCHO_VLLM_API_KEY", raising=False)
+    monkeypatch.delenv("VLLM_API_KEY", raising=False)
+
+    schema = {"type": "object", "properties": {"answer": {"type": "string"}}}
+    backend = create_llm_backend(provider="vllm", model="Qwen2.5-7B-Instruct")
+    backend.complete(
+        system="reply json",
+        user="ok",
+        temperature=0.0,
+        response_format={"type": "json_schema", "json_schema": schema},
+        mode="pipeline",
+    )
+
+    call = backend._client.chat.completions.calls[0]
+    assert "response_format" not in call
+    assert call["extra_body"] == {"guided_json": schema}
+
+
+def test_vllm_pipeline_mode_translates_regex_and_choice(
+    fake_openai: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """V3: regex and choice response_format types translate to the
+    corresponding guided_* extra_body keys."""
+    monkeypatch.delenv("SEOCHO_VLLM_API_KEY", raising=False)
+    monkeypatch.delenv("VLLM_API_KEY", raising=False)
+
+    backend = create_llm_backend(provider="vllm", model="Qwen2.5-7B-Instruct")
+
+    backend.complete(
+        system="match",
+        user="ok",
+        response_format={"type": "regex", "pattern": r"^[A-Z]{3}$"},
+        mode="pipeline",
+    )
+    call = backend._client.chat.completions.calls[-1]
+    assert call["extra_body"] == {"guided_regex": r"^[A-Z]{3}$"}
+
+    backend.complete(
+        system="pick one",
+        user="ok",
+        response_format={"type": "choice", "options": ["yes", "no", "maybe"]},
+        mode="pipeline",
+    )
+    call = backend._client.chat.completions.calls[-1]
+    assert call["extra_body"] == {"guided_choice": ["yes", "no", "maybe"]}
+
+
+def test_vllm_agent_mode_does_not_translate_response_format(
+    fake_openai: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """V3: agent mode preserves the OpenAI response_format because the
+    Agents SDK's tool-call structure carries the shape — we must never
+    JSON-force a tool-call response."""
+    monkeypatch.delenv("SEOCHO_VLLM_API_KEY", raising=False)
+    monkeypatch.delenv("VLLM_API_KEY", raising=False)
+
+    backend = create_llm_backend(provider="vllm", model="Qwen2.5-7B-Instruct")
+    backend.complete(
+        system="agent mode",
+        user="ok",
+        response_format={"type": "json_object"},
+        mode="agent",
+    )
+
+    call = backend._client.chat.completions.calls[0]
+    assert call["response_format"] == {"type": "json_object"}
+    assert "extra_body" not in call or "guided_json" not in (call.get("extra_body") or {})
+
+
+def test_vllm_default_mode_preserves_pre_adr_behavior(
+    fake_openai: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """V3 backward compat: when ``mode`` is unset, response_format flows
+    through unchanged — pre-ADR-0098 callers are unaffected."""
+    monkeypatch.delenv("SEOCHO_VLLM_API_KEY", raising=False)
+    monkeypatch.delenv("VLLM_API_KEY", raising=False)
+
+    backend = create_llm_backend(provider="vllm", model="Qwen2.5-7B-Instruct")
+    backend.complete(
+        system="default",
+        user="ok",
+        response_format={"type": "json_object"},
+        # no mode arg
+    )
+
+    call = backend._client.chat.completions.calls[0]
+    assert call["response_format"] == {"type": "json_object"}
+    assert "extra_body" not in call or "guided_json" not in (call.get("extra_body") or {})
+
+
+def test_pipeline_mode_is_noop_on_non_vllm_provider(
+    fake_openai: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """V3: ``mode='pipeline'`` is a no-op on providers without
+    guided-decoding support (openai, deepseek, kimi, grok, qwen).
+    response_format passes through unchanged."""
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "deepseek-secret")
+
+    backend = create_llm_backend(provider="deepseek", model="deepseek-chat")
+    backend.complete(
+        system="reply json",
+        user="ok",
+        response_format={"type": "json_object"},
+        mode="pipeline",
+    )
+
+    call = backend._client.chat.completions.calls[0]
+    assert call["response_format"] == {"type": "json_object"}
+    assert "extra_body" not in call or "guided_json" not in (call.get("extra_body") or {})
+
+
+def test_vllm_agents_sdk_path_preserves_tool_calls_without_json_forcing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """V4: when the agent flow calls vLLM via the OpenAI-compatible chat
+    completions endpoint, tool_calls in the response must propagate
+    unchanged. Our backend must not inject ``response_format`` or
+    ``extra_body.guided_*`` into the request path that the Agents SDK
+    drives — those would force JSON shape and corrupt tool-call output.
+
+    The test exercises both layers:
+      1. ``to_agents_sdk_model()`` binds the OpenAIChatCompletionsModel
+         to the same async client we'd use for pipeline calls. This is
+         the contract that lets vLLM serve tool calls natively.
+      2. Calling the underlying client with a tools= request returns
+         the canned tool_call choice unchanged — no JSON-shape munging
+         on the way through.
+    """
+    # Fake OpenAI client that returns a tool_calls response when invoked
+    # with a tools= argument.
+    class _ToolCallChatCompletions:
+        def __init__(self):
+            self.calls = []
+
+        def create(self, **kwargs):
+            self.calls.append(kwargs)
+            if kwargs.get("tools"):
+                return SimpleNamespace(
+                    choices=[
+                        SimpleNamespace(
+                            message=SimpleNamespace(
+                                content=None,
+                                tool_calls=[
+                                    SimpleNamespace(
+                                        id="call_1",
+                                        type="function",
+                                        function=SimpleNamespace(
+                                            name="lookup_entity",
+                                            arguments='{"name":"Apple"}',
+                                        ),
+                                    )
+                                ],
+                            )
+                        )
+                    ],
+                    model=kwargs["model"],
+                    usage=SimpleNamespace(
+                        prompt_tokens=1, completion_tokens=2, total_tokens=3
+                    ),
+                )
+            return SimpleNamespace(
+                choices=[
+                    SimpleNamespace(message=SimpleNamespace(content="plain"))
+                ],
+                model=kwargs["model"],
+                usage=SimpleNamespace(
+                    prompt_tokens=1, completion_tokens=2, total_tokens=3
+                ),
+            )
+
+    class _ToolCallOpenAIClient:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+            self.chat = SimpleNamespace(completions=_ToolCallChatCompletions())
+            self.embeddings = _FakeEmbeddings()
+
+    module = ModuleType("openai")
+    module.OpenAI = _ToolCallOpenAIClient
+    module.AsyncOpenAI = _ToolCallOpenAIClient
+    monkeypatch.setitem(sys.modules, "openai", module)
+
+    # Stub the agents SDK so to_agents_sdk_model() can bind.
+    agents_module = ModuleType("agents")
+
+    class FakeRunConfig:
+        def __init__(self, *, model):
+            self.model = model
+
+    agents_module.RunConfig = FakeRunConfig
+    monkeypatch.setitem(sys.modules, "agents", agents_module)
+
+    chat_module = ModuleType("agents.models.openai_chatcompletions")
+
+    class FakeAgentsModel:
+        def __init__(self, *, model, openai_client):
+            self.model = model
+            self.openai_client = openai_client
+
+    chat_module.OpenAIChatCompletionsModel = FakeAgentsModel
+    monkeypatch.setitem(sys.modules, "agents.models.openai_chatcompletions", chat_module)
+
+    provider_module = ModuleType("agents.models.openai_provider")
+
+    class FakeProvider:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    provider_module.OpenAIProvider = FakeProvider
+    monkeypatch.setitem(sys.modules, "agents.models.openai_provider", provider_module)
+
+    monkeypatch.delenv("SEOCHO_VLLM_API_KEY", raising=False)
+    monkeypatch.delenv("VLLM_API_KEY", raising=False)
+
+    backend = VLLMBackend(model="Qwen2.5-7B-Instruct")
+    sdk_model = backend.to_agents_sdk_model()
+
+    # Layer 1 contract: the SDK model wraps the same async client that
+    # we'd use for direct pipeline calls. This is how vLLM's tool-call
+    # responses reach Runner.run unchanged.
+    assert sdk_model.openai_client is backend._async_client
+
+    # Layer 2 contract: the underlying client returns tool_calls when
+    # given a tools= request, and no guided_json/response_format was
+    # injected by our wiring on the way in.
+    response = backend._client.chat.completions.create(
+        model="Qwen2.5-7B-Instruct",
+        messages=[{"role": "user", "content": "find Apple"}],
+        tools=[
+            {
+                "type": "function",
+                "function": {
+                    "name": "lookup_entity",
+                    "description": "Lookup entity by name",
+                    "parameters": {"type": "object"},
+                },
+            }
+        ],
+    )
+    call = backend._client.chat.completions.calls[0]
+    assert "response_format" not in call
+    assert "extra_body" not in call
+    tool_calls = response.choices[0].message.tool_calls
+    assert tool_calls is not None
+    assert tool_calls[0].function.name == "lookup_entity"
+
+
 def test_vllm_to_agents_sdk_model_binding(
     fake_openai: None,
     monkeypatch: pytest.MonkeyPatch,

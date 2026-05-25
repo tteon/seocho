@@ -189,8 +189,18 @@ class LLMBackend(ABC):
         response_format: Optional[Dict[str, Any]] = None,
         reasoning_mode: Optional[bool] = None,
         task_hint: Optional[str] = None,
+        mode: Optional[str] = None,
     ) -> LLMResponse:
-        """Synchronous completion."""
+        """Synchronous completion.
+
+        ADR-0098: ``mode`` is "pipeline" or "agent" (case-insensitive).
+        In pipeline mode against a vLLM provider, ``response_format`` is
+        translated into ``extra_body.guided_*`` so structured output
+        becomes deterministic rather than relying on the prompt-injection
+        fallback. In agent mode the Agents SDK's tool-call structure
+        supersedes guided decoding and no translation happens. None
+        preserves pre-ADR-0098 behavior for callers that don't opt in.
+        """
 
     @abstractmethod
     async def acomplete(
@@ -203,8 +213,9 @@ class LLMBackend(ABC):
         response_format: Optional[Dict[str, Any]] = None,
         reasoning_mode: Optional[bool] = None,
         task_hint: Optional[str] = None,
+        mode: Optional[str] = None,
     ) -> LLMResponse:
-        """Async completion."""
+        """Async completion. See :meth:`complete` for the ``mode`` contract."""
 
     def chat(
         self,
@@ -242,6 +253,7 @@ def complete_with_task_hints(
     response_format: Optional[Dict[str, Any]] = None,
     reasoning_mode: Optional[bool] = None,
     task_hint: Optional[str] = None,
+    mode: Optional[str] = None,
 ) -> Any:
     """Call ``llm.complete`` while remaining compatible with older test doubles."""
 
@@ -258,13 +270,18 @@ def complete_with_task_hints(
         kwargs["reasoning_mode"] = reasoning_mode
     if task_hint is not None:
         kwargs["task_hint"] = task_hint
+    if mode is not None:
+        kwargs["mode"] = mode
     try:
         return llm.complete(**kwargs)
     except TypeError as exc:
         if "unexpected keyword argument" not in str(exc):
             raise
+        # Older backends predate mode/reasoning_mode/task_hint — strip
+        # them and retry so this helper stays drop-in for legacy doubles.
         kwargs.pop("reasoning_mode", None)
         kwargs.pop("task_hint", None)
+        kwargs.pop("mode", None)
         return llm.complete(**kwargs)
 
 
@@ -389,6 +406,42 @@ class OpenAICompatibleBackend(LLMBackend):
         model = self.model.strip().lower()
         return model.startswith(("o1", "o3", "o4", "gpt-5"))
 
+    @staticmethod
+    def _translate_response_format_to_guided(
+        response_format: Optional[Dict[str, Any]],
+    ) -> Optional[Dict[str, Any]]:
+        """Translate an OpenAI ``response_format`` into a vLLM guided-decoding
+        ``extra_body`` payload (ADR-0098). Returns None if the format is
+        not translatable so the caller leaves ``response_format`` in place.
+
+        Mapping per ADR-0098 §3:
+            {"type":"json_object"}             → {"guided_json": {"type":"object"}}
+            {"type":"json_schema","json_schema":S} → {"guided_json": S}
+            {"type":"regex","pattern":P}       → {"guided_regex": P}
+            {"type":"choice","options":[...]}  → {"guided_choice": [...]}
+        """
+        if not isinstance(response_format, dict):
+            return None
+        rf_type = str(response_format.get("type") or "").lower()
+        if rf_type == "json_object":
+            return {"guided_json": {"type": "object"}}
+        if rf_type == "json_schema":
+            schema = response_format.get("json_schema") or response_format.get("schema")
+            if schema is None:
+                return None
+            return {"guided_json": schema}
+        if rf_type == "regex":
+            pattern = response_format.get("pattern")
+            if pattern is None:
+                return None
+            return {"guided_regex": pattern}
+        if rf_type == "choice":
+            options = response_format.get("options")
+            if options is None:
+                return None
+            return {"guided_choice": list(options)}
+        return None
+
     def _completion_request_kwargs(
         self,
         *,
@@ -398,6 +451,7 @@ class OpenAICompatibleBackend(LLMBackend):
         response_format: Optional[Dict[str, Any]],
         reasoning_mode: Optional[bool],
         task_hint: Optional[str],
+        mode: Optional[str] = None,
     ) -> Dict[str, Any]:
         kwargs: Dict[str, Any] = {
             "model": self.model,
@@ -418,8 +472,30 @@ class OpenAICompatibleBackend(LLMBackend):
                 )
             if max_tokens is not None:
                 kwargs["max_tokens"] = max_tokens
-        if response_format is not None:
+
+        normalized_mode = (mode or "").strip().lower() or None
+        # ADR-0098 V3: in pipeline mode against vLLM, translate
+        # response_format into extra_body.guided_*. In agent mode the
+        # Agents SDK tool-call structure carries shape; leave response_format
+        # alone so we never JSON-force a tool-call response. For other
+        # providers, response_format flows through unchanged in every mode.
+        guided_kwargs: Optional[Dict[str, Any]] = None
+        if (
+            normalized_mode == "pipeline"
+            and self.provider == "vllm"
+            and response_format is not None
+        ):
+            guided_kwargs = self._translate_response_format_to_guided(response_format)
+
+        if guided_kwargs is not None:
+            # Guided decoding supersedes response_format on vLLM.
+            kwargs["extra_body"] = self._merge_extra_body(
+                kwargs.get("extra_body"),
+                guided_kwargs,
+            )
+        elif response_format is not None:
             kwargs["response_format"] = response_format
+
         if "extra_body" in reasoning_overrides:
             kwargs["extra_body"] = self._merge_extra_body(
                 kwargs.get("extra_body"),
@@ -483,6 +559,7 @@ class OpenAICompatibleBackend(LLMBackend):
         response_format: Optional[Dict[str, Any]] = None,
         reasoning_mode: Optional[bool] = None,
         task_hint: Optional[str] = None,
+        mode: Optional[str] = None,
     ) -> LLMResponse:
         messages = [
             {"role": "system", "content": system},
@@ -495,6 +572,7 @@ class OpenAICompatibleBackend(LLMBackend):
             response_format=response_format,
             reasoning_mode=reasoning_mode,
             task_hint=task_hint,
+            mode=mode,
         )
         last_exc: Optional[Exception] = None
         for attempt_kwargs in self._completion_retry_variants(kwargs):
@@ -516,6 +594,7 @@ class OpenAICompatibleBackend(LLMBackend):
         response_format: Optional[Dict[str, Any]] = None,
         reasoning_mode: Optional[bool] = None,
         task_hint: Optional[str] = None,
+        mode: Optional[str] = None,
     ) -> LLMResponse:
         messages = [
             {"role": "system", "content": system},
@@ -528,6 +607,7 @@ class OpenAICompatibleBackend(LLMBackend):
             response_format=response_format,
             reasoning_mode=reasoning_mode,
             task_hint=task_hint,
+            mode=mode,
         )
         last_exc: Optional[Exception] = None
         for attempt_kwargs in self._completion_retry_variants(kwargs):

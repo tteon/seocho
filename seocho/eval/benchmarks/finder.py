@@ -35,11 +35,14 @@ This loader **normalizes** each row to the more notebook-friendly shape:
 
 from __future__ import annotations
 
+import logging
 import os
 import random
 from functools import lru_cache
 from pathlib import Path
 from typing import Iterable, List, Optional
+
+logger = logging.getLogger(__name__)
 
 
 CATEGORIES: tuple[str, ...] = (
@@ -53,6 +56,17 @@ CATEGORIES: tuple[str, ...] = (
     "ShareholderReturn",
 )
 
+
+def _category_key(value: str) -> str:
+    """Collapse a category label to a casing/spacing-insensitive lookup key."""
+    return "".join(str(value).split()).lower()
+
+
+# Reverse index derived from CATEGORIES so the normalizer and the declared
+# category set can never drift apart (single source of truth). Any raw label
+# whose key matches a canonical category resolves to that canonical spelling.
+_CANONICAL_BY_KEY: dict[str, str] = {_category_key(c): c for c in CATEGORIES}
+
 DEFAULT_HF_REPO = os.getenv("FINDER_HF_REPO", "Linq-AI-Research/FinDER")
 DEFAULT_HF_SUBSET = os.getenv("FINDER_HF_SUBSET", "")  # no subset
 DEFAULT_HF_SPLIT = os.getenv("FINDER_HF_SPLIT", "train")
@@ -64,9 +78,21 @@ def _cache_dir() -> Path:
 
 
 def _normalize_category(raw: Optional[str]) -> str:
+    """Normalize a raw FinDER category to its declared :data:`CATEGORIES` form.
+
+    Resolution is casing- and spacing-insensitive via :data:`_CANONICAL_BY_KEY`,
+    which is derived from :data:`CATEGORIES`, so any known label (``"Company
+    overview"``, ``"COMPANY OVERVIEW"``, already-normalized ``"CompanyOverview"``)
+    maps to the single declared spelling and the two can never drift apart.
+    Unknown labels fall back to a title-cased, space-stripped form rather than
+    failing, preserving forward compatibility if FinDER adds a category.
+    """
     if raw is None:
         return ""
-    return "".join(str(raw).split())
+    canonical = _CANONICAL_BY_KEY.get(_category_key(raw))
+    if canonical is not None:
+        return canonical
+    return "".join(word[:1].upper() + word[1:] for word in str(raw).split())
 
 
 def _coerce_bool(value) -> bool:
@@ -105,17 +131,50 @@ def _normalize_row(row) -> dict:
     }
 
 
+def _verify_categories(ds) -> None:
+    """Cross-check the dataset's observed categories against :data:`CATEGORIES`.
+
+    The declared :data:`CATEGORIES` set is the contract; this compares it
+    against what the data actually contains so a drift (a renamed/added/typo'd
+    FinDER category, or a normalization regression) surfaces as a warning
+    instead of silently producing empty ``by_category`` slices. Loading is not
+    aborted. A benchmark loader should degrade loudly, not crash.
+    """
+    try:
+        observed = {r["category"] for r in ds}
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning("FinDER category verification skipped: %s", exc)
+        return
+    unexpected = observed - set(CATEGORIES)
+    missing = set(CATEGORIES) - observed
+    if unexpected:
+        logger.warning(
+            "FinDER categories present in data but not in CATEGORIES: %s",
+            sorted(unexpected),
+        )
+    if missing:
+        logger.warning(
+            "FinDER categories declared in CATEGORIES but absent from data: %s",
+            sorted(missing),
+        )
+
+
 @lru_cache(maxsize=1)
 def load(refresh: bool = False):
     """Download (and cache) FinDER. Returns a ``datasets.Dataset`` with the
     normalized schema documented in the module docstring."""
     from datasets import load_dataset, Dataset  # local import — heavy
 
-    parquet_path = _cache_dir() / "finder_corpus.parquet"
+    # Cache filename carries a schema version; bump it whenever the
+    # normalized schema changes so stale caches are not silently reused.
+    # v2: category normalization now produces declared CATEGORIES form.
+    parquet_path = _cache_dir() / "finder_corpus_v2.parquet"
     if parquet_path.exists() and not refresh:
         import pandas as pd
         df = pd.read_parquet(parquet_path)
-        return Dataset.from_pandas(df, preserve_index=False)
+        ds = Dataset.from_pandas(df, preserve_index=False)
+        _verify_categories(ds)
+        return ds
 
     # HuggingFace call — repo, optional subset, split
     if DEFAULT_HF_SUBSET:
@@ -123,10 +182,15 @@ def load(refresh: bool = False):
     else:
         ds = load_dataset(DEFAULT_HF_REPO, split=DEFAULT_HF_SPLIT)
 
-    ds = ds.map(_normalize_row)
+    # Force a fresh map on a parquet cache miss: HuggingFace fingerprints
+    # ``.map`` by the mapped function's bytecode, which does not change when
+    # a transitive dependency like ``_normalize_category`` is edited. Reusing
+    # the stale arrow cache would silently re-emit the old normalized schema.
+    ds = ds.map(_normalize_row, load_from_cache_file=False)
 
     _cache_dir().mkdir(parents=True, exist_ok=True)
     ds.to_pandas().to_parquet(parquet_path, index=False)
+    _verify_categories(ds)
     return ds
 
 

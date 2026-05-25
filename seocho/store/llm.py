@@ -72,6 +72,21 @@ _PROVIDER_SPECS: Dict[str, ProviderSpec] = {
         default_embedding_model=None,
         supports_embeddings=False,
     ),
+    # ADR-0098: vLLM on-prem profile. base_url defaults to vLLM's
+    # local server convention; api_key is optional (vLLM runs
+    # unauthenticated by default — VLLMBackend passes "EMPTY" to the
+    # OpenAI client when no key is found). default_model intentionally
+    # blank: the model is operator-chosen (e.g. "Qwen2.5-7B-Instruct")
+    # and Seocho.local(llm="vllm/<model>") requires the explicit name.
+    "vllm": ProviderSpec(
+        name="vllm",
+        api_key_env="SEOCHO_VLLM_API_KEY",
+        api_key_env_aliases=("VLLM_API_KEY",),
+        base_url="http://localhost:8000/v1",
+        default_model="",
+        default_embedding_model=None,
+        supports_embeddings=False,
+    ),
 }
 
 
@@ -784,6 +799,49 @@ class QwenBackend(OpenAICompatibleBackend):
         )
 
 
+class VLLMBackend(OpenAICompatibleBackend):
+    """ADR-0098: on-prem vLLM provider.
+
+    Mirrors the OpenAI-compatible HTTP chat-completions API surfaced by
+    vLLM's ``vllm.entrypoints.openai.api_server``. vLLM runs
+    unauthenticated by default; if no API key is configured via the
+    ``SEOCHO_VLLM_API_KEY`` (or legacy ``VLLM_API_KEY``) env var, the
+    backend passes the documented ``"EMPTY"`` sentinel so the OpenAI
+    client doesn't refuse to send the request.
+
+    ``model`` is required (no sensible default — operators pick the
+    served model, e.g. ``"Qwen2.5-7B-Instruct"``).
+    """
+
+    def __init__(
+        self,
+        *,
+        model: str,
+        api_key: Optional[str] = None,
+        base_url: Optional[str] = None,
+        timeout: float = 120.0,
+    ) -> None:
+        # vLLM convention: pass "EMPTY" when no key is needed so the
+        # OpenAI client's hard requirement of a non-empty api_key is met.
+        resolved_key = api_key if (api_key and str(api_key).strip()) else None
+        if resolved_key is None:
+            # Look up env first so explicit user config wins; only fall
+            # back to "EMPTY" when truly nothing is set.
+            for env_name in ("SEOCHO_VLLM_API_KEY", "VLLM_API_KEY"):
+                if os.getenv(env_name):
+                    resolved_key = os.getenv(env_name)
+                    break
+        if resolved_key is None:
+            resolved_key = "EMPTY"
+        super().__init__(
+            provider="vllm",
+            model=model,
+            api_key=resolved_key,
+            base_url=base_url,
+            timeout=timeout,
+        )
+
+
 def create_llm_backend(
     *,
     provider: str = "openai",
@@ -826,6 +884,19 @@ def create_llm_backend(
     if provider_key == "qwen":
         return QwenBackend(
             model=model or get_provider_spec("qwen").default_model,
+            api_key=api_key,
+            base_url=base_url,
+            timeout=timeout,
+        )
+    if provider_key == "vllm":
+        vllm_model = model or get_provider_spec("vllm").default_model
+        if not vllm_model:
+            raise ValueError(
+                "vllm provider requires an explicit model — vLLM's served "
+                "model name is operator-chosen (e.g. 'Qwen2.5-7B-Instruct')."
+            )
+        return VLLMBackend(
+            model=vllm_model,
             api_key=api_key,
             base_url=base_url,
             timeout=timeout,

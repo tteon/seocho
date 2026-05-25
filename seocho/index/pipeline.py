@@ -1106,6 +1106,183 @@ class IndexingPipeline:
 
         return result
 
+    async def aindex(
+        self,
+        content: str,
+        *,
+        database: str = "neo4j",
+        category: str = "general",
+        metadata: Optional[Dict[str, Any]] = None,
+        on_chunk: Optional[Callable[[int, int], None]] = None,
+        source_id: Optional[str] = None,
+    ) -> IndexingResult:
+        """Async mirror of ``index`` — extracts all chunks concurrently via ``acomplete``.
+
+        Chunk extraction (the I/O-bound LLM call) is parallelised with
+        ``asyncio.gather``.  Validation, linking, deduplication, and graph
+        writes remain sequential to preserve correctness.
+
+        Requires the LLM backend to implement ``acomplete``
+        (``OpenAICompatibleBackend`` and ``GrokBackend`` both do).
+        """
+        import asyncio
+
+        source_id = str(source_id or uuid.uuid4())
+        result = IndexingResult(source_id=source_id)
+        ontology_context = self._ontology_context_cache.get(
+            self.ontology,
+            workspace_id=self.workspace_id,
+            profile=self.ontology_profile,
+        )
+        result.ontology_context = ontology_context.metadata(usage="indexing")
+
+        if self.enable_dedup:
+            h = content_hash(content)
+            if h in self._seen_hashes:
+                result.deduplicated = True
+                result.skipped_chunks = 1
+                return result
+            self._seen_hashes.add(h)
+
+        chunks: List[Chunk] = _canonical_chunk(
+            content,
+            source_id=source_id,
+            max_chars=self.max_chunk_chars,
+        )
+        checksum = content_hash(content)
+        version_id = f"{source_id}_ver_{checksum}"
+        document_id = f"{source_id}_doc"
+        all_nodes: List[Dict[str, Any]] = []
+        all_rels: List[Dict[str, Any]] = []
+        chunk_records: List[Dict[str, Any]] = []
+
+        # Parallel extraction — all chunks sent to the LLM concurrently
+        async def _extract_chunk(chunk_obj: Chunk) -> Any:
+            try:
+                return await self._graph_extraction.aextract(
+                    chunk_obj.text,
+                    category=category,
+                    metadata=metadata,
+                )
+            except Exception as exc:
+                logger.warning("Async LLM extraction failed: %s", exc)
+                return exc
+
+        extraction_results = await asyncio.gather(
+            *[_extract_chunk(c) for c in chunks]
+        )
+
+        # Sequential post-processing: validate → link → accumulate
+        for i, (chunk_obj, extracted) in enumerate(zip(chunks, extraction_results)):
+            if on_chunk:
+                on_chunk(i, len(chunks))
+
+            if isinstance(extracted, Exception):
+                extracted = self._fallback_extract(chunk_obj.text, source_id=source_id)
+                result.fallback_used = True
+                result.fallback_reason = f"{type(extracted).__name__}: {str(extracted)[:200]}"
+
+            nodes = extracted.get("nodes", [])
+            rels = extracted.get("relationships", [])
+
+            if not nodes and not rels:
+                extracted = self._fallback_extract(chunk_obj.text, source_id=source_id)
+                nodes = extracted.get("nodes", [])
+                rels = extracted.get("relationships", [])
+                result.fallback_used = True
+                result.fallback_reason = (
+                    result.fallback_reason
+                    or "EmptyExtraction: entity extraction returned no nodes or relationships"
+                )
+                if not nodes and not rels:
+                    result.skipped_chunks += 1
+                    continue
+
+            if self.on_after_extract:
+                nodes, rels = self.on_after_extract(nodes, rels)
+
+            errors = self.ontology.validate_with_shacl(extracted)
+
+            if self.on_after_validate:
+                nodes, rels, errors = self.on_after_validate(nodes, rels, errors)
+
+            if errors:
+                result.validation_errors.extend(errors)
+                if self.strict_validation:
+                    result.skipped_chunks += 1
+                    continue
+
+            if nodes:
+                try:
+                    linked = self._graph_extraction.link(
+                        {"nodes": nodes, "relationships": rels},
+                        category=category,
+                    )
+                    linked_nodes = linked.get("nodes", [])
+                    linked_rels = linked.get("relationships", [])
+                    if linked_nodes:
+                        nodes = linked_nodes
+                    if linked_rels:
+                        rels = linked_rels
+                except Exception as exc:
+                    logger.warning("Linking failed for chunk %d: %s", i, exc)
+
+            chunk_records.append(
+                {
+                    "chunk_id": chunk_obj.chunk_id,
+                    "document_id": document_id,
+                    "version_id": version_id,
+                    "ordinal": chunk_obj.ordinal,
+                    "text": chunk_obj.text,
+                    "char_start": chunk_obj.char_start,
+                    "char_end": chunk_obj.char_end,
+                    "token_count": chunk_obj.token_count
+                    if chunk_obj.token_count is not None
+                    else len(chunk_obj.text.split()),
+                    "embedding_vector_id": chunk_obj.chunk_id,
+                    "embeddingText": chunk_obj.text,
+                    "section_path": chunk_obj.section_path,
+                    "section_title": chunk_obj.section_title,
+                    "section_level": chunk_obj.section_level,
+                    "entity_ids": [
+                        str(node.get("id", "")).strip()
+                        for node in nodes
+                        if str(node.get("label", "")).strip() != "Document"
+                        and str(node.get("id", "")).strip()
+                    ],
+                }
+            )
+
+            all_nodes.extend(nodes)
+            all_rels.extend(rels)
+            result.chunks_processed += 1
+
+        result.observed_nodes = copy.deepcopy(all_nodes)
+        result.observed_relationships = copy.deepcopy(all_rels)
+        all_nodes, canonical_id_by_original = self._cross_chunk_dedup(all_nodes)
+        all_rels = self._rewrite_relationship_ids(all_rels, canonical_id_by_original)
+
+        try:
+            self._shape_and_write_graph(
+                result=result,
+                all_nodes=all_nodes,
+                all_rels=all_rels,
+                chunk_records=chunk_records,
+                ontology_context=ontology_context,
+                source_id=source_id,
+                document_id=document_id,
+                version_id=version_id,
+                content=content,
+                database=database,
+                category=category,
+                metadata=metadata,
+                checksum=checksum,
+            )
+        except Exception as exc:
+            result.write_errors.append(str(exc))
+
+        return result
+
     def index_batch(
         self,
         documents: Sequence[str],
@@ -1114,6 +1291,7 @@ class IndexingPipeline:
         category: str = "general",
         metadata: Optional[Dict[str, Any]] = None,
         on_document: Optional[Callable[[int, int], None]] = None,
+        max_workers: int = 1,
     ) -> BatchIndexingResult:
         """Index multiple documents.
 
@@ -1129,6 +1307,12 @@ class IndexingPipeline:
             Metadata applied to all documents.
         on_document:
             Optional callback ``(doc_index, total_docs)`` for progress.
+        max_workers:
+            Number of documents to index concurrently.  Defaults to ``1``
+            (sequential, backward-compatible).  When greater than 1, uses
+            ``asyncio.gather`` with ``aindex`` so LLM extraction calls for
+            different documents run in parallel.  Requires the LLM backend
+            to implement ``acomplete``.
 
         Returns
         -------
@@ -1136,22 +1320,42 @@ class IndexingPipeline:
         """
         batch = BatchIndexingResult(total_documents=len(documents))
 
-        for i, doc in enumerate(documents):
-            if on_document:
-                on_document(i, len(documents))
+        if max_workers <= 1:
+            for i, doc in enumerate(documents):
+                if on_document:
+                    on_document(i, len(documents))
+                result = self.index(
+                    doc, database=database,
+                    category=category, metadata=metadata,
+                )
+                batch.results.append(result)
+                if result.deduplicated:
+                    batch.skipped += 1
+                elif result.ok:
+                    batch.successful += 1
+                else:
+                    batch.failed += 1
+        else:
+            import asyncio
 
-            result = self.index(
-                doc, database=database,
-                category=category, metadata=metadata,
-            )
+            async def _run_parallel() -> List[IndexingResult]:
+                tasks = [
+                    self.aindex(doc, database=database, category=category, metadata=metadata)
+                    for doc in documents
+                ]
+                return list(await asyncio.gather(*tasks))
 
-            batch.results.append(result)
-            if result.deduplicated:
-                batch.skipped += 1
-            elif result.ok:
-                batch.successful += 1
-            else:
-                batch.failed += 1
+            results = asyncio.run(_run_parallel())
+            for i, result in enumerate(results):
+                if on_document:
+                    on_document(i, len(documents))
+                batch.results.append(result)
+                if result.deduplicated:
+                    batch.skipped += 1
+                elif result.ok:
+                    batch.successful += 1
+                else:
+                    batch.failed += 1
 
         return batch
 

@@ -160,6 +160,29 @@ def test_run_layer1_uses_index_stats_for_cost() -> None:
     assert report.avg_top1_accuracy == 1.0
 
 
+def test_run_layer1_reports_k_greater_than_one_for_alt_shapes() -> None:
+    """F1 (seocho-suj2): pattern_catalog declares alternatives on
+    pattern:shortest_path (for relationship_lookup) and
+    pattern:neighbors_one_hop (for entity_lookup). The harness's
+    per-fixture candidate_count must reflect K>1 on those intents.
+    Pins the F1 contract: declaring an alternative is supposed to
+    surface to the eval layer."""
+    fixtures = gopts_ranking.load_fixtures(_fixture_dir())
+    report = gopts_ranking.run_layer1(
+        fixtures,
+        oracle_fn=gopts_ranking.make_expected_top1_oracle_fn(),
+    )
+    by_id = {fr.fixture_id: fr for fr in report.fixture_results}
+
+    # entity_lookup fixture must now see K>=2 (primary + neighbors alt)
+    assert by_id["01_entity_lookup_by_name"].candidate_count >= 2
+    # relationship_lookup fixture must now see K>=2 (primary + shortest_path alt)
+    assert by_id["02_relationship_one_hop"].candidate_count >= 2
+    # singleton shapes stay at K=1 (no alternatives registered)
+    assert by_id["05_finance_metric_value"].candidate_count == 1
+    assert by_id["07_label_count"].candidate_count == 1
+
+
 def test_layer1_report_to_dict_serializable() -> None:
     """Layer1Report.to_dict() must be JSON-serializable so the harness
     output can land in JSONL traces."""

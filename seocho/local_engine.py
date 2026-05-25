@@ -726,6 +726,7 @@ class _LocalEngine:
                 result_count=len(records) if records else 0,
                 reasoning_attempts=len(attempts) if reasoning_mode and attempts else 0,
                 elapsed_seconds=_query_elapsed,
+                answer=deterministic_answer,
             )
             return deterministic_answer
 
@@ -771,6 +772,7 @@ class _LocalEngine:
             result_count=len(records) if records else 0,
             reasoning_attempts=len(attempts) if reasoning_mode and attempts else 0,
             elapsed_seconds=_query_elapsed,
+            answer=answer_text,
         )
 
         return answer_text
@@ -784,6 +786,7 @@ class _LocalEngine:
         result_count: int,
         reasoning_attempts: int,
         elapsed_seconds: float,
+        answer: Optional[str] = None,
     ) -> None:
         try:
             from .tracing import is_tracing_enabled, log_query
@@ -794,6 +797,9 @@ class _LocalEngine:
                     ontology_name=ontology.name,
                     ontology_package=getattr(ontology, "package_id", ontology.name),
                     model=getattr(self.llm, "model", "unknown"),
+                    provider=getattr(self.llm, "provider", None),
+                    workspace_id=self.workspace_id,
+                    answer=answer,
                     cypher=cypher,
                     result_count=result_count,
                     reasoning_attempts=reasoning_attempts,

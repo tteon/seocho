@@ -50,6 +50,12 @@ class CanonicalExtractionEngine:
             else None
         )
         self._linking = LinkingStrategy(ontology) if ontology is not None else None
+        # Most recent rendered prompt + raw completion, retained so a tracing span
+        # can report the prompt body next to the extracted counts. Reflects the
+        # last LLM call only (i.e. the last chunk on multi-chunk documents).
+        self.last_system: str = ""
+        self.last_user: str = ""
+        self.last_completion: str = ""
 
     def extract(
         self,
@@ -76,6 +82,8 @@ class CanonicalExtractionEngine:
             reasoning_mode=False,
             task_hint="json_extraction",
         )
+        self.last_system, self.last_user = system, user
+        self.last_completion = getattr(response, "text", "") or ""
         normalized = self.normalize_payload(response.json())
         if not self._should_retry_relaxed_extraction(normalized, extra_context):
             return normalized
@@ -100,6 +108,8 @@ class CanonicalExtractionEngine:
                 reasoning_mode=False,
                 task_hint="json_extraction_retry",
             )
+            self.last_system, self.last_user = retry_system, retry_user
+            self.last_completion = getattr(retry_response, "text", "") or ""
             retried = self.normalize_payload(retry_response.json())
             if retried.get("nodes") or retried.get("relationships"):
                 retry_metadata["succeeded"] = True

@@ -7,8 +7,9 @@ cd "$ROOT_DIR"
 ACTIVE_DOCS=(
   "README.md"
   "CLAUDE.md"
+  "QUICKSTART.md"
   "docs/README.md"
-  "docs/QUICKSTART.md"
+  "docs/RUNTIME_DEPLOYMENT.md"
   "docs/PYTHON_INTERFACE_QUICKSTART.md"
   "docs/APPLY_YOUR_DATA.md"
   "docs/TUTORIAL_FIRST_RUN.md"
@@ -74,6 +75,12 @@ check_present "website/" \
   "CLAUDE.md" \
   "docs/README.md" \
   "docs/WORKFLOW.md"
+check_present "docs/RUNTIME_DEPLOYMENT.md" \
+  "README.md" \
+  "QUICKSTART.md" \
+  "docs/README.md" \
+  "docs/WORKFLOW.md" \
+  "docs/OPEN_SOURCE_PLAYBOOK.md"
 check_present ".github/workflows/docs-consistency.yml" \
   "README.md" \
   "docs/WORKFLOW.md"

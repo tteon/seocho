@@ -46,6 +46,7 @@ echo "Checking mirrored website docs for current guidance..."
 check_present "Source mirrored from" \
   "src/content/docs/docs/index.md" \
   "src/content/docs/docs/quickstart.md" \
+  "src/content/docs/docs/runtime_deployment.md" \
   "src/content/docs/docs/apply_your_data.md" \
   "src/content/docs/docs/python_sdk.md" \
   "src/content/docs/docs/tutorial.md" \
@@ -53,6 +54,9 @@ check_present "Source mirrored from" \
 check_present "http://localhost:8001/platform/chat/send" \
   "src/content/docs/docs/open_source_playbook.md"
 check_present "/docs/python_sdk/" \
+  "src/content/docs/docs/quickstart.md" \
+  "src/content/docs/docs/index.md"
+check_present "/docs/runtime_deployment/" \
   "src/content/docs/docs/quickstart.md" \
   "src/content/docs/docs/index.md"
 

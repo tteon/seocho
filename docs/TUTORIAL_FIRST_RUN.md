@@ -1,6 +1,6 @@
 # Tutorial: Extended First Run
 
-Use this document after [QUICKSTART.md](QUICKSTART.md) succeeds.
+Use this document after [../QUICKSTART.md](../QUICKSTART.md) succeeds.
 
 This tutorial is not the minimal onboarding path.
 It is the manual verification path for developers who want to understand the runtime surfaces.

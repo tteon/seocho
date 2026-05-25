@@ -77,7 +77,7 @@ profiles instead of relying only on free-form text-to-Cypher behavior.
 
 Choose the surface that matches your job:
 
-- [Quickstart](QUICKSTART.md): shortest local success path
+- [Quickstart](../QUICKSTART.md): shortest local success path
 - [Python SDK Quickstart](PYTHON_INTERFACE_QUICKSTART.md): ontology-first local
   engine and HTTP client usage
 - [Apply Your Data](APPLY_YOUR_DATA.md): bring your own records into the graph

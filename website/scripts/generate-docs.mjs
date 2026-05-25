@@ -43,14 +43,24 @@ const fileMappings = [
       '> *Source mirrored from `seocho/docs/README.md`*\n\n',
   },
   {
-    src: 'docs/QUICKSTART.md',
+    src: 'QUICKSTART.md',
     dest: 'quickstart.md',
     frontmatter:
       '---\n' +
       'title: Quickstart\n' +
       'description: Get SEOCHO up and running in 5 minutes.\n' +
       '---\n\n' +
-      '> *Source mirrored from `seocho/docs/QUICKSTART.md`*\n\n',
+      '> *Source mirrored from `seocho/QUICKSTART.md`*\n\n',
+  },
+  {
+    src: 'docs/RUNTIME_DEPLOYMENT.md',
+    dest: 'runtime_deployment.md',
+    frontmatter:
+      '---\n' +
+      'title: Runtime Deployment\n' +
+      'description: Full local runtime deployment guide for the Docker stack, services, and environment setup.\n' +
+      '---\n\n' +
+      '> *Source mirrored from `seocho/docs/RUNTIME_DEPLOYMENT.md`*\n\n',
   },
   {
     src: 'docs/APPLY_YOUR_DATA.md',
@@ -166,7 +176,8 @@ const blogMappings = [
 const routeReplacements = new Map([
   ['`docs/WHY_SEOCHO.md`', '[`/docs/why_seocho/`](/docs/why_seocho/)'],
   ['`docs/README.md`', '[`/docs/`](/docs/)'],
-  ['`docs/QUICKSTART.md`', '[`/docs/quickstart/`](/docs/quickstart/)'],
+  ['`QUICKSTART.md`', '[`/docs/quickstart/`](/docs/quickstart/)'],
+  ['`docs/RUNTIME_DEPLOYMENT.md`', '[`/docs/runtime_deployment/`](/docs/runtime_deployment/)'],
   ['`docs/APPLY_YOUR_DATA.md`', '[`/docs/apply_your_data/`](/docs/apply_your_data/)'],
   ['`docs/PYTHON_INTERFACE_QUICKSTART.md`', '[`/docs/python_sdk/`](/docs/python_sdk/)'],
   ['`docs/FILES_AND_ARTIFACTS.md`', '[`/docs/files_and_artifacts/`](/docs/files_and_artifacts/)'],
@@ -176,8 +187,15 @@ const routeReplacements = new Map([
   ['`docs/OPEN_SOURCE_PLAYBOOK.md`', '[`/docs/open_source_playbook/`](/docs/open_source_playbook/)'],
   ['`docs/PHILOSOPHY.md`', '[`/docs/philosophy/`](/docs/philosophy/)'],
   ['`docs/PHILOSOPHY_FEASIBILITY_REVIEW.md`', '[`/blog/feasibility-review-framework/`](/blog/feasibility-review-framework/)'],
+  ['(../README.md#execution-surfaces)', `(${SOURCE_BLOB_BASE}README.md#execution-surfaces)`],
+  ['(../QUICKSTART.md)', '(/docs/quickstart/)'],
   ['(WHY_SEOCHO.md)', '(/docs/why_seocho/)'],
   ['(QUICKSTART.md)', '(/docs/quickstart/)'],
+  ['(docs/RUNTIME_DEPLOYMENT.md)', '(/docs/runtime_deployment/)'],
+  ['(RUNTIME_DEPLOYMENT.md)', '(/docs/runtime_deployment/)'],
+  ['(docs/APPLY_YOUR_DATA.md)', '(/docs/apply_your_data/)'],
+  ['(docs/PYTHON_INTERFACE_QUICKSTART.md)', '(/docs/python_sdk/)'],
+  ['(docs/FILES_AND_ARTIFACTS.md)', '(/docs/files_and_artifacts/)'],
   ['(PYTHON_INTERFACE_QUICKSTART.md)', '(/docs/python_sdk/)'],
   ['(APPLY_YOUR_DATA.md)', '(/docs/apply_your_data/)'],
   ['(FILES_AND_ARTIFACTS.md)', '(/docs/files_and_artifacts/)'],

@@ -840,7 +840,7 @@ The practical ontology file flow is:
 ## 19. Read Next
 
 - `APPLY_YOUR_DATA.md`
-- `QUICKSTART.md`
+- `../QUICKSTART.md`
 - `GRAPH_MEMORY_API.md`
 
 That keeps the default path deterministic and inspectable while still leaving a

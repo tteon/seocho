@@ -34,6 +34,7 @@ export default defineConfig({
                         { label: 'Introduction', link: '/docs/' },
                         { label: 'Why SEOCHO', link: '/docs/why_seocho/' },
                         { label: 'Quick Start', link: '/docs/quickstart/' },
+                        { label: 'Runtime Deployment', link: '/docs/runtime_deployment/' },
                         { label: 'Bring Your Data', link: '/docs/apply_your_data/' },
                         { label: 'Python SDK', link: '/docs/python_sdk/' },
                         { label: 'Files and Artifacts', link: '/docs/files_and_artifacts/' },

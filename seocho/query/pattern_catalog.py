@@ -38,6 +38,7 @@ def register_pattern(
     required_relations: Tuple[str, ...] = (),
     schema_preconditions: Tuple[str, ...] = (),
     cost_hints: Optional[Dict[str, Any]] = None,
+    alternatives: Tuple[str, ...] = (),
 ) -> Callable[[Callable[..., Tuple[str, Dict[str, Any]]]], Callable[..., Tuple[str, Dict[str, Any]]]]:
     """Decorator: register a PatternSpec keyed by ``pattern_id``.
 
@@ -55,6 +56,7 @@ def register_pattern(
             schema_preconditions=schema_preconditions,
             cost_hints=dict(cost_hints or {}),
             template_factory=fn,
+            alternatives=alternatives,
         )
         _REGISTRY[pattern_id] = spec
         _SHAPE_INDEX[cypher_shape] = pattern_id
@@ -76,6 +78,29 @@ def match(intent_id: str) -> List[PatternSpec]:
     ``intent_id``; in G3 this is mostly singletons because the
     PatternSpec.intent_id field is best-effort against INTENT_CATALOG."""
     return [spec for spec in _REGISTRY.values() if spec.intent_id == intent_id]
+
+
+def enumerate_for_shape(cypher_shape: str) -> List[PatternSpec]:
+    """G2 enumeration entry point.
+
+    Returns the primary pattern for ``cypher_shape`` plus any pattern
+    that declares ``cypher_shape`` in its ``alternatives``. Deterministic
+    ordering: primary first, then alternatives in registration order.
+
+    For G3's catalog state most shapes return a singleton because no
+    alternatives are declared yet; the API is here so G2's enumeration
+    arm composes without retrofitting later.
+    """
+    primary = get_by_cypher_shape(cypher_shape)
+    candidates: List[PatternSpec] = []
+    if primary is not None:
+        candidates.append(primary)
+    for spec in _REGISTRY.values():
+        if spec is primary:
+            continue
+        if cypher_shape in spec.alternatives:
+            candidates.append(spec)
+    return candidates
 
 
 def all_patterns() -> List[PatternSpec]:

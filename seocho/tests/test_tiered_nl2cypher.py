@@ -219,6 +219,107 @@ def test_validate_cypher_tool_flags_missing_node_binding(
     assert "missing_node_binding" in payload["violations"]
 
 
+def _minimal_ontology():
+    """Tiny ontology for tool-level cost-ranking tests."""
+    from seocho import NodeDef, Ontology, P, RelDef
+
+    return Ontology(
+        name="g2_test",
+        graph_model="lpg",
+        nodes={"Entity": NodeDef(properties={"name": P(str, unique=True)})},
+        relationships={
+            "RELATES_TO": RelDef(
+                source="Entity",
+                target="Entity",
+                description="generic",
+            )
+        },
+    )
+
+
+def test_text2cypher_attaches_ranked_plans_for_observability(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ADR-0097 G2: every text2cypher invocation includes a
+    ``ranked_plans`` cost breakdown in the response JSON, even when K=1
+    (today's catalog), so the trace surface lights up before K>1 work."""
+    _stub_agents(monkeypatch)
+    tools = importlib.import_module("seocho.tools")
+
+    tool = tools.make_text2cypher_tool(_minimal_ontology())
+    payload = json.loads(tool(intent="entity_lookup", anchor_entity="Apple"))
+
+    assert "cypher" in payload
+    assert "ranked_plans" in payload, "G2 ranked_plans missing from response"
+    assert len(payload["ranked_plans"]) >= 1
+    assert payload["selected_pattern_id"] == "pattern:entity_lookup_by_name"
+    top = payload["ranked_plans"][0]
+    for key in ("pattern_id", "cypher_shape", "plan_depth", "total"):
+        assert key in top, f"ranked_plan missing {key}"
+
+
+def test_text2cypher_uses_graph_store_for_index_stats(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When graph_store is provided, the tool fetches IndexStats and the
+    cost breakdown reflects label_counts. ``estimated_row_count`` should
+    equal the count for the pattern's required_labels."""
+    _stub_agents(monkeypatch)
+    tools = importlib.import_module("seocho.tools")
+
+    class FakeStore:
+        def __init__(self):
+            self.calls = 0
+
+        def get_index_stats(self, *, database: str, workspace_id: str):
+            self.calls += 1
+            assert workspace_id == "ws-g2"
+            return {
+                "indexes": [{"labels_or_types": ["Entity"]}],
+                "label_counts": {"Entity": 250},
+                "rel_counts": {"RELATES_TO": 80},
+            }
+
+    store = FakeStore()
+    tool = tools.make_text2cypher_tool(
+        _minimal_ontology(),
+        graph_store=store,
+        workspace_id="ws-g2",
+    )
+    payload = json.loads(tool(intent="entity_lookup", anchor_entity="Apple"))
+
+    assert store.calls == 1
+    top = payload["ranked_plans"][0]
+    assert top["estimated_row_count"] == 250
+    assert top["index_miss_penalty"] == 0  # Entity has an index in fake stats
+
+
+def test_text2cypher_cost_ranking_failure_does_not_break_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Best-effort cost ranking — a graph_store that raises must NOT
+    break the tool's primary contract (cypher + params still emitted)."""
+    _stub_agents(monkeypatch)
+    tools = importlib.import_module("seocho.tools")
+
+    class BoomStore:
+        def get_index_stats(self, *, database: str, workspace_id: str):
+            raise RuntimeError("bolt down")
+
+    tool = tools.make_text2cypher_tool(
+        _minimal_ontology(),
+        graph_store=BoomStore(),
+        workspace_id="ws-g2",
+    )
+    payload = json.loads(tool(intent="entity_lookup", anchor_entity="Apple"))
+
+    # cypher path still emits — cost ranking falls back to no index_stats
+    # and still attaches a (less informed) breakdown.
+    assert payload["cypher"]
+    assert "ranked_plans" in payload
+    assert payload["ranked_plans"][0]["estimated_row_count"] == 0
+
+
 def test_validate_cypher_tool_passes_clean_query(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

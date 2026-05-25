@@ -290,6 +290,60 @@ The main local locations are:
 See [FILES_AND_ARTIFACTS.md](FILES_AND_ARTIFACTS.md) for the full map and
 inspection commands.
 
+## 14. GOPTS Layer-1 PROFILE Oracle (ADR-0097, optional)
+
+The GOPTS cost-ranked Cypher emitter (ADR-0097) ships with a Layer-1
+ranking-quality evaluation harness. The PROFILE oracle is opt-in — it
+needs a live DozerDB to collect real `db_hits` per candidate plan.
+
+**Start DozerDB**
+
+```bash
+docker compose up -d neo4j
+# wait a few seconds for the bolt port to come up
+```
+
+**Load the FIBO-lite test corpus** (idempotent, workspace-scoped):
+
+```bash
+NEO4J_PASSWORD=... python -m scripts.eval.load_gopts_fibo_corpus
+# tear down: python -m scripts.eval.load_gopts_fibo_corpus --teardown
+```
+
+**Run the live Layer-1 integration test**:
+
+```bash
+NEO4J_PASSWORD=... pytest -m integration_gopts seocho/tests/integration/
+```
+
+The test session auto-loads the corpus on entry and tears it down on
+exit. It skips cleanly when `NEO4J_PASSWORD` is unset or the bolt
+endpoint is unreachable — CI without Docker stays green.
+
+**What the harness reports**
+
+For each fixture, the harness compares the GOPTS cost model's ranking
+to Neo4j PROFILE's `db_hits`-driven ranking:
+
+- `avg_top1_accuracy` — fraction of fixtures where cost model picks
+  PROFILE's top plan.
+- `avg_ndcg_at_k` — graded relevance fallback for near-ties.
+- `avg_kendall_tau` — full-ranking agreement diagnostic.
+
+On today's catalog the harness reports 1.0 across all three — cost
+model and PROFILE agree everywhere. That is a positive result: it
+proves the cost-model defaults are well-calibrated against actual
+`db_hits`. The harness exists to *catch* future calibration drift
+when F8 (multi-plan execution) or richer alternatives change the
+picks.
+
+**Skipped fixtures**: the compose stack ships uniqueness constraints
+on `FinancialMetric.name` (and similar metric subclasses). The Layer-1
+live runner filters out fixtures 05/06 (`finance_metric_lookup`,
+`finance_metric_delta`) because they need multi-year metric rows that
+the constraint forbids loading. Mock-oracle Layer-1
+(`pytest seocho/tests/test_gopts_ranking.py`) still covers them.
+
 ## 13. Read Next
 
 - `docs/PYTHON_INTERFACE_QUICKSTART.md`

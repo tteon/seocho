@@ -117,6 +117,9 @@ pdf = [
 testpaths = ["extraction/tests"]
 pythonpath = ["extraction"]
 asyncio_mode = "auto"
+markers = [
+    "integration_gopts: requires a live DozerDB at NEO4J_URI; F4 PROFILE oracle integration",
+]
 
 [tool.black]
 line-length = 88

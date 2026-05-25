@@ -21,7 +21,6 @@ from config import graph_registry, load_pipeline_runtime_config
 from database_manager import DatabaseManager
 from exceptions import InvalidDatabaseNameError
 from raw_material_parser import MaterialParseError, parse_raw_material_record
-from semantic_context import build_dynamic_prompt_context
 from seocho.index import CanonicalExtractionEngine
 from seocho.index.runtime_artifacts import (
     build_vocabulary_candidate,
@@ -42,6 +41,7 @@ from seocho.index.runtime_memory import (
     ensure_memory_graph,
 )
 from seocho.ontology_context import apply_ontology_context_to_graph_payload
+from seocho.semantic_prompt_composer import build_dynamic_prompt_context
 from seocho.store.llm import create_llm_backend
 
 logger = logging.getLogger(__name__)

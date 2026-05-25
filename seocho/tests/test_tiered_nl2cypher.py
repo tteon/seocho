@@ -134,6 +134,62 @@ def test_schema_introspect_tool_swallows_store_errors(
     assert "bolt down" in payload["error"]
 
 
+def test_schema_with_stats_tool_combines_schema_and_stats(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ADR-0097 G1: tool returns the union of get_schema + get_index_stats."""
+    _stub_agents(monkeypatch)
+    tools = importlib.import_module("seocho.tools")
+
+    class FakeStore:
+        def get_schema(self, *, database: str, workspace_id: str):
+            assert database == "neo4j"
+            assert workspace_id == "ws-1"
+            return {
+                "labels": ["Entity"],
+                "relationship_types": ["MENTIONS"],
+                "property_keys": ["name"],
+            }
+
+        def get_index_stats(self, *, database: str, workspace_id: str):
+            assert database == "neo4j"
+            assert workspace_id == "ws-1"
+            return {
+                "indexes": [{"name": "entity_name_idx", "type": "RANGE"}],
+                "label_counts": {"Entity": 42},
+                "rel_counts": {"MENTIONS": 7},
+            }
+
+    tool = tools.make_schema_with_stats_tool(FakeStore(), workspace_id="ws-1")
+    payload = json.loads(tool(database=""))
+    assert payload["labels"] == ["Entity"]
+    assert payload["relationship_types"] == ["MENTIONS"]
+    assert payload["indexes"][0]["name"] == "entity_name_idx"
+    assert payload["label_counts"] == {"Entity": 42}
+    assert payload["rel_counts"] == {"MENTIONS": 7}
+
+
+def test_schema_with_stats_tool_swallows_store_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _stub_agents(monkeypatch)
+    tools = importlib.import_module("seocho.tools")
+
+    class BoomStore:
+        def get_schema(self, *, database: str, workspace_id: str):
+            raise RuntimeError("bolt down")
+
+        def get_index_stats(self, *, database: str, workspace_id: str):
+            raise RuntimeError("should not reach")
+
+    tool = tools.make_schema_with_stats_tool(BoomStore())
+    payload = json.loads(tool(database=""))
+    assert payload["labels"] == []
+    assert payload["indexes"] == []
+    assert payload["label_counts"] == {}
+    assert "bolt down" in payload["error"]
+
+
 def test_validate_cypher_tool_rejects_forbidden_keywords(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

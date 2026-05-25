@@ -430,6 +430,54 @@ def make_schema_introspect_tool(
     return schema_introspect
 
 
+def make_schema_with_stats_tool(
+    graph_store: Any,
+    *,
+    workspace_id: str = "default",
+    default_database: str = "neo4j",
+):
+    """Wrap ``graph_store.get_schema + get_index_stats`` as one tool (ADR-0097).
+
+    Combines the schema introspection from ADR-0090 with the index-stats
+    payload that the GOPTS cost model consumes. Existing
+    ``make_schema_introspect_tool`` stays for callers that only need the
+    schema; G2's plan ranker calls this richer tool.
+    """
+    from agents import function_tool
+
+    @function_tool
+    def schema_with_stats(database: str = "") -> str:
+        """Return schema + index stats for the workspace.
+
+        Args:
+            database: Optional database name; defaults to the configured one.
+
+        Returns:
+            JSON string with ``labels``, ``relationship_types``,
+            ``property_keys``, ``indexes``, ``label_counts``, ``rel_counts``.
+        """
+        db = database.strip() or default_database
+        try:
+            schema = graph_store.get_schema(database=db, workspace_id=workspace_id)
+            stats = graph_store.get_index_stats(database=db, workspace_id=workspace_id)
+            return json.dumps({**schema, **stats}, default=str)
+        except Exception as exc:  # noqa: BLE001
+            logger.error("schema_with_stats failed: %s", exc)
+            return json.dumps(
+                {
+                    "labels": [],
+                    "relationship_types": [],
+                    "property_keys": [],
+                    "indexes": [],
+                    "label_counts": {},
+                    "rel_counts": {},
+                    "error": str(exc),
+                }
+            )
+
+    return schema_with_stats
+
+
 def make_validate_cypher_tool(*, workspace_id: str = "default"):
     """Wrap ``CypherQueryValidator.validate()`` as a function tool (ADR-0090).
 

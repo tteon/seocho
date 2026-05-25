@@ -326,6 +326,8 @@ class Neo4jGraphStore(GraphStore):
         self._schema_cache: Dict[str, Dict[str, Any]] = {}
         self._schema_cache_ts: Dict[str, float] = {}
         self._schema_cache_ttl = 60.0  # seconds
+        self._index_stats_cache: Dict[str, Dict[str, Any]] = {}
+        self._index_stats_cache_ts: Dict[str, float] = {}
 
     def write(
         self,
@@ -577,6 +579,93 @@ class Neo4jGraphStore(GraphStore):
             logger.warning("get_schema failed for database '%s': %s", database, exc)
             return {"labels": [], "relationship_types": [], "property_keys": []}
 
+    def get_index_stats(
+        self,
+        *,
+        database: str = "neo4j",
+        workspace_id: str = "default",
+    ) -> Dict[str, Any]:
+        """Return SHOW INDEXES + per-label/rel cardinality for the workspace.
+
+        Feeds the GOPTS cost model (ADR-0097). Cached with the same
+        TTL/composite-key shape as get_schema(). Workspace-scoped via
+        $workspace_id filter on each count query per CLAUDE.md §6.1.
+        """
+        key = self._schema_cache_key(database, workspace_id)
+        now = time.monotonic()
+        cached_ts = self._index_stats_cache_ts.get(key, 0.0)
+        if key in self._index_stats_cache and (now - cached_ts) < self._schema_cache_ttl:
+            return self._index_stats_cache[key]
+
+        from extraction.fulltext_index import is_valid_identifier
+
+        try:
+            with self._driver.session(database=database) as session:
+                indexes: List[Dict[str, Any]] = []
+                try:
+                    rows = session.run(
+                        "SHOW INDEXES YIELD name, type, state, entityType, "
+                        "labelsOrTypes, properties RETURN name, type, state, "
+                        "entityType, labelsOrTypes, properties"
+                    )
+                    for r in rows:
+                        indexes.append({
+                            "name": r["name"],
+                            "type": r["type"],
+                            "state": r["state"],
+                            "entity_type": r.get("entityType"),
+                            "labels_or_types": list(r.get("labelsOrTypes") or []),
+                            "properties": list(r.get("properties") or []),
+                        })
+                except Exception as exc:
+                    logger.warning("SHOW INDEXES failed for '%s': %s", database, exc)
+
+                label_counts: Dict[str, int] = {}
+                for r in session.run("CALL db.labels()"):
+                    label = r["label"]
+                    if not is_valid_identifier(label):
+                        logger.warning("skipping non-identifier label '%s'", label)
+                        continue
+                    try:
+                        count_rec = session.run(
+                            f"MATCH (n:{label}) "
+                            "WHERE n._workspace_id = $workspace_id "
+                            "RETURN count(n) AS cnt",
+                            workspace_id=workspace_id,
+                        ).single()
+                        label_counts[label] = int(count_rec["cnt"]) if count_rec else 0
+                    except Exception as exc:
+                        logger.warning("label count failed for '%s': %s", label, exc)
+
+                rel_counts: Dict[str, int] = {}
+                for r in session.run("CALL db.relationshipTypes()"):
+                    rt = r["relationshipType"]
+                    if not is_valid_identifier(rt):
+                        logger.warning("skipping non-identifier rel type '%s'", rt)
+                        continue
+                    try:
+                        count_rec = session.run(
+                            f"MATCH ()-[r:{rt}]->() "
+                            "WHERE r._workspace_id = $workspace_id "
+                            "RETURN count(r) AS cnt",
+                            workspace_id=workspace_id,
+                        ).single()
+                        rel_counts[rt] = int(count_rec["cnt"]) if count_rec else 0
+                    except Exception as exc:
+                        logger.warning("rel count failed for '%s': %s", rt, exc)
+
+            payload = {
+                "indexes": indexes,
+                "label_counts": label_counts,
+                "rel_counts": rel_counts,
+            }
+            self._index_stats_cache[key] = payload
+            self._index_stats_cache_ts[key] = now
+            return payload
+        except Exception as exc:
+            logger.warning("get_index_stats failed for '%s': %s", database, exc)
+            return {"indexes": [], "label_counts": {}, "rel_counts": {}}
+
     def invalidate_schema_cache(
         self,
         database: Optional[str] = None,
@@ -595,11 +684,15 @@ class Neo4jGraphStore(GraphStore):
         if database is None and workspace_id is None:
             self._schema_cache.clear()
             self._schema_cache_ts.clear()
+            self._index_stats_cache.clear()
+            self._index_stats_cache_ts.clear()
             return
         if database is not None and workspace_id is not None:
             key = self._schema_cache_key(database, workspace_id)
             self._schema_cache.pop(key, None)
             self._schema_cache_ts.pop(key, None)
+            self._index_stats_cache.pop(key, None)
+            self._index_stats_cache_ts.pop(key, None)
             return
         # Partial key — drop every entry whose composite key starts with database::
         if database is not None:
@@ -608,6 +701,10 @@ class Neo4jGraphStore(GraphStore):
             for k in stale:
                 self._schema_cache.pop(k, None)
                 self._schema_cache_ts.pop(k, None)
+            stale_stats = [k for k in self._index_stats_cache if k.startswith(prefix)]
+            for k in stale_stats:
+                self._index_stats_cache.pop(k, None)
+                self._index_stats_cache_ts.pop(k, None)
 
     def delete_by_source(
         self,

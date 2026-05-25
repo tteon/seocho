@@ -162,13 +162,59 @@ def test_rank_candidates_breaks_ties_by_pattern_id() -> None:
 
 
 def test_enumerate_for_shape_returns_primary_only_when_no_alternatives() -> None:
-    candidates = pattern_catalog.enumerate_for_shape("entity_lookup")
+    """A truly singleton shape (financial_metric_lookup has no
+    registered alternatives) returns just the primary pattern."""
+    candidates = pattern_catalog.enumerate_for_shape("financial_metric_lookup")
     assert len(candidates) == 1
-    assert candidates[0].pattern_id == "pattern:entity_lookup_by_name"
+    assert candidates[0].pattern_id == "pattern:finance_metric_value"
 
 
 def test_enumerate_for_shape_unknown_returns_empty() -> None:
     assert pattern_catalog.enumerate_for_shape("does_not_exist") == []
+
+
+# --- F1 (seocho-suj2): K>1 alternatives ---------------------------------------
+
+
+def test_entity_lookup_enumerates_with_neighbors_alternative() -> None:
+    """F1: pattern:neighbors_one_hop is registered as an alternative for
+    the entity_lookup shape so G2's enumerator gets two real candidates."""
+    candidates = pattern_catalog.enumerate_for_shape("entity_lookup")
+    pattern_ids = [c.pattern_id for c in candidates]
+    assert pattern_ids[0] == "pattern:entity_lookup_by_name"  # primary first
+    assert "pattern:neighbors_one_hop" in pattern_ids
+
+
+def test_relationship_lookup_enumerates_with_shortest_path_alternative() -> None:
+    """F1: pattern:shortest_path declares relationship_lookup as an
+    alternative — under-specified relationship questions get the
+    general path option ranked alongside the hop-1 specialist."""
+    candidates = pattern_catalog.enumerate_for_shape("relationship_lookup")
+    pattern_ids = [c.pattern_id for c in candidates]
+    assert pattern_ids[0] == "pattern:relationship_lookup_hop1"  # primary first
+    assert "pattern:shortest_path" in pattern_ids
+
+
+def test_cost_ranker_picks_relationship_hop1_over_shortest_path() -> None:
+    """F1: the cost model must prefer the cheap specialist
+    (relationship_lookup_hop1, plan_depth=2) over the expensive general
+    (shortest_path, plan_depth=5 + cartesian_risk=1) when both are
+    candidates for the same question. Pins ranker tie-break against
+    regression."""
+    candidates = pattern_catalog.enumerate_for_shape("relationship_lookup")
+    ranked = cost_model.rank_candidates(candidates)
+    assert ranked[0][0].pattern_id == "pattern:relationship_lookup_hop1"
+    assert ranked[-1][0].pattern_id == "pattern:shortest_path"
+
+
+def test_cost_ranker_picks_entity_lookup_over_neighbors_one_hop() -> None:
+    """F1: entity_lookup_by_name (plan_depth=1) beats neighbors_one_hop
+    (plan_depth=2) on cost when both are candidates for entity_lookup.
+    Pins the ranker so adding cheaper alternatives later doesn't
+    silently flip the existing behavior."""
+    candidates = pattern_catalog.enumerate_for_shape("entity_lookup")
+    ranked = cost_model.rank_candidates(candidates)
+    assert ranked[0][0].pattern_id == "pattern:entity_lookup_by_name"
 
 
 def test_enumerate_for_shape_picks_up_alternatives() -> None:

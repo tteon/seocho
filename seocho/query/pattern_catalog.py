@@ -238,6 +238,13 @@ def _factory_financial_metric_delta(
     cypher_shape="neighbors",
     required_labels=("Entity",),
     cost_hints={"hop_count": 1, "is_default_fallback": True},
+    # F1: neighbors_one_hop can substitute for a pure entity_lookup
+    # when the caller can absorb the extra one-hop expansion as
+    # additional context. Cost ranker picks entity_lookup_by_name
+    # over neighbors_one_hop on cost (plan_depth=1 vs 2) but the
+    # alternative is registered so G2's K>1 path has a real choice
+    # to make and Layer-1 reports non-trivial candidate counts.
+    alternatives=("entity_lookup",),
 )
 def _factory_neighbors(
     builder: Any,
@@ -257,6 +264,13 @@ def _factory_neighbors(
     cypher_shape="path",
     required_labels=("Entity",),
     cost_hints={"unbounded_path": True},
+    # F1: shortest_path is the general fallback for relationship_lookup
+    # questions where the caller didn't pin a specific relationship
+    # type. Much more expensive (plan_depth=5 + cartesian_risk=1) so
+    # the cost ranker prefers relationship_lookup_hop1 when the latter
+    # applies, but the alternative is the right backup choice when
+    # relationship_lookup_hop1's required_relations don't fit.
+    alternatives=("relationship_lookup",),
 )
 def _factory_path(
     builder: Any,

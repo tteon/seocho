@@ -1,6 +1,12 @@
 from __future__ import annotations
 
 import re
+
+_RE_SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+|\n+")
+_RE_NON_ALNUM = re.compile(r"[^a-z0-9]+")
+_RE_WHITESPACE = re.compile(r"\s+")
+_RE_COMMA_OR_AND = re.compile(r",|\bor\b|\band\b|/|;", flags=re.IGNORECASE)
+
 from typing import Any, Dict, List, Optional, Sequence, Set
 
 from .contracts import IntentSpec
@@ -374,7 +380,7 @@ def extract_tradeoff_points_from_text(text: str) -> Dict[str, List[str]]:
 
     sentences = [
         sentence.strip()
-        for sentence in re.split(r"(?<=[.!?])\s+|\n+", text)
+        for sentence in _RE_SENTENCE_SPLIT.split(text)
         if sentence.strip()
     ]
     if not limitation_points:
@@ -445,13 +451,13 @@ def extract_tradeoff_points_from_triples(
 
 
 def _first_entity_with_labels(entities: Sequence[Dict[str, Any]], normalized_targets: Set[str]) -> str:
-    normalized_target_keys = {re.sub(r"[^a-z0-9]+", "", item.lower()) for item in normalized_targets}
+    normalized_target_keys = {_RE_NON_ALNUM.sub("", item.lower()) for item in normalized_targets}
     for entity in entities:
         labels = entity.get("labels", [])
         if not isinstance(labels, list):
             continue
         normalized_labels = {
-            re.sub(r"[^a-z0-9]+", "", str(label).lower())
+            _RE_NON_ALNUM.sub("", str(label).lower())
             for label in labels
         }
         if normalized_labels & normalized_target_keys:
@@ -491,10 +497,10 @@ def _tradeoff_points_from_entities(entities: Sequence[Dict[str, Any]]) -> Dict[s
 
 
 def _split_compact_points(raw: str) -> List[str]:
-    cleaned = re.sub(r"\s+", " ", str(raw).strip(" .,:;")).strip()
+    cleaned = _RE_WHITESPACE.sub(" ", str(raw).strip(" .,:;")).strip()
     if not cleaned:
         return []
-    parts = re.split(r",|\bor\b|\band\b|/|;", cleaned, flags=re.IGNORECASE)
+    parts = _RE_COMMA_OR_AND.split(cleaned)
     return [
         _canonicalize_point_text(part)
         for part in parts
@@ -503,14 +509,14 @@ def _split_compact_points(raw: str) -> List[str]:
 
 
 def _compact_sentence(sentence: str) -> str:
-    compact = re.sub(r"\s+", " ", sentence.strip())
+    compact = _RE_WHITESPACE.sub(" ", sentence.strip())
     if len(compact) <= 160:
         return compact
     return compact[:157].rsplit(" ", 1)[0].rstrip() + "..."
 
 
 def _canonicalize_point_text(value: str) -> str:
-    compact = re.sub(r"\s+", " ", str(value).strip(" .,:;")).strip()
+    compact = _RE_WHITESPACE.sub(" ", str(value).strip(" .,:;")).strip()
     if not compact:
         return ""
     if compact.lower() in {"gil", "the gil", "global interpreter lock"}:
@@ -534,4 +540,4 @@ def _dedupe_points(values: Sequence[str]) -> List[str]:
 
 
 def _normalize_symbol(value: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "", str(value).lower())
+    return _RE_NON_ALNUM.sub("", str(value).lower())

@@ -14,6 +14,18 @@ classify the user question.
 from __future__ import annotations
 
 import re
+
+_RE_TRAILING_AMP = re.compile(r"\s*&\s*$")
+_RE_WHITESPACE = re.compile(r"\s+")
+_RE_ALNUM_UNDERSCORE = re.compile(r"[a-z][a-z0-9_]+")
+_RE_NON_ALNUM = re.compile(r"[^a-z0-9]+")
+_RE_ALNUM = re.compile(r"[a-z][a-z0-9]+")
+_RE_DELTA_IN = re.compile(r"delta in (.+?) from \d{4}")
+_RE_CHANGE_IN = re.compile(r"change in (.+?) from \d{4}")
+_RE_COMPARE_BETWEEN = re.compile(r"compare (.+?) between \d{4}")
+_RE_WHAT_WAS = re.compile(r"what was (.+?) in \d{4}")
+_RE_HOW_MUCH = re.compile(r"how much was (.+?) in \d{4}")
+
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 from ..ontology import Ontology
@@ -77,8 +89,8 @@ def normalize_entity(name: str) -> str:
     text = name.strip()
     text = text.replace("\u2019s", "").replace("'s", "")
     text = _ENTITY_SUFFIXES.sub("", text).strip()
-    text = re.sub(r"\s*&\s*$", "", text)
-    text = re.sub(r"\s+", " ", text).strip()
+    text = _RE_TRAILING_AMP.sub("", text)
+    text = _RE_WHITESPACE.sub(" ", text).strip()
     return text
 
 
@@ -319,7 +331,7 @@ class CypherBuilder:
         normalized_blob = " ".join(self._normalize_hint_text(text) for text in raw_texts if str(text).strip())
         topic_terms: List[str] = []
         for text in raw_texts:
-            for token in re.findall(r"[a-z][a-z0-9_]+", str(text).lower().replace("&", " and ")):
+            for token in _RE_ALNUM_UNDERSCORE.findall(str(text).lower().replace("&", " and ")):
                 if token in _SCHEMA_HINT_STOPWORDS or token in _METRIC_TOKEN_STOPWORDS:
                     continue
                 if token not in topic_terms:
@@ -693,7 +705,7 @@ class CypherBuilder:
 
     @staticmethod
     def _normalize_hint_text(value: str) -> str:
-        return re.sub(r"[^a-z0-9]+", " ", str(value).lower()).strip()
+        return _RE_NON_ALNUM.sub(" ", str(value).lower()).strip()
 
     def _hint_match_score(self, normalized_blob: str, candidates: Sequence[Any]) -> int:
         score = 0
@@ -731,14 +743,14 @@ class CypherBuilder:
     def _extract_metric_phrase(self, question: str) -> str:
         lower = question.lower()
         patterns = [
-            r"delta in (.+?) from \d{4}",
-            r"change in (.+?) from \d{4}",
-            r"compare (.+?) between \d{4}",
-            r"what was (.+?) in \d{4}",
-            r"how much was (.+?) in \d{4}",
+            _RE_DELTA_IN,
+            _RE_CHANGE_IN,
+            _RE_COMPARE_BETWEEN,
+            _RE_WHAT_WAS,
+            _RE_HOW_MUCH,
         ]
         for pattern in patterns:
-            match = re.search(pattern, lower)
+            match = pattern.search(lower)
             if match:
                 candidate = match.group(1).strip(" .?")
                 if candidate:
@@ -767,16 +779,16 @@ class CypherBuilder:
         anchor_entity: str = "",
     ) -> List[str]:
         lower = text.lower().replace("&", " and ")
-        tokens = re.findall(r"[a-z][a-z0-9]+", lower)
+        tokens = _RE_ALNUM.findall(lower)
         anchor_tokens = {
             token
-            for token in re.findall(r"[a-z][a-z0-9]+", normalize_entity(anchor_entity).lower())
+            for token in _RE_ALNUM.findall(normalize_entity(anchor_entity).lower())
             if token
         }
         alias_tokens = {
             token
             for alias in metric_aliases
-            for token in re.findall(r"[a-z][a-z0-9]+", str(alias).lower())
+            for token in _RE_ALNUM.findall(str(alias).lower())
             if token
         }
         result: List[str] = []

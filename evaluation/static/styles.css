@@ -209,11 +209,6 @@ body {
   outline: none;
 }
 
-.control select:focus,
-.control input:focus {
-  border-color: var(--accent-blue);
-  box-shadow: 0 0 0 1px var(--accent-blue);
-}
 
 .ingest-controls {
   padding: 0.6rem 1.5rem;
@@ -244,10 +239,6 @@ body {
   resize: vertical;
 }
 
-.ingest-grow textarea:focus {
-  border-color: var(--accent-blue);
-  box-shadow: 0 0 0 1px var(--accent-blue);
-}
 
 #ingestBtn {
   background: var(--accent-green);
@@ -360,10 +351,6 @@ body {
   outline: none;
 }
 
-.composer textarea:focus {
-  border-color: var(--accent-blue);
-  box-shadow: 0 0 0 1px var(--accent-blue);
-}
 
 .composer button {
   align-self: flex-end;
@@ -580,4 +567,13 @@ button:focus-visible {
   to {
     stroke-dashoffset: -16;
   }
+}
+
+/* Global Focus Styles for Accessibility */
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 1px var(--accent-blue);
 }

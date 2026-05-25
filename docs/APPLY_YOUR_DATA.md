@@ -290,6 +290,6 @@ For most teams, this is the right progression:
 ## 9. Read Next
 
 - `PYTHON_INTERFACE_QUICKSTART.md`
-- `QUICKSTART.md`
+- `../QUICKSTART.md`
 - `GRAPH_MEMORY_API.md`
 - `GRAPH_RAG_AGENT_HANDOFF_SPEC.md`

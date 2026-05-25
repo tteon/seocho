@@ -3,7 +3,7 @@
 SEOCHO docs are organized around one question: what do you need to do right
 now?
 
-[![Quickstart](https://img.shields.io/badge/Quickstart-First_Run-2563eb)](QUICKSTART.md)
+[![Quickstart](https://img.shields.io/badge/Quickstart-First_Run-2563eb)](../QUICKSTART.md)
 [![Python SDK](https://img.shields.io/badge/Python_SDK-Examples-0f766e)](PYTHON_INTERFACE_QUICKSTART.md)
 [![Architecture Deep Dive](https://img.shields.io/badge/Architecture-Deep_Dive-7c3aed)](ARCHITECTURE.md)
 
@@ -11,8 +11,9 @@ now?
 
 | If you need to... | Start here |
 |---|---|
-| get a first local success path | [QUICKSTART.md](QUICKSTART.md) |
-| understand local `ask()` vs runtime `semantic/react/debate` | [QUICKSTART.md#11-execution-modes-matter](QUICKSTART.md#11-execution-modes-matter) |
+| get a first local success path | [../QUICKSTART.md](../QUICKSTART.md) |
+| understand local `ask()` vs runtime `semantic/react/debate` | [../README.md#execution-surfaces](../README.md#execution-surfaces) |
+| bring up the full local runtime stack | [RUNTIME_DEPLOYMENT.md](RUNTIME_DEPLOYMENT.md) |
 | follow a runnable notebook walkthrough | [../examples/quickstart.ipynb](../examples/quickstart.ipynb) |
 | understand SEOCHO with architecture snippets | [BEGINNER_GUIDE.md](BEGINNER_GUIDE.md) |
 | use the Python SDK directly | [PYTHON_INTERFACE_QUICKSTART.md](PYTHON_INTERFACE_QUICKSTART.md) |
@@ -28,7 +29,7 @@ now?
 Recommended onboarding order:
 
 1. [WHY_SEOCHO.md](WHY_SEOCHO.md)
-2. [QUICKSTART.md](QUICKSTART.md)
+2. [../QUICKSTART.md](../QUICKSTART.md)
 3. [../examples/quickstart.ipynb](../examples/quickstart.ipynb)
 4. [BEGINNER_GUIDE.md](BEGINNER_GUIDE.md)
 5. [PYTHON_INTERFACE_QUICKSTART.md](PYTHON_INTERFACE_QUICKSTART.md)
@@ -41,7 +42,9 @@ Recommended onboarding order:
 
 - [WHY_SEOCHO.md](WHY_SEOCHO.md): product framing and ontology-aligned value
   proposition
-- [QUICKSTART.md](QUICKSTART.md): shortest local success path
+- [../QUICKSTART.md](../QUICKSTART.md): shortest local success path
+- [RUNTIME_DEPLOYMENT.md](RUNTIME_DEPLOYMENT.md): full local runtime
+  deployment guide for Docker stack, services, and environment setup
 - [../examples/quickstart.ipynb](../examples/quickstart.ipynb): runnable
   notebook covering ontology, indexing design, agent design, indexing, query,
   `.env`-backed provider setup, safe Ladybug fallback, optional Neo4j/DozerDB,

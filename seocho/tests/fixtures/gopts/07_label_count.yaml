@@ -1,0 +1,9 @@
+fixture_id: "07_label_count"
+question: "How many companies do we track?"
+workspace_id: "fixture-gopts"
+populated_db: "neo4j"
+intent: "count"
+expected_top1_pattern_id: "pattern:label_count"
+notes: |
+  Pure cardinality query. plan_depth=0 makes this the cheapest pattern
+  by construction; useful as a sanity floor for the cost model.

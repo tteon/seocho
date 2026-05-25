@@ -1,0 +1,10 @@
+fixture_id: "06_finance_metric_delta"
+question: "How did Apple's revenue change from 2021 to 2023?"
+workspace_id: "fixture-gopts"
+populated_db: "neo4j"
+intent: "financial_metric_delta"
+expected_top1_pattern_id: "pattern:finance_metric_delta"
+notes: |
+  Multi-year delta — the scans_multiple_years cost_hint plus larger
+  intrinsic plan_depth (3 vs 2 for the static metric_value pattern)
+  is the expected cost signature.

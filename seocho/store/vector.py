@@ -411,12 +411,29 @@ def create_vector_store(
 
 @dataclass(frozen=True)
 class NLCypherExample:
-    """A previously-validated (question, Cypher) pair for few-shot reuse."""
+    """A previously-validated (question, Cypher) pair for few-shot reuse.
+
+    GOPTS G4 (ADR-0097) extends the schema with optional cost/oracle
+    fields. Existing callers that don't pass them get None defaults —
+    backward-compatible. The Layer-1 ranking-quality harness reads
+    these fields when computing top-1 accuracy / NDCG / Kendall tau.
+    """
 
     question: str
     cypher: str
     success: bool = True
     metadata: Optional[Dict[str, Any]] = None
+    # G2 cost-ranking fields (predicted by cost_model)
+    plan_cost_estimate: Optional[float] = None
+    k_rank_position: Optional[int] = None       # 0 = top-1 from cost model
+    selected_pattern_id: Optional[str] = None
+    enumeration_latency_ms: Optional[float] = None
+    # Execution fields (observed at run time)
+    execution_row_count: Optional[int] = None
+    total_latency_ms: Optional[float] = None
+    # G4 Layer-1 PROFILE-oracle fields (observed via Cypher PROFILE)
+    profile_db_hits: Optional[int] = None
+    oracle_rank_position: Optional[int] = None  # 0 = top-1 by PROFILE
 
 
 class NLCypherExampleStore:
@@ -428,9 +445,11 @@ class NLCypherExampleStore:
 
     The Protocol is intentionally narrow:
 
-    - ``add(workspace_id, question, cypher, success, metadata)`` writes a
+    - ``add(workspace_id, question, cypher, success, metadata, ...)`` writes a
       new validated pair. No-op when ``success`` is False (the ADR-0090
-      contract forbids poisoning the store with failed examples).
+      contract forbids poisoning the store with failed examples). G4
+      optional kwargs record the cost-ranked prediction + PROFILE oracle
+      so the Layer-1 ranking-quality harness has a regression target.
     - ``search(workspace_id, question, k)`` returns the top-k examples.
       Thin slice: returns up to ``k`` most-recent successful entries for
       this workspace; embedding-based ranking is a follow-up.
@@ -447,6 +466,14 @@ class NLCypherExampleStore:
         cypher: str,
         success: bool = True,
         metadata: Optional[Dict[str, Any]] = None,
+        plan_cost_estimate: Optional[float] = None,
+        k_rank_position: Optional[int] = None,
+        selected_pattern_id: Optional[str] = None,
+        enumeration_latency_ms: Optional[float] = None,
+        execution_row_count: Optional[int] = None,
+        total_latency_ms: Optional[float] = None,
+        profile_db_hits: Optional[int] = None,
+        oracle_rank_position: Optional[int] = None,
     ) -> None:
         if not success:
             return
@@ -459,6 +486,14 @@ class NLCypherExampleStore:
                 cypher=cypher.strip(),
                 success=True,
                 metadata=dict(metadata or {}),
+                plan_cost_estimate=plan_cost_estimate,
+                k_rank_position=k_rank_position,
+                selected_pattern_id=selected_pattern_id,
+                enumeration_latency_ms=enumeration_latency_ms,
+                execution_row_count=execution_row_count,
+                total_latency_ms=total_latency_ms,
+                profile_db_hits=profile_db_hits,
+                oracle_rank_position=oracle_rank_position,
             )
         )
 

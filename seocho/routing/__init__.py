@@ -43,6 +43,19 @@ DEFAULT_THRESHOLDS: Dict[str, float] = {
     "staleness_soft_days": 30,
     "staleness_hard_days": 365,
     "refusal_avg_confidence": 0.30,
+    # GOPTS (ADR-0097 G2) — plan enumeration + cost model.
+    # ``plan_candidates`` caps how many PatternSpec candidates the
+    # text2cypher enumerator scores per question; K=1 (short-circuit)
+    # kicks in when intent classification confidence ≥ ``intent_high``.
+    "plan_candidates": 4,
+    # Linear cost-model coefficients consumed by cost_model.cost().
+    # Defaults are intentionally crude — per-workspace tuning is a
+    # follow-up; the eval harness (G4 Layer-1) is the honest
+    # measurement loop.
+    "cost_alpha_plan_depth": 1.0,
+    "cost_beta_estimated_row_count": 0.001,
+    "cost_gamma_index_miss_penalty": 50.0,
+    "cost_delta_cartesian_risk": 100.0,
 }
 
 

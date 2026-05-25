@@ -247,10 +247,32 @@ def make_link_entities_tool(ontology: Any, llm: Any):
 # Query tools
 # ======================================================================
 
-def make_text2cypher_tool(ontology: Any):
-    """Create a text2cypher tool that builds deterministic Cypher from intent."""
+def make_text2cypher_tool(
+    ontology: Any,
+    *,
+    graph_store: Any = None,
+    workspace_id: str = "default",
+    default_database: str = "neo4j",
+    cost_coefficients: Optional[Dict[str, float]] = None,
+):
+    """Create a text2cypher tool that builds deterministic Cypher from intent.
+
+    GOPTS G2 (ADR-0097): when ``graph_store`` is provided, every tool
+    invocation also runs the cost model against the pattern catalog and
+    attaches a ``ranked_plans`` payload to the response JSON for trace
+    auditability. When ``graph_store`` is None the cost model still runs
+    against an empty IndexStats payload — the breakdown lands in the
+    trace anyway, which keeps the observability surface live before the
+    full G2 routing path is wired through every caller.
+
+    K>1 enumeration (multi-candidate ranking) only fires when patterns
+    register an ``alternatives`` cypher_shape; G3's catalog declares
+    alternatives=() across the board so today K=1 in all paths. The cost
+    ranking still records each plan's cost for the trace.
+    """
     from agents import function_tool
     from .query.cypher_builder import CypherBuilder
+    from .query import cost_model, pattern_catalog
 
     builder = CypherBuilder(ontology)
 
@@ -279,7 +301,8 @@ def make_text2cypher_tool(ontology: Any):
             schema_hints_json: Optional JSON payload with ontology-derived namespace/schema hints.
 
         Returns:
-            JSON string with cypher query and parameters.
+            JSON string with cypher query, params, and (ADR-0097 G2) a
+            ranked_plans cost breakdown for trace auditability.
         """
         try:
             schema_hints = json.loads(schema_hints_json) if schema_hints_json else {}
@@ -292,12 +315,44 @@ def make_text2cypher_tool(ontology: Any):
                 relationship_type=relationship_type,
                 schema_hints=schema_hints if isinstance(schema_hints, dict) else {},
             )
-            return json.dumps({
+            response: Dict[str, Any] = {
                 "cypher": cypher,
                 "params": params,
                 "intent": intent,
                 "schema_hints": schema_hints if isinstance(schema_hints, dict) else {},
-            }, default=str)
+            }
+
+            # GOPTS G2: cost-rank candidate patterns and attach the
+            # breakdown. Best-effort — a failure here must never break
+            # the tool's primary contract (returning cypher + params).
+            try:
+                candidates = pattern_catalog.enumerate_for_shape(intent)
+                if candidates:
+                    index_stats: Optional[Dict[str, Any]] = None
+                    if graph_store is not None:
+                        try:
+                            index_stats = graph_store.get_index_stats(
+                                database=default_database,
+                                workspace_id=workspace_id,
+                            )
+                        except Exception as stats_exc:
+                            logger.warning(
+                                "text2cypher cost path: get_index_stats failed: %s",
+                                stats_exc,
+                            )
+                    ranked = cost_model.rank_candidates(
+                        candidates,
+                        index_stats=index_stats,
+                        coefficients=cost_coefficients,
+                    )
+                    response["ranked_plans"] = [
+                        breakdown.to_dict() for _spec, breakdown in ranked
+                    ]
+                    response["selected_pattern_id"] = ranked[0][0].pattern_id
+            except Exception as cost_exc:  # noqa: BLE001
+                logger.warning("text2cypher cost ranking failed: %s", cost_exc)
+
+            return json.dumps(response, default=str)
         except Exception as exc:
             logger.error("text2cypher failed: %s", exc)
             return json.dumps({"cypher": "", "params": {}, "error": str(exc)})
@@ -635,7 +690,12 @@ def create_query_tools(
     pre-ADR-0090 version.
     """
     tools = [
-        make_text2cypher_tool(ontology),
+        make_text2cypher_tool(
+            ontology,
+            graph_store=graph_store,
+            workspace_id=workspace_id,
+            default_database=default_database,
+        ),
         make_execute_cypher_tool(
             graph_store,
             ontology_context=ontology_context,

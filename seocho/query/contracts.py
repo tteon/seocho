@@ -22,8 +22,10 @@ class PatternSpec:
     PatternSpec is the registry entry consumed by the cost-ranked plan
     enumerator (G2). G3 lifts the inline pattern branches out of
     CypherBuilder.build() and registers each one here, one PatternSpec
-    per branch. For G3 the dispatcher is 1:1 (one cypher_shape →
-    one pattern); G2 will widen to K candidates per intent_id.
+    per branch. G2 reads ``alternatives`` to widen enumeration when a
+    pattern can substitute for a different cypher_shape (e.g. a
+    shortest_path pattern can answer some relationship_lookup
+    questions).
 
     Fields:
         pattern_id:           registry key, e.g. "pattern:relationship_lookup_hop1"
@@ -34,6 +36,10 @@ class PatternSpec:
         schema_preconditions: opaque preconditions for the cost ranker (G2 uses)
         cost_hints:           cost-model hints (e.g. {"prefers_indexed": [...]})
         template_factory:     (builder, **build_kwargs) -> (cypher, params)
+        alternatives:         cypher_shape strings this pattern can substitute
+                              for during G2 enumeration. Empty for primary-only
+                              patterns; non-empty when one pattern can answer
+                              multiple shapes (G2 multi-candidate fan-out).
     """
 
     pattern_id: str
@@ -44,6 +50,7 @@ class PatternSpec:
     schema_preconditions: Tuple[str, ...]
     cost_hints: Dict[str, Any]
     template_factory: Callable[..., Tuple[str, Dict[str, Any]]]
+    alternatives: Tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

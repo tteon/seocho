@@ -942,10 +942,16 @@ class IndexingPipeline:
         try:
             from seocho.tracing import log_extraction, is_tracing_enabled
             if is_tracing_enabled():
+                _ext = self._graph_extraction
                 log_extraction(
                     text_preview=content[:200] if content else "",
                     ontology_name=self.ontology.name,
                     model=getattr(self.llm, "model", "unknown"),
+                    provider=getattr(self.llm, "provider", None),
+                    workspace_id=self.workspace_id,
+                    system_prompt=getattr(_ext, "last_system", None) or None,
+                    user_prompt=getattr(_ext, "last_user", None) or None,
+                    completion=getattr(_ext, "last_completion", None) or None,
                     nodes_count=result.total_nodes,
                     relationships_count=result.total_relationships,
                     score=_score,

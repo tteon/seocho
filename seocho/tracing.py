@@ -479,19 +479,54 @@ def log_extraction(
     validation_errors: int,
     elapsed_seconds: float,
     metadata: Optional[Dict[str, Any]] = None,
+    system_prompt: Optional[str] = None,
+    user_prompt: Optional[str] = None,
+    completion: Optional[str] = None,
+    workspace_id: Optional[str] = None,
+    provider: Optional[str] = None,
+    stage: str = "extraction",
 ) -> None:
-    """Log an extraction event."""
+    """Log an extraction event.
+
+    When ``system_prompt`` / ``user_prompt`` and ``completion`` are supplied the
+    span reports the prompt body alongside the semantic context (stage, ontology,
+    workspace, model), so one span is enough to audit an extraction. ``provider``
+    qualifies the model tag as ``{provider}/{model}`` (e.g. ``kimi/kimi-k2.5``).
+    """
+    model_tag = f"{provider}/{model}" if provider else model
+    input_data: Dict[str, Any] = {
+        "text_preview": text_preview[:200],
+        "ontology": ontology_name,
+        "model": model_tag,
+    }
+    if system_prompt is not None:
+        input_data["system_prompt"] = system_prompt
+    if user_prompt is not None:
+        input_data["user_prompt"] = user_prompt
+    output_data: Dict[str, Any] = {
+        "nodes": nodes_count,
+        "relationships": relationships_count,
+        "score": round(score, 3),
+        "validation_errors": validation_errors,
+    }
+    if completion is not None:
+        output_data["completion"] = completion
+    tags = [
+        "extraction", f"stage:{stage}",
+        f"model:{model_tag}", f"ontology:{ontology_name}",
+    ]
+    if workspace_id:
+        tags.append(f"workspace:{workspace_id}")
     log_span(
         "sdk.extraction",
-        input_data={"text_preview": text_preview[:200], "ontology": ontology_name, "model": model},
-        output_data={
-            "nodes": nodes_count,
-            "relationships": relationships_count,
-            "score": round(score, 3),
-            "validation_errors": validation_errors,
+        input_data=input_data,
+        output_data=output_data,
+        metadata={
+            "elapsed_seconds": round(elapsed_seconds, 2),
+            "workspace_id": workspace_id,
+            **(metadata or {}),
         },
-        metadata={"elapsed_seconds": round(elapsed_seconds, 2), **(metadata or {})},
-        tags=["extraction", f"model:{model}"],
+        tags=tags,
     )
 
 
@@ -506,8 +541,30 @@ def log_query(
     reasoning_attempts: int = 0,
     elapsed_seconds: float = 0.0,
     metadata: Optional[Dict[str, Any]] = None,
+    answer: Optional[str] = None,
+    workspace_id: Optional[str] = None,
+    provider: Optional[str] = None,
+    stage: str = "query",
 ) -> None:
-    """Log a query event."""
+    """Log a query event.
+
+    Carries the provider-qualified model, stage / ontology / workspace tags and,
+    when supplied, the synthesized ``answer``.
+    """
+    model_tag = f"{provider}/{model}" if provider else model
+    output_data: Dict[str, Any] = {
+        "cypher_preview": cypher[:200],
+        "result_count": result_count,
+        "reasoning_attempts": reasoning_attempts,
+    }
+    if answer is not None:
+        output_data["answer"] = answer
+    tags = [
+        "query", f"stage:{stage}",
+        f"model:{model_tag}", f"ontology:{ontology_name}",
+    ]
+    if workspace_id:
+        tags.append(f"workspace:{workspace_id}")
     log_span(
         "sdk.query",
         input_data={
@@ -515,17 +572,14 @@ def log_query(
             "ontology": ontology_name,
             **({"ontology_package": ontology_package} if ontology_package else {}),
         },
-        output_data={
-            "cypher_preview": cypher[:200],
-            "result_count": result_count,
-            "reasoning_attempts": reasoning_attempts,
-        },
+        output_data=output_data,
         metadata={
-            "model": model,
+            "model": model_tag,
             "elapsed_seconds": round(elapsed_seconds, 2),
+            "workspace_id": workspace_id,
             **(metadata or {}),
         },
-        tags=["query", f"model:{model}"],
+        tags=tags,
     )
 
 

@@ -621,38 +621,50 @@ class Neo4jGraphStore(GraphStore):
                     logger.warning("SHOW INDEXES failed for '%s': %s", database, exc)
 
                 label_counts: Dict[str, int] = {}
+                labels = []
                 for r in session.run("CALL db.labels()"):
                     label = r["label"]
                     if not is_valid_identifier(label):
                         logger.warning("skipping non-identifier label '%s'", label)
                         continue
-                    try:
-                        count_rec = session.run(
-                            f"MATCH (n:{label}) "
-                            "WHERE n._workspace_id = $workspace_id "
-                            "RETURN count(n) AS cnt",
-                            workspace_id=workspace_id,
-                        ).single()
-                        label_counts[label] = int(count_rec["cnt"]) if count_rec else 0
-                    except Exception as exc:
-                        logger.warning("label count failed for '%s': %s", label, exc)
+                    labels.append(label)
+
+                for i in range(0, len(labels), 50):
+                    chunk = labels[i:i+50]
+                    queries = []
+                    for label in chunk:
+                        safe_label = label.replace("`", "").replace("\n", "").replace("\n", "")
+                        queries.append(f"MATCH (n:`{safe_label}`) WHERE n._workspace_id = $workspace_id RETURN '{safe_label}' AS element, count(n) AS cnt")
+                    if queries:
+                        batched_query = " UNION ALL ".join(queries)
+                        try:
+                            for rec in session.run(batched_query, workspace_id=workspace_id):
+                                label_counts[rec["element"]] = int(rec["cnt"])
+                        except Exception as exc:
+                            logger.warning("batched label count failed: %s", exc)
 
                 rel_counts: Dict[str, int] = {}
+                rel_types = []
                 for r in session.run("CALL db.relationshipTypes()"):
                     rt = r["relationshipType"]
                     if not is_valid_identifier(rt):
                         logger.warning("skipping non-identifier rel type '%s'", rt)
                         continue
-                    try:
-                        count_rec = session.run(
-                            f"MATCH ()-[r:{rt}]->() "
-                            "WHERE r._workspace_id = $workspace_id "
-                            "RETURN count(r) AS cnt",
-                            workspace_id=workspace_id,
-                        ).single()
-                        rel_counts[rt] = int(count_rec["cnt"]) if count_rec else 0
-                    except Exception as exc:
-                        logger.warning("rel count failed for '%s': %s", rt, exc)
+                    rel_types.append(rt)
+
+                for i in range(0, len(rel_types), 50):
+                    chunk = rel_types[i:i+50]
+                    queries = []
+                    for rt in chunk:
+                        safe_rt = rt.replace("`", "").replace("\n", "").replace("\n", "")
+                        queries.append(f"MATCH ()-[r:`{safe_rt}`]->() WHERE r._workspace_id = $workspace_id RETURN '{safe_rt}' AS element, count(r) AS cnt")
+                    if queries:
+                        batched_query = " UNION ALL ".join(queries)
+                        try:
+                            for rec in session.run(batched_query, workspace_id=workspace_id):
+                                rel_counts[rec["element"]] = int(rec["cnt"])
+                        except Exception as exc:
+                            logger.warning("batched rel count failed: %s", exc)
 
             payload = {
                 "indexes": indexes,

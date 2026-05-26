@@ -209,8 +209,9 @@ body {
   outline: none;
 }
 
-.control select:focus,
-.control input:focus {
+select:focus,
+input:focus,
+textarea:focus {
   border-color: var(--accent-blue);
   box-shadow: 0 0 0 1px var(--accent-blue);
 }
@@ -244,10 +245,7 @@ body {
   resize: vertical;
 }
 
-.ingest-grow textarea:focus {
-  border-color: var(--accent-blue);
-  box-shadow: 0 0 0 1px var(--accent-blue);
-}
+
 
 #ingestBtn {
   background: var(--accent-green);
@@ -360,10 +358,7 @@ body {
   outline: none;
 }
 
-.composer textarea:focus {
-  border-color: var(--accent-blue);
-  box-shadow: 0 0 0 1px var(--accent-blue);
-}
+
 
 .composer button {
   align-self: flex-end;

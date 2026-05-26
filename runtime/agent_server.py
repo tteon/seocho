@@ -1057,13 +1057,25 @@ async def platform_chat_send(request: PlatformChatRequest):
 @app.get(RuntimePath.PLATFORM_CHAT_SESSION, response_model=PlatformSessionResponse)
 @track("agent_server.platform_chat_session_get")
 async def platform_chat_session_get(session_id: str):
-    history = [PlatformTurn(**row) for row in platform_session_store.get(session_id)]
+    raw_history = platform_session_store.get(session_id)
+    workspace_id = (raw_history[0].get("metadata") or {}).get("workspace_id", "default") if raw_history else "default"
+    try:
+        require_runtime_permission(role="user", action="run_platform", workspace_id=workspace_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    history = [PlatformTurn(**row) for row in raw_history]
     return PlatformSessionResponse(session_id=session_id, history=history)
 
 
 @app.delete(RuntimePath.PLATFORM_CHAT_SESSION, response_model=PlatformSessionResponse)
 @track("agent_server.platform_chat_session_reset")
 async def platform_chat_session_reset(session_id: str):
+    raw_history = platform_session_store.get(session_id)
+    workspace_id = (raw_history[0].get("metadata") or {}).get("workspace_id", "default") if raw_history else "default"
+    try:
+        require_runtime_permission(role="user", action="run_platform", workspace_id=workspace_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     platform_session_store.clear(session_id)
     return PlatformSessionResponse(session_id=session_id, history=[])
 
@@ -1570,6 +1582,7 @@ async def run_debate(request: QueryRequest):
 async def runtime_health(
     workspace_id: str = Query(default="runtime-health", pattern=WORKSPACE_ID_PATTERN),
 ):
+    # Skip authz on health endpoints to allow load balancers / readiness probes
     components: List[HealthComponent] = [
         HealthComponent(name="api", status="ready", detail="agent_server reachable"),
     ]
@@ -1656,6 +1669,10 @@ async def list_databases(
     ``workspace_id`` is accepted on the contract for tenancy uniformity;
     multi-tenant filtering is not yet enforced (single-tenant MVP).
     """
+    try:
+        require_runtime_permission(role="user", action="run_agent", workspace_id=workspace_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     return {"workspace_id": workspace_id, "databases": db_registry.list_databases()}
 
 
@@ -1668,6 +1685,10 @@ async def list_graphs(
     ``workspace_id`` is accepted on the contract for tenancy uniformity;
     multi-tenant filtering is not yet enforced (single-tenant MVP).
     """
+    try:
+        require_runtime_permission(role="user", action="run_agent", workspace_id=workspace_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     return {
         "workspace_id": workspace_id,
         "graphs": [target.to_public_dict() for target in graph_registry.list_graphs()],
@@ -1683,6 +1704,10 @@ async def list_agents(
     ``workspace_id`` is accepted on the contract for tenancy uniformity;
     multi-tenant filtering is not yet enforced (single-tenant MVP).
     """
+    try:
+        require_runtime_permission(role="user", action="run_agent", workspace_id=workspace_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     return {"workspace_id": workspace_id, "agents": agent_factory.list_agents()}
 
 

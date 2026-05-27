@@ -621,38 +621,47 @@ class Neo4jGraphStore(GraphStore):
                     logger.warning("SHOW INDEXES failed for '%s': %s", database, exc)
 
                 label_counts: Dict[str, int] = {}
-                for r in session.run("CALL db.labels()"):
-                    label = r["label"]
-                    if not is_valid_identifier(label):
-                        logger.warning("skipping non-identifier label '%s'", label)
-                        continue
-                    try:
-                        count_rec = session.run(
-                            f"MATCH (n:{label}) "
-                            "WHERE n._workspace_id = $workspace_id "
-                            "RETURN count(n) AS cnt",
-                            workspace_id=workspace_id,
-                        ).single()
-                        label_counts[label] = int(count_rec["cnt"]) if count_rec else 0
-                    except Exception as exc:
-                        logger.warning("label count failed for '%s': %s", label, exc)
+                schema = self.get_schema(database=database)
+                labels = [label for label in schema.get("labels", []) if is_valid_identifier(label)]
+
+                if labels:
+                    queries = []
+                    for label in labels:
+                        safe_label = label.replace("`", "").replace('\n', '').replace('\r', '')
+                        queries.append(
+                            f"MATCH (n:`{safe_label}`) WHERE n._workspace_id = $workspace_id "
+                            f"RETURN '{safe_label}' AS element, count(n) AS cnt"
+                        )
+
+                    for i in range(0, len(queries), 50):
+                        chunk = queries[i:i+50]
+                        union_query = " UNION ALL ".join(chunk)
+                        try:
+                            for r in session.run(union_query, workspace_id=workspace_id):
+                                label_counts[r["element"]] = r["cnt"]
+                        except Exception as exc:
+                            logger.warning("batched label count failed: %s", exc)
 
                 rel_counts: Dict[str, int] = {}
-                for r in session.run("CALL db.relationshipTypes()"):
-                    rt = r["relationshipType"]
-                    if not is_valid_identifier(rt):
-                        logger.warning("skipping non-identifier rel type '%s'", rt)
-                        continue
-                    try:
-                        count_rec = session.run(
-                            f"MATCH ()-[r:{rt}]->() "
-                            "WHERE r._workspace_id = $workspace_id "
-                            "RETURN count(r) AS cnt",
-                            workspace_id=workspace_id,
-                        ).single()
-                        rel_counts[rt] = int(count_rec["cnt"]) if count_rec else 0
-                    except Exception as exc:
-                        logger.warning("rel count failed for '%s': %s", rt, exc)
+                rel_types = [rt for rt in schema.get("relationship_types", []) if is_valid_identifier(rt)]
+
+                if rel_types:
+                    queries = []
+                    for rt in rel_types:
+                        safe_rt = rt.replace("`", "").replace('\n', '').replace('\r', '')
+                        queries.append(
+                            f"MATCH ()-[r:`{safe_rt}`]->() WHERE r._workspace_id = $workspace_id "
+                            f"RETURN '{safe_rt}' AS element, count(r) AS cnt"
+                        )
+
+                    for i in range(0, len(queries), 50):
+                        chunk = queries[i:i+50]
+                        union_query = " UNION ALL ".join(chunk)
+                        try:
+                            for r in session.run(union_query, workspace_id=workspace_id):
+                                rel_counts[r["element"]] = r["cnt"]
+                        except Exception as exc:
+                            logger.warning("batched rel count failed: %s", exc)
 
             payload = {
                 "indexes": indexes,

@@ -1102,6 +1102,7 @@ class Seocho:
         repair_budget: int = 0,
         query_mode: Optional[str] = None,
         cot_mode: bool = False,
+        query_context: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Ask a question through the primary public query facade.
 
@@ -1124,6 +1125,7 @@ class Seocho:
             repair_budget=repair_budget,
             query_mode=query_mode,
             cot_mode=cot_mode,
+            query_context=query_context,
         ).response
 
     def ask_response(
@@ -1141,6 +1143,7 @@ class Seocho:
         repair_budget: int = 0,
         query_mode: Optional[str] = None,
         cot_mode: bool = False,
+        query_context: Optional[Dict[str, Any]] = None,
     ) -> AskResponse:
         """Return the primary query answer plus runtime metadata."""
         normalized_query_mode = _resolve_semantic_query_mode(
@@ -1156,6 +1159,7 @@ class Seocho:
                 repair_budget=repair_budget,
                 query_mode=normalized_query_mode,
                 ontology_override=self._ontology_registry.get(db),
+                query_context=query_context,
             )
             metadata = self.last_query_metadata
             semantic_context = dict(metadata.get("semantic_context", {}) or {})
@@ -1184,6 +1188,9 @@ class Seocho:
                 routing_decision=dict(answer_envelope.get("routing_decision", {}) or {}),
                 rewrite_trace=list(answer_envelope.get("rewrite_trace", []) or []),
             )
+
+        if query_context:
+            raise ValueError("query_context is currently supported only in local engine mode.")
 
         resolved_databases = list(databases or ([] if database is None else [database]))
         if _should_route_ask_to_semantic(

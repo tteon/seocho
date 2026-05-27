@@ -224,6 +224,21 @@ client.add("ACME acquired Beta in 2024.")
 print(client.ask("Who did ACME acquire?", reasoning_mode=True, repair_budget=2))
 ```
 
+Local answers can also receive optional ask-time context for final synthesis.
+This keeps graph retrieval unchanged while letting the answer emphasize the
+caller's role, task, or focus:
+
+```python
+print(client.ask(
+    "What does the ACME acquisition imply?",
+    query_context={
+        "role": "business analyst",
+        "task": "integration planning",
+        "focus": ["operational impact", "evidence gaps"],
+    },
+))
+```
+
 Graph-CoT query mode stays behind the same public `ask()` surface but records
 and executes under a dedicated query contract:
 

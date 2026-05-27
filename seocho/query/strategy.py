@@ -28,6 +28,36 @@ from typing import Any, Dict, List, Optional
 from seocho.ontology import Ontology
 
 
+def _render_query_context(query_context: Any) -> str:
+    """Render optional ask-time context for answer synthesis prompts."""
+    if not isinstance(query_context, dict) or not query_context:
+        return ""
+
+    lines = [
+        "--- User Query Context ---",
+        "Use this context only to prioritize answer framing and interpretation.",
+        "Do not use it to introduce facts that are not supported by the query results.",
+    ]
+    for key in ("role", "task", "focus", "constraints"):
+        value = query_context.get(key)
+        if value in (None, "", [], (), {}):
+            continue
+        if isinstance(value, (list, tuple, set)):
+            rendered = ", ".join(_sanitize_prompt_value(item) for item in value)
+        elif isinstance(value, dict):
+            rendered = ", ".join(
+                f"{_sanitize_prompt_value(k)}={_sanitize_prompt_value(v)}"
+                for k, v in value.items()
+            )
+        else:
+            rendered = _sanitize_prompt_value(value)
+        if rendered:
+            lines.append(f"- {_sanitize_prompt_value(key)}: {rendered}")
+
+    lines.append("If the retrieved evidence is missing information needed for this context, say what is missing.")
+    return "\n".join(lines)
+
+
 def _sanitize_prompt_value(value: Any) -> str:
     """Sanitize a user-provided value before inserting into a prompt.
 
@@ -615,6 +645,11 @@ class QueryStrategy(PromptStrategy):
         parts.append("")
         parts.append("Verification: Check that every answer claim is grounded in the provided query results.")
 
+        query_context = _render_query_context(kwargs.get("query_context"))
+        if query_context:
+            parts.append("")
+            parts.append(query_context)
+
         system = "\n".join(parts)
         user = (
             f'Question:\n"""\n{question}\n"""\n\n'
@@ -707,6 +742,10 @@ class RDFQueryStrategy(PromptStrategy):
             parts.append("Ontology profile: " + ctx["ontology_profile"])
         parts.append("Node types: " + ctx["node_types"])
         parts.append("Produce a clear factual answer from the query results.")
+        query_context = _render_query_context(kwargs.get("query_context"))
+        if query_context:
+            parts.append("")
+            parts.append(query_context)
 
         system = "\n".join(parts)
         user = f"Question: {question}\n\nQuery results:\n{cypher_result}"

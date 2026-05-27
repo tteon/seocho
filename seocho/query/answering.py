@@ -42,11 +42,17 @@ class QueryAnswerSynthesizer:
         *,
         reasoning_trace: Optional[str] = None,
         vector_context: str = "",
+        query_context: Optional[Dict[str, Any]] = None,
     ) -> str:
-        system_ans, user_ans = self.query_strategy.render_answer(
-            question,
-            json.dumps(records, default=str),
-        )
+        records_json = json.dumps(records, default=str)
+        if query_context:
+            system_ans, user_ans = self.query_strategy.render_answer(
+                question,
+                records_json,
+                query_context=query_context,
+            )
+        else:
+            system_ans, user_ans = self.query_strategy.render_answer(question, records_json)
         if reasoning_trace:
             user_ans += f"\n\nReasoning trace (query attempts):\n{reasoning_trace}"
         if vector_context:

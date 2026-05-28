@@ -2356,15 +2356,27 @@ class Ontology:
         total_defined_nodes = len(self.nodes)
         populated_nodes = 0
 
-        for label in self.nodes:
+        # Batch nodes counting
+        nodes_list = list(self.nodes)
+        node_counts = {lbl: 0 for lbl in nodes_list}
+        chunk_size = 50
+        for i in range(0, len(nodes_list), chunk_size):
+            chunk = nodes_list[i : i + chunk_size]
+            queries = []
+            for lbl in chunk:
+                safe_lbl = lbl.replace('\n', '').replace('\r', '').replace('`', '')
+                queries.append(f"MATCH (n:`{safe_lbl}`) RETURN '{safe_lbl}' AS element, count(n) AS cnt")
+            union_query = " UNION ALL ".join(queries)
             try:
-                result = graph_store.query(
-                    f"MATCH (n:`{label}`) RETURN count(n) AS cnt",
-                    database=database,
-                )
-                count = int(result[0]["cnt"]) if result else 0
+                if union_query:
+                    results = graph_store.query(union_query, database=database)
+                    for r in results:
+                        node_counts[r["element"]] = int(r["cnt"])
             except Exception:
-                count = 0
+                pass
+
+        for label in nodes_list:
+            count = node_counts.get(label, 0)
             node_stats.append({"label": label, "count": count})
             if count > 0:
                 populated_nodes += 1
@@ -2373,15 +2385,26 @@ class Ontology:
         total_defined_rels = len(self.relationships)
         populated_rels = 0
 
-        for rtype in self.relationships:
+        # Batch rels counting
+        rels_list = list(self.relationships)
+        rel_counts = {rtype: 0 for rtype in rels_list}
+        for i in range(0, len(rels_list), chunk_size):
+            chunk = rels_list[i : i + chunk_size]
+            queries = []
+            for rtype in chunk:
+                safe_rtype = rtype.replace('\n', '').replace('\r', '').replace('`', '')
+                queries.append(f"MATCH ()-[r:`{safe_rtype}`]->() RETURN '{safe_rtype}' AS element, count(r) AS cnt")
+            union_query = " UNION ALL ".join(queries)
             try:
-                result = graph_store.query(
-                    f"MATCH ()-[r:`{rtype}`]->() RETURN count(r) AS cnt",
-                    database=database,
-                )
-                count = int(result[0]["cnt"]) if result else 0
+                if union_query:
+                    results = graph_store.query(union_query, database=database)
+                    for r in results:
+                        rel_counts[r["element"]] = int(r["cnt"])
             except Exception:
-                count = 0
+                pass
+
+        for rtype in rels_list:
+            count = rel_counts.get(rtype, 0)
             rel_stats.append({"type": rtype, "count": count})
             if count > 0:
                 populated_rels += 1

@@ -24,9 +24,9 @@ into a context manager:
 
     with gds_session(graph_store, name="ch02-quality", database="neo4j") as g:
         g.project_cypher(
-            node_query="MATCH (e) WHERE NOT e:Source AND NOT e:Chunk RETURN id(e) AS id",
+            node_query="MATCH (e) WHERE NOT e:Source AND NOT e:Chunk RETURN elementId(e) AS id",
             rel_query="MATCH (e1)<-[:MENTIONS]-(c:Chunk)-[:MENTIONS]->(e2) "
-                      "WHERE id(e1) < id(e2) RETURN id(e1) AS source, id(e2) AS target",
+                      "WHERE elementId(e1) < elementId(e2) RETURN elementId(e1) AS source, elementId(e2) AS target",
             estimate_ok=True,                           # checks .estimate() first
         )
         deg = g.metric(MetricSpec.DEGREE, top_k=10)

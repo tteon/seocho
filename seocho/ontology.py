@@ -2356,35 +2356,57 @@ class Ontology:
         total_defined_nodes = len(self.nodes)
         populated_nodes = 0
 
-        for label in self.nodes:
-            try:
-                result = graph_store.query(
-                    f"MATCH (n:`{label}`) RETURN count(n) AS cnt",
-                    database=database,
-                )
-                count = int(result[0]["cnt"]) if result else 0
-            except Exception:
-                count = 0
-            node_stats.append({"label": label, "count": count})
-            if count > 0:
-                populated_nodes += 1
+        # Batch queries to prevent N+1 query bottlenecks
+        labels_list = list(self.nodes)
+        chunk_size = 50
+        for i in range(0, len(labels_list), chunk_size):
+            chunk = labels_list[i:i + chunk_size]
+            queries = []
+            for label in chunk:
+                safe_label = label.replace('\n', '').replace('\\n', '')
+                queries.append(f"MATCH (n:`{safe_label}`) RETURN \"{safe_label}\" AS element, count(n) AS cnt")
+
+            if queries:
+                batched_query = " UNION ALL ".join(queries)
+                try:
+                    results = graph_store.query(batched_query, database=database)
+                    count_map = {row["element"]: int(row["cnt"]) for row in results}
+                except Exception:
+                    count_map = {}
+
+                for label in chunk:
+                    safe_label = label.replace('\n', '').replace('\\n', '')
+                    count = count_map.get(safe_label, 0)
+                    node_stats.append({"label": label, "count": count})
+                    if count > 0:
+                        populated_nodes += 1
 
         rel_stats: List[Dict[str, Any]] = []
         total_defined_rels = len(self.relationships)
         populated_rels = 0
 
-        for rtype in self.relationships:
-            try:
-                result = graph_store.query(
-                    f"MATCH ()-[r:`{rtype}`]->() RETURN count(r) AS cnt",
-                    database=database,
-                )
-                count = int(result[0]["cnt"]) if result else 0
-            except Exception:
-                count = 0
-            rel_stats.append({"type": rtype, "count": count})
-            if count > 0:
-                populated_rels += 1
+        rtypes_list = list(self.relationships)
+        for i in range(0, len(rtypes_list), chunk_size):
+            chunk = rtypes_list[i:i + chunk_size]
+            queries = []
+            for rtype in chunk:
+                safe_rtype = rtype.replace('\n', '').replace('\\n', '')
+                queries.append(f"MATCH ()-[r:`{safe_rtype}`]->() RETURN \"{safe_rtype}\" AS element, count(r) AS cnt")
+
+            if queries:
+                batched_query = " UNION ALL ".join(queries)
+                try:
+                    results = graph_store.query(batched_query, database=database)
+                    count_map = {row["element"]: int(row["cnt"]) for row in results}
+                except Exception:
+                    count_map = {}
+
+                for rtype in chunk:
+                    safe_rtype = rtype.replace('\n', '').replace('\\n', '')
+                    count = count_map.get(safe_rtype, 0)
+                    rel_stats.append({"type": rtype, "count": count})
+                    if count > 0:
+                        populated_rels += 1
 
         node_score = populated_nodes / total_defined_nodes if total_defined_nodes else 1.0
         rel_score = populated_rels / total_defined_rels if total_defined_rels else 1.0

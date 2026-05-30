@@ -24,7 +24,7 @@ nodes:
         required: true
       classification:
         type: STRING
-        description: "Industry classification code if known"
+        description: "ONLY an explicit standard industry code (SIC/NAICS) stated verbatim in the text; otherwise omit this property — do not infer or invent a category."
   Regulator:
     description: "A regulatory authority (e.g. SEC, FTC)"
     aliases: [RegulatoryAuthority]

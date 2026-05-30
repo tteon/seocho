@@ -23,7 +23,7 @@ from seocho import Ontology
 
 _THIS_DIR = Path(__file__).resolve().parent
 
-KNOWN_MODULES = ("be", "fbc", "sec", "fnd", "ind")
+KNOWN_MODULES = ("be", "fbc", "sec", "fnd", "ind", "dbt", "mkt", "acc", "corp")
 
 
 def _baseline() -> Ontology:

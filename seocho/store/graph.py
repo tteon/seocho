@@ -31,6 +31,9 @@ from seocho.ontology import Ontology
 
 logger = logging.getLogger(__name__)
 
+# Indirection so tests can monkeypatch the poll delay to run instantly.
+_sleep = time.sleep
+
 _LABEL_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
@@ -749,29 +752,64 @@ class Neo4jGraphStore(GraphStore):
 
         return summary
 
-    def ensure_database(self, name: str) -> bool:
-        """Create a database if it doesn't exist.
+    def ensure_database(self, name: str, *, wait_online: bool = True,
+                        timeout: float = 30.0) -> bool:
+        """Create a database if it doesn't exist, optionally waiting until ONLINE.
+
+        DozerDB / Neo4j ``CREATE DATABASE`` is **asynchronous**: the statement
+        returns before the database is queryable, so an immediate write can fail
+        with "Graph not found". When ``wait_online`` is True (default), poll
+        ``SHOW DATABASES`` until the database reports an online status, or until
+        ``timeout`` seconds elapse.
 
         Validates the name against Neo4j rules first.
 
         Returns True if the database was created, False if it already existed.
-
         Raises :class:`DatabaseNameError` if the name is invalid.
         """
         validate_database_name(name)
 
+        created = False
         try:
             with self._driver.session(database="system") as session:
                 result = session.run("SHOW DATABASES")
                 existing = {r["name"] for r in result}
-                if name in existing:
-                    return False
-                session.run(f"CREATE DATABASE {name} IF NOT EXISTS")
-                logger.info("Created database: %s", name)
-                return True
+                if name not in existing:
+                    session.run(f"CREATE DATABASE {name} IF NOT EXISTS")
+                    logger.info("Created database: %s", name)
+                    created = True
         except Exception as exc:
             logger.warning("Could not create database '%s': %s", name, exc)
             return False
+
+        if wait_online:
+            self._wait_until_online(name, timeout=timeout)
+        return created
+
+    def _wait_until_online(self, name: str, *, timeout: float = 30.0) -> bool:
+        """Poll ``SHOW DATABASES`` until ``name`` reports an online status.
+
+        Returns True if confirmed online within ``timeout`` seconds, else False
+        (logged as a warning). The poll delay goes through the module-level
+        ``_sleep`` indirection so tests can run instantly.
+        """
+        deadline = time.monotonic() + max(0.0, timeout)
+        while True:
+            try:
+                with self._driver.session(database="system") as session:
+                    rows = list(session.run(
+                        "SHOW DATABASES YIELD name, currentStatus "
+                        "WHERE name = $n RETURN currentStatus AS status",
+                        n=name,
+                    ))
+                if rows and str(rows[0]["status"]).lower() == "online":
+                    return True
+            except Exception as exc:
+                logger.debug("ensure_database online-poll error for '%s': %s", name, exc)
+            if time.monotonic() >= deadline:
+                logger.warning("Database '%s' not confirmed ONLINE within %.0fs", name, timeout)
+                return False
+            _sleep(0.5)
 
     def list_databases(self) -> List[str]:
         """List all available databases."""

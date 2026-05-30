@@ -40,7 +40,11 @@ python3 -m py_compile \
   seocho/evaluation.py \
   seocho/index/ingestion_facade.py \
   seocho/query/query_proxy.py \
-  seocho/query/agent_factory.py
+  seocho/query/agent_factory.py \
+  seocho/tracing.py \
+  seocho/store/graph.py \
+  seocho/query/cypher_builder.py \
+  seocho/index/extraction_engine.py
 
 uv run pytest \
   extraction/tests/test_runtime_package_aliases.py \
@@ -69,6 +73,14 @@ uv run pytest \
   seocho/tests/test_finder_benchmark_script.py \
   seocho/tests/test_indexing_design.py \
   seocho/tests/test_llm_backends.py \
+  seocho/tests/test_tracing.py \
+  seocho/tests/test_tracing_opik_regression.py \
+  seocho/tests/test_cypher_builder.py \
+  seocho/tests/test_cypher_builder_ontology_aware.py \
+  seocho/tests/test_extraction_engine.py \
+  seocho/tests/test_graph_ensure_database.py \
+  seocho/tests/test_finder_eval_helpers.py \
+  seocho/tests/test_finder_judge.py \
   -q
 
 git diff --check

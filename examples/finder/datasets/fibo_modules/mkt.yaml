@@ -1,0 +1,41 @@
+graph_type: "fibo_mkt"
+package_id: "fibo_mkt"
+version: "1.0.0"
+description: "FIBO FBC Markets and Exchanges — trading venues, market identifiers (enriches Regulator/listing context)"
+graph_model: "lpg"
+nodes:
+  Exchange:
+    description: "A trading venue where securities are listed and traded (NYSE, NASDAQ, etc.)"
+    aliases: [StockExchange, TradingVenue, Market, AuctionMarket]
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+      acronym:
+        type: STRING
+        description: "e.g. NYSE, NASDAQ, LSE"
+      country:
+        type: STRING
+  MarketIdentifier:
+    description: "ISO 10383 Market Identifier Code (MIC) or similar"
+    aliases: [MIC]
+    properties:
+      code:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+      status:
+        type: STRING
+        description: "active / expired"
+relationships:
+  LISTED_ON:
+    source: LegalEntity
+    target: Exchange
+    description: "Entity's equity is listed on the exchange"
+    cardinality: MANY_TO_MANY
+  HAS_IDENTIFIER:
+    source: Exchange
+    target: MarketIdentifier
+    description: "Exchange's official MIC code"
+    cardinality: ONE_TO_ONE

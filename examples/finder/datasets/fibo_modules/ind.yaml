@@ -1,11 +1,15 @@
 graph_type: "fibo_ind"
 package_id: "fibo_ind"
-version: "1.0.0"
-description: "FIBO Indices and Indicators module — financial metrics, ratios, monetary amounts"
+version: "1.1.0"
+description: "FIBO Indices and Indicators module — financial metrics (with concrete subclasses), ratios, monetary amounts"
 graph_model: "lpg"
 nodes:
+  # Abstract base — kept for cases where no specific subclass clearly applies.
+  # Extractors are instructed (kimi_meta_system_prompt.md §9) to prefer the
+  # most-specific subclass and only fall back to FinancialMetric when no
+  # concrete metric matches.
   FinancialMetric:
-    description: "A reported financial figure (revenue, operating income, EPS, ratios)"
+    description: "Abstract base for reported financial figures. Use a concrete subclass when possible (Revenue, OperatingIncome, NetIncome, EPS, GrossProfit, OperatingMargin)."
     aliases: [Metric, KPI, FinancialFigure]
     properties:
       name:
@@ -21,8 +25,88 @@ nodes:
       basis:
         type: STRING
         description: "GAAP / non-GAAP / segment basis"
+  Revenue:
+    description: "Top-line revenue / net sales for a period (Income Statement line item)"
+    aliases: [NetSales, TotalRevenue, Sales, NetRevenue]
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+      value:
+        type: STRING
+      period:
+        type: STRING
+      segment:
+        type: STRING
+        description: "Reportable segment if disaggregated"
+      basis:
+        type: STRING
+  OperatingIncome:
+    description: "Operating income / operating profit for a period (Income Statement)"
+    aliases: [OperatingProfit, OI, IncomeFromOperations]
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+      value:
+        type: STRING
+      period:
+        type: STRING
+  NetIncome:
+    description: "Bottom-line net earnings attributable to the entity for a period"
+    aliases: [NetEarnings, NetProfit, EarningsAfterTax]
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+      value:
+        type: STRING
+      period:
+        type: STRING
+  EPS:
+    description: "Earnings per share (basic or diluted) for a period"
+    aliases: [EarningsPerShare, DilutedEPS, BasicEPS]
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+      value:
+        type: STRING
+      period:
+        type: STRING
+      basis:
+        type: STRING
+        description: "basic / diluted"
+  GrossProfit:
+    description: "Gross profit (revenue minus cost of goods sold) for a period"
+    aliases: [GrossEarnings, GrossMargin]
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+      value:
+        type: STRING
+      period:
+        type: STRING
+  OperatingMargin:
+    description: "Operating margin ratio (operating income / revenue) for a period"
+    aliases: [OpMargin, OperatingMarginRatio]
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+      value:
+        type: STRING
+      period:
+        type: STRING
   MonetaryAmount:
-    description: "A specific monetary figure cited in disclosures"
+    description: "A specific monetary figure cited in disclosures (use for amounts that aren't a Revenue / OperatingIncome / NetIncome / etc. metric)"
     aliases: [Amount, Figure]
     properties:
       name:
@@ -49,7 +133,7 @@ relationships:
   REPORTED_METRIC:
     source: LegalEntity
     target: FinancialMetric
-    description: "Entity reported metric"
+    description: "Entity reported a financial metric (abstract — also covers concrete subclasses Revenue, OperatingIncome, NetIncome, EPS, GrossProfit, OperatingMargin)"
     cardinality: ONE_TO_MANY
   HAS_AMOUNT:
     source: FinancialMetric

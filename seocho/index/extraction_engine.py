@@ -317,9 +317,42 @@ class CanonicalExtractionEngine:
             context.setdefault("entity_types", "")
             context.setdefault("relationship_types", "")
             context.setdefault("constraints_summary", "")
+
+        # T2.3 — hierarchical-extraction guidance. When the ontology exposes
+        # 10+ classes (e.g. FIBO be+sec+ind+dbt = 11), Kimi's tendency to
+        # fall back to a generic ``Entity`` label dominates. Surface the
+        # explicit "prefer most-specific subclass" rule alongside the
+        # entity_types listing so the rule travels with every extraction
+        # prompt that consumes ``{{ontology_guidance}}`` (templates that
+        # don't reference it stay unchanged).
+        guidance = self._build_ontology_guidance()
+        context.setdefault("ontology_guidance", guidance)
+
         if isinstance(extra_context, dict):
             context.update(extra_context)
         return context
+
+    def _build_ontology_guidance(self) -> str:
+        """Class-count-aware hierarchy hint for the extraction prompt."""
+        if self.ontology is None:
+            return ""
+        node_count = len(getattr(self.ontology, "nodes", {}) or {})
+        base = (
+            "Label selection rules:\n"
+            "  1. Use the most-specific class that matches the entity. "
+            "If both an abstract base (e.g. FinancialMetric) and a concrete "
+            "subclass (Revenue, OperatingIncome, NetIncome, EPS, GrossProfit, "
+            "OperatingMargin) are listed, pick the subclass.\n"
+            "  2. Only fall back to a generic label when no domain-specific "
+            "class clearly applies. Never default to 'Entity' when the "
+            "ontology offers a domain label that matches."
+        )
+        if node_count >= 10:
+            base += (
+                "\n  3. (This ontology has many classes — read the entity_types "
+                "list carefully before defaulting to abstract labels.)"
+            )
+        return base
 
     def _normalize_node(self, raw_node: Any, index: int) -> Optional[Dict[str, Any]]:
         if not isinstance(raw_node, dict):

@@ -114,11 +114,12 @@ def test_builder_financial_metric_query_uses_workspace_and_rel_candidates() -> N
         workspace_id="finance_benchmark_test",
     )
 
-    assert "relationship_candidates" in params
-    assert "reported" in params["relationship_candidates"]
-    assert "HASREPORTEDMETRIC" in {value.upper() for value in params["relationship_candidates"]}
+    # Ontology-aware lookup (2026-05-30): the rel-type candidate hard-filter was
+    # replaced by ontology-derived metric/anchor label params + soft ORDER BY.
+    assert "metric_labels" in params and "FinancialMetric" in params["metric_labels"]
+    assert "anchor_labels" in params and "Company" in params["anchor_labels"]
     assert params["workspace_id"] == "finance_benchmark_test"
-    assert "metric_scope_tokens" in params
+    assert "metric_scope_tokens" in params  # carried for soft ranking, not as a WHERE filter
     assert "coalesce(c._workspace_id, '') = $workspace_id" in cypher
 
 

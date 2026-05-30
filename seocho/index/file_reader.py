@@ -211,17 +211,28 @@ def read_csv_file(path: Path) -> List[Dict[str, Any]]:
 
 
 def read_json_file(path: Path) -> List[Dict[str, Any]]:
-    """Read a .json file — expects an array of objects with 'content' field."""
+    """Read a .json file — expects an array of objects with a ``content`` field.
+
+    Array items that are not objects (strings, numbers, booleans, ``null``) are
+    skipped with a warning rather than dropped silently, so a mismatched input
+    shape is visible instead of producing an empty result with no signal.
+    """
     data = json.loads(path.read_text(encoding="utf-8"))
     if isinstance(data, list):
         records = []
         for i, item in enumerate(data):
-            if isinstance(item, dict):
-                content = item.get("content", json.dumps(item))
-                meta = {k: v for k, v in item.items() if k != "content"}
-                meta["source_file"] = str(path)
-                meta["item_index"] = i
-                records.append({"content": content, "metadata": meta})
+            if not isinstance(item, dict):
+                logger.warning(
+                    "Skipping non-object item at %s index %d (%s); "
+                    "read_json_file expects an array of objects with a 'content' field",
+                    path, i, type(item).__name__,
+                )
+                continue
+            content = item.get("content", json.dumps(item))
+            meta = {k: v for k, v in item.items() if k != "content"}
+            meta["source_file"] = str(path)
+            meta["item_index"] = i
+            records.append({"content": content, "metadata": meta})
         return records
     elif isinstance(data, dict) and "content" in data:
         return [{"content": data["content"], "metadata": {"source_file": str(path)}}]
@@ -230,7 +241,12 @@ def read_json_file(path: Path) -> List[Dict[str, Any]]:
 
 
 def read_jsonl_file(path: Path) -> List[Dict[str, Any]]:
-    """Read a .jsonl file — one JSON object per line."""
+    """Read a .jsonl file — one JSON object per line.
+
+    Lines that parse to valid JSON but are not objects (strings, numbers,
+    booleans, ``null``) are skipped with a warning, mirroring the existing
+    malformed-line handling, instead of being dropped silently.
+    """
     records: List[Dict[str, Any]] = []
     for i, line in enumerate(path.read_text(encoding="utf-8").splitlines()):
         line = line.strip()
@@ -238,14 +254,20 @@ def read_jsonl_file(path: Path) -> List[Dict[str, Any]]:
             continue
         try:
             item = json.loads(line)
-            if isinstance(item, dict):
-                content = item.get("content", json.dumps(item))
-                meta = {k: v for k, v in item.items() if k != "content"}
-                meta["source_file"] = str(path)
-                meta["line_index"] = i
-                records.append({"content": content, "metadata": meta})
         except json.JSONDecodeError:
             logger.warning("Skipping malformed JSON at %s line %d", path, i)
+            continue
+        if not isinstance(item, dict):
+            logger.warning(
+                "Skipping non-object JSON at %s line %d (%s)",
+                path, i, type(item).__name__,
+            )
+            continue
+        content = item.get("content", json.dumps(item))
+        meta = {k: v for k, v in item.items() if k != "content"}
+        meta["source_file"] = str(path)
+        meta["line_index"] = i
+        records.append({"content": content, "metadata": meta})
     return records
 
 

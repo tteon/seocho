@@ -83,6 +83,24 @@ class TestJSONReader:
         assert len(records) == 1
         assert records[0]["content"] == "Only doc"
 
+    def test_json_array_of_non_objects_skipped_with_warning(self, tmp_dir, caplog):
+        # read_json_file expects objects; non-object items (strings, numbers,
+        # null) are not documents here, but must not vanish silently.
+        f = tmp_dir / "strings.json"
+        f.write_text(json.dumps(["First doc", "Second doc", 42, None]))
+        with caplog.at_level("WARNING"):
+            records = read_json_file(f)
+        assert records == []
+        assert sum("Skipping non-object item" in r.message for r in caplog.records) == 4
+
+    def test_json_array_mixed_keeps_objects(self, tmp_dir):
+        f = tmp_dir / "mixed.json"
+        f.write_text(json.dumps([{"content": "obj doc"}, "string doc", 42]))
+        records = read_json_file(f)
+        assert len(records) == 1
+        assert records[0]["content"] == "obj doc"
+        assert records[0]["metadata"]["item_index"] == 0
+
 
 class TestJSONLReader:
     def test_jsonl_lines(self, tmp_dir):
@@ -102,6 +120,15 @@ class TestJSONLReader:
         f.write_text('{"content": "good"}\nnot json\n{"content": "also good"}\n')
         records = read_jsonl_file(f)
         assert len(records) == 2  # bad line skipped
+
+    def test_jsonl_non_object_lines_skipped_with_warning(self, tmp_dir, caplog):
+        f = tmp_dir / "strings.jsonl"
+        f.write_text('{"content": "obj"}\n"bare string"\n42\n')
+        with caplog.at_level("WARNING"):
+            records = read_jsonl_file(f)
+        assert len(records) == 1
+        assert records[0]["content"] == "obj"
+        assert sum("Skipping non-object JSON" in r.message for r in caplog.records) == 2
 
 
 class TestFileTracker:

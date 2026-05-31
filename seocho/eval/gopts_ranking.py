@@ -40,12 +40,13 @@ from ..query.contracts import PatternSpec
 
 @dataclass(frozen=True)
 class GoptsFixture:
-    """One NL→pattern fixture case for Layer-1 evaluation.
+    """One NL→pattern fixture case for the GOPTS eval layers.
 
-    ``intent`` is the cypher_shape string the question maps to (e.g.
-    ``"relationship_lookup"``). ``expected_top1_pattern_id`` is the
-    hand-picked oracle for the top-1 plan; the harness compares the
-    cost model's predicted top-1 against this string.
+    Layer-1 (ranking) uses ``intent`` + ``expected_top1_pattern_id``.
+    Layer-3 (answer quality, F3) uses ``expected_evidence_entities`` and
+    ``expected_answer``. All Layer-3 fields default empty so a Layer-1-only
+    fixture stays valid and the YAML loader tolerates files that predate
+    the answer-quality annotation.
     """
 
     fixture_id: str
@@ -55,6 +56,9 @@ class GoptsFixture:
     intent: str = "neighbors"
     expected_top1_pattern_id: str = ""
     notes: str = ""
+    # F3 (Layer-3 answer quality)
+    expected_evidence_entities: Tuple[str, ...] = ()
+    expected_answer: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -205,6 +209,9 @@ def load_fixtures(directory: Path) -> List[GoptsFixture]:
         with open(path, "r", encoding="utf-8") as fh:
             body = yaml.safe_load(fh) or {}
         fixture_id = body.get("fixture_id") or path.stem
+        evidence = body.get("expected_evidence_entities") or ()
+        if isinstance(evidence, str):
+            evidence = (evidence,)
         fixtures.append(
             GoptsFixture(
                 fixture_id=fixture_id,
@@ -214,6 +221,8 @@ def load_fixtures(directory: Path) -> List[GoptsFixture]:
                 intent=str(body.get("intent") or "neighbors"),
                 expected_top1_pattern_id=str(body.get("expected_top1_pattern_id") or ""),
                 notes=str(body.get("notes") or ""),
+                expected_evidence_entities=tuple(str(e) for e in evidence),
+                expected_answer=str(body.get("expected_answer") or ""),
             )
         )
     return fixtures

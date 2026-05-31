@@ -1,0 +1,12 @@
+fixture_id: "09_finance_revenue_2021"
+question: "What was Apple's revenue in 2021?"
+workspace_id: "fixture-gopts"
+populated_db: "neo4j"
+intent: "financial_metric_lookup"
+expected_top1_pattern_id: "pattern:finance_metric_value"
+expected_evidence_entities: ["Apple", "revenue"]
+expected_answer: "Apple's revenue in 2021 was 274.5B."
+notes: |
+  F3 finance answer fixture. Single-year metric lookup; the answer
+  carries the numeric + period slots score_answer_slots/token_f1 care
+  about (274.5B / 2021).

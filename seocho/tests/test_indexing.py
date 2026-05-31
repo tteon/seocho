@@ -227,10 +227,14 @@ class TestExtractionNormalization:
         document = next(node for node in store.last_nodes if node["label"] == "Document")
         document_version = next(node for node in store.last_nodes if node["label"] == "DocumentVersion")
         chunk = next(node for node in store.last_nodes if node["label"] == "Chunk")
-        assert company["properties"]["content_preview"] == "Cboe data"
+        # T2.2: domain nodes (Company) no longer carry the document-level
+        # content_preview — graph nodes must abstract, not duplicate evidence.
+        assert "content_preview" not in company["properties"]
         assert document["properties"]["content_preview"] == "Cboe data"
         assert document_version["properties"]["chunk_count"] == 1
         assert chunk["properties"]["chunk_id"].endswith("_chunk_0000")
+        # Chunk nodes still carry their own short preview (chunk-local, not doc-level)
+        assert "content_preview" in chunk["properties"]
         assert any(rel["type"] == "MENTIONS" for rel in store.last_relationships)
         assert any(rel["type"] == "HAS_CHUNK" for rel in store.last_relationships)
 

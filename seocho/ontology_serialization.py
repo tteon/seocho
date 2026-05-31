@@ -277,19 +277,29 @@ def ontology_from_ttl(
 
     nodes: Dict[str, NodeDef] = {}
     relationships: Dict[str, RelDef] = {}
+    subclass_of: Dict[str, List[str]] = {}  # local -> parent locals (resolved after all classes seen)
 
     for cls_uri in g.subjects(RDF.type, OWL.Class):
         if not isinstance(cls_uri, URIRef):
             continue
         local = _safe_local(cls_uri)
         label = next(g.objects(cls_uri, RDFS.label), None)
+        definition = next(g.objects(cls_uri, SKOS.definition), None)
         aliases = [str(a) for a in g.objects(cls_uri, SKOS.altLabel)]
+        # Prefer the SKOS definition (ISO 704 meaning) over the label for the
+        # description; fall back to the label.
+        desc = str(definition) if definition is not None else (str(label) if label is not None else "")
         nodes[local] = NodeDef(
-            description=str(label) if label is not None else "",
+            description=desc,
             properties={},
             aliases=aliases,
             same_as=str(cls_uri),
         )
+        # Capture rdfs:subClassOf to named classes (skip blank-node restrictions /
+        # external classes); resolved into `broader` once all classes are loaded.
+        parents = [_safe_local(p) for p in g.objects(cls_uri, RDFS.subClassOf) if isinstance(p, URIRef)]
+        if parents:
+            subclass_of[local] = parents
 
     for prop_uri in g.subjects(RDF.type, OWL.DatatypeProperty):
         domain = next(g.objects(prop_uri, RDFS.domain), None)
@@ -321,6 +331,13 @@ def ontology_from_ttl(
             aliases=[str(a) for a in g.objects(prop_uri, SKOS.altLabel)],
             same_as=str(prop_uri),
         )
+
+    # Resolve subClassOf -> broader, keeping only parents that resolved to a
+    # defined class in this ontology (drops external/blank-node supers).
+    for local, parents in subclass_of.items():
+        resolved = [p for p in parents if p in nodes and p != local]
+        if resolved:
+            nodes[local].broader = resolved
 
     # Default a `name` property where missing so seocho writes don't choke.
     for node in nodes.values():
@@ -384,13 +401,27 @@ def ontology_to_ttl(
         PropertyType.DATETIME: XSD.dateTime,
     }
 
+    def _cls_iri(node_label: str):
+        nd = ontology.nodes.get(node_label)
+        if nd is not None and nd.same_as:
+            return URIRef(nd.same_as)
+        return URIRef(ns + _safe_local(node_label))
+
     for label, node in ontology.nodes.items():
         cls_iri = URIRef(node.same_as) if node.same_as else URIRef(ns + _safe_local(label))
         g.add((cls_iri, RDF.type, OWL.Class))
+        # ISO-704 surfacing: the human name is rdfs:label, the meaning/definition
+        # is skos:definition (which the loader prefers). This keeps the definition
+        # a first-class SKOS annotation instead of overloading rdfs:label.
+        g.add((cls_iri, RDFS.label, Literal(label)))
         if node.description:
-            g.add((cls_iri, RDFS.label, Literal(node.description)))
+            g.add((cls_iri, SKOS.definition, Literal(node.description)))
         for alias in node.aliases or []:
             g.add((cls_iri, SKOS.altLabel, Literal(alias)))
+        # Subclass hierarchy: broader -> rdfs:subClassOf (round-trips with from_ttl).
+        for parent in (node.broader or []):
+            if parent in ontology.nodes:
+                g.add((cls_iri, RDFS.subClassOf, _cls_iri(parent)))
         for pname, p in node.properties.items():
             prop_iri = URIRef(ns + _safe_local(pname))
             g.add((prop_iri, RDF.type, OWL.DatatypeProperty))

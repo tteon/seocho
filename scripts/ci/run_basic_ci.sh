@@ -40,7 +40,11 @@ python3 -m py_compile \
   seocho/evaluation.py \
   seocho/index/ingestion_facade.py \
   seocho/query/query_proxy.py \
-  seocho/query/agent_factory.py
+  seocho/query/agent_factory.py \
+  seocho/tracing.py \
+  seocho/store/graph.py \
+  seocho/query/cypher_builder.py \
+  seocho/index/extraction_engine.py
 
 uv run pytest \
   extraction/tests/test_runtime_package_aliases.py \
@@ -50,6 +54,7 @@ uv run pytest \
   extraction/tests/test_runtime_ingest.py \
   extraction/tests/test_semantic_run_store.py \
   extraction/tests/test_semantic_query_flow.py \
+  extraction/tests/test_approve_governance_gate.py \
   extraction/tests/test_rule_constraints.py \
   extraction/tests/test_rule_constraints_shim.py \
   extraction/tests/test_vector_store_shim.py \
@@ -69,6 +74,19 @@ uv run pytest \
   seocho/tests/test_finder_benchmark_script.py \
   seocho/tests/test_indexing_design.py \
   seocho/tests/test_llm_backends.py \
+  seocho/tests/test_tracing.py \
+  seocho/tests/test_tracing_opik_regression.py \
+  seocho/tests/test_cypher_builder.py \
+  seocho/tests/test_cypher_builder_ontology_aware.py \
+  seocho/tests/test_extraction_engine.py \
+  seocho/tests/test_graph_ensure_database.py \
+  seocho/tests/test_finder_eval_helpers.py \
+  seocho/tests/test_finder_judge.py \
+  seocho/tests/test_ontology_extraction_firewall.py \
+  seocho/tests/test_ontology_lint.py \
+  seocho/tests/test_ontology_subclass_ttl.py \
+  seocho/tests/test_ontology_reasoner.py \
+  seocho/tests/test_ontology_iso704_cq.py \
   -q
 
 git diff --check

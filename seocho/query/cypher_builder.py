@@ -561,6 +561,41 @@ class CypherBuilder:
             {"workspace_id": workspace_id, "limit": limit},
         )
 
+    def _metric_anchor_labels(self) -> Tuple[List[str], List[str]]:
+        """Derive (metric_labels, anchor_labels) from the active ontology.
+
+        Ontology-aware so FIBO graphs (``LegalEntity`` reporting ``Revenue`` /
+        ``NetIncome`` / ``EPS`` … subclasses) are matched instead of a hardcoded
+        ``Company`` / ``FinancialMetric`` schema. The same derivation runs for
+        every ontology arm, so the comparison stays fair.
+
+        - metric_labels: ontology node labels carrying a ``value`` property
+          (the concrete financial-figure classes), plus the canonical bases for
+          backward compatibility.
+        - anchor_labels: source labels of relationships whose target is a metric
+          label (e.g. ``LegalEntity`` via ``REPORTED_METRIC``), plus legacy
+          aliases. Anchor matching is permissive (name-contains does the real
+          work), so an empty/looser set never blocks retrieval.
+        """
+        metric_labels: List[str] = []
+        for label, nd in self.ontology.nodes.items():
+            props = getattr(nd, "properties", {}) or {}
+            if isinstance(props, dict) and any(str(k).lower() == "value" for k in props):
+                metric_labels.append(label)
+        for legacy in ("FinancialMetric", "MonetaryAmount"):
+            if legacy not in metric_labels:
+                metric_labels.append(legacy)
+        metric_set = set(metric_labels)
+        anchor_labels = sorted({
+            rd.source
+            for rd in self.ontology.relationships.values()
+            if getattr(rd, "target", None) in metric_set and rd.source and rd.source != "Any"
+        })
+        for legacy in ("Company", "LegalEntity", "Entity"):
+            if legacy not in anchor_labels:
+                anchor_labels.append(legacy)
+        return metric_labels, anchor_labels
+
     def _financial_metric_lookup(
         self,
         *,
@@ -572,26 +607,42 @@ class CypherBuilder:
         workspace_id: str,
         limit: int,
     ) -> Tuple[str, Dict[str, Any]]:
-        relationship_candidates = self._relationship_candidates(
-            source_label="Company",
-            target_label="FinancialMetric",
-        )
+        metric_labels, anchor_labels = self._metric_anchor_labels()
+        # Labels are passed as parameters and matched via `l IN $list` — no
+        # dynamic label interpolation into Cypher (CLAUDE.md §8). Read-only.
         return (
-            "MATCH (c:Company)-[r]-(m:FinancialMetric)\n"
-            "WHERE (toLower(coalesce(c.name, c.uri, '')) CONTAINS toLower($anchor)\n"
-            "   OR toLower(coalesce(c.name, c.uri, '')) CONTAINS toLower($anchor_norm))\n"
+            "MATCH (c)-[r]-(m)\n"
+            "WHERE (ANY(l IN labels(m) WHERE l IN $metric_labels) OR m.value IS NOT NULL)\n"
+            "  AND ($anchor_labels = [] OR ANY(l IN labels(c) WHERE l IN $anchor_labels))\n"
+            # Anchor by company name OR by ticker symbol — FinDER questions often
+            # use the ticker ("UR", "JKHY") while extracted nodes carry the full
+            # name ("United Rentals, Inc."). Parameterized, read-only (§8).
+            "  AND (toLower(coalesce(c.name, c.uri, '')) CONTAINS toLower($anchor)\n"
+            "   OR toLower(coalesce(c.name, c.uri, '')) CONTAINS toLower($anchor_norm)\n"
+            "   OR toLower(coalesce(c.ticker, '')) = toLower($anchor)\n"
+            "   OR toLower(coalesce(c.ticker, '')) = toLower($anchor_norm))\n"
             "  AND ($workspace_id = '' OR (coalesce(c._workspace_id, '') = $workspace_id AND coalesce(m._workspace_id, '') = $workspace_id))\n"
-            "  AND ($relationship_candidates = [] OR type(r) IN $relationship_candidates)\n"
-            "  AND ($metric_aliases = [] OR ANY(alias IN $metric_aliases WHERE toLower(coalesce(m.name, m.uri, '')) CONTAINS alias))\n"
-            "  AND ($metric_scope_tokens = [] OR ALL(token IN $metric_scope_tokens WHERE toLower(coalesce(m.name, m.uri, '')) CONTAINS token))\n"
-            "  AND ($years = [] OR ANY(year IN $years WHERE coalesce(toString(m.year), '') = year OR toLower(coalesce(m.name, m.uri, '')) CONTAINS year))\n"
+            "  AND ($years = [] OR ANY(year IN $years WHERE coalesce(toString(m.year), '') = year\n"
+            "        OR toLower(coalesce(toString(m.period), '')) CONTAINS year\n"
+            "        OR toLower(coalesce(m.name, m.uri, '')) CONTAINS year))\n"
+            # metric_aliases / metric_scope_tokens are used only as SOFT ranking
+            # signals, never as hard filters. They are derived heuristically from
+            # the question (often question stopwords like 'trend'/'prod'), and an
+            # ALL/ANY hard filter on them eliminated every metric node even when
+            # the answer data was present. The per-entity metric set is small, so
+            # we return the anchor's metrics and let the LLM select; alias/token
+            # matches just float to the top. (CLAUDE.md §8: read-only.)
             "RETURN coalesce(c.name, c.uri) AS company,\n"
             "       coalesce(m.name, m.uri) AS metric_name,\n"
-            "       coalesce(toString(m.year), '') AS year,\n"
+            "       coalesce(toString(m.year), toString(m.period), '') AS year,\n"
             "       CASE WHEN m.value IS NULL THEN '' ELSE toString(m.value) END AS value,\n"
             "       type(r) AS relationship,\n"
             "       coalesce(m.content_preview, c.content_preview, m.description, c.description, '') AS supporting_fact\n"
-            "ORDER BY company, year, metric_name\n"
+            "ORDER BY\n"
+            "  CASE WHEN ($metric_aliases = [] OR ANY(alias IN $metric_aliases WHERE toLower(coalesce(m.name, m.uri, '')) CONTAINS alias))\n"
+            "         OR ($metric_scope_tokens = [] OR ANY(token IN $metric_scope_tokens WHERE toLower(coalesce(m.name, m.uri, '')) CONTAINS token))\n"
+            "       THEN 0 ELSE 1 END,\n"
+            "  company, year, metric_name\n"
             "LIMIT $limit",
             {
                 "anchor": anchor_entity,
@@ -600,7 +651,8 @@ class CypherBuilder:
                 "metric_aliases": [alias.lower() for alias in metric_aliases if alias],
                 "metric_scope_tokens": [token.lower() for token in metric_scope_tokens if token],
                 "years": [str(year) for year in years if str(year).strip()],
-                "relationship_candidates": relationship_candidates,
+                "metric_labels": metric_labels,
+                "anchor_labels": anchor_labels,
                 "workspace_id": workspace_id,
                 "limit": limit,
             },

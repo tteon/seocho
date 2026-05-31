@@ -79,6 +79,34 @@ class TracingBackend(ABC):
 # Built-in backends
 # ======================================================================
 
+_OPIK_VERSION_WARNED = False
+# Opik SDK major version known-compatible with current Opik servers (>=2.x).
+# SDK 1.x against a 2.x server silently drops trace payloads (all-null traces).
+_OPIK_MIN_MAJOR = 2
+
+
+def _warn_opik_version_once(opik_mod: Any) -> None:
+    """Emit a one-time warning if the installed Opik SDK major version is older
+    than the era of current Opik servers. SDK 1.x talking to a 2.x server lands
+    traces with null name/tags/metadata (observed 2026-05-30)."""
+    global _OPIK_VERSION_WARNED
+    if _OPIK_VERSION_WARNED:
+        return
+    _OPIK_VERSION_WARNED = True
+    ver = str(getattr(opik_mod, "__version__", "") or "")
+    try:
+        major = int(ver.split(".", 1)[0])
+    except (ValueError, IndexError):
+        return
+    if major < _OPIK_MIN_MAJOR:
+        logger.warning(
+            "Opik SDK version %s (<%d.x) may be incompatible with current Opik "
+            "servers: traces can land with null name/tags/metadata. "
+            "Run `pip install -U opik` to match the server release.",
+            ver, _OPIK_MIN_MAJOR,
+        )
+
+
 class OpikBackend(TracingBackend):
     """Opik tracing backend — follows icml2026 verified patterns.
 
@@ -109,6 +137,7 @@ class OpikBackend(TracingBackend):
             self._opik = _opik
         except ImportError:
             raise ImportError("OpikBackend requires opik: pip install opik")
+        _warn_opik_version_once(self._opik)
 
         self._url = url or os.getenv("OPIK_URL_OVERRIDE", "") or os.getenv("OPIK_URL", "")
         self._workspace = workspace or os.getenv("OPIK_WORKSPACE", "")
@@ -149,14 +178,20 @@ class OpikBackend(TracingBackend):
         if self._client is None:
             return
         try:
-            trace = self._client.trace(
+            # Pass end_time in the single create call instead of calling
+            # trace.end() right after creation. With opik's batched message
+            # manager (SDK >= 2.0), create-then-immediate-end() races and the
+            # create payload (name/tags/metadata) is silently dropped — the
+            # trace lands with all fields null. See:
+            # https://www.comet.com/docs/opik/tracing/batching_and_updates
+            self._client.trace(
                 name=name,
                 input=input_data or {},
                 output=output_data or {},
                 metadata=metadata or {},
                 tags=tags or [],
+                end_time=datetime.now(timezone.utc),
             )
-            trace.end()
         except Exception as exc:
             logger.debug("Opik trace failed: %s", exc)
 

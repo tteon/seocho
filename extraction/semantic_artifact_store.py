@@ -176,7 +176,21 @@ def approve_semantic_artifact(
     approved_by: str,
     approval_note: Optional[str] = None,
     base_dir: str = DEFAULT_SEMANTIC_ARTIFACT_DIR,
+    *,
+    governance_enforce: bool = True,
+    run_reasoner: bool = True,
 ) -> Dict[str, Any]:
+    """Promote a draft artifact to ``approved``.
+
+    Phase: an **offline** governance gate runs at approval time (file I/O, never
+    a query path). It builds the candidate ontology from the artifact and runs
+    the structural check + FIBO/ISO-704 hygiene lint + (optional) OWL 2 DL
+    consistency reasoner, stamping the verdict onto ``payload["governance"]``.
+    When ``governance_enforce`` is True (default) a structural error, lint error,
+    or proven inconsistency refuses approval (mirrors the deprecate guard). The
+    reasoner degrades to ``available=False`` without a JVM and never blocks on
+    its own absence.
+    """
     artifact_path = _workspace_dir(base_dir, workspace_id) / f"{artifact_id}.json"
     if not artifact_path.exists():
         raise FileNotFoundError(
@@ -184,6 +198,20 @@ def approve_semantic_artifact(
         )
     with artifact_path.open("r", encoding="utf-8") as fp:
         payload = json.load(fp)
+
+    governance = _run_governance_gate(payload, run_reasoner=run_reasoner)
+    payload["governance"] = governance
+    if governance_enforce and not governance.get("ok", True):
+        # Persist the failed verdict so the refusal is auditable, then refuse.
+        with artifact_path.open("w", encoding="utf-8") as fp:
+            json.dump(payload, fp, indent=2)
+        raise ValueError(
+            f"semantic artifact '{artifact_id}' failed governance gate "
+            f"(structural_ok={governance['structural']['ok']}, "
+            f"lint_ok={governance['lint'].get('ok')}, "
+            f"consistent={governance['consistency'].get('consistent')}). "
+            f"Fix the ontology or approve with governance_enforce=False."
+        )
 
     payload["status"] = "approved"
     payload["approved_by"] = approved_by
@@ -196,6 +224,46 @@ def approve_semantic_artifact(
     with artifact_path.open("w", encoding="utf-8") as fp:
         json.dump(payload, fp, indent=2)
     return payload
+
+
+def _run_governance_gate(payload: Dict[str, Any], *, run_reasoner: bool) -> Dict[str, Any]:
+    """Build the candidate ontology from an artifact payload and run the offline
+    governance gate. Returns a JSON-serializable verdict with a ``checked_at``
+    stamp. A build/gate failure is recorded (not silently swallowed) and treated
+    as a structural failure so it cannot pass enforcement silently."""
+    from seocho.ontology import Ontology
+    from seocho.ontology_governance import governance_gate
+
+    checked_at = _now_iso()
+
+    # A vocabulary-only or empty draft carries no ontology to govern — don't
+    # block its approval on "no node types". Governance applies only when the
+    # candidate actually declares classes.
+    onto_cand = payload.get("ontology_candidate") or {}
+    if hasattr(onto_cand, "to_dict"):
+        onto_cand = onto_cand.to_dict()
+    if not (isinstance(onto_cand, dict) and onto_cand.get("classes")):
+        return {
+            "ok": True,
+            "applicable": False,
+            "reason": "artifact declares no ontology classes; governance gate not applicable",
+            "checked_at": checked_at,
+        }
+
+    try:
+        ontology = Ontology.from_artifact(payload)
+        verdict = governance_gate(ontology, run_reasoner=run_reasoner)
+        verdict["applicable"] = True
+    except Exception as exc:  # build or gate failure -> auditable, blocks approval
+        return {
+            "ok": False,
+            "structural": {"ok": False, "errors": [f"governance build failed: {exc}"], "warnings": []},
+            "lint": {"ok": False, "errors": [str(exc)], "warnings": [], "findings": []},
+            "consistency": {"consistent": None, "available": False, "reasoner": None, "error": str(exc), "unsatisfiable_classes": []},
+            "checked_at": checked_at,
+        }
+    verdict["checked_at"] = checked_at
+    return verdict
 
 
 def deprecate_semantic_artifact(

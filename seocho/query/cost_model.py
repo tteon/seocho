@@ -63,6 +63,28 @@ _PLAN_DEPTH_BY_SHAPE: Dict[str, int] = {
 }
 
 
+# F6 (seocho-qfya): index-miss is not uniformly expensive. The cost of
+# a missing index depends on what scan the planner falls back to:
+#
+#   - string  → CONTAINS / prefix match over a label scan. Cheaper: the
+#     planner can still short-circuit on the first chars, and string
+#     predicates are selective in practice. Discounted below 1.0.
+#   - numeric / temporal → range predicate forces a full label scan with
+#     per-row comparison. This is the baseline "full miss" cost (1.0).
+#   - default → unknown filter property; assume the expensive baseline so
+#     we never under-cost a miss we can't classify.
+#
+# A pattern declares which kind of property its index miss falls back to
+# via cost_hints["index_miss_property_type"]. Patterns that don't declare
+# it get the 1.0 baseline, so pre-F6 behavior is preserved exactly.
+_INDEX_MISS_TYPE_MULTIPLIER: Dict[str, float] = {
+    "string": 0.4,
+    "numeric": 1.0,
+    "temporal": 1.0,
+    "default": 1.0,
+}
+
+
 @dataclass
 class CostBreakdown:
     """Per-component cost contribution for trace auditability (ADR-0097 §9)."""
@@ -71,8 +93,13 @@ class CostBreakdown:
     cypher_shape: str
     plan_depth: int
     estimated_row_count: int
-    index_miss_penalty: int
+    index_miss_penalty: int          # raw count of missing indexes
     cartesian_risk: int
+    # F6: per-type weighting of the raw miss count. effective miss =
+    # index_miss_penalty * index_miss_multiplier; the gamma coefficient
+    # multiplies the effective value in components["index_miss_penalty"].
+    index_miss_property_type: str = "default"
+    index_miss_multiplier: float = 1.0
     components: Dict[str, float] = field(default_factory=dict)
     total: float = 0.0
 
@@ -83,6 +110,8 @@ class CostBreakdown:
             "plan_depth": self.plan_depth,
             "estimated_row_count": self.estimated_row_count,
             "index_miss_penalty": self.index_miss_penalty,
+            "index_miss_property_type": self.index_miss_property_type,
+            "index_miss_multiplier": self.index_miss_multiplier,
             "cartesian_risk": self.cartesian_risk,
             "components": dict(self.components),
             "total": self.total,
@@ -137,6 +166,14 @@ def cost(
         1 for label in pattern.required_labels if label not in indexed_labels
     )
 
+    # F6: weight the raw miss count by the fallback-scan cost of the
+    # property the pattern filters on. A string CONTAINS miss is cheaper
+    # than a numeric-range miss. Unknown/undeclared → 1.0 baseline so
+    # pre-F6 patterns score identically.
+    miss_type = str(pattern.cost_hints.get("index_miss_property_type", "default"))
+    miss_multiplier = _INDEX_MISS_TYPE_MULTIPLIER.get(miss_type, 1.0)
+    effective_index_miss = index_miss * miss_multiplier
+
     # Cartesian risk flag — patterns whose cost_hints mark them as
     # multi-MATCH or unbounded-path get the full penalty; others get 0.
     cartesian_risk = 0
@@ -148,7 +185,7 @@ def cost(
     components = {
         "plan_depth": coeffs["cost_alpha_plan_depth"] * plan_depth,
         "estimated_row_count": coeffs["cost_beta_estimated_row_count"] * estimated_rows,
-        "index_miss_penalty": coeffs["cost_gamma_index_miss_penalty"] * index_miss,
+        "index_miss_penalty": coeffs["cost_gamma_index_miss_penalty"] * effective_index_miss,
         "cartesian_risk": coeffs["cost_delta_cartesian_risk"] * cartesian_risk,
     }
     total = sum(components.values())
@@ -159,6 +196,8 @@ def cost(
         plan_depth=plan_depth,
         estimated_row_count=estimated_rows,
         index_miss_penalty=index_miss,
+        index_miss_property_type=miss_type,
+        index_miss_multiplier=miss_multiplier,
         cartesian_risk=cartesian_risk,
         components=components,
         total=total,

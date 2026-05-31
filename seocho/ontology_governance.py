@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -8,6 +9,148 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 from urllib.parse import unquote, urlparse
 
 from .ontology import Ontology
+
+# Naming conventions: classes UpperCamelCase; LPG relationship types UPPER_SNAKE
+# (SEOCHO convention, not FIBO's lowerCamelCase object-property style).
+_PASCAL_CASE = re.compile(r"^[A-Z][A-Za-z0-9]*$")
+_UPPER_SNAKE = re.compile(r"^[A-Z][A-Z0-9_]*$")
+
+
+def lint_ontology(ontology: Ontology) -> Dict[str, Any]:
+    """FIBO/ISO-704-style hygiene linter (offline, pure model walk — 0 hot-path).
+
+    Returns ``{ok, errors, warnings, findings}`` where each finding is
+    ``{severity, check, target, message}``. ERRORS are structural defects that
+    should block promotion (duplicate label across class/rel, dangling/cyclic
+    ``broader`` subclass edge); WARNINGS are quality issues (missing definition,
+    naming convention, alias collision). Covers the cheap, high-value subset of
+    the FIBO hygiene tests (ontology/ONTOLOGY_GUIDE.md) that need no reasoner.
+    """
+    findings: List[Dict[str, str]] = []
+
+    def add(severity: str, check: str, target: str, message: str) -> None:
+        findings.append({"severity": severity, "check": check, "target": target, "message": message})
+
+    node_labels = set(ontology.nodes)
+    rel_types = set(ontology.relationships)
+
+    # 1. every class/relationship has a definition + naming conventions
+    for label, nd in ontology.nodes.items():
+        if not str(getattr(nd, "description", "") or "").strip():
+            add("warning", "missing_definition", label,
+                f"Class '{label}' has no definition (ISO 704 / FIBO require label + definition).")
+        if not _PASCAL_CASE.match(label):
+            add("warning", "naming", label, f"Class label '{label}' is not UpperCamelCase.")
+    for rtype, rd in ontology.relationships.items():
+        if not str(getattr(rd, "description", "") or "").strip():
+            add("warning", "missing_definition", rtype, f"Relationship '{rtype}' has no definition.")
+        if not _UPPER_SNAKE.match(rtype):
+            add("warning", "naming", rtype, f"Relationship type '{rtype}' is not UPPER_SNAKE.")
+
+    # 2. unique labels (FIBO enforces globally unique labels)
+    for name in sorted(node_labels & rel_types):
+        add("error", "duplicate_label", name,
+            f"'{name}' is used as BOTH a class and a relationship type — labels must be unique.")
+    for label, nd in ontology.nodes.items():
+        for alias in (getattr(nd, "aliases", []) or []):
+            if alias in node_labels and alias != label:
+                add("warning", "alias_collision", label,
+                    f"Class '{label}' alias '{alias}' collides with another class label.")
+
+    # 3. subclass (broader) hygiene: targets exist + no cycles
+    broader_map = {label: list(getattr(nd, "broader", []) or []) for label, nd in ontology.nodes.items()}
+    for label, parents in broader_map.items():
+        for parent in parents:
+            if parent not in node_labels:
+                add("error", "broader_target", label,
+                    f"Class '{label}' broader '{parent}' is not a defined class.")
+    _WHITE, _GRAY, _BLACK = 0, 1, 2
+    color = {label: _WHITE for label in node_labels}
+
+    def _has_cycle(node: str) -> bool:
+        color[node] = _GRAY
+        for parent in broader_map.get(node, []):
+            if parent not in color:
+                continue
+            if color[parent] == _GRAY:
+                return True
+            if color[parent] == _WHITE and _has_cycle(parent):
+                return True
+        color[node] = _BLACK
+        return False
+
+    for label in sorted(node_labels):
+        if color[label] == _WHITE and _has_cycle(label):
+            add("error", "broader_cycle", label,
+                "Subclass (broader) hierarchy contains a cycle.")
+            break
+
+    errors = [f for f in findings if f["severity"] == "error"]
+    warnings = [f for f in findings if f["severity"] == "warning"]
+    return {"ok": not errors, "errors": errors, "warnings": warnings, "findings": findings}
+
+
+def competency_question_coverage(
+    ontology: Ontology,
+    competency_questions: Sequence[str],
+) -> Dict[str, Any]:
+    """Coverage lint for competency questions (gap-closure item #7, framework
+    DEFERRED — this is the metadata/coverage half, not an evaluation runner).
+
+    Kendall & McGuinness treat competency questions as the CORE evaluation
+    method: every modelled element should be exercised by at least one CQ, and
+    every CQ should touch the ontology. This offline check flags:
+
+    - ``uncovered_elements`` — node/relationship labels (or their aliases) not
+      mentioned by any CQ (candidate dead schema, or a missing CQ).
+    - ``empty_questions`` — CQs that reference no ontology element at all
+      (out-of-scope question, or missing schema).
+
+    Matching is case-insensitive on the label, its aliases, and a spaced form of
+    CamelCase/UPPER_SNAKE (``FinancialMetric`` -> ``financial metric``). Pure
+    model walk; never on the hot path. Store the CQs themselves as artifact
+    metadata (``source_summary["competency_questions"]``); this function reports
+    coverage over them.
+    """
+    def _variants(label: str, aliases: Sequence[str]) -> List[str]:
+        forms = {label.casefold()}
+        for alias in aliases or []:
+            text = str(alias).strip().casefold()
+            if text:
+                forms.add(text)
+        # spaced form: split CamelCase and UPPER_SNAKE into words
+        spaced = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", label).replace("_", " ")
+        forms.add(spaced.casefold())
+        return [f for f in forms if f]
+
+    elements: Dict[str, List[str]] = {}
+    for label, nd in ontology.nodes.items():
+        elements[label] = _variants(label, getattr(nd, "aliases", []))
+    for rtype, rd in ontology.relationships.items():
+        elements[rtype] = _variants(rtype, getattr(rd, "aliases", []))
+
+    questions_norm = [str(q or "").casefold() for q in competency_questions]
+
+    uncovered: List[str] = []
+    for label, forms in elements.items():
+        if not any(any(form in q for form in forms) for q in questions_norm):
+            uncovered.append(label)
+
+    empty_questions: List[str] = []
+    for raw, norm in zip(competency_questions, questions_norm):
+        if not any(any(form in norm for form in forms) for forms in elements.values()):
+            empty_questions.append(str(raw))
+
+    total = len(elements)
+    covered = total - len(uncovered)
+    return {
+        "total_elements": total,
+        "covered_elements": covered,
+        "uncovered_elements": sorted(uncovered),
+        "coverage_ratio": (covered / total) if total else 1.0,
+        "question_count": len(competency_questions),
+        "empty_questions": empty_questions,
+    }
 
 
 def load_ontology_file(path: str | Path) -> Ontology:
@@ -146,6 +289,13 @@ def check_ontology(ontology: Ontology) -> OntologyCheckResult:
     if not ontology.nodes:
         errors.append("Ontology defines no node types.")
 
+    # Hygiene linter (FIBO/ISO-704 subset). Surface lint WARNINGS here without
+    # flipping `ok` (back-compat); lint ERRORS are enforced at the promotion gate
+    # (approve_semantic_artifact) via lint_ontology() directly.
+    lint = lint_ontology(ontology)
+    for f in lint["warnings"]:
+        warnings.append(f"[hygiene:{f['check']}] {f['message']}")
+
     stats = {
         "package_id": ontology.package_id,
         "graph_model": ontology.graph_model,
@@ -158,6 +308,8 @@ def check_ontology(ontology: Ontology) -> OntologyCheckResult:
         "indexed_property_count": sum(
             len(node_def.indexed_properties) for node_def in ontology.nodes.values()
         ),
+        "hygiene_error_count": len(lint["errors"]),
+        "hygiene_warning_count": len(lint["warnings"]),
     }
     return OntologyCheckResult(
         ontology_name=ontology.name,
@@ -460,6 +612,126 @@ def inspect_owl_ontology(source: str | Path) -> Owlready2InspectionResult:
     finally:
         if cleanup_path is not None:
             cleanup_path.unlink(missing_ok=True)
+
+
+def reason_consistency(ontology: Ontology) -> Dict[str, Any]:
+    """OWL 2 DL consistency check via owlready2 + an external reasoner.
+
+    **Offline / lazy / optional** (CLAUDE.md §6.3): never on the request hot
+    path — only at the draft->approve governance gate. The owlready2 import,
+    TTL->RDF/XML conversion, and reasoner invocation all happen here and nowhere
+    in query/extraction. Degrades gracefully to ``available=False`` when
+    owlready2 or a JVM is absent, so environments without Java still approve on
+    a structural+lint pass.
+
+    Returns a dict::
+
+        {
+          "consistent": True | False | None,   # None == not determined
+          "unsatisfiable_classes": [...],       # classes equivalent to owl:Nothing
+          "available": bool,                    # reasoner actually ran
+          "reasoner": "pellet" | None,
+          "error": str | None,
+        }
+    """
+    result: Dict[str, Any] = {
+        "consistent": None,
+        "unsatisfiable_classes": [],
+        "available": False,
+        "reasoner": None,
+        "error": None,
+    }
+    try:
+        from owlready2 import World, sync_reasoner_pellet
+        from owlready2.base import OwlReadyInconsistentOntologyError
+    except Exception as exc:  # pragma: no cover - exercised by patching
+        result["error"] = f"owlready2 unavailable: {exc}"
+        return result
+
+    tmp_ttl: Optional[Path] = None
+    cleanup_rdf: Optional[Path] = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".ttl", delete=False) as fp:
+            tmp_ttl = Path(fp.name)
+        ontology.to_ttl(tmp_ttl)
+        prepared_source, cleanup_rdf = _prepare_owlready2_source(str(tmp_ttl))
+        world = World()
+        onto = world.get_ontology(prepared_source).load()
+        try:
+            with onto:
+                sync_reasoner_pellet(
+                    world,
+                    infer_property_values=False,
+                    infer_data_property_values=False,
+                )
+            result["available"] = True
+            result["reasoner"] = "pellet"
+            unsat = [
+                str(getattr(cls, "name", cls))
+                for cls in world.inconsistent_classes()
+            ]
+            result["unsatisfiable_classes"] = unsat
+            result["consistent"] = not unsat
+        except OwlReadyInconsistentOntologyError:
+            result["available"] = True
+            result["reasoner"] = "pellet"
+            result["consistent"] = False
+    except Exception as exc:
+        # Most commonly a missing JVM/Java install — treat as "reasoner not
+        # available" rather than a structural verdict so the gate can still
+        # approve on structural+lint pass.
+        result["error"] = str(exc)
+        result["available"] = False
+    finally:
+        if tmp_ttl is not None:
+            tmp_ttl.unlink(missing_ok=True)
+        if cleanup_rdf is not None:
+            cleanup_rdf.unlink(missing_ok=True)
+    return result
+
+
+def governance_gate(
+    ontology: Ontology,
+    *,
+    run_reasoner: bool = True,
+) -> Dict[str, Any]:
+    """Run the full offline promotion gate for an ontology.
+
+    Composes the structural check (:func:`check_ontology` -> ``validate()``),
+    the FIBO/ISO-704 hygiene lint (:func:`lint_ontology`), and — optionally —
+    OWL 2 DL consistency (:func:`reason_consistency`). Pure / offline; intended
+    for the draft->approve transition, never the request hot path.
+
+    ``ok`` is False when there is a structural error, a lint **error** (not just
+    a warning), or the reasoner ran and found the ontology inconsistent. A
+    reasoner that did not run (``available=False``) never blocks approval.
+    """
+    check = check_ontology(ontology)
+    lint = lint_ontology(ontology)
+    consistency = (
+        reason_consistency(ontology)
+        if run_reasoner
+        else {
+            "consistent": None,
+            "unsatisfiable_classes": [],
+            "available": False,
+            "reasoner": None,
+            "error": "reasoner skipped (run_reasoner=False)",
+        }
+    )
+
+    structural_ok = check.ok and bool(lint.get("ok", True))
+    consistency_blocks = consistency.get("consistent") is False
+    return {
+        "ok": structural_ok and not consistency_blocks,
+        "structural": {
+            "ok": check.ok,
+            "errors": check.errors,
+            "warnings": check.warnings,
+        },
+        "lint": lint,
+        "consistency": consistency,
+    }
 
 
 def _build_shacl_export(ontology: Ontology) -> Dict[str, Any]:

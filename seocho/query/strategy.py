@@ -436,6 +436,35 @@ class ExtractionStrategy(PromptStrategy):
         parts.append("")
         parts.append("- Allowed entity types:")
         parts.append(ctx["entity_types"])
+
+        # T2.3 — hierarchical label selection rule. Always emitted so the LLM
+        # cannot silently fall back to a generic ``Entity`` label when a
+        # domain-specific subclass exists. Strengthened when the ontology
+        # exposes many classes (≥10) because Kimi's empirical fallback rate
+        # spikes there.
+        domain_node_count = sum(1 for _ in (getattr(self.ontology, "nodes", {}) or {}))
+        parts.append("")
+        parts.append("Label selection rules (MANDATORY):")
+        parts.append(
+            "  1. Use the MOST-SPECIFIC class that matches each entity. "
+            "If both an abstract base (e.g. FinancialMetric) and a concrete "
+            "subclass (Revenue, OperatingIncome, NetIncome, EPS, GrossProfit, "
+            "OperatingMargin) are listed, pick the subclass."
+        )
+        parts.append(
+            "  2. Never default to a generic 'Entity' label when ANY domain "
+            "class above matches. 'Entity' is a last-resort fallback only."
+        )
+        parts.append(
+            "  3. Use canonical class names exactly as listed above (e.g. "
+            "'LegalEntity' not 'Company'; 'Revenue' not 'Sales')."
+        )
+        if domain_node_count >= 10:
+            parts.append(
+                "  4. NOTE: This ontology defines many classes — read the "
+                "entity_types list above carefully before emitting any label."
+            )
+
         parts.append("")
         parts.append("- Allowed relationship types:")
         parts.append(ctx["relationship_types"])

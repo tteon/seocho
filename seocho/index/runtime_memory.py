@@ -14,6 +14,11 @@ from typing import Any, Dict, Iterable, Optional, Set, Tuple
 
 
 CONTENT_PREVIEW_CHAR_LIMIT = 1200
+# Labels that legitimately need a document-level preview embedded on the node.
+# All other (domain) labels — BusinessSegment, FinancialMetric, LegalEntity etc.
+# — must NOT carry the document's evidence text on their properties, or the
+# graph abstraction collapses to a vector chunk per node (T2.2).
+_LABELS_KEEPING_DOC_PREVIEW = frozenset({"Document"})
 ROOT_SECTION_PATH = "Document"
 
 
@@ -98,8 +103,12 @@ def ensure_memory_graph(
             properties.setdefault("metadata_json", metadata_json)
             properties.setdefault("created_at", timestamp)
             copy_scope_properties(properties, record_metadata)
-        else:
+        elif label in _LABELS_KEEPING_DOC_PREVIEW:
+            # Reserved for future doc-like labels (none right now besides Document).
             properties.setdefault("content_preview", preview)
+        # Domain nodes (BusinessSegment, FinancialMetric, etc.) intentionally
+        # do NOT receive the document-wide content_preview — see T2.2.
+        # Chunk nodes get their own short content_preview via _attach_chunk_layer.
         node_map[node_id] = {"id": node_id, "label": label, "properties": properties}
 
     document_node = node_map.get(document_id, {"id": document_id, "label": "Document", "properties": {}})

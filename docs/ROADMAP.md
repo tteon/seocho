@@ -129,6 +129,14 @@ Intelligent graph construction with quality assurance.
 - Temporal reasoning
 - Confidence propagation across hops
 
+**Retrieval resilience** (from the FinDER vector-vs-graph study; see ADR-0097):
+- Insufficiency-gated fall-back ladder: structured graph → graph-as-context →
+  vector → hybrid, gated by `query/insufficiency.py`
+- Fact-vs-reasoning query router (single-lookup vs multi-source) feeding
+  `reasoning_mode`/`repair_budget`
+- Extraction-recall hardening (the graph lane is bounded by extraction
+  completeness, not retrieval) + distinct `graph_chunks` retrieval mode
+
 ### 3.2 Graph Learning Integration
 
 ```

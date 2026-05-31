@@ -368,6 +368,11 @@ def test_resolve_prefers_workspace_vocabulary_over_global(tmp_path, monkeypatch)
         artifact_id=workspace_artifact["artifact_id"],
         approved_by="reviewer",
         base_dir=base_dir,
+        # This artifact is a vocabulary-alias carrier whose canonical class name
+        # is the human phrase "Neo4j Enterprise" (a space => not a valid LPG
+        # label). The approval governance gate correctly flags that, so this
+        # vocabulary-only fixture opts out of structural enforcement.
+        governance_enforce=False,
     )
 
     resolver = SemanticEntityResolver(FakeConnector())

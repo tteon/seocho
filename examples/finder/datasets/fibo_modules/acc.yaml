@@ -1,0 +1,67 @@
+graph_type: "fibo_acc"
+package_id: "fibo_acc"
+version: "1.0.0"
+description: "FIBO FND Accounting — equity components, cash flows, accounting policies (covers S5 cross-Item integration: policy + statement)"
+graph_model: "lpg"
+nodes:
+  AccountingPolicy:
+    description: "A disclosed accounting policy/principle (e.g. depreciation method, revenue recognition, lease accounting)"
+    aliases: [Policy, AccountingPrinciple, AccountingStandard]
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+      standard:
+        type: STRING
+        description: "GAAP / IFRS / ASC reference where stated"
+      description:
+        type: STRING
+  CashFlow:
+    description: "A cash flow movement (operating / investing / financing)"
+    aliases: [CashMovement]
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+      category:
+        type: STRING
+        description: "operating / investing / financing"
+      amount:
+        type: STRING
+      period:
+        type: STRING
+  EquityComponent:
+    description: "A component of shareholders' equity (retained earnings, paid-in capital, AOCI)"
+    aliases: [RetainedEarnings, PaidInCapital, OwnersEquity, ShareholdersEquity, CapitalSurplus]
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+      value:
+        type: STRING
+      period:
+        type: STRING
+relationships:
+  APPLIES_POLICY:
+    source: LegalEntity
+    target: AccountingPolicy
+    description: "Entity discloses adoption of the policy"
+    cardinality: MANY_TO_MANY
+  GOVERNS:
+    source: AccountingPolicy
+    target: FinancialMetric
+    description: "Policy governs how a reported metric is computed"
+    cardinality: ONE_TO_MANY
+  REPORTED_CASHFLOW:
+    source: LegalEntity
+    target: CashFlow
+    description: "Entity reported cash flow"
+    cardinality: ONE_TO_MANY
+  HOLDS_EQUITY:
+    source: LegalEntity
+    target: EquityComponent
+    description: "Entity reports equity component"
+    cardinality: ONE_TO_MANY

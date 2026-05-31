@@ -637,6 +637,9 @@ class Ontology:
         ontology_uri = ontology_uris[0] if ontology_uris else None
 
         nodes: Dict[str, Dict[str, Any]] = {}
+        # local-name -> list of local-names of named superclasses (rdfs:subClassOf).
+        # External / blank supers are dropped after the full class set is known.
+        subclass_of: Dict[str, List[str]] = {}
         for cls_uri in (
             set(g.subjects(RDF.type, OWL.Class))
             | set(g.subjects(RDF.type, RDFS.Class))
@@ -654,6 +657,16 @@ class Ontology:
                     "sameAs": str(cls_uri),
                 },
             )
+            parents = [
+                _local(parent)
+                for parent in g.objects(cls_uri, RDFS.subClassOf)
+                if isinstance(parent, rdflib.URIRef)
+            ]
+            if parents:
+                subclass_of.setdefault(name, [])
+                for parent in parents:
+                    if parent != name and parent not in subclass_of[name]:
+                        subclass_of[name].append(parent)
 
         relationships: Dict[str, Dict[str, Any]] = {}
         for prop in set(g.subjects(RDF.type, OWL.ObjectProperty)):
@@ -746,6 +759,16 @@ class Ontology:
         package_id = _local(ontology_uri) if ontology_uri is not None else default_name
         ontology_version = _ontology_version(ontology_uri) if ontology_uri is not None else "1.0.0"
         ontology_description = _description(ontology_uri) if ontology_uri is not None else ""
+
+        # Resolve rdfs:subClassOf into NodeDef.broader, keeping only parents that
+        # are themselves classes in this ontology (external/imported supers are
+        # dropped — this loader is not a faithful OWL round-trip, see docstring).
+        for child, parents in subclass_of.items():
+            if child not in nodes:
+                continue
+            resolved = [p for p in parents if p in nodes]
+            if resolved:
+                nodes[child]["broader"] = resolved
 
         return cls.from_dict(
             {
@@ -1642,6 +1665,30 @@ class Ontology:
         for rtype in self.relationships:
             if not _LABEL_RE.match(rtype):
                 errors.append(f"Relationship type '{rtype}' contains invalid characters")
+        # Subclass (broader) integrity: every parent must be a defined node, and
+        # the broader graph must be acyclic. This keeps rdfs:subClassOf round-trips
+        # and any constraint inheritance well-founded. (Author-time only; the lean
+        # extraction projection never reads `broader`.)
+        for label, nd in self.nodes.items():
+            for parent in nd.broader:
+                if parent not in self.nodes:
+                    errors.append(
+                        f"Node '{label}' broader references unknown node '{parent}'"
+                    )
+        for label in self.nodes:
+            seen: Set[str] = set()
+            stack = [label]
+            while stack:
+                cur = stack.pop()
+                if cur == label and seen:
+                    errors.append(f"Node '{label}' has a circular broader (subclass) chain")
+                    break
+                if cur in seen:
+                    continue
+                seen.add(cur)
+                cur_nd = self.nodes.get(cur)
+                if cur_nd is not None:
+                    stack.extend(p for p in cur_nd.broader if p in self.nodes)
         return errors
 
     def validate_extraction(self, data: Dict[str, Any]) -> List[str]:

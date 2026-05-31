@@ -1,0 +1,64 @@
+graph_type: "fibo_dbt"
+package_id: "fibo_dbt"
+version: "1.0.0"
+description: "FIBO SEC Debt Instruments — senior notes, coupons, maturities, call/put features (covers S5 footnotes about debt)"
+graph_model: "lpg"
+nodes:
+  DebtInstrument:
+    description: "A debt security issued by a legal entity (senior notes, bonds, debentures)"
+    aliases: [SeniorNote, Bond, Debenture, FixedIncomeSecurity, IssuedDebt]
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+      principal_amount:
+        type: STRING
+        description: "Face/par value (e.g. '$500 million')"
+      coupon_rate:
+        type: STRING
+        description: "Interest rate (e.g. '5.250%')"
+      maturity_date:
+        type: STRING
+      issue_date:
+        type: STRING
+      currency:
+        type: STRING
+  DebtOffering:
+    description: "An issuance event combining one or more DebtInstruments"
+    aliases: [NoteOffering, BondIssuance]
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+      total_principal:
+        type: STRING
+      offering_date:
+        type: STRING
+  CallFeature:
+    description: "Call option embedded in a debt instrument"
+    aliases: [CallProvision, MakeWholeFeature]
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+      call_premium:
+        type: STRING
+relationships:
+  ISSUED_DEBT:
+    source: LegalEntity
+    target: DebtInstrument
+    description: "Entity issued the debt instrument"
+    cardinality: ONE_TO_MANY
+  PART_OF_OFFERING:
+    source: DebtInstrument
+    target: DebtOffering
+    description: "DebtInstrument belongs to an offering tranche"
+    cardinality: MANY_TO_ONE
+  HAS_CALL_FEATURE:
+    source: DebtInstrument
+    target: CallFeature
+    description: "Debt instrument carries a call option"
+    cardinality: ONE_TO_MANY

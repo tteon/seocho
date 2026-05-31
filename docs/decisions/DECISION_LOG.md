@@ -3,6 +3,24 @@
 This file is the lightweight index of architecture/product decisions.
 Each entry must link to a full ADR when impact is non-trivial.
 
+## 2026-05-30
+
+- Accepted `ADR-0097-experiment-data-query-plane-hardening.md`
+  - `Neo4jGraphStore.ensure_database(wait_online=True)` polls until DozerDB reports
+    ONLINE (async `CREATE DATABASE` no longer causes "Graph not found")
+  - `OpikBackend.log_span` passes `end_time` in the single `trace()` call (no
+    batching race that nulled name/tags/metadata) + one-time SDK-version-skew warning
+  - `cypher_builder` financial lookup is ontology-aware (metric/anchor labels from
+    the ontology, parameterized) with soft `ORDER BY` ranking + ticker anchor match
+  - locked by no-service regression tests in `scripts/ci/run_basic_ci.sh`
+- Evaluation: FinDER judge upgraded to a cross-vendor **panel** (grok + gpt) with
+  inter-judge agreement (Cohen's κ) and same-case **paired** win/tie/loss + Wilcoxon
+  vs vector; `number_overlap`/`token_f1` demoted to disclosed-secondary metrics.
+  See `scripts/benchmarks/EVALUATION_METRICS.md`.
+- Proposed (not built; tracked as follow-up in ADR-0097): insufficiency-gated
+  retrieval fall-back ladder, fact-vs-reasoning query router, graph-as-context +
+  `graph_chunks` mode, extraction-recall probe.
+
 ## 2026-04-13
 
 - Accepted `ADR-0049-pipeline-unification-canonical-modules.md`

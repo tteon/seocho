@@ -1,0 +1,59 @@
+graph_type: "fibo_corp"
+package_id: "fibo_corp"
+version: "1.0.0"
+description: "FIBO BE Corporations — corporate type discriminators and incorporation metadata (enriches Subsidiary/parent structure for S3)"
+graph_model: "lpg"
+nodes:
+  PubliclyHeldCompany:
+    description: "A corporation whose equity trades on a public market"
+    aliases: [PublicCompany, PublicCorporation, ListedCompany]
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+      ticker:
+        type: STRING
+      date_of_incorporation:
+        type: STRING
+      jurisdiction:
+        type: STRING
+  PrivatelyHeldCompany:
+    description: "A corporation whose equity does not trade publicly"
+    aliases: [PrivateCompany, PrivateCorporation]
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+      date_of_incorporation:
+        type: STRING
+      jurisdiction:
+        type: STRING
+  RegistrationIdentifier:
+    description: "An official registration identifier (CIK, LEI, state filing number)"
+    aliases: [CIK, LEI, RegistrationID]
+    properties:
+      code:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+      scheme:
+        type: STRING
+        description: "issuing scheme: SEC-CIK / GLEIF-LEI / state"
+relationships:
+  CORPORATE_TYPE:
+    source: LegalEntity
+    target: PubliclyHeldCompany
+    description: "LegalEntity is a publicly held corporation"
+    cardinality: ONE_TO_ONE
+  CORPORATE_TYPE_PRIVATE:
+    source: LegalEntity
+    target: PrivatelyHeldCompany
+    description: "LegalEntity is a privately held corporation"
+    cardinality: ONE_TO_ONE
+  HAS_REGISTRATION:
+    source: LegalEntity
+    target: RegistrationIdentifier
+    description: "Entity registered under identifier scheme"
+    cardinality: ONE_TO_MANY

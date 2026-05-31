@@ -121,7 +121,7 @@ def all_patterns() -> List[PatternSpec]:
     intent_id="entity_summary",
     cypher_shape="entity_lookup",
     required_labels=("Entity",),
-    cost_hints={"prefers_indexed": ["name"]},
+    cost_hints={"prefers_indexed": ["name"], "index_miss_property_type": "string"},
 )
 def _factory_entity_lookup(
     builder: Any,
@@ -141,7 +141,7 @@ def _factory_entity_lookup(
     cypher_shape="relationship_lookup",
     required_labels=("Entity",),
     required_relations=("RELATES_TO",),
-    cost_hints={"hop_count": 1},
+    cost_hints={"hop_count": 1, "index_miss_property_type": "string"},
 )
 def _factory_relationship_lookup(
     builder: Any,
@@ -172,7 +172,7 @@ def _factory_relationship_lookup(
     cypher_shape="financial_metric_lookup",
     required_labels=("Company", "FinancialMetric"),
     required_relations=("REPORTED",),
-    cost_hints={"narrows_by_year": True},
+    cost_hints={"narrows_by_year": True, "index_miss_property_type": "temporal"},
 )
 def _factory_financial_metric_lookup(
     builder: Any,
@@ -204,7 +204,11 @@ def _factory_financial_metric_lookup(
     cypher_shape="financial_metric_delta",
     required_labels=("Company", "FinancialMetric"),
     required_relations=("REPORTED",),
-    cost_hints={"narrows_by_year": True, "scans_multiple_years": True},
+    cost_hints={
+        "narrows_by_year": True,
+        "scans_multiple_years": True,
+        "index_miss_property_type": "temporal",
+    },
 )
 def _factory_financial_metric_delta(
     builder: Any,
@@ -237,7 +241,11 @@ def _factory_financial_metric_delta(
     intent_id="entity_summary",
     cypher_shape="neighbors",
     required_labels=("Entity",),
-    cost_hints={"hop_count": 1, "is_default_fallback": True},
+    cost_hints={
+        "hop_count": 1,
+        "is_default_fallback": True,
+        "index_miss_property_type": "string",
+    },
     # F1: neighbors_one_hop can substitute for a pure entity_lookup
     # when the caller can absorb the extra one-hop expansion as
     # additional context. Cost ranker picks entity_lookup_by_name
@@ -263,7 +271,7 @@ def _factory_neighbors(
     intent_id="relationship_lookup",
     cypher_shape="path",
     required_labels=("Entity",),
-    cost_hints={"unbounded_path": True},
+    cost_hints={"unbounded_path": True, "index_miss_property_type": "string"},
     # F1: shortest_path is the general fallback for relationship_lookup
     # questions where the caller didn't pin a specific relationship
     # type. Much more expensive (plan_depth=5 + cartesian_risk=1) so

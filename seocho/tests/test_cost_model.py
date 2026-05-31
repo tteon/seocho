@@ -103,6 +103,123 @@ def test_index_miss_when_required_label_has_no_index() -> None:
     assert missed.index_miss_penalty == 1
 
 
+# --- F6 (seocho-qfya): per-property-type index_miss multiplier ----------------
+
+
+def test_index_miss_default_type_preserves_pre_f6_cost() -> None:
+    """A pattern that doesn't declare index_miss_property_type gets the
+    1.0 baseline multiplier — pre-F6 cost is preserved exactly."""
+    stats = {"label_counts": {"Bond": 50}, "indexes": []}
+    breakdown = cost_model.cost(
+        _spec("p:d", cypher_shape="entity_lookup", required_labels=("Bond",)),
+        index_stats=stats,
+    )
+    assert breakdown.index_miss_penalty == 1
+    assert breakdown.index_miss_property_type == "default"
+    assert breakdown.index_miss_multiplier == 1.0
+    # component = gamma(50.0) * count(1) * multiplier(1.0)
+    assert breakdown.components["index_miss_penalty"] == 50.0
+
+
+def test_string_miss_is_cheaper_than_numeric_miss() -> None:
+    """F6 core: a string-property index miss (CONTAINS scan) costs less
+    than a numeric/temporal miss (full range scan) for the same raw
+    miss count."""
+    stats = {"label_counts": {"Bond": 50}, "indexes": []}
+    string_miss = cost_model.cost(
+        _spec(
+            "p:s",
+            cypher_shape="entity_lookup",
+            required_labels=("Bond",),
+            cost_hints={"index_miss_property_type": "string"},
+        ),
+        index_stats=stats,
+    )
+    numeric_miss = cost_model.cost(
+        _spec(
+            "p:n",
+            cypher_shape="entity_lookup",
+            required_labels=("Bond",),
+            cost_hints={"index_miss_property_type": "numeric"},
+        ),
+        index_stats=stats,
+    )
+    assert string_miss.index_miss_multiplier == 0.4
+    assert numeric_miss.index_miss_multiplier == 1.0
+    assert (
+        string_miss.components["index_miss_penalty"]
+        < numeric_miss.components["index_miss_penalty"]
+    )
+    # string = 50 * 1 * 0.4 = 20.0 ; numeric = 50 * 1 * 1.0 = 50.0
+    assert string_miss.components["index_miss_penalty"] == 20.0
+    assert numeric_miss.components["index_miss_penalty"] == 50.0
+
+
+def test_temporal_miss_uses_baseline_multiplier() -> None:
+    stats = {"label_counts": {"Bond": 50}, "indexes": []}
+    temporal_miss = cost_model.cost(
+        _spec(
+            "p:t",
+            cypher_shape="financial_metric_lookup",
+            required_labels=("Bond",),
+            cost_hints={"index_miss_property_type": "temporal"},
+        ),
+        index_stats=stats,
+    )
+    assert temporal_miss.index_miss_multiplier == 1.0
+
+
+def test_unknown_miss_type_falls_back_to_baseline() -> None:
+    """An unrecognized index_miss_property_type must not under-cost —
+    falls back to the 1.0 baseline rather than discounting blindly."""
+    stats = {"label_counts": {"Bond": 50}, "indexes": []}
+    breakdown = cost_model.cost(
+        _spec(
+            "p:u",
+            cypher_shape="entity_lookup",
+            required_labels=("Bond",),
+            cost_hints={"index_miss_property_type": "geospatial_made_up"},
+        ),
+        index_stats=stats,
+    )
+    assert breakdown.index_miss_multiplier == 1.0
+
+
+def test_no_miss_means_multiplier_does_not_matter() -> None:
+    """When the required label IS indexed, miss count is 0 so the
+    multiplier contributes nothing regardless of type."""
+    stats = {"label_counts": {"Entity": 100}, "indexes": [{"labels_or_types": ["Entity"]}]}
+    breakdown = cost_model.cost(
+        _spec(
+            "p:hit",
+            cypher_shape="entity_lookup",
+            required_labels=("Entity",),
+            cost_hints={"index_miss_property_type": "numeric"},
+        ),
+        index_stats=stats,
+    )
+    assert breakdown.index_miss_penalty == 0
+    assert breakdown.components["index_miss_penalty"] == 0.0
+
+
+def test_index_miss_multiplier_serialized_in_to_dict() -> None:
+    """Trace auditability (ADR-0097 §9): the multiplier + type land in
+    the serialized breakdown."""
+    stats = {"label_counts": {"Bond": 50}, "indexes": []}
+    breakdown = cost_model.cost(
+        _spec(
+            "p:ser",
+            cypher_shape="entity_lookup",
+            required_labels=("Bond",),
+            cost_hints={"index_miss_property_type": "string"},
+        ),
+        index_stats=stats,
+    )
+    d = breakdown.to_dict()
+    assert d["index_miss_property_type"] == "string"
+    assert d["index_miss_multiplier"] == 0.4
+
+
 # --- cartesian_risk -----------------------------------------------------------
 
 
@@ -243,3 +360,46 @@ def test_enumerate_for_shape_picks_up_alternatives() -> None:
         # Best-effort cleanup so we don't leak state into other tests.
         pattern_catalog._REGISTRY.pop("pattern:test_entity_lookup_by_id", None)
         pattern_catalog._SHAPE_INDEX.pop("entity_lookup_by_id", None)
+
+
+# --- F6 catalog integration: string vs temporal patterns rank differently ----
+
+
+def test_registered_string_patterns_carry_string_miss_type() -> None:
+    """The catalog patterns that filter on name (string CONTAINS) declare
+    index_miss_property_type='string' so they get the F6 discount."""
+    for shape in ("entity_lookup", "relationship_lookup", "neighbors", "path"):
+        spec = pattern_catalog.get_by_cypher_shape(shape)
+        assert spec is not None
+        assert spec.cost_hints.get("index_miss_property_type") == "string", (
+            f"{spec.pattern_id} should declare string index_miss type"
+        )
+
+
+def test_registered_finance_patterns_carry_temporal_miss_type() -> None:
+    for shape in ("financial_metric_lookup", "financial_metric_delta"):
+        spec = pattern_catalog.get_by_cypher_shape(shape)
+        assert spec is not None
+        assert spec.cost_hints.get("index_miss_property_type") == "temporal"
+
+
+def test_string_pattern_outranks_temporal_under_index_miss() -> None:
+    """F6 acceptance: with both labels un-indexed, the string-filtering
+    entity_lookup pattern scores a cheaper index_miss component than the
+    temporal finance pattern. Isolated to the index_miss component so
+    plan_depth differences don't confound the comparison."""
+    # Both required labels missing from the index set → both incur 1 miss.
+    stats = {
+        "label_counts": {"Entity": 100, "Company": 100, "FinancialMetric": 100},
+        "indexes": [],
+    }
+    entity_spec = pattern_catalog.get_by_cypher_shape("entity_lookup")
+    finance_spec = pattern_catalog.get_by_cypher_shape("financial_metric_lookup")
+
+    entity_cost = cost_model.cost(entity_spec, index_stats=stats)
+    finance_cost = cost_model.cost(finance_spec, index_stats=stats)
+
+    # entity (string) miss component < finance (temporal) miss component
+    # per missing label, even though finance has more required labels.
+    assert entity_cost.index_miss_multiplier == 0.4
+    assert finance_cost.index_miss_multiplier == 1.0

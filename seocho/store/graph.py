@@ -1615,16 +1615,36 @@ class LadybugGraphStore(GraphStore):
         node_total = 0
         relationship_total = 0
 
-        for label in self._declared_node_tables:
+        declared_nodes = list(self._declared_node_tables)
+        for i in range(0, len(declared_nodes), 50):
+            chunk = declared_nodes[i:i+50]
+            if not chunk: continue
+
+            queries = []
+            for label in chunk:
+                safe_label = label.replace("`", "``").replace("\n", "").replace("\r", "")
+                safe_literal = safe_label.replace("'", "''")
+                queries.append(f"MATCH (n:`{safe_label}`) WHERE n._source_id = $sid RETURN '{safe_literal}' AS element, count(n) AS cnt")
+
             try:
-                result = self._locked_execute(
-                    f"MATCH (n:`{label}`) WHERE n._source_id = $sid RETURN count(n)",
-                    {"sid": source_id},
-                )
+                batched_query = " UNION ALL ".join(queries)
+                result = self._locked_execute(batched_query, {"sid": source_id})
                 for row in result:
-                    node_total += int(row[0] if isinstance(row, list) else list(row)[0])
+                    cnt_val = row[1] if isinstance(row, list) else (row["cnt"] if isinstance(row, dict) else list(row)[1])
+                    node_total += int(cnt_val)
             except Exception:
-                pass
+                # Fallback to individual queries
+                for label in chunk:
+                    safe_label = label.replace("`", "``").replace("\n", "").replace("\r", "")
+                    try:
+                        result = self._locked_execute(
+                            f"MATCH (n:`{safe_label}`) WHERE n._source_id = $sid RETURN count(n)",
+                            {"sid": source_id},
+                        )
+                        for row in result:
+                            node_total += int(row[0] if isinstance(row, list) else list(row)[0])
+                    except Exception:
+                        pass
 
         try:
             result = self._locked_execute(

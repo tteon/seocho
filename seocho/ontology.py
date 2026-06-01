@@ -2403,15 +2403,54 @@ class Ontology:
         total_defined_nodes = len(self.nodes)
         populated_nodes = 0
 
+        node_counts = {label: 0 for label in self.nodes}
+        labels_list = list(self.nodes)
+        chunk_size = 50
+
+        for i in range(0, len(labels_list), chunk_size):
+            chunk = labels_list[i:i+chunk_size]
+            queries = []
+            safe_to_orig = {}
+            for label in chunk:
+                safe_label = label.replace("`", "").replace("\r", "").replace("\n", "")
+                safe_to_orig[safe_label] = label
+                queries.append(f"MATCH (n:`{safe_label}`) RETURN '{safe_label}' AS element, count(n) AS cnt")
+
+            if queries:
+                batched_query = " UNION ALL ".join(queries)
+                result = None
+                try:
+                    result = graph_store.query(batched_query, database=database)
+                    if result:
+                        for row in result:
+                            if "element" not in row and len(chunk) == 1:
+                                orig_label = chunk[0]
+                            else:
+                                orig_label = safe_to_orig.get(row.get("element"))
+                            if orig_label is not None:
+                                node_counts[orig_label] = int(row["cnt"])
+
+                        if len(chunk) > 1 and "element" not in result[0]:
+                            result = None  # Force fallback
+                except Exception:
+                    pass
+
+                # Fallback to individual queries on failure or partial test mock response
+                if result is None:
+                    for label in chunk:
+                        safe_label = label.replace("`", "").replace("\r", "").replace("\n", "")
+                        try:
+                            res = graph_store.query(
+                                f"MATCH (n:`{safe_label}`) RETURN count(n) AS cnt",
+                                database=database,
+                            )
+                            if res:
+                                node_counts[label] = int(res[0]["cnt"])
+                        except Exception:
+                            pass
+
         for label in self.nodes:
-            try:
-                result = graph_store.query(
-                    f"MATCH (n:`{label}`) RETURN count(n) AS cnt",
-                    database=database,
-                )
-                count = int(result[0]["cnt"]) if result else 0
-            except Exception:
-                count = 0
+            count = node_counts.get(label, 0)
             node_stats.append({"label": label, "count": count})
             if count > 0:
                 populated_nodes += 1
@@ -2420,15 +2459,53 @@ class Ontology:
         total_defined_rels = len(self.relationships)
         populated_rels = 0
 
+        rel_counts = {rtype: 0 for rtype in self.relationships}
+        rels_list = list(self.relationships)
+
+        for i in range(0, len(rels_list), chunk_size):
+            chunk = rels_list[i:i+chunk_size]
+            queries = []
+            safe_to_orig = {}
+            for rtype in chunk:
+                safe_rtype = rtype.replace("`", "").replace("\r", "").replace("\n", "")
+                safe_to_orig[safe_rtype] = rtype
+                queries.append(f"MATCH ()-[r:`{safe_rtype}`]->() RETURN '{safe_rtype}' AS element, count(r) AS cnt")
+
+            if queries:
+                batched_query = " UNION ALL ".join(queries)
+                result = None
+                try:
+                    result = graph_store.query(batched_query, database=database)
+                    if result:
+                        for row in result:
+                            if "element" not in row and len(chunk) == 1:
+                                orig_rtype = chunk[0]
+                            else:
+                                orig_rtype = safe_to_orig.get(row.get("element"))
+                            if orig_rtype is not None:
+                                rel_counts[orig_rtype] = int(row["cnt"])
+
+                        if len(chunk) > 1 and "element" not in result[0]:
+                            result = None  # Force fallback
+                except Exception:
+                    pass
+
+                # Fallback to individual queries on failure or partial test mock response
+                if result is None:
+                    for rtype in chunk:
+                        safe_rtype = rtype.replace("`", "").replace("\r", "").replace("\n", "")
+                        try:
+                            res = graph_store.query(
+                                f"MATCH ()-[r:`{safe_rtype}`]->() RETURN count(r) AS cnt",
+                                database=database,
+                            )
+                            if res:
+                                rel_counts[rtype] = int(res[0]["cnt"])
+                        except Exception:
+                            pass
+
         for rtype in self.relationships:
-            try:
-                result = graph_store.query(
-                    f"MATCH ()-[r:`{rtype}`]->() RETURN count(r) AS cnt",
-                    database=database,
-                )
-                count = int(result[0]["cnt"]) if result else 0
-            except Exception:
-                count = 0
+            count = rel_counts.get(rtype, 0)
             rel_stats.append({"type": rtype, "count": count})
             if count > 0:
                 populated_rels += 1

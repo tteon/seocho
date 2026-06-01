@@ -41,6 +41,18 @@ class FakeGraphStore:
         self._rel_counts = rel_counts or {}
 
     def query(self, cypher: str, *, params=None, database="neo4j") -> List[Dict[str, Any]]:
+        if "UNION ALL" in cypher:
+            results = []
+            queries = cypher.split(" UNION ALL ")
+            for q in queries:
+                for label, count in self._node_counts.items():
+                    if f"'{label}' AS element" in q:
+                        results.append({"element": label, "cnt": count})
+                for rtype, count in self._rel_counts.items():
+                    if f"'{rtype}' AS element" in q:
+                        results.append({"element": rtype, "cnt": count})
+            return results
+
         # Parse label/type from the Cypher MATCH pattern
         for label, count in self._node_counts.items():
             if f"`{label}`" in cypher and "count(n)" in cypher:

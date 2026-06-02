@@ -24,6 +24,7 @@ from .benchmark import (
     BenchmarkRunner,
     BenchmarkSpan,
     StageTimings,
+    compare_ontology_evaluation_runs,
     compute_run_summary,
     load_jsonl_spans,
 )
@@ -33,6 +34,7 @@ __all__ = [
     "BenchmarkRunner",
     "BenchmarkSpan",
     "StageTimings",
+    "compare_ontology_evaluation_runs",
     "compute_run_summary",
     "load_jsonl_spans",
 ]

@@ -47,6 +47,7 @@ class BenchmarkSpan:
     config_label: str  # caller-supplied tag, e.g. "fast", "thorough"
     workspace_id: str
     ontology_identity_hash: str
+    ontology_identity: Dict[str, Any]
     user_id: str
     input_preview: str
     output_preview: str
@@ -66,6 +67,7 @@ class BenchmarkSpan:
             "config_label": self.config_label,
             "workspace_id": self.workspace_id,
             "ontology_identity_hash": self.ontology_identity_hash,
+            "ontology_identity": dict(self.ontology_identity),
             "user_id": self.user_id,
             "input_preview": self.input_preview[:200],
             "output_preview": self.output_preview[:300],
@@ -120,13 +122,23 @@ class BenchmarkRunner:
         config_label: str,
         workspace_id: str,
         ontology_identity_hash: str,
+        ontology: Any = None,
         user_id: str = "",
         cache_prefix_hash: str = "",
         output_path: Optional[str] = None,
     ) -> None:
         self.config_label = str(config_label)
         self.workspace_id = str(workspace_id)
-        self.ontology_identity_hash = str(ontology_identity_hash)
+        self.ontology_identity = _build_ontology_identity_payload(
+            ontology,
+            workspace_id=self.workspace_id,
+        )
+        self.ontology_identity_hash = str(
+            ontology_identity_hash
+            or self.ontology_identity.get("context_hash")
+            or self.ontology_identity.get("schema_fingerprint")
+            or ""
+        )
         self.user_id = str(user_id)
         self.cache_prefix_hash = str(cache_prefix_hash)
         self.output_path = output_path
@@ -164,6 +176,7 @@ class BenchmarkRunner:
             config_label=self.config_label,
             workspace_id=self.workspace_id,
             ontology_identity_hash=self.ontology_identity_hash,
+            ontology_identity=self.ontology_identity,
             user_id=self.user_id,
             input_preview=document,
             output_preview=str(result.get("source_id") or result.get("answer") or ""),
@@ -200,6 +213,7 @@ class BenchmarkRunner:
             config_label=self.config_label,
             workspace_id=self.workspace_id,
             ontology_identity_hash=self.ontology_identity_hash,
+            ontology_identity=self.ontology_identity,
             user_id=self.user_id,
             input_preview=question,
             output_preview=str(answer),
@@ -298,6 +312,7 @@ def compute_run_summary(spans: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
         cache_ratio = (hits / len(non_empty)) if non_empty else 0.0
         summary[label] = {
             "count": len(group),
+            "ontology_identities": _summarize_ontology_identities(group),
             "latency_p50": _percentile(latencies, 50),
             "latency_p95": _percentile(latencies, 95),
             "latency_mean": (statistics.fmean(latencies) if latencies else 0.0),
@@ -312,3 +327,105 @@ def compute_run_summary(spans: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
             "total_completion_tokens": sum(int(s.get("completion_tokens", 0)) for s in group),
         }
     return summary
+
+
+def compare_ontology_evaluation_runs(
+    *,
+    left_ontology: Any,
+    right_ontology: Any,
+    left_summary: Dict[str, Any],
+    right_summary: Dict[str, Any],
+    metric_names: Sequence[str] = (
+        "latency_mean",
+        "degraded_rate",
+        "prompt_cache_hit_ratio",
+        "total_prompt_tokens",
+        "total_completion_tokens",
+    ),
+) -> Dict[str, Any]:
+    """Compare evaluation summaries under an ontology upgrade plan.
+
+    This is intentionally summary-level: benchmark runners can keep their
+    domain-specific quality metrics, while SEOCHO provides a stable envelope
+    tying score deltas back to ontology version/fingerprint changes.
+    """
+
+    from seocho.ontology_versioning import build_ontology_upgrade_plan
+
+    plan = build_ontology_upgrade_plan(left_ontology, right_ontology)
+    labels = sorted(set(left_summary) | set(right_summary))
+    deltas: Dict[str, Dict[str, Any]] = {}
+    for label in labels:
+        left_metrics = dict(left_summary.get(label, {}) or {})
+        right_metrics = dict(right_summary.get(label, {}) or {})
+        label_deltas: Dict[str, Any] = {}
+        for metric in metric_names:
+            if metric not in left_metrics and metric not in right_metrics:
+                continue
+            left_value = left_metrics.get(metric, 0.0)
+            right_value = right_metrics.get(metric, 0.0)
+            if isinstance(left_value, (int, float)) and isinstance(right_value, (int, float)):
+                label_deltas[metric] = {
+                    "left": left_value,
+                    "right": right_value,
+                    "delta": round(right_value - left_value, 10),
+                }
+        deltas[label] = label_deltas
+
+    return {
+        "schema_version": "ontology_evaluation_comparison.v1",
+        "upgrade_plan": plan.to_dict(),
+        "left_summary": left_summary,
+        "right_summary": right_summary,
+        "metric_deltas": deltas,
+    }
+
+
+def _build_ontology_identity_payload(
+    ontology: Any,
+    *,
+    workspace_id: str,
+) -> Dict[str, Any]:
+    if ontology is None:
+        return {}
+    try:
+        from seocho.ontology_context import compile_ontology_context
+
+        descriptor = compile_ontology_context(
+            ontology,
+            workspace_id=workspace_id,
+        ).descriptor
+        return descriptor.to_dict()
+    except Exception:
+        pass
+    try:
+        identity = ontology.version_identity()
+        if hasattr(identity, "to_dict"):
+            return identity.to_dict()
+    except Exception:
+        pass
+    return {}
+
+
+def _summarize_ontology_identities(group: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    seen: set[str] = set()
+    out: List[Dict[str, Any]] = []
+    for span in group:
+        payload = span.get("ontology_identity", {})
+        if not isinstance(payload, dict) or not payload:
+            continue
+        key = json.dumps(payload, sort_keys=True, default=str)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(
+            {
+                "ontology_id": payload.get("ontology_id") or payload.get("package_id", ""),
+                "ontology_name": payload.get("ontology_name", ""),
+                "ontology_version": payload.get("ontology_version", ""),
+                "context_hash": payload.get("context_hash", ""),
+                "schema_fingerprint": payload.get("schema_fingerprint", ""),
+                "version_valid": payload.get("version_valid", None),
+            }
+        )
+    return out

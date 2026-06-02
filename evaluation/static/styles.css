@@ -206,7 +206,6 @@ body {
   border-radius: 4px;
   font-family: var(--font-sans);
   font-size: 0.8rem;
-  outline: none;
 }
 
 .ingest-controls {
@@ -234,7 +233,6 @@ body {
   border-radius: 4px;
   font-family: var(--font-sans);
   font-size: 0.8rem;
-  outline: none;
   resize: vertical;
 }
 
@@ -346,7 +344,6 @@ body {
   resize: none;
   font-family: var(--font-sans);
   font-size: 0.9rem;
-  outline: none;
 }
 
 .composer button {
@@ -571,5 +568,6 @@ select:focus,
 textarea:focus {
   border-color: var(--accent-blue);
   box-shadow: 0 0 0 1px var(--accent-blue);
-  outline: none;
+  outline: 2px solid var(--accent-blue);
+  outline-offset: 2px;
 }

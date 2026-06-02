@@ -19,6 +19,21 @@ should actually go.
 | `docs/` | Product and operator contracts | Source-of-truth docs shipped with the repo. |
 | `tests/` | Top-level regression anchors | Most focused tests still live nearer to the owning package. |
 
+## Root Files
+
+Root files should be limited to standard repository entry points, package/build
+metadata, and one-command local stack entry points.
+
+| Path | Keep in root? | Role |
+|---|---:|---|
+| `README.md`, `QUICKSTART.md`, `CONTRIBUTING.md`, `SECURITY.md`, `CHANGELOG.md`, `LICENSE` | yes | Standard public project entry points |
+| `AGENTS.md`, `CLAUDE.md` | yes | Coding-agent orientation and SEOCHO-specific guardrails |
+| `pyproject.toml`, `Makefile`, `.env.example`, `.gitignore`, `.dockerignore` | yes | Python packaging, common commands, and repo/tool defaults |
+| `docker-compose.yml`, `docker-compose.dev.yml`, `docker-compose.tutorials.yml` | yes | Local stack entry points; kept at root for familiar `docker compose -f ...` usage |
+| `.gitattributes` | only with active rules | Do not keep an empty placeholder |
+| `setup_*.sh` | no | Put setup helpers under `scripts/setup/` |
+| generated data, logs, exports, scratch PR bodies | no | Keep ignored and outside the public repository surface |
+
 ## Contributor Tooling Metadata
 
 These directories are intentional and remain part of the tracked public repo

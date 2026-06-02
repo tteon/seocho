@@ -9,7 +9,8 @@
 # (data/neo4j/plugins) and the tutorial bundle's plugins dir
 # (.seocho/tutorials-neo4j/plugins) so either compose can pick it up.
 #
-# Override the version with: OPEN_GDS_VERSION=2.13.0 ./setup_opengds.sh
+# Override the version with:
+#   OPEN_GDS_VERSION=2.13.0 scripts/setup/install-opengds.sh
 set -euo pipefail
 
 GDS_VERSION="${OPEN_GDS_VERSION:-2.12.0}"

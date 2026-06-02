@@ -70,6 +70,21 @@ historical artifacts can look alarming in a live workspace, but many are not
 tracked repository surface. Cleanup should start with tracked contracts and
 guardrails.
 
+## Agent-Ready Repository References
+
+Three public agent-oriented repositories informed the current AGENTS/CLAUDE
+reshape:
+
+| Repository | Pattern to copy | SEOCHO decision |
+|---|---|---|
+| `openai/openai-agents-python` | Root `AGENTS.md` explains mandatory validation, repo structure, public API compatibility, and PR expectations in one contributor guide. | Keep `AGENTS.md` as the primary agent guide with repo map, edit surfaces, validation table, and landing rules. |
+| `langchain-ai/langgraph` | Short `AGENTS.md` maps monorepo packages, tells contributors which commands to run, and includes a dependency impact map. | Keep SEOCHO's agent guide short enough to scan; put ownership and validation before detailed product nuance. |
+| `OpenHands/docs` | Agent docs start with quick orientation, key paths, local development commands, and generation/CI checks. | Treat public docs, examples, and automation as first-class surfaces, but keep private agent tool state out of Git. |
+
+The shared lesson is that agent-facing docs should be operational, not
+narrative: what this repo is, where to edit, what not to touch, and which checks
+prove the work.
+
 ## Problems And Improvements
 
 | Problem | Evidence | Improvement | Engineering plus points |

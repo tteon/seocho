@@ -138,7 +138,7 @@ tutorials-shell: ## Open a shell inside the tutorial Jupyter container
 	@$(DOCKER_COMPOSE_TUTORIALS) exec tutorials-jupyter bash
 
 tutorials-gds: ## Install OpenGDS (DozerDB-compatible Graph Data Science) into the tutorial Neo4j
-	@bash setup_opengds.sh
+	@bash scripts/setup/install-opengds.sh
 	@$(DOCKER_COMPOSE_TUTORIALS) restart tutorials-neo4j
 	@echo "✅ OpenGDS installed and Neo4j restarted."
 	@echo "ℹ️   Verify in cypher-shell: RETURN gds.version() AS version"

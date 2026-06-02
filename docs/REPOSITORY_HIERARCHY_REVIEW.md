@@ -85,6 +85,18 @@ The shared lesson is that agent-facing docs should be operational, not
 narrative: what this repo is, where to edit, what not to touch, and which checks
 prove the work.
 
+Adopted patterns in this repository:
+
+- Keep one primary root agent guide, `AGENTS.md`, with read order, module map,
+  impact map, validation, and landing rules.
+- Keep `CLAUDE.md` as SEOCHO-specific product and review context instead of a
+  duplicate task tracker.
+- Make module ownership explicit enough that a new agent can distinguish SDK
+  behavior, runtime policy, extraction compatibility, examples, and generated
+  local state before editing.
+- Treat private agent/tool state as local implementation detail; only `.github/`
+  remains a tracked public automation surface.
+
 ## Problems And Improvements
 
 | Problem | Evidence | Improvement | Engineering plus points |

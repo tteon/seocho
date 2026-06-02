@@ -72,6 +72,23 @@ root compatibility surfaces just because imports currently allow it.
 - For architecture changes, update docs and ADRs in the same change.
 - Do not commit local agent/editor/tool state directories.
 
+## Review Stance
+
+Before landing, answer these questions from the diff:
+
+- Did the change keep canonical SDK/engine behavior in `src/seocho/` and
+  deployment-shell behavior in `runtime/`?
+- Did it avoid adding new product behavior to compatibility-only extraction
+  shims?
+- If it changed query, retrieval, or answering behavior, did it preserve Cypher
+  validation, read-safety, and Graph-RAG handoff contracts?
+- If it changed runtime APIs, did it preserve `workspace_id`, policy checks, and
+  typed response models?
+- If it changed public repository structure, did it update layout docs and the
+  root hierarchy contract?
+- Is the validation proportional to the blast radius, and is every skipped
+  check named explicitly?
+
 ## Testing Discipline
 
 Use the risk of the touched surface to choose validation:

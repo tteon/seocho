@@ -40,6 +40,37 @@ Local-only directories such as `.agents/`, `.beads/`, `.claude/`, `.githooks/`,
 `.jules/`, `.serena/`, `.seocho/`, `data/`, `logs/`, and `outputs/` must stay
 out of Git.
 
+## Module Playbook
+
+Use this map before editing code. It keeps new behavior in the module that owns
+the architectural decision, not just the nearest import.
+
+| Concern | Start here | Watch for |
+|---|---|---|
+| Public SDK/session API | `src/seocho/client*.py`, `src/seocho/session.py`, `src/seocho/models.py`, `src/seocho/http_transport.py` | Keep the facade thin and preserve typed public contracts. |
+| Agent runtime contracts | `src/seocho/agent/`, `src/seocho/agents*.py`, `src/seocho/runtime_contract.py` | Preserve OpenAI Agents SDK assumptions and trace payload shape. |
+| Ontology and governance | `src/seocho/ontology*.py`, `src/seocho/fibo/`, `docs/ontology/` | Keep Owlready2/offline reasoning out of request-time code. |
+| Indexing and graph shaping | `src/seocho/index/`, `src/seocho/rules.py`, `src/seocho/graph_projector.py` | Keep schema/rule changes compatible with documented examples. |
+| Query, retrieval, answering | `src/seocho/query/`, `src/seocho/prompt_strategy.py`, `src/seocho/semantic_prompt_composer.py` | Validate Cypher identifiers, preserve read-safety, and document Graph-RAG behavior changes. |
+| Runtime API and policy | `runtime/agent_server.py`, `runtime/memory_service.py`, `runtime/policy.py`, `runtime/models/` | Preserve `workspace_id`, policy checks, and deployment-shell boundaries. |
+| Extraction compatibility | `extraction/` | Prefer wrappers and migration shims; do not add new canonical engine logic here. |
+| Evaluation and benchmarks | `src/seocho/eval/`, `src/seocho/benchmarking.py`, `evaluation/`, `scripts/benchmarks/` | Keep one-off corpora/results private unless promoted to supported examples. |
+| Public examples and docs | `examples/`, `docs/`, `website/` | Keep README product-first and avoid editing generated website mirrors directly. |
+
+## Impact Map
+
+When a change touches a concern below, include the matching validation and docs
+surface in the same commit or PR.
+
+| If you touch | Also check |
+|---|---|
+| `src/seocho/client*.py`, `src/seocho/session.py`, or `src/seocho/models.py` | SDK tests under `tests/seocho/`, README/QUICKSTART public API wording |
+| `src/seocho/query/` or Graph-RAG prompts | `docs/GRAPH_RAG_AGENT_HANDOFF_SPEC.md`, query tests, Cypher validation coverage |
+| `src/seocho/index/` or ontology shaping | examples/datasets assumptions, ontology docs, indexing tests |
+| `runtime/` route, model, or policy code | runtime/extraction compatibility tests and `workspace_id` propagation |
+| `.github/` or `scripts/ci/` | `.github/README.md`, root hierarchy/doc contract checks |
+| `AGENTS.md`, `CLAUDE.md`, or repository layout docs | `scripts/pm/lint-agent-docs.sh` and `scripts/ci/check-root-hierarchy-contract.sh` |
+
 ## Stack Invariants
 
 - OpenAI Agents SDK is the agent runtime baseline.
@@ -73,6 +104,8 @@ are private workspace aids only.
 - Do not hardcode secrets, keys, tokens, or local absolute paths.
 - Prefer centralized config (`extraction/config.py`) where the existing code
   already uses it.
+- Keep public API changes deliberate. If a public SDK name, return model, or
+  runtime response changes, update docs and tests in the same slice.
 - Preserve `workspace_id` and runtime policy checks for new endpoints/actions.
 - Keep heavy ontology reasoning out of request-time code.
 - Do not reintroduce root `seocho/`, root `dataset/`, root `images/`, root

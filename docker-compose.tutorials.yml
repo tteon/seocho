@@ -97,7 +97,7 @@ services:
       - NEO4J_AUTH=${NEO4J_USER:-neo4j}/${TUTORIALS_NEO4J_PASSWORD:-tutorialspw}
       # We only list apoc + n10s in NEO4J_PLUGINS (the manifest fetcher).
       # OpenGDS is dropped directly into the plugins/ volume by
-      # `make tutorials-gds` (which calls setup_opengds.sh) — this
+      # `make tutorials-gds` (which calls scripts/setup/install-opengds.sh) — this
       # avoids the manifest pulling GDS *Enterprise*, which crashes on
       # Community/DozerDB at startup.
       - NEO4J_PLUGINS=["apoc","n10s"]

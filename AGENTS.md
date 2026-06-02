@@ -1,142 +1,123 @@
 # AGENTS.md
 
-Execution rules for coding agents in this repository.
+Coding-agent guide for SEOCHO.
 
-## 1. Read First
+SEOCHO is ontology-aligned middleware between agents and graph databases. Keep
+the public repository focused on the SDK, runtime, examples, docs, and tests.
+Do not commit local agent/editor state.
 
-Before implementing:
+## Start Here
+
+Read these first for non-trivial work:
 
 1. `README.md`
 2. `CLAUDE.md`
-3. `docs/WORKFLOW.md`
-4. `docs/ISSUE_TASK_SYSTEM.md`
-5. `docs/decisions/DECISION_LOG.md`
+3. `docs/REPOSITORY_LAYOUT.md`
+4. `docs/WORKFLOW.md`
+5. `docs/ISSUE_TASK_SYSTEM.md`
+6. `docs/decisions/DECISION_LOG.md`
 
-If the change touches semantic retrieval, public memory answering, or Graph-RAG
-behavior, also read `docs/GRAPH_RAG_AGENT_HANDOFF_SPEC.md`.
+Also read `docs/GRAPH_RAG_AGENT_HANDOFF_SPEC.md` when touching semantic
+retrieval, public memory answering, Graph-RAG behavior, routing policy, or
+multi-agent query flow.
 
-## 2. Stack Baseline (Must Match)
+## Repo Map
 
-- OpenAI Agents SDK
-- vendor-neutral tracing contract with Opik as the preferred team backend
-- DozerDB backend
-- single-tenant MVP with `workspace_id` propagated
-- Owlready2 only in offline ontology governance path
+| Path | Role |
+|---|---|
+| `src/seocho/` | Distributable Python SDK and canonical engine code |
+| `runtime/` | Deployment shell, runtime API wiring, policy checks |
+| `extraction/` | Extraction service plus compatibility shims |
+| `tests/seocho/` | SDK and engine regression tests |
+| `extraction/tests/` | Runtime/extraction compatibility tests |
+| `examples/` | Runnable examples, tutorials, small reference datasets |
+| `docs/` | Product, architecture, workflow, and operator contracts |
+| `.github/` | GitHub workflows and scheduled Codex prompt contracts |
+| `scripts/` | CI, setup, benchmark, and maintenance helpers |
+| `website/` | Tracked Astro/Starlight docs site |
 
-## 3. Work Intake And Tracking
+Local-only directories such as `.agents/`, `.beads/`, `.claude/`, `.githooks/`,
+`.jules/`, `.serena/`, `.seocho/`, `data/`, `logs/`, and `outputs/` must stay
+out of Git.
 
-- Use GitHub issues, pull requests, or the current maintainer-designated tracker
-  for public work state.
-- Local agent trackers such as Beads, Gastown, Claude settings, or Codex skills
-  may be used in a developer workspace, but do not commit their state
-  directories to this public middleware repository.
-- For scheduled Codex maintenance, the draft PR is the review envelope; its body
-  must capture scope, validation, and residual risk.
+## Stack Invariants
 
-Active work items must include collaboration labels:
+- OpenAI Agents SDK is the agent runtime baseline.
+- DozerDB is the graph database backend baseline.
+- `workspace_id` must be propagated in runtime-facing models, APIs, and traces.
+- Tracing stays vendor-neutral; Opik is the preferred team backend.
+- Owlready2 is allowed only in offline ontology governance paths, not hot
+  request paths.
 
-- `sev-*`, `impact-*`, `urgency-*`, `sprint-*`, `roadmap-*`, `area-*`, `kind-*`
+## How To Choose The Edit Surface
 
-Validate sprint labeling:
+- SDK facade, ontology, indexing, query, stores: start in `src/seocho/`.
+- Runtime endpoints, auth/policy, memory service: start in `runtime/`.
+- Legacy import compatibility or extraction service behavior: start in
+  `extraction/`, but keep new canonical behavior out of shim-only modules.
+- Public docs or onboarding: update `README.md`, `QUICKSTART.md`, or `docs/*`.
+- GitHub automation: update `.github/` and reusable helpers in `scripts/ci/`.
+- Examples/tutorial data: keep them under `examples/`.
 
-```bash
-scripts/pm/lint-items.sh --sprint 2026-S03
-scripts/pm/sprint-board.sh --sprint 2026-S03
-scripts/pm/lint-agent-docs.sh
-```
+If a change crosses more than one of these areas, keep the PR explanation clear
+about ownership and risk.
 
-## 4. Coding Rules
+Use GitHub issues and pull requests for public work tracking. Local trackers
+are private workspace aids only.
 
-- use type hints
-- keep changes scoped and testable
-- no hardcoded secrets
-- use centralized config (`extraction/config.py`)
-- logging, not print
-- avoid broad/hidden side effects
+## Coding Rules
 
-## 5. Runtime Guardrails
+- Use type hints for new or modified Python functions.
+- Keep changes scoped and testable.
+- Use logging, not `print`, outside CLI/demo code.
+- Do not hardcode secrets, keys, tokens, or local absolute paths.
+- Prefer centralized config (`extraction/config.py`) where the existing code
+  already uses it.
+- Preserve `workspace_id` and runtime policy checks for new endpoints/actions.
+- Keep heavy ontology reasoning out of request-time code.
+- Do not reintroduce root `seocho/`, root `dataset/`, root `images/`, root
+  `ontology/`, root `experiments/retrieval_comparison/`, or tracked local tool
+  state directories.
 
-- preserve `workspace_id` in runtime API/model changes
-- enforce runtime policy checks for new endpoints/actions
-- keep heavy ontology reasoning out of hot path
+## Validation
 
-## 6. Required Tests
+Run the narrowest relevant command first, then broaden if the touched surface is
+shared.
 
-- add/adjust tests for changed behavior
-- run focused pytest suites before commit
-- if full suite is not run, state exact gap in handoff
+| Change | Command |
+|---|---|
+| Any behavior/config/CI change | `bash scripts/ci/run_basic_ci.sh` |
+| Docs contract only | `bash scripts/ci/check-doc-contracts.sh` |
+| Runtime shell/import ownership | `bash scripts/ci/check-runtime-shell-contract.sh` |
+| SDK/extraction ownership | `bash scripts/ci/check-module-ownership-contract.sh` |
+| Root layout or public GitHub surface | `scripts/ci/check-root-hierarchy-contract.sh` |
+| Python import smoke | `uv run python -c "import seocho; print(seocho.__file__)"` |
 
-## 7. Landing Rules
+If you do not run the full basic CI, state the exact commands run and the
+remaining validation gap.
 
-1. file follow-up issues for deferred work
-2. run relevant quality gates
-3. update issue status
-4. land:
-   - `git pull --rebase`
-   - `git push`
-   - `git status` (must show up to date with `origin/main`)
+## Documentation Rules
 
-Push target is always `main`.
+- Architecture or workflow changes must update the relevant `docs/*` contract.
+- Significant architectural decisions need an ADR under `docs/decisions/` and
+  an entry in `docs/decisions/DECISION_LOG.md`.
+- Do not edit generated mirrored docs under `website/src/content/docs/docs/`
+  directly; regenerate them from repo-root docs.
+- Keep README product-first. Move operational detail to focused docs.
 
-## 8. Documentation Rules
+## Git And Landing
 
-For architecture or workflow changes:
+- Never revert user changes you did not make.
+- Avoid destructive commands unless explicitly requested.
+- Push target is `main`.
+- Before landing, run relevant validation, `git pull --rebase`, push, and
+  confirm `git status --short --branch` is clean and aligned with `origin/main`.
 
-- update `README.md` + relevant `docs/*`
-- record decision in ADR (`docs/decisions/ADR-*.md`)
-- append entry to `docs/decisions/DECISION_LOG.md`
+## Automation Boundaries
 
-## 9. Automation Roles
-
-- Codex is the primary PR author for bounded work in this repo:
-  - `feature-improvement`: one small developer-facing improvement
-  - `refactor`: one maintainability improvement with no intended behavior change
-  - `e2e-investigation`: reproduce one concrete issue, add focused regression
-    coverage, and apply the smallest viable fix
-- Jules is PR-fixer-first:
-  - repair failing CI on an existing PR
-  - keep scope narrow and directly related to the failing checks
-  - do not originate broad feature, refactor, or architecture work unless
-    explicitly asked
-- Human maintainers remain the merge gate:
-  - review scope and validation
-  - move draft PRs to review-ready state
-  - trigger merge explicitly
-
-## 10. GitHub Automation Rules
-
-- basic CI workflow lives in `.github/workflows/ci-basic.yml`
-- the local command behind basic CI is `bash scripts/ci/run_basic_ci.sh`
-- docs site quality workflow lives in `.github/workflows/docs-site-quality.yml`
-- docs site deploy workflow lives in `.github/workflows/docs-site-deploy.yml`
-- the tracked Astro/Starlight app for `seocho.blog` lives in `website/`
-- generated mirrored docs under `website/src/content/docs/docs/` are derived
-  from repo-root docs via `website/scripts/generate-docs.mjs`; do not edit
-  those generated files directly
-- scheduled automation prompts live in:
-  - `.github/codex/prompts/daily-maintenance-pr.md`
-  - `.github/codex/prompts/periodic-review-pr.md`
-- scheduled Codex workflows live in:
-  - `.github/workflows/daily-codex-maintenance.yml`
-  - `.github/workflows/periodic-codex-review.yml`
-- comment-based merge workflow lives in
-  `.github/workflows/pr-comment-merge.yml`
-- scheduled automation must stay small, reviewable, and non-destructive:
-  - no direct push to `main`
-  - no auto-merge
-  - one cohesive change only
-  - choose exactly one Codex lane: `feature-improvement`, `refactor`, or
-    `e2e-investigation`
-  - PR body must include `Feature`, `Why`, `Design`, `Expected Effect`,
-    `Impact Results`, `Validation`, and `Risks`
-- Jules should treat existing PRs as the primary unit of work:
-  - fix only failing GitHub Actions checks and closely related narrow issues
-  - preserve the current PR intent
-  - avoid semantic retrieval, ontology policy, routing policy, tracing contract,
-    or multi-agent behavior changes unless the PR already targets that exact
-    area
-- comment-based merge should stay explicitly maintainer-triggered:
-  - merge command is exactly `/go`
-  - only users with `write`, `maintain`, or `admin` permission may trigger it
-  - workflow uses squash merge
-  - workflow expects PR merge state `CLEAN`
+- Scheduled Codex workflows must stay draft-only, small, reviewable, and
+  non-destructive.
+- Comment merge is maintainer-triggered only: exact `/go`, write-or-higher
+  permission, clean non-draft PR, squash merge.
+- Agent/tool-specific private state belongs in local ignored directories, not in
+  the public repo.

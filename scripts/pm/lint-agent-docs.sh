@@ -51,14 +51,16 @@ require_pattern "CLAUDE.md" "Opik" "trace baseline"
 require_pattern "CLAUDE.md" "DozerDB" "database baseline"
 require_pattern "CLAUDE.md" "workspace_id" "workspace propagation guardrail"
 require_pattern "CLAUDE.md" "Owlready2" "ontology boundary"
-require_pattern "CLAUDE.md" "POST /rules/infer" "rules endpoint documentation"
-require_pattern "CLAUDE.md" "Push target is always \`main\`." "main push policy"
+require_pattern "CLAUDE.md" "Runtime Guardrails" "runtime guardrails"
+require_pattern "CLAUDE.md" "Public Repo Hygiene" "public repo hygiene"
+require_pattern "CLAUDE.md" "push to \`main\`" "main push policy"
 
 # AGENTS baseline checks
 require_pattern "AGENTS.md" "CLAUDE.md" "agent read order"
 require_pattern "AGENTS.md" "GitHub issues" "public issue workflow"
-require_pattern "AGENTS.md" "do not commit" "local tool state boundary"
-require_pattern "AGENTS.md" "Push target is always \`main\`." "main push policy"
+require_pattern "AGENTS.md" "Do not commit" "local tool state boundary"
+require_pattern "AGENTS.md" "Push target is \`main\`." "main push policy"
+require_pattern "AGENTS.md" "scripts/ci/run_basic_ci.sh" "basic CI command"
 
 # README/docs cross-link checks
 require_pattern "README.md" "docs/WORKFLOW.md" "workflow doc link"

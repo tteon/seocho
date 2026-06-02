@@ -68,7 +68,7 @@ surface in the same commit or PR.
 | `src/seocho/query/` or Graph-RAG prompts | `docs/GRAPH_RAG_AGENT_HANDOFF_SPEC.md`, query tests, Cypher validation coverage |
 | `src/seocho/index/` or ontology shaping | examples/datasets assumptions, ontology docs, indexing tests |
 | `runtime/` route, model, or policy code | runtime/extraction compatibility tests and `workspace_id` propagation |
-| `.github/` or `scripts/ci/` | `.github/README.md`, root hierarchy/doc contract checks |
+| `.github/` or `scripts/ci/` | `docs/GITHUB_AUTOMATION.md`, root hierarchy/doc contract checks |
 | `AGENTS.md`, `CLAUDE.md`, or repository layout docs | `scripts/pm/lint-agent-docs.sh` and `scripts/ci/check-root-hierarchy-contract.sh` |
 
 ## Stack Invariants

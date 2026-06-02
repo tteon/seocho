@@ -20,6 +20,7 @@ forbidden_tracked_paths=(
   ".beads"
   ".claude"
   ".githooks"
+  ".github/README.md"
   ".gitattributes"
   "experiments/retrieval_comparison"
   "setup_env.sh"
@@ -49,7 +50,7 @@ required_paths=(
   "docs/assets/banner.png"
   "docs/assets/systemOverview.png"
   "docs/ontology/ONTOLOGY_GUIDE.md"
-  ".github/README.md"
+  "docs/GITHUB_AUTOMATION.md"
   "docs/REPOSITORY_HIERARCHY_REVIEW.md"
 )
 

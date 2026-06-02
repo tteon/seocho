@@ -1607,10 +1607,36 @@ class Ontology:
             "package_id": self.package_id,
             "version": self.version,
             "graph_model": self.graph_model,
+            "version_valid": self.version_is_valid(),
+            "schema_fingerprint": self.schema_fingerprint(),
             "node_labels": sorted(self.nodes.keys()),
             "relationship_types": sorted(self.relationships.keys()),
             "deterministic_intents": deterministic_intents,
         }
+
+    def schema_fingerprint(self) -> str:
+        """Stable schema hash used for ontology versioning and cache keys."""
+        from .ontology_versioning import ontology_schema_fingerprint
+
+        return ontology_schema_fingerprint(self)
+
+    def version_is_valid(self) -> bool:
+        """Return True when ``version`` follows semantic versioning."""
+        from .ontology_versioning import is_valid_semver
+
+        return is_valid_semver(self.version)
+
+    def version_identity(self) -> Any:
+        """Return version identity metadata for governance and runtime traces."""
+        from .ontology_versioning import ontology_version_identity
+
+        return ontology_version_identity(self)
+
+    def upgrade_plan(self, next_ontology: "Ontology") -> Any:
+        """Return indexing/query impact guidance for a proposed ontology update."""
+        from .ontology_versioning import build_ontology_upgrade_plan
+
+        return build_ontology_upgrade_plan(self, next_ontology)
 
     def to_linking_context(self) -> Dict[str, str]:
         """Build a context dict for **entity linking** prompts."""

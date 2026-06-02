@@ -67,6 +67,8 @@ class OntologyContextDescriptor:
     context_hash: str
     artifact_hash: str
     glossary_hash: str
+    schema_fingerprint: str
+    version_valid: bool
     node_count: int
     relationship_count: int
     glossary_term_count: int = 0
@@ -257,6 +259,14 @@ def compile_ontology_context(
     ontology_name = str(getattr(ontology, "name", ontology_id))
     ontology_version = str(getattr(ontology, "version", ""))
     graph_model = str(getattr(ontology, "graph_model", "lpg"))
+    try:
+        from .ontology_versioning import is_valid_semver, ontology_schema_fingerprint
+
+        schema_fingerprint = ontology_schema_fingerprint(ontology)
+        version_valid = is_valid_semver(ontology_version)
+    except Exception:
+        schema_fingerprint = ""
+        version_valid = False
     node_labels = sorted(str(item) for item in getattr(ontology, "nodes", {}).keys())
     relationship_types = sorted(str(item) for item in getattr(ontology, "relationships", {}).keys())
     deterministic_intents = [
@@ -281,6 +291,8 @@ def compile_ontology_context(
         "ontology_version": ontology_version,
         "profile": profile,
         "graph_model": graph_model,
+        "schema_fingerprint": schema_fingerprint,
+        "version_valid": version_valid,
         "artifact_hash": artifact_hash,
         "glossary_hash": glossary_hash,
         "node_labels": node_labels,
@@ -298,6 +310,8 @@ def compile_ontology_context(
         context_hash=context_hash,
         artifact_hash=artifact_hash,
         glossary_hash=glossary_hash,
+        schema_fingerprint=schema_fingerprint,
+        version_valid=version_valid,
         node_count=len(node_labels),
         relationship_count=len(relationship_types),
         glossary_term_count=glossary_term_count,
@@ -398,6 +412,8 @@ def ontology_context_graph_properties(context: CompiledOntologyContext | Dict[st
         "_ontology_version": str(payload.get("ontology_version", "")),
         "_ontology_profile": str(payload.get("profile", "")),
         "_ontology_graph_model": str(payload.get("graph_model", "")),
+        "_ontology_schema_fingerprint": str(payload.get("schema_fingerprint", "")),
+        "_ontology_version_valid": str(payload.get("version_valid", "")),
     }
 
 

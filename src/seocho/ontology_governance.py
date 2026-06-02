@@ -240,6 +240,69 @@ class GovernanceValidationResult:
         }
 
 
+def validate_rdf_with_pyshacl(
+    data_graph: str | Path,
+    shacl_graph: str | Path,
+    *,
+    data_format: str = "turtle",
+    shacl_format: str = "turtle",
+    inference: str = "rdfs",
+) -> GovernanceValidationResult:
+    """Run pySHACL as an optional offline governance gate.
+
+    SEOCHO's request-time validation uses the lightweight ontology model and
+    derived SHACL summaries. Full RDF/SHACL validation belongs in promotion,
+    migration, and CI workflows where optional dependencies and richer reports
+    are acceptable.
+    """
+
+    try:
+        from pyshacl import validate
+    except Exception as exc:  # pragma: no cover - exercised by unit patching
+        return GovernanceValidationResult(
+            name="pyshacl",
+            available=False,
+            ok=False,
+            error=f"pyshacl unavailable: {exc}",
+            errors=[],
+            stats={},
+        )
+
+    try:
+        conforms, _results_graph, results_text = validate(
+            str(data_graph),
+            shacl_graph=str(shacl_graph),
+            data_graph_format=data_format,
+            shacl_graph_format=shacl_format,
+            inference=inference,
+        )
+    except Exception as exc:
+        return GovernanceValidationResult(
+            name="pyshacl",
+            available=True,
+            ok=False,
+            error=str(exc),
+            errors=[str(exc)],
+            stats={"inference": inference},
+        )
+
+    text = str(results_text or "").strip()
+    return GovernanceValidationResult(
+        name="pyshacl",
+        available=True,
+        ok=bool(conforms),
+        error=None,
+        errors=[] if conforms else ([text] if text else ["pySHACL validation failed."]),
+        stats={
+            "conforms": bool(conforms),
+            "data_format": data_format,
+            "shacl_format": shacl_format,
+            "inference": inference,
+            "result_text": text,
+        },
+    )
+
+
 @dataclass(slots=True)
 class OntologyGovernanceReport:
     source: str
@@ -289,6 +352,9 @@ def check_ontology(ontology: Ontology) -> OntologyCheckResult:
     if not ontology.nodes:
         errors.append("Ontology defines no node types.")
 
+    if not ontology.version_is_valid():
+        warnings.append("Ontology version should use semantic versioning: MAJOR.MINOR.PATCH.")
+
     # Hygiene linter (FIBO/ISO-704 subset). Surface lint WARNINGS here without
     # flipping `ok` (back-compat); lint ERRORS are enforced at the promotion gate
     # (approve_semantic_artifact) via lint_ontology() directly.
@@ -308,6 +374,8 @@ def check_ontology(ontology: Ontology) -> OntologyCheckResult:
         "indexed_property_count": sum(
             len(node_def.indexed_properties) for node_def in ontology.nodes.values()
         ),
+        "schema_fingerprint": ontology.schema_fingerprint(),
+        "version_valid": ontology.version_is_valid(),
         "hygiene_error_count": len(lint["errors"]),
         "hygiene_warning_count": len(lint["warnings"]),
     }

@@ -71,6 +71,12 @@ def reset_tracing_state() -> None:
             "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
             "qwen-plus",
         ),
+        (
+            "zai",
+            "ZAI_API_KEY",
+            "https://api.z.ai/api/paas/v4/",
+            "glm-5.1",
+        ),
     ],
 )
 def test_provider_presets_resolve_openai_compatible_defaults(
@@ -379,6 +385,47 @@ def test_provider_retry_strips_reasoning_overrides_after_payload_rejection(
     assert "extra_body" not in calls[-1]
     assert "reasoning_effort" not in calls[-1]
     assert calls[-1]["messages"][0]["content"].endswith("Return ONLY valid JSON.")
+
+
+# ---------------------------------------------------------------------------
+# Z.AI global provider (Zhipu AI international platform)
+# ---------------------------------------------------------------------------
+
+
+def test_zai_complete_round_trip_against_mocked_endpoint(
+    fake_openai: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Z.AI global endpoint returns a valid response through the
+    OpenAI-compatible backend without special-casing."""
+    monkeypatch.setenv("ZAI_API_KEY", "zai-secret")
+
+    backend = create_llm_backend(provider="zai")
+    response = backend.complete(
+        system="reply ok",
+        user="ok",
+        temperature=0.0,
+        max_tokens=8,
+    )
+
+    assert response.text == "ok"
+    assert backend.provider == "zai"
+    assert backend.model == "glm-5.1"
+    call = backend._client.chat.completions.calls[0]
+    assert call["model"] == "glm-5.1"
+
+
+def test_zai_explicit_model_overrides_default(
+    fake_openai: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Callers can pass a specific GLM model name (e.g. glm-4.7) to
+    override the default glm-5.1."""
+    monkeypatch.setenv("ZAI_API_KEY", "zai-secret")
+
+    backend = create_llm_backend(provider="zai", model="glm-4.7")
+
+    assert backend.model == "glm-4.7"
 
 
 # ---------------------------------------------------------------------------

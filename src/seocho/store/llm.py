@@ -2,7 +2,7 @@
 LLM and embedding backend abstractions for the public SEOCHO SDK.
 
 The default implementation uses OpenAI-compatible HTTP APIs so the same
-interface can be reused across OpenAI, DeepSeek, Kimi, Grok, and Qwen.
+interface can be reused across OpenAI, DeepSeek, Kimi, Grok, Qwen, and Z.AI.
 """
 
 from __future__ import annotations
@@ -69,6 +69,16 @@ _PROVIDER_SPECS: Dict[str, ProviderSpec] = {
         api_key_env="DASHSCOPE_API_KEY",
         base_url="https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
         default_model="qwen-plus",
+        default_embedding_model=None,
+        supports_embeddings=False,
+    ),
+    # Z.AI global (Zhipu AI international platform). Distinct from the
+    # Chinese domestic endpoint (open.bigmodel.cn). Fully OpenAI-compatible.
+    "zai": ProviderSpec(
+        name="zai",
+        api_key_env="ZAI_API_KEY",
+        base_url="https://api.z.ai/api/paas/v4/",
+        default_model="glm-5.1",
         default_embedding_model=None,
         supports_embeddings=False,
     ),
@@ -964,6 +974,14 @@ def create_llm_backend(
     if provider_key == "qwen":
         return QwenBackend(
             model=model or get_provider_spec("qwen").default_model,
+            api_key=api_key,
+            base_url=base_url,
+            timeout=timeout,
+        )
+    if provider_key == "zai":
+        return OpenAICompatibleBackend(
+            provider="zai",
+            model=model or get_provider_spec("zai").default_model,
             api_key=api_key,
             base_url=base_url,
             timeout=timeout,

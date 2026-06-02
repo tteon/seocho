@@ -25,20 +25,13 @@ behavior, also read `docs/GRAPH_RAG_AGENT_HANDOFF_SPEC.md`.
 
 ## 3. Work Intake And Tracking
 
-- use `bd ready`, `bd show <id>`, `bd update <id> --status in_progress`
-- create standardized work items with:
-  - `scripts/pm/new-issue.sh`
-  - `scripts/pm/new-task.sh`
-- `.beads` is the canonical planning and status tracker
-- use Gastown only as a coordination plane for shared-seam reservations:
-  - claim a reservation after the `bd` item exists
-  - include the `bd` id, branch/worktree, write scope, and TTL
-  - keep the shared seam registry in `.agents/gastown/shared-seams.yaml`
-- exception: the scheduled daily Codex maintenance workflow may operate without
-  a dedicated `bd` item when the PR itself is the review envelope; in that case
-  the PR body must still capture scope, validation, and residual risk
-
-Shared-seam work should also follow `docs/GASTOWN_COORDINATION.md`.
+- Use GitHub issues, pull requests, or the current maintainer-designated tracker
+  for public work state.
+- Local agent trackers such as Beads, Gastown, Claude settings, or Codex skills
+  may be used in a developer workspace, but do not commit their state
+  directories to this public middleware repository.
+- For scheduled Codex maintenance, the draft PR is the review envelope; its body
+  must capture scope, validation, and residual risk.
 
 Active work items must include collaboration labels:
 
@@ -51,21 +44,6 @@ scripts/pm/lint-items.sh --sprint 2026-S03
 scripts/pm/sprint-board.sh --sprint 2026-S03
 scripts/pm/lint-agent-docs.sh
 ```
-
-Beads/Dolt operations:
-
-- do not delete, reinstall, or reset `.beads` as the first response to a Beads
-  issue
-- run `scripts/pm/bd-recover.sh` first; it is read-only by default and checks
-  `bd doctor`, `bd dolt status`, the configured Dolt listener, and
-  `bd dolt show`
-- if `bd dolt status` says `not running` but `bd dolt show` reports connection
-  OK, treat the SQL connection as the health source and avoid destructive
-  recovery
-- use `scripts/pm/bd-recover.sh --fix` only when `bd doctor` or `bd dolt show`
-  fails; it only restarts the Dolt SQL server bound to this repo's Beads port
-- in Codex sandboxed tool calls, local Dolt socket checks may require elevated
-  execution even when the underlying Beads database is healthy
 
 ## 4. Coding Rules
 
@@ -94,14 +72,9 @@ Beads/Dolt operations:
 2. run relevant quality gates
 3. update issue status
 4. land:
-   - release or hand off any active Gastown reservation
    - `git pull --rebase`
-   - `bd bootstrap` (best effort; safe no-op when the workspace DB is already healthy)
    - `git push`
    - `git status` (must show up to date with `origin/main`)
-
-When working in a git worktree, prefer `bd --sandbox ...` for repo-local issue
-operations that should avoid auto-sync side effects.
 
 Push target is always `main`.
 
@@ -140,10 +113,6 @@ For architecture or workflow changes:
 - generated mirrored docs under `website/src/content/docs/docs/` are derived
   from repo-root docs via `website/scripts/generate-docs.mjs`; do not edit
   those generated files directly
-- use repo-local skill `$daily-maintenance-pr` for scheduled or manual Codex
-  maintenance PR workflows
-- use repo-local skill `$periodic-review-pr` for scheduled or manual Codex
-  repository review PR workflows
 - scheduled automation prompts live in:
   - `.github/codex/prompts/daily-maintenance-pr.md`
   - `.github/codex/prompts/periodic-review-pr.md`

@@ -1,5 +1,3 @@
-Use the repo-local skill `$periodic-review-pr`.
-
 Task:
 
 - Inspect the current SEOCHO repository and prepare one reviewable improvement

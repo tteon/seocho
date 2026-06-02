@@ -42,13 +42,9 @@ Use this quick check before editing:
 3. Is this only an import shim or migration wrapper?
    - `extraction/*` is acceptable
 4. Does the change touch multiple shared seams?
-   - split the work or reserve each seam explicitly through Gastown
+   - split the work or make the write scope explicit in the public issue or PR
 
 ## Current High-Risk Shared Seams
-
-The current serialized seams are listed in:
-
-- `.agents/gastown/shared-seams.yaml`
 
 Most collision-prone seams are:
 
@@ -63,4 +59,4 @@ Most collision-prone seams are:
 
 - `docs/ARCHITECTURE.md`
 - `docs/RUNTIME_PACKAGE_MIGRATION.md`
-- `docs/GASTOWN_COORDINATION.md`
+- `docs/ISSUE_TASK_SYSTEM.md`

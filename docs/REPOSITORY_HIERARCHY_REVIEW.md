@@ -34,6 +34,9 @@ The intended canonical split is now:
 - `examples/datasets/`, `docs/assets/`, and `docs/ontology/` own the assets
   that previously lived in root `dataset/`, `images/`, and `ontology/`.
 - `.github/` owns hosted GitHub workflows and Codex workflow prompts.
+- Local agent/editor/tool state such as `.beads/`, `.agents/`, `.claude/`,
+  `.githooks/`, `.jules/`, and `.serena/` is not part of the public repository
+  contract.
 
 The rough edges are mostly hierarchy and source-of-truth issues rather than a
 single broken abstraction.
@@ -75,6 +78,8 @@ guardrails.
 | Python package layout was too permissive | The SDK package used to live at root `seocho/`, alongside root `runtime/`, `extraction/`, `semantic/`, and `evaluation/`. | Move the distributable SDK to `src/seocho`; later either package runtime explicitly or move runtime-only code under a separate app/service namespace. Remove broad test `pythonpath` reliance as compatibility shims shrink. | Catches packaging/import bugs earlier, clarifies what ships to users, reduces accidental dependency on repo-root execution. |
 | Canonical ownership is mentally expensive | `runtime/`, `extraction/`, `semantic/`, and `evaluation/` still look product-like from the root. | Continue one seam at a time: move canonical behavior into `src/seocho/` or `runtime/`, then keep `extraction/*` as explicit shims with ownership tests. | Lower coupling, clearer review ownership, less risk of new logic entering legacy paths. |
 | README mixes public and internal concerns | README had duplicated docs maps and GitHub automation notes near server-operator content. | Keep README as the fast product entry point and point CI/GitHub details to `.github/README.md`. | Better first impression, less docs drift, clearer public narrative. |
+| Hidden local tool directories leaked into public root | `.beads/`, `.agents/`, `.claude/`, and `.githooks/` expose maintainer workflow state ahead of product code. | Remove them from Git tracking, ignore them locally, and keep only `.github/` as the public automation surface. | Cleaner middleware posture, less reviewer confusion, smaller clone surface, fewer accidental local-state edits. |
+| One-off retrieval experiments look like product surface | `experiments/retrieval_comparison/` contains a comparison harness plus JSON data but no production dependency. | Remove the tracked experiment directory; keep future experiments private, archived, or promoted only when they become supported examples or benchmarks. | Sharper product boundary, less root noise, fewer unsupported scripts for users to debug. |
 | GitHub automation lacks an in-folder map | `.github/workflows/*` and `.github/codex/prompts/*` were discoverable by filename but lacked a local ownership guide. | Add `.github/README.md` documenting workflow roles, Codex lanes, merge rules, and placement rules. | Faster workflow maintenance, safer automation edits, clearer branch/PR contracts. |
 | Codex workflow implementations duplicate structure | `daily-codex-maintenance.yml` and `periodic-codex-review.yml` repeat secret checks, setup, validation, PR body construction, and PR creation. | Extract shared behavior into a reusable workflow or script while keeping separate lane files. | Smaller future diffs, fewer inconsistent fixes, easier addition/removal of automation lanes. |
 | ADR index is dense and hard to scan | `docs/decisions/DECISION_LOG.md` is long and mixes chronology with narrative summaries. | Add a linted ADR index contract with unique IDs, date, status, and title metadata. | Better architectural memory, easier audits, less decision drift. |
@@ -83,7 +88,8 @@ guardrails.
 
 1. Land README, `.github/README.md`, public asset relocation, and `src/seocho`
    package layout cleanup.
-2. Add a tracked-root hygiene check for undocumented top-level paths.
+2. Remove tracked local tool state and one-off experiment harnesses from the
+   public root.
 3. Write and approve a package-layout ADR for explicit runtime/app ownership
    after the SDK package move.
 4. Extract shared Codex workflow helper logic.
@@ -95,7 +101,8 @@ guardrails.
 
 - Do not move `website/` out of the repo. ADR-0089 intentionally made the docs
   site an in-repo surface.
-- Do not delete ignored local state as part of architecture cleanup.
+- Do not commit local agent/editor/tool state as part of public architecture
+  cleanup.
 - Do not rename `extraction/` wholesale until compatibility paths and tests
   are ready.
 - Do not move `runtime/`, `evaluation/`, `semantic/`, or `extraction/`

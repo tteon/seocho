@@ -1,5 +1,3 @@
-Use the repo-local skill `$daily-maintenance-pr`.
-
 Task:
 
 - Inspect the current SEOCHO repository and prepare one small, safe maintenance

@@ -7,9 +7,9 @@ without going through the HTTP runtime.
 
 This file pairs with `tests/seocho/test_user_facing_edge_cases.py`. Every
 ⚠️ row in the tables below has a corresponding test class that currently
-**characterizes the gap** and a `.beads` issue tracking the fix. When a
-fix lands, the matching test must be updated to assert the desired
-behavior — that update is the signal to close the bd issue.
+**characterizes the gap** and should be paired with a public issue or PR before
+the fix lands. When a fix lands, the matching test must be updated to assert
+the desired behavior.
 
 ## 1. Status legend
 
@@ -26,7 +26,7 @@ behavior — that update is the signal to close the bd issue.
 | Guarantee | Status | Test | Issue |
 |-----------|:---:|------|-------|
 | `execution_mode="pipeline"` is fully deterministic given a fixed LLM | ✅ | `test_session_agent.py` | — |
-| `execution_mode="agent"`: tool runtime failures surface as explicit errors | ⚠️ | `TestSilentAgentModeFallback::test_agent_indexing_failure_returns_degraded_dict_without_raising` and `…test_agent_query_failure_returns_pipeline_answer_silently` | [seocho-1zck](../.beads) |
+| `execution_mode="agent"`: tool runtime failures surface as explicit errors | ⚠️ | `TestSilentAgentModeFallback::test_agent_indexing_failure_returns_degraded_dict_without_raising` and `…test_agent_query_failure_returns_pipeline_answer_silently` | seocho-1zck |
 | `ask_stream()` in agent mode yields token deltas (not a single full chunk) | ⚠️ | `TestSilentAgentModeFallback::test_ask_stream_yields_single_full_chunk_when_streaming_fails` | seocho-1zck |
 | Mode selection is explicit; no silent default to a different mode | ✅ | covered by `Session._execution_mode` property contract | — |
 
@@ -40,7 +40,7 @@ to detect failure. After seocho-1zck lands, agent-mode failures raise.
 
 | Guarantee | Status | Test | Issue |
 |-----------|:---:|------|-------|
-| Cache key includes the target `database` (no cross-DB poisoning) | ⚠️ | `TestQueryCacheCrossDatabase::test_cached_answer_leaks_across_databases` | [seocho-vncn](../.beads) |
+| Cache key includes the target `database` (no cross-DB poisoning) | ⚠️ | `TestQueryCacheCrossDatabase::test_cached_answer_leaks_across_databases` | seocho-vncn |
 | Cache has a documented TTL (or explicit invalidation hook) | ⚠️ | covered alongside seocho-vncn | seocho-vncn |
 | `Session.add()` invalidates relevant cache entries | ⚠️ | (target) | seocho-vncn |
 
@@ -54,7 +54,7 @@ database.
 
 | Guarantee | Status | Test | Issue |
 |-----------|:---:|------|-------|
-| Trace backend init failure is observable to the caller | ⚠️ | `TestOpikBackendSilentInit::test_log_span_no_ops_when_opik_client_init_raises` | [seocho-8k1h](../.beads) |
+| Trace backend init failure is observable to the caller | ⚠️ | `TestOpikBackendSilentInit::test_log_span_no_ops_when_opik_client_init_raises` | seocho-8k1h |
 | `JSONLBackend` writes are durable and parseable | ✅ | `test_session_agent.py` tracing coverage | — |
 | Trace metadata carries `workspace_id` for runtime-aware records | ✅ | per CLAUDE.md §9 | — |
 
@@ -69,7 +69,7 @@ init raises (or a `ready` property is exposed) under strict mode.
 | Guarantee | Status | Test | Issue |
 |-----------|:---:|------|-------|
 | Ontology identity hash mismatch is *surfaced* on rule profile reads | ✅ | `TestDriftGateAdvisoryOnly::test_get_rule_profile_returns_mismatch_block_without_raising` | — |
-| Ontology identity hash mismatch *blocks* application of profiles/artifacts | ⚠️ | same test (pins advisory-only behavior) | [seocho-cimb](../.beads) |
+| Ontology identity hash mismatch *blocks* application of profiles/artifacts | ⚠️ | same test (pins advisory-only behavior) | seocho-cimb |
 | `Ontology.merge()` preserves identity-hash determinism for `union`/`left_wins`/`right_wins`/`strict` modes | ✅ | `test_ontology.py` | — |
 
 **What this means today:** drift detection is **advisory-only**. Reads
@@ -82,7 +82,7 @@ audit trail.
 
 | Guarantee | Status | Test | Issue |
 |-----------|:---:|------|-------|
-| Concurrent `approve_semantic_artifact` calls serialize cleanly (no lost updates, no corruption) | ⚠️ | `TestArtifactApprovalRace::test_concurrent_approvals_lose_one_writer_silently` | [seocho-35n4](../.beads) |
+| Concurrent `approve_semantic_artifact` calls serialize cleanly (no lost updates, no corruption) | ⚠️ | `TestArtifactApprovalRace::test_concurrent_approvals_lose_one_writer_silently` | seocho-35n4 |
 | `rule_profile_store` writes are atomic via SQLite | ✅ | `test_rule_constraints.py` | — |
 
 **What this means today:** the artifact store is a JSON-per-file layout
@@ -125,7 +125,7 @@ silently regress further. When a fix lands:
    guarantee text becomes the new assertion).
 2. Update this document: flip the row from ⚠️ to ✅, drop the
    "What this means today" caveat.
-3. Mark the bd issue resolved.
+3. Close the linked public issue or note the resolution in the PR.
 
 The test file is wired into `scripts/ci/run_basic_ci.sh` and runs on
 every push and pull request via `.github/workflows/ci-basic.yml`.
@@ -165,4 +165,4 @@ inspect dict markers.
 - CI wiring: `scripts/ci/run_basic_ci.sh`, `.github/workflows/ci-basic.yml`
 - Operating model: `docs/PHILOSOPHY.md`, `docs/ARCHITECTURE.md`
 - Related runtime contract: CLAUDE.md §6 (Runtime/API Guardrails)
-- Issue tracker: `.beads/` (filter by `area-sdk` for SDK-scoped items)
+- Public work tracking: GitHub issues and pull requests

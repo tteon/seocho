@@ -1,4 +1,0 @@
-repos:
-  primary: "."
-  additional:
-    - "/home/hadry/.beads-planning"

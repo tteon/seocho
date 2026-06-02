@@ -490,7 +490,6 @@ metadata, GitHub automation, learning assets, or local runtime state.
 ```bash
 git clone git@github.com:tteon/seocho.git && cd seocho
 pip install -e ".[dev]"
-scripts/pm/install-git-hooks.sh
 python -m pytest tests/seocho/ -q
 ```
 

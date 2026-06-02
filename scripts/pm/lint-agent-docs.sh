@@ -45,12 +45,6 @@ require_file "docs/WORKFLOW.md"
 require_file "docs/ISSUE_TASK_SYSTEM.md"
 require_file "docs/decisions/DECISION_LOG.md"
 
-# Required scripts existence
-require_file "scripts/pm/new-issue.sh"
-require_file "scripts/pm/new-task.sh"
-require_file "scripts/pm/sprint-board.sh"
-require_file "scripts/pm/lint-items.sh"
-
 # CLAUDE baseline checks
 require_pattern "CLAUDE.md" "OpenAI Agents SDK" "runtime baseline"
 require_pattern "CLAUDE.md" "Opik" "trace baseline"
@@ -62,8 +56,8 @@ require_pattern "CLAUDE.md" "Push target is always \`main\`." "main push policy"
 
 # AGENTS baseline checks
 require_pattern "AGENTS.md" "CLAUDE.md" "agent read order"
-require_pattern "AGENTS.md" "scripts/pm/new-issue.sh" "issue workflow command"
-require_pattern "AGENTS.md" "scripts/pm/lint-items.sh" "sprint lint command"
+require_pattern "AGENTS.md" "GitHub issues" "public issue workflow"
+require_pattern "AGENTS.md" "do not commit" "local tool state boundary"
 require_pattern "AGENTS.md" "Push target is always \`main\`." "main push policy"
 
 # README/docs cross-link checks

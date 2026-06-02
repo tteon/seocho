@@ -21,23 +21,24 @@ should actually go.
 
 ## Contributor Tooling Metadata
 
-These directories are intentional and remain part of the tracked repo contract.
+These directories are intentional and remain part of the tracked public repo
+contract.
 
 | Path | Role |
 |---|---|
 | `.github/` | GitHub Actions workflows and Codex automation prompt contracts |
-| `.agents/` | Codex skills and Gastown shared-seam registry |
-| `.beads/` | Canonical task/status tracker metadata |
-| `.claude/` | Shared Claude settings, hooks, and repo-managed skills |
-| `.githooks/` | Repo-managed Git hooks |
 
 ## Developer-Local Tool Overlays
 
-These paths are local tool state or personal agent overlays. They should stay
-ignored and should not be treated as part of the public GitHub surface.
+These paths are local tool state or personal agent overlays. They stay ignored
+and must not be tracked as part of the public GitHub surface.
 
 | Path | Role |
 |---|---|
+| `.agents/` | Local agent skills, coordination state, or seam reservations |
+| `.beads/` | Local Beads task/status database and runtime state |
+| `.claude/` | Local Claude settings, hooks, and skills |
+| `.githooks/` | Local Git hook experiments |
 | `.jules/` | Jules local configuration/prompts |
 | `.serena/` | Serena local configuration/cache |
 
@@ -96,13 +97,12 @@ layout.
 - Put ontology guidance under `docs/ontology/`, not root `ontology/`.
 - Keep exploratory or deprecated notebook material under `examples/labs/legacy/`,
   not as new repo-root directories.
-- Put new contributor automation under `scripts/`, `.agents/`, or `.githooks`
-  depending on purpose.
+- Put shared contributor automation under `scripts/`.
 - Put GitHub-hosted workflows and Codex workflow prompts under `.github/`; put
   reusable workflow helper scripts under `scripts/`.
 - Keep generated local state under ignored artifact paths such as `data/`,
   `logs/`, `outputs/`, `.seocho/`, and `extraction/output/`.
-- Keep local AI tool overlays such as `.jules/` and `.serena/` out of Git
-  tracking unless the repo explicitly adopts them as a shared contract.
+- Keep local AI/tool overlays such as `.agents/`, `.beads/`, `.claude/`,
+  `.githooks/`, `.jules/`, and `.serena/` out of Git tracking.
 - If you add a new top-level directory, update this document and the relevant
   README entry point in the same change.

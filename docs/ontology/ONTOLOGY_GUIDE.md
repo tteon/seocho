@@ -20,6 +20,7 @@
 	* [Overarching Principles](#overarching-principles)
 	* [Minimal Compliance Hygiene Tests](#minimal-compliance-hygiene-tests)
 	* [Candidate Tests for Quality Compliance](#candidate-tests-for-quality-compliance)
+* [SEOCHO Runtime Contract](#seocho-runtime-contract)
  
 
 
@@ -217,6 +218,71 @@ https://spec.edmcouncil.org/fibo/ontology/BE/LegalEntities/LegalPersons/LegalEnt
 * **Definitions must not be circular**, i.e., the class, property, or individual name must not be used in the definition itself.  
 
 While there are cases in FIBO that do not currently follow ISO 704 conventions, we are working to rectify this over time.
+
+# SEOCHO Runtime Contract
+
+SEOCHO treats an ontology version as an operational contract, not just a label.
+The same ontology identity is used across extraction, graph writes, query
+planning, and agent prompts.
+
+## Version Identity
+
+Every production ontology should have:
+
+1. `package_id`: stable lineage identifier for the ontology family.
+2. `version`: semantic version in `MAJOR.MINOR.PATCH` form.
+3. `schema_fingerprint`: stable hash of ontology schema content, excluding the
+   version string.
+4. `context_hash`: runtime hash of the compiled extraction/query/prompt
+   context, including the version and schema fingerprint.
+
+This lets SEOCHO distinguish a metadata-only version bump from a schema change
+that must invalidate prompt context, query caches, or indexed graph data.
+
+## Upgrade Planning
+
+Use `Ontology.upgrade_plan(next_ontology)` or
+`seocho.ontology_versioning.build_ontology_upgrade_plan(left, right)` before
+promoting a generated or edited ontology.
+
+The returned plan explains:
+
+- whether the change is additive, breaking, metadata-only, or unchanged
+- whether the semantic version bump is valid for the change scope
+- whether indexing should re-run
+- whether SHACL validation should re-run
+- whether query/prompt caches should be invalidated
+- which labels, relationship types, or metadata fields changed
+
+Recommended interpretation:
+
+| Change | Version bump | Indexing effect | Query effect |
+|---|---|---|---|
+| New class, relationship, or property | Minor | Re-run extraction/index refresh for data that should use the new type. | Refresh prompt context and query planner schema slices. |
+| Removed or changed class/relationship | Major | Migrate or clean old graph data, then reindex. | Block or rewrite stale Cypher plans. |
+| Description, namespace, package metadata | Patch or major depending on field | Revalidate if external identifiers changed. | Invalidate provenance-sensitive semantic artifacts. |
+| Version-only change | Patch | No schema reindex required. | Query cache may rotate because context identity changed. |
+
+## SHACL And OWL Boundaries
+
+SEOCHO derives SHACL from the Python ontology model and uses it as an indexing
+and promotion gate. SHACL validation belongs near candidate graph writes and
+artifact promotion.
+
+OWL/Owlready2 reasoning is intentionally offline governance. Use it to inspect
+imports, class/property counts, and consistency before promotion. Do not put
+heavy OWL reasoning in request-time agent or query paths.
+
+The `ontology` optional extra includes `rdflib`, `owlready2`, and `pyshacl` for
+offline governance workflows. Runtime paths should degrade gracefully when those
+tools are not installed.
+
+Use `seocho.ontology_governance.validate_rdf_with_pyshacl(data_graph,
+shacl_graph)` when validating RDF/TTL artifacts before promotion. It returns
+the same `GovernanceValidationResult` shape as the Owlready2 inspection path:
+`available` tells you whether the optional dependency exists, `ok` tells you
+whether the candidate conforms, and `errors` carries the SHACL report when it
+does not.
 
 Additional requirements with respect to definition development and supporting annotations include:
 

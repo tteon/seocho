@@ -117,6 +117,8 @@ def test_compile_ontology_context_has_stable_identity() -> None:
     assert first.descriptor.profile == "finder-financials"
     assert first.descriptor.glossary_term_count >= 3
     assert first.descriptor.glossary_hash
+    assert first.descriptor.schema_fingerprint
+    assert first.descriptor.version_valid is True
     assert "financial_metric_lookup" in first.descriptor.deterministic_intents
 
 
@@ -165,6 +167,7 @@ def test_indexing_result_records_ontology_context() -> None:
     written_rel = graph_store.writes[0]["relationships"][0]
     assert written_node["properties"]["_ontology_context_hash"] == payload["ontology_context"]["context_hash"]
     assert written_rel["properties"]["_ontology_profile"] == "finder-financials"
+    assert written_node["properties"]["_ontology_schema_fingerprint"] == payload["ontology_context"]["schema_fingerprint"]
 
 
 def test_assess_ontology_context_mismatch_detects_drift() -> None:

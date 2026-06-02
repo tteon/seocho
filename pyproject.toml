@@ -103,6 +103,7 @@ duckdb = [
 ]
 ontology = [
     "owlready2",
+    "pyshacl",
     "rdflib>=6.0",
 ]
 embedded = [

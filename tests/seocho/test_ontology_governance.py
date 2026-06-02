@@ -12,6 +12,7 @@ from seocho.ontology_governance import (
     diff_ontologies,
     export_ontology_payload,
     inspect_owl_ontology,
+    validate_rdf_with_pyshacl,
 )
 
 
@@ -43,6 +44,18 @@ def test_check_ontology_warns_when_unique_key_missing() -> None:
     assert result.package_id == "warning_case"
     assert result.errors == []
     assert any("consider adding one" in item for item in result.warnings)
+    assert result.stats["schema_fingerprint"]
+    assert result.stats["version_valid"] is True
+
+
+def test_check_ontology_warns_on_non_semver_version() -> None:
+    ontology = _ontology(version="1.0")
+
+    result = check_ontology(ontology)
+
+    assert result.ok is True
+    assert result.stats["version_valid"] is False
+    assert any("semantic versioning" in item for item in result.warnings)
 
 
 def test_diff_ontologies_detects_metadata_and_schema_changes() -> None:
@@ -131,6 +144,39 @@ def test_inspect_owl_ontology_uses_optional_owlready2(monkeypatch) -> None:
     assert result.error is None
     assert result.stats["class_count"] == 2
     assert result.stats["property_count"] == 1
+
+
+def test_validate_rdf_with_pyshacl_uses_optional_dependency(monkeypatch, tmp_path) -> None:
+    data_path = tmp_path / "data.ttl"
+    shapes_path = tmp_path / "shapes.ttl"
+    data_path.write_text("@prefix ex: <https://example.com/> .", encoding="utf-8")
+    shapes_path.write_text("@prefix sh: <http://www.w3.org/ns/shacl#> .", encoding="utf-8")
+
+    def fake_validate(*args, **kwargs):  # noqa: ANN002, ANN003
+        assert args == (str(data_path),)
+        assert kwargs["shacl_graph"] == str(shapes_path)
+        assert kwargs["inference"] == "rdfs"
+        return True, object(), "Conforms"
+
+    fake_module = types.SimpleNamespace(validate=fake_validate)
+    monkeypatch.setitem(sys.modules, "pyshacl", fake_module)
+
+    result = validate_rdf_with_pyshacl(data_path, shapes_path)
+
+    assert result.available is True
+    assert result.ok is True
+    assert result.errors == []
+    assert result.stats["conforms"] is True
+
+
+def test_validate_rdf_with_pyshacl_degrades_when_unavailable(monkeypatch) -> None:
+    monkeypatch.setitem(sys.modules, "pyshacl", None)
+
+    result = validate_rdf_with_pyshacl("data.ttl", "shapes.ttl")
+
+    assert result.available is False
+    assert result.ok is False
+    assert "pyshacl unavailable" in str(result.error)
 
 
 def test_governance_report_includes_context_hash_and_shacl_stats(tmp_path) -> None:

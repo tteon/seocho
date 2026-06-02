@@ -180,6 +180,15 @@ _MODULE_EXPORTS: Dict[str, Iterable[str]] = {
         "ontology_context_graph_properties",
         "query_ontology_context_mismatch",
     ],
+    ".ontology_versioning": [
+        "OntologyUpgradePlan",
+        "OntologyVersionIdentity",
+        "build_ontology_upgrade_plan",
+        "is_valid_semver",
+        "ontology_schema_fingerprint",
+        "ontology_version_identity",
+        "parse_semver",
+    ],
     ".ontology_run_context": [
         "OntologyEvidenceState",
         "OntologyPolicyDecision",

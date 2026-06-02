@@ -13,6 +13,9 @@ ontology once, then use the same contract to ingest documents, shape graph
 writes, generate schema-aware queries, and produce answers with traceable
 evidence.
 
+In one sentence: SEOCHO turns your ontology into the operating contract for
+graph memory, retrieval, and agent answers.
+
 ```mermaid
 flowchart LR
     D["Documents"] --> I["SEOCHO index"]

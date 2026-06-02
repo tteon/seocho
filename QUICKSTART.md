@@ -1,23 +1,30 @@
 # SEOCHO Quickstart
 
-Fastest GitHub-first path to one successful SEOCHO run.
+This is the shortest path to a working ontology-aligned graph memory.
 
-For the full runtime deployment guide (Docker stack, services, env), see
-[docs/RUNTIME_DEPLOYMENT.md](docs/RUNTIME_DEPLOYMENT.md).
-For the SDK-focused guide, see [docs/PYTHON_INTERFACE_QUICKSTART.md](docs/PYTHON_INTERFACE_QUICKSTART.md).
-For a runnable notebook, see [examples/quickstart.ipynb](examples/quickstart.ipynb).
+You will:
 
-## Option A: Local SDK
+1. define a tiny ontology
+2. add one sentence
+3. ask a question against the graph memory
+
+## 1. Install
 
 ```bash
 uv pip install "seocho[local]"
 ```
 
+`seocho[local]` includes the local SDK engine, agent dependencies, and the
+embedded LadybugDB graph path. You do not need to run a server for this first
+example.
+
+## 2. Run The Smallest Example
+
 ```python
 from seocho import Seocho, Ontology, NodeDef, RelDef, Property
 
 ontology = Ontology(
-    name="demo",
+    name="work",
     nodes={
         "Person": NodeDef(properties={"name": Property(str, unique=True)}),
         "Company": NodeDef(properties={"name": Property(str, unique=True)}),
@@ -29,17 +36,45 @@ ontology = Ontology(
 
 client = Seocho.local(ontology)
 client.add("Marie Curie worked at the University of Paris.")
+
 print(client.ask("Where did Marie Curie work?"))
 ```
 
-Use this path when you want the shortest ontology-first hello world with the
-embedded LadybugDB default.
+What happened:
 
-## Option B: Local Runtime
+- the ontology declared the allowed graph shape
+- `add()` extracted graph facts that fit that shape
+- `ask()` queried the graph memory and produced an ontology-grounded answer
+
+## 3. Run A Real Example
+
+The finance-compliance example is the fastest complete project-shaped path:
 
 ```bash
-git clone https://github.com/tteon/seocho.git
-cd seocho
+export OPENAI_API_KEY=...
+python examples/finance-compliance/quickstart.py
+```
+
+It ships:
+
+- `examples/finance-compliance/ontology.py`
+- six short mock compliance documents
+- a script that ingests them and asks cross-document questions
+
+## 4. Connect To A Runtime
+
+If a SEOCHO runtime is already running:
+
+```python
+from seocho import Seocho
+
+client = Seocho.remote("http://localhost:8001")
+print(client.ask("What do we know about ACME?"))
+```
+
+To start the local UI/API/DozerDB stack from a cloned repository:
+
+```bash
 make setup-env
 make up
 ```
@@ -50,18 +85,12 @@ Then open:
 - API docs: `http://localhost:8001/docs`
 - DozerDB browser: `http://localhost:7474`
 
-## Option C: Remote Client
-
-```python
-from seocho import Seocho
-
-client = Seocho.remote("http://localhost:8001")
-print(client.ask("What do we know about ACME?"))
-```
-
 ## Next
 
-- [docs/RUNTIME_DEPLOYMENT.md](docs/RUNTIME_DEPLOYMENT.md): full runtime deployment (Docker stack, services, env)
-- [docs/PYTHON_INTERFACE_QUICKSTART.md](docs/PYTHON_INTERFACE_QUICKSTART.md): SDK path and parameters
-- [docs/APPLY_YOUR_DATA.md](docs/APPLY_YOUR_DATA.md): bring your own ontology and records
-- [docs/FILES_AND_ARTIFACTS.md](docs/FILES_AND_ARTIFACTS.md): where ontology files, artifacts, and traces go
+| Need | Start here |
+|---|---|
+| Understand the project | [README.md](README.md) |
+| Use your own ontology and files | [docs/APPLY_YOUR_DATA.md](docs/APPLY_YOUR_DATA.md) |
+| Learn the Python SDK | [docs/PYTHON_INTERFACE_QUICKSTART.md](docs/PYTHON_INTERFACE_QUICKSTART.md) |
+| Run the full platform | [docs/RUNTIME_DEPLOYMENT.md](docs/RUNTIME_DEPLOYMENT.md) |
+| See generated files and traces | [docs/FILES_AND_ARTIFACTS.md](docs/FILES_AND_ARTIFACTS.md) |

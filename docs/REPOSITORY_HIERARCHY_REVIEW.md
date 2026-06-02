@@ -91,9 +91,9 @@ Three mature open-source repositories informed the `.github/` reshape:
 
 | Repository | Observed pattern | SEOCHO adjustment |
 |---|---|---|
-| `openai/openai-agents-python` | Product and contributor guidance stay in root docs; `.github` contains templates, scripts, and workflows rather than a second contributor guide. | Keep `.github/README.md` short and point contributors back to `CONTRIBUTING.md`, `AGENTS.md`, and `docs/WORKFLOW.md`. |
+| `openai/openai-agents-python` | Product and contributor guidance stay in root docs; `.github` contains templates, scripts, and workflows rather than a second contributor guide. | Keep GitHub automation guidance in `docs/GITHUB_AUTOMATION.md` and point contributors back to `CONTRIBUTING.md`, `AGENTS.md`, and `docs/WORKFLOW.md`. |
 | `langchain-ai/langgraph` | `.github` is mostly executable configuration; contributor expectations and package orientation live in external/root contributor docs. | Keep automation implementation details out of the first contributor path; keep module orientation in `docs/MODULE_OWNERSHIP_MAP.md`. |
-| `pallets/flask` / `fastapi/fastapi` | Mature Python projects use `.github` for issue/PR templates and workflows; contribution process lives in public docs. | Treat `.github/README.md` as a maintainer automation inventory, not as onboarding. Explain CI and AI-assisted contribution expectations in `CONTRIBUTING.md`. |
+| `pallets/flask` / `fastapi/fastapi` | Mature Python projects use `.github` for issue/PR templates and workflows; contribution process lives in public docs. | Treat GitHub automation as a maintainer inventory in `docs/GITHUB_AUTOMATION.md`, not as onboarding. Explain CI and AI-assisted contribution expectations in `CONTRIBUTING.md`. |
 
 SEOCHO differs from these projects because it has scheduled Codex draft-PR
 workflows and a comment-triggered merge path. Those are public trust surfaces,
@@ -110,8 +110,9 @@ Adopted patterns in this repository:
   behavior, runtime policy, extraction compatibility, examples, and generated
   local state before editing.
 - Treat private agent/tool state as local implementation detail; only `.github/`
-  remains a tracked public automation surface, and its README stays a compact
-  automation map.
+  remains a tracked public automation implementation surface, and its map lives
+  in `docs/GITHUB_AUTOMATION.md` so the root `README.md` owns the GitHub
+  overview.
 
 ## Problems And Improvements
 
@@ -120,17 +121,17 @@ Adopted patterns in this repository:
 | Root hierarchy is noisy | `docs/REPOSITORY_LAYOUT.md` explains canonical roots, while live workspaces may also show ignored runtime state, nested worktrees, and scratch folders. | Add or extend a root-hygiene check that reports undocumented tracked top-level paths. Keep ignored local state out of the public contract. | Faster onboarding, fewer accidental edits to local artifacts, better agent context selection. |
 | Python package layout was too permissive | The SDK package used to live at root `seocho/`, alongside root `runtime/`, `extraction/`, `semantic/`, and `evaluation/`. | Move the distributable SDK to `src/seocho`; later either package runtime explicitly or move runtime-only code under a separate app/service namespace. Remove broad test `pythonpath` reliance as compatibility shims shrink. | Catches packaging/import bugs earlier, clarifies what ships to users, reduces accidental dependency on repo-root execution. |
 | Canonical ownership is mentally expensive | `runtime/`, `extraction/`, `semantic/`, and `evaluation/` still look product-like from the root. | Continue one seam at a time: move canonical behavior into `src/seocho/` or `runtime/`, then keep `extraction/*` as explicit shims with ownership tests. | Lower coupling, clearer review ownership, less risk of new logic entering legacy paths. |
-| README mixes public and internal concerns | README had duplicated docs maps and GitHub automation notes near server-operator content. | Keep README as the fast product entry point and point CI/GitHub details to `.github/README.md`. | Better first impression, less docs drift, clearer public narrative. |
+| README mixes public and internal concerns | README had duplicated docs maps and GitHub automation notes near server-operator content. | Keep README as the fast product entry point and point CI/GitHub details to `docs/GITHUB_AUTOMATION.md`. | Better first impression, less docs drift, clearer public narrative. |
 | Hidden local tool directories leaked into public root | `.beads/`, `.agents/`, `.claude/`, and `.githooks/` expose maintainer workflow state ahead of product code. | Remove them from Git tracking, ignore them locally, and keep only `.github/` as the public automation surface. | Cleaner middleware posture, less reviewer confusion, smaller clone surface, fewer accidental local-state edits. |
 | One-off retrieval experiments look like product surface | `experiments/retrieval_comparison/` contains a comparison harness plus JSON data but no production dependency. | Remove the tracked experiment directory; keep future experiments private, archived, or promoted only when they become supported examples or benchmarks. | Sharper product boundary, less root noise, fewer unsupported scripts for users to debug. |
-| GitHub automation lacks an in-folder map | `.github/workflows/*` and `.github/codex/prompts/*` were discoverable by filename but lacked a local ownership guide. | Add `.github/README.md` documenting workflow roles, Codex lanes, merge rules, and placement rules. | Faster workflow maintenance, safer automation edits, clearer branch/PR contracts. |
+| GitHub automation lacks an ownership map | `.github/workflows/*` and `.github/codex/prompts/*` were discoverable by filename but lacked a public ownership guide. | Add `docs/GITHUB_AUTOMATION.md` documenting workflow roles, Codex lanes, merge rules, and placement rules, and forbid `.github/README.md` so GitHub renders the product README. | Faster workflow maintenance, safer automation edits, clearer branch/PR contracts, correct open-source landing page. |
 | Codex workflow implementations duplicate structure | `daily-codex-maintenance.yml` and `periodic-codex-review.yml` repeat secret checks, setup, validation, PR body construction, and PR creation. | Extract shared behavior into a reusable workflow or script while keeping separate lane files. | Smaller future diffs, fewer inconsistent fixes, easier addition/removal of automation lanes. |
 | ADR index is dense and hard to scan | `docs/decisions/DECISION_LOG.md` is long and mixes chronology with narrative summaries. | Add a linted ADR index contract with unique IDs, date, status, and title metadata. | Better architectural memory, easier audits, less decision drift. |
 
 ## Recommended Order
 
-1. Land README, `.github/README.md`, public asset relocation, and `src/seocho`
-   package layout cleanup.
+1. Land README, `docs/GITHUB_AUTOMATION.md`, public asset relocation, and
+   `src/seocho` package layout cleanup.
 2. Remove tracked local tool state and one-off experiment harnesses from the
    public root.
 3. Write and approve a package-layout ADR for explicit runtime/app ownership

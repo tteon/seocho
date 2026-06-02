@@ -24,6 +24,7 @@ now?
 | understand the system design | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | understand the top-level repository layout | [REPOSITORY_LAYOUT.md](REPOSITORY_LAYOUT.md) |
 | review repository hierarchy cleanup priorities | [REPOSITORY_HIERARCHY_REVIEW.md](REPOSITORY_HIERARCHY_REVIEW.md) |
+| understand GitHub automation | [GITHUB_AUTOMATION.md](GITHUB_AUTOMATION.md) |
 | present SEOCHO to a technical audience | [presentations/SEOCHO_OVERVIEW_DEEP_DIVE.md](presentations/SEOCHO_OVERVIEW_DEEP_DIVE.md) |
 | measure behavior with FinDER and benchmark tracks | [BENCHMARKS.md](BENCHMARKS.md) |
 
@@ -87,6 +88,8 @@ Recommended onboarding order:
 - [MODULE_OWNERSHIP_MAP.md](MODULE_OWNERSHIP_MAP.md): canonical module
   ownership and compatibility boundaries
 - [WORKFLOW.md](WORKFLOW.md): operational workflow
+- [GITHUB_AUTOMATION.md](GITHUB_AUTOMATION.md): GitHub Actions, Codex
+  automation, and `.github/` placement rules
 
 ## Contributor References
 

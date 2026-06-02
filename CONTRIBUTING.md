@@ -76,7 +76,8 @@ reviews are supporting signals, not a replacement for human review.
 ## Automation And AI-Assisted Work
 
 SEOCHO uses GitHub Actions for CI, docs checks, docs deploy, and narrow
-maintainer automation. The public automation map is `.github/README.md`.
+maintainer automation. The public automation map is
+`docs/GITHUB_AUTOMATION.md`.
 
 Scheduled Codex workflows may open draft maintenance PRs. They must stay
 bounded, test-backed, and draft-only until a maintainer promotes them. External

@@ -1,0 +1,12 @@
+fixture_id: "08_label_list_all"
+question: "List all companies."
+workspace_id: "fixture-gopts"
+populated_db: "neo4j"
+intent: "list_all"
+expected_top1_pattern_id: "pattern:label_list"
+expected_evidence_entities: ["Apple", "Microsoft", "Tesla", "TSMC", "Foxconn"]
+expected_answer: "The companies are Apple, Microsoft, Tesla, TSMC, and Foxconn."
+notes: |
+  Full-label scan. Same plan_depth=0 floor as label_count but the
+  full_label_scan cost_hint will get a penalty in G2's future
+  refinements (multi-plan execution layer).

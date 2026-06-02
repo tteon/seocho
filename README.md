@@ -130,12 +130,12 @@ runtime, and agent behavior.
 
 Two planes share one ontology:
 
-- **Data Plane** (`seocho/index/`) — files → extraction → validation → graph write
-- **Control Plane** (`seocho/query/`) — ontology → prompt strategy → Cypher → answer synthesis
-- **Ontology** (`seocho/ontology.py`) — single source of truth for both planes, and for the runtime artifact contract
+- **Data Plane** (`src/seocho/index/`) — files → extraction → validation → graph write
+- **Control Plane** (`src/seocho/query/`) — ontology → prompt strategy → Cypher → answer synthesis
+- **Ontology** (`src/seocho/ontology.py`) — single source of truth for both planes, and for the runtime artifact contract
 
 The `Seocho` class is a thin public facade. Canonical engine logic lives under
-`seocho/local_engine.py`, `seocho/client_remote.py`, and `seocho/client_bundle.py`
+`src/seocho/local_engine.py`, `src/seocho/client_remote.py`, and `src/seocho/client_bundle.py`
 so the facade stays small. Runtime transport is `runtime/agent_server.py`;
 shared runtime composition lives in `runtime/server_runtime.py`.
 
@@ -239,7 +239,7 @@ print(result.graph_cot["guardrail_verdict"]["decision"])
 ```
 
 The planned internal multi-agent contract for this mode is documented in
-`ADR-0095` and the repo-local specs under `seocho/query/graph_cot_*.py`.
+`ADR-0095` and the repo-local specs under `src/seocho/query/graph_cot_*.py`.
 
 For SDK callers, `cot_mode=True` is a convenience alias for
 `query_mode="graph_cot"` on `client.ask(...)`, `client.ask_response(...)`, and
@@ -367,7 +367,7 @@ config, offline governance CLI, multi-ontology per database — see
 ## SDK Package Structure
 
 ```
-seocho/
+src/seocho/
 ├── index/              ← Data Plane: putting data IN
 │   ├── pipeline.py     ← chunk → extract → validate → rule inference → write
 │   ├── linker.py       ← embedding-based entity relatedness
@@ -422,49 +422,30 @@ onto = Ontology(name="fibo", graph_model="rdf",
                 namespace="https://spec.edmcouncil.org/fibo/", ...)
 ```
 
-## Documentation
+## Learn More
 
-### Map: where to go next
+Keep this README as the fast product entry point. Use the focused docs below
+when you need a deeper path.
 
-| If you want to... | Go here |
+| Need | Start here |
 |---|---|
-| get a first local success path | [Quickstart](QUICKSTART.md) |
-| follow a runnable notebook walkthrough | [examples/quickstart.ipynb](examples/quickstart.ipynb) |
-| see a real-world example end-to-end | [examples/finance-compliance/](examples/finance-compliance/) |
-| understand SEOCHO with a guided beginner walkthrough | [Beginner Guide](docs/BEGINNER_GUIDE.md) |
-| see a runnable usecase demo | [Usecases](docs/USECASES.md) |
-| bring your own ontology and files | [Apply Your Data](docs/APPLY_YOUR_DATA.md) |
-| use the Python SDK directly | [Python SDK Quickstart](docs/PYTHON_INTERFACE_QUICKSTART.md) |
-| declare graph-model-aware indexing in YAML | [Indexing Design Specs](docs/INDEXING_DESIGN_SPECS.md) |
-| inspect files, artifacts, and traces | [Files and Artifacts](docs/FILES_AND_ARTIFACTS.md) |
-| understand the system design | [Architecture Deep Dive](docs/ARCHITECTURE.md) |
-| understand which top-level directories are active, legacy, or local-only | [Repository Layout](docs/REPOSITORY_LAYOUT.md) |
-| present the product and architecture | [Overview Deep-Dive Deck](docs/presentations/SEOCHO_OVERVIEW_DEEP_DIVE.md) |
+| First local success path | [Quickstart](QUICKSTART.md) |
+| Beginner walkthrough | [docs/BEGINNER_GUIDE.md](docs/BEGINNER_GUIDE.md) |
+| Bring your own ontology and files | [docs/APPLY_YOUR_DATA.md](docs/APPLY_YOUR_DATA.md) |
+| Python SDK details | [docs/PYTHON_INTERFACE_QUICKSTART.md](docs/PYTHON_INTERFACE_QUICKSTART.md) |
+| Runnable examples | [examples/](examples/) |
+| System design | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| Runtime deployment | [docs/RUNTIME_DEPLOYMENT.md](docs/RUNTIME_DEPLOYMENT.md) |
+| Operational workflow | [docs/WORKFLOW.md](docs/WORKFLOW.md) |
+| Issue and task tracking | [docs/ISSUE_TASK_SYSTEM.md](docs/ISSUE_TASK_SYSTEM.md) |
+| Repository layout | [docs/REPOSITORY_LAYOUT.md](docs/REPOSITORY_LAYOUT.md) |
+| Repository hierarchy review | [docs/REPOSITORY_HIERARCHY_REVIEW.md](docs/REPOSITORY_HIERARCHY_REVIEW.md) |
+| CI and GitHub automation | [.github/README.md](.github/README.md) |
+| Full docs site | [seocho.blog](https://seocho.blog) |
 
-### Site
-
-`seocho.blog` is built from the tracked Astro/Starlight site under `website/`.
-Selected long-form docs are generated there from this repo's canonical
-`README.md` and `docs/*` tree at build time.
-
-| Doc | Description |
-|-----|-------------|
-| [seocho.blog](https://seocho.blog) | Full documentation site |
-| [SDK Overview](https://seocho.blog/sdk/) | SDK features and quick start |
-| [Ontology Guide](https://seocho.blog/sdk/ontology-guide/) | Schema design, JSON-LD, SHACL |
-| [API Reference](https://seocho.blog/sdk/api-reference/) | Complete method reference |
-| [website/](website/) | In-repo Astro/Starlight source for `seocho.blog` |
-| [docs/USECASES.md](docs/USECASES.md) | Runnable usecase demos |
-| [docs/BEGINNER_GUIDE.md](docs/BEGINNER_GUIDE.md) | Guided first-run path with architecture snippets |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture |
-| [docs/presentations/SEOCHO_OVERVIEW_DEEP_DIVE.md](docs/presentations/SEOCHO_OVERVIEW_DEEP_DIVE.md) | Beginner-friendly architecture deck |
-| [docs/FILES_AND_ARTIFACTS.md](docs/FILES_AND_ARTIFACTS.md) | Where ontology, rule, trace, and runtime files live |
-| [docs/BENCHMARKS.md](docs/BENCHMARKS.md) | Private finance corpus and GraphRAG-Bench evaluation tracks |
-| [docs/WORKFLOW.md](docs/WORKFLOW.md) | Operational workflow |
-| [docs/ISSUE_TASK_SYSTEM.md](docs/ISSUE_TASK_SYSTEM.md) | Sprint/task governance |
-| [docs/SHACL_GRAPHRAG_PLAYBOOK.md](docs/SHACL_GRAPHRAG_PLAYBOOK.md) | SHACL + GraphRAG playbook |
-| [examples/finder/](examples/finder/) | FinDER tutorial bundle — four notebooks (Vector vs Graph RAG, FIBO module impact, RDF vs LPG, private Opik workflow) plus Docker env |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute |
+`seocho.blog` is built from the tracked Astro/Starlight app under `website/`.
+Selected long-form pages are generated from this repository's canonical
+`README.md` and `docs/*` sources at build time.
 
 ## Observability
 
@@ -498,15 +479,11 @@ Default `make up` starts the core local stack: `neo4j`, `extraction-service`,
 docker compose --profile legacy-semantic up -d semantic-service
 ```
 
-Scheduled Codex workflows skip cleanly when `OPENAI_API_KEY` /
-`SEOCHO_GITHUB_APP_ID` / `SEOCHO_GITHUB_APP_PRIVATE_KEY` are unset.
-`Basic CI` remains the required repository check surface.
-
 See [docs/RUNTIME_DEPLOYMENT.md](docs/RUNTIME_DEPLOYMENT.md) for the full server setup guide.
 
 Contributor repo map: [docs/REPOSITORY_LAYOUT.md](docs/REPOSITORY_LAYOUT.md)
 explains which root directories are canonical product code, contributor-tool
-metadata, learning assets, or local runtime state.
+metadata, GitHub automation, learning assets, or local runtime state.
 
 ## Contributing
 
@@ -514,7 +491,7 @@ metadata, learning assets, or local runtime state.
 git clone git@github.com:tteon/seocho.git && cd seocho
 pip install -e ".[dev]"
 scripts/pm/install-git-hooks.sh
-python -m pytest seocho/tests/ -q
+python -m pytest tests/seocho/ -q
 ```
 
 Pick a usecase to build around: [docs/USECASES.md](docs/USECASES.md).

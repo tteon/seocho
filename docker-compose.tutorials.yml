@@ -21,9 +21,9 @@ services:
       - "${SEOCHO_BIND_HOST:-127.0.0.1}:${TUTORIALS_JUPYTER_PORT:-8888}:8889"
     volumes:
       # Bind the entire repo so notebook edits, the tutorial-only adapter
-      # modules, and the seocho/ package are all live-edited on host.
+      # modules, and the src/seocho package are all live-edited on host.
       - ./examples:/workspace/examples
-      - ./seocho:/workspace/seocho
+      - ./src:/workspace/src
       - ./extraction:/workspace/extraction:ro
       - ./scripts:/workspace/scripts:ro
       # Persistent on-host artifacts directory the tutorials write to

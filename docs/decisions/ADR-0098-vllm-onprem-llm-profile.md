@@ -102,10 +102,10 @@ prompt-injection fallback (no regression for callers that don't opt in).
 
 ### 4. Agents SDK tool-use coexistence test
 
-New test in `seocho/tests/test_llm_backends.py` confirms `Runner.run`
+New test in `tests/seocho/test_llm_backends.py` confirms `Runner.run`
 against a mocked vLLM endpoint preserves tool calls end-to-end. Builds
 on the existing Agents-SDK-binding tests at
-`seocho/tests/test_llm_backends.py:130`. Specifically:
+`tests/seocho/test_llm_backends.py:130`. Specifically:
 
 - mock the vLLM HTTP endpoint to return a `tool_calls` response
 - invoke `Runner.run` via `seocho/agents_runtime.py:67`
@@ -116,7 +116,7 @@ This is the contract test that proves the mode gate works.
 ### 5. End-to-end smoke
 
 New test `test_vllm_backend_openai_compatible_chat_completions` in
-`seocho/tests/test_llm_backends.py` covers:
+`tests/seocho/test_llm_backends.py` covers:
 
 - `Seocho.local(llm="vllm/<model>")` resolves via the factory
 - `complete()` against a mocked vLLM HTTP endpoint
@@ -180,7 +180,7 @@ Open questions (deferred):
   - `seocho/store/llm.py:328` — extend `_merge_extra_body` /
     `complete()` signature to handle the
     `response_format → guided_*` translation under `mode="pipeline"`
-  - `seocho/tests/test_llm_backends.py` — Agents-SDK coexistence
+  - `tests/seocho/test_llm_backends.py` — Agents-SDK coexistence
     test and end-to-end smoke
   - `docs/RUNTIME_DEPLOYMENT.md` — operator note that the SDK now
     supports a vLLM provider preset; server-side deployment recipes

@@ -3,6 +3,6 @@ services:
     volumes:
       - ./extraction:/app
       - ./runtime:/app/runtime:ro
-      - ./seocho:/app/seocho:ro
+      - ./src/seocho:/app/seocho:ro
       - ./notebooks:/app/notebooks
       - ./demos:/app/demos

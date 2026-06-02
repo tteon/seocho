@@ -70,7 +70,7 @@ Tradeoffs:
 
 ## Validation
 
-- focused semantic query unit tests in `seocho/tests/`
+- focused semantic query unit tests in `tests/seocho/`
 - focused semantic flow regression tests in `extraction/tests/`
 - no parity-harness gate in this slice because the current harness environment
   in the landing clone is not yet reliable enough to act as a clean blocker

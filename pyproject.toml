@@ -114,8 +114,8 @@ pdf = [
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["extraction/tests"]
-pythonpath = ["extraction"]
+testpaths = ["extraction/tests", "tests"]
+pythonpath = ["src", "extraction"]
 asyncio_mode = "auto"
 markers = [
     "integration_gopts: requires a live DozerDB at NEO4J_URI; F4 PROFILE oracle integration",
@@ -134,7 +134,7 @@ max-line-length = 88
 exclude = ["__pycache__", "*.pyc", ".git", "examples/demos", "examples/labs/legacy"]
 
 # Dead-code detection (Track A quick-win — surface metric only, not yet a CI gate).
-# Run: `ruff check seocho/ extraction/ runtime/ --statistics`
+# Run: `ruff check src/seocho/ extraction/ runtime/ --statistics`
 # When ready to enforce, add a CI step; until then this just makes the metric easy
 # to inspect locally without contradicting the existing flake8/black/isort setup.
 [tool.ruff]
@@ -164,8 +164,10 @@ select = [
 
 [tool.setuptools]
 include-package-data = false
+package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
+where = ["src"]
 include = ["seocho", "seocho.*"]
 exclude = ["seocho.tests", "seocho.tests.*"]
 namespaces = false

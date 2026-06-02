@@ -68,7 +68,7 @@ Tradeoffs:
 
 ## Validation
 
-- focused semantic flow tests in `seocho/tests/`
+- focused semantic flow tests in `tests/seocho/`
 - semantic query flow regression in `extraction/tests/`
 - API endpoint regression for semantic query compatibility
 - parity harness regression

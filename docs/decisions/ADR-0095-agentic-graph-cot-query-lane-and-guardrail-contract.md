@@ -251,7 +251,7 @@ Tradeoffs:
 - shipped in this design slice:
   - `seocho/query/graph_cot_contracts.py`
   - `seocho/query/graph_cot_design.py`
-  - tests in `seocho/tests/test_graph_cot_design.py`
+  - tests in `tests/seocho/test_graph_cot_design.py`
 - expected follow-up implementation seam:
   - `seocho/query/graph_cot_flow.py`
   - `runtime/server_runtime.py` and `runtime/agent_server.py` call the new

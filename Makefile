@@ -35,7 +35,7 @@ up: ## Start core local stack (DozerDB + extraction API + platform UI)
 	@echo "ℹ️  Legacy semantic-service is opt-in: docker compose --profile legacy-semantic up -d semantic-service"
 	@echo "ℹ️  For a bind-mounted live edit loop, use: make up-live"
 
-up-live: ## Start core local stack with live bind mounts for extraction/runtime/seocho
+up-live: ## Start core local stack with live bind mounts for extraction/runtime/src/seocho
 	@echo "🐳 Starting Seocho core local stack with live source mounts..."
 	@$(DOCKER_COMPOSE_LIVE) up -d --build
 	@echo "✅ Live-mount services started."
@@ -167,7 +167,7 @@ print('✅ All four tutorial import chains resolve cleanly')"
 
 tutorials-pytest: ## Run the seocho test suite inside the tutorials container
 	@OPENAI_API_KEY=$${OPENAI_API_KEY:-test} $(DOCKER_COMPOSE_TUTORIALS) run --rm --no-deps tutorials-jupyter \
-		python -m pytest seocho/tests/test_ontology_ttl.py -v
+		python -m pytest tests/seocho/test_ontology_ttl.py -v
 
 tutorials-test: ## Headless nbconvert run of every tutorial notebook (reads OPENAI_API_KEY from .env)
 	@$(DOCKER_COMPOSE_TUTORIALS) run --rm --no-deps tutorials-jupyter bash -lc '\

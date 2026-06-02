@@ -167,7 +167,7 @@ def _resolve_corpus() -> List[CorpusDocument]:
 
 
 # ---------------------------------------------------------------------------
-# Test scaffolding (mirrors the patterns in seocho/tests/test_ontology_context.py)
+# Test scaffolding (mirrors the patterns in tests/seocho/test_ontology_context.py)
 # ---------------------------------------------------------------------------
 
 

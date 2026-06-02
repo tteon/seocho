@@ -313,7 +313,7 @@ NEO4J_PASSWORD=... python -m scripts.eval.load_gopts_fibo_corpus
 **Run the live Layer-1 integration test**:
 
 ```bash
-NEO4J_PASSWORD=... pytest -m integration_gopts seocho/tests/integration/
+NEO4J_PASSWORD=... pytest -m integration_gopts tests/seocho/integration/
 ```
 
 The test session auto-loads the corpus on entry and tears it down on
@@ -342,7 +342,7 @@ on `FinancialMetric.name` (and similar metric subclasses). The Layer-1
 live runner filters out fixtures 05/06 (`finance_metric_lookup`,
 `finance_metric_delta`) because they need multi-year metric rows that
 the constraint forbids loading. Mock-oracle Layer-1
-(`pytest seocho/tests/test_gopts_ranking.py`) still covers them.
+(`pytest tests/seocho/test_gopts_ranking.py`) still covers them.
 
 ## 13. Read Next
 

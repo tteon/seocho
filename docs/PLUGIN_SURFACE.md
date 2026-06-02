@@ -30,7 +30,7 @@ count by source, close resources.
 - `LadybugGraphStore` — embedded LadybugDB, zero-config local use
 
 **Adding a backend:** subclass `GraphStore`, implement every abstract
-method, verify against `seocho/tests/test_ladybug_store.py`-style
+method, verify against `tests/seocho/test_ladybug_store.py`-style
 integration tests. The `GraphStore.ensure_constraints(ontology)` method
 is where your backend consumes the ontology; everything else is
 Cypher-shaped.
@@ -105,7 +105,7 @@ extensibility:
 2. Implement every abstract method. Raise `NotImplementedError` only
    where the abstract method explicitly permits it; otherwise provide
    a real implementation.
-3. Add integration tests under `seocho/tests/` that match the pattern
+3. Add integration tests under `tests/seocho/` that match the pattern
    of the existing backend tests.
 4. Update `seocho/__init__.py` module exports if you want the class
    importable from the top level.

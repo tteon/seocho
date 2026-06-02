@@ -5,7 +5,7 @@ each promise is enforced. This document is the user-facing contract for
 fine-grained SDK use — composing `Session`, individual tools, and stores
 without going through the HTTP runtime.
 
-This file pairs with `seocho/tests/test_user_facing_edge_cases.py`. Every
+This file pairs with `tests/seocho/test_user_facing_edge_cases.py`. Every
 ⚠️ row in the tables below has a corresponding test class that currently
 **characterizes the gap** and a `.beads` issue tracking the fix. When a
 fix lands, the matching test must be updated to assert the desired
@@ -111,13 +111,13 @@ its current behavior:
   is a single-tenant MVP. `workspace_id` is propagated and validated, but
   it is not a security boundary against malicious in-process callers.
 - 🚧 **Backwards compatibility on internal modules** (`seocho.agent.*`,
-  `seocho.query.*`, anything not re-exported from `seocho/__init__.py`).
+  `seocho.query.*`, anything not re-exported from `src/seocho/__init__.py`).
   Public surface is what `__init__` exposes.
 
 ## 4. Reading the test map
 
 Every ⚠️ entry above is enforced by a test in
-`seocho/tests/test_user_facing_edge_cases.py`. **Today, those tests pin
+`tests/seocho/test_user_facing_edge_cases.py`. **Today, those tests pin
 the buggy current behavior** so that drift is impossible — you cannot
 silently regress further. When a fix lands:
 
@@ -161,7 +161,7 @@ inspect dict markers.
 
 ## 6. Cross-references
 
-- Test file: `seocho/tests/test_user_facing_edge_cases.py`
+- Test file: `tests/seocho/test_user_facing_edge_cases.py`
 - CI wiring: `scripts/ci/run_basic_ci.sh`, `.github/workflows/ci-basic.yml`
 - Operating model: `docs/PHILOSOPHY.md`, `docs/ARCHITECTURE.md`
 - Related runtime contract: CLAUDE.md §6 (Runtime/API Guardrails)

@@ -7,7 +7,7 @@ hook so users can customize for their own deployment.
 This file pairs with:
 
 - `docs/SDK_CONTRACT.md` — what the SDK guarantees today vs. target
-- `seocho/tests/test_user_facing_edge_cases.py` — regression anchors
+- `tests/seocho/test_user_facing_edge_cases.py` — regression anchors
 - `CLAUDE.md` §6 / §8 / §9 — runtime, graph, and observability guardrails
 
 > **Status note (2026-05-01):** several middleware hooks below are
@@ -647,7 +647,7 @@ switches scope. Compacted history grows linearly but stays bounded by
 ## 7. Cross-references
 
 - SDK contract surface: `docs/SDK_CONTRACT.md`
-- Regression anchors: `seocho/tests/test_user_facing_edge_cases.py`
+- Regression anchors: `tests/seocho/test_user_facing_edge_cases.py`
 - Runtime guardrails: `CLAUDE.md` §6, §8, §9
 - Observability contract: `CLAUDE.md` §9, `docs/PHILOSOPHY.md`
 - Active gaps tracked in `.beads`:

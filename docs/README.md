@@ -23,6 +23,7 @@ now?
 | inspect files, artifacts, and traces | [FILES_AND_ARTIFACTS.md](FILES_AND_ARTIFACTS.md) |
 | understand the system design | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | understand the top-level repository layout | [REPOSITORY_LAYOUT.md](REPOSITORY_LAYOUT.md) |
+| review repository hierarchy cleanup priorities | [REPOSITORY_HIERARCHY_REVIEW.md](REPOSITORY_HIERARCHY_REVIEW.md) |
 | present SEOCHO to a technical audience | [presentations/SEOCHO_OVERVIEW_DEEP_DIVE.md](presentations/SEOCHO_OVERVIEW_DEEP_DIVE.md) |
 | measure behavior with FinDER and benchmark tracks | [BENCHMARKS.md](BENCHMARKS.md) |
 
@@ -94,6 +95,8 @@ Recommended onboarding order:
   contract
 - [REPOSITORY_LAYOUT.md](REPOSITORY_LAYOUT.md): root directory intent,
   canonical edit surfaces, and legacy/local-only paths
+- [REPOSITORY_HIERARCHY_REVIEW.md](REPOSITORY_HIERARCHY_REVIEW.md):
+  architecture review of repo hierarchy cleanup priorities and tradeoffs
 - [OPEN_SOURCE_PLAYBOOK.md](OPEN_SOURCE_PLAYBOOK.md): contributor onboarding
 - [decisions/DECISION_LOG.md](decisions/DECISION_LOG.md): architecture decision
   history

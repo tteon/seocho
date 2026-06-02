@@ -27,24 +27,24 @@ python3 -m py_compile \
   extraction/rule_constraints.py \
   extraction/vector_store.py \
   runtime/agent_state.py \
-  seocho/models.py \
-  seocho/client.py \
-  seocho/client_bundle.py \
-  seocho/client_remote.py \
-  seocho/local_engine.py \
-  seocho/events.py \
-  seocho/ontology_context.py \
-  seocho/api.py \
-  seocho/session.py \
-  seocho/__init__.py \
-  seocho/evaluation.py \
-  seocho/index/ingestion_facade.py \
-  seocho/query/query_proxy.py \
-  seocho/query/agent_factory.py \
-  seocho/tracing.py \
-  seocho/store/graph.py \
-  seocho/query/cypher_builder.py \
-  seocho/index/extraction_engine.py
+  src/seocho/models.py \
+  src/seocho/client.py \
+  src/seocho/client_bundle.py \
+  src/seocho/client_remote.py \
+  src/seocho/local_engine.py \
+  src/seocho/events.py \
+  src/seocho/ontology_context.py \
+  src/seocho/api.py \
+  src/seocho/session.py \
+  src/seocho/__init__.py \
+  src/seocho/evaluation.py \
+  src/seocho/index/ingestion_facade.py \
+  src/seocho/query/query_proxy.py \
+  src/seocho/query/agent_factory.py \
+  src/seocho/tracing.py \
+  src/seocho/store/graph.py \
+  src/seocho/query/cypher_builder.py \
+  src/seocho/index/extraction_engine.py
 
 uv run pytest \
   extraction/tests/test_runtime_package_aliases.py \
@@ -61,35 +61,36 @@ uv run pytest \
   extraction/tests/test_pipeline_canonical_engine.py \
   extraction/tests/test_api_endpoints.py \
   extraction/tests/test_sdk_client.py \
-  seocho/tests/test_client_boundaries.py \
-  seocho/tests/test_runtime_bundle.py \
-  seocho/tests/test_internal_design_seams.py \
-  seocho/tests/test_ontology_context.py \
-  seocho/tests/test_session_agent.py \
-  seocho/tests/test_user_facing_edge_cases.py \
-  seocho/tests/test_semantic_query_phase_a.py \
+  tests/seocho/test_client_boundaries.py \
+  tests/seocho/test_runtime_bundle.py \
+  tests/seocho/test_internal_design_seams.py \
+  tests/seocho/test_ontology_context.py \
+  tests/seocho/test_session_agent.py \
+  tests/seocho/test_user_facing_edge_cases.py \
+  tests/seocho/test_semantic_query_phase_a.py \
   extraction/tests/test_sdk_evaluation.py \
-  seocho/tests/test_agent_design.py \
-  seocho/tests/test_benchmarking.py \
-  seocho/tests/test_finder_benchmark_script.py \
-  seocho/tests/test_indexing_design.py \
-  seocho/tests/test_llm_backends.py \
-  seocho/tests/test_tracing.py \
-  seocho/tests/test_tracing_opik_regression.py \
-  seocho/tests/test_cypher_builder.py \
-  seocho/tests/test_cypher_builder_ontology_aware.py \
-  seocho/tests/test_extraction_engine.py \
-  seocho/tests/test_graph_ensure_database.py \
-  seocho/tests/test_finder_eval_helpers.py \
-  seocho/tests/test_finder_judge.py \
-  seocho/tests/test_ontology_extraction_firewall.py \
-  seocho/tests/test_ontology_lint.py \
-  seocho/tests/test_ontology_subclass_ttl.py \
-  seocho/tests/test_ontology_reasoner.py \
-  seocho/tests/test_ontology_iso704_cq.py \
+  tests/seocho/test_agent_design.py \
+  tests/seocho/test_benchmarking.py \
+  tests/seocho/test_finder_benchmark_script.py \
+  tests/seocho/test_indexing_design.py \
+  tests/seocho/test_llm_backends.py \
+  tests/seocho/test_tracing.py \
+  tests/seocho/test_tracing_opik_regression.py \
+  tests/seocho/test_cypher_builder.py \
+  tests/seocho/test_cypher_builder_ontology_aware.py \
+  tests/seocho/test_extraction_engine.py \
+  tests/seocho/test_graph_ensure_database.py \
+  tests/seocho/test_finder_eval_helpers.py \
+  tests/seocho/test_finder_judge.py \
+  tests/seocho/test_ontology_extraction_firewall.py \
+  tests/seocho/test_ontology_lint.py \
+  tests/seocho/test_ontology_subclass_ttl.py \
+  tests/seocho/test_ontology_reasoner.py \
+  tests/seocho/test_ontology_iso704_cq.py \
   -q
 
 git diff --check
 scripts/ci/check-runtime-shell-contract.sh
 bash scripts/ci/check-module-ownership-contract.sh
+scripts/ci/check-root-hierarchy-contract.sh
 scripts/pm/lint-agent-docs.sh

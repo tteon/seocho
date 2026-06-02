@@ -253,6 +253,7 @@ The returned plan explains:
 - whether SHACL validation should re-run
 - whether query/prompt caches should be invalidated
 - which labels, relationship types, or metadata fields changed
+- how evaluation summaries should be interpreted across the ontology revision
 
 Recommended interpretation:
 
@@ -283,6 +284,23 @@ the same `GovernanceValidationResult` shape as the Owlready2 inspection path:
 `available` tells you whether the optional dependency exists, `ok` tells you
 whether the candidate conforms, and `errors` carries the SHACL report when it
 does not.
+
+## Evaluation Contract
+
+Ontology versioning should be paired with evaluation, not reviewed by diff
+alone. When running `seocho.eval.BenchmarkRunner`, pass the active `ontology`
+so each JSONL span records:
+
+- ontology id, name, and version
+- context hash
+- schema fingerprint
+- semantic-version validity
+
+Then use `seocho.eval.compare_ontology_evaluation_runs(...)` to compare v1/v2
+benchmark summaries. The comparison bundles the ontology upgrade plan with
+metric deltas, so reviewers can see both the engineering requirement
+(`reindex_required`, `shacl_revalidation_required`, cache invalidation) and the
+observed quality/performance effect.
 
 Additional requirements with respect to definition development and supporting annotations include:
 

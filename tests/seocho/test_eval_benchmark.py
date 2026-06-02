@@ -20,7 +20,15 @@ def test_corpus_immutable_from_runner_view() -> None:
 
 
 def test_runner_emits_index_and_query_spans(tmp_path) -> None:
+    from seocho import NodeDef, Ontology, P
     from seocho.eval import BenchmarkCorpus, BenchmarkRunner
+
+    ontology = Ontology(
+        name="people",
+        package_id="people-core",
+        version="1.0.0",
+        nodes={"Person": NodeDef(properties={"name": P(str, unique=True)})},
+    )
 
     corpus = BenchmarkCorpus(
         name="smoke",
@@ -30,7 +38,8 @@ def test_runner_emits_index_and_query_spans(tmp_path) -> None:
     runner = BenchmarkRunner(
         config_label="cfg-a",
         workspace_id="ws-1",
-        ontology_identity_hash="h1",
+        ontology_identity_hash="",
+        ontology=ontology,
         user_id="alice",
         cache_prefix_hash="prefix-AAA",
         output_path=str(tmp_path / "spans.jsonl"),
@@ -45,6 +54,10 @@ def test_runner_emits_index_and_query_spans(tmp_path) -> None:
     spans = runner.run(corpus, index_fn=_index, query_fn=_query)
     assert len(spans) == 2
     assert spans[0].operation == "index"
+    assert spans[0].ontology_identity_hash
+    assert spans[0].ontology_identity["ontology_id"] == "people-core"
+    assert spans[0].ontology_identity["ontology_version"] == "1.0.0"
+    assert spans[0].ontology_identity["schema_fingerprint"]
     assert spans[1].operation == "query"
     assert spans[1].output_preview == "Tim Cook"
 
@@ -107,6 +120,7 @@ def test_compute_run_summary_groups_by_config_label() -> None:
     assert s["a"]["count"] == 2
     assert abs(s["a"]["degraded_rate"] - 0.5) < 1e-9
     assert s["a"]["total_prompt_tokens"] == 200
+    assert s["a"]["ontology_identities"] == []
     assert s["b"]["count"] == 1
     assert s["b"]["latency_mean"] == 0.5
 
@@ -150,3 +164,68 @@ def test_runner_handles_index_fn_exception(tmp_path) -> None:
     span = runner.spans[0]
     assert span.degraded is True
     assert span.fallback_from == "exception"
+
+
+def test_compute_run_summary_reports_ontology_identity() -> None:
+    from seocho import NodeDef, Ontology, P
+    from seocho.eval import BenchmarkCorpus, BenchmarkRunner, compute_run_summary
+
+    ontology = Ontology(
+        name="people",
+        package_id="people-core",
+        version="1.0.0",
+        nodes={"Person": NodeDef(properties={"name": P(str, unique=True)})},
+    )
+    runner = BenchmarkRunner(
+        config_label="ontology-v1",
+        workspace_id="ws",
+        ontology_identity_hash="",
+        ontology=ontology,
+    )
+    runner.run(
+        BenchmarkCorpus(name="c", documents=["Ada Lovelace"], queries=[]),
+        index_fn=lambda text: {"source_id": "src"},
+        query_fn=lambda question: "",
+    )
+
+    summary = compute_run_summary([span.to_dict() for span in runner.spans])
+
+    identities = summary["ontology-v1"]["ontology_identities"]
+    assert len(identities) == 1
+    assert identities[0]["ontology_id"] == "people-core"
+    assert identities[0]["ontology_version"] == "1.0.0"
+    assert identities[0]["schema_fingerprint"]
+
+
+def test_compare_ontology_evaluation_runs_includes_upgrade_plan_and_deltas() -> None:
+    from seocho import NodeDef, Ontology, P
+    from seocho.eval import compare_ontology_evaluation_runs
+
+    left = Ontology(
+        name="people",
+        package_id="people-core",
+        version="1.0.0",
+        nodes={"Person": NodeDef(properties={"name": P(str, unique=True)})},
+    )
+    right = Ontology(
+        name="people",
+        package_id="people-core",
+        version="1.1.0",
+        nodes={
+            "Person": NodeDef(properties={"name": P(str, unique=True)}),
+            "Company": NodeDef(properties={"name": P(str, unique=True)}),
+        },
+    )
+
+    comparison = compare_ontology_evaluation_runs(
+        left_ontology=left,
+        right_ontology=right,
+        left_summary={"cfg": {"latency_mean": 0.4, "degraded_rate": 0.2}},
+        right_summary={"cfg": {"latency_mean": 0.3, "degraded_rate": 0.0}},
+    )
+
+    assert comparison["schema_version"] == "ontology_evaluation_comparison.v1"
+    assert comparison["upgrade_plan"]["recommended_bump"] == "minor"
+    assert comparison["upgrade_plan"]["reindex_required"] is True
+    assert comparison["metric_deltas"]["cfg"]["latency_mean"]["delta"] == -0.1
+    assert comparison["metric_deltas"]["cfg"]["degraded_rate"]["delta"] == -0.2

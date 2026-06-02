@@ -16,6 +16,11 @@ tracked_existing_under() {
 }
 
 forbidden_tracked_paths=(
+  ".agents"
+  ".beads"
+  ".claude"
+  ".githooks"
+  "experiments/retrieval_comparison"
   "seocho"
   "dataset"
   "images"

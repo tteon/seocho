@@ -76,20 +76,9 @@ Contributor compliance checklist:
 
 ## 5. Work Intake and Tracking
 
-For maintainers and core contributors:
-
-```bash
-bd ready
-bd show <id>
-bd update <id> --status in_progress
-```
-
-For new items:
-
-```bash
-scripts/pm/new-issue.sh ...
-scripts/pm/new-task.sh ...
-```
+Use GitHub issues and pull requests for public work state. Local maintainer
+tools are fine for private coordination, but their state directories are not
+part of the public repository.
 
 Active work items must include collaboration labels:
 
@@ -98,8 +87,7 @@ Active work items must include collaboration labels:
 Validation commands:
 
 ```bash
-scripts/pm/lint-items.sh --sprint 2026-S03
-scripts/pm/sprint-board.sh --sprint 2026-S03
+bash scripts/ci/run_basic_ci.sh
 scripts/pm/lint-agent-docs.sh
 ```
 

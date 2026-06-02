@@ -40,7 +40,7 @@ Primary surfaces:
 - `runtime/policy.py`
 - `runtime/memory_service.py`
 - `docs/decisions/*`
-- `docs/BEADS_OPERATING_MODEL.md`
+- `docs/ISSUE_TASK_SYSTEM.md`
 
 ## Data Plane
 
@@ -67,21 +67,19 @@ Primary surfaces:
 
 ## 4.1 Start
 
-1. inspect active work: `bd ready`
-2. open issue: `bd show <id>`
-3. claim: `bd update <id> --status in_progress`
-4. if creating new work, use standardized scripts:
-   - `scripts/pm/new-issue.sh`
-   - `scripts/pm/new-task.sh`
-5. if the change touches a shared seam, claim it in Gastown using the registry
-   in `.agents/gastown/shared-seams.yaml`
+1. inspect the current GitHub issue, PR, or maintainer-provided work item
+2. keep scope tight to that request
+3. if creating new public work, use GitHub issues or the maintainer-designated
+   tracker
+4. if using local agent coordination tools, keep their state in the local
+   workspace; do not commit `.beads/`, `.agents/`, `.claude/`, or similar
+   private tool directories
 
 Tracking and notes split:
 
-- `.beads` is the canonical tracker for code-task progress, status changes,
-  blockers, and landing state
-- Gastown is the coordination plane for write-scope reservations only; it is
-  not the planning source of truth
+- public GitHub issues and PRs are the canonical public review trail
+- local agent trackers may help coordination, but are not part of the tracked
+  public repository contract
 - `/home/hadry/my_local_work/obsidian/seocho` is the default home for internal
   design notes, failure analysis, experiment logs, and feature ideation
 - repo docs should stay reserved for contracts and instructions that must ship
@@ -104,11 +102,9 @@ Tracking and notes split:
 2. run sprint lint when applicable:
    - `scripts/pm/lint-items.sh --sprint <id>`
 3. close or handoff issue
-4. release or hand off any active Gastown reservation
-5. `git pull --rebase`
-6. `bd bootstrap` (best effort; safe when the workspace DB is already present)
-7. `git push`
-8. `git status` must show up-to-date with `origin/main`
+4. `git pull --rebase`
+5. `git push`
+6. `git status` must show up-to-date with `origin/main`
 
 Push target is always `main`.
 
@@ -125,13 +121,6 @@ For active work items (`open`, `in_progress`, `blocked`), collaboration labels a
 - `roadmap-*`
 - `area-*`
 - `kind-*`
-
-Sprint commands:
-
-```bash
-scripts/pm/sprint-board.sh --sprint 2026-S03
-scripts/pm/lint-items.sh --sprint 2026-S03
-```
 
 See `docs/ISSUE_TASK_SYSTEM.md` for full policy.
 
@@ -303,13 +292,13 @@ Do not treat repo docs as the default notebook for implementation thinking.
 | Layer | Location | Role | Authority |
 |-------|----------|------|-----------|
 | `docs/` | in repo | **Contract** (what IS) | external users, contributors |
-| `.beads` | in repo | **Execution** (what/when) | task state, dependencies |
+| GitHub issues/PRs | public project | **Execution** (what/when) | public task state, review trail |
 | Obsidian | `/home/hadry/my_local_work/obsidian/seocho` | **Interpretation** (why/how) | design thinking, trade-offs, open questions |
 
 Rules:
 - Obsidian wiki (`wiki/topics/`) **interprets** `docs/` decisions — never duplicates them.
   Link to ADRs by path; write only the reasoning, background, and open questions that `docs/` doesn't carry.
-- `.beads` is the source of truth for task progress — never track task status in Obsidian.
+- public GitHub issues and PRs are the source of truth for public task progress.
 - `docs/` is the source of truth for architecture and API contracts — never contradict it from Obsidian.
 - When finishing a work session, update relevant Obsidian `wiki/topics/*.md` pages
   with new insights or state changes. Keep `[[wikilinks]]` between topics current.
@@ -326,7 +315,7 @@ SDK + agent defaults across:
 - middleware-aware design — ordered chain (Validation → Policy → Cache → Budget → Retry → Observability)
 - agent system-prompt discipline — output envelope, cache-friendly ordering, tool-use parallelism, no-fabrication, refusal contract
 
-Every rule is structured as **Default → Why → Override** so users can recognize the baseline and customize without monkeypatching. Sections marked 🚧 describe target architecture not yet landed; cross-linked to `.beads` issues.
+Every rule is structured as **Default → Why → Override** so users can recognize the baseline and customize without monkeypatching. Sections marked 🚧 describe target architecture not yet landed; cross-link them to public issues or PRs.
 
 Pairs with `docs/SDK_CONTRACT.md` (current vs. target SDK guarantees) and `tests/seocho/test_user_facing_edge_cases.py` (regression anchors).
 

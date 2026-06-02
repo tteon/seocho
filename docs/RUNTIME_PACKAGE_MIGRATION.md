@@ -144,7 +144,7 @@ At this point, `extraction/` should either:
 
 - document import migrations
 - emit deprecation warnings where appropriate
-- close shim-removal tasks in `.beads`
+- close the linked public shim-removal issues or PR follow-ups
 - remove `extraction/` wrappers only after downstream imports are updated
 
 ## Merge Gates

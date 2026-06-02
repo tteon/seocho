@@ -15,7 +15,7 @@ This file pairs with:
 > marked 🚧. Today, SEOCHO has a primitive in-process system-prompt
 > cache (`seocho/query/strategy.py`) and no formal middleware chain.
 > This document is the design contract that future work should land
-> against. See open issues in `.beads` (filter `area-sdk`).
+> against. Track follow-up implementation gaps in public issues or PRs.
 
 ## 0. How to read this document
 
@@ -650,7 +650,7 @@ switches scope. Compacted history grows linearly but stays bounded by
 - Regression anchors: `tests/seocho/test_user_facing_edge_cases.py`
 - Runtime guardrails: `CLAUDE.md` §6, §8, §9
 - Observability contract: `CLAUDE.md` §9, `docs/PHILOSOPHY.md`
-- Active gaps tracked in `.beads`:
+- Active gap identifiers:
   - `seocho-1zck` (silent fallback) — robustness §1.1
   - `seocho-vncn` (cache cross-DB) — scalability §3.3
   - `seocho-8k1h` (Opik silent init) — robustness §1.1

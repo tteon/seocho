@@ -120,7 +120,8 @@ Recommended usage:
 - public API behavior goes in `GRAPH_MEMORY_API.md`
 - implementation guardrails go in `AGENT_DEVELOPMENT.md`
 - code and test conventions go in `CODING_STYLE.md`
-- repo gaps or blocked decisions should become follow-up work items in `.beads`
+- repo gaps or blocked decisions should become public follow-up issues or PR
+  notes
 
 ## 3. Minimum Completion Standard Before Development
 
@@ -165,7 +166,8 @@ Once the developer fills the docs:
 
 1. agent reads `README.md`, `CLAUDE.md`, `docs/WORKFLOW.md`, `docs/ISSUE_TASK_SYSTEM.md`, and `docs/decisions/DECISION_LOG.md`
 2. agent reads the filled product/API/style docs
-3. agent opens or picks a `.beads` task
+3. agent opens or picks the relevant public issue, PR, or maintainer-provided
+   work item
 4. agent restates the implementation contract from `DEV-*` lines
 5. agent implements only within that contract
 6. agent updates tests and docs

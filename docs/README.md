@@ -91,8 +91,6 @@ Recommended onboarding order:
 ## Contributor References
 
 - [ISSUE_TASK_SYSTEM.md](ISSUE_TASK_SYSTEM.md): sprint and task governance
-- [BEADS_OPERATING_MODEL.md](BEADS_OPERATING_MODEL.md): `.beads` execution
-  contract
 - [REPOSITORY_LAYOUT.md](REPOSITORY_LAYOUT.md): root directory intent,
   canonical edit surfaces, and legacy/local-only paths
 - [REPOSITORY_HIERARCHY_REVIEW.md](REPOSITORY_HIERARCHY_REVIEW.md):

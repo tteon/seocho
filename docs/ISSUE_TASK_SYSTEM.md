@@ -1,119 +1,63 @@
-# Issue & Task System (Sprint + Roadmap)
+# Issue & Task System
 
-## 1. Objective
+SEOCHO uses public GitHub issues and pull requests as the canonical public
+planning and review trail. Local agent trackers can be useful for maintainers,
+but their state directories are private workspace data and must not be tracked
+in this repository.
 
-Store every issue/task in a collaboration-ready format so triage, sprint planning,
-and roadmap execution are consistent.
+## Work Item Types
 
-## 2. Work Item Types
+- `issue`: defect, regression, outage, user-facing gap, or open decision
+- `task`: implementation unit, refactor, integration, documentation, or CI work
 
-- `issue` (created as `bd` type `bug`): incident, defect, outage, regression
-- `task` (created as `bd` type `task`): implementation unit, refactor, integration, docs
+Every active public item should carry enough metadata for a reviewer to
+understand priority without opening private tooling:
 
-Both must carry:
+- severity: `critical`, `high`, `medium`, or `low`
+- impact: `critical`, `high`, `medium`, or `low`
+- urgency: `now`, `this_sprint`, `next_sprint`, or `later`
+- area: `sdk`, `runtime`, `ontology`, `docs`, `infra`, `examples`, or another
+  explicit ownership area
+- kind: `bug`, `task`, `refactor`, `docs`, `ci`, or `feature`
 
-- priority (`P0`..`P4`)
-- severity
-- impact
-- urgency
-- sprint
-- roadmap
-- area
+## Pull Request Contract
 
-`.beads` is the canonical planning and state system. Use Gastown only for
-cross-agent coordination on shared write scopes.
+Each PR should state:
 
-## 3. Required Label Taxonomy
+- Feature: what changed
+- Why: why the change belongs in this public middleware repo
+- Design: the important implementation choice
+- Expected Effect: what improves for users or maintainers
+- Validation: exact commands run
+- Risks: known gaps or follow-up work
 
-Every active item (`open`, `in_progress`, `blocked`) must include:
+Scheduled automation uses the same review envelope and must remain draft-only
+until a maintainer explicitly promotes it.
 
-- `sev-*` : `sev-critical|sev-high|sev-medium|sev-low`
-- `impact-*` : `impact-critical|impact-high|impact-medium|impact-low`
-- `urgency-*` : `urgency-now|urgency-this_sprint|urgency-next_sprint|urgency-later`
-- `sprint-*` : example `sprint-2026-s03`
-- `roadmap-*` : example `roadmap-graph-modeling`
-- `area-*` : example `area-frontend|area-backend|area-data|area-infra`
-- `kind-*` : `kind-issue|kind-task`
+## Local Tooling Boundary
 
-## 4. Priority Guidance
+Do not commit local workflow directories such as:
 
-- `P0`: immediate business/system risk, blocks delivery
-- `P1`: high urgency, must be done in current sprint
-- `P2`: normal planned execution
-- `P3`: low urgency / can slip
-- `P4`: backlog / speculative
+- `.agents/`
+- `.beads/`
+- `.claude/`
+- `.githooks/`
+- `.jules/`
+- `.serena/`
 
-## 5. Scripts
+If a local tool produces a durable decision, copy the durable decision into a
+public issue, PR body, ADR, or `docs/*` contract instead of committing the tool
+state itself.
 
-Create issue:
+## Sprint Cadence
 
-```bash
-scripts/pm/new-issue.sh \
-  --title "Rules export fails on malformed profile" \
-  --summary "500 returned when rule_profile payload is missing rules array" \
-  --severity high \
-  --impact high \
-  --urgency this_sprint \
-  --sprint 2026-S03 \
-  --roadmap platform-workflow \
-  --area backend \
-  --priority P1
-```
+1. Select public issues or tasks for the sprint.
+2. Ensure each selected item has severity, impact, urgency, area, and kind.
+3. Execute through PRs with explicit validation.
+4. Close or re-scope unfinished work publicly; do not hide follow-up state in
+   local agent databases.
 
-Create task:
+## Roadmap Linking Rule
 
-```bash
-scripts/pm/new-task.sh \
-  --title "Add validation error contract for /rules/export/cypher" \
-  --goal "Return structured 400 with actionable details for bad profile payload" \
-  --severity medium \
-  --impact medium \
-  --urgency this_sprint \
-  --sprint 2026-S03 \
-  --roadmap platform-workflow \
-  --area backend \
-  --priority P2
-```
-
-Sprint board:
-
-```bash
-scripts/pm/sprint-board.sh --sprint 2026-S03
-```
-
-Lint active work items for required collaboration labels:
-
-```bash
-scripts/pm/lint-items.sh
-scripts/pm/lint-agent-docs.sh
-```
-
-## 6. Sprint Cadence
-
-1. Plan sprint backlog from roadmap slices.
-2. Ensure each selected item has full label taxonomy.
-3. Execute with daily board check:
-   - blocked items
-   - P0/P1 open items
-   - roadmap distribution in sprint
-4. Close sprint:
-   - close or re-sprint unfinished work with updated urgency
-   - carry risks as new items, not hidden notes
-
-## 6.5 Shared-Seam Coordination
-
-When multiple agents are active:
-
-1. create or claim the `bd` item first
-2. if the change touches a shared seam, reserve that seam in Gastown
-3. include the `bd` id, branch/worktree, write scope, and TTL in the reservation
-4. release or hand off the reservation when landing or pausing work
-
-Use `.agents/gastown/shared-seams.yaml` and `docs/GASTOWN_COORDINATION.md` as
-the coordination contract. Do not duplicate roadmap, sprint, or priority logic
-in Gastown.
-
-## 7. Roadmap Linking Rule
-
-Each item must map to exactly one primary roadmap label (`roadmap-*`).
-If work spans multiple tracks, split into separate child tasks under one parent.
+Each item should map to one primary roadmap label or milestone. If work spans
+multiple tracks, split it into separate items so reviews stay bounded.

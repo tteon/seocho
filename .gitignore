@@ -124,14 +124,14 @@ deacon/
 dolt/
 runs/
 
-# Local AI tool overlays — personal/private state only
-# (Shared .claude/settings.json + .claude/skills/ + .claude/hooks/ ARE tracked.)
-.claude/settings.local.json
+# Local AI/agent tool overlays — personal/private state only.
+# Public middleware code should not track editor/agent state directories.
+.agents/
+.beads/
+.claude/
+.githooks/
 .jules/
 .serena/
-
-# .beads backup snapshots (the .beads DB itself is tracked, backups are not)
-.beads/backup/
 
 # Empty placeholders
 examples/untitled.txt

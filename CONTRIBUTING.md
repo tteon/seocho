@@ -1,125 +1,101 @@
 # Contributing to SEOCHO
 
-Welcome. This guide gets you from zero to your first PR.
+Thanks for considering a contribution. SEOCHO is ontology-aligned middleware for
+agents and graph databases, so the most useful PRs keep SDK behavior, runtime
+policy, examples, and docs aligned around that contract.
 
-## Quick Setup
+## Start Here
+
+1. Read `README.md` and `QUICKSTART.md` to understand the public user path.
+2. Read `docs/REPOSITORY_LAYOUT.md` before adding or moving files.
+3. Read `docs/MODULE_OWNERSHIP_MAP.md` before changing SDK/runtime behavior.
+4. For larger changes, check `docs/WORKFLOW.md` and the relevant ADRs under
+   `docs/decisions/`.
+
+Coding agents should also follow `AGENTS.md`.
+
+## Local Setup
 
 ```bash
 git clone git@github.com:tteon/seocho.git
 cd seocho
 pip install -e ".[dev]"
-python -m pytest tests/seocho/ -q   # SDK tests
+python -m pytest tests/seocho/ -q
 ```
 
-## Where to Look
-
-The SDK is split into three domain packages. **The directory name tells you what it does.**
-
-```
-seocho/                     ← Canonical domain engine (pip install seocho)
-├── index/              ← Data Plane: putting data IN
-│   ├── pipeline.py     ← chunk → extract → validate → rule inference → write
-│   ├── linker.py       ← embedding-based entity relatedness (canonical)
-│   └── file_reader.py  ← read .txt/.csv/.json/.jsonl files
-│
-├── query/              ← Control Plane: getting data OUT
-│   └── strategy.py     ← ontology → LLM prompt generation (cached)
-│
-├── store/              ← Storage backends
-│   ├── graph.py        ← Neo4j/DozerDB (write + query + schema cache)
-│   ├── vector.py       ← FAISS / LanceDB
-│   └── llm.py          ← OpenAI, DeepSeek, Kimi, Grok
-│
-├── rules.py            ← SHACL-like rule inference + validation (canonical)
-├── ontology.py         ← Schema definition (shared across all planes)
-├── client.py           ← Seocho class (unified interface)
-├── models.py           ← Shared response types
-└── tests/              ← SDK test suite
-
-extraction/                 ← HTTP transport layer (server-only)
-├── agent_server.py     ← FastAPI endpoints
-├── rule_constraints.py ← re-export shim → seocho.rules
-├── vector_store.py     ← adapter shim → seocho.store.vector
-└── runtime_ingest.py   ← server ingest (converging toward seocho.index)
-```
-
-### I want to...
-
-| Goal | Start here |
-|------|-----------|
-| Improve entity extraction quality | `seocho/index/pipeline.py` |
-| Add a new file format (e.g. PDF) | `seocho/index/file_reader.py` |
-| Improve Cypher generation | `seocho/query/strategy.py` |
-| Add a new graph database backend | `seocho/store/graph.py` |
-| Add a new LLM provider | `seocho/store/llm.py` |
-| Extend ontology features | `seocho/ontology.py` |
-| Fix a bug in the HTTP client | `seocho/client.py` |
-
-Looking for a concrete place to contribute? Pick a usecase and add a starter
-ontology or sample docs alongside it: [`docs/USECASES.md`](docs/USECASES.md).
-
-## Running Tests
+The canonical CI command is:
 
 ```bash
-# SDK tests (fast, no external dependencies)
-python -m pytest tests/seocho/ -v
-
-# Server-side tests (need extraction/ dependencies)
-python -m pytest extraction/tests/ -v
+bash scripts/ci/run_basic_ci.sh
 ```
 
-## Commit Conventions
+Use focused tests while developing, then run the broader check before opening a
+PR when you changed SDK, runtime, CI, packaging, or shared docs contracts.
 
-We use strict semantic versioning prefixes:
+## Where To Make Changes
 
-| Prefix | When |
-|--------|------|
-| `feat:` | New feature or significant addition |
-| `fix:` | Bug fix |
-| `refactor:` | Code restructuring, no behavior change |
-| `docs:` | Documentation only |
-| `test:` | Adding or updating tests |
-| `chore:` | Tooling, deps, config |
+| Goal | Start here |
+|---|---|
+| Public SDK facade or client behavior | `src/seocho/client.py`, `src/seocho/session.py`, `src/seocho/models.py` |
+| Local indexing or graph shaping | `src/seocho/index/`, `src/seocho/rules.py` |
+| Query, retrieval, Cypher, or answer synthesis | `src/seocho/query/`, `src/seocho/prompt_strategy.py` |
+| Ontology model or offline governance | `src/seocho/ontology*.py`, `docs/ontology/` |
+| Runtime API, memory service, or policy checks | `runtime/` |
+| Legacy extraction compatibility | `extraction/` |
+| Examples, tutorials, or sample data | `examples/` |
+| Public docs | `README.md`, `QUICKSTART.md`, `docs/`, `website/` |
+| GitHub Actions or repository automation | `.github/workflows/`, `scripts/ci/` |
 
-Example: `feat: add PDF support to file indexer`
+New canonical engine logic should usually land under `src/seocho/`. Treat
+`extraction/` as active compatibility and batch-service surface, not the first
+home for new product behavior.
 
-## PR Process
+## Repository Hygiene
 
-1. Fork the repo
-2. Create a feature branch: `git checkout -b feat/my-feature`
-3. Make your changes
-4. Run tests: `python -m pytest tests/seocho/ -q`
-5. Commit with conventional prefix
-6. Push and open a PR against `main`
+- Do not add root-level product folders without updating
+  `docs/REPOSITORY_LAYOUT.md`.
+- Do not commit generated data, benchmark results, credentials, or local tool
+  state.
+- Keep local overlays such as `.agents/`, `.beads/`, `.claude/`, `.jules/`,
+  `.serena/`, `.seocho/`, `data/`, `logs/`, and `outputs/` out of Git.
+- Put reusable automation in `scripts/`, not inline workflow-only scripts.
 
-PRs are reviewed by Claude (automated weekly) and maintainers.
+## Pull Requests
 
-## Architecture
+1. Open an issue or explain the problem clearly in the PR.
+2. Keep the PR focused on one behavior change, refactor, or docs improvement.
+3. Add or update tests for changed behavior.
+4. Run relevant validation and include exact commands in the PR body.
+5. Update user-facing docs when public behavior changes.
+6. Use a conventional commit prefix such as `feat:`, `fix:`, `docs:`,
+   `refactor:`, `test:`, or `chore:`.
 
-Two planes, one ontology:
+Maintainers make final merge decisions. Automated checks and coding-agent
+reviews are supporting signals, not a replacement for human review.
 
-```
-                    Ontology (seocho/ontology.py)
-                         │
-              ┌──────────┴──────────┐
-              ▼                     ▼
-         Data Plane            Control Plane
-        (seocho/index/)       (seocho/query/)
-              │                     │
-              ▼                     ▼
-         seocho/store/         seocho/store/
-        (graph write)          (graph query)
-```
+## Automation And AI-Assisted Work
 
-- **Data Plane**: file reading → chunking → LLM extraction → SHACL validation → entity dedup → graph write
-- **Control Plane**: prompt strategy → Cypher generation → answer synthesis → reasoning repair
-- **Ontology**: shared — drives extraction prompts AND query prompts
+SEOCHO uses GitHub Actions for CI, docs checks, docs deploy, and narrow
+maintainer automation. The public automation map is `.github/README.md`.
 
-## Key Design Decisions
+Scheduled Codex workflows may open draft maintenance PRs. They must stay
+bounded, test-backed, and draft-only until a maintainer promotes them. External
+AI-assisted contributions are welcome when the author understands the change,
+keeps scope tight, and provides real validation evidence.
 
-- JSON-LD is the canonical ontology storage format
-- SHACL shapes are derived (never hand-written)
-- Denormalization safety is determined by relationship cardinality
-- `seocho/ontology.py` is the single source of truth (extraction/ uses a bridge)
+Comment-based merge is maintainer-only and intentionally narrow: the command is
+exactly `/go`, the PR must be clean and non-draft, and the merge is squash.
 
-See `docs/decisions/DECISION_LOG.md` for all ADRs.
+## Architecture Summary
+
+SEOCHO has two primary planes sharing one ontology:
+
+- Data plane: `src/seocho/index/` ingests files, shapes graph payloads, and
+  applies rule/validation logic.
+- Control plane: `src/seocho/query/` turns ontology context into Cypher,
+  evidence, and answers.
+- Runtime shell: `runtime/` exposes policy-checked API behavior and preserves
+  `workspace_id`.
+
+For deeper context, read `docs/ARCHITECTURE.md`,
+`docs/MODULE_OWNERSHIP_MAP.md`, and `docs/GRAPH_RAG_AGENT_HANDOFF_SPEC.md`.

@@ -1,55 +1,55 @@
-# GitHub Automation
+# Repository Automation
 
-This directory owns repository-hosted GitHub workflows and Codex automation
-prompts. Keep product documentation in `docs/` or `website/`; keep reusable
-local automation in `scripts/`.
+This directory contains GitHub-hosted automation for SEOCHO. Most contributors
+do not need to edit it.
 
-## Layout
+Start with the public contributor docs instead:
 
-| Path | Role |
+- `CONTRIBUTING.md` for the normal PR workflow
+- `AGENTS.md` for coding-agent guidance
+- `docs/WORKFLOW.md` for maintainer workflow details
+- `docs/REPOSITORY_LAYOUT.md` for where new code should live
+
+## What Belongs Here
+
+| Path | Purpose |
 |---|---|
-| `workflows/ci-basic.yml` | Required Python/runtime/SDK quality gate. Runs `bash scripts/ci/run_basic_ci.sh`. |
-| `workflows/docs-consistency.yml` | Verifies the repo-side docs contract with `bash scripts/ci/check-doc-contracts.sh`. |
-| `workflows/docs-site-quality.yml` | Checks and builds the tracked Astro/Starlight site under `website/`. |
-| `workflows/docs-site-deploy.yml` | Deploys `seocho.blog` through GitHub Pages when Pages is enabled. |
-| `workflows/daily-codex-maintenance.yml` | Runs one small scheduled maintenance pass and opens or updates a draft PR. |
-| `workflows/periodic-codex-review.yml` | Runs one broader but still bounded repository review pass and opens or updates a draft PR. |
-| `workflows/pr-comment-merge.yml` | Lets maintainers squash-merge a clean, non-draft PR with the exact `/go` comment. |
-| `codex/prompts/daily-maintenance-pr.md` | Prompt contract for the daily Codex maintenance lane. |
-| `codex/prompts/periodic-review-pr.md` | Prompt contract for the periodic Codex review lane. |
+| `workflows/` | GitHub Actions workflows that run CI, docs checks, docs deploy, and maintainer automation. |
+| `codex/prompts/` | Prompt contracts used by scheduled Codex maintenance workflows. |
 
-## Automation Lanes
+Reusable shell or Python logic belongs in `scripts/`, then workflows can call
+it. Product documentation belongs in `README.md`, `docs/`, or `website/`.
 
-| Lane | Branch | PR title | Validation |
-|---|---|---|---|
-| Daily maintenance | `codex/daily-maintenance` | `chore: codex daily maintenance` | `bash scripts/ci/run_basic_ci.sh` |
-| Periodic review | `codex/periodic-review` | `refactor: codex periodic review` | `bash scripts/ci/run_basic_ci.sh` |
+## Contributor-Facing Checks
 
-Both Codex lanes must produce draft PRs only, choose one cohesive change, and
-include the PR body sections enforced by `scripts/ci/validate_pr_body.sh`:
-`Feature`, `Why`, `Design`, `Expected Effect`, `Impact Results`,
-`Validation`, and `Risks`.
+| Workflow | Local equivalent | Purpose |
+|---|---|---|
+| `workflows/ci-basic.yml` | `bash scripts/ci/run_basic_ci.sh` | Required SDK/runtime quality gate. |
+| `workflows/docs-consistency.yml` | `bash scripts/ci/check-doc-contracts.sh` | Checks repo-side docs contracts. |
+| `workflows/docs-site-quality.yml` | `cd website && npm run build` plus site checks | Validates the tracked docs site. |
 
-Scheduled Codex workflows skip cleanly when any required secret is missing:
-`OPENAI_API_KEY`, `SEOCHO_GITHUB_APP_ID`, or
-`SEOCHO_GITHUB_APP_PRIVATE_KEY`.
+If a PR fails here, prefer fixing the source code, docs, or reusable scripts
+that the workflow calls instead of patching workflow YAML first.
 
-## Merge Rule
+## Maintainer Automation
 
-The comment-based merge workflow is intentionally narrow:
+SEOCHO also has narrow maintainer-only automation:
 
-- trigger comment must be exactly `/go`
-- commenter must have `write`, `maintain`, or `admin` permission
-- PR must be open, non-draft, and have merge state `CLEAN`
-- merge method is squash, with branch deletion enabled
+- scheduled Codex maintenance and review workflows open draft PRs only
+- comment-based merge accepts only the exact `/go` command from maintainers with
+  write-or-higher permission
+- docs deployment runs through GitHub Pages when Pages is enabled
+
+Detailed schedules, required secrets, PR body contracts, and merge safeguards
+are documented in `docs/WORKFLOW.md`.
 
 ## Placement Rules
 
-- Add new CI or repository automation workflows under `workflows/`.
+- Add new GitHub Actions workflows under `workflows/`.
 - Add Codex prompt contracts under `codex/prompts/`.
-- Put reusable shell/Python helpers in `scripts/ci/` or another appropriate
-  `scripts/` subdirectory, then call them from workflows.
-- Do not store generated docs-site output, credentials, local state, or
-  personal tool configuration under `.github/`.
-- Keep public root hierarchy changes covered by
+- Put reusable automation helpers under `scripts/ci/` or another appropriate
+  `scripts/` subdirectory.
+- Do not store generated output, credentials, local state, or personal tool
+  configuration under `.github/`.
+- Keep root hierarchy changes covered by
   `scripts/ci/check-root-hierarchy-contract.sh`.

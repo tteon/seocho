@@ -85,6 +85,21 @@ The shared lesson is that agent-facing docs should be operational, not
 narrative: what this repo is, where to edit, what not to touch, and which checks
 prove the work.
 
+## Open-Source Automation Surface Comparison
+
+Three mature open-source repositories informed the `.github/` reshape:
+
+| Repository | Observed pattern | SEOCHO adjustment |
+|---|---|---|
+| `openai/openai-agents-python` | Product and contributor guidance stay in root docs; `.github` contains templates, scripts, and workflows rather than a second contributor guide. | Keep `.github/README.md` short and point contributors back to `CONTRIBUTING.md`, `AGENTS.md`, and `docs/WORKFLOW.md`. |
+| `langchain-ai/langgraph` | `.github` is mostly executable configuration; contributor expectations and package orientation live in external/root contributor docs. | Keep automation implementation details out of the first contributor path; keep module orientation in `docs/MODULE_OWNERSHIP_MAP.md`. |
+| `pallets/flask` / `fastapi/fastapi` | Mature Python projects use `.github` for issue/PR templates and workflows; contribution process lives in public docs. | Treat `.github/README.md` as a maintainer automation inventory, not as onboarding. Explain CI and AI-assisted contribution expectations in `CONTRIBUTING.md`. |
+
+SEOCHO differs from these projects because it has scheduled Codex draft-PR
+workflows and a comment-triggered merge path. Those are public trust surfaces,
+so they deserve a short visible explanation. They should not dominate the
+repository's open-source entry points.
+
 Adopted patterns in this repository:
 
 - Keep one primary root agent guide, `AGENTS.md`, with read order, module map,
@@ -95,7 +110,8 @@ Adopted patterns in this repository:
   behavior, runtime policy, extraction compatibility, examples, and generated
   local state before editing.
 - Treat private agent/tool state as local implementation detail; only `.github/`
-  remains a tracked public automation surface.
+  remains a tracked public automation surface, and its README stays a compact
+  automation map.
 
 ## Problems And Improvements
 

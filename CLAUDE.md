@@ -53,9 +53,9 @@ Responsibilities:
 
 Primary surfaces:
 
-- `seocho/rules.py` — canonical rule inference/validation (shared by SDK + server)
-- `seocho/index/pipeline.py` — canonical indexing pipeline (rule + embedding support)
-- `seocho/index/linker.py` — canonical embedding-based entity linker
+- `src/seocho/rules.py` — canonical rule inference/validation (shared by SDK + server)
+- `src/seocho/index/pipeline.py` — canonical indexing pipeline (rule + embedding support)
+- `src/seocho/index/linker.py` — canonical embedding-based entity linker
 - `extraction/pipeline.py` — legacy batch pipeline
 - `extraction/rule_constraints.py` — re-export shim to `seocho.rules`
 - `extraction/rule_api.py` — HTTP endpoints for rule operations
@@ -328,7 +328,7 @@ SDK + agent defaults across:
 
 Every rule is structured as **Default → Why → Override** so users can recognize the baseline and customize without monkeypatching. Sections marked 🚧 describe target architecture not yet landed; cross-linked to `.beads` issues.
 
-Pairs with `docs/SDK_CONTRACT.md` (current vs. target SDK guarantees) and `seocho/tests/test_user_facing_edge_cases.py` (regression anchors).
+Pairs with `docs/SDK_CONTRACT.md` (current vs. target SDK guarantees) and `tests/seocho/test_user_facing_edge_cases.py` (regression anchors).
 
 ## 19. Active Experiment: Vector vs. Graph Retrieval on FinDER (2026-05-30)
 
@@ -446,7 +446,7 @@ the pipeline with a query router classifying each query **fact-based** vs
 **reasoning-based** (single-lookup vs multi-source/multi-step), filter first, then
 do query understanding. Version that classifier as a `prompt:` if used.
 
-FIBO grounding/conventions: `ontology/ONTOLOGY_GUIDE.md` (EDM Council best
+FIBO grounding/conventions: `docs/ontology/ONTOLOGY_GUIDE.md` (EDM Council best
 practices — IRI/label/definition conventions, polyhierarchy, OWL 2 DL
 consistency). Keep any new/edited module YAML consistent with these conventions.
 Owlready2 reasoning stays in the **offline** path only (CLAUDE.md §6.3) — never
@@ -458,9 +458,9 @@ all arms; the ontology sweep is the point, not an afterthought.
 
 ### Dataset
 
-- File: `dataset/all_slices.csv` — **910 rows**, columns:
+- File: `examples/datasets/finder/all_slices.csv` — **910 rows**, columns:
   `slice, _id, category, type, reasoning, n_refs, query_words, query, answer, references_joined`
-- Context/derivation: `dataset/manifest.json` (source = FinDER train parquet,
+- Context/derivation: `examples/datasets/finder/manifest.json` (source = FinDER train parquet,
   5703 rows; sampled with `seed=42`; categories: Financials, Company overview,
   Footnotes).
 - `query` = the question, `answer` = gold answer, `references_joined` = the gold
@@ -517,7 +517,7 @@ Keep node properties minimal and reliably-fillable. Measured fill-rates drove th
 This is a measurement, not a narrative. Hold to these or the comparison is void:
 
 1. **Data-grounded only.** Every reported number traces to a row in
-   `dataset/all_slices.csv` and a run artifact. Never state a win/loss from
+   `examples/datasets/finder/all_slices.csv` and a run artifact. Never state a win/loss from
    intuition, from the manifest's *hypothesis*, or from a partial run. The
    manifest's "graph wins"/"vector wins" notes are **hypotheses to test, not
    findings to confirm**.

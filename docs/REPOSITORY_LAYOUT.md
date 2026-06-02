@@ -11,7 +11,7 @@ should actually go.
 
 | Path | Role | Notes |
 |---|---|---|
-| `seocho/` | Canonical SDK engine | Primary owner for indexing, query, ontology, and client engine logic. |
+| `src/seocho/` | Canonical SDK engine | Distributable Python package; primary owner for indexing, query, ontology, and client engine logic. |
 | `runtime/` | Canonical deployment shell | Active runtime package for server composition and policy-facing runtime wiring. |
 | `extraction/` | Extraction + compatibility layer | Still active, but many modules are staged shims during the `extraction/` -> `runtime/` migration. |
 | `evaluation/` | Platform UI/backend | Static UI plus proxy/backend for the local platform path. |
@@ -25,6 +25,7 @@ These directories are intentional and remain part of the tracked repo contract.
 
 | Path | Role |
 |---|---|
+| `.github/` | GitHub Actions workflows and Codex automation prompt contracts |
 | `.agents/` | Codex skills and Gastown shared-seam registry |
 | `.beads/` | Canonical task/status tracker metadata |
 | `.claude/` | Shared Claude settings, hooks, and repo-managed skills |
@@ -45,9 +46,12 @@ ignored and should not be treated as part of the public GitHub surface.
 | Path | Status | Notes |
 |---|---|---|
 | `examples/` | Canonical hub | Preferred home for runnable notebooks, datasets, demos, and example configs. |
+| `examples/datasets/` | Active reference | Small tracked datasets used by tutorials, smoke tests, and documented benchmark samples. |
 | `examples/demos/` | Active reference | Demo scripts and tracing examples; useful for targeted walkthroughs, not the primary docs path. |
 | `examples/labs/legacy/` | Legacy | Older exploratory notebooks retained for reference; do not add new onboarding notebooks here. |
 | `examples/teaching/` | Active reference | Longer-form teaching/course material. |
+| `docs/assets/` | Active reference | README/docs images and other public documentation assets. |
+| `docs/ontology/` | Active reference | Ontology guidance documents that are not executable examples. |
 | `docs/archive/` | Historical | Kept for reference only, not current contract. |
 
 ## Secondary Or Compatibility Surfaces
@@ -66,7 +70,7 @@ These paths are usually not where feature work should land.
 | `data/` | Local graph/runtime state |
 | `logs/` | Local logs |
 | `outputs/` | Generated evaluation or export output |
-| `neo4j/` | Local Neo4j/DozerDB plugins and state helpers |
+| `data/neo4j/` | Local Neo4j/DozerDB data, logs, import files, and plugins |
 | `build/`, `dist/`, `seocho.egg-info/` | Build artifacts |
 | `dolt/` | Local Beads/Dolt runtime state |
 
@@ -85,11 +89,17 @@ layout.
 
 ## Placement Rules
 
+- Put distributable SDK code under `src/seocho/`; do not reintroduce a root
+  `seocho/` package.
 - Put new runnable notebooks, datasets, demos, and sample configs under `examples/`.
+- Put documentation images under `docs/assets/`, not root `images/`.
+- Put ontology guidance under `docs/ontology/`, not root `ontology/`.
 - Keep exploratory or deprecated notebook material under `examples/labs/legacy/`,
   not as new repo-root directories.
 - Put new contributor automation under `scripts/`, `.agents/`, or `.githooks`
   depending on purpose.
+- Put GitHub-hosted workflows and Codex workflow prompts under `.github/`; put
+  reusable workflow helper scripts under `scripts/`.
 - Keep generated local state under ignored artifact paths such as `data/`,
   `logs/`, `outputs/`, `.seocho/`, and `extraction/output/`.
 - Keep local AI tool overlays such as `.jules/` and `.serena/` out of Git

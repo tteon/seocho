@@ -10,7 +10,7 @@ the wrong package.
 
 ## Canonical Rule
 
-- `seocho/*` owns canonical engine behavior
+- `src/seocho/*` owns canonical engine behavior
 - `runtime/*` owns deployment-shell behavior
 - `extraction/*` is legacy batch code or compatibility surface during migration
 
@@ -21,13 +21,13 @@ going in the wrong place.
 
 | Concern | Canonical owner | Compatibility or legacy surface | Notes |
 |---|---|---|---|
-| Public SDK facade | `seocho/client.py`, `seocho/http_transport.py`, `seocho/client_artifacts.py`, `seocho/client_remote.py`, `seocho/client_bundle.py`, `seocho/local_engine.py` | none | Keep facade thin; move helper ownership into dedicated modules before adding more logic |
+| Public SDK facade | `src/seocho/client.py`, `src/seocho/http_transport.py`, `src/seocho/client_artifacts.py`, `src/seocho/client_remote.py`, `src/seocho/client_bundle.py`, `src/seocho/local_engine.py` | none | Keep facade thin; move helper ownership into dedicated modules before adding more logic |
 | Ontology schema and governance | `seocho/ontology*.py` | none | Offline governance stays out of hot paths |
-| Indexing and graph shaping | `seocho/index/*`, `seocho/rules.py` | `extraction/pipeline.py`, `extraction/rule_constraints.py` | Indexing, linking, runtime memory shaping, and rule logic belong here |
-| Query, routing, evidence, answering | `seocho/query/*`, `seocho/prompt_strategy.py` | none | Semantic and debate behavior should converge here |
+| Indexing and graph shaping | `src/seocho/index/*`, `src/seocho/rules.py` | `extraction/pipeline.py`, `extraction/rule_constraints.py` | Indexing, linking, runtime memory shaping, and rule logic belong here |
+| Query, routing, evidence, answering | `src/seocho/query/*`, `src/seocho/prompt_strategy.py` | none | Semantic and debate behavior should converge here |
 | Runtime shell and API wiring | `runtime/*` | flat `extraction/*` aliases such as `extraction/agent_server.py` | Runtime routes, policy, readiness, and registry are deployment-shell concerns |
-| Extraction compatibility and batch-only helpers | migration target varies; prefer `seocho/*` or `runtime/*` | `extraction/*` | Keep these as wrappers or migration surfaces, not new canonical homes |
-| Benchmark harnesses and internal evaluation loops | `seocho/benchmarking.py`, `scripts/benchmarks/*` | local `.seocho/benchmarks/results/*` artifacts | Tutorial data is onboarding-only; benchmark loops use private corpora |
+| Extraction compatibility and batch-only helpers | migration target varies; prefer `src/seocho/*` or `runtime/*` | `extraction/*` | Keep these as wrappers or migration surfaces, not new canonical homes |
+| Benchmark harnesses and internal evaluation loops | `src/seocho/benchmarking.py`, `scripts/benchmarks/*` | local `.seocho/benchmarks/results/*` artifacts | Tutorial data is onboarding-only; benchmark loops use private corpora |
 | Entry docs and contributor contracts | `README.md`, `AGENTS.md`, `CLAUDE.md`, `docs/WORKFLOW.md`, `docs/ARCHITECTURE.md` | website mirrors | Treat these as one shared seam during edits |
 | GitHub automation and CI | `.github/*`, `scripts/ci/*` | none | Keep automation slices isolated and reviewable |
 
@@ -36,7 +36,7 @@ going in the wrong place.
 Use this quick check before editing:
 
 1. Is this public SDK behavior or helper orchestration?
-   - start in `seocho/*`
+   - start in `src/seocho/*`
 2. Is this runtime request validation, policy, or route composition?
    - start in `runtime/*`
 3. Is this only an import shim or migration wrapper?

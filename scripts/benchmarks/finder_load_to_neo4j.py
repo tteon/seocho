@@ -23,8 +23,10 @@ from pathlib import Path
 from neo4j import GraphDatabase
 
 ROOT = Path(__file__).resolve().parents[2]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+SRC = ROOT / "src"
+for path in (SRC, ROOT):
+    if str(path) not in sys.path:
+        sys.path.insert(0, str(path))
 
 from examples.finder.lib import bench_common as bc  # noqa: E402
 from seocho.store.graph import LadybugGraphStore  # noqa: E402

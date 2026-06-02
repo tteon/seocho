@@ -79,7 +79,7 @@ Tradeoffs:
 
 ## Validation
 
-- focused route-agent tests in `seocho/tests/`
+- focused route-agent tests in `tests/seocho/`
 - semantic query flow regression in `extraction/tests/`
 - API endpoint regression for semantic query compatibility
 - parity harness regression

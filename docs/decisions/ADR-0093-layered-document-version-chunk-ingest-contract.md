@@ -70,5 +70,5 @@ Tradeoffs:
 - indexing orchestration: `seocho/index/pipeline.py`
 - local SDK wiring: `seocho/local_engine.py`, `seocho/client.py`,
   `seocho/session.py`
-- tests: `seocho/tests/test_runtime_helpers.py`,
-  `seocho/tests/test_indexing.py`
+- tests: `tests/seocho/test_runtime_helpers.py`,
+  `tests/seocho/test_indexing.py`

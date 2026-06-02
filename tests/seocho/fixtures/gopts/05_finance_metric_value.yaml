@@ -1,0 +1,11 @@
+fixture_id: "05_finance_metric_value"
+question: "What was Apple's revenue in 2022?"
+workspace_id: "fixture-gopts"
+populated_db: "neo4j"
+intent: "financial_metric_lookup"
+expected_top1_pattern_id: "pattern:finance_metric_value"
+expected_evidence_entities: ["Apple", "revenue"]
+expected_answer: "Apple's revenue in 2022 was 365.8B."
+notes: |
+  Year-narrowed metric lookup. The narrows_by_year cost_hint should
+  beat any neighbors or path alternative on cost.

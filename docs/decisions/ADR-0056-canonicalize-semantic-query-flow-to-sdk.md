@@ -104,7 +104,7 @@ Move the per-route agents:
 Each phase must keep:
 - `tests/test_parity_harness.py` 9 passed, 0 xfail
 - `extraction/tests/test_api_endpoints.py` all passing
-- New unit tests for moved classes in `seocho/tests/`
+- New unit tests for moved classes in `tests/seocho/`
 
 Phase D adds a new parity assertion: same ontology + question produces
 the same `route`, `support_assessment`, `evidence_bundle` from both paths.

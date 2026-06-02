@@ -50,11 +50,11 @@ That small script crosses five architecture layers:
 
 | User action | Internal layer | Canonical module |
 |---|---|---|
-| `Ontology.from_jsonld(...)` | schema contract | `seocho/ontology.py` |
-| `Seocho.local(...)` | public SDK facade + local engine | `seocho/client.py`, `seocho/local_engine.py` |
-| `client.add(...)` | indexing/data plane | `seocho/index/` |
-| graph write/query | graph store adapter | `seocho/store/graph.py` |
-| `client.ask(...)` | query/control plane | `seocho/query/` |
+| `Ontology.from_jsonld(...)` | schema contract | `src/seocho/ontology.py` |
+| `Seocho.local(...)` | public SDK facade + local engine | `src/seocho/client.py`, `src/seocho/local_engine.py` |
+| `client.add(...)` | indexing/data plane | `src/seocho/index/` |
+| graph write/query | graph store adapter | `src/seocho/store/graph.py` |
+| `client.ask(...)` | query/control plane | `src/seocho/query/` |
 
 The same call shape can later move behind the runtime API. The boundary is:
 

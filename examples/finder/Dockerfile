@@ -4,7 +4,7 @@
 #   - the seocho package and ci extras (lancedb, faiss-cpu, neo4j, openai)
 #   - tutorial-only deps (jupyterlab, networkx, matplotlib, pandas)
 #
-# Build context must be the repo root so seocho/, pyproject.toml, and
+# Build context must be the repo root so src/seocho, pyproject.toml, and
 # examples/finder/requirements.txt are all reachable.
 
 FROM python:3.11-slim
@@ -22,12 +22,12 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 # Stage 1 — bake an installation of the seocho package with the ci extra
 # (lancedb, faiss-cpu, neo4j driver, openai, etc.).  At runtime the source
-# tree is bind-mounted over /workspace, and PYTHONPATH=/workspace makes
-# the mounted seocho/ shadow this baked copy.
+# tree is bind-mounted over /workspace, and PYTHONPATH=/workspace/src makes
+# the mounted src/seocho package shadow this baked copy.
 WORKDIR /tmp/build
 COPY pyproject.toml /tmp/build/pyproject.toml
 COPY README.md /tmp/build/README.md
-COPY seocho /tmp/build/seocho
+COPY src /tmp/build/src
 RUN uv pip install --system --no-cache ".[ci,local]"
 
 # Stage 2 — tutorial-only Python deps (jupyterlab, networkx, matplotlib, …)
@@ -35,7 +35,7 @@ COPY examples/finder/requirements.txt /tmp/requirements.txt
 RUN uv pip install --system --no-cache -r /tmp/requirements.txt
 
 WORKDIR /workspace
-ENV PYTHONPATH=/workspace
+ENV PYTHONPATH=/workspace/src:/workspace
 
 EXPOSE 8889
 

@@ -1,0 +1,12 @@
+fixture_id: "02_relationship_one_hop"
+question: "Who manages Apple?"
+workspace_id: "fixture-gopts"
+populated_db: "neo4j"
+intent: "relationship_lookup"
+expected_top1_pattern_id: "pattern:relationship_lookup_hop1"
+expected_evidence_entities: ["Tim Cook", "Apple"]
+expected_answer: "Tim Cook manages Apple."
+notes: |
+  Single-hop relationship lookup. The hop-1 pattern is cheaper than
+  any path-style alternative because relationship_lookup binds both
+  endpoints by name and walks one edge.

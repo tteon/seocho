@@ -143,11 +143,11 @@ enumeration to preserve the ADR-0091 short-circuit's latency benefit).
 ### 4. Evaluation harness
 
 Extend `NLCypherExampleStore` (`seocho/store/vector.py`, used by
-`seocho/tests/test_tiered_nl2cypher.py:45`) so each (NL, Cypher) write
+`tests/seocho/test_tiered_nl2cypher.py:45`) so each (NL, Cypher) write
 also captures: `plan_cost_estimate`, `k_rank_position` (which rank the
 emitted plan held), `execution_row_count`, `total_latency_ms`,
 `enumeration_latency_ms`. Add a fixture suite of 20+ NL→Cypher pairs
-under `seocho/tests/fixtures/gopts/` covering multi-candidate cases
+under `tests/seocho/fixtures/gopts/` covering multi-candidate cases
 (under-specified entity, ambiguous relationship, label-vs-name lookup).
 This is the GOPTS regression anchor.
 
@@ -216,8 +216,8 @@ Open questions (deferred):
     `intent_high` (if absent) to `RoutingPolicy.thresholds` defaults
   - `seocho/store/vector.py` — extend `NLCypherExampleStore` write
     schema with the four new fields
-  - `seocho/tests/test_tiered_nl2cypher.py` — new fixture suite under
-    `seocho/tests/fixtures/gopts/`
+  - `tests/seocho/test_tiered_nl2cypher.py` — new fixture suite under
+    `tests/seocho/fixtures/gopts/`
 - safety skills to invoke during implementation: `refactor-safety`
   (catalog extraction is multi-file), `workspace-id-audit`
   (`get_index_stats` must scope to workspace_id, and the cost model

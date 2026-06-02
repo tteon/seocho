@@ -151,7 +151,7 @@ make tutorials-down     # stop everything (data persists in ./.seocho)
 
 make tutorials-build    # rebuild the image (no container start)
 make tutorials-smoke    # fast import-check for all four notebooks (~10s, no API calls)
-make tutorials-pytest   # run the seocho/tests/test_ontology_ttl.py suite in the container
+make tutorials-pytest   # run the tests/seocho/test_ontology_ttl.py suite in the container
 make tutorials-test     # headless nbconvert run of every notebook (needs OPENAI_API_KEY)
 ```
 

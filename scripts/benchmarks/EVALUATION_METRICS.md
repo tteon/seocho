@@ -26,7 +26,7 @@ Reporting all three side by side keeps us honest: a high `judge_score` with low
 conclusion.
 
 The ground truth in every case is the dataset's own gold `answer`
-(`dataset/all_slices.csv`). All three metrics compare the candidate answer
+(`examples/datasets/finder/all_slices.csv`). All three metrics compare the candidate answer
 against that gold answer.
 
 ---

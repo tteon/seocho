@@ -51,9 +51,9 @@ Responsibilities:
 
 Primary surfaces:
 
-- `seocho/rules.py` — canonical rule inference/validation
-- `seocho/index/pipeline.py` — canonical indexing with `enable_rule_constraints` + `embedding_backend`
-- `seocho/index/linker.py` — canonical embedding-based entity linker
+- `src/seocho/rules.py` — canonical rule inference/validation
+- `src/seocho/index/pipeline.py` — canonical indexing with `enable_rule_constraints` + `embedding_backend`
+- `src/seocho/index/linker.py` — canonical embedding-based entity linker
 - `extraction/pipeline.py` — legacy batch pipeline
 - `extraction/rule_constraints.py` — re-export shim to `seocho.rules`
 - `extraction/data_source.py`
@@ -148,8 +148,8 @@ Operational notes:
 - legacy `semantic-service` is opt-in only via `docker compose --profile legacy-semantic up -d semantic-service`.
 - when decomposing large files, prefer the internal seam classes documented in
   `docs/INTERNAL_CLASS_DESIGN.md` before introducing new top-level services
-- local SDK orchestration extracted from `seocho/client.py` should land in
-  `seocho/local_engine.py` before any broader facade redesign
+- local SDK orchestration extracted from `src/seocho/client.py` should land in
+  `src/seocho/local_engine.py` before any broader facade redesign
 
 ## Docs Website
 

@@ -9,7 +9,7 @@ so the harness has something meaningful to PROFILE.
 The corpus is idempotent via MERGE — running the script twice is a
 no-op. All nodes and relationships are stamped with
 ``_workspace_id = "fixture-gopts"`` to match the YAML fixtures under
-``seocho/tests/fixtures/gopts/``.
+``tests/seocho/fixtures/gopts/``.
 
 Usage::
 

@@ -8,7 +8,7 @@ Welcome. This guide gets you from zero to your first PR.
 git clone git@github.com:tteon/seocho.git
 cd seocho
 pip install -e ".[dev]"
-python -m pytest seocho/tests/ -q   # 87 tests, should pass in <1s
+python -m pytest tests/seocho/ -q   # SDK tests
 ```
 
 ## Where to Look
@@ -62,7 +62,7 @@ ontology or sample docs alongside it: [`docs/USECASES.md`](docs/USECASES.md).
 
 ```bash
 # SDK tests (fast, no external dependencies)
-python -m pytest seocho/tests/ -v
+python -m pytest tests/seocho/ -v
 
 # Server-side tests (need extraction/ dependencies)
 python -m pytest extraction/tests/ -v
@@ -88,7 +88,7 @@ Example: `feat: add PDF support to file indexer`
 1. Fork the repo
 2. Create a feature branch: `git checkout -b feat/my-feature`
 3. Make your changes
-4. Run tests: `python -m pytest seocho/tests/ -q`
+4. Run tests: `python -m pytest tests/seocho/ -q`
 5. Commit with conventional prefix
 6. Push and open a PR against `main`
 

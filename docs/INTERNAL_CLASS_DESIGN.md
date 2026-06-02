@@ -3,7 +3,7 @@
 This page answers a different question than `docs/MODULE_OWNERSHIP_MAP.md`.
 
 That page says *where code should live*. This page says *which internal classes
-we should use to keep the modular monolith coherent while `seocho/client.py`
+we should use to keep the modular monolith coherent while `src/seocho/client.py`
 and runtime shells are still being decomposed*.
 
 ## Design Goal
@@ -21,10 +21,10 @@ That means:
 
 | Class | File | Responsibility |
 |---|---|---|
-| `DomainEvent` | `seocho/events.py` | Small event envelope for trace/artifact/metrics hooks |
-| `IngestionFacade` | `seocho/index/ingestion_facade.py` | Wrap indexing pipeline calls and publish lifecycle events |
-| `QueryProxy` | `seocho/query/query_proxy.py` | Validate, normalize, and instrument graph queries before they hit `GraphStore` |
-| `AgentFactory` | `seocho/query/agent_factory.py` | Registry-backed construction of semantic/debate/query agents |
+| `DomainEvent` | `src/seocho/events.py` | Small event envelope for trace/artifact/metrics hooks |
+| `IngestionFacade` | `src/seocho/index/ingestion_facade.py` | Wrap indexing pipeline calls and publish lifecycle events |
+| `QueryProxy` | `src/seocho/query/query_proxy.py` | Validate, normalize, and instrument graph queries before they hit `GraphStore` |
+| `AgentFactory` | `src/seocho/query/agent_factory.py` | Registry-backed construction of semantic/debate/query agents |
 | `AgentStateMachine` | `runtime/agent_state.py` | Explicit runtime state transitions: ready, degraded, blocked |
 
 ## Import Graph
@@ -32,28 +32,28 @@ That means:
 The intended import direction is:
 
 ```text
-seocho/client.py
-  -> seocho/local_engine.py
-  -> seocho/index/ingestion_facade.py
-  -> seocho/query/*
-  -> seocho/events.py
+src/seocho/client.py
+  -> src/seocho/local_engine.py
+  -> src/seocho/index/ingestion_facade.py
+  -> src/seocho/query/*
+  -> src/seocho/events.py
 
 runtime/*
   -> runtime/agent_state.py
-  -> seocho/query/*
-  -> seocho/index/*
-  -> seocho/events.py
+  -> src/seocho/query/*
+  -> src/seocho/index/*
+  -> src/seocho/events.py
 
 extraction/*
-  -> runtime/* or seocho/* only as shim / legacy compatibility surface
+  -> runtime/* or src/seocho/* only as shim / legacy compatibility surface
 ```
 
 What we want to avoid:
 
 ```text
-seocho/query/* -> runtime/*
-seocho/index/* -> extraction/*
-seocho/client.py -> new business logic in extraction/*
+src/seocho/query/* -> runtime/*
+src/seocho/index/* -> extraction/*
+src/seocho/client.py -> new business logic in extraction/*
 ```
 
 ## Current Wiring Plan
@@ -71,7 +71,7 @@ Seocho.add()
 
 ### 2. Query/runtime path
 
-Today, canonical semantic orchestration already lives under `seocho/query/*`.
+Today, canonical semantic orchestration already lives under `src/seocho/query/*`.
 The next extraction step is not "new features" but "better object seams":
 
 ```text
@@ -131,12 +131,12 @@ In practical terms:
 
 ## Relationship To Existing Files
 
-- `seocho/client.py` remains the public facade for now
-- `seocho/local_engine.py` owns local-mode orchestration behind that facade
-- `seocho/client_remote.py` owns transport/request dispatch setup behind that facade
-- `seocho/client_bundle.py` owns runtime-bundle import/export glue behind that facade
-- `seocho/index/pipeline.py` remains the canonical indexing engine
-- `seocho/query/semantic_flow.py` remains the canonical semantic orchestrator
+- `src/seocho/client.py` remains the public facade for now
+- `src/seocho/local_engine.py` owns local-mode orchestration behind that facade
+- `src/seocho/client_remote.py` owns transport/request dispatch setup behind that facade
+- `src/seocho/client_bundle.py` owns runtime-bundle import/export glue behind that facade
+- `src/seocho/index/pipeline.py` remains the canonical indexing engine
+- `src/seocho/query/semantic_flow.py` remains the canonical semantic orchestrator
 - `runtime/server_runtime.py` remains the runtime composition root
 
 These new classes are internal seams for decomposition, not a replacement for

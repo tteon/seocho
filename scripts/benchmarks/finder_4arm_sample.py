@@ -2,7 +2,7 @@
 """FinDER 4-arm ontology sample run — graph build + QA, Opik-traced.
 
 For a stratified sample (default 10 cases/slice → ~60 cases) of
-``dataset/all_slices.csv``, build a knowledge graph and answer the query under
+``examples/datasets/finder/all_slices.csv``, build a knowledge graph and answer the query under
 each of the 4 ontology arms (CLAUDE.md §19):
 
     non-ontology  -> compose_modules([])                  (Entity/RELATED_TO)
@@ -37,8 +37,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+SRC = ROOT / "src"
+for path in (SRC, ROOT):
+    if str(path) not in sys.path:
+        sys.path.insert(0, str(path))
 
 from examples.finder.lib import bench_common as bc  # noqa: E402
 from seocho.query.strategy import PromptTemplate  # noqa: E402
@@ -46,7 +48,7 @@ from seocho.query.strategy import PromptTemplate  # noqa: E402
 REF_SEPARATOR = "===EVIDENCE_BOUNDARY==="
 _NUM_RE = re.compile(r"-?\$?\d[\d,]*\.?\d*(?:%| million| billion| thousand)?", re.IGNORECASE)
 
-DATASET_CSV = ROOT / "dataset" / "all_slices.csv"
+DATASET_CSV = ROOT / "examples" / "datasets" / "finder" / "all_slices.csv"
 GROK_META_PROMPT = ROOT / "examples/finder/datasets/grok_meta_system_prompt.md"
 
 # The 4 ontology arms (CLAUDE.md §19, confirmed nested supersets)
@@ -266,7 +268,6 @@ def run_one(*, case: dict, arm: str, modules: list[str], llm_spec: str,
     from seocho.store.graph import Neo4jGraphStore
     from seocho.store.llm import create_llm_backend
 
-    sys.path.insert(0, str(ROOT))
     from examples.finder.datasets.fibo_modules.compose import compose_modules
 
     ontology = compose_modules(modules)

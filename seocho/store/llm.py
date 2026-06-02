@@ -285,6 +285,42 @@ def complete_with_task_hints(
         return llm.complete(**kwargs)
 
 
+async def acomplete_with_task_hints(
+    llm: Any,
+    *,
+    system: str,
+    user: str,
+    temperature: float = 0.0,
+    max_tokens: Optional[int] = None,
+    response_format: Optional[Dict[str, Any]] = None,
+    reasoning_mode: Optional[bool] = None,
+    task_hint: Optional[str] = None,
+) -> Any:
+    """Async mirror of ``complete_with_task_hints`` — calls ``llm.acomplete``."""
+
+    kwargs: Dict[str, Any] = {
+        "system": system,
+        "user": user,
+        "temperature": temperature,
+    }
+    if max_tokens is not None:
+        kwargs["max_tokens"] = max_tokens
+    if response_format is not None:
+        kwargs["response_format"] = response_format
+    if reasoning_mode is not None:
+        kwargs["reasoning_mode"] = reasoning_mode
+    if task_hint is not None:
+        kwargs["task_hint"] = task_hint
+    try:
+        return await llm.acomplete(**kwargs)
+    except TypeError as exc:
+        if "unexpected keyword argument" not in str(exc):
+            raise
+        kwargs.pop("reasoning_mode", None)
+        kwargs.pop("task_hint", None)
+        return await llm.acomplete(**kwargs)
+
+
 class EmbeddingBackend(ABC):
     """Abstract interface for embedding generation."""
 

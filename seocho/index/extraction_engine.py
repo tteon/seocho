@@ -15,7 +15,7 @@ from typing import Any, Dict, Optional
 from jinja2 import Template
 
 from seocho.query.strategy import ExtractionStrategy, LinkingStrategy
-from seocho.store.llm import complete_with_task_hints
+from seocho.store.llm import acomplete_with_task_hints, complete_with_task_hints
 
 _SLUG_RE = re.compile(r"[^a-z0-9]+")
 _ONTOLOGY_RELAXED_RETRY_GUIDANCE = (
@@ -92,6 +92,66 @@ class CanonicalExtractionEngine:
         )
         try:
             retry_response = complete_with_task_hints(
+                self.llm,
+                system=retry_system,
+                user=retry_user,
+                temperature=0.15,
+                response_format={"type": "json_object"},
+                reasoning_mode=False,
+                task_hint="json_extraction_retry",
+            )
+            retried = self.normalize_payload(retry_response.json())
+            if retried.get("nodes") or retried.get("relationships"):
+                retry_metadata["succeeded"] = True
+                retried["_retry"] = retry_metadata
+                return retried
+        except Exception as exc:
+            retry_metadata["error"] = type(exc).__name__
+
+        normalized["_retry"] = retry_metadata
+        return normalized
+
+    async def aextract(
+        self,
+        text: str,
+        *,
+        category: str = "general",
+        metadata: Optional[Dict[str, Any]] = None,
+        extra_context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Async mirror of ``extract`` — uses ``acomplete`` for non-blocking LLM calls."""
+
+        system, user = self._render_extraction_prompts(
+            text=text,
+            category=category,
+            metadata=metadata,
+            extra_context=extra_context,
+        )
+        response = await acomplete_with_task_hints(
+            self.llm,
+            system=system,
+            user=user,
+            temperature=0.0,
+            response_format={"type": "json_object"},
+            reasoning_mode=False,
+            task_hint="json_extraction",
+        )
+        normalized = self.normalize_payload(response.json())
+        if not self._should_retry_relaxed_extraction(normalized, extra_context):
+            return normalized
+
+        retry_metadata: Dict[str, Any] = {
+            "attempted": True,
+            "mode": "ontology_relaxed",
+            "succeeded": False,
+        }
+        retry_system, retry_user = self._build_relaxed_retry_prompts(
+            system=system,
+            user=user,
+            extra_context=extra_context,
+        )
+        try:
+            retry_response = await acomplete_with_task_hints(
                 self.llm,
                 system=retry_system,
                 user=retry_user,

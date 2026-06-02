@@ -88,7 +88,7 @@ These paths are usually not where feature work should land.
 | `outputs/` | Generated evaluation or export output |
 | `data/neo4j/` | Local Neo4j/DozerDB data, logs, import files, and plugins |
 | `build/`, `dist/`, `seocho.egg-info/` | Build artifacts |
-| `dolt/` | Local Beads/Dolt runtime state |
+| `dolt/` | Local Dolt runtime state when a developer tool creates it |
 
 ## Compose Files
 

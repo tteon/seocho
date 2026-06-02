@@ -22,12 +22,13 @@ going in the wrong place.
 | Concern | Canonical owner | Compatibility or legacy surface | Notes |
 |---|---|---|---|
 | Public SDK facade | `src/seocho/client.py`, `src/seocho/http_transport.py`, `src/seocho/client_artifacts.py`, `src/seocho/client_remote.py`, `src/seocho/client_bundle.py`, `src/seocho/local_engine.py` | none | Keep facade thin; move helper ownership into dedicated modules before adding more logic |
-| Ontology schema and governance | `seocho/ontology*.py` | none | Offline governance stays out of hot paths |
+| Agent runtime contracts | `src/seocho/agent/*`, `src/seocho/agents.py`, `src/seocho/agents_runtime.py`, `src/seocho/runtime_contract.py` | none | Preserve OpenAI Agents SDK assumptions and vendor-neutral trace contracts |
+| Ontology schema and governance | `src/seocho/ontology*.py`, `src/seocho/fibo/*` | none | Offline governance stays out of hot paths |
 | Indexing and graph shaping | `src/seocho/index/*`, `src/seocho/rules.py` | `extraction/pipeline.py`, `extraction/rule_constraints.py` | Indexing, linking, runtime memory shaping, and rule logic belong here |
-| Query, routing, evidence, answering | `src/seocho/query/*`, `src/seocho/prompt_strategy.py` | none | Semantic and debate behavior should converge here |
+| Query, routing, evidence, answering | `src/seocho/query/*`, `src/seocho/prompt_strategy.py`, `src/seocho/semantic_prompt_composer.py` | none | Semantic and debate behavior should converge here |
 | Runtime shell and API wiring | `runtime/*` | flat `extraction/*` aliases such as `extraction/agent_server.py` | Runtime routes, policy, readiness, and registry are deployment-shell concerns |
 | Extraction compatibility and batch-only helpers | migration target varies; prefer `src/seocho/*` or `runtime/*` | `extraction/*` | Keep these as wrappers or migration surfaces, not new canonical homes |
-| Benchmark harnesses and internal evaluation loops | `src/seocho/benchmarking.py`, `scripts/benchmarks/*` | local `.seocho/benchmarks/results/*` artifacts | Tutorial data is onboarding-only; benchmark loops use private corpora |
+| Benchmark harnesses and internal evaluation loops | `src/seocho/eval/*`, `src/seocho/benchmarking.py`, `evaluation/*`, `scripts/benchmarks/*` | local `.seocho/benchmarks/results/*` artifacts | Tutorial data is onboarding-only; benchmark loops use private corpora |
 | Entry docs and contributor contracts | `README.md`, `AGENTS.md`, `CLAUDE.md`, `docs/WORKFLOW.md`, `docs/ARCHITECTURE.md` | website mirrors | Treat these as one shared seam during edits |
 | GitHub automation and CI | `.github/*`, `scripts/ci/*` | none | Keep automation slices isolated and reviewable |
 
@@ -41,7 +42,10 @@ Use this quick check before editing:
    - start in `runtime/*`
 3. Is this only an import shim or migration wrapper?
    - `extraction/*` is acceptable
-4. Does the change touch multiple shared seams?
+4. Is this a one-off experiment, generated result, or local agent/tool state?
+   - keep it ignored or promote it deliberately to `examples/`, `scripts/`, or
+     `docs/`
+5. Does the change touch multiple shared seams?
    - split the work or make the write scope explicit in the public issue or PR
 
 ## Current High-Risk Shared Seams

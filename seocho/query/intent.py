@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, List, Optional, Sequence, Set
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 from .contracts import IntentSpec
 
@@ -108,6 +108,48 @@ COMMON_ALTERNATIVE_TECHNIQUE_HINTS = (
     "worker pool",
 )
 
+DETERMINISTIC_QUESTION_HINTS = (
+    "how many",
+    "count",
+    "total",
+    "sum",
+    "average",
+    "avg",
+    "mean",
+    "highest",
+    "lowest",
+    "top",
+    "bottom",
+    "list",
+    "return",
+    "show",
+    "sorted",
+    "sort",
+    "ratio",
+    "percentage",
+    "percent",
+    "difference",
+    "growth",
+    "delta",
+)
+
+NONDETERMINISTIC_QUESTION_HINTS = (
+    "why",
+    "explain",
+    "describe",
+    "summarize",
+    "summary",
+    "interpret",
+    "discuss",
+    "insight",
+    "reason",
+    "cause",
+    "recommend",
+    "suggest",
+    "risk",
+    "tradeoff",
+)
+
 
 INTENT_CATALOG: tuple[IntentSpec, ...] = (
     IntentSpec(
@@ -207,6 +249,8 @@ def build_evidence_bundle(
     matched_entity_set = {entity.lower() for entity in matched_entity_names}
 
     candidate_entities: List[Dict[str, Any]] = []
+    databases: List[str] = []
+    graph_ids: List[str] = []
     for question_entity, candidates in semantic_context.get("matches", {}).items():
         if not candidates:
             continue
@@ -225,6 +269,12 @@ def build_evidence_bundle(
                 "confidence": float(best.get("final_score", 0.0) or 0.0),
             }
         )
+        database = str(best.get("database", "")).strip()
+        graph_id = str(best.get("graph_id", "")).strip()
+        if database and database not in databases:
+            databases.append(database)
+        if graph_id and graph_id not in graph_ids:
+            graph_ids.append(graph_id)
 
     memory_payload = memory if isinstance(memory, dict) else {}
     memory_entities = memory_payload.get("entities", []) if isinstance(memory_payload.get("entities"), list) else []
@@ -266,6 +316,32 @@ def build_evidence_bundle(
         slot_fills["owner_or_operator"] = labeled_owner
 
     preview = str(memory_payload.get("content_preview") or memory_payload.get("content") or "").strip()
+    relation_triples = _relation_triples_from_text(
+        preview,
+        target_entity=str(slot_fills.get("target_entity", "") or ""),
+        owner_or_operator=str(slot_fills.get("owner_or_operator", "") or ""),
+    )
+    required_relations = [
+        str(relation).strip()
+        for relation in intent.get("required_relations", [])
+        if str(relation).strip()
+    ]
+    if relation_triples:
+        selected_triples = [*relation_triples, *selected_triples]
+        if "relation_paths" in focus_slots or required_relations:
+            slot_fills["relation_paths"] = [
+                triple["relation"]
+                for triple in relation_triples
+                if str(triple.get("relation", "")).strip()
+            ]
+    if memory_payload:
+        database = str(memory_payload.get("database", "")).strip()
+        graph_id = str(memory_payload.get("graph_id", "")).strip()
+        if database and database not in databases:
+            databases.append(database)
+        if graph_id and graph_id not in graph_ids:
+            graph_ids.append(graph_id)
+
     tradeoff_from_entities = _tradeoff_points_from_entities(prioritized_memory_entities)
     tradeoff_from_preview = extract_tradeoff_points_from_text(preview)
     limitation_points = _dedupe_points(
@@ -318,21 +394,240 @@ def build_evidence_bundle(
                 }
             )
 
+    support_payload = dict(support_assessment or {})
+    support_status = str(
+        support_payload.get("status")
+        or ("supported" if not missing_slots and grounded_slots else "partial" if grounded_slots else "unsupported")
+    ).strip()
+    support_reason = str(
+        support_payload.get("reason")
+        or ("sufficient" if support_status == "supported" else "partial_slot_fill" if support_status == "partial" else "no_grounded_slots")
+    ).strip()
+    route_profile = _build_route_profile(
+        question=question,
+        intent=intent,
+        semantic_context=semantic_context,
+        memory_payload=memory_payload,
+        candidate_entities=candidate_entities,
+        selected_triples=selected_triples,
+        grounded_slots=grounded_slots,
+        missing_slots=missing_slots,
+    )
+    answer_shape = _infer_answer_shape(
+        question=question,
+        intent=intent,
+        route_profile=route_profile,
+        missing_slots=missing_slots,
+    )
+
     return {
         "schema_version": "evidence_bundle.v2",
         "intent_id": str(intent.get("intent_id", "")).strip(),
-        "required_relations": list(intent.get("required_relations", [])),
+        "route_profile": route_profile,
+        "answer_shape": answer_shape["shape"],
+        "answer_shape_profile": answer_shape,
+        "database": databases[0] if databases else "",
+        "databases": databases,
+        "graph_id": graph_ids[0] if graph_ids else "",
+        "graph_ids": graph_ids,
+        "required_relations": required_relations,
         "required_entity_types": list(intent.get("required_entity_types", [])),
         "focus_slots": focus_slots,
         "candidate_entities": candidate_entities,
-        "selected_triples": selected_triples,
+        "selected_triples": _dedupe_triples(selected_triples),
         "slot_fills": slot_fills,
         "grounded_slots": grounded_slots,
         "missing_slots": missing_slots,
         "provenance": provenance,
         "confidence": round(confidence, 4),
         "coverage": coverage,
-        "support_assessment": dict(support_assessment or {}),
+        "support_status": support_status,
+        "support_reason": support_reason,
+        "support_assessment": {
+            **support_payload,
+            "status": support_status,
+            "reason": support_reason,
+            "missing_slots": list(support_payload.get("missing_slots", missing_slots) or []),
+            "grounded_slots": list(support_payload.get("grounded_slots", grounded_slots) or []),
+            "route_class": route_profile["route_class"],
+            "question_determinism": route_profile["question_determinism"],
+            "answer_shape": answer_shape["shape"],
+        },
+    }
+
+
+def _build_route_profile(
+    *,
+    question: str,
+    intent: Dict[str, Any],
+    semantic_context: Dict[str, Any],
+    memory_payload: Dict[str, Any],
+    candidate_entities: Sequence[Dict[str, Any]],
+    selected_triples: Sequence[Dict[str, Any]],
+    grounded_slots: Sequence[str],
+    missing_slots: Sequence[str],
+) -> Dict[str, Any]:
+    intent_id = str(intent.get("intent_id", "")).strip()
+    focus_slots = [str(slot) for slot in intent.get("focus_slots", []) if str(slot).strip()]
+    source_types = _source_types_for_route(
+        semantic_context=semantic_context,
+        memory_payload=memory_payload,
+        candidate_entities=candidate_entities,
+        selected_triples=selected_triples,
+    )
+    question_determinism, determinism_reasons = _question_determinism(question, intent_id)
+
+    if intent_id in {"relationship_lookup", "responsibility_lookup"}:
+        route_class = "R4_GRAPH_JOIN"
+    elif intent_id == "engineering_tradeoff_lookup":
+        route_class = "R5_LONG_CONTEXT_REASONING"
+    elif intent_id == "explanation_lookup":
+        route_class = "R5_LONG_CONTEXT_REASONING" if "text" in source_types else "R1_LOOKUP"
+    elif "supporting_fact" in focus_slots and "supporting_fact" in missing_slots:
+        route_class = "R5_LONG_CONTEXT_REASONING"
+    else:
+        route_class = "R1_LOOKUP"
+
+    if question_determinism == "deterministic":
+        tool_policy = "verified_query_first" if route_class in {"R4_GRAPH_JOIN", "R5_LONG_CONTEXT_REASONING"} else "lookup_first"
+    elif question_determinism == "non_deterministic":
+        tool_policy = "evidence_bundle_then_synthesis"
+    else:
+        tool_policy = "retrieve_verify_then_synthesis"
+
+    recommended_tools = _recommended_tools_for_route(route_class, question_determinism)
+    rationale = [
+        f"intent_id={intent_id or 'unknown'}",
+        f"source_types={','.join(source_types) or 'unknown'}",
+        f"grounded_slots={','.join(grounded_slots) or 'none'}",
+        f"missing_slots={','.join(missing_slots) or 'none'}",
+        *determinism_reasons[:2],
+    ]
+
+    return {
+        "schema_version": "route_profile.v1",
+        "route_class": route_class,
+        "question_determinism": question_determinism,
+        "tool_policy": tool_policy,
+        "recommended_tools": recommended_tools,
+        "rationale": rationale,
+    }
+
+
+def _source_types_for_route(
+    *,
+    semantic_context: Dict[str, Any],
+    memory_payload: Dict[str, Any],
+    candidate_entities: Sequence[Dict[str, Any]],
+    selected_triples: Sequence[Dict[str, Any]],
+) -> List[str]:
+    source_types: List[str] = []
+    metadata = memory_payload.get("metadata", {}) if isinstance(memory_payload.get("metadata"), dict) else {}
+    for value in (
+        memory_payload.get("source_type"),
+        memory_payload.get("category"),
+        metadata.get("source_type"),
+        metadata.get("category"),
+    ):
+        cleaned = str(value or "").strip().lower()
+        if cleaned and cleaned not in source_types:
+            source_types.append(cleaned)
+    if memory_payload and "text" not in source_types:
+        source_types.append("text")
+    if candidate_entities and "graph" not in source_types:
+        source_types.append("graph")
+    if selected_triples and "relation" not in source_types:
+        source_types.append("relation")
+    semantic_layer = semantic_context.get("semantic_layer")
+    if isinstance(semantic_layer, dict) and "semantic_layer" not in source_types:
+        source_types.append("semantic_layer")
+    return source_types
+
+
+def _question_determinism(question: str, intent_id: str) -> Tuple[str, List[str]]:
+    normalized = question.lower()
+    deterministic_hits = [hint for hint in DETERMINISTIC_QUESTION_HINTS if hint in normalized]
+    nondeterministic_hits = [hint for hint in NONDETERMINISTIC_QUESTION_HINTS if hint in normalized]
+    deterministic_score = min(len(deterministic_hits), 3)
+    nondeterministic_score = min(len(nondeterministic_hits), 3)
+    reasons: List[str] = []
+
+    if intent_id in {"relationship_lookup", "responsibility_lookup"}:
+        deterministic_score += 1
+        reasons.append("relation intent can be checked against explicit graph slots")
+    if intent_id in {"engineering_tradeoff_lookup", "explanation_lookup"}:
+        nondeterministic_score += 1
+        reasons.append("intent needs supporting evidence before synthesis")
+    if any(term in normalized for term in ("how many", "count", "average", "sum", "highest", "lowest")):
+        deterministic_score += 2
+        reasons.append("question contains aggregation or ranking cues")
+    if any(term in normalized for term in ("why", "explain", "describe", "recommend")):
+        nondeterministic_score += 2
+        reasons.append("question asks for explanation or judgment")
+
+    if deterministic_score >= nondeterministic_score + 2:
+        label = "deterministic"
+    elif nondeterministic_score >= deterministic_score + 2:
+        label = "non_deterministic"
+    else:
+        label = "hybrid"
+    if not reasons:
+        reasons.append("no dominant determinism cue")
+    return label, reasons
+
+
+def _recommended_tools_for_route(route_class: str, question_determinism: str) -> List[str]:
+    if route_class == "R4_GRAPH_JOIN":
+        tools = ["resolve_entities", "select_relation_paths", "query_graph", "verify_slot_fill"]
+    elif route_class == "R5_LONG_CONTEXT_REASONING":
+        tools = ["resolve_entities", "retrieve_evidence_bundle", "expand_text_evidence", "verify_slot_fill"]
+    else:
+        tools = ["resolve_entities", "retrieve_evidence_bundle"]
+    if question_determinism == "deterministic" and "verified_answer_shape" not in tools:
+        tools.append("verified_answer_shape")
+    if question_determinism != "deterministic" and "grounded_synthesis" not in tools:
+        tools.append("grounded_synthesis")
+    return tools
+
+
+def _infer_answer_shape(
+    *,
+    question: str,
+    intent: Dict[str, Any],
+    route_profile: Dict[str, Any],
+    missing_slots: Sequence[str],
+) -> Dict[str, Any]:
+    normalized = question.lower()
+    intent_id = str(intent.get("intent_id", "")).strip()
+    rationale: List[str] = []
+    if missing_slots:
+        rationale.append("missing slots must remain visible in the final answer")
+    if any(term in normalized for term in ("how many", "number of", "count of")):
+        shape = "count_scalar"
+        rationale.append("count cue detected")
+    elif any(term in normalized for term in ("highest", "lowest", "top", "bottom", "most", "least")):
+        shape = "ranked_projection"
+        rationale.append("ranking cue detected")
+    elif any(term in normalized for term in ("average", "avg", "sum", "total", "ratio", "percentage", "percent", "difference", "delta")):
+        shape = "scalar_metric"
+        rationale.append("metric cue detected")
+    elif intent_id in {"relationship_lookup", "responsibility_lookup"}:
+        shape = "relationship_summary"
+        rationale.append("relationship intent detected")
+    elif intent_id in {"engineering_tradeoff_lookup", "explanation_lookup"}:
+        shape = "evidence_summary"
+        rationale.append("explanatory intent detected")
+    else:
+        shape = "entity_summary"
+        rationale.append("default entity/evidence summary")
+    if missing_slots and shape not in {"count_scalar", "scalar_metric", "ranked_projection"}:
+        shape = "partial_evidence_summary"
+    return {
+        "schema_version": "answer_shape.v1",
+        "shape": shape,
+        "route_class": str(route_profile.get("route_class", "")),
+        "question_determinism": str(route_profile.get("question_determinism", "")),
+        "rationale": rationale,
     }
 
 
@@ -392,6 +687,37 @@ def extract_tradeoff_points_from_text(text: str) -> Dict[str, List[str]]:
         "limitation_points": _dedupe_points(limitation_points),
         "alternative_points": _dedupe_points(alternative_points),
     }
+
+
+def _relation_triples_from_text(
+    text: str,
+    *,
+    target_entity: str,
+    owner_or_operator: str,
+) -> List[Dict[str, Any]]:
+    if not text or not target_entity or not owner_or_operator:
+        return []
+    normalized_text = text.lower()
+    if not any(token in normalized_text for token in ("manages", "managed", "owns", "owned", "leads", "operates")):
+        return []
+    relation = "RELATED_TO"
+    if "manages" in normalized_text or "managed" in normalized_text:
+        relation = "MANAGES"
+    elif "owns" in normalized_text or "owned" in normalized_text:
+        relation = "OWNS"
+    elif "leads" in normalized_text:
+        relation = "LEADS"
+    elif "operates" in normalized_text:
+        relation = "OPERATES"
+    return [
+        {
+            "source": owner_or_operator,
+            "relation": relation,
+            "target": target_entity,
+            "target_labels": [],
+            "supporting_fact": _compact_sentence(text),
+        }
+    ]
 
 
 def extract_tradeoff_points_from_triples(
@@ -531,6 +857,25 @@ def _dedupe_points(values: Sequence[str]) -> List[str]:
         seen.add(key)
         results.append(canonical)
     return results[:5]
+
+
+def _dedupe_triples(triples: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    seen: Set[tuple[str, str, str]] = set()
+    results: List[Dict[str, Any]] = []
+    for triple in triples:
+        if not isinstance(triple, dict):
+            continue
+        source = str(triple.get("source", "") or "").strip()
+        relation = str(triple.get("relation", "") or "").strip()
+        target = str(triple.get("target", "") or "").strip()
+        if not source or not relation or not target:
+            continue
+        key = (source.lower(), relation.upper(), target.lower())
+        if key in seen:
+            continue
+        seen.add(key)
+        results.append(dict(triple))
+    return results[:10]
 
 
 def _normalize_symbol(value: str) -> str:

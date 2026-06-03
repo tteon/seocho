@@ -1,0 +1,81 @@
+{
+  "agg": {
+    "n": 5,
+    "exact_match_rate": 1.0,
+    "contains_match_rate": 1.0,
+    "mean_token_f1": 1.0,
+    "mean_ask_ms": 2639
+  },
+  "rows": [
+    {
+      "id": "finder_tut_001",
+      "category": "Company Overview",
+      "exact": true,
+      "contains": true,
+      "f1": 1.0,
+      "add_ms": 7652,
+      "ask_ms": 2519,
+      "route": null,
+      "support": "SupportAssessment(intent_id='', supporte",
+      "q": "Where is Apple Inc. headquartered?",
+      "expected": "Cupertino, California",
+      "got": "  Cupertino, California"
+    },
+    {
+      "id": "finder_tut_002",
+      "category": "Financials",
+      "exact": true,
+      "contains": true,
+      "f1": 1.0,
+      "add_ms": 4875,
+      "ask_ms": 2246,
+      "route": null,
+      "support": "SupportAssessment(intent_id='', supporte",
+      "q": "What was Microsoft's total revenue in fiscal year 2023?",
+      "expected": "$211.9 billion",
+      "got": "  $211.9 billion"
+    },
+    {
+      "id": "finder_tut_003",
+      "category": "Shareholder Return",
+      "exact": true,
+      "contains": true,
+      "f1": 1.0,
+      "add_ms": 5274,
+      "ask_ms": 2333,
+      "route": null,
+      "support": "SupportAssessment(intent_id='', supporte",
+      "q": "How much did NVIDIA pay in dividends during fiscal year 2023",
+      "expected": "$395 million",
+      "got": "  $395 million"
+    },
+    {
+      "id": "finder_tut_004",
+      "category": "Governance",
+      "exact": true,
+      "contains": true,
+      "f1": 1.0,
+      "add_ms": 4874,
+      "ask_ms": 2630,
+      "route": null,
+      "support": "SupportAssessment(intent_id='', supporte",
+      "q": "Who is the Chair of Alphabet's Board of Directors?",
+      "expected": "John L. Hennessy",
+      "got": "  John L. Hennessy"
+    },
+    {
+      "id": "finder_tut_005",
+      "category": "Legal",
+      "exact": true,
+      "contains": true,
+      "f1": 1.0,
+      "add_ms": 9764,
+      "ask_ms": 3468,
+      "route": null,
+      "support": "SupportAssessment(intent_id='', supporte",
+      "q": "What was the value of Meta's Cambridge Analytica settlement?",
+      "expected": "$725 million",
+      "got": "  $725 million"
+    }
+  ]
+}

@@ -1,0 +1,178 @@
+{
+  "off": {
+    "answerability": 0.8,
+    "token_f1": 0.16,
+    "exact": 0.0,
+    "judge": 0.7,
+    "rows": [
+      {
+        "id": "finder_tut_001",
+        "rt": "single_hop",
+        "answered": true,
+        "f1": 0.2857,
+        "exact": false,
+        "judge": 1.0
+      },
+      {
+        "id": "finder_tut_002",
+        "rt": "numeric_lookup",
+        "answered": true,
+        "f1": 0.0,
+        "exact": false,
+        "judge": 0.0
+      },
+      {
+        "id": "finder_tut_003",
+        "rt": "single_hop",
+        "answered": false,
+        "f1": 0.0,
+        "exact": false,
+        "judge": 0.0
+      },
+      {
+        "id": "finder_tut_004",
+        "rt": "single_hop",
+        "answered": true,
+        "f1": 0.1818,
+        "exact": false,
+        "judge": 1.0
+      },
+      {
+        "id": "finder_tut_005",
+        "rt": "single_hop",
+        "answered": true,
+        "f1": 0.1818,
+        "exact": false,
+        "judge": 1.0
+      },
+      {
+        "id": "finder_tut_006",
+        "rt": "compositional",
+        "answered": true,
+        "f1": 0.5455,
+        "exact": false,
+        "judge": 1.0
+      },
+      {
+        "id": "finder_tut_007",
+        "rt": "single_hop",
+        "answered": true,
+        "f1": 0.2,
+        "exact": false,
+        "judge": 1.0
+      },
+      {
+        "id": "finder_tut_008",
+        "rt": "single_hop",
+        "answered": true,
+        "f1": 0.1143,
+        "exact": false,
+        "judge": 1.0
+      },
+      {
+        "id": "finder_tut_009",
+        "rt": "single_hop",
+        "answered": true,
+        "f1": 0.087,
+        "exact": false,
+        "judge": 1.0
+      },
+      {
+        "id": "finder_tut_010",
+        "rt": "compositional",
+        "answered": false,
+        "f1": 0.0,
+        "exact": false,
+        "judge": 0.0
+      }
+    ]
+  },
+  "on": {
+    "answerability": 1.0,
+    "token_f1": 0.409,
+    "exact": 0.3,
+    "judge": 0.7,
+    "rows": [
+      {
+        "id": "finder_tut_001",
+        "rt": "single_hop",
+        "answered": true,
+        "f1": 1.0,
+        "exact": true,
+        "judge": 1.0
+      },
+      {
+        "id": "finder_tut_002",
+        "rt": "numeric_lookup",
+        "answered": true,
+        "f1": 0.0,
+        "exact": false,
+        "judge": 0.0
+      },
+      {
+        "id": "finder_tut_003",
+        "rt": "single_hop",
+        "answered": true,
+        "f1": 0.0,
+        "exact": false,
+        "judge": 0.0
+      },
+      {
+        "id": "finder_tut_004",
+        "rt": "single_hop",
+        "answered": true,
+        "f1": 1.0,
+        "exact": true,
+        "judge": 1.0
+      },
+      {
+        "id": "finder_tut_005",
+        "rt": "single_hop",
+        "answered": true,
+        "f1": 0.2,
+        "exact": false,
+        "judge": 1.0
+      },
+      {
+        "id": "finder_tut_006",
+        "rt": "compositional",
+        "answered": true,
+        "f1": 0.5455,
+        "exact": false,
+        "judge": 1.0
+      },
+      {
+        "id": "finder_tut_007",
+        "rt": "single_hop",
+        "answered": true,
+        "f1": 0.2,
+        "exact": false,
+        "judge": 1.0
+      },
+      {
+        "id": "finder_tut_008",
+        "rt": "single_hop",
+        "answered": true,
+        "f1": 0.1429,
+        "exact": false,
+        "judge": 1.0
+      },
+      {
+        "id": "finder_tut_009",
+        "rt": "single_hop",
+        "answered": true,
+        "f1": 1.0,
+        "exact": true,
+        "judge": 1.0
+      },
+      {
+        "id": "finder_tut_010",
+        "rt": "compositional",
+        "answered": true,
+        "f1": 0.0,
+        "exact": false,
+        "judge": 0.0
+      }
+    ]
+  }
+}

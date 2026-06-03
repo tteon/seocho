@@ -108,6 +108,26 @@ def exact_match(expected: str, actual: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# Answerability — the upstream gate the cold review flagged
+# ---------------------------------------------------------------------------
+
+
+def answerability_rate(record_counts: Sequence[int]) -> float:
+    """Fraction of cases whose retrieval returned >= 1 record.
+
+    The cold-review diagnosis (2026-06-03): no synthesis directive, plan
+    ranking, fusion, or grounding can help when the modal retrieval result
+    is the empty set. Answerability — "can the graph even answer?" — is the
+    upstream gate that bounds every downstream answer-quality metric, so it
+    must be measured FIRST. Returns 0.0 for an empty input.
+    """
+    if not record_counts:
+        return 0.0
+    answered = sum(1 for c in record_counts if c and c >= 1)
+    return round(answered / len(record_counts), 4)
+
+
+# ---------------------------------------------------------------------------
 # Evidence retrieval — Hit@k and MRR
 # ---------------------------------------------------------------------------
 

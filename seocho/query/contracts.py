@@ -16,6 +16,25 @@ class IntentSpec:
 
 
 @dataclass(frozen=True)
+class RouteProfile:
+    """Lightweight answer-path profile derived before synthesis."""
+
+    route_class: str
+    question_determinism: str
+    tool_policy: str
+    recommended_tools: Tuple[str, ...] = ()
+    rationale: Tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class AnswerShape:
+    """Expected final answer shape for evidence-first synthesis."""
+
+    shape: str
+    rationale: Tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class QueryPlan:
     """Canonical query plan produced by the planner."""
 

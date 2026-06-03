@@ -2403,85 +2403,35 @@ class Ontology:
         total_defined_nodes = len(self.nodes)
         populated_nodes = 0
 
-        nodes_list = list(self.nodes)
-        for i in range(0, len(nodes_list), 50):
-            chunk = nodes_list[i:i+50]
-            if not chunk: continue
-
-            queries = []
-            for label in chunk:
-                safe_label = label.replace("`", "``").replace("\n", "").replace("\r", "")
-                safe_literal = safe_label.replace("'", "''")
-                queries.append(f"MATCH (n:`{safe_label}`) RETURN '{safe_literal}' AS element, count(n) AS cnt")
-
+        for label in self.nodes:
             try:
-                batched_query = " UNION ALL ".join(queries)
-                results = graph_store.query(batched_query, database=database)
-                count_map = {row["element"]: int(row["cnt"]) for row in results} if results else {}
+                result = graph_store.query(
+                    f"MATCH (n:`{label}`) RETURN count(n) AS cnt",
+                    database=database,
+                )
+                count = int(result[0]["cnt"]) if result else 0
             except Exception:
-                # Fallback to individual queries if the batch fails (e.g. missing table in strict graph DBs)
-                count_map = {}
-                for label in chunk:
-                    safe_label = label.replace("`", "``").replace("\n", "").replace("\r", "")
-                    safe_literal = safe_label.replace("'", "''")
-                    try:
-                        results = graph_store.query(
-                            f"MATCH (n:`{safe_label}`) RETURN '{safe_literal}' AS element, count(n) AS cnt",
-                            database=database,
-                        )
-                        count_map[safe_literal] = int(results[0]["cnt"]) if results else 0
-                    except Exception:
-                        pass
-
-            for label in chunk:
-                safe_label = label.replace("`", "``").replace("\n", "").replace("\r", "")
-                safe_literal = safe_label.replace("'", "''")
-                count = count_map.get(safe_label, 0)
-                node_stats.append({"label": label, "count": count})
-                if count > 0:
-                    populated_nodes += 1
+                count = 0
+            node_stats.append({"label": label, "count": count})
+            if count > 0:
+                populated_nodes += 1
 
         rel_stats: List[Dict[str, Any]] = []
         total_defined_rels = len(self.relationships)
         populated_rels = 0
 
-        rels_list = list(self.relationships)
-        for i in range(0, len(rels_list), 50):
-            chunk = rels_list[i:i+50]
-            if not chunk: continue
-
-            queries = []
-            for rtype in chunk:
-                safe_rtype = rtype.replace("`", "``").replace("\n", "").replace("\r", "")
-                safe_literal = safe_rtype.replace("'", "''")
-                queries.append(f"MATCH ()-[r:`{safe_rtype}`]->() RETURN '{safe_literal}' AS element, count(r) AS cnt")
-
+        for rtype in self.relationships:
             try:
-                batched_query = " UNION ALL ".join(queries)
-                results = graph_store.query(batched_query, database=database)
-                count_map = {row["element"]: int(row["cnt"]) for row in results} if results else {}
+                result = graph_store.query(
+                    f"MATCH ()-[r:`{rtype}`]->() RETURN count(r) AS cnt",
+                    database=database,
+                )
+                count = int(result[0]["cnt"]) if result else 0
             except Exception:
-                # Fallback to individual queries
-                count_map = {}
-                for rtype in chunk:
-                    safe_rtype = rtype.replace("`", "``").replace("\n", "").replace("\r", "")
-                    safe_literal = safe_rtype.replace("'", "''")
-                    try:
-                        results = graph_store.query(
-                            f"MATCH ()-[r:`{safe_rtype}`]->() RETURN '{safe_literal}' AS element, count(r) AS cnt",
-                            database=database,
-                        )
-                        count_map[safe_literal] = int(results[0]["cnt"]) if results else 0
-                    except Exception:
-                        pass
-
-            for rtype in chunk:
-                safe_rtype = rtype.replace("`", "``").replace("\n", "").replace("\r", "")
-                safe_literal = safe_rtype.replace("'", "''")
-                count = count_map.get(safe_label, 0)
-                rel_stats.append({"type": rtype, "count": count})
-                if count > 0:
-                    populated_rels += 1
+                count = 0
+            rel_stats.append({"type": rtype, "count": count})
+            if count > 0:
+                populated_rels += 1
 
         node_score = populated_nodes / total_defined_nodes if total_defined_nodes else 1.0
         rel_score = populated_rels / total_defined_rels if total_defined_rels else 1.0

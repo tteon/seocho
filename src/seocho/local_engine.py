@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 from typing import Any, Dict, List, Optional, Sequence
 
@@ -734,11 +735,21 @@ class _LocalEngine:
             reasoning_trace = json.dumps(attempts, default=str)
 
         with timer.stage("generation"):
+            # AnswerShape (opik-derived, A/B-gated): when SEOCHO_ANSWER_SHAPE
+            # is set, classify the question's expected answer shape and steer
+            # the synthesizer toward a terse value/name/location answer.
+            # Default (env unset) preserves baseline prose synthesis.
+            answer_shape = None
+            if os.getenv("SEOCHO_ANSWER_SHAPE"):
+                from .query.answer_shape import classify_answer_shape
+
+                answer_shape = classify_answer_shape(question)
             answer_text = answer_synthesizer.synthesize(
                 question,
                 records,
                 reasoning_trace=reasoning_trace,
                 vector_context=vector_context,
+                answer_shape=answer_shape,
             )
 
         timer.mark_total()

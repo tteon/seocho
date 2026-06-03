@@ -28,7 +28,8 @@ set below is each design's expected effect on SEOCHO's lane.
 | **AnswerShape** | classify the answer shape and emit a terse value → lift exact/token-F1 without changing retrieval | **token_f1 0.146→0.629, exact 0→0.60** (wide 10-case); 5-case scalar set 0→1.0 | **default-on** (earned) |
 | **RouteProfile** | route-conditional planner (multi_step only for multi-hop) → cheaper on simple, better on multi-hop | f1 0.216→0.202, latency flat — **null** | default-off (scaffold for F8) |
 | **F8 multi-plan** | execute top-K shapes + RRF fuse → lift recall on compositional | mechanism works (009: 0→2 records) but **f1 null** — bottleneck is extraction/ontology-fit, not shape | default-off |
-| **Scored grounding** | semantic synonym→ontology-type match → more non-empty retrievals | isolated 2/5→4/5 correct; **FinDER e2e null** (contains/exact/f1 unchanged) | default-off (no e2e win) |
+| **Scored grounding (lexical)** | semantic synonym→ontology-type match → more non-empty retrievals | isolated 2/5→4/5 correct; **FinDER e2e null** (contains/exact/f1 unchanged) | default-off (no e2e win) |
+| **Scored grounding (embedding scorer)** | embeddings fix the non-lexical synonym miss lexical made | isolated 4/5 (fixes `location`, breaks `leadership` — no domination); **FinDER e2e null** (0.569→0.569) | lexical stays default; embedding opt-in |
 
 ## Verification
 

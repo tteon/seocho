@@ -750,14 +750,15 @@ class _LocalEngine:
             reasoning_trace = json.dumps(attempts, default=str)
 
         with timer.stage("generation"):
-            # AnswerShape (opik-derived, A/B-gated): when SEOCHO_ANSWER_SHAPE
-            # is set, classify the question's expected answer shape and steer
-            # the synthesizer toward a terse value/name/location answer.
-            # Default (env unset) preserves baseline prose synthesis.
+            # AnswerShape (opik-derived): classify the question's expected
+            # answer shape and steer the synthesizer toward a terse
+            # value/name/location answer. DEFAULT ON (opt-out via
+            # SEOCHO_ANSWER_SHAPE=0); explanation/unknown shapes emit no
+            # directive, so prose answers are unchanged (CLAUDE.md §20).
             answer_shape = None
-            if os.getenv("SEOCHO_ANSWER_SHAPE"):
-                from .query.answer_shape import classify_answer_shape
+            from .query.answer_shape import answer_shape_enabled, classify_answer_shape
 
+            if answer_shape_enabled():
                 answer_shape = classify_answer_shape(question)
             answer_text = answer_synthesizer.synthesize(
                 question,

@@ -14,9 +14,25 @@ deterministic), with room for an LLM fallback when rules are uncertain
 
 from __future__ import annotations
 
+import os
 import re
 from enum import Enum
 from typing import Optional
+
+
+def answer_shape_enabled() -> bool:
+    """AnswerShape terse-synthesis steering — DEFAULT ON (opt-out).
+
+    Adopted 2026-06-03 after the wide FinDER validation: token_f1 0.146→0.629
+    and exact 0→0.60 across all reasoning buckets (single_hop 0.15→0.61,
+    numeric 0.26→1.0, compositional 0.075→0.50), with zero regression on the
+    two unknown-shape cases (no directive emitted → baseline prose). Explanation
+    /unknown shapes are a provable no-op (terse_directive returns None), so
+    default-on cannot silently regress prose answers (CLAUDE.md §20). Disable
+    per call/run with SEOCHO_ANSWER_SHAPE=0. Mirrors
+    _verified_financial_answer_enabled's opt-out shape.
+    """
+    return str(os.environ.get("SEOCHO_ANSWER_SHAPE", "1")).strip().lower() not in ("0", "false", "no")
 
 
 class AnswerShape(str, Enum):

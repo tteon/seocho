@@ -119,6 +119,44 @@ class TestListEndpoints:
         data = response.json()
         assert "agents" in data
 
+    # --- authz gate on list endpoints (PR cluster fix, 3f5b394) ---
+    # These pin the require_runtime_permission wiring added to the three
+    # infra-listing GET endpoints. Without the gate the endpoint returns
+    # 200 regardless, so patching the permission check to raise and
+    # asserting 403 fails on the unguarded code.
+
+    async def test_list_databases_denied_returns_403(self, client, app_module):
+        with patch.object(
+            app_module, "require_runtime_permission",
+            side_effect=PermissionError("role 'user' not allowed for action 'read_databases'"),
+        ):
+            response = await client.get("/databases")
+        assert response.status_code == 403
+
+    async def test_list_graphs_denied_returns_403(self, client, app_module):
+        with patch.object(
+            app_module, "require_runtime_permission",
+            side_effect=PermissionError("denied"),
+        ):
+            response = await client.get("/graphs")
+        assert response.status_code == 403
+
+    async def test_list_agents_denied_returns_403(self, client, app_module):
+        with patch.object(
+            app_module, "require_runtime_permission",
+            side_effect=PermissionError("denied"),
+        ):
+            response = await client.get("/agents")
+        assert response.status_code == 403
+
+    async def test_list_databases_passes_workspace_id_to_authz(self, client, app_module):
+        with patch.object(app_module, "require_runtime_permission") as mock_perm:
+            response = await client.get("/databases", params={"workspace_id": "tenant_a"})
+        assert response.status_code == 200
+        _, kwargs = mock_perm.call_args
+        assert kwargs["workspace_id"] == "tenant_a"
+        assert kwargs["action"] == "read_databases"
+
     async def test_execute_cypher_tool_uses_query_proxy(self, app_module):
         context = types.SimpleNamespace(
             context=app_module.ServerContext(

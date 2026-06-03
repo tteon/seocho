@@ -4,6 +4,7 @@ import importlib
 import os
 import sys
 import types
+import copy
 from contextlib import contextmanager, nullcontext
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -958,6 +959,96 @@ class TestListEndpoints:
                 assert kwargs["workspace_id"] == "default"
                 assert kwargs["semantic_artifact_policy"] == "approved_only"
                 assert kwargs["approved_artifacts"]["ontology_candidate"]["ontology_name"] == "approved"
+
+    async def test_ontology_control_plane_profile_signal_select_and_evaluate(self, client, app_module, tmp_path):
+        base_dir = tmp_path / "ontology_control_plane"
+        with patch.dict(os.environ, {"ONTOLOGY_CONTROL_PLANE_DIR": str(base_dir)}):
+            baseline = {
+                "workspace_id": "default",
+                "profile_id": "finance-core",
+                "ontology_id": "finance",
+                "version": "v1",
+                "status": "approved",
+                "ontology_candidate": {
+                    "ontology_name": "finance",
+                    "classes": [
+                        {
+                            "name": "FinancialMetric",
+                            "aliases": ["metric"],
+                            "properties": [{"name": "value", "aliases": ["revenue"]}],
+                        }
+                    ],
+                    "relationships": [
+                        {"type": "REPORTED", "aliases": ["reported revenue"]},
+                    ],
+                },
+                "shacl_candidate": {
+                    "shapes": [
+                        {
+                            "target_class": "FinancialMetric",
+                            "properties": [{"path": "value", "constraint": "minCount"}],
+                        }
+                    ]
+                },
+                "route_hints": {"route_classes": ["R4_GRAPH_JOIN"]},
+                "metrics": {"judge_score": 0.6, "slot_coverage": 0.8, "latency_ms": 1000, "token_cost": 500},
+            }
+            candidate = {
+                **copy.deepcopy(baseline),
+                "profile_id": "finance-core-v2",
+                "status": "draft",
+                "metrics": {"judge_score": 0.68, "slot_coverage": 0.9, "latency_ms": 900, "token_cost": 450},
+            }
+            candidate["ontology_candidate"]["classes"][0]["aliases"].append("DAS revenue")
+
+            assert (await client.post("/semantic/ontology-profiles", json=baseline)).status_code == 200
+            assert (await client.post("/semantic/ontology-profiles", json=candidate)).status_code == 200
+            signal_response = await client.post(
+                "/semantic/ontology-signals",
+                json={
+                    "workspace_id": "default",
+                    "source": "indexing",
+                    "kind": "alias_candidate",
+                    "profile_id": "finance-core-v2",
+                    "canonical": "FinancialMetric",
+                    "observed": "revenue",
+                    "confidence": 0.9,
+                },
+            )
+            assert signal_response.status_code == 200
+            assert signal_response.json()["signal_id"].startswith("os_")
+
+            compiled = await client.get("/semantic/ontology-profiles/finance-core-v2/compiled")
+            assert compiled.status_code == 200
+            assert compiled.json()["label_aliases"]["revenue"] == "FinancialMetric"
+            assert compiled.json()["required_slots"] == ["FinancialMetric.value"]
+
+            selected = await client.post(
+                "/semantic/ontology-profiles/select",
+                json={
+                    "workspace_id": "default",
+                    "question": "Show DAS reported revenue",
+                    "route_profile": {"route_class": "R4_GRAPH_JOIN"},
+                    "include_drafts": True,
+                },
+            )
+            assert selected.status_code == 200
+            assert selected.json()["profile_id"] == "finance-core-v2"
+
+            evaluated = await client.post(
+                "/semantic/ontology-profiles/finance-core-v2/evaluate",
+                json={"workspace_id": "default", "baseline_profile_id": "finance-core"},
+            )
+            assert evaluated.status_code == 200
+            assert evaluated.json()["decision"] == "promote_candidate"
+            assert evaluated.json()["expected_effect"]["quality_delta"] == 0.08
+
+            promoted = await client.post(
+                "/semantic/ontology-profiles/finance-core-v2/promote",
+                json={"workspace_id": "default", "promoted_by": "reviewer"},
+            )
+            assert promoted.status_code == 200
+            assert promoted.json()["status"] == "approved"
 
     async def test_public_create_memory_endpoint(self, client, app_module):
         with patch.object(app_module.memory_service, "create_memory") as mock_create:

@@ -54,6 +54,13 @@ from .client_remote import RemoteClientHelper
 from .exceptions import SeochoConnectionError, SeochoHTTPError
 from .governance import ArtifactDiff, ArtifactValidationResult, diff_artifact_payloads, validate_artifact_payload
 from .local_engine import _LocalEngine
+from .ontology_control_plane import (
+    CompiledOntologyProfile,
+    OntologyProfile,
+    OntologyProfileEvaluation,
+    OntologyProfileSelection,
+    OntologySignal,
+)
 from .semantic import (
     ApprovedArtifacts,
     SemanticArtifact,
@@ -2438,6 +2445,115 @@ class Seocho:
         payload = self._request_json("POST", f"/semantic/artifacts/{artifact_id}/deprecate", json_body=body)
         return SemanticArtifact.from_dict(payload)
 
+    def upsert_ontology_profile(self, profile: OntologyProfile | Dict[str, Any]) -> OntologyProfile:
+        """Create or replace an ontology control-plane profile."""
+        payload = serialize_optional_mapping(profile, field_name="profile")
+        if payload is None:
+            raise TypeError("profile must be provided")
+        payload.setdefault("workspace_id", self.workspace_id)
+        response = self._request_json("POST", "/semantic/ontology-profiles", json_body=payload)
+        return OntologyProfile.from_dict(response)
+
+    def list_ontology_profiles(self, *, status: Optional[str] = None) -> List[Dict[str, Any]]:
+        """List ontology control-plane profiles for this workspace."""
+        params: Dict[str, Any] = {"workspace_id": self.workspace_id}
+        if status:
+            params["status"] = status
+        payload = self._request_json("GET", "/semantic/ontology-profiles", params=params)
+        return list(payload.get("profiles", []))
+
+    def get_ontology_profile(self, profile_id: str) -> OntologyProfile:
+        """Retrieve an ontology control-plane profile by ID."""
+        params = {"workspace_id": self.workspace_id}
+        payload = self._request_json("GET", f"/semantic/ontology-profiles/{profile_id}", params=params)
+        return OntologyProfile.from_dict(payload)
+
+    def promote_ontology_profile(
+        self,
+        profile_id: str,
+        *,
+        promoted_by: str,
+        promotion_note: Optional[str] = None,
+    ) -> OntologyProfile:
+        """Promote an ontology profile to approved status."""
+        body: Dict[str, Any] = {"workspace_id": self.workspace_id, "promoted_by": promoted_by}
+        if promotion_note:
+            body["promotion_note"] = promotion_note
+        payload = self._request_json(
+            "POST",
+            f"/semantic/ontology-profiles/{profile_id}/promote",
+            json_body=body,
+        )
+        return OntologyProfile.from_dict(payload)
+
+    def compile_ontology_profile(self, profile_id: str) -> CompiledOntologyProfile:
+        """Fetch the hot-path compiled ontology profile artifact."""
+        params = {"workspace_id": self.workspace_id}
+        payload = self._request_json(
+            "GET",
+            f"/semantic/ontology-profiles/{profile_id}/compiled",
+            params=params,
+        )
+        return CompiledOntologyProfile(**payload)
+
+    def select_ontology_profile(
+        self,
+        question: str,
+        *,
+        route_profile: Optional[Dict[str, Any]] = None,
+        include_drafts: bool = False,
+    ) -> OntologyProfileSelection:
+        """Select the best ontology profile for a query."""
+        body = {
+            "workspace_id": self.workspace_id,
+            "question": question,
+            "route_profile": route_profile or {},
+            "include_drafts": include_drafts,
+        }
+        payload = self._request_json("POST", "/semantic/ontology-profiles/select", json_body=body)
+        return OntologyProfileSelection(**payload)
+
+    def evaluate_ontology_profile(
+        self,
+        profile_id: str,
+        *,
+        baseline_profile_id: Optional[str] = None,
+    ) -> OntologyProfileEvaluation:
+        """Compare an ontology profile against a baseline profile."""
+        body: Dict[str, Any] = {"workspace_id": self.workspace_id}
+        if baseline_profile_id:
+            body["baseline_profile_id"] = baseline_profile_id
+        payload = self._request_json(
+            "POST",
+            f"/semantic/ontology-profiles/{profile_id}/evaluate",
+            json_body=body,
+        )
+        return OntologyProfileEvaluation(**payload)
+
+    def create_ontology_signal(self, signal: OntologySignal | Dict[str, Any]) -> OntologySignal:
+        """Record an indexing-side or query-side ontology signal."""
+        payload = serialize_optional_mapping(signal, field_name="signal")
+        if payload is None:
+            raise TypeError("signal must be provided")
+        payload.setdefault("workspace_id", self.workspace_id)
+        response = self._request_json("POST", "/semantic/ontology-signals", json_body=payload)
+        return OntologySignal.from_dict(response)
+
+    def list_ontology_signals(
+        self,
+        *,
+        source: Optional[str] = None,
+        kind: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """List ontology control-plane signals for this workspace."""
+        params: Dict[str, Any] = {"workspace_id": self.workspace_id}
+        if source:
+            params["source"] = source
+        if kind:
+            params["kind"] = kind
+        payload = self._request_json("GET", "/semantic/ontology-signals", params=params)
+        return list(payload.get("signals", []))
+
     def validate_artifact(
         self,
         artifact: SemanticArtifact | SemanticArtifactDraftInput | Dict[str, Any],
@@ -3209,6 +3325,78 @@ class AsyncSeocho:
             deprecated_by=deprecated_by,
             deprecation_note=deprecation_note,
         )
+
+    async def upsert_ontology_profile(self, profile: OntologyProfile | Dict[str, Any]) -> OntologyProfile:
+        """Async version of :meth:`Seocho.upsert_ontology_profile`."""
+        return await asyncio.to_thread(self._client.upsert_ontology_profile, profile)
+
+    async def list_ontology_profiles(self, *, status: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Async version of :meth:`Seocho.list_ontology_profiles`."""
+        return await asyncio.to_thread(self._client.list_ontology_profiles, status=status)
+
+    async def get_ontology_profile(self, profile_id: str) -> OntologyProfile:
+        """Async version of :meth:`Seocho.get_ontology_profile`."""
+        return await asyncio.to_thread(self._client.get_ontology_profile, profile_id)
+
+    async def promote_ontology_profile(
+        self,
+        profile_id: str,
+        *,
+        promoted_by: str,
+        promotion_note: Optional[str] = None,
+    ) -> OntologyProfile:
+        """Async version of :meth:`Seocho.promote_ontology_profile`."""
+        return await asyncio.to_thread(
+            self._client.promote_ontology_profile,
+            profile_id,
+            promoted_by=promoted_by,
+            promotion_note=promotion_note,
+        )
+
+    async def compile_ontology_profile(self, profile_id: str) -> CompiledOntologyProfile:
+        """Async version of :meth:`Seocho.compile_ontology_profile`."""
+        return await asyncio.to_thread(self._client.compile_ontology_profile, profile_id)
+
+    async def select_ontology_profile(
+        self,
+        question: str,
+        *,
+        route_profile: Optional[Dict[str, Any]] = None,
+        include_drafts: bool = False,
+    ) -> OntologyProfileSelection:
+        """Async version of :meth:`Seocho.select_ontology_profile`."""
+        return await asyncio.to_thread(
+            self._client.select_ontology_profile,
+            question,
+            route_profile=route_profile,
+            include_drafts=include_drafts,
+        )
+
+    async def evaluate_ontology_profile(
+        self,
+        profile_id: str,
+        *,
+        baseline_profile_id: Optional[str] = None,
+    ) -> OntologyProfileEvaluation:
+        """Async version of :meth:`Seocho.evaluate_ontology_profile`."""
+        return await asyncio.to_thread(
+            self._client.evaluate_ontology_profile,
+            profile_id,
+            baseline_profile_id=baseline_profile_id,
+        )
+
+    async def create_ontology_signal(self, signal: OntologySignal | Dict[str, Any]) -> OntologySignal:
+        """Async version of :meth:`Seocho.create_ontology_signal`."""
+        return await asyncio.to_thread(self._client.create_ontology_signal, signal)
+
+    async def list_ontology_signals(
+        self,
+        *,
+        source: Optional[str] = None,
+        kind: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Async version of :meth:`Seocho.list_ontology_signals`."""
+        return await asyncio.to_thread(self._client.list_ontology_signals, source=source, kind=kind)
 
     async def validate_artifact(
         self,

@@ -332,7 +332,39 @@ def _first_supporting_fact(records: Sequence[Dict[str, Any]]) -> str:
             value = record.get(key) if isinstance(record, dict) else None
             if value:
                 return str(value).strip()
+        neighbor_fact = _neighbor_supporting_fact(record)
+        if neighbor_fact:
+            return neighbor_fact
     return ""
+
+
+def _neighbor_supporting_fact(record: Dict[str, Any]) -> str:
+    if not isinstance(record, dict):
+        return ""
+    neighbors = record.get("neighbors", [])
+    if not isinstance(neighbors, list):
+        return ""
+    facts: List[str] = []
+    seen: set[str] = set()
+    for neighbor in neighbors:
+        if not isinstance(neighbor, dict):
+            continue
+        fact = str(
+            neighbor.get("target_fact")
+            or neighbor.get("neighbor_fact")
+            or neighbor.get("supporting_fact")
+            or ""
+        ).strip()
+        if not fact:
+            continue
+        compact = " ".join(fact.split())
+        key = compact.casefold()
+        if compact and key not in seen:
+            seen.add(key)
+            facts.append(compact if compact.endswith((".", "!", "?")) else f"{compact}.")
+        if len(" ".join(facts)) >= 1200:
+            break
+    return " ".join(facts)[:1200].rsplit(" ", 1)[0].rstrip() if facts else ""
 
 
 def _context_excerpt(vector_context: str) -> str:

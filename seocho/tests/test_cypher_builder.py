@@ -443,6 +443,69 @@ def test_local_engine_legal_neighbors_answer_keeps_specific_issue_sentences() ->
     assert "patent infringement claims" in answer
 
 
+def test_local_engine_neighbors_promotes_neighbor_facts_into_answer_and_bundle() -> None:
+    ontology = Ontology(
+        name="company_context",
+        nodes={
+            "Company": NodeDef(properties={"name": P(str, unique=True)}),
+            "Capability": NodeDef(properties={"name": P(str), "content_preview": P(str)}),
+        },
+        relationships={"HAS_OPERATIONAL_STRENGTH": RelDef(source="Company", target="Capability")},
+    )
+    neighbor_fact = (
+        "Labcorp uses integrated logistics, technology leadership, large-scale automated testing, "
+        "and cost efficiencies to support drug development services in competitive markets."
+    )
+
+    class NeighborFactLLM:
+        def complete(self, *, system, user, temperature, response_format=None):  # noqa: ANN001
+            return _FakeLLMResponse(
+                {
+                    "intent": "neighbors",
+                    "anchor_entity": "Labcorp",
+                    "anchor_label": "Company",
+                }
+            )
+
+    class NeighborFactGraphStore:
+        def get_schema(self, *, database: str = "neo4j") -> dict:
+            return {
+                "labels": ["Company", "Capability"],
+                "relationship_types": ["HAS_OPERATIONAL_STRENGTH"],
+            }
+
+        def query(self, cypher: str, *, params=None, database: str = "neo4j"):  # noqa: ANN001
+            return [
+                {
+                    "entity": "Labcorp",
+                    "properties": {"name": "Labcorp"},
+                    "neighbors": [
+                        {
+                            "relation": "HAS_OPERATIONAL_STRENGTH",
+                            "neighbor": "integrated logistics",
+                            "neighbor_labels": ["Capability"],
+                            "neighbor_fact": neighbor_fact,
+                        }
+                    ],
+                    "supporting_fact": "",
+                }
+            ]
+
+    client = Seocho(
+        ontology=ontology,
+        graph_store=NeighborFactGraphStore(),
+        llm=NeighborFactLLM(),
+        workspace_id="finance_benchmark_test",
+    )
+
+    answer = client.ask("Labcorp fin metrics, op eff, tech int, drug dev svc, LH.", database="neo4j")
+    metadata = client.last_query_metadata
+
+    assert "integrated logistics" in answer
+    assert "drug development services" in answer
+    assert metadata["evidence_bundle"]["slot_fills"]["supporting_fact"].startswith("Labcorp uses")
+
+
 def test_local_engine_financial_lookup_compares_multiple_years_without_currency_for_counts() -> None:
     class DeliveryLLM:
         def complete(self, *, system, user, temperature, response_format=None):  # noqa: ANN001

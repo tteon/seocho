@@ -23,6 +23,14 @@ def test_infer_question_intent_and_evidence_bundle_contract():
 
     assert intent["intent_id"] == "relationship_lookup"
     assert bundle["schema_version"] == "evidence_bundle.v2"
+    assert bundle["database"] == "kgnormal"
+    assert bundle["databases"] == ["kgnormal"]
+    assert bundle["route_profile"]["route_class"] == "R4_GRAPH_JOIN"
+    assert bundle["route_profile"]["recommended_tools"][-1] in {"verified_answer_shape", "grounded_synthesis"}
+    assert bundle["answer_shape"] == "partial_evidence_summary"
+    assert bundle["support_status"] == "partial"
+    assert bundle["support_assessment"]["missing_slots"] == ["relation_paths"]
+    assert bundle["support_assessment"]["route_class"] == "R4_GRAPH_JOIN"
     assert bundle["slot_fills"]["source_entity"] == "Neo4j"
     assert bundle["slot_fills"]["target_entity"] == "Cypher"
 
@@ -67,6 +75,8 @@ def test_tradeoff_intent_and_evidence_bundle_surface_limitations_and_alternative
     )
 
     assert intent["intent_id"] == "engineering_tradeoff_lookup"
+    assert bundle["route_profile"]["route_class"] == "R5_LONG_CONTEXT_REASONING"
+    assert bundle["answer_shape"] == "evidence_summary"
     assert bundle["slot_fills"]["target_entity"] == "Python"
     assert bundle["slot_fills"]["limitation_points"] == ["GIL"]
     assert bundle["slot_fills"]["alternative_points"] == ["multiprocessing", "Ray"]

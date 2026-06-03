@@ -3,6 +3,25 @@
 This file is the lightweight index of architecture/product decisions.
 Each entry must link to a full ADR when impact is non-trivial.
 
+## 2026-06-03
+
+- Accepted `ADR-0099-ontology-control-plane-as-agentic-middleware-lock-in.md`
+  - SEOCHO's defensible layer is ontology-selection middleware between agents
+    and graph/model providers, not a proprietary DBMS or foundation model
+  - added `seocho.ontology_control_plane` with typed ontology signals,
+    reviewable profiles, hot-path compiled profiles, deterministic profile
+    selection, and baseline-vs-candidate evaluation
+  - follow-up work should persist signals/profiles, expose user review controls,
+    and gate profile promotion with MARA/OpenAI-compatible E2E regression
+- Accepted `ADR-0098-experiment-backed-route-profile-and-answer-shape-contract.md`
+  - ICML FinDER and KDD DataAgent-Bench experiments support treating graph
+    evidence as slot/route control first, not as an always-authoritative final
+    answer substrate
+  - shared `evidence_bundle.v2` now carries `route_profile`,
+    `answer_shape`, and `answer_shape_profile`
+  - SDK `EvidenceBundle` preserves those fields for runtime clients and
+    follow-on insufficiency-gated fallback work
+
 ## 2026-05-30
 
 - Accepted `ADR-0097-experiment-data-query-plane-hardening.md`

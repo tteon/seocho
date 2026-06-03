@@ -16,6 +16,11 @@ evidence.
 In one sentence: SEOCHO turns your ontology into the operating contract for
 graph memory, retrieval, and agent answers.
 
+The durable product layer is the ontology control plane: indexing and query
+runs emit ontology signals, SEOCHO compiles those signals into reviewable
+profiles, and agents select the best profile before routing, text-to-Cypher,
+debate, reasoning, or answer synthesis.
+
 ```mermaid
 flowchart LR
     D["Documents"] --> I["SEOCHO index"]

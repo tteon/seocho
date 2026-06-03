@@ -15,11 +15,13 @@ from .answering import QueryAnswerSynthesizer, build_evidence_bundle, infer_ques
 from .constraints import SemanticConstraintSliceBuilder
 from .contracts import (
     CypherPlan,
+    AnswerShape,
     InsufficiencyAssessment,
     IntentSpec,
     QueryAttempt,
     QueryExecution,
     QueryPlan,
+    RouteProfile,
 )
 from .graph_cot_contracts import (
     AnswerDraft,
@@ -77,6 +79,8 @@ from .strategy_chooser import ExecutionStrategyChooser, IntentSupportValidator
 
 __all__ = [
     "IntentSpec",
+    "RouteProfile",
+    "AnswerShape",
     "AgentConfig",
     "AgentFactory",
     "INTENT_CATALOG",

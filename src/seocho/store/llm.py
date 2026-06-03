@@ -87,6 +87,15 @@ _PROVIDER_SPECS: Dict[str, ProviderSpec] = {
         default_embedding_model=None,
         supports_embeddings=False,
     ),
+    # MARA cloud — OpenAI-compatible endpoint serving MiniMax-class models.
+    "mara": ProviderSpec(
+        name="mara",
+        api_key_env="MARA_API_KEY",
+        base_url="https://api.cloud.mara.com/v1",
+        default_model="MiniMax-M2.5",
+        default_embedding_model=None,
+        supports_embeddings=False,
+    ),
 }
 
 
@@ -879,6 +888,26 @@ class QwenBackend(OpenAICompatibleBackend):
         )
 
 
+class MaraBackend(OpenAICompatibleBackend):
+    """MARA cloud provider — OpenAI-compatible (MiniMax-class models)."""
+
+    def __init__(
+        self,
+        *,
+        model: str = "MiniMax-M2.5",
+        api_key: Optional[str] = None,
+        base_url: Optional[str] = None,
+        timeout: float = 120.0,
+    ) -> None:
+        super().__init__(
+            provider="mara",
+            model=model,
+            api_key=api_key,
+            base_url=base_url,
+            timeout=timeout,
+        )
+
+
 class VLLMBackend(OpenAICompatibleBackend):
     """ADR-0098: on-prem vLLM provider.
 
@@ -964,6 +993,13 @@ def create_llm_backend(
     if provider_key == "qwen":
         return QwenBackend(
             model=model or get_provider_spec("qwen").default_model,
+            api_key=api_key,
+            base_url=base_url,
+            timeout=timeout,
+        )
+    if provider_key == "mara":
+        return MaraBackend(
+            model=model or get_provider_spec("mara").default_model,
             api_key=api_key,
             base_url=base_url,
             timeout=timeout,

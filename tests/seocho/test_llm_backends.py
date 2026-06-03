@@ -386,6 +386,37 @@ def test_provider_retry_strips_reasoning_overrides_after_payload_rejection(
 # ---------------------------------------------------------------------------
 
 
+def test_mara_provider_preset_resolves_cloud_defaults(
+    fake_openai: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """MARA preset resolves the cloud base_url, MiniMax-M2.5 default model,
+    and MARA_API_KEY env var."""
+    monkeypatch.setenv("MARA_API_KEY", "mara-secret")
+
+    backend = create_llm_backend(provider="mara")
+
+    assert backend.provider == "mara"
+    assert backend.model == "MiniMax-M2.5"
+    assert backend._base_url == "https://api.cloud.mara.com/v1"
+    assert backend._api_key_env == "MARA_API_KEY"
+    assert backend._api_key == "mara-secret"
+
+
+def test_mara_provider_seocho_local_style_resolves(
+    fake_openai: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Seocho.local(llm="mara/MiniMax-M2.5") split → factory round trip."""
+    monkeypatch.setenv("MARA_API_KEY", "mara-secret")
+
+    provider, model = "mara/MiniMax-M2.5".split("/", 1)
+    backend = create_llm_backend(provider=provider, model=model)
+
+    assert backend.provider == "mara"
+    assert backend.model == "MiniMax-M2.5"
+
+
 def test_vllm_provider_preset_resolves_localhost_default(
     fake_openai: None,
     monkeypatch: pytest.MonkeyPatch,

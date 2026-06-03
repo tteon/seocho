@@ -484,6 +484,13 @@ def test_local_engine_financial_lookup_compares_multiple_years_without_currency_
 def test_local_engine_financial_lookup_explains_nvidia_gross_margin_expansion() -> None:
     class GrossMarginLLM:
         def complete(self, *, system, user, temperature, response_format=None):  # noqa: ANN001
+            if response_format is None:
+                response = _FakeLLMResponse({})
+                response.text = (
+                    "NVIDIA's gross margin expanded to 72.7% from 56.9%, driven by strong demand "
+                    "for AI accelerator chips including the H100 and A100 product lines."
+                )
+                return response
             return _FakeLLMResponse(
                 {
                     "anchor_entity": "NVIDIA",
@@ -533,6 +540,96 @@ def test_financial_answer_rewrites_prior_year_using_question_years() -> None:
 
     assert "prior year" not in answer
     assert "936,000 in 2021" in answer
+
+
+def test_financial_answer_shape_keeps_explanatory_questions_on_llm_path() -> None:
+    synthesizer = QueryAnswerSynthesizer(query_strategy=object(), llm=object())
+
+    answer = synthesizer.build_deterministic_answer(
+        "What drove NVIDIA's gross margin expansion?",
+        [
+            {
+                "company": "NVIDIA",
+                "metric_name": "Gross Margin 2023",
+                "year": "2023",
+                "value": "72.7%",
+                "relationship": "REPORTED",
+                "supporting_fact": (
+                    "The company's gross margin expanded to 72.7% from 56.9%, driven by strong demand "
+                    "for AI accelerator chips including the H100 and A100 product lines."
+                ),
+            }
+        ],
+        {
+            "intent": "financial_metric_lookup",
+            "anchor_entity": "NVIDIA",
+            "metric_name": "gross margin",
+            "metric_aliases": ["margin"],
+            "years": ["2023"],
+        },
+    )
+
+    assert answer is None
+
+
+def test_verified_financial_answer_ablation_keeps_llm_path(monkeypatch) -> None:  # noqa: ANN001
+    monkeypatch.setenv("SEOCHO_VERIFIED_FINANCIAL_ANSWER", "0")
+    synthesizer = QueryAnswerSynthesizer(query_strategy=object(), llm=object())
+
+    answer = synthesizer.build_deterministic_answer(
+        "What was JPMorgan's net interest income growth?",
+        [
+            {
+                "col_0": "JPMorgan Chase & Co.",
+                "col_1": "Net Interest Income 2022",
+                "col_2": "2022",
+                "col_3": "66700000000",
+                "col_4": "REPORTED",
+            },
+            {
+                "col_0": "JPMorgan Chase & Co.",
+                "col_1": "Net Interest Income 2023",
+                "col_2": "2023",
+                "col_3": "87100000000",
+                "col_4": "REPORTED",
+            },
+        ],
+        {
+            "intent": "financial_metric_delta",
+            "anchor_entity": "JPMorgan",
+            "metric_name": "net interest income",
+            "metric_aliases": ["net interest income", "income"],
+            "years": ["2022", "2023"],
+        },
+    )
+
+    assert answer is None
+
+
+def test_verified_financial_answer_rejects_multi_metric_compositional_question() -> None:
+    synthesizer = QueryAnswerSynthesizer(query_strategy=object(), llm=object())
+
+    answer = synthesizer.build_deterministic_answer(
+        "2023 med costs & premium tax exp share vs rev & profit of Centene Corp (CNC).",
+        [
+            {
+                "company": "Centene Corp",
+                "metric_name": "Premium Tax Expense 2023",
+                "year": "2023",
+                "value": "$13,904",
+                "relationship": "REPORTED",
+            }
+        ],
+        {
+            "intent": "financial_metric_lookup",
+            "anchor_entity": "Centene Corp",
+            "metric_name": "medical costs, premium tax expense, revenue, profit",
+            "metric_aliases": ["premium tax", "revenue", "profit"],
+            "years": ["2023"],
+        },
+    )
+
+    assert answer is None
 
 
 def test_financial_answer_handles_ladybug_column_alias_fallbacks() -> None:

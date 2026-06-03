@@ -146,3 +146,127 @@ def test_invalidate_no_args_clears_index_stats_too() -> None:
     store._index_stats_cache[store._schema_cache_key("bar", "beta")] = {"b": 2}
     store.invalidate_schema_cache()
     assert store._index_stats_cache == {}
+
+
+# --- F7 (seocho-zgxs): large-label sampling in get_index_stats ---------------
+
+
+def test_interpret_label_probe_exact_when_below_limit() -> None:
+    """A probe count below the sample limit is the exact workspace count."""
+    from seocho.store.graph import Neo4jGraphStore
+
+    value, sampled = Neo4jGraphStore._interpret_label_probe(42, 10000)
+    assert value == 42
+    assert sampled is False
+
+
+def test_interpret_label_probe_capped_when_at_limit() -> None:
+    """A probe that reaches the limit is reported as a sampled lower bound."""
+    from seocho.store.graph import Neo4jGraphStore
+
+    value, sampled = Neo4jGraphStore._interpret_label_probe(10000, 10000)
+    assert value == 10000
+    assert sampled is True
+
+
+def test_interpret_label_probe_zero_is_exact() -> None:
+    from seocho.store.graph import Neo4jGraphStore
+
+    value, sampled = Neo4jGraphStore._interpret_label_probe(0, 10000)
+    assert value == 0
+    assert sampled is False
+
+
+class _FakeSingleResult:
+    def __init__(self, cnt: int) -> None:
+        self._cnt = cnt
+
+    def single(self):
+        return {"cnt": self._cnt}
+
+    def __iter__(self):
+        # Used for CALL db.labels() / relationshipTypes() iteration.
+        return iter(self._rows) if hasattr(self, "_rows") else iter([])
+
+
+class _FakeRows:
+    def __init__(self, rows):
+        self._rows = rows
+
+    def __iter__(self):
+        return iter(self._rows)
+
+
+class _FakeSession:
+    """Canned-response session: SHOW INDEXES empty, one label 'Big' that
+    probes at the cap and one label 'Small' that probes below it."""
+
+    def __init__(self, sample_limit: int) -> None:
+        self._sample_limit = sample_limit
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+    def run(self, query: str, **params):
+        if "SHOW INDEXES" in query:
+            return _FakeRows([])
+        if "db.labels" in query:
+            return _FakeRows([{"label": "Big"}, {"label": "Small"}])
+        if "db.relationshipTypes" in query:
+            return _FakeRows([])
+        if "MATCH (n:Big)" in query:
+            # probes at the cap → sampled
+            return _FakeSingleResult(self._sample_limit)
+        if "MATCH (n:Small)" in query:
+            return _FakeSingleResult(7)
+        return _FakeSingleResult(0)
+
+
+class _FakeDriver:
+    def __init__(self, sample_limit: int) -> None:
+        self._sample_limit = sample_limit
+
+    def session(self, *, database: str):
+        return _FakeSession(self._sample_limit)
+
+
+def _build_store_with_driver(sample_limit: int = 10000):
+    from seocho.store.graph import Neo4jGraphStore
+
+    store = object.__new__(Neo4jGraphStore)
+    store._schema_cache = {}
+    store._schema_cache_ts = {}
+    store._schema_cache_ttl = 60.0
+    store._index_stats_cache = {}
+    store._index_stats_cache_ts = {}
+    store._driver = _FakeDriver(sample_limit)
+    return store
+
+
+def test_get_index_stats_flags_large_label_as_sampled() -> None:
+    """End-to-end: a label whose probe hits the cap is reported sampled
+    with value == sample_limit; a small label is exact."""
+    store = _build_store_with_driver(sample_limit=10000)
+    stats = store.get_index_stats(database="neo4j", workspace_id="ws-f7")
+
+    assert stats["label_counts"]["Big"] == 10000
+    assert stats["label_counts"]["Small"] == 7
+    assert stats["label_count_meta"]["Big"]["sampled"] is True
+    assert stats["label_count_meta"]["Big"]["sample_limit"] == 10000
+    assert stats["label_count_meta"]["Small"]["sampled"] is False
+
+
+def test_get_index_stats_respects_custom_sample_limit() -> None:
+    """A smaller sample_limit caps 'Big' lower and still flags it sampled."""
+    store = _build_store_with_driver(sample_limit=5)
+    stats = store.get_index_stats(
+        database="neo4j", workspace_id="ws-f7", sample_limit=5
+    )
+    assert stats["label_counts"]["Big"] == 5
+    assert stats["label_count_meta"]["Big"]["sampled"] is True
+    # Small (7) now exceeds the limit of 5 → also sampled/capped at 5.
+    assert stats["label_counts"]["Small"] == 5
+    assert stats["label_count_meta"]["Small"]["sampled"] is True

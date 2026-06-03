@@ -144,6 +144,13 @@ measures "concept resolves but no Observation exists for this
 returning an empty structured result dressed as an answer. dbt's "failure
 looks like an error, not wrong data," implemented.
 
+**MEASURED (S5, live decompose→arbitrate against the seeded DozerDB):**
+"Apple revenue FY2024" (present) → `STRUCTURED`; "Apple revenue FY2099"
+(absent) → `CLARIFY` offering available periods FY2023/24/25 (not a silent
+empty); "why did gross margin expand" (OOV concept + qualitative) → `NARRATIVE`.
+The neutral measure→hint routing works end-to-end; the planner remains the
+decider.
+
 **Staged roadmap (resolves the multi-ontology fork):**
 - **v1 (smallest slice):** single finance manifest; `route ∈ {STRUCTURED,
   NARRATIVE, CLARIFY, FAIL}`; `ontology_id` field present but constant

@@ -527,6 +527,21 @@ class _LocalEngine:
             reasoning_mode = self.agent_config.reasoning_mode
         if repair_budget is None:
             repair_budget = self.agent_config.repair_budget
+        # RouteProfile (opik-derived, A/B-gated): when SEOCHO_ROUTE_PROFILE is
+        # set, classify the question's route_class and let its planner choose
+        # the execution levers — escalate to multi-step (reasoning + repair)
+        # ONLY for multi-hop, keep simple lookups on the cheap single pass
+        # (exp5: planner only beats single_call on multi-hop). Default (env
+        # unset) preserves the caller/agent_config values exactly.
+        self._last_route_profile = None
+        if os.getenv("SEOCHO_ROUTE_PROFILE") and query_mode != "graph_cot":
+            from .query.route_profile import planner_exec_params, select_route_profile
+
+            profile = select_route_profile(question)
+            params = planner_exec_params(profile.planner)
+            reasoning_mode = params["reasoning_mode"]
+            repair_budget = params["repair_budget"]
+            self._last_route_profile = profile
         if query_mode == "graph_cot":
             reasoning_mode = True
             repair_budget = max(1, int(repair_budget or 0))

@@ -168,6 +168,16 @@ plans as a **NodeIndexSeek** (seek_rate 1.0, scan_count 0, max db_hits 23) — t
 structured path is not only correct (DCC=1.0) but index-backed and O(1), not a
 label scan. GOPTS Layer-1/2 confirmed for the observation_lookup pattern.
 
+**MEASURED (S8, closed-loop e2e SRHR, `srhr_probe.py`, fallback-OFF):**
+running the FULL lane (decompose→arbitrate→compile→execute→score) over all 102
+prior-resistant SEC questions: **SRHR = 1.00 (102/102, routes: 102 STRUCTURED,
+0 misses), stale_srhr = 1.00**. This closes the loop — the separately-measured
+DCC=1.0 and SRA=1.0 compose to 1.0 in practice; the graph answers from pure
+STRUCTURED retrieval (chunk fallback OFF), including every post-cutoff FY2025
+fact. HONEST CAVEAT (unchanged): clean question template + Observations seeded
+from the XBRL gold, so this is the favorable structured path; the real
+extraction-noise test is S11 (Item-8 table ingestion from actual filings).
+
 **Staged roadmap (resolves the multi-ontology fork):**
 - **v1 (smallest slice):** single finance manifest; `route ∈ {STRUCTURED,
   NARRATIVE, CLARIFY, FAIL}`; `ontology_id` field present but constant

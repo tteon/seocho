@@ -226,7 +226,18 @@ reified Observation + exact-key compiled Cypher returns the correct typed
 `value_num` for every case, vs the legacy free-text-keyed Cypher's ~0.30. The
 core thesis (the bottleneck was identity/structure, not Cypher) is confirmed;
 the compile target is correct, so the LLM layers (arbiter, decompose) can
-proceed. Then:
+proceed. **MEASURED (S6, `sra_probe.py`): joint SRA = 1.00 (102/102, MARA
+MiniMax-M2.5 decompose + bge resolution, no graph writes)** — concept, entity
+(→CIK), and period all resolve correctly for every question. Composing the two
+separately-measured stages, **SRHR ≈ SRA × DCC ≈ 1.00** on the prior-resistant
+SEC set, vs the legacy free-text lane's ~0.30. HONEST CAVEAT: this set uses a
+clean, well-formed question template ("What was {Company}'s {metric} for fiscal
+year {Y}?") whose metric/entity/period are in the closed vocab and explicitly
+stated, so SRA is an upper bound; varied phrasing, out-of-vocab metrics, and
+ambiguous entities will be lower and are exactly what the arbiter (S5) routes to
+CLARIFY/FAIL and what Tier 3 / real-question runs will measure. A closed-loop
+e2e SRHR (decompose→resolve→compile→execute→score on rows) is the natural
+confirmation. Then:
 (2) ablation A0→A6 on Tier 1; (3) prior-staleness/temporal on stale rows; (4)
 build Item 8 table ingestion, run on real noise; (5) freeze, run Tier 3 once;
 (6) fallback-ON only to quantify the residual structure-vs-chunk gap.

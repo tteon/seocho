@@ -13,6 +13,11 @@ You declare the ontology. You call `add()` and `ask()`.
 SEOCHO keeps graph writes, semantic artifacts, and agent behavior aligned
 to that one schema contract across local SDK and runtime paths.
 
+The durable product layer is the ontology control plane: indexing and query
+runs emit ontology signals, SEOCHO compiles those signals into reviewable
+profiles, and agents select the best profile before routing, text-to-Cypher,
+debate, reasoning, or answer synthesis.
+
 ```mermaid
 flowchart LR
     D["📄 Your docs"] --> E["Extraction"]

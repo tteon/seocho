@@ -40,6 +40,27 @@ One semantic control plane should govern two execution planes:
 The semantic control plane is not a separate microservice requirement. It is a
 canonical contract and module boundary inside the modular monolith.
 
+## Ontology Control Plane Slice
+
+The first implementation slice is `seocho.ontology_control_plane`.
+
+It makes the control plane concrete without changing the graph backend or model
+provider:
+
+- `OntologySignal`: indexing-side and query-side discoveries such as aliases,
+  missing slots, drift, route failures, and answer regressions
+- `OntologyProfile`: a user-reviewable, versioned profile containing ontology
+  candidates, vocabulary candidates, SHACL candidates, route hints, answer
+  shapes, and measured metrics
+- `CompiledOntologyProfile`: the hot-path artifact consumed by routing,
+  text-to-Cypher, debate, reasoning, and answer synthesis
+- `OntologyControlPlane`: deterministic profile selection and baseline-vs-
+  candidate evaluation for approve/rollback/rerun workflows
+
+This is SEOCHO's lock-in layer: users own portable semantics, but SEOCHO owns
+the operational loop that chooses, compiles, measures, and promotes the right
+ontology profile for each workspace and query.
+
 ## User Contract
 
 The user workflow should stay simple:

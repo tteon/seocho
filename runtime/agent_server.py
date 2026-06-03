@@ -1656,6 +1656,10 @@ async def list_databases(
     ``workspace_id`` is accepted on the contract for tenancy uniformity;
     multi-tenant filtering is not yet enforced (single-tenant MVP).
     """
+    try:
+        require_runtime_permission(role="user", action="read_databases", workspace_id=workspace_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     return {"workspace_id": workspace_id, "databases": db_registry.list_databases()}
 
 
@@ -1668,6 +1672,10 @@ async def list_graphs(
     ``workspace_id`` is accepted on the contract for tenancy uniformity;
     multi-tenant filtering is not yet enforced (single-tenant MVP).
     """
+    try:
+        require_runtime_permission(role="user", action="read_databases", workspace_id=workspace_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     return {
         "workspace_id": workspace_id,
         "graphs": [target.to_public_dict() for target in graph_registry.list_graphs()],
@@ -1683,6 +1691,10 @@ async def list_agents(
     ``workspace_id`` is accepted on the contract for tenancy uniformity;
     multi-tenant filtering is not yet enforced (single-tenant MVP).
     """
+    try:
+        require_runtime_permission(role="user", action="read_agents", workspace_id=workspace_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     return {"workspace_id": workspace_id, "agents": agent_factory.list_agents()}
 
 

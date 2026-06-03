@@ -719,6 +719,18 @@ class _LocalEngine:
                             vector_context = "\n".join(f"[Vector result] {r.text[:300]}" for r in vresults)
                 except Exception:
                     pass
+        # Graph-native chunk fallback (answerability fix): structured Cypher
+        # returned nothing and no vector_store supplied context — retrieve the
+        # graph's OWN Chunk text by question keywords so the chunk layer
+        # contributes instead of leaving synthesis to model priors. The
+        # answerability diagnosis (2026-06-03) showed the facts live in
+        # Chunk.text while structured retrieval misses 70% of the time.
+        # Opt-in (SEOCHO_CHUNK_FALLBACK) pending its A/B.
+        if not records and not vector_context and self._chunk_fallback_enabled():
+            with timer.stage("chunk_fallback"):
+                chunk_ctx = self._graph_chunk_fallback(question, database)
+                if chunk_ctx:
+                    vector_context = chunk_ctx
 
         with timer.stage("ontology_context_check"):
             ontology_context_mismatch = self._query_ontology_context_mismatch(database, ontology_context)
@@ -1105,6 +1117,50 @@ class _LocalEngine:
             return float(text)
         except ValueError:
             return None
+
+    @staticmethod
+    def _chunk_fallback_enabled() -> bool:
+        """Graph-native chunk fallback — DEFAULT OFF (opt-in via
+        SEOCHO_CHUNK_FALLBACK) pending its answerability A/B."""
+        return str(os.environ.get("SEOCHO_CHUNK_FALLBACK", "")).strip().lower() in ("1", "true", "yes")
+
+    _CHUNK_KW_STOP = {
+        "what", "was", "is", "are", "were", "the", "a", "an", "of", "in", "on",
+        "for", "to", "and", "or", "how", "much", "many", "who", "which", "where",
+        "did", "does", "do", "at", "by", "with", "during", "their", "its",
+    }
+
+    def _graph_chunk_fallback(self, question: str, database: str) -> str:
+        """Retrieve the graph's own Chunk text by question keywords when
+        structured retrieval is empty. cypher-safe: static :Chunk label,
+        keyword list + workspace_id passed as parameters, read-only, LIMIT.
+        Returns a joined context string or "" on no hit/error.
+        """
+        import re as _re
+
+        toks = [
+            t for t in _re.sub(r"[^a-z0-9 ]", " ", (question or "").lower()).split()
+            if len(t) > 2 and t not in self._CHUNK_KW_STOP
+        ]
+        if not toks:
+            return ""
+        kws = toks[:8]
+        try:
+            rows = self.graph_store.query(
+                "MATCH (c:Chunk) "
+                "WHERE c._workspace_id = $workspace_id "
+                "  AND any(kw IN $kws WHERE toLower(coalesce(c.text, '')) CONTAINS kw) "
+                "RETURN c.text AS text "
+                "LIMIT $k",
+                params={"workspace_id": self.workspace_id, "kws": kws, "k": 3},
+                database=database,
+            )
+        except Exception:
+            return ""
+        texts = [str(r.get("text", "")).strip() for r in (rows or []) if r.get("text")]
+        if not texts:
+            return ""
+        return "\n".join(f"[Graph chunk] {t[:400]}" for t in texts)
 
     def _coerce_year(self, raw_year: Any, *fallback_fields: Any) -> str:
         text = str(raw_year).strip()

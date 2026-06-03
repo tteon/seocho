@@ -684,6 +684,16 @@ class CypherBuilder:
                 continue
             return candidate
 
+        # 1.5 Scored ontology grounding (icml fibo_ground port, opt-in via
+        # SEOCHO_ONTOLOGY_GROUNDING): no exact/alias hit → ground rel_type
+        # semantically to the closest ontology relationship above threshold,
+        # respecting label compatibility. Bridges "manages" → "LED_BY".
+        grounded = self._grounded_relationship(
+            rel_type, anchor_label=anchor_label, target_label=target_label
+        )
+        if grounded:
+            return grounded
+
         # 2. Fallback: match by source→target label compatibility
         scored: List[tuple] = []
         for candidate, rel_def in self.ontology.relationships.items():
@@ -702,6 +712,36 @@ class CypherBuilder:
         if len(self.ontology.relationships) == 1:
             return list(self.ontology.relationships.keys())[0]
 
+        return ""
+
+    @staticmethod
+    def _ontology_grounding_enabled() -> bool:
+        """Scored ontology grounding — DEFAULT OFF (opt-in via
+        SEOCHO_ONTOLOGY_GROUNDING) pending its FinDER A/B."""
+        import os
+
+        return str(os.environ.get("SEOCHO_ONTOLOGY_GROUNDING", "")).strip().lower() in ("1", "true", "yes")
+
+    def _grounded_relationship(self, rel_type: str, *, anchor_label: str, target_label: str) -> str:
+        """Semantic grounding of rel_type to an ontology relationship.
+
+        Returns "" when grounding is disabled, the intent is empty, or no
+        candidate clears the threshold + label compatibility — so the
+        caller falls through to the existing structural fallbacks.
+        """
+        if not rel_type or not self._ontology_grounding_enabled():
+            return ""
+        from .ontology_grounding import ground_edge_type
+
+        for canon, _score in ground_edge_type(rel_type, self.ontology, top_k=3, threshold=0.4):
+            rel_def = self.ontology.relationships.get(canon)
+            if rel_def is None:
+                continue
+            if anchor_label and rel_def.source not in {"Any", anchor_label}:
+                continue
+            if target_label and rel_def.target not in {"Any", target_label}:
+                continue
+            return canon
         return ""
 
     def _resolve_hint_label(

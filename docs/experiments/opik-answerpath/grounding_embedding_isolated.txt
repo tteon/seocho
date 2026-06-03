@@ -1,0 +1,5 @@
+Isolated synonym resolution (ontology: LED_BY / HEADQUARTERED_IN / HAS_SUBSIDIARY, all source=Company):
+  lexical  : correct 4/5  [led->LED_BY, headquartered->HEADQUARTERED_IN, subsidiary->HAS_SUBSIDIARY, location->LED_BY(WRONG), leadership->LED_BY]
+  embedding: correct 4/5  [led->LED_BY, headquartered->HEADQUARTERED_IN, subsidiary->HAS_SUBSIDIARY, location->HEADQUARTERED_IN(FIXED), leadership->HEADQUARTERED_IN(WRONG)]
+Net: embedding trades the location miss for a leadership miss — does not dominate lexical.
+FinDER e2e (embedding scorer): contains 0.60->0.60, exact 0.40->0.40, f1 0.569->0.569 (null — same as lexical; workload bypasses the grounding path).

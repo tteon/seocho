@@ -37,7 +37,10 @@ from seocho.store.llm import create_llm_backend
 ARM = "medium"
 MODULES = ["be", "ind", "fbc", "dbt", "acc"]
 _NUM = re.compile(r"-?\$?\d[\d,]*\.?\d*(?:%| million| billion| thousand)?", re.I)
-def nums(t): return {n.replace(",", "").strip().lower() for n in _NUM.findall(str(t or ""))}
+_ORDERED_LIST_MARKER = re.compile(r"(?m)^\s*\d+\.\s+")
+def nums(t):
+    text = _ORDERED_LIST_MARKER.sub("", str(t or ""))
+    return {n.replace(",", "").strip().lower() for n in _NUM.findall(text)}
 def overlap(exp, act):
     e, a = nums(exp), nums(act)
     return len(e & a) / len(e) if e else 0.0

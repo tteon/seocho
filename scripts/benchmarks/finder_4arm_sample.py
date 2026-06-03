@@ -46,6 +46,7 @@ from seocho.tracing import current_backend_names  # noqa: E402
 
 REF_SEPARATOR = "===EVIDENCE_BOUNDARY==="
 _NUM_RE = re.compile(r"-?\$?\d[\d,]*\.?\d*(?:%| million| billion| thousand)?", re.IGNORECASE)
+_ORDERED_LIST_MARKER_RE = re.compile(r"(?m)^\s*\d+\.\s+")
 
 DATASET_CSV = ROOT / "dataset" / "all_slices.csv"
 GROK_META_PROMPT = ROOT / "examples/finder/datasets/grok_meta_system_prompt.md"
@@ -141,7 +142,8 @@ def _safe_str(x) -> str:
 
 
 def _nums(text) -> set[str]:
-    return {n.replace(",", "").strip().lower() for n in _NUM_RE.findall(_safe_str(text))}
+    cleaned = _ORDERED_LIST_MARKER_RE.sub("", _safe_str(text))
+    return {n.replace(",", "").strip().lower() for n in _NUM_RE.findall(cleaned)}
 
 
 def evaluate_answer(expected, actual) -> dict:

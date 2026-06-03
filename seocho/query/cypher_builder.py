@@ -209,7 +209,9 @@ class CypherBuilder:
             anchor_entity=anchor_entity,
         )
 
-        if self._is_financial_delta_question(question, raw_intent_name, years, metric_aliases):
+        if self._is_qualitative_company_context_question(question, years):
+            intent = "neighbors"
+        elif self._is_financial_delta_question(question, raw_intent_name, years, metric_aliases):
             intent = "financial_metric_delta"
         elif self._is_financial_metric_question(question, raw_intent_name, years, metric_aliases):
             intent = "financial_metric_lookup"
@@ -904,10 +906,42 @@ class CypherBuilder:
         years: Sequence[str],
         metric_aliases: Sequence[str],
     ) -> bool:
+        if self._is_qualitative_company_context_question(question, years):
+            return False
         if raw_intent_name in {"financial_metric_lookup", "financial_metric_delta"}:
             return True
         lower = question.lower()
         return bool(metric_aliases and (years or any(term in lower for terms in _FINANCE_METRIC_TERMS.values() for term in terms)))
+
+    def _is_qualitative_company_context_question(self, question: str, years: Sequence[str]) -> bool:
+        if years or _FINANCE_DELTA_RE.search(question):
+            return False
+        lower = question.lower().replace("&", " and ")
+        qualitative_cues = (
+            "supply chain",
+            "lead-time",
+            "lead time",
+            "forecast",
+            "forecasts",
+            "operating perf",
+            "operating performance",
+            "op eff",
+            "operating efficiency",
+            "tech int",
+            "technology integration",
+            "peer positioning",
+            "risk diversification",
+            "franchise",
+            "plant efficiency",
+            "tech perf",
+            "service impact",
+            "svc impact",
+            "global comp",
+            "global competitiveness",
+            "competitive",
+        )
+        metric_cues = ("revenue", "rev", "financial metric", "fin metric", "margin", "ebitda", "cash flow", "roic")
+        return any(cue in lower for cue in qualitative_cues) and any(cue in lower for cue in metric_cues)
 
     def _is_legal_issue_question(self, question: str, raw_intent_name: str) -> bool:
         if raw_intent_name == "relationship_lookup":

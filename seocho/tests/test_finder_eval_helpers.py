@@ -46,6 +46,13 @@ def test_nums_handles_nan_without_crash():
     assert "5 million" in ARM._nums("revenue was 5 million")  # unit captured with number
 
 
+def test_nums_ignore_ordered_list_markers():
+    text = "1. Revenue growth\n2. Operating margin\nIn 2023 revenue was 10 million."
+
+    assert ARM._nums(text) == {"2023", "10 million"}
+    assert E2E.nums(text) == {"2023", "10 million"}
+
+
 @pytest.mark.parametrize("gold,actual", [
     (float("nan"), "Revenue grew 12%"),
     (None, None),

@@ -141,3 +141,6 @@ PR_BODY.md
 
 # root dataset/ is a non-tracked public surface (CLAUDE.md Public Repo Hygiene)
 dataset/
+
+# root ontology/ is a non-tracked public surface (CLAUDE.md Public Repo Hygiene)
+ontology/

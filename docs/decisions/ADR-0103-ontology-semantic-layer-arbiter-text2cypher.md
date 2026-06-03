@@ -85,7 +85,7 @@ becomes structurally impossible.
 
 ### 2. Four coherence contracts (single source of truth)
 
-A new data-plane package `src/seocho/semantic/` holds the functions that BOTH
+A new data-plane package `src/seocho/semantic_layer/` holds the functions that BOTH
 the writer (`index/observation_writer.py`, new) and the reader
 (`query/…`) import — drift becomes impossible, then is locked by a contract
 test:
@@ -264,7 +264,7 @@ CI: `run_basic_ci.sh`, `check-module-ownership-contract.sh` (new package),
 
 ## Implementation Notes
 
-- new (data-plane): `src/seocho/semantic/` (concepts, keys, periods, identity,
+- new (data-plane): `src/seocho/semantic_layer/` (concepts, keys, periods, identity,
   slots), `src/seocho/index/observation_writer.py`,
   `src/seocho/query/arbiter.py`, `src/seocho/query/semantic/decompose.py`.
 - touched: `query/pattern_catalog.py` (`pattern:observation_lookup`),

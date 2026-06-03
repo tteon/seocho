@@ -142,6 +142,62 @@ class EntitySummaryConnector(FakeConnector):
         return super().run_cypher(query, database=database, params=params)
 
 
+class QualitativeNeighborFactConnector(FakeConnector):
+    def run_cypher(self, query, database="neo4j", params=None):
+        params = params or {}
+
+        if "CALL db.index.fulltext.queryNodes" in query:
+            text = str(params.get("query", "")).lower()
+            if "labcorp" in text or "lh" in text:
+                return json.dumps(
+                    [
+                        {
+                            "node_id": 404,
+                            "labels": ["Company"],
+                            "display_name": "Labcorp",
+                            "source_id": "mem_labcorp",
+                            "memory_id": "mem_labcorp",
+                            "score": 3.8,
+                        }
+                    ]
+                )
+            return json.dumps([])
+
+        if "properties(n) AS properties" in query and "AS neighbors" in query:
+            return json.dumps(
+                [
+                    {
+                        "target_entity": "Labcorp",
+                        "properties": {"name": "Labcorp"},
+                        "neighbors": [
+                            {
+                                "relation": "HAS_OPERATIONAL_STRENGTH",
+                                "target": "integrated logistics",
+                                "target_labels": ["Capability"],
+                                "target_fact": (
+                                    "Labcorp uses integrated logistics, technology leadership, "
+                                    "large-scale automated testing, and cost efficiencies to support "
+                                    "drug development services in competitive markets."
+                                ),
+                            },
+                            {
+                                "relation": "OPERATES_SEGMENT",
+                                "target": "BLS",
+                                "target_labels": ["BusinessSegment"],
+                                "target_fact": (
+                                    "The BLS segment provides drug development services and is exposed "
+                                    "to pricing pressure, service volume, and competitive dynamics."
+                                ),
+                            },
+                        ],
+                        "supporting_fact": "",
+                    }
+                ]
+            )
+
+        return super().run_cypher(query, database=database, params=params)
+
+
 class EngineeringTradeoffConnector(FakeConnector):
     def run_cypher(self, query, database="neo4j", params=None):
         params = params or {}
@@ -365,6 +421,20 @@ def test_canonical_semantic_flow_synthesizes_risk_summary_from_neighbors():
         "significant capital expenditure requirements for AWS infrastructure, "
         "competition in e-commerce and cloud computing markets."
     )
+
+
+def test_canonical_semantic_flow_promotes_qualitative_neighbor_facts():
+    flow = SemanticAgentFlow(QualitativeNeighborFactConnector())
+
+    result = flow.run("Labcorp fin metrics, op eff, tech int, drug dev svc, LH.", ["kgnormal"])
+
+    supporting_fact = result["evidence_bundle"]["slot_fills"]["supporting_fact"]
+    assert result["route"] == "lpg"
+    assert result["support_assessment"]["status"] == "supported"
+    assert "integrated logistics" in supporting_fact
+    assert "large-scale automated testing" in supporting_fact
+    assert "drug development services" in result["response"]
+    assert result["evidence_bundle"]["selected_triples"][0]["target_fact"]
 
 
 def test_canonical_semantic_flow_synthesizes_engineering_tradeoff_answer():

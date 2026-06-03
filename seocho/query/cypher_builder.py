@@ -517,7 +517,8 @@ class CypherBuilder:
             "       collect(DISTINCT {\n"
             "         relation: type(r),\n"
             "         neighbor: coalesce(m.name, m.uri),\n"
-            "         neighbor_labels: labels(m)\n"
+            "         neighbor_labels: labels(m),\n"
+            "         neighbor_fact: coalesce(m.content_preview, m.description, m.content, '')\n"
             "       })[0..$limit] AS neighbors,\n"
             "       coalesce(n.content_preview, n.description, n.content, '') AS supporting_fact\n"
             "LIMIT 1",

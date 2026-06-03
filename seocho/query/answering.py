@@ -459,7 +459,37 @@ class QueryAnswerSynthesizer:
                     fact = str(value or "").strip()
                     if fact:
                         return fact
+            neighbor_fact = self._neighbor_supporting_fact(record)
+            if neighbor_fact:
+                return neighbor_fact
         return ""
+
+    @staticmethod
+    def _neighbor_supporting_fact(record: Dict[str, Any]) -> str:
+        neighbors = record.get("neighbors", [])
+        if not isinstance(neighbors, list):
+            return ""
+        facts: List[str] = []
+        seen: set[str] = set()
+        for neighbor in neighbors:
+            if not isinstance(neighbor, dict):
+                continue
+            fact = str(
+                neighbor.get("target_fact")
+                or neighbor.get("neighbor_fact")
+                or neighbor.get("supporting_fact")
+                or ""
+            ).strip()
+            if not fact:
+                continue
+            compact = " ".join(fact.split())
+            key = compact.casefold()
+            if compact and key not in seen:
+                seen.add(key)
+                facts.append(compact if compact.endswith((".", "!", "?")) else f"{compact}.")
+            if len(" ".join(facts)) >= 1200:
+                break
+        return " ".join(facts)[:1200].rsplit(" ", 1)[0].rstrip() if facts else ""
 
     def _direct_answer(
         self,

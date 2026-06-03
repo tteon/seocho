@@ -233,6 +233,65 @@ def _compose_selected_triple_fact(
     return ""
 
 
+def _compose_neighbor_evidence_fact(
+    *,
+    question: str,
+    target_entity: str,
+    neighbors: Sequence[Dict[str, Any]],
+    char_limit: int = 1200,
+) -> str:
+    question_terms = {
+        token
+        for token in re.findall(r"[a-z0-9]+", str(question or "").lower())
+        if token not in STOPWORDS and len(token) > 1
+    }
+    scored: List[Tuple[int, str]] = []
+    seen: Set[str] = set()
+    for neighbor in neighbors:
+        if not isinstance(neighbor, dict):
+            continue
+        fact = str(
+            neighbor.get("target_fact")
+            or neighbor.get("neighbor_fact")
+            or neighbor.get("supporting_fact")
+            or ""
+        ).strip()
+        if not fact:
+            continue
+        compact = " ".join(fact.split())
+        key = compact.casefold()
+        if not compact or key in seen:
+            continue
+        seen.add(key)
+        terms = set(re.findall(r"[a-z0-9]+", compact.lower()))
+        relation = str(neighbor.get("relation") or "").replace("_", " ").lower()
+        target = str(neighbor.get("target") or neighbor.get("neighbor") or "").lower()
+        relation_terms = set(re.findall(r"[a-z0-9]+", relation))
+        target_terms = set(re.findall(r"[a-z0-9]+", target))
+        score = (
+            3 * len(terms & question_terms)
+            + 2 * len(target_terms & question_terms)
+            + len(relation_terms & question_terms)
+            + min(len(compact), 240) // 80
+        )
+        scored.append((score, compact))
+
+    if not scored:
+        return ""
+    scored.sort(key=lambda item: (-item[0], len(item[1])))
+    subject = str(target_entity or "").strip()
+    prefix = f"{subject} evidence: " if subject else "Evidence: "
+    facts: List[str] = []
+    total = len(prefix)
+    for _, fact in scored[:6]:
+        addition = fact if fact.endswith((".", "!", "?")) else f"{fact}."
+        if total + len(addition) + 1 > char_limit:
+            break
+        facts.append(addition)
+        total += len(addition) + 1
+    return (prefix + " ".join(facts)).strip() if facts else ""
+
+
 class OntologyHintStore:
     """In-memory ontology hint store with lightweight alias/label maps."""
 
@@ -1930,7 +1989,8 @@ class LPGAgent:
                  DISTINCT {{
                    relation: type(r),
                    target: coalesce(m.name, m.title, m.id, m.uri, elementId(m)),
-                   target_labels: labels(m)
+                   target_labels: labels(m),
+                   target_fact: coalesce(m.content_preview, m.description, m.content, '')
                  }}
                )[0..$limit] AS neighbors,
                coalesce(n.content_preview, n.description, n.content, '') AS supporting_fact
@@ -2015,8 +2075,23 @@ class LPGAgent:
                                 "relation": relation,
                                 "target": target,
                                 "target_labels": neighbor.get("target_labels", []),
+                                "target_fact": neighbor.get("target_fact") or neighbor.get("neighbor_fact") or "",
                             }
                         )
+
+        if not slot_fills.get("supporting_fact"):
+            for row in rows:
+                neighbors = row.get("neighbors", [])
+                if not isinstance(neighbors, list):
+                    continue
+                synthesized_neighbor_fact = _compose_neighbor_evidence_fact(
+                    question=question,
+                    target_entity=str(slot_fills.get("target_entity") or plan.anchor_entity or "").strip(),
+                    neighbors=neighbors,
+                )
+                if synthesized_neighbor_fact:
+                    slot_fills["supporting_fact"] = synthesized_neighbor_fact
+                    break
 
         if not slot_fills.get("supporting_fact"):
             synthesized_fact = _compose_selected_triple_fact(

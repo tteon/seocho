@@ -48,6 +48,14 @@ def _is_property_value(value: Any) -> bool:
 _VALID_DB_NAME_RE = re.compile(r"^[a-z][a-z0-9]{2,62}$")
 _RESERVED_DB_NAMES = {"system", "neo4j"}
 
+# F7 (seocho-zgxs): per-label / per-rel cardinality probes in
+# get_index_stats are bounded by a LIMIT so a single huge label can't
+# turn every 60s cache refresh into a full-graph scan. When a probe hits
+# the cap the count is reported as a lower bound with sampled=True; the
+# GOPTS cost model only needs relative magnitude ("this label is big"),
+# so a capped value ranks correctly without paying for an exact count.
+_LABEL_COUNT_SAMPLE_LIMIT = 10000
+
 
 class DatabaseNameError(ValueError):
     """Raised when a database name violates Neo4j naming rules."""
@@ -582,17 +590,41 @@ class Neo4jGraphStore(GraphStore):
             logger.warning("get_schema failed for database '%s': %s", database, exc)
             return {"labels": [], "relationship_types": [], "property_keys": []}
 
+    @staticmethod
+    def _interpret_label_probe(probe_count: int, sample_limit: int) -> tuple[int, bool]:
+        """Decide whether a LIMIT-bounded count is exact or sampled (F7).
+
+        ``probe_count`` is the result of ``... WITH n LIMIT sample_limit
+        RETURN count(n)``. If it's below the limit the whole
+        workspace-label fit inside the sample, so the count is exact. If
+        it reached the limit there are at least ``sample_limit`` matches
+        and we report the limit as a lower bound, flagged sampled.
+
+        Returns ``(value, is_sampled)``.
+        """
+        if probe_count >= sample_limit:
+            return sample_limit, True
+        return probe_count, False
+
     def get_index_stats(
         self,
         *,
         database: str = "neo4j",
         workspace_id: str = "default",
+        sample_limit: int = _LABEL_COUNT_SAMPLE_LIMIT,
     ) -> Dict[str, Any]:
         """Return SHOW INDEXES + per-label/rel cardinality for the workspace.
 
         Feeds the GOPTS cost model (ADR-0097). Cached with the same
         TTL/composite-key shape as get_schema(). Workspace-scoped via
         $workspace_id filter on each count query per CLAUDE.md §6.1.
+
+        F7 (seocho-zgxs): per-label/per-rel counts are bounded by
+        ``sample_limit`` so a huge label can't turn the refresh into a
+        full scan. ``label_counts`` / ``rel_counts`` stay plain int maps
+        (cost model reads them unchanged); the additive
+        ``label_count_meta`` / ``rel_count_meta`` maps carry the
+        ``sampled`` flag and ``sample_limit`` for callers that care.
         """
         key = self._schema_cache_key(database, workspace_id)
         now = time.monotonic()
@@ -624,23 +656,35 @@ class Neo4jGraphStore(GraphStore):
                     logger.warning("SHOW INDEXES failed for '%s': %s", database, exc)
 
                 label_counts: Dict[str, int] = {}
+                label_count_meta: Dict[str, Dict[str, Any]] = {}
                 for r in session.run("CALL db.labels()"):
                     label = r["label"]
                     if not is_valid_identifier(label):
                         logger.warning("skipping non-identifier label '%s'", label)
                         continue
                     try:
+                        # F7: LIMIT-bounded probe caps the scan at sample_limit.
                         count_rec = session.run(
                             f"MATCH (n:{label}) "
                             "WHERE n._workspace_id = $workspace_id "
+                            "WITH n LIMIT $sample_limit "
                             "RETURN count(n) AS cnt",
                             workspace_id=workspace_id,
+                            sample_limit=sample_limit,
                         ).single()
-                        label_counts[label] = int(count_rec["cnt"]) if count_rec else 0
+                        probe = int(count_rec["cnt"]) if count_rec else 0
+                        value, sampled = self._interpret_label_probe(probe, sample_limit)
+                        label_counts[label] = value
+                        label_count_meta[label] = {
+                            "value": value,
+                            "sampled": sampled,
+                            "sample_limit": sample_limit,
+                        }
                     except Exception as exc:
                         logger.warning("label count failed for '%s': %s", label, exc)
 
                 rel_counts: Dict[str, int] = {}
+                rel_count_meta: Dict[str, Dict[str, Any]] = {}
                 for r in session.run("CALL db.relationshipTypes()"):
                     rt = r["relationshipType"]
                     if not is_valid_identifier(rt):
@@ -650,10 +694,19 @@ class Neo4jGraphStore(GraphStore):
                         count_rec = session.run(
                             f"MATCH ()-[r:{rt}]->() "
                             "WHERE r._workspace_id = $workspace_id "
+                            "WITH r LIMIT $sample_limit "
                             "RETURN count(r) AS cnt",
                             workspace_id=workspace_id,
+                            sample_limit=sample_limit,
                         ).single()
-                        rel_counts[rt] = int(count_rec["cnt"]) if count_rec else 0
+                        probe = int(count_rec["cnt"]) if count_rec else 0
+                        value, sampled = self._interpret_label_probe(probe, sample_limit)
+                        rel_counts[rt] = value
+                        rel_count_meta[rt] = {
+                            "value": value,
+                            "sampled": sampled,
+                            "sample_limit": sample_limit,
+                        }
                     except Exception as exc:
                         logger.warning("rel count failed for '%s': %s", rt, exc)
 
@@ -661,13 +714,21 @@ class Neo4jGraphStore(GraphStore):
                 "indexes": indexes,
                 "label_counts": label_counts,
                 "rel_counts": rel_counts,
+                "label_count_meta": label_count_meta,
+                "rel_count_meta": rel_count_meta,
             }
             self._index_stats_cache[key] = payload
             self._index_stats_cache_ts[key] = now
             return payload
         except Exception as exc:
             logger.warning("get_index_stats failed for '%s': %s", database, exc)
-            return {"indexes": [], "label_counts": {}, "rel_counts": {}}
+            return {
+                "indexes": [],
+                "label_counts": {},
+                "rel_counts": {},
+                "label_count_meta": {},
+                "rel_count_meta": {},
+            }
 
     def invalidate_schema_cache(
         self,

@@ -12,9 +12,29 @@ import pytest
 
 from seocho.query.answer_shape import (
     AnswerShape,
+    answer_shape_enabled,
     classify_answer_shape,
     terse_directive,
 )
+
+
+def test_answer_shape_default_on(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Adopted 2026-06-03: AnswerShape is default-on (opt-out)."""
+    monkeypatch.delenv("SEOCHO_ANSWER_SHAPE", raising=False)
+    assert answer_shape_enabled() is True
+
+
+@pytest.mark.parametrize("val", ["0", "false", "no", "FALSE", "No"])
+def test_answer_shape_opt_out(monkeypatch: pytest.MonkeyPatch, val: str) -> None:
+    monkeypatch.setenv("SEOCHO_ANSWER_SHAPE", val)
+    assert answer_shape_enabled() is False
+
+
+@pytest.mark.parametrize("val", ["1", "true", "yes", ""])
+def test_answer_shape_stays_on_for_truthy_or_empty(monkeypatch: pytest.MonkeyPatch, val: str) -> None:
+    # empty string keeps default-on (only explicit 0/false/no disables)
+    monkeypatch.setenv("SEOCHO_ANSWER_SHAPE", val)
+    assert answer_shape_enabled() is True
 
 
 @pytest.mark.parametrize(

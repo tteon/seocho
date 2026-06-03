@@ -153,12 +153,14 @@ Deferred:
 - LLM tier of `classify_answer_shape` (rules suffice for FinDER).
 - Scored ontology grounding (the icml `fibo_ground_*` pattern) as a
   retrieval leg — not yet ported.
-- Defaulting `SEOCHO_ANSWER_SHAPE` on: the wider 10-case validation
-  supports it (token_f1 +0.48, exact 0→0.6, zero regression on the 2
-  unknown-shape cases), but flipping the default changes the user-facing
-  answer *format* (terse value vs prose) for every value-question, which
-  is a product decision deferred to an explicit follow-up. The env switch
-  ships default-off until then.
+- `SEOCHO_ANSWER_SHAPE` is now **default-on (opt-out via =0)** — adopted
+  2026-06-03 on the wide-validation evidence (token_f1 0.146→0.629, exact
+  0→0.60, zero regression on unknown-shape cases). Safe because
+  explanation/unknown shapes emit no directive (provable no-op), and the
+  verified-financial deterministic path runs *before* synthesis so the two
+  terse paths are complementary, never doubled. Confirmed: with no env set,
+  the lane engages AnswerShape (f1 ≫ the 0.146 prose baseline). Disable per
+  run with `SEOCHO_ANSWER_SHAPE=0`.
 
 ## Implementation Notes
 

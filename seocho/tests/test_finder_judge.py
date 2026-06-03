@@ -56,12 +56,58 @@ def test_judge_one_mocks_llm_and_uses_temp_zero():
     assert llm.calls and llm.calls[0]["temperature"] == 0.0
 
 
+class _FakeEvidenceJudgeLLM:
+    def __init__(self, text):
+        self.text_payload = text
+        self.calls = []
+
+    def complete(self, *, system, user, temperature=None, response_format=None):
+        self.calls.append({
+            "system": system,
+            "user": user,
+            "temperature": temperature,
+            "response_format": response_format,
+        })
+        return type("R", (), {"text": self.text_payload})()
+
+
+def test_evidence_judge_uses_typed_bundle_and_temp_zero():
+    llm = _FakeEvidenceJudgeLLM(
+        '{"verdict":"partial","score":0.5,"evidence_support":"insufficient","bundle_use":"underclaim","rationale":"ok"}'
+    )
+    out = JUDGE.evidence_judge_one(
+        llm,
+        "Q",
+        "gold",
+        "candidate",
+        {
+            "focus_slots": ["target_entity", "supporting_fact"],
+            "grounded_slots": ["target_entity"],
+            "missing_slots": ["supporting_fact"],
+            "support_assessment": {"status": "partial", "reason": "missing"},
+        },
+    )
+
+    assert out["verdict"] == "partial"
+    assert out["evidence_support"] == "insufficient"
+    assert out["bundle_use"] == "underclaim"
+    assert llm.calls and llm.calls[0]["temperature"] == 0.0
+    assert llm.calls[0]["response_format"] == {"type": "json_object"}
+    assert '"missing_slots": [' in llm.calls[0]["user"]
+
+
 def test_judge_one_falls_back_when_no_temperature_kwarg():
     class _NoTemp:
         def complete(self, *, system, user):
             return type("R", (), {"text": '{"verdict":"partial","score":0.5}'})()
     out = JUDGE.judge_one(_NoTemp(), "Q", "gold", "cand")
     assert out["verdict"] == "partial"
+
+
+def test_needs_evidence_judge_for_s4_and_no_numeric_gold():
+    assert JUDGE.needs_evidence_judge({"support_quality_gap": "no_numeric_gold"})
+    assert JUDGE.needs_evidence_judge({"slice": "S4_CO_MULTI_NONQUANT", "expected_answer": "1. Revenue\n2. Margin"})
+    assert not JUDGE.needs_evidence_judge({"slice": "S1_FIN_COMP", "expected_answer": "Revenue was 10 million."})
 
 
 # ---- panel + agreement -----------------------------------------------------

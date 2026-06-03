@@ -18,7 +18,8 @@ Each metric answers a different question, and each alone is misleading:
 |--------|--------------------|------|---------|--------|
 | `number_overlap` | "Did the answer surface the right numbers?" | free | numeric recall | reasoning, direction, correctness of use |
 | `token_f1` | "How lexically close is the answer to the gold text?" | free | wording overlap | paraphrase, units, arithmetic |
-| `judge_score` | "Is the answer actually correct vs the gold answer?" | 1 LLM call | semantic correctness, trend, final answer | (bounded by judge reliability) |
+| `judge_score` | "Is the answer actually correct vs the gold answer?" | 1 LLM call | semantic correctness, trend, final answer | bounded by judge reliability |
+| `evidence_use_score` | "For qualitative cases, is the answer faithful to the typed evidence bundle?" | 1 extra LLM call for selected cases | slot/provenance/insufficiency alignment | not a gold-answer correctness score |
 
 Reporting all three side by side keeps us honest: a high `judge_score` with low
 `overlap` means the model got the answer right in different words; a high
@@ -138,16 +139,40 @@ growth implications, directly contradicting GOLD."* `number_overlap` alone would
 have given partial credit for the matching EPS numbers; the judge catches the
 wrong conclusion.
 
-**Judge model.** grok-4.3, `temperature=0`. **Disclosure (important):** the
-answer generator is also grok-4.3, so there is a potential self-preference bias.
-It is **uniform across all lanes** (vector, graph, and hybrid answers are all
-grok-generated), so the *relative* comparison stays fair; absolute scores may be
-lenient. A cross-vendor judge (e.g. GPT) or a 2-judge panel would remove this and
-is a drop-in change (`--judge-llm`).
+**Judge model.** MARA `DeepSeek-V3.1`, `temperature=0` by default. This keeps
+offline judgment on the team-preferred MARA gateway and avoids spending OpenAI
+tokens unless a caller explicitly selects an OpenAI judge with `--judge-llms`.
 
 **Limits.** Bounded by judge reliability; mitigated by `temperature=0` (repeatable),
 a strict rubric, refusal-as-incorrect, and the audit fields. JSON parse failures
 default to `incorrect` (no silent skips).
+
+---
+
+## 4. `evidence_use_score` — typed evidence faithfulness for qualitative cases
+
+**Purpose.** Some FinDER/SEOCHO cases, especially S4 company-context questions,
+have gold answers with no substantive numbers. In those cases `number_overlap`
+is intentionally uninformative, and a normal answer judge can miss whether the
+system faithfully used SEOCHO's typed evidence bundle. The evidence-use judge scores:
+
+- required/focus slot coverage (`focus_slots`, `grounded_slots`, `missing_slots`)
+- relation path and selected triple availability
+- provenance presence
+- support/insufficiency status from `support_assessment`
+- evidence swarm scout findings and critical path
+
+**Implementation** (`finder_judge.py`): `--evidence-judge auto` runs an extra
+MARA judge call only for qualitative/no-numeric cases (`support_quality_gap =
+no_numeric_gold`, S4 slices, or gold answers with no substantive numbers after
+ordered-list markers are removed). Use `--evidence-judge always` for a full
+audit or `--evidence-judge never` to keep the old one-judge-per-answer cost.
+
+**Interpretation.** `evidence_use_score` is reported beside `judge_score`, not
+as a replacement. `judge_score` remains gold-answer correctness. `evidence_use`
+is the better SEOCHO-specific faithfulness signal for qualitative retrieval
+because it can credit correct abstention/insufficiency and penalize unsupported
+claims even when numeric overlap is 0 by construction.
 
 ---
 
@@ -157,10 +182,10 @@ default to `incorrect` (no silent skips).
    saves one JSON per answer (vector / graph / vector&graph × ontology arm),
    each with `number_overlap` already computed.
 2. **Scoring** (`finder_judge.py`) is a separate **offline pass** over the saved
-   answers — it adds `token_f1` and the `judge_*` fields. Decoupling generation
-   from judging means we can re-judge (different judge model, panel) without
-   re-running the expensive retrieval/generation, and every lane is judged by the
-   identical prompt + model.
+   answers — it adds `token_f1`, `judge_*`, and, for selected qualitative cases,
+   `evidence_use_*` fields. Decoupling generation from judging means we can
+   re-judge (different judge model, panel) without re-running the expensive
+   retrieval/generation.
 3. **Aggregation** groups by `(slice, retrieval_mode, ontology_arm)` and reports
    `judge_score_mean`, `token_f1_mean`, `overlap_mean`, and the correct/partial/
    incorrect counts.

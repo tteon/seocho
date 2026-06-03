@@ -722,6 +722,29 @@ class CypherBuilder:
 
         return str(os.environ.get("SEOCHO_ONTOLOGY_GROUNDING", "")).strip().lower() in ("1", "true", "yes")
 
+    def _grounding_scorer(self):
+        """Resolve the grounding scorer + threshold from
+        SEOCHO_GROUNDING_SCORER (default "lexical"; "embedding" uses
+        fastembed, falling back to lexical if unavailable). Cached per
+        builder so the embedder isn't rebuilt per call. Returns
+        ``(scorer_or_None, threshold)`` — None scorer ⇒ lexical default."""
+        import os
+
+        if getattr(self, "_grounding_scorer_cache", "unset") != "unset":
+            return self._grounding_scorer_cache
+        mode = str(os.environ.get("SEOCHO_GROUNDING_SCORER", "lexical")).strip().lower()
+        scorer, threshold = None, 0.4  # lexical default
+        if mode == "embedding":
+            from .embedding_grounding import make_fastembed_scorer
+
+            emb = make_fastembed_scorer()
+            if emb is not None:
+                # bge cosine has a high baseline (~0.5 for unrelated), so
+                # require a stronger match than the lexical threshold.
+                scorer, threshold = emb, 0.55
+        self._grounding_scorer_cache = (scorer, threshold)
+        return self._grounding_scorer_cache
+
     def _grounded_relationship(self, rel_type: str, *, anchor_label: str, target_label: str) -> str:
         """Semantic grounding of rel_type to an ontology relationship.
 
@@ -733,7 +756,10 @@ class CypherBuilder:
             return ""
         from .ontology_grounding import ground_edge_type
 
-        for canon, _score in ground_edge_type(rel_type, self.ontology, top_k=3, threshold=0.4):
+        scorer, threshold = self._grounding_scorer()
+        for canon, _score in ground_edge_type(
+            rel_type, self.ontology, top_k=3, threshold=threshold, scorer=scorer
+        ):
             rel_def = self.ontology.relationships.get(canon)
             if rel_def is None:
                 continue

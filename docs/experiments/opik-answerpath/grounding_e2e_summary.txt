@@ -1,0 +1,12 @@
+grounding_off: contains=0.6 exact=0.4 f1=0.569 empty=1/10
+grounding_on: contains=0.6 exact=0.4 f1=0.569 empty=0/10
+  finder_tut_001 single_hop    contains True->True f1 1.00->1.00
+  finder_tut_002 numeric_lookup contains True->True f1 0.55->0.55
+  finder_tut_003 single_hop    contains False->False f1 0.25->0.25
+  finder_tut_004 single_hop    contains True->True f1 1.00->1.00
+  finder_tut_005 single_hop    contains True->True f1 1.00->1.00
+  finder_tut_006 compositional contains True->True f1 0.55->0.55
+  finder_tut_007 single_hop    contains False->False f1 0.20->0.20
+  finder_tut_008 single_hop    contains False->False f1 0.00->0.00
+  finder_tut_009 single_hop    contains True->True f1 1.00->1.00
+  finder_tut_010 compositional contains False->False f1 0.15->0.15

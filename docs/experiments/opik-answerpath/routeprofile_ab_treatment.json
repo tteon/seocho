@@ -1,0 +1,92 @@
+[
+  {
+    "id": "finder_tut_001",
+    "rt": "single_hop",
+    "route": "lookup",
+    "exact": false,
+    "contains": true,
+    "f1": 0.5714,
+    "ms": 2373
+  },
+  {
+    "id": "finder_tut_002",
+    "rt": "numeric_lookup",
+    "route": "lookup",
+    "exact": false,
+    "contains": true,
+    "f1": 0.4,
+    "ms": 2506
+  },
+  {
+    "id": "finder_tut_003",
+    "rt": "single_hop",
+    "route": "lookup",
+    "exact": false,
+    "contains": true,
+    "f1": 0.1905,
+    "ms": 2734
+  },
+  {
+    "id": "finder_tut_004",
+    "rt": "single_hop",
+    "route": "lookup",
+    "exact": false,
+    "contains": true,
+    "f1": 0.1818,
+    "ms": 2950
+  },
+  {
+    "id": "finder_tut_005",
+    "rt": "single_hop",
+    "route": "lookup",
+    "exact": false,
+    "contains": false,
+    "f1": 0.1818,
+    "ms": 1908
+  },
+  {
+    "id": "finder_tut_006",
+    "rt": "compositional",
+    "route": "multi_hop",
+    "exact": false,
+    "contains": false,
+    "f1": 0.0,
+    "ms": 1762
+  },
+  {
+    "id": "finder_tut_007",
+    "rt": "single_hop",
+    "route": "lookup",
+    "exact": false,
+    "contains": true,
+    "f1": 0.1739,
+    "ms": 2607
+  },
+  {
+    "id": "finder_tut_008",
+    "rt": "single_hop",
+    "route": "lookup",
+    "exact": false,
+    "contains": false,
+    "f1": 0.0,
+    "ms": 3226
+  },
+  {
+    "id": "finder_tut_009",
+    "rt": "single_hop",
+    "route": "lookup",
+    "exact": false,
+    "contains": true,
+    "f1": 0.093,
+    "ms": 3118
+  },
+  {
+    "id": "finder_tut_010",
+    "rt": "compositional",
+    "route": "multi_hop",
+    "exact": false,
+    "contains": true,
+    "f1": 0.2222,
+    "ms": 3021
+  }
+]

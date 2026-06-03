@@ -1,0 +1,32 @@
+{
+  "baseline": {
+    "exact": 0.0,
+    "f1": 0.146,
+    "by_rt": {
+      "single_hop": 0.15,
+      "numeric_lookup": 0.261,
+      "compositional": 0.075
+    },
+    "shapes": {
+      "location": 1,
+      "scalar_metric": 5,
+      "entity_name": 2,
+      "unknown": 2
+    }
+  },
+  "treatment": {
+    "exact": 0.6,
+    "f1": 0.629,
+    "by_rt": {
+      "single_hop": 0.612,
+      "numeric_lookup": 1.0,
+      "compositional": 0.5
+    },
+    "shapes": {
+      "location": 1,
+      "scalar_metric": 5,
+      "entity_name": 2,
+      "unknown": 2
+    }
+  }
+}

@@ -118,6 +118,33 @@ Tradeoffs / limits:
   FinDER queries are metric/entity lookups that bypass
   `_match_relationship`).
 
+### Embedding-scorer upgrade (re-measured)
+
+The lexical scorer's one isolated miss (`location` ↔ `HEADQUARTERED_IN`,
+no shared token) motivated an embedding scorer
+(`seocho/query/embedding_grounding.py`, fastembed/BAAI/bge-small, opt-in
+via `SEOCHO_GROUNDING_SCORER=embedding`, lazy + falls back to lexical
+when unavailable). Re-measured:
+
+- **Isolated synonym A/B** (LED_BY / HEADQUARTERED_IN / HAS_SUBSIDIARY):
+  lexical 4/5 (misses `location`); embedding 4/5 (**fixes `location` →
+  HEADQUARTERED_IN** but **breaks `leadership` → HEADQUARTERED_IN**).
+  Embedding does **not dominate** — it trades one error for another;
+  bge-small is noisy on short ALL-CAPS relation names.
+- **FinDER e2e** (embedding scorer): contains 0.60→0.60, exact
+  0.40→0.40, token_f1 0.569→0.569 — **null, identical to lexical**,
+  because the workload bypasses the grounding path (the reach problem,
+  not a scorer-quality problem).
+
+**Decision: lexical stays the default scorer; embedding is opt-in.**
+Embedding neither dominates lexical on the isolated test nor moves the
+e2e, and it adds a heavy optional dependency (fastembed + model). It
+lands as a real, pluggable, CI-safe (`make_fastembed_scorer` returns
+None when unavailable → lexical fallback) upgrade path for ontologies /
+workloads where non-lexical synonyms dominate — but not as a default.
+This closes the "embedding scorer would fix it" hypothesis with data:
+the scorer was not the bottleneck.
+
 ## Implementation Notes
 
 - new: `src/seocho/query/ontology_grounding.py`

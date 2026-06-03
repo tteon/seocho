@@ -1,0 +1,12 @@
+graph: 65 nodes | labels: [('Company', 6), ('Location', 1), ('Revenue', 2), ('OperatingIncome', 1), ('Subsidiary', 2), ('Person', 4), ('Metric', 9), ('Document', 10), ('DocumentVersion', 10), ('Chunk', 10), ('Section', 10)]
+   finder_tut_001  single_hop     relationship_lookup 0    cypher/label-mismatch (graph has [('Company', 'Apple Inc.'), ('Document', 'Apple Inc. (AAPL) is a multinational technology company headquartered in Cuperti')])
+   finder_tut_002  numeric_lookup financial_metric_lookup 0    cypher/label-mismatch (graph has [('Document', 'Microsoft Corporation reported total revenue of $211.9 billion for fiscal year 2')])
+   finder_tut_003  single_hop     financial_metric_lookup 4    
+   finder_tut_004  single_hop     relationship_lookup 0    cypher/label-mismatch (graph has [('Document', 'Alphabet Inc. is governed by a Board of Directors that includes Sundar Pichai, C')])
+   finder_tut_005  single_hop     financial_metric_lookup 0    cypher/label-mismatch (graph has [('Document', 'Meta Platforms, Inc. is currently subject to ongoing litigation including the Fe')])
+   finder_tut_006  compositional  financial_metric_lookup 0    cypher/label-mismatch (graph has [('Document', 'Tesla, Inc. reports automotive revenues separately from energy generation and st')])
+   finder_tut_007  single_hop     financial_metric_lookup 0    cypher/label-mismatch (graph has [('Document', 'JPMorgan Chase & Co. provides Tier 1 capital ratio of 15.0% as of December 31, 2')])
+   finder_tut_008  single_hop     entity_lookup      1    
+   finder_tut_009  single_hop     relationship_lookup 0    cypher/label-mismatch (graph has [('Subsidiary', 'Amazon Web Services (AWS)'), ('Document', 'Amazon.com, Inc. operates through three primary segments: North America, Interna')])
+   finder_tut_010  compositional  financial_metric_lookup 7    
+REAL answerability (>=1 record): 3/10 = 0.30

@@ -151,6 +151,17 @@ empty); "why did gross margin expand" (OOV concept + qualitative) → `NARRATIVE
 The neutral measure→hint routing works end-to-end; the planner remains the
 decider.
 
+**MEASURED (S4, full lane live: decompose→arbitrate→compile→execute→format
+against seeded DozerDB, MARA + bge):** "Apple revenue FY2024" → STRUCTURED →
+"$391,035 million (fiscal:2024:FY)"; "Apple net income **FY2025**" → STRUCTURED
+→ "$112,010 million" (the prior-stale, post-cutoff fact the model could not
+know — now answered from graph STRUCTURE, not chunk text or priors); "revenue
+FY2099" → CLARIFY (no answer); "why did margin expand" → NARRATIVE (no answer).
+The closed loop confirms the session's goal: the graph contributes via
+deterministic structured retrieval. `local_engine.ask` consults this lane under
+`SEOCHO_SEMANTIC_LAYER` and only short-circuits on a STRUCTURED answer;
+everything else falls through to the existing lane (behavior preserved).
+
 **Staged roadmap (resolves the multi-ontology fork):**
 - **v1 (smallest slice):** single finance manifest; `route ∈ {STRUCTURED,
   NARRATIVE, CLARIFY, FAIL}`; `ontology_id` field present but constant

@@ -546,6 +546,27 @@ class _LocalEngine:
             reasoning_mode = True
             repair_budget = max(1, int(repair_budget or 0))
 
+        # ADR-0103 S4: semantic-layer lane (decompose -> arbitrate -> compile).
+        # Additive + env-gated (SEOCHO_SEMANTIC_LAYER): only short-circuits when
+        # the arbiter routes STRUCTURED and the exact-key Cypher returns a row;
+        # CLARIFY/NARRATIVE/FAIL fall through to the existing lane (which may
+        # chunk-fallback), so current behavior is preserved.
+        self._last_semantic_route = None
+        if (os.environ.get("SEOCHO_SEMANTIC_LAYER", "").strip().lower()
+                in ("1", "true", "yes") and query_mode != "graph_cot"):
+            try:
+                from .query.semantic_query import semantic_answer
+
+                sr = semantic_answer(
+                    question, llm=self.llm, graph_store=self.graph_store,
+                    database=database, workspace_id=self.workspace_id,
+                )
+                self._last_semantic_route = sr.route
+                if sr.answer is not None:
+                    return sr.answer
+            except Exception as exc:  # never let the new lane break ask()
+                logger.warning("Semantic-layer lane skipped: %s", exc)
+
         timer = StageTimer()
         agent_design_pattern = str(self.agent_config.extra.get("agent_design_pattern", "") or "")
         if query_mode == "graph_cot" and not agent_design_pattern:

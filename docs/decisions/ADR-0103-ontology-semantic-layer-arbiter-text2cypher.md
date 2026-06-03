@@ -162,6 +162,12 @@ deterministic structured retrieval. `local_engine.ask` consults this lane under
 `SEOCHO_SEMANTIC_LAYER` and only short-circuits on a STRUCTURED answer;
 everything else falls through to the existing lane (behavior preserved).
 
+**MEASURED (S12, PROFILE profiler, `profile_probe.py`):** with the
+UNIQUE(obs_id) constraint + Company.cik index, the compiled exact-key Cypher
+plans as a **NodeIndexSeek** (seek_rate 1.0, scan_count 0, max db_hits 23) — the
+structured path is not only correct (DCC=1.0) but index-backed and O(1), not a
+label scan. GOPTS Layer-1/2 confirmed for the observation_lookup pattern.
+
 **Staged roadmap (resolves the multi-ontology fork):**
 - **v1 (smallest slice):** single finance manifest; `route ∈ {STRUCTURED,
   NARRATIVE, CLARIFY, FAIL}`; `ontology_id` field present but constant

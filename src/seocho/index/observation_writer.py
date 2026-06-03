@@ -138,16 +138,23 @@ def build_observations(
 
 
 def ensure_observation_constraint(graph_store: Any, database: str = "neo4j") -> bool:
-    """Create the UNIQUE constraint (+ backing index) on Observation.obs_id.
+    """Create the UNIQUE constraint on Observation.obs_id + an index on
+    Company.cik. Idempotent (IF NOT EXISTS). Returns True on success.
 
-    Idempotent (IF NOT EXISTS). Returns True on success. The index is what lets
-    the exact-key compiled Cypher hit O(1) rather than scan (validated by S12).
+    The constraint dedups Observations and backs the obs_id seek; the Company
+    .cik index lets the exact-key compiled Cypher start with a NodeIndexSeek on
+    the anchor entity rather than a label scan — so the structured path is O(1),
+    not O(all companies). Both are validated by the PROFILE profiler (S12).
     """
     try:
         with graph_store._driver.session(database=database) as session:
             session.run(
                 "CREATE CONSTRAINT seocho_observation_obs_id IF NOT EXISTS "
                 "FOR (o:Observation) REQUIRE o.obs_id IS UNIQUE"
+            )
+            session.run(
+                "CREATE INDEX seocho_company_cik IF NOT EXISTS "
+                "FOR (c:Company) ON (c.cik)"
             )
         return True
     except Exception:

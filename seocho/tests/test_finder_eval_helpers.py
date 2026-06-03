@@ -26,6 +26,7 @@ def _load(name: str, filename: str):
 
 ARM = _load("finder_4arm_sample", "finder_4arm_sample.py")
 JUDGE = _load("finder_judge", "finder_judge.py")
+E2E = _load("e2e_probe", "e2e_probe.py")
 
 
 @pytest.mark.parametrize("bad", [float("nan"), None, 12345, 3.14])
@@ -62,3 +63,30 @@ def test_token_f1_nan_and_identity():
     assert JUDGE.token_f1("revenue grew 5", float("nan")) == 0.0
     assert JUDGE.token_f1("revenue grew 5", "revenue grew 5") == pytest.approx(1.0)
     assert 0.0 < JUDGE.token_f1("revenue grew 5 percent", "revenue grew 5") < 1.0
+
+
+def test_e2e_support_quality_gap_separates_support_from_metric_quality():
+    assert E2E._support_quality_gap(
+        expected="Revenue was 10 in 2023.",
+        answer="The evidence supports revenue but gives no number.",
+        support="supported",
+        supported=True,
+        overlap_ratio=0.0,
+        answer_source="llm_synthesis",
+    ) == "supported_zero_number_overlap"
+    assert E2E._support_quality_gap(
+        expected="Qualitative answer with no numbers.",
+        answer="Qualitative answer.",
+        support="partial",
+        supported=False,
+        overlap_ratio=0.0,
+        answer_source="llm_synthesis",
+    ) == "no_numeric_gold"
+    assert E2E._support_quality_gap(
+        expected="Revenue was 10.",
+        answer="ERROR: APITimeoutError",
+        support=None,
+        supported=False,
+        overlap_ratio=0.0,
+        answer_source="error",
+    ) == "answer_error"

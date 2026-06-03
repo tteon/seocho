@@ -3,6 +3,7 @@ from seocho.query.cypher_validator import CypherQueryValidator
 from seocho.query.insufficiency import QueryInsufficiencyClassifier
 from seocho.query.intent import build_evidence_bundle, infer_question_intent
 from seocho.query.strategy_chooser import ExecutionStrategyChooser, IntentSupportValidator
+from seocho.models import EvidenceBundle
 
 
 def test_infer_question_intent_and_evidence_bundle_contract():
@@ -33,6 +34,11 @@ def test_infer_question_intent_and_evidence_bundle_contract():
     assert bundle["support_assessment"]["route_class"] == "R4_GRAPH_JOIN"
     assert bundle["slot_fills"]["source_entity"] == "Neo4j"
     assert bundle["slot_fills"]["target_entity"] == "Cypher"
+    assert bundle["evidence_swarm"]["schema_version"] == "evidence_swarm.v1"
+    assert bundle["evidence_swarm"]["enabled"] is True
+    assert bundle["evidence_swarm"]["hardness"] == "hard"
+    assert "relation_path_scout" in bundle["evidence_swarm"]["critical_path"]
+    assert EvidenceBundle.from_dict(bundle).evidence_swarm["enabled"] is True
 
 
 def test_tradeoff_intent_and_evidence_bundle_surface_limitations_and_alternatives():
@@ -80,6 +86,49 @@ def test_tradeoff_intent_and_evidence_bundle_surface_limitations_and_alternative
     assert bundle["slot_fills"]["target_entity"] == "Python"
     assert bundle["slot_fills"]["limitation_points"] == ["GIL"]
     assert bundle["slot_fills"]["alternative_points"] == ["multiprocessing", "Ray"]
+
+
+def test_evidence_swarm_stays_disabled_for_complete_easy_bundle():
+    semantic_context = {
+        "entities": ["Amazon"],
+        "matches": {
+            "Amazon": [
+                {
+                    "display_name": "Amazon",
+                    "database": "kgnormal",
+                    "node_id": "1",
+                    "labels": ["Company"],
+                    "source": "fulltext",
+                    "final_score": 0.9,
+                }
+            ]
+        },
+    }
+    intent = {
+        "intent_id": "entity_summary",
+        "required_relations": [],
+        "required_entity_types": ["Entity"],
+        "focus_slots": ["target_entity", "supporting_fact"],
+    }
+
+    bundle = build_evidence_bundle(
+        question="Summarize Amazon.",
+        semantic_context={**semantic_context, "intent": intent},
+        memory={
+            "memory_id": "mem_amazon",
+            "database": "kgnormal",
+            "content_preview": "Amazon is an ecommerce and cloud computing company.",
+            "entities": [{"name": "Amazon", "labels": ["Company"]}],
+        },
+        matched_entities=["Amazon"],
+        score=0.9,
+    )
+
+    assert bundle["missing_slots"] == []
+    assert bundle["support_status"] == "supported"
+    assert bundle["evidence_swarm"]["enabled"] is False
+    assert bundle["evidence_swarm"]["hardness"] == "easy"
+    assert bundle["evidence_swarm"]["recommended_next_step"] == "direct_answer"
 
 
 def test_cypher_validator_and_insufficiency_classifier_contract():

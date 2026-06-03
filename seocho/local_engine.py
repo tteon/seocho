@@ -21,7 +21,7 @@ from .query.answering import QueryAnswerSynthesizer
 from .query.contracts import QueryPlan
 from .query.executor import GraphQueryExecutor
 from .query.planner import DeterministicQueryPlanner
-from .query.run_metadata import build_local_query_metadata
+from .query.run_metadata import build_local_evidence_bundle_for_synthesis, build_local_query_metadata
 from .runtime_contract import DEFAULT_QUERY_MODE, normalize_query_mode
 
 logger = logging.getLogger(__name__)
@@ -495,6 +495,66 @@ class _LocalEngine:
 
         return result
 
+    _GRAPH_CTX_INFRA_LABELS = {"Document", "DocumentVersion", "Chunk", "Section"}
+
+    def _serialize_graph_context(self, database: str, *, max_nodes: int = 80,
+                                 max_rels: int = 80) -> str:
+        """Serialize the workspace subgraph to text — the narrative/exploratory
+        retrieval lane (OP-routing, 2026-06-03).
+
+        The structured Cypher templates answer fact/metric questions well but
+        return nothing for company-overview / footnote / narrative questions
+        (measured: S3/S4/S5/S6 structured ~0 while a whole-subgraph dump scored
+        0.3-0.56). When structured retrieval is empty we fall back to this
+        graph-as-context serialization (typed nodes + value/period + rels) so
+        the LLM can answer from what was actually extracted. Read-only,
+        workspace-scoped, parameterized (CLAUDE.md §8); bounded by max_nodes/rels.
+        """
+        ws = self.workspace_id or ""
+        n_lim, r_lim = int(max_nodes), int(max_rels)
+        try:
+            nodes = self.graph_store.query(
+                "MATCH (n) WHERE ($w = '' OR n._workspace_id = $w OR n.workspace_id = $w) "
+                "RETURN labels(n) AS l, properties(n) AS p "
+                f"LIMIT {n_lim}",
+                params={"w": ws}, database=database) or []
+        except Exception:
+            return ""
+        lines = ["=== Knowledge graph: entities & metrics ==="]
+        for r in nodes:
+            raw_labels = [str(x) for x in (r.get("l") or []) if str(x)]
+            labs = [x for x in raw_labels if x not in self._GRAPH_CTX_INFRA_LABELS]
+            p = r.get("p") or {}
+            nm = p.get("name") or p.get("uri") or ""
+            if not labs:
+                content = str(p.get("content") or p.get("content_preview") or "").strip()
+                if not content:
+                    continue
+                excerpt = re.sub(r"\s+", " ", content)[:1600].strip()
+                title = str(p.get("title") or nm or p.get("id") or "document").strip()
+                lines.append(f"- (Document) {title}: {excerpt}")
+                continue
+            bits = [f"{k}={p[k]}" for k in
+                    ("value", "period", "basis", "segment", "amount",
+                     "amount_per_share", "coupon_rate", "maturity_date") if p.get(k)]
+            lines.append(f"- ({'/'.join(labs)}) {nm}" + (f" [{', '.join(bits)}]" if bits else ""))
+        try:
+            rels = self.graph_store.query(
+                "MATCH (a)-[x]->(b) WHERE ($w = '' OR "
+                "((a._workspace_id = $w OR a.workspace_id = $w) "
+                "AND (b._workspace_id = $w OR b.workspace_id = $w))) "
+                "RETURN coalesce(a.name, a.uri, '?') AS s, type(x) AS t, "
+                "coalesce(b.name, b.uri, '?') AS o "
+                f"LIMIT {r_lim}",
+                params={"w": ws}, database=database) or []
+        except Exception:
+            rels = []
+        if rels:
+            lines.append("=== Relationships ===")
+            for r in rels:
+                lines.append(f"- {r['s']} -{r['t']}-> {r['o']}")
+        return "\n".join(lines) if len(lines) > 1 else ""
+
     def ask(
         self,
         question: str,
@@ -626,7 +686,7 @@ class _LocalEngine:
                     params = fb_params
 
         attempts = []
-        if reasoning_mode and repair_budget > 0 and not records:
+        if repair_budget > 0 and not records:
             with timer.stage("repair"):
                 attempts.append({"cypher": cypher, "result_count": 0, "error": None})
 
@@ -674,6 +734,22 @@ class _LocalEngine:
                 except Exception:
                     pass
 
+        # OP-routing (2026-06-03): structured-first, graph-context fallback. When
+        # the structured/neighbor/repair lanes return no rows — typical for
+        # narrative/overview/footnote questions the Cypher templates can't express
+        # — serialize the workspace subgraph and answer from it (the lane that
+        # scored on S3/S4/S5/S6 in e2e_probe). Fact/metric questions keep using the
+        # cheap structured rows; only the empty cases pay for the larger context.
+        graph_context_used = False
+        from .query.cypher_builder import _e2e_baseline
+        if not records and not _e2e_baseline():
+            with timer.stage("graph_context_fallback"):
+                graph_ctx = self._serialize_graph_context(database)
+            if graph_ctx:
+                vector_context = (f"{vector_context}\n\n{graph_ctx}".strip()
+                                  if vector_context else graph_ctx)
+                graph_context_used = True
+
         with timer.stage("ontology_context_check"):
             ontology_context_mismatch = self._query_ontology_context_mismatch(database, ontology_context)
         if ontology_context_mismatch.get("mismatch"):
@@ -720,21 +796,29 @@ class _LocalEngine:
                 ontology=active_ontology,
                 cypher=cypher,
                 result_count=len(records) if records else 0,
-                reasoning_attempts=len(attempts) if reasoning_mode and attempts else 0,
+                reasoning_attempts=len(attempts) if attempts else 0,
                 elapsed_seconds=_query_elapsed,
             )
             return deterministic_answer
 
         reasoning_trace = None
-        if reasoning_mode and attempts:
+        if attempts:
             reasoning_trace = json.dumps(attempts, default=str)
 
         with timer.stage("generation"):
+            synthesis_evidence_bundle = build_local_evidence_bundle_for_synthesis(
+                question=question,
+                database=database,
+                intent_data=intent_data,
+                records=records,
+                vector_context=vector_context,
+            )
             answer_text = answer_synthesizer.synthesize(
                 question,
                 records,
                 reasoning_trace=reasoning_trace,
                 vector_context=vector_context,
+                evidence_bundle=synthesis_evidence_bundle,
             )
 
         timer.mark_total()
@@ -765,7 +849,7 @@ class _LocalEngine:
             ontology=active_ontology,
             cypher=cypher,
             result_count=len(records) if records else 0,
-            reasoning_attempts=len(attempts) if reasoning_mode and attempts else 0,
+            reasoning_attempts=len(attempts) if attempts else 0,
             elapsed_seconds=_query_elapsed,
         )
 

@@ -244,6 +244,28 @@ deploy the site from this repository.
   - automation PRs must keep the `Feature/Why/Design/Expected Effect/Impact Results/Validation/Risks` structure
   - `/go` merge is maintainer-triggered and should not replace review judgment
 
+### Long-running experiment durability (added 2026-06-03)
+
+Multi-hour benchmark sweeps (e.g. `scripts/benchmarks/finder_4arm_sample.py`) MUST be
+launched so they survive session/terminal restarts and are cheap to resume — a sweep
+left as a child of an interactive/agent session was SIGTERM'd overnight and lost ~7h.
+
+- **Launch detached:** use `scripts/benchmarks/run_sweep_detached.sh <provider/model> …`
+  (`setsid nohup python3 -u` → reparented to PID 1, unbuffered log + pidfile under
+  `outputs/evaluation/sweep_logs/`). Never run a long sweep as a plain session child.
+- **Resume-safe by default:** `finder_4arm_sample.py` skips a `(case, arm)` whose partial
+  already exists with a matching `prompt_hash` + `ontology_hash` (re-run the same command
+  to continue; `--no-resume` to force recompute). This protects scarce API quota
+  (e.g. MARA DeepSeek-V3.1 = 1500 RPD) across restarts.
+- **LLM retry discipline** (`seocho/store/llm.py`): the OpenAI client uses `max_retries=0`
+  (we own retry) so the SDK's built-in retry can't multiply with `_create_with_retry` into
+  a timeout-storm; rate-limit (429) errors back off up to 5×, but timeout/connection errors
+  fail fast (≤2 tries) so an unresponsive gateway call records a failure and moves on
+  (§20.2) instead of stalling the run for tens of minutes.
+- **Per-model DB isolation** stays mandatory (different generators must not share a Neo4j
+  DB — UNIQUE-name constraints merge entities across models); the runner auto-derives
+  `yitae<mmdd><model>` unless `--database` pins an existing one for resume.
+
 ## 14. Philosophy Alignment
 
 All significant implementation changes should align with `docs/PHILOSOPHY.md`.
@@ -495,6 +517,10 @@ interpret these labels naively across categories. (See memory: FinDER label bias
   ready for ingest.
 - Opik: self-hosted, workspace `default`, project `yitae-0530-grok` (`.env` + `~/.opik.config` aligned).
 - Embeddings: OpenAI `text-embedding-3-small`, 1536-dim (repo standard, live-verified).
+- Live experiment default: prefer `MARA_API_KEY` for generator and
+  LLM-as-judge calls. Use OpenAI LLMs or embeddings only when the experiment
+  explicitly requires that vendor. For embedding-only work, prefer local
+  BGE/sentence-transformers style backends before paid OpenAI embeddings.
 
 ### Graph property discipline ("only necessary info")
 
@@ -528,6 +554,9 @@ This is a measurement, not a narrative. Hold to these or the comparison is void:
    gold answers, same judge/metric, same LLM where the pipeline uses one**.
    Any asymmetry (different prompt, different model, different top-k budget) is
    disclosed up front, not buried.
+   For current live runs, "same LLM" means the same MARA-hosted model unless the
+   run is explicitly registered as an OpenAI comparison. LLM judges should also
+   use MARA by default.
 4. **Pre-register direction.** The §19 table is the pre-registered hypothesis
    per slice. Report results against it including the cases where the hypothesis
    was **wrong** — disconfirming evidence is the point, not noise to filter. The
@@ -553,3 +582,63 @@ This is a measurement, not a narrative. Hold to these or the comparison is void:
 8. **Separate observation from interpretation.** State the measured result
    first; offer mechanism ("graph wins S1 likely because…") explicitly as
    interpretation, clearly labeled.
+
+## 21. Native Acceleration (Rust / PyO3) Gate — MANDATORY
+
+Any decision to port code to Rust, write a PyO3/native extension, or **activate**
+an existing one (e.g. `seocho-core`) is a **profile-first decision, never an
+intuition.** "It's a hot loop, rewrite it in Rust" is not a justification. The
+following gate is binding; see ADR-0101 for the worked example that established
+it (the dormant `seocho-core` crate measured as *not worth activating*).
+
+### 21.1 Evidence required BEFORE any activation/port
+
+A candidate must pass **all** of these, measured, before it ships:
+
+1. **Whole-path A/B behind the real caller** — time the full path the caller
+   actually pays (including JSON `dumps`/`loads` and every boundary crossing),
+   not the inner function's wall-clock. Inner-function ratio alone is **not
+   evidence**.
+2. **Marshaling-isolated baseline** — include a `noop_consume`-style probe that
+   pays the same PyO3 boundary cost but ~no compute, so you can attribute
+   `native_compute = total − marshaling`. If marshaling dominates, the win is an
+   illusion (the `seocho-core` cosine was 69% marshaling).
+3. **Amdahl share is material** — the hotspot must be a non-trivial fraction of
+   the relevant path. A function called once per request behind a ~200ms
+   network/LLM call has ~0% share regardless of its local speedup → do not port.
+4. **Beat the optimized incumbent** — compare against the real competitor, not a
+   strawman. NumPy/BLAS for linear algebra, `orjson` for JSON, `tokenizers` for
+   tokenization. **Adopt an existing Rust-backed library before writing custom
+   PyO3** (the "reuse before rewrite" rule). A naive hand-rolled kernel that
+   loses to BLAS is not a win.
+5. **Cross-impl golden parity test** — the native path must produce output that
+   is **deterministic** and **byte-identical to the Python fallback** on fixed
+   fixtures, in CI, with the wheel present. Non-deterministic native output
+   (e.g. Rust `HashMap` + `max_by_key` tie-break depending on per-process
+   `RandomState`) is a correctness defect, not a perf trade-off.
+
+### 21.2 Activation safety (no silent fallback, reproducibility)
+
+- Native paths must be gated behind an **explicit env flag defaulting OFF**.
+  A bare `try: import <native>` that flips behavior merely because a wheel is on
+  the path is forbidden — installing a wheel must never silently change output
+  (§18 no-silent-fallback, §20.7 reproducibility).
+- Log once at import which path is live (`native active` / `fallback active`)
+  so operators and benchmarks can never mistake which one they measured.
+
+### 21.3 $0 profiling discipline
+
+- Profile with **no-LLM / no-API workloads** (synthetic vectors, on-disk
+  artifacts, local DB reads). The user pays all API costs (§ cost-sensitivity);
+  a profiling run must cost nothing.
+- Use `--release` builds only — a debug build (no inlining/auto-vectorization,
+  bounds checks on) under-measures Rust and lies about the comparison.
+- Record the decision (activate or not, with the measured table) in an ADR.
+
+### 21.4 Where Rust *can* win (profile to confirm, don't pre-commit)
+
+The shape of a real win: **substantial compute, single boundary crossing, no
+optimized-C incumbent.** Likely candidates — but only after the data-plane
+profile shows them hot: JSONL/artifact IO (try `orjson` first, zero custom
+code), chunking/tokenization over large corpora. The request hot path is
+network/LLM-bound (~90% network) and is **not** a Rust target.

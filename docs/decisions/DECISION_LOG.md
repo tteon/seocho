@@ -5,6 +5,17 @@ Each entry must link to a full ADR when impact is non-trivial.
 
 ## 2026-06-03
 
+- Accepted `ADR-0101-native-acceleration-profile-first-gate.md`
+  - mandatory profile-first gate for any Rust/PyO3 port or activation
+    (CLAUDE.md §21): whole-path A/B behind the real caller, marshaling-isolated
+    baseline, material Amdahl share, beat the optimized incumbent, deterministic
+    Python-identical parity test; native gated OFF-by-default (no silent
+    `try: import` activation)
+  - dormant `seocho-core` measured ($0 bench) as NOT worth activating: cosine
+    marshaling-dominated/Amdahl-irrelevant, matrix loses to NumPy BLAS 3–18×,
+    rules ~1× and non-deterministic (HashMap tie-break) — wheel uninstalled,
+    Python fallback restored
+  - follow-up: profile data plane; try `orjson` for JSONL IO before any new PyO3
 - Accepted `ADR-0099-ontology-control-plane-as-agentic-middleware-lock-in.md`
   - SEOCHO's defensible layer is ontology-selection middleware between agents
     and graph/model providers, not a proprietary DBMS or foundation model
@@ -13,6 +24,22 @@ Each entry must link to a full ADR when impact is non-trivial.
     selection, and baseline-vs-candidate evaluation
   - follow-up work should persist signals/profiles, expose user review controls,
     and gate profile promotion with MARA/OpenAI-compatible E2E regression
+- Accepted `ADR-0100-hard-query-evidence-swarm-contract.md`
+  - add `evidence_swarm.v1` inside `evidence_bundle.v2` for hard-query
+    inspection before answer synthesis
+  - deterministic scouts classify ontology signals, required slots, relation
+    paths, provenance, and insufficiency
+  - debate remains separate; swarm is the typed evidence assembly layer that
+    later parallel indexing/query scouts can fill
+- Accepted follow-up to `ADR-0100-hard-query-evidence-swarm-contract.md`
+  - add `grounded_synthesis_prompt.v1` as the bridge from typed evidence bundle
+    to final answer generation
+  - encode professor/software-engineer/computer-systems review lenses as a
+    deterministic `grounding_optimizer.v1` receipt, not answer debate agents
+  - force local LLM synthesis to answer from bounded evidence fragments and
+    preserve missing slots
+  - classify provenance-backed calculated values as `derived_supported`, with
+    an `evidence_derivation.v1` receipt
 - Accepted `ADR-0098-experiment-backed-route-profile-and-answer-shape-contract.md`
   - ICML FinDER and KDD DataAgent-Bench experiments support treating graph
     evidence as slot/route control first, not as an always-authoritative final

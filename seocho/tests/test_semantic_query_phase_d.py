@@ -60,6 +60,26 @@ class FailingRelationshipConnector(FakeConnector):
         return super().run_cypher(query, database=database, params=params)
 
 
+class SwarmExpansionConnector(FakeConnector):
+    def run_cypher(self, query, database="neo4j", params=None):
+        params = params or {}
+        if "AS source_entity" in query and "AS relation_type" in query:
+            if str(params.get("target_hint") or "").strip() or "MATCH (n:Database)" in query:
+                return json.dumps([])
+            return json.dumps(
+                [
+                    {
+                        "source_entity": "Neo4j",
+                        "relation_type": "POWERS",
+                        "target_entity": "GraphRAG",
+                        "target_labels": ["Technique"],
+                        "supporting_fact": "Neo4j powers GraphRAG relation retrieval.",
+                    }
+                ]
+            )
+        return super().run_cypher(query, database=database, params=params)
+
+
 class EntitySummaryConnector(FakeConnector):
     def run_cypher(self, query, database="neo4j", params=None):
         params = params or {}
@@ -274,6 +294,31 @@ def test_canonical_semantic_flow_reports_query_contract_failures():
     assert result["query_diagnostics"]
     assert result["query_diagnostics"][0]["diagnosis_code"] == "query_execution_failed_or_contract_error"
     assert result["lpg_result"]["reasoning"]["query_failure_count"] >= 1
+
+
+def test_semantic_repair_budget_runs_swarm_relation_expansion_without_graph_cot():
+    flow = SemanticAgentFlow(SwarmExpansionConnector())
+
+    result = flow.run(
+        "What is Neo4j related to GraphRAG?",
+        ["kgnormal"],
+        repair_budget=1,
+    )
+
+    repair_trace = result["lpg_result"]["reasoning"]["repair_trace"]
+    swarm_steps = [step for step in repair_trace if step.get("swarm_action")]
+    assert result["query_mode"] == "semantic"
+    assert result["strategy_decision"]["executed_mode"] == "semantic_repair"
+    assert result["support_assessment"]["status"] == "supported"
+    assert result["agent_pattern"]["pattern"] == "reflection_chain"
+    assert swarm_steps
+    assert swarm_steps[0]["swarm_action"] == "relation_path_expansion"
+    assert result["evidence_bundle"]["slot_fills"]["relation_paths"] == ["POWERS"]
+    assert result["evidence_bundle"]["provenance"]
+    assert result["evidence_bundle"]["evidence_swarm"]["recommended_next_step"] in {
+        "direct_answer",
+        "slot_bundle_then_synthesis",
+    }
 
 
 def test_canonical_semantic_flow_surfaces_reasoning_cycle_for_unsupported_support():

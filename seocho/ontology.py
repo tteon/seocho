@@ -581,6 +581,10 @@ class Ontology:
 
         def _aliases(uri: Any, canonical_name: str) -> List[str]:
             aliases: List[str] = []
+            for lit in g.objects(uri, SKOS.altLabel):
+                value = str(lit).strip()
+                if value and value != canonical_name and value not in aliases:
+                    aliases.append(value)
             for lit in g.objects(uri, RDFS.label):
                 value = str(lit).strip()
                 if value and value != canonical_name and value not in aliases:
@@ -1640,10 +1644,17 @@ class Ontology:
         for label, nd in self.nodes.items():
             for pname, p in nd.properties.items():
                 if p.unique:
-                    cname = f"constraint_{label}_{pname}_unique"
+                    # Composite UNIQUE on (prop, _workspace_id): the property is
+                    # unique WITHIN a workspace, not globally — so two workspaces
+                    # (tenants / experiment arms) may legitimately hold the same
+                    # name without the second write merging onto or colliding with
+                    # the first. Global single-prop UNIQUE silently merged entities
+                    # across workspaces (§6.1 isolation). Pairs with the
+                    # workspace-scoped MERGE in Neo4jGraphStore.write.
+                    cname = f"constraint_{label}_{pname}_ws_unique"
                     stmts.append(
                         f"CREATE CONSTRAINT {cname} IF NOT EXISTS "
-                        f"FOR (n:{label}) REQUIRE n.{pname} IS UNIQUE"
+                        f"FOR (n:{label}) REQUIRE (n.{pname}, n._workspace_id) IS UNIQUE"
                     )
             for pname, p in nd.properties.items():
                 if p.index and not p.unique:

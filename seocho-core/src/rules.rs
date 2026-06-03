@@ -128,10 +128,15 @@ fn infer_dominant_type(values: &[serde_json::Value]) -> Option<String> {
         let kind = match v {
             serde_json::Value::Bool(_) => "boolean",
             serde_json::Value::Number(n) => {
-                if n.is_f64() && n.as_f64().map_or(false, |f| f.fract() != 0.0) {
-                    "number"
-                } else {
+                // Parity with the Python fallback (rules.py `_type_name`): the
+                // int/float distinction follows the JSON literal form, not the
+                // numeric value. Python int -> "integer", Python float -> "number";
+                // after json.dumps, serde sees those as i64/u64 vs f64. So 30.0
+                // must stay "number" (NOT "integer") to match the incumbent path.
+                if n.is_i64() || n.is_u64() {
                     "integer"
+                } else {
+                    "number"
                 }
             }
             _ => "string",

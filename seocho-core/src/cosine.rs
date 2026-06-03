@@ -26,6 +26,15 @@ pub fn cosine_similarity(a: Vec<f64>, b: Vec<f64>) -> f64 {
     result.clamp(-1.0, 1.0)
 }
 
+/// Marshaling-cost probe. Pays the SAME PyO3 `Vec<f64>` conversion as
+/// `cosine_similarity` (two 1536-element lists copied across the boundary)
+/// but does ~no math, so `time(cosine) - time(noop_consume)` attributes the
+/// native compute vs the boundary marshaling floor in $0 benchmarks.
+#[pyfunction]
+pub fn noop_consume(a: Vec<f64>, b: Vec<f64>) -> f64 {
+    (a.len() + b.len()) as f64
+}
+
 /// Compute NxN cosine similarity matrix for a list of vectors.
 /// Returns a list of lists (row-major).
 #[pyfunction]

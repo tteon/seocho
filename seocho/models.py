@@ -529,6 +529,7 @@ class SupportAssessment(JsonSerializable):
     intent_id: str = ""
     supported: bool = False
     status: str = ""
+    support_class: str = ""
     reason: str = ""
     graph_id: str = ""
     database: str = ""
@@ -541,6 +542,7 @@ class SupportAssessment(JsonSerializable):
     focus_slots: List[str] = field(default_factory=list)
     grounded_slots: List[str] = field(default_factory=list)
     missing_slots: List[str] = field(default_factory=list)
+    derivation: Dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, payload: Dict[str, Any]) -> "SupportAssessment":
@@ -548,6 +550,7 @@ class SupportAssessment(JsonSerializable):
             intent_id=str(payload.get("intent_id", "")),
             supported=bool(payload.get("supported", False)),
             status=str(payload.get("status", "")),
+            support_class=str(payload.get("support_class", "")),
             reason=str(payload.get("reason", "")),
             graph_id=str(payload.get("graph_id", "")),
             database=str(payload.get("database", "")),
@@ -560,6 +563,7 @@ class SupportAssessment(JsonSerializable):
             focus_slots=[str(item) for item in payload.get("focus_slots", [])],
             grounded_slots=[str(item) for item in payload.get("grounded_slots", [])],
             missing_slots=[str(item) for item in payload.get("missing_slots", [])],
+            derivation=dict(payload.get("derivation", {}) or {}),
         )
 
 
@@ -630,6 +634,7 @@ class EvidenceBundle(JsonSerializable):
     database: str = ""
     graph_id: str = ""
     support_assessment: Dict[str, Any] = field(default_factory=dict)
+    evidence_swarm: Dict[str, Any] = field(default_factory=dict)
     deterministic_profile: Dict[str, Any] = field(default_factory=dict)
     reasoning: Dict[str, Any] = field(default_factory=dict)
 
@@ -651,6 +656,7 @@ class EvidenceBundle(JsonSerializable):
             database=str(payload.get("database", "")),
             graph_id=str(payload.get("graph_id", "")),
             support_assessment=dict(payload.get("support_assessment", {})),
+            evidence_swarm=dict(payload.get("evidence_swarm", {})),
             deterministic_profile=dict(payload.get("deterministic_profile", {})),
             reasoning=dict(payload.get("reasoning", {})),
         )
@@ -809,7 +815,7 @@ class SemanticRunRecord(JsonSerializable):
             status=self.support_status,
             reason=self.support_reason,
             coverage=self.support_coverage,
-            supported=self.support_status == "supported",
+            supported=self.support_status in {"supported", "derived_supported"},
         )
 
     @property

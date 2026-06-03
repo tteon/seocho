@@ -4,6 +4,7 @@ import re
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 from .contracts import IntentSpec
+from .evidence_swarm import build_evidence_swarm_report
 
 
 LIMITATION_TEXT_HINTS = (
@@ -420,7 +421,7 @@ def build_evidence_bundle(
         missing_slots=missing_slots,
     )
 
-    return {
+    bundle = {
         "schema_version": "evidence_bundle.v2",
         "intent_id": str(intent.get("intent_id", "")).strip(),
         "route_profile": route_profile,
@@ -454,6 +455,13 @@ def build_evidence_bundle(
             "answer_shape": answer_shape["shape"],
         },
     }
+    bundle["evidence_swarm"] = build_evidence_swarm_report(
+        question=question,
+        semantic_context=semantic_context,
+        evidence_bundle=bundle,
+        support_assessment=bundle["support_assessment"],
+    )
+    return bundle
 
 
 def _build_route_profile(

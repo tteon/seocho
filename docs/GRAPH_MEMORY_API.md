@@ -108,15 +108,21 @@ For graph-grounded search or chat flows, SEOCHO may return an inspectable
 evidence bundle with fields such as:
 
 - `intent_id`
+- `database` / `databases`
+- `graph_id` / `graph_ids`
 - `required_relations`
 - `required_entity_types`
 - `focus_slots`
 - `candidate_entities`
 - `selected_triples`
 - `slot_fills`
+- `grounded_slots`
 - `missing_slots`
 - `provenance`
 - `confidence`
+- `support_status`
+- `support_reason`
+- `support_assessment`
 
 The initial implementation may return partial bundles while slot-aware evidence
 selection expands beyond entity-match scaffolding.

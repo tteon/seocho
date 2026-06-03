@@ -48,6 +48,13 @@ A graph-grounded SEOCHO answer is successful only when the runtime can:
 If the runtime only finds a broadly relevant neighborhood and then falls back to
 nearby text, it is not yet solving the right problem.
 
+For hard queries, SEOCHO now treats swarm as an evidence assembly layer rather
+than an answer debate. The `evidence_swarm.v1` report inside
+`evidence_bundle.v2` classifies hardness and records deterministic scout
+results for ontology signals, required slots, relation paths, provenance, and
+insufficiency before answer synthesis. Debate remains a separate cross-agent
+comparison mode.
+
 ## SEOCHO Requirements
 
 ### 1. Intent-First Retrieval
@@ -97,6 +104,31 @@ If required slots are absent:
 - avoid hallucinated slot completion
 
 Conservative incompleteness is better than fluent fabrication.
+
+### 3a. Typed Evidence-To-Answer Grounding
+
+The final answerer should receive `grounded_synthesis_prompt.v1`, not only raw
+query rows or a broad graph-context blob. This prompt wraps the evidence bundle
+into bounded fragments (`E1`, `E2`, ...) plus typed slot state:
+
+- `focus_slots`
+- `grounded_slots`
+- `missing_slots`
+- `slot_fills`
+- evidence fragment source (`structured_record` or `graph_context_fallback`)
+
+The answer contract is SEOCHO-specific: use only these fragments, preserve exact
+numbers/entities/years, and name missing slots instead of filling them from
+model memory. The optimizer receipt records three review lenses
+(`professor_agent`, `software_engineer_agent`, `computer_systems_agent`) as
+design profiles, not as answer-debate participants.
+
+When raw operands are grounded but the final value is computed, the support
+state should be `derived_supported`, not plain `supported`. The support payload
+must keep `supported: true`, `support_class: "derived_supported"`, and an
+`evidence_derivation.v1` receipt with operands, periods, operation, evidence
+source, and warnings. This follows the database-provenance principle that a
+derived value is supportable only when its lineage is inspectable.
 
 ### 3b. Graph-CoT Agent Lane Stays Typed
 

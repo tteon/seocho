@@ -64,6 +64,29 @@ JUDGE_SYSTEM = (
     '"matched":["..."],"missing_or_wrong":["..."],"rationale":"1-2 sentences"}'
 )
 
+DECISION_JUDGE_SYSTEM = (
+    "You are a strict evaluator for DECISION-TRACKING over email threads. You "
+    "receive a QUESTION, a GOLD answer (derived from human annotations of the "
+    "thread), and a CANDIDATE answer from a system. Judge ONLY factual "
+    "correctness relative to GOLD — ignore writing style, verbosity, formatting.\n\n"
+    "Rules:\n"
+    "- GOLD is ground truth. Weigh: (1) the right PROPOSALS/decisions/outcome, "
+    "(2) WHO said/proposed/decided/objected (correct participants), (3) the "
+    "POSITION direction (support vs oppose) when asked, (4) WHEN (initiator/date) "
+    "for factual questions.\n"
+    "- Correct = candidate identifies the same decision elements and actors as "
+    "GOLD. Partial = core proposal/decision right but a participant or position "
+    "is missing/wrong. Incorrect = wrong actors/decision, 'no data', refusal, or "
+    "fabricated participants/proposals not in GOLD.\n"
+    "- Paraphrase is fine; do not require exact wording. Do NOT credit naming a "
+    "participant if their role/position is wrong.\n\n"
+    "Output STRICT JSON only, no markdown:\n"
+    '{"verdict":"correct|partial|incorrect","score":1.0,'
+    '"matched":["..."],"missing_or_wrong":["..."],"rationale":"1-2 sentences"}'
+)
+
+_JUDGE_SYSTEMS = {"financial": JUDGE_SYSTEM, "decision": DECISION_JUDGE_SYSTEM}
+
 _SCORE = {"correct": 1.0, "partial": 0.5, "incorrect": 0.0}
 
 
@@ -112,14 +135,14 @@ def _parse_judge(text: str) -> dict:
             "parse_error": False}
 
 
-def judge_one(llm, query: str, gold: str, candidate: str) -> dict:
+def judge_one(llm, query: str, gold: str, candidate: str, judge_system: str = JUDGE_SYSTEM) -> dict:
     user = (f"QUESTION:\n{_safe_str(query)}\n\n"
             f"GOLD ANSWER (ground truth):\n{_safe_str(gold)}\n\n"
             f"CANDIDATE ANSWER:\n{_safe_str(candidate)}")
     try:
-        resp = llm.complete(system=JUDGE_SYSTEM, user=user, temperature=0.0)
+        resp = llm.complete(system=judge_system, user=user, temperature=0.0)
     except TypeError:
-        resp = llm.complete(system=JUDGE_SYSTEM, user=user)
+        resp = llm.complete(system=judge_system, user=user)
     txt = getattr(resp, "text", None) or getattr(resp, "content", None) or str(resp)
     return _parse_judge(txt)
 
@@ -208,7 +231,11 @@ def _paired_analysis(judged: list) -> dict:
     for r in judged:
         ret = r.get("retrieval") or r.get("mode") or "graph"
         arm = "n-a" if ret == "vector" else r.get("arm", "?")
-        by_case[r["case_id"]][f"{ret}|{arm}"] = r.get("panel_score", r.get("judge_score", 0.0))
+        # Decision partials key on `_id` shaped "<case>|<lane>|<arm>"; strip the
+        # lane/arm suffix so the SAME case pairs across lanes. FinDER partials use
+        # `case_id` directly.
+        case_id = r.get("case_id") or str(r.get("_id", "")).split("|")[0]
+        by_case[case_id][f"{ret}|{arm}"] = r.get("panel_score", r.get("judge_score", 0.0))
     # vector is the baseline lane; compare every OTHER lane (graph + vector_graph)
     # against it. NB: exclude only the exact baseline "vector|n-a" — not anything
     # starting with "vector" (that wrongly dropped the vector_graph hybrid lanes).
@@ -243,12 +270,16 @@ def main() -> int:
                     help="Comma list of judges, e.g. grok/grok-4.3,openai/gpt-5.5. "
                          "Multiple judges form a cross-vendor panel (removes self-preference).")
     ap.add_argument("--judge-llm", default=None, help="(deprecated alias for --judge-llms)")
+    ap.add_argument("--judge-domain", default="financial", choices=sorted(_JUDGE_SYSTEMS),
+                    help="Judge rubric: 'financial' (FinDER) or 'decision' (email decision-tracking).")
     ap.add_argument("--limit", type=int, default=0)
     args = ap.parse_args()
 
     bc.bootstrap(verbose=True)
 
+    judge_system = _JUDGE_SYSTEMS[args.judge_domain]
     judge_models = [m.strip() for m in (args.judge_llm or args.judge_llms).split(",") if m.strip()]
+    print(f"== judge domain: {args.judge_domain} ==")
 
     files: list[str] = []
     for pat in args.inputs:
@@ -264,9 +295,34 @@ def main() -> int:
         provider, model = spec.split("/", 1)
         judges[spec] = create_llm_backend(provider=provider.strip(), model=model.strip())
 
+    # Incremental persistence: each judged record is appended to a JSONL sidecar
+    # the instant it is scored, so a crash in post-processing (or anywhere) can
+    # NEVER discard paid judge calls. A re-run resumes by skipping sources already
+    # present in the sidecar (judge LLM calls are not cached — losing them is the
+    # expensive failure mode this guards against).
+    sidecar = ROOT / (str(args.out) + ".jsonl")
+    sidecar.parent.mkdir(parents=True, exist_ok=True)
     judged: list[dict] = []
+    done_src: set = set()
+    if sidecar.exists():
+        for line in sidecar.read_text().splitlines():
+            if not line.strip():
+                continue
+            try:
+                rec = json.loads(line)
+            except Exception:
+                continue
+            judged.append(rec)
+            if rec.get("_judge_src"):
+                done_src.add(rec["_judge_src"])
+        if done_src:
+            print(f"== resume: {len(done_src)} already judged in {sidecar.name}, skipping them ==")
+    sc = open(sidecar, "a")
+
     t0 = time.perf_counter()
     for i, f in enumerate(files, 1):
+        if f in done_src:
+            continue
         try:
             r = json.load(open(f))
         except Exception:
@@ -275,7 +331,7 @@ def main() -> int:
         r["token_f1"] = token_f1(cand, gold)
         per_model = {}
         for spec, llm in judges.items():
-            jr = judge_one(llm, q, gold, cand)
+            jr = judge_one(llm, q, gold, cand, judge_system=judge_system)
             per_model[spec] = {"verdict": jr["verdict"], "score": jr["score"],
                                "rationale": jr["rationale"]}
         r["judge_per_model"] = per_model
@@ -287,9 +343,12 @@ def main() -> int:
         # Back-compat single-judge fields = panel.
         r["judge_score"] = panel["panel_score"]
         r["judge_verdict"] = panel["panel_verdict"]
+        r["_judge_src"] = f
         judged.append(r)
+        sc.write(json.dumps(r, default=str) + "\n"); sc.flush()
         if i % 10 == 0 or i == len(files):
             print(f"  [{i}/{len(files)}] judged ({round(time.perf_counter()-t0)}s)", flush=True)
+    sc.close()
 
     # Aggregate by (slice, retrieval, arm) on the PANEL score.
     by = defaultdict(list)
@@ -308,8 +367,18 @@ def main() -> int:
             "incorrect": sum(1 for x in runs if x["panel_verdict"] == "incorrect"),
         }
 
-    agreement = _inter_judge_agreement(judged, judge_models) if len(judge_models) > 1 else {}
-    paired = _paired_analysis(judged)
+    # Post-processing must never discard the paid judgments: a bug here used to
+    # crash before the write and lose every judge call. Guard both analyses.
+    try:
+        agreement = _inter_judge_agreement(judged, judge_models) if len(judge_models) > 1 else {}
+    except Exception as e:
+        print(f"  [warn] inter-judge agreement failed: {type(e).__name__}: {e}")
+        agreement = {}
+    try:
+        paired = _paired_analysis(judged)
+    except Exception as e:
+        print(f"  [warn] paired analysis failed: {type(e).__name__}: {e}")
+        paired = {}
 
     out_path = ROOT / args.out
     bc.atomic_write_json(out_path, {

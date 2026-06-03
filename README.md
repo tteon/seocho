@@ -155,6 +155,11 @@ Two planes share one ontology:
 - **Control Plane** (`seocho/query/`) — ontology → prompt strategy → Cypher → answer synthesis
 - **Ontology** (`seocho/ontology.py`) — single source of truth for both planes, and for the runtime artifact contract
 
+Hard-query handling uses `evidence_swarm.v1` inside `evidence_bundle.v2` as a
+typed evidence assembly layer. It records ontology signals, required slots,
+relation paths, provenance, and insufficiency before synthesis; it is separate
+from multi-agent debate.
+
 The `Seocho` class is a thin public facade. Canonical engine logic lives under
 `seocho/local_engine.py`, `seocho/client_remote.py`, and `seocho/client_bundle.py`
 so the facade stays small. Runtime transport is `runtime/agent_server.py`;

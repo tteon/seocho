@@ -262,6 +262,7 @@ class ExecutionStrategyChooser:
         cross_graph_analysis = cross_graph_analysis if isinstance(cross_graph_analysis, dict) else {}
         support_status = str(support_assessment.get("status", "unsupported")).strip() or "unsupported"
         self_reflection_used = bool(reasoning.get("self_reflection_used", False))
+        repair_requested = int(decision.get("repair_budget", 0) or 0) > 0
 
         if route == "rdf":
             executed_mode = "rdf"
@@ -278,7 +279,7 @@ class ExecutionStrategyChooser:
             executed_mode = "hybrid"
         elif self_reflection_used:
             executed_mode = "semantic_self_reflect"
-        elif reasoning.get("requested"):
+        elif reasoning.get("requested") or repair_requested:
             executed_mode = "semantic_repair"
         else:
             executed_mode = "semantic_direct"
@@ -295,7 +296,7 @@ class ExecutionStrategyChooser:
                 advanced_debate_recommended = True
                 next_mode_hint = "advanced"
                 sdk_hint = "Use client.plan(...).advanced().run() for an explicit cross-graph debate."
-            elif not reasoning.get("requested"):
+            elif not reasoning.get("requested") and not repair_requested:
                 next_mode_hint = "reasoning_mode"
                 sdk_hint = "Use client.plan(...).with_repair_budget(2).run() to allow bounded repair."
             else:

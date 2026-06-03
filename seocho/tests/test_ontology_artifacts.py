@@ -128,4 +128,4 @@ def test_local_query_builder_uses_registered_ontology_override() -> None:
     assert error is None
     assert params["workspace_id"] == client.workspace_id
     assert intent_data["anchor_label"] == "Customer"
-    assert "MATCH (n:Customer)" in cypher
+    assert "MATCH (n:`Customer`)" in cypher

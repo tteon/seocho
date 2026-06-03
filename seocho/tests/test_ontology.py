@@ -473,9 +473,11 @@ class TestPromptContext:
 
 class TestCypherConstraints:
     def test_unique_constraint(self, simple_ontology):
+        # Composite UNIQUE (prop, _workspace_id) — unique WITHIN a workspace, not
+        # globally, so workspace_id truly isolates entities across tenants/arms.
         stmts = simple_ontology.to_cypher_constraints()
-        assert any("constraint_Person_name_unique" in s for s in stmts)
-        assert any("REQUIRE n.name IS UNIQUE" in s for s in stmts)
+        assert any("constraint_Person_name_ws_unique" in s for s in stmts)
+        assert any("REQUIRE (n.name, n._workspace_id) IS UNIQUE" in s for s in stmts)
 
     def test_index_statement(self, simple_ontology):
         stmts = simple_ontology.to_cypher_constraints()

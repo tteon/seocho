@@ -138,3 +138,6 @@ examples/untitled.txt
 
 # Per-PR scratch bodies (the actual PR description lives on GitHub)
 PR_BODY.md
+
+# root dataset/ is a non-tracked public surface (CLAUDE.md Public Repo Hygiene)
+dataset/

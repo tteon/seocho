@@ -1,0 +1,406 @@
+{
+  "config": {
+    "dataset": "outputs/evaluation/sec_temporal/dataset.jsonl",
+    "database": "sectemporal",
+    "provider": "mara",
+    "model": "MiniMax-M2.5",
+    "chunk_fallback": "1"
+  },
+  "summary": {
+    "n": 102,
+    "closed_book_vs_grounded": {
+      "closed_book_acc": 0.412,
+      "grounded_acc": 1.0
+    },
+    "prior_staleness": {
+      "stale_n": 34,
+      "stale_closed_book_acc": 0.059,
+      "stale_grounded_acc": 1.0,
+      "fresh_closed_book_acc": 0.588,
+      "fresh_grounded_acc": 1.0
+    },
+    "temporal_resolution": {
+      "grounded_n": 102,
+      "correct": 102,
+      "wrong_year": 0,
+      "no_match": 0,
+      "resolution_rate": 1.0
+    }
+  },
+  "stale_records": [
+    {
+      "ticker": "AAPL",
+      "metric": "net_income",
+      "fiscal_year": 2025,
+      "gold": "$112,010 million",
+      "closed_book": "Apple Inc.'s fiscal year 2025 (which runs from October 2024 to September 2025) has not yet been completed, as we are currently in December 2024. Therefore, the net income for fiscal year 2025 has not been reported yet.\n\nThe most recent completed fiscal year is FY2024, which ended in September 2024. ",
+      "grounded": "The query returned no results, so I cannot provide an answer based on the graph data alone.\n\nHowever, the additional context from vector search indicates that in fiscal year 2025, Apple Inc. reported net income of $112,010 million (period ended 2025-09-27).",
+      "closed_book_match": false,
+      "grounded_match": true,
+      "temporal": "correct"
+    },
+    {
+      "ticker": "AAPL",
+      "metric": "revenue",
+      "fiscal_year": 2025,
+      "gold": "$416,161 million",
+      "closed_book": "Apple Inc.'s fiscal year 2025 (ending September 2025) has not yet been completed, so actual reported revenue figures are not available as of the current date. The most recent completed fiscal year is 2024.\n\nFor fiscal year 2024, Apple reported total revenue of **$391.04 billion**.\n\nIf you're looking",
+      "grounded": "$416.2 billion",
+      "closed_book_match": false,
+      "grounded_match": true,
+      "temporal": "correct"
+    },
+    {
+      "ticker": "AMZN",
+      "metric": "revenue",
+      "fiscal_year": 2025,
+      "gold": "$716,924 million",
+      "closed_book": "Amazon has not yet reported fiscal year 2025 results, as FY2025 will not be complete until late 2025. The most recent complete fiscal year is 2024, with total revenue of **$620 billion**.",
+      "grounded": "$716,924 million",
+      "closed_book_match": false,
+      "grounded_match": true,
+      "temporal": "correct"
+    },
+    {
+      "ticker": "BRK-B",
+      "metric": "net_income",
+      "fiscal_year": 2025,
+      "gold": "$66,968 million",
+      "closed_book": "I don't have this information. As of my knowledge cutoff in April 2024, fiscal year 2025 (which would end December 31, 2025) has not yet occurred and therefore has not been reported. The most recent Berkshire Hathaway fiscal year reported would be 2023. Would you like me to provide net income for a ",
+      "grounded": "Based on the additional context from the vector search, BERKSHIRE HATHAWAY INC reported net income of **$66,968 million** for fiscal year 2025 (period ended 2025-12-31).",
+      "closed_book_match": false,
+      "grounded_match": true,
+      "temporal": "correct"
+    },
+    {
+      "ticker": "BRK-B",
+      "metric": "revenue",
+      "fiscal_year": 2025,
+      "gold": "$247,244 million",
+      "closed_book": "As of December 2024, fiscal year 2025 (ending December 31, 2025) has not yet been completed, so the financial results for fiscal year 2025 are not yet available. The most recent completed fiscal year is 2024.\n\nFor fiscal year 2024, Berkshire Hathaway Inc. reported total revenue of approximately $302",
+      "grounded": "$247.2 billion",
+      "closed_book_match": false,
+      "grounded_match": true,
+      "temporal": "correct"
+    },
+    {
+      "ticker": "CSCO",
+      "metric": "net_income",
+      "fiscal_year": 2025,
+      "gold": "$10,180 million",
+      "closed_book": "$13.9 billion",
+      "grounded": "Based on the additional context from the vector search, CISCO SYSTEMS, INC.'s net income for fiscal year 2025 was **$10,180 million** (with the period ended 2025-07-26).\n\nNote: The direct graph query returned empty results, but the vector search identified relevant information stored in the knowledg",
+      "closed_book_match": false,
+      "grounded_match": true,
+      "temporal": "correct"
+    },
+    {
+      "ticker": "CSCO",
+      "metric": "revenue",
+      "fiscal_year": 2025,
+      "gold": "$56,654 million",
+      "closed_book": "$57.4 billion",
+      "grounded": "$56,654 million",
+      "closed_book_match": true,
+      "grounded_match": true,
+      "temporal": "correct"
+    },
+    {
+      "ticker": "CVX",
+      "metric": "net_income",
+      "fiscal_year": 2025,
+      "gold": "$12,485 million",
+      "closed_book": "Chevron Corp's fiscal year 2025 (ending December 31, 2025) has not yet been reported, as it is a future fiscal year. The most recent reported fiscal year is 2024.",
+      "grounded": "Based on the query results provided, there are no records in the knowledge graph matching the question about Chevron Corp's net income for fiscal year 2025.\n\nHowever, the additional context from vector search indicates that in fiscal year 2025, Chevron Corp reported net income of $12,485 million (pe",
+      "closed_book_match": false,
+      "grounded_match": true,
+      "temporal": "correct"
+    },
+    {
+      "ticker": "CVX",
+      "metric": "revenue",
+      "fiscal_year": 2025,
+      "gold": "$184,432 million",
+      "closed_book": "Chevron Corp's fiscal year 2025 (ending December 31, 2025) has not yet been reported, as it is a future fiscal year. The most recent reported fiscal year is 2024.",
+      "grounded": "$184.4 billion",
+      "closed_book_match": false,
+      "grounded_match": true,
+      "temporal": "correct"
+    },
+    {
+      "ticker": "GOOGL",
+      "metric": "revenue",
+      "fiscal_year": 2025,
+      "gold": "$402,836 million",
+      "closed_book": "The fiscal year 2025 data is not yet available as it ends on December 31, 2025. The most recent complete fiscal year is 2024.\n\nFor fiscal year 2024, Alphabet Inc. reported total revenue of $96.5 billion.",
+      "grounded": "$402.8 billion",
+      "closed_book_match": false,
+      "grounded_match": true,
+      "temporal": "correct"
+    },
+    {
+      "ticker": "HD",
+      "metric": "revenue",
+      "fiscal_year": 2025,
+      "gold": "$164,683 million",
+      "closed_book": "$158,006,000,000",
+      "grounded": "$164,683 million",
+      "closed_book_match": false,
+      "grounded_match": true,
+      "temporal": "correct"
+    },
+    {
+      "ticker": "INTC",
+      "metric": "net_income",
+      "fiscal_year": 2025,
+      "gold": "$-267 million",
+      "closed_book": "For Intel's fiscal year 2024 (which ended December 28, 2024), net income was approximately $4.4 billion.\n\nNote: Intel's fiscal year 2025 would end around late 2025, so complete results would not yet be available as of my knowledge cutoff.",
+      "grounded": "Based on the additional context from vector search, INTEL CORP's net income for fiscal year 2025 was **$-267 million** (period ended 2025-12-27).\n\nNote: The direct graph query returned empty results, but the vector search context provides this information from the knowledge base.",
+      "closed_book_match": false,
+      "grounded_match": true,
+      "temporal": "correct"
+    },
+    {
+      "ticker": "INTC",
+      "metric": "revenue",
+      "fiscal_year": 2025,
+      "gold": "$52,853 million",
+      "closed_book": "Intel's fiscal year 2025 results have not been reported yet, as the fiscal year would end in December 2025.\n\nThe most recent complete fiscal year reported is **fiscal year 2024**, with total revenue of **$53.7 billion**.",
+      "grounded": "$52,853 million",
+      "closed_book_match": true,
+      "grounded_match": true,
+      "temporal": "correct"
+    },
+    {
+      "ticker": "JNJ",
+      "metric": "net_income",
+      "fiscal_year": 2025,
+      "gold": "$26,804 million",
+      "closed_book": "Johnson & Johnson's fiscal year 2025 (ending December 2025) has not yet been completed, so net income for that period is not available. The most recent complete fiscal year is 2024.\n\nFor fiscal year 2024, Johnson & Johnson's net income was approximately $4.0 billion.\n\nNote: This represents a signifi",
+      "grounded": "Based on the query results provided, the graph query returned no results (empty set).\n\nHowever, according to the additional context from vector search: In fiscal year 2025, Johnson & Johnson reported net income of $26,804 million (period ended 2025-12-28).",
+      "closed_book_match": false,
+      "grounded_match": true,
+      "temporal": "correct"
+    },
+    {
+      "ticker": "JNJ",
+      "metric": "revenue",
+      "fiscal_year": 2025,
+      "gold": "$94,193 million",
+      "closed_book": "Johnson & Johnson's total revenue for fiscal year 2024 (the most recent complete fiscal year) was approximately $88.6 billion. The full fiscal year 2025 results are not yet available as of December 2024.",
+      "grounded": "$94.193 billion",
+      "closed_book_match": false,
+      "grounded_match": true,
+      "temporal": "correct"
+    },
+    {
+      "ticker": "JPM",
+      "metric": "revenue",
+      "fiscal_year": 2025,
+      "gold": "$182,447 million",
+      "closed_book": "JPMORGAN CHASE & CO's total revenue for fiscal year 2025 is not yet available, as FY 2025 (the fiscal year ending December 31, 2025) is a future period that has not yet been completed or reported.\n\nThe most recent complete fiscal year is FY 2024 (ended December 31, 2024), which would be reported in ",
+      "grounded": "$182.4 billion",
+      "closed_book_match": false,
+      "grounded_match": true,
+      "temporal": "correct"
+    },
+    {
+      "ticker": "KO",
+      "metric": "net_income",
+      "fiscal_year": 2025,
+      "gold": "$13,107 million",
+      "closed_book": "Coca-Cola's fiscal year 2025 results have not yet been reported (fiscal year ends December 2025; results typically released in early 2026).\n\nFor the most recent reported fiscal year (2024), Coca-Cola's net income was **$11.1 billion**.",
+      "grounded": "Based on the query results provided, I cannot find the information requested (the query results are empty).\n\nHowever, based on the additional context from vector search (graph chunks):\n\nCOCA COLA CO's net income for fiscal year 2025 was **$13,107 million** (period ended 2025-12-31).",
+      "closed_book_match": false,
+      "grounded_match": true,
+      "temporal": "correct"
+    },
+    {
+      "ticker": "KO",
+      "metric": "revenue",
+      "fiscal_year": 2025,
+      "gold": "$47,941 million",
+      "closed_book": "Coca-Cola's fiscal year 2025 results are not yet available as the fiscal year ends December 31, 2025 (reported in early 2026).\n\nThe most recent complete fiscal year is **2024**, with total revenue of **$46.8 billion** (reported in February 2025).",
+      "grounded": "$47.9 billion",
+      "closed_book_match": false,
+      "grounded_match": true,
+      "temporal": "correct"
+    },
+    {
+      "ticker": "META",
+      "metric": "revenue",
+      "fiscal_year": 2025,
+      "gold": "$200,966 million",
+      "closed_book": "Based on the current date (September 26, 2025), Meta Platforms' fiscal year 2025 would not yet be complete, as their fiscal year ends on December 31st. The most recent complete fiscal year is 2024.\n\n**Meta Platforms, Inc. Fiscal Year 2024 Total Revenue: $134.9 billion**\n\nFor fiscal year 2025, only p",
+      "grounded": "$201 billion",
+      "closed_book_match": false,
+      "grounded_match": true,
+      "temporal": "correct"
+    },
+    {
+      "ticker": "MSFT",
+      "metric": "net_income",
+      "fiscal_year": 2025,
+      "gold": "$101,832 million",
+      "closed_book": "$96.0 billion",
+      "grounded": "Based on the query results provided, the results are empty ([]), so I cannot provide an answer from the graph query alone.\n\nHowever, the additional context from vector search indicates that in fiscal year 2025, MICROSOFT CORPORATION reported net income of $101,832 million (period ended 2025-06-30).",
+      "closed_book_match": false,
+      "grounded_match": true,
+      "temporal": "correct"
+    },
+    {
+      "ticker": "MSFT",
+      "metric": "revenue",
+      "fiscal_year": 2025,
+      "gold": "$281,724 million",
+      "closed_book": "I don't have the specific reported total revenue figure for Microsoft Corporation's fiscal year 2025 in my knowledge base. Microsoft's fiscal year 2025 would run from July 1, 2024 to June 30, 2025.\n\nFor accurate financial data, I recommend checking Microsoft's official investor relations website or ",
+      "grounded": "$281.7 billion",
+      "closed_book_match": false,
+      "grounded_match": true,
+      "temporal": "correct"
+    },
+    {
+      "ticker": "NVDA",
+      "metric": "revenue",
+      "fiscal_year": 2025,
+      "gold": "$215,938 million",
+      "closed_book": "$96.7 billion",
+      "grounded": "$215.9 billion",
+      "closed_book_match": false,
+      "grounded_match": true,
+      "temporal": "correct"
+    },
+    {
+      "ticker": "PEP",
+      "metric": "net_income",
+      "fiscal_year": 2025,
+      "gold": "$8,240 million",
+      "closed_book": "PepsiCo's fiscal year 2025 has not yet been completed (it runs from late September 2024 to late September 2025), so there are no reported net income figures for this period.\n\nThe most recent completed fiscal year is **fiscal year 2024**, which ended in late September 2024. PepsiCo's net income for f",
+      "grounded": "Based on the additional context from the knowledge graph, PepsiCo, Inc.'s net income for fiscal year 2025 was **$8,240 million** (for the period ended 2025-12-27).",
+      "closed_book_match": false,
+      "grounded_match": true,
+      "temporal": "correct"
+    },
+    {
+      "ticker": "PEP",
+      "metric": "revenue",
+      "fiscal_year": 2025,
+      "gold": "$93,925 million",
+      "closed_book": "As of my knowledge cutoff in early 2025, PepsiCo's fiscal year 2025 (ending December 2025) would not yet be complete, so full-year revenue data would not be available. The most recent complete fiscal year would be FY 2024.\n\nBased on available information, PepsiCo's FY 2024 net revenue was approximat",
+      "grounded": "$93.925 billion",
+      "closed_book_match": false,
+      "grounded_match": true,
+      "temporal": "correct"
+    },
+    {
+      "ticker": "PG",
+      "metric": "net_income",
+      "fiscal_year": 2025,
+      "gold": "$15,974 million",
+      "closed_book": "$15.5 billion",
+      "grounded": "Based on the additional context from vector search, PROCTER & GAMBLE CO's net income for fiscal year 2025 was **$15,974 million** (with the period ended 2025-06-30).\n\nNote: The graph query returned empty results, but the vector search context provides the answer.",
+      "closed_book_match": false,
+      "grounded_match": true,
+      "temporal": "correct"
+    },
+    {
+      "ticker": "PG",
+      "metric": "revenue",
+      "fiscal_year": 2025,
+      "gold": "$84,284 million",
+      "closed_book": "I don't have access to Procter & Gamble's fiscal year 2025 financial results. P&G's fiscal year runs from July to June, so FY 2025 (ending June 30, 2025) results would typically be released in July/August 2025.\n\nFor the most accurate figure, please refer to P&G's investor relations website or their ",
+      "grounded": "$84,284 million",
+      "closed_book_match": false,
+      "grounded_match": true,
+      "temporal": "correct"
+    },
+    {
+      "ticker": "TSLA",
+      "metric": "net_income",
+      "fiscal_year": 2025,
+      "gold": "$3,794 million",
+      "closed_book": "N/A",
+      "grounded": "Based on the additional context from vector search (since the graph query returned empty results):\n\nTesla, Inc.'s net income for fiscal year 2025 was **$3,794 million** (for the period ended 2025-12-31).\n\nFor context, this represents a significant decline from prior years:\n- Fiscal year 2024: $7,091",
+      "closed_book_match": false,
+      "grounded_match": true,
+      "temporal": "correct"
+    },
+    {
+      "ticker": "TSLA",
+      "metric": "revenue",
+      "fiscal_year": 2025,
+      "gold": "$94,827 million",
+      "closed_book": "Tesla’s fiscal‑year‑2025 total revenue has not yet been publicly reported (the full‑year results will be released in early 2026).",
+      "grounded": "$94.8 billion",
+      "closed_book_match": false,
+      "grounded_match": true,
+      "temporal": "correct"
+    },
+    {
+      "ticker": "V",
+      "metric": "net_income",
+      "fiscal_year": 2025,
+      "gold": "$20,058 million",
+      "closed_book": "I don't have Visa Inc.'s net income for fiscal year 2025 in my available data. My knowledge cutoff is June 2024, so I would have information through approximately fiscal year 2024 (which ends September 2024 for Visa), but not for fiscal year 2025.",
+      "grounded": "Based on the additional context from vector search (the graph query returned empty results):\n\n**VISA INC.'s net income for fiscal year 2025 was $20,058 million** (period ended 2025-09-30).\n\nFor reference, the trend shows:\n- FY 2025: $20,058 million\n- FY 2024: $19,743 million\n- FY 2023: $17,273 milli",
+      "closed_book_match": false,
+      "grounded_match": true,
+      "temporal": "correct"
+    },
+    {
+      "ticker": "V",
+      "metric": "revenue",
+      "fiscal_year": 2025,
+      "gold": "$40,000 million",
+      "closed_book": "I don't have Visa Inc.'s fiscal year 2025 revenue figure available. Visa's fiscal year 2025 would end September 30, 2025, and as of my knowledge cutoff, this data hasn't been reported yet.\n\nIf you're asking in late 2025 or later, Visa would have reported this in their Q4 2025 earnings. For the most ",
+      "grounded": "$40 billion",
+      "closed_book_match": false,
+      "grounded_match": true,
+      "temporal": "correct"
+    },
+    {
+      "ticker": "WMT",
+      "metric": "net_income",
+      "fiscal_year": 2025,
+      "gold": "$22,270 million",
+      "closed_book": "$17.1 billion",
+      "grounded": "Based on the additional context from vector search (since the graph query returned no results), WALMART INC.'s net income for fiscal year 2025 was **$22,270 million**.\n\nThis figure corresponds to the period ended January 31, 2026, which is the fiscal year 2025 reporting period.",
+      "closed_book_match": false,
+      "grounded_match": true,
+      "temporal": "correct"
+    },
+    {
+      "ticker": "WMT",
+      "metric": "revenue",
+      "fiscal_year": 2025,
+      "gold": "$706,413 million",
+      "closed_book": "$681 billion",
+      "grounded": "$706.4 billion",
+      "closed_book_match": false,
+      "grounded_match": true,
+      "temporal": "correct"
+    },
+    {
+      "ticker": "XOM",
+      "metric": "net_income",
+      "fiscal_year": 2025,
+      "gold": "$29,764 million",
+      "closed_book": "I don't have the specific net income figure for Exxon Mobil's fiscal year 2025 in my available data. This would be reported in their 2026 annual filing (covering the year ending December 31, 2025).",
+      "grounded": "Based on the query results provided, there is no data available to answer your question about Exxon Mobil Corporation's net income for fiscal year 2025. The query returned empty results.\n\nNote: There is additional context from vector search suggesting that Exxon Mobil Corporation reported net income",
+      "closed_book_match": false,
+      "grounded_match": true,
+      "temporal": "correct"
+    },
+    {
+      "ticker": "XOM",
+      "metric": "revenue",
+      "fiscal_year": 2025,
+      "gold": "$332,238 million",
+      "closed_book": "I don't have access to Exxon Mobil Corporation's fiscal year 2025 financial data. This information would typically be available in their annual report filed in early 2026 (as their fiscal year ends in December).\n\nFor accurate financial data, I recommend checking:\n- Exxon Mobil's official investor re",
+      "grounded": "$332.2 billion",
+      "closed_book_match": false,
+      "grounded_match": true,
+      "temporal": "correct"
+    }
+  ]
+}

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from seocho import NodeDef, Ontology, P, RelDef
-from seocho.query.answering import build_evidence_bundle
+from seocho.query.answering import QueryAnswerSynthesizer, build_evidence_bundle
+from seocho.query.evidence_grounding import build_grounded_synthesis_prompt
 from seocho.query.executor import GraphQueryExecutor
 from seocho.query.planner import DeterministicQueryPlanner
+from seocho.query.strategy import QueryStrategy
 
 
 def _finance_ontology() -> Ontology:
@@ -152,3 +154,66 @@ def test_build_evidence_bundle_shared_contract() -> None:
     assert bundle["selected_triples"][0]["source"] == "Alex"
     assert bundle["selected_triples"][0]["relation"] == "MANAGES"
     assert bundle["selected_triples"][0]["target"] == "Seoul Retail"
+
+
+def test_grounded_synthesis_prompt_turns_records_and_context_into_fragments() -> None:
+    prompt = build_grounded_synthesis_prompt(
+        question="What was revenue in 2023?",
+        records=[
+            {
+                "company": "CBOE",
+                "metric_name": "Data revenue",
+                "year": "2023",
+                "value": "$10.0 million",
+                "supporting_fact": "CBOE data revenue was $10.0 million in 2023.",
+            }
+        ],
+        vector_context="=== Knowledge graph ===\nCBOE also reported operating margin of 12%.",
+        evidence_bundle={
+            "focus_slots": ["target_entity", "financial_metric", "period", "supporting_fact"],
+            "grounded_slots": ["target_entity", "financial_metric", "period"],
+            "missing_slots": ["supporting_fact"],
+            "slot_fills": {"target_entity": "CBOE"},
+            "support_status": "partial",
+        },
+    )
+
+    assert prompt["schema_version"] == "grounded_synthesis_prompt.v1"
+    assert "Do not answer from model memory" in prompt["system_addendum"]
+    assert '"id": "E1"' in prompt["user_addendum"]
+    assert "$10.0 million" in prompt["user_addendum"]
+    assert "professor_agent" in prompt["optimizer"]["profiles"][0]["agent_id"]
+    assert prompt["missing_slots"] == ["supporting_fact"]
+
+
+def test_query_answer_synthesizer_injects_grounding_contract_into_llm_prompt() -> None:
+    class _AnswerResponse:
+        text = "CBOE data revenue was $10.0 million in 2023."
+
+    class _RecordingAnswerLLM:
+        def __init__(self) -> None:
+            self.system = ""
+            self.user = ""
+
+        def complete(self, *, system, user, temperature, response_format=None):  # noqa: ANN001
+            self.system = system
+            self.user = user
+            return _AnswerResponse()
+
+    llm = _RecordingAnswerLLM()
+    synthesizer = QueryAnswerSynthesizer(
+        query_strategy=QueryStrategy(_finance_ontology()),
+        llm=llm,
+    )
+
+    answer = synthesizer.synthesize(
+        "What was CBOE data revenue in 2023?",
+        [{"company": "CBOE", "metric_name": "Data revenue", "year": "2023", "value": "$10.0 million"}],
+        vector_context="CBOE data revenue was $10.0 million in 2023.",
+        evidence_bundle={"grounded_slots": ["target_entity"], "slot_fills": {"target_entity": "CBOE"}},
+    )
+
+    assert answer == "CBOE data revenue was $10.0 million in 2023."
+    assert "SEOCHO Evidence Grounding Contract" in llm.system
+    assert "SEOCHO typed evidence payload" in llm.user
+    assert '"source": "structured_record"' in llm.user

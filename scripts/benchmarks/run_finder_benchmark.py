@@ -319,6 +319,12 @@ def _extract_agent_metrics(payload: object) -> dict:
     missing_slots = evidence_bundle.get("missing_slots") or support_assessment.get("missing_slots") or []
     if not isinstance(missing_slots, list):
         missing_slots = []
+    evidence_swarm = evidence_bundle.get("evidence_swarm", {})
+    if not isinstance(evidence_swarm, dict):
+        evidence_swarm = {}
+    swarm_critical_path = evidence_swarm.get("critical_path", [])
+    if not isinstance(swarm_critical_path, list):
+        swarm_critical_path = []
 
     tool_call_count = 0
     reasoning_attempt_count = 0
@@ -363,6 +369,14 @@ def _extract_agent_metrics(payload: object) -> dict:
         "support_coverage": float(support_assessment.get("coverage", 0.0) or 0.0),
         "missing_slots": [str(slot) for slot in missing_slots if str(slot).strip()],
         "evidence_bundle_size": _evidence_bundle_size(evidence_bundle),
+        "evidence_swarm_enabled": bool(evidence_swarm.get("enabled", False)),
+        "evidence_swarm_hardness": str(evidence_swarm.get("hardness", "") or ""),
+        "evidence_swarm_critical_path": [
+            str(item).strip()
+            for item in swarm_critical_path
+            if str(item).strip()
+        ],
+        "evidence_swarm_next_step": str(evidence_swarm.get("recommended_next_step", "") or ""),
         "trace_step_count": len(trace_steps),
         "tool_call_count": tool_call_count,
         "reasoning_attempt_count": reasoning_attempt_count,
@@ -503,6 +517,10 @@ def _run_remote_endpoint_benchmark(
             "support_coverage": 0.0,
             "missing_slots": [],
             "evidence_bundle_size": 0,
+            "evidence_swarm_enabled": False,
+            "evidence_swarm_hardness": "",
+            "evidence_swarm_critical_path": [],
+            "evidence_swarm_next_step": "",
             "trace_step_count": 0,
             "tool_call_count": 0,
             "reasoning_attempt_count": 0,
@@ -567,6 +585,10 @@ def _run_remote_endpoint_benchmark(
                 support_coverage=float(agent_metrics["support_coverage"]),
                 missing_slots=list(agent_metrics["missing_slots"]),
                 evidence_bundle_size=int(agent_metrics["evidence_bundle_size"]),
+                evidence_swarm_enabled=bool(agent_metrics["evidence_swarm_enabled"]),
+                evidence_swarm_hardness=str(agent_metrics["evidence_swarm_hardness"]),
+                evidence_swarm_critical_path=list(agent_metrics["evidence_swarm_critical_path"]),
+                evidence_swarm_next_step=str(agent_metrics["evidence_swarm_next_step"]),
                 trace_step_count=int(agent_metrics["trace_step_count"]),
                 tool_call_count=int(agent_metrics["tool_call_count"]),
                 reasoning_attempt_count=int(agent_metrics["reasoning_attempt_count"]),

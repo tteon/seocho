@@ -5,6 +5,7 @@ import os
 import re
 from typing import Any, Dict, List, Optional, Sequence
 
+from .evidence_grounding import build_grounded_synthesis_prompt
 from .intent import build_evidence_bundle, infer_question_intent
 
 
@@ -109,11 +110,20 @@ class QueryAnswerSynthesizer:
         *,
         reasoning_trace: Optional[str] = None,
         vector_context: str = "",
+        evidence_bundle: Optional[Dict[str, Any]] = None,
     ) -> str:
+        grounding_prompt = build_grounded_synthesis_prompt(
+            question=question,
+            records=records,
+            vector_context=vector_context,
+            evidence_bundle=evidence_bundle,
+        )
         system_ans, user_ans = self.query_strategy.render_answer(
             question,
             json.dumps(records, default=str),
         )
+        system_ans += grounding_prompt["system_addendum"]
+        user_ans += grounding_prompt["user_addendum"]
         if reasoning_trace:
             user_ans += f"\n\nReasoning trace (query attempts):\n{reasoning_trace}"
         if vector_context:

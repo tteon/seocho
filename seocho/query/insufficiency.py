@@ -29,6 +29,12 @@ class QueryInsufficiencyClassifier:
                 filled_slots.add("target_entity")
             if row.get("relation_type") or row.get("relation_paths"):
                 filled_slots.add("relation_paths")
+            neighbors = row.get("neighbors", [])
+            if isinstance(neighbors, list) and any(
+                isinstance(neighbor, dict) and str(neighbor.get("relation", "")).strip()
+                for neighbor in neighbors
+            ):
+                filled_slots.add("relation_paths")
             if row.get("owner_or_operator"):
                 filled_slots.add("owner_or_operator")
             if row.get("supporting_fact") or row.get("properties") or row.get("neighbors"):

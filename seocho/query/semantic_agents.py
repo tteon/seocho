@@ -13,6 +13,7 @@ from .answering import build_evidence_bundle, infer_question_intent
 from .constraints import SemanticConstraintSliceBuilder
 from .contracts import CypherPlan, InsufficiencyAssessment
 from .cypher_validator import CypherQueryValidator
+from .evidence_swarm import build_evidence_swarm_report
 from .intent import extract_tradeoff_points_from_triples
 from .insufficiency import QueryInsufficiencyClassifier
 from .query_proxy import QueryExecutionError, coerce_query_records
@@ -1240,7 +1241,8 @@ class LPGAgent:
         best_support_assessment: Optional[Dict[str, Any]] = None
         best_plan: Optional[Dict[str, Any]] = None
         selected_constraint_slice: Optional[Dict[str, Any]] = None
-        attempt_limit = 1 + max(0, int(repair_budget or 0)) if reasoning_mode else 1
+        attempt_limit = 1 + max(0, int(repair_budget or 0))
+        swarm_expansion_limit = max(0, int(repair_budget or 0))
 
         for item in top_matches:
             db_name = str(item.get("database", "")).strip()
@@ -1257,6 +1259,7 @@ class LPGAgent:
                 anchor_match=item,
                 constraint_slice=constraint_slice,
                 attempt_limit=attempt_limit,
+                swarm_expansion_limit=swarm_expansion_limit,
                 query_diagnostics=query_diagnostics,
             )
             repair_trace.extend(execution["repair_trace"])
@@ -1356,6 +1359,7 @@ class LPGAgent:
         anchor_match: Dict[str, Any],
         constraint_slice: Dict[str, Any],
         attempt_limit: int,
+        swarm_expansion_limit: int,
         query_diagnostics: List[Dict[str, Any]],
     ) -> Dict[str, Any]:
         intent = semantic_context.get("intent", {})
@@ -1370,6 +1374,7 @@ class LPGAgent:
         )
         last_bundle = semantic_context.get("evidence_bundle_preview", {})
 
+        swarm_expansions_used = 0
         for strategy in self._strategy_sequence(attempt_limit):
             plan = self._build_plan(
                 question=question,
@@ -1474,6 +1479,14 @@ class LPGAgent:
                 constraint_slice=constraint_slice,
             )
             evidence_bundle["support_assessment"] = support_assessment
+            evidence_bundle["support_status"] = support_assessment.get("status", "")
+            evidence_bundle["support_reason"] = support_assessment.get("reason", "")
+            evidence_bundle["evidence_swarm"] = build_evidence_swarm_report(
+                question=question,
+                semantic_context=semantic_context,
+                evidence_bundle=evidence_bundle,
+                support_assessment=support_assessment,
+            )
             repair_trace.append(
                 {
                     "strategy": strategy,
@@ -1493,6 +1506,29 @@ class LPGAgent:
                     },
                 }
             )
+            if (
+                not assessment.sufficient
+                and swarm_expansions_used < swarm_expansion_limit
+                and self._should_expand_from_swarm(evidence_bundle)
+            ):
+                expansion = self._execute_swarm_expansion(
+                    question=question,
+                    semantic_context=semantic_context,
+                    anchor_match=anchor_match,
+                    intent=intent,
+                    base_rows=annotated_rows,
+                    base_plan=plan,
+                    base_support_assessment=support_assessment,
+                    constraint_slice=constraint_slice,
+                    query_diagnostics=query_diagnostics,
+                )
+                swarm_expansions_used += 1
+                repair_trace.append(expansion["trace"])
+                if expansion["rows"]:
+                    annotated_rows = expansion["rows"]
+                    assessment = expansion["assessment"]
+                    evidence_bundle = expansion["evidence_bundle"]
+                    support_assessment = expansion["support_assessment"]
             if annotated_rows:
                 records = annotated_rows
             last_assessment = assessment
@@ -1513,6 +1549,193 @@ class LPGAgent:
     def _strategy_sequence(attempt_limit: int) -> List[str]:
         ordered = ["strict", "ontology_relaxed", "graph_broad"]
         return ordered[: max(1, attempt_limit)]
+
+    @staticmethod
+    def _should_expand_from_swarm(evidence_bundle: Dict[str, Any]) -> bool:
+        swarm = evidence_bundle.get("evidence_swarm", {})
+        if not isinstance(swarm, dict) or not swarm.get("enabled"):
+            return False
+        next_step = str(swarm.get("recommended_next_step") or "").strip()
+        if next_step in {
+            "parallel_relation_path_search",
+            "slot_bundle_then_synthesis",
+            "abstain_or_expand_evidence",
+        }:
+            return True
+        critical_path = {
+            str(item).strip()
+            for item in swarm.get("critical_path", [])
+            if str(item).strip()
+        } if isinstance(swarm.get("critical_path", []), list) else set()
+        return bool(
+            critical_path
+            & {
+                "required_slot_scout",
+                "relation_path_scout",
+                "provenance_scout",
+                "insufficiency_scout",
+            }
+        )
+
+    def _execute_swarm_expansion(
+        self,
+        *,
+        question: str,
+        semantic_context: Dict[str, Any],
+        anchor_match: Dict[str, Any],
+        intent: Dict[str, Any],
+        base_rows: Sequence[Dict[str, Any]],
+        base_plan: CypherPlan,
+        base_support_assessment: Dict[str, Any],
+        constraint_slice: Dict[str, Any],
+        query_diagnostics: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        missing_slots = {
+            str(item).strip()
+            for item in base_support_assessment.get("missing_slots", [])
+            if str(item).strip()
+        }
+        needs_relation_path = "relation_paths" in missing_slots
+        if needs_relation_path or str(intent.get("intent_id", "")).strip() in {
+            "relationship_lookup",
+            "responsibility_lookup",
+        }:
+            expansion_plan = self._build_plan(
+                question=question,
+                semantic_context=semantic_context,
+                anchor_match=anchor_match,
+                intent=intent,
+                constraint_slice=constraint_slice,
+                strategy="graph_broad",
+            )
+            expansion_kind = "relation_path_expansion"
+        else:
+            expansion_plan = CypherPlan(
+                database=base_plan.database,
+                query=self._entity_summary_query(anchor_label=""),
+                params={"node_id": base_plan.params.get("node_id"), "limit": self.result_limit},
+                strategy="swarm_slot_expansion",
+                anchor_entity=base_plan.anchor_entity,
+                anchor_label="",
+                relation_types=(),
+                profile_id=base_plan.profile_id,
+                query_kind=base_plan.query_kind,
+            )
+            expansion_kind = "slot_provenance_expansion"
+
+        try:
+            rows = _query_rows(
+                self.connector,
+                query=expansion_plan.query,
+                database=expansion_plan.database,
+                params=expansion_plan.params,
+                source=self.__class__.__name__,
+            )
+        except QueryExecutionError as exc:
+            diagnostic = _query_failure_diagnostic(
+                exc=exc,
+                database=expansion_plan.database,
+                phase="evidence_swarm_expansion",
+                strategy=expansion_plan.strategy,
+                anchor_entity=str(expansion_plan.anchor_entity),
+            )
+            query_diagnostics.append(diagnostic)
+            return {
+                "rows": [],
+                "assessment": self.classifier.assess(intent, base_rows),
+                "evidence_bundle": {},
+                "support_assessment": base_support_assessment,
+                "trace": {
+                    "strategy": expansion_plan.strategy,
+                    "database": expansion_plan.database,
+                    "graph_id": constraint_slice.get("graph_id"),
+                    "anchor_entity": expansion_plan.anchor_entity,
+                    "status": "query_failed",
+                    "diagnosis_code": QUERY_CONTRACT_FAILURE_CODE,
+                    "error": diagnostic["error"],
+                    "swarm_action": expansion_kind,
+                },
+            }
+
+        expansion_rows = [
+            {
+                "database": expansion_plan.database,
+                "graph_id": constraint_slice.get("graph_id"),
+                "strategy": expansion_plan.strategy,
+                "swarm_action": expansion_kind,
+                **row,
+            }
+            for row in rows
+            if isinstance(row, dict)
+        ]
+        combined_rows = self._merge_rows(base_rows, expansion_rows)
+        assessment = self.classifier.assess(intent, combined_rows)
+        evidence_bundle = self._build_runtime_evidence_bundle(
+            question=question,
+            semantic_context=semantic_context,
+            intent=intent,
+            rows=combined_rows,
+            plan=expansion_plan,
+            assessment=assessment,
+            constraint_slice=constraint_slice,
+        )
+        support_assessment = self.support_validator.finalize_runtime_support(
+            preflight=base_support_assessment,
+            intent=intent,
+            bundle=evidence_bundle,
+            assessment=assessment,
+            plan=expansion_plan,
+            constraint_slice=constraint_slice,
+        )
+        evidence_bundle["support_assessment"] = support_assessment
+        evidence_bundle["support_status"] = support_assessment.get("status", "")
+        evidence_bundle["support_reason"] = support_assessment.get("reason", "")
+        evidence_bundle["evidence_swarm"] = build_evidence_swarm_report(
+            question=question,
+            semantic_context=semantic_context,
+            evidence_bundle=evidence_bundle,
+            support_assessment=support_assessment,
+        )
+        return {
+            "rows": combined_rows,
+            "assessment": assessment,
+            "evidence_bundle": evidence_bundle,
+            "support_assessment": support_assessment,
+            "trace": {
+                "strategy": expansion_plan.strategy,
+                "database": expansion_plan.database,
+                "graph_id": constraint_slice.get("graph_id"),
+                "anchor_entity": expansion_plan.anchor_entity,
+                "relation_types": list(expansion_plan.relation_types),
+                "row_count": assessment.row_count,
+                "sufficient": assessment.sufficient,
+                "reason": assessment.reason,
+                "missing_slots": list(assessment.missing_slots),
+                "support_status": support_assessment.get("status"),
+                "coverage": support_assessment.get("coverage"),
+                "status": "expanded",
+                "swarm_action": expansion_kind,
+                "base_row_count": len(base_rows),
+                "expansion_row_count": len(expansion_rows),
+            },
+        }
+
+    @staticmethod
+    def _merge_rows(
+        base_rows: Sequence[Dict[str, Any]],
+        expansion_rows: Sequence[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        merged: List[Dict[str, Any]] = []
+        seen: Set[str] = set()
+        for row in [*base_rows, *expansion_rows]:
+            if not isinstance(row, dict):
+                continue
+            key = json.dumps(row, sort_keys=True, default=str)
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(dict(row))
+        return merged
 
     def _build_plan(
         self,
@@ -1732,8 +1955,20 @@ class LPGAgent:
         )
         slot_fills = dict(bundle.get("slot_fills", {}))
         selected_triples: List[Dict[str, Any]] = []
+        provenance: List[Dict[str, Any]] = []
 
-        for row in rows[: self.result_limit]:
+        for row_index, row in enumerate(rows[: self.result_limit]):
+            database = str(row.get("database") or plan.database or "").strip()
+            graph_id = str(row.get("graph_id") or constraint_slice.get("graph_id") or "").strip()
+            provenance.append(
+                {
+                    "database": database,
+                    "graph_id": graph_id,
+                    "strategy": str(row.get("strategy") or plan.strategy or "").strip(),
+                    "row_index": row_index,
+                    "source": "lpg_runtime_query",
+                }
+            )
             relation_type = str(row.get("relation_type", "")).strip()
             if row.get("source_entity") and row.get("target_entity") and relation_type:
                 slot_fills["source_entity"] = row.get("source_entity")
@@ -1804,6 +2039,21 @@ class LPGAgent:
         focus_slots = [str(slot).strip() for slot in intent.get("focus_slots", []) if str(slot).strip()]
         bundle["slot_fills"] = slot_fills
         bundle["selected_triples"] = selected_triples[:10]
+        bundle["provenance"] = provenance
+        bundle["databases"] = sorted(
+            {
+                str(item.get("database", "")).strip()
+                for item in provenance
+                if str(item.get("database", "")).strip()
+            }
+        )
+        bundle["graph_ids"] = sorted(
+            {
+                str(item.get("graph_id", "")).strip()
+                for item in provenance
+                if str(item.get("graph_id", "")).strip()
+            }
+        )
         bundle["grounded_slots"] = [slot for slot in focus_slots if slot in slot_fills]
         bundle["missing_slots"] = [slot for slot in focus_slots if slot not in slot_fills]
         bundle["coverage"] = round(
@@ -1831,6 +2081,26 @@ class LPGAgent:
                 "row_count": assessment.row_count,
             },
         }
+        runtime_support_assessment = {
+            **dict(bundle.get("support_assessment", {}) or {}),
+            "status": "supported" if assessment.sufficient else "partial",
+            "reason": assessment.reason,
+            "missing_slots": list(assessment.missing_slots),
+            "grounded_slots": list(assessment.filled_slots),
+            "row_count": assessment.row_count,
+            "supported": assessment.sufficient,
+        }
+        if not assessment.sufficient and not assessment.filled_slots:
+            runtime_support_assessment["status"] = "unsupported"
+        bundle["support_status"] = runtime_support_assessment["status"]
+        bundle["support_reason"] = runtime_support_assessment["reason"]
+        bundle["support_assessment"] = runtime_support_assessment
+        bundle["evidence_swarm"] = build_evidence_swarm_report(
+            question=question,
+            semantic_context=semantic_context,
+            evidence_bundle=bundle,
+            support_assessment=runtime_support_assessment,
+        )
         return bundle
 
     @staticmethod

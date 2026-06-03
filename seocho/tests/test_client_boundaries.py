@@ -7,7 +7,6 @@ from seocho.client_artifacts import (
     approved_artifacts_from_ontology,
     prompt_context_from_ontology,
 )
-from seocho.client_bundle import RuntimeBundleClientHelper
 from seocho.client_remote import RemoteClientHelper
 from seocho.exceptions import SeochoConnectionError, SeochoHTTPError
 from seocho.http_transport import RuntimeHttpTransport
@@ -150,7 +149,6 @@ def test_client_bundle_helper_exports_runtime_bundle(monkeypatch) -> None:
         default_database="news",
     )
 
-    assert isinstance(client._bundle_helper, RuntimeBundleClientHelper)
     assert bundle is fake_bundle
     assert fake_bundle.saved_path == "/tmp/portable.bundle.json"
     assert calls["client"] is client

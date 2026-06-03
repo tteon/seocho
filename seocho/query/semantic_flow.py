@@ -683,9 +683,9 @@ class SemanticAgentFlow:
         elif query_mode == "graph_cot":
             pattern = "graph_cot"
             reason = "query_mode_requested"
-        elif reasoning_mode or support_status in {"partial", "unsupported"}:
+        elif reasoning_mode or repair_budget > 0 or support_status in {"partial", "unsupported"}:
             pattern = "reflection_chain"
-            reason = "reasoning_or_partial_support"
+            reason = "reasoning_repair_or_partial_support"
         else:
             pattern = "semantic_direct"
             reason = "supported_direct_semantic_path"

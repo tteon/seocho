@@ -51,6 +51,16 @@ from .graph_cot_flow import (
 )
 from .cypher_validator import CypherQueryValidator
 from .cypher_builder import CypherBuilder
+from .evidence_swarm import (
+    EvidenceSwarmReport,
+    EvidenceSwarmScout,
+    build_evidence_swarm_report,
+)
+from .evidence_grounding import (
+    GROUNDING_OPTIMIZER_PROFILES,
+    build_grounded_synthesis_prompt,
+    grounding_optimizer_receipt,
+)
 from .executor import GraphQueryExecutor
 from .insufficiency import QueryInsufficiencyClassifier
 from .intent import INTENT_CATALOG
@@ -111,6 +121,12 @@ __all__ = [
     "GraphCoTQueryOrchestrator",
     "DeterministicQueryPlanner",
     "GraphQueryExecutor",
+    "EvidenceSwarmReport",
+    "EvidenceSwarmScout",
+    "build_evidence_swarm_report",
+    "GROUNDING_OPTIMIZER_PROFILES",
+    "build_grounded_synthesis_prompt",
+    "grounding_optimizer_receipt",
     "QueryAnswerSynthesizer",
     "build_evidence_bundle",
     "infer_question_intent",

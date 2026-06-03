@@ -122,6 +122,10 @@ class FinDERBenchmarkRecord:
     support_coverage: float = 0.0
     missing_slots: List[str] = field(default_factory=list)
     evidence_bundle_size: int = 0
+    evidence_swarm_enabled: bool = False
+    evidence_swarm_hardness: str = ""
+    evidence_swarm_critical_path: List[str] = field(default_factory=list)
+    evidence_swarm_next_step: str = ""
     trace_step_count: int = 0
     tool_call_count: int = 0
     reasoning_attempt_count: int = 0
@@ -165,6 +169,10 @@ class FinDERBenchmarkSummary:
     support_status_counts: Dict[str, int] = field(default_factory=dict)
     debate_state_counts: Dict[str, int] = field(default_factory=dict)
     missing_slot_counts: Dict[str, int] = field(default_factory=dict)
+    evidence_swarm_enabled_count: int = 0
+    evidence_swarm_hardness_counts: Dict[str, int] = field(default_factory=dict)
+    evidence_swarm_critical_path_counts: Dict[str, int] = field(default_factory=dict)
+    evidence_swarm_next_step_counts: Dict[str, int] = field(default_factory=dict)
     semantic_reuse_count: int = 0
     support_answer_gap_count: int = 0
     support_answer_gap_rate: float = 0.0
@@ -500,7 +508,8 @@ def diagnose_finder_query_contract(
         return findings
 
     normalized_support = str(support_status or "").strip().lower()
-    if normalized_support == "supported" and not contains_match:
+    supported_like = normalized_support in {"supported", "derived_supported"} or normalized_support == "true"
+    if supported_like and not contains_match:
         findings.append("support_claim_answer_mismatch")
         findings.append("answer_quality_or_slot_selection_gap")
     elif not contains_match:
@@ -542,6 +551,9 @@ def summarize_finder_records(
     route_counts: Dict[str, int] = {}
     debate_state_counts: Dict[str, int] = {}
     diagnosis_counts: Dict[str, int] = {}
+    swarm_hardness_counts: Dict[str, int] = {}
+    swarm_critical_path_counts: Dict[str, int] = {}
+    swarm_next_step_counts: Dict[str, int] = {}
     trace_steps = [record.trace_step_count for record in records]
     tool_calls = [record.tool_call_count for record in records]
     reasoning_attempts = [record.reasoning_attempt_count for record in records]
@@ -558,6 +570,18 @@ def summarize_finder_records(
             normalized_slot = str(slot or "").strip()
             if normalized_slot:
                 missing_slot_counts[normalized_slot] = int(missing_slot_counts.get(normalized_slot, 0)) + 1
+        hardness = str(record.evidence_swarm_hardness or "").strip()
+        if hardness:
+            swarm_hardness_counts[hardness] = int(swarm_hardness_counts.get(hardness, 0)) + 1
+        for scout_id in record.evidence_swarm_critical_path:
+            normalized_scout = str(scout_id or "").strip()
+            if normalized_scout:
+                swarm_critical_path_counts[normalized_scout] = int(
+                    swarm_critical_path_counts.get(normalized_scout, 0)
+                ) + 1
+        next_step = str(record.evidence_swarm_next_step or "").strip()
+        if next_step:
+            swarm_next_step_counts[next_step] = int(swarm_next_step_counts.get(next_step, 0)) + 1
         pattern = str(record.agent_pattern.get("pattern", "") if isinstance(record.agent_pattern, dict) else "").strip()
         if pattern:
             agent_pattern_counts[pattern] = int(agent_pattern_counts.get(pattern, 0)) + 1
@@ -605,6 +629,10 @@ def summarize_finder_records(
         avg_evidence_coverage=round(sum(coverages) / len(coverages), 4) if coverages else 0.0,
         support_status_counts=support_status_counts,
         missing_slot_counts=missing_slot_counts,
+        evidence_swarm_enabled_count=sum(1 for record in records if record.evidence_swarm_enabled),
+        evidence_swarm_hardness_counts=swarm_hardness_counts,
+        evidence_swarm_critical_path_counts=swarm_critical_path_counts,
+        evidence_swarm_next_step_counts=swarm_next_step_counts,
         agent_pattern_counts=agent_pattern_counts,
         reasoning_cycle_status_counts=reasoning_status_counts,
         reasoning_cycle_source_counts=reasoning_source_counts,
@@ -692,6 +720,14 @@ def finder_record_observability(
         evidence_coverage = round(float(evidence_bundle.get("coverage", 0.0) or 0.0), 4)
     except (TypeError, ValueError):
         evidence_coverage = 0.0
+    evidence_swarm = evidence_bundle.get("evidence_swarm", {})
+    if not isinstance(evidence_swarm, Mapping):
+        evidence_swarm = {}
+    critical_path = [
+        str(item).strip()
+        for item in evidence_swarm.get("critical_path", [])
+        if str(item).strip()
+    ] if isinstance(evidence_swarm.get("critical_path", []), list) else []
 
     return {
         "latency_breakdown_ms": {
@@ -704,6 +740,10 @@ def finder_record_observability(
         "support_status": str(support_assessment.get("status", "") or "").strip(),
         "evidence_coverage": evidence_coverage,
         "missing_slots": missing_slots,
+        "evidence_swarm_enabled": bool(evidence_swarm.get("enabled", False)),
+        "evidence_swarm_hardness": str(evidence_swarm.get("hardness", "") or "").strip(),
+        "evidence_swarm_critical_path": critical_path,
+        "evidence_swarm_next_step": str(evidence_swarm.get("recommended_next_step", "") or "").strip(),
         "slot_metrics": score_answer_slots(expected_answer, actual_answer),
         "token_usage": dict(token_usage),
         "agent_pattern": dict(agent_pattern),
@@ -827,6 +867,10 @@ def run_finder_benchmark(
                 support_status=str(observability.get("support_status", "") or ""),
                 evidence_coverage=float(observability.get("evidence_coverage", 0.0) or 0.0),
                 missing_slots=list(observability.get("missing_slots", [])),
+                evidence_swarm_enabled=bool(observability.get("evidence_swarm_enabled", False)),
+                evidence_swarm_hardness=str(observability.get("evidence_swarm_hardness", "") or ""),
+                evidence_swarm_critical_path=list(observability.get("evidence_swarm_critical_path", [])),
+                evidence_swarm_next_step=str(observability.get("evidence_swarm_next_step", "") or ""),
                 slot_metrics=dict(observability.get("slot_metrics", {})),
                 token_usage=dict(observability.get("token_usage", {})),
                 agent_pattern=dict(observability.get("agent_pattern", {})),

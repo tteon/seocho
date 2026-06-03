@@ -77,3 +77,21 @@ def test_anchor_matches_ticker_branch() -> None:
     assert params["anchor"] == "JKHY"
     # period OR year matching present (FY period vs bare year)
     assert "m.period" in cypher
+
+
+def test_company_match_is_optional_not_a_hard_filter() -> None:
+    """OP1 regression: the value-bearing metric `m` is the hard anchor; the
+    company `c`/edge is OPTIONAL, so a missing company→metric edge can NOT drop
+    the metric value (the bug that returned 0 rows on cases whose data existed).
+    """
+    cypher, _ = _lookup(CypherBuilder(_fibo_ontology()))
+    assert "OPTIONAL MATCH (c)" in cypher
+    pre, _, post = cypher.partition("OPTIONAL MATCH")
+    # The metric-gating WHERE (before OPTIONAL MATCH) must NOT contain the
+    # company anchor/ticker conditions — else their absence drops the metric.
+    assert "$anchor" not in pre and "c.ticker" not in pre
+    # The metric node IS hard-filtered (value + workspace), independent of company.
+    assert "m.value IS NOT NULL" in pre
+    assert "$workspace_id" in pre
+    # Anchor conditions live in the OPTIONAL block (soft).
+    assert "$anchor" in post and "c.ticker" in post

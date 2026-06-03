@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from pathlib import Path
-import tomllib
+
+import pytest
+
+tomllib = pytest.importorskip("tomllib")
 
 from setuptools import find_packages
 

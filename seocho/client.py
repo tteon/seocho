@@ -40,7 +40,6 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
 
 import requests
 
-from .client_bundle import RuntimeBundleClientHelper
 from .client_artifacts import (
     approved_artifacts_from_ontology as build_approved_artifacts_from_ontology,
 )
@@ -274,7 +273,6 @@ class Seocho:
             self._engine = None
             self._session = session or requests.Session()
 
-        self._bundle_helper = RuntimeBundleClientHelper()
         resolved_base_url = ""
         if not self._local_mode:
             resolved_base_url = (base_url or _env_str("SEOCHO_BASE_URL", "http://localhost:8001")).rstrip("/") + "/"
@@ -2609,7 +2607,9 @@ class Seocho:
         Returns:
             A :class:`RuntimeBundle` that can be saved or used directly.
         """
-        return self._bundle_helper.export_bundle(
+        from .client_bundle import RuntimeBundleClientHelper
+
+        return RuntimeBundleClientHelper().export_bundle(
             self,
             path=path,
             app_name=app_name,
@@ -2632,6 +2632,8 @@ class Seocho:
         Returns:
             A configured :class:`Seocho` client.
         """
+        from .client_bundle import RuntimeBundleClientHelper
+
         return RuntimeBundleClientHelper.create_client(bundle_source, workspace_id=workspace_id)
 
     def close(self) -> None:

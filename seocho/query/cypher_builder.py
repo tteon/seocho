@@ -13,10 +13,17 @@ classify the user question.
 
 from __future__ import annotations
 
+import os
 import re
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 from ..ontology import Ontology
+
+
+def _e2e_baseline() -> bool:
+    """True when SEOCHO_E2E_BASELINE is set — restores pre-feature behavior for
+    before/after ablation. Off by default (production uses the improved path)."""
+    return str(os.environ.get("SEOCHO_E2E_BASELINE", "")).strip().lower() in ("1", "true", "yes")
 
 _ENTITY_SUFFIXES = re.compile(
     r"\s*\b(Inc\.?|Corp\.?|Corporation|LLC|Ltd\.?|Co\.?|Company|Group|Holdings?|"
@@ -604,54 +611,100 @@ class CypherBuilder:
         limit: int,
     ) -> Tuple[str, Dict[str, Any]]:
         metric_labels, anchor_labels = self._metric_anchor_labels()
+        params = {
+            "anchor": anchor_entity,
+            "anchor_norm": normalize_entity(anchor_entity),
+            "metric_name": metric_name,
+            "metric_aliases": [alias.lower() for alias in metric_aliases if alias],
+            "metric_scope_tokens": [token.lower() for token in metric_scope_tokens if token],
+            "years": [str(year) for year in years if str(year).strip()],
+            "metric_labels": metric_labels,
+            "anchor_labels": anchor_labels,
+            "workspace_id": workspace_id,
+            "limit": limit,
+        }
+        # Ablation toggle (SEOCHO_E2E_BASELINE=1): restore the pre-OP1 query that
+        # HARD-requires a company–metric edge `MATCH (c)-[r]-(m)`. Used only to
+        # measure the before/after effect of OP1 on the same graphs; default path
+        # below is OP1 (company OPTIONAL). Read-only, parameterized (§8).
+        if _e2e_baseline():
+            return (
+                "MATCH (c)-[r]-(m)\n"
+                "WHERE (ANY(l IN labels(m) WHERE l IN $metric_labels) OR m.value IS NOT NULL)\n"
+                "  AND ($anchor_labels = [] OR ANY(l IN labels(c) WHERE l IN $anchor_labels))\n"
+                "  AND (toLower(coalesce(c.name, c.uri, '')) CONTAINS toLower($anchor)\n"
+                "   OR toLower(coalesce(c.name, c.uri, '')) CONTAINS toLower($anchor_norm)\n"
+                "   OR toLower(coalesce(c.ticker, '')) = toLower($anchor)\n"
+                "   OR toLower(coalesce(c.ticker, '')) = toLower($anchor_norm))\n"
+                "  AND ($workspace_id = '' OR ((c._workspace_id = $workspace_id OR c.workspace_id = $workspace_id) AND (m._workspace_id = $workspace_id OR m.workspace_id = $workspace_id)))\n"
+                "  AND ($years = [] OR ANY(year IN $years WHERE coalesce(toString(m.year), '') = year\n"
+                "        OR toLower(coalesce(toString(m.period), '')) CONTAINS year\n"
+                "        OR toLower(coalesce(m.name, m.uri, '')) CONTAINS year))\n"
+                "RETURN coalesce(c.name, c.uri) AS company,\n"
+                "       coalesce(m.name, m.uri) AS metric_name,\n"
+                "       coalesce(toString(m.year), toString(m.period), '') AS year,\n"
+                "       CASE WHEN m.value IS NULL THEN '' ELSE toString(m.value) END AS value,\n"
+                "       type(r) AS relationship,\n"
+                "       coalesce(m.content_preview, c.content_preview, m.description, c.description, '') AS supporting_fact\n"
+                "ORDER BY\n"
+                "  CASE WHEN ($metric_aliases = [] OR ANY(alias IN $metric_aliases WHERE toLower(coalesce(m.name, m.uri, '')) CONTAINS alias))\n"
+                "         OR ($metric_scope_tokens = [] OR ANY(token IN $metric_scope_tokens WHERE toLower(coalesce(m.name, m.uri, '')) CONTAINS token))\n"
+                "       THEN 0 ELSE 1 END,\n"
+                "  company, year, metric_name\n"
+                "LIMIT $limit",
+                params,
+            )
         # Labels are passed as parameters and matched via `l IN $list` — no
         # dynamic label interpolation into Cypher (CLAUDE.md §8). Read-only.
+        #
+        # OP1 (2026-06-03, from scripts/benchmarks/e2e_probe.py): the value-bearing
+        # metric node `m` is the HARD anchor (scoped by workspace + year); the
+        # company `c` and the company–metric relationship are OPTIONAL. Previously
+        # this required `MATCH (c)-[r]-(m)`, so when extraction did not emit a
+        # company→metric edge (very common — measured: metric nodes present WITH
+        # values, yet the anchored query returned 0 rows on 5/5 FinDER cases while
+        # graph-as-context answered them) the structured lane said "no results"
+        # though the figure was right there. Making the company match OPTIONAL
+        # returns the workspace's metric values regardless of edge completeness —
+        # the robustness graph-as-context had and the structured lane lacked.
         return (
-            "MATCH (c)-[r]-(m)\n"
+            "MATCH (m)\n"
             "WHERE (ANY(l IN labels(m) WHERE l IN $metric_labels) OR m.value IS NOT NULL)\n"
-            "  AND ($anchor_labels = [] OR ANY(l IN labels(c) WHERE l IN $anchor_labels))\n"
-            # Anchor by company name OR by ticker symbol — FinDER questions often
-            # use the ticker ("UR", "JKHY") while extracted nodes carry the full
-            # name ("United Rentals, Inc."). Parameterized, read-only (§8).
-            "  AND (toLower(coalesce(c.name, c.uri, '')) CONTAINS toLower($anchor)\n"
-            "   OR toLower(coalesce(c.name, c.uri, '')) CONTAINS toLower($anchor_norm)\n"
-            "   OR toLower(coalesce(c.ticker, '')) = toLower($anchor)\n"
-            "   OR toLower(coalesce(c.ticker, '')) = toLower($anchor_norm))\n"
-            "  AND ($workspace_id = '' OR (coalesce(c._workspace_id, '') = $workspace_id AND coalesce(m._workspace_id, '') = $workspace_id))\n"
+            "  AND m.value IS NOT NULL\n"
+            "  AND ($workspace_id = '' OR m._workspace_id = $workspace_id OR m.workspace_id = $workspace_id)\n"
             "  AND ($years = [] OR ANY(year IN $years WHERE coalesce(toString(m.year), '') = year\n"
             "        OR toLower(coalesce(toString(m.period), '')) CONTAINS year\n"
             "        OR toLower(coalesce(m.name, m.uri, '')) CONTAINS year))\n"
-            # metric_aliases / metric_scope_tokens are used only as SOFT ranking
-            # signals, never as hard filters. They are derived heuristically from
-            # the question (often question stopwords like 'trend'/'prod'), and an
-            # ALL/ANY hard filter on them eliminated every metric node even when
-            # the answer data was present. The per-entity metric set is small, so
-            # we return the anchor's metrics and let the LLM select; alias/token
-            # matches just float to the top. (CLAUDE.md §8: read-only.)
-            "RETURN coalesce(c.name, c.uri) AS company,\n"
+            # Company + relationship are OPTIONAL: surface them when the edge
+            # exists, but never let their absence drop the metric value. Anchor by
+            # name OR ticker (FinDER often uses the ticker while nodes carry the
+            # full name). Parameterized, read-only (§8).
+            "OPTIONAL MATCH (c)-[r]-(m)\n"
+            "  WHERE ($anchor_labels = [] OR ANY(l IN labels(c) WHERE l IN $anchor_labels))\n"
+            "    AND (toLower(coalesce(c.name, c.uri, '')) CONTAINS toLower($anchor)\n"
+            "     OR toLower(coalesce(c.name, c.uri, '')) CONTAINS toLower($anchor_norm)\n"
+            "     OR toLower(coalesce(c.ticker, '')) = toLower($anchor)\n"
+            "     OR toLower(coalesce(c.ticker, '')) = toLower($anchor_norm))\n"
+            "    AND ($workspace_id = '' OR c._workspace_id = $workspace_id OR c.workspace_id = $workspace_id)\n"
+            # metric_aliases / metric_scope_tokens / anchor are SOFT ranking
+            # signals, never hard filters (heuristic question tokens; an ALL/ANY
+            # hard filter zeroed results even when the answer was present). The
+            # per-workspace metric set is small — return them, float the alias and
+            # anchor-matched rows to the top, let the LLM select. (§8: read-only.)
+            "RETURN coalesce(c.name, c.uri, '') AS company,\n"
             "       coalesce(m.name, m.uri) AS metric_name,\n"
             "       coalesce(toString(m.year), toString(m.period), '') AS year,\n"
-            "       CASE WHEN m.value IS NULL THEN '' ELSE toString(m.value) END AS value,\n"
+            "       toString(m.value) AS value,\n"
             "       type(r) AS relationship,\n"
             "       coalesce(m.content_preview, c.content_preview, m.description, c.description, '') AS supporting_fact\n"
             "ORDER BY\n"
             "  CASE WHEN ($metric_aliases = [] OR ANY(alias IN $metric_aliases WHERE toLower(coalesce(m.name, m.uri, '')) CONTAINS alias))\n"
             "         OR ($metric_scope_tokens = [] OR ANY(token IN $metric_scope_tokens WHERE toLower(coalesce(m.name, m.uri, '')) CONTAINS token))\n"
             "       THEN 0 ELSE 1 END,\n"
+            "  CASE WHEN c IS NOT NULL THEN 0 ELSE 1 END,\n"
             "  company, year, metric_name\n"
             "LIMIT $limit",
-            {
-                "anchor": anchor_entity,
-                "anchor_norm": normalize_entity(anchor_entity),
-                "metric_name": metric_name,
-                "metric_aliases": [alias.lower() for alias in metric_aliases if alias],
-                "metric_scope_tokens": [token.lower() for token in metric_scope_tokens if token],
-                "years": [str(year) for year in years if str(year).strip()],
-                "metric_labels": metric_labels,
-                "anchor_labels": anchor_labels,
-                "workspace_id": workspace_id,
-                "limit": limit,
-            },
+            params,
         )
 
     def _rel_name(self, rel_type: str) -> str:

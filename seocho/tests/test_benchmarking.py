@@ -180,6 +180,19 @@ def test_score_answer_slots_reports_numeric_and_period_recall():
     assert metrics["period_slots_match"] is False
 
 
+def test_diagnose_finder_query_contract_treats_derived_supported_as_support_like():
+    findings = diagnose_finder_query_contract(
+        contains_match=False,
+        support_status="derived_supported",
+        missing_slots=[],
+        evidence_bundle_size=3,
+        trace_step_count=2,
+    )
+
+    assert "support_claim_answer_mismatch" in findings
+    assert "answer_quality_or_slot_selection_gap" in findings
+
+
 def test_run_finance_benchmark_summarizes_latencies_and_matches():
     cases = [
         FinanceBenchmarkCase(

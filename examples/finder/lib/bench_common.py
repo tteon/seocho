@@ -287,6 +287,37 @@ def load_meta_prompt(path: Path = DEFAULT_META_PROMPT_PATH) -> str:
     return text[idx:] if idx >= 0 else text
 
 
+_EXTRACTION_PROMPT_BY_PROVIDER = {
+    # grok keeps its authored baseline so prior grok results stay byte-comparable.
+    "grok": ("examples/finder/datasets/grok_meta_system_prompt.md", "grok_kg@v1"),
+}
+_NEUTRAL_EXTRACTION_PROMPT = (
+    "examples/finder/datasets/neutral_meta_system_prompt.md",
+    "neutral_kg@v1",
+)
+
+
+def resolve_extraction_prompt(provider: str) -> tuple[str, str, str]:
+    """Resolve the extraction meta prompt for a generator provider.
+
+    Returns ``(system_template_text, prompt_id, source_filename)``. The system
+    template is trimmed to start at ``## ROLE`` (matching the harness contract).
+
+    grok → its authored baseline (byte-identical to prior runs); every other
+    provider (mara/deepseek/openai/minimax/…) → the vendor-neutral prompt, so a
+    cross-model sweep varies only the generator (CLAUDE.md §20.9). The choice is
+    returned (not silently applied) so the caller can log ``prompt_id``/hash.
+    """
+    rel, prompt_id = _EXTRACTION_PROMPT_BY_PROVIDER.get(
+        str(provider).strip().lower(), _NEUTRAL_EXTRACTION_PROMPT
+    )
+    path = REPO_ROOT / rel
+    text = path.read_text(encoding="utf-8")
+    idx = text.find("## ROLE")
+    system_tmpl = text[idx:] if idx >= 0 else text
+    return system_tmpl, prompt_id, path.name
+
+
 def compose_system_prompt(meta_prompt: str, task_system: str) -> str:
     """Join meta prompt + task-specific system instruction."""
     meta = (meta_prompt or "").strip()

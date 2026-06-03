@@ -365,9 +365,17 @@ class Neo4jGraphStore(GraphStore):
                 props["id"] = node_id
 
                 try:
+                    # Workspace-scoped identity: MERGE on (id, _workspace_id) so the
+                    # SAME node id in different workspaces stays DISTINCT. A bare
+                    # `MERGE (n {id})` merged same-id entities across workspaces
+                    # (e.g. one person across email threads/arms), collapsing every
+                    # graph into the first workspace — the cross-workspace
+                    # contamination also seen across models in the FinDER study.
+                    # workspace_id is what isolates tenants/experiments (§6.1).
                     session.run(
-                        f"MERGE (n:{label} {{id: $id}}) SET n += $props",
+                        f"MERGE (n:{label} {{id: $id, _workspace_id: $ws}}) SET n += $props",
                         id=node_id,
+                        ws=workspace_id,
                         props=props,
                     )
                     summary["nodes_created"] += 1
@@ -403,7 +411,11 @@ class Neo4jGraphStore(GraphStore):
                         set_clauses.append(f"r.`{safe_key}` = ${param_name}")
                         params[param_name] = value
                     session.run(
-                        f"MATCH (a {{id: $src}}), (b {{id: $tgt}}) "
+                        # Match endpoints WITHIN the same workspace so a relationship
+                        # never bridges two workspaces' nodes (consistent with the
+                        # workspace-scoped node identity above).
+                        f"MATCH (a {{id: $src, _workspace_id: $workspace_id}}), "
+                        f"(b {{id: $tgt, _workspace_id: $workspace_id}}) "
                         f"MERGE (a)-[r:{rtype}]->(b) "
                         f"SET {', '.join(set_clauses)}",
                         **params,
@@ -999,8 +1011,27 @@ def _ladybug_expand_param_predicate(
 
 def _rewrite_ladybug_query(cypher: str, params: Optional[Dict[str, Any]] = None) -> tuple[str, Dict[str, Any]]:
     query_params = dict(params or {})
-    rewritten = _ladybug_expand_param_predicate(
+    rewritten = re.sub(
+        r"\(\s*ANY\(\s*l\s+IN\s+labels\(m\)\s+WHERE\s+l\s+IN\s+\$metric_labels\s*\)"
+        r"\s+OR\s+m\.value\s+IS\s+NOT\s+NULL\s*\)",
+        "m.value IS NOT NULL",
         cypher,
+        flags=re.IGNORECASE,
+    )
+    rewritten = re.sub(
+        r"\(\$anchor_labels\s*=\s*\[\]\s+OR\s+ANY\(\s*l\s+IN\s+labels\(c\)\s+WHERE\s+l\s+IN\s+\$anchor_labels\s*\)\s*\)",
+        "TRUE",
+        rewritten,
+        flags=re.IGNORECASE,
+    )
+    rewritten = re.sub(
+        r"\s+OR\s+toLower\(coalesce\(c\.ticker,\s*''\)\)\s*=\s*toLower\(\$anchor(?:_norm)?\)",
+        "",
+        rewritten,
+        flags=re.IGNORECASE,
+    )
+    rewritten = _ladybug_expand_param_predicate(
+        rewritten,
         query_params,
         pattern=(
             r"\(\$relationship_candidates\s*=\s*\[\]\s+OR\s+type\(r\)\s+IN\s+\$relationship_candidates\s*\)"
@@ -1026,7 +1057,7 @@ def _rewrite_ladybug_query(cypher: str, params: Optional[Dict[str, Any]] = None)
         rewritten,
         query_params,
         pattern=(
-            r"\(\$metric_scope_tokens\s*=\s*\[\]\s+OR\s+ALL\(\s*token\s+IN\s+\$metric_scope_tokens\s+WHERE\s+"
+            r"\(\$metric_scope_tokens\s*=\s*\[\]\s+OR\s+(?:ALL|ANY)\(\s*token\s+IN\s+\$metric_scope_tokens\s+WHERE\s+"
             r"toLower\(coalesce\(m\.name,\s*m\.uri,\s*''\)\)\s+CONTAINS\s+token\s*\)\s*\)"
         ),
         param_name="metric_scope_tokens",
@@ -1040,6 +1071,7 @@ def _rewrite_ladybug_query(cypher: str, params: Optional[Dict[str, Any]] = None)
         pattern=(
             r"\(\$years\s*=\s*\[\]\s+OR\s+ANY\(\s*year\s+IN\s+\$years\s+WHERE\s+"
             r"coalesce\(toString\(m\.year\),\s*''\)\s*=\s*year\s+OR\s+"
+            r"toLower\(coalesce\(toString\(m\.period\),\s*''\)\)\s+CONTAINS\s+year\s+OR\s+"
             r"toLower\(coalesce\(m\.name,\s*m\.uri,\s*''\)\)\s+CONTAINS\s+year\s*\)\s*\)"
         ),
         param_name="years",
@@ -1051,6 +1083,12 @@ def _rewrite_ladybug_query(cypher: str, params: Optional[Dict[str, Any]] = None)
             )
         ),
         joiner=" OR ",
+    )
+    rewritten = re.sub(
+        r"coalesce\(toString\(m\.year\),\s*toString\(m\.period\),\s*''\)",
+        "coalesce(m.year, '')",
+        rewritten,
+        flags=re.IGNORECASE,
     )
     rewritten = re.sub(
         r"elementId\((\w+)\)",

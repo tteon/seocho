@@ -42,6 +42,7 @@ if str(ROOT) not in sys.path:
 
 from examples.finder.lib import bench_common as bc  # noqa: E402
 from seocho.query.strategy import PromptTemplate  # noqa: E402
+from seocho.tracing import current_backend_names  # noqa: E402
 
 REF_SEPARATOR = "===EVIDENCE_BOUNDARY==="
 _NUM_RE = re.compile(r"-?\$?\d[\d,]*\.?\d*(?:%| million| billion| thousand)?", re.IGNORECASE)
@@ -252,15 +253,24 @@ def _vector_context(refs: list[str], query: str, oai_client, *, top_k: int = 5,
     return "\n\n---\n\n".join(f"[chunk #{j+1}]\n{chunks[i]}" for j, i in enumerate(idxs))
 
 
-def _grok_answer(llm, query: str, context: str) -> str:
+def _answer_with_usage(llm, query: str, context: str) -> tuple[str, dict]:
+    """Answer from context, returning (text, usage). ``usage`` carries
+    prompt_tokens (the per-lane serving-cost signal: graph vs vector context)
+    and cached_tokens (KV-cache hits) for the cost-efficiency analysis."""
     if not context.strip():
-        return "not in the provided context"
+        return "not in the provided context", {}
     resp = llm.complete(system=_ANSWER_SYSTEM, user=f"Question: {query}\n\n{context}")
-    return getattr(resp, "text", None) or getattr(resp, "content", None) or str(resp)
+    text = getattr(resp, "text", None) or getattr(resp, "content", None) or str(resp)
+    return text, dict(getattr(resp, "usage", {}) or {})
+
+
+def _grok_answer(llm, query: str, context: str) -> str:
+    return _answer_with_usage(llm, query, context)[0]
 
 
 def run_one(*, case: dict, arm: str, modules: list[str], llm_spec: str,
-            extraction_tmpl: PromptTemplate, prompt_hash: str, run_prefix: str,
+            extraction_tmpl: PromptTemplate, prompt_hash: str, prompt_id: str,
+            run_prefix: str,
             database: str, oai_client, out_partial_dir: Path) -> list[dict]:
     from seocho import Seocho
     from seocho.store.graph import Neo4jGraphStore
@@ -321,7 +331,6 @@ def run_one(*, case: dict, arm: str, modules: list[str], llm_spec: str,
             pass
 
         graph_ctx = _graph_context(graph_store, workspace_id, database)
-        vec_ctx = _vector_context(case["references"], case["query"], oai_client)
     except Exception as exc:
         error = f"{type(exc).__name__}: {exc}"
         traceback.print_exc()
@@ -331,6 +340,19 @@ def run_one(*, case: dict, arm: str, modules: list[str], llm_spec: str,
                 client.close()
             except Exception:
                 pass
+
+    # Vector context is OPTIONAL (needs embeddings). Isolate it so an embeddings
+    # outage (e.g. OpenAI quota) disables ONLY the hybrid lane — never the
+    # generator-comparison graph lane, which uses no embeddings. (§20.2: record
+    # the failure, don't let it masquerade as a graph-extraction error.)
+    vec_error = ""
+    try:
+        vec_ctx = _vector_context(case["references"], case["query"], oai_client)
+    except Exception as exc:
+        vec_error = f"{type(exc).__name__}: {exc}"
+        vec_ctx = ""
+        print(f"    {trace_name}: vector context unavailable ({vec_error}); "
+              f"hybrid lane skipped", flush=True)
 
     # Two retrieval modes that USE this arm's graph: graph-as-context and the
     # vector&graph hybrid. (Pure vector is the arm-independent lane in
@@ -344,10 +366,14 @@ def run_one(*, case: dict, arm: str, modules: list[str], llm_spec: str,
 
     mode_specs = [
         ("graph", "graphrag", "graph", "=== GRAPH CONTEXT ===\n" + graph_ctx),
-        ("vector_graph", "hybrid", "vector_graph",
-         "=== VECTOR CONTEXT (retrieved chunks) ===\n" + vec_ctx +
-         "\n\n=== GRAPH CONTEXT ===\n" + graph_ctx),
     ]
+    # Only run the hybrid lane when vector context is actually available; with
+    # embeddings down it would degenerate to graph-only and misreport as hybrid.
+    if vec_ctx:
+        mode_specs.append(
+            ("vector_graph", "hybrid", "vector_graph",
+             "=== VECTOR CONTEXT (retrieved chunks) ===\n" + vec_ctx +
+             "\n\n=== GRAPH CONTEXT ===\n" + graph_ctx))
     results: list[dict] = []
     for mode_name, flow, retrieval_tag, context in mode_specs:
         tname = f"{case['slice']}/{case['case_id']}/{arm}/{mode_name}"
@@ -357,28 +383,36 @@ def run_one(*, case: dict, arm: str, modules: list[str], llm_spec: str,
             llm_spec=llm_spec, provider=provider, mode=mode_name, reasoning_mode=False,
             repair_budget=0, flow=flow, ontology_hash=onto_hash, ontology_modules=modules_label,
             prompt_hash=prompt_hash, run_prefix=run_prefix, workspace_id=workspace_id,
-            extra_tags={"ontology": arm, "retrieval": retrieval_tag, "prompt": PROMPT_ID, "seed": "42"},
+            extra_tags={"ontology": arm, "retrieval": retrieval_tag, "prompt": prompt_id, "seed": "42"},
             extra_metadata={
                 "ontology_arm": arm, "ontology_modules_list": modules,
                 "ontology_node_count": len(ontology.nodes), "ontology_rel_count": len(ontology.relationships),
                 "nodes_created": nodes_created, "relationships_created": rels_created,
-                "prompt_id": PROMPT_ID, "experiment_database": database,
+                "prompt_id": prompt_id, "experiment_database": database,
                 "case_query": case["query"], "case_n_refs": case["n_refs"], "case_type": case["type"],
             },
         )
         ans_err = ""
+        answer_usage: dict = {}
         t1 = time.perf_counter()
 
         def _work(c=context, _exp=case["expected_answer"]):
-            ans = _grok_answer(llm, case["query"], c)
+            ans, usage = _answer_with_usage(llm, case["query"], c)
+            answer_usage.update(usage)
             # Attach the cheap deterministic metric as a feedback score so the
             # Opik UI shows a sortable/chartable column (judge_score is backfilled
             # offline by finder_judge). Set metadata too.
             m = evaluate_answer(_exp, ans)
-            bc.set_opik_feedback_scores({
+            fb = {
                 "number_overlap": m["number_overlap_ratio"],
                 "contains_match": 1.0 if m["contains_match"] else 0.0,
-            })
+            }
+            # Per-lane serving-cost signals for the cost-efficiency study.
+            if usage.get("prompt_tokens"):
+                fb["prompt_tokens"] = usage["prompt_tokens"]
+            if usage.get("cached_tokens"):
+                fb["cached_tokens"] = usage["cached_tokens"]
+            bc.set_opik_feedback_scores(fb)
             bc.set_opik_trace_metadata(name=tname, tags=tags, metadata=metadata)
             return ans
 
@@ -395,7 +429,7 @@ def run_one(*, case: dict, arm: str, modules: list[str], llm_spec: str,
             "type": case["type"], "n_refs": case["n_refs"], "arm": arm, "mode": mode_name,
             "retrieval": retrieval_tag, "ontology_modules": modules, "ontology_hash": onto_hash,
             "ontology_node_count": len(ontology.nodes), "ontology_rel_count": len(ontology.relationships),
-            "model": llm_spec, "prompt_id": PROMPT_ID, "prompt_hash": prompt_hash,
+            "model": llm_spec, "prompt_id": prompt_id, "prompt_hash": prompt_hash,
             "workspace_id": workspace_id, "graph_backend": "neo4j", "database": database,
             "query": case["query"], "expected_answer": case["expected_answer"], "answer": answer,
             "evaluation": metrics,
@@ -403,6 +437,7 @@ def run_one(*, case: dict, arm: str, modules: list[str], llm_spec: str,
                            "total": round((time.perf_counter() - started) * 1000, 2)},
             "nodes_created": nodes_created, "relationships_created": rels_created,
             "graph_context_chars": len(graph_ctx), "vector_context_chars": len(vec_ctx),
+            "answer_usage": answer_usage,  # prompt/completion/cached tokens for the cost study
             "error": error or ans_err,
         }
         try:
@@ -456,10 +491,14 @@ def main() -> int:
     ap.add_argument("--n-per-slice", type=int, default=10)
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--llm", default=os.environ.get("SEOCHO_LLM", "grok/grok-4.3"))
-    ap.add_argument("--database", default=os.environ.get("SEOCHO_EXPERIMENT_DB", "yitae0530grok"),
-                    help="Fixed experiment DB (Opik-style name+date+model, Neo4j-sanitized; no hyphens).")
+    ap.add_argument("--database", default=os.environ.get("SEOCHO_EXPERIMENT_DB"),
+                    help="Experiment DB. If unset, derived per-model (yitae<mmdd><model>) so "
+                         "different generators DON'T share a DB — sharing causes cross-model node "
+                         "merging via UNIQUE-name constraints (observed: deepseek↔grok entanglement).")
     ap.add_argument("--arms", default="non-ontology,small,medium,large")
     ap.add_argument("--limit-cases", type=int, default=0, help="Cap total cases (smoke). 0=all.")
+    ap.add_argument("--no-resume", dest="resume", action="store_false",
+                    help="Recompute even if matching partials exist (default: resume/skip).")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--run-prefix",
                     default=f"4arm-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}")
@@ -468,15 +507,19 @@ def main() -> int:
     bc.bootstrap(verbose=True)
     bc.set_global_determinism(args.seed)
 
-    meta = GROK_META_PROMPT.read_text(encoding="utf-8")
-    idx = meta.find("## ROLE")
-    system_tmpl = meta[idx:] if idx >= 0 else meta
+    # Provider-driven extraction prompt: grok keeps its authored baseline; every
+    # other generator (mara/deepseek/openai/…) gets the vendor-neutral prompt so
+    # a cross-model sweep varies only the generator (CLAUDE.md §20.9). The choice
+    # is logged via prompt_id/hash, never silently substituted.
+    _provider = (args.llm.split("/", 1)[0] if "/" in args.llm else "grok").strip().lower()
+    system_tmpl, prompt_id, prompt_file = bc.resolve_extraction_prompt(_provider)
     prompt_hash = bc.short_hash(system_tmpl)
     extraction_tmpl = KGPromptTemplate(
         system=system_tmpl,
         user="Source 10-K text to extract into the graph:\n\n{{text}}",
     )
-    print(f"== extraction prompt: {GROK_META_PROMPT.name} ({len(system_tmpl)} chars, hash={prompt_hash}) ==")
+    print(f"== extraction prompt: {prompt_file} (id={prompt_id}, "
+          f"{len(system_tmpl)} chars, hash={prompt_hash}) ==")
 
     arms = [a.strip() for a in args.arms.split(",") if a.strip() in ARMS]
     cases = load_sample(args.n_per_slice, args.seed)
@@ -513,8 +556,14 @@ def main() -> int:
             pass
 
     # Validate + create the single experiment DB up front, wait until online.
+    # Per-model default (yitae<mmdd><model>) so different generators never share a DB
+    # — a shared DB merges same-name entities across models via UNIQUE constraints.
     from seocho.store.graph import Neo4jGraphStore, sanitize_database_name
-    database = sanitize_database_name(args.database)
+    _db_raw = args.database
+    if not _db_raw:
+        _model_short = args.llm.split("/", 1)[-1]
+        _db_raw = f"yitae{datetime.now(timezone.utc).strftime('%m%d')}{_model_short}"
+    database = sanitize_database_name(_db_raw)
     _gs = Neo4jGraphStore(os.environ["NEO4J_URI"], os.environ.get("NEO4J_USER", "neo4j"),
                           os.environ.get("NEO4J_PASSWORD", ""))
     _ensure_db_ready(_gs, database)
@@ -528,15 +577,45 @@ def main() -> int:
     out_partial = out_dir / "partial"
     out_partial.mkdir(parents=True, exist_ok=True)
 
+    # Per-arm ontology hashes for the resume guard (match against cached partials).
+    from examples.finder.datasets.fibo_modules.compose import compose_modules
+    arm_onto_hash = {a: _ontology_hash(compose_modules(ARMS[a])) for a in arms}
+
     results: list[dict] = []
     started = time.perf_counter()
     run_i = 0
     for case in cases:
         for arm in arms:
             run_i += 1
+            # Resume guard: if this (case, arm) already has a graph partial with a
+            # MATCHING prompt_hash + ontology_hash, reuse it instead of re-spending
+            # RPD / re-extracting (§20.7 reproducibility; protects the scarce
+            # DeepSeek 1500 RPD across restarts). Mismatched hashes => recompute.
+            graph_partial = out_partial / f"{case['slice']}_{case['case_id']}_{arm}_graph.json"
+            if args.resume and graph_partial.is_file():
+                cached = []
+                ok = True
+                for mode_name in ("graph", "vector_graph"):
+                    p = out_partial / f"{case['slice']}_{case['case_id']}_{arm}_{mode_name}.json"
+                    if not p.is_file():
+                        continue
+                    try:
+                        rec = json.loads(p.read_text())
+                    except Exception:
+                        ok = False
+                        break
+                    if rec.get("prompt_hash") != prompt_hash or rec.get("ontology_hash") != arm_onto_hash.get(arm):
+                        ok = False
+                        break
+                    cached.append(rec)
+                if ok and cached:
+                    print(f"\n>>> [{run_i}/{total}] {case['slice']} {case['case_id']} ({arm}) — SKIP (resume, {len(cached)} modes)")
+                    results.extend(cached)
+                    continue
             print(f"\n>>> [{run_i}/{total}] {case['slice']} {case['case_id']} ({arm})")
             mode_results = run_one(case=case, arm=arm, modules=ARMS[arm], llm_spec=args.llm,
                                    extraction_tmpl=extraction_tmpl, prompt_hash=prompt_hash,
+                                   prompt_id=prompt_id,
                                    run_prefix=args.run_prefix, database=database,
                                    oai_client=oai_client, out_partial_dir=out_partial)
             for res in mode_results:
@@ -561,7 +640,7 @@ def main() -> int:
         "run_prefix": args.run_prefix, "llm": args.llm, "seed": args.seed,
         "database": database,
         "n_per_slice": args.n_per_slice, "arms": arms,
-        "prompt_id": PROMPT_ID, "prompt_hash": prompt_hash,
+        "prompt_id": prompt_id, "prompt_hash": prompt_hash,
         "opik_project": os.environ.get("OPIK_PROJECT_NAME", ""),
         "opik_workspace": os.environ.get("OPIK_WORKSPACE", ""),
         "tracing_backends": current_backend_names(),

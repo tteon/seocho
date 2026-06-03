@@ -10,5 +10,9 @@ requires-python = ">=3.10"
 
 [tool.maturin]
 features = ["pyo3/extension-module"]
-python-source = "python"
-module-name = "seocho_core._native"
+# Pure-Rust single-module layout: the cdylib IS the importable `seocho_core`
+# (pymodule fn in src/lib.rs is `seocho_core`). No python-source wrapper — there
+# is no Python-side surface (three leaf functions), so a `python/seocho_core/
+# __init__.py` re-export hop would be dead config. Call sites import top-level
+# `seocho_core` directly (seocho/index/linker.py, seocho/rules.py).
+module-name = "seocho_core"

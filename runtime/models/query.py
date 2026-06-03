@@ -113,7 +113,10 @@ class SemanticRunRecordResponse(BaseModel):
     semantic_package: Dict[str, Any] = Field(default_factory=dict, description="Full semantic package selection payload when available.")
     stage_metrics: Dict[str, Any] = Field(default_factory=dict, description="Stage-level timing metrics recorded for the semantic run.")
     policy_metrics: Dict[str, Any] = Field(default_factory=dict, description="Decision-policy metrics recorded for the semantic run.")
-    support_status: str = Field(default="", description="Intent-support verdict: 'supported', 'partial', or 'unsupported'.")
+    support_status: str = Field(
+        default="",
+        description="Intent-support verdict: 'supported', 'derived_supported', 'partial', or 'unsupported'.",
+    )
     support_reason: str = Field(default="", description="Human-readable explanation of support status.")
     support_coverage: float = Field(default=0.0, description="Fraction of required intent slots filled (0.0-1.0).")
     support_assessment: Dict[str, Any] = Field(default_factory=dict, description="Full intent-support assessment payload.")

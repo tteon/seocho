@@ -120,7 +120,8 @@ def test_builder_financial_metric_query_uses_workspace_and_rel_candidates() -> N
     assert "anchor_labels" in params and "Company" in params["anchor_labels"]
     assert params["workspace_id"] == "finance_benchmark_test"
     assert "metric_scope_tokens" in params  # carried for soft ranking, not as a WHERE filter
-    assert "coalesce(c._workspace_id, '') = $workspace_id" in cypher
+    assert "c._workspace_id = $workspace_id OR c.workspace_id = $workspace_id" in cypher
+    assert "m._workspace_id = $workspace_id OR m.workspace_id = $workspace_id" in cypher
 
 
 def test_builder_relationship_lookup_returns_target_properties_and_supporting_fact() -> None:

@@ -578,6 +578,30 @@ class IndexingPipeline:
                     edge_type=edge_type,
                 )
 
+        # ADR-0103 S3: reified Observation dual-write (additive, env-gated).
+        # Canonicalize metric-like nodes into deterministically-keyed
+        # :Observation + :Company(cik) + :HAS_OBSERVATION alongside the existing
+        # nodes so the semantic-layer reader can match on exact keys.
+        from .observation_writer import (
+            build_observations,
+            ensure_observation_constraint,
+            semantic_layer_enabled,
+        )
+        if semantic_layer_enabled():
+            try:
+                from ..semantic_layer import default_registry, default_resolver
+                obs_nodes, obs_rels = build_observations(
+                    all_nodes, all_rels,
+                    registry=default_registry(), resolver=default_resolver(),
+                    workspace_id=self.workspace_id,
+                )
+                if obs_nodes:
+                    ensure_observation_constraint(self.graph_store, database)
+                    all_nodes = list(all_nodes) + obs_nodes
+                    all_rels = list(all_rels) + obs_rels
+            except Exception as exc:  # never let reification break ingestion
+                logger.warning("Observation dual-write skipped: %s", exc)
+
         summary = self.graph_store.write(
             all_nodes,
             all_rels,

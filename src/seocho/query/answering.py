@@ -42,6 +42,7 @@ class QueryAnswerSynthesizer:
         *,
         reasoning_trace: Optional[str] = None,
         vector_context: str = "",
+        answer_shape: Any = None,
     ) -> str:
         system_ans, user_ans = self.query_strategy.render_answer(
             question,
@@ -51,6 +52,16 @@ class QueryAnswerSynthesizer:
             user_ans += f"\n\nReasoning trace (query attempts):\n{reasoning_trace}"
         if vector_context:
             user_ans += f"\n\nAdditional context from vector search:\n{vector_context}"
+        # AnswerShape (opik-derived): append a terse-output directive when the
+        # classified shape expects a value/name/location/list. None or shapes
+        # without a directive (explanation/unknown) leave the prompt unchanged
+        # — exact baseline behavior, so this is additive.
+        if answer_shape is not None:
+            from .answer_shape import terse_directive
+
+            directive = terse_directive(answer_shape)
+            if directive:
+                user_ans += f"\n\nOutput format requirement: {directive}"
         return complete_with_task_hints(
             self.llm,
             system=system_ans,

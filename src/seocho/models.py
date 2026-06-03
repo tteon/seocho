@@ -616,6 +616,9 @@ class RunMetadata(JsonSerializable):
 @dataclass(slots=True)
 class EvidenceBundle(JsonSerializable):
     intent_id: str = ""
+    route_profile: Dict[str, Any] = field(default_factory=dict)
+    answer_shape: str = ""
+    answer_shape_profile: Dict[str, Any] = field(default_factory=dict)
     focus_slots: List[str] = field(default_factory=list)
     grounded_slots: List[str] = field(default_factory=list)
     missing_slots: List[str] = field(default_factory=list)
@@ -634,6 +637,9 @@ class EvidenceBundle(JsonSerializable):
     def from_dict(cls, payload: Dict[str, Any]) -> "EvidenceBundle":
         return cls(
             intent_id=str(payload.get("intent_id", "")),
+            route_profile=dict(payload.get("route_profile", {})),
+            answer_shape=str(payload.get("answer_shape", "")),
+            answer_shape_profile=dict(payload.get("answer_shape_profile", {})),
             focus_slots=[str(item) for item in payload.get("focus_slots", [])],
             grounded_slots=[str(item) for item in payload.get("grounded_slots", [])],
             missing_slots=[str(item) for item in payload.get("missing_slots", [])],

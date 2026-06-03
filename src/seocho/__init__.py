@@ -189,6 +189,15 @@ _MODULE_EXPORTS: Dict[str, Iterable[str]] = {
         "ontology_version_identity",
         "parse_semver",
     ],
+    ".ontology_control_plane": [
+        "CompiledOntologyProfile",
+        "OntologyControlPlane",
+        "OntologyProfile",
+        "OntologyProfileEvaluation",
+        "OntologyProfileRegistry",
+        "OntologyProfileSelection",
+        "OntologySignal",
+    ],
     ".ontology_run_context": [
         "OntologyEvidenceState",
         "OntologyPolicyDecision",
@@ -393,6 +402,14 @@ __all__ = [
     "P",
     "PropertyType",
     "Cardinality",
+    # Ontology control plane
+    "CompiledOntologyProfile",
+    "OntologyControlPlane",
+    "OntologyProfile",
+    "OntologyProfileEvaluation",
+    "OntologyProfileRegistry",
+    "OntologyProfileSelection",
+    "OntologySignal",
     # Store ABCs + concrete vector backends
     "VectorStore",
     "FAISSVectorStore",

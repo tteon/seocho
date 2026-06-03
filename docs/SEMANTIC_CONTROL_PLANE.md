@@ -40,6 +40,42 @@ One semantic control plane should govern two execution planes:
 The semantic control plane is not a separate microservice requirement. It is a
 canonical contract and module boundary inside the modular monolith.
 
+## Ontology Control Plane Slice
+
+The first implementation slice is `seocho.ontology_control_plane`.
+
+It makes the control plane concrete without changing the graph backend or model
+provider:
+
+- `OntologySignal`: indexing-side and query-side discoveries such as aliases,
+  missing slots, drift, route failures, and answer regressions
+- `OntologyProfile`: a user-reviewable, versioned profile containing ontology
+  candidates, vocabulary candidates, SHACL candidates, route hints, answer
+  shapes, and measured metrics
+- `CompiledOntologyProfile`: the hot-path artifact consumed by routing,
+  text-to-Cypher, debate, reasoning, and answer synthesis
+- `OntologyControlPlane`: deterministic profile selection and baseline-vs-
+  candidate evaluation for approve/rollback/rerun workflows
+
+This is SEOCHO's lock-in layer: users own portable semantics, but SEOCHO owns
+the operational loop that chooses, compiles, measures, and promotes the right
+ontology profile for each workspace and query.
+
+Runtime and SDK user controls now cover the first closed loop:
+
+- `POST /semantic/ontology-signals`: record indexing/query discoveries
+- `GET /semantic/ontology-signals`: inspect signal history
+- `POST /semantic/ontology-profiles`: create or update a profile
+- `GET /semantic/ontology-profiles`: list profile candidates by status
+- `GET /semantic/ontology-profiles/{profile_id}/compiled`: inspect the hot-path
+  artifact that agents will consume
+- `POST /semantic/ontology-profiles/select`: see which profile SEOCHO would use
+  for a query and why
+- `POST /semantic/ontology-profiles/{profile_id}/evaluate`: compare a candidate
+  against a baseline with expected quality/latency/cost deltas
+- `POST /semantic/ontology-profiles/{profile_id}/promote`: approve the profile
+  selected by the review workflow
+
 ## User Contract
 
 The user workflow should stay simple:

@@ -95,6 +95,29 @@ from semantic_artifact_api import (
     read_semantic_artifacts,
     resolve_approved_artifact_payload,
 )
+from ontology_control_plane_api import (
+    OntologyCompiledProfileResponse,
+    OntologyProfileEvaluateRequest,
+    OntologyProfileEvaluationResponse,
+    OntologyProfileListResponse,
+    OntologyProfilePromoteRequest,
+    OntologyProfileResponse,
+    OntologyProfileSelectRequest,
+    OntologyProfileSelectionResponse,
+    OntologyProfileUpsertRequest,
+    OntologySignalCreateRequest,
+    OntologySignalListResponse,
+    OntologySignalResponse,
+    compile_ontology_profile_request,
+    create_ontology_signal,
+    evaluate_ontology_profile_request,
+    promote_ontology_profile_request,
+    read_ontology_profile,
+    read_ontology_profiles,
+    read_ontology_signals,
+    select_ontology_profile_request,
+    upsert_ontology_profile,
+)
 from semantic_run_store import get_semantic_run, list_semantic_runs
 from seocho.query.query_proxy import QueryRequest as GraphQueryRequest
 
@@ -1902,3 +1925,129 @@ async def semantic_artifacts_get(
         return read_semantic_artifact(workspace_id=workspace_id, artifact_id=artifact_id)
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+def _require_ontology_control_plane(workspace_id: str) -> None:
+    require_runtime_permission(
+        role="user",
+        action="manage_semantic_artifacts",
+        workspace_id=workspace_id,
+    )
+
+
+@app.post("/semantic/ontology-profiles", response_model=OntologyProfileResponse)
+@track("agent_server.ontology_profiles_upsert")
+async def ontology_profiles_upsert(request: OntologyProfileUpsertRequest):
+    try:
+        _require_ontology_control_plane(request.workspace_id)
+        return upsert_ontology_profile(request)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/semantic/ontology-profiles", response_model=OntologyProfileListResponse)
+@track("agent_server.ontology_profiles_list")
+async def ontology_profiles_list(
+    workspace_id: str = Query(default="default", pattern=WORKSPACE_ID_PATTERN),
+    status: Optional[str] = Query(default=None),
+):
+    try:
+        _require_ontology_control_plane(workspace_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    if status is not None and status not in {"draft", "approved", "deprecated"}:
+        raise HTTPException(status_code=400, detail="status must be one of: draft, approved, deprecated")
+    return read_ontology_profiles(workspace_id=workspace_id, status=status)
+
+
+@app.get("/semantic/ontology-profiles/{profile_id}", response_model=OntologyProfileResponse)
+@track("agent_server.ontology_profiles_get")
+async def ontology_profiles_get(
+    profile_id: str,
+    workspace_id: str = Query(default="default", pattern=WORKSPACE_ID_PATTERN),
+):
+    try:
+        _require_ontology_control_plane(workspace_id)
+        return read_ontology_profile(workspace_id=workspace_id, profile_id=profile_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@app.post("/semantic/ontology-profiles/{profile_id}/promote", response_model=OntologyProfileResponse)
+@track("agent_server.ontology_profiles_promote")
+async def ontology_profiles_promote(profile_id: str, request: OntologyProfilePromoteRequest):
+    try:
+        _require_ontology_control_plane(request.workspace_id)
+        invalidate_semantic_vocabulary_cache()
+        return promote_ontology_profile_request(profile_id, request)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@app.get("/semantic/ontology-profiles/{profile_id}/compiled", response_model=OntologyCompiledProfileResponse)
+@track("agent_server.ontology_profiles_compile")
+async def ontology_profiles_compile(
+    profile_id: str,
+    workspace_id: str = Query(default="default", pattern=WORKSPACE_ID_PATTERN),
+):
+    try:
+        _require_ontology_control_plane(workspace_id)
+        return compile_ontology_profile_request(workspace_id=workspace_id, profile_id=profile_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@app.post("/semantic/ontology-profiles/select", response_model=OntologyProfileSelectionResponse)
+@track("agent_server.ontology_profiles_select")
+async def ontology_profiles_select(request: OntologyProfileSelectRequest):
+    try:
+        _require_ontology_control_plane(request.workspace_id)
+        return select_ontology_profile_request(request)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
+
+@app.post("/semantic/ontology-profiles/{profile_id}/evaluate", response_model=OntologyProfileEvaluationResponse)
+@track("agent_server.ontology_profiles_evaluate")
+async def ontology_profiles_evaluate(profile_id: str, request: OntologyProfileEvaluateRequest):
+    try:
+        _require_ontology_control_plane(request.workspace_id)
+        return evaluate_ontology_profile_request(profile_id, request)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@app.post("/semantic/ontology-signals", response_model=OntologySignalResponse)
+@track("agent_server.ontology_signals_create")
+async def ontology_signals_create(request: OntologySignalCreateRequest):
+    try:
+        _require_ontology_control_plane(request.workspace_id)
+        return create_ontology_signal(request)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
+
+@app.get("/semantic/ontology-signals", response_model=OntologySignalListResponse)
+@track("agent_server.ontology_signals_list")
+async def ontology_signals_list(
+    workspace_id: str = Query(default="default", pattern=WORKSPACE_ID_PATTERN),
+    source: Optional[str] = Query(default=None),
+    kind: Optional[str] = Query(default=None),
+):
+    try:
+        _require_ontology_control_plane(workspace_id)
+        return read_ontology_signals(workspace_id=workspace_id, source=source, kind=kind)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))

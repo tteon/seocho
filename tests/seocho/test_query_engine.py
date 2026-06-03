@@ -175,8 +175,17 @@ def test_build_evidence_bundle_shared_contract() -> None:
 
     assert bundle["schema_version"] == "evidence_bundle.v2"
     assert bundle["intent_id"] == "responsibility_lookup"
+    assert bundle["route_profile"]["route_class"] == "R4_GRAPH_JOIN"
+    assert bundle["answer_shape"] == "relationship_summary"
+    assert bundle["database"] == "kgnormal"
+    assert bundle["databases"] == ["kgnormal"]
+    assert bundle["support_status"] == "supported"
     assert bundle["slot_fills"]["owner_or_operator"] == "Alex"
     assert bundle["slot_fills"]["target_entity"] == "Seoul Retail"
+    assert bundle["slot_fills"]["relation_paths"] == ["MANAGES"]
+    assert bundle["selected_triples"][0]["source"] == "Alex"
+    assert bundle["selected_triples"][0]["relation"] == "MANAGES"
+    assert bundle["selected_triples"][0]["target"] == "Seoul Retail"
 
 
 def test_query_answer_synthesizer_marks_answer_generation_non_reasoning() -> None:

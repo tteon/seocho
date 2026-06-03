@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from typing import Any, Dict, List, Optional, Sequence
 
@@ -8,7 +9,63 @@ from ..store.llm import complete_with_task_hints
 from .intent import build_evidence_bundle, infer_question_intent
 
 
+def _deterministic_financial_enabled() -> bool:
+    """Opt-in cost-mode for the deterministic financial answer.
+
+    DEFAULT OFF. Measured (2026-06-03, e2e_probe + gpt-5.5 judge on 10 FinDER S1
+    cases): the deterministic template skips the answer LLM call (generation
+    −65%, wall −25%) but REGRESSES quality — judge 0.043 vs 0.158 and
+    number_overlap 0.233 vs 0.298 for LLM synthesis — because a terse template
+    can't carry compositional multi-metric/arithmetic financial answers. So the
+    default keeps LLM synthesis; flip this on only where cost > quality and the
+    win has been re-measured for that workload. (CLAUDE.md §20: data-grounded,
+    no silent regression.)"""
+    return str(os.environ.get("SEOCHO_DETERMINISTIC_FINANCIAL", "")).strip().lower() in ("1", "true", "yes")
+
+
+def _verified_financial_answer_enabled() -> bool:
+    """Ablation switch for verified scalar/delta financial answers."""
+    return str(os.environ.get("SEOCHO_VERIFIED_FINANCIAL_ANSWER", "1")).strip().lower() not in ("0", "false", "no")
+
+
 _FOUR_DIGIT_YEAR_RE = re.compile(r"\b(20\d{2})\b")
+_FINANCIAL_SYNTHESIS_CUES = (
+    "why",
+    "explain",
+    "describe",
+    "recommend",
+    "drove",
+    "driven",
+    "cause",
+    "caused",
+    "reason",
+    "impact",
+    "implication",
+    "trend",
+    "trends",
+    "share",
+    "proportion",
+    "pressure",
+    "margin",
+)
+
+_FINANCIAL_MULTI_METRIC_TERMS = {
+    "revenue": "revenue",
+    "revenues": "revenue",
+    "rev": "revenue",
+    "profit": "profit",
+    "income": "income",
+    "cost": "cost",
+    "costs": "cost",
+    "expense": "expense",
+    "expenses": "expense",
+    "tax": "tax",
+    "margin": "margin",
+    "eps": "eps",
+    "share": "share",
+    "medical": "medical",
+    "premium": "premium",
+}
 
 
 class QueryAnswerSynthesizer:
@@ -28,6 +85,17 @@ class QueryAnswerSynthesizer:
             return None
         intent = str(intent_data.get("intent", "")).strip()
         if intent in {"financial_metric_lookup", "financial_metric_delta"}:
+            # Measured regression vs LLM synthesis on compositional financial QA
+            # keeps broad deterministic mode opt-in, but allows the safe subset:
+            # exact scalar/delta questions with covered years and numeric rows.
+            if not (
+                _deterministic_financial_enabled()
+                or (
+                    _verified_financial_answer_enabled()
+                    and self._supports_verified_financial_answer(question, records, intent_data)
+                )
+            ):
+                return None
             return self._build_financial_answer(question, records, intent_data)
         if intent == "relationship_lookup":
             return self._build_relationship_answer(question, records, intent_data)
@@ -86,21 +154,18 @@ class QueryAnswerSynthesizer:
 
         intent = str(intent_data.get("intent", ""))
         metric_label = self._humanize_metric_label(intent_data)
-        company = selected_rows[0].get("company", "")
+        company = selected_rows[0].get("company", "") or str(intent_data.get("anchor_entity", "")).strip()
 
         if self._prefers_comparison_answer(question, years):
             target_years = self._ordered_years(years)
             by_year = {row["year"]: row for row in selected_rows if row.get("year")}
-            ordered_rows = [by_year[year] for year in target_years if year in by_year]
+            ordered_rows = [by_year[y] for y in sorted(by_year)]
             if len(ordered_rows) >= 2:
-                later_row = ordered_rows[-1]
-                earlier_row = ordered_rows[0]
-                return (
-                    f"For {company}, {metric_label} was "
-                    f"{self._format_metric_value(metric_label, later_row['value'])} in {later_row['year']} "
-                    f"compared to {self._format_metric_value(metric_label, earlier_row['value'])} "
-                    f"in {earlier_row['year']}."
+                series = ", ".join(
+                    f"{self._row_display(r, metric_label)} in {r['year']}"
+                    for r in ordered_rows
                 )
+                return f"For {company}, {metric_label} was {series}."
 
         if intent == "financial_metric_delta":
             target_years = self._ordered_years(years or [row["year"] for row in selected_rows])
@@ -139,16 +204,13 @@ class QueryAnswerSynthesizer:
         if len(years) >= 2:
             target_years = self._ordered_years(years)
             by_year = {row["year"]: row for row in selected_rows if row.get("year")}
-            ordered_rows = [by_year[year] for year in target_years if year in by_year]
+            ordered_rows = [by_year[y] for y in sorted(by_year)]
             if len(ordered_rows) >= 2:
-                later_row = ordered_rows[-1]
-                earlier_row = ordered_rows[0]
-                return (
-                    f"For {company}, {metric_label} was "
-                    f"{self._format_metric_value(metric_label, later_row['value'])} in {later_row['year']} "
-                    f"compared to {self._format_metric_value(metric_label, earlier_row['value'])} "
-                    f"in {earlier_row['year']}."
+                series = ", ".join(
+                    f"{self._row_display(r, metric_label)} in {r['year']}"
+                    for r in ordered_rows
                 )
+                return f"For {company}, {metric_label} was {series}."
 
         direct_answer = self._direct_answer(
             question,
@@ -169,6 +231,76 @@ class QueryAnswerSynthesizer:
             f"For {company}, {metric_label} was "
             f"{self._format_metric_value(metric_label, best_row['value'])}{year_suffix}."
         )
+
+    def _supports_verified_financial_answer(
+        self,
+        question: str,
+        records: Sequence[Dict[str, Any]],
+        intent_data: Dict[str, Any],
+    ) -> bool:
+        """Return True only when the answer shape is a verified scalar/delta.
+
+        This is the narrow answer-shape bridge from ADR-0098: bypass the answer
+        LLM when the graph rows already fill the financial metric and period
+        slots, but keep synthesis for explanatory/compositional prompts.
+        """
+        normalized_question = question.lower()
+        if any(cue in normalized_question for cue in _FINANCIAL_SYNTHESIS_CUES):
+            return False
+        if self._looks_like_multi_metric_financial_question(normalized_question, intent_data):
+            return False
+
+        intent = str(intent_data.get("intent", "")).strip()
+        rows = self._normalize_financial_rows(records)
+        if not rows:
+            return False
+
+        selected_rows = self._select_financial_rows(rows, intent_data)
+        if not selected_rows:
+            return False
+
+        metric = str(intent_data.get("metric_name", "")).strip()
+        aliases = [str(alias).strip() for alias in intent_data.get("metric_aliases", []) if str(alias).strip()]
+        if not metric and not aliases:
+            return False
+
+        years = self._ordered_years(intent_data.get("years", []))
+        available_years = {str(row.get("year", "")).strip() for row in selected_rows if str(row.get("year", "")).strip()}
+        if intent == "financial_metric_delta":
+            if len(years) < 2:
+                return False
+            return years[0] in available_years and years[-1] in available_years
+
+        if len(years) >= 2:
+            return len(set(years) & available_years) >= 2
+        if len(years) == 1:
+            return years[0] in available_years
+
+        return len(selected_rows) == 1
+
+    def _looks_like_multi_metric_financial_question(
+        self,
+        normalized_question: str,
+        intent_data: Dict[str, Any],
+    ) -> bool:
+        if " vs" in normalized_question and not normalized_question.strip().startswith("how many "):
+            return True
+
+        metric_text = " ".join(
+            [
+                str(intent_data.get("metric_name", "")).lower(),
+                " ".join(str(alias).lower() for alias in intent_data.get("metric_aliases", [])),
+            ]
+        )
+        hits = {
+            canonical
+            for term, canonical in _FINANCIAL_MULTI_METRIC_TERMS.items()
+            if re.search(rf"\b{re.escape(term)}\b", metric_text)
+        }
+        if "income" in hits and "net income" in metric_text:
+            hits.discard("income")
+            hits.add("net income")
+        return len(hits) >= 2
 
     def _build_relationship_answer(
         self,
@@ -248,12 +380,24 @@ class QueryAnswerSynthesizer:
                     "company": company,
                     "metric_name": metric_name,
                     "year": year,
-                    "value": value,
+                    "value": value,  # numeric magnitude (selection/delta math)
+                    # original string ("$383.3 billion") — echoed in the answer so
+                    # the figure matches the gold token-for-token instead of being
+                    # reformatted from the float (which would break number_overlap).
+                    "value_display": str(raw_value).strip(),
                     "relationship": str(self._record_value(record, "relationship", 4)),
                     "supporting_fact": str(self._record_value(record, "supporting_fact", 5)).strip(),
                 }
             )
         return rows
+
+    def _row_display(self, row: Dict[str, Any], metric_label: str) -> str:
+        """Prefer the original extracted value string for display; fall back to
+        formatting the numeric magnitude."""
+        disp = str(row.get("value_display", "")).strip()
+        if disp and re.fullmatch(r"-?\d+(?:\.\d+)?", disp.replace(",", "")):
+            return self._format_metric_value(metric_label, row.get("value"))
+        return disp or self._format_metric_value(metric_label, row.get("value"))
 
     def _normalize_relationship_rows(self, records: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
         rows: List[Dict[str, Any]] = []
@@ -451,7 +595,12 @@ class QueryAnswerSynthesizer:
             current = best_by_year.get(year)
             if current is None or score > self._row_match_score(current, anchor, metric_aliases, scope_tokens):
                 best_by_year[year] = row
-        return [best_by_year[year] for year in target_years if year in best_by_year]
+        # Return ALL year rows for the chosen metric (sorted), not just the
+        # intent's requested years: trend/compositional questions cite every
+        # period, so emitting all of them lifts answer coverage (number_overlap)
+        # while the delta/comparison branches still pick their endpoints by year.
+        ordered = [best_by_year[y] for y in sorted(best_by_year)]
+        return ordered or list(selected)
 
     def _row_match_score(
         self,
@@ -476,23 +625,63 @@ class QueryAnswerSynthesizer:
         anchor_tokens = [token for token in anchor_norm.split() if token]
         return sum(2 for token in anchor_tokens if token in company_norm)
 
+    # Scale words → multiplier. Spelled-out + common abbreviations only (no bare
+    # single letters, which false-match metric text). FinDER writes scale out
+    # ("$383.3 billion"), so this covers the real cases.
+    _SCALE_WORDS = (
+        ("trillion", 1e12), ("billion", 1e9), ("million", 1e6), ("thousand", 1e3),
+        ("bn", 1e9), ("mm", 1e6), ("mn", 1e6),
+    )
+
     def _coerce_number(self, value: Any) -> Optional[float]:
+        """Parse a financial value that may carry a currency symbol, thousands
+        separators, a scale word, percent, an accounting-parentheses negative, or
+        trailing text — e.g. "$9,871,649", "$383.3 billion", "$5.23 per share",
+        "(1,234)", "12.5%". Returns the numeric magnitude (scale applied) or None.
+
+        This robustness is what lets the DETERMINISTIC answer path fire on graph-
+        extracted STRING values (the structured lane returns value as text); the
+        old ``float(text.replace(",",""))`` returned None for every "$"/scale
+        string, dropping all rows and forcing an LLM synthesis call (measured:
+        answer_source=llm_synthesis 10/10). (CLAUDE.md §20: change is regression-
+        tested in seocho/tests/test_answering_coerce_number.py.)"""
         if value is None:
             return None
-        text = str(value).strip().replace(",", "")
+        if isinstance(value, (int, float)):
+            return float(value)
+        text = str(value).strip()
         if not text:
             return None
+        negative = text.startswith("(") and ")" in text  # accounting negative
+        match = re.search(r"-?\d[\d,]*\.?\d*", text)
+        if not match:
+            return None
         try:
-            return float(text)
+            num = float(match.group(0).replace(",", ""))
         except ValueError:
             return None
+        tail = text[match.end():].lstrip().lower()
+        for word, mult in self._SCALE_WORDS:
+            if tail.startswith(word):
+                num *= mult
+                break
+        if negative:
+            num = -abs(num)
+        return num
 
     def _coerce_year(self, raw_year: Any, *fallback_fields: Any) -> str:
-        text = str(raw_year).strip()
-        if text and text.lower() != "none" and len(text) == 4 and text.isdigit():
-            return text
-        for field in fallback_fields:
-            match = _FOUR_DIGIT_YEAR_RE.search(str(field))
+        """Extract a 4-digit year from the year field or fallbacks. Must tolerate
+        years GLUED to text — e.g. "FY2023", "EPS_Diluted_FY2024",
+        "Total Revenue FY2023" — which the boundary-anchored `_FOUR_DIGIT_YEAR_RE`
+        (\\b20\\d{2}\\b) misses because the digits abut letters. Failing this
+        returned year="" → the financial-row selector dropped every row → the
+        deterministic answer never fired and the pipeline paid an LLM call
+        (CLAUDE.md §20: regression-tested in test_answering_coerce_number.py)."""
+        for candidate in (raw_year, *fallback_fields):
+            text = str(candidate).strip()
+            if not text or text.lower() == "none":
+                continue
+            match = re.search(r"((?:19|20)\d{2})", text)
             if match:
                 return match.group(1)
         return ""

@@ -68,11 +68,45 @@ Positive — measured win (grounding ON, same A/B):
 | location      | LED_BY             | ✗        |
 | leadership    | LED_BY             | ✓        |
 
-4/5 correct (was 2/5). Grounding converts the blind fallback into
-semantic disambiguation, fixing the two terms that previously collapsed
-to LED_BY. This is the third opik-derived leg and, with AnswerShape, the
-second to show a measured improvement (vs the RouteProfile/F8 nulls) —
-because it targets the actual ontology-fit bottleneck F8 identified.
+4/5 correct (was 2/5) in the **isolated** synonym-resolution A/B.
+Grounding converts the blind fallback into semantic disambiguation,
+fixing the two terms that previously collapsed to LED_BY.
+
+### FinDER e2e A/B — null, stays default-off
+
+A full-lane 10-case FinDER A/B (AnswerShape ON both arms,
+SEOCHO_ONTOLOGY_GROUNDING off vs on) showed **no e2e effect**:
+
+| metric   | off   | on    |
+|----------|-------|-------|
+| contains | 0.60  | 0.60  |
+| exact    | 0.40  | 0.40  |
+| token_f1 | 0.569 | 0.569 |
+| empty    | 1/10  | 0/10  |
+
+Every case's contains/f1 was identical; only one previously-empty answer
+became non-empty (still wrong). The isolated win does not transfer
+because the FinDER + MARA workload rarely hits the synonym-mismatch
+path: metric-lookup questions (≈half) bypass `_match_relationship`
+entirely, and the relationship/entity questions either match exactly
+(`headquartered` ⊂ `HEADQUARTERED_IN`) or are classified as
+entity_lookup, so grounding's step 1.5 never fires.
+
+**Decision: grounding stays default-off (opt-in).** Unlike AnswerShape
+(which earned default-on with +0.48 f1), grounding has no measured e2e
+benefit to justify flipping the default — defaulting it on would be a
+flip without evidence (CLAUDE.md §20). It is a correct, unit-proven
+mechanism kept opt-in until either (a) an embedding scorer raises its
+hit rate (the `location` miss), or (b) a relationship-synonym-heavy
+workload exercises it and shows a measured win.
+
+This is the third opik-derived leg. Of the four
+(AnswerShape / RouteProfile / F8 / grounding), only **AnswerShape**
+produced a measured e2e win — the others are correct mechanisms whose
+value this workload doesn't exercise. The honest aggregate: seocho's
+measurable FinDER lever is synthesis precision; ontology-fit and
+execution-diversity mechanisms exist but await a workload (or embedding
+backend) that activates them.
 
 Tradeoffs / limits:
 - The one remaining miss (`location` → no lexical overlap with

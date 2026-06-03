@@ -603,6 +603,32 @@ class _LocalEngine:
                 database,
                 executor=executor,
             )
+        # F8 multi-plan execution (ADR-0100): opt-in + route-scoped to
+        # multi_hop. Build/execute the top-K candidate shapes and RRF-fuse
+        # to lift recall on compositional questions. Single-plan path is
+        # untouched everywhere else; fusion never loses the single result.
+        self._last_multi_plan = None
+        if intent_data and query_mode != "graph_cot":
+            from .query.multi_plan import execute_multi_plan, multi_plan_enabled
+
+            if multi_plan_enabled():
+                from .query.route_profile import classify_route_class
+
+                if classify_route_class(question) == "multi_hop":
+                    from .query.cypher_builder import CypherBuilder
+
+                    with timer.stage("multi_plan"):
+                        mp = execute_multi_plan(
+                            builder=CypherBuilder(active_ontology),
+                            executor=executor,
+                            question=question,
+                            intent_data=intent_data,
+                            workspace_id=self.workspace_id,
+                        )
+                    if mp.records:
+                        records = mp.records
+                        exec_error = None
+                        self._last_multi_plan = mp
         if exec_error:
             timer.mark_total()
             self._last_query_metadata = build_local_query_metadata(

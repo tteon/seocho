@@ -220,7 +220,13 @@ MD&A+Item8 grounded 0.00 → ≥0.50 table-backed; Prior-Staleness Delta ≥+0.4
 Temporal-Resolution ≥0.80 / `wrong_year` ≤0.10; DCC ≥0.95.
 
 **Run order:** (1) DCC on Tier 1 with oracle slots — no LLM/judge, confirms the
-schema+templates can return the row at all (if <0.9, stop and fix templates);
+schema+templates can return the row at all (if <0.9, stop and fix templates).
+**MEASURED (S2, `dcc_probe.py`): DCC = 1.00 (102/102, 20 companies, no LLM)** —
+reified Observation + exact-key compiled Cypher returns the correct typed
+`value_num` for every case, vs the legacy free-text-keyed Cypher's ~0.30. The
+core thesis (the bottleneck was identity/structure, not Cypher) is confirmed;
+the compile target is correct, so the LLM layers (arbiter, decompose) can
+proceed. Then:
 (2) ablation A0→A6 on Tier 1; (3) prior-staleness/temporal on stale rows; (4)
 build Item 8 table ingestion, run on real noise; (5) freeze, run Tier 3 once;
 (6) fallback-ON only to quantify the residual structure-vs-chunk gap.

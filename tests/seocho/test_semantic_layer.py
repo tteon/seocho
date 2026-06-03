@@ -7,11 +7,14 @@ normalization, entity→CIK resolution, and the resolved-slots shape.
 
 from __future__ import annotations
 
+import pytest
+
 from seocho.semantic_layer import (
     ConceptRegistry,
     EntityResolver,
     MetricConcept,
     ObservationSlots,
+    compile_observation_lookup,
     default_registry,
     default_resolver,
     normalize_name,
@@ -145,3 +148,32 @@ def test_observation_slots_unresolved_blocks_full_resolution():
     assert not s.is_fully_resolved
     s2 = ObservationSlots(concept_id="metric:Revenue", period_keys=("fiscal:2024:FY",))
     assert not s2.is_fully_resolved                        # missing entity_cik
+
+
+# ---- deterministic compiler (exact-key, no CONTAINS) ------------------------
+
+def test_compile_observation_lookup_is_exact_match_no_contains():
+    s = ObservationSlots(entity_cik="0000320193", concept_id="metric:Revenue",
+                         period_keys=("fiscal:2024:FY", "fiscal:2023:FY"))
+    cypher, params = compile_observation_lookup(s, workspace_id="ws-1", limit=5)
+    # exact-key predicates, never CONTAINS
+    assert "CONTAINS" not in cypher
+    assert "o.concept_id = $concept_id" in cypher
+    assert "o.period_key IN $period_keys" in cypher
+    assert "(c:Company {cik: $cik})-[:HAS_OBSERVATION]->(o:Observation)" in cypher
+    assert params["cik"] == "0000320193"
+    assert params["concept_id"] == "metric:Revenue"
+    assert params["period_keys"] == ["fiscal:2024:FY", "fiscal:2023:FY"]
+    assert params["basis"] == "consolidated"
+    assert params["workspace_id"] == "ws-1" and params["limit"] == 5
+
+
+def test_compile_observation_lookup_rejects_unresolved_slots():
+    with pytest.raises(ValueError):
+        compile_observation_lookup(
+            ObservationSlots(concept_id="metric:Revenue",
+                             period_keys=("fiscal:2024:FY",)))  # no entity_cik
+    with pytest.raises(ValueError):
+        compile_observation_lookup(
+            ObservationSlots(entity_cik="c", concept_id="metric:Revenue",
+                             period_keys=("fiscal:2024:FY",), unresolved=("x",)))

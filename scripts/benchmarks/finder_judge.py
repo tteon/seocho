@@ -4,13 +4,12 @@
 Reads saved per-answer partial JSONs (from finder_vector_arm.py and
 finder_4arm_sample.py), and augments each with:
   - token_f1   : deterministic SQuAD-style token F1 vs the gold answer
-  - judge_*    : LLM-as-judge (grok-4.3) verdict/score vs the gold answer
+  - judge_*    : LLM-as-judge verdict/score vs the gold answer
+  - evidence_use_* : optional typed-evidence-bundle faithfulness judge for qualitative cases
 
-Generator and judge are both grok-4.3. Self-preference bias is therefore
-present but UNIFORM across all lanes (vector/graph/hybrid are all grok-
-generated), so the relative comparison stays fair; absolute judge scores may be
-lenient. Disclosed per CLAUDE.md §20.3. Judge is deterministic (temperature 0,
-fixed prompt) for reproducibility (§20.7).
+The default judge is MARA DeepSeek-V3.1 so evaluation stays on the team-preferred
+gateway. Judge is deterministic (temperature 0, fixed prompt) for
+reproducibility (§20.7).
 
 Usage:
   python scripts/benchmarks/finder_judge.py \
@@ -37,8 +36,9 @@ if str(ROOT) not in sys.path:
 
 from examples.finder.lib import bench_common as bc  # noqa: E402
 
-JUDGE_MODEL = "grok/grok-4.3"
+JUDGE_MODEL = "mara/DeepSeek-V3.1"
 JUDGE_PROMPT_ID = "finder_judge@v1"
+EVIDENCE_JUDGE_PROMPT_ID = "seocho_evidence_bundle_judge@v1"
 
 JUDGE_SYSTEM = (
     "You are a strict evaluator for financial question answering. You receive a "
@@ -88,6 +88,31 @@ DECISION_JUDGE_SYSTEM = (
 _JUDGE_SYSTEMS = {"financial": JUDGE_SYSTEM, "decision": DECISION_JUDGE_SYSTEM}
 
 _SCORE = {"correct": 1.0, "partial": 0.5, "incorrect": 0.0}
+
+EVIDENCE_JUDGE_SYSTEM = (
+    "You are a strict evaluator for SEOCHO typed evidence bundles. You receive "
+    "a QUESTION, a GOLD answer, a CANDIDATE answer, and a compact typed evidence "
+    "bundle produced by SEOCHO's evidence swarm. Judge whether the CANDIDATE's "
+    "use of evidence is faithful to the typed bundle. This is NOT a replacement "
+    "for the normal gold-answer correctness judge.\n\n"
+    "Rules:\n"
+    "- GOLD is provided for context, but this rubric scores evidence use: whether "
+    "the candidate overclaims, underclaims, or faithfully reports insufficiency.\n"
+    "- Use the typed bundle to identify whether required slots, relation paths, "
+    "provenance, support status, and insufficiency signals justify the answer.\n"
+    "- For qualitative/non-numeric answers, do NOT require numeric overlap. "
+    "Credit correct qualitative factors, limitations, and abstentions.\n"
+    "- A candidate that correctly states insufficiency or absence of quantitative "
+    "data may be partial or correct when GOLD also says the references lack "
+    "specific figures.\n"
+    "- Penalize fabricated facts, unsupported numbers, missing required slots, "
+    "or claims contradicted by the insufficiency signals.\n\n"
+    "Output STRICT JSON only, no markdown. Use verdict for evidence use:\n"
+    '{"verdict":"correct|partial|incorrect","score":1.0,'
+    '"evidence_support":"supported|insufficient|contradicted",'
+    '"bundle_use":"faithful|underclaim|overclaim",'
+    '"matched":["..."],"missing_or_wrong":["..."],"rationale":"1-2 sentences"}'
+)
 
 
 def _safe_str(x) -> str:
@@ -145,6 +170,102 @@ def judge_one(llm, query: str, gold: str, candidate: str, judge_system: str = JU
         resp = llm.complete(system=judge_system, user=user)
     txt = getattr(resp, "text", None) or getattr(resp, "content", None) or str(resp)
     return _parse_judge(txt)
+
+
+def evidence_judge_one(
+    llm,
+    query: str,
+    gold: str,
+    candidate: str,
+    evidence_bundle: dict,
+) -> dict:
+    bundle = _compact_evidence_bundle(evidence_bundle)
+    user = (
+        f"QUESTION:\n{_safe_str(query)}\n\n"
+        f"GOLD ANSWER (ground truth):\n{_safe_str(gold)}\n\n"
+        f"CANDIDATE ANSWER:\n{_safe_str(candidate)}\n\n"
+        "TYPED EVIDENCE BUNDLE JSON:\n"
+        f"{json.dumps(bundle, ensure_ascii=True, default=str, indent=2)}"
+    )
+    try:
+        resp = llm.complete(
+            system=EVIDENCE_JUDGE_SYSTEM,
+            user=user,
+            temperature=0.0,
+            response_format={"type": "json_object"},
+        )
+    except TypeError:
+        resp = llm.complete(system=EVIDENCE_JUDGE_SYSTEM, user=user)
+    txt = getattr(resp, "text", None) or getattr(resp, "content", None) or str(resp)
+    parsed = _parse_judge(txt)
+    try:
+        raw = json.loads(re.search(r"\{.*\}", _safe_str(txt), re.DOTALL).group(0))  # type: ignore[union-attr]
+    except Exception:
+        raw = {}
+    parsed["evidence_support"] = str(raw.get("evidence_support", "") or "").strip().lower()
+    parsed["bundle_use"] = str(raw.get("bundle_use", "") or "").strip().lower()
+    return parsed
+
+
+def _compact_evidence_bundle(evidence_bundle: dict) -> dict:
+    if not isinstance(evidence_bundle, dict):
+        return {}
+    swarm = evidence_bundle.get("evidence_swarm") or {}
+    if not isinstance(swarm, dict):
+        swarm = {}
+    support = evidence_bundle.get("support_assessment") or {}
+    if not isinstance(support, dict):
+        support = {}
+    scouts = []
+    for scout in swarm.get("scouts") or []:
+        if not isinstance(scout, dict):
+            continue
+        scouts.append({
+            "scout_id": scout.get("scout_id"),
+            "status": scout.get("status"),
+            "findings": scout.get("findings") or [],
+            "confidence": scout.get("confidence"),
+        })
+    return {
+        "intent": evidence_bundle.get("intent"),
+        "focus_slots": evidence_bundle.get("focus_slots") or [],
+        "grounded_slots": evidence_bundle.get("grounded_slots") or [],
+        "missing_slots": evidence_bundle.get("missing_slots") or [],
+        "selected_triples": evidence_bundle.get("selected_triples") or [],
+        "provenance": evidence_bundle.get("provenance") or [],
+        "support_assessment": {
+            "status": support.get("status"),
+            "supported": support.get("supported"),
+            "reason": support.get("reason"),
+            "coverage": support.get("coverage"),
+            "missing_slots": support.get("missing_slots") or [],
+        },
+        "evidence_swarm": {
+            "enabled": swarm.get("enabled"),
+            "hardness": swarm.get("hardness"),
+            "critical_path": swarm.get("critical_path") or [],
+            "recommended_next_step": swarm.get("recommended_next_step"),
+            "scouts": scouts,
+        },
+    }
+
+
+def needs_evidence_judge(record: dict) -> bool:
+    if str(record.get("support_quality_gap") or "") == "no_numeric_gold":
+        return True
+    if str(record.get("slice") or "").startswith("S4_"):
+        return True
+    expected = _safe_str(record.get("expected_answer"))
+    return bool(expected and not _has_substantive_number(expected))
+
+
+_SUBSTANTIVE_NUM_RE = re.compile(r"-?\$?\d[\d,]*\.?\d*(?:%| million| billion| thousand)?", re.IGNORECASE)
+_ORDERED_LIST_MARKER_RE = re.compile(r"(?m)^\s*\d+\.\s+")
+
+
+def _has_substantive_number(text: str) -> bool:
+    cleaned = _ORDERED_LIST_MARKER_RE.sub("", _safe_str(text))
+    return bool(_SUBSTANTIVE_NUM_RE.search(cleaned))
 
 
 def lane_key(r: dict) -> tuple:
@@ -272,6 +393,10 @@ def main() -> int:
     ap.add_argument("--judge-llm", default=None, help="(deprecated alias for --judge-llms)")
     ap.add_argument("--judge-domain", default="financial", choices=sorted(_JUDGE_SYSTEMS),
                     help="Judge rubric: 'financial' (FinDER) or 'decision' (email decision-tracking).")
+    ap.add_argument("--evidence-judge", default="auto", choices=("auto", "always", "never"),
+                    help="Run typed-evidence-bundle judging for qualitative/no-numeric cases.")
+    ap.add_argument("--evidence-judge-llms", default=None,
+                    help="Comma list of evidence judges. Defaults to --judge-llms.")
     ap.add_argument("--limit", type=int, default=0)
     args = ap.parse_args()
 
@@ -279,6 +404,9 @@ def main() -> int:
 
     judge_system = _JUDGE_SYSTEMS[args.judge_domain]
     judge_models = [m.strip() for m in (args.judge_llm or args.judge_llms).split(",") if m.strip()]
+    evidence_judge_models = [
+        m.strip() for m in (args.evidence_judge_llms or ",".join(judge_models)).split(",") if m.strip()
+    ]
     print(f"== judge domain: {args.judge_domain} ==")
 
     files: list[str] = []
@@ -294,6 +422,14 @@ def main() -> int:
     for spec in judge_models:
         provider, model = spec.split("/", 1)
         judges[spec] = create_llm_backend(provider=provider.strip(), model=model.strip())
+    evidence_judges = {}
+    if args.evidence_judge != "never":
+        for spec in evidence_judge_models:
+            if spec in judges:
+                evidence_judges[spec] = judges[spec]
+                continue
+            provider, model = spec.split("/", 1)
+            evidence_judges[spec] = create_llm_backend(provider=provider.strip(), model=model.strip())
 
     # Incremental persistence: each judged record is appended to a JSONL sidecar
     # the instant it is scored, so a crash in post-processing (or anywhere) can
@@ -343,6 +479,27 @@ def main() -> int:
         # Back-compat single-judge fields = panel.
         r["judge_score"] = panel["panel_score"]
         r["judge_verdict"] = panel["panel_verdict"]
+        run_evidence_judge = (
+            args.evidence_judge == "always"
+            or (args.evidence_judge == "auto" and needs_evidence_judge(r))
+        )
+        if run_evidence_judge and evidence_judges:
+            evidence_per_model = {}
+            for spec, llm in evidence_judges.items():
+                jr = evidence_judge_one(llm, q, gold, cand, r.get("evidence_bundle") or {})
+                evidence_per_model[spec] = {
+                    "verdict": jr["verdict"],
+                    "score": jr["score"],
+                    "evidence_support": jr.get("evidence_support", ""),
+                    "bundle_use": jr.get("bundle_use", ""),
+                    "rationale": jr["rationale"],
+                }
+            evidence_panel = _panel(evidence_per_model)
+            r["evidence_judge_per_model"] = evidence_per_model
+            r["evidence_judge_models"] = list(evidence_judges)
+            r["evidence_use_score"] = evidence_panel["panel_score"]
+            r["evidence_use_verdict"] = evidence_panel["panel_verdict"]
+            r["evidence_judge_disagreement"] = evidence_panel["disagreement"]
         r["_judge_src"] = f
         judged.append(r)
         sc.write(json.dumps(r, default=str) + "\n"); sc.flush()
@@ -366,6 +523,12 @@ def main() -> int:
             "partial": sum(1 for x in runs if x["panel_verdict"] == "partial"),
             "incorrect": sum(1 for x in runs if x["panel_verdict"] == "incorrect"),
         }
+        evidence_scores = [float(x["evidence_use_score"]) for x in runs if "evidence_use_score" in x]
+        if evidence_scores:
+            summary[f"{slc}|{ret}|{arm}"]["evidence_use_score_mean"] = round(
+                sum(evidence_scores) / len(evidence_scores), 3
+            )
+            summary[f"{slc}|{ret}|{arm}"]["evidence_judged"] = len(evidence_scores)
 
     # Post-processing must never discard the paid judgments: a bug here used to
     # crash before the write and lose every judge call. Guard both analyses.
@@ -384,16 +547,21 @@ def main() -> int:
     bc.atomic_write_json(out_path, {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "judge_models": judge_models, "judge_prompt_id": JUDGE_PROMPT_ID,
+        "evidence_judge_mode": args.evidence_judge,
+        "evidence_judge_models": evidence_judge_models if args.evidence_judge != "never" else [],
+        "evidence_judge_prompt_id": EVIDENCE_JUDGE_PROMPT_ID,
         "n_judged": len(judged), "summary": summary,
         "inter_judge_agreement": agreement, "paired_vs_vector": paired,
         "results": judged,
     })
     print(f"\n== wrote {out_path.relative_to(ROOT)} ==")
-    print(f"\n{'slice':<22} {'retrieval':<13} {'arm':<13} n  judge  tok_f1  overlap  (C/P/I)")
+    print(f"\n{'slice':<22} {'retrieval':<13} {'arm':<13} n  judge  ev_use tok_f1  overlap  (C/P/I)")
     print("-" * 92)
     for row in summary.values():
+        ev = row.get("evidence_use_score_mean")
+        ev_s = f"{ev:.3f}" if isinstance(ev, (int, float)) else "  -  "
         print(f"{row['slice']:<22} {row['retrieval']:<13} {row['arm']:<13} {row['n']:<2} "
-              f"{row['judge_score_mean']:.3f}  {row['token_f1_mean']:.3f}   {row['overlap_mean']:.3f}    "
+              f"{row['judge_score_mean']:.3f}  {ev_s}  {row['token_f1_mean']:.3f}   {row['overlap_mean']:.3f}    "
               f"({row['correct']}/{row['partial']}/{row['incorrect']})")
     if agreement:
         print("\n-- inter-judge agreement --")

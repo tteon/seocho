@@ -20,6 +20,8 @@ from seocho import (
     KnownEntity,
     OntologyCandidate,
     OntologyClass,
+    OntologyProfile,
+    OntologySignal,
     OntologyProperty,
     Seocho,
     SemanticArtifactDraftInput,
@@ -576,6 +578,140 @@ def test_artifact_client_methods_use_expert_api_surface():
     assert session.calls[2]["json"]["name"] == "finance_v2"
     assert session.calls[3]["url"] == "http://localhost:8001/semantic/artifacts/sa_2/approve"
     assert session.calls[4]["url"] == "http://localhost:8001/semantic/artifacts/sa_2/deprecate"
+
+
+def test_ontology_control_plane_client_methods_use_expert_api_surface():
+    session = _FakeSession(
+        [
+            _FakeResponse(
+                payload={
+                    "workspace_id": "default",
+                    "profile_id": "finance-core",
+                    "ontology_id": "finance",
+                    "version": "v1",
+                    "status": "draft",
+                    "ontology_candidate": {"ontology_name": "finance", "classes": [], "relationships": []},
+                    "metrics": {"judge_score": 0.6},
+                }
+            ),
+            _FakeResponse(payload={"profiles": [{"profile_id": "finance-core", "status": "draft"}]}),
+            _FakeResponse(
+                payload={
+                    "workspace_id": "default",
+                    "profile_id": "finance-core",
+                    "ontology_id": "finance",
+                    "version": "v1",
+                    "status": "draft",
+                    "ontology_candidate": {"ontology_name": "finance", "classes": [], "relationships": []},
+                }
+            ),
+            _FakeResponse(
+                payload={
+                    "workspace_id": "default",
+                    "profile_id": "finance-core",
+                    "ontology_id": "finance",
+                    "version": "v1",
+                    "status": "approved",
+                    "ontology_candidate": {"ontology_name": "finance", "classes": [], "relationships": []},
+                    "promoted_by": "reviewer",
+                }
+            ),
+            _FakeResponse(
+                payload={
+                    "schema_version": "ontology_control_profile.v1",
+                    "profile_id": "finance-core",
+                    "workspace_id": "default",
+                    "label_aliases": {"revenue": "FinancialMetric"},
+                    "relation_aliases": {},
+                    "required_slots": ["FinancialMetric.value"],
+                    "route_hints": {},
+                    "answer_shapes": {},
+                    "metrics": {},
+                }
+            ),
+            _FakeResponse(
+                payload={
+                    "profile_id": "finance-core",
+                    "score": 0.77,
+                    "reasons": ["alias_match"],
+                    "compiled_profile": {"profile_id": "finance-core"},
+                }
+            ),
+            _FakeResponse(
+                payload={
+                    "profile_id": "finance-core",
+                    "baseline_profile_id": "finance-base",
+                    "decision": "promote_candidate",
+                    "expected_effect": {"quality_delta": 0.04},
+                    "metric_deltas": {"judge_score": 0.04},
+                    "reasons": ["quality_lift"],
+                    "user_controls": ["approve_profile"],
+                }
+            ),
+            _FakeResponse(
+                payload={
+                    "signal_id": "os_1",
+                    "workspace_id": "default",
+                    "source": "query",
+                    "kind": "missing_slot",
+                    "profile_id": "finance-core",
+                    "canonical": "FinancialMetric.value",
+                    "observed": "empty result",
+                    "confidence": 0.8,
+                    "evidence_count": 1,
+                    "affected_queries": [],
+                    "metadata": {},
+                    "created_at": "2026-06-03T00:00:00+00:00",
+                }
+            ),
+            _FakeResponse(payload={"signals": [{"signal_id": "os_1", "kind": "missing_slot"}]}),
+        ]
+    )
+    client = Seocho(base_url="http://localhost:8001", session=session)
+
+    profile = OntologyProfile(
+        profile_id="finance-core",
+        ontology_id="finance",
+        ontology_candidate={"ontology_name": "finance", "classes": [], "relationships": []},
+        metrics={"judge_score": 0.6},
+    )
+    signal = OntologySignal(
+        source="query",
+        kind="missing_slot",
+        profile_id="finance-core",
+        canonical="FinancialMetric.value",
+        observed="empty result",
+        confidence=0.8,
+    )
+
+    upserted = client.upsert_ontology_profile(profile)
+    listed = client.list_ontology_profiles(status="draft")
+    fetched = client.get_ontology_profile("finance-core")
+    promoted = client.promote_ontology_profile("finance-core", promoted_by="reviewer")
+    compiled = client.compile_ontology_profile("finance-core")
+    selected = client.select_ontology_profile("Show revenue")
+    evaluated = client.evaluate_ontology_profile("finance-core", baseline_profile_id="finance-base")
+    created_signal = client.create_ontology_signal(signal)
+    signals = client.list_ontology_signals(kind="missing_slot")
+
+    assert upserted.profile_id == "finance-core"
+    assert listed[0]["profile_id"] == "finance-core"
+    assert fetched.ontology_id == "finance"
+    assert promoted.status == "approved"
+    assert compiled.required_slots == ["FinancialMetric.value"]
+    assert selected.reasons == ["alias_match"]
+    assert evaluated.decision == "promote_candidate"
+    assert created_signal.signal_id == "os_1"
+    assert signals[0]["kind"] == "missing_slot"
+
+    assert session.calls[0]["url"] == "http://localhost:8001/semantic/ontology-profiles"
+    assert session.calls[1]["params"]["status"] == "draft"
+    assert session.calls[3]["url"] == "http://localhost:8001/semantic/ontology-profiles/finance-core/promote"
+    assert session.calls[4]["url"] == "http://localhost:8001/semantic/ontology-profiles/finance-core/compiled"
+    assert session.calls[5]["url"] == "http://localhost:8001/semantic/ontology-profiles/select"
+    assert session.calls[6]["json"]["baseline_profile_id"] == "finance-base"
+    assert session.calls[7]["url"] == "http://localhost:8001/semantic/ontology-signals"
+    assert session.calls[8]["params"]["kind"] == "missing_slot"
 
 
 def test_apply_artifact_posts_memory_with_approved_only_policy():

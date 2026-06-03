@@ -61,6 +61,21 @@ This is SEOCHO's lock-in layer: users own portable semantics, but SEOCHO owns
 the operational loop that chooses, compiles, measures, and promotes the right
 ontology profile for each workspace and query.
 
+Runtime and SDK user controls now cover the first closed loop:
+
+- `POST /semantic/ontology-signals`: record indexing/query discoveries
+- `GET /semantic/ontology-signals`: inspect signal history
+- `POST /semantic/ontology-profiles`: create or update a profile
+- `GET /semantic/ontology-profiles`: list profile candidates by status
+- `GET /semantic/ontology-profiles/{profile_id}/compiled`: inspect the hot-path
+  artifact that agents will consume
+- `POST /semantic/ontology-profiles/select`: see which profile SEOCHO would use
+  for a query and why
+- `POST /semantic/ontology-profiles/{profile_id}/evaluate`: compare a candidate
+  against a baseline with expected quality/latency/cost deltas
+- `POST /semantic/ontology-profiles/{profile_id}/promote`: approve the profile
+  selected by the review workflow
+
 ## User Contract
 
 The user workflow should stay simple:

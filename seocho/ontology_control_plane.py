@@ -64,6 +64,8 @@ class OntologySignal(JsonSerializable):
     evidence_count: int = 1
     affected_queries: List[str] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
+    signal_id: str = ""
+    created_at: str = ""
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> "OntologySignal":
@@ -78,6 +80,8 @@ class OntologySignal(JsonSerializable):
             evidence_count=max(1, int(payload.get("evidence_count", 1) or 1)),
             affected_queries=_clean_list(payload.get("affected_queries")),
             metadata=dict(payload.get("metadata", {})) if isinstance(payload.get("metadata"), dict) else {},
+            signal_id=_clean_text(payload.get("signal_id")),
+            created_at=_clean_text(payload.get("created_at")),
         )
 
 
@@ -98,6 +102,11 @@ class OntologyProfile(JsonSerializable):
     metrics: Dict[str, float] = field(default_factory=dict)
     source_signal_ids: List[str] = field(default_factory=list)
     tags: List[str] = field(default_factory=list)
+    created_at: str = ""
+    updated_at: str = ""
+    promoted_at: str = ""
+    promoted_by: str = ""
+    promotion_note: str = ""
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> "OntologyProfile":
@@ -130,6 +139,11 @@ class OntologyProfile(JsonSerializable):
             metrics=metrics,
             source_signal_ids=_clean_list(payload.get("source_signal_ids")),
             tags=_clean_list(payload.get("tags")),
+            created_at=_clean_text(payload.get("created_at")),
+            updated_at=_clean_text(payload.get("updated_at")),
+            promoted_at=_clean_text(payload.get("promoted_at")),
+            promoted_by=_clean_text(payload.get("promoted_by")),
+            promotion_note=_clean_text(payload.get("promotion_note")),
         )
 
     def stable_id(self) -> str:

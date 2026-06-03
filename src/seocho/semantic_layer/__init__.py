@@ -15,6 +15,7 @@ from .concepts import (
     DEFAULT_FINANCE_CONCEPTS,
     default_registry,
 )
+from .compile import compile_observation_lookup
 from .identity import EntityResolver, default_resolver, normalize_name
 from .keys import observation_key
 from .periods import Period, normalize_period, parse_period
@@ -33,4 +34,5 @@ __all__ = [
     "normalize_period",
     "parse_period",
     "ObservationSlots",
+    "compile_observation_lookup",
 ]

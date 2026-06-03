@@ -336,3 +336,14 @@ def test_make_llm_judge_fn_wires_into_run_layer3() -> None:
     )
     assert report.judge_evaluated == 1
     assert report.avg_judge_score == 0.9
+
+
+# --- answerability (cold-review: the upstream gate) ---------------------------
+
+
+def test_answerability_rate_basic() -> None:
+    from seocho.eval.gopts_answer_quality import answerability_rate
+    assert answerability_rate([0, 0, 0, 0]) == 0.0      # all empty
+    assert answerability_rate([1, 1, 1, 1]) == 1.0
+    assert answerability_rate([3, 0, 5, 0]) == 0.5
+    assert answerability_rate([]) == 0.0

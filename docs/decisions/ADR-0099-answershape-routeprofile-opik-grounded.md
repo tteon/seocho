@@ -153,14 +153,52 @@ Deferred:
 - LLM tier of `classify_answer_shape` (rules suffice for FinDER).
 - Scored ontology grounding (the icml `fibo_ground_*` pattern) as a
   retrieval leg — not yet ported.
-- `SEOCHO_ANSWER_SHAPE` is now **default-on (opt-out via =0)** — adopted
-  2026-06-03 on the wide-validation evidence (token_f1 0.146→0.629, exact
-  0→0.60, zero regression on unknown-shape cases). Safe because
-  explanation/unknown shapes emit no directive (provable no-op), and the
-  verified-financial deterministic path runs *before* synthesis so the two
-  terse paths are complementary, never doubled. Confirmed: with no env set,
-  the lane engages AnswerShape (f1 ≫ the 0.146 prose baseline). Disable per
-  run with `SEOCHO_ANSWER_SHAPE=0`.
+- `SEOCHO_ANSWER_SHAPE` is **default-on (opt-out via =0)**. See the
+  correction below for what that default actually buys.
+
+## Correction (2026-06-03, cross-model LLM-judge)
+
+A cold multi-expert review challenged the AnswerShape "win" as
+token-F1 / exact-match *metric-gaming* (terse answers trivially maximize
+overlap against short gold strings; the baseline already had
+contains-match = 1.0, i.e. the correct fact was retrieved and stated,
+just wrapped in prose). We re-measured with a **cross-model LLM-judge**
+(generator MiniMax-M2.5, judge DeepSeek-V3.1) on the 10-case FinDER set:
+
+| metric              | AnswerShape off | AnswerShape on |
+|---------------------|-----------------|----------------|
+| token_f1            | 0.16            | 0.41           |
+| exact_match         | 0.00            | 0.30           |
+| **LLM-judge score** | **0.70**        | **0.70**       |
+
+**The judge sees ZERO quality difference (+0.000).** The token-F1/exact
+gains are a metric artifact, not a correctness gain — the judge scores
+the verbose baseline answer ("…is $211.9 billion") exactly as correct as
+the terse one. The review was right.
+
+**Reframing:** AnswerShape is a **format / extractive-consumer feature,
+not an answer-quality improvement.** It is genuinely useful for
+programmatic consumers (tool-call chaining, structured extraction, and
+any token-F1/exact-match leaderboard), and the judge shows it is
+**quality-neutral** (no regression). It stays default-on on that basis —
+terse value answers are a reasonable default for a graph-memory
+middleware whose outputs are often consumed programmatically — but it
+must NOT be cited as a quality win. The earlier "+0.48 f1 measured win"
+framing is withdrawn.
+
+**Answerability** (the upstream gate the review flagged) measured ~0.80
+on this ontology (≈20% of cases retrieve 0 records) — a real but
+smaller-than-feared bottleneck, and the genuine next target. (The
+text-based answerability proxy used here is approximate; a record-count
+instrument is the follow-up.)
+
+Net honest conclusion across all four opik-derived legs: **none produced
+a judge-confirmed answer-quality improvement.** AnswerShape is a
+quality-neutral format win; RouteProfile / F8 / grounding are null. The
+session's real value is the *instrumentation* (Layer-1/2/3 + answerability
++ cross-model judge) that produced these honest negatives — and the
+redirection they imply: attack answerability and judge-scored quality,
+not lexical metrics.
 
 ## Implementation Notes
 

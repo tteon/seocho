@@ -77,6 +77,22 @@ def test_builder_drops_explanatory_scope_tokens_for_gross_margin_question() -> N
     assert intent["metric_scope_tokens"] == ["gross"]
 
 
+def test_builder_routes_qualitative_company_context_away_from_financial_metric_lookup() -> None:
+    builder = CypherBuilder(_finance_ontology())
+
+    intent = builder.normalize_intent(
+        "STX's revenue, supply chain, and operating performance are influenced by lead-time forecasts.",
+        {
+            "intent": "financial_metric_lookup",
+            "anchor_entity": "STX",
+            "metric_name": "revenue, supply chain, operating performance",
+        },
+    )
+
+    assert intent["intent"] == "neighbors"
+    assert intent["anchor_entity"] == "STX"
+
+
 def test_builder_normalizes_legal_relationship_lookup_from_question() -> None:
     ontology = Ontology(
         name="legal_graph",

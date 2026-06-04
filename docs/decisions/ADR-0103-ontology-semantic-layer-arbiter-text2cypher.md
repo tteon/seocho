@@ -207,6 +207,15 @@ fallback for issuers/sections without clean XBRL. S11's value is proving the
 direction (0.00→0.33) AND that the arbiter's CLARIFY-on-gap keeps the noisy path
 honest.
 
+**MEASURED (S11 follow-up, deterministic XBRL ingest, `xbrl_ingest_run.py` +
+`src/seocho/index/xbrl_ingest.py`):** ingesting SEC XBRL `companyfacts` (the
+structured Item-8 source) into reified Observations and running the lane gives
+**xbrl_srhr = 1.00 (15/15, all STRUCTURED, 18 observations)** — vs the noisy
+HTML-table 0.333. This is the production ingestion path: deterministic, no LLM,
+no HTML parsing. HONEST NOTE: SEC XBRL is also the gold source, so 1.00 confirms
+the INGESTER is correct, it is NOT a benchmark win; HTML-table extraction (S11)
+remains the fallback for sections without clean XBRL.
+
 **Staged roadmap (resolves the multi-ontology fork):**
 - **v1 (smallest slice):** single finance manifest; `route ∈ {STRUCTURED,
   NARRATIVE, CLARIFY, FAIL}`; `ontology_id` field present but constant

@@ -54,6 +54,50 @@ def test_unknown_route_class_defaults_safely():
     assert p.rationale  # non-empty
 
 
+@pytest.mark.parametrize(
+    "intent_id,expected",
+    [
+        ("relationship_lookup", "R4_GRAPH_JOIN"),
+        ("responsibility_lookup", "R4_GRAPH_JOIN"),
+        ("engineering_tradeoff_lookup", "R5_LONG_CONTEXT_REASONING"),
+        ("entity_lookup", "R1_LOOKUP"),
+        ("metric_lookup", "R1_LOOKUP"),
+        ("", "R1_LOOKUP"),
+    ],
+)
+def test_derive_route_class_mapping(intent_id, expected):
+    """Shared route-class derivation (runtime lane gating + evidence bundle agree)."""
+    from seocho.query.intent import derive_route_class
+    assert derive_route_class(intent_id=intent_id) == expected
+
+
+def test_derive_route_class_explanation_depends_on_source():
+    from seocho.query.intent import derive_route_class
+    assert derive_route_class(intent_id="explanation_lookup", source_types=["text"]) == "R5_LONG_CONTEXT_REASONING"
+    assert derive_route_class(intent_id="explanation_lookup", source_types=["graph"]) == "R1_LOOKUP"
+
+
+def test_runtime_lane_gate_default_off():
+    """F3 runtime gate must be OFF unless explicitly enabled (no silent change)."""
+    import os
+    from seocho.local_engine import _lane_policy_enabled
+    os.environ.pop("SEOCHO_LANE_POLICY", None)
+    assert _lane_policy_enabled() is False
+    os.environ["SEOCHO_LANE_POLICY"] = "1"
+    try:
+        assert _lane_policy_enabled() is True
+    finally:
+        os.environ.pop("SEOCHO_LANE_POLICY", None)
+
+
+def test_relationship_intent_keeps_graph_context_lane():
+    """A relationship query → R4 → hybrid → graph context retained (not gated out)."""
+    from seocho.query.intent import derive_route_class
+    from seocho.query.route_policy import recommend_lane
+    lane = recommend_lane(derive_route_class(intent_id="relationship_lookup"), "deterministic")
+    assert lane.retrieval == "hybrid"  # graph context kept for relational
+
+
 def test_route_profile_carries_lane_policy():
     """_build_route_profile must emit the lane_policy so downstream + traces see it."""
     from seocho.query.intent import _build_route_profile

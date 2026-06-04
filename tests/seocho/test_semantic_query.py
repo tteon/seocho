@@ -106,3 +106,34 @@ def test_semantic_answer_multi_ontology_picks_finance_and_answers():
     assert sr.route == "STRUCTURED"
     assert sr.answer == "$391,035 million (fiscal:2024:FY)"
     assert sr.hint.ontology_id == "finance"
+
+
+# ---- H3: operational route policy (clarification) ---------------------------
+
+def test_clarification_message_offers_available_periods():
+    from seocho.query.arbiter import ArbiterHint, CLARIFY
+    from seocho.query.semantic_query import clarification_message
+    hint = ArbiterHint(route=CLARIFY, missing_slots=(),
+                       available_periods=("fiscal:2024:FY", "fiscal:2023:FY"))
+    msg = clarification_message(hint)
+    assert "fiscal year" in msg.lower()
+    assert "FY2023" in msg and "FY2024" in msg
+
+
+def test_clarification_message_period_unspecified_and_entity():
+    from seocho.query.arbiter import ArbiterHint, CLARIFY
+    from seocho.query.semantic_query import clarification_message
+    assert "fiscal year" in clarification_message(
+        ArbiterHint(route=CLARIFY, missing_slots=("period",))).lower()
+    assert "company" in clarification_message(
+        ArbiterHint(route=CLARIFY, missing_slots=("entity",))).lower()
+
+
+def test_lane_clarify_route_returns_no_answer_for_caller_to_surface():
+    # period present in question but absent in graph -> CLARIFY, answer None
+    kw = _kw(_Graph(periods=["fiscal:2023:FY"], value=1.0))   # 2024 not present
+    kw["llm"] = _LLM(_REV_2024)
+    sr = semantic_answer("...", **kw)
+    assert sr.route == "CLARIFY" and sr.answer is None
+    from seocho.query.semantic_query import clarification_message
+    assert "FY2023" in clarification_message(sr.hint)         # offers what IS there

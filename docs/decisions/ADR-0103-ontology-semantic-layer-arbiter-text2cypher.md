@@ -227,6 +227,25 @@ finance, "admissions"/"mortality" → clinical, out-of-vocab → null match (rou
 NARRATIVE/FAIL). The lane picks the right ontology and answers STRUCTURED with
 the selected `ontology_id`.
 
+**DELIVERED (H3, operational route policy + observability):** `local_engine.ask`
+now acts on every route, not just STRUCTURED — CLARIFY returns a
+`clarification_message` (offering the fiscal years the graph actually holds)
+instead of a silent empty result; NARRATIVE/FAIL fall through to the existing
+lane (chunk fallback); the arbiter route + `ontology_id` + rationale are emitted
+as a `semantic.route` tracing span (`log_span`) so route distribution is
+observable. `self._last_semantic_route`/`_last_semantic_hint` exposed for
+programmatic inspection.
+
+**DEFAULT-ON DECISION (H3):** `SEOCHO_SEMANTIC_LAYER` and `SEOCHO_ARBITER` stay
+**default-OFF**. The SRHR=1.0 evidence is on the gold-seeded / clean-template
+structured path (a favorable upper bound); flipping the default on that basis
+would repeat the AnswerShape token-F1 over-claim (a metric-favorable result
+mistaken for a general win). Default-on is gated on a **real-workload A/B** —
+varied phrasing, OOV metrics, populated production graphs — measuring SRHR
+fallback-OFF, the prior-staleness delta, and the MARA-judge guard on a held-out
+set, with the arbiter route distribution (now observable via tracing) confirming
+STRUCTURED coverage is high before the flip.
+
 **Staged roadmap (resolves the multi-ontology fork):**
 - **v1 (smallest slice):** single finance manifest; `route ∈ {STRUCTURED,
   NARRATIVE, CLARIFY, FAIL}`; `ontology_id` field present but constant

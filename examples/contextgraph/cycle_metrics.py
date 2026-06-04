@@ -78,12 +78,18 @@ def shacl_conformance(gs, w, db):
     # SH3: >=1 stance edge
     sc = _q(gs, f"MATCH (a {{_workspace_id:$w}})-[r]->(b {{_workspace_id:$w}}) WHERE type(r) IN {_STANCE} RETURN count(r) AS c", w, db)
     sh["SH3_has_stance"] = bool(sc and sc[0]["c"] > 0)
-    # SH4: every Decision non-empty name AND linked to a Proposal
+    # SH4: well-formedness of any Decisions PRESENT (non-empty name + linked to a
+    # Proposal). Domain-expert fix: do NOT force decision EXISTENCE (only ~4/40 BC3
+    # threads actually resolve — forcing it manufactures decisions). So SH4 is
+    # measured ONLY over workspaces that have ≥1 Decision (well-formedness), and
+    # decision PRESENCE is reported separately (`has_decision`), never required.
+    # This removes the vacuous-true pass without test-leakage.
     dec = _q(gs, "MATCH (d:Decision {_workspace_id:$w}) RETURN count(d) AS n", w, db)
     ndec = dec[0]["n"] if dec else 0
     good = _q(gs, "MATCH (d:Decision {_workspace_id:$w}) WHERE d.name IS NOT NULL AND d.name<>'' "
                   "AND (d)--(:Proposal {_workspace_id:$w}) RETURN count(DISTINCT d) AS n", w, db)
-    sh["SH4_decision_resolves"] = bool(ndec == 0 or (good and good[0]["n"] == ndec))
+    sh["SH4_decision_wellformed"] = None if ndec == 0 else bool(good and good[0]["n"] == ndec)
+    sh["_has_decision"] = ndec > 0  # reported as presence rate, NOT a conformance gate
     return sh
 
 
@@ -92,8 +98,15 @@ def antipattern_lints(gs, w, db):
     labs = [r["l"] for r in _q(gs, "MATCH (n {_workspace_id:$w}) RETURN DISTINCT labels(n)[0] AS l", w, db) if r["l"]]
     ent_labs = [l for l in labs if l not in _INFRA]
     rels = [r["t"] for r in _q(gs, "MATCH (a {_workspace_id:$w})-[r]->(b {_workspace_id:$w}) RETURN DISTINCT type(r) AS t", w, db)]
-    edge_counts = {r["t"]: r["c"] for r in _q(gs, "MATCH (a {_workspace_id:$w})-[r]->(b {_workspace_id:$w}) RETURN type(r) AS t, count(*) AS c", w, db)}
-    total_edges = sum(edge_counts.values()) or 1
+    # AP5 fix (domain-expert): MENTIONS is mostly PROVENANCE plumbing (Chunk→entity),
+    # not an LLM co-occurrence edge — so measure the generic-fallback fraction over
+    # GENERATED edges only (exclude edges whose START node is an infra label).
+    infra_list = list(_INFRA)
+    gen = {r["t"]: r["c"] for r in _q(
+        gs, f"MATCH (a {{_workspace_id:$w}})-[r]->(b {{_workspace_id:$w}}) "
+            f"WHERE NOT labels(a)[0] IN {infra_list} RETURN type(r) AS t, count(*) AS c", w, db)}
+    total_gen = sum(gen.values()) or 1
+    generic = gen.get("MENTIONS", 0) + gen.get("RELATED_TO", 0)
     # property keys across entity nodes
     propkeys = set()
     for row in _q(gs, "MATCH (n {_workspace_id:$w}) WITH keys(n) AS ks UNWIND ks AS k RETURN DISTINCT k AS k", w, db):
@@ -115,13 +128,22 @@ def antipattern_lints(gs, w, db):
     convs = {_conv(x) for x in (ent_labs + rels) if x}
     # concept-instance proxy: entity labels that look like instances (multi-word / digits)
     instanceish = [l for l in ent_labs if (" " in l or any(c.isdigit() for c in l))]
+    # grounding lint (anti-fabrication, §20): fraction of decision-bearing nodes
+    # (Proposal/Decision/Stance) carrying a source_quote/source_msg property.
+    g = _q(gs, "MATCH (n {_workspace_id:$w}) WHERE labels(n)[0] IN ['Proposal','Decision','Stance'] "
+               "RETURN count(n) AS n, "
+               "sum(CASE WHEN n.source_quote IS NOT NULL AND n.source_quote<>'' "
+               "OR n.source_msg IS NOT NULL THEN 1 ELSE 0 END) AS grounded", w, db)
+    ng = g[0]["n"] if g else 0
+    grounded_frac = (g[0]["grounded"] / ng) if (g and ng) else 0.0
 
     return {
         "AP1_entity_label_count": len(ent_labs),            # hierarchy explosion proxy
         "AP2_naming_conventions": len(convs),               # >1 = inconsistent taxonomy
         "AP3_dup_property_keys": dup_props,                 # property sprawl
         "AP4_instanceish_labels": len(instanceish),         # concept-instance confusion
-        "AP5_mentions_fraction": round(edge_counts.get("MENTIONS", 0) / total_edges, 3),  # modelling-by-association
+        "AP5_generic_edge_fraction": round(generic / total_gen, 3),  # generated MENTIONS/RELATED_TO over GENERATED edges
+        "grounded_fraction": round(grounded_frac, 3),       # anti-fabrication: source-quoted decision nodes
     }
 
 
@@ -139,7 +161,9 @@ def main():
             params={"p": args.ws_prefix}, database=args.db)]
         if args.limit:
             wss = wss[: args.limit]
-        cq_acc = defaultdict(int); sh_acc = defaultdict(int); ap_acc = defaultdict(float)
+        cq_acc = defaultdict(int); ap_acc = defaultdict(float)
+        sh_pass = defaultdict(int); sh_applic = defaultdict(int)  # conformance over APPLICABLE workspaces
+        has_dec = 0
         cov_sum = 0.0
         for w in wss:
             cqs = cq_coverage(gs, w, args.db)
@@ -147,16 +171,24 @@ def main():
             aps = antipattern_lints(gs, w, args.db)
             cov_sum += sum(cqs.values()) / len(cqs)
             for k, v in cqs.items(): cq_acc[k] += int(v)
-            for k, v in shs.items(): sh_acc[k] += int(v)
+            has_dec += int(shs.pop("_has_decision", False))
+            for k, v in shs.items():
+                if v is None:  # shape not applicable to this workspace (e.g. no Decision)
+                    continue
+                sh_applic[k] += 1; sh_pass[k] += int(v)
             for k, v in aps.items(): ap_acc[k] += v
         n = len(wss)
-        print(f"== cycle_metrics round-0 baseline: {n} workspaces ({args.ws_prefix}) ==\n")
+        label = "round-0 baseline (corrected metric)"
+        print(f"== cycle_metrics {label}: {n} workspaces ({args.ws_prefix}) ==\n")
         print(f"CQ COVERAGE (mean across workspaces): {cov_sum/n:.1%}")
         for k in sorted(cq_acc): print(f"  {k:<22} answerable in {cq_acc[k]}/{n} ({cq_acc[k]/n:.0%})")
-        print("\nSHACL-LIKE CONFORMANCE (workspaces passing each shape):")
-        for k in sorted(sh_acc): print(f"  {k:<22} {sh_acc[k]}/{n} ({sh_acc[k]/n:.0%})")
-        print("\nANTI-PATTERN LINTS (mean per workspace; lower=better):")
-        for k in sorted(ap_acc): print(f"  {k:<26} {ap_acc[k]/n:.2f}")
+        print("\nSHACL-LIKE CONFORMANCE (pass / applicable workspaces):")
+        for k in sorted(sh_pass):
+            ap_ = sh_applic[k]
+            print(f"  {k:<24} {sh_pass[k]}/{ap_} ({(sh_pass[k]/ap_ if ap_ else 0):.0%})")
+        print(f"  decision_presence_rate   {has_dec}/{n} ({has_dec/n:.0%})  [reported, NOT required]")
+        print("\nANTI-PATTERN LINTS (mean per workspace; lower=better except grounded_fraction):")
+        for k in sorted(ap_acc): print(f"  {k:<26} {ap_acc[k]/n:.3f}")
     finally:
         gs.close()
 

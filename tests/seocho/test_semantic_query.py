@@ -81,3 +81,28 @@ def test_out_of_vocab_routes_narrative_no_answer():
                      '"entity_surface":"Apple Inc.","period":"FY2024"}')
     sr = semantic_answer("...", **kw)
     assert sr.answer is None and sr.route == "NARRATIVE"
+
+
+# ---- v2: multi-ontology routing in the lane ---------------------------------
+
+def test_semantic_answer_multi_ontology_picks_finance_and_answers():
+    from seocho.query.arbiter import OntologyManifest
+    from seocho.semantic_layer import (
+        ConceptRegistry, EntityResolver, MetricConcept, default_resolver,
+    )
+    finance = OntologyManifest("finance", default_registry(), default_resolver())
+    clinical = OntologyManifest(
+        "clinical",
+        ConceptRegistry((MetricConcept("metric:PatientCount", "Patient Count",
+                                       ("admissions",), "count"),)),
+        EntityResolver(),
+    )
+    graph = _Graph(periods=["fiscal:2024:FY"], value=391035000000.0)
+    sr = semantic_answer(
+        "What was Apple Inc.'s total revenue for fiscal year 2024?",
+        llm=_LLM(_REV_2024), graph_store=graph, database="db", workspace_id="ws",
+        manifests=[clinical, finance],   # order shouldn't matter; finance must win
+    )
+    assert sr.route == "STRUCTURED"
+    assert sr.answer == "$391,035 million (fiscal:2024:FY)"
+    assert sr.hint.ontology_id == "finance"

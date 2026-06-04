@@ -24,6 +24,8 @@ class RouteProfile:
     tool_policy: str
     recommended_tools: Tuple[str, ...] = ()
     rationale: Tuple[str, ...] = ()
+    # F3: data-grounded retrieval-lane recommendation (route_policy@v1).
+    lane_policy: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

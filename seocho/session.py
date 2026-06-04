@@ -32,6 +32,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import threading
 import time
 import uuid
@@ -149,6 +150,7 @@ class Session:
         workspace_id: str = "default",
         ontology_profile: str = "default",
         user_id: Optional[str] = None,
+        response_cache: Any = None,
     ) -> None:
         self.session_id = str(uuid.uuid4())[:12]
         self.name = name or f"session-{self.session_id}"
@@ -164,6 +166,21 @@ class Session:
         self.user_id = user_id
 
         self.context = SessionContext()
+        # F2 (ADR-0102 follow-up): opt-in persistent L2 response cache. Default
+        # OFF (no silent behavior change, §18). Enable by passing response_cache=
+        # a ResponseCache, or set SEOCHO_RESPONSE_CACHE=<path> for a JSONL backend.
+        if response_cache is None:
+            _rc_path = os.environ.get("SEOCHO_RESPONSE_CACHE", "").strip()
+            if _rc_path:
+                try:
+                    from .response_cache import JSONLResponseCache
+
+                    response_cache = JSONLResponseCache(_rc_path)
+                    logger.info("Session persistent response cache active (JSONL: %s)", _rc_path)
+                except Exception:
+                    logger.warning("SEOCHO_RESPONSE_CACHE set but cache init failed", exc_info=True)
+        if response_cache is not None:
+            self.context.response_cache = response_cache
         from .ontology_context import OntologyContextCache
 
         self._ontology_context_cache = OntologyContextCache(max_size=8)
@@ -237,6 +254,28 @@ class Session:
         if self.agent_config is not None:
             return normalize_execution_mode(getattr(self.agent_config, 'execution_mode', 'pipeline'))
         return "pipeline"
+
+    def _graph_epoch(self, database: str) -> str:
+        """Cheap per-workspace graph signature for L2 cache invalidation (F2).
+
+        Returns the workspace node count as a string. A re-ingest changes the
+        count → the cache key changes → stale answers are never served from a
+        fresh process. Read-only, parameterized (§8). On any failure returns ""
+        (cache still scoped by workspace+ontology_hash; never breaks a query).
+        Limitation: a pure in-place edit that keeps the count identical would
+        not invalidate — acceptable for Tier-0; a content-hash epoch is the
+        follow-up if needed.
+        """
+        try:
+            rows = self.graph_store.query(
+                "MATCH (n {_workspace_id: $w}) RETURN count(n) AS c",
+                params={"w": self.workspace_id},
+                database=database,
+            )
+            return str(rows[0]["c"]) if rows else "0"
+        except Exception:
+            logger.debug("graph_epoch read failed; cache scoped without it", exc_info=True)
+            return ""
 
     def _stamp_observability_health(self, result: Dict[str, Any]) -> None:
         """Stamp degraded_observability=True on result when traces are silently dropped.
@@ -502,11 +541,16 @@ class Session:
 
         # seocho-9gdm: scope cache lookup by (workspace_id, database, ontology_hash)
         identity_hash = getattr(self._ontology_context.descriptor, "context_hash", "") or ""
+        # F2: graph_epoch invalidates the persistent L2 cache on graph mutation.
+        # Computed (one cheap COUNT) ONLY when the persistent cache is enabled, so
+        # the default no-cache path pays no extra DB round-trip.
+        graph_epoch = self._graph_epoch(db) if self.context.response_cache is not None else ""
         cached = self.context.get_cached_answer(
             question,
             workspace_id=self.workspace_id,
             database=db,
             ontology_identity_hash=identity_hash,
+            graph_epoch=graph_epoch,
         )
         if cached is not None:
             self.context.add_query(question, cached, mode="cache")
@@ -572,6 +616,7 @@ class Session:
             workspace_id=self.workspace_id,
             database=db,
             ontology_identity_hash=identity_hash,
+            graph_epoch=graph_epoch,
         )
 
         # Trace

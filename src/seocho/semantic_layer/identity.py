@@ -7,15 +7,20 @@ entity to the SAME CIK and matches on equality — replacing the brittle
 
 Resolution is deterministic: exact ticker, then normalized-name exact match.
 The CIK table is built OFFLINE (from SEC's company_tickers index) and frozen;
-this module only does O(1) lookups (no network on the hot path). The default
-table is a small confirmed seed; the full table is loaded via `from_ticker_map`.
+this module only does O(1) lookups (no network on the hot path). `default_resolver`
+loads the full frozen table (~10k issuers) built by scripts/build_cik_table.py,
+falling back to a small confirmed seed when that resource is absent.
 """
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Dict, Optional
+
+_FROZEN_TABLE = Path(__file__).resolve().parent / "cik_table.json"
 
 _SUFFIX_RE = re.compile(
     r"\b(inc|incorporated|corp|corporation|co|company|ltd|limited|plc|"
@@ -64,9 +69,22 @@ class EntityResolver:
                 name_map[normalize_name(name)] = cik
         return cls(cik_by_ticker=ticker_map, cik_by_name=name_map)
 
+    @classmethod
+    def from_frozen(cls, path: "Path" = _FROZEN_TABLE) -> Optional["EntityResolver"]:
+        """Load the full offline-built table (by_ticker + by_name), or None."""
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            return None
+        by_ticker = {str(k).upper(): str(v) for k, v in data.get("by_ticker", {}).items()}
+        by_name = {str(k): str(v) for k, v in data.get("by_name", {}).items()}
+        if not by_ticker and not by_name:
+            return None
+        return cls(cik_by_ticker=by_ticker, cik_by_name=by_name)
 
-# Small confirmed seed (verified against SEC company_tickers). The full frozen
-# table is built offline; this lets the resolver work for the benchmark basket.
+
+# Small confirmed seed (verified against SEC company_tickers) — the fallback when
+# the frozen full table is absent (e.g. before scripts/build_cik_table.py runs).
 _SEED_TICKER_CIK = {
     "AAPL": "0000320193", "MSFT": "0000789019", "NVDA": "0001045810",
     "GOOGL": "0001652044", "AMZN": "0001018724",
@@ -76,6 +94,13 @@ _SEED_NAME = {
     "NVDA": "NVIDIA Corp", "GOOGL": "Alphabet Inc.", "AMZN": "Amazon.com, Inc.",
 }
 
+_DEFAULT_RESOLVER: Optional[EntityResolver] = None
+
 
 def default_resolver() -> EntityResolver:
-    return EntityResolver.from_ticker_map(_SEED_TICKER_CIK, _SEED_NAME)
+    """Full frozen table if present (cached), else the 5-company seed."""
+    global _DEFAULT_RESOLVER
+    if _DEFAULT_RESOLVER is None:
+        _DEFAULT_RESOLVER = (EntityResolver.from_frozen()
+                             or EntityResolver.from_ticker_map(_SEED_TICKER_CIK, _SEED_NAME))
+    return _DEFAULT_RESOLVER

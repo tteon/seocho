@@ -546,24 +546,32 @@ class _LocalEngine:
             reasoning_mode = True
             repair_budget = max(1, int(repair_budget or 0))
 
-        # ADR-0103 S4: semantic-layer lane (decompose -> arbitrate -> compile).
-        # Additive + env-gated (SEOCHO_SEMANTIC_LAYER): only short-circuits when
-        # the arbiter routes STRUCTURED and the exact-key Cypher returns a row;
-        # CLARIFY/NARRATIVE/FAIL fall through to the existing lane (which may
-        # chunk-fallback), so current behavior is preserved.
+        # ADR-0103 S4/H3: semantic-layer lane (decompose -> arbitrate -> compile)
+        # with the operational route policy. Additive + env-gated
+        # (SEOCHO_SEMANTIC_LAYER): STRUCTURED returns the exact-key answer;
+        # CLARIFY surfaces a clarification (offer available periods) rather than a
+        # silent empty result; NARRATIVE/FAIL fall through to the existing lane
+        # (which may chunk-fallback), preserving current behavior. The arbiter
+        # route is emitted as a tracing span for observability.
         self._last_semantic_route = None
+        self._last_semantic_hint = None
         if (os.environ.get("SEOCHO_SEMANTIC_LAYER", "").strip().lower()
                 in ("1", "true", "yes") and query_mode != "graph_cot"):
             try:
-                from .query.semantic_query import semantic_answer
+                from .query.semantic_query import clarification_message, semantic_answer
 
                 sr = semantic_answer(
                     question, llm=self.llm, graph_store=self.graph_store,
                     database=database, workspace_id=self.workspace_id,
                 )
                 self._last_semantic_route = sr.route
-                if sr.answer is not None:
+                self._last_semantic_hint = sr.hint
+                self._log_semantic_route(question, sr)
+                if sr.answer is not None:                       # STRUCTURED hit
                     return sr.answer
+                if sr.route == "CLARIFY":                       # offer a clarification
+                    return clarification_message(sr.hint)
+                # NARRATIVE / FAIL: fall through to the existing lane below
             except Exception as exc:  # never let the new lane break ask()
                 logger.warning("Semantic-layer lane skipped: %s", exc)
 
@@ -886,6 +894,24 @@ class _LocalEngine:
                     elapsed_seconds=elapsed_seconds,
                     metadata=self._last_query_metadata,
                 )
+        except Exception:
+            pass
+
+    def _log_semantic_route(self, question: str, sr: Any) -> None:
+        """Emit the arbiter route (ADR-0103 H3) as a tracing span for observability."""
+        try:
+            from .tracing import is_tracing_enabled, log_span
+
+            if not is_tracing_enabled():
+                return
+            hint = getattr(sr, "hint", None)
+            log_span(
+                "semantic.route",
+                input_data={"question": question},
+                output_data={"route": sr.route, "answer": sr.answer},
+                metadata=(hint.to_span() if hint is not None else {"arbiter.route": sr.route}),
+                tags=["semantic-layer", f"route:{sr.route}"],
+            )
         except Exception:
             pass
 

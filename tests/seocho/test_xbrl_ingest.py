@@ -76,3 +76,49 @@ def test_xbrl_map_and_resolve_xbrl():
     assert reg.resolve_xbrl("us-gaap:NetIncomeLoss") == "metric:NetIncome"
     assert reg.resolve_xbrl("CostOfGoodsSold") is None
     assert "Revenues" in reg.xbrl_map and "us-gaap:Revenues" not in reg.xbrl_map
+
+
+# ---- H2: expanded taxonomy + balance-sheet instant frames -------------------
+
+def test_registry_expanded_concepts_and_xbrl_map():
+    reg = default_registry()
+    for cid in ("metric:GrossProfit", "metric:OperatingIncome", "metric:EPS",
+                "metric:Assets", "metric:Liabilities", "metric:StockholdersEquity"):
+        assert reg.is_member(cid), cid
+    assert reg.resolve("total assets") == "metric:Assets"
+    assert reg.resolve("operating income") == "metric:OperatingIncome"
+    assert reg.resolve("diluted eps") == "metric:EPS"
+    assert reg.resolve_xbrl("Assets") == "metric:Assets"
+    assert reg.resolve_xbrl("OperatingIncomeLoss") == "metric:OperatingIncome"
+    assert reg.get("metric:Assets").period_type == "instant"
+    assert reg.get("metric:Revenue").period_type == "duration"
+
+
+def test_instant_frame_balance_sheet_ingestion():
+    # balance-sheet instants use CY{year}Q?I frames (FY-end snapshot), not CY{year}
+    facts = {"entityName": "Apple Inc.", "facts": {"us-gaap": {
+        "Assets": {"units": {"USD": [
+            {"frame": "CY2024Q3I", "form": "10-K", "end": "2024-09-28", "val": 364980000000},
+            {"frame": "CY2023Q3I", "form": "10-K", "end": "2023-09-30", "val": 352583000000},
+            {"frame": "CY2024Q1I", "form": "10-Q", "end": "2023-12-30", "val": 9},  # ignored
+        ]}},
+    }}}
+    nodes, _ = companyfacts_to_observations(
+        facts, registry=default_registry(), cik="0000320193", workspace_id="ws")
+    by = {o["properties"]["period_key"]: o["properties"]["value_num"]
+          for o in nodes if o["label"] == "Observation"}
+    assert by["fiscal:2024:FY"] == 364980000000.0     # FY-end instant captured
+    assert by["fiscal:2023:FY"] == 352583000000.0
+    # 10-Q quarterly instant ignored
+    assert len(by) == 2
+
+
+def test_eps_uses_usd_per_share_unit():
+    facts = {"facts": {"us-gaap": {"EarningsPerShareDiluted": {"units": {"USD/shares": [
+        {"frame": "CY2024", "form": "10-K", "end": "2024-09-28", "val": 6.08},
+    ]}}}}}
+    nodes, _ = companyfacts_to_observations(facts, registry=default_registry(), cik="c")
+    obs = next(o for o in nodes if o["label"] == "Observation")
+    assert obs["properties"]["concept_id"] == "metric:EPS"
+    assert obs["properties"]["unit"] == "USD/shares"
+    assert obs["properties"]["value_num"] == 6.08

@@ -27,17 +27,37 @@ from ..semantic_layer import Period, observation_key
 from ..semantic_layer.concepts import ConceptRegistry
 
 USER_AGENT = "seocho-ingest hardy.jeong@xcena.com"
-_ANNUAL_FRAME_RE = re.compile(r"^CY(\d{4})$")   # full-year duration frame
+# Duration (income-statement) full-year frame: CY2024.
+_DURATION_FRAME_RE = re.compile(r"^CY(\d{4})$")
+# Instant (balance-sheet) fiscal-year-end frame: CY2024Q3I (Apple, Sept FYE),
+# CY2024Q4I (calendar FYE), etc. The CY year == fiscal year for the FY-end snap.
+_INSTANT_FRAME_RE = re.compile(r"^CY(\d{4})Q\dI$")
+# unit preference: USD (currency), then USD/shares (EPS), then anything declared.
+_UNIT_PREF = ("USD", "USD/shares")
 
 
-def _select_annual(units: Dict[str, Any], n_years: int) -> List[Dict[str, Any]]:
-    """Most-recent n_years full-year 10-K facts (one per fiscal year), USD-first."""
-    unit_key = "USD" if "USD" in units else (next(iter(units), None))
+def _pick_unit(units: Dict[str, Any]) -> Optional[str]:
+    for u in _UNIT_PREF:
+        if u in units:
+            return u
+    return next(iter(units), None)
+
+
+def _select_annual(units: Dict[str, Any], n_years: int, *,
+                   instant: bool = False) -> List[Dict[str, Any]]:
+    """Most-recent n_years annual 10-K facts (one per fiscal year).
+
+    Duration metrics use the full-year frame (CY2024); instant (balance-sheet)
+    metrics use the fiscal-year-END instant frame (CY2024Q?I) — the gap the
+    dataset generator skipped. First record per fiscal year wins.
+    """
+    unit_key = _pick_unit(units)
     if unit_key is None:
         return []
+    frame_re = _INSTANT_FRAME_RE if instant else _DURATION_FRAME_RE
     out: Dict[int, Dict[str, Any]] = {}
     for rec in units[unit_key]:
-        m = _ANNUAL_FRAME_RE.match(str(rec.get("frame") or ""))
+        m = frame_re.match(str(rec.get("frame") or ""))
         if not m or rec.get("form") != "10-K":
             continue
         fy = int(m.group(1))
@@ -78,7 +98,9 @@ def companyfacts_to_observations(
         node = usgaap.get(tag)
         if not node:
             continue
-        for fact in _select_annual(node.get("units", {}), n_years):
+        concept = registry.get(concept_id)
+        is_instant = bool(concept and concept.period_type == "instant")
+        for fact in _select_annual(node.get("units", {}), n_years, instant=is_instant):
             fy = fact["fiscal_year"]
             if fy < min_fiscal_year:
                 continue

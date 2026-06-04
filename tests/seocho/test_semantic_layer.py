@@ -177,3 +177,19 @@ def test_compile_observation_lookup_rejects_unresolved_slots():
         compile_observation_lookup(
             ObservationSlots(entity_cik="c", concept_id="metric:Revenue",
                              period_keys=("fiscal:2024:FY",), unresolved=("x",)))
+
+
+# ---- H1: full frozen entity->CIK table --------------------------------------
+
+def test_default_resolver_uses_frozen_table_when_present():
+    # the committed cik_table.json covers the full SEC universe, not just the seed
+    r = default_resolver()
+    assert r.resolve("JPM") == "0000019617"          # not in the 5-company seed
+    assert r.resolve("TSLA") == "0001318605"
+    assert r.resolve("Walmart Inc.") is not None      # name resolution beyond seed
+    assert r.resolve("AAPL") == "0000320193"          # seed members still resolve
+
+
+def test_from_frozen_missing_file_returns_none(tmp_path):
+    from seocho.semantic_layer.identity import EntityResolver
+    assert EntityResolver.from_frozen(tmp_path / "nope.json") is None

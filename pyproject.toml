@@ -175,3 +175,4 @@ namespaces = false
 
 [tool.setuptools.package-data]
 seocho = ["py.typed"]
+"seocho.semantic_layer" = ["cik_table.json"]

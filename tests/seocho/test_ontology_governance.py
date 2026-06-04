@@ -329,6 +329,36 @@ def test_competency_report_records_missing_elements_and_route() -> None:
     assert report["coverage"]["question_count"] == len(cqs)
 
 
+def test_every_authored_cq_requires_real_labels() -> None:
+    """Guard against fabricated CQ `requires` labels (this test caught a real
+    HAS_DEBT vs ISSUED_DEBT authoring error). Every required label must exist in
+    the FULL module union (the `large` arm)."""
+    import importlib.util
+
+    fibo = (
+        Path(__file__).resolve().parents[2]
+        / "examples" / "finder" / "datasets" / "fibo_modules" / "compose.py"
+    )
+    spec = importlib.util.spec_from_file_location("fibo_compose", fibo)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    union = mod.compose_modules(
+        ["be", "ind", "fbc", "dbt", "acc", "fnd", "sec", "mkt", "corp"]
+    )
+    members = {x.casefold() for x in list(union.nodes) + list(union.relationships)}
+    for nd in union.nodes.values():
+        members.update(a.casefold() for a in (getattr(nd, "aliases", []) or []))
+
+    cqs = load_competency_questions(_CQ_PATH)
+    fabricated = [
+        (cq.get("id"), r)
+        for cq in cqs
+        for r in (cq.get("requires") or [])
+        if r.casefold() not in members
+    ]
+    assert not fabricated, f"CQ requires reference labels absent from any module: {fabricated}"
+
+
 def test_build_report_includes_competency_when_cqs_passed(tmp_path) -> None:
     ttl = tmp_path / "arm.ttl"
     # reuse the TTL fixture path indirectly: write a tiny ontology via to_dict->yaml

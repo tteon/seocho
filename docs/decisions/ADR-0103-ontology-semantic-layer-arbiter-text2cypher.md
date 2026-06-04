@@ -216,6 +216,17 @@ no HTML parsing. HONEST NOTE: SEC XBRL is also the gold source, so 1.00 confirms
 the INGESTER is correct, it is NOT a benchmark win; HTML-table extraction (S11)
 remains the fallback for sections without clean XBRL.
 
+**DELIVERED (arbiter v2, multi-ontology selection, `select_ontology` +
+`semantic_answer(manifests=...)`):** the reserved `ontology_id` is now live —
+register N `OntologyManifest`s and the arbiter measures which ontology a
+question belongs to by max concept-grounding score (exact closed-vocab
+membership = 1.0, else bge/lexical), then resolves + arbitrates within it. Same
+measure→hint shape as v1; single-manifest is the degenerate case (non-breaking).
+Tested across finance vs a clinical manifest: "total revenue"/"net income" →
+finance, "admissions"/"mortality" → clinical, out-of-vocab → null match (route
+NARRATIVE/FAIL). The lane picks the right ontology and answers STRUCTURED with
+the selected `ontology_id`.
+
 **Staged roadmap (resolves the multi-ontology fork):**
 - **v1 (smallest slice):** single finance manifest; `route ∈ {STRUCTURED,
   NARRATIVE, CLARIFY, FAIL}`; `ontology_id` field present but constant

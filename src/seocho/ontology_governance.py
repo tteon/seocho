@@ -912,6 +912,78 @@ def governance_gate(
     }
 
 
+def conformance_score(
+    ontology: Ontology,
+    *,
+    competency_questions: Optional[Sequence[Dict[str, Any]]] = None,
+    run_reasoner: bool = False,
+    threshold: float = 0.8,
+) -> Dict[str, Any]:
+    """Scalar conformance score + explicit hard gates (GRL Artefact 7).
+
+    Collapses the offline governance signals into one 0..1 score and a pass/fail
+    so an ontology arm can be blocked from the experiment until it conforms (the
+    §16 user-first-release-gate analog for ontologies). Offline / pure; reasoner
+    optional (off by default to stay cheap and respect the §6.3 boundary).
+
+    Hard gates (any failing => ``passed`` is False regardless of score):
+      - structural check ok
+      - zero lint ERRORS
+      - reasoner did not prove inconsistency (unknown / unavailable never blocks)
+
+    Soft components, averaged into ``score``:
+      - structural_ok, lint_ok (0/1 each)
+      - cq_expressible_ratio (1.0 when no CQs are supplied)
+      - shacl_message_coverage (fraction of constrained property shapes that
+        carry a plain-English ``sh:message``, GRL Artefact 3)
+    """
+    gate = governance_gate(ontology, run_reasoner=run_reasoner)
+    structural_ok = bool(gate["structural"]["ok"])
+    lint_error_count = len(gate["lint"]["errors"])
+    consistency_val = gate["consistency"].get("consistent")
+    consistency_state = (
+        "inconsistent" if consistency_val is False
+        else "consistent" if consistency_val is True
+        else "unknown"
+    )
+
+    cq_ratio: Optional[float] = None
+    if competency_questions:
+        cq_ratio = competency_question_report(ontology, competency_questions)["expressible_ratio"]
+
+    shacl = ontology.to_shacl()
+    prop_shapes = [
+        prop
+        for shape in shacl.get("shapes", []) if isinstance(shape, dict)
+        for prop in shape.get("properties", []) if isinstance(prop, dict)
+    ]
+    constrained = [p for p in prop_shapes
+                   if p.get("minCount") is not None or p.get("maxCount") is not None]
+    with_msg = [p for p in constrained if p.get("message")]
+    msg_cov = (len(with_msg) / len(constrained)) if constrained else 1.0
+
+    components = [
+        1.0 if structural_ok else 0.0,
+        1.0 if lint_error_count == 0 else 0.0,
+        cq_ratio if cq_ratio is not None else 1.0,
+        msg_cov,
+    ]
+    score = sum(components) / len(components)
+    hard_ok = structural_ok and lint_error_count == 0 and consistency_val is not False
+    return {
+        "score": round(score, 4),
+        "threshold": threshold,
+        "passed": bool(hard_ok and score >= threshold),
+        "components": {
+            "structural_ok": structural_ok,
+            "lint_error_count": lint_error_count,
+            "consistency": consistency_state,
+            "cq_expressible_ratio": cq_ratio,
+            "shacl_message_coverage": round(msg_cov, 4),
+        },
+    }
+
+
 def _build_shacl_export(ontology: Ontology) -> Dict[str, Any]:
     shacl_document = ontology.to_shacl()
     return {
@@ -964,6 +1036,9 @@ def _render_shacl_turtle(shacl_document: Dict[str, Any]) -> str:
                 terms.append(f"sh:minCount {int(prop.get('minCount', 0))}")
             if prop.get("maxCount") is not None:
                 terms.append(f"sh:maxCount {int(prop.get('maxCount', 0))}")
+            if prop.get("message"):
+                escaped = str(prop["message"]).replace('"', '\\"')
+                terms.append(f'sh:message "{escaped}"')
             for term_index, term in enumerate(terms):
                 suffix = " ;" if term_index < len(terms) - 1 else ""
                 lines.append(f"    {term}{suffix}")

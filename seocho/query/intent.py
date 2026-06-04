@@ -512,6 +512,13 @@ def _build_route_profile(
         *determinism_reasons[:2],
     ]
 
+    # F3: data-grounded retrieval-lane recommendation (vector vs hybrid + whether
+    # to escalate to expensive synthesis). Versioned for reproducibility. Emitted
+    # in the profile so retrieval/cost gating and traces can consume one decision.
+    from .route_policy import recommend_lane
+
+    lane = recommend_lane(route_class, question_determinism, source_types=source_types)
+
     return {
         "schema_version": "route_profile.v1",
         "route_class": route_class,
@@ -519,6 +526,12 @@ def _build_route_profile(
         "tool_policy": tool_policy,
         "recommended_tools": recommended_tools,
         "rationale": rationale,
+        "lane_policy": {
+            "retrieval": lane.retrieval,
+            "escalate_synthesis": lane.escalate_synthesis,
+            "policy_version": lane.policy_version,
+            "rationale": list(lane.rationale),
+        },
     }
 
 

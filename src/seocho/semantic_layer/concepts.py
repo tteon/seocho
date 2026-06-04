@@ -24,6 +24,7 @@ class MetricConcept:
     alt_labels: Tuple[str, ...] = ()       # surface synonyms
     unit_class: str = "currency"          # currency | count | ratio | shares
     xbrl: Tuple[str, ...] = ()            # us-gaap authority tags (XBRL ingest)
+    period_type: str = "duration"         # duration (income stmt) | instant (balance sheet)
 
 
 class ConceptRegistry:
@@ -96,6 +97,57 @@ DEFAULT_FINANCE_CONCEPTS: Tuple[MetricConcept, ...] = (
                     "bottom line", "net income loss"),
         unit_class="currency",
         xbrl=("us-gaap:NetIncomeLoss", "us-gaap:ProfitLoss"),
+    ),
+    # --- income-statement (duration) metrics ---
+    MetricConcept(
+        concept_id="metric:GrossProfit",
+        pref_label="Gross Profit",
+        alt_labels=("gross margin", "gross income"),
+        unit_class="currency",
+        xbrl=("us-gaap:GrossProfit",),
+    ),
+    MetricConcept(
+        concept_id="metric:OperatingIncome",
+        pref_label="Operating Income",
+        alt_labels=("operating profit", "operating earnings", "ebit",
+                    "income from operations", "operating income loss"),
+        unit_class="currency",
+        xbrl=("us-gaap:OperatingIncomeLoss",),
+    ),
+    MetricConcept(
+        concept_id="metric:EPS",
+        pref_label="Diluted EPS",
+        alt_labels=("eps", "earnings per share", "diluted earnings per share",
+                    "earnings per share diluted"),
+        unit_class="shares",
+        xbrl=("us-gaap:EarningsPerShareDiluted", "us-gaap:EarningsPerShareBasic"),
+    ),
+    # --- balance-sheet (INSTANT) metrics — fiscal-year-end snapshots ---
+    MetricConcept(
+        concept_id="metric:Assets",
+        pref_label="Total Assets",
+        alt_labels=("assets", "total assets"),
+        unit_class="currency",
+        xbrl=("us-gaap:Assets",),
+        period_type="instant",
+    ),
+    MetricConcept(
+        concept_id="metric:Liabilities",
+        pref_label="Total Liabilities",
+        alt_labels=("liabilities", "total liabilities"),
+        unit_class="currency",
+        xbrl=("us-gaap:Liabilities",),
+        period_type="instant",
+    ),
+    MetricConcept(
+        concept_id="metric:StockholdersEquity",
+        pref_label="Stockholders' Equity",
+        alt_labels=("stockholders equity", "shareholders equity", "total equity",
+                    "shareholders’ equity", "stockholders’ equity"),
+        unit_class="currency",
+        xbrl=("us-gaap:StockholdersEquity",
+              "us-gaap:StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest"),
+        period_type="instant",
     ),
 )
 

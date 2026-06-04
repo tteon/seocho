@@ -1,0 +1,214 @@
+# Competency Questions (CQs) for the FinDER vector-vs-graph ontology sweep.
+#
+# WHY: GRL "AI-Assisted Ontology Engineering" (KGC 2026, Artefacts 1 & 5) and
+# Kendall & McGuinness treat competency questions as the contract between an
+# ontology and its application — the testable definition of "done". SEOCHO had
+# none; the §19 slices S1-S6 were informal CQs. Formalising them turns the
+# confirmed "graph < vector / recall-gated" finding into a PER-QUESTION
+# structural diagnosis: for each ontology arm, is a CQ answerable, recall-missing,
+# or structurally impossible?
+#
+# Each CQ carries three readings (all grounded, no fabrication):
+#   requires         — FIBO ontology elements (real labels from fibo_modules/*.yaml).
+#                      Used by competency_question_coverage() for SCHEMA-side
+#                      coverage per arm (does the arm's vocabulary express the CQ?).
+#   backing_modules  — the module(s) that must be composed for the CQ to be
+#                      structurally expressible (§19 module->slice backing).
+#   expected_route   — the ADR-0103 arbiter route this CQ SHOULD take given the
+#                      closed MetricConcept vocabulary (semantic_layer/concepts.py):
+#                        STRUCTURED — metric concept in the closed vocab + graph holds it
+#                        NARRATIVE  — outside the metric vocab (segment/debt/policy/
+#                                     footnote narrative) -> chunk/graph-as-context path
+#   cypher_skeleton  — a traversal sketch. Metric CQs target the ADR-0103
+#                      Observation model (the arbiter's structured lane); non-metric
+#                      CQs target the FIBO extraction graph (what the arm extracted).
+#
+# CQ design rules (GRL Artefact 1): Measurable / Scoped / Useful / Distinct;
+# favour >=2-hop / classification / aggregation over single-value lookups
+# (S6 is the deliberate 1-hop control — it must behave like vector's home turf).
+#
+# Observation model (ADR-0103):
+#   (:Company {cik})-[:HAS_OBSERVATION]->(:Observation {concept_id, period_key,
+#     value_num, unit, basis})-[:OF_CONCEPT]->(:MetricConcept)
+#   (:Observation)-[:EVIDENCED_BY]->(:Chunk)
+# FIBO extraction graph: LegalEntity / REPORTED_METRIC / HAS_SEGMENT / HAS_DEBT / ...
+
+version: "cq.v1"
+ontology_id: "finance"
+
+competency_questions:
+  # ----- S1_FIN_COMP : Financials + compositional (multi-period arithmetic) -----
+  - id: S1-CQ1
+    slice: S1_FIN_COMP
+    kind: aggregation
+    hops: 2
+    question: "By how much did Revenue change from FY2022 to FY2023 for the company?"
+    use_case: "year-over-year topline growth in an analyst brief"
+    requires: [LegalEntity, Revenue, REPORTED_METRIC]
+    backing_modules: [be, ind]
+    expected_route: STRUCTURED
+    cypher_skeleton: |
+      MATCH (c:Company {cik: $cik})-[:HAS_OBSERVATION]->(o:Observation {concept_id: 'metric:Revenue'})
+      WHERE o.period_key IN ['fiscal:2022:FY', 'fiscal:2023:FY']
+      RETURN o.period_key AS period, o.value_num AS revenue
+    yes_fixture: "company with Revenue observations in BOTH FY2022 and FY2023"
+    no_fixture: "company with a Revenue observation in FY2023 only (delta uncomputable)"
+
+  - id: S1-CQ2
+    slice: S1_FIN_COMP
+    kind: aggregation
+    hops: 2
+    question: "What was the company's operating margin (OperatingIncome / Revenue) for FY2023?"
+    use_case: "profitability ratio derived from two income-statement lines"
+    requires: [LegalEntity, OperatingIncome, Revenue, REPORTED_METRIC]
+    backing_modules: [be, ind]
+    expected_route: STRUCTURED
+    cypher_skeleton: |
+      MATCH (c:Company {cik: $cik})-[:HAS_OBSERVATION]->(o:Observation {period_key: 'fiscal:2023:FY'})
+      WHERE o.concept_id IN ['metric:OperatingIncome', 'metric:Revenue']
+      RETURN o.concept_id AS concept, o.value_num AS value
+    yes_fixture: "company with both OperatingIncome and Revenue in FY2023"
+    no_fixture: "company missing the OperatingIncome observation (ratio uncomputable)"
+
+  # ----- S2_FIN_NONQUANT_MULTI : cross-statement synthesis via shared entity -----
+  - id: S2-CQ1
+    slice: S2_FIN_NONQUANT_MULTI
+    kind: classification
+    hops: 2
+    question: "Which reported metrics for FY2023 does the company disclose across the income statement?"
+    use_case: "assemble the income-statement picture for one period"
+    requires: [LegalEntity, FinancialMetric, NetIncome, Revenue, REPORTED_METRIC]
+    backing_modules: [be, ind]
+    expected_route: STRUCTURED
+    cypher_skeleton: |
+      MATCH (c:Company {cik: $cik})-[:HAS_OBSERVATION]->(o:Observation {period_key: 'fiscal:2023:FY'})
+      RETURN collect(DISTINCT o.concept_id) AS concepts
+    yes_fixture: "company with >=2 distinct concept observations in FY2023"
+    no_fixture: "company with a single concept observation in FY2023"
+
+  - id: S2-CQ2
+    slice: S2_FIN_NONQUANT_MULTI
+    kind: aggregation
+    hops: 2
+    question: "Did the company's NetIncome and Revenue move in the same direction from FY2022 to FY2023?"
+    use_case: "margin-trend sanity check across two statements"
+    requires: [LegalEntity, NetIncome, Revenue, REPORTED_METRIC]
+    backing_modules: [be, ind]
+    expected_route: STRUCTURED
+    cypher_skeleton: |
+      MATCH (c:Company {cik: $cik})-[:HAS_OBSERVATION]->(o:Observation)
+      WHERE o.concept_id IN ['metric:NetIncome', 'metric:Revenue']
+        AND o.period_key IN ['fiscal:2022:FY', 'fiscal:2023:FY']
+      RETURN o.concept_id AS concept, o.period_key AS period, o.value_num AS value
+    yes_fixture: "company with both concepts in both periods"
+    no_fixture: "company missing one concept in one period"
+
+  # ----- S3_CO_COMP : company overview, part-whole via HAS_SEGMENT (fbc) -----
+  - id: S3-CQ1
+    slice: S3_CO_COMP
+    kind: classification
+    hops: 2
+    question: "Which business segments does the company operate, and what does each segment provide?"
+    use_case: "segment map for a company overview"
+    requires: [LegalEntity, BusinessSegment, HAS_SEGMENT, ProductOrService, PROVIDES]
+    backing_modules: [be, fbc]
+    expected_route: NARRATIVE   # segments are outside the closed metric vocab
+    cypher_skeleton: |
+      MATCH (e:LegalEntity)-[:HAS_SEGMENT]->(s:BusinessSegment)
+      OPTIONAL MATCH (e)-[:PROVIDES]->(p:ProductOrService)
+      RETURN s.name AS segment, collect(DISTINCT p.name) AS provides
+    yes_fixture: "company with >=2 BusinessSegment nodes"
+    no_fixture: "company overview with segments described only in prose (no HAS_SEGMENT edge extracted)"
+
+  - id: S3-CQ2
+    slice: S3_CO_COMP
+    kind: aggregation
+    hops: 1
+    question: "How many distinct business segments does the company report?"
+    use_case: "segment-count compositional check"
+    requires: [LegalEntity, BusinessSegment, HAS_SEGMENT]
+    backing_modules: [be, fbc]
+    expected_route: NARRATIVE
+    cypher_skeleton: |
+      MATCH (e:LegalEntity)-[:HAS_SEGMENT]->(s:BusinessSegment)
+      RETURN count(DISTINCT s) AS segment_count
+    yes_fixture: "company with multiple BusinessSegment nodes"
+    no_fixture: "company with no extracted BusinessSegment node"
+
+  # ----- S4_CO_MULTI_NONQUANT : cross-segment narrative matrix (fbc) -----
+  - id: S4-CQ1
+    slice: S4_CO_MULTI_NONQUANT
+    kind: classification
+    hops: 2
+    question: "Across all segments, which products or services does the company offer and how are they classified?"
+    use_case: "cross-segment product matrix from multiple overview passages"
+    requires: [LegalEntity, ProductOrService, PROVIDES, BusinessSegment, HAS_SEGMENT]
+    backing_modules: [be, fbc]
+    expected_route: NARRATIVE
+    cypher_skeleton: |
+      MATCH (e:LegalEntity)-[:PROVIDES]->(p:ProductOrService)
+      RETURN p.name AS product, p.classification AS classification
+    yes_fixture: "company with >=2 ProductOrService nodes across segments"
+    no_fixture: "company whose products are mentioned only in narrative (no PROVIDES edge)"
+
+  # ----- S5_FN_MULTI : footnote integration spanning debt + accounting (dbt, acc) -----
+  - id: S5-CQ1
+    slice: S5_FN_MULTI
+    kind: classification
+    hops: 2
+    question: "What debt instruments has the company issued, and what is the principal of each?"
+    use_case: "debt schedule assembled from footnote disclosures"
+    requires: [LegalEntity, DebtInstrument, HAS_DEBT]
+    backing_modules: [be, dbt]
+    expected_route: NARRATIVE
+    cypher_skeleton: |
+      MATCH (e:LegalEntity)-[:HAS_DEBT]->(d:DebtInstrument)
+      RETURN d.name AS instrument, d.principal_amount AS principal, d.maturity_date AS maturity
+    yes_fixture: "company with >=1 DebtInstrument node carrying a principal_amount"
+    no_fixture: "company whose debt is described only in MD&A prose (no HAS_DEBT edge)"
+
+  - id: S5-CQ2
+    slice: S5_FN_MULTI
+    kind: classification
+    hops: 3
+    question: "Which accounting policies govern the company's reported metrics, and under what standard?"
+    use_case: "footnote integration linking policy -> metric across 10-K Items"
+    requires: [LegalEntity, AccountingPolicy, APPLIES_POLICY, GOVERNS, FinancialMetric]
+    backing_modules: [be, acc, ind]   # GOVERNS -> FinancialMetric dangles without ind
+    expected_route: NARRATIVE
+    cypher_skeleton: |
+      MATCH (e:LegalEntity)-[:APPLIES_POLICY]->(a:AccountingPolicy)-[:GOVERNS]->(m:FinancialMetric)
+      RETURN a.name AS policy, a.standard AS standard, collect(DISTINCT m.name) AS governed_metrics
+    yes_fixture: "company with AccountingPolicy GOVERNS a FinancialMetric (acc+ind composed)"
+    no_fixture: "acc composed without ind -> GOVERNS target dangling -> traversal empty"
+
+  # ----- S6_BASELINE_SINGLE : single-passage lookup (vector control) -----
+  - id: S6-CQ1
+    slice: S6_BASELINE_SINGLE
+    kind: lookup
+    hops: 1
+    question: "What was the company's Revenue in FY2023?"
+    use_case: "single-fact lookup — the vector-favourable control"
+    requires: [LegalEntity, Revenue, REPORTED_METRIC]
+    backing_modules: [be, ind]
+    expected_route: STRUCTURED
+    cypher_skeleton: |
+      MATCH (c:Company {cik: $cik})-[:HAS_OBSERVATION]->(o:Observation {concept_id: 'metric:Revenue', period_key: 'fiscal:2023:FY'})
+      RETURN o.value_num AS revenue
+    yes_fixture: "company with a Revenue observation in FY2023"
+    no_fixture: "company with no FY2023 Revenue observation"
+
+  - id: S6-CQ2
+    slice: S6_BASELINE_SINGLE
+    kind: lookup
+    hops: 1
+    question: "What was the company's NetIncome in FY2023?"
+    use_case: "single-fact lookup control (bottom line)"
+    requires: [LegalEntity, NetIncome, REPORTED_METRIC]
+    backing_modules: [be, ind]
+    expected_route: STRUCTURED
+    cypher_skeleton: |
+      MATCH (c:Company {cik: $cik})-[:HAS_OBSERVATION]->(o:Observation {concept_id: 'metric:NetIncome', period_key: 'fiscal:2023:FY'})
+      RETURN o.value_num AS net_income
+    yes_fixture: "company with a NetIncome observation in FY2023"
+    no_fixture: "company with no FY2023 NetIncome observation"

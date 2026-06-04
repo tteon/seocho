@@ -187,6 +187,26 @@ tokens — the Text2SQL-Flow masked-alignment payoff. Note: SRA was already 1.0
 zero-shot on the clean set, so few-shot is a robustness mechanism for varied /
 out-of-template phrasing, NOT a measured SRA lift here (no over-claim).
 
+**MEASURED (S11, real Item-8 table ingestion, `sec_table_run.py`):** parsing the
+actual 10-K financial-statement tables (AAPL/MSFT/NVDA) and ingesting them as
+Observations lifts the real-filing floor from **MD&A-prose grounded 0.00 →
+table_srhr 0.333** (5/15). Honest breakdown: 11 table facts extracted (AAPL 4,
+MSFT 5, NVDA 2 of 6 each); routes = 9 STRUCTURED / 6 CLARIFY. Of the 9
+STRUCTURED, 5 correct and **4 wrong from real table-parsing noise**
+(column↔year misalignment — FY2024's value landed under FY2023; wrong
+revenue-line / footnote cell). The 6 un-extracted (concept, year) pairs routed
+**CLARIFY — the arbiter declined rather than fabricating**, so no wrong answer
+was emitted on a gap.
+
+**Honest conclusion:** naive HTML-table scraping genuinely lifts the floor but
+is too fragile for production (alignment/row-selection noise is real — exactly
+what the synthetic benchmark hid). The deterministic production path is **XBRL
+`companyfacts` ingestion** (SEC publishes Item-8 as structured XBRL; the same
+source as the gold), which removes the parsing noise; HTML-table extraction is a
+fallback for issuers/sections without clean XBRL. S11's value is proving the
+direction (0.00→0.33) AND that the arbiter's CLARIFY-on-gap keeps the noisy path
+honest.
+
 **Staged roadmap (resolves the multi-ontology fork):**
 - **v1 (smallest slice):** single finance manifest; `route ∈ {STRUCTURED,
   NARRATIVE, CLARIFY, FAIL}`; `ontology_id` field present but constant

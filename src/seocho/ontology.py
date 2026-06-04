@@ -1031,8 +1031,10 @@ class Ontology:
                     ps["minCount"] = 1
                     ps["maxCount"] = 1
                     ps["unique"] = True
+                    ps["message"] = f"Every {label} must have exactly one {pname}."
                 elif p.required:
                     ps["minCount"] = 1
+                    ps["message"] = f"Every {label} must have a {pname}."
                 if p.description:
                     ps["description"] = p.description
                 prop_shapes.append(ps)
@@ -1055,6 +1057,7 @@ class Ontology:
                     "path": f"seocho:{rtype}",
                     "maxCount": 1,
                     "description": f"{rd.source} -[:{rtype}]-> {rd.target} ({rd.cardinality})",
+                    "message": f"A {rd.source} may have at most one {rtype} ({rd.target}).",
                 }
                 # Find or create the source shape
                 for s in shapes:

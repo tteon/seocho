@@ -44,6 +44,7 @@ for path in (SRC, ROOT):
 
 from examples.finder.lib import bench_common as bc  # noqa: E402
 from seocho.query.strategy import PromptTemplate  # noqa: E402
+from seocho.tracing import current_backend_names  # noqa: E402
 
 REF_SEPARATOR = "===EVIDENCE_BOUNDARY==="
 _NUM_RE = re.compile(r"-?\$?\d[\d,]*\.?\d*(?:%| million| billion| thousand)?", re.IGNORECASE)

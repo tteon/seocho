@@ -178,6 +178,15 @@ fact. HONEST CAVEAT (unchanged): clean question template + Observations seeded
 from the XBRL gold, so this is the favorable structured path; the real
 extraction-noise test is S11 (Item-8 table ingestion from actual filings).
 
+**MEASURED (S10, few-shot masked-alignment, `augment_examples.py`):** 6 seed
+examples (deterministic compile of gold slots) → 18 MARA paraphrases (3 styles
+each) → 24 indexed with bge. A held-out cross-surface query ("Could you tell me
+Microsoft's net income figure for the 2024 fiscal year?") retrieves the
+metric-lookup examples by MASKED SKELETON (top-3 scores 0.84–0.85), not surface
+tokens — the Text2SQL-Flow masked-alignment payoff. Note: SRA was already 1.0
+zero-shot on the clean set, so few-shot is a robustness mechanism for varied /
+out-of-template phrasing, NOT a measured SRA lift here (no over-claim).
+
 **Staged roadmap (resolves the multi-ontology fork):**
 - **v1 (smallest slice):** single finance manifest; `route ∈ {STRUCTURED,
   NARRATIVE, CLARIFY, FAIL}`; `ontology_id` field present but constant

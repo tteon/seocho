@@ -32,8 +32,13 @@ from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple
 
 
-CacheKey = Tuple[str, str, str, str]
-"""(workspace_id, database, ontology_identity_hash, normalized_question)"""
+CacheKey = Tuple[str, str, str, str, str]
+"""(workspace_id, database, ontology_identity_hash, graph_epoch, normalized_question)
+
+``graph_epoch`` is a per-workspace marker that changes when the workspace graph
+is mutated (re-ingest). It is part of the key so a graph change invalidates stale
+answers lazily — a fresh process never serves an answer computed against an older
+graph state. Empty string means "epoch not tracked" (legacy / cache disabled)."""
 
 
 def _normalize(question: str) -> str:
@@ -46,11 +51,13 @@ def make_response_cache_key(
     workspace_id: str = "",
     database: str = "",
     ontology_identity_hash: str = "",
+    graph_epoch: str = "",
 ) -> CacheKey:
     return (
         str(workspace_id or ""),
         str(database or ""),
         str(ontology_identity_hash or ""),
+        str(graph_epoch or ""),
         _normalize(question),
     )
 
@@ -134,6 +141,7 @@ class JSONLResponseCache(ResponseCache):
                         str(rec.get("workspace_id", "")),
                         str(rec.get("database", "")),
                         str(rec.get("ontology_identity_hash", "")),
+                        str(rec.get("graph_epoch", "")),
                         str(rec.get("question", "")),
                     )
                     index[key] = CachedResponse(
@@ -154,7 +162,8 @@ class JSONLResponseCache(ResponseCache):
             "workspace_id": key[0],
             "database": key[1],
             "ontology_identity_hash": key[2],
-            "question": key[3],
+            "graph_epoch": key[3],
+            "question": key[4],
             "answer": str(answer),
             "written_at": time.time(),
             "metadata": dict(metadata or {}),

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 from typing import Any, Dict, List, Optional, Sequence
 
@@ -26,6 +27,14 @@ from .runtime_contract import DEFAULT_QUERY_MODE, normalize_query_mode
 
 logger = logging.getLogger(__name__)
 _FOUR_DIGIT_YEAR_RE = re.compile(r"\b(20\d{2})\b")
+
+
+def _lane_policy_enabled() -> bool:
+    """F3 runtime lane gating — OFF by default (explicit opt-in; §18 no silent
+    behavior change, §20.9 don't change the runtime mid-study). Enable with
+    SEOCHO_LANE_POLICY=1 to consume route_policy@v1 at query time, then A/B
+    before considering a default flip."""
+    return str(os.environ.get("SEOCHO_LANE_POLICY", "")).strip() not in ("", "0", "false", "False")
 
 
 class _LocalEngine:
@@ -740,15 +749,50 @@ class _LocalEngine:
         # — serialize the workspace subgraph and answer from it (the lane that
         # scored on S3/S4/S5/S6 in e2e_probe). Fact/metric questions keep using the
         # cheap structured rows; only the empty cases pay for the larger context.
+        # F3 (opt-in, OFF by default): consume route_policy@v1 to gate the (large)
+        # graph-context fallback. Measured across FinDER/BC3/AMI: graph-as-context
+        # <= vector, so for non-relational queries that already have vector content
+        # we skip serializing the subgraph (token saver, no measured quality loss).
+        # Relational (R4/R5 → retrieval=hybrid) keeps the graph context. We never
+        # skip when it would leave NO context at all.
+        lane_policy = None
+        if _lane_policy_enabled():
+            try:
+                from .query.intent import derive_route_class, _question_determinism
+                from .query.route_policy import recommend_lane
+
+                _iid = str(intent_data.get("intent", "") or "")
+                _rc = derive_route_class(intent_id=_iid)
+                _det, _ = _question_determinism(question, _iid)
+                lane_policy = recommend_lane(_rc, _det)
+                intent_data["lane_policy"] = {
+                    "retrieval": lane_policy.retrieval,
+                    "escalate_synthesis": lane_policy.escalate_synthesis,
+                    "policy_version": lane_policy.policy_version,
+                }
+            except Exception:
+                logger.debug("lane_policy compute failed; default routing", exc_info=True)
+                lane_policy = None
+
         graph_context_used = False
         from .query.cypher_builder import _e2e_baseline
-        if not records and not _e2e_baseline():
+
+        _gate_skip = bool(
+            lane_policy is not None
+            and lane_policy.retrieval == "vector"
+            and vector_context  # only skip when the preferred (vector) lane has content
+        )
+        if not records and not _e2e_baseline() and not _gate_skip:
             with timer.stage("graph_context_fallback"):
                 graph_ctx = self._serialize_graph_context(database)
             if graph_ctx:
                 vector_context = (f"{vector_context}\n\n{graph_ctx}".strip()
                                   if vector_context else graph_ctx)
                 graph_context_used = True
+        elif _gate_skip:
+            intent_data["graph_context_gated"] = True
+            logger.info("lane_policy(route_policy@v1): skipped graph-context fallback "
+                        "(retrieval=vector, vector content present)")
 
         with timer.stage("ontology_context_check"):
             ontology_context_mismatch = self._query_ontology_context_mismatch(database, ontology_context)

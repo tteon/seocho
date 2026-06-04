@@ -464,6 +464,28 @@ def build_evidence_bundle(
     return bundle
 
 
+def derive_route_class(
+    *,
+    intent_id: str,
+    focus_slots: Sequence[str] = (),
+    missing_slots: Sequence[str] = (),
+    source_types: Sequence[str] = (),
+) -> str:
+    """Pure route-class derivation, shared by _build_route_profile and runtime
+    lane gating (F3). Single source of truth so the runtime and the evidence
+    bundle agree on the class for a given intent."""
+    iid = str(intent_id or "").strip()
+    if iid in {"relationship_lookup", "responsibility_lookup"}:
+        return "R4_GRAPH_JOIN"
+    if iid == "engineering_tradeoff_lookup":
+        return "R5_LONG_CONTEXT_REASONING"
+    if iid == "explanation_lookup":
+        return "R5_LONG_CONTEXT_REASONING" if "text" in source_types else "R1_LOOKUP"
+    if "supporting_fact" in focus_slots and "supporting_fact" in missing_slots:
+        return "R5_LONG_CONTEXT_REASONING"
+    return "R1_LOOKUP"
+
+
 def _build_route_profile(
     *,
     question: str,
@@ -485,16 +507,12 @@ def _build_route_profile(
     )
     question_determinism, determinism_reasons = _question_determinism(question, intent_id)
 
-    if intent_id in {"relationship_lookup", "responsibility_lookup"}:
-        route_class = "R4_GRAPH_JOIN"
-    elif intent_id == "engineering_tradeoff_lookup":
-        route_class = "R5_LONG_CONTEXT_REASONING"
-    elif intent_id == "explanation_lookup":
-        route_class = "R5_LONG_CONTEXT_REASONING" if "text" in source_types else "R1_LOOKUP"
-    elif "supporting_fact" in focus_slots and "supporting_fact" in missing_slots:
-        route_class = "R5_LONG_CONTEXT_REASONING"
-    else:
-        route_class = "R1_LOOKUP"
+    route_class = derive_route_class(
+        intent_id=intent_id,
+        focus_slots=focus_slots,
+        missing_slots=missing_slots,
+        source_types=source_types,
+    )
 
     if question_determinism == "deterministic":
         tool_policy = "verified_query_first" if route_class in {"R4_GRAPH_JOIN", "R5_LONG_CONTEXT_REASONING"} else "lookup_first"

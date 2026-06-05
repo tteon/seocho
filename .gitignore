@@ -138,3 +138,6 @@ examples/untitled.txt
 
 # Per-PR scratch bodies (the actual PR description lives on GitHub)
 PR_BODY.md
+
+# Context-graph datasets (regenerable via reshape_bc3.py / reshape_ami.py; raw is 600M+)
+examples/contextgraph/datasets/

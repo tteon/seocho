@@ -1,0 +1,81 @@
+graph_type: "decision_entities"
+package_id: "decision_entities"
+version: "1.0.0"
+description: "Proposals, decisions, and topics in a decision-making thread (composes with email_core)"
+graph_model: "lpg"
+nodes:
+  Proposal:
+    description: "An action or option being put forward for consideration"
+    aliases: [Initiative, Option, Suggestion, Motion, Recommendation]
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+        description: "Short stable label of the proposal"
+      description:
+        type: STRING
+        description: "What is being proposed, grounded in the message text"
+      proposed_by:
+        type: STRING
+        description: "Name/email of the proposer"
+      proposed_at:
+        type: STRING
+        description: "When proposed (timestamp as written) when discernible"
+  Decision:
+    description: "A final chosen course of action / resolution"
+    aliases: [Outcome, Resolution, Conclusion, Verdict]
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+        description: "Short stable label of the decision"
+      outcome:
+        type: STRING
+        description: "What was decided, grounded in the text"
+      decided_by:
+        type: STRING
+        description: "Name/email of the decider(s)"
+      decided_at:
+        type: STRING
+        description: "When decided (timestamp as written) when discernible"
+  Topic:
+    description: "The subject/domain a thread or proposal concerns"
+    aliases: [Subject, Domain, Issue]
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+relationships:
+  PROPOSES:
+    source: Person
+    target: Proposal
+    description: "Person put forward the proposal"
+    cardinality: MANY_TO_MANY
+  DECIDES:
+    source: Person
+    target: Decision
+    description: "Person made/participated in the decision"
+    cardinality: MANY_TO_MANY
+  RESOLVES:
+    source: Decision
+    target: Proposal
+    description: "Decision selected/closed this proposal"
+    cardinality: MANY_TO_ONE
+  DISCUSSED_IN:
+    source: Proposal
+    target: EmailThread
+    description: "Proposal was raised/debated in the thread"
+    cardinality: MANY_TO_MANY
+  DECIDED_IN:
+    source: Decision
+    target: EmailThread
+    description: "Decision was reached in the thread"
+    cardinality: MANY_TO_ONE
+  ABOUT:
+    source: EmailThread
+    target: Topic
+    description: "Thread concerns this topic"
+    cardinality: MANY_TO_MANY

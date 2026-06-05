@@ -1,0 +1,131 @@
+# ADR-0102: Content-vs-Context on BC3 Decision Emails + KV-cache Cost (measured)
+
+Date: 2026-06-03
+
+Status: Accepted (evidence record; informs design, does not lock architecture)
+
+## Context
+
+The Context-Graph study (`examples/contextgraph/`) tests whether the FinDER
+finding (financial QA: vector ≥ graph) generalizes — or FLIPS — on
+**decision-making email threads**, where relational/temporal structure
+(proposal→response→decision, who objected, position changes) was hypothesized to
+favor a graph (context) lane. Pre-registered hypotheses: H1 (FLIP — graph/hybrid
+beats vector on relational slices), H2 (graph's stable per-thread prefix amortizes
+cheaper than vector via KV-cache), H3 (decision-graph quality is recall-gated).
+
+**Scope (critical, §20 — no overclaiming):** this ADR records a result on **BC3
+ONLY** — a single decision dataset (135 cases × 5 lanes = 675 partials), single
+judge (gpt-5.5). Of the decision datasets considered (BC3, Enron, W3C/Avocado,
+AMI), **only BC3 was reshaped and run.** Enron is downloaded but not run. This is
+therefore one decision data point (plus FinDER financial as a separate domain),
+NOT a cross-dataset generalization.
+
+## Decision / Findings
+
+**H1 (FLIP) — REJECTED on BC3.** judge_score: hybrid@decision 0.465 ≈
+hybrid@non-ontology 0.463 ≈ vector 0.454 ≫ graph@non-ontology 0.324 >
+graph@decision 0.270. Paired vs vector (same case): graph loses significantly
+(Δ −0.13 / −0.18; vector wins 79–92 of 135; p=0.0); hybrid only TIES vector
+(Δ +0.01; p>0.46) — including on relational slices E2_DECISION_SUMMARY /
+E3_PROPOSALS / E4_POSITIONS. Same shape as FinDER: **content(vector) ≥
+context(graph); hybrid ties content; graph alone loses.**
+
+**Ontology ablation — decision ontology did not help.** Graph got *worse* with the
+decision ontology (0.324→0.270); hybrid unchanged. Disconfirms "ontology lifts the
+graph lane" on this data.
+
+**H2 (KV-cache cost) — mechanism CONFIRMED, recommendation unchanged.** OpenAI
+gpt-4o (the truly-necessary OpenAI exception — `cached_tokens` telemetry exists
+nowhere else available; ADR-cost-policy), n=28/lane: amortized_billable graph 812
+< vector 918 < hybrid 2350; hit_ratio graph 59% / vector 0% / hybrid 17%. The
+graph's raw context is 2.2× vector yet its **stable prefix caches (59%) → cheaper
+amortized billable than vector**. The cost mechanism holds. BUT the cost win sits
+on a quality-poor lane (graph 0.27), and the quality-competitive lane (hybrid)
+is the most expensive (2350) — so **vector remains the best quality-per-token
+operating point on BC3.** Latency NOT measured (ttft 0.0 — not captured). n=28
+underpowered (directional).
+
+**H3 (recall gate) — consistent.** The mechanism for graph's loss is
+extraction-recall: the serialized subgraph drops content the raw messages hold;
+hybrid recovers vector by including messages but the graph adds no significant
+signal. Matches the FinDER generator/recall finding.
+
+## Consequences
+
+- **Design signal, not a lock:** graph-as-context is not competitive on BC3
+  decision QA as currently extracted; the lever is extraction recall, not
+  retrieval mode. SEOCHO must not overfit to FinDER *or* BC3.
+- **KV-cache prefix stability is a real cost lever** (graph 59% vs vector 0%
+  cache) and directly motivates middleware feature F1 (ontology+graph as a
+  byte-stable cached prefix) — but only pays off where the graph/hybrid lane is
+  quality-competitive, which requires recall improvement first.
+- **Design consequence — F3 runtime gate (route_policy@v1, opt-in, OFF by
+  default).** Because graph-as-context is ≤ vector, the runtime can skip the
+  (large) graph-context fallback for non-relational queries. A/B (reusing the
+  judged vector-vs-hybrid lanes as the gate's ON=vector vs OFF=vector+graph):
+  BC3 quality Δ −0.010 (paired p=0.48, n.s.), AMI Δ −0.044 (p=0.35, n.s.) — no
+  statistically significant quality loss; token savings ~1.6k (BC3) / ~2.6k
+  (AMI) prompt tokens per gated query (~66–80% context reduction). Verdict: a
+  sound cost lever, but kept OFF by default (AMI's small negative point estimate
+  + benchmark-proxy caveat — gate fires only on empty-structured-record queries;
+  live runtime A/B + larger N needed before any default flip). Landed behind
+  SEOCHO_LANE_POLICY (commit 415b5f8).
+- **Generalization (AMI, 2026-06-04):** ran AMI Meeting Corpus as a 2nd decision
+  dataset (15 meetings, 59/lane, human abssumm gold; MARA MiniMax gen + local BGE
+  + MARA DeepSeek judge — cheap budget, no OpenAI). Result: **PARTIAL
+  generalization.** Both BC3+AMI agree on the core — graph never significantly
+  beats vector and hybrid ties vector (**H1 FLIP rejected in both**). But BC3 had
+  graph significantly WORSE (p=0.0) whereas on AMI graph merely TIES vector (all
+  paired p>0.25). Mechanism: AMI graphs are far richer (400–500 nodes vs BC3
+  50–89; long dense transcripts → higher extraction recall) → graph-as-context
+  closes the gap. This refines the conclusion from "graph is uncompetitive" to
+  **"graph competitiveness tracks extraction recall"** (consistent with the
+  FinDER generator/recall finding). Confounds disclosed: judges differ (gpt-5.5
+  vs MARA-DeepSeek), embedders differ (OpenAI vs BGE), modality differs; AMI
+  underpowered (n=59) → within-dataset relationship only.
+- **Ontology+prompt cycle (approach1 SHACL+SKOS), 2026-06-05 — PROXY INFLATION.**
+  An ontology-engineer↔domain-expert swarm (anti-pattern-guarded) produced a
+  SHACL+SKOS extraction prompt (typed sent_date, stance edges, grounded Decision-
+  RESOLVES, naming) to fix the measured gaps. Round-1 STRUCTURE rose hugely on
+  BC3 (15-thread): CQ coverage 30→60%, stance CQ 0→73%, grounded 0→0.91, no
+  anti-pattern explosion. BUT round-2 QUALITY (gpt-oss judge, same threads,
+  vector lane identical +0.000 = clean comparison): graph@decision only +0.018
+  (below the pre-registered 5pp threshold), hybrid −0.022, and E4_POSITIONS (the
+  slice whose stance CQ went 0→73%) got WORSE (0.038→0.000). **Filling structure
+  inflated the existence-check proxies but did not improve answers.** Mechanism:
+  the missing structure was not the binding constraint on answer quality — the
+  serialization/use of the graph in the answer context is. Decision: the
+  extraction-structure lever is exhausted (judge Δ<5pp); next levers are
+  serialization (F4 bounded anchor-neighborhood) or reasoning-over-graph
+  (approach2 ReAct), NOT more extraction. Honest asymmetry (graphs M2.5-built,
+  answers M2.7, judge gpt-oss — MARA had M2.5/DeepSeek down) is fair across arms.
+  Validates §20: a structural proxy can move opposite to LLM-judged quality —
+  always confirm with the judge, never ship a CQ gain as a quality claim.
+- **approach2 (ReAct reasoning) + improvement-cycle VERDICT, 2026-06-06.**
+  approach2 = a ReAct loop (MiniMax-M2.7) querying the approach1 SHACL+SKOS graphs
+  via typed graph-read tools, vs approach1's one-shot serialization. 4-way judge
+  (gpt-oss, same 15 threads, graph lanes): **vector 0.229 ≫ approach1 0.164 >
+  baseline 0.145 > approach2 ReAct 0.138.** ReAct did not beat one-shot (−0.025)
+  and stayed far below vector. Per-slice: ReAct WON E1_FACT (0.333, targeted
+  who/when query) but HURT synthesis slices E2/E3 (iterative querying loses the
+  holistic narrative); E4_POSITIONS ~0 in all variants. **VERDICT: no lever —
+  SHACL+SKOS extraction (approach1) nor ReAct reasoning (approach2) — made the
+  graph competitive with vector on BC3 decision QA. content ≥ context HOLDS
+  through ontology+prompt+reasoning optimization.** The decision-synthesis signal
+  in the extracted graph is simply less than the raw text; the one durable lesson
+  is to ROUTE single-fact/lookup queries to targeted graph queries (E1 win) and
+  narrative/synthesis to content. The cycle stopped at the agreed gates (judge
+  Δ<5pp, no improvement across rounds). Asymmetry (graphs M2.5, answers M2.7,
+  judge gpt-oss — MARA M2.5/DeepSeek down) fair across arms; N=55, directional.
+- **Still open:** Enron (downloaded, raw, no gold annotations — needs an
+  annotated subset to run validly; raw + LLM-gold would be circular, §20).
+- Provider cost: future judges default to MARA; OpenAI used here only because
+  `cached_tokens` telemetry is OpenAI/DeepSeek-only and no direct-DeepSeek key
+  exists.
+
+## Reproducibility
+
+Run `e1-bc3-full` (675 partials), judge `e1-bc3-full_judged.json` (gpt-5.5,
+decision rubric), cost `h2_cost.json` (gpt-4o, threads=8, arm=decision). Judge is
+crash-hardened (incremental sidecar + resume + guarded post-processing).

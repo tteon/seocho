@@ -466,10 +466,23 @@ def main() -> int:
         gold, cand, q = r.get("expected_answer"), r.get("answer"), r.get("query", "")
         r["token_f1"] = token_f1(cand, gold)
         per_model = {}
+        _judge_failed = False
         for spec, llm in judges.items():
-            jr = judge_one(llm, q, gold, cand, judge_system=judge_system)
+            # Resilience (§20.2): a judge LLM error (e.g. MARA InternalServerError/
+            # timeout exhausting retries) must NOT crash the whole run NOR be imputed
+            # as a wrong answer (that would bias the lane down). Skip this case
+            # (don't write the sidecar) so a later resume re-judges it; report N
+            # attempted vs scored.
+            try:
+                jr = judge_one(llm, q, gold, cand, judge_system=judge_system)
+            except Exception as e:
+                print(f"  [judge-skip] {type(e).__name__} on {Path(f).name} — will retry on resume", flush=True)
+                _judge_failed = True
+                break
             per_model[spec] = {"verdict": jr["verdict"], "score": jr["score"],
                                "rationale": jr["rationale"]}
+        if _judge_failed:
+            continue
         r["judge_per_model"] = per_model
         r["judge_models"] = judge_models
         panel = _panel(per_model)

@@ -1,0 +1,73 @@
+graph_type: "email_core"
+package_id: "email_core"
+version: "1.0.0"
+description: "Email decision-making core — participants, messages, threads, reply flow"
+graph_model: "lpg"
+nodes:
+  Person:
+    description: "An email participant / decision stakeholder (sender or recipient)"
+    aliases: [Participant, Sender, Recipient, Actor, Stakeholder]
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+        description: "Display name or email-derived identity; stable across the thread"
+      email:
+        type: STRING
+        index: true
+        description: "Email address when present"
+      role:
+        type: STRING
+        description: "Stated role/title when discernible (e.g. VP, director, chair)"
+  EmailMessage:
+    description: "A single message within a thread"
+    aliases: [Message, Email, Post]
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+        description: "Stable message id/handle (e.g. msgid or subject#N) — NEVER a date or person name"
+      subject:
+        type: STRING
+      sent_date:
+        type: STRING
+        description: "Send time as an ISO-8601 string (YYYY-MM-DDTHH:MM:SS, or YYYY-MM-DD if no time), copied/normalized from the message Date header; null if the source has no date (do not infer). The author is the (:Person)-[:SENT]->(:EmailMessage) edge, not a property."
+  EmailThread:
+    description: "A conversation thread grouping related messages on one subject"
+    aliases: [Thread, Conversation, Discussion]
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+        description: "Thread id or normalized subject"
+      subject:
+        type: STRING
+relationships:
+  SENT:
+    source: Person
+    target: EmailMessage
+    description: "Person authored the message"
+    cardinality: ONE_TO_MANY
+  RECEIVED:
+    source: Person
+    target: EmailMessage
+    description: "Person was a recipient of the message"
+    cardinality: MANY_TO_MANY
+  IN_THREAD:
+    source: EmailMessage
+    target: EmailThread
+    description: "Message belongs to the thread"
+    cardinality: MANY_TO_ONE
+  REPLIED_TO:
+    source: EmailMessage
+    target: EmailMessage
+    description: "Message is a reply to an earlier message (conversation flow)"
+    cardinality: MANY_TO_ONE
+  PARTICIPATES_IN:
+    source: Person
+    target: EmailThread
+    description: "Person is active in the thread"
+    cardinality: MANY_TO_MANY

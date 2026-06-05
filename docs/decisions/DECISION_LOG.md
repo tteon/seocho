@@ -5,6 +5,16 @@ Each entry must link to a full ADR when impact is non-trivial.
 
 ## 2026-06-03
 
+- Accepted `ADR-0102-content-vs-context-bc3-decision-and-kvcache-cost.md`
+  - BC3 email-decision (SINGLE dataset, gpt-5.5 judge): H1 FLIP **rejected** —
+    vector≈hybrid≫graph; graph loses paired vs vector (p=0.0), hybrid ties
+    (p>0.46); decision ontology did not help. Same shape as FinDER.
+  - H2 KV-cache cost MECHANISM confirmed (graph amortized 812 < vector 918 via
+    59% prefix cache despite 2.2× raw context) but recommendation unchanged —
+    graph cost-win is on a quality-poor lane; vector = best quality/token.
+  - SCOPE: BC3 only; Enron downloaded-not-run, AMI/W3C not acquired. NOT a
+    cross-decision generalization — running Enron/AMI on the same pipeline is the
+    open work. ttft unmeasured; n underpowered (directional).
 - Accepted `ADR-0101-native-acceleration-profile-first-gate.md`
   - mandatory profile-first gate for any Rust/PyO3 port or activation
     (CLAUDE.md §21): whole-path A/B behind the real caller, marshaling-isolated

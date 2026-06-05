@@ -1,0 +1,67 @@
+graph_type: "argument_stance"
+package_id: "argument_stance"
+version: "1.0.0"
+description: "Arguments, positions, and support/opposition over proposals (composes with email_core + decision_entities)"
+graph_model: "lpg"
+nodes:
+  Argument:
+    description: "A reason, claim, or piece of evidence advanced in the discussion"
+    aliases: [Claim, Rationale, Evidence, Point, Reason]
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+        description: "Short stable label of the argument"
+      text:
+        type: STRING
+        description: "The argument as stated, grounded in the message"
+      type:
+        type: STRING
+        description: "Nature of the argument (e.g. financial, technical, risk, legal) when clear"
+  Stance:
+    description: "A participant's position on a proposal (for / against / neutral)"
+    aliases: [Position, Opinion]
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+        description: "Stable label, e.g. '<person> on <proposal>'"
+      position:
+        type: STRING
+        description: "FOR | AGAINST | NEUTRAL (as expressed)"
+      expressed_at:
+        type: STRING
+        description: "When expressed (timestamp as written) when discernible"
+relationships:
+  MAKES_ARGUMENT:
+    source: Person
+    target: Argument
+    description: "Person advanced the argument"
+    cardinality: MANY_TO_MANY
+  HAS_STANCE:
+    source: Person
+    target: Stance
+    description: "Person holds this position"
+    cardinality: ONE_TO_MANY
+  STANCE_ON:
+    source: Stance
+    target: Proposal
+    description: "The stance is about this proposal"
+    cardinality: MANY_TO_ONE
+  SUPPORTS:
+    source: Argument
+    target: Stance
+    description: "Argument backs this position"
+    cardinality: MANY_TO_MANY
+  CONTRADICTS:
+    source: Argument
+    target: Argument
+    description: "Arguments are in tension"
+    cardinality: MANY_TO_MANY
+  CHANGED_POSITION:
+    source: Person
+    target: Proposal
+    description: "Person shifted their stance on the proposal over the thread (temporal)"
+    cardinality: MANY_TO_MANY

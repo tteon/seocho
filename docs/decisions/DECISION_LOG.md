@@ -3,6 +3,18 @@
 This file is the lightweight index of architecture/product decisions.
 Each entry must link to a full ADR when impact is non-trivial.
 
+## 2026-06-06
+
+- [Proposed] ADR-0104 worktree-isolated runtime boot
+  - `make up INSTANCE=<id>` / `seocho serve --instance <id>` boot an isolated
+    app tier (offset ports + ephemeral logical DB) against a SHARED neo4j;
+    teardown drops only that instance's app project and database
+  - canonical derivation in `src/seocho/instance.py` (validated against the
+    `^[a-z][a-z0-9]{2,62}$` runtime contract); orchestration in `local.py`
+  - tradeoff: shared neo4j failure domain; hash-derived ports over 40 slots can
+    collide and is surfaced via `InstanceLayout.collides_with(...)`
+  - closes `seocho-6q9.3`, the last child of the observe-loop epic `seocho-6q9`
+
 ## 2026-06-03
 
 - Accepted `ADR-0099-ontology-control-plane-as-agentic-middleware-lock-in.md`

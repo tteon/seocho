@@ -1,0 +1,25 @@
+# fibo-fbc-fct-mkt mini-slice — Markets (Regulator/Exchange anchors)
+graph_type: fibo_fbc_fct_mkt
+package_id: fibo-fbc-fct-mkt-mini
+version: 1.0.0
+description: "Mini slice of FIBO FBC/FCT/MKT — markets, exchanges, regulators"
+graph_model: lpg
+nodes:
+  Regulator:
+    description: "FIBO BE/FBC Regulator — government/SRO with oversight authority"
+    properties:
+      name: {type: STRING, constraint: UNIQUE, required: true}
+      jurisdiction: {type: STRING}
+      acronym: {type: STRING, constraint: INDEX}
+  Exchange:
+    description: "FIBO FBC/MKT Exchange — trading venue"
+    properties:
+      name: {type: STRING, constraint: UNIQUE, required: true}
+      country: {type: STRING}
+      mic_code: {type: STRING, constraint: INDEX}
+relationships:
+  REGULATED_BY:
+    source: Exchange
+    target: Regulator
+    description: "Exchange is regulated by a Regulator"
+    cardinality: MANY_TO_MANY

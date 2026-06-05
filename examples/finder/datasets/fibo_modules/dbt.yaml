@@ -1,0 +1,27 @@
+# fibo-sec-dbt mini-slice — Debt Instruments (anchors S5/Footnotes bonds)
+graph_type: fibo_sec_dbt
+package_id: fibo-sec-dbt-mini
+version: 1.0.0
+description: "Mini slice of FIBO SEC/DEBT — bonds, notes, issuance, maturity/coupon"
+graph_model: lpg
+nodes:
+  DebtInstrument:
+    description: "FIBO SEC/Debt/DebtInstrument — generic debt security (bond/note/loan)"
+    properties:
+      name: {type: STRING, constraint: UNIQUE, required: true}
+      face_value: {type: STRING}
+      currency: {type: STRING}
+      maturity_date: {type: STRING}
+      coupon_rate: {type: STRING}
+      seniority: {type: STRING}
+  Issuer:
+    description: "Issuer of a debt instrument — a corporation or sovereign"
+    properties:
+      name: {type: STRING, constraint: UNIQUE, required: true}
+      jurisdiction: {type: STRING}
+relationships:
+  ISSUED_BY:
+    source: DebtInstrument
+    target: Issuer
+    description: "Debt instrument is issued by an issuer (FIBO :hasIssuer)"
+    cardinality: MANY_TO_ONE

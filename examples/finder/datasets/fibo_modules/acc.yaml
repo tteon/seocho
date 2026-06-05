@@ -1,0 +1,24 @@
+# fibo-fnd-acc mini-slice — Accounting Foundations (AccountingPolicy)
+graph_type: fibo_fnd_acc
+package_id: fibo-fnd-acc-mini
+version: 1.0.0
+description: "Mini slice of FIBO FND/Accounting — accounting policies and standards"
+graph_model: lpg
+nodes:
+  AccountingPolicy:
+    description: "FIBO FND/Accounting AccountingPolicy — policy applied in preparing financial statements"
+    properties:
+      name: {type: STRING, constraint: UNIQUE, required: true}
+      standard: {type: STRING}
+      adopted_date: {type: STRING}
+  AccountingStandard:
+    description: "FIBO FND/Accounting AccountingStandard — formal standard (GAAP/IFRS/etc.)"
+    properties:
+      name: {type: STRING, constraint: UNIQUE, required: true}
+      jurisdiction: {type: STRING}
+relationships:
+  CONFORMS_TO:
+    source: AccountingPolicy
+    target: AccountingStandard
+    description: "An AccountingPolicy conforms to an AccountingStandard"
+    cardinality: MANY_TO_ONE

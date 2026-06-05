@@ -1,0 +1,20 @@
+# fibo-be-corp-corp mini-slice — Corporations (Subsidiary/Holding)
+graph_type: fibo_be_corp_corp
+package_id: fibo-be-corp-corp-mini
+version: 1.0.0
+description: "Mini slice of FIBO BE/Corporations — corporation/subsidiary structure"
+graph_model: lpg
+nodes:
+  Corporation:
+    description: "FIBO BE/Corporations Corporation — chartered legal entity issuing shares"
+    properties:
+      name: {type: STRING, constraint: UNIQUE, required: true}
+      legal_name: {type: STRING}
+      ticker: {type: STRING, constraint: INDEX}
+      headquarters: {type: STRING}
+relationships:
+  HAS_SUBSIDIARY:
+    source: Corporation
+    target: Corporation
+    description: "Parent corporation owns/controls subsidiary (FIBO BE/Ownership)"
+    cardinality: ONE_TO_MANY

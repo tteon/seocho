@@ -1080,13 +1080,42 @@ async def platform_chat_send(request: PlatformChatRequest):
 @app.get(RuntimePath.PLATFORM_CHAT_SESSION, response_model=PlatformSessionResponse)
 @track("agent_server.platform_chat_session_get")
 async def platform_chat_session_get(session_id: str):
-    history = [PlatformTurn(**row) for row in platform_session_store.get(session_id)]
+    history_raw = platform_session_store.get(session_id)
+    workspace_id = "default"
+    if history_raw:
+        first_turn = history_raw[0]
+        if isinstance(first_turn, dict):
+            workspace_id = (first_turn.get("metadata") or {}).get("workspace_id", "default")
+        elif hasattr(first_turn, "metadata"):
+            workspace_id = (first_turn.metadata or {}).get("workspace_id", "default")
+
+    try:
+        require_runtime_permission(role="user", action="run_platform", workspace_id=workspace_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
+    history = [PlatformTurn(**row) for row in history_raw]
     return PlatformSessionResponse(session_id=session_id, history=history)
 
 
 @app.delete(RuntimePath.PLATFORM_CHAT_SESSION, response_model=PlatformSessionResponse)
 @track("agent_server.platform_chat_session_reset")
 async def platform_chat_session_reset(session_id: str):
+    history_raw = platform_session_store.get(session_id)
+    workspace_id = "default"
+    if history_raw:
+        first_turn = history_raw[0]
+        if isinstance(first_turn, dict):
+            workspace_id = (first_turn.get("metadata") or {}).get("workspace_id", "default")
+        elif hasattr(first_turn, "metadata"):
+            workspace_id = (first_turn.metadata or {}).get("workspace_id", "default")
+
+    try:
+        require_runtime_permission(role="user", action="run_platform", workspace_id=workspace_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
+    history = [PlatformTurn(**row) for row in history_raw]
     platform_session_store.clear(session_id)
     return PlatformSessionResponse(session_id=session_id, history=[])
 

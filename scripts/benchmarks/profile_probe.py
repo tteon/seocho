@@ -71,7 +71,11 @@ def _profile(graph_store, database, cypher, params):
 def run(dataset_path, *, limit_tickers, database, uri, user, password):
     from seocho.store.graph import Neo4jGraphStore
 
-    rows = [json.loads(l) for l in Path(dataset_path).read_text().splitlines() if l.strip()]
+    rows = []
+    with open(dataset_path, 'r', encoding='utf-8') as f:
+        for l in f:
+            if l.strip():
+                rows.append(json.loads(l))
     tickers = sorted({r["ticker"] for r in rows})
     if limit_tickers:
         tickers = tickers[:limit_tickers]

@@ -51,7 +51,10 @@ class _FakeJudgeLLM:
 
 def test_judge_one_mocks_llm_and_uses_temp_zero():
     llm = _FakeJudgeLLM('{"verdict":"correct","score":1.0}')
-    out = JUDGE.judge_one(llm, "Q", "gold", "candidate")
+    out = JUDGE.judge_one(
+        llm, "Q", "gold",
+        "Apple reported revenue grew eight percent in fiscal 2023.",
+    )
     assert out["verdict"] == "correct"
     assert llm.calls and llm.calls[0]["temperature"] == 0.0
 
@@ -60,7 +63,10 @@ def test_judge_one_falls_back_when_no_temperature_kwarg():
     class _NoTemp:
         def complete(self, *, system, user):
             return type("R", (), {"text": '{"verdict":"partial","score":0.5}'})()
-    out = JUDGE.judge_one(_NoTemp(), "Q", "gold", "cand")
+    out = JUDGE.judge_one(
+        _NoTemp(), "Q", "gold",
+        "Net income rose modestly compared with prior year results.",
+    )
     assert out["verdict"] == "partial"
 
 
@@ -105,3 +111,38 @@ def test_paired_analysis_pairs_by_case():
     assert rec["lane_wins"] == 1 and rec["vector_wins"] == 1
     # x1: +0.5 (graph 1.0 - vector 0.5), x2: -1.0 (graph 0.0 - vector 1.0) -> mean -0.25
     assert rec["mean_delta"] == -0.25
+
+
+# ---- sanity guard (empty / trivially short candidate, no LLM call) ---------
+
+class _NeverCalledLLM:
+    """LLM stub that asserts if .complete() is invoked."""
+    def complete(self, *args, **kwargs):  # pragma: no cover — must not run
+        raise AssertionError("LLM judge should not be called on empty candidate")
+
+
+def test_judge_one_skips_llm_on_empty_candidate():
+    out = JUDGE.judge_one(_NeverCalledLLM(), "q", "gold", "")
+    assert out["verdict"] == "incorrect"
+    assert out["score"] == 0.0
+    assert out.get("sanity_skipped") is True
+
+
+def test_judge_one_skips_llm_on_too_short_candidate():
+    out = JUDGE.judge_one(_NeverCalledLLM(), "q", "gold", "ok yes")
+    assert out["verdict"] == "incorrect"
+    assert out.get("sanity_skipped") is True
+
+
+def test_judge_one_calls_llm_on_substantive_candidate():
+    class _StubLLM:
+        def complete(self, system, user, **kw):
+            class R:
+                text = '{"verdict":"correct","score":1.0,"rationale":"ok"}'
+            return R()
+    out = JUDGE.judge_one(
+        _StubLLM(), "q", "gold",
+        "Apple Inc. reported revenue of $383B in fiscal 2023.",
+    )
+    assert out["verdict"] == "correct"
+    assert out.get("sanity_skipped") is None or out["sanity_skipped"] is False

@@ -1,0 +1,41 @@
+graph_type: "position_topic"
+package_id: "position_topic"
+version: "1.0.0"
+description: >
+  MINIMAL governed opinion relation: a person's position polarity on a TOPIC,
+  as a direct edge (composes with email_core + decision_entities). Deliberately
+  NOT the prose-heavy argument_stance shape (no Argument/text node, no Stance
+  node, targets Topic not Proposal). Declared ONLY to back a JOIN/aggregation
+  question class — "polarity distribution of positions on Topic T across people"
+  — which the graph can serve deterministically (LLM-free) and vector cannot.
+  Single-opinion prose retrieval is NOT a justification for this type (route that
+  to vector). polarity is an ENUMERABLE Tier-1 property; the supporting prose
+  stays in the source_quote for provenance, never as a query key.
+graph_model: "lpg"
+nodes:
+  Person:
+    description: "A participant (anchored in email_core; redeclared for standalone merge)"
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+  Topic:
+    description: "The subject/issue a position is held on (shared with decision_entities)"
+    aliases: [Subject, Domain, Issue]
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+relationships:
+  HOLDS_POSITION:
+    source: Person
+    target: Topic
+    description: >
+      Person expressed a position on the topic. Edge properties (LPG):
+      polarity ∈ {FOR, AGAINST, NEUTRAL} (enumerable, the aggregation key);
+      expressed_at (timestamp as written, for temporal aggregation / position
+      change); source_quote (verbatim grounding for provenance). Emit ONLY when
+      the text states a clear position on a topic — never infer.
+    cardinality: MANY_TO_MANY

@@ -25,7 +25,7 @@ from seocho import Ontology
 
 _THIS_DIR = Path(__file__).resolve().parent
 
-KNOWN_MODULES = ("email_core", "decision_entities", "argument_stance")
+KNOWN_MODULES = ("email_core", "decision_entities", "argument_stance", "position_topic")
 
 # Nested-superset arms (email_core is the anchor; never a dangling rel source).
 ARMS: Dict[str, List[str]] = {
@@ -33,6 +33,10 @@ ARMS: Dict[str, List[str]] = {
     "core": ["email_core"],
     "decision": ["email_core", "decision_entities"],
     "argument": ["email_core", "decision_entities", "argument_stance"],
+    # governed-extension arm (Answerability Gate demo): decision + the MINIMAL
+    # HOLDS_POSITION→Topic edge, flipping E4_POSITIONS UNCOVERED→CERTIFIED for the
+    # polarity-aggregation question class. Deliberately NOT argument_stance.
+    "position": ["email_core", "decision_entities", "position_topic"],
 }
 
 

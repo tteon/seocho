@@ -201,7 +201,13 @@ def stop_local_runtime(
             database=layout.database if layout else "",
         )
 
-    _run_compose(command, root, os.environ.copy(), runner)
+    # `docker compose -f docker-compose.instance.yml down` still interpolates the
+    # file, whose required vars (SEOCHO_DATABASE, ports) must be present even for
+    # teardown — so apply the same instance env overrides as serve.
+    down_env = os.environ.copy()
+    if layout is not None:
+        down_env.update(layout.env_overrides())
+    _run_compose(command, root, down_env, runner)
     # Teardown removes only this instance's resources: its app project (above)
     # and its ephemeral logical database. The shared neo4j is left intact.
     if layout is not None:
@@ -287,11 +293,17 @@ def _run_compose(
         raise SeochoError(f"docker compose failed: {detail}") from exc
 
 
-def admin_database_command(database: str, *, action: str) -> List[str]:
+def admin_database_command(
+    database: str, *, action: str, user: str = "neo4j", password: str = ""
+) -> List[str]:
     """Build the docker/cypher-shell argv that creates or drops ``database``.
 
     ``database`` is re-validated against the runtime contract before it is
     interpolated into Cypher (defense in depth — derived names already comply).
+
+    cypher-shell runs *inside* the neo4j container, which does not inherit the
+    docker-compose client's environment, so the credentials are forwarded
+    explicitly with ``exec -e`` rather than relying on the client env.
     """
     if action not in ("create", "drop"):
         raise SeochoError(f"unknown database admin action: {action!r}")
@@ -304,19 +316,12 @@ def admin_database_command(database: str, *, action: str) -> List[str]:
         cypher = f"CREATE DATABASE `{database}` IF NOT EXISTS"
     else:
         cypher = f"DROP DATABASE `{database}` IF EXISTS"
-    return [
-        "docker",
-        "compose",
-        "-p",
-        SHARED_PROJECT_NAME,
-        "exec",
-        "-T",
-        "neo4j",
-        "cypher-shell",
-        "-d",
-        "system",
-        cypher,
-    ]
+    command = ["docker", "compose", "-p", SHARED_PROJECT_NAME, "exec", "-T"]
+    command += ["-e", f"NEO4J_USERNAME={user or 'neo4j'}"]
+    if password:
+        command += ["-e", f"NEO4J_PASSWORD={password}"]
+    command += ["neo4j", "cypher-shell", "-d", "system", cypher]
+    return command
 
 
 def _admin_database(
@@ -328,15 +333,13 @@ def _admin_database(
     runner: Callable[..., subprocess.CompletedProcess[str]],
 ) -> None:
     """Create/drop an ephemeral logical database on the shared neo4j."""
-    command = admin_database_command(database, action=action)
-    env = os.environ.copy()
-    user = settings.get("NEO4J_USER") or "neo4j"
-    password = settings.get("NEO4J_PASSWORD") or ""
-    # cypher-shell reads credentials from the environment to keep them off argv.
-    env["NEO4J_USERNAME"] = user
-    if password:
-        env["NEO4J_PASSWORD"] = password
-    _run_compose(command, project_dir, env, runner)
+    command = admin_database_command(
+        database,
+        action=action,
+        user=settings.get("NEO4J_USER") or "neo4j",
+        password=settings.get("NEO4J_PASSWORD") or "",
+    )
+    _run_compose(command, project_dir, os.environ.copy(), runner)
 
 
 def _wait_for_runtime_ready(

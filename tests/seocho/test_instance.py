@@ -112,6 +112,20 @@ def test_admin_database_command_create_and_drop():
     assert drop[-1] == "DROP DATABASE `wt522b276a356b` IF EXISTS"
 
 
+def test_admin_database_command_forwards_credentials_into_container():
+    # cypher-shell runs inside the neo4j container; creds must be injected with
+    # `exec -e`, not left on the docker-compose client env (the live-boot bug).
+    cmd = admin_database_command("wt522b276a356b", action="create", user="neo4j", password="s3cret")
+    assert "-e" in cmd
+    assert "NEO4J_USERNAME=neo4j" in cmd
+    assert "NEO4J_PASSWORD=s3cret" in cmd
+    # password must precede the `neo4j` service / cypher-shell tokens
+    assert cmd.index("NEO4J_PASSWORD=s3cret") < cmd.index("cypher-shell")
+    # no password -> no NEO4J_PASSWORD token (avoid an empty credential)
+    nopw = admin_database_command("wt522b276a356b", action="create")
+    assert not any(t.startswith("NEO4J_PASSWORD=") for t in nopw)
+
+
 def test_admin_database_command_rejects_injection():
     with pytest.raises(SeochoError):
         admin_database_command("wt`; DROP DATABASE neo4j; --", action="create")
@@ -161,9 +175,11 @@ class _Recorder:
 
     def __init__(self):
         self.calls: list[list[str]] = []
+        self.envs: list[dict] = []
 
     def __call__(self, command, **kwargs):
         self.calls.append(list(command))
+        self.envs.append(dict(kwargs.get("env") or {}))
         return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
 
 
@@ -209,5 +225,8 @@ def test_stop_with_instance_drops_database_after_compose_down():
     )
     # Compose down first (remove app tier), then drop only this ephemeral DB.
     assert "down" in recorder.calls[0]
+    # the down command must carry the instance env so the compose file (which has
+    # required vars like SEOCHO_DATABASE) interpolates even for teardown.
+    assert recorder.envs[0].get("SEOCHO_DATABASE") == "wt522b276a356b"
     assert recorder.calls[1][-1] == "DROP DATABASE `wt522b276a356b` IF EXISTS"
     assert status.status == "stopped"

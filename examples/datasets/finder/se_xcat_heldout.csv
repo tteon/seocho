@@ -1,0 +1,28 @@
+slice,case_id,ticker,cik,category,type,years,query
+SE_XCAT_HELDOUT,80820f77,UAL,0000100517,Financials,Compositional,2021|2023,Passenger revenue mix for UAL 2021-2023 & growth strategy impact.
+SE_XCAT_HELDOUT,994c4973,BBWI,0000701985,Financials,Compositional,2023,BBWI 2023 op & net inc ratios for interest exp.
+SE_XCAT_HELDOUT,2aea2764,SYK,0000310764,Financials,Compositional,2021|2023,Impact on shareholder value from diluted EPS vs shares for Stryker (SYK) from 2021-2023.
+SE_XCAT_HELDOUT,9cd38954,AON,0000315293,Financials,Compositional,2021|2023,Net inc. & rev. % change from 2021-2023 reflects profitability & cost efficiency for Aon (AON).
+SE_XCAT_HELDOUT,8b8ead7e,AON,0000315293,Financials,Compositional,2022|2023,Diluted EPS growth for AON plc in 2023 vs 2022.
+SE_XCAT_HELDOUT,b7b8f21b,RMD,0000943819,Financials,Compositional,2023|2024,"RMD FY24 GP, op, net margin trends vs FY23/22."
+SE_XCAT_HELDOUT,15cec13e,RMD,0000943819,Financials,Compositional,2023|2024,EPS change for ResMed (RMD) from 2023-2024 and its impact on earnings quality.
+SE_XCAT_HELDOUT,e911b5eb,CNC,0001071739,Financials,Compositional,2023,2023 med costs & premium tax exp share vs rev & profit of Centene Corp (CNC).
+SE_XCAT_HELDOUT,15ad26a4,UAL,0000100517,Financials,None,2021|2023,Cost drivers for turnaround in operating margin for United Airlines (UAL) from 2021-2023.
+SE_XCAT_HELDOUT,25d93bcd,SYK,0000310764,Financials,None,2022|2023,"SYK profitability analysis for 2023 vs 2022, focusing on goodwill impair/amort."
+SE_XCAT_HELDOUT,91019766,CNC,0001071739,Financials,None,2022|2023,CNC 2022-2023 trends in premium & svc rev topline.
+SE_XCAT_HELDOUT,b843a66a,VRTX,0000875320,Company overview,Compositional,2023,10% headcount scaling split US vs non-US for Vertex (VRTX) workforce.
+SE_XCAT_HELDOUT,b75e5ab5,UAL,0000100517,Company overview,Compositional,2023,Underrepresented employee count at UAL 50% & market rep impact.
+SE_XCAT_HELDOUT,bfd44d99,BBWI,0000701985,Company overview,Compositional,2024,FTE vs PTE ratio (BBWI) impact on comp & HR cap allocation.
+SE_XCAT_HELDOUT,af7fd8bd,SYK,0000310764,Company overview,Compositional,2023,"SYK headcount up from 50K to 52K, reflecting a 4% growth; assess impact on operational expansion."
+SE_XCAT_HELDOUT,33b88278,AON,0000315293,Company overview,Compositional,2023,"Aon plc's (AON) 10% productivity boost could significantly enhance rev/emp, operating margins, and key valuation metrics."
+SE_XCAT_HELDOUT,b90a5f65,RMD,0000943819,Company overview,Compositional,2024,ResMed Inc. (RMD) focuses on employee regional allocation vs. exp. strategy.
+SE_XCAT_HELDOUT,daff6a7b,CE,0001306830,Company overview,None,,Macroeconomic and seasonal factors impact revenue margins for Celanese (CE).
+SE_XCAT_HELDOUT,c6c88eb4,VRTX,0000875320,Footnotes,None,2022|2023,Impact of VRTX's (Vertex Pharmaceuticals) AFS debt strategy shift on capex & growth amid market changes.
+SE_XCAT_HELDOUT,b2147785,UAL,0000100517,Footnotes,None,2021|2022|2023|2024|2025,United Airlines' (UAL) asset pledges may restrict financial flexibility for investments/acquisitions.
+SE_XCAT_HELDOUT,6b611c81,BBWI,0000701985,Footnotes,None,2021,Cash flow trends for Bath & Body Works (BBWI) from 2021-23 indicate liquidity stability implications and growth investments.
+SE_XCAT_HELDOUT,d40a08c2,SYY,0000096021,Financials,Multiplication,2024,Implied net earnings vs reported net income for fiscal 2024 for Sysco (SYY) in diluted EPS.
+SE_XCAT_HELDOUT,d2f55c36,VRTX,0000875320,Financials,None,2022|2023,2022-2023 trends in Vertex (VRTX) financial leverage.
+SE_XCAT_HELDOUT,39042960,CNC,0001071739,Company overview,None,,"Competitive dynamics, risk profile, cap allocation, and financials for Centene Corp (CNC)."
+SE_XCAT_HELDOUT,5c7506ea,SYY,0000096021,Footnotes,None,2036,Sysco (SYY) long-term contracts' growth impacts profitability.
+SE_XCAT_HELDOUT,0d0d16d0,CE,0001306830,Footnotes,None,2021|2022|2023,Capex conversion to op profit across segments for Celanese (CE).
+SE_XCAT_HELDOUT,32cb9812,SYK,0000310764,Footnotes,None,2024|2025|2026|2027|2028,Stryker's (SYK) contractual payment sched impacts capital alloc risk/opps.

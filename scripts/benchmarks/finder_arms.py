@@ -166,7 +166,9 @@ def answer(client, model, query: str, context: str) -> str:
 def judge(client, model, query: str, gold: str, candidate: str) -> float:
     user = (f"Question: {query}\nReference answer: {gold}\n"
             f"Candidate answer: {candidate}\n\nReturn the JSON verdict.")
-    txt = _chat(client, model, JUDGE_SYSTEM, user, max_tokens=400)
+    # MiniMax-M2.5 emits reasoning before the JSON verdict; 400 tokens truncated
+    # it (finish_reason=length) -> unparseable -> a spurious 0.0. Give it room.
+    txt = _chat(client, model, JUDGE_SYSTEM, user, max_tokens=1600)
     return float(_parse_judge(txt).get("score", 0.0))
 
 

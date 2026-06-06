@@ -113,3 +113,57 @@ def test_route_profile_carries_lane_policy():
     assert lp["retrieval"] in {"vector", "hybrid"}
     assert lp["policy_version"] == ROUTE_POLICY_VERSION
     assert isinstance(lp["escalate_synthesis"], bool)
+
+
+# --- Answerability Gate (ontology-as-predicate, opt-in) ---
+
+from seocho.query.route_policy import answerability_gate, ANSWERABILITY_VERSION
+
+
+def test_gate_off_by_default_unchanged():
+    """No ontology relations supplied → gate OFF → identical to route_policy@v1."""
+    p = recommend_lane("R1_LOOKUP", "deterministic")
+    assert p.retrieval == "vector" and p.answerability is None
+
+
+def test_gate_certified_when_required_relation_declared():
+    g = answerability_gate(["PROPOSES"], ["PROPOSES", "SENT", "RESOLVES"])
+    assert g.verdict == "CERTIFIED" and "PROPOSES" in g.declared_match
+    assert g.version == ANSWERABILITY_VERSION
+
+
+def test_gate_uncovered_when_relation_absent():
+    # E4: 'decision' arm declares no opinion relation
+    g = answerability_gate(["HOLDS_POSITION"], ["PROPOSES", "SENT", "DECIDES", "RESOLVES"])
+    assert g.verdict == "UNCOVERED" and g.declared_match == ()
+
+
+def test_gate_partial_when_only_related_relation_declared():
+    g = answerability_gate(["HOLDS_POSITION"], ["SUPPORTS", "PROPOSES"],
+                           partial_relations=["SUPPORTS", "OPPOSES"])
+    assert g.verdict == "PARTIAL" and "SUPPORTS" in g.declared_match
+
+
+def test_certified_deterministic_routes_graph_llm_free():
+    p = recommend_lane("R1_LOOKUP", "deterministic",
+                       required_relations=["PROPOSES"], declared_relations=["PROPOSES", "SENT"])
+    assert p.retrieval == "graph_certified" and p.escalate_synthesis is False
+    assert p.answerability.verdict == "CERTIFIED"
+
+
+def test_uncovered_relational_firewalled_to_vector():
+    # relational class that would normally be hybrid (pulls graph context), but the
+    # ontology declares no serving relation → firewall drops to vector.
+    p = recommend_lane("R4_GRAPH_JOIN", "hybrid",
+                       required_relations=["HOLDS_POSITION"],
+                       declared_relations=["PROPOSES", "SENT", "RESOLVES"])
+    assert p.retrieval == "vector"
+    assert p.answerability.verdict == "UNCOVERED"
+
+
+def test_uncovered_does_not_upgrade_to_graph():
+    """Firewall: a deterministic lookup whose relation is undeclared must NOT get
+    the graph_certified lane (never serve LLM-free from an undeclared edge)."""
+    p = recommend_lane("R1_LOOKUP", "deterministic",
+                       required_relations=["HOLDS_POSITION"], declared_relations=["PROPOSES"])
+    assert p.retrieval == "vector" and p.answerability.verdict == "UNCOVERED"

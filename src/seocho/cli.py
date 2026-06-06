@@ -87,6 +87,11 @@ def build_parser() -> argparse.ArgumentParser:
     serve_parser.add_argument("--no-wait", action="store_true", help="Return after docker compose starts")
     serve_parser.add_argument("--timeout", type=float, default=90.0, help="Readiness wait timeout in seconds")
     serve_parser.add_argument(
+        "--instance",
+        default=None,
+        help="Boot an isolated per-worktree app tier (offset ports + ephemeral DB) against the shared neo4j",
+    )
+    serve_parser.add_argument(
         "--fallback-openai-key",
         default="dummy-key",
         help="Fallback OPENAI_API_KEY for local verification when no key is set",
@@ -97,6 +102,11 @@ def build_parser() -> argparse.ArgumentParser:
     stop_parser = subparsers.add_parser("stop", help="Stop the local SEOCHO docker stack")
     stop_parser.add_argument("--project-dir", default=None, help="Repository root containing docker-compose.yml")
     stop_parser.add_argument("--volumes", action="store_true", help="Also remove compose volumes")
+    stop_parser.add_argument(
+        "--instance",
+        default=None,
+        help="Tear down a per-worktree app tier and drop only its ephemeral DB",
+    )
     stop_parser.add_argument("--dry-run", action="store_true", help="Print the compose command without running it")
     stop_parser.add_argument("--json", dest="output_json", action="store_true", help="Emit JSON output")
 
@@ -486,6 +496,7 @@ def _dispatch(client: Optional[Seocho], args: argparse.Namespace) -> int:
             wait=not args.no_wait,
             timeout=args.timeout,
             fallback_openai_key=args.fallback_openai_key,
+            instance=args.instance,
             dry_run=args.dry_run,
         )
         _print_result(status, args.output_json)
@@ -495,6 +506,7 @@ def _dispatch(client: Optional[Seocho], args: argparse.Namespace) -> int:
         status = stop_local_runtime(
             project_dir=args.project_dir,
             volumes=args.volumes,
+            instance=args.instance,
             dry_run=args.dry_run,
         )
         _print_result(status, args.output_json)
@@ -1351,3 +1363,7 @@ def _cmd_serve_http(args: argparse.Namespace) -> int:
     app = create_bundle_runtime_app(bundle)
     uvicorn.run(app, host=args.host, port=args.port, reload=args.reload)
     return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -4,6 +4,11 @@ DOCKER_COMPOSE = docker compose
 DOCKER_COMPOSE_LIVE = docker compose -f docker-compose.yml -f docker-compose.dev.yml
 DOCKER_COMPOSE_TUTORIALS = docker compose -f docker-compose.tutorials.yml
 
+# Shared stack project name (fixed so per-instance app tiers can target its
+# neo4j for ephemeral-database admin — see src/seocho/local.py).
+SHARED_PROJECT = seocho
+SEOCHO_CLI = python3 -m seocho.cli
+
 .PHONY: up up-live up-legacy-semantic down restart logs clean bootstrap shell test test-integration e2e-smoke lint format help opik-up opik-down opik-logs demo-raw demo-meta demo-neo4j demo-graphrag-opik demo-all setup-env tutorials-up tutorials-down tutorials-logs tutorials-shell tutorials-build tutorials-smoke tutorials-test tutorials-pytest tutorials-gds
 
 ##@ Development
@@ -25,15 +30,22 @@ bootstrap: ## Bootstrap the development environment
 setup-env: ## Interactive .env setup (OpenAI key, Opik, ports)
 	@bash scripts/setup/init-env.sh
 
-up: ## Start core local stack (DozerDB + extraction API + platform UI)
+up: ## Start core local stack; or an isolated app tier with INSTANCE=<id>
+ifeq ($(strip $(INSTANCE)),)
 	@echo "🐳 Starting Seocho core local stack from an image-backed source snapshot..."
-	@docker compose up -d --build
+	@COMPOSE_PROJECT_NAME=$(SHARED_PROJECT) docker compose up -d --build
 	@echo "✅ Services started!"
 	@echo "🖥️  Platform UI: http://localhost:$${CHAT_INTERFACE_PORT:-8501}"
 	@echo "🧠 Backend API Docs: http://localhost:$${EXTRACTION_API_PORT:-8001}/docs"
 	@echo "🗄️  DozerDB Browser: http://localhost:$${NEO4J_HTTP_PORT:-7474}"
 	@echo "ℹ️  Legacy semantic-service is opt-in: docker compose --profile legacy-semantic up -d semantic-service"
 	@echo "ℹ️  For a bind-mounted live edit loop, use: make up-live"
+	@echo "ℹ️  For an isolated per-worktree runtime, use: make up INSTANCE=<id>"
+else
+	@echo "🐳 Booting isolated instance '$(INSTANCE)' (offset ports + ephemeral DB) against the shared neo4j..."
+	@echo "ℹ️  Requires the shared stack to be running first: make up"
+	@$(SEOCHO_CLI) serve --instance $(INSTANCE) --build
+endif
 
 up-live: ## Start core local stack with live bind mounts for extraction/runtime/src/seocho
 	@echo "🐳 Starting Seocho core local stack with live source mounts..."
@@ -45,9 +57,14 @@ up-legacy-semantic: ## Start the legacy semantic-service profile too
 	@docker compose --profile legacy-semantic up -d
 	@echo "✅ Legacy semantic-service started."
 
-down: ## Stop all services
+down: ## Stop all services; or tear down one isolated instance with INSTANCE=<id>
+ifeq ($(strip $(INSTANCE)),)
 	@echo "🛑 Stopping services..."
-	@docker compose down
+	@COMPOSE_PROJECT_NAME=$(SHARED_PROJECT) docker compose down
+else
+	@echo "🛑 Tearing down instance '$(INSTANCE)' and dropping only its ephemeral DB..."
+	@$(SEOCHO_CLI) stop --instance $(INSTANCE)
+endif
 
 restart: ## Restart all services
 	@echo "🔄 Restarting services..."

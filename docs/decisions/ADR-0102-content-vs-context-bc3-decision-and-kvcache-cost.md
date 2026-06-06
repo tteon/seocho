@@ -137,9 +137,22 @@ signal. Matches the FinDER generator/recall finding.
   slices). prose-QA was always the wrong metric for graph. A (LLM-verbalize)
   assessed LOW-ROI: it would spend scarce M2.7 chasing the vector-favoring
   prose-judge while the deterministic answer already equals vector.
-- **Still open:** Enron (downloaded, raw, no gold — needs an annotated subset;
-  raw + LLM-gold would be circular, §20). Directly measuring the scale axis
-  (cache-hit / LLM-free-coverage SLO) is the natural next eval if pursued.
+- **Scale-axis eval (panel pivot, $0 pre-registered, commit bd19c38).** Measured
+  the asserted scale win directly with coverage as a JOINT metric (LLM-free AND
+  correct). MOSTLY DISCONFIRMING: graph admits LLM-free (E3 100%, E4 77%) but
+  correct|admitted ≈0 → LLM-free-CORRECT 0-8% (pre-reg bar 0.40 → FAIL); admission
+  multiplier 1.04x; degradation 4% vs vector 0%. ONE robust win: prefix-stability
+  graph 98% vs vector 16% (cacheable stable prefix — the cost mechanism). The
+  marginal "88% coverage" was proxy inflation; the joint metric exposed it.
+- **DEFINITIVE CONCLUSION (BC3 decision QA):** the binding constraint is
+  **extraction quality** — the graph's answers are mostly wrong/incomplete, so
+  neither quality nor rigorously-measured scale (except cache prefix-stability)
+  favors graph. LLM-free serving is only valuable when correct; it isn't here.
+  Graph's one structural advantage independent of answer quality is the cacheable
+  stable prefix. Next real lever, if pursued, is extraction recall/quality
+  (generator-dominated), NOT retrieval mode or serving.
+- **Still open:** Enron (raw, no gold — needs annotated subset); extraction-
+  quality lever on a stronger generator.
 - Provider cost: future judges default to MARA; OpenAI used here only because
   `cached_tokens` telemetry is OpenAI/DeepSeek-only and no direct-DeepSeek key
   exists.

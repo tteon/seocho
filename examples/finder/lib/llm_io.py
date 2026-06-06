@@ -123,6 +123,15 @@ _PROVIDER_PRESETS: dict[str, dict] = {
         "forced_temperature": None,
         "supports_response_format_json": True,  # deepseek docs document JSON Output mode
     },
+    # MARA cloud — OpenAI-compatible endpoint serving MiniMax-class models.
+    # Mirrors src/seocho/store/llm.py's "mara" ProviderSpec (the SDK default).
+    "mara": {
+        "default_model": "MiniMax-M2.5",
+        "base_url": "https://api.cloud.mara.com/v1",
+        "api_key_env": "MARA_API_KEY",
+        "forced_temperature": None,
+        "supports_response_format_json": False,
+    },
 }
 
 

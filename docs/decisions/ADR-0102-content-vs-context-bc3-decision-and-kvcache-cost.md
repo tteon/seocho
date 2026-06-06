@@ -118,8 +118,28 @@ signal. Matches the FinDER generator/recall finding.
   narrative/synthesis to content. The cycle stopped at the agreed gates (judge
   Δ<5pp, no improvement across rounds). Asymmetry (graphs M2.5, answers M2.7,
   judge gpt-oss — MARA M2.5/DeepSeek down) fair across arms; N=55, directional.
-- **Still open:** Enron (downloaded, raw, no gold annotations — needs an
-  annotated subset to run validly; raw + LLM-gold would be circular, §20).
+- **Graph-centric reframe + builds (2026-06-06, continuous expert panel).** The
+  user re-centered: graph is the CORE; a standing panel (Harvard SWE + Meta-scale
+  architect) reframed the verdict — "graph ≤ vector" was an artifact of scoring
+  graph on prose-QA (vector's turf) through a lossy serializer. Built & measured
+  ($0 unless noted): (#1) graph-strength eval — on the RIGHT metric (LLM-free
+  deterministic serving) approach1 SHACL+SKOS vs baseline: multi-hop JOIN 0→73%,
+  provenance 0→91%. (#2) Tier-1 deterministic LLM-free answerer (grounded, cites
+  source_quote). (B) canonical entity merge: fragmentation 14→0% (Person 128→95),
+  answerability unchanged (B's gain is accuracy, not answerability — needs C). (C)
+  accuracy via same gpt-oss judge: on graph's served classes E3_PROPOSALS+
+  E4_POSITIONS, **DET-graph(LLM-free) 0.080 = vector 0.080 (tie); E4 DET 0.077 >
+  approach1 LLM-over-graph 0.000**; E1_FACT vector 0.367 > DET 0.233.
+- **Program conclusion:** graph's demonstrated win is the **scale/serving axis**
+  — LLM-free admission-control + verifiability/auditability + cacheable stable
+  prefix — matching vector quality on served classes at $0 LLM, NOT a prose-answer
+  quality advantage (parity, not better; absolute quality low on these hard
+  slices). prose-QA was always the wrong metric for graph. A (LLM-verbalize)
+  assessed LOW-ROI: it would spend scarce M2.7 chasing the vector-favoring
+  prose-judge while the deterministic answer already equals vector.
+- **Still open:** Enron (downloaded, raw, no gold — needs an annotated subset;
+  raw + LLM-gold would be circular, §20). Directly measuring the scale axis
+  (cache-hit / LLM-free-coverage SLO) is the natural next eval if pursued.
 - Provider cost: future judges default to MARA; OpenAI used here only because
   `cached_tokens` telemetry is OpenAI/DeepSeek-only and no direct-DeepSeek key
   exists.

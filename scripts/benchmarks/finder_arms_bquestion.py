@@ -74,19 +74,21 @@ class BQuestion:
 
 
 def build_bquestions(resolver: EntityResolver) -> List[BQuestion]:
+    """One B-question per category PAIR per company. A 3-category company
+    (BBWI/SYK/UAL/VRTX) yields C(3,2)=3 B-questions; a 2-category company yields
+    1 — maximizing cross-category data points for a more robust Spearman rho."""
+    from itertools import combinations
     cases = select_xcat_cases(resolver)
     by_cik: Dict[str, List[Case]] = {}
     for c in cases:
         by_cik.setdefault(c.cik, []).append(c)
     out: List[BQuestion] = []
     for cik, cs in by_cik.items():
-        # pick two cases from two DIFFERENT categories for this company
         seen_cat: Dict[str, Case] = {}
         for c in cs:
-            seen_cat.setdefault(c.category, c)
-        cats = list(seen_cat)
-        if len(cats) >= 2:
-            out.append(BQuestion(cs[0].ticker, cik, seen_cat[cats[0]], seen_cat[cats[1]]))
+            seen_cat.setdefault(c.category, c)   # first case per category
+        for ca, cb in combinations(sorted(seen_cat), 2):
+            out.append(BQuestion(cs[0].ticker, cik, seen_cat[ca], seen_cat[cb]))
     return out
 
 
@@ -198,10 +200,16 @@ def main() -> int:
               f"{sum(a['f1'])/len(a['f1']):>14.3f} {sum(a['judge'])/len(a['judge']):>12.3f}")
     rho = spearman(cov_points, judge_points)
     print(f"\n  Spearman rho(cross_category_coverage, judge_score) = {rho}")
-    print("  Bridge: rho>0 means the cheap DETERMINISTIC coverage metric predicts the")
-    print("  expensive cross-model judge — backbone coverage of >=2 categories translates")
-    print("  to better answers on cross-category questions (the backbone's payoff, gated to")
-    print("  the questions that need it). Single-category dilution shown earlier (#201).")
+    print("  Honest reading (full 17 B-questions vs the n=6 smoke):")
+    print("  - rho fell 0.435 (smoke, homogeneous Fin+Overview) -> ~0.18 (full, with")
+    print("    Footnotes pairs): the coverage->judge bridge is WEAK-positive, not strong;")
+    print("    the smoke overstated it. The 'isolated scores 0 on every B-question' from")
+    print("    the smoke also breaks (some single-category answers land 0.5 on the full set).")
+    print("  - token_f1 still ranks backbone_both > isolated; the LLM judge is NOISY at this")
+    print("    scale (backbone_xbrl tops judge but bottoms token_f1 — contradictory).")
+    print("  - Takeaway: the backbone's cross-category advantage holds DIRECTIONALLY, but the")
+    print("    deterministic metric (PR #195/#196) is the reliable signal; the LLM judge is")
+    print("    confirmatory and noisy. Caveat: synthetic B-questions, n=17, MARA variance.")
     return 0
 
 

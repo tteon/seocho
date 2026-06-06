@@ -151,8 +151,37 @@ signal. Matches the FinDER generator/recall finding.
   Graph's one structural advantage independent of answer quality is the cacheable
   stable prefix. Next real lever, if pursued, is extraction recall/quality
   (generator-dominated), NOT retrieval mode or serving.
-- **Still open:** Enron (raw, no gold — needs annotated subset); extraction-
-  quality lever on a stronger generator.
+- **Experiment 0 — failure-mode decomposition + $0 grounding fix (2026-06-06,
+  Harvard-professor lit panel + SWE/architect cross-review; commits 429bc34 →
+  c16b73f).** To localize "extraction quality", a $0 no-LLM probe
+  (`examples/contextgraph/failure_modes.py`) split each E1–E4 case (panel-
+  corrected: deterministic modes only — recall-vs-comprehension is undecidable
+  without a frozen gold-tuple set, §20.1/§20.8). **Finding:** on the join classes
+  E3/E4 (graph's actual job) FORMAT-LOSS = 56–58% (gold tokens present in the
+  graph's raw Chunk text but dropped by the `_graph_context` serializer) with
+  NOT-RECOVERABLE only 4–6% → the **serializer, not extraction recall, is the
+  binding constraint** there; SILENT-WRONG (admitted & wrong, served LLM-free) =
+  100%/69%. E1_FACT is the exception (NOT-RECOVERABLE 75% = genuine upstream,
+  sent_date null). Root cause beyond the serializer: Proposal-node fragmentation
+  (`informal_sig_at_chi` + title variants = anti-pattern #4; arm B merged Person
+  only). A **$0 fix** to the deterministic answerer (ground on full source_quote +
+  dedup proposals by token-prefix + per-claim abstain → ok=True only if ≥1
+  grounded claim) plus extending the $0 entity-merge to Proposal nodes
+  (136→127). **gpt-oss re-judge (v2 vs before), the confirmation:** E3_PROPOSALS
+  judge_score 0.083→0.167 (2×; c/p/i 0/2/10 → 0/4/8, incorrect→partial) but
+  **corr|admit stays 0.00**; E4_POSITIONS unchanged (0.077, corr|admit 0.10);
+  E1_FACT unchanged (0.233). **VERDICT: the $0 serializer/grounding/dedup levers
+  are EXHAUSTED — they recover SUBSTANCE (partial credit, gold-token recall E3
+  62%) but NOT correctness (corr|admit ~0 on join classes; the proxy moved, the
+  terminal metric did not — the §20 gap, caught by the JOINT metric).** The
+  remaining binding constraint is genuine **upstream extraction quality** (E4
+  stance edges don't carry the gold position substance; E1 sent_date not
+  extracted), which requires the paid arms (two-pass / gold-tuple set / stronger
+  extractor) the panel gated behind the now-spent free arms.
+- **Still open:** the paid upstream-extraction arms (two-pass routed to E4/E1-hard
+  chunks; κ-checked gold-tuple set for E1/E4 to make recall-vs-comprehension
+  decidable; difficulty-routed stronger extractor); Enron (raw, no gold — needs
+  annotated subset).
 - Provider cost: future judges default to MARA; OpenAI used here only because
   `cached_tokens` telemetry is OpenAI/DeepSeek-only and no direct-DeepSeek key
   exists.

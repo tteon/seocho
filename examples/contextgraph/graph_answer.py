@@ -32,6 +32,49 @@ for k, v in dotenv_values(ROOT / ".env").items():
         os.environ[k] = v
 from seocho.store.graph import Neo4jGraphStore
 
+# Experiment-0-driven grounding+abstention (2026-06-06). The failure-mode probe
+# found on join classes E3/E4: format-loss 56-58% (the answer led with the
+# fragmented `pr.name` — incl. snake_case dup nodes — and truncated the grounding
+# quote) and silent-wrong 100%/69% (admitted ungrounded/duplicate claims). Fixes:
+#  (1) GROUND on the full source_quote (recovers format-loss), not the node name;
+#  (2) ABSTAIN per-claim when no source_quote (the 49% ungrounded stance edges);
+#  (3) DEDUP concept nodes by normalized-name prefix (Proposal fragmentation,
+#      anti-pattern #4 concept-instance/naming — arm B merged Person only).
+# ok=True (admit, LLM-free served) ONLY if >=1 grounded claim survives — so a
+# silent-wrong becomes an honest miss -> graceful LLM fallback (serving-safe).
+import re
+
+_STOP = {"the", "a", "an", "of", "to", "for", "at", "in", "on", "and", "or"}
+
+
+def _ntoks(s):
+    return [t for t in re.findall(r"[a-z0-9]+", str(s).lower()) if t not in _STOP]
+
+
+def _same_concept(a, b):
+    """True if one normalized name is an ordered token-prefix of the other
+    (e.g. 'informal sig at chi' ⊑ 'informal sig at chi 2003 for w3c')."""
+    ta, tb = _ntoks(a), _ntoks(b)
+    if not ta or not tb:
+        return False
+    short, lng = (ta, tb) if len(ta) <= len(tb) else (tb, ta)
+    return lng[:len(short)] == short
+
+
+def _dedup(items, name_key):
+    """Cluster items whose names are the same concept; keep the one with the
+    longest source_quote (most grounded). Order-stable."""
+    kept = []
+    for it in items:
+        for k in kept:
+            if _same_concept(it[name_key], k[name_key]):
+                if len(str(it.get("sq") or "")) > len(str(k.get("sq") or "")):
+                    k.update(it)
+                break
+        else:
+            kept.append(dict(it))
+    return kept
+
 
 def _rows(gs, cy, w, db):
     try:
@@ -44,24 +87,29 @@ def answer_positions(gs, w, db):
     rows = _rows(gs,
         "MATCH (p:Person {_workspace_id:$w})-[r]->(pr:Proposal {_workspace_id:$w}) "
         "WHERE type(r) IN ['SUPPORTS','OPPOSES'] "
-        "RETURN p.name AS person, type(r) AS stance, pr.name AS prop, pr.source_quote AS sq", w, db)
+        "RETURN p.name AS person, type(r) AS stance, pr.name AS prop, "
+        "coalesce(r.source_quote, pr.source_quote) AS sq", w, db)
+    # (2) abstain on ungrounded claims; (3) dedup fragmented proposals
+    rows = _dedup([r for r in rows if r.get("sq")], "prop")
     if not rows:
-        return "not in the provided context", False
+        return "not in the provided context (no grounded stance found)", False
     lines = []
     for r in rows:
-        q = f"  (\"{str(r['sq'])[:80]}\")" if r.get("sq") else ""
         verb = "supported" if r["stance"] == "SUPPORTS" else "opposed"
-        lines.append(f"- {r['person']} {verb} '{r['prop']}'{q}")
-    return "Positions expressed:\n" + "\n".join(lines), True
+        # (1) lead with the grounded quote (full), not just the fragmented name
+        lines.append(f"- {r['person']} {verb} the proposal: \"{str(r['sq']).strip()}\"")
+    return "Positions expressed (each grounded in a source quote):\n" + "\n".join(lines), True
 
 
 def answer_proposals(gs, w, db):
     rows = _rows(gs,
         "MATCH (p:Person {_workspace_id:$w})-[:PROPOSES]->(pr:Proposal {_workspace_id:$w}) "
-        "RETURN p.name AS person, pr.name AS prop", w, db)
+        "RETURN p.name AS person, pr.name AS prop, pr.source_quote AS sq", w, db)
+    rows = _dedup([r for r in rows if r.get("sq")], "prop")
     if not rows:
-        return "not in the provided context", False
-    return "Proposals:\n" + "\n".join(f"- {r['person']} proposed '{r['prop']}'" for r in rows), True
+        return "not in the provided context (no grounded proposal found)", False
+    return "Proposals (grounded):\n" + "\n".join(
+        f"- {r['person']} proposed: \"{str(r['sq']).strip()}\"" for r in rows), True
 
 
 def answer_decisions(gs, w, db):

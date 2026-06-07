@@ -26,6 +26,7 @@ dependencies = [
     "requests",
     "python-dotenv",
     "jinja2>=3.0",
+    "pyyaml",
 ]
 
 [project.scripts]
@@ -105,10 +106,12 @@ ontology = [
     "owlready2",
     "pyshacl",
     "rdflib>=6.0",
+    "pyyaml",
 ]
 embedded = [
     "real_ladybug>=0.15.0",
     "openai",
+    "pyyaml",
 ]
 pdf = [
     "opendataloader-pdf",

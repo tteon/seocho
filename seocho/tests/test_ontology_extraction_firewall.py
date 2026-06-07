@@ -101,3 +101,61 @@ def test_description_and_aliases_ARE_projected():
     )
     et = o.to_extraction_context()["entity_types"]
     assert "Top-line revenue" in et and "NetSales" in et
+
+
+# --- Relation firewall: strict_validation="strip" (write-time reject of undeclared) ---
+
+def _decision_like() -> Ontology:
+    """Declares PROPOSES + HOLDS_POSITION, NOT SUPPORTS/OPPOSES (the smuggled types)."""
+    return Ontology(
+        name="decision", package_id="decision", version="1.0.0",
+        nodes={
+            "Person": NodeDef(description="participant", properties={"name": P(str, unique=True)}),
+            "Topic": NodeDef(description="subject", properties={"name": P(str, unique=True)}),
+            "Proposal": NodeDef(description="option", properties={"name": P(str, unique=True)}),
+        },
+        relationships={
+            "PROPOSES": RelDef(source="Person", target="Proposal"),
+            "HOLDS_POSITION": RelDef(source="Person", target="Topic"),
+        },
+    )
+
+
+def _strip_pipeline():
+    from seocho.index.pipeline import IndexingPipeline
+    return IndexingPipeline(ontology=_decision_like(), graph_store=object(), llm=object(),
+                            strict_validation="strip")
+
+
+def test_firewall_strips_only_undeclared_relations_keeps_valid():
+    p = _strip_pipeline()
+    rels = [
+        {"source": "p1", "target": "t1", "type": "HOLDS_POSITION", "properties": {"polarity": "FOR"}},
+        {"source": "p1", "target": "pr1", "type": "PROPOSES", "properties": {}},
+        {"source": "p1", "target": "pr1", "type": "SUPPORTS", "properties": {}},   # undeclared (smuggled)
+        {"source": "p1", "target": "pr1", "type": "OPPOSES", "properties": {}},    # undeclared (smuggled)
+    ]
+    errors = ["Unknown relationship type 'SUPPORTS'", "Unknown relationship type 'OPPOSES'"]
+    kept, residual = p._firewall_strip_undeclared(rels, errors)
+    kept_types = {r["type"] for r in kept}
+    assert kept_types == {"HOLDS_POSITION", "PROPOSES"}      # declared survive
+    assert "SUPPORTS" not in kept_types and "OPPOSES" not in kept_types  # undeclared stripped
+    assert not any(e.startswith("Unknown relationship type") for e in residual)  # those errors cleared
+
+
+def test_firewall_keeps_non_relation_errors():
+    p = _strip_pipeline()
+    rels = [{"source": "p1", "target": "pr1", "type": "SUPPORTS", "properties": {}}]
+    errors = ["Unknown relationship type 'SUPPORTS'", "Node 'x' (Person) missing required property 'name'"]
+    kept, residual = p._firewall_strip_undeclared(rels, errors)
+    assert kept == []  # the only rel was undeclared
+    # the unrelated node error is preserved (firewall only clears relation-type errors)
+    assert any("missing required property" in e for e in residual)
+    assert not any(e.startswith("Unknown relationship type") for e in residual)
+
+
+def test_firewall_noop_when_all_declared():
+    p = _strip_pipeline()
+    rels = [{"source": "p1", "target": "t1", "type": "HOLDS_POSITION", "properties": {}}]
+    kept, residual = p._firewall_strip_undeclared(rels, [])
+    assert len(kept) == 1 and residual == []

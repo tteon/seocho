@@ -288,9 +288,13 @@ class IndexingDesignSpec:
         else:
             merged_metadata.update(self.indexing_metadata())
 
+        # Preserve the "strip" relation-firewall mode (drop undeclared relations,
+        # keep valid nodes); only True/False are bool-coerced.
+        sv = "strip" if strict_validation == "strip" else bool(
+            strict_validation or self.default_strict_validation())
         return {
             "metadata": merged_metadata or None,
-            "strict_validation": bool(strict_validation or self.default_strict_validation()),
+            "strict_validation": sv,
         }
 
     def client_kwargs(self, *, ontology: Any) -> Dict[str, Any]:

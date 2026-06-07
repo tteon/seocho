@@ -150,7 +150,11 @@ def main():
                     help="reuse already-built graphs (skip re-extraction), answer only (round-2 judge)")
     ap.add_argument("--out-run", default=None,
                     help="output dir tag (default=--run); decouples partials dir from the workspace run-tag")
+    ap.add_argument("--strict", default="off", choices=["off", "strip", "true"],
+                    help="relation firewall: off (default) | strip (drop only undeclared relation "
+                         "types, keep valid nodes) | true (reject whole chunk on any validation error)")
     args = ap.parse_args()
+    _STRICT = {"off": False, "strip": "strip", "true": True}[args.strict]
 
     data_path = Path(args.data)
     all_cases = list(csv.DictReader(open(data_path)))
@@ -208,7 +212,7 @@ def main():
             else:
                 try:
                     for r in refs:
-                        client.add(r, user_id=ws)
+                        client.add(r, user_id=ws, strict_validation=_STRICT)
                 except Exception as e:
                     print(f"  [build {tid} @{arm}] add err: {type(e).__name__}: {str(e)[:80]}")
             # NOTE: do NOT client.close() here — it closes the SHARED gs driver,

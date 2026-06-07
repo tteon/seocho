@@ -215,7 +215,7 @@ class IndexingPipeline:
         llm: Any,
         workspace_id: str = "default",
         extraction_prompt: Optional[Any] = None,
-        strict_validation: bool = False,
+        strict_validation: "bool | str" = False,
         max_chunk_chars: int = 6000,
         enable_dedup: bool = True,
         enable_rule_constraints: bool = False,
@@ -235,6 +235,9 @@ class IndexingPipeline:
         self.graph_store = graph_store
         self.llm = llm
         self.workspace_id = workspace_id
+        # strict_validation: False (off) | True (reject whole chunk on any
+        # validation error) | "strip" (relation firewall — drop ONLY undeclared
+        # relation types, keep valid nodes+edges; never reject the chunk).
         self.strict_validation = strict_validation
         self.max_chunk_chars = max_chunk_chars
         self.enable_dedup = enable_dedup
@@ -267,6 +270,21 @@ class IndexingPipeline:
             llm=llm,
             extraction_prompt=extraction_prompt,
         )
+
+    def _firewall_strip_undeclared(self, rels, errors):
+        """Relation firewall (strict_validation='strip'): drop relationships whose
+        ``type`` is not declared in the active ontology, and clear the matching
+        'Unknown relationship type' errors — keeping valid nodes+edges instead of
+        rejecting the whole chunk. Returns (kept_rels, residual_errors). The
+        ontology's DECLARED relation set is the sole admission authority — never
+        serve from an ungoverned, prompt-smuggled edge."""
+        declared = set(self.ontology.relationships)
+        kept = [r for r in (rels or []) if r.get("type") in declared]
+        dropped = {r.get("type") for r in (rels or []) if r.get("type") not in declared}
+        residual = [e for e in (errors or []) if not e.startswith("Unknown relationship type")]
+        if dropped:
+            logger.info("relation firewall: stripped undeclared relation type(s): %s", sorted(dropped))
+        return kept, residual
 
     @staticmethod
     def _fallback_extract(text: str, *, source_id: str = "fallback") -> Dict[str, Any]:
@@ -796,9 +814,17 @@ class IndexingPipeline:
             if self.on_after_validate:
                 nodes, rels, errors = self.on_after_validate(nodes, rels, errors)
 
+            # Relation firewall (strict_validation="strip"): drop ONLY relations
+            # whose type is undeclared by the ontology, keep valid nodes+edges —
+            # vs True, which rejects the whole chunk. Closes the prompt-smuggled
+            # ungoverned-edge gap without losing good data.
+            if self.strict_validation == "strip":
+                rels, errors = self._firewall_strip_undeclared(rels, errors)
+                extracted["relationships"] = rels
+
             if errors:
                 result.validation_errors.extend(errors)
-                if self.strict_validation:
+                if self.strict_validation is True:
                     logger.warning("Chunk %d rejected by SHACL: %s", i, errors)
                     result.skipped_chunks += 1
                     continue
@@ -997,9 +1023,11 @@ class IndexingPipeline:
         errors = self.ontology.validate_with_shacl(validation_payload)
         if self.on_after_validate:
             all_nodes, all_rels, errors = self.on_after_validate(all_nodes, all_rels, errors)
+        if self.strict_validation == "strip":
+            all_rels, errors = self._firewall_strip_undeclared(all_rels, errors)
         if errors:
             result.validation_errors.extend(errors)
-            if self.strict_validation:
+            if self.strict_validation is True:
                 result.skipped_chunks = 1
                 return result
 

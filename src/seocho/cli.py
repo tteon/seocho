@@ -33,7 +33,7 @@ def build_parser() -> argparse.ArgumentParser:
     get_parser.add_argument("--database", help="Target database override")
     _add_client_options(get_parser, include_scope=False, include_json=True)
 
-    search_parser = subparsers.add_parser("search", help="Search memories")
+    search_parser = subparsers.add_parser("search", help="Semantic search across graph memories")
     search_parser.add_argument("query", help="Search query")
     search_parser.add_argument("--limit", type=int, default=5, help="Max number of results")
     search_parser.add_argument("--graph-id", action="append", dest="graph_ids", default=[], help="Graph routing hint")

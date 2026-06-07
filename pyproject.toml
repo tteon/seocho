@@ -26,6 +26,7 @@ dependencies = [
     "requests",
     "python-dotenv",
     "jinja2>=3.0",
+    "pyyaml",
 ]
 
 [project.scripts]
@@ -104,11 +105,13 @@ duckdb = [
 ontology = [
     "owlready2",
     "pyshacl",
+    "pyyaml",
     "rdflib>=6.0",
 ]
 embedded = [
     "real_ladybug>=0.15.0",
     "openai",
+    "pyyaml",
 ]
 pdf = [
     "opendataloader-pdf",

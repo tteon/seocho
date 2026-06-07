@@ -847,7 +847,7 @@ class Seocho:
         content: str,
         *,
         metadata: Optional[Dict[str, Any]] = None,
-        strict_validation: bool = False,
+        strict_validation: "bool | str" = False,
         prompt_context: Optional[Dict[str, Any] | SemanticPromptContext] = None,
         user_id: Optional[str] = None,
         agent_id: Optional[str] = None,
@@ -877,7 +877,7 @@ class Seocho:
                 database=db,
                 category=category,
                 metadata=add_kwargs["metadata"],
-                strict_validation=bool(add_kwargs["strict_validation"]),
+                strict_validation=add_kwargs["strict_validation"],  # bool | "strip"
                 ontology_override=self._ontology_registry.get(db),
             )
 
@@ -903,7 +903,7 @@ class Seocho:
         *,
         content: str = "",
         metadata: Optional[Dict[str, Any]] = None,
-        strict_validation: bool = False,
+        strict_validation: "bool | str" = False,
         database: Optional[str] = None,
         category: str = "memory",
         source_type: str = "structured_graph",
@@ -932,7 +932,7 @@ class Seocho:
             database=db,
             category=category,
             metadata=add_kwargs["metadata"],
-            strict_validation=bool(add_kwargs["strict_validation"]),
+            strict_validation=add_kwargs["strict_validation"],  # bool | "strip"
             chunk_records=chunk_records,
             ontology_override=self._ontology_registry.get(db),
         )

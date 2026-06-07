@@ -292,3 +292,16 @@ def test_indexing_design_reasoning_cycle_records_shacl_anomaly_on_add(tmp_path) 
         assert store.write_calls == []
     finally:
         client.close()
+
+
+def test_apply_add_defaults_preserves_strip_firewall_mode() -> None:
+    """strict_validation='strip' (relation firewall) must survive the resolver —
+    only True/False are bool-coerced. Regression for the client.add path that
+    previously bool()-coerced 'strip' -> True (whole-chunk reject)."""
+    spec = IndexingDesignSpec.from_dict(
+        {"name": "d", "graph_model": "lpg", "storage_target": "neo4j",
+         "ontology": {"profile": "default"}}
+    )
+    assert spec.apply_add_defaults(metadata=None, strict_validation="strip")["strict_validation"] == "strip"
+    assert spec.apply_add_defaults(metadata=None, strict_validation=True)["strict_validation"] is True
+    assert spec.apply_add_defaults(metadata=None, strict_validation=False)["strict_validation"] is False

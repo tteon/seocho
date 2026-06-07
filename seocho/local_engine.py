@@ -354,7 +354,7 @@ class _LocalEngine:
         database: str = "neo4j",
         category: str = "memory",
         metadata: Optional[Dict[str, Any]] = None,
-        strict_validation: bool = False,
+        strict_validation: "bool | str" = False,
         ontology_override: Optional[Any] = None,
     ) -> Memory:
         """Chunk -> Extract -> Validate -> Link -> Write pipeline."""

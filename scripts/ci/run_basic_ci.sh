@@ -4,6 +4,7 @@ set -euo pipefail
 python3 -m py_compile \
   runtime/__init__.py \
   runtime/policy.py \
+  runtime/identity.py \
   runtime/agent_readiness.py \
   runtime/middleware.py \
   runtime/memory_service.py \
@@ -48,6 +49,7 @@ python3 -m py_compile \
 
 uv run pytest \
   extraction/tests/test_runtime_package_aliases.py \
+  extraction/tests/test_identity.py \
   extraction/tests/test_agent_readiness.py \
   extraction/tests/test_middleware.py \
   extraction/tests/test_memory_service.py \

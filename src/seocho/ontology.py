@@ -49,11 +49,11 @@ from typing import Any, Dict, List, Optional, Sequence, Set, Type, Union
 
 import yaml
 
+from seocho.cypher_ident import IDENT_RE as _LABEL_RE  # canonical identifier regex
+
 # ---------------------------------------------------------------------------
 # Enums
 # ---------------------------------------------------------------------------
-
-_LABEL_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 _PY_TO_GRAPH_TYPE: Dict[type, str] = {
     str: "STRING",

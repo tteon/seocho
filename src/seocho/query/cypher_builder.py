@@ -16,6 +16,7 @@ from __future__ import annotations
 import re
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
+from ..cypher_ident import quote_identifier
 from ..ontology import Ontology
 
 _ENTITY_SUFFIXES = re.compile(
@@ -430,7 +431,7 @@ class CypherBuilder:
         return "\n".join(lines)
 
     def _entity_lookup(self, entity: str, label: str, workspace_id: str, limit: int) -> Tuple[str, Dict[str, Any]]:
-        label_clause = f":`{label.replace('`', '')}`" if label else ""
+        label_clause = f":{quote_identifier(label)}" if label else ""
         normalized = normalize_entity(entity)
         return (
             f"MATCH (n{label_clause})\n"
@@ -457,9 +458,9 @@ class CypherBuilder:
         workspace_id: str,
         limit: int,
     ) -> Tuple[str, Dict[str, Any]]:
-        a_label = f":`{anchor_label.replace('`', '')}`" if anchor_label else ""
-        t_label = f":`{target_label.replace('`', '')}`" if target_label else ""
-        rel_clause = f":`{self._rel_name(rel_type).replace('`', '')}`" if rel_type else ""
+        a_label = f":{quote_identifier(anchor_label)}" if anchor_label else ""
+        t_label = f":{quote_identifier(target_label)}" if target_label else ""
+        rel_clause = f":{quote_identifier(self._rel_name(rel_type))}" if rel_type else ""
 
         anchor_norm = normalize_entity(anchor)
         where_parts = [
@@ -498,7 +499,7 @@ class CypherBuilder:
         )
 
     def _neighbors(self, entity: str, label: str, workspace_id: str, limit: int) -> Tuple[str, Dict[str, Any]]:
-        label_clause = f":`{label.replace('`', '')}`" if label else ""
+        label_clause = f":{quote_identifier(label)}" if label else ""
         normalized = normalize_entity(entity)
         return (
             f"MATCH (n{label_clause})\n"
@@ -542,7 +543,7 @@ class CypherBuilder:
         )
 
     def _count(self, label: str, workspace_id: str) -> Tuple[str, Dict[str, Any]]:
-        label_clause = f":`{label.replace('`', '')}`" if label else ""
+        label_clause = f":{quote_identifier(label)}" if label else ""
         return (
             f"MATCH (n{label_clause})\n"
             "WHERE $workspace_id = '' OR coalesce(n._workspace_id, '') = $workspace_id\n"
@@ -551,7 +552,7 @@ class CypherBuilder:
         )
 
     def _list_all(self, label: str, workspace_id: str, limit: int) -> Tuple[str, Dict[str, Any]]:
-        label_clause = f":`{label.replace('`', '')}`" if label else ""
+        label_clause = f":{quote_identifier(label)}" if label else ""
         return (
             f"MATCH (n{label_clause})\n"
             "WHERE $workspace_id = '' OR coalesce(n._workspace_id, '') = $workspace_id\n"

@@ -27,6 +27,7 @@ import time
 from abc import ABC, abstractmethod
 from typing import Any, Callable, Dict, List, Optional, Sequence
 
+from seocho.cypher_ident import IDENT_RE, is_valid_identifier, quote_identifier
 from seocho.ontology import Ontology
 
 logger = logging.getLogger(__name__)
@@ -34,7 +35,9 @@ logger = logging.getLogger(__name__)
 # Indirection so tests can monkeypatch the poll delay to run instantly.
 _sleep = time.sleep
 
-_LABEL_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+# Canonical identifier validation/quoting lives in seocho.cypher_ident; the
+# ``_LABEL_RE`` alias keeps the existing call sites in this module unchanged.
+_LABEL_RE = IDENT_RE
 
 
 def _is_property_value(value: Any) -> bool:
@@ -376,6 +379,7 @@ class Neo4jGraphStore(GraphStore):
 
                 try:
                     session.run(
+                        # label validated against _LABEL_RE above; interpolated raw
                         f"MERGE (n:{label} {{id: $id}}) SET n += $props",
                         id=node_id,
                         props=props,
@@ -408,11 +412,11 @@ class Neo4jGraphStore(GraphStore):
                     for idx, (key, value) in enumerate(props.items()):
                         if not _is_property_value(value):
                             continue
-                        safe_key = key.replace("`", "")
                         param_name = f"prop_{idx}"
-                        set_clauses.append(f"r.`{safe_key}` = ${param_name}")
+                        set_clauses.append(f"r.{quote_identifier(key)} = ${param_name}")
                         params[param_name] = value
                     session.run(
+                        # rtype validated against _LABEL_RE above; interpolated raw
                         f"MATCH (a {{id: $src}}), (b {{id: $tgt}}) "
                         f"MERGE (a)-[r:{rtype}]->(b) "
                         f"SET {', '.join(set_clauses)}",
@@ -632,8 +636,6 @@ class Neo4jGraphStore(GraphStore):
         if key in self._index_stats_cache and (now - cached_ts) < self._schema_cache_ttl:
             return self._index_stats_cache[key]
 
-        from extraction.fulltext_index import is_valid_identifier
-
         try:
             with self._driver.session(database=database) as session:
                 indexes: List[Dict[str, Any]] = []
@@ -665,6 +667,7 @@ class Neo4jGraphStore(GraphStore):
                     try:
                         # F7: LIMIT-bounded probe caps the scan at sample_limit.
                         count_rec = session.run(
+                            # label passed is_valid_identifier above; interpolated raw
                             f"MATCH (n:{label}) "
                             "WHERE n._workspace_id = $workspace_id "
                             "WITH n LIMIT $sample_limit "
@@ -692,6 +695,7 @@ class Neo4jGraphStore(GraphStore):
                         continue
                     try:
                         count_rec = session.run(
+                            # rt passed is_valid_identifier above; interpolated raw
                             f"MATCH ()-[r:{rt}]->() "
                             "WHERE r._workspace_id = $workspace_id "
                             "WITH r LIMIT $sample_limit "

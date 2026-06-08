@@ -39,6 +39,7 @@ python3 -m py_compile \
   src/seocho/__init__.py \
   src/seocho/evaluation.py \
   src/seocho/index/ingestion_facade.py \
+  src/seocho/routing/model_router.py \
   src/seocho/query/query_proxy.py \
   src/seocho/query/agent_factory.py \
   src/seocho/tracing.py \
@@ -74,6 +75,7 @@ uv run pytest \
   tests/seocho/test_finder_benchmark_script.py \
   tests/seocho/test_indexing_design.py \
   tests/seocho/test_llm_backends.py \
+  tests/seocho/test_model_router.py \
   tests/seocho/test_tracing.py \
   tests/seocho/test_tracing_opik_regression.py \
   tests/seocho/test_cypher_builder.py \

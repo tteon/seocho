@@ -242,6 +242,13 @@ class RoutingPolicy:
         )
 
 
+from seocho.routing.model_router import (  # noqa: E402
+    ModelRouter,
+    ModelTier,
+    RouteResult,
+    estimate_workload_cost,
+)
+
 __all__ = [
     "RoutingPolicy",
     "RoutingDecision",
@@ -250,4 +257,8 @@ __all__ = [
     "DEFAULT_WEIGHTS",
     "FALLBACK_WEIGHTS",
     "MODEL_CONTEXT",
+    "ModelRouter",
+    "ModelTier",
+    "RouteResult",
+    "estimate_workload_cost",
 ]

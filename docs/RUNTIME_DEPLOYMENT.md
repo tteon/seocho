@@ -97,12 +97,6 @@ Expected local surfaces:
 - Backend API docs: `http://localhost:8001/docs`
 - DozerDB browser: `http://localhost:7474`
 
-If you need the old standalone `semantic-service`, start it explicitly:
-
-```bash
-docker compose --profile legacy-semantic up -d semantic-service
-```
-
 ## 3.1 Isolated Per-Worktree Runtime (multi-instance)
 
 When more than one worktree (or agent) needs to drive the runtime at the same

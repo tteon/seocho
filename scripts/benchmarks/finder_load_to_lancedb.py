@@ -35,43 +35,55 @@ EMBED_MODEL = "text-embedding-3-small"
 EMBED_DIM = 1536  # OpenAI text-embedding-3-small default
 
 
-def build_records(workspace_prefix: str) -> list[dict]:
-    """Materialize the evidence chunks with phase/case/workspace metadata.
+# Slice → modules (matches finder_phase_experiment.SLICE_MODULES)
+SLICE_MODULES = {
+    "S1_FIN_COMP": ("be", "ind"), "S2_FIN_NONQUANT_MULTI": ("be", "ind"),
+    "S3_CO_COMP": ("be", "fbc"), "S4_CO_MULTI_NONQUANT": ("be", "fbc"),
+    "S5_FN_MULTI": ("be", "ind", "fnd", "acc"), "S6_BASELINE_SINGLE": ("be", "ind"),
+}
 
-    Uses ``bench_common.PHASES`` as the single source of truth (T1.1 / §6.1).
-    Each row gets a ``workspace_id`` so it can be joined against Neo4j nodes
-    that share the same id.
+
+def build_records(workspace_prefix: str, *, all_cases: bool = False) -> list[dict]:
+    """Materialize evidence chunks with phase/case/workspace metadata.
+
+    Default: the 9 PHASES cases (T1.1 source of truth).
+    ``all_cases=True``: every row in all_slices.csv (910 cases), keyed by slice
+    tag instead of phase code — needed so a stratified compare can vector-search
+    each case's own evidence.
     """
     df = pd.read_csv(SLICES_CSV)
-    by_id = {row["_id"]: row for _, row in df.iterrows()}
-
     records: list[dict] = []
-    for phase in bc.PHASES:
-        modules = "+".join(phase.treatment_modules)
-        for case_spec in phase.cases:
-            row = by_id.get(case_spec.case_id)
-            if row is None:
-                print(f"  ! case {case_spec.case_id} not in slices CSV — skipping")
-                continue
-            workspace_id = bc.workspace_id_for(phase.code, case_spec.case_id, "loaded", prefix=workspace_prefix)
-            refs = [r.strip() for r in str(row["references_joined"]).split(REF_SEPARATOR) if r.strip()]
-            for idx, text in enumerate(refs):
-                records.append({
-                    "id": f"{phase.code}::{case_spec.case_id}::{idx}",
-                    "phase": phase.code,
-                    "case_id": case_spec.case_id,
-                    "slice": row["slice"],
-                    "category": row["category"],
-                    "type": row["type"] if isinstance(row.get("type"), str) else "",
-                    "ontology_modules": modules,
-                    "workspace_id": workspace_id,  # §6.1 — cross-script join key
-                    "ref_idx": idx,
-                    "ref_count": len(refs),
-                    "n_chars": len(text),
-                    "query": row["query"],
-                    "expected_answer": row["answer"],
-                    "text": text,
-                })
+
+    def _emit(code: str, modules: tuple[str, ...], row) -> None:
+        cid = row["_id"]
+        refs = [r.strip() for r in str(row["references_joined"]).split(REF_SEPARATOR) if r.strip()]
+        wid = bc.workspace_id_for(code, cid, "loaded", prefix=workspace_prefix)
+        for idx, text in enumerate(refs):
+            def _s(v):  # coerce NaN/float/None → str for arrow schema stability
+                return "" if v is None or (isinstance(v, float)) else str(v)
+            records.append({
+                "id": f"{code}::{cid}::{idx}",
+                "phase": code, "case_id": str(cid), "slice": _s(row["slice"]),
+                "category": _s(row["category"]),
+                "type": row["type"] if isinstance(row.get("type"), str) else "",
+                "ontology_modules": "+".join(modules), "workspace_id": wid,
+                "ref_idx": idx, "ref_count": len(refs), "n_chars": len(text),
+                "query": _s(row["query"]), "expected_answer": _s(row["answer"]), "text": _s(text),
+            })
+
+    if all_cases:
+        for _, row in df.iterrows():
+            sl = row["slice"]
+            _emit(sl, SLICE_MODULES.get(sl, ("be", "ind")), row)
+    else:
+        by_id = {row["_id"]: row for _, row in df.iterrows()}
+        for phase in bc.PHASES:
+            for case_spec in phase.cases:
+                row = by_id.get(case_spec.case_id)
+                if row is None:
+                    print(f"  ! case {case_spec.case_id} not in slices CSV — skipping")
+                    continue
+                _emit(phase.code, phase.treatment_modules, row)
     return records
 
 
@@ -98,6 +110,8 @@ def main() -> int:
                         help="Drop the LanceDB table if it exists before writing.")
     parser.add_argument("--workspace-prefix",
                         default=f"finder-load-{time.strftime('%Y%m%d%H%M%S', time.gmtime())}")
+    parser.add_argument("--all", action="store_true",
+                        help="Embed ALL 910 cases (keyed by slice) instead of just the 9 PHASES cases.")
     args = parser.parse_args()
 
     bc.bootstrap(verbose=True)
@@ -114,7 +128,7 @@ def main() -> int:
     if not args.dry_run and not report.ok:
         raise SystemExit("preflight failed — fix env/connectivity before running")
 
-    records = build_records(args.workspace_prefix)
+    records = build_records(args.workspace_prefix, all_cases=args.all)
     print(f"= {len(records)} evidence chunks across {len({r['case_id'] for r in records})} cases =")
     per_phase: dict[str, int] = {}
     for r in records:

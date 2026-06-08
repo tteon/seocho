@@ -36,6 +36,11 @@ def _status_of(exc: Exception) -> int | None:
     return None
 
 
+# Rate-limit (429) gets its own, more patient retry schedule because shared
+# gateways like MARA (DeepSeek-V3.1 ≈ 1500 RPD) throttle for tens of seconds.
+_RATE_LIMIT_BACKOFF = (10.0, 30.0, 60.0, 90.0, 120.0)
+
+
 def with_retry(
     fn: Callable[[], Any],
     *,
@@ -45,34 +50,50 @@ def with_retry(
     retry_on_exc_names: Iterable[str] = ("Timeout", "APIConnectionError", "ReadTimeout", "ConnectError"),
     label: str = "llm",
     verbose: bool = False,
+    rate_limit_attempts: int = 6,
+    rate_limit_backoff: Iterable[float] = _RATE_LIMIT_BACKOFF,
 ) -> Any:
     """Run ``fn()`` with retries on transient HTTP / network errors.
 
-    Idempotent ``fn`` only — the caller is responsible for ensuring the
-    operation is safe to retry. Adds small jitter to each backoff delay.
+    Idempotent ``fn`` only. Two schedules:
+      - generic transient (5xx/timeout/conn): ``max_attempts`` w/ ``backoff_seconds``
+      - rate limit (429): ``rate_limit_attempts`` w/ the longer ``rate_limit_backoff``
+        (MARA & other shared gateways throttle for tens of seconds).
+    Adds ±25% jitter to each delay.
     """
     backoffs = list(backoff_seconds)
+    rl_backoffs = list(rate_limit_backoff)
     statuses = set(retry_on_status)
     exc_names = tuple(retry_on_exc_names)
     last_exc: Exception | None = None
-    for attempt in range(1, max_attempts + 1):
+    generic_used = 0
+    rl_used = 0
+    while True:
         try:
             return fn()
-        except Exception as exc:  # noqa: BLE001 — broad on purpose; rethrow non-retriable below
+        except Exception as exc:  # noqa: BLE001
             last_exc = exc
             name = type(exc).__name__
             status = _status_of(exc)
-            retriable = (status in statuses) or any(n in name for n in exc_names)
-            if not retriable or attempt >= max_attempts:
+            is_rate_limit = status == 429 or "RateLimit" in name
+            is_generic = (status in statuses and status != 429) or any(n in name for n in exc_names)
+            if is_rate_limit:
+                rl_used += 1
+                if rl_used >= rate_limit_attempts:
+                    raise
+                wait = rl_backoffs[min(rl_used - 1, len(rl_backoffs) - 1)]
+            elif is_generic:
+                generic_used += 1
+                if generic_used >= max_attempts:
+                    raise
+                wait = backoffs[min(generic_used - 1, len(backoffs) - 1)]
+            else:
                 raise
-            wait = backoffs[min(attempt - 1, len(backoffs) - 1)]
-            wait = wait * (0.75 + random.random() * 0.5)  # jitter ±25%
+            wait = wait * (0.75 + random.random() * 0.5)
             if verbose:
-                print(f"  [retry:{label}] attempt {attempt}/{max_attempts} failed ({name} status={status}); sleep {wait:.1f}s", flush=True)
+                kind = "429" if is_rate_limit else "transient"
+                print(f"  [retry:{label}] {kind} ({name} status={status}); sleep {wait:.1f}s", flush=True)
             time.sleep(wait)
-    if last_exc is not None:
-        raise last_exc
-    raise RuntimeError(f"with_retry({label}) exhausted without exception")
 
 
 # ---------------------------------------------------------------------------
@@ -123,7 +144,20 @@ _PROVIDER_PRESETS: dict[str, dict] = {
         "forced_temperature": None,
         "supports_response_format_json": True,  # deepseek docs document JSON Output mode
     },
+    # MARA cloud gateway (OpenAI-compatible). Models: DeepSeek-V3.1,
+    # MiniMax-M2.5, MiniMax-M2.7, gpt-oss-120b. Default generator + judge
+    # per repo policy (CLAUDE.md §19 live-experiment default).
+    "mara": {
+        "default_model": "DeepSeek-V3.1",
+        "base_url": "https://api.cloud.mara.com/v1",
+        "api_key_env": "MARA_API_KEY",
+        "forced_temperature": None,
+        "supports_response_format_json": True,
+    },
 }
+
+# Known MARA model ids (exact casing — gateway is case-sensitive).
+MARA_MODELS = ("DeepSeek-V3.1", "MiniMax-M2.5", "MiniMax-M2.7", "gpt-oss-120b")
 
 
 def parse_llm_spec(spec: str) -> LLMSpec:

@@ -27,7 +27,7 @@ import time
 from abc import ABC, abstractmethod
 from typing import Any, Callable, Dict, List, Optional, Sequence
 
-from seocho.cypher_ident import IDENT_RE, is_valid_identifier, quote_identifier
+from seocho.cypher_ident import IDENT_RE, is_valid_identifier
 from seocho.ontology import Ontology
 
 logger = logging.getLogger(__name__)
@@ -364,67 +364,74 @@ class Neo4jGraphStore(GraphStore):
 
         summary = {"nodes_created": 0, "relationships_created": 0, "errors": []}
 
+        # Group by label/type and write each group in one UNWIND round-trip
+        # (labels/rel-types can't be parameterized in MERGE, so we batch per
+        # distinct label). A batch that throws falls back to per-row so one bad
+        # row neither loses its siblings nor its error message — behavior stays
+        # identical to the old per-row loop, just N round-trips -> #labels.
+        nodes_by_label: Dict[str, List[Dict[str, Any]]] = {}
+        for node in nodes:
+            label = node.get("label", "Entity")
+            if not _LABEL_RE.match(label):
+                summary["errors"].append(f"Invalid label: {label}")
+                continue
+            props = dict(node.get("properties", {}))
+            props["_source_id"] = source_id
+            props["_workspace_id"] = workspace_id
+            node_id = node.get("id", props.get("name", ""))
+            props["id"] = node_id
+            nodes_by_label.setdefault(label, []).append({"id": node_id, "props": props})
+
+        rels_by_type: Dict[str, List[Dict[str, Any]]] = {}
+        for rel in relationships:
+            rtype = rel.get("type", "RELATED_TO")
+            if not _LABEL_RE.match(rtype):
+                summary["errors"].append(f"Invalid relationship type: {rtype}")
+                continue
+            props = {k: v for k, v in dict(rel.get("properties", {})).items()
+                     if _is_property_value(v)}
+            props["_source_id"] = source_id
+            props["_workspace_id"] = workspace_id
+            rels_by_type.setdefault(rtype, []).append(
+                {"src": rel.get("source", ""), "tgt": rel.get("target", ""), "props": props})
+
         with self._driver.session(database=database) as session:
-            # --- Nodes ---
-            for node in nodes:
-                label = node.get("label", "Entity")
-                if not _LABEL_RE.match(label):
-                    summary["errors"].append(f"Invalid label: {label}")
-                    continue
-                props = dict(node.get("properties", {}))
-                props["_source_id"] = source_id
-                props["_workspace_id"] = workspace_id
-                node_id = node.get("id", props.get("name", ""))
-                props["id"] = node_id
-
+            # --- Nodes (one UNWIND per label) ---
+            for label, rows in nodes_by_label.items():
+                # label validated against _LABEL_RE above; interpolated raw
+                batch_q = f"UNWIND $rows AS row MERGE (n:{label} {{id: row.id}}) SET n += row.props"
                 try:
-                    session.run(
-                        # label validated against _LABEL_RE above; interpolated raw
-                        f"MERGE (n:{label} {{id: $id}}) SET n += $props",
-                        id=node_id,
-                        props=props,
-                    )
-                    summary["nodes_created"] += 1
-                except Exception as exc:
-                    summary["errors"].append(f"Node {node_id}: {exc}")
+                    session.run(batch_q, rows=rows)
+                    summary["nodes_created"] += len(rows)
+                except Exception:
+                    for row in rows:
+                        try:
+                            session.run(
+                                f"MERGE (n:{label} {{id: $id}}) SET n += $props",
+                                id=row["id"], props=row["props"])
+                            summary["nodes_created"] += 1
+                        except Exception as exc:
+                            summary["errors"].append(f"Node {row['id']}: {exc}")
 
-            # --- Relationships ---
-            for rel in relationships:
-                rtype = rel.get("type", "RELATED_TO")
-                if not _LABEL_RE.match(rtype):
-                    summary["errors"].append(f"Invalid relationship type: {rtype}")
-                    continue
-                src = rel.get("source", "")
-                tgt = rel.get("target", "")
-                props = dict(rel.get("properties", {}))
-
+            # --- Relationships (one UNWIND per type) ---
+            for rtype, rows in rels_by_type.items():
+                # rtype validated against _LABEL_RE above; interpolated raw
+                batch_q = (f"UNWIND $rows AS row MATCH (a {{id: row.src}}), (b {{id: row.tgt}}) "
+                           f"MERGE (a)-[r:{rtype}]->(b) SET r += row.props")
                 try:
-                    set_clauses = [
-                        "r._source_id = $source_id",
-                        "r._workspace_id = $workspace_id",
-                    ]
-                    params: Dict[str, Any] = {
-                        "src": src,
-                        "tgt": tgt,
-                        "source_id": source_id,
-                        "workspace_id": workspace_id,
-                    }
-                    for idx, (key, value) in enumerate(props.items()):
-                        if not _is_property_value(value):
-                            continue
-                        param_name = f"prop_{idx}"
-                        set_clauses.append(f"r.{quote_identifier(key)} = ${param_name}")
-                        params[param_name] = value
-                    session.run(
-                        # rtype validated against _LABEL_RE above; interpolated raw
-                        f"MATCH (a {{id: $src}}), (b {{id: $tgt}}) "
-                        f"MERGE (a)-[r:{rtype}]->(b) "
-                        f"SET {', '.join(set_clauses)}",
-                        **params,
-                    )
-                    summary["relationships_created"] += 1
-                except Exception as exc:
-                    summary["errors"].append(f"Rel {src}-[{rtype}]->{tgt}: {exc}")
+                    session.run(batch_q, rows=rows)
+                    summary["relationships_created"] += len(rows)
+                except Exception:
+                    for row in rows:
+                        try:
+                            session.run(
+                                f"MATCH (a {{id: $src}}), (b {{id: $tgt}}) "
+                                f"MERGE (a)-[r:{rtype}]->(b) SET r += $props",
+                                src=row["src"], tgt=row["tgt"], props=row["props"])
+                            summary["relationships_created"] += 1
+                        except Exception as exc:
+                            summary["errors"].append(
+                                f"Rel {row['src']}-[{rtype}]->{row['tgt']}: {exc}")
 
         if summary["nodes_created"] or summary["relationships_created"]:
             self.invalidate_schema_cache(database)

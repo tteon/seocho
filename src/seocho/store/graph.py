@@ -531,8 +531,15 @@ class Neo4jGraphStore(GraphStore):
                 except Exception as exc:
                     try:
                         tx.rollback()
-                    except Exception:
-                        pass
+                    except Exception as rollback_exc:
+                        # A failed rollback can leave the transaction in an
+                        # unknown state; swallowing it silently makes that
+                        # impossible to diagnose. Log it, but still surface the
+                        # original error below.
+                        logger.warning(
+                            "rollback failed after ensure_constraints error: %s",
+                            rollback_exc,
+                        )
                     # Reset success counter — the rollback undid everything
                     # that successfully ran in this transaction.
                     summary["success"] = 0

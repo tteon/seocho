@@ -56,12 +56,6 @@ Default local activation is intentionally smaller than the full historical repo:
 - `evaluation-interface`
 
 This is the supported first-run path for developers.
-The old `semantic-service` still exists, but only behind the explicit compose
-profile:
-
-```bash
-docker compose --profile legacy-semantic up -d semantic-service
-```
 
 That distinction matters because most current onboarding, API verification, and
 platform UX flow through `extraction-service`, not the standalone legacy

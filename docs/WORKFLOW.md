@@ -135,7 +135,6 @@ Operational notes:
   edits from `extraction/`, `runtime/`, and `seocho/` reflected immediately.
 - keep graph procedure privileges scoped (`apoc.*,n10s.*`) in `docker-compose.yml`.
 - default local compose stack is `neo4j + extraction-service + evaluation-interface`.
-- legacy `semantic-service` is opt-in only via `docker compose --profile legacy-semantic up -d semantic-service`.
 - when decomposing large files, prefer the internal seam classes documented in
   `docs/INTERNAL_CLASS_DESIGN.md` before introducing new top-level services
 - local SDK orchestration extracted from `src/seocho/client.py` should land in

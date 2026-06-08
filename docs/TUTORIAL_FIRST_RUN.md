@@ -26,13 +26,6 @@ Current default compose stack:
 - `extraction-service`
 - `evaluation-interface`
 
-The legacy standalone `semantic-service` is not required for this tutorial. If
-you explicitly need it for compatibility checks:
-
-```bash
-docker compose --profile legacy-semantic up -d semantic-service
-```
-
 ## 1.1 Know where your local state lives
 
 Before debugging the APIs, know the main paths:

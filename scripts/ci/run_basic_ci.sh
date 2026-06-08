@@ -44,6 +44,7 @@ python3 -m py_compile \
   src/seocho/routing/model_router.py \
   src/seocho/agent/reflection.py \
   src/seocho/agent/matchmaker.py \
+  src/seocho/ontology_context_map.py \
   src/seocho/query/query_proxy.py \
   src/seocho/query/agent_factory.py \
   src/seocho/tracing.py \
@@ -86,6 +87,7 @@ uv run pytest \
   tests/seocho/test_model_router.py \
   tests/seocho/test_reflection.py \
   tests/seocho/test_matchmaker.py \
+  tests/seocho/test_ontology_context_map.py \
   tests/seocho/test_graph_loop_model_routing.py \
   tests/seocho/test_tracing.py \
   tests/seocho/test_tracing_opik_regression.py \

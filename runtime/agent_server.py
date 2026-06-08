@@ -27,6 +27,7 @@ from exceptions import (
     InvalidDatabaseNameError,
 )
 from runtime.middleware import RequestIDMiddleware
+from runtime.identity import PrincipalMiddleware
 from tracing import configure_opik, track, update_current_span, update_current_trace
 from runtime.policy import require_runtime_permission
 from seocho.runtime_contract import (
@@ -148,6 +149,11 @@ memory_service = _LazyServiceProxy(get_memory_service)
 
 # Request ID middleware
 app.add_middleware(RequestIDMiddleware)
+
+# Identity — resolves the per-request Principal (anonymous unless
+# SEOCHO_AUTH_MODE=token). Added before CORS so CORS stays outermost and handles
+# preflight OPTIONS without hitting auth.
+app.add_middleware(PrincipalMiddleware)
 
 # CORS — configurable via SEOCHO_CORS_ORIGINS env var (comma-separated)
 _DEFAULT_CORS = "http://localhost:8501,http://localhost:3000"

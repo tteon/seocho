@@ -74,7 +74,6 @@ and must not be tracked as part of the public GitHub surface.
 
 | Path | Status | Notes |
 |---|---|---|
-| `semantic/` | Secondary/legacy service surface | Keep changes narrow; active runtime paths now center on `runtime/` and canonical query modules. |
 | `seocho-core/` | Optional accelerator workspace | Rust/Python hybrid support code, not the first stop for normal app changes. |
 
 ## Local Runtime State And Generated Artifacts

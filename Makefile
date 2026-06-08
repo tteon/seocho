@@ -9,7 +9,7 @@ DOCKER_COMPOSE_TUTORIALS = docker compose -f docker-compose.tutorials.yml
 SHARED_PROJECT = seocho
 SEOCHO_CLI = python3 -m seocho.cli
 
-.PHONY: up up-live up-legacy-semantic down restart logs clean bootstrap shell test test-integration e2e-smoke lint format help opik-up opik-down opik-logs demo-raw demo-meta demo-neo4j demo-graphrag-opik demo-all setup-env tutorials-up tutorials-down tutorials-logs tutorials-shell tutorials-build tutorials-smoke tutorials-test tutorials-pytest tutorials-gds
+.PHONY: up up-live down restart logs clean bootstrap shell test test-integration e2e-smoke lint format help opik-up opik-down opik-logs demo-raw demo-meta demo-neo4j demo-graphrag-opik demo-all setup-env tutorials-up tutorials-down tutorials-logs tutorials-shell tutorials-build tutorials-smoke tutorials-test tutorials-pytest tutorials-gds
 
 ##@ Development
 
@@ -38,7 +38,6 @@ ifeq ($(strip $(INSTANCE)),)
 	@echo "🖥️  Platform UI: http://localhost:$${CHAT_INTERFACE_PORT:-8501}"
 	@echo "🧠 Backend API Docs: http://localhost:$${EXTRACTION_API_PORT:-8001}/docs"
 	@echo "🗄️  DozerDB Browser: http://localhost:$${NEO4J_HTTP_PORT:-7474}"
-	@echo "ℹ️  Legacy semantic-service is opt-in: docker compose --profile legacy-semantic up -d semantic-service"
 	@echo "ℹ️  For a bind-mounted live edit loop, use: make up-live"
 	@echo "ℹ️  For an isolated per-worktree runtime, use: make up INSTANCE=<id>"
 else
@@ -51,11 +50,6 @@ up-live: ## Start core local stack with live bind mounts for extraction/runtime/
 	@echo "🐳 Starting Seocho core local stack with live source mounts..."
 	@$(DOCKER_COMPOSE_LIVE) up -d --build
 	@echo "✅ Live-mount services started."
-
-up-legacy-semantic: ## Start the legacy semantic-service profile too
-	@echo "🐳 Starting Seocho core stack with legacy semantic-service..."
-	@docker compose --profile legacy-semantic up -d
-	@echo "✅ Legacy semantic-service started."
 
 down: ## Stop all services; or tear down one isolated instance with INSTANCE=<id>
 ifeq ($(strip $(INSTANCE)),)

@@ -30,7 +30,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Sequence
 
-from ..routing import RoutingDecision, RoutingPolicy
+from ..routing import ModelRouter, RoutingDecision, RoutingPolicy
 from ..debate import should_stop as _debate_should_stop, extract_citations
 from ..gds import MetricSpec, gds_session
 
@@ -187,6 +187,7 @@ class GraphAgenticLoop:
         client: Any,
         *,
         policy: Optional[RoutingPolicy] = None,
+        model_router: Optional[ModelRouter] = None,
         max_iterations: int = 3,
         augment_fn: Optional[Callable[[str], Dict[str, Any]]] = None,
         emit_trace_fn: Optional[Callable[[Dict[str, Any]], None]] = None,
@@ -197,6 +198,10 @@ class GraphAgenticLoop:
     ) -> None:
         self.client = client
         self.policy = policy or RoutingPolicy.default()
+        # Optional cost-aware model routing: when set, each ask() is sent to the
+        # tier the routed intent maps to, escalating on repair iterations. When
+        # None (default) no model is forced and behaviour is unchanged.
+        self.model_router = model_router
         self.max_iterations = int(max_iterations)
         self.augment_fn = augment_fn or _default_augment
         self.emit_trace_fn = emit_trace_fn
@@ -230,6 +235,8 @@ class GraphAgenticLoop:
             "repair_budget": 0,
             "answer_history": [],
         }
+        # How many repair iterations have happened — drives model escalation.
+        escalation = 0
 
         for i in range(1, self.max_iterations + 1):
             iter_t0 = time.perf_counter()
@@ -257,12 +264,15 @@ class GraphAgenticLoop:
                 break
 
             strategy = self._select_strategy(decision)
-            answer = self._execute(strategy, question, state=state)
+            answer = self._execute(
+                strategy, question, state=state, decision=decision, escalation=escalation
+            )
             evaluation = self._evaluate(answer, augmentation=augmentation)
 
             improvement = self._improvement_action(evaluation, prior=state["answer_history"])
             if improvement:
                 self._apply_improvement(state, action=improvement)
+                escalation += 1
 
             iteration = LoopIteration(
                 iteration=i,
@@ -306,7 +316,25 @@ class GraphAgenticLoop:
         top, _ = ranked[0]
         return {"cypher": "cypher", "vector": "vector", "fulltext": "fulltext"}.get(top, top)
 
-    def _execute(self, strategy: str, question: str, *, state: Dict[str, Any]) -> str:
+    def _model_for(self, decision: RoutingDecision, escalation: int) -> Optional[str]:
+        """Resolve the model for this attempt via the cost-aware router.
+
+        Returns None when no router is configured (caller adds no model kwarg,
+        preserving current behaviour). Escalation bumps the tier on repairs.
+        """
+        if self.model_router is None:
+            return None
+        return self.model_router.route(intent=decision.intent, escalate=escalation).model
+
+    def _execute(
+        self,
+        strategy: str,
+        question: str,
+        *,
+        state: Dict[str, Any],
+        decision: Optional[RoutingDecision] = None,
+        escalation: int = 0,
+    ) -> str:
         """Strategy-aware execution.
 
         ``analytics`` opens a :func:`seocho.gds.gds_session` against the
@@ -327,6 +355,10 @@ class GraphAgenticLoop:
         if state.get("reasoning_mode"):
             kwargs["reasoning_mode"] = True
             kwargs["repair_budget"] = int(state.get("repair_budget", 0))
+        if decision is not None:
+            routed_model = self._model_for(decision, escalation)
+            if routed_model:
+                kwargs["model"] = routed_model
         try:
             return ask(question, **kwargs)
         except TypeError:

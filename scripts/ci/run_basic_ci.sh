@@ -69,6 +69,7 @@ uv run pytest \
   tests/seocho/test_client_boundaries.py \
   tests/seocho/test_runtime_bundle.py \
   tests/seocho/test_internal_design_seams.py \
+  tests/seocho/test_query_proxy_workspace_enforcement.py \
   tests/seocho/test_ontology_context.py \
   tests/seocho/test_session_agent.py \
   tests/seocho/test_user_facing_edge_cases.py \

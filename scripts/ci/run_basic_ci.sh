@@ -5,6 +5,7 @@ python3 -m py_compile \
   runtime/__init__.py \
   runtime/policy.py \
   runtime/identity.py \
+  runtime/audit.py \
   runtime/agent_readiness.py \
   runtime/middleware.py \
   runtime/memory_service.py \
@@ -51,6 +52,7 @@ uv run pytest \
   extraction/tests/test_runtime_package_aliases.py \
   extraction/tests/test_identity.py \
   extraction/tests/test_policy.py \
+  extraction/tests/test_audit.py \
   extraction/tests/test_agent_readiness.py \
   extraction/tests/test_middleware.py \
   extraction/tests/test_memory_service.py \

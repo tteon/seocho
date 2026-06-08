@@ -1,10 +1,23 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
 from typing import Any, Dict, Mapping, Optional, Protocol
 
 from seocho.events import DomainEvent, EventPublisher, NullEventPublisher
+
+
+def _env_enforce_workspace_filter() -> bool:
+    """Default for tenant-isolation enforcement at the query boundary.
+
+    Off by default (preserves behaviour); multi-tenant deployments set
+    ``SEOCHO_ENFORCE_WORKSPACE_FILTER=1`` to make the runtime refuse any query
+    whose Cypher does not scope to ``$workspace_id``.
+    """
+    return os.getenv("SEOCHO_ENFORCE_WORKSPACE_FILTER", "").strip().lower() in (
+        "1", "true", "yes", "on",
+    )
 
 
 class QueryPolicy(Protocol):
@@ -132,10 +145,17 @@ class QueryProxy:
         *,
         publisher: Optional[EventPublisher] = None,
         policy: Optional[QueryPolicy] = None,
+        enforce_workspace_filter: Optional[bool] = None,
     ) -> None:
         self._graph_store = graph_store
         self._publisher = publisher or NullEventPublisher()
         self._policy = policy or NullQueryPolicy()
+        # None -> take the deployment default from the environment.
+        self._enforce_workspace_filter = (
+            _env_enforce_workspace_filter()
+            if enforce_workspace_filter is None
+            else enforce_workspace_filter
+        )
 
     def query(self, request: QueryRequest) -> list[Dict[str, Any]]:
         params = dict(request.params or {})
@@ -147,11 +167,24 @@ class QueryProxy:
             params=params,
         )
         try:
-            raw_records = self._graph_store.query(
-                request.cypher,
-                params=params,
-                database=request.database,
-            )
+            if self._enforce_workspace_filter:
+                # Tenant-isolation enforced: thread workspace_id (auto-merged
+                # into params by the store) and refuse Cypher that doesn't scope
+                # to $workspace_id. Only passed when enabled so the default path
+                # keeps the exact call shape backends/test-doubles already accept.
+                raw_records = self._graph_store.query(
+                    request.cypher,
+                    params=params,
+                    database=request.database,
+                    workspace_id=request.workspace_id,
+                    enforce_workspace_filter=True,
+                )
+            else:
+                raw_records = self._graph_store.query(
+                    request.cypher,
+                    params=params,
+                    database=request.database,
+                )
             records = coerce_query_records(
                 raw_records,
                 database=request.database,

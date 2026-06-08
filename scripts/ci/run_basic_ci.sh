@@ -86,6 +86,7 @@ uv run pytest \
   tests/seocho/test_model_router.py \
   tests/seocho/test_reflection.py \
   tests/seocho/test_matchmaker.py \
+  tests/seocho/test_graph_loop_model_routing.py \
   tests/seocho/test_tracing.py \
   tests/seocho/test_tracing_opik_regression.py \
   tests/seocho/test_cypher_builder.py \

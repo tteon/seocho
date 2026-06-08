@@ -50,6 +50,7 @@ python3 -m py_compile \
 uv run pytest \
   extraction/tests/test_runtime_package_aliases.py \
   extraction/tests/test_identity.py \
+  extraction/tests/test_policy.py \
   extraction/tests/test_agent_readiness.py \
   extraction/tests/test_middleware.py \
   extraction/tests/test_memory_service.py \

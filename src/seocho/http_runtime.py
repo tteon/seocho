@@ -169,7 +169,9 @@ def create_bundle_runtime_app(
         }
 
     @app.post(RuntimePath.API_MEMORIES)
-    async def create_memory(request: BundleMemoryCreateRequest) -> Dict[str, Any]:
+    # sync def: runtime_client.add() drives the Neo4j sync driver + LLM. Declared
+    # sync so FastAPI runs it in its threadpool instead of blocking the event loop.
+    def create_memory(request: BundleMemoryCreateRequest) -> Dict[str, Any]:
         _ensure_workspace(request.workspace_id)
         memory = runtime_client.add(
             request.content,
@@ -187,7 +189,8 @@ def create_bundle_runtime_app(
         }
 
     @app.post(RuntimePath.API_MEMORIES_SEARCH)
-    async def search_memories(request: BundleMemorySearchRequest) -> Dict[str, Any]:
+    # sync def: _search_graph() runs blocking Cypher; keep it off the event loop.
+    def search_memories(request: BundleMemorySearchRequest) -> Dict[str, Any]:
         _ensure_workspace(request.workspace_id)
         database = _resolve_database(request.databases)
         results = _search_graph(request.query, database=database, limit=request.limit)
@@ -202,7 +205,9 @@ def create_bundle_runtime_app(
         }
 
     @app.post(RuntimePath.API_CHAT)
-    async def chat(request: BundleChatRequest) -> Dict[str, Any]:
+    # sync def: _search_graph() + runtime_client.ask() are blocking (Cypher + LLM);
+    # keep them in the threadpool so one chat can't freeze the whole server.
+    def chat(request: BundleChatRequest) -> Dict[str, Any]:
         _ensure_workspace(request.workspace_id)
         database = _resolve_database(request.databases)
         search_results = _search_graph(request.message, database=database, limit=request.limit)
@@ -230,7 +235,8 @@ def create_bundle_runtime_app(
         }
 
     @app.post(RuntimePath.RUN_AGENT_SEMANTIC)
-    async def run_agent_semantic(request: BundleSemanticRequest) -> Dict[str, Any]:
+    # sync def: _search_graph() + runtime_client.ask() are blocking; threadpool them.
+    def run_agent_semantic(request: BundleSemanticRequest) -> Dict[str, Any]:
         _ensure_workspace(request.workspace_id)
         database = _resolve_database(request.databases)
         route = _route_for_database(database)

@@ -30,6 +30,7 @@ import re
 from dataclasses import dataclass
 from typing import Dict, Optional, Set
 
+from runtime.audit import record_access
 from runtime.identity import Principal, get_principal
 
 
@@ -119,16 +120,25 @@ def require_runtime_permission(
         # Auth disabled / anonymous: preserve pre-auth behaviour — validate the
         # workspace_id format only; do not enforce role or ownership.
         decision = engine.validate_workspace_id(workspace_id)
-        if not decision.allowed:
-            raise PermissionError(decision.reason)
-        return
+    else:
+        decision = engine.authorize(
+            role=principal.role,
+            action=action,
+            workspace_id=workspace_id,
+            principal_workspace=principal.workspace_id,
+        )
 
-    decision = engine.authorize(
-        role=principal.role,
+    # Audit every decision at the single enforcement point (no-op unless
+    # SEOCHO_AUDIT_LOG_PATH is configured). Auditing must never take down the
+    # request path, so record_access swallows its own I/O errors.
+    record_access(
         action=action,
         workspace_id=workspace_id,
-        principal_workspace=principal.workspace_id,
+        allowed=decision.allowed,
+        reason=decision.reason,
+        principal=principal,
     )
+
     if not decision.allowed:
         raise PermissionError(decision.reason)
 

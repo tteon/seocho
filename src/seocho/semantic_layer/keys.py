@@ -26,13 +26,26 @@ def observation_key(
     period_key: str,
     unit: str,
     basis: str = "consolidated",
+    segment: str = "consolidated",
+    is_restated: bool = False,
     workspace_id: str = "",
 ) -> str:
     """Return a stable ``obs:<hash>`` identity for a reported observation.
 
-    Same canonical inputs → same key, always; different period/concept/entity →
-    different key. Used as the MERGE target so re-ingestion and cross-chunk
-    extraction are idempotent.
+    The full reported-figure model (ADR-0103 expert panel) is
+    ``(entity, concept, period, unit, basis, segment, restatement)``. ``segment``
+    (a reportable-segment name; default ``consolidated`` = whole company) and
+    ``is_restated`` (a prior-period figure restated in a later filing) are keyed
+    in so a segment/non-GAAP/restated figure gets its own node rather than
+    colliding with the consolidated one.
+
+    Same canonical inputs → same key, always; different period/concept/entity/
+    segment/restatement → different key. Used as the MERGE target so
+    re-ingestion and cross-chunk extraction are idempotent.
+
+    Backward-compatible: the richer dimensions enter the hash ONLY when
+    non-default (``segment != 'consolidated'`` / ``is_restated``), so every
+    already-ingested consolidated observation keeps its existing obs_id.
     """
     parts = [
         workspace_id.strip(),
@@ -42,6 +55,11 @@ def observation_key(
         unit.strip().upper(),
         basis.strip().lower(),
     ]
+    seg = segment.strip().lower()
+    if seg and seg != "consolidated":
+        parts.append("seg:" + seg)
+    if is_restated:
+        parts.append("restated")
     raw = _SEP.join(parts)
     digest = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:24]
     return f"obs:{digest}"

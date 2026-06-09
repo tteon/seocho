@@ -159,7 +159,12 @@ class OpikBackend(TracingBackend):
             os.environ["OPIK_API_KEY"] = self._api_key
 
         try:
-            self._client = self._opik.Opik(project_name=self._project)
+            # batching=False: Opik's default async batching coalesces spans and
+            # flushes in the background, so a burst of short-lived traces (each
+            # created and immediately ended, exactly how log_extraction/
+            # log_query emit) is dropped before it flushes — only ~1 of N
+            # persisted. Disabling batching persists N of N (issue #119).
+            self._client = self._opik.Opik(project_name=self._project, batching=False)
             self._init_error: Optional[str] = None
         except Exception as exc:
             logger.warning("Opik client init failed: %s", exc)

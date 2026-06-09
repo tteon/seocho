@@ -54,6 +54,17 @@ class VectorStore(ABC):
     def delete(self, doc_id: str) -> bool:
         """Remove a document from the index."""
 
+    def delete_by_source(self, source_id: str) -> int:
+        """Delete every vector belonging to ``source_id`` and return the count.
+
+        The indexing pipeline keys vectors by ``{source_id}_chunk_{ordinal}``,
+        so deleting a source's vectors keeps the vector store consistent with
+        the graph on delete_source/reindex (issue #123). Default is a no-op for
+        custom stores that don't track source provenance; the built-in backends
+        override it.
+        """
+        return 0
+
     @abstractmethod
     def count(self) -> int:
         """Return the number of active documents in the index."""
@@ -185,6 +196,21 @@ class FAISSVectorStore(VectorStore):
             "_deleted": True,
         }
         return True
+
+    def delete_by_source(self, source_id: str) -> int:
+        prefix = f"{source_id}_chunk_"
+        ids = [
+            str(doc["id"])
+            for doc in self._docs
+            if not doc.get("_deleted")
+            and (
+                str(doc.get("metadata", {}).get("source_id", "")) == source_id
+                or str(doc["id"]).startswith(prefix)
+            )
+        ]
+        for doc_id in ids:
+            self.delete(doc_id)
+        return len(ids)
 
     def count(self) -> int:
         return len(self._id_to_idx)
@@ -347,6 +373,19 @@ class LanceDBVectorStore(VectorStore):
         except Exception:
             return False
         return True
+
+    def delete_by_source(self, source_id: str) -> int:
+        # Vectors are keyed by ``{source_id}_chunk_{ordinal}``; metadata is a
+        # JSON string here, so match on the id prefix (issue #123).
+        if self._table is None:
+            return 0
+        before = self.count()
+        safe = str(source_id).replace("'", "''")
+        try:
+            self._table.delete(f"id LIKE '{safe}_chunk_%'")
+        except Exception:
+            return 0
+        return max(0, before - self.count())
 
     def count(self) -> int:
         if self._table is None:

@@ -111,8 +111,14 @@ def build_observations(
         if not cik:
             continue
         unit = str(props.get("unit") or "USD")
+        # Richer reported-figure dimensions (ADR-0103 H4); consolidated/GAAP/
+        # not-restated by default so existing obs_ids are unchanged.
+        basis = str(props.get("basis") or "consolidated")
+        segment = str(props.get("segment") or "consolidated")
+        is_restated = bool(props.get("is_restated") or props.get("restated") or False)
         obs_id = observation_key(entity_key=cik, concept_id=concept_id,
-                                 period_key=period_key, unit=unit,
+                                 period_key=period_key, unit=unit, basis=basis,
+                                 segment=segment, is_restated=is_restated,
                                  workspace_id=workspace_id)
         if obs_id in seen_obs:
             continue
@@ -129,7 +135,8 @@ def build_observations(
             "properties": {
                 "obs_id": obs_id, "concept_id": concept_id, "entity_cik": cik,
                 "period_key": period_key, "value_num": value_num,
-                "unit": unit, "basis": "consolidated",
+                "unit": unit, "basis": basis,
+                "segment": segment, "is_restated": is_restated,
             },
         })
         obs_rels.append({"source": company_id, "target": obs_id,

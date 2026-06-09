@@ -45,7 +45,7 @@ The four review perspectives converged on the same position:
 2. SEOCHO should not expose a prompt DSL with unconstrained override freedom.
 3. Prompt assembly should be stage-aware and typed.
 4. Provider-specific behavior should stay in adapter code such as
-   [seocho/store/llm.py](/home/hadry/lab/seocho/seocho/store/llm.py:269).
+   [src/seocho/store/llm.py](../src/seocho/store/llm.py).
 5. The public seam should remain ontology- and artifact-centric.
 
 ## Proposed Boundary

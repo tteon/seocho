@@ -128,7 +128,10 @@ runs/
 # Public middleware code should not track editor/agent state directories.
 .agents/
 .beads/
-.claude/
+# .claude is personal/agent state EXCEPT shared model-invoked skills, which
+# ship with the repo so a fresh clone gets the benchmark/infra runbooks.
+.claude/*
+!.claude/skills/
 .githooks/
 .jules/
 .serena/

@@ -69,7 +69,8 @@ def _paraphrase(llm, question) -> List[str]:
 
 
 def run(dataset_path, *, limit, provider, model, paraphrase):
-    rows = [json.loads(l) for l in Path(dataset_path).read_text().splitlines() if l.strip()][:limit]
+    with Path(dataset_path).open("r", encoding="utf-8") as f:
+        rows = [json.loads(l) for l in f if l.strip()][:limit]
     tickers = sorted({r["ticker"] for r in rows})
     cik_by_ticker = bench.resolve_ciks(tickers)
     name_by_ticker = {r["ticker"].upper(): r.get("gold_entities", [""])[0] for r in rows}

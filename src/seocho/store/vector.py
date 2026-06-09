@@ -105,6 +105,25 @@ class FAISSVectorStore(VectorStore):
     def _embed(self, texts: Sequence[str]) -> Any:
         return _normalize_vectors(self._embedding_backend.embed(texts, model=self._model))
 
+    def _ensure_dimension(self, vectors: Any) -> None:
+        """Validate embedding width against the index, adopting the first
+        embedding's dimension when the index is still empty.
+
+        Without this, an embedding model with a non-default width (e.g.
+        text-embedding-3-large at 3072) reached faiss as a size mismatch and
+        raised an opaque assertion in native code (issue #121).
+        """
+        width = int(vectors.shape[1])
+        if self._index.ntotal == 0 and width != self._dimension:
+            self._dimension = width
+            self._index = self._faiss.IndexFlatIP(width)
+        elif width != self._dimension:
+            raise ValueError(
+                f"Embedding dimension mismatch: this FAISSVectorStore holds "
+                f"{self._dimension}-dim vectors but received {width}-dim. All "
+                f"vectors in a store must come from one embedding model."
+            )
+
     def add(
         self,
         doc_id: str,
@@ -116,6 +135,7 @@ class FAISSVectorStore(VectorStore):
             self.delete(doc_id)
 
         vectors = self._embed([text])
+        self._ensure_dimension(vectors)
         idx = len(self._docs)
         self._index.add(vectors)
         self._docs.append({"id": doc_id, "text": text, "metadata": metadata or {}})
@@ -132,6 +152,7 @@ class FAISSVectorStore(VectorStore):
 
         texts = [str(item["text"]) for item in items]
         vectors = self._embed(texts)
+        self._ensure_dimension(vectors)
         start_idx = len(self._docs)
         self._index.add(vectors)
 

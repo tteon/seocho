@@ -87,6 +87,8 @@ Recommended onboarding order:
   seams for the modular monolith
 - [MODULE_OWNERSHIP_MAP.md](MODULE_OWNERSHIP_MAP.md): canonical module
   ownership and compatibility boundaries
+- [ARCHITECTURE_HEALTH.md](ARCHITECTURE_HEALTH.md): per-domain quality
+  scorecard (grade + coverage + gaps, tracked over time)
 - [WORKFLOW.md](WORKFLOW.md): operational workflow
 - [GITHUB_AUTOMATION.md](GITHUB_AUTOMATION.md): GitHub Actions, Codex
   automation, and `.github/` placement rules

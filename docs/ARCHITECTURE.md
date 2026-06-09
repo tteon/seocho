@@ -177,7 +177,8 @@ Long-term package shape:
 We are intentionally choosing `runtime/` over `server/` because the shell owns
 more than HTTP route files. The staged migration contract lives in
 `docs/RUNTIME_PACKAGE_MIGRATION.md`. Contributor-facing placement guidance
-lives in `docs/MODULE_OWNERSHIP_MAP.md`.
+lives in `docs/MODULE_OWNERSHIP_MAP.md`, and each ownership domain's quality
+grade + open gaps are tracked in `docs/ARCHITECTURE_HEALTH.md`.
 
 ## Internal Orchestration Seams (2026-04-17)
 

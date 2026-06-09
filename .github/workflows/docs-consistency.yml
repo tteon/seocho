@@ -24,3 +24,6 @@ jobs:
 
       - name: Run doc structure / drift checks
         run: python3 scripts/ci/check_doc_structure.py
+
+      - name: Run ADR index validation
+        run: python3 scripts/ci/check_adr_index.py

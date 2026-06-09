@@ -22,6 +22,8 @@ class ObservationSlots:
     period_keys: Tuple[str, ...] = ()
     unit: str = "USD"
     basis: str = "consolidated"
+    segment: str = "consolidated"             # reportable segment; whole-company default
+    is_restated: bool = False                 # a later-filing restatement of the figure
     unresolved: Tuple[str, ...] = ()          # slot names that did not resolve
 
     @property
@@ -40,6 +42,8 @@ class ObservationSlots:
                 period_key=pk,
                 unit=self.unit,
                 basis=self.basis,
+                segment=self.segment,
+                is_restated=self.is_restated,
                 workspace_id=workspace_id,
             )
             for pk in self.period_keys

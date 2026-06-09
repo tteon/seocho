@@ -123,6 +123,9 @@ def companyfacts_to_observations(
                     "obs_id": obs_id, "concept_id": concept_id, "entity_cik": cik,
                     "period_key": period_key, "period_end": fact.get("period_end") or "",
                     "value_num": float(value), "unit": unit, "basis": "consolidated",
+                    # companyfacts annual frames are consolidated GAAP, not restated
+                    # (ADR-0103 H4 dimensions, first-class).
+                    "segment": "consolidated", "is_restated": False,
                 },
             })
             obs_rels.append({"source": company_id, "target": obs_id,

@@ -37,6 +37,20 @@ from examples.finder.lib import bench_common as bc  # noqa: E402
 REF_SEPARATOR = "===EVIDENCE_BOUNDARY==="
 _NUM_RE = re.compile(r"-?\$?\d[\d,]*\.?\d*(?:%| million| billion| thousand)?", re.IGNORECASE)
 
+# Fixed slice → FIBO ontology modules (mirrors the P0–P1D phase design):
+#   S1·S2 (Financials)        → be+ind
+#   S3·S4 (Company overview)  → be+fbc
+#   S5    (Footnotes)         → be+ind+fnd+acc
+#   S6    (baseline single)   → be+ind
+SLICE_MODULES: dict[str, tuple[str, ...]] = {
+    "S1_FIN_COMP": ("be", "ind"),
+    "S2_FIN_NONQUANT_MULTI": ("be", "ind"),
+    "S3_CO_COMP": ("be", "fbc"),
+    "S4_CO_MULTI_NONQUANT": ("be", "fbc"),
+    "S5_FN_MULTI": ("be", "ind", "fnd", "acc"),
+    "S6_BASELINE_SINGLE": ("be", "ind"),
+}
+
 
 # ---------------------------------------------------------------------------
 # Data loading
@@ -210,7 +224,8 @@ def run_one(
     client = None
     try:
         provider, model = (llm_spec.split("/", 1) if "/" in llm_spec else ("openai", llm_spec))
-        raw_backend = create_llm_backend(provider=provider.strip(), model=model.strip())
+        _llm_timeout = float(os.environ.get("FINDER_LLM_TIMEOUT", "120"))
+        raw_backend = create_llm_backend(provider=provider.strip(), model=model.strip(), timeout=_llm_timeout)
         wrapped_llm = bc.MetaPromptLLMWrapper(raw_backend, meta_prompt) if meta_prompt else raw_backend
 
         if use_neo4j:
@@ -232,6 +247,21 @@ def run_one(
             llm=wrapped_llm,
             workspace_id=workspace_id,
         )
+
+        # Neo4j/DozerDB does NOT auto-create the ontology-derived database on
+        # first write — explicitly ensure it exists, else add() silently writes
+        # 0 nodes (root cause of the strat10 S3/S4 graph being empty).
+        if use_neo4j:
+            try:
+                target_db = getattr(client, "default_database", None) or "neo4j"
+                if hasattr(graph_store, "ensure_database"):
+                    graph_store.ensure_database(target_db)
+                    try:
+                        graph_store.ensure_constraints(ontology, database=target_db)
+                    except TypeError:
+                        graph_store.ensure_constraints(ontology)
+            except Exception as exc:
+                print(f"    [warn] ensure_database failed for {target_db!r}: {exc}", flush=True)
 
         timing = {"add_ms": 0.0, "ask_ms": 0.0}
 
@@ -397,6 +427,9 @@ def _print_table(phase_summary: dict) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--phases", default="all", help="Comma list of phase codes (P0,P1A,P1B,P1C,P1D) or 'all'.")
+    parser.add_argument("--stratified", default="",
+                        help="If set (e.g. 0.10), extract a stratified slice-% sample from "
+                             "all_slices.csv using SLICE_MODULES ontology mapping (ignores --phases).")
     parser.add_argument("--llm", default=os.environ.get("SEOCHO_LLM", "kimi/kimi-k2.5"))
     parser.add_argument("--dry-run", action="store_true", help="Skip LLM calls; report plan only.")
     parser.add_argument("--workspace-prefix",
@@ -434,24 +467,45 @@ def main() -> int:
     if not args.dry_run and not report.ok:
         raise SystemExit("preflight failed — fix env/connectivity before running")
 
-    # Resolve phase selection
-    if args.phases == "all":
-        selected_phases = bc.PHASES
-    else:
-        wanted = {p.strip().upper() for p in args.phases.split(",")}
-        selected_phases = tuple(p for p in bc.PHASES if p.code in wanted)
-        if not selected_phases:
-            raise SystemExit(f"No matching phases for filter {args.phases!r}")
-
     cases_index = load_cases()
     plan: list[tuple[bc.PhaseSpec, dict]] = []
-    for phase in selected_phases:
-        for case_spec in phase.cases:
-            case = cases_index.get(case_spec.case_id)
+
+    if args.stratified:
+        # Stratified sample across all_slices.csv; map each row's slice → a
+        # synthetic PhaseSpec carrying the slice's fixed ontology modules.
+        import pandas as pd
+        df = pd.read_csv(ROOT / ".seocho/datasets/finder/slices/all_slices.csv")
+        samp = bc.stratified_sample(df, fraction=float(args.stratified), seed=42)
+        for _, row in samp.iterrows():
+            cid = row["_id"]
+            case = cases_index.get(cid)
             if case is None:
-                print(f"  ! case {case_spec.case_id} not found in slices CSV — skipping")
                 continue
-            plan.append((phase, case))
+            modules = SLICE_MODULES.get(row["slice"], ("be", "ind"))
+            pseudo = bc.PhaseSpec(
+                code=row["slice"],   # use slice tag as the "phase code"
+                name=f"stratified_{row['slice']}",
+                treatment_modules=tuple(modules),
+                rationale=f"stratified {args.stratified} sample, slice {row['slice']}",
+                cases=(),
+            )
+            plan.append((pseudo, case))
+    else:
+        # Resolve phase selection
+        if args.phases == "all":
+            selected_phases = bc.PHASES
+        else:
+            wanted = {p.strip().upper() for p in args.phases.split(",")}
+            selected_phases = tuple(p for p in bc.PHASES if p.code in wanted)
+            if not selected_phases:
+                raise SystemExit(f"No matching phases for filter {args.phases!r}")
+        for phase in selected_phases:
+            for case_spec in phase.cases:
+                case = cases_index.get(case_spec.case_id)
+                if case is None:
+                    print(f"  ! case {case_spec.case_id} not found in slices CSV — skipping")
+                    continue
+                plan.append((phase, case))
 
     variant_plan: list[tuple[str, tuple[str, ...] | None]] = []
     if args.variants in ("baseline", "both"):

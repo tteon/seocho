@@ -49,6 +49,27 @@ from examples.finder.lib import llm_io  # noqa: E402
 DATASET_NAME = "all_slices.csv"
 DEFAULT_SMOKE_CASE = "4af93b03"   # P0 ROST
 
+# Slice → FIBO modules (matches finder_phase_experiment.SLICE_MODULES) so a
+# stratified compare resolves the same ontology/DB that extraction wrote to.
+SLICE_MODULES: dict[str, tuple[str, ...]] = {
+    "S1_FIN_COMP": ("be", "ind"),
+    "S2_FIN_NONQUANT_MULTI": ("be", "ind"),
+    "S3_CO_COMP": ("be", "fbc"),
+    "S4_CO_MULTI_NONQUANT": ("be", "fbc"),
+    "S5_FN_MULTI": ("be", "ind", "fnd", "acc"),
+    "S6_BASELINE_SINGLE": ("be", "ind"),
+}
+
+
+def _modules_for_code(code: str) -> tuple[str, ...] | None:
+    """Resolve treatment modules for a phase code (P0…) or slice tag (S1…)."""
+    if code in SLICE_MODULES:
+        return SLICE_MODULES[code]
+    try:
+        return tuple(bc.get_phase(code).treatment_modules)
+    except Exception:
+        return None
+
 
 # ---------------------------------------------------------------------------
 # data loading
@@ -74,8 +95,11 @@ def load_case_data(case_id: str) -> dict:
 # retrieval
 # ---------------------------------------------------------------------------
 
-def vector_retrieve(query: str, *, case_id: str, top_k: int = 5) -> str:
-    """LanceDB semantic top-k over the phase evidence index."""
+def vector_retrieve(query: str, *, case_id: str, top_k: int = 5, scope_case: bool = True) -> str:
+    """LanceDB semantic top-k. By default scope to the case's own evidence
+    (correct per-case RAG); with many cases embedded a global search would
+    return other cases' chunks. Falls back to global if the case has no rows.
+    """
     import lancedb
     from openai import OpenAI
 
@@ -84,7 +108,14 @@ def vector_retrieve(query: str, *, case_id: str, top_k: int = 5) -> str:
 
     db = lancedb.connect(str(ROOT / ".seocho/lancedb"))
     table = db.open_table("finder_phase_evidence")
-    hits = table.search(qvec).limit(top_k).to_list()
+    hits = []
+    if scope_case:
+        try:
+            hits = table.search(qvec).where(f"case_id = '{case_id}'").limit(top_k).to_list()
+        except Exception:
+            hits = []
+    if not hits:
+        hits = table.search(qvec).limit(top_k).to_list()
 
     pieces = []
     for i, h in enumerate(hits, 1):
@@ -100,8 +131,16 @@ _KEEP_PROPS = frozenset({
 })
 
 
-def graph_retrieve(case_id: str, query: str) -> str:
-    """Neo4j retrieve: case-scoped entities + 1-hop relations rendered as text."""
+def graph_retrieve(case_id: str, query: str, *, database: str | None = None,
+                   workspace_id: str | None = None) -> str:
+    """Neo4j retrieve: scoped entities + 1-hop relations rendered as text.
+
+    Scoping precedence:
+      - if ``workspace_id`` given → filter by ``n._workspace_id`` (phase-extract
+        nodes carry _workspace_id, not _case_id), in the ontology-derived
+        ``database`` (e.g. fibobeindlpg).
+      - else → legacy ``_case_id`` filter in the default DB (load_to_neo4j merge).
+    """
     from neo4j import GraphDatabase
 
     drv = GraphDatabase.driver(
@@ -109,34 +148,40 @@ def graph_retrieve(case_id: str, query: str) -> str:
         auth=(os.environ.get("NEO4J_USER", "neo4j"), os.environ["NEO4J_PASSWORD"]),
     )
 
+    if workspace_id:
+        scope_prop, scope_val = "_workspace_id", workspace_id
+    else:
+        scope_prop, scope_val = "_case_id", case_id
+    sess_kwargs = {"database": database} if database else {}
+
     try:
-        with drv.session() as s:
+        with drv.session(**sess_kwargs) as s:
             nodes_rows = s.run(
-                """
-                MATCH (n {_case_id: $cid})
+                f"""
+                MATCH (n {{{scope_prop}: $sv}})
                 WHERE NOT n:Chunk AND NOT n:Document AND NOT n:DocumentVersion AND NOT n:Section
                 RETURN labels(n)[0] AS lbl, properties(n) AS props
                 """,
-                cid=case_id,
+                sv=scope_val,
             ).data()
             edge_rows = s.run(
-                """
-                MATCH (a {_case_id: $cid})-[r]->(b {_case_id: $cid})
+                f"""
+                MATCH (a {{{scope_prop}: $sv}})-[r]->(b {{{scope_prop}: $sv}})
                 WHERE NOT a:Chunk AND NOT a:Document AND NOT a:DocumentVersion AND NOT a:Section
                   AND NOT b:Chunk AND NOT b:Document AND NOT b:DocumentVersion AND NOT b:Section
                 RETURN labels(a)[0] AS a_lbl, a.name AS a_name,
                        type(r) AS rt,
                        labels(b)[0] AS b_lbl, b.name AS b_name
                 """,
-                cid=case_id,
+                sv=scope_val,
             ).data()
             chunk_rows = s.run(
-                """
-                MATCH (c:Chunk {_case_id: $cid})
+                f"""
+                MATCH (c:Chunk {{{scope_prop}: $sv}})
                 RETURN c.content_preview AS preview, c.content AS content
                 LIMIT 3
                 """,
-                cid=case_id,
+                sv=scope_val,
             ).data()
     finally:
         drv.close()
@@ -160,10 +205,30 @@ def graph_retrieve(case_id: str, query: str) -> str:
     return "\n".join(lines)
 
 
-def hybrid_retrieve(query: str, *, case_id: str, top_k: int = 5) -> str:
+def hybrid_retrieve(query: str, *, case_id: str, top_k: int = 5,
+                    database: str | None = None, workspace_id: str | None = None) -> str:
     v = vector_retrieve(query, case_id=case_id, top_k=top_k)
-    g = graph_retrieve(case_id, query)
+    g = graph_retrieve(case_id, query, database=database, workspace_id=workspace_id)
     return f"===== VECTOR CONTEXT =====\n{v}\n\n===== GRAPH CONTEXT =====\n{g}"
+
+
+def _phase_database(phase_code: str) -> str | None:
+    """Map a phase code to its ontology-derived DozerDB database name.
+
+    Mirrors seocho.client._resolve_default_database: sanitize(f"{ontology.name}lpg").
+    """
+    try:
+        sys.path.insert(0, str(ROOT))
+        from examples.finder.datasets.fibo_modules.compose import compose_modules
+        from seocho.store.graph import sanitize_database_name
+        modules = _modules_for_code(phase_code)
+        if not modules:
+            return None
+        o = compose_modules(list(modules))
+        domain = o.name.lower().replace(" ", "").replace("-", "").replace("_", "")
+        return sanitize_database_name(f"{domain}lpg")
+    except Exception:
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -264,6 +329,8 @@ def run_one(
     graph_quality: str = "raw",
     cypher_agent_version: str = "v1",
     retrieval_k: int = 5,
+    graph_database: str | None = None,
+    graph_workspace_id: str | None = None,
 ) -> RunRecord:
     name = f"compare/{llm_spec.provider}/{mode}/{phase}/{case_id}"
     onto_hash = bc.short_hash(modules_label)
@@ -302,9 +369,11 @@ def run_one(
         if mode == "vector":
             context = vector_retrieve(case["query"], case_id=case_id, top_k=retrieval_k)
         elif mode == "graph":
-            context = graph_retrieve(case_id, case["query"])
+            context = graph_retrieve(case_id, case["query"],
+                                     database=graph_database, workspace_id=graph_workspace_id)
         elif mode == "hybrid":
-            context = hybrid_retrieve(case["query"], case_id=case_id, top_k=retrieval_k)
+            context = hybrid_retrieve(case["query"], case_id=case_id, top_k=retrieval_k,
+                                      database=graph_database, workspace_id=graph_workspace_id)
         else:
             raise ValueError(f"unknown mode {mode}")
         answer = generate_answer(case["query"], context,
@@ -338,6 +407,11 @@ def run_one(
         except Exception as exc:
             judge = {"score": -1, "rationale": f"judge call err: {type(exc).__name__}: {exc}"}
 
+    # Score coalescing: a legitimate 0 (refusal/wrong) must NOT become -1.
+    # -1 is reserved for "judge failed to produce a parseable score".
+    _raw_score = judge.get("score", None)
+    _judge_score = int(_raw_score) if isinstance(_raw_score, (int, float)) else -1
+
     rec = RunRecord(
         phase=phase, case_id=case_id, slice_tag=case["slice"],
         category=case["category"], mode=mode,
@@ -345,7 +419,7 @@ def run_one(
         query=case["query"],
         gold=case["expected_answer"], context_chars=len(context),
         answer=answer, answer_chars=len(answer),
-        token_f1=f1, judge_score=int(judge.get("score", -1) or -1),
+        token_f1=f1, judge_score=_judge_score,
         judge_rationale=str(judge.get("rationale", "")),
         latency_s=latency,
         graph_quality=graph_quality, cypher_agent_version=cypher_agent_version,
@@ -353,7 +427,9 @@ def run_one(
     )
 
     # Partial checkpoint — atomic (includes provider in filename for multi-LLM)
-    partial_path = out_partial_dir / f"{llm_spec.provider}__{phase}_{case_id}_{mode}.json"
+    # Include the full model (not just provider) so 4 MARA models don't collide.
+    _model_slug = llm_spec.llm_string.replace("/", "_").replace(".", "_")
+    partial_path = out_partial_dir / f"{_model_slug}__{phase}_{case_id}_{mode}.json"
     try:
         bc.atomic_write_json(partial_path, asdict(rec))
     except Exception as exc:
@@ -426,10 +502,8 @@ def _row_to_case(r) -> dict:
 
 
 def _modules_label_for_phase(phase_code: str) -> str:
-    try:
-        return "+".join(bc.get_phase(phase_code).treatment_modules)
-    except KeyError:
-        return "baseline"
+    modules = _modules_for_code(phase_code)
+    return "+".join(modules) if modules else "baseline"
 
 
 def main() -> int:
@@ -454,17 +528,26 @@ def main() -> int:
     parser.add_argument("--cypher-agent", default="v1",
                         help="Meta dim for text2cypher agent version.")
     parser.add_argument("--run-prefix", default="")
+    parser.add_argument("--graph-workspace-prefix", default="",
+                        help="If set, graph/hybrid retrieve reads from the ontology-derived "
+                             "phase DB filtered by workspace_id built from this prefix "
+                             "(e.g. mara-ds-20260606234147). Omit to use legacy _case_id in default DB.")
     args = parser.parse_args()
 
     bc.bootstrap(verbose=True)
 
-    requested_providers = [p.strip().lower() for p in args.llms.split(",") if p.strip()]
+    # --llms accepts bare providers ("kimi") OR full specs ("mara/MiniMax-M2.5").
+    # Keyed by full llm_string so e.g. 4 distinct MARA models stay separate.
+    requested_llms = [x.strip() for x in args.llms.split(",") if x.strip()]
     requested_modes = [m.strip().lower() for m in args.modes.split(",") if m.strip()]
-    if not requested_providers or not requested_modes:
+    if not requested_llms or not requested_modes:
         raise SystemExit("--llms and --modes must each have at least one entry")
-    unknown = [p for p in requested_providers if p not in llm_io.known_providers()]
-    if unknown:
-        raise SystemExit(f"unknown providers: {unknown}. Known: {llm_io.known_providers()}")
+
+    answer_specs: dict[str, llm_io.LLMSpec] = {}
+    for raw in requested_llms:
+        spec = llm_io.parse_llm_spec(raw if "/" in raw else f"{raw}/")
+        answer_specs[spec.llm_string] = spec
+    requested_providers = sorted({s.provider for s in answer_specs.values()})
 
     report = bc.preflight(
         strict=True,
@@ -488,13 +571,10 @@ def main() -> int:
         print(f"tracing init skipped: {e}")
         def flush_tracing(): pass  # type: ignore
 
-    # Build LLM client pool
-    answer_specs: dict[str, llm_io.LLMSpec] = {}
-    answer_clients: dict[str, object] = {}
-    for prov in requested_providers:
-        spec = llm_io.parse_llm_spec(f"{prov}/")
-        answer_specs[prov] = spec
-        answer_clients[prov] = llm_io.make_chat_client(spec)
+    # Build one client per distinct llm_string
+    answer_clients: dict[str, object] = {
+        key: llm_io.make_chat_client(spec) for key, spec in answer_specs.items()
+    }
 
     judge_spec = llm_io.parse_llm_spec(args.judge)
     judge_client = llm_io.make_chat_client(judge_spec)
@@ -515,8 +595,8 @@ def main() -> int:
     out_partial_dir.mkdir(parents=True, exist_ok=True)
 
     records: list[RunRecord] = []
-    total = len(cases) * len(requested_providers) * len(requested_modes)
-    print(f"\n== plan: {len(cases)} cases × {len(requested_providers)} llms × {len(requested_modes)} modes = {total} runs ==", flush=True)
+    total = len(cases) * len(answer_specs) * len(requested_modes)
+    print(f"\n== plan: {len(cases)} cases × {len(answer_specs)} llms × {len(requested_modes)} modes = {total} runs ==", flush=True)
     print(f"  providers: {requested_providers}")
     print(f"  modes:     {requested_modes}")
     print(f"  judge:     {judge_spec.llm_string}")
@@ -526,12 +606,16 @@ def main() -> int:
 
     for phase_code, case in cases:
         modules_label = _modules_label_for_phase(phase_code)
-        for prov in requested_providers:
-            spec = answer_specs[prov]
-            client = answer_clients[prov]
+        graph_db = _phase_database(phase_code) if args.graph_workspace_prefix else None
+        graph_ws = None
+        if args.graph_workspace_prefix:
+            graph_ws = bc.workspace_id_for(phase_code, case["case_id"], "treatment",
+                                           prefix=args.graph_workspace_prefix)
+        for llm_key, spec in answer_specs.items():
+            client = answer_clients[llm_key]
             for mode in requested_modes:
                 counter += 1
-                label = f"[{counter:3d}/{total}] {prov:9s} {mode:6s} {phase_code}/{case['case_id']}"
+                label = f"[{counter:3d}/{total}] {llm_key:24s} {mode:6s} {phase_code}/{case['case_id']}"
                 print(f">>> {label}", flush=True)
                 rec = run_one(
                     phase=phase_code, case_id=case["case_id"], modules_label=modules_label,
@@ -542,6 +626,8 @@ def main() -> int:
                     graph_quality=args.graph_quality,
                     cypher_agent_version=args.cypher_agent,
                     retrieval_k=args.retrieval_k,
+                    graph_database=graph_db,
+                    graph_workspace_id=graph_ws,
                 )
                 mark = "OK" if not rec.error else "ERR"
                 print(

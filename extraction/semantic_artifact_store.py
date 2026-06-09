@@ -199,6 +199,16 @@ def approve_semantic_artifact(
     with artifact_path.open("r", encoding="utf-8") as fp:
         payload = json.load(fp)
 
+    # Guarded lifecycle transition: draft/approved -> approved only. A
+    # deprecated artifact is end-of-life and must not be silently re-approved
+    # back into the active set (issue #138; mirrors the deprecate guard).
+    current_status = payload.get("status")
+    if current_status == "deprecated":
+        raise ValueError(
+            f"semantic artifact '{artifact_id}' is deprecated and cannot be "
+            f"re-approved (status={current_status})"
+        )
+
     governance = _run_governance_gate(payload, run_reasoner=run_reasoner)
     payload["governance"] = governance
     if governance_enforce and not governance.get("ok", True):

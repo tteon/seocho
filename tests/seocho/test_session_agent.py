@@ -287,6 +287,44 @@ class TestSession:
         assert sess.context.queries[0]["mode"] == "pipeline"
         assert sess.context.queries[0]["degraded"] is False
 
+    def test_persistent_cache_serves_a_fresh_session(self):
+        # seocho-jdg: an answer computed in one Session is served from the
+        # persistent cache by a FRESH Session (cross-process reuse) — the
+        # in-memory cache would have died with the first session.
+        from seocho.session import Session
+        from seocho.response_cache import InMemoryResponseCache
+
+        shared = InMemoryResponseCache()
+        onto = _make_test_ontology()
+        store = FakeGraphStore()
+        responses = [
+            json.dumps({"intent": "entity_lookup", "anchor_entity": "TestCorp", "anchor_label": "Company"}),
+            "TestCorp is in the Tech industry.",
+        ]
+
+        sess1 = Session(name="s1", ontology=onto, graph_store=store,
+                        llm=FakeLLM(responses=list(responses)), database="testdb")
+        sess1._response_cache = shared
+        a1 = sess1.ask("What industry is TestCorp in?")
+        assert a1
+
+        # Fresh session, SAME shared cache, but an LLM that returns a DIFFERENT
+        # answer if it were called — proving the result came from the cache.
+        sess2 = Session(name="s2", ontology=onto, graph_store=store,
+                        llm=FakeLLM(responses=["WRONG-should-not-be-used", "WRONG"]), database="testdb")
+        sess2._response_cache = shared
+        a2 = sess2.ask("What industry is TestCorp in?")
+        assert a2 == a1
+        assert "WRONG" not in a2
+        assert sess2.context.queries[-1]["mode"] == "cache_persistent"
+
+    def test_persistent_cache_off_by_default(self):
+        # Default (no SEOCHO_RESPONSE_CACHE_PATH) -> no persistent cache wired.
+        from seocho.session import Session
+        sess = Session(name="s", ontology=_make_test_ontology(), graph_store=FakeGraphStore(),
+                       llm=FakeLLM(responses=["{}", "ans"]), database="testdb")
+        assert sess._response_cache is None
+
     def test_session_agent_add_fallback_records_degraded_metadata(self, monkeypatch):
         onto = _make_test_ontology()
         llm = FakeLLM()

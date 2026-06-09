@@ -184,3 +184,17 @@ class JSONLResponseCache(ResponseCache):
                 os.unlink(self._path)
             except FileNotFoundError:
                 pass
+
+
+def response_cache_from_env() -> Optional[ResponseCache]:
+    """Build the opt-in persistent response cache from the environment.
+
+    Returns a :class:`JSONLResponseCache` when ``SEOCHO_RESPONSE_CACHE_PATH`` is
+    set, else ``None`` (the default — the cache is OFF and Session.ask behaves
+    exactly as before). This is the single switch that turns the dormant
+    cross-process cache on; see seocho-jdg.
+    """
+    path = os.getenv("SEOCHO_RESPONSE_CACHE_PATH", "").strip()
+    if not path:
+        return None
+    return JSONLResponseCache(path)

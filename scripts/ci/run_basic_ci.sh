@@ -76,6 +76,7 @@ uv run pytest \
   tests/seocho/test_query_proxy_workspace_enforcement.py \
   tests/seocho/test_ontology_context.py \
   tests/seocho/test_session_agent.py \
+  tests/seocho/test_response_cache_wiring.py \
   tests/seocho/test_user_facing_edge_cases.py \
   tests/seocho/test_semantic_query_phase_a.py \
   extraction/tests/test_sdk_evaluation.py \

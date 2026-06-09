@@ -179,14 +179,24 @@ class QueryAnswerSynthesizer:
                 return f"For {company}, {metric_label} was {series}."
 
         if intent == "financial_metric_delta":
-            target_years = self._ordered_years(years or [row["year"] for row in selected_rows])
-            if len(target_years) < 2:
-                return self._direct_answer(
-                    question,
-                    supporting_fact,
-                    priority_terms=intent_data.get("metric_aliases", ()),
-                ) or None
-            start_year, end_year = target_years[0], target_years[-1]
+            # Follow the order the years were stated in the question: "change
+            # from 2023 to 2021" must report 2023 -> 2021 (a decrease), not the
+            # chronological 2021 -> 2023. Fall back to chronological order only
+            # when the question did not name the years (issue #131).
+            phrased_years = self._dedupe_years(years)
+            if len(phrased_years) >= 2:
+                start_year, end_year = phrased_years[0], phrased_years[-1]
+            else:
+                target_years = self._ordered_years(
+                    years or [row["year"] for row in selected_rows]
+                )
+                if len(target_years) < 2:
+                    return self._direct_answer(
+                        question,
+                        supporting_fact,
+                        priority_terms=intent_data.get("metric_aliases", ()),
+                    ) or None
+                start_year, end_year = target_years[0], target_years[-1]
             by_year = {row["year"]: row for row in selected_rows if row.get("year")}
             start_row = by_year.get(start_year)
             end_row = by_year.get(end_year)
@@ -697,13 +707,20 @@ class QueryAnswerSynthesizer:
                 return match.group(1)
         return ""
 
-    def _ordered_years(self, years: Sequence[Any]) -> List[str]:
+    def _dedupe_years(self, years: Sequence[Any]) -> List[str]:
+        """Dedupe years preserving the order they were given (e.g. as phrased in
+        the question). Use this where stated order carries meaning, such as a
+        delta's start/end; use :meth:`_ordered_years` where chronological order
+        is wanted."""
         deduped: List[str] = []
         for year in years:
             text = str(year).strip()
             if text and text not in deduped:
                 deduped.append(text)
-        return sorted(deduped)
+        return deduped
+
+    def _ordered_years(self, years: Sequence[Any]) -> List[str]:
+        return sorted(self._dedupe_years(years))
 
     def _humanize_metric_label(self, intent_data: Dict[str, Any]) -> str:
         metric_name = str(intent_data.get("metric_name", "")).strip()

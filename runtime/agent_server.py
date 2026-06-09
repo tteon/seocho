@@ -1430,7 +1430,7 @@ async def semantic_runs_list(
     intent_id: Optional[str] = Query(default=None),
 ):
     try:
-        require_runtime_permission(role="user", action="run_agent", workspace_id=workspace_id)
+        require_runtime_permission(role="user", action="read_agents", workspace_id=workspace_id)
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
 
@@ -1456,7 +1456,7 @@ async def semantic_runs_get(
     workspace_id: str = Query(default="default", pattern=WORKSPACE_ID_PATTERN),
 ):
     try:
-        require_runtime_permission(role="user", action="run_agent", workspace_id=workspace_id)
+        require_runtime_permission(role="user", action="read_agents", workspace_id=workspace_id)
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
 

@@ -124,6 +124,28 @@ def _strip_text(value: Optional[str]) -> str:
     return str(value).strip()
 
 
+_EMBED_MAX_BATCH = 2048  # OpenAI-compatible /embeddings cap inputs at ~2048 per request
+
+
+def _embed_in_batches(client: Any, model: str, texts: Sequence[str]) -> List[List[float]]:
+    """Embed ``texts`` in provider-safe sub-batches and concatenate, preserving order.
+
+    A single request for an arbitrarily large input hits the provider's per-request
+    item cap and 400s, losing the whole batch; chunking degrades gracefully instead.
+    Results are reordered by the response ``index`` so concatenation stays aligned.
+    """
+    items = list(texts)
+    out: List[List[float]] = []
+    for start in range(0, len(items), _EMBED_MAX_BATCH):
+        batch = items[start : start + _EMBED_MAX_BATCH]
+        if not batch:
+            continue
+        response = client.embeddings.create(model=model, input=batch)
+        ordered = sorted(response.data, key=lambda item: item.index)
+        out.extend(list(item.embedding) for item in ordered)
+    return out
+
+
 def _resolve_client_kwargs(
     *,
     provider: str,
@@ -640,11 +662,7 @@ class OpenAICompatibleBackend(LLMBackend):
                 f"Provider '{self.provider}' does not define a default embedding model. "
                 "Pass an explicit embedding model or use a dedicated embedding backend."
             )
-        response = self._client.embeddings.create(
-            model=resolved_model,
-            input=list(texts),
-        )
-        return [list(item.embedding) for item in response.data]
+        return _embed_in_batches(self._client, resolved_model, texts)
 
     def to_embedding_backend(
         self,
@@ -783,11 +801,7 @@ class OpenAICompatibleEmbeddingBackend(EmbeddingBackend):
         model: Optional[str] = None,
     ) -> List[List[float]]:
         resolved_model = _strip_text(model) or self.model
-        response = self._client.embeddings.create(
-            model=resolved_model,
-            input=list(texts),
-        )
-        return [list(item.embedding) for item in response.data]
+        return _embed_in_batches(self._client, resolved_model, texts)
 
     def __repr__(self) -> str:
         return (

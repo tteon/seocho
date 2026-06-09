@@ -28,10 +28,14 @@ class _FakeChatCompletions:
 
 
 class _FakeEmbeddings:
+    def __init__(self):
+        self.calls = []
+
     def create(self, *, model, input):
+        self.calls.append(len(input))
         return SimpleNamespace(
             data=[
-                SimpleNamespace(embedding=[float(index + 1), 0.0])
+                SimpleNamespace(index=index, embedding=[float(index + 1), 0.0])
                 for index, _ in enumerate(input)
             ]
         )
@@ -116,6 +120,23 @@ def test_openai_embedding_backend_uses_default_embedding_model(
 
     assert backend.model == "text-embedding-3-small"
     assert vectors == [[1.0, 0.0], [2.0, 0.0]]
+
+
+def test_openai_embedding_backend_batches_large_inputs(
+    fake_openai: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "openai-secret")
+
+    backend = create_embedding_backend(provider="openai")
+    n = 2048 * 2 + 5
+    vectors = backend.embed([f"t{i}" for i in range(n)])
+
+    # Nothing dropped, and the request is split into provider-safe sub-batches
+    # instead of one oversized call that would 400.
+    assert len(vectors) == n
+    assert backend._client.embeddings.calls == [2048, 2048, 5]
+    assert max(backend._client.embeddings.calls) <= 2048
 
 
 def test_non_embedding_provider_requires_explicit_embedding_model(

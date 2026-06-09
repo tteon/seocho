@@ -28,6 +28,10 @@ class ProviderSpec:
     default_model: str = "gpt-4o"
     default_embedding_model: Optional[str] = None
     supports_embeddings: bool = False
+    # Per-provider default request timeout (seconds). Reasoning-model presets
+    # override the 120s baseline because single-document extraction routinely
+    # runs much longer and was silently tripping the heuristic fallback (#118).
+    default_timeout: float = 120.0
 
 
 _PROVIDER_SPECS: Dict[str, ProviderSpec] = {
@@ -54,6 +58,9 @@ _PROVIDER_SPECS: Dict[str, ProviderSpec] = {
         default_model="kimi-k2.5",
         default_embedding_model=None,
         supports_embeddings=False,
+        # kimi-k2.5 single-document extraction was measured at 160-1450s; 120s
+        # cut it off and silently degraded to heuristic extraction (#118).
+        default_timeout=900.0,
     ),
     "grok": ProviderSpec(
         name="grok",
@@ -63,6 +70,8 @@ _PROVIDER_SPECS: Dict[str, ProviderSpec] = {
         default_model="grok-4.20-reasoning",
         default_embedding_model=None,
         supports_embeddings=False,
+        # Default model is a reasoning preset — give it the same headroom.
+        default_timeout=900.0,
     ),
     "qwen": ProviderSpec(
         name="qwen",
@@ -957,11 +966,21 @@ def create_llm_backend(
     model: Optional[str] = None,
     api_key: Optional[str] = None,
     base_url: Optional[str] = None,
-    timeout: float = 120.0,
+    timeout: Optional[float] = None,
 ) -> OpenAICompatibleBackend:
-    """Create an OpenAI-compatible LLM backend by provider preset."""
+    """Create an OpenAI-compatible LLM backend by provider preset.
+
+    When ``timeout`` is None the provider preset's ``default_timeout`` is used,
+    so reasoning-model presets (kimi, grok) get more headroom than the 120s
+    baseline (#118). Pass an explicit timeout to override.
+    """
 
     provider_key = str(provider).strip().lower() or "openai"
+    if timeout is None:
+        try:
+            timeout = get_provider_spec(provider_key).default_timeout
+        except ValueError:
+            timeout = 120.0
     if provider_key == "openai":
         return OpenAIBackend(
             model=model or get_provider_spec("openai").default_model,

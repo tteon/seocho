@@ -129,7 +129,14 @@ class IndexingResult:
 
     @property
     def ok(self) -> bool:
-        return len(self.write_errors) == 0 and self.chunks_processed > 0
+        # A degraded (heuristic-fallback) extraction is not a clean success —
+        # ok must reflect the degradation so callers can detect it instead of
+        # only finding it buried in fallback_used (#118).
+        return (
+            len(self.write_errors) == 0
+            and self.chunks_processed > 0
+            and not self.fallback_used
+        )
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -220,6 +227,7 @@ class IndexingPipeline:
         max_chunk_chars: int = 6000,
         enable_dedup: bool = True,
         enable_rule_constraints: bool = False,
+        extraction_on_failure: str = "raise",
         embedding_backend: Any = None,
         vector_store: Any = None,
         ontology_profile: str = "default",
@@ -240,6 +248,15 @@ class IndexingPipeline:
         self.max_chunk_chars = max_chunk_chars
         self.enable_dedup = enable_dedup
         self.enable_rule_constraints = enable_rule_constraints
+        if extraction_on_failure not in ("raise", "degrade"):
+            raise ValueError(
+                f"extraction_on_failure must be 'raise' or 'degrade', "
+                f"got {extraction_on_failure!r}"
+            )
+        # Silent-fallback discipline (baseline 1.1): by default an extraction
+        # failure (e.g. a reasoning-model timeout) raises rather than silently
+        # degrading to ontology-free Entity nodes and reporting success (#118).
+        self.extraction_on_failure = extraction_on_failure
         self.vector_store = vector_store
         self._seen_hashes: set = set()
         self.extraction_prompt = extraction_prompt
@@ -730,6 +747,17 @@ class IndexingPipeline:
                 )
                 extracted = response
             except Exception as exc:
+                # Silent-fallback discipline (baseline 1.1): by default surface
+                # the failure instead of substituting ontology-free Entity nodes
+                # and reporting success. Opt into degradation explicitly with
+                # extraction_on_failure="degrade" (#118).
+                if self.extraction_on_failure != "degrade":
+                    raise RuntimeError(
+                        f"Extraction failed for chunk {i}: "
+                        f"{type(exc).__name__}: {exc}. Pass "
+                        f"extraction_on_failure='degrade' to fall back to "
+                        f"heuristic extraction instead of raising."
+                    ) from exc
                 logger.warning(
                     "LLM extraction failed for chunk %d, using heuristic fallback: %s",
                     i, exc,

@@ -358,6 +358,55 @@ class TestConfidenceScoring:
         scores = simple_ontology.score_extraction(data)
         assert 0.3 < scores["nodes"][0]["score"] < 0.8
 
+    def test_type_mismatch_scores_zero_not_partial(self, simple_ontology):
+        # Regression #129: age is INTEGER; a string value is a real mismatch.
+        # name (STRING) is correct, so type_correctness is (1 + 0) / 2 = 0.5.
+        # On main the mismatch got +0.5 partial credit -> (1 + 0.5) / 2 = 0.75.
+        data = {
+            "nodes": [
+                {"id": "p1", "label": "Person",
+                 "properties": {"name": "Alice", "age": "thirty"}},
+            ],
+            "relationships": [],
+        }
+        scores = simple_ontology.score_extraction(data)
+        assert scores["nodes"][0]["details"]["type_correctness"] == 0.5
+
+    def test_all_wrong_types_zero_type_correctness(self, simple_ontology):
+        # Every filled property is mis-typed -> type_correctness must be 0 so the
+        # overall score cannot mask the malformed extraction (the quality-retry
+        # gate compares against overall). On main this was 0.5.
+        data = {
+            "nodes": [
+                {"id": "p1", "label": "Person",
+                 "properties": {"name": 123, "age": "not-a-number"}},
+            ],
+            "relationships": [],
+        }
+        scores = simple_ontology.score_extraction(data)
+        assert scores["nodes"][0]["details"]["type_correctness"] == 0.0
+
+    def test_list_property_correct_type_is_credited(self):
+        # LIST/POINT were unhandled and fell into the same +0.5 branch; a
+        # correctly-typed LIST value must now score full type correctness.
+        onto = Ontology(
+            name="t",
+            nodes={"Doc": NodeDef(
+                description="d",
+                properties={"tags": P(PropertyType.LIST)},
+            )},
+        )
+        good = onto.score_extraction(
+            {"nodes": [{"id": "d1", "label": "Doc",
+                        "properties": {"tags": ["a", "b"]}}], "relationships": []}
+        )
+        bad = onto.score_extraction(
+            {"nodes": [{"id": "d1", "label": "Doc",
+                        "properties": {"tags": "a,b"}}], "relationships": []}
+        )
+        assert good["nodes"][0]["details"]["type_correctness"] == 1.0
+        assert bad["nodes"][0]["details"]["type_correctness"] == 0.0
+
     def test_empty_data(self, simple_ontology):
         scores = simple_ontology.score_extraction({"nodes": [], "relationships": []})
         assert scores["overall"] == 0.0

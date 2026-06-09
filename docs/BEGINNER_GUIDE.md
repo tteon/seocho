@@ -3,7 +3,7 @@
 This guide is for a first-time user who wants to understand SEOCHO by running a
 small end-to-end workflow.
 
-If you only need the shortest command path, use [QUICKSTART.md](QUICKSTART.md).
+If you only need the shortest command path, use [QUICKSTART.md](../QUICKSTART.md).
 If you want the full system architecture, use [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## 1. The One-Minute Mental Model
@@ -318,7 +318,7 @@ open http://localhost:8001/docs
 
 Recommended learning path:
 
-1. [QUICKSTART.md](QUICKSTART.md)
+1. [QUICKSTART.md](../QUICKSTART.md)
 2. [BEGINNER_PIPELINES_DEMO.md](BEGINNER_PIPELINES_DEMO.md)
 3. [PYTHON_INTERFACE_QUICKSTART.md](PYTHON_INTERFACE_QUICKSTART.md)
 4. [INDEXING_DESIGN_SPECS.md](INDEXING_DESIGN_SPECS.md)

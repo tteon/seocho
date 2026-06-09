@@ -1,6 +1,6 @@
 # Beginner Pipeline Demos
 
-Use this document after [QUICKSTART.md](QUICKSTART.md) succeeds.
+Use this document after [QUICKSTART.md](../QUICKSTART.md) succeeds.
 
 This is the scripted demo path.
 Unlike `QUICKSTART`, it is not the shortest way to first success.
@@ -23,7 +23,7 @@ Use it when you need:
 
 ## 2. Before You Start
 
-Complete [QUICKSTART.md](QUICKSTART.md) first:
+Complete [QUICKSTART.md](../QUICKSTART.md) first:
 
 ```bash
 make setup-env
@@ -142,6 +142,6 @@ That order explains the product from source material to governed graph memory to
 
 ## 7. When To Use Which Doc
 
-- [QUICKSTART.md](QUICKSTART.md): fastest first run
+- [QUICKSTART.md](../QUICKSTART.md): fastest first run
 - [TUTORIAL_FIRST_RUN.md](TUTORIAL_FIRST_RUN.md): manual API walkthrough
 - this document: scripted staged demos

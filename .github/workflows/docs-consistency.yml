@@ -16,3 +16,11 @@ jobs:
 
       - name: Run docs contract checks
         run: bash scripts/ci/check-doc-contracts.sh
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Run doc structure / drift checks
+        run: python3 scripts/ci/check_doc_structure.py

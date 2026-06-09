@@ -1215,7 +1215,7 @@ class LPGAgent:
             return {
                 "mode": "lpg",
                 "summary": "No resolved entity. Returned graph label distribution.",
-                "records": self._label_distribution(databases),
+                "records": self._label_distribution(databases, workspace_id=workspace_id),
                 "reasoning": {
                     "requested": reasoning_mode,
                     "repair_budget": max(0, int(repair_budget or 0)),
@@ -1288,7 +1288,7 @@ class LPGAgent:
             return {
                 "mode": "lpg",
                 "summary": summary,
-                "records": self._label_distribution(databases),
+                "records": self._label_distribution(databases, workspace_id=workspace_id),
                 "reasoning": {
                     "requested": reasoning_mode,
                     "repair_budget": max(0, int(repair_budget or 0)),
@@ -1848,9 +1848,16 @@ class LPGAgent:
             "property_count": len(constraint_slice.get("allowed_properties", [])),
         }
 
-    def _label_distribution(self, databases: Sequence[str]) -> List[Dict[str, Any]]:
+    def _label_distribution(
+        self, databases: Sequence[str], *, workspace_id: str = "default"
+    ) -> List[Dict[str, Any]]:
+        # Scope by workspace like the other resolver queries; an empty
+        # workspace_id disables the filter (matches the read-filter convention).
+        # Without this the fallback aggregated labels across every workspace in
+        # the database (issue #132).
         query = """
         MATCH (n)
+        WHERE $workspace_id = '' OR coalesce(n._workspace_id, '') = $workspace_id
         RETURN labels(n)[0] AS label, count(*) AS count
         ORDER BY count DESC
         LIMIT 10
@@ -1862,7 +1869,7 @@ class LPGAgent:
                     self.connector,
                     query=query,
                     database=db_name,
-                    params=None,
+                    params={"workspace_id": workspace_id},
                     source=self.__class__.__name__,
                 )
             except QueryExecutionError:

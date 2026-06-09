@@ -254,6 +254,10 @@ body {
   cursor: not-allowed;
 }
 
+#ingestBtn:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
 #oneClickDemoBtn {
   background: var(--accent-blue);
   color: #fff;
@@ -268,6 +272,25 @@ body {
 #oneClickDemoBtn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+#oneClickDemoBtn:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.reset-btn {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.reset-btn:hover {
+  color: #fff;
 }
 
 /* Dual Pane Workspace */

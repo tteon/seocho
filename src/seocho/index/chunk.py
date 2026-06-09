@@ -90,13 +90,12 @@ def chunk(
     list of :class:`Chunk`. A single-element list is returned for short
     inputs (including the empty string).
     """
-    bodies = _split_bodies(
+    records = _split_with_offsets(
         text,
         max_chars=max_chars,
         overlap_chars=overlap_chars,
         separator=separator,
     )
-    offsets = _locate_bodies(text, bodies)
     section_annotations = _locate_sections(text)
     return [
         _build_chunk(
@@ -107,7 +106,7 @@ def chunk(
             end=end,
             section_annotations=section_annotations,
         )
-        for i, (body, (start, end)) in enumerate(zip(bodies, offsets))
+        for i, (body, start, end) in enumerate(records)
     ]
 
 
@@ -138,66 +137,84 @@ def _build_chunk(
     )
 
 
-def _split_bodies(
+def _paragraph_spans(
+    text: str,
+    separator: str,
+) -> List[tuple[str, int, int]]:
+    """Yield ``(stripped_paragraph, char_start, char_end)`` for each non-empty
+    paragraph, with offsets into the *original* ``text``.
+
+    Splitting on a fixed separator discards positions, but they are
+    recoverable: segment ``i`` begins at the running cursor, and stripping a
+    paragraph only shifts its start past the leading whitespace and pulls its
+    end in past the trailing whitespace. Tracking offsets here (rather than
+    searching for the post-processed body afterwards) is what lets overlapped
+    chunks keep correct provenance — see issue #124.
+    """
+    spans: List[tuple[str, int, int]] = []
+    cursor = 0
+    for raw in text.split(separator):
+        stripped = raw.strip()
+        if stripped:
+            lead = len(raw) - len(raw.lstrip())
+            start = cursor + lead
+            spans.append((stripped, start, start + len(stripped)))
+        cursor += len(raw) + len(separator)
+    return spans
+
+
+def _split_with_offsets(
     text: str,
     *,
     max_chars: int,
     overlap_chars: int,
     separator: str,
-) -> List[str]:
-    """Pure chunker — identical algorithm to the legacy ``chunk_text``."""
-    if len(text) <= max_chars:
-        return [text]
+) -> List[tuple[str, int, int]]:
+    """Chunker that emits ``(body, char_start, char_end)`` per chunk.
 
-    paragraphs = text.split(separator)
-    chunks: List[str] = []
+    The body strings are byte-for-byte identical to the legacy ``chunk_text``
+    output (the back-compat shim depends on this). Offsets are tracked during
+    splitting from real paragraph positions instead of being recovered with a
+    post-hoc ``str.find``, so they stay correct even when a chunk carries an
+    overlap prefix or spans multiple paragraphs.
+
+    ``[char_start, char_end)`` covers the chunk's *own* (non-overlap) content:
+    ``char_start`` is the source start of the first paragraph this chunk
+    introduces, ``char_end`` the end of its last paragraph. The leading overlap
+    prefix is borrowed context whose provenance already belongs to the previous
+    chunk, so the spans tile the document without gaps. Empty input maps to
+    ``(-1, -1)`` to preserve the documented "offset unknown" sentinel.
+    """
+    if len(text) <= max_chars:
+        return [(text, 0, len(text))] if text else [("", -1, -1)]
+
+    records: List[tuple[str, int, int]] = []
     current: List[str] = []
     current_len = 0
+    cur_start: Optional[int] = None  # source start of this chunk's first own paragraph
+    cur_end: Optional[int] = None  # source end of the last paragraph added
 
-    for para in paragraphs:
-        para = para.strip()
-        if not para:
-            continue
-
+    for para, p_start, p_end in _paragraph_spans(text, separator):
         if current_len + len(para) + len(separator) > max_chars and current:
-            chunk_body = separator.join(current)
-            chunks.append(chunk_body)
+            body = separator.join(current)
+            records.append((body, cur_start, cur_end))
 
-            overlap_text = chunk_body[-overlap_chars:] if overlap_chars > 0 else ""
+            overlap_text = body[-overlap_chars:] if overlap_chars > 0 else ""
             current = [overlap_text] if overlap_text else []
             current_len = len(overlap_text)
+            cur_start = None
+            cur_end = None
 
+        if cur_start is None:
+            cur_start = p_start
+        cur_end = p_end
         current.append(para)
         current_len += len(para) + len(separator)
 
-    if current:
-        chunks.append(separator.join(current))
+    if current and cur_start is not None:
+        records.append((separator.join(current), cur_start, cur_end))
 
-    return chunks if chunks else [text]
-
-
-def _locate_bodies(content: str, bodies: List[str]) -> List[tuple[int, int]]:
-    """Find each body's ``(char_start, char_end)`` in ``content``.
-
-    Uses a forward-search cursor with a 512-char lookback (same heuristic as
-    the previous ``_estimate_chunk_offsets`` helper) so overlapping chunks
-    can still be located. Empty bodies and unlocatable chunks get
-    ``(-1, -1)``.
-    """
-    offsets: List[tuple[int, int]] = []
-    search_start = 0
-    for body in bodies:
-        if not body:
-            offsets.append((-1, -1))
-            continue
-        start = content.find(body, max(search_start - 512, 0))
-        if start < 0:
-            start = content.find(body)
-        end = start + len(body) if start >= 0 else -1
-        offsets.append((start, end))
-        if end >= 0:
-            search_start = end
-    return offsets
+    return records if records else [(text, 0, len(text))]
 
 
 def _locate_sections(text: str) -> List[dict[str, object]]:

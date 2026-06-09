@@ -21,12 +21,19 @@ logger = logging.getLogger(__name__)
 
 @dataclass(slots=True)
 class VectorSearchResult:
-    """A single similarity search result."""
+    """A single similarity search result.
+
+    ``score`` is always a similarity where higher means a better match, regardless
+    of backend: FAISS inner-product and LanceDB L2 distance are normalized to the
+    same higher-is-better convention so scores are comparable across stores.
+    ``metric`` records the score semantic for callers.
+    """
 
     id: str
     text: str
     score: float
     metadata: Dict[str, Any] = field(default_factory=dict)
+    metric: str = "similarity"
 
 
 class VectorStore(ABC):
@@ -167,8 +174,9 @@ class FAISSVectorStore(VectorStore):
                 VectorSearchResult(
                     id=str(doc["id"]),
                     text=str(doc["text"]),
-                    score=float(score),
+                    score=float(score),  # inner product on normalized vectors: higher = better
                     metadata=dict(doc.get("metadata", {})),
+                    metric="similarity",
                 )
             )
 
@@ -327,13 +335,17 @@ class LanceDBVectorStore(VectorStore):
                 metadata = raw_metadata
             else:
                 metadata = {}
-            score = row.get("_distance", row.get("score", 0.0))
+            # LanceDB returns L2 distance (lower = closer); convert to a similarity
+            # (higher = better) so scores are comparable with the FAISS backend.
+            raw_distance = float(row.get("_distance", row.get("score", 0.0)))
+            score = 1.0 / (1.0 + raw_distance)
             results.append(
                 VectorSearchResult(
                     id=str(row.get("id", "")),
                     text=str(row.get("text", "")),
-                    score=float(score),
+                    score=score,
                     metadata=metadata,
+                    metric="similarity",
                 )
             )
         return results

@@ -164,6 +164,14 @@ class Session:
         self.user_id = user_id
 
         self.context = SessionContext()
+        # seocho-jdg: opt-in persistent cross-process answer cache. None (default)
+        # = OFF, behaves exactly as before. Set SEOCHO_RESPONSE_CACHE_PATH to
+        # enable; survives restarts/parallel workers, keyed by the same
+        # (workspace, database, ontology_hash, question) tuple as the in-memory cache.
+        from .response_cache import make_response_cache_key, response_cache_from_env
+
+        self._response_cache = response_cache_from_env()
+        self._make_response_cache_key = make_response_cache_key
         from .ontology_context import OntologyContextCache
 
         self._ontology_context_cache = OntologyContextCache(max_size=8)
@@ -512,6 +520,26 @@ class Session:
             self.context.add_query(question, cached, mode="cache")
             return cached
 
+        # seocho-jdg: persistent cross-process cache (opt-in, OFF by default).
+        # On hit, warm the in-memory cache so the rest of the session is fast too.
+        persistent_key = None
+        if self._response_cache is not None:
+            persistent_key = self._make_response_cache_key(
+                question,
+                workspace_id=self.workspace_id,
+                database=db,
+                ontology_identity_hash=identity_hash,
+            )
+            hit = self._response_cache.get(persistent_key)
+            if hit is not None:
+                self.context.cache_query(
+                    question, hit.answer,
+                    workspace_id=self.workspace_id, database=db,
+                    ontology_identity_hash=identity_hash,
+                )
+                self.context.add_query(question, hit.answer, mode="cache_persistent")
+                return hit.answer
+
         start = time.time()
 
         # Pass structured context (entities, not history)
@@ -573,6 +601,14 @@ class Session:
             database=db,
             ontology_identity_hash=identity_hash,
         )
+        # seocho-jdg: persist for cross-process reuse (opt-in). Only cache real
+        # answers — never an empty/degraded result.
+        if self._response_cache is not None and persistent_key is not None and answer.strip():
+            if not bool(query_result.get("degraded", False)):
+                self._response_cache.put(
+                    persistent_key, answer,
+                    metadata={"database": db, "mode": str(query_result.get("mode", "") or "")},
+                )
 
         # Trace
         if self._trace:

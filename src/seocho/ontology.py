@@ -45,7 +45,7 @@ import re
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Set, Type, Union
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Type, Union
 
 import yaml
 
@@ -111,6 +111,14 @@ class Property:
         Human-readable description shown in prompts.
     aliases:
         Alternative names an LLM might use for this property.
+    enum:
+        Optional allowed value set. When set, an extracted value outside it is
+        a validation error (emitted as ``sh:in`` and enforced by
+        :meth:`validate_with_shacl`).
+    value_range:
+        Optional inclusive numeric ``(min, max)`` bound. When set, an extracted
+        value outside it is a validation error (emitted as
+        ``sh:minInclusive`` / ``sh:maxInclusive``).
 
     Example::
 
@@ -118,6 +126,8 @@ class Property:
 
         name = Property(str, unique=True)
         age = Property(int, required=True, description="Age in years")
+        rating = Property(str, enum=["buy", "hold", "sell"])
+        score = Property(float, value_range=(0.0, 1.0))
     """
 
     type: Union[type, PropertyType, str] = str
@@ -126,6 +136,8 @@ class Property:
     required: bool = False
     description: str = ""
     aliases: List[str] = field(default_factory=list)
+    enum: Optional[List[Any]] = None
+    value_range: Optional[Tuple[float, float]] = None
 
     @property
     def property_type(self) -> PropertyType:
@@ -327,6 +339,8 @@ class Ontology:
             for pname, pd in (nd.get("properties") or {}).items():
                 ptype = PropertyType[pd.get("type", "STRING").upper()] if isinstance(pd, dict) else PropertyType.STRING
                 constraint_str = pd.get("constraint", "").upper() if isinstance(pd, dict) else ""
+                enum_vals = pd.get("enum") if isinstance(pd, dict) else None
+                range_vals = pd.get("range") if isinstance(pd, dict) else None
                 props[pname] = P(
                     type=ptype,
                     unique=constraint_str == "UNIQUE",
@@ -334,6 +348,9 @@ class Ontology:
                     required=pd.get("required", False) if isinstance(pd, dict) else False,
                     description=pd.get("description", "") if isinstance(pd, dict) else "",
                     aliases=pd.get("aliases", []) if isinstance(pd, dict) else [],
+                    enum=list(enum_vals) if enum_vals is not None else None,
+                    value_range=(float(range_vals[0]), float(range_vals[1]))
+                    if range_vals and len(range_vals) == 2 else None,
                 )
             nodes[label] = NodeDef(
                 description=nd.get("description", ""),
@@ -394,6 +411,10 @@ class Ontology:
                     entry["description"] = p.description
                 if p.aliases:
                     entry["aliases"] = list(p.aliases)
+                if p.enum is not None:
+                    entry["enum"] = list(p.enum)
+                if p.value_range is not None:
+                    entry["range"] = [p.value_range[0], p.value_range[1]]
                 props_out[pname] = entry
             node_entry: Dict[str, Any] = {"description": nd.description, "properties": props_out}
             if nd.same_as:
@@ -1033,6 +1054,11 @@ class Ontology:
                     ps["unique"] = True
                 elif p.required:
                     ps["minCount"] = 1
+                if p.enum is not None:
+                    ps["in"] = list(p.enum)
+                if p.value_range is not None:
+                    ps["minInclusive"] = p.value_range[0]
+                    ps["maxInclusive"] = p.value_range[1]
                 if p.description:
                     ps["description"] = p.description
                 prop_shapes.append(ps)
@@ -1210,6 +1236,33 @@ class Ontology:
                             f"Node '{nid}' ({label}).{pname}: "
                             f"expected boolean, got {type(value).__name__}"
                         )
+
+                # enum (sh:in) check — declared allowed value set (issue #128)
+                allowed = ps.get("in")
+                if allowed is not None and value is not None and value != "":
+                    if value not in allowed:
+                        errors.append(
+                            f"Node '{nid}' ({label}).{pname}: value {value!r} "
+                            f"not in allowed set {allowed}"
+                        )
+
+                # range (sh:minInclusive/maxInclusive) check
+                if ("minInclusive" in ps or "maxInclusive" in ps) and value is not None and value != "":
+                    try:
+                        numeric = float(value)
+                    except (ValueError, TypeError):
+                        errors.append(
+                            f"Node '{nid}' ({label}).{pname}: "
+                            f"non-numeric value {value!r} for a ranged property"
+                        )
+                    else:
+                        lo = ps.get("minInclusive")
+                        hi = ps.get("maxInclusive")
+                        if (lo is not None and numeric < lo) or (hi is not None and numeric > hi):
+                            errors.append(
+                                f"Node '{nid}' ({label}).{pname}: value {value!r} "
+                                f"out of range [{lo}, {hi}]"
+                            )
 
         # Relationship cardinality check
         source_rel_counts: Dict[str, Dict[str, int]] = {}  # node_id -> {rel_type -> count}

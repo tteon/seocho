@@ -88,6 +88,10 @@ bench-finder-synergy: ## FinDER synergy headline: signal-routed cost vs all-fron
 	@echo "📊 FinDER synergy benchmark (ontology-governed answering + signal-routed model)..."
 	@python3 scripts/benchmarks/finder_synergy.py $(if $(LIVE),--live $(LIVE),) $(if $(DATASET),--dataset $(DATASET),)
 
+bench-finder-cache: ## Synergy #1: persistent-cache hit-rate + latency win (needs DozerDB + MARA; PASSWORD=, LIMIT=)
+	@echo "📊 FinDER cache synergy (persistent ResponseCache cross-session reuse)..."
+	@python3 scripts/benchmarks/finder_cache_synergy.py $(if $(PASSWORD),--neo4j-password $(PASSWORD),) $(if $(LIMIT),--limit $(LIMIT),)
+
 demo-raw: ## Run beginner raw-data demo pipeline
 	@bash scripts/demo/pipeline_raw_data.sh
 

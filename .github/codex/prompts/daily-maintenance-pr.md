@@ -21,6 +21,10 @@ Execution rules:
 - Keep edits minimal and intentional.
 - Run `bash scripts/ci/run_basic_ci.sh` if your change touches the current
   basic CI surface; otherwise run the narrowest relevant subset and report it.
+- Doc-vs-code drift checklist: run `python3 scripts/ci/check_doc_structure.py`
+  (relative links resolve, read-order files exist, required sections present);
+  also scan for docs whose stated endpoints/paths/ADR claims no longer match the
+  code, and prefer fixing one such drift.
 - Do not commit, push, open a browser, or merge anything.
 
 Final response format:

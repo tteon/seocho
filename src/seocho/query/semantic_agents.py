@@ -9,6 +9,7 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
+from ..cypher_ident import quote_identifier
 from .answering import build_evidence_bundle, infer_question_intent
 from .constraints import SemanticConstraintSliceBuilder
 from .contracts import CypherPlan, InsufficiencyAssessment
@@ -1659,8 +1660,11 @@ class LPGAgent:
 
     @staticmethod
     def _relationship_query(*, anchor_label: str, relation_types: Sequence[str]) -> str:
-        label_clause = f":{anchor_label}" if anchor_label else ""
-        relation_clause = ":" + "|".join(relation_types) if relation_types else ""
+        # Backtick-quote ontology-derived label/relation names so a value with a
+        # backtick, space, or Cypher fragment cannot break out of the clause
+        # (issue #136; the | between relation types stays as syntax).
+        label_clause = f":{quote_identifier(anchor_label)}" if anchor_label else ""
+        relation_clause = ":" + "|".join(quote_identifier(r) for r in relation_types) if relation_types else ""
         return f"""
         MATCH (n{label_clause})
         WHERE elementId(n) = toString($node_id)
@@ -1678,8 +1682,8 @@ class LPGAgent:
 
     @staticmethod
     def _responsibility_query(*, anchor_label: str, relation_types: Sequence[str]) -> str:
-        label_clause = f":{anchor_label}" if anchor_label else ""
-        relation_clause = ":" + "|".join(relation_types) if relation_types else ""
+        label_clause = f":{quote_identifier(anchor_label)}" if anchor_label else ""
+        relation_clause = ":" + "|".join(quote_identifier(r) for r in relation_types) if relation_types else ""
         return f"""
         MATCH (target{label_clause})
         WHERE elementId(target) = toString($node_id)
@@ -1696,7 +1700,7 @@ class LPGAgent:
 
     @staticmethod
     def _entity_summary_query(*, anchor_label: str) -> str:
-        label_clause = f":{anchor_label}" if anchor_label else ""
+        label_clause = f":{quote_identifier(anchor_label)}" if anchor_label else ""
         return f"""
         MATCH (n{label_clause})
         WHERE elementId(n) = toString($node_id)

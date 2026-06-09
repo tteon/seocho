@@ -158,6 +158,40 @@ class TestListEndpoints:
         assert kwargs["workspace_id"] == "tenant_a"
         assert kwargs["action"] == "read_databases"
 
+    # --- IDOR fix: platform chat session GET/DELETE were unguarded ---
+    # Any caller could read or clear any session_id. These pin the authz gate.
+
+    async def test_chat_session_get_denied_returns_403(self, client, app_module):
+        with patch.object(
+            app_module, "require_runtime_permission", side_effect=PermissionError("denied"),
+        ):
+            response = await client.get("/platform/chat/session/sess-1")
+        assert response.status_code == 403
+
+    async def test_chat_session_delete_denied_returns_403(self, client, app_module):
+        with patch.object(
+            app_module, "require_runtime_permission", side_effect=PermissionError("denied"),
+        ):
+            response = await client.delete("/platform/chat/session/sess-1")
+        assert response.status_code == 403
+
+    async def test_chat_session_get_allowed_by_default(self, client, app_module):
+        # auth disabled -> require_runtime_permission is a no-op -> 200 (preserved)
+        response = await client.get("/platform/chat/session/unknown-sess")
+        assert response.status_code == 200
+        assert response.json()["history"] == []
+
+    async def test_chat_session_authz_uses_session_workspace(self, client, app_module):
+        app_module.platform_session_store.append(
+            "sess-b", "user", "hi", metadata={"workspace_id": "tenant_b"}
+        )
+        with patch.object(app_module, "require_runtime_permission") as mock_perm:
+            response = await client.get("/platform/chat/session/sess-b")
+        assert response.status_code == 200
+        _, kwargs = mock_perm.call_args
+        assert kwargs["workspace_id"] == "tenant_b"
+        assert kwargs["action"] == "run_platform"
+
     async def test_execute_cypher_tool_uses_query_proxy(self, app_module):
         context = types.SimpleNamespace(
             context=app_module.ServerContext(

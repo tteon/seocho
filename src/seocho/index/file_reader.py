@@ -196,14 +196,20 @@ def read_csv_file(path: Path) -> List[Dict[str, Any]]:
     """
     records: List[Dict[str, Any]] = []
     with open(path, newline="", encoding="utf-8", errors="replace") as f:
-        reader = csv.DictReader(f)
+        # restval="" so a row shorter than the header yields "" rather than None
+        # for the missing fields. DictReader otherwise sets them to None, and a
+        # None `content` then crashes index_file's `content.strip()` (issue #140).
+        reader = csv.DictReader(f, restval="")
         for i, row in enumerate(reader):
-            if "content" in row:
-                content = row["content"]
-                meta = {k: v for k, v in row.items() if k != "content"}
+            # Rows longer than the header collect overflow under the None
+            # restkey; drop it so metadata stays string-keyed and serializable.
+            cells = {k: v for k, v in row.items() if k is not None}
+            if "content" in cells:
+                content = cells.get("content") or ""
+                meta = {k: v for k, v in cells.items() if k != "content"}
             else:
-                content = " | ".join(f"{k}: {v}" for k, v in row.items() if v)
-                meta = dict(row)
+                content = " | ".join(f"{k}: {v}" for k, v in cells.items() if v)
+                meta = dict(cells)
             meta["source_file"] = str(path)
             meta["row_index"] = i
             records.append({"content": content, "metadata": meta})

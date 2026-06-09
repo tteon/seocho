@@ -335,6 +335,7 @@ class Neo4jGraphStore(GraphStore):
             ) from exc
 
         self._driver = GraphDatabase.driver(uri, auth=(user, password))
+        self._closed = False
         self._uri = uri
         self._user = user
         self._schema_cache: Dict[str, Dict[str, Any]] = {}
@@ -997,7 +998,27 @@ class Neo4jGraphStore(GraphStore):
             return []
 
     def close(self) -> None:
-        self._driver.close()
+        # Idempotent: releasing the driver's connection pool more than once
+        # (e.g. explicit close() then __del__/__exit__) must be a no-op.
+        if not getattr(self, "_closed", True):
+            self._closed = True
+            self._driver.close()
+
+    def __enter__(self) -> "Neo4jGraphStore":
+        return self
+
+    def __exit__(self, *exc: Any) -> None:
+        self.close()
+
+    def __del__(self) -> None:
+        # Best-effort safety net so a store that goes out of scope without an
+        # explicit close()/with-block does not leak its connection pool for the
+        # process lifetime (issue #135). Guarded: __del__ can run during
+        # interpreter shutdown when modules/globals are already torn down.
+        try:
+            self.close()
+        except Exception:
+            pass
 
     def __repr__(self) -> str:
         return f"Neo4jGraphStore(uri={self._uri!r})"

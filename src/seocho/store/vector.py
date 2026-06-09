@@ -101,6 +101,10 @@ class FAISSVectorStore(VectorStore):
         self._index = faiss.IndexFlatIP(dimension)
         self._docs: List[Dict[str, Any]] = []
         self._id_to_idx: Dict[str, int] = {}
+        # IndexFlatIP cannot remove a single vector, so delete() tombstones the
+        # doc and search() over-fetches by this count to still return `limit`
+        # live results (issue #122).
+        self._tombstones = 0
 
     def _embed(self, texts: Sequence[str]) -> Any:
         return _normalize_vectors(self._embedding_backend.embed(texts, model=self._model))
@@ -153,7 +157,10 @@ class FAISSVectorStore(VectorStore):
             return []
 
         query_vec = self._embed([query])
-        k = min(limit, self._index.ntotal)
+        # Over-fetch by the tombstone count: deleted vectors still occupy
+        # top-k slots, so fetching only `limit` could drop live results behind
+        # them. Bounded by ntotal (issue #122).
+        k = min(limit + self._tombstones, self._index.ntotal)
         scores, indices = self._index.search(query_vec, k)
 
         results: List[VectorSearchResult] = []
@@ -171,6 +178,8 @@ class FAISSVectorStore(VectorStore):
                     metadata=dict(doc.get("metadata", {})),
                 )
             )
+            if len(results) >= limit:
+                break
 
         return results
 
@@ -184,6 +193,7 @@ class FAISSVectorStore(VectorStore):
             "metadata": {},
             "_deleted": True,
         }
+        self._tombstones += 1
         return True
 
     def count(self) -> int:

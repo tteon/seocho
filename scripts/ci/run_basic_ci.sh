@@ -97,6 +97,7 @@ uv run pytest \
   tests/seocho/test_graph_ensure_database.py \
   tests/seocho/test_finder_eval_helpers.py \
   tests/seocho/test_finder_judge.py \
+  tests/seocho/test_finder_synergy.py \
   tests/seocho/test_ontology_extraction_firewall.py \
   tests/seocho/test_ontology_lint.py \
   tests/seocho/test_ontology_subclass_ttl.py \

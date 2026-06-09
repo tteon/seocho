@@ -84,6 +84,10 @@ e2e-smoke: ## Run dockerized runtime smoke checks (ingest + semantic + debate)
 	@echo "🧪 Running e2e smoke checks..."
 	@bash scripts/integration/e2e_runtime_smoke.sh
 
+bench-finder-synergy: ## FinDER synergy headline: signal-routed cost vs all-frontier (add LIVE=N for MARA support parity)
+	@echo "📊 FinDER synergy benchmark (ontology-governed answering + signal-routed model)..."
+	@python3 scripts/benchmarks/finder_synergy.py $(if $(LIVE),--live $(LIVE),) $(if $(DATASET),--dataset $(DATASET),)
+
 demo-raw: ## Run beginner raw-data demo pipeline
 	@bash scripts/demo/pipeline_raw_data.sh
 

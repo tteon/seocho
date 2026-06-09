@@ -398,13 +398,18 @@ class ExtractionStrategy(PromptStrategy):
     def render(self, text: str, **kwargs: Any) -> tuple[str, str]:
         ctx = self.ontology.to_extraction_context()
 
+        # Prefer a per-call category so concurrent add() calls on a shared
+        # strategy do not race on instance state; fall back to the constructor
+        # default (issue #134).
+        category = kwargs.get("category") or self.category
+
         # If user provided a custom template, use it
         if self.prompt_template is not None:
             return self.prompt_template.render(ctx, text)
 
         # Auto-select category-specific prompt if available
-        if self.category in CATEGORY_PROMPT_MAP:
-            auto_template = PRESET_PROMPTS.get(CATEGORY_PROMPT_MAP[self.category])
+        if category in CATEGORY_PROMPT_MAP:
+            auto_template = PRESET_PROMPTS.get(CATEGORY_PROMPT_MAP[category])
             if auto_template is not None:
                 return auto_template.render(ctx, text)
 
@@ -412,7 +417,7 @@ class ExtractionStrategy(PromptStrategy):
         # chunks, maximizing provider-side prompt cache hits.
         metadata = kwargs.get("metadata")
         cache_key = (
-            self.category,
+            category,
             self.shacl_constraints,
             self.vocabulary_terms,
             self.developer_instructions,

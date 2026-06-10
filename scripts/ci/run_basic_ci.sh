@@ -96,6 +96,7 @@ uv run pytest \
   tests/seocho/test_cypher_builder_ontology_aware.py \
   tests/seocho/test_extraction_engine.py \
   tests/seocho/test_graph_ensure_database.py \
+  tests/seocho/test_graph_writer_lww.py \
   tests/seocho/test_finder_eval_helpers.py \
   tests/seocho/test_finder_judge.py \
   tests/seocho/test_finder_synergy.py \

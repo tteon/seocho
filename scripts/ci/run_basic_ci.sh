@@ -85,6 +85,7 @@ uv run pytest \
   tests/seocho/test_finder_benchmark_script.py \
   tests/seocho/test_indexing_design.py \
   tests/seocho/test_llm_backends.py \
+  tests/seocho/test_llm_model_override.py \
   tests/seocho/test_model_router.py \
   tests/seocho/test_reflection.py \
   tests/seocho/test_matchmaker.py \

@@ -1347,3 +1347,63 @@ class TestQueryValidation:
         request = fake_proxy.query.call_args.args[0]
         assert request.workspace_id == "default"
         assert request.database == "kgnormal"
+
+
+@pytest.mark.anyio
+class TestAuthOnMode:
+    """seocho-6gt: end-to-end enforcement when SEOCHO_AUTH_MODE=token.
+
+    Auth is wired (PrincipalMiddleware + require_runtime_permission) but had no
+    ON-mode e2e coverage. The middleware reads the mode per request, so flipping
+    the env mid-test exercises the real token path.
+    """
+
+    @staticmethod
+    def _token(role, workspace_id="default", subject="u"):
+        from runtime.identity import issue_token
+        return issue_token("e2e-secret", subject=subject, role=role, workspace_id=workspace_id)
+
+    @staticmethod
+    def _enable(monkeypatch):
+        monkeypatch.setenv("SEOCHO_AUTH_MODE", "token")
+        monkeypatch.setenv("SEOCHO_AUTH_SECRET", "e2e-secret")
+
+    async def test_missing_token_is_401(self, client, monkeypatch):
+        self._enable(monkeypatch)
+        resp = await client.get("/databases")
+        assert resp.status_code == 401
+
+    async def test_bad_token_is_401(self, client, monkeypatch):
+        self._enable(monkeypatch)
+        resp = await client.get("/databases", headers={"Authorization": "Bearer garbage"})
+        assert resp.status_code == 401
+
+    async def test_viewer_denied_write_action_is_403(self, client, monkeypatch):
+        self._enable(monkeypatch)
+        # viewer lacks run_agent -> 403 fires before the agent runs
+        resp = await client.post(
+            "/run_agent_semantic",
+            json={"query": "hi", "workspace_id": "default"},
+            headers={"Authorization": f"Bearer {self._token('viewer')}"},
+        )
+        assert resp.status_code == 403
+
+    async def test_cross_workspace_principal_is_403(self, client, monkeypatch):
+        self._enable(monkeypatch)
+        # user scoped to 'acme' may not act on 'other' (workspace ownership)
+        resp = await client.get(
+            "/databases",
+            params={"workspace_id": "other"},
+            headers={"Authorization": f"Bearer {self._token('user', workspace_id='acme')}"},
+        )
+        assert resp.status_code == 403
+
+    async def test_in_scope_user_is_allowed(self, client, monkeypatch):
+        self._enable(monkeypatch)
+        # user@default, read_databases on its own workspace -> allowed
+        resp = await client.get(
+            "/databases",
+            params={"workspace_id": "default"},
+            headers={"Authorization": f"Bearer {self._token('user', workspace_id='default')}"},
+        )
+        assert resp.status_code == 200

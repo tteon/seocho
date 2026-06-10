@@ -42,7 +42,7 @@ _OPERATIONAL: Set[str] = {
     "run_agent", "run_debate", "read_databases", "read_agents",
     "infer_rules", "validate_rules", "assess_rules", "manage_rule_profiles",
     "export_rules", "manage_indexes", "run_platform", "ingest_raw",
-    "manage_semantic_artifacts", "manage_memories",
+    "manage_semantic_artifacts", "manage_memories", "read_semantic_runs",
 }
 # Reserved for cross-tenant / policy operations — admin only.
 _ADMIN_ONLY: Set[str] = {"manage_tenants", "manage_policy"}
@@ -61,7 +61,7 @@ class RuntimePolicyEngine:
         self._role_permissions: Dict[str, Set[str]] = {
             "admin": _OPERATIONAL | _ADMIN_ONLY,   # strict superset
             "user": set(_OPERATIONAL),
-            "viewer": {"read_databases", "read_agents"},
+            "viewer": {"read_databases", "read_agents", "read_semantic_runs"},
         }
 
     def validate_workspace_id(self, workspace_id: str) -> PolicyDecision:

@@ -76,6 +76,8 @@ class LoopResult:
     stop_reason: str = ""
     total_ms: int = 0
     refused: bool = False
+    reflected: bool = False          # an optional reflection pass ran
+    reflection_revised: bool = False  # and it changed the final answer
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -85,6 +87,8 @@ class LoopResult:
             "refused": self.refused,
             "iterations": [it.to_dict() for it in self.iterations],
             "total_ms": self.total_ms,
+            "reflected": self.reflected,
+            "reflection_revised": self.reflection_revised,
         }
 
     def summary(self) -> str:
@@ -189,6 +193,11 @@ class GraphAgenticLoop:
         policy: Optional[RoutingPolicy] = None,
         model_router: Optional[ModelRouter] = None,
         max_iterations: int = 3,
+        enable_reflection: bool = False,
+        reflection_critic: Optional[Callable[[str, str], Any]] = None,
+        reflection_reviser: Optional[Callable[[str, str, Any], str]] = None,
+        reflection_model: Optional[str] = None,
+        reflection_max_iters: int = 2,
         augment_fn: Optional[Callable[[str], Dict[str, Any]]] = None,
         emit_trace_fn: Optional[Callable[[Dict[str, Any]], None]] = None,
         enable_analytics: bool = True,
@@ -203,6 +212,15 @@ class GraphAgenticLoop:
         # None (default) no model is forced and behaviour is unchanged.
         self.model_router = model_router
         self.max_iterations = int(max_iterations)
+        # Optional post-answer reflection (self-critique -> revise) pass. OFF by
+        # default -> behaviour unchanged. critic/reviser are injectable (unit
+        # tests pass fakes); when absent and enabled, they are built lazily from
+        # self.client via reflection.make_llm_critic/reviser.
+        self.enable_reflection = bool(enable_reflection)
+        self._reflection_critic = reflection_critic
+        self._reflection_reviser = reflection_reviser
+        self.reflection_model = reflection_model
+        self.reflection_max_iters = int(reflection_max_iters)
         self.augment_fn = augment_fn or _default_augment
         self.emit_trace_fn = emit_trace_fn
         self.enable_analytics = enable_analytics
@@ -297,9 +315,34 @@ class GraphAgenticLoop:
             result.final_answer = state["answer_history"][-1] if state["answer_history"] else ""
             if not result.stop_reason:
                 result.stop_reason = "max_iterations"
+            self._maybe_reflect(result)
 
         result.total_ms = int((time.perf_counter() - t0) * 1000)
         return result
+
+    def _maybe_reflect(self, result: "LoopResult") -> None:
+        """Optional self-critique -> revise pass over the final answer (OFF by
+        default). Injected critic/reviser win; otherwise built from self.client.
+        Any reflection error is swallowed — it must never break the answer."""
+        if not self.enable_reflection or not result.final_answer:
+            return
+        try:
+            from .reflection import make_llm_critic, make_llm_reviser, reflect
+            critic = self._reflection_critic
+            reviser = self._reflection_reviser
+            if critic is None or reviser is None:
+                model = self.reflection_model or "default"
+                critic = critic or make_llm_critic(self.client, model)
+                reviser = reviser or make_llm_reviser(self.client, model)
+            r = reflect(result.question, result.final_answer,
+                        critic=critic, reviser=reviser,
+                        max_iterations=self.reflection_max_iters)
+            result.reflected = True
+            result.reflection_revised = r.revised
+            if r.revised:
+                result.final_answer = r.final
+        except Exception:
+            return  # reflection is best-effort; never degrade the base answer
 
     # -- Internals ---------------------------------------------------------
 

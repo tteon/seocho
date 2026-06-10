@@ -63,3 +63,46 @@ def test_no_router_forces_no_model_preserving_behavior():
     # No router -> no model kwarg added; ask sees the default None.
     assert all(m is None for m in client.models)
     assert len(client.models) >= 1
+
+
+# --- optional reflection pass (seocho-t8m) ---------------------------------
+from seocho.agent.reflection import Critique  # noqa: E402
+
+
+def test_reflection_off_by_default_preserves_answer():
+    client = _RecordingClient()
+    loop = GraphAgenticLoop(client, max_iterations=1, augment_fn=_augment_lookup,
+                            enable_analytics=False)
+    r = loop.run("what is acme's revenue")
+    assert r.reflected is False and r.reflection_revised is False
+    assert r.final_answer  # an answer was produced, unchanged by reflection
+
+
+def test_reflection_revises_final_answer_when_enabled():
+    seen = {"n": 0}
+
+    def critic(_task, _draft):
+        seen["n"] += 1
+        return Critique(ok=seen["n"] > 1, issues=["incomplete"] if seen["n"] == 1 else [])
+
+    def reviser(_task, _draft, _crit):
+        return "REVISED final answer with the missing piece added."
+
+    loop = GraphAgenticLoop(_RecordingClient(), max_iterations=1, augment_fn=_augment_lookup,
+                            enable_analytics=False, enable_reflection=True,
+                            reflection_critic=critic, reflection_reviser=reviser)
+    r = loop.run("what is acme's revenue")
+    assert r.reflected is True and r.reflection_revised is True
+    assert r.final_answer == "REVISED final answer with the missing piece added."
+
+
+def test_reflection_error_never_degrades_answer():
+    def boom(_task, _draft):
+        raise RuntimeError("critic exploded")
+
+    loop = GraphAgenticLoop(_RecordingClient(), max_iterations=1, augment_fn=_augment_lookup,
+                            enable_analytics=False, enable_reflection=True,
+                            reflection_critic=boom, reflection_reviser=lambda *a: "x")
+    r = loop.run("what is acme's revenue")
+    assert r.final_answer  # base answer preserved; exception swallowed
+    assert r.reflection_revised is False

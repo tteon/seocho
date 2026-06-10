@@ -364,6 +364,13 @@ class Neo4jGraphStore(GraphStore):
 
         summary = {"nodes_created": 0, "relationships_created": 0, "errors": []}
 
+        # seocho-4rg (Lamport): stamp a writer timestamp so concurrent/replayed
+        # writes are last-writer-wins by time rather than by arrival order. The
+        # MERGE guards below refuse to overwrite a node/rel that already carries
+        # a NEWER _writer_ts, so a stale retry (e.g. a crashed ingest replayed)
+        # cannot clobber a fresher fact. One ts per write() call.
+        now = time.time()
+
         # Group by label/type and write each group in one UNWIND round-trip
         # (labels/rel-types can't be parameterized in MERGE, so we batch per
         # distinct label). A batch that throws falls back to per-row so one bad
@@ -378,6 +385,8 @@ class Neo4jGraphStore(GraphStore):
             props = dict(node.get("properties", {}))
             props["_source_id"] = source_id
             props["_workspace_id"] = workspace_id
+            props["_writer_ts"] = now
+            props["_writer_agent"] = source_id or "unknown"
             node_id = node.get("id", props.get("name", ""))
             props["id"] = node_id
             nodes_by_label.setdefault(label, []).append({"id": node_id, "props": props})
@@ -392,14 +401,22 @@ class Neo4jGraphStore(GraphStore):
                      if _is_property_value(v)}
             props["_source_id"] = source_id
             props["_workspace_id"] = workspace_id
+            props["_writer_ts"] = now
+            props["_writer_agent"] = source_id or "unknown"
             rels_by_type.setdefault(rtype, []).append(
                 {"src": rel.get("source", ""), "tgt": rel.get("target", ""), "props": props})
 
         with self._driver.session(database=database) as session:
             # --- Nodes (one UNWIND per label) ---
             for label, rows in nodes_by_label.items():
-                # label validated against _LABEL_RE above; interpolated raw
-                batch_q = f"UNWIND $rows AS row MERGE (n:{label} {{id: row.id}}) SET n += row.props"
+                # label validated against _LABEL_RE above; interpolated raw.
+                # LWW guard: apply incoming props only if this write is newer
+                # (or the node has no writer ts yet); stale replays no-op.
+                batch_q = (
+                    f"UNWIND $rows AS row MERGE (n:{label} {{id: row.id}}) "
+                    "SET n += CASE WHEN n._writer_ts IS NULL "
+                    "OR n._writer_ts <= row.props._writer_ts THEN row.props ELSE {} END"
+                )
                 try:
                     session.run(batch_q, rows=rows)
                     summary["nodes_created"] += len(rows)
@@ -407,7 +424,9 @@ class Neo4jGraphStore(GraphStore):
                     for row in rows:
                         try:
                             session.run(
-                                f"MERGE (n:{label} {{id: $id}}) SET n += $props",
+                                f"MERGE (n:{label} {{id: $id}}) SET n += CASE WHEN "
+                                "n._writer_ts IS NULL OR n._writer_ts <= $props._writer_ts "
+                                "THEN $props ELSE {} END",
                                 id=row["id"], props=row["props"])
                             summary["nodes_created"] += 1
                         except Exception as exc:
@@ -417,7 +436,9 @@ class Neo4jGraphStore(GraphStore):
             for rtype, rows in rels_by_type.items():
                 # rtype validated against _LABEL_RE above; interpolated raw
                 batch_q = (f"UNWIND $rows AS row MATCH (a {{id: row.src}}), (b {{id: row.tgt}}) "
-                           f"MERGE (a)-[r:{rtype}]->(b) SET r += row.props")
+                           f"MERGE (a)-[r:{rtype}]->(b) "
+                           "SET r += CASE WHEN r._writer_ts IS NULL "
+                           "OR r._writer_ts <= row.props._writer_ts THEN row.props ELSE {} END")
                 try:
                     session.run(batch_q, rows=rows)
                     summary["relationships_created"] += len(rows)
@@ -426,7 +447,9 @@ class Neo4jGraphStore(GraphStore):
                         try:
                             session.run(
                                 f"MATCH (a {{id: $src}}), (b {{id: $tgt}}) "
-                                f"MERGE (a)-[r:{rtype}]->(b) SET r += $props",
+                                f"MERGE (a)-[r:{rtype}]->(b) SET r += CASE WHEN "
+                                "r._writer_ts IS NULL OR r._writer_ts <= $props._writer_ts "
+                                "THEN $props ELSE {} END",
                                 src=row["src"], tgt=row["tgt"], props=row["props"])
                             summary["relationships_created"] += 1
                         except Exception as exc:

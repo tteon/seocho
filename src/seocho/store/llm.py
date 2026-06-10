@@ -199,6 +199,7 @@ class LLMBackend(ABC):
         reasoning_mode: Optional[bool] = None,
         task_hint: Optional[str] = None,
         mode: Optional[str] = None,
+        model: Optional[str] = None,
     ) -> LLMResponse:
         """Synchronous completion.
 
@@ -263,8 +264,15 @@ def complete_with_task_hints(
     reasoning_mode: Optional[bool] = None,
     task_hint: Optional[str] = None,
     mode: Optional[str] = None,
+    model: Optional[str] = None,
 ) -> Any:
-    """Call ``llm.complete`` while remaining compatible with older test doubles."""
+    """Call ``llm.complete`` while remaining compatible with older test doubles.
+
+    ``model`` (seocho-jdg) is an optional per-call override of the backend's
+    bound model — the primitive that lets a cost-aware router send this single
+    request to a cheaper/stronger tier without rebuilding the client. ``None``
+    (default) leaves the backend's configured model untouched.
+    """
 
     kwargs: Dict[str, Any] = {
         "system": system,
@@ -281,16 +289,19 @@ def complete_with_task_hints(
         kwargs["task_hint"] = task_hint
     if mode is not None:
         kwargs["mode"] = mode
+    if model is not None:
+        kwargs["model"] = model
     try:
         return llm.complete(**kwargs)
     except TypeError as exc:
         if "unexpected keyword argument" not in str(exc):
             raise
-        # Older backends predate mode/reasoning_mode/task_hint — strip
+        # Older backends predate mode/reasoning_mode/task_hint/model — strip
         # them and retry so this helper stays drop-in for legacy doubles.
         kwargs.pop("reasoning_mode", None)
         kwargs.pop("task_hint", None)
         kwargs.pop("mode", None)
+        kwargs.pop("model", None)
         return llm.complete(**kwargs)
 
 
@@ -461,9 +472,10 @@ class OpenAICompatibleBackend(LLMBackend):
         reasoning_mode: Optional[bool],
         task_hint: Optional[str],
         mode: Optional[str] = None,
+        model: Optional[str] = None,
     ) -> Dict[str, Any]:
         kwargs: Dict[str, Any] = {
-            "model": self.model,
+            "model": model or self.model,
             "messages": messages,
         }
         reasoning_overrides = self._reasoning_request_overrides(
@@ -569,6 +581,7 @@ class OpenAICompatibleBackend(LLMBackend):
         reasoning_mode: Optional[bool] = None,
         task_hint: Optional[str] = None,
         mode: Optional[str] = None,
+        model: Optional[str] = None,
     ) -> LLMResponse:
         messages = [
             {"role": "system", "content": system},
@@ -582,6 +595,7 @@ class OpenAICompatibleBackend(LLMBackend):
             reasoning_mode=reasoning_mode,
             task_hint=task_hint,
             mode=mode,
+            model=model,
         )
         last_exc: Optional[Exception] = None
         for attempt_kwargs in self._completion_retry_variants(kwargs):
@@ -604,6 +618,7 @@ class OpenAICompatibleBackend(LLMBackend):
         reasoning_mode: Optional[bool] = None,
         task_hint: Optional[str] = None,
         mode: Optional[str] = None,
+        model: Optional[str] = None,
     ) -> LLMResponse:
         messages = [
             {"role": "system", "content": system},
@@ -617,6 +632,7 @@ class OpenAICompatibleBackend(LLMBackend):
             reasoning_mode=reasoning_mode,
             task_hint=task_hint,
             mode=mode,
+            model=model,
         )
         last_exc: Optional[Exception] = None
         for attempt_kwargs in self._completion_retry_variants(kwargs):

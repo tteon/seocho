@@ -253,6 +253,57 @@ class LLMBackend(ABC):
         )
 
 
+# seocho-jdg: task_hint -> ModelRouter task. Only mapped hints are routed;
+# unmapped hints conservatively keep the backend's bound model.
+_TASK_HINT_TO_ROUTER_TASK: Dict[str, str] = {
+    "json_extraction": "extract",
+    "entity_linking": "link",
+    "answer_synthesis": "synthesize",
+}
+
+
+def _env_routed_model(llm: Any, task_hint: Optional[str]) -> Optional[str]:
+    """Cost-aware model for this call, or None (the default: routing OFF).
+
+    'Route on a known signal': every live LLM call funnels through
+    complete_with_task_hints carrying a task_hint, so this single chokepoint
+    covers extraction, linking, and answer synthesis without per-caller wiring.
+
+    Guards (all must hold, else None — bound model unchanged):
+    - SEOCHO_MODEL_ROUTING is truthy (explicit opt-in),
+    - the task_hint maps to a router task,
+    - the backend provider is 'mara' (the default tier map names MARA-hosted
+      models; routing across provider families would 404). Other providers can
+      opt in by overriding tiers via SEOCHO_MODEL_ROUTING_TIERS, e.g.
+      "FAST=gpt-4o-mini,BALANCED=gpt-4o,FRONTIER=gpt-4o" — the provider guard
+      is skipped when explicit tiers are supplied.
+    """
+    if os.getenv("SEOCHO_MODEL_ROUTING", "").strip().lower() not in ("1", "true", "yes", "on"):
+        return None
+    task = _TASK_HINT_TO_ROUTER_TASK.get((task_hint or "").strip().lower())
+    if not task:
+        return None
+    from ..routing import ModelRouter, ModelTier  # lazy: avoid import cycles
+
+    tiers_env = os.getenv("SEOCHO_MODEL_ROUTING_TIERS", "").strip()
+    if tiers_env:
+        tier_models = {}
+        for part in tiers_env.split(","):
+            name, _, model_id = part.partition("=")
+            try:
+                tier_models[ModelTier[name.strip().upper()]] = model_id.strip()
+            except KeyError:
+                continue
+        if not tier_models:
+            return None
+        router = ModelRouter(tier_models=tier_models)
+    else:
+        if getattr(llm, "provider", "") != "mara":
+            return None
+        router = ModelRouter.mara_default()
+    return router.route(task=task).model
+
+
 def complete_with_task_hints(
     llm: Any,
     *,
@@ -289,6 +340,10 @@ def complete_with_task_hints(
         kwargs["task_hint"] = task_hint
     if mode is not None:
         kwargs["mode"] = mode
+    if model is None:
+        # opt-in cost-aware routing on the task_hint signal (seocho-jdg);
+        # an explicit model= from the caller always wins over the router.
+        model = _env_routed_model(llm, task_hint)
     if model is not None:
         kwargs["model"] = model
     try:

@@ -233,7 +233,12 @@ deploy the site from this repository.
 ## 13. Reliability Notes (2026-02-20)
 
 - `Makefile` quality gates must target `extraction-service` (not `engine`).
-- Neo4j/DozerDB procedure privileges must stay scoped to `apoc.*,n10s.*` (no wildcard unrestricted).
+- Neo4j/DozerDB procedure privileges must stay scoped to
+  `apoc.*,n10s.*,semantics.*,gds.*` (no wildcard unrestricted; `gds.*` added
+  2026-06-11 for OpenGDS — DozerDB-distributed jar in `data/neo4j/plugins/`,
+  see `examples/mdm/01_install_gds.sh`). Config env vars in docker-compose
+  MUST use the `NEO4J_`-prefixed underscore form — raw dotted keys are
+  silently ignored by the image.
 - API/middleware tests should prefer `httpx.ASGITransport` + `AsyncClient` over `TestClient` in this repo environment.
 - When local `bd` workspace state is noisy, run lint via sandbox mode (`bd --sandbox ...`) to avoid auto-sync side effects during validation.
 - `website/` is tracked; generated mirrors under `website/src/content/docs/docs/`

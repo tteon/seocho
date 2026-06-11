@@ -1,0 +1,129 @@
+# MDM demo survivorship rules — the versioned "MATCH_RULE table".
+#
+# Editing this file without bumping rule_set_version (and re-running
+# `python lib/survivorship.py --update-lock`) FAILS the run: golden records
+# must be reproducible from (sources, rules, seed) alone (CLAUDE.md §20.7).
+rule_set_version: "1.1.2"
+# 1.1.2 (2026-06-11): third suppression batch ("Current", "MILLIONS",
+#   "EXCEPT" — units/section headers that survived 1.1.1 and polluted the
+#   per-case anchor pick).
+# 1.1.0 (2026-06-11): embedding threshold 0.72 -> 0.92 (0.72 is the linker's
+#   RELATEDNESS threshold; identity matching needs the deduplicator's 0.92 —
+#   v1.0.0 merged distinct airlines, "American Airlines" ~ "United Airlines"),
+#   and added exclude_norm_names: classical MDM generic-value suppression for
+#   10-K boilerplate that weaker extractors emit as entities ("CONSOLIDATED",
+#   "December", "INC"). Both changes disclosed here per §20.7.
+# 1.1.1 (2026-06-11): second suppression batch from the v1.1.0 run's residue
+#   ("Ended", "SHEETS", "AND", "Depreciation" — header debris emitted as
+#   entities by the DeepSeek/gpt-oss extractions; MiniMax emits none).
+seed: 42
+
+identity:
+  # Match methods evaluated in order; the first hit is recorded on the edge.
+  match_methods: [exact_key, token_prefix, embedding]
+  embedding:
+    model: BAAI/bge-large-en-v1.5     # local, $0 (provider/cost policy)
+    threshold: 0.92                   # extraction/deduplicator.py identity convention
+  canonical_name: [most_tokens, longest, lexicographic]
+  # Generic 10-K/statement boilerplate — never a master entity. Screened out
+  # BEFORE matching (excluded proxies are counted and reported, never silent).
+  exclude_norm_names:
+    - january
+    - february
+    - march
+    - april
+    - may
+    - june
+    - july
+    - august
+    - september
+    - october
+    - november
+    - december
+    - inc
+    - corp
+    - corporation
+    - company
+    - companies
+    - ltd
+    - llc
+    - plc
+    - consolidated
+    - comprehensive
+    - statement
+    - statements
+    - balance
+    - balance sheet
+    - balance sheets
+    - assets
+    - liabilities
+    - equity
+    - cash
+    - income
+    - expense
+    - expenses
+    - cost
+    - costs
+    - sales
+    - revenue
+    - revenues
+    - total
+    - net
+    - year
+    - years
+    - quarter
+    - dollars
+    - shares
+    - notes
+    - accounts
+    - inventories
+    - selling
+    - operations
+    - ended
+    - and
+    - or
+    - sheet
+    - sheets
+    - depreciation
+    - amortization
+    - administrative
+    - general
+    - marketing
+    - fiscal
+    - weeks
+    - months
+    - interest
+    - tax
+    - taxes
+    - operating
+    - gross
+    - margin
+    - earnings
+    - profit
+    - loss
+    - period
+    - periods
+    - share
+    - stock
+    - securities
+    - debt
+    - capital
+    - current
+    - noncurrent
+    - millions
+    - thousands
+    - billions
+    - except
+    - per
+
+attributes:
+  numeric:
+    # "$242.3B" vs "$242,290 million" is rounding, not disagreement.
+    equivalence_tolerance_rel: 0.005
+    survivorship: [majority, least_rounded, quarantine]
+    # One reporter = no corroboration possible; survive but say so loudly
+    # (confidence = 1/panel). Alternative: quarantine_single_source.
+    single_source_policy: survive_low_confidence
+
+missing_policy: not_a_vote            # majority is over sources that reported
+quarantine_policy: no_silent_pick     # §20.2 — disagreement escalates, never guesses

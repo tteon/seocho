@@ -106,6 +106,20 @@ the ontology, sample documents, and script.
 
 Prefer the smallest possible hello world? Use [QUICKSTART.md](QUICKSTART.md).
 
+### One YAML, one command
+
+Skip Python entirely with a run spec — declare your ontology, documents, and
+questions in YAML, then run the whole index → query → report flow:
+
+```bash
+export MARA_API_KEY=...
+seocho run examples/run/quickstart.yaml
+```
+
+`seocho run --init` writes a commented template. See
+[docs/RUN_SPECS.md](docs/RUN_SPECS.md) for per-phase models, agent patterns,
+and ontology enforcement modes.
+
 ## How SEOCHO Works
 
 SEOCHO has three practical layers:

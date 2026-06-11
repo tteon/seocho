@@ -357,6 +357,7 @@ class FileIndexer:
         category: Optional[str] = None,
         force: bool = False,
         tracker: Optional[FileTracker] = None,
+        strict_validation: Optional[bool] = None,
     ) -> FileIndexResult:
         """Index a single file.
 
@@ -372,6 +373,10 @@ class FileIndexer:
             If True, re-index even if the file hasn't changed.
         tracker:
             File tracker for incremental indexing.
+        strict_validation:
+            When set, temporarily overrides the pipeline's
+            ``strict_validation`` flag for this file (set/restore, same
+            pattern as the ingestion facade).
 
         Returns
         -------
@@ -418,26 +423,33 @@ class FileIndexer:
 
         # Index each record
         total_result = IndexingResult()
-        for record in records:
-            content = record.get("content", "")
-            metadata = record.get("metadata", {})
-            if not content.strip():
-                continue
+        original_strict = getattr(self.pipeline, "strict_validation", None)
+        if strict_validation is not None:
+            self.pipeline.strict_validation = bool(strict_validation)
+        try:
+            for record in records:
+                content = record.get("content", "")
+                metadata = record.get("metadata", {})
+                if not content.strip():
+                    continue
 
-            result = self.pipeline.index(
-                content,
-                database=db,
-                category=cat,
-                metadata=metadata,
-            )
-            total_result.chunks_processed += result.chunks_processed
-            total_result.total_nodes += result.total_nodes
-            total_result.total_relationships += result.total_relationships
-            total_result.validation_errors.extend(result.validation_errors)
-            total_result.write_errors.extend(result.write_errors)
-            total_result.skipped_chunks += result.skipped_chunks
-            if not total_result.source_id:
-                total_result.source_id = result.source_id
+                result = self.pipeline.index(
+                    content,
+                    database=db,
+                    category=cat,
+                    metadata=metadata,
+                )
+                total_result.chunks_processed += result.chunks_processed
+                total_result.total_nodes += result.total_nodes
+                total_result.total_relationships += result.total_relationships
+                total_result.validation_errors.extend(result.validation_errors)
+                total_result.write_errors.extend(result.write_errors)
+                total_result.skipped_chunks += result.skipped_chunks
+                if not total_result.source_id:
+                    total_result.source_id = result.source_id
+        finally:
+            if strict_validation is not None:
+                self.pipeline.strict_validation = original_strict
 
         # Track
         if tracker:
@@ -462,6 +474,7 @@ class FileIndexer:
         recursive: bool = True,
         force: bool = False,
         on_file: Optional[Callable[[str, int, int], None]] = None,
+        strict_validation: Optional[bool] = None,
     ) -> DirectoryIndexResult:
         """Index all supported files in a directory.
 
@@ -475,6 +488,9 @@ class FileIndexer:
             If True, re-index all files (ignore change tracking).
         on_file:
             Progress callback ``(file_path, current, total)``.
+        strict_validation:
+            When set, overrides the pipeline's ``strict_validation``
+            flag for every file in this directory.
 
         Returns
         -------
@@ -515,6 +531,7 @@ class FileIndexer:
                 category=category,
                 force=force,
                 tracker=tracker,
+                strict_validation=strict_validation,
             )
             result.results.append(file_result)
 

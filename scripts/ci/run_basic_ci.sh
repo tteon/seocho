@@ -50,7 +50,12 @@ python3 -m py_compile \
   src/seocho/tracing.py \
   src/seocho/store/graph.py \
   src/seocho/query/cypher_builder.py \
-  src/seocho/index/extraction_engine.py
+  src/seocho/index/extraction_engine.py \
+  src/seocho/index/file_reader.py \
+  src/seocho/run_spec.py \
+  src/seocho/run_preflight.py \
+  src/seocho/e2e.py \
+  src/seocho/cli.py
 
 uv run pytest \
   extraction/tests/test_runtime_package_aliases.py \
@@ -110,6 +115,8 @@ uv run pytest \
   tests/seocho/test_ontology_subclass_ttl.py \
   tests/seocho/test_ontology_reasoner.py \
   tests/seocho/test_ontology_iso704_cq.py \
+  tests/seocho/test_run_spec.py \
+  tests/seocho/test_e2e_runner.py \
   -q
 
 git diff --check

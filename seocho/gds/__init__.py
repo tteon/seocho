@@ -103,16 +103,25 @@ class GDSSession:
     # -- Cypher plumbing ---------------------------------------------------
 
     def _run(self, cypher: str, **params: Any) -> List[Dict[str, Any]]:
-        for method in ("execute_write", "execute_read", "read", "run"):
+        # Probe row-returning methods first: Neo4jGraphStore.query returns the
+        # YIELD rows GDS streams need (execute_write returns counters only).
+        # Never fall back to a params-less call — silently dropping $name/$nodeQ
+        # produced ParameterMissing at best and the wrong projection at worst.
+        for method in ("query", "execute_read", "read", "run", "execute_write"):
             fn = getattr(self.graph_store, method, None)
-            if callable(fn):
-                try:
-                    return fn(cypher, params, database=self.database)
-                except TypeError:
-                    try:
-                        return fn(cypher, params)
-                    except TypeError:
-                        return fn(cypher)
+            if not callable(fn):
+                continue
+            kwargs: Dict[str, Any] = {"params": params}
+            if self.database is not None:
+                kwargs["database"] = self.database
+            try:
+                return fn(cypher, **kwargs)
+            except TypeError:
+                pass
+            try:
+                return fn(cypher, params)
+            except TypeError:
+                continue
 
         driver = getattr(self.graph_store, "driver", None) or getattr(
             self.graph_store, "_driver", None
@@ -127,13 +136,14 @@ class GDSSession:
     # -- Estimate / project ------------------------------------------------
 
     def estimate(self, node_query: str, rel_query: str) -> GDSEstimate:
+        # GDS signature: estimate(nodeQuery, relationshipQuery[, config]) —
+        # no graph name (verified against OpenGDS 2.12 on DozerDB).
         rows = self._run(
             """
-            CALL gds.graph.project.cypher.estimate($name, $nodeQ, $relQ)
+            CALL gds.graph.project.cypher.estimate($nodeQ, $relQ)
             YIELD nodeCount, relationshipCount, bytesMin, bytesMax, requiredMemory
             RETURN nodeCount, relationshipCount, bytesMin, bytesMax, requiredMemory
             """,
-            name=self.name,
             nodeQ=node_query,
             relQ=rel_query,
         )
@@ -176,13 +186,22 @@ class GDSSession:
         except Exception:
             pass
 
-        self._run(
-            "CALL gds.graph.project.cypher($name, $nodeQ, $relQ)",
+        rows = self._run(
+            """
+            CALL gds.graph.project.cypher($name, $nodeQ, $relQ)
+            YIELD nodeCount, relationshipCount
+            RETURN nodeCount, relationshipCount
+            """,
             name=self.name,
             nodeQ=node_query,
             relQ=rel_query,
         )
         self._projected = True
+        # Prefer the projection's ACTUAL counts: the deprecated estimate
+        # procedure returns sampled/unreliable counts on OpenGDS 2.12.
+        if rows:
+            est.node_count = int(rows[0]["nodeCount"])
+            est.relationship_count = int(rows[0]["relationshipCount"])
         return est
 
     def drop(self) -> None:
@@ -248,6 +267,33 @@ class GDSSession:
             )
         raise ValueError(f"unknown metric: {spec}")
 
+    def wcc(self, *, workspace_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Stream weakly-connected components — the entity-resolution workhorse.
+
+        Stream-only by design: WCC over candidate-match edges is typically run
+        on a staging projection whose clusters are written elsewhere (e.g. a
+        golden-record master DB) through a normal driver session. Rows carry
+        ``elementId`` (§8) so callers can join components back to nodes.
+        """
+        rows = self._run(
+            """
+            CALL gds.wcc.stream($name)
+            YIELD nodeId, componentId
+            RETURN elementId(gds.util.asNode(nodeId)) AS eid,
+                   gds.util.asNode(nodeId).name AS name,
+                   componentId
+            """,
+            name=self.name,
+        )
+        components = {r["componentId"] for r in rows}
+        self._write_run_meta(
+            algo="wcc",
+            write_property=None,
+            workspace_id=workspace_id,
+            extra={"component_count": len(components), "node_count": len(rows)},
+        )
+        return rows
+
     def louvain(
         self,
         *,
@@ -298,13 +344,17 @@ class GDSSession:
         workspace_id: Optional[str],
         extra: Mapping[str, Any],
     ) -> None:
+        import json
+
         params = {
             "algo": algo,
             "ws": workspace_id or "",
             "prop": write_property or "",
             "name": self.name,
             "ts": datetime.now(timezone.utc).isoformat(),
-            "extra": dict(extra),
+            # Neo4j properties must be primitives/arrays — store the run
+            # detail as a JSON string, not a Map.
+            "extra": json.dumps(dict(extra), sort_keys=True, default=str),
         }
         try:
             self._run(

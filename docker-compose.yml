@@ -9,8 +9,14 @@ services:
     environment:
       - NEO4J_AUTH=${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in .env before starting compose}
       - NEO4J_PLUGINS=["apoc", "n10s"]
-      - dbms.security.procedures.unrestricted=apoc.*,n10s.*
-      - dbms.security.procedures.allowlist=apoc.*,n10s.*
+      # gds.* serves the MDM demo (examples/mdm/, OpenGDS jar in ./data/neo4j/plugins);
+      # keep the list scoped — no wildcard unrestricted (§13). semantics.* is
+      # n10s's procedure namespace as installed by NEO4J_PLUGINS.
+      # NOTE: config-style env vars MUST use the NEO4J_ prefixed form — the raw
+      # dotted keys previously here were silently ignored by the image; the
+      # effective values came from the plugin installer's defaults.
+      - NEO4J_dbms_security_procedures_unrestricted=apoc.*,n10s.*,semantics.*,gds.*
+      - NEO4J_dbms_security_procedures_allowlist=apoc.*,n10s.*,semantics.*,gds.*
       - NEO4J_apoc_export_file_enabled=true
       - NEO4J_apoc_import_file_enabled=true
     volumes:

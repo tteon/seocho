@@ -1354,6 +1354,12 @@ class LadybugGraphStore(GraphStore):
         self._declared_rel_tables: set = set()
         self._semantic_rel_types: set = set()
         self._rel_signature_to_table: Dict[tuple[str, str, str], str] = {}
+        # seocho-8ct: PRIMARY KEY column per node table. MERGE must key on
+        # the declared PK — Ladybug rejects MERGE on a non-key column, and
+        # the CREATE fallback then collides when two documents mention the
+        # same entity under different LLM-generated ids. Tables discovered
+        # from an existing database file fall back to "id".
+        self._node_table_pk: Dict[str, str] = {}
         self._load_existing_schema()
 
     def _locked_execute(self, *args, **kwargs):
@@ -1404,6 +1410,7 @@ class LadybugGraphStore(GraphStore):
                 f"CREATE NODE TABLE IF NOT EXISTS `{label}` ({col_list}, PRIMARY KEY (`{pk}`))"
             )
             self._declared_node_tables.add(label)
+            self._node_table_pk[label] = pk
         except Exception as exc:
             logger.warning("Failed to create node table %s: %s", label, exc)
 
@@ -1478,20 +1485,36 @@ class LadybugGraphStore(GraphStore):
             node_label_by_id[node_id] = label
 
             prop_keys = [k for k in props if _LABEL_RE.match(k)]
-            set_clause = ", ".join(f"`{k}`: $p_{i}" for i, k in enumerate(prop_keys))
-            params = {f"p_{i}": props[k] for i, k in enumerate(prop_keys)}
+            # seocho-8ct: MERGE on the table's declared PRIMARY KEY column.
+            # Two documents mention the same entity under different
+            # LLM-generated ids (company_1 vs company1); keyed on id the
+            # MERGE misses and the CREATE fallback violates the name PK.
+            # Keyed on the PK (usually name) the second write upserts.
+            pk_col = self._node_table_pk.get(label, "id")
+            merge_val = props.get(pk_col)
+            if merge_val is None or not _LABEL_RE.match(pk_col):
+                pk_col, merge_val = "id", node_id
+            # Ladybug rejects SET on the PRIMARY KEY column ("Cannot set
+            # property ... used as primary key"); the MERGE pattern already
+            # pins it, so exclude it from the update map.
+            set_keys = [k for k in prop_keys if k != pk_col]
+            set_clause = ", ".join(f"`{k}`: $p_{i}" for i, k in enumerate(set_keys))
+            set_params = {f"p_{i}": props[k] for i, k in enumerate(set_keys)}
+            merge_stmt = f"MERGE (n:`{label}` {{`{pk_col}`: $merge_val}})"
+            if set_clause:
+                merge_stmt += f" SET n = {{{set_clause}}}"
             try:
-                self._locked_execute(
-                    f"MERGE (n:`{label}` {{id: $id}}) SET n = {{{set_clause}}}",
-                    {"id": node_id, **params},
-                )
+                self._locked_execute(merge_stmt, {"merge_val": merge_val, **set_params})
                 summary["nodes_created"] += 1
             except Exception:
-                # Fallback: CREATE if MERGE dialect differs
+                # Fallback: CREATE if MERGE dialect differs. Creation may
+                # (and must) carry the PK in its property map.
+                create_clause = ", ".join(f"`{k}`: $c_{i}" for i, k in enumerate(prop_keys))
+                create_params = {f"c_{i}": props[k] for i, k in enumerate(prop_keys)}
                 try:
                     self._locked_execute(
-                        f"CREATE (n:`{label}` {{{set_clause}}})",
-                        params,
+                        f"CREATE (n:`{label}` {{{create_clause}}})",
+                        create_params,
                     )
                     summary["nodes_created"] += 1
                 except Exception as exc:
@@ -1654,6 +1677,7 @@ class LadybugGraphStore(GraphStore):
                     f"({', '.join(cols)}, PRIMARY KEY (`{pk_col}`))"
                 )
                 self._declared_node_tables.add(label)
+                self._node_table_pk[label] = pk_col
                 summary["success"] += 1
             except Exception as exc:
                 summary["errors"].append(f"Node table {label}: {exc}")

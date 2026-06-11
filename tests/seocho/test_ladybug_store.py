@@ -186,6 +186,42 @@ class TestLadybugStore:
         finally:
             store.close()
 
+    def test_cross_document_entity_upserts_despite_different_llm_ids(self, store):
+        """seocho-8ct: two documents mention the same entity under different
+        LLM-generated ids (company_1 vs company1). The write must upsert into
+        one row instead of violating the name PRIMARY KEY and failing the file."""
+        first = store.write(
+            nodes=[{"id": "company_1", "label": "Company",
+                    "properties": {"name": "Acme Corp"}}],
+            relationships=[],
+            source_id="doc1",
+        )
+        assert first["errors"] == []
+
+        second = store.write(
+            nodes=[
+                {"id": "company1", "label": "Company",
+                 "properties": {"name": "Acme Corp"}},
+                {"id": "person_7", "label": "Person",
+                 "properties": {"name": "Jo", "age": 41}},
+            ],
+            relationships=[
+                {"source": "person_7", "target": "company1",
+                 "type": "WORKS_AT", "properties": {}},
+            ],
+            source_id="doc2",
+        )
+        assert second["errors"] == []
+        assert second["relationships_created"] == 1
+
+        rows = store.query("MATCH (c:Company) RETURN c.name AS name")
+        assert [r["name"] for r in rows] == ["Acme Corp"]
+
+        linked = store.query(
+            "MATCH (p:Person)-[:WORKS_AT]->(c:Company) RETURN p.name AS p, c.name AS c"
+        )
+        assert len(linked) == 1 and linked[0]["c"] == "Acme Corp"
+
     def test_delete_by_source_removes_written_nodes(self, store):
         store.write(
             nodes=[

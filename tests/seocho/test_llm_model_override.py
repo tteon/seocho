@@ -65,3 +65,63 @@ def test_complete_with_task_hints_is_dropin_for_legacy_backends():
     # legacy backend rejects model= -> helper strips it and retries (no crash)
     out = complete_with_task_hints(llm, system="s", user="q", model="DeepSeek-V3.1")
     assert out == "ok" and llm.calls[-1] == {"user": "q"}
+
+
+# --- env-gated live routing at the chokepoint (seocho-jdg) ------------------
+
+def test_env_routing_off_by_default(monkeypatch):
+    monkeypatch.delenv("SEOCHO_MODEL_ROUTING", raising=False)
+    llm = _RecordingLLM()
+    llm.provider = "mara"
+    complete_with_task_hints(llm, system="s", user="q", task_hint="json_extraction")
+    assert llm.calls[-1]["model"] is None  # OFF -> bound model untouched
+
+
+def test_env_routing_routes_mapped_hints_for_mara(monkeypatch):
+    monkeypatch.setenv("SEOCHO_MODEL_ROUTING", "1")
+    monkeypatch.delenv("SEOCHO_MODEL_ROUTING_TIERS", raising=False)
+    llm = _RecordingLLM()
+    llm.provider = "mara"
+    # extract/link -> BALANCED tier; answer_synthesis -> FRONTIER tier
+    complete_with_task_hints(llm, system="s", user="q", task_hint="json_extraction")
+    assert llm.calls[-1]["model"] == "MiniMax-M2.5"
+    complete_with_task_hints(llm, system="s", user="q", task_hint="entity_linking")
+    assert llm.calls[-1]["model"] == "MiniMax-M2.5"
+    complete_with_task_hints(llm, system="s", user="q", task_hint="answer_synthesis")
+    assert llm.calls[-1]["model"] == "MiniMax-M2.7"
+
+
+def test_env_routing_skips_non_mara_provider(monkeypatch):
+    monkeypatch.setenv("SEOCHO_MODEL_ROUTING", "1")
+    monkeypatch.delenv("SEOCHO_MODEL_ROUTING_TIERS", raising=False)
+    llm = _RecordingLLM()
+    llm.provider = "openai"  # default tiers name MARA models -> guard refuses
+    complete_with_task_hints(llm, system="s", user="q", task_hint="json_extraction")
+    assert llm.calls[-1]["model"] is None
+
+
+def test_env_routing_unmapped_hint_keeps_bound_model(monkeypatch):
+    monkeypatch.setenv("SEOCHO_MODEL_ROUTING", "1")
+    llm = _RecordingLLM()
+    llm.provider = "mara"
+    complete_with_task_hints(llm, system="s", user="q", task_hint="weird_hint")
+    assert llm.calls[-1]["model"] is None
+
+
+def test_env_routing_explicit_model_wins(monkeypatch):
+    monkeypatch.setenv("SEOCHO_MODEL_ROUTING", "1")
+    llm = _RecordingLLM()
+    llm.provider = "mara"
+    complete_with_task_hints(llm, system="s", user="q",
+                             task_hint="json_extraction", model="forced-model")
+    assert llm.calls[-1]["model"] == "forced-model"
+
+
+def test_env_routing_tiers_override_skips_provider_guard(monkeypatch):
+    monkeypatch.setenv("SEOCHO_MODEL_ROUTING", "1")
+    monkeypatch.setenv("SEOCHO_MODEL_ROUTING_TIERS",
+                       "FAST=gpt-4o-mini,BALANCED=gpt-4o,FRONTIER=gpt-4o")
+    llm = _RecordingLLM()
+    llm.provider = "openai"  # explicit tiers -> family is caller's choice
+    complete_with_task_hints(llm, system="s", user="q", task_hint="json_extraction")
+    assert llm.calls[-1]["model"] == "gpt-4o"

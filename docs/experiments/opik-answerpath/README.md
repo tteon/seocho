@@ -1,6 +1,6 @@
 # Opik → SEOCHO Answer-Path Validation
 
-Reproducible evidence for ADR-0099 / ADR-0100 / ADR-0101. Three Comet/Opik
+Reproducible evidence for ADR-0109 / ADR-0100 / ADR-0101. Three Comet/Opik
 research projects (`icml2026_kg_agent`, `icml2026_kg_agent_presentation`,
 `kdd2026-live-policy-traces`, workspace `tteon`) were analysed to find
 answer-path designs worth porting into SEOCHO. Four legs were implemented

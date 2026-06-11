@@ -7,9 +7,9 @@ Status: Proposed
 
 text2cypher is the team's chronic pain point: the structured Cypher lane
 returns **zero records ~70% of the time** (REAL record-count answerability
-~0.30, ADR-0099 correction / answerability diagnosis), and every answer-path
+~0.30, ADR-0109 correction / answerability diagnosis), and every answer-path
 sophistication we shipped this session (AnswerShape, RouteProfile, F8
-multi-plan, scored grounding ADR-0099/0100/0101) measured **null** because
+multi-plan, scored grounding ADR-0109/0100/0101) measured **null** because
 there was no non-empty structured result to operate on.
 
 Two new measurements made the cause undeniable:
@@ -395,7 +395,7 @@ CI: `run_basic_ci.sh`, `check-module-ownership-contract.sh` (new package),
 - benchmark/eval: extend `eval/benchmark.py::run_query` to surface raw rows
   (for SRHR); reuse `scripts/benchmarks/sec_temporal_*` + Item 8 table ingestion.
 - relates to: ADR-0102 (the prior-resistant benchmark that exposed the 0.00
-  floor), ADR-0099/0100/0101 (the null answer-path legs this explains and
+  floor), ADR-0109/0100/0101 (the null answer-path legs this explains and
   subsumes for the financial path), ADR-0097 (cost model — ranks the compiled
   patterns), ADR-0090 (tiered nl2cypher — superseded for the financial path by
   decompose-then-compile).

@@ -44,6 +44,7 @@ for path in (SRC, ROOT):
 
 from examples.finder.lib import bench_common as bc  # noqa: E402
 from seocho.query.strategy import PromptTemplate  # noqa: E402
+from seocho.tracing import current_backend_names  # noqa: E402
 
 REF_SEPARATOR = "===EVIDENCE_BOUNDARY==="
 _NUM_RE = re.compile(r"-?\$?\d[\d,]*\.?\d*(?:%| million| billion| thousand)?", re.IGNORECASE)
@@ -185,22 +186,34 @@ _ANSWER_SYSTEM = (
 )
 
 
-def _graph_context(graph_store, ws: str, db: str) -> str:
+def _graph_context(graph_store, ws: str, db: str, *, keep_raw: bool = False) -> str:
     """Serialize the case's extracted subgraph to text (graph-as-context).
 
     Robust alternative to structured Cypher Q&A: dumps typed nodes (+ value/
-    period/basis), relationships, and stored chunk text for the workspace so the
-    LLM can read what this ontology arm actually extracted. (CLAUDE.md §19.)
+    period/basis) and relationships for the workspace. (CLAUDE.md §19.)
+
+    ``keep_raw`` (fairness fix, 2026-06-04): by default the typed-only view DROPS
+    the raw ``Chunk``/``Section`` text the graph already stores (``_INFRA_LABELS``),
+    handicapping the graph lane vs vector and vs Graphiti's episodes. Set
+    ``keep_raw=True`` to ALSO emit a "Source passages" section — the SEOCHO
+    full-context equivalent of Graphiti's episodes. A/B-able: the difference
+    between keep_raw False/True is the serialization (not extraction) effect.
     """
     lines: list[str] = ["=== Knowledge graph: entities & metrics ==="]
+    raw_passages: list[str] = []
     nodes = graph_store.query(
         "MATCH (n {_workspace_id:$w}) RETURN labels(n) AS l, properties(n) AS p",
         params={"w": ws}, database=db)
     for r in nodes or []:
-        labs = [x for x in (r["l"] or []) if x not in _INFRA_LABELS]
-        if not labs:
-            continue
+        all_labs = r["l"] or []
+        labs = [x for x in all_labs if x not in _INFRA_LABELS]
         p = r["p"] or {}
+        if not labs:
+            if keep_raw:
+                txt = (p.get("text") or p.get("content") or p.get("body") or "").strip()
+                if txt:
+                    raw_passages.append(txt)
+            continue
         nm = p.get("name") or p.get("uri") or ""
         bits = [f"{k}={p[k]}" for k in
                 ("value", "period", "basis", "segment", "amount", "amount_per_share",
@@ -214,6 +227,10 @@ def _graph_context(graph_store, ws: str, db: str) -> str:
         lines.append("=== Relationships ===")
         for r in rels:
             lines.append(f"- {r['s']} -{r['t']}-> {r['o']}")
+    if keep_raw and raw_passages:
+        lines.append("=== Source passages ===")
+        for t in raw_passages:
+            lines.append(f"- {t}")
     return "\n".join(lines)
 
 

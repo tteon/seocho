@@ -103,3 +103,46 @@ def test_make_graph_probe_swallows_errors_and_handles_missing_slots():
     # no cik/concept -> no query attempted
     empty = ObservationSlots()
     assert make_graph_probe(_Boom())(empty).entity_has_concept is False
+
+
+# ---- v2: multi-ontology manifest selection ----------------------------------
+
+from seocho.query.arbiter import OntologyManifest, select_ontology
+from seocho.semantic_layer import (
+    ConceptRegistry, EntityResolver, MetricConcept, default_registry, default_resolver,
+)
+
+
+def _clinical_manifest():
+    reg = ConceptRegistry((
+        MetricConcept("metric:PatientCount", "Patient Count",
+                      ("patients", "patient volume", "admissions"), "count"),
+        MetricConcept("metric:MortalityRate", "Mortality Rate",
+                      ("death rate", "mortality"), "ratio"),
+    ))
+    return OntologyManifest("clinical", reg, EntityResolver())
+
+
+def _finance_manifest():
+    return OntologyManifest("finance", default_registry(), default_resolver())
+
+
+def test_select_ontology_routes_finance_vs_clinical():
+    manifests = [_finance_manifest(), _clinical_manifest()]
+    # exact closed-vocab membership → score 1.0 → correct ontology
+    assert select_ontology("total revenue", manifests).ontology_id == "finance"
+    assert select_ontology("net income", manifests).ontology_id == "finance"
+    assert select_ontology("admissions", manifests).ontology_id == "clinical"
+    assert select_ontology("mortality", manifests).ontology_id == "clinical"
+
+
+def test_select_ontology_null_when_below_threshold():
+    manifests = [_finance_manifest(), _clinical_manifest()]
+    m = select_ontology("xyzzy nonsense token", manifests, threshold=0.4)
+    assert m.ontology_id is None
+    assert set(m.scores) == {"finance", "clinical"}   # per-ontology scores recorded
+
+
+def test_select_ontology_single_manifest_is_degenerate_v1():
+    m = select_ontology("revenue", [_finance_manifest()])
+    assert m.ontology_id == "finance" and m.score == 1.0

@@ -46,7 +46,13 @@ def test_session_does_not_import_from_extraction() -> None:
     """
     from pathlib import Path
 
-    src = Path(__file__).resolve().parent.parent / "session.py"
+    import seocho.session
+
+    # Locate the real module via the package, not a path relative to the test:
+    # the test lives under tests/seocho/, the module under src/seocho/, so the
+    # old ``__file__.parent.parent / 'session.py'`` resolved to a nonexistent
+    # tests/session.py and the check silently errored instead of guarding.
+    src = Path(seocho.session.__file__)
     text = src.read_text()
     assert "from extraction.agents_runtime" not in text, (
         "seocho.session must import the adapter via seocho.agents_runtime "

@@ -97,11 +97,53 @@ Expected local surfaces:
 - Backend API docs: `http://localhost:8001/docs`
 - DozerDB browser: `http://localhost:7474`
 
-If you need the old standalone `semantic-service`, start it explicitly:
+## 3.1 Isolated Per-Worktree Runtime (multi-instance)
+
+When more than one worktree (or agent) needs to drive the runtime at the same
+time, boot an **isolated instance** instead of a second full stack. SEOCHO
+follows a single-neo4j, multi-database model: the heavyweight graph backend
+started by `make up` stays **shared**, while each instance gets its own
+ephemeral logical database, its own app-tier containers, and offset ports.
 
 ```bash
-docker compose --profile legacy-semantic up -d semantic-service
+make up                       # shared stack once (neo4j + default app tier)
+make up INSTANCE=alice        # isolated app tier: offset ports + ephemeral DB
+make up INSTANCE=bob          # a second, concurrent, non-colliding instance
 ```
+
+Each instance is derived deterministically from its id (`src/seocho/instance.py`):
+
+| id      | API port | UI port | ephemeral DB     | compose project |
+| ------- | -------- | ------- | ---------------- | --------------- |
+| `alice` | `8880`   | `9180`  | `wt522b276a356b` | `seocho-alice`  |
+| `bob`   | `8890`   | `9190`  | `wt48181acd22b3` | `seocho-bob`    |
+
+The ephemeral database name is validated against the runtime contract
+(`^[a-z][a-z0-9]{2,62}$`) before it is created on the shared neo4j. Teardown
+removes **only that instance's** app tier and drops **only its** logical
+database — the shared neo4j and every other instance are untouched:
+
+```bash
+make down INSTANCE=alice      # docker compose down (alice) + DROP DATABASE wt522…
+make down                     # stop the shared stack
+```
+
+Equivalent SDK CLI form (and `--dry-run` to preview without docker):
+
+```bash
+seocho serve --instance alice
+seocho stop  --instance alice
+seocho serve --instance alice --dry-run --json   # inspect ports/DB/command
+```
+
+App-tier ports are hash-derived over 200 slots, so two distinct ids can in rare
+cases land on the same slot (P(collision) ≈ 1% at 2 worktrees, ≈ 14% at 8);
+`InstanceLayout.collides_with(...)` detects this. A port-slot collision is an
+*availability* concern only — **data isolation is unaffected** because the data
+plane routes by the ephemeral database key, which is derived independently of
+the port slot (a 48-bit space; collisions negligible). This is validated in
+`scripts/experiments/isolation_experiment.py`. Pick distinct short ids per
+worktree (a branch name or tenant id works well).
 
 ## 4. First Success: UI Path
 

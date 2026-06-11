@@ -6,6 +6,7 @@ from neo4j.exceptions import ServiceUnavailable, SessionExpired
 from config import NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD
 from exceptions import Neo4jConnectionError
 from retry_utils import neo4j_retry
+from seocho.cypher_ident import is_valid_identifier
 
 logger = logging.getLogger(__name__)
 
@@ -41,8 +42,18 @@ class SchemaManager:
         try:
             with self.driver.session(database=database) as session:
                 for label, definition in nodes.items():
+                    # DDL identifiers can't be parameterized; reject anything that
+                    # isn't a simple identifier rather than interpolating it raw.
+                    if not is_valid_identifier(label):
+                        logger.warning("Skipping schema for invalid label %r", label)
+                        continue
                     props = definition.get('properties', {})
                     for prop_name, config in props.items():
+                        if not is_valid_identifier(prop_name):
+                            logger.warning(
+                                "Skipping invalid property %r on label %s", prop_name, label
+                            )
+                            continue
                         # 1. Unique Constraints
                         if config.get('constraint') == 'UNIQUE':
                             constraint_name = f"constraint_{label}_{prop_name}_unique"

@@ -1287,6 +1287,7 @@ class Seocho:
         database: str = "neo4j",
         category: str = "file",
         force: bool = False,
+        strict_validation: Optional[bool] = None,
     ) -> Dict[str, Any]:
         """Index a single file (.txt, .md, .csv, .json, .jsonl).
 
@@ -1301,6 +1302,9 @@ class Seocho:
             Path to the file.
         force:
             Re-index even if the file hasn't changed.
+        strict_validation:
+            When True, chunks failing SHACL validation are rejected
+            (not written). Defaults to the pipeline's configured flag.
 
         Returns
         -------
@@ -1311,7 +1315,10 @@ class Seocho:
             raise RuntimeError("index_file() requires local engine mode")
         from .file_indexer import FileIndexer
         indexer = FileIndexer(self._engine._indexing, database=database, category=category)
-        result = indexer.index_file(path, database=database, category=category, force=force)
+        result = indexer.index_file(
+            path, database=database, category=category, force=force,
+            strict_validation=strict_validation,
+        )
         return result.to_dict()
 
     def index_directory(
@@ -1323,6 +1330,7 @@ class Seocho:
         recursive: bool = True,
         force: bool = False,
         on_file: Optional[Any] = None,
+        strict_validation: Optional[bool] = None,
     ) -> Dict[str, Any]:
         """Index all supported files in a directory.
 
@@ -1340,6 +1348,9 @@ class Seocho:
             Re-index all files regardless of change status.
         on_file:
             Progress callback ``(file_path, current, total)``.
+        strict_validation:
+            When True, chunks failing SHACL validation are rejected
+            (not written). Defaults to the pipeline's configured flag.
 
         Returns
         -------
@@ -1354,6 +1365,7 @@ class Seocho:
         result = indexer.index_directory(
             directory, database=database, category=category,
             recursive=recursive, force=force, on_file=on_file,
+            strict_validation=strict_validation,
         )
         return result.to_dict()
 

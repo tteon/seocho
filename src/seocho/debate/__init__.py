@@ -68,6 +68,119 @@ def convergence_curve(per_round_panels: Sequence[Mapping[str, str]]) -> List[flo
     return curve
 
 
+# ---------------------------------------------------------------------------
+# Fact-triple agreement (seocho-6gt, Lamport)
+#
+# Citation-Jaccard is a liveness/echo-chamber signal, not fact consensus: two
+# agents can cite the same source while asserting CONTRADICTORY facts and still
+# read as "converged". These helpers extract lightweight (subject, predicate,
+# object) fact triples from answers and score per-round quorum agreement, so
+# convergence can additionally require that a supermajority of panelists assert
+# the same top facts. Extraction is deterministic lexical-normalized matching
+# (no LLM/embeddings) — proportional to the opt-in debate path and offline-
+# testable; a semantic-similarity matcher can replace _canon_obj later without
+# changing the quorum contract.
+# ---------------------------------------------------------------------------
+
+_ENTITY_RE = re.compile(r"\b[A-Z][A-Za-z0-9.&'-]+(?:\s+[A-Z][A-Za-z0-9.&'-]+)*\b")
+_NUMBER_RE = re.compile(
+    r"-?\$?\d[\d,]*(?:\.\d+)?%?(?:\s*(?:billion|million|thousand|bn|mm|k))?",
+    re.IGNORECASE,
+)
+_MAX_TRIPLES_PER_ANSWER = 12
+
+
+def _canon_obj(text: str) -> str:
+    """Normalize an object slot: numbers lose commas/$ and trailing zeros."""
+    raw = text.strip().casefold()
+    m = re.match(r"-?\$?([\d,]+(?:\.\d+)?)(%?)(.*)", raw)
+    if m:
+        try:
+            num = float(m.group(1).replace(",", ""))
+            scale = m.group(3).strip()
+            return f"{num:g}{m.group(2)}{(' ' + scale) if scale else ''}".strip()
+        except ValueError:
+            pass
+    return raw
+
+
+def extract_fact_triples(answer: str) -> Set[Tuple[str, str, str]]:
+    """Extract lightweight (subject, predicate, object) fact triples.
+
+    Per sentence: subject = first capitalized entity span; object = the first
+    number (canonicalized) or the next entity after the subject; predicate =
+    the lowercase tokens between them (up to 4). Citations are stripped first
+    so ``[src:...]`` markers never pollute slots.
+    """
+    triples: Set[Tuple[str, str, str]] = set()
+    text = _CITE_RE.sub(" ", answer or "")
+    # split on sentence boundaries without breaking decimals ("2.1 billion")
+    for sentence in re.split(r"[;\n]+|\.(?!\d)", text):
+        sentence = sentence.strip()
+        if not sentence:
+            continue
+        ent = _ENTITY_RE.search(sentence)
+        if not ent:
+            continue
+        rest = sentence[ent.end():]
+        num = _NUMBER_RE.search(rest)
+        ent2 = _ENTITY_RE.search(rest)
+        # prefer the nearer of (number, second entity) as the object
+        obj_match = None
+        obj_is_num = False
+        if num and (not ent2 or num.start() <= ent2.start()):
+            obj_match, obj_is_num = num, True
+        elif ent2:
+            obj_match = ent2
+        if obj_match is None:
+            continue
+        between = rest[: obj_match.start()]
+        pred_tokens = [t for t in re.findall(r"[a-z][a-z'-]*", between)][:4]
+        if not pred_tokens:
+            continue
+        obj = _canon_obj(obj_match.group(0)) if obj_is_num else obj_match.group(0).casefold()
+        triples.add((ent.group(0).casefold(), " ".join(pred_tokens), obj))
+        if len(triples) >= _MAX_TRIPLES_PER_ANSWER:
+            break
+    return triples
+
+
+def quorum_report(
+    panel: Mapping[str, str],
+    *,
+    top_k: int = 5,
+    quorum: float = 2 / 3,
+) -> Dict[str, Any]:
+    """Per-round fact-quorum report for one panel (participant -> answer).
+
+    ``score`` = fraction of the top-K most-supported triples asserted by more
+    than ``quorum`` of the panel. ``contested`` lists top-K triples below
+    quorum — the tie-break input for the policy's ``moderator_chain``.
+    """
+    per_participant = [extract_fact_triples(a) for a in panel.values()]
+    n = max(1, len(per_participant))
+    support: Dict[Tuple[str, str, str], int] = {}
+    for triple_set in per_participant:
+        for t in triple_set:
+            support[t] = support.get(t, 0) + 1
+    ranked = sorted(support.items(), key=lambda kv: (-kv[1], kv[0]))[:top_k]
+    agreed = [t for t, c in ranked if c / n > quorum]
+    contested = [t for t, c in ranked if c / n <= quorum]
+    score = len(agreed) / len(ranked) if ranked else 0.0
+    return {"score": score, "agreed": agreed, "contested": contested, "panel_size": n}
+
+
+def triple_agreement_curve(
+    per_round_panels: Sequence[Mapping[str, str]],
+    *,
+    top_k: int = 5,
+    quorum: float = 2 / 3,
+) -> List[float]:
+    """Per-round quorum score (companion to :func:`convergence_curve`)."""
+    return [quorum_report(panel, top_k=top_k, quorum=quorum)["score"]
+            for panel in per_round_panels]
+
+
 def should_stop(
     curve: Sequence[float],
     *,
@@ -78,13 +191,33 @@ def should_stop(
     no_improvement_eps: float = 0.05,
     time_budget_ms: int = 60_000,
     token_budget: int = 30_000,
+    quorum_curve: Optional[Sequence[float]] = None,
+    quorum_threshold: float = 2 / 3,
 ) -> Tuple[bool, str]:
-    """Return ``(stop, reason)``. ``reason`` is empty when not stopping."""
+    """Return ``(stop, reason)``. ``reason`` is empty when not stopping.
+
+    ``quorum_curve`` (seocho-6gt, optional — default None preserves prior
+    behavior): when supplied, declaring ``convergence`` additionally requires
+    the latest fact-quorum score to clear ``quorum_threshold``, so a panel
+    citing the same source while asserting contradictory facts (echo chamber)
+    keeps debating instead of "converging". All other stop criteria
+    (stagnation, round cap, budgets) are unaffected.
+    """
     if not curve:
         return False, ""
     last = curve[-1]
     if last >= convergence_threshold:
-        return True, f"convergence reached ({last:.2f})"
+        quorum_ok = (
+            quorum_curve is None
+            or (len(quorum_curve) > 0 and quorum_curve[-1] >= quorum_threshold)
+        )
+        if quorum_ok:
+            if quorum_curve is None:
+                return True, f"convergence reached ({last:.2f})"
+            return True, (
+                f"convergence reached ({last:.2f}, fact-quorum {quorum_curve[-1]:.2f})"
+            )
+        # citation echo without fact agreement -> not convergence; fall through
     if len(curve) >= 3:
         d1 = abs(curve[-1] - curve[-2])
         d2 = abs(curve[-2] - curve[-3])
@@ -218,6 +351,9 @@ __all__ = [
     "DebatePolicy",
     "DebateResult",
     "convergence_curve",
+    "extract_fact_triples",
+    "quorum_report",
+    "triple_agreement_curve",
     "detect_anti_patterns",
     "extract_citations",
     "select_participants",

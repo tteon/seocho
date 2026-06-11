@@ -87,6 +87,11 @@ def build_parser() -> argparse.ArgumentParser:
     serve_parser.add_argument("--no-wait", action="store_true", help="Return after docker compose starts")
     serve_parser.add_argument("--timeout", type=float, default=90.0, help="Readiness wait timeout in seconds")
     serve_parser.add_argument(
+        "--instance",
+        default=None,
+        help="Boot an isolated per-worktree app tier (offset ports + ephemeral DB) against the shared neo4j",
+    )
+    serve_parser.add_argument(
         "--fallback-openai-key",
         default="dummy-key",
         help="Fallback OPENAI_API_KEY for local verification when no key is set",
@@ -97,6 +102,11 @@ def build_parser() -> argparse.ArgumentParser:
     stop_parser = subparsers.add_parser("stop", help="Stop the local SEOCHO docker stack")
     stop_parser.add_argument("--project-dir", default=None, help="Repository root containing docker-compose.yml")
     stop_parser.add_argument("--volumes", action="store_true", help="Also remove compose volumes")
+    stop_parser.add_argument(
+        "--instance",
+        default=None,
+        help="Tear down a per-worktree app tier and drop only its ephemeral DB",
+    )
     stop_parser.add_argument("--dry-run", action="store_true", help="Print the compose command without running it")
     stop_parser.add_argument("--json", dest="output_json", action="store_true", help="Emit JSON output")
 
@@ -318,10 +328,72 @@ def build_parser() -> argparse.ArgumentParser:
     serve_http_parser.add_argument("--port", type=int, default=8010, help="Bind port")
     serve_http_parser.add_argument("--reload", action="store_true", help="Enable uvicorn reload mode")
 
+    run_parser = subparsers.add_parser(
+        "run",
+        help="Run a YAML-declared e2e flow: index documents, ask questions, write a report",
+    )
+    run_parser.add_argument(
+        "config",
+        nargs="?",
+        default="seocho.run.yaml",
+        help="Run spec YAML (default: ./seocho.run.yaml)",
+    )
+    run_parser.add_argument(
+        "--init", action="store_true",
+        help="Write a commented run spec template to the config path and exit",
+    )
+    run_parser.add_argument(
+        "--dry-run", action="store_true",
+        help="Validate the config and run offline preflight checks; no LLM calls",
+    )
+    run_parser.add_argument(
+        "--only", choices=["index", "query"],
+        help="Run a single phase (query reuses the existing graph)",
+    )
+    run_parser.add_argument(
+        "-o", "--output", default=None,
+        help="Report directory (default: runs/<name>-<timestamp>/)",
+    )
+    run_parser.add_argument(
+        "--force", action="store_true",
+        help="Re-index files even if unchanged",
+    )
+    run_parser.add_argument("--output-json", action="store_true", help="Emit JSON")
+
+    traces_parser = subparsers.add_parser(
+        "traces",
+        help="Query trace spans from a JSONL file (read-safe, no server)",
+    )
+    traces_parser.add_argument(
+        "--path",
+        default=None,
+        help="JSONL trace file (default: $SEOCHO_TRACE_JSONL_PATH or ./traces/seocho.jsonl)",
+    )
+    traces_parser.add_argument(
+        "--min-latency-ms", type=float, default=None,
+        help="Keep only spans at/above this latency (ms)",
+    )
+    traces_parser.add_argument("--name", default=None, help="Exact span-name match")
+    traces_parser.add_argument("--name-contains", default=None, help="Substring match on span name")
+    traces_parser.add_argument(
+        "--tag", action="append", dest="tags", default=None,
+        help="Require this tag (repeatable)",
+    )
+    traces_parser.add_argument("--since", default=None, help="ISO timestamp lower bound (UTC)")
+    traces_parser.add_argument(
+        "--limit", type=int, default=50,
+        help="Max spans to print (0 = all)",
+    )
+    traces_parser.add_argument(
+        "--sort-latency", action="store_true",
+        help="Sort by latency descending",
+    )
+    traces_parser.add_argument("--output-json", action="store_true", help="Emit JSON")
+
     return parser
 
 
-LOCAL_COMMANDS = {"init", "index", "local-ask", "status", "compare", "experiment", "bundle", "ontology", "serve-http"}
+LOCAL_COMMANDS = {"init", "index", "local-ask", "status", "compare", "experiment", "bundle", "ontology", "serve-http", "traces", "run"}
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
@@ -456,6 +528,7 @@ def _dispatch(client: Optional[Seocho], args: argparse.Namespace) -> int:
             wait=not args.no_wait,
             timeout=args.timeout,
             fallback_openai_key=args.fallback_openai_key,
+            instance=args.instance,
             dry_run=args.dry_run,
         )
         _print_result(status, args.output_json)
@@ -465,6 +538,7 @@ def _dispatch(client: Optional[Seocho], args: argparse.Namespace) -> int:
         status = stop_local_runtime(
             project_dir=args.project_dir,
             volumes=args.volumes,
+            instance=args.instance,
             dry_run=args.dry_run,
         )
         _print_result(status, args.output_json)
@@ -756,7 +830,55 @@ def _dispatch_local(args: argparse.Namespace) -> int:
         return _cmd_ontology(args)
     if args.command == "serve-http":
         return _cmd_serve_http(args)
+    if args.command == "traces":
+        return _cmd_traces(args)
+    if args.command == "run":
+        return _cmd_run(args)
     raise SeochoError(f"Unknown local command: {args.command}")
+
+
+def _cmd_traces(args: argparse.Namespace) -> int:
+    """Query trace spans from a JSONL file (read side of the observe loop)."""
+    from .tracing import default_jsonl_path, read_jsonl
+
+    path = args.path or default_jsonl_path()
+    try:
+        spans = read_jsonl(
+            path,
+            min_latency_ms=args.min_latency_ms,
+            name=args.name,
+            name_contains=args.name_contains,
+            tags=args.tags,
+            since=args.since,
+        )
+    except FileNotFoundError:
+        print(
+            f"No trace file at {path}. Enable JSONL tracing with "
+            f"SEOCHO_TRACE_BACKEND=jsonl (or pass --path).",
+            file=sys.stderr,
+        )
+        return 1
+
+    if args.sort_latency:
+        spans.sort(key=lambda r: (r.get("latency_ms") if r.get("latency_ms") is not None else -1.0), reverse=True)
+    if args.limit and args.limit > 0:
+        spans = spans[: args.limit]
+
+    if getattr(args, "output_json", False):
+        print(json.dumps(spans, indent=2, default=str))
+        return 0
+
+    if not spans:
+        print("No matching spans.")
+        return 0
+
+    for record in spans:
+        latency = record.get("latency_ms")
+        latency_str = f"{latency:.0f}ms" if latency is not None else "-"
+        tags = ",".join(record.get("tags") or [])
+        print(f"{record.get('timestamp', '')}  {latency_str:>8}  {record.get('name', '')}  [{tags}]")
+    print(f"\n{len(spans)} span(s).")
+    return 0
 
 
 def _cmd_init(args: argparse.Namespace) -> int:
@@ -922,6 +1044,32 @@ def _cmd_index(args: argparse.Namespace) -> int:
         client.close()
 
     return 0
+
+
+def _cmd_run(args: argparse.Namespace) -> int:
+    """Run a YAML-declared e2e flow (or write a template with --init)."""
+    if args.init:
+        from .run_spec import RUN_SPEC_TEMPLATE
+
+        target = Path(args.config)
+        if target.exists():
+            print(f"{target} already exists — refusing to overwrite.", file=sys.stderr)
+            return 1
+        target.write_text(RUN_SPEC_TEMPLATE, encoding="utf-8")
+        print(f"Run spec template written to {target}")
+        print("Edit the ontology/documents/questions, then: seocho run")
+        return 0
+
+    from .e2e import run_from_config
+
+    return run_from_config(
+        args.config,
+        dry_run=args.dry_run,
+        only=args.only,
+        output_dir=args.output,
+        force=args.force,
+        json_output=getattr(args, "output_json", False),
+    )
 
 
 def _cmd_local_ask(args: argparse.Namespace) -> int:
@@ -1275,3 +1423,7 @@ def _cmd_serve_http(args: argparse.Namespace) -> int:
     app = create_bundle_runtime_app(bundle)
     uvicorn.run(app, host=args.host, port=args.port, reload=args.reload)
     return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

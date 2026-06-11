@@ -49,11 +49,11 @@ from typing import Any, Dict, List, Optional, Sequence, Set, Type, Union
 
 import yaml
 
+from seocho.cypher_ident import IDENT_RE as _LABEL_RE  # canonical identifier regex
+
 # ---------------------------------------------------------------------------
 # Enums
 # ---------------------------------------------------------------------------
-
-_LABEL_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 _PY_TO_GRAPH_TYPE: Dict[type, str] = {
     str: "STRING",
@@ -2431,36 +2431,71 @@ class Ontology:
         node_stats: List[Dict[str, Any]] = []
         total_defined_nodes = len(self.nodes)
         populated_nodes = 0
+        chunk_size = 50
 
-        for label in self.nodes:
+        nodes_list = list(self.nodes)
+        for i in range(0, len(nodes_list), chunk_size):
+            chunk = nodes_list[i:i + chunk_size]
+            query = " UNION ALL ".join([
+                f"MATCH (n:`{label}`) RETURN count(n) AS cnt, '{label}' AS element"
+                for label in chunk
+            ])
             try:
-                result = graph_store.query(
-                    f"MATCH (n:`{label}`) RETURN count(n) AS cnt",
-                    database=database,
-                )
-                count = int(result[0]["cnt"]) if result else 0
+                results = graph_store.query(query, database=database)
+                counts = {r["element"]: int(r["cnt"]) for r in results}
             except Exception:
-                count = 0
-            node_stats.append({"label": label, "count": count})
-            if count > 0:
-                populated_nodes += 1
+                counts = {}
+
+            for label in chunk:
+                if label in counts:
+                    count = counts[label]
+                else:
+                    try:
+                        result = graph_store.query(
+                            f"MATCH (n:`{label}`) RETURN count(n) AS cnt",
+                            database=database,
+                        )
+                        count = int(result[0]["cnt"]) if result else 0
+                    except Exception:
+                        count = 0
+
+                node_stats.append({"label": label, "count": count})
+                if count > 0:
+                    populated_nodes += 1
 
         rel_stats: List[Dict[str, Any]] = []
         total_defined_rels = len(self.relationships)
         populated_rels = 0
 
-        for rtype in self.relationships:
+        rels_list = list(self.relationships)
+        for i in range(0, len(rels_list), chunk_size):
+            chunk = rels_list[i:i + chunk_size]
+            query = " UNION ALL ".join([
+                f"MATCH ()-[r:`{rtype}`]->() RETURN count(r) AS cnt, '{rtype}' AS element"
+                for rtype in chunk
+            ])
             try:
-                result = graph_store.query(
-                    f"MATCH ()-[r:`{rtype}`]->() RETURN count(r) AS cnt",
-                    database=database,
-                )
-                count = int(result[0]["cnt"]) if result else 0
+                results = graph_store.query(query, database=database)
+                counts = {r["element"]: int(r["cnt"]) for r in results}
             except Exception:
-                count = 0
-            rel_stats.append({"type": rtype, "count": count})
-            if count > 0:
-                populated_rels += 1
+                counts = {}
+
+            for rtype in chunk:
+                if rtype in counts:
+                    count = counts[rtype]
+                else:
+                    try:
+                        result = graph_store.query(
+                            f"MATCH ()-[r:`{rtype}`]->() RETURN count(r) AS cnt",
+                            database=database,
+                        )
+                        count = int(result[0]["cnt"]) if result else 0
+                    except Exception:
+                        count = 0
+
+                rel_stats.append({"type": rtype, "count": count})
+                if count > 0:
+                    populated_rels += 1
 
         node_score = populated_nodes / total_defined_nodes if total_defined_nodes else 1.0
         rel_score = populated_rels / total_defined_rels if total_defined_rels else 1.0

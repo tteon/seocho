@@ -122,6 +122,7 @@ pythonpath = ["src", "extraction"]
 asyncio_mode = "auto"
 markers = [
     "integration_gopts: requires a live DozerDB at NEO4J_URI; F4 PROFILE oracle integration",
+    "integration: requires a live external service (e.g. MARA_API_KEY); self-skips when unavailable",
 ]
 
 [tool.black]
@@ -177,3 +178,4 @@ namespaces = false
 
 [tool.setuptools.package-data]
 seocho = ["py.typed"]
+"seocho.semantic_layer" = ["cik_table.json"]

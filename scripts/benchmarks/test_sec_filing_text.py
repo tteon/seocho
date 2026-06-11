@@ -65,3 +65,46 @@ def test_chunk_text_overlaps_and_covers():
 
 def test_chunk_text_empty():
     assert ft.chunk_text("") == []
+
+
+# ---- Item 8 table extraction (S11) ------------------------------------------
+
+_INCOME_TABLE_HTML = """
+<p>CONSOLIDATED STATEMENTS OF OPERATIONS (In millions)</p>
+<table>
+  <tr><td></td><td>2025</td><td>2024</td><td>2023</td></tr>
+  <tr><td>Net sales</td><td>416,161</td><td>391,035</td><td>383,285</td></tr>
+  <tr><td>Cost of sales</td><td>210,352</td><td>210,352</td><td>214,137</td></tr>
+  <tr><td>Net income</td><td>112,010</td><td>93,736</td><td>96,995</td></tr>
+</table>
+"""
+
+
+def _registry():
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
+    from seocho.semantic_layer import default_registry
+    return default_registry()
+
+
+def test_extract_table_facts_income_statement():
+    facts = ft.extract_table_facts(_INCOME_TABLE_HTML, registry=_registry())
+    by = {(f.concept_id, f.fiscal_year): f.value_num for f in facts}
+    assert by[("metric:Revenue", 2025)] == 416_161_000_000.0     # scaled by millions
+    assert by[("metric:Revenue", 2024)] == 391_035_000_000.0
+    assert by[("metric:NetIncome", 2025)] == 112_010_000_000.0
+    # "Cost of sales" is out of the closed vocab -> not extracted
+    assert all(f.concept_id in ("metric:Revenue", "metric:NetIncome") for f in facts)
+
+
+def test_extract_table_facts_no_year_header_returns_empty():
+    html = "<table><tr><td>Net sales</td><td>100</td></tr></table>"
+    assert ft.extract_table_facts(html, registry=_registry()) == []
+
+
+def test_parse_money_handles_parens_and_commas():
+    assert ft._parse_money("416,161") == 416161.0
+    assert ft._parse_money("(1,234)") == -1234.0
+    assert ft._parse_money("$391,035") == 391035.0
+    assert ft._parse_money("—") is None

@@ -558,3 +558,22 @@ class TestSeochoLocalWithLadybug:
             assert s._local_mode is True
             assert s.graph_store.__class__.__name__ == "LadybugGraphStore"
             s.close()
+
+
+class TestOntologyContextColumnContract:
+    """Every property stamped by ontology_context_graph_properties must be a
+    declared Ladybug column, or node/rel writes fail with a Binder exception
+    (regression: _ontology_schema_fingerprint / _ontology_version_valid were
+    missing; the write path itself is covered by
+    test_write_accepts_ontology_context_properties)."""
+
+    def test_stamped_context_properties_are_declared_columns(self):
+        from seocho.ontology_context import ontology_context_graph_properties
+        from seocho.store.graph import (
+            _LADYBUG_COMMON_NODE_STRING_COLUMNS,
+            _LADYBUG_COMMON_REL_STRING_COLUMNS,
+        )
+
+        stamped = set(ontology_context_graph_properties({}))
+        assert stamped <= set(_LADYBUG_COMMON_NODE_STRING_COLUMNS)
+        assert stamped <= set(_LADYBUG_COMMON_REL_STRING_COLUMNS)

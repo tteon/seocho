@@ -5,6 +5,19 @@ from hashlib import sha256
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence
 
 from .models import JsonSerializable
+from .ontology_context_map import BoundaryViolation, BoundedContext, ContextMap
+
+
+class PromotionBoundaryError(ValueError):
+    """Raised by promote(strict_boundaries=True) when a profile blurs a DDD
+    bounded-context boundary against another approved profile in the workspace."""
+
+    def __init__(self, violations: "List[BoundaryViolation]") -> None:
+        self.violations = list(violations)
+        super().__init__(
+            "promotion blocked by bounded-context boundary violations: "
+            + "; ".join(v.detail for v in violations)
+        )
 
 
 def _clean_text(value: Any, default: str = "") -> str:
@@ -223,10 +236,33 @@ class OntologyProfileRegistry:
         ]
         return sorted(out, key=lambda item: (item.status != "approved", item.profile_id))
 
-    def promote(self, profile_id: str, *, workspace_id: str = "default") -> OntologyProfile:
+    def promote(
+        self,
+        profile_id: str,
+        *,
+        workspace_id: str = "default",
+        strict_boundaries: bool = False,
+    ) -> OntologyProfile:
         profile = self.get(profile_id, workspace_id=workspace_id)
         if profile is None:
             raise KeyError(profile_id)
+
+        # seocho-6gt: DDD bounded-context fitness function, run at promotion time
+        # (Fowler "shift left") rather than surfacing as OntologyDriftError at
+        # query time. Reuses the otherwise-dormant ContextMap as a validator.
+        # Default: report into promotion_note (legitimate shared concepts are
+        # common across domain ontologies). strict_boundaries=True hard-blocks.
+        others = [p for p in self.list(workspace_id=workspace_id, status="approved")
+                  if p.profile_id != profile_id]
+        violations = check_promotion_boundaries(profile, others)
+        if violations:
+            if strict_boundaries:
+                raise PromotionBoundaryError(violations)
+            profile.promotion_note = (
+                (profile.promotion_note + " | " if profile.promotion_note else "")
+                + "boundary: " + "; ".join(v.detail for v in violations)
+            )
+
         profile.status = "approved"
         return profile
 
@@ -507,3 +543,39 @@ __all__ = [
     "OntologyProfileSelection",
     "OntologySignal",
 ]
+
+
+def _profile_concepts(profile: OntologyProfile) -> frozenset:
+    """Concept (class) names an ontology profile claims to own."""
+    names = set()
+    for cls in (profile.ontology_candidate.get("classes", []) or []):
+        if isinstance(cls, dict):
+            name = _clean_text(cls.get("name"))
+            if name:
+                names.add(name)
+    return frozenset(names)
+
+
+def check_promotion_boundaries(
+    candidate: OntologyProfile, existing_approved: Sequence[OntologyProfile]
+) -> List[BoundaryViolation]:
+    """Bounded-context fitness function (seocho-6gt).
+
+    Builds a ContextMap from the candidate + already-approved profiles in the
+    workspace and reports each concept the candidate would co-own with another
+    approved profile (a blurred boundary). Pure; reused at promotion time so the
+    blur is caught before deploy instead of as a query-time OntologyDriftError.
+    """
+    cmap = ContextMap()
+    cmap.register(BoundedContext(name=candidate.profile_id, concepts=_profile_concepts(candidate)))
+    for prof in existing_approved:
+        cmap.register(BoundedContext(name=prof.profile_id, concepts=_profile_concepts(prof)))
+    violations: List[BoundaryViolation] = []
+    for concept in sorted(_profile_concepts(candidate)):
+        owners = [o for o in cmap.owners_of(concept) if o != candidate.profile_id]
+        if owners:
+            violations.append(BoundaryViolation(
+                "shared_ownership",
+                f"concept {concept!r} (promoting {candidate.profile_id!r}) is already owned by {owners}",
+            ))
+    return violations

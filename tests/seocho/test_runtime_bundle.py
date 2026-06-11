@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 from fastapi.testclient import TestClient
 import pytest
 
@@ -488,3 +490,35 @@ def test_assert_bundle_hash_stable_skips_empty_payloads() -> None:
     bundle = RuntimeBundle(app_name="empty", workspace_id="default")
     # Empty ontology + empty registry should be a no-op, not a failure.
     assert_bundle_hash_stable(bundle)
+
+
+def test_blocking_handlers_are_sync_so_fastapi_threadpools_them() -> None:
+    """seocho-a23: the add/search/chat/semantic handlers do blocking Cypher +
+    LLM work. FastAPI runs ``async def`` endpoints directly on the event loop
+    but dispatches plain ``def`` endpoints to its threadpool, so declaring these
+    handlers sync is what keeps one slow request from freezing the whole server.
+    Pin that: the blocking paths must NOT be coroutine functions.
+    """
+    bundle = RuntimeBundle(
+        app_name="portable-app",
+        workspace_id="default",
+        graph_store=RuntimeGraphStoreConfig(default_database="finance"),
+    )
+    app = create_bundle_runtime_app(bundle, client=FakeBundleRuntimeClient())
+
+    endpoints = {
+        route.path: route.endpoint
+        for route in app.routes
+        if hasattr(route, "endpoint")
+    }
+    blocking_paths = [
+        "/api/memories",
+        "/api/memories/search",
+        "/api/chat",
+        "/run_agent_semantic",
+    ]
+    for path in blocking_paths:
+        assert path in endpoints, f"missing route {path}"
+        assert not asyncio.iscoroutinefunction(endpoints[path]), (
+            f"{path} is async; blocking work would run on the event loop"
+        )

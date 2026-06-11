@@ -187,6 +187,65 @@ tokens — the Text2SQL-Flow masked-alignment payoff. Note: SRA was already 1.0
 zero-shot on the clean set, so few-shot is a robustness mechanism for varied /
 out-of-template phrasing, NOT a measured SRA lift here (no over-claim).
 
+**MEASURED (S11, real Item-8 table ingestion, `sec_table_run.py`):** parsing the
+actual 10-K financial-statement tables (AAPL/MSFT/NVDA) and ingesting them as
+Observations lifts the real-filing floor from **MD&A-prose grounded 0.00 →
+table_srhr 0.333** (5/15). Honest breakdown: 11 table facts extracted (AAPL 4,
+MSFT 5, NVDA 2 of 6 each); routes = 9 STRUCTURED / 6 CLARIFY. Of the 9
+STRUCTURED, 5 correct and **4 wrong from real table-parsing noise**
+(column↔year misalignment — FY2024's value landed under FY2023; wrong
+revenue-line / footnote cell). The 6 un-extracted (concept, year) pairs routed
+**CLARIFY — the arbiter declined rather than fabricating**, so no wrong answer
+was emitted on a gap.
+
+**Honest conclusion:** naive HTML-table scraping genuinely lifts the floor but
+is too fragile for production (alignment/row-selection noise is real — exactly
+what the synthetic benchmark hid). The deterministic production path is **XBRL
+`companyfacts` ingestion** (SEC publishes Item-8 as structured XBRL; the same
+source as the gold), which removes the parsing noise; HTML-table extraction is a
+fallback for issuers/sections without clean XBRL. S11's value is proving the
+direction (0.00→0.33) AND that the arbiter's CLARIFY-on-gap keeps the noisy path
+honest.
+
+**MEASURED (S11 follow-up, deterministic XBRL ingest, `xbrl_ingest_run.py` +
+`src/seocho/index/xbrl_ingest.py`):** ingesting SEC XBRL `companyfacts` (the
+structured Item-8 source) into reified Observations and running the lane gives
+**xbrl_srhr = 1.00 (15/15, all STRUCTURED, 18 observations)** — vs the noisy
+HTML-table 0.333. This is the production ingestion path: deterministic, no LLM,
+no HTML parsing. HONEST NOTE: SEC XBRL is also the gold source, so 1.00 confirms
+the INGESTER is correct, it is NOT a benchmark win; HTML-table extraction (S11)
+remains the fallback for sections without clean XBRL.
+
+**DELIVERED (arbiter v2, multi-ontology selection, `select_ontology` +
+`semantic_answer(manifests=...)`):** the reserved `ontology_id` is now live —
+register N `OntologyManifest`s and the arbiter measures which ontology a
+question belongs to by max concept-grounding score (exact closed-vocab
+membership = 1.0, else bge/lexical), then resolves + arbitrates within it. Same
+measure→hint shape as v1; single-manifest is the degenerate case (non-breaking).
+Tested across finance vs a clinical manifest: "total revenue"/"net income" →
+finance, "admissions"/"mortality" → clinical, out-of-vocab → null match (route
+NARRATIVE/FAIL). The lane picks the right ontology and answers STRUCTURED with
+the selected `ontology_id`.
+
+**DELIVERED (H3, operational route policy + observability):** `local_engine.ask`
+now acts on every route, not just STRUCTURED — CLARIFY returns a
+`clarification_message` (offering the fiscal years the graph actually holds)
+instead of a silent empty result; NARRATIVE/FAIL fall through to the existing
+lane (chunk fallback); the arbiter route + `ontology_id` + rationale are emitted
+as a `semantic.route` tracing span (`log_span`) so route distribution is
+observable. `self._last_semantic_route`/`_last_semantic_hint` exposed for
+programmatic inspection.
+
+**DEFAULT-ON DECISION (H3):** `SEOCHO_SEMANTIC_LAYER` and `SEOCHO_ARBITER` stay
+**default-OFF**. The SRHR=1.0 evidence is on the gold-seeded / clean-template
+structured path (a favorable upper bound); flipping the default on that basis
+would repeat the AnswerShape token-F1 over-claim (a metric-favorable result
+mistaken for a general win). Default-on is gated on a **real-workload A/B** —
+varied phrasing, OOV metrics, populated production graphs — measuring SRHR
+fallback-OFF, the prior-staleness delta, and the MARA-judge guard on a held-out
+set, with the arbiter route distribution (now observable via tracing) confirming
+STRUCTURED coverage is high before the flip.
+
 **Staged roadmap (resolves the multi-ontology fork):**
 - **v1 (smallest slice):** single finance manifest; `route ∈ {STRUCTURED,
   NARRATIVE, CLARIFY, FAIL}`; `ontology_id` field present but constant

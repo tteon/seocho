@@ -746,6 +746,119 @@ def traced(name: str) -> Callable:
 
 
 # ---------------------------------------------------------------------------
+# Trace read / query (closes the observe loop — seocho-6q9.1)
+# ---------------------------------------------------------------------------
+
+def default_jsonl_path() -> str:
+    """Resolve the canonical JSONL trace path from the env contract.
+
+    Returns ``$SEOCHO_TRACE_JSONL_PATH`` when set, else the conventional
+    ``./traces/seocho.jsonl``. This is the same default the JSONL backend
+    writes to, so ``read_jsonl(default_jsonl_path())`` round-trips.
+    """
+    return os.getenv(TRACE_JSONL_PATH_ENV) or "./traces/seocho.jsonl"
+
+
+def span_latency_ms(record: Dict[str, Any]) -> Optional[float]:
+    """Best-effort latency for one JSONL span, in milliseconds.
+
+    The SDK loggers stamp ``metadata.elapsed_seconds`` (seconds); StageTimer
+    output lands as ``*_ms`` keys. Prefer the canonical seconds field, then
+    fall back to common millisecond keys. Returns ``None`` when no timing is
+    present (e.g. session.start markers).
+    """
+    meta = record.get("metadata") or {}
+    secs = meta.get("elapsed_seconds")
+    if secs is not None:
+        try:
+            return float(secs) * 1000.0
+        except (TypeError, ValueError):
+            pass
+    for key in ("elapsed_ms", "total_ms", "latency_ms"):
+        val = meta.get(key)
+        if val is not None:
+            try:
+                return float(val)
+            except (TypeError, ValueError):
+                pass
+    return None
+
+
+def read_jsonl(
+    path: Union[str, Path],
+    *,
+    min_latency_ms: Optional[float] = None,
+    name: Optional[str] = None,
+    name_contains: Optional[str] = None,
+    tags: Optional[Sequence[str]] = None,
+    since: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """Read and filter spans from a JSONL trace file.
+
+    This is the read side of the otherwise write-only tracing layer: it lets
+    an agent ask "show spans over 2s" or "did this run breach a budget" by
+    reading back the canonical JSONL artifact. Read-safe — no side effects.
+
+    Each returned record is the raw span dict augmented with a derived
+    ``latency_ms`` field (see :func:`span_latency_ms`), so callers can sort or
+    assert on it directly.
+
+    Parameters
+    ----------
+    path:
+        JSONL trace file (one span per line).
+    min_latency_ms:
+        Keep only spans whose derived ``latency_ms`` is >= this. Spans with no
+        timing are dropped when this filter is set.
+    name:
+        Exact span-name match.
+    name_contains:
+        Substring match on the span name.
+    tags:
+        Require every listed tag to be present on the span.
+    since:
+        ISO-8601 lower bound on ``timestamp`` (UTC strings sort lexically).
+
+    Raises
+    ------
+    FileNotFoundError:
+        When ``path`` does not exist.
+    """
+    p = Path(path)
+    if not p.exists():
+        raise FileNotFoundError(f"trace file not found: {p}")
+
+    want_tags = set(tags) if tags else None
+    out: List[Dict[str, Any]] = []
+    with open(p, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+            latency = span_latency_ms(record)
+            record["latency_ms"] = latency
+
+            if name is not None and record.get("name") != name:
+                continue
+            if name_contains is not None and name_contains not in (record.get("name") or ""):
+                continue
+            if want_tags is not None and not want_tags.issubset(set(record.get("tags") or [])):
+                continue
+            if since is not None and str(record.get("timestamp", "")) < since:
+                continue
+            if min_latency_ms is not None and (latency is None or latency < min_latency_ms):
+                continue
+
+            out.append(record)
+    return out
+
+
+# ---------------------------------------------------------------------------
 # CSV Export
 # ---------------------------------------------------------------------------
 

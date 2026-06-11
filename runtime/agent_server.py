@@ -27,6 +27,7 @@ from exceptions import (
     InvalidDatabaseNameError,
 )
 from runtime.middleware import RequestIDMiddleware
+from runtime.identity import PrincipalMiddleware
 from tracing import configure_opik, track, update_current_span, update_current_trace
 from runtime.policy import require_runtime_permission
 from seocho.runtime_contract import (
@@ -148,6 +149,11 @@ memory_service = _LazyServiceProxy(get_memory_service)
 
 # Request ID middleware
 app.add_middleware(RequestIDMiddleware)
+
+# Identity — resolves the per-request Principal (anonymous unless
+# SEOCHO_AUTH_MODE=token). Added before CORS so CORS stays outermost and handles
+# preflight OPTIONS without hitting auth.
+app.add_middleware(PrincipalMiddleware)
 
 # CORS — configurable via SEOCHO_CORS_ORIGINS env var (comma-separated)
 _DEFAULT_CORS = "http://localhost:8501,http://localhost:3000"
@@ -1077,16 +1083,40 @@ async def platform_chat_send(request: PlatformChatRequest):
     )
 
 
+def _session_workspace_id(raw_history: list) -> str:
+    """The workspace a session belongs to (from its first turn's metadata).
+
+    These read/delete endpoints had no authz at all — any caller could read or
+    clear any session_id (IDOR). Deriving the session's workspace lets the policy
+    engine enforce workspace ownership: an authenticated principal scoped to
+    workspace A is denied a session that belongs to workspace B. With auth
+    disabled this stays a no-op, preserving current behavior.
+    """
+    if raw_history:
+        return str((raw_history[0].get("metadata") or {}).get("workspace_id", "default"))
+    return "default"
+
+
 @app.get(RuntimePath.PLATFORM_CHAT_SESSION, response_model=PlatformSessionResponse)
 @track("agent_server.platform_chat_session_get")
 async def platform_chat_session_get(session_id: str):
-    history = [PlatformTurn(**row) for row in platform_session_store.get(session_id)]
+    raw_history = platform_session_store.get(session_id)
+    try:
+        require_runtime_permission(action="run_platform", workspace_id=_session_workspace_id(raw_history))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    history = [PlatformTurn(**row) for row in raw_history]
     return PlatformSessionResponse(session_id=session_id, history=history)
 
 
 @app.delete(RuntimePath.PLATFORM_CHAT_SESSION, response_model=PlatformSessionResponse)
 @track("agent_server.platform_chat_session_reset")
 async def platform_chat_session_reset(session_id: str):
+    raw_history = platform_session_store.get(session_id)
+    try:
+        require_runtime_permission(action="run_platform", workspace_id=_session_workspace_id(raw_history))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     platform_session_store.clear(session_id)
     return PlatformSessionResponse(session_id=session_id, history=[])
 

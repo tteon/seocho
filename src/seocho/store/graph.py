@@ -1072,6 +1072,7 @@ _LADYBUG_COMMON_NODE_STRING_COLUMNS = (
     "_ontology_graph_model",
     "_ontology_schema_fingerprint",
     "_ontology_version_valid",
+    "_out_of_ontology",
     "_workspace_id",
     "_source_id",
 )
@@ -1092,6 +1093,7 @@ _LADYBUG_COMMON_REL_STRING_COLUMNS = (
     "_ontology_graph_model",
     "_ontology_schema_fingerprint",
     "_ontology_version_valid",
+    "_out_of_ontology",
 )
 _LADYBUG_NODE_PROJECTION_KEYS = (
     "id",

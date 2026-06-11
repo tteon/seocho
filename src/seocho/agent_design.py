@@ -20,6 +20,7 @@ _ALLOWED_VALIDATION_MODES = {"reject", "retry", "relax", "warn"}
 _ALLOWED_QUERY_STRATEGIES = {"llm_cypher", "template", "hybrid"}
 _ALLOWED_ANSWER_STYLES = {"concise", "evidence", "table"}
 _ALLOWED_EXECUTION_MODES = {"pipeline", "agent", "supervisor"}
+_ALLOWED_ENFORCEMENT_MODES = {"strict", "guided", "open"}
 
 _PATTERN_DEFAULTS: Dict[str, Dict[str, Any]] = {
     "planning_multi_agent": {
@@ -97,6 +98,10 @@ class OntologyBinding:
     ontology_id: str = ""
     package_id: str = ""
     path: str = ""
+    # seocho-snt: how the binding is honored during indexing — strict
+    # (closed vocabulary) | guided (default) | open (annotate). Empty means
+    # unset and resolves to "guided".
+    enforcement: str = ""
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> "OntologyBinding":
@@ -106,9 +111,15 @@ class OntologyBinding:
             ontology_id=_string(payload.get("ontology_id")),
             package_id=_string(payload.get("package_id")),
             path=_string(payload.get("path")),
+            enforcement=_string(payload.get("enforcement")).lower(),
         )
 
     def validate(self) -> None:
+        if self.enforcement and self.enforcement not in _ALLOWED_ENFORCEMENT_MODES:
+            raise ValueError(
+                "ontology.enforcement must be one of: "
+                f"{', '.join(sorted(_ALLOWED_ENFORCEMENT_MODES))}."
+            )
         if not self.required:
             return
         if any((self.profile, self.ontology_id, self.package_id, self.path)):
@@ -120,6 +131,9 @@ class OntologyBinding:
 
     def resolved_profile(self) -> str:
         return self.profile or "default"
+
+    def resolved_enforcement(self) -> str:
+        return self.enforcement or "guided"
 
 
 @dataclass(slots=True)
@@ -209,6 +223,24 @@ class AgentDesignSpec:
 
         _routing_policy(_string(self.agent.get("routing_policy")))
 
+        # seocho-snt coherence: the enforcement preset and the violation
+        # action must not contradict each other. strict admission cannot
+        # relax or merely warn; open admission cannot reject.
+        enforcement = self.ontology.resolved_enforcement()
+        validation_on_fail = _string(self.indexing.get("validation_on_fail")).lower()
+        if enforcement == "strict" and validation_on_fail in {"relax", "warn"}:
+            raise ValueError(
+                "ontology.enforcement: strict is incoherent with "
+                f"indexing.validation_on_fail: {validation_on_fail}. "
+                "Use reject (default) or retry."
+            )
+        if enforcement == "open" and validation_on_fail == "reject":
+            raise ValueError(
+                "ontology.enforcement: open is incoherent with "
+                "indexing.validation_on_fail: reject. Use warn (default), "
+                "retry, or relax."
+            )
+
     def to_agent_config(self) -> AgentConfig:
         payload: Dict[str, Any] = dict(_PATTERN_DEFAULTS[self.pattern])
 
@@ -239,6 +271,16 @@ class AgentDesignSpec:
             if key in self.query:
                 payload[key] = self.query[key]
 
+        # seocho-snt: enforcement-derived default for the violation action.
+        # An explicit validation_on_fail (from the YAML or the pattern
+        # defaults) wins; coherence was checked in validate().
+        enforcement = self.ontology.resolved_enforcement()
+        if "validation_on_fail" not in self.indexing:
+            if enforcement == "strict":
+                payload["validation_on_fail"] = "reject"
+            elif enforcement == "open":
+                payload["validation_on_fail"] = "warn"
+
         config_payload: MutableMapping[str, Any] = {
             "execution_mode": _string(payload.get("execution_mode")) or "pipeline",
             "handoff": bool(payload.get("handoff", False)),
@@ -251,6 +293,7 @@ class AgentDesignSpec:
             "extraction_retry_on_low_quality": bool(payload.get("extraction_retry_on_low_quality", False)),
             "linking_strategy": _string(payload.get("linking_strategy")) or "llm",
             "validation_on_fail": _string(payload.get("validation_on_fail")) or "warn",
+            "ontology_enforcement": enforcement,
             "routing_policy": _routing_policy(_string(payload.get("routing_policy"))),
             "extra": {
                 "agent_design_name": self.name,
@@ -265,6 +308,7 @@ class AgentDesignSpec:
                     "ontology_id": self.ontology.ontology_id,
                     "package_id": self.ontology.package_id,
                     "path": self.ontology.path,
+                    "enforcement": enforcement,
                 },
             },
         }

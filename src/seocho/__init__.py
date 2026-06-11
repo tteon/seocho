@@ -135,6 +135,9 @@ _MODULE_EXPORTS: Dict[str, Iterable[str]] = {
         "ArtifactValidationMessage",
         "ArtifactValidationResult",
     ],
+    ".index.enforcement": [
+        "EnforcementPolicy",
+    ],
     ".indexing": [
         "BatchIndexingResult",
         "IndexingResult",

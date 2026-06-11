@@ -95,6 +95,7 @@ class _LocalEngine:
             embedding_backend=embedding_backend,
             ontology_profile=self.ontology_profile,
             ontology_context_cache=self._ontology_context_cache,
+            enforcement=getattr(self.agent_config, "ontology_enforcement", "guided"),
         )
         self._indexing._quality_threshold = self.agent_config.extraction_quality_threshold
         self._indexing._max_retries = self.agent_config.extraction_max_retries
@@ -366,6 +367,7 @@ class _LocalEngine:
                 enable_rule_constraints=True,
                 ontology_profile=self.ontology_profile,
                 ontology_context_cache=self._ontology_context_cache,
+                enforcement=getattr(self.agent_config, "ontology_enforcement", "guided"),
             )
             ingestion = IngestionFacade(pipeline, publisher=self._events)
         else:
@@ -417,12 +419,15 @@ class _LocalEngine:
                 enable_rule_constraints=True,
                 ontology_profile=self.ontology_profile,
                 ontology_context_cache=self._ontology_context_cache,
+                enforcement=getattr(self.agent_config, "ontology_enforcement", "guided"),
             )
         else:
             pipeline = self._indexing
 
         original_strict = pipeline.strict_validation
-        pipeline.strict_validation = bool(strict_validation)
+        policy = getattr(pipeline, "enforcement_policy", None)
+        policy_floor = bool(policy is not None and policy.violation_action == "reject")
+        pipeline.strict_validation = bool(strict_validation) or policy_floor
         try:
             result = pipeline.index_graph(
                 graph_data,

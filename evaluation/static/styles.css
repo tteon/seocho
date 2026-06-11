@@ -586,3 +586,12 @@ textarea:focus {
   box-shadow: 0 0 0 1px var(--accent-blue);
   outline: none;
 }
+
+#resetSessionBtn {
+  color: var(--text-muted);
+  transition: color 0.2s;
+}
+
+#resetSessionBtn:hover {
+  color: #fff;
+}

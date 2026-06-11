@@ -1,4 +1,4 @@
-# ADR-0089: Semantic Control Plane User-Owned Ontology Contract
+# ADR-0106: Semantic Control Plane User-Owned Ontology Contract
 
 - Status: Accepted
 - Date: 2026-04-26

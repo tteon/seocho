@@ -5,7 +5,7 @@ Status: Proposed
 
 ## Context
 
-The opik-derived answer-path legs (ADR-0099 AnswerShape/RouteProfile, ADR-0100
+The opik-derived answer-path legs (ADR-0109 AnswerShape/RouteProfile, ADR-0100
 F8 multi-plan, ADR-0101 scored grounding) all measured **null** on FinDER, and
 the cross-model judge showed AnswerShape's token-F1 "win" was a metric artifact
 (judge 0.70 → 0.70). The diagnosed root cause was **prior-masking**: FinDER's
@@ -100,6 +100,6 @@ Deferred / follow-up:
 - artifacts: dataset + full run JSON stay local-only (`outputs/` gitignored,
   `docs/BENCHMARKS.md`); aggregate + 34 stale records committed at
   `docs/experiments/sec-temporal/results_summary.json`.
-- relates to: ADR-0099 (the prior-masking correction that motivated this),
+- relates to: ADR-0109 (the prior-masking correction that motivated this),
   ADR-0101 (grounding's null FinDER result), and the chunk fallback `1e131ac`
   (the mechanism this benchmark validates e2e).

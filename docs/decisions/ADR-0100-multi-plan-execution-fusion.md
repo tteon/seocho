@@ -7,7 +7,7 @@ Status: Proposed
 
 ADR-0097 (GOPTS) enumerates K candidate Cypher plans and cost-ranks them
 but emits **only the top-1** — multi-plan execution was explicitly
-deferred. ADR-0099's RouteProfile A/B then produced a decisive null
+deferred. ADR-0109's RouteProfile A/B then produced a decisive null
 result: the `multi_hop` route's `MULTI_STEP` planner, wired to
 `reasoning_mode`/`repair_budget`, showed no measurable effect because the
 repair loop only fires on empty retrieval. The planner axis has no teeth
@@ -113,4 +113,4 @@ Tradeoffs:
   plan vs multi-plan, scored with `benchmarking.compare_answers` +
   `eval.gopts_answer_quality.token_f1`.
 - relates to: ADR-0097 (enumeration/cost_model; this consumes its K),
-  ADR-0099 (RouteProfile multi_hop gate), ADR-0091 (RRF fusion reuse).
+  ADR-0109 (RouteProfile multi_hop gate), ADR-0091 (RRF fusion reuse).

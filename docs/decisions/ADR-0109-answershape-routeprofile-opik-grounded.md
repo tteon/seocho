@@ -1,4 +1,4 @@
-# ADR-0099: AnswerShape + RouteProfile — Opik-Grounded Answer-Path Design
+# ADR-0109: AnswerShape + RouteProfile — Opik-Grounded Answer-Path Design
 
 Date: 2026-06-03
 Status: Proposed

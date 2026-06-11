@@ -28,6 +28,18 @@ _ONTOLOGY_RELAXED_RETRY_GUIDANCE = (
 )
 
 
+# seocho-snt: appended verbatim in strict mode. MUST stay constant and
+# ontology-independent — the extraction firewall (FinDER r=-0.76) forbids
+# ontology-derived richness from entering the extraction prompt surface,
+# and a constant line keeps the KV-cache prefix stable per mode.
+_CLOSED_VOCABULARY_PROMPT_LINE = (
+    "Closed vocabulary: use only the provided node labels and relationship "
+    "types, spelled exactly as given. If an entity or relationship does not "
+    "fit any provided type, omit it entirely — never invent labels, "
+    "relationship types, or generic placeholders."
+)
+
+
 class CanonicalExtractionEngine:
     """Shared extraction/linking engine for ontology-first graph construction."""
 
@@ -39,11 +51,15 @@ class CanonicalExtractionEngine:
         extraction_prompt: Optional[Any] = None,
         custom_prompts: Optional[Dict[str, str]] = None,
         linking_prompt: Optional[str] = None,
+        enforcement: Any = None,
     ) -> None:
+        from .enforcement import resolve_enforcement
+
         self.ontology = ontology
         self.llm = llm
         self.custom_prompts = dict(custom_prompts or {})
         self.linking_prompt = linking_prompt
+        self.enforcement = resolve_enforcement(enforcement)
         self._extraction = (
             ExtractionStrategy(ontology, extraction_prompt=extraction_prompt)
             if ontology is not None
@@ -67,6 +83,8 @@ class CanonicalExtractionEngine:
             metadata=metadata,
             extra_context=extra_context,
         )
+        if self.enforcement.closed_vocab_prompt_line:
+            system = f"{system}\n\n{_CLOSED_VOCABULARY_PROMPT_LINE}"
         response = complete_with_task_hints(
             self.llm,
             system=system,
@@ -155,6 +173,12 @@ class CanonicalExtractionEngine:
         normalized: Dict[str, Any],
         extra_context: Optional[Dict[str, Any]],
     ) -> bool:
+        # seocho-snt: the relaxed retry explicitly invites near-miss labels
+        # and generic Entity nodes — out-of-vocabulary by definition, so
+        # strict mode never takes it. An empty graph is the correct strict
+        # outcome for text the ontology does not cover.
+        if not self.enforcement.allow_relaxed_retry:
+            return False
         if normalized.get("nodes") or normalized.get("relationships"):
             return False
         if self.ontology is not None:

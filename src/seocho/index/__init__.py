@@ -16,6 +16,7 @@ from .pipeline import (
     content_hash,
 )
 from .chunk import Chunk, build_chunk_id, chunk
+from .enforcement import GUIDED, OPEN, STRICT, EnforcementPolicy, resolve_enforcement
 from .extraction_engine import CanonicalExtractionEngine
 from .ingestion_facade import IngestRequest, IngestionFacade
 from .file_reader import (
@@ -29,6 +30,11 @@ from .file_reader import (
 __all__ = [
     "IndexingPipeline",
     "CanonicalExtractionEngine",
+    "EnforcementPolicy",
+    "resolve_enforcement",
+    "STRICT",
+    "GUIDED",
+    "OPEN",
     "IngestRequest",
     "IngestionFacade",
     "IndexingResult",

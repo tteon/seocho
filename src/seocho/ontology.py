@@ -1137,7 +1137,7 @@ class Ontology:
             source_summary=source_summary,
         )
 
-    def validate_with_shacl(self, data: Dict[str, Any]) -> List[str]:
+    def validate_with_shacl(self, data: Dict[str, Any], *, closed: bool = False) -> List[str]:
         """Validate extracted data against SHACL shapes derived from
         this ontology.
 
@@ -1148,12 +1148,14 @@ class Ontology:
         ----------
         data:
             Dict with ``"nodes"`` and ``"relationships"`` lists.
+        closed:
+            Closed-vocabulary mode — see :meth:`validate_extraction`.
 
         Returns
         -------
         List of validation error strings (empty = valid).
         """
-        errors = list(self.validate_extraction(data))
+        errors = list(self.validate_extraction(data, closed=closed))
         shacl = self.to_shacl()
 
         # Build shape lookup: targetClass -> shape
@@ -1717,7 +1719,28 @@ class Ontology:
                     stack.extend(p for p in cur_nd.broader if p in self.nodes)
         return errors
 
-    def validate_extraction(self, data: Dict[str, Any]) -> List[str]:
+    def _label_conforms(self, label: str, expected: str) -> bool:
+        """True when ``label`` is ``expected`` or reaches it via the
+        ``broader`` (subclass) chain. Cycle-safe."""
+        if label == expected:
+            return True
+        seen: Set[str] = set()
+        frontier = [label]
+        while frontier:
+            current = frontier.pop()
+            if current in seen:
+                continue
+            seen.add(current)
+            nd = self.nodes.get(current)
+            if nd is None:
+                continue
+            for parent in nd.broader:
+                if parent == expected:
+                    return True
+                frontier.append(parent)
+        return False
+
+    def validate_extraction(self, data: Dict[str, Any], *, closed: bool = False) -> List[str]:
         """Validate extracted graph data against this ontology.
 
         Parameters
@@ -1725,6 +1748,12 @@ class Ontology:
         data:
             Dict with ``"nodes"`` and ``"relationships"`` lists as
             produced by the LLM extraction step.
+        closed:
+            Closed-vocabulary mode (seocho-snt). When True the generic
+            ``Entity`` exemption is removed, relationship endpoints must
+            resolve to extracted node ids (no dangling endpoints), and
+            endpoint labels must conform to the relationship's declared
+            domain/range — directly or through the ``broader`` chain.
 
         Returns
         -------
@@ -1732,13 +1761,15 @@ class Ontology:
         """
         errors: List[str] = []
         known_ids: Set[str] = set()
+        label_by_id: Dict[str, str] = {}
 
         for node in data.get("nodes", []):
             nid = node.get("id", "")
             label = node.get("label", "")
             known_ids.add(nid)
+            label_by_id[nid] = label
 
-            if label not in self.nodes and label != "Entity":
+            if label not in self.nodes and (closed or label != "Entity"):
                 errors.append(f"Node '{nid}' has unknown label '{label}'")
                 continue
 
@@ -1756,6 +1787,24 @@ class Ontology:
             tgt = rel.get("target", "")
             if rtype not in self.relationships:
                 errors.append(f"Unknown relationship type '{rtype}'")
+                continue
+            if not closed:
+                continue
+            # Closed vocabulary: endpoints must exist and conform to the
+            # declared domain/range (broader chain counts as conformance).
+            rd = self.relationships[rtype]
+            for endpoint, role, expected in ((src, "source", rd.source), (tgt, "target", rd.target)):
+                if endpoint not in known_ids:
+                    errors.append(
+                        f"Relationship '{rtype}' has dangling {role} '{endpoint}'"
+                    )
+                    continue
+                endpoint_label = label_by_id.get(endpoint, "")
+                if expected and not self._label_conforms(endpoint_label, expected):
+                    errors.append(
+                        f"Relationship '{rtype}' {role} '{endpoint}' has label "
+                        f"'{endpoint_label}', expected '{expected}' (or narrower)"
+                    )
 
         return errors
 

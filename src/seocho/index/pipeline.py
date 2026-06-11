@@ -217,6 +217,7 @@ class IndexingPipeline:
         workspace_id: str = "default",
         extraction_prompt: Optional[Any] = None,
         strict_validation: bool = False,
+        enforcement: Optional[Any] = None,
         max_chunk_chars: int = 6000,
         enable_dedup: bool = True,
         enable_rule_constraints: bool = False,
@@ -232,11 +233,18 @@ class IndexingPipeline:
         from seocho.ontology import Ontology
         from seocho.query.strategy import ExtractionStrategy, LinkingStrategy
 
+        from seocho.index.enforcement import resolve_enforcement
+
         self.ontology: Ontology = ontology
         self.graph_store = graph_store
         self.llm = llm
         self.workspace_id = workspace_id
-        self.strict_validation = strict_validation
+        # seocho-snt: one policy drives every enforcement decision;
+        # strict_validation is exposed below as the back-compat boolean
+        # property view of it (callers like local_engine flip it directly).
+        self.enforcement = resolve_enforcement(
+            enforcement, strict_validation=strict_validation
+        )
         self.max_chunk_chars = max_chunk_chars
         self.enable_dedup = enable_dedup
         self.enable_rule_constraints = enable_rule_constraints
@@ -267,7 +275,32 @@ class IndexingPipeline:
             ontology=ontology,
             llm=llm,
             extraction_prompt=extraction_prompt,
+            enforcement=self.enforcement,
         )
+
+    @property
+    def strict_validation(self) -> bool:
+        """Back-compat boolean view of the enforcement policy."""
+        return self.enforcement.reject_on_validation_errors
+
+    @strict_validation.setter
+    def strict_validation(self, value: bool) -> None:
+        """Legacy switch: flips between the strict and guided presets.
+
+        Note this resolves to a *preset* — a custom policy assigned via
+        ``enforcement`` is replaced, not toggled. Callers that need the
+        full semantics should set ``self.enforcement`` directly.
+        """
+        from seocho.index.enforcement import resolve_enforcement
+
+        if bool(value) == self.strict_validation:
+            # No-op when the boolean view already matches — preserves a
+            # custom policy through legacy save/flip/restore patterns.
+            return
+        self.enforcement = resolve_enforcement(None, strict_validation=bool(value))
+        engine = getattr(self, "_graph_extraction", None)
+        if engine is not None:
+            engine.enforcement = self.enforcement
 
     @staticmethod
     def _fallback_extract(text: str, *, source_id: str = "fallback") -> Dict[str, Any]:
@@ -314,6 +347,23 @@ class IndexingPipeline:
             )
 
         return {"nodes": nodes, "relationships": relationships}
+
+    def _annotate_out_of_ontology(
+        self, nodes: List[Dict[str, Any]], rels: List[Dict[str, Any]]
+    ) -> None:
+        """Open enforcement (seocho-snt): mark elements outside the ontology
+        vocabulary with ``_out_of_ontology: True`` instead of erroring."""
+        for node in nodes:
+            if not isinstance(node, dict):
+                continue
+            label = node.get("label", "")
+            if label not in self.ontology.nodes:
+                node.setdefault("properties", {})["_out_of_ontology"] = True
+        for rel in rels:
+            if not isinstance(rel, dict):
+                continue
+            if rel.get("type", "") not in self.ontology.relationships:
+                rel.setdefault("properties", {})["_out_of_ontology"] = True
 
     def _normalize_extraction_payload(self, extracted: Dict[str, Any]) -> Dict[str, Any]:
         """Normalize LLM extraction output into the graph write contract."""
@@ -730,6 +780,21 @@ class IndexingPipeline:
                 )
                 extracted = response
             except Exception as exc:
+                # seocho-snt: the heuristic fallback emits Entity/Document/
+                # MENTIONS structure — out-of-vocabulary by definition, so
+                # strict mode rejects the chunk instead of falling back.
+                if not self.enforcement.allow_fallback_extract:
+                    logger.warning(
+                        "LLM extraction failed for chunk %d; strict enforcement "
+                        "rejects the chunk (no heuristic fallback): %s",
+                        i, exc,
+                    )
+                    result.validation_errors.append(
+                        f"Chunk {i}: extraction failed under strict enforcement "
+                        f"({type(exc).__name__}: {str(exc)[:200]})"
+                    )
+                    result.skipped_chunks += 1
+                    continue
                 logger.warning(
                     "LLM extraction failed for chunk %d, using heuristic fallback: %s",
                     i, exc,
@@ -746,6 +811,11 @@ class IndexingPipeline:
             rels = extracted.get("relationships", [])
 
             if not nodes and not rels:
+                if not self.enforcement.allow_fallback_extract:
+                    # seocho-snt: empty is the correct strict outcome for
+                    # text the ontology does not cover — skip, don't invent.
+                    result.skipped_chunks += 1
+                    continue
                 logger.warning(
                     "LLM extraction returned an empty graph for chunk %d, using heuristic fallback.",
                     i,
@@ -818,8 +888,11 @@ class IndexingPipeline:
                     except Exception:
                         break
 
-            # Validate with SHACL
-            errors = self.ontology.validate_with_shacl(extracted)
+            # Validate with SHACL (closed vocabulary under strict — no
+            # Entity exemption, dangling endpoints and domain/range checked)
+            errors = self.ontology.validate_with_shacl(
+                extracted, closed=self.enforcement.closed_vocabulary
+            )
 
             # --- Callback: on_after_validate ---
             if self.on_after_validate:
@@ -827,10 +900,17 @@ class IndexingPipeline:
 
             if errors:
                 result.validation_errors.extend(errors)
-                if self.strict_validation:
+                if self.enforcement.reject_on_validation_errors:
+                    # Rejection unit is the chunk — never silently drop
+                    # individual elements.
                     logger.warning("Chunk %d rejected by SHACL: %s", i, errors)
                     result.skipped_chunks += 1
                     continue
+
+            # seocho-snt open mode: keep out-of-ontology elements but mark
+            # them so downstream consumers can filter or study them.
+            if self.enforcement.annotate_out_of_ontology:
+                self._annotate_out_of_ontology(nodes, rels)
 
             # Link (deduplicate entities within chunk)
             if nodes:
@@ -847,6 +927,21 @@ class IndexingPipeline:
                         rels = linked_rels
                 except Exception as exc:
                     logger.warning("Linking failed for chunk %d, using raw extraction: %s", i, exc)
+
+            # seocho-snt strict: linking can rewrite labels/endpoints, so the
+            # closed-vocabulary contract is re-checked after the link step.
+            if self.enforcement.revalidate_after_link and nodes:
+                post_link_errors = self.ontology.validate_with_shacl(
+                    {"nodes": nodes, "relationships": rels},
+                    closed=self.enforcement.closed_vocabulary,
+                )
+                if post_link_errors:
+                    result.validation_errors.extend(post_link_errors)
+                    logger.warning(
+                        "Chunk %d rejected after linking: %s", i, post_link_errors
+                    )
+                    result.skipped_chunks += 1
+                    continue
 
             chunk_records.append(
                 {

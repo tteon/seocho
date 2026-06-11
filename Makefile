@@ -92,6 +92,10 @@ bench-finder-cache: ## Synergy #1: persistent-cache hit-rate + latency win (need
 	@echo "📊 FinDER cache synergy (persistent ResponseCache cross-session reuse)..."
 	@python3 scripts/benchmarks/finder_cache_synergy.py $(if $(PASSWORD),--neo4j-password $(PASSWORD),) $(if $(LIMIT),--limit $(LIMIT),)
 
+bench-finder-parity: ## Synergy #2 live: routed model tiers vs all-frontier on the wired path (needs DozerDB + MARA)
+	@echo "📊 FinDER routing parity (SEOCHO_MODEL_ROUTING wired path, routed vs all-frontier)..."
+	@python3 scripts/benchmarks/finder_routing_parity.py
+
 demo-raw: ## Run beginner raw-data demo pipeline
 	@bash scripts/demo/pipeline_raw_data.sh
 

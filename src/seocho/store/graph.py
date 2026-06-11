@@ -1200,10 +1200,61 @@ def _ladybug_expand_param_predicate(
     return re.sub(pattern, replacement, cypher, flags=re.IGNORECASE)
 
 
+def _ladybug_scalar_literal(value: Any) -> str:
+    """Render one list element as a safe Cypher literal (seocho-g85).
+
+    Strings go through ``json.dumps`` so quotes/backslashes/control chars
+    cannot escape the literal — the validation-before-interpolation rule.
+    """
+    import json as _json
+
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return repr(value)
+    return _json.dumps(str(value))
+
+
+def _ladybug_inline_list_params(
+    cypher: str, params: Dict[str, Any]
+) -> tuple[str, Dict[str, Any]]:
+    """Inline list-valued parameters as Cypher list literals (seocho-g85).
+
+    real_ladybug 0.15.3 mis-binds list parameters in two ways: an
+    empty-list parameter fails type inference ("ANY is neither an internal
+    type ..."), and ``<var> IN $list`` inside ANY/ALL hits
+    parsed_parameter_expression.h UNREACHABLE_CODE. Literal lists bind
+    fine, so every list param still referenced by the query is inlined and
+    dropped from the param map. Scalars stay parameterized.
+    """
+    out_params = dict(params)
+    for name, value in list(out_params.items()):
+        if not isinstance(value, list):
+            continue
+        if not all(isinstance(v, (str, int, float, bool)) for v in value):
+            continue
+        pattern = re.compile(r"\$" + re.escape(name) + r"\b")
+        if not pattern.search(cypher):
+            continue
+        literal = "[" + ", ".join(_ladybug_scalar_literal(v) for v in value) + "]"
+        cypher = pattern.sub(literal.replace("\\", "\\\\"), cypher)
+        del out_params[name]
+    return cypher, out_params
+
+
 def _rewrite_ladybug_query(cypher: str, params: Optional[Dict[str, Any]] = None) -> tuple[str, Dict[str, Any]]:
     query_params = dict(params or {})
-    rewritten = _ladybug_expand_param_predicate(
+    # seocho-g85: Ladybug's labels(x) is a single STRING (one table per
+    # node), so ANY(l IN labels(x) WHERE l IN <list>) cannot bind at all.
+    # label(x) IN <list> is the engine's equivalent membership test.
+    rewritten = re.sub(
+        r"ANY\(\s*(\w+)\s+IN\s+labels\((\w+)\)\s+WHERE\s+\1\s+IN\s+(\$\w+|\[[^\]]*\])\s*\)",
+        lambda m: f"label({m.group(2)}) IN {m.group(3)}",
         cypher,
+        flags=re.IGNORECASE,
+    )
+    rewritten = _ladybug_expand_param_predicate(
+        rewritten,
         query_params,
         pattern=(
             r"\(\$relationship_candidates\s*=\s*\[\]\s+OR\s+type\(r\)\s+IN\s+\$relationship_candidates\s*\)"
@@ -1282,6 +1333,8 @@ def _rewrite_ladybug_query(cypher: str, params: Optional[Dict[str, Any]] = None)
         ),
         rewritten,
     )
+    # seocho-g85: last pass — inline whatever list params remain referenced.
+    rewritten, query_params = _ladybug_inline_list_params(rewritten, query_params)
     return rewritten, query_params
 
 
@@ -1562,7 +1615,29 @@ class LadybugGraphStore(GraphStore):
             return []
         cypher, query_params = _rewrite_ladybug_query(cypher, params=params)
         try:
-            result = self._locked_execute(cypher, query_params)
+            # seocho-g85: Ladybug is schema-first — referencing an
+            # undeclared property is a binder error, where Neo4j yields
+            # null. Emulate null semantics: on "Cannot find property X
+            # for Y", substitute Y.X with NULL and retry (bounded).
+            for _ in range(12):
+                try:
+                    result = self._locked_execute(cypher, query_params)
+                    break
+                except Exception as exc:
+                    missing = re.search(
+                        r"Cannot find property (\w+) for (\w+)", str(exc)
+                    )
+                    if not missing:
+                        raise
+                    prop, var = missing.group(1), missing.group(2)
+                    patched = re.sub(
+                        rf"\b{re.escape(var)}\.{re.escape(prop)}\b", "NULL", cypher
+                    )
+                    if patched == cypher:
+                        raise
+                    cypher = patched
+            else:
+                result = self._locked_execute(cypher, query_params)
             out: List[Dict[str, Any]] = []
             # Ladybug returns rows as lists; convert to dicts using column names.
             # real_ladybug exposes get_column_names() as a method (not an

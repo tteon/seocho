@@ -99,16 +99,18 @@ Omitting `questions` entirely makes the run index-only.
 `ontology.enforcement` declares the admission policy for extracted graph
 data against the ontology vocabulary:
 
-| Mode | Behavior today (v1) |
+| Mode | Behavior |
 | --- | --- |
-| `strict` | Chunks failing SHACL validation are rejected, not written (`strict_validation=True`; default `validation_on_fail` becomes `reject`). |
-| `guided` | Default. The ontology guides extraction prompts; validation errors are reported but content is written. |
-| `open` | Same write behavior as `guided`; reserved for open-vocabulary admission with out-of-ontology annotation. |
+| `strict` | Closed vocabulary. A constant closed-vocabulary instruction is appended to extraction prompts; the relaxed retry and the `Entity`/heuristic fallbacks are disabled (an empty extraction is a legitimate outcome); validation runs closed (no `Entity` exemption, dangling-endpoint and domain/range conformance checks via the `broader` chain); chunks with errors are rejected, not written; linking output is re-checked and reverted on regression. Default `validation_on_fail` becomes `reject` (`relax`/`warn` are rejected as incoherent). |
+| `guided` | Default — the tuned behavior the FinDER experiments validated. The ontology guides extraction prompts; relaxed retry and `Entity` fallback stay available; validation errors are reported but content is written. |
+| `open` | Admit everything: same write behavior as `guided`, plus every out-of-vocabulary node/relationship is stamped with `_out_of_ontology: "true"` — the triage signal for offline ontology-evolution governance. `validation_on_fail: reject` is rejected as incoherent. |
 
-Full closed-vocabulary semantics for `strict` (no `Entity` fallback, no
-relaxed retry, endpoint conformance) and `_out_of_ontology` annotation for
-`open` are tracked in `seocho-snt` and will tighten these modes without
-changing the YAML surface.
+The policy is compiled by `seocho.EnforcementPolicy` from
+`AgentConfig.ontology_enforcement`; agent design specs may declare
+`ontology.enforcement` too, and an explicit run-spec value overrides the
+design (the implicit `guided` default never does). These are admission
+policies for extracted data — not CWA/OWA inference semantics; query-time
+entailment is unchanged in every mode.
 
 ## Per-phase models
 

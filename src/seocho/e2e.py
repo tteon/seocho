@@ -102,7 +102,14 @@ def build_agent_config(spec: RunSpec) -> Any:
         overrides["repair_budget"] = int(spec.query["repair_budget"])
     if "answer_style" in spec.query:
         overrides["answer_style"] = str(spec.query["answer_style"]).strip().lower()
-    if spec.strict_validation() and config.validation_on_fail == "warn":
+    # ontology.enforcement: an explicit run-spec value overrides the agent
+    # design; the implicit "guided" default never does.
+    if spec.enforcement_set or agent_design is None:
+        overrides["ontology_enforcement"] = spec.enforcement
+    effective_enforcement = overrides.get(
+        "ontology_enforcement", getattr(config, "ontology_enforcement", "guided")
+    )
+    if effective_enforcement == "strict" and config.validation_on_fail == "warn":
         overrides["validation_on_fail"] = "reject"
 
     return dataclasses.replace(config, **overrides) if overrides else config

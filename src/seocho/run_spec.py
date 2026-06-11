@@ -170,6 +170,10 @@ class RunSpec:
     ontology_path: str
     documents_path: str
     enforcement: str = "guided"
+    # True when the YAML declared ontology.enforcement explicitly — an
+    # explicit value overrides an agent design's enforcement; the default
+    # never does.
+    enforcement_set: bool = False
     description: str = ""
     documents_recursive: bool = True
     models: Dict[str, str] = field(default_factory=dict)
@@ -199,12 +203,14 @@ class RunSpec:
     def uses_split_models(self) -> bool:
         return self.indexing_model() != self.query_model()
 
-    # -- enforcement mapping (v1: rides on strict_validation) -------------
+    # -- enforcement mapping ----------------------------------------------
 
     def strict_validation(self) -> bool:
-        """v1 mapping: ``strict`` rejects SHACL-failing chunks; ``guided``
-        and ``open`` keep today's warn-and-continue behavior. Full
-        closed-vocabulary semantics land separately (seocho-snt)."""
+        """``strict`` rejects chunks with validation errors. The full
+        admission policy (prompt line, no relaxed retry/Entity fallback,
+        closed validation) is compiled by
+        :class:`seocho.index.enforcement.EnforcementPolicy` from
+        ``AgentConfig.ontology_enforcement``."""
         return self.enforcement == "strict"
 
     def resolved_workspace_id(self) -> str:
@@ -289,6 +295,7 @@ def parse_run_spec(payload: Any, *, source_path: str = "") -> RunSpec:
         description=_string(payload.get("description")),
         ontology_path=_string(ontology.get("path")),
         enforcement=_string(ontology.get("enforcement")).lower() or "guided",
+        enforcement_set=bool(_string(ontology.get("enforcement"))),
         documents_path=_string(documents.get("path")),
         documents_recursive=bool(documents.get("recursive", True)),
         models=models,

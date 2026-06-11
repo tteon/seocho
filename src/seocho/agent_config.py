@@ -403,6 +403,14 @@ class AgentConfig:
     extraction_max_retries: int = 2
     linking_strategy: str = "llm"
     validation_on_fail: str = "warn"
+    # seocho-snt: ontology admission policy for the indexing path.
+    # "strict"  — closed vocabulary: strict prompt line, no relaxed retry,
+    #             no Entity/heuristic fallback, closed validation, chunks
+    #             with errors rejected.
+    # "guided"  — default: ontology guides extraction, errors warn.
+    # "open"    — admit everything; out-of-vocabulary elements get an
+    #             _out_of_ontology annotation for governance triage.
+    ontology_enforcement: str = "guided"  # "strict" | "guided" | "open"
 
     # --- Query agent ---
     query_strategy: str = "llm_cypher"

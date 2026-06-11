@@ -1140,7 +1140,7 @@ class Ontology:
             source_summary=source_summary,
         )
 
-    def validate_with_shacl(self, data: Dict[str, Any]) -> List[str]:
+    def validate_with_shacl(self, data: Dict[str, Any], *, closed: bool = False) -> List[str]:
         """Validate extracted data against SHACL shapes derived from
         this ontology.
 
@@ -1151,12 +1151,15 @@ class Ontology:
         ----------
         data:
             Dict with ``"nodes"`` and ``"relationships"`` lists.
+        closed:
+            Forwarded to :meth:`validate_extraction` — closed-vocabulary
+            admission (no ``Entity`` exemption, endpoint checks).
 
         Returns
         -------
         List of validation error strings (empty = valid).
         """
-        errors = list(self.validate_extraction(data))
+        errors = list(self.validate_extraction(data, closed=closed))
         shacl = self.to_shacl()
 
         # Build shape lookup: targetClass -> shape
@@ -1720,7 +1723,7 @@ class Ontology:
                     stack.extend(p for p in cur_nd.broader if p in self.nodes)
         return errors
 
-    def validate_extraction(self, data: Dict[str, Any]) -> List[str]:
+    def validate_extraction(self, data: Dict[str, Any], *, closed: bool = False) -> List[str]:
         """Validate extracted graph data against this ontology.
 
         Parameters
@@ -1728,6 +1731,17 @@ class Ontology:
         data:
             Dict with ``"nodes"`` and ``"relationships"`` lists as
             produced by the LLM extraction step.
+        closed:
+            Closed-vocabulary admission (seocho-snt). When True:
+
+            - the generic ``Entity`` label loses its exemption unless the
+              ontology actually declares it,
+            - relationship endpoints must reference extracted nodes
+              (dangling-endpoint check), and
+            - endpoint labels must conform to the relationship's declared
+              source/target (``Any`` wildcard, exact match, or subsumption
+              via the ``broader`` chain — author-time richness belongs in
+              validation, never in extraction prompts).
 
         Returns
         -------
@@ -1735,13 +1749,15 @@ class Ontology:
         """
         errors: List[str] = []
         known_ids: Set[str] = set()
+        label_by_id: Dict[str, str] = {}
 
         for node in data.get("nodes", []):
             nid = node.get("id", "")
             label = node.get("label", "")
             known_ids.add(nid)
+            label_by_id[nid] = label
 
-            if label not in self.nodes and label != "Entity":
+            if label not in self.nodes and (closed or label != "Entity"):
                 errors.append(f"Node '{nid}' has unknown label '{label}'")
                 continue
 
@@ -1759,8 +1775,51 @@ class Ontology:
             tgt = rel.get("target", "")
             if rtype not in self.relationships:
                 errors.append(f"Unknown relationship type '{rtype}'")
+                continue
+            if not closed:
+                continue
+            rd = self.relationships[rtype]
+            for endpoint, endpoint_id in (("source", src), ("target", tgt)):
+                if endpoint_id not in known_ids:
+                    errors.append(
+                        f"Relationship [{rtype}] {endpoint} '{endpoint_id}' "
+                        "does not reference an extracted node"
+                    )
+                    continue
+                declared = rd.source if endpoint == "source" else rd.target
+                actual = label_by_id.get(endpoint_id, "")
+                if not self._label_conforms(actual, declared):
+                    errors.append(
+                        f"Relationship [{rtype}] {endpoint} '{endpoint_id}' has label "
+                        f"'{actual}' but the ontology declares {endpoint} '{declared}'"
+                    )
 
         return errors
+
+    def _label_conforms(self, label: str, declared: str) -> bool:
+        """True when ``label`` satisfies a declared endpoint class.
+
+        Conformance = ``Any`` wildcard, exact match, or ``declared`` being
+        reachable through ``label``'s transitive ``broader`` chain
+        (subsumption).
+        """
+        if declared in ("", "Any") or label == declared:
+            return True
+        seen: Set[str] = set()
+        frontier = [label]
+        while frontier:
+            current = frontier.pop()
+            if current in seen:
+                continue
+            seen.add(current)
+            nd = self.nodes.get(current)
+            if nd is None:
+                continue
+            for parent in nd.broader or []:
+                if parent == declared:
+                    return True
+                frontier.append(parent)
+        return False
 
     def score_extraction(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Score the quality of extracted graph data against this ontology.
@@ -1890,11 +1949,20 @@ class Ontology:
     # Label safety
     # ------------------------------------------------------------------
 
-    def is_valid_label(self, label: str) -> bool:
-        return label in self._allowed_labels or label == "Entity"
+    def is_valid_label(self, label: str, *, allow_entity_fallback: bool = True) -> bool:
+        if label in self._allowed_labels:
+            return True
+        return allow_entity_fallback and label == "Entity"
 
-    def sanitize_label(self, label: str) -> str:
-        return label if self.is_valid_label(label) else "Entity"
+    def sanitize_label(self, label: str, *, allow_entity_fallback: bool = True) -> str:
+        if self.is_valid_label(label, allow_entity_fallback=allow_entity_fallback):
+            return label
+        if allow_entity_fallback:
+            return "Entity"
+        raise ValueError(
+            f"Label '{label}' is not declared by ontology '{self.name}' "
+            "and Entity fallback is disabled (strict enforcement)."
+        )
 
     # ------------------------------------------------------------------
     # Render cache — avoids recomputing identical string outputs

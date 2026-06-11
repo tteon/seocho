@@ -3,6 +3,22 @@
 This file is the lightweight index of architecture/product decisions.
 Each entry must link to a full ADR when impact is non-trivial.
 
+## 2026-06-11
+
+- [Proposed] ADR-0104 graphrag-bench-serializer-confound-fair-budget-tie
+  - prior "graph < vector" was a SERIALIZATION confound (graph dropped its own
+    stored raw text), not extraction recall/ontology — adding raw lifts both
+    SEOCHO and Graphiti on both judges (official GraphRAG-Bench, 2-judge)
+  - at a FAIR raw budget (`seocho_keepraw_topk` = struct + same top-k chunks as
+    vector), graph-as-context TIES vector; typed structure adds ≈0 over raw
+  - the earlier `seocho_keepraw` "win" was context quantity (whole-novel dump),
+    corrected
+  - decision: `keep_raw` is the default; budget-bounded relevance-ranked
+    serialization is the product direction; do NOT claim graph-retrieval
+    superiority on narrative QA; measure SEOCHO's real differentiator
+    (inference/governance) on entailment + Answerability benches, not retrieval QA
+  - risk: single corpus Novel-8559, n=25/type (underpowered); harness stays local
+
 ## 2026-06-03
 
 - Accepted `ADR-0099-ontology-control-plane-as-agentic-middleware-lock-in.md`

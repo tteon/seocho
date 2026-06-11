@@ -1044,6 +1044,8 @@ _LADYBUG_COMMON_NODE_STRING_COLUMNS = (
     "linked_id",
     "title",
     "uri",
+    "ticker",
+    "period",
     "description",
     "content",
     "content_preview",
@@ -1237,12 +1239,28 @@ def _rewrite_ladybug_query(cypher: str, params: Optional[Dict[str, Any]] = None)
         clause_factory=lambda key: f"toLower(coalesce(m.name, m.uri, '')) CONTAINS ${key}",
         joiner=" AND ",
     )
+    # seocho-g85: the financial-metric template moved its scope-token guard
+    # to a soft ANY(...) ranking signal in ORDER BY; expand that form too,
+    # or an empty token list reaches the engine as an untypeable [] param.
+    rewritten = _ladybug_expand_param_predicate(
+        rewritten,
+        query_params,
+        pattern=(
+            r"\(\$metric_scope_tokens\s*=\s*\[\]\s+OR\s+ANY\(\s*token\s+IN\s+\$metric_scope_tokens\s+WHERE\s+"
+            r"toLower\(coalesce\(m\.name,\s*m\.uri,\s*''\)\)\s+CONTAINS\s+token\s*\)\s*\)"
+        ),
+        param_name="metric_scope_tokens",
+        param_prefix="__ladybug_metric_scope_token_any",
+        clause_factory=lambda key: f"toLower(coalesce(m.name, m.uri, '')) CONTAINS ${key}",
+        joiner=" OR ",
+    )
     rewritten = _ladybug_expand_param_predicate(
         rewritten,
         query_params,
         pattern=(
             r"\(\$years\s*=\s*\[\]\s+OR\s+ANY\(\s*year\s+IN\s+\$years\s+WHERE\s+"
             r"coalesce\(toString\(m\.year\),\s*''\)\s*=\s*year\s+OR\s+"
+            r"(?:toLower\(coalesce\(toString\(m\.period\),\s*''\)\)\s+CONTAINS\s+year\s+OR\s+)?"
             r"toLower\(coalesce\(m\.name,\s*m\.uri,\s*''\)\)\s+CONTAINS\s+year\s*\)\s*\)"
         ),
         param_name="years",
@@ -1250,10 +1268,22 @@ def _rewrite_ladybug_query(cypher: str, params: Optional[Dict[str, Any]] = None)
         clause_factory=(
             lambda key: (
                 f"(coalesce(m.year, '') = ${key} OR "
+                f"toLower(coalesce(m.period, '')) CONTAINS ${key} OR "
                 f"toLower(coalesce(m.name, m.uri, '')) CONTAINS ${key})"
             )
         ),
         joiner=" OR ",
+    )
+    # seocho-g85: real_ladybug 0.15.3 asserts (parsed_parameter_expression.h:21,
+    # UNREACHABLE_CODE) when a $param appears inside a quantifier predicate
+    # body. labels() is scalar in ladybug (one table per node), so the
+    # membership test collapses to a top-level IN — stays fully
+    # parameterized, no literal inlining.
+    rewritten = re.sub(
+        r"ANY\(\s*(\w+)\s+IN\s+labels\((\w+)\)\s+WHERE\s+\1\s+IN\s+(\$\w+)\s*\)",
+        lambda match: f"labels({match.group(2)}) IN {match.group(3)}",
+        rewritten,
+        flags=re.IGNORECASE,
     )
     rewritten = re.sub(
         r"elementId\((\w+)\)",

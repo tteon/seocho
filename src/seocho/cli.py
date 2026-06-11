@@ -328,6 +328,38 @@ def build_parser() -> argparse.ArgumentParser:
     serve_http_parser.add_argument("--port", type=int, default=8010, help="Bind port")
     serve_http_parser.add_argument("--reload", action="store_true", help="Enable uvicorn reload mode")
 
+    run_parser = subparsers.add_parser(
+        "run",
+        help="Run a YAML-declared e2e flow: index documents, ask questions, write a report",
+    )
+    run_parser.add_argument(
+        "config",
+        nargs="?",
+        default="seocho.run.yaml",
+        help="Run spec YAML (default: ./seocho.run.yaml)",
+    )
+    run_parser.add_argument(
+        "--init", action="store_true",
+        help="Write a commented run spec template to the config path and exit",
+    )
+    run_parser.add_argument(
+        "--dry-run", action="store_true",
+        help="Validate the config and run offline preflight checks; no LLM calls",
+    )
+    run_parser.add_argument(
+        "--only", choices=["index", "query"],
+        help="Run a single phase (query reuses the existing graph)",
+    )
+    run_parser.add_argument(
+        "-o", "--output", default=None,
+        help="Report directory (default: runs/<name>-<timestamp>/)",
+    )
+    run_parser.add_argument(
+        "--force", action="store_true",
+        help="Re-index files even if unchanged",
+    )
+    run_parser.add_argument("--output-json", action="store_true", help="Emit JSON")
+
     traces_parser = subparsers.add_parser(
         "traces",
         help="Query trace spans from a JSONL file (read-safe, no server)",
@@ -361,7 +393,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-LOCAL_COMMANDS = {"init", "index", "local-ask", "status", "compare", "experiment", "bundle", "ontology", "serve-http", "traces"}
+LOCAL_COMMANDS = {"init", "index", "local-ask", "status", "compare", "experiment", "bundle", "ontology", "serve-http", "traces", "run"}
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
@@ -800,6 +832,8 @@ def _dispatch_local(args: argparse.Namespace) -> int:
         return _cmd_serve_http(args)
     if args.command == "traces":
         return _cmd_traces(args)
+    if args.command == "run":
+        return _cmd_run(args)
     raise SeochoError(f"Unknown local command: {args.command}")
 
 
@@ -1010,6 +1044,32 @@ def _cmd_index(args: argparse.Namespace) -> int:
         client.close()
 
     return 0
+
+
+def _cmd_run(args: argparse.Namespace) -> int:
+    """Run a YAML-declared e2e flow (or write a template with --init)."""
+    if args.init:
+        from .run_spec import RUN_SPEC_TEMPLATE
+
+        target = Path(args.config)
+        if target.exists():
+            print(f"{target} already exists — refusing to overwrite.", file=sys.stderr)
+            return 1
+        target.write_text(RUN_SPEC_TEMPLATE, encoding="utf-8")
+        print(f"Run spec template written to {target}")
+        print("Edit the ontology/documents/questions, then: seocho run")
+        return 0
+
+    from .e2e import run_from_config
+
+    return run_from_config(
+        args.config,
+        dry_run=args.dry_run,
+        only=args.only,
+        output_dir=args.output,
+        force=args.force,
+        json_output=getattr(args, "output_json", False),
+    )
 
 
 def _cmd_local_ask(args: argparse.Namespace) -> int:

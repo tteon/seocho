@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import time
 from dataclasses import dataclass, field
@@ -11,13 +12,24 @@ import requests
 from dotenv import dotenv_values
 
 from .exceptions import SeochoConnectionError, SeochoError
+from .instance import derive_instance
 from .models import JsonSerializable
+from .runtime_contract import DATABASE_NAME_PATTERN
 
 DEFAULT_API_PORT = "8001"
 DEFAULT_UI_PORT = "8501"
 DEFAULT_GRAPH_PORT = "7474"
+DEFAULT_BOLT_PORT = "7687"
 DEFAULT_FALLBACK_OPENAI_KEY = "dummy-key"
 _PLACEHOLDER_OPENAI_KEYS = {"sk-your-key-here", "your-openai-api-key", "changeme"}
+
+# Compose project name of the shared stack started by `make up` (Makefile sets
+# COMPOSE_PROJECT_NAME=seocho). Per-instance app tiers reach its neo4j to
+# create/drop their ephemeral logical databases.
+SHARED_PROJECT_NAME = "seocho"
+INSTANCE_COMPOSE_FILE = "docker-compose.instance.yml"
+
+_DATABASE_NAME_RE = re.compile(DATABASE_NAME_PATTERN)
 
 
 @dataclass(slots=True)
@@ -33,6 +45,8 @@ class LocalRuntimeStatus(JsonSerializable):
     runtime_status: str = ""
     graph_count: int = 0
     details: Dict[str, Any] = field(default_factory=dict)
+    instance: str = ""
+    database: str = ""
 
 
 def find_project_dir(start_dir: Optional[str] = None) -> Path:
@@ -65,13 +79,20 @@ def serve_local_runtime(
     timeout: float = 90.0,
     poll_interval: float = 2.0,
     fallback_openai_key: str = DEFAULT_FALLBACK_OPENAI_KEY,
+    instance: Optional[str] = None,
     dry_run: bool = False,
     runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
     http_get: Callable[..., requests.Response] = requests.get,
 ) -> LocalRuntimeStatus:
     root = find_project_dir(project_dir)
     settings = _load_runtime_settings(root)
+    layout = derive_instance(instance) if instance else None
+
     command = ["docker", "compose"]
+    if layout is not None:
+        # Per-instance app tier: its own project + self-contained app-only
+        # compose file, reaching the shared neo4j over the shared network.
+        command.extend(["-p", layout.project_name, "-f", INSTANCE_COMPOSE_FILE])
     if with_opik:
         command.extend(["--profile", "opik"])
     command.extend(["up", "-d"])
@@ -79,8 +100,17 @@ def serve_local_runtime(
         command.append("--build")
 
     env, used_fallback = _build_runtime_env(settings, fallback_openai_key=fallback_openai_key)
-    api_url = f"http://localhost:{settings['EXTRACTION_API_PORT']}"
-    ui_url = f"http://localhost:{settings['CHAT_INTERFACE_PORT']}"
+    if layout is not None:
+        env.update(layout.env_overrides())
+        api_port: str = str(layout.api_port)
+        ui_port: str = str(layout.ui_port)
+    else:
+        api_port = settings["EXTRACTION_API_PORT"]
+        ui_port = settings["CHAT_INTERFACE_PORT"]
+
+    api_url = f"http://localhost:{api_port}"
+    ui_url = f"http://localhost:{ui_port}"
+    # neo4j is shared, so its browser URL is always the shared HTTP port.
     graph_url = f"http://localhost:{settings['NEO4J_HTTP_PORT']}"
 
     if dry_run:
@@ -93,7 +123,14 @@ def serve_local_runtime(
             ui_url=ui_url,
             graph_url=graph_url,
             used_fallback_openai_key=used_fallback,
+            instance=instance or "",
+            database=layout.database if layout else "",
         )
+
+    # An instance's ephemeral logical database must exist on the shared neo4j
+    # before its app tier connects to it.
+    if layout is not None:
+        _admin_database(root, settings, layout.database, action="create", runner=runner)
 
     _run_compose(command, root, env, runner)
     runtime_status = ""
@@ -119,6 +156,8 @@ def serve_local_runtime(
         runtime_status=runtime_status,
         graph_count=graph_count,
         details=details,
+        instance=instance or "",
+        database=layout.database if layout else "",
     )
 
 
@@ -126,14 +165,28 @@ def stop_local_runtime(
     *,
     project_dir: Optional[str] = None,
     volumes: bool = False,
+    instance: Optional[str] = None,
     dry_run: bool = False,
     runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
 ) -> LocalRuntimeStatus:
     root = find_project_dir(project_dir)
     settings = _load_runtime_settings(root)
-    command = ["docker", "compose", "down"]
+    layout = derive_instance(instance) if instance else None
+
+    command = ["docker", "compose"]
+    if layout is not None:
+        command.extend(["-p", layout.project_name, "-f", INSTANCE_COMPOSE_FILE])
+    command.append("down")
     if volumes:
         command.append("-v")
+
+    if layout is not None:
+        api_url = f"http://localhost:{layout.api_port}"
+        ui_url = f"http://localhost:{layout.ui_port}"
+    else:
+        api_url = f"http://localhost:{settings['EXTRACTION_API_PORT']}"
+        ui_url = f"http://localhost:{settings['CHAT_INTERFACE_PORT']}"
+    graph_url = f"http://localhost:{settings['NEO4J_HTTP_PORT']}"
 
     if dry_run:
         return LocalRuntimeStatus(
@@ -141,20 +194,35 @@ def stop_local_runtime(
             status="dry_run",
             project_dir=str(root),
             command=command,
-            api_url=f"http://localhost:{settings['EXTRACTION_API_PORT']}",
-            ui_url=f"http://localhost:{settings['CHAT_INTERFACE_PORT']}",
-            graph_url=f"http://localhost:{settings['NEO4J_HTTP_PORT']}",
+            api_url=api_url,
+            ui_url=ui_url,
+            graph_url=graph_url,
+            instance=instance or "",
+            database=layout.database if layout else "",
         )
 
-    _run_compose(command, root, os.environ.copy(), runner)
+    # `docker compose -f docker-compose.instance.yml down` still interpolates the
+    # file, whose required vars (SEOCHO_DATABASE, ports) must be present even for
+    # teardown — so apply the same instance env overrides as serve.
+    down_env = os.environ.copy()
+    if layout is not None:
+        down_env.update(layout.env_overrides())
+    _run_compose(command, root, down_env, runner)
+    # Teardown removes only this instance's resources: its app project (above)
+    # and its ephemeral logical database. The shared neo4j is left intact.
+    if layout is not None:
+        _admin_database(root, settings, layout.database, action="drop", runner=runner)
+
     return LocalRuntimeStatus(
         action="stop",
         status="stopped",
         project_dir=str(root),
         command=command,
-        api_url=f"http://localhost:{settings['EXTRACTION_API_PORT']}",
-        ui_url=f"http://localhost:{settings['CHAT_INTERFACE_PORT']}",
-        graph_url=f"http://localhost:{settings['NEO4J_HTTP_PORT']}",
+        api_url=api_url,
+        ui_url=ui_url,
+        graph_url=graph_url,
+        instance=instance or "",
+        database=layout.database if layout else "",
     )
 
 
@@ -174,6 +242,9 @@ def _load_runtime_settings(project_dir: Path) -> Dict[str, str]:
         "EXTRACTION_API_PORT": merged.get("EXTRACTION_API_PORT", DEFAULT_API_PORT),
         "CHAT_INTERFACE_PORT": merged.get("CHAT_INTERFACE_PORT", DEFAULT_UI_PORT),
         "NEO4J_HTTP_PORT": merged.get("NEO4J_HTTP_PORT", DEFAULT_GRAPH_PORT),
+        "NEO4J_BOLT_PORT": merged.get("NEO4J_BOLT_PORT", DEFAULT_BOLT_PORT),
+        "NEO4J_USER": merged.get("NEO4J_USER", "neo4j"),
+        "NEO4J_PASSWORD": merged.get("NEO4J_PASSWORD", ""),
     }
 
 
@@ -220,6 +291,55 @@ def _run_compose(
         stdout = exc.stdout.strip() if isinstance(exc.stdout, str) else ""
         detail = stderr or stdout or str(exc)
         raise SeochoError(f"docker compose failed: {detail}") from exc
+
+
+def admin_database_command(
+    database: str, *, action: str, user: str = "neo4j", password: str = ""
+) -> List[str]:
+    """Build the docker/cypher-shell argv that creates or drops ``database``.
+
+    ``database`` is re-validated against the runtime contract before it is
+    interpolated into Cypher (defense in depth — derived names already comply).
+
+    cypher-shell runs *inside* the neo4j container, which does not inherit the
+    docker-compose client's environment, so the credentials are forwarded
+    explicitly with ``exec -e`` rather than relying on the client env.
+    """
+    if action not in ("create", "drop"):
+        raise SeochoError(f"unknown database admin action: {action!r}")
+    if not _DATABASE_NAME_RE.match(database):
+        raise SeochoError(
+            f"refusing to interpolate database name {database!r}: must match "
+            f"{DATABASE_NAME_PATTERN!r}"
+        )
+    if action == "create":
+        cypher = f"CREATE DATABASE `{database}` IF NOT EXISTS"
+    else:
+        cypher = f"DROP DATABASE `{database}` IF EXISTS"
+    command = ["docker", "compose", "-p", SHARED_PROJECT_NAME, "exec", "-T"]
+    command += ["-e", f"NEO4J_USERNAME={user or 'neo4j'}"]
+    if password:
+        command += ["-e", f"NEO4J_PASSWORD={password}"]
+    command += ["neo4j", "cypher-shell", "-d", "system", cypher]
+    return command
+
+
+def _admin_database(
+    project_dir: Path,
+    settings: Dict[str, str],
+    database: str,
+    *,
+    action: str,
+    runner: Callable[..., subprocess.CompletedProcess[str]],
+) -> None:
+    """Create/drop an ephemeral logical database on the shared neo4j."""
+    command = admin_database_command(
+        database,
+        action=action,
+        user=settings.get("NEO4J_USER") or "neo4j",
+        password=settings.get("NEO4J_PASSWORD") or "",
+    )
+    _run_compose(command, project_dir, os.environ.copy(), runner)
 
 
 def _wait_for_runtime_ready(

@@ -1,0 +1,34 @@
+name: quickstart
+description: Minimal company/person/product schema for the seocho run quickstart.
+nodes:
+  Company:
+    description: A business organization
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+  Person:
+    description: A person such as an executive or founder
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+  Product:
+    description: A product or service offered by a company
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+relationships:
+  CEO_OF:
+    source: Person
+    target: Company
+    description: Person leads the company as chief executive
+  ACQUIRED:
+    source: Company
+    target: Company
+    description: Company acquired another company
+  OFFERS:
+    source: Company
+    target: Product
+    description: Company offers a product or service

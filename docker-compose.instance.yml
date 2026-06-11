@@ -1,0 +1,59 @@
+# Per-instance app tier for worktree-isolated runtime boot (seocho-6q9.3).
+#
+# This is a SELF-CONTAINED compose file (used alone, not as an overlay on
+# docker-compose.yml) that brings up only the stateless app tier — extraction
+# API + thin UI — in its own compose project on offset ports, all reaching the
+# SHARED neo4j started by `make up`. Each instance drives its own ephemeral
+# logical database (SEOCHO_DATABASE), so the heavyweight graph backend stays
+# shared while worktrees never collide on ports, containers, or data.
+#
+# Boot:     COMPOSE_PROJECT_NAME=seocho-<id> EXTRACTION_API_PORT=81x0 \
+#           CHAT_INTERFACE_PORT=86x0 SEOCHO_DATABASE=wt<hash> \
+#           docker compose -f docker-compose.instance.yml up -d
+# Network:  attaches to the shared stack's external `seocho-net`.
+services:
+  extraction-service:
+    build:
+      context: .
+      dockerfile: extraction/Dockerfile
+    ports:
+      - "${SEOCHO_BIND_HOST:-127.0.0.1}:${EXTRACTION_API_PORT:-8100}:8001"
+    volumes:
+      - ./notebooks:/app/notebooks
+      - ./demos:/app/demos
+    environment:
+      # Reach the shared neo4j by its container name on the shared network,
+      # not compose-internal service DNS (a different project owns it).
+      - NEO4J_URI=bolt://graphrag-neo4j:7687
+      - NEO4J_USER=${NEO4J_USER:-neo4j}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in .env before starting compose}
+      # Per-instance ephemeral logical database (required for isolation).
+      - "NEO4J_DATABASE=${SEOCHO_DATABASE:?Set SEOCHO_DATABASE via seocho serve --instance <id>}"
+      - "SEOCHO_DATABASE=${SEOCHO_DATABASE:?Set SEOCHO_DATABASE via seocho serve --instance <id>}"
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - SEOCHO_TRACE_BACKEND=${SEOCHO_TRACE_BACKEND:-none}
+      - SEOCHO_TRACE_JSONL_PATH=${SEOCHO_TRACE_JSONL_PATH:-/tmp/seocho-runtime.jsonl}
+    networks:
+      - graphrag-net
+
+  evaluation-interface:
+    build: ./evaluation
+    command: uvicorn server:app --host 0.0.0.0 --port 8501
+    ports:
+      - "${SEOCHO_BIND_HOST:-127.0.0.1}:${CHAT_INTERFACE_PORT:-8600}:8501"
+    volumes:
+      - ./evaluation:/app
+    environment:
+      # Resolves to this instance's own extraction-service (same project).
+      - EXTRACTION_SERVICE_URL=http://extraction-service:8001
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    depends_on:
+      - extraction-service
+    networks:
+      - graphrag-net
+
+networks:
+  graphrag-net:
+    # The shared stack (docker-compose.yml) owns this network; attach to it.
+    name: seocho-net
+    external: true

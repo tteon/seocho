@@ -20,9 +20,12 @@ selection (same interface, non-breaking).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 from ..semantic_layer import ObservationSlots
+from ..semantic_layer.concepts import ConceptRegistry
+from ..semantic_layer.identity import EntityResolver
+from .ontology_grounding import ground
 
 # Route hints (the planner is the decider; these are signals).
 STRUCTURED = "STRUCTURED"   # slots resolve + graph holds the observation → exact-key compile
@@ -151,3 +154,56 @@ def arbitrate(
                        available_periods=probe.available_periods, **base,
                        confidence={"slots_resolved": True, "graph_has_data": True},
                        rationale="slots resolved and observation present; exact-key compile")
+
+
+# ---------------------------------------------------------------------------
+# v2: multi-ontology manifest selection (measure → WHICH ontology)
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True, slots=True)
+class OntologyManifest:
+    """A registered ontology's closed vocabulary + entity resolver."""
+    ontology_id: str
+    registry: ConceptRegistry
+    resolver: EntityResolver
+
+
+@dataclass(frozen=True, slots=True)
+class ManifestMatch:
+    ontology_id: Optional[str]
+    manifest: Optional[OntologyManifest]
+    score: float
+    scores: Dict[str, float] = field(default_factory=dict)
+
+
+def select_ontology(
+    metric_surface: str,
+    manifests: Sequence[OntologyManifest],
+    *,
+    scorer: Any = None,
+    threshold: float = 0.4,
+) -> ManifestMatch:
+    """Pick the manifest whose concept vocabulary best matches the metric surface.
+
+    Same measure→hint shape as the arbiter, scaled to N registries: exact
+    closed-vocab membership scores 1.0, otherwise the best grounding score
+    (bge/lexical) against that manifest's candidate surfaces. Returns the
+    top manifest above ``threshold``, else a null match (route to FAIL /
+    narrative). v1 (single manifest) is the degenerate case.
+    """
+    best: Optional[OntologyManifest] = None
+    best_score = 0.0
+    scores: Dict[str, float] = {}
+    for m in manifests:
+        if m.registry.resolve(metric_surface):
+            score = 1.0
+        else:
+            ranked = ground(metric_surface, list(m.registry.candidate_surfaces),
+                            top_k=1, threshold=0.0, scorer=scorer)
+            score = ranked[0][1] if ranked else 0.0
+        scores[m.ontology_id] = round(score, 3)
+        if score > best_score:
+            best_score, best = score, m
+    if best is None or best_score < threshold:
+        return ManifestMatch(None, None, round(best_score, 3), scores)
+    return ManifestMatch(best.ontology_id, best, round(best_score, 3), scores)

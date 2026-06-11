@@ -181,12 +181,6 @@ Default `make up` or `docker compose up -d` starts:
 - `extraction-service`
 - `evaluation-interface`
 
-Legacy service kept behind an explicit profile:
-
-```bash
-docker compose --profile legacy-semantic up -d semantic-service
-```
-
 That means the current first-run product path is:
 
 1. store graph state in `data/neo4j/`

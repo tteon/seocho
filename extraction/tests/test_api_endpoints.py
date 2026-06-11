@@ -158,6 +158,40 @@ class TestListEndpoints:
         assert kwargs["workspace_id"] == "tenant_a"
         assert kwargs["action"] == "read_databases"
 
+    # --- IDOR fix: platform chat session GET/DELETE were unguarded ---
+    # Any caller could read or clear any session_id. These pin the authz gate.
+
+    async def test_chat_session_get_denied_returns_403(self, client, app_module):
+        with patch.object(
+            app_module, "require_runtime_permission", side_effect=PermissionError("denied"),
+        ):
+            response = await client.get("/platform/chat/session/sess-1")
+        assert response.status_code == 403
+
+    async def test_chat_session_delete_denied_returns_403(self, client, app_module):
+        with patch.object(
+            app_module, "require_runtime_permission", side_effect=PermissionError("denied"),
+        ):
+            response = await client.delete("/platform/chat/session/sess-1")
+        assert response.status_code == 403
+
+    async def test_chat_session_get_allowed_by_default(self, client, app_module):
+        # auth disabled -> require_runtime_permission is a no-op -> 200 (preserved)
+        response = await client.get("/platform/chat/session/unknown-sess")
+        assert response.status_code == 200
+        assert response.json()["history"] == []
+
+    async def test_chat_session_authz_uses_session_workspace(self, client, app_module):
+        app_module.platform_session_store.append(
+            "sess-b", "user", "hi", metadata={"workspace_id": "tenant_b"}
+        )
+        with patch.object(app_module, "require_runtime_permission") as mock_perm:
+            response = await client.get("/platform/chat/session/sess-b")
+        assert response.status_code == 200
+        _, kwargs = mock_perm.call_args
+        assert kwargs["workspace_id"] == "tenant_b"
+        assert kwargs["action"] == "run_platform"
+
     async def test_execute_cypher_tool_uses_query_proxy(self, app_module):
         context = types.SimpleNamespace(
             context=app_module.ServerContext(
@@ -1313,3 +1347,63 @@ class TestQueryValidation:
         request = fake_proxy.query.call_args.args[0]
         assert request.workspace_id == "default"
         assert request.database == "kgnormal"
+
+
+@pytest.mark.anyio
+class TestAuthOnMode:
+    """seocho-6gt: end-to-end enforcement when SEOCHO_AUTH_MODE=token.
+
+    Auth is wired (PrincipalMiddleware + require_runtime_permission) but had no
+    ON-mode e2e coverage. The middleware reads the mode per request, so flipping
+    the env mid-test exercises the real token path.
+    """
+
+    @staticmethod
+    def _token(role, workspace_id="default", subject="u"):
+        from runtime.identity import issue_token
+        return issue_token("e2e-secret", subject=subject, role=role, workspace_id=workspace_id)
+
+    @staticmethod
+    def _enable(monkeypatch):
+        monkeypatch.setenv("SEOCHO_AUTH_MODE", "token")
+        monkeypatch.setenv("SEOCHO_AUTH_SECRET", "e2e-secret")
+
+    async def test_missing_token_is_401(self, client, monkeypatch):
+        self._enable(monkeypatch)
+        resp = await client.get("/databases")
+        assert resp.status_code == 401
+
+    async def test_bad_token_is_401(self, client, monkeypatch):
+        self._enable(monkeypatch)
+        resp = await client.get("/databases", headers={"Authorization": "Bearer garbage"})
+        assert resp.status_code == 401
+
+    async def test_viewer_denied_write_action_is_403(self, client, monkeypatch):
+        self._enable(monkeypatch)
+        # viewer lacks run_agent -> 403 fires before the agent runs
+        resp = await client.post(
+            "/run_agent_semantic",
+            json={"query": "hi", "workspace_id": "default"},
+            headers={"Authorization": f"Bearer {self._token('viewer')}"},
+        )
+        assert resp.status_code == 403
+
+    async def test_cross_workspace_principal_is_403(self, client, monkeypatch):
+        self._enable(monkeypatch)
+        # user scoped to 'acme' may not act on 'other' (workspace ownership)
+        resp = await client.get(
+            "/databases",
+            params={"workspace_id": "other"},
+            headers={"Authorization": f"Bearer {self._token('user', workspace_id='acme')}"},
+        )
+        assert resp.status_code == 403
+
+    async def test_in_scope_user_is_allowed(self, client, monkeypatch):
+        self._enable(monkeypatch)
+        # user@default, read_databases on its own workspace -> allowed
+        resp = await client.get(
+            "/databases",
+            params={"workspace_id": "default"},
+            headers={"Authorization": f"Bearer {self._token('user', workspace_id='default')}"},
+        )
+        assert resp.status_code == 200

@@ -5,15 +5,11 @@ Fulltext index discovery/bootstrap helpers for DozerDB/Neo4j-compatible backends
 from __future__ import annotations
 
 import json
-import re
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-
-_IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
-
-
-def is_valid_identifier(value: str) -> bool:
-    return bool(_IDENT_RE.match(value))
+# Canonical identifier validation lives in the SDK; re-exported here so existing
+# ``from extraction.fulltext_index import is_valid_identifier`` callers keep working.
+from seocho.cypher_ident import IDENT_RE as _IDENT_RE, is_valid_identifier
 
 
 def validate_identifiers(values: Sequence[str], field_name: str) -> List[str]:

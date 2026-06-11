@@ -27,6 +27,7 @@ import time
 from abc import ABC, abstractmethod
 from typing import Any, Callable, Dict, List, Optional, Sequence
 
+from seocho.cypher_ident import IDENT_RE, is_valid_identifier
 from seocho.ontology import Ontology
 
 logger = logging.getLogger(__name__)
@@ -34,7 +35,9 @@ logger = logging.getLogger(__name__)
 # Indirection so tests can monkeypatch the poll delay to run instantly.
 _sleep = time.sleep
 
-_LABEL_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+# Canonical identifier validation/quoting lives in seocho.cypher_ident; the
+# ``_LABEL_RE`` alias keeps the existing call sites in this module unchanged.
+_LABEL_RE = IDENT_RE
 
 
 def _is_property_value(value: Any) -> bool:
@@ -361,66 +364,97 @@ class Neo4jGraphStore(GraphStore):
 
         summary = {"nodes_created": 0, "relationships_created": 0, "errors": []}
 
+        # seocho-4rg (Lamport): stamp a writer timestamp so concurrent/replayed
+        # writes are last-writer-wins by time rather than by arrival order. The
+        # MERGE guards below refuse to overwrite a node/rel that already carries
+        # a NEWER _writer_ts, so a stale retry (e.g. a crashed ingest replayed)
+        # cannot clobber a fresher fact. One ts per write() call.
+        now = time.time()
+
+        # Group by label/type and write each group in one UNWIND round-trip
+        # (labels/rel-types can't be parameterized in MERGE, so we batch per
+        # distinct label). A batch that throws falls back to per-row so one bad
+        # row neither loses its siblings nor its error message — behavior stays
+        # identical to the old per-row loop, just N round-trips -> #labels.
+        nodes_by_label: Dict[str, List[Dict[str, Any]]] = {}
+        for node in nodes:
+            label = node.get("label", "Entity")
+            if not _LABEL_RE.match(label):
+                summary["errors"].append(f"Invalid label: {label}")
+                continue
+            props = dict(node.get("properties", {}))
+            props["_source_id"] = source_id
+            props["_workspace_id"] = workspace_id
+            props["_writer_ts"] = now
+            props["_writer_agent"] = source_id or "unknown"
+            node_id = node.get("id", props.get("name", ""))
+            props["id"] = node_id
+            nodes_by_label.setdefault(label, []).append({"id": node_id, "props": props})
+
+        rels_by_type: Dict[str, List[Dict[str, Any]]] = {}
+        for rel in relationships:
+            rtype = rel.get("type", "RELATED_TO")
+            if not _LABEL_RE.match(rtype):
+                summary["errors"].append(f"Invalid relationship type: {rtype}")
+                continue
+            props = {k: v for k, v in dict(rel.get("properties", {})).items()
+                     if _is_property_value(v)}
+            props["_source_id"] = source_id
+            props["_workspace_id"] = workspace_id
+            props["_writer_ts"] = now
+            props["_writer_agent"] = source_id or "unknown"
+            rels_by_type.setdefault(rtype, []).append(
+                {"src": rel.get("source", ""), "tgt": rel.get("target", ""), "props": props})
+
         with self._driver.session(database=database) as session:
-            # --- Nodes ---
-            for node in nodes:
-                label = node.get("label", "Entity")
-                if not _LABEL_RE.match(label):
-                    summary["errors"].append(f"Invalid label: {label}")
-                    continue
-                props = dict(node.get("properties", {}))
-                props["_source_id"] = source_id
-                props["_workspace_id"] = workspace_id
-                node_id = node.get("id", props.get("name", ""))
-                props["id"] = node_id
-
+            # --- Nodes (one UNWIND per label) ---
+            for label, rows in nodes_by_label.items():
+                # label validated against _LABEL_RE above; interpolated raw.
+                # LWW guard: apply incoming props only if this write is newer
+                # (or the node has no writer ts yet); stale replays no-op.
+                batch_q = (
+                    f"UNWIND $rows AS row MERGE (n:{label} {{id: row.id}}) "
+                    "SET n += CASE WHEN n._writer_ts IS NULL "
+                    "OR n._writer_ts <= row.props._writer_ts THEN row.props ELSE {} END"
+                )
                 try:
-                    session.run(
-                        f"MERGE (n:{label} {{id: $id}}) SET n += $props",
-                        id=node_id,
-                        props=props,
-                    )
-                    summary["nodes_created"] += 1
-                except Exception as exc:
-                    summary["errors"].append(f"Node {node_id}: {exc}")
+                    session.run(batch_q, rows=rows)
+                    summary["nodes_created"] += len(rows)
+                except Exception:
+                    for row in rows:
+                        try:
+                            session.run(
+                                f"MERGE (n:{label} {{id: $id}}) SET n += CASE WHEN "
+                                "n._writer_ts IS NULL OR n._writer_ts <= $props._writer_ts "
+                                "THEN $props ELSE {} END",
+                                id=row["id"], props=row["props"])
+                            summary["nodes_created"] += 1
+                        except Exception as exc:
+                            summary["errors"].append(f"Node {row['id']}: {exc}")
 
-            # --- Relationships ---
-            for rel in relationships:
-                rtype = rel.get("type", "RELATED_TO")
-                if not _LABEL_RE.match(rtype):
-                    summary["errors"].append(f"Invalid relationship type: {rtype}")
-                    continue
-                src = rel.get("source", "")
-                tgt = rel.get("target", "")
-                props = dict(rel.get("properties", {}))
-
+            # --- Relationships (one UNWIND per type) ---
+            for rtype, rows in rels_by_type.items():
+                # rtype validated against _LABEL_RE above; interpolated raw
+                batch_q = (f"UNWIND $rows AS row MATCH (a {{id: row.src}}), (b {{id: row.tgt}}) "
+                           f"MERGE (a)-[r:{rtype}]->(b) "
+                           "SET r += CASE WHEN r._writer_ts IS NULL "
+                           "OR r._writer_ts <= row.props._writer_ts THEN row.props ELSE {} END")
                 try:
-                    set_clauses = [
-                        "r._source_id = $source_id",
-                        "r._workspace_id = $workspace_id",
-                    ]
-                    params: Dict[str, Any] = {
-                        "src": src,
-                        "tgt": tgt,
-                        "source_id": source_id,
-                        "workspace_id": workspace_id,
-                    }
-                    for idx, (key, value) in enumerate(props.items()):
-                        if not _is_property_value(value):
-                            continue
-                        safe_key = key.replace("`", "")
-                        param_name = f"prop_{idx}"
-                        set_clauses.append(f"r.`{safe_key}` = ${param_name}")
-                        params[param_name] = value
-                    session.run(
-                        f"MATCH (a {{id: $src}}), (b {{id: $tgt}}) "
-                        f"MERGE (a)-[r:{rtype}]->(b) "
-                        f"SET {', '.join(set_clauses)}",
-                        **params,
-                    )
-                    summary["relationships_created"] += 1
-                except Exception as exc:
-                    summary["errors"].append(f"Rel {src}-[{rtype}]->{tgt}: {exc}")
+                    session.run(batch_q, rows=rows)
+                    summary["relationships_created"] += len(rows)
+                except Exception:
+                    for row in rows:
+                        try:
+                            session.run(
+                                f"MATCH (a {{id: $src}}), (b {{id: $tgt}}) "
+                                f"MERGE (a)-[r:{rtype}]->(b) SET r += CASE WHEN "
+                                "r._writer_ts IS NULL OR r._writer_ts <= $props._writer_ts "
+                                "THEN $props ELSE {} END",
+                                src=row["src"], tgt=row["tgt"], props=row["props"])
+                            summary["relationships_created"] += 1
+                        except Exception as exc:
+                            summary["errors"].append(
+                                f"Rel {row['src']}-[{rtype}]->{row['tgt']}: {exc}")
 
         if summary["nodes_created"] or summary["relationships_created"]:
             self.invalidate_schema_cache(database)
@@ -527,8 +561,15 @@ class Neo4jGraphStore(GraphStore):
                 except Exception as exc:
                     try:
                         tx.rollback()
-                    except Exception:
-                        pass
+                    except Exception as rollback_exc:
+                        # A failed rollback can leave the transaction in an
+                        # unknown state; swallowing it silently makes that
+                        # impossible to diagnose. Log it, but still surface the
+                        # original error below.
+                        logger.warning(
+                            "rollback failed after ensure_constraints error: %s",
+                            rollback_exc,
+                        )
                     # Reset success counter — the rollback undid everything
                     # that successfully ran in this transaction.
                     summary["success"] = 0
@@ -632,8 +673,6 @@ class Neo4jGraphStore(GraphStore):
         if key in self._index_stats_cache and (now - cached_ts) < self._schema_cache_ttl:
             return self._index_stats_cache[key]
 
-        from extraction.fulltext_index import is_valid_identifier
-
         try:
             with self._driver.session(database=database) as session:
                 indexes: List[Dict[str, Any]] = []
@@ -665,6 +704,7 @@ class Neo4jGraphStore(GraphStore):
                     try:
                         # F7: LIMIT-bounded probe caps the scan at sample_limit.
                         count_rec = session.run(
+                            # label passed is_valid_identifier above; interpolated raw
                             f"MATCH (n:{label}) "
                             "WHERE n._workspace_id = $workspace_id "
                             "WITH n LIMIT $sample_limit "
@@ -692,6 +732,7 @@ class Neo4jGraphStore(GraphStore):
                         continue
                     try:
                         count_rec = session.run(
+                            # rt passed is_valid_identifier above; interpolated raw
                             f"MATCH ()-[r:{rt}]->() "
                             "WHERE r._workspace_id = $workspace_id "
                             "WITH r LIMIT $sample_limit "
@@ -1027,6 +1068,8 @@ _LADYBUG_COMMON_NODE_STRING_COLUMNS = (
     "_ontology_version",
     "_ontology_profile",
     "_ontology_graph_model",
+    "_ontology_schema_fingerprint",
+    "_ontology_version_valid",
     "_workspace_id",
     "_source_id",
 )
@@ -1045,6 +1088,8 @@ _LADYBUG_COMMON_REL_STRING_COLUMNS = (
     "_ontology_version",
     "_ontology_profile",
     "_ontology_graph_model",
+    "_ontology_schema_fingerprint",
+    "_ontology_version_valid",
 )
 _LADYBUG_NODE_PROJECTION_KEYS = (
     "id",

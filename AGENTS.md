@@ -21,6 +21,16 @@ Also read `docs/GRAPH_RAG_AGENT_HANDOFF_SPEC.md` when touching semantic
 retrieval, public memory answering, Graph-RAG behavior, routing policy, or
 multi-agent query flow.
 
+### AGENTS.md vs `.AGENTS.md`
+
+This file (`AGENTS.md`) is the canonical execution contract — coding standards,
+repo map, review discipline. The dotfile `.AGENTS.md` is a thin supplement that
+defines only SEOCHO's **ExecPlan** shorthand (per `.PLANS.md`) for complex
+features/refactors; it does not restate or override anything here. Boundary:
+durable agent rules go in `AGENTS.md`; ExecPlan format/decision-style goes in
+`.AGENTS.md`. The ADR index is validated by `scripts/ci/check_adr_index.py`
+(no new duplicate IDs; every DECISION_LOG reference resolves).
+
 ## Repo Map
 
 | Path | Role |

@@ -103,7 +103,7 @@ Every published **FIBO ontology**, regardless of its maturity level, must includ
 1. An **ontology IRI**, following the [FIBO standard IRI format](#fibo-standard-iri-format)
 1. A **label** (in English, which is a spelled out name for the ontology)
 1. An **abstract** - short description of the ontology
-1. A **license** - we use the [MIT open source license](LICENSE) for all FIBO ontologies
+1. A **license** - we use the [MIT open source license](../../LICENSE) for all FIBO ontologies
 1. An indication of the **content language, which is OWL**, linking to the W3C site
 1. A **copyright statement** - which always includes the EDM Council copyright and, for released ontologies that are being incorporated into the joint EDM Council / OMG standard, the OMG copyright
 1. An indication of the **dependencies that the ontology has on other ontologies** - a link to the other domains/modules referenced, and within the relevant domain, links to the domain-level ontologies referenced

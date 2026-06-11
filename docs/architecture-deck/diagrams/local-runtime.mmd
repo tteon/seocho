@@ -10,7 +10,6 @@ flowchart LR
     subgraph OPTIONAL ["Optional Profiles"]
         direction TB
         OPIK["Opik Stack<br/><small>--profile opik<br/>port 5173</small>"]
-        SEM["semantic-service<br/><small>--profile legacy-semantic</small>"]
     end
 
     USER["Developer"] --> EVAL
@@ -25,5 +24,4 @@ flowchart LR
     style EXT fill:#1a1a3e,stroke:#6c63ff,color:#e8e8f0
     style EVAL fill:#2a1a3e,stroke:#ff6b6b,color:#e8e8f0
     style OPIK fill:#1a1a2e,stroke:#2a2a40,color:#9090a8
-    style SEM fill:#1a1a2e,stroke:#2a2a40,color:#9090a8
     style USER fill:#2a1a4e,stroke:#6c63ff,color:#e8e8f0

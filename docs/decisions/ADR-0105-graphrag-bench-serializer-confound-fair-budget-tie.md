@@ -1,4 +1,4 @@
-# ADR-0104: Graph-as-Context Serializer Confound + Fair-Budget Graph≈Vector Tie (GraphRAG-Bench)
+# ADR-0105: Graph-as-Context Serializer Confound + Fair-Budget Graph≈Vector Tie (GraphRAG-Bench)
 
 Date: 2026-06-11
 Status: Proposed

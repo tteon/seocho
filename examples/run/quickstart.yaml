@@ -1,0 +1,17 @@
+# Quickstart run spec — try it from the repo root:
+#
+#   export MARA_API_KEY=...        # or switch models.default below
+#   seocho run examples/run/quickstart.yaml
+#
+# No graph server needed: with no `graph:` key the run uses the embedded
+# LadybugDB engine. See docs/RUN_SPECS.md for every available key.
+name: quickstart
+
+ontology: ./schema.yaml
+documents: ./docs/
+
+questions:
+  - What product does Acme Corp offer?
+  - question: Who is the CEO of Acme Corp?
+    expect: Jane Park
+  - What did Beta Industries acquire?

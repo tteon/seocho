@@ -16,6 +16,9 @@ Requires:
     - Neo4j/DozerDB running on bolt://localhost:7687
     - OPENAI_API_KEY in .env
     - OPIK_API_KEY in .env (optional, for Opik cloud)
+
+For a config-driven version of this flow (one YAML, no Python), see
+``seocho run`` and docs/RUN_SPECS.md.
 """
 
 from __future__ import annotations

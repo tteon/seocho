@@ -4,7 +4,12 @@ DOCKER_COMPOSE = docker compose
 DOCKER_COMPOSE_LIVE = docker compose -f docker-compose.yml -f docker-compose.dev.yml
 DOCKER_COMPOSE_TUTORIALS = docker compose -f docker-compose.tutorials.yml
 
-.PHONY: up up-live up-legacy-semantic down restart logs clean bootstrap shell test test-integration e2e-smoke lint format help opik-up opik-down opik-logs demo-raw demo-meta demo-neo4j demo-graphrag-opik demo-all setup-env tutorials-up tutorials-down tutorials-logs tutorials-shell tutorials-build tutorials-smoke tutorials-test tutorials-pytest tutorials-gds
+# Shared stack project name (fixed so per-instance app tiers can target its
+# neo4j for ephemeral-database admin — see src/seocho/local.py).
+SHARED_PROJECT = seocho
+SEOCHO_CLI = python3 -m seocho.cli
+
+.PHONY: up up-live down restart logs clean bootstrap shell test test-integration e2e-smoke lint format help opik-up opik-down opik-logs demo-raw demo-meta demo-neo4j demo-graphrag-opik demo-all setup-env tutorials-up tutorials-down tutorials-logs tutorials-shell tutorials-build tutorials-smoke tutorials-test tutorials-pytest tutorials-gds
 
 ##@ Development
 
@@ -25,29 +30,35 @@ bootstrap: ## Bootstrap the development environment
 setup-env: ## Interactive .env setup (OpenAI key, Opik, ports)
 	@bash scripts/setup/init-env.sh
 
-up: ## Start core local stack (DozerDB + extraction API + platform UI)
+up: ## Start core local stack; or an isolated app tier with INSTANCE=<id>
+ifeq ($(strip $(INSTANCE)),)
 	@echo "🐳 Starting Seocho core local stack from an image-backed source snapshot..."
-	@docker compose up -d --build
+	@COMPOSE_PROJECT_NAME=$(SHARED_PROJECT) docker compose up -d --build
 	@echo "✅ Services started!"
 	@echo "🖥️  Platform UI: http://localhost:$${CHAT_INTERFACE_PORT:-8501}"
 	@echo "🧠 Backend API Docs: http://localhost:$${EXTRACTION_API_PORT:-8001}/docs"
 	@echo "🗄️  DozerDB Browser: http://localhost:$${NEO4J_HTTP_PORT:-7474}"
-	@echo "ℹ️  Legacy semantic-service is opt-in: docker compose --profile legacy-semantic up -d semantic-service"
 	@echo "ℹ️  For a bind-mounted live edit loop, use: make up-live"
+	@echo "ℹ️  For an isolated per-worktree runtime, use: make up INSTANCE=<id>"
+else
+	@echo "🐳 Booting isolated instance '$(INSTANCE)' (offset ports + ephemeral DB) against the shared neo4j..."
+	@echo "ℹ️  Requires the shared stack to be running first: make up"
+	@$(SEOCHO_CLI) serve --instance $(INSTANCE) --build
+endif
 
 up-live: ## Start core local stack with live bind mounts for extraction/runtime/src/seocho
 	@echo "🐳 Starting Seocho core local stack with live source mounts..."
 	@$(DOCKER_COMPOSE_LIVE) up -d --build
 	@echo "✅ Live-mount services started."
 
-up-legacy-semantic: ## Start the legacy semantic-service profile too
-	@echo "🐳 Starting Seocho core stack with legacy semantic-service..."
-	@docker compose --profile legacy-semantic up -d
-	@echo "✅ Legacy semantic-service started."
-
-down: ## Stop all services
+down: ## Stop all services; or tear down one isolated instance with INSTANCE=<id>
+ifeq ($(strip $(INSTANCE)),)
 	@echo "🛑 Stopping services..."
-	@docker compose down
+	@COMPOSE_PROJECT_NAME=$(SHARED_PROJECT) docker compose down
+else
+	@echo "🛑 Tearing down instance '$(INSTANCE)' and dropping only its ephemeral DB..."
+	@$(SEOCHO_CLI) stop --instance $(INSTANCE)
+endif
 
 restart: ## Restart all services
 	@echo "🔄 Restarting services..."
@@ -72,6 +83,18 @@ test-integration: ## Run integration-focused extraction tests
 e2e-smoke: ## Run dockerized runtime smoke checks (ingest + semantic + debate)
 	@echo "🧪 Running e2e smoke checks..."
 	@bash scripts/integration/e2e_runtime_smoke.sh
+
+bench-finder-synergy: ## FinDER synergy headline: signal-routed cost vs all-frontier (add LIVE=N for MARA support parity)
+	@echo "📊 FinDER synergy benchmark (ontology-governed answering + signal-routed model)..."
+	@python3 scripts/benchmarks/finder_synergy.py $(if $(LIVE),--live $(LIVE),) $(if $(DATASET),--dataset $(DATASET),)
+
+bench-finder-cache: ## Synergy #1: persistent-cache hit-rate + latency win (needs DozerDB + MARA; PASSWORD=, LIMIT=)
+	@echo "📊 FinDER cache synergy (persistent ResponseCache cross-session reuse)..."
+	@python3 scripts/benchmarks/finder_cache_synergy.py $(if $(PASSWORD),--neo4j-password $(PASSWORD),) $(if $(LIMIT),--limit $(LIMIT),)
+
+bench-finder-parity: ## Synergy #2 live: routed model tiers vs all-frontier on the wired path (needs DozerDB + MARA)
+	@echo "📊 FinDER routing parity (SEOCHO_MODEL_ROUTING wired path, routed vs all-frontier)..."
+	@python3 scripts/benchmarks/finder_routing_parity.py
 
 demo-raw: ## Run beginner raw-data demo pipeline
 	@bash scripts/demo/pipeline_raw_data.sh

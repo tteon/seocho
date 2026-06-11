@@ -1,8 +1,0 @@
-fastapi
-uvicorn
-neo4j
-langchain
-langchain-openai
-pydantic
-pytest
-httpx

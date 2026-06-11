@@ -27,7 +27,8 @@ services:
     build:
       context: .
       dockerfile: extraction/Dockerfile
-    container_name: extraction-service
+    # No fixed container_name: the app tier runs per-instance (seocho-6q9.3),
+    # so compose derives <project>-extraction-service-<n> to avoid collisions.
     ports:
       - "${SEOCHO_BIND_HOST:-127.0.0.1}:${EXTRACTION_NOTEBOOK_PORT:-8888}:8888"
       - "${SEOCHO_BIND_HOST:-127.0.0.1}:${EXTRACTION_API_PORT:-8001}:8001"
@@ -53,26 +54,8 @@ services:
     networks:
       - graphrag-net
 
-  semantic-service:
-    build: ./semantic
-    container_name: semantic-service
-    profiles: ["legacy-semantic"]
-    volumes:
-      - ./semantic:/app
-    environment:
-      # Container-internal hostname. Host-side SDK/scripts should use
-      # NEO4J_URI=bolt://localhost:7687 in .env.
-      - NEO4J_URI=bolt://neo4j:7687
-      - NEO4J_USER=${NEO4J_USER:-neo4j}
-      - NEO4J_PASSWORD=${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in .env before starting compose}
-    depends_on:
-      - neo4j
-    networks:
-      - graphrag-net
-
   evaluation-interface:
     build: ./evaluation
-    container_name: evaluation-interface
     command: uvicorn server:app --host 0.0.0.0 --port 8501
     ports:
       - "${SEOCHO_BIND_HOST:-127.0.0.1}:${CHAT_INTERFACE_PORT:-8501}:8501"
@@ -272,4 +255,7 @@ services:
 
 networks:
   graphrag-net:
+    # Fixed name so per-instance app projects (docker-compose.instance.yml,
+    # seocho-6q9.3) can attach to the shared stack's network as `external`.
+    name: seocho-net
     driver: bridge

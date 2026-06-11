@@ -246,7 +246,8 @@ def main() -> int:
             "MERGE (s:SourceRef {src_db: m.src_db, src_eid: m.src_eid, "
             "                    _workspace_id:$ws}) "
             "SET s.name = m.name, s.model = m.model, s.dept = m.dept, "
-            "    s.business_key = m.business_key "
+            "    s.business_key = m.business_key, "
+            "    s.src_instance = coalesce(m.src_instance, '') "
             "CREATE (g)-[:DERIVED_FROM {source_business_key: m.business_key}]->(s)",
             params={"rows": goldens, "ws": MASTER_WS,
                     "rv": ruleset.version, "rsha": ruleset.sha256},
@@ -310,6 +311,7 @@ def main() -> int:
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "ruleset_version": ruleset.version, "ruleset_sha256": ruleset.sha256,
         "panel_size": panel_size,
+        "case_anchor": case_anchor,
         "golden_entities": goldens,
         "golden_facts": golden_facts,
         "steward_tasks": steward_tasks,

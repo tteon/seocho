@@ -1,0 +1,20 @@
+# Bronze-tier instance map — one physical DozerDB per department.
+# Consumed by 08_migrate_to_instances.py, 03_federate_and_stage.py --instances,
+# and 09_federated_benchmark.py. The GDS host (main graphrag-neo4j at
+# NEO4J_URI) is the "designated secondary" that federates these shards.
+instances:
+  risk:
+    uri: bolt://localhost:7688
+    database: neo4j          # one instance = one department -> default DB
+    model: DeepSeek-V3.1
+    source_db: mdmrisk       # origin DB on the main instance (migration source)
+  research:
+    uri: bolt://localhost:7689
+    database: neo4j
+    model: gpt-oss-120b
+    source_db: mdmresearch
+  compliance:
+    uri: bolt://localhost:7690
+    database: neo4j
+    model: MiniMax-M2.5
+    source_db: mdmcompliance

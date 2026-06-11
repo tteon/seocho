@@ -1,0 +1,69 @@
+# Bronze tier — one PHYSICAL DozerDB instance per department.
+#
+# This is the multi-instance analogue of Neo4j's composite-database topology:
+# each department runs its own DBMS (own bolt endpoint, own storage, own
+# lifecycle — true data sovereignty), and the GDS host (the main
+# graphrag-neo4j instance) plays the "designated secondary" from the Neo4j
+# composite+GDS docs: graph projections there are built from data read off
+# these shards. The shards themselves need NO GDS plugin — exactly like the
+# documented composite pattern.
+#
+# Usage (from repo root; --project-directory makes the root .env and ./data
+# paths resolve):
+#   docker compose --project-directory . -f examples/mdm/docker-compose.instances.yml up -d
+#   bash examples/mdm/07_up_instances.sh   # up + wait-online wrapper
+#
+# Ports: risk 7475/7688 · research 7476/7689 · compliance 7477/7690.
+# Data dirs live under data/mdm-instances/<dept>/ (gitignored with data/).
+
+x-dozer-dept: &dozer-dept
+  image: graphstack/dozerdb:5.26.3.0
+  environment: &dozer-dept-env
+    - NEO4J_AUTH=${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in .env}
+    # Department shards are plain stores: APOC only, no GDS (composite-docs
+    # pattern — analytics run on the secondary, not the shards).
+    - NEO4J_PLUGINS=["apoc"]
+    - NEO4J_dbms_security_procedures_unrestricted=apoc.*
+    - NEO4J_dbms_security_procedures_allowlist=apoc.*
+    # Small heap: a few hundred nodes per shard.
+    - NEO4J_server_memory_heap_initial__size=512m
+    - NEO4J_server_memory_heap_max__size=1g
+    - NEO4J_server_memory_pagecache_size=256m
+  networks:
+    - graphrag-net
+
+services:
+  dozer-risk:
+    <<: *dozer-dept
+    container_name: dozer-risk
+    ports:
+      - "${SEOCHO_BIND_HOST:-127.0.0.1}:7475:7474"
+      - "${SEOCHO_BIND_HOST:-127.0.0.1}:7688:7687"
+    volumes:
+      - ./data/mdm-instances/risk/data:/data
+      - ./data/mdm-instances/risk/logs:/logs
+
+  dozer-research:
+    <<: *dozer-dept
+    container_name: dozer-research
+    ports:
+      - "${SEOCHO_BIND_HOST:-127.0.0.1}:7476:7474"
+      - "${SEOCHO_BIND_HOST:-127.0.0.1}:7689:7687"
+    volumes:
+      - ./data/mdm-instances/research/data:/data
+      - ./data/mdm-instances/research/logs:/logs
+
+  dozer-compliance:
+    <<: *dozer-dept
+    container_name: dozer-compliance
+    ports:
+      - "${SEOCHO_BIND_HOST:-127.0.0.1}:7477:7474"
+      - "${SEOCHO_BIND_HOST:-127.0.0.1}:7690:7687"
+    volumes:
+      - ./data/mdm-instances/compliance/data:/data
+      - ./data/mdm-instances/compliance/logs:/logs
+
+networks:
+  graphrag-net:
+    name: seocho_graphrag-net
+    external: true

@@ -94,7 +94,7 @@ def main() -> int:
             "       p.norm_name AS norm_name, p.labels AS labels, "
             "       p.src_db AS src_db, p.src_eid AS src_eid, p.dept AS dept, "
             "       p.model AS model, p.business_key AS business_key, "
-            "       p.case_id AS case_id",
+            "       p.case_id AS case_id, p.src_instance AS src_instance",
             params={"ws": STAGING_WS}, database=STAGING_DB)
         by_eid = {p["eid"]: p for p in proxies}
         clusters: dict[int, list[dict]] = {}

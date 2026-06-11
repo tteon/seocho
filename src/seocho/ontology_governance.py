@@ -85,6 +85,22 @@ def lint_ontology(ontology: Ontology) -> Dict[str, Any]:
                 "Subclass (broader) hierarchy contains a cycle.")
             break
 
+    # 4. relationship endpoint hygiene: a non-wildcard source/target must be a
+    #    class defined in THIS composition. A dangling endpoint is legitimate
+    #    mid-composition (the class lives in a sibling module not yet merged in),
+    #    so this is a WARNING, not an error — but it must be surfaced: a rel
+    #    whose endpoint never resolves yields no Cypher constraint and no
+    #    traversal (e.g. `acc:GOVERNS -> FinancialMetric` when `acc` is composed
+    #    without `ind`). GRL principle 3 ("always validate after change").
+    for rtype, rd in ontology.relationships.items():
+        for role in ("source", "target"):
+            endpoint = str(getattr(rd, role, "Any") or "Any")
+            if endpoint != "Any" and endpoint not in node_labels:
+                add("warning", "relationship_endpoint", rtype,
+                    f"Relationship '{rtype}' {role} '{endpoint}' is not a class "
+                    f"defined in this ontology (dangling endpoint — resolves only "
+                    f"if a module providing '{endpoint}' is composed in).")
+
     errors = [f for f in findings if f["severity"] == "error"]
     warnings = [f for f in findings if f["severity"] == "warning"]
     return {"ok": not errors, "errors": errors, "warnings": warnings, "findings": findings}
@@ -150,6 +166,87 @@ def competency_question_coverage(
         "coverage_ratio": (covered / total) if total else 1.0,
         "question_count": len(competency_questions),
         "empty_questions": empty_questions,
+    }
+
+
+def load_competency_questions(path: str | Path) -> List[Dict[str, Any]]:
+    """Load the authored competency-question set (YAML; ``competency_questions``
+    list). Each entry carries at least ``id``, ``question`` and ``requires``
+    (FIBO element labels). Pure file read — offline, never on the hot path.
+    """
+    import yaml  # local import: governance is an offline path
+
+    source = Path(path)
+    if not source.exists():
+        raise FileNotFoundError(f"Competency-question file not found: {source}")
+    data = yaml.safe_load(source.read_text(encoding="utf-8")) or {}
+    questions = data.get("competency_questions", [])
+    if not isinstance(questions, list):
+        raise ValueError(f"{source}: 'competency_questions' must be a list.")
+    return [dict(q) for q in questions if isinstance(q, dict)]
+
+
+def competency_question_report(
+    ontology: Ontology,
+    competency_questions: Sequence[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """Per-CQ structural diagnosis for ONE ontology arm + element coverage.
+
+    This is the live wiring for :func:`competency_question_coverage` and the
+    schema-side half of the CQ x arm matrix (GRL Artefact 1 / §19): for each CQ,
+    is the arm's vocabulary able to express it at all?
+
+    A CQ is ``expressible`` when every label in its ``requires`` list is a node
+    label, a relationship type, or an alias of one **in this ontology**;
+    otherwise the CQ is structurally impossible for this arm and
+    ``missing_elements`` records why (e.g. an S3 segment CQ in the ``small``
+    arm, which lacks ``HAS_SEGMENT``). The arbiter route a CQ *should* take is
+    carried through unchanged as ``expected_route`` for the execution-side
+    comparison. Pure model walk; never on the hot path.
+    """
+    # membership set: labels + rel types + aliases, casefolded
+    members = set()
+    for label, nd in ontology.nodes.items():
+        members.add(label.casefold())
+        for alias in (getattr(nd, "aliases", []) or []):
+            members.add(str(alias).casefold())
+    for rtype, rd in ontology.relationships.items():
+        members.add(rtype.casefold())
+        for alias in (getattr(rd, "aliases", []) or []):
+            members.add(str(alias).casefold())
+
+    questions_out: List[Dict[str, Any]] = []
+    coverage_texts: List[str] = []
+    expressible_count = 0
+    for cq in competency_questions:
+        requires = [str(r) for r in (cq.get("requires") or [])]
+        missing = [r for r in requires if r.casefold() not in members]
+        expressible = not missing
+        if expressible:
+            expressible_count += 1
+        questions_out.append({
+            "id": cq.get("id"),
+            "slice": cq.get("slice"),
+            "kind": cq.get("kind"),
+            "hops": cq.get("hops"),
+            "expected_route": cq.get("expected_route"),
+            "requires": requires,
+            "missing_elements": missing,
+            "expressible": expressible,
+            "verdict": "expressible" if expressible else "schema_impossible",
+        })
+        # element labels must appear in the text the coverage matcher scans
+        coverage_texts.append(f"{cq.get('question', '')} {' '.join(requires)}")
+
+    coverage = competency_question_coverage(ontology, coverage_texts)
+    total = len(questions_out)
+    return {
+        "question_count": total,
+        "expressible_count": expressible_count,
+        "schema_impossible_count": total - expressible_count,
+        "expressible_ratio": (expressible_count / total) if total else 1.0,
+        "questions": questions_out,
+        "coverage": coverage,
     }
 
 
@@ -314,6 +411,7 @@ class OntologyGovernanceReport:
     sample_data_validation: GovernanceValidationResult
     owlready2_inspection: Optional[Owlready2InspectionResult]
     notes: List[str]
+    competency: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -330,6 +428,7 @@ class OntologyGovernanceReport:
                 else None
             ),
             "notes": list(self.notes),
+            "competency": dict(self.competency) if self.competency is not None else None,
         }
 
 
@@ -412,6 +511,7 @@ def build_ontology_governance_report(
     *,
     artifact_name: Optional[str] = None,
     include_owl_inspection: bool = True,
+    competency_questions: Optional[Sequence[Dict[str, Any]]] = None,
 ) -> OntologyGovernanceReport:
     from .ontology_context import compile_ontology_context
 
@@ -461,6 +561,15 @@ def build_ontology_governance_report(
         ok = False
         notes.append("Generated SHACL export contains unsupported rules.")
 
+    competency: Optional[Dict[str, Any]] = None
+    if competency_questions:
+        competency = competency_question_report(ontology, competency_questions)
+        if competency["schema_impossible_count"]:
+            notes.append(
+                f"{competency['schema_impossible_count']}/{competency['question_count']} "
+                "competency questions are structurally impossible for this ontology arm."
+            )
+
     return OntologyGovernanceReport(
         source=source_path,
         ok=ok,
@@ -471,6 +580,7 @@ def build_ontology_governance_report(
         sample_data_validation=sample_validation,
         owlready2_inspection=owlready2_inspection,
         notes=notes,
+        competency=competency,
     )
 
 
@@ -802,6 +912,78 @@ def governance_gate(
     }
 
 
+def conformance_score(
+    ontology: Ontology,
+    *,
+    competency_questions: Optional[Sequence[Dict[str, Any]]] = None,
+    run_reasoner: bool = False,
+    threshold: float = 0.8,
+) -> Dict[str, Any]:
+    """Scalar conformance score + explicit hard gates (GRL Artefact 7).
+
+    Collapses the offline governance signals into one 0..1 score and a pass/fail
+    so an ontology arm can be blocked from the experiment until it conforms (the
+    §16 user-first-release-gate analog for ontologies). Offline / pure; reasoner
+    optional (off by default to stay cheap and respect the §6.3 boundary).
+
+    Hard gates (any failing => ``passed`` is False regardless of score):
+      - structural check ok
+      - zero lint ERRORS
+      - reasoner did not prove inconsistency (unknown / unavailable never blocks)
+
+    Soft components, averaged into ``score``:
+      - structural_ok, lint_ok (0/1 each)
+      - cq_expressible_ratio (1.0 when no CQs are supplied)
+      - shacl_message_coverage (fraction of constrained property shapes that
+        carry a plain-English ``sh:message``, GRL Artefact 3)
+    """
+    gate = governance_gate(ontology, run_reasoner=run_reasoner)
+    structural_ok = bool(gate["structural"]["ok"])
+    lint_error_count = len(gate["lint"]["errors"])
+    consistency_val = gate["consistency"].get("consistent")
+    consistency_state = (
+        "inconsistent" if consistency_val is False
+        else "consistent" if consistency_val is True
+        else "unknown"
+    )
+
+    cq_ratio: Optional[float] = None
+    if competency_questions:
+        cq_ratio = competency_question_report(ontology, competency_questions)["expressible_ratio"]
+
+    shacl = ontology.to_shacl()
+    prop_shapes = [
+        prop
+        for shape in shacl.get("shapes", []) if isinstance(shape, dict)
+        for prop in shape.get("properties", []) if isinstance(prop, dict)
+    ]
+    constrained = [p for p in prop_shapes
+                   if p.get("minCount") is not None or p.get("maxCount") is not None]
+    with_msg = [p for p in constrained if p.get("message")]
+    msg_cov = (len(with_msg) / len(constrained)) if constrained else 1.0
+
+    components = [
+        1.0 if structural_ok else 0.0,
+        1.0 if lint_error_count == 0 else 0.0,
+        cq_ratio if cq_ratio is not None else 1.0,
+        msg_cov,
+    ]
+    score = sum(components) / len(components)
+    hard_ok = structural_ok and lint_error_count == 0 and consistency_val is not False
+    return {
+        "score": round(score, 4),
+        "threshold": threshold,
+        "passed": bool(hard_ok and score >= threshold),
+        "components": {
+            "structural_ok": structural_ok,
+            "lint_error_count": lint_error_count,
+            "consistency": consistency_state,
+            "cq_expressible_ratio": cq_ratio,
+            "shacl_message_coverage": round(msg_cov, 4),
+        },
+    }
+
+
 def _build_shacl_export(ontology: Ontology) -> Dict[str, Any]:
     shacl_document = ontology.to_shacl()
     return {
@@ -854,6 +1036,9 @@ def _render_shacl_turtle(shacl_document: Dict[str, Any]) -> str:
                 terms.append(f"sh:minCount {int(prop.get('minCount', 0))}")
             if prop.get("maxCount") is not None:
                 terms.append(f"sh:maxCount {int(prop.get('maxCount', 0))}")
+            if prop.get("message"):
+                escaped = str(prop["message"]).replace('"', '\\"')
+                terms.append(f'sh:message "{escaped}"')
             for term_index, term in enumerate(terms):
                 suffix = " ;" if term_index < len(terms) - 1 else ""
                 lines.append(f"    {term}{suffix}")

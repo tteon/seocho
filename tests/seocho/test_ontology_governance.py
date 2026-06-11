@@ -5,15 +5,54 @@ import types
 
 import pytest
 
+from pathlib import Path
+
 from seocho.ontology import NodeDef, Ontology, P, RelDef
 from seocho.ontology_governance import (
     build_ontology_governance_report,
     check_ontology,
+    competency_question_report,
     diff_ontologies,
     export_ontology_payload,
     inspect_owl_ontology,
+    lint_ontology,
+    load_competency_questions,
     validate_rdf_with_pyshacl,
 )
+
+_CQ_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "examples" / "finder" / "datasets" / "competency_questions.yaml"
+)
+
+
+def _arm(*, with_segments: bool) -> Ontology:
+    """A minimal ontology resembling a FinDER sweep arm.
+
+    Always has the metric core (be+ind shape); ``with_segments`` adds the fbc
+    HAS_SEGMENT structure so S3/S4 segment CQs become expressible (medium arm)
+    vs not (small arm).
+    """
+    nodes = {
+        "LegalEntity": NodeDef(
+            description="A registered business.",
+            properties={"name": P(str, unique=True)},
+            aliases=["Company"],
+        ),
+        "Revenue": NodeDef(description="Top-line revenue.", properties={"name": P(str, unique=True)}),
+        "NetIncome": NodeDef(description="Bottom line.", properties={"name": P(str, unique=True)}),
+        "OperatingIncome": NodeDef(description="Operating profit.", properties={"name": P(str, unique=True)}),
+        "FinancialMetric": NodeDef(description="Abstract metric.", properties={"name": P(str, unique=True)}),
+    }
+    rels = {
+        "REPORTED_METRIC": RelDef(source="LegalEntity", target="FinancialMetric", description="reported"),
+    }
+    if with_segments:
+        nodes["BusinessSegment"] = NodeDef(description="Reportable segment.", properties={"name": P(str, unique=True)})
+        nodes["ProductOrService"] = NodeDef(description="Product.", properties={"name": P(str, unique=True)})
+        rels["HAS_SEGMENT"] = RelDef(source="LegalEntity", target="BusinessSegment", description="operates")
+        rels["PROVIDES"] = RelDef(source="LegalEntity", target="ProductOrService", description="provides")
+    return Ontology(name="arm", version="1.0.0", graph_model="lpg", nodes=nodes, relationships=rels)
 
 
 def _ontology(*, version: str = "1.0.0") -> Ontology:
@@ -224,3 +263,113 @@ ex:year a owl:DatatypeProperty ;
     assert report.shacl_export["stats"]["property_shape_count"] >= 2
     assert report.sample_data_validation.ok is True
     assert report.owlready2_inspection is None
+
+
+# --- relationship-endpoint hygiene (GRL principle 3: validate after change) ---
+
+def test_lint_flags_dangling_relationship_endpoint_as_warning() -> None:
+    # GOVERNS -> FinancialMetric with no FinancialMetric class (acc composed
+    # without ind): dangling endpoint must surface, but must NOT block (warning).
+    ontology = Ontology(
+        name="acc_only",
+        graph_model="lpg",
+        nodes={"AccountingPolicy": NodeDef(description="policy", properties={"name": P(str, unique=True)})},
+        relationships={"GOVERNS": RelDef(source="AccountingPolicy", target="FinancialMetric", description="governs")},
+    )
+    lint = lint_ontology(ontology)
+    endpoint_findings = [f for f in lint["findings"] if f["check"] == "relationship_endpoint"]
+    assert endpoint_findings, "dangling endpoint should be reported"
+    assert all(f["severity"] == "warning" for f in endpoint_findings)
+    assert lint["ok"] is True  # warning does not flip ok
+
+
+def test_lint_passes_when_endpoints_resolve() -> None:
+    ontology = _arm(with_segments=True)
+    lint = lint_ontology(ontology)
+    assert not [f for f in lint["findings"] if f["check"] == "relationship_endpoint"]
+
+
+# --- competency-question structural diagnosis (CQ x arm matrix, schema side) ---
+
+def test_load_competency_questions_authored_set() -> None:
+    cqs = load_competency_questions(_CQ_PATH)
+    assert len(cqs) >= 10  # GRL Artefact 1: 10-12 CQs
+    slices = {cq["slice"] for cq in cqs}
+    assert {"S1_FIN_COMP", "S3_CO_COMP", "S5_FN_MULTI", "S6_BASELINE_SINGLE"} <= slices
+    for cq in cqs:  # every CQ must declare what it requires (no empty CQ)
+        assert cq.get("requires"), f"{cq.get('id')} missing 'requires'"
+
+
+def test_segment_cqs_are_schema_impossible_for_small_arm() -> None:
+    cqs = load_competency_questions(_CQ_PATH)
+    small = competency_question_report(_arm(with_segments=False), cqs)
+    medium = competency_question_report(_arm(with_segments=True), cqs)
+
+    def _verdict(report, cq_id):
+        return next(q["verdict"] for q in report["questions"] if q["id"] == cq_id)
+
+    # S3 segment CQ: impossible without HAS_SEGMENT (small) -> expressible (medium)
+    assert _verdict(small, "S3-CQ1") == "schema_impossible"
+    assert _verdict(medium, "S3-CQ1") == "expressible"
+    # metric CQs are expressible in BOTH arms (be+ind core present in both)
+    assert _verdict(small, "S1-CQ1") == "expressible"
+    assert _verdict(small, "S6-CQ1") == "expressible"
+    # adding the fbc structure can only raise expressibility, never lower it
+    assert medium["expressible_count"] > small["expressible_count"]
+
+
+def test_competency_report_records_missing_elements_and_route() -> None:
+    cqs = load_competency_questions(_CQ_PATH)
+    report = competency_question_report(_arm(with_segments=False), cqs)
+    s3 = next(q for q in report["questions"] if q["id"] == "S3-CQ1")
+    assert "HAS_SEGMENT" in s3["missing_elements"]
+    assert s3["expected_route"] == "NARRATIVE"  # carried through for execution-side
+    # the dead competency_question_coverage is now wired & returns a real ratio
+    assert 0.0 <= report["coverage"]["coverage_ratio"] <= 1.0
+    assert report["coverage"]["question_count"] == len(cqs)
+
+
+def test_every_authored_cq_requires_real_labels() -> None:
+    """Guard against fabricated CQ `requires` labels (this test caught a real
+    HAS_DEBT vs ISSUED_DEBT authoring error). Every required label must exist in
+    the FULL module union (the `large` arm)."""
+    import importlib.util
+
+    fibo = (
+        Path(__file__).resolve().parents[2]
+        / "examples" / "finder" / "datasets" / "fibo_modules" / "compose.py"
+    )
+    spec = importlib.util.spec_from_file_location("fibo_compose", fibo)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    union = mod.compose_modules(
+        ["be", "ind", "fbc", "dbt", "acc", "fnd", "sec", "mkt", "corp"]
+    )
+    members = {x.casefold() for x in list(union.nodes) + list(union.relationships)}
+    for nd in union.nodes.values():
+        members.update(a.casefold() for a in (getattr(nd, "aliases", []) or []))
+
+    cqs = load_competency_questions(_CQ_PATH)
+    fabricated = [
+        (cq.get("id"), r)
+        for cq in cqs
+        for r in (cq.get("requires") or [])
+        if r.casefold() not in members
+    ]
+    assert not fabricated, f"CQ requires reference labels absent from any module: {fabricated}"
+
+
+def test_build_report_includes_competency_when_cqs_passed(tmp_path) -> None:
+    ttl = tmp_path / "arm.ttl"
+    # reuse the TTL fixture path indirectly: write a tiny ontology via to_dict->yaml
+    import yaml as _yaml
+    arm = _arm(with_segments=False)
+    src = tmp_path / "arm.yaml"
+    src.write_text(_yaml.safe_dump(arm.to_dict()), encoding="utf-8")
+    cqs = load_competency_questions(_CQ_PATH)
+    report = build_ontology_governance_report(
+        src, include_owl_inspection=False, competency_questions=cqs
+    )
+    assert report.competency is not None
+    assert report.competency["schema_impossible_count"] >= 1  # segment CQs
+    assert report.to_dict()["competency"]["question_count"] == len(cqs)

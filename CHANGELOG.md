@@ -3,6 +3,40 @@
 All notable changes to this project are documented here. Versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] — 2026-06-04
+
+Minor release shipping the ontology-as-semantic-layer + arbiter retrieval path
+(ADR-0103) and a new ontology-engineering layer. The previously published 0.4.1
+predated all of this. Additive and env-gated; no breaking API changes.
+
+### Added — semantic layer + arbiter (ADR-0103)
+- **`seocho.semantic_layer`** — closed `MetricConcept` vocabulary (the LLM selects,
+  never invents), CIK entity identity, typed periods, and reified `Observation`
+  nodes with a deterministic `obs_id` SHA1 key (idempotent `MERGE` across chunks).
+- **`seocho.query.arbiter`** — neutral *measure → routing hint* (`STRUCTURED` /
+  `NARRATIVE` / `CLARIFY` / `FAIL`); turns a silent empty structured result into an
+  explicit, observable route (`ArbiterHint.to_span()`).
+- **`seocho.query.semantic_query.semantic_answer`** — decompose → arbitrate →
+  compile → execute → format; MARA-first, no fallback masking.
+- **`seocho.index.observation_writer`** — transform extracted nodes/rels into
+  reified `(Company, Observation)` records.
+
+### Added — ontology-engineering layer (GRL KGC-2026 methodology)
+- **Competency questions** — `ontology_governance.competency_question_report()`
+  (wires the previously-dead `competency_question_coverage`) for a per-arm
+  expressible / schema-impossible verdict; authored CQ set under `examples/`.
+- **Conformance + fix-and-resync** — `ontology_governance.conformance_score()`
+  (scalar + hard gates) and **`seocho.ontology_resync.resync_ontology()`**
+  (regenerate SHACL/JSON-LD + re-validate + score + diff in one offline flow).
+- **Adversarial critique** — `seocho.index.extraction_critique` (env-gated
+  `SEOCHO_ONTOLOGY_CRITIQUE`, recall/precision diagnostic, never auto-applied).
+- `to_shacl()` now emits plain-English `sh:message`; `lint_ontology()` flags
+  dangling relationship endpoints.
+
+### Packaging
+- Add `Programming Language :: Python :: 3.10` classifier (matches
+  `requires-python>=3.10`).
+
 ## [0.4.1] — 2026-05-16
 
 ### Added

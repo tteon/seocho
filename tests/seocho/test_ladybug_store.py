@@ -577,3 +577,90 @@ class TestOntologyContextColumnContract:
         stamped = set(ontology_context_graph_properties({}))
         assert stamped <= set(_LADYBUG_COMMON_NODE_STRING_COLUMNS)
         assert stamped <= set(_LADYBUG_COMMON_REL_STRING_COLUMNS)
+
+
+class TestCrossDocumentEntityMerge:
+    """seocho-8ct: MERGE must key on the table's declared PRIMARY KEY.
+
+    With ontology-declared tables the PK is the unique property (name);
+    LLM-generated node ids differ per document, so id-keyed MERGE turned
+    every cross-document re-mention into a duplicate-PK write failure."""
+
+    def test_same_name_different_ids_merge_into_one_node(self, ontology, tmp_path):
+        store = LadybugGraphStore(str(tmp_path / "xdoc.lbug"))
+        try:
+            store.ensure_constraints(ontology)
+
+            doc1 = store.write(
+                nodes=[{"id": "company_1", "label": "Company",
+                        "properties": {"name": "Acme Corp"}}],
+                relationships=[],
+                source_id="doc-1",
+            )
+            assert doc1["errors"] == []
+
+            doc2 = store.write(
+                nodes=[{"id": "companyX", "label": "Company",
+                        "properties": {"name": "Acme Corp", "status": "active"}}],
+                relationships=[],
+                source_id="doc-2",
+            )
+            assert doc2["errors"] == [], doc2
+
+            rows = store.query("MATCH (c:Company) RETURN c.name, c.status, c._source_id")
+            assert len(rows) == 1
+            row = rows[0]
+            values = list(row.values()) if isinstance(row, dict) else list(row)
+            assert "Acme Corp" in values
+            assert "active" in values
+            assert "doc-2" in values  # last write wins
+        finally:
+            store.close()
+
+    def test_relationships_attach_across_documents(self, ontology, tmp_path):
+        store = LadybugGraphStore(str(tmp_path / "xdoc_rel.lbug"))
+        try:
+            store.ensure_constraints(ontology)
+            first = store.write(
+                nodes=[{"id": "c1", "label": "Company", "properties": {"name": "Acme"}}],
+                relationships=[],
+                source_id="doc-1",
+            )
+            assert first["errors"] == []
+            second = store.write(
+                nodes=[
+                    {"id": "p9", "label": "Person", "properties": {"name": "Alice"}},
+                    {"id": "c9", "label": "Company", "properties": {"name": "Acme"}},
+                ],
+                relationships=[
+                    {"source": "p9", "target": "c9", "type": "WORKS_AT", "properties": {}},
+                ],
+                source_id="doc-2",
+            )
+            assert second["errors"] == [], second
+            assert second["relationships_created"] == 1
+
+            rows = store.query(
+                "MATCH (p:Person)-[:WORKS_AT]->(c:Company) RETURN p.name, c.name"
+            )
+            assert len(rows) == 1
+        finally:
+            store.close()
+
+    def test_id_pk_tables_keep_id_keyed_merge(self, tmp_path):
+        store = LadybugGraphStore(str(tmp_path / "idpk.lbug"))
+        try:
+            # No ensure_constraints: lazy table declaration uses id as PK.
+            first = store.write(
+                nodes=[{"id": "n1", "label": "Note", "properties": {"name": "alpha"}}],
+                relationships=[], source_id="d1",
+            )
+            second = store.write(
+                nodes=[{"id": "n1", "label": "Note", "properties": {"name": "beta"}}],
+                relationships=[], source_id="d2",
+            )
+            assert first["errors"] == [] and second["errors"] == []
+            rows = store.query("MATCH (n:Note) RETURN n.name")
+            assert len(rows) == 1
+        finally:
+            store.close()

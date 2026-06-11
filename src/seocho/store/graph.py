@@ -1354,6 +1354,11 @@ class LadybugGraphStore(GraphStore):
         self._declared_rel_tables: set = set()
         self._semantic_rel_types: set = set()
         self._rel_signature_to_table: Dict[tuple[str, str, str], str] = {}
+        # seocho-8ct: node-table PRIMARY KEY column per label. MERGE must key
+        # on the declared PK — keying on ``id`` while the PK is a unique
+        # ontology property (usually ``name``) turns every cross-document
+        # re-mention of an entity into a duplicate-PK write failure.
+        self._node_table_pk: Dict[str, str] = {}
         self._load_existing_schema()
 
     def _locked_execute(self, *args, **kwargs):
@@ -1378,12 +1383,29 @@ class LadybugGraphStore(GraphStore):
                     table_type = str(row_list[2]).upper() if len(row_list) > 2 else ""
                     if "NODE" in table_type:
                         self._declared_node_tables.add(table_name)
+                        self._node_table_pk[table_name] = self._discover_table_pk(table_name)
                     elif "REL" in table_type:
                         self._declared_rel_tables.add(table_name)
                         self._semantic_rel_types.add(_ladybug_semantic_rel_type(table_name))
         except Exception:
             # CALL show_tables() may not be supported; ignore
             pass
+
+    def _discover_table_pk(self, table_name: str) -> str:
+        """Return the PRIMARY KEY column of an existing node table.
+
+        ``table_info`` rows end with a primary-key flag; if the call or the
+        shape is unsupported, fall back to ``id`` (the lazy-declared default).
+        """
+        try:
+            result = self._locked_execute(f"CALL table_info('{table_name}') RETURN *")
+            for row in result:
+                row_list = row if isinstance(row, list) else list(row)
+                if len(row_list) >= 2 and bool(row_list[-1]):
+                    return str(row_list[1])
+        except Exception:
+            pass
+        return "id"
 
     def _ensure_node_table(self, label: str, sample_props: Dict[str, Any]) -> None:
         if label in self._declared_node_tables or not _LABEL_RE.match(label):
@@ -1404,6 +1426,7 @@ class LadybugGraphStore(GraphStore):
                 f"CREATE NODE TABLE IF NOT EXISTS `{label}` ({col_list}, PRIMARY KEY (`{pk}`))"
             )
             self._declared_node_tables.add(label)
+            self._node_table_pk[label] = pk
         except Exception as exc:
             logger.warning("Failed to create node table %s: %s", label, exc)
 
@@ -1477,21 +1500,37 @@ class LadybugGraphStore(GraphStore):
             self._ensure_node_table(label, props)
             node_label_by_id[node_id] = label
 
+            # seocho-8ct: MERGE on the table's declared PRIMARY KEY. When the
+            # PK is a unique ontology property (usually ``name``), keying on
+            # ``id`` misses cross-document re-mentions of the same entity
+            # (LLM-generated ids differ per document) and the CREATE then
+            # violates the PK constraint, failing the whole file. The engine
+            # also rejects SET on the PK column, so it must stay out of the
+            # SET map (which previously pushed every MERGE into the CREATE
+            # fallback path).
+            pk_col = self._node_table_pk.get(label, "id")
+            if pk_col != "id" and props.get(pk_col):
+                merge_col, merge_value = pk_col, props[pk_col]
+            else:
+                merge_col, merge_value = "id", node_id
             prop_keys = [k for k in props if _LABEL_RE.match(k)]
-            set_clause = ", ".join(f"`{k}`: $p_{i}" for i, k in enumerate(prop_keys))
-            params = {f"p_{i}": props[k] for i, k in enumerate(prop_keys)}
+            set_keys = [k for k in prop_keys if k != merge_col]
+            set_clause = ", ".join(f"`{k}`: $p_{i}" for i, k in enumerate(set_keys))
+            set_params = {f"p_{i}": props[k] for i, k in enumerate(set_keys)}
+            create_clause = ", ".join(f"`{k}`: $c_{i}" for i, k in enumerate(prop_keys))
+            create_params = {f"c_{i}": props[k] for i, k in enumerate(prop_keys)}
+            statement = f"MERGE (n:`{label}` {{`{merge_col}`: $merge_key}})"
+            if set_clause:
+                statement += f" SET n = {{{set_clause}}}"
             try:
-                self._locked_execute(
-                    f"MERGE (n:`{label}` {{id: $id}}) SET n = {{{set_clause}}}",
-                    {"id": node_id, **params},
-                )
+                self._locked_execute(statement, {"merge_key": merge_value, **set_params})
                 summary["nodes_created"] += 1
             except Exception:
                 # Fallback: CREATE if MERGE dialect differs
                 try:
                     self._locked_execute(
-                        f"CREATE (n:`{label}` {{{set_clause}}})",
-                        params,
+                        f"CREATE (n:`{label}` {{{create_clause}}})",
+                        create_params,
                     )
                     summary["nodes_created"] += 1
                 except Exception as exc:
@@ -1654,6 +1693,7 @@ class LadybugGraphStore(GraphStore):
                     f"({', '.join(cols)}, PRIMARY KEY (`{pk_col}`))"
                 )
                 self._declared_node_tables.add(label)
+                self._node_table_pk.setdefault(label, pk_col)
                 summary["success"] += 1
             except Exception as exc:
                 summary["errors"].append(f"Node table {label}: {exc}")

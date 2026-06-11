@@ -112,6 +112,9 @@ _MODULE_EXPORTS: Dict[str, Iterable[str]] = {
         "RelationshipCurationPolicy",
         "load_curation_design_spec",
     ],
+    ".e2e": [
+        "run_from_config",
+    ],
     ".http_runtime": [
         "create_bundle_runtime_app",
     ],
@@ -179,6 +182,11 @@ _MODULE_EXPORTS: Dict[str, Iterable[str]] = {
         "enforce_drift_policy",
         "ontology_context_graph_properties",
         "query_ontology_context_mismatch",
+    ],
+    ".run_spec": [
+        "RunSpec",
+        "RunSpecError",
+        "load_run_spec",
     ],
     ".ontology_versioning": [
         "OntologyUpgradePlan",

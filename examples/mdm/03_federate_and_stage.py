@@ -93,26 +93,39 @@ def main() -> int:
     ap.add_argument("--resolve-labels", default="LegalEntity,Entity",
                     help="labels treated as master entities (comma-separated)")
     ap.add_argument("--run-prefix", default="seocho-capital-v1")
+    ap.add_argument("--instances", nargs="?", const=str(MDM_ROOT / "config" / "instances.yaml"),
+                    default=None,
+                    help="read from PHYSICAL department instances (bronze tier) "
+                         "instead of multi-database on the main DBMS; optional "
+                         "path to an instances.yaml")
     args = ap.parse_args()
     resolve_labels = {x.strip() for x in args.resolve_labels.split(",") if x.strip()}
 
     ruleset = load_ruleset()
-    mode = federation.read_mode()
+    auth = (os.environ.get("NEO4J_USER", "neo4j"), os.environ.get("NEO4J_PASSWORD", ""))
+    instances = None
+    if args.instances:
+        instances = federation.load_instances(Path(args.instances))
+        mode = "instances"
+    else:
+        mode = federation.read_mode()
     print(f"== federation mode: {mode} (ruleset v{ruleset.version}) ==")
 
     from seocho.store.graph import Neo4jGraphStore
     from extraction.config import db_registry
-    gs = Neo4jGraphStore(os.environ["NEO4J_URI"],
-                         os.environ.get("NEO4J_USER", "neo4j"),
-                         os.environ.get("NEO4J_PASSWORD", ""))
+    gs = Neo4jGraphStore(os.environ["NEO4J_URI"], auth[0], auth[1])
     try:
-        # --- 1. federated read (dept DBs are READ-ONLY from here on) --------
+        # --- 1. federated read (dept stores are READ-ONLY from here on) -----
         t0 = time.perf_counter()
-        if mode == "composite":
+        shard_latency: dict[str, float] = {}
+        if mode == "instances":
+            # TRUE multi-instance federation: the main DBMS acts as the GDS
+            # "designated secondary"; shards are separate physical DozerDBs.
+            entities, metrics, shard_latency = federation.instances_read(
+                instances, auth=auth)
+        elif mode == "composite":
             from neo4j import GraphDatabase
-            drv = GraphDatabase.driver(os.environ["NEO4J_URI"],
-                                       auth=(os.environ.get("NEO4J_USER", "neo4j"),
-                                             os.environ.get("NEO4J_PASSWORD", "")))
+            drv = GraphDatabase.driver(os.environ["NEO4J_URI"], auth=auth)
             try:
                 federation.create_composite(drv, composite="mdmcomp",
                                             aliases={d.name: d.database for d in DEPARTMENTS})
@@ -125,11 +138,23 @@ def main() -> int:
         read_s = round(time.perf_counter() - t0, 2)
 
         dept_counts = {}
-        for d in DEPARTMENTS:
-            c = gs.query("MATCH (n) RETURN count(n) AS c", database=d.database)
-            dept_counts[d.database] = int(c[0]["c"]) if c else 0
+        if mode == "instances":
+            from neo4j import GraphDatabase
+            for inst in instances:
+                drv = GraphDatabase.driver(inst.uri, auth=auth)
+                try:
+                    with drv.session(database=inst.database) as s:
+                        dept_counts[inst.dept] = s.run(
+                            "MATCH (n) RETURN count(n) AS c").data()[0]["c"]
+                finally:
+                    drv.close()
+        else:
+            for d in DEPARTMENTS:
+                c = gs.query("MATCH (n) RETURN count(n) AS c", database=d.database)
+                dept_counts[d.database] = int(c[0]["c"]) if c else 0
         print(f"== read {len(entities)} entities + {len(metrics)} metric facts "
-              f"in {read_s}s; dept node counts {dept_counts} ==")
+              f"in {read_s}s; shard latency {shard_latency or 'n/a'}; "
+              f"dept node counts {dept_counts} ==")
 
         # --- 2. proxies for the resolution scope ----------------------------
         proxies = []
@@ -146,6 +171,7 @@ def main() -> int:
                 "labels": sorted(e["labels"]),
                 "src_db": e["src_db"],
                 "src_eid": e["eid"],
+                "src_instance": e.get("src_instance", ""),
                 "dept": e["dept"],
                 "model": e["model"],
                 "case_id": e["case_id"],
@@ -211,6 +237,9 @@ def main() -> int:
             "ruleset_sha256": ruleset.sha256,
             "resolve_labels": sorted(resolve_labels),
             "excluded_junk_count": excluded_junk,
+            "shard_read_latency_s": shard_latency,
+            "instances": [{"dept": i.dept, "uri": i.uri, "model": i.model}
+                          for i in instances] if instances else None,
             "embedding_tier": emb_status,
             "dept_node_counts": dept_counts,
             "entities": entities, "metrics": metrics,

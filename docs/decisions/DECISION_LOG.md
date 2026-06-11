@@ -41,7 +41,7 @@ Each entry must link to a full ADR when impact is non-trivial.
     selection, and baseline-vs-candidate evaluation
   - follow-up work should persist signals/profiles, expose user review controls,
     and gate profile promotion with MARA/OpenAI-compatible E2E regression
-- Accepted `ADR-0098-experiment-backed-route-profile-and-answer-shape-contract.md`
+- Accepted `ADR-0108-experiment-backed-route-profile-and-answer-shape-contract.md`
   - ICML FinDER and KDD DataAgent-Bench experiments support treating graph
     evidence as slot/route control first, not as an always-authoritative final
     answer substrate
@@ -52,7 +52,7 @@ Each entry must link to a full ADR when impact is non-trivial.
 
 ## 2026-05-30
 
-- Accepted `ADR-0097-experiment-data-query-plane-hardening.md`
+- Accepted `ADR-0107-experiment-data-query-plane-hardening.md`
   - `Neo4jGraphStore.ensure_database(wait_online=True)` polls until DozerDB reports
     ONLINE (async `CREATE DATABASE` no longer causes "Graph not found")
   - `OpikBackend.log_span` passes `end_time` in the single `trace()` call (no
@@ -64,13 +64,13 @@ Each entry must link to a full ADR when impact is non-trivial.
   inter-judge agreement (Cohen's κ) and same-case **paired** win/tie/loss + Wilcoxon
   vs vector; `number_overlap`/`token_f1` demoted to disclosed-secondary metrics.
   See `scripts/benchmarks/EVALUATION_METRICS.md`.
-- Proposed (not built; tracked as follow-up in ADR-0097): insufficiency-gated
+- Proposed (not built; tracked as follow-up in ADR-0107): insufficiency-gated
   retrieval fall-back ladder, fact-vs-reasoning query router, graph-as-context +
   `graph_chunks` mode, extraction-recall probe.
 
 ## 2026-04-13
 
-- Accepted `ADR-0049-pipeline-unification-canonical-modules.md`
+- Accepted `ADR-0110-pipeline-unification-canonical-modules.md`
   - core logic (rules, embedding linker, vector store) moves into `seocho/` as canonical
   - `extraction/` modules become re-export shims or adapter shims
   - parity harness (`tests/test_parity_harness.py`) guards local ↔ server result contract

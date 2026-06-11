@@ -155,5 +155,5 @@ the scorer was not the bottleneck.
   grounding, alias→canonical collapse.
 - env switch: `SEOCHO_ONTOLOGY_GROUNDING` (default-off).
 - relates to: ADR-0100 (F8 surfaced the ontology-fit bottleneck this
-  closes), ADR-0099 (AnswerShape — the other measured-win leg),
+  closes), ADR-0109 (AnswerShape — the other measured-win leg),
   ADR-0097 (cost model — grounding scores could later feed plan ranking).

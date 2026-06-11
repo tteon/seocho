@@ -1,4 +1,4 @@
-# ADR-0049: Pipeline Unification — Canonical Module Locations
+# ADR-0110: Pipeline Unification — Canonical Module Locations
 
 **Date:** 2026-04-13
 **Status:** Accepted

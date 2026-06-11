@@ -32,7 +32,7 @@ ADR_ID_RE = re.compile(r"ADR-(\d{4})")
 # this set fail CI. Renumbering these (and rewiring DECISION_LOG) is a separate
 # author decision — tracked, not auto-resolved, to avoid rewriting the wrong
 # ADR's canonical number. See seocho-b01.3.
-KNOWN_DUPLICATE_IDS = {"0049", "0089", "0097", "0098", "0099"}
+KNOWN_DUPLICATE_IDS: set = set()  # zero tolerance since the seocho-lpr renumber
 
 
 def _adr_ids_by_file() -> dict[str, list[str]]:

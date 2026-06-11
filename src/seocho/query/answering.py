@@ -251,7 +251,7 @@ class QueryAnswerSynthesizer:
     ) -> bool:
         """Return True only when the answer shape is a verified scalar/delta.
 
-        This is the narrow answer-shape bridge from ADR-0098: bypass the answer
+        This is the narrow answer-shape bridge from ADR-0108: bypass the answer
         LLM when the graph rows already fill the financial metric and period
         slots, but keep synthesis for explanatory/compositional prompts.
         """

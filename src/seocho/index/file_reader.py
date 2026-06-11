@@ -425,7 +425,10 @@ class FileIndexer:
         total_result = IndexingResult()
         original_strict = getattr(self.pipeline, "strict_validation", None)
         if strict_validation is not None:
-            self.pipeline.strict_validation = bool(strict_validation)
+            # seocho-snt: never downgrade below the enforcement-policy floor.
+            policy = getattr(self.pipeline, "enforcement_policy", None)
+            policy_floor = bool(policy is not None and policy.violation_action == "reject")
+            self.pipeline.strict_validation = bool(strict_validation) or policy_floor
         try:
             for record in records:
                 content = record.get("content", "")

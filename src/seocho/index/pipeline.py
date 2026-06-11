@@ -228,7 +228,9 @@ class IndexingPipeline:
         on_after_validate: Optional[Callable] = None,
         on_before_write: Optional[Callable] = None,
         on_after_write: Optional[Callable] = None,
+        enforcement: str = "guided",
     ) -> None:
+        from seocho.index.enforcement import EnforcementPolicy
         from seocho.ontology import Ontology
         from seocho.query.strategy import ExtractionStrategy, LinkingStrategy
 
@@ -236,7 +238,13 @@ class IndexingPipeline:
         self.graph_store = graph_store
         self.llm = llm
         self.workspace_id = workspace_id
-        self.strict_validation = strict_validation
+        # seocho-snt: the enforcement preset compiles the admission policy;
+        # strict implies rejecting chunks with validation errors, which is
+        # what strict_validation already meant. Either switch may force it on.
+        self.enforcement_policy = EnforcementPolicy.from_mode(enforcement)
+        self.strict_validation = bool(
+            strict_validation or self.enforcement_policy.violation_action == "reject"
+        )
         self.max_chunk_chars = max_chunk_chars
         self.enable_dedup = enable_dedup
         self.enable_rule_constraints = enable_rule_constraints
@@ -267,6 +275,7 @@ class IndexingPipeline:
             ontology=ontology,
             llm=llm,
             extraction_prompt=extraction_prompt,
+            enforcement=self.enforcement_policy.mode,
         )
 
     @staticmethod
@@ -730,6 +739,17 @@ class IndexingPipeline:
                 )
                 extracted = response
             except Exception as exc:
+                if not self.enforcement_policy.allow_heuristic_fallback:
+                    # seocho-snt strict: an LLM transport failure becomes a
+                    # recorded error, not fabricated out-of-vocabulary graph
+                    # structure.
+                    logger.warning("LLM extraction failed for chunk %d (strict, no fallback): %s", i, exc)
+                    result.write_errors.append(
+                        f"Chunk {i}: extraction failed under strict enforcement: "
+                        f"{type(exc).__name__}: {str(exc)[:200]}"
+                    )
+                    result.skipped_chunks += 1
+                    continue
                 logger.warning(
                     "LLM extraction failed for chunk %d, using heuristic fallback: %s",
                     i, exc,
@@ -746,6 +766,12 @@ class IndexingPipeline:
             rels = extracted.get("relationships", [])
 
             if not nodes and not rels:
+                if not self.enforcement_policy.allow_heuristic_fallback:
+                    # Strict: an empty extraction is a legitimate outcome for
+                    # out-of-vocabulary text — the Entity/MENTIONS heuristic
+                    # would manufacture exactly the structure strict forbids.
+                    result.skipped_chunks += 1
+                    continue
                 logger.warning(
                     "LLM extraction returned an empty graph for chunk %d, using heuristic fallback.",
                     i,
@@ -819,7 +845,9 @@ class IndexingPipeline:
                         break
 
             # Validate with SHACL
-            errors = self.ontology.validate_with_shacl(extracted)
+            errors = self.ontology.validate_with_shacl(
+                extracted, closed=self.enforcement_policy.closed_validation
+            )
 
             # --- Callback: on_after_validate ---
             if self.on_after_validate:
@@ -832,8 +860,17 @@ class IndexingPipeline:
                     result.skipped_chunks += 1
                     continue
 
+            # seocho-snt open mode: admit everything, but stamp
+            # out-of-vocabulary elements so sanctioned and unsanctioned
+            # assertions stay distinguishable (governance triage signal).
+            if self.enforcement_policy.annotate_out_of_ontology:
+                from seocho.index.enforcement import annotate_out_of_ontology
+
+                annotate_out_of_ontology(self.ontology, nodes, rels)
+
             # Link (deduplicate entities within chunk)
             if nodes:
+                pre_link_nodes, pre_link_rels = nodes, rels
                 try:
                     linked = self._graph_extraction.link(
                         {"nodes": nodes, "relationships": rels},
@@ -847,6 +884,21 @@ class IndexingPipeline:
                         rels = linked_rels
                 except Exception as exc:
                     logger.warning("Linking failed for chunk %d, using raw extraction: %s", i, exc)
+
+                # seocho-snt strict: linking runs after validation and can
+                # reintroduce out-of-vocabulary labels/types; re-run the
+                # cheap closed check and fall back to the validated
+                # pre-link payload on regression.
+                if self.enforcement_policy.closed_validation and nodes is not pre_link_nodes:
+                    post_link_errors = self.ontology.validate_extraction(
+                        {"nodes": nodes, "relationships": rels}, closed=True
+                    )
+                    if post_link_errors:
+                        logger.warning(
+                            "Chunk %d: linking regressed closed validation, reverting: %s",
+                            i, post_link_errors,
+                        )
+                        nodes, rels = pre_link_nodes, pre_link_rels
 
             chunk_records.append(
                 {
@@ -1023,7 +1075,9 @@ class IndexingPipeline:
         validation_payload = {"nodes": all_nodes, "relationships": all_rels}
         result.observed_nodes = copy.deepcopy(all_nodes)
         result.observed_relationships = copy.deepcopy(all_rels)
-        errors = self.ontology.validate_with_shacl(validation_payload)
+        errors = self.ontology.validate_with_shacl(
+            validation_payload, closed=self.enforcement_policy.closed_validation
+        )
         if self.on_after_validate:
             all_nodes, all_rels, errors = self.on_after_validate(all_nodes, all_rels, errors)
         if errors:
@@ -1031,6 +1085,10 @@ class IndexingPipeline:
             if self.strict_validation:
                 result.skipped_chunks = 1
                 return result
+        if self.enforcement_policy.annotate_out_of_ontology:
+            from seocho.index.enforcement import annotate_out_of_ontology
+
+            annotate_out_of_ontology(self.ontology, all_nodes, all_rels)
 
         if not all_nodes and not all_rels:
             result.write_errors.append("Structured graph payload produced no nodes or relationships.")

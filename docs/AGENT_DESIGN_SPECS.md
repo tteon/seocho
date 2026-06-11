@@ -84,6 +84,33 @@ print(config.execution_mode)
 print(spec.client_kwargs()["ontology_profile"])
 ```
 
+## Ontology Enforcement
+
+The `ontology:` binding may declare how strictly the binding is honored
+during indexing (seocho-snt):
+
+```yaml
+ontology:
+  required: true
+  profile: finance-core
+  enforcement: strict   # strict | guided | open (default: guided)
+```
+
+- `strict` — closed vocabulary: strict extraction prompt line, no relaxed
+  retry, no `Entity`/heuristic fallback, closed validation (endpoint and
+  domain/range conformance), chunks with errors rejected. Default
+  `indexing.validation_on_fail` becomes `reject`; declaring `relax` or
+  `warn` alongside `strict` is rejected as incoherent.
+- `guided` — default: the ontology guides extraction; errors warn.
+- `open` — admit everything; out-of-vocabulary elements are stamped with
+  `_out_of_ontology: "true"` for governance triage. `validation_on_fail:
+  reject` is rejected as incoherent.
+
+The value compiles into `AgentConfig.ontology_enforcement` and is applied
+by the indexing pipeline via `seocho.EnforcementPolicy`. See
+[RUN_SPECS.md](RUN_SPECS.md) for how `seocho run` layers its own
+`ontology.enforcement` on top.
+
 The same `reasoning_cycle` block becomes the default for:
 
 - `client.semantic(...)`

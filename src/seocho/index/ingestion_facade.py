@@ -46,7 +46,12 @@ class IngestionFacade:
 
         original_strict = getattr(self._indexing_pipeline, "strict_validation", None)
         if original_strict is not None:
-            self._indexing_pipeline.strict_validation = bool(request.strict_validation)
+            # seocho-snt: a per-request strict_validation=False must not
+            # downgrade a pipeline whose enforcement policy rejects on
+            # violation — strict enforcement keeps its floor.
+            policy = getattr(self._indexing_pipeline, "enforcement_policy", None)
+            policy_floor = bool(policy is not None and policy.violation_action == "reject")
+            self._indexing_pipeline.strict_validation = bool(request.strict_validation) or policy_floor
 
         result = self._indexing_pipeline.index(
             request.content,

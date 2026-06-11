@@ -26,6 +26,17 @@ _ONTOLOGY_RELAXED_RETRY_GUIDANCE = (
     "the closest supported label or a generic Entity node. When the text names "
     "concrete entities, emit at least one useful node."
 )
+# seocho-snt: strict-mode closed-vocabulary instruction. Deliberately a
+# CONSTANT, ontology-independent line — the extraction firewall (FinDER
+# r=-0.76 between ontology richness and answer quality) forbids deriving
+# prompt content from ontology structure, and a byte-identical line across
+# ontologies cannot leak richness.
+_STRICT_VOCABULARY_GUIDANCE = (
+    "Closed vocabulary: only use the entity and relationship types listed "
+    "above. If something in the text does not fit a listed type, omit it. "
+    "Never use the generic 'Entity' label. An empty result is acceptable "
+    "when nothing in the text fits the listed types."
+)
 
 
 class CanonicalExtractionEngine:
@@ -39,11 +50,15 @@ class CanonicalExtractionEngine:
         extraction_prompt: Optional[Any] = None,
         custom_prompts: Optional[Dict[str, str]] = None,
         linking_prompt: Optional[str] = None,
+        enforcement: str = "guided",
     ) -> None:
+        from seocho.index.enforcement import EnforcementPolicy
+
         self.ontology = ontology
         self.llm = llm
         self.custom_prompts = dict(custom_prompts or {})
         self.linking_prompt = linking_prompt
+        self.enforcement_policy = EnforcementPolicy.from_mode(enforcement)
         self._extraction = (
             ExtractionStrategy(ontology, extraction_prompt=extraction_prompt)
             if ontology is not None
@@ -67,6 +82,8 @@ class CanonicalExtractionEngine:
             metadata=metadata,
             extra_context=extra_context,
         )
+        if self.enforcement_policy.prompt_strict and self.ontology is not None:
+            system = f"{system}\n\n{_STRICT_VOCABULARY_GUIDANCE}"
         response = complete_with_task_hints(
             self.llm,
             system=system,
@@ -155,6 +172,12 @@ class CanonicalExtractionEngine:
         normalized: Dict[str, Any],
         extra_context: Optional[Dict[str, Any]],
     ) -> bool:
+        # seocho-snt: the relaxed retry instructs "use the closest supported
+        # label or a generic Entity node" — the negation of closed
+        # admission. Under strict enforcement an empty extraction is a
+        # legitimate outcome for out-of-vocabulary text.
+        if not self.enforcement_policy.allow_relaxed_retry:
+            return False
         if normalized.get("nodes") or normalized.get("relationships"):
             return False
         if self.ontology is not None:
@@ -347,15 +370,27 @@ class CanonicalExtractionEngine:
         if self.ontology is None:
             return ""
         node_count = len(getattr(self.ontology, "nodes", {}) or {})
+        if self.enforcement_policy.prompt_strict:
+            # Constant text — strict mode swaps the generic-label fallback
+            # rule for closed-vocabulary omission without deriving anything
+            # from the ontology (extraction-firewall safe).
+            fallback_rule = (
+                "  2. Omit entities that fit no listed class. Never use the "
+                "generic 'Entity' label."
+            )
+        else:
+            fallback_rule = (
+                "  2. Only fall back to a generic label when no domain-specific "
+                "class clearly applies. Never default to 'Entity' when the "
+                "ontology offers a domain label that matches."
+            )
         base = (
             "Label selection rules:\n"
             "  1. Use the most-specific class that matches the entity. "
             "If both an abstract base (e.g. FinancialMetric) and a concrete "
             "subclass (Revenue, OperatingIncome, NetIncome, EPS, GrossProfit, "
             "OperatingMargin) are listed, pick the subclass.\n"
-            "  2. Only fall back to a generic label when no domain-specific "
-            "class clearly applies. Never default to 'Entity' when the "
-            "ontology offers a domain label that matches."
+            + fallback_rule
         )
         if node_count >= 10:
             base += (

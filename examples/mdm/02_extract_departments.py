@@ -71,7 +71,8 @@ def load_cases(n_per_slice: int, seed: int) -> list[dict]:
         refs = [x.strip() for x in str(r["references_joined"]).split(REF_SEPARATOR) if x.strip()]
         cases.append({
             "case_id": r["_id"], "slice": r["slice"], "category": r["category"],
-            "n_refs": int(r["n_refs"]), "query": r["query"], "references": refs,
+            "n_refs": int(r["n_refs"]), "query": r["query"],
+            "expected_answer": r["answer"], "references": refs,
         })
     return cases
 

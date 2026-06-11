@@ -196,6 +196,74 @@ def _metric_record(row: Dict[str, Any], dept: Department) -> Dict[str, Any]:
     }
 
 
+@dataclass(frozen=True)
+class Instance:
+    """One physical department DBMS (bronze tier)."""
+
+    dept: str        # "risk" | "research" | "compliance"
+    uri: str         # bolt://host:port — the shard's own endpoint
+    database: str    # DB on that shard (default "neo4j": 1 instance = 1 dept)
+    model: str
+
+    def __post_init__(self) -> None:
+        _validated(self.dept, what="department name")
+        _validated(self.database, what="database name")
+
+
+def load_instances(path: Path) -> List["Instance"]:
+    import yaml
+
+    spec = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    return [Instance(dept=d, uri=i["uri"], database=i.get("database", "neo4j"),
+                     model=i["model"])
+            for d, i in spec["instances"].items()]
+
+
+def instances_read(instances: List["Instance"], *, auth: tuple
+                   ) -> tuple[List[Dict], List[Dict], Dict[str, float]]:
+    """TRUE federation: one driver per physical instance, client-side union.
+
+    The manual analogue of the composite ``USE shard … UNION`` read — the
+    caller (the GDS host, i.e. the "designated secondary" of the Neo4j
+    composite+GDS docs) pulls from every shard's own bolt endpoint. Returns
+    (entities, metrics, per-shard read seconds); the latency map is the
+    federation-overhead signal for the benchmark report.
+
+    Record shape matches the single-instance readers, except ``src_db`` is the
+    DEPARTMENT name (every shard's local DB is 'neo4j', so the dept is the
+    unique key) and ``src_instance`` carries the physical endpoint.
+    """
+    import time
+
+    from neo4j import GraphDatabase
+
+    entities: List[Dict] = []
+    metrics: List[Dict] = []
+    latency: Dict[str, float] = {}
+    for inst in instances:
+        t0 = time.perf_counter()
+        driver = GraphDatabase.driver(inst.uri, auth=auth)
+        try:
+            with driver.session(database=inst.database) as s:
+                ent_rows = s.run(_ENTITY_READ, infra=INFRA_LABELS).data()
+                met_rows = s.run(_METRIC_READ, infra=INFRA_LABELS).data()
+        finally:
+            driver.close()
+        latency[inst.dept] = round(time.perf_counter() - t0, 4)
+        dept = Department(name=inst.dept, database=inst.database, model=inst.model)
+        for row in ent_rows:
+            rec = _entity_record(row, dept)
+            rec["src_db"] = inst.dept
+            rec["src_instance"] = inst.uri
+            entities.append(rec)
+        for row in met_rows:
+            rec = _metric_record(row, dept)
+            rec["src_db"] = inst.dept
+            rec["src_instance"] = inst.uri
+            metrics.append(rec)
+    return entities, metrics, latency
+
+
 def fanout_read(graph_store, departments: List[Department]
                 ) -> tuple[List[Dict], List[Dict]]:
     """Primary path: one read-only session per department DB, client-side union."""

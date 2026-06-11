@@ -61,6 +61,11 @@ root compatibility surfaces just because imports currently allow it.
 - Query tools should remain read-safe unless write mode is explicitly required.
 - Prefer `elementId(...)` over deprecated `id(...)` in runtime/query Cypher.
 - Keep ontology reasoning and SHACL-style governance out of hot request paths.
+- DozerDB procedure privileges stay scoped to `apoc.*,n10s.*,semantics.*,gds.*`
+  (no wildcard unrestricted; `gds.*` serves OpenGDS for `examples/mdm/`, jar
+  installed by `examples/mdm/01_install_gds.sh`). Compose config env vars must
+  use the `NEO4J_`-prefixed underscore form — raw dotted keys are silently
+  ignored by the image.
 
 ## Agent Behavior
 

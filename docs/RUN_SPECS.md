@@ -131,10 +131,13 @@ env var (`MARA_API_KEY`, `OPENAI_API_KEY`, ...).
 ```
 seocho run [CONFIG] [options]
 
-  CONFIG            Run spec YAML (default: ./seocho.run.yaml)
+  CONFIG            Run spec YAML, or a Jinja2 template (*.yaml.j2)
   --init            Write a commented template and exit (refuses to overwrite)
   --dry-run         Validate config + offline preflight; no LLM calls
   --only index|query  Run a single phase (query reuses the existing graph)
+  --var KEY=VALUE   Template variable (*.j2 only; repeatable, dotted keys)
+  --vars FILE       YAML file of template variables (repeatable)
+  --show-rendered   Print the rendered YAML (pre-${ENV}) and exit
   -o, --output DIR  Report directory (default: runs/<name>-<timestamp>/)
   --force           Re-index files even if unchanged
   --output-json     Machine-readable output
@@ -155,3 +158,105 @@ indexing stats, per-question records with latency and errors) and
 answers and per-question errors are surfaced in the summary table; a
 question error marks the run as failed (exit 1) without aborting remaining
 questions.
+
+## Templates and sweeps
+
+Doctrine:
+
+- `run` — one resolved spec, one report. A spec may be a Jinja2 template;
+  rendering produces the one spec.
+- `sweep` — one template × N variable sets → N runs → one comparison summary.
+- `experiment` — extraction-only micro-benchmark over a single text/dir
+  (no query phase, no run reports).
+
+### Two substitution layers
+
+| Layer | Syntax | Resolved | Use for |
+| --- | --- | --- | --- |
+| Jinja2 | `{{ var }}`, `{% for %}` | authoring/render time, before YAML parse | parameters, variants, structure |
+| Env | `${VAR}`, `${VAR:-default}` | load time, after rendering | secrets — never persisted into artifacts |
+
+Rendering is decided by **file extension only** (`*.j2`); plain `.yaml`
+configs never touch the template layer, so question text containing `{{`
+stays untouched (use `{% raw %}` for literal braces inside templates).
+Supplying `--var`/`--vars` for a non-template config is an error.
+
+Authoring rule: **quote every string substitution** (`"{{ model }}"`),
+**never quote numeric/boolean ones** (`{{ limit | default(5) }}`) — this
+avoids YAML flow-mapping breakage and the Norway problem in one rule.
+
+Variable precedence (low → high): template `| default(...)` < sweep `vars:`
+< variant `vars:` < `--vars` files (in order) < `--var` flags. Mappings
+deep-merge; scalars and lists are replaced. `--var` keys may be dotted
+(`models.indexing=...`) and values are YAML-parsed (`limit=10` → int).
+`variant` and `sweep` are reserved names — `seocho sweep` injects
+`variant.name`, `variant.index`, and `sweep.name` per variant.
+
+### Sweep file
+
+```yaml
+# seocho.sweep.yaml
+name: enforcement-shootout      # default: filename stem
+template: ./run.yaml.j2         # required; rendered once per variant
+vars:                           # shared by every variant (optional)
+  model: mara/MiniMax-M2.5
+variants:                       # required, non-empty; unique names
+  - name: guided
+    vars: { enforcement: guided }
+  - name: strict
+    vars: { enforcement: strict }
+output:
+  dir: runs
+```
+
+```
+seocho sweep [SWEEP] [options]
+
+  SWEEP                  Sweep spec YAML (default: ./seocho.sweep.yaml)
+  --init                 Write seocho.sweep.yaml + run.yaml.j2 and exit
+  --dry-run              Render + validate every variant + offline preflight
+  --show-rendered [NAME] Print rendered YAML (one variant, or all) and exit
+  --only-variant NAME    Run a subset (repeatable)
+  --var / --vars         Variable overrides applied to ALL variants
+  --fail-fast            Stop at the first failed variant (default: keep going)
+  -o, --output DIR       Sweep root (default: runs/<name>-<timestamp>/)
+
+Exit codes: 0 all variants ok · 1 any variant failed · 2 config error
+```
+
+Config errors are collected across **all** variants up front and nothing
+runs (exit 2); runtime failures keep going by default and the comparison
+table marks them (exit 1).
+
+### Variant isolation
+
+Each variant is fully isolated, automatically:
+
+- blank `graph:` → its own embedded store at `<sweep>/<variant>/graph.lbug`
+  (one `.lbug` file is one graph — paths isolate, names do not);
+- `bolt://` targets keep the URI but get a per-variant `database` when blank;
+- `workspace_id` is **always** suffixed with the variant name — the response
+  cache is keyed by workspace, so two variants differing only by model would
+  otherwise serve each other's cached answers;
+- `.seocho_index` change tracking is disabled (`track=False`), so variant
+  N+1 never skips files as "unchanged" and your docs directory stays clean.
+
+Variants run sequentially: the embedded store is a single-writer engine and
+parallel variants would mostly time-slice the same LLM rate limit.
+
+### Sweep artifacts
+
+```
+runs/<sweep-name>-<timestamp>/
+  summary.json / summary.md     # comparison table + per-variant status
+  <variant>/
+    rendered.yaml               # resolved spec (pre-${ENV}, paths absolutized)
+                                #   reproduce standalone: seocho run rendered.yaml
+    report.json / report.md
+    graph.lbug
+```
+
+A runnable example lives at
+[examples/run/sweep-enforcement/](../examples/run/sweep-enforcement/) —
+the quickstart documents indexed under `guided`, `strict`, and `open`
+enforcement, compared in one table.

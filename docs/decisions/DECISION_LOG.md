@@ -3,6 +3,20 @@
 This file is the lightweight index of architecture/product decisions.
 Each entry must link to a full ADR when impact is non-trivial.
 
+## 2026-06-12
+
+- Accepted `ADR-0111-neo4j-rust-ext-adoption.md`
+  - §21 gate run for "switch to the Rust neo4j driver?": measured A/B behind
+    the real federation caller — `neo4j-rust-ext` (official Rust PackStream
+    codec) 1.62× on the live 3-shard read, 3.57× on 130k-row bulk hydration,
+    byte-identical parity → ADOPT (pinned dep replacing bare `neo4j`,
+    one-time codec liveness log in `Neo4jGraphStore`, CI golden parity test).
+  - `neo4rs` (pure-Rust driver) rejected as a port target (rc-quality, no
+    Python bindings, no element_id accessor); 947 ms W2 ceiling recorded.
+  - GIL verdict for >100-core scaling: threads collapse (0.13 eff @ N=8) in
+    BOTH codecs; processes hold 0.62 — scale-out is process/Ray-actor per
+    shard, not a Rust driver. Pre-registered predictions were wrong in BOTH
+    directions and are graded in the ADR (localhost makes codec share 91%).
 ## 2026-06-11
 
 - [Proposed] ADR-0105 graphrag-bench-serializer-confound-fair-budget-tie

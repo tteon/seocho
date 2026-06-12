@@ -66,6 +66,22 @@ graph_password: ${NEO4J_PASSWORD:-password}
 database: neo4j                     # omit to derive from the ontology name
 workspace_id: filings_demo          # default: derived from name
 
+# graph also accepts a mapping with an explicit backend kind:
+# graph:
+#   kind: dozerdb                   # neo4j | dozerdb | ladybug
+#   uri: bolt://localhost:7687      # ladybug uses `path:` instead
+#   user: neo4j
+#   password: ${NEO4J_PASSWORD}
+#   database: mydb
+
+vector:                             # optional hybrid-search vector store
+  kind: faiss                       # faiss (in-memory) | lancedb (on-disk)
+  embedding: fastembed              # local bge (default, no network) or an
+                                    #   LLM provider preset (mara, openai, ...)
+  # embedding_model: BAAI/bge-small-en-v1.5
+  # uri: ./.lancedb                 # lancedb only
+  # table_name: seocho_vectors      # lancedb only
+
 indexing:
   design: ./indexing_design.yaml    # optional IndexingDesignSpec (path or inline)
   category: filing
@@ -111,6 +127,30 @@ The policy is compiled by `seocho.EnforcementPolicy` from
 design (the implicit `guided` default never does). These are admission
 policies for extracted data — not CWA/OWA inference semantics; query-time
 entailment is unchanged in every mode.
+
+## Storage backends
+
+The graph store is selected by `graph.kind` (or inferred from a bare
+string: bolt-scheme URI → Neo4j/DozerDB, anything else → embedded
+LadybugDB path). The optional `vector:` section adds a hybrid-search
+vector store (`Seocho(vector_store=...)` / `search_similar()`):
+
+| Backend | Key | Notes |
+| --- | --- | --- |
+| LadybugDB (embedded) | `graph.kind: ladybug` / blank | zero-infra default; one file = one graph |
+| Neo4j / DozerDB | `graph.kind: neo4j\|dozerdb` + `uri:` | per-`database` isolation on one server |
+| FAISS (vector) | `vector.kind: faiss` | in-memory, rebuilt per run |
+| LanceDB (vector) | `vector.kind: lancedb` + `uri:` | on-disk; sweeps isolate the uri per variant |
+
+`vector.embedding` defaults to `fastembed` (local bge, no network, 384-dim
+auto-derived); set it to a provider preset (`mara`, `openai`, ...) for
+HTTP embeddings. RDBMS backends are not supported — the SDK's `GraphStore`
+contract has no relational implementation today.
+
+In sweeps, on-disk vector stores get the same isolation as embedded
+graphs (blank lancedb `uri` → `<sweep>/<variant>/vectors.lancedb`), and a
+bolt graph shared by multiple variants prints a note that isolation rides
+on per-variant database/workspace only.
 
 ## Per-phase models
 

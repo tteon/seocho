@@ -311,3 +311,93 @@ def test_file_indexer_strict_validation_set_and_restored(tmp_path) -> None:
 
     indexer.index_file(doc)
     assert pipeline.seen == [True, False]  # default untouched
+
+
+def test_build_graph_store_respects_explicit_kind(monkeypatch) -> None:
+    """graph.kind dispatches the backend even without URI sniffing."""
+    import seocho.store.graph as graph_mod
+
+    captured: Dict[str, Any] = {}
+
+    class _FakeNeo4j:
+        def __init__(self, uri: str, user: str, password: str) -> None:
+            captured["neo4j"] = (uri, user, password)
+
+    class _FakeLadybug:
+        def __init__(self, path: str) -> None:
+            captured["ladybug"] = path
+
+        def ensure_constraints(self, ontology: Any) -> None:
+            pass
+
+    monkeypatch.setattr(graph_mod, "Neo4jGraphStore", _FakeNeo4j)
+    monkeypatch.setattr(graph_mod, "LadybugGraphStore", _FakeLadybug)
+
+    bolt_spec = parse_run_spec(
+        {"ontology": "s.yaml", "documents": "d/",
+         "graph": {"kind": "dozerdb", "uri": "bolt://h:7687", "user": "u", "password": "p"}}
+    )
+    e2e._build_graph_store(bolt_spec, _ontology())
+    assert captured["neo4j"] == ("bolt://h:7687", "u", "p")
+
+    embedded_spec = parse_run_spec({"ontology": "s.yaml", "documents": "d/"})
+    e2e._build_graph_store(embedded_spec, _ontology())
+    assert captured["ladybug"] == ".seocho/local.lbug"
+
+
+def test_build_vector_store_absent_section_returns_none() -> None:
+    spec = parse_run_spec({"ontology": "s.yaml", "documents": "d/"})
+    assert e2e._build_vector_store(spec) is None
+
+
+def test_build_vector_store_fastembed_default(monkeypatch) -> None:
+    import seocho.store.fastembed_backend as fe_mod
+    import seocho.store.vector as vec_mod
+
+    class _FakeEmbedding:
+        def embed(self, texts):
+            return [[0.0] * 384 for _ in texts]
+
+    captured: Dict[str, Any] = {}
+
+    def fake_create(**kwargs: Any) -> str:
+        captured.update(kwargs)
+        return "VECTOR_STORE"
+
+    monkeypatch.setattr(fe_mod, "make_fastembed_backend", lambda *a, **k: _FakeEmbedding())
+    monkeypatch.setattr(vec_mod, "create_vector_store", fake_create)
+
+    spec = parse_run_spec(
+        {"ontology": "s.yaml", "documents": "d/", "vector": {"kind": "faiss"}}
+    )
+    assert e2e._build_vector_store(spec) == "VECTOR_STORE"
+    assert captured["kind"] == "faiss"
+    assert captured["dimension"] == 384  # derived from the probe embedding
+    assert isinstance(captured["embedding_backend"], _FakeEmbedding)
+
+
+def test_build_vector_store_fastembed_missing_is_loud(monkeypatch) -> None:
+    import seocho.store.fastembed_backend as fe_mod
+
+    monkeypatch.setattr(fe_mod, "make_fastembed_backend", lambda *a, **k: None)
+    spec = parse_run_spec(
+        {"ontology": "s.yaml", "documents": "d/", "vector": {"kind": "faiss"}}
+    )
+    with pytest.raises(RuntimeError, match="fastembed is unavailable"):
+        e2e._build_vector_store(spec)
+
+
+def test_build_passes_vector_store_to_clients(tmp_path, monkeypatch) -> None:
+    created = _patch_backends(monkeypatch)
+    monkeypatch.setattr(e2e, "_build_vector_store", lambda spec: "SHARED_VECTORS")
+    payload = _write_fixture(tmp_path)
+    payload["vector"] = {"kind": "faiss"}
+    spec = parse_run_spec(payload, source_path=str(tmp_path / "run.yaml"))
+
+    ctx = e2e.build(spec)
+    try:
+        assert ctx.index_client.vector_store == "SHARED_VECTORS"
+        assert ctx.query_client.vector_store == "SHARED_VECTORS"
+        assert created["stores"], "graph store still built"
+    finally:
+        ctx.close()

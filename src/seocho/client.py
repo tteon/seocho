@@ -1331,6 +1331,7 @@ class Seocho:
         force: bool = False,
         on_file: Optional[Any] = None,
         strict_validation: Optional[bool] = None,
+        track: bool = True,
     ) -> Dict[str, Any]:
         """Index all supported files in a directory.
 
@@ -1351,6 +1352,10 @@ class Seocho:
         strict_validation:
             When True, chunks failing SHACL validation are rejected
             (not written). Defaults to the pipeline's configured flag.
+        track:
+            When False, skip ``.seocho_index`` change tracking entirely
+            (no reads, no writes) — every file indexes fresh. Used by
+            ``seocho sweep`` so variants never skip each other's files.
 
         Returns
         -------
@@ -1365,7 +1370,7 @@ class Seocho:
         result = indexer.index_directory(
             directory, database=database, category=category,
             recursive=recursive, force=force, on_file=on_file,
-            strict_validation=strict_validation,
+            strict_validation=strict_validation, track=track,
         )
         return result.to_dict()
 

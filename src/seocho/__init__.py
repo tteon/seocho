@@ -114,6 +114,7 @@ _MODULE_EXPORTS: Dict[str, Iterable[str]] = {
     ],
     ".e2e": [
         "run_from_config",
+        "run_sweep_from_config",
     ],
     ".http_runtime": [
         "create_bundle_runtime_app",
@@ -185,6 +186,12 @@ _MODULE_EXPORTS: Dict[str, Iterable[str]] = {
         "enforce_drift_policy",
         "ontology_context_graph_properties",
         "query_ontology_context_mismatch",
+    ],
+    ".run_template": [
+        "SweepSpec",
+        "load_sweep_spec",
+        "load_templated_run_spec",
+        "render_run_template",
     ],
     ".run_spec": [
         "RunSpec",

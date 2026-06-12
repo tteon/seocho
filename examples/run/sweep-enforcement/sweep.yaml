@@ -1,0 +1,21 @@
+# Enforcement shootout — the same documents and questions indexed under all
+# three ontology enforcement modes, compared in one table:
+#
+#   export MARA_API_KEY=...
+#   seocho sweep examples/run/sweep-enforcement/sweep.yaml
+#
+# Each variant gets an isolated embedded graph, workspace, and report under
+# runs/enforcement-shootout-<timestamp>/<variant>/.
+name: enforcement-shootout
+template: ./run.yaml.j2
+
+vars:
+  model: mara/MiniMax-M2.5
+
+variants:
+  - name: guided
+    vars: { enforcement: guided }
+  - name: strict
+    vars: { enforcement: strict }
+  - name: open
+    vars: { enforcement: open }

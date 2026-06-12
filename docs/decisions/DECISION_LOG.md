@@ -3,6 +3,24 @@
 This file is the lightweight index of architecture/product decisions.
 Each entry must link to a full ADR when impact is non-trivial.
 
+## 2026-06-13
+
+- [Proposed] ADR-0112 graph-rag-where-it-wins-governance-not-quality
+  - synthesis of the content-vs-context arc: retrieval-quality TIE (graph ≈ vector)
+    generalizes across 2 GraphRAG-Bench domains (novel + medical, 2-judge); the
+    typed-structure layer is neutral-to-noise for narrative QA once raw text is
+    served at a fair budget (ADR-0105 confound fixed + generalized)
+  - graph's real differentiator = governance/determinism, measured: declared-schema
+    gate refuses out-of-schema structurally (finance arbiter silent-wrong 0/8; BC3
+    relation-gate eliminated 69% E4 silent-wrong) + LLM-free provenance aggregation
+    vector can't produce — but a well-grounded capable LLM also avoids fabrication
+    (0/8), so the gate's value is a guarantee for ungrounded/weak/adversarial cases
+    (closed-book vector fabricated 3/8), not a quality win over good RAG
+  - decision: stop benchmarking graph as "better QA accuracy" (ties by design);
+    evaluate on governance/refusal + provenance/LLM-free-aggregation + entailment
+    (LUBM/ProofWriter, NOT YET measured); make the graph serializer relevance-ranked
+  - risk: 2 corpora, small n, entailment axis unmeasured
+
 ## 2026-06-12
 
 - Accepted `ADR-0111-neo4j-rust-ext-adoption.md`

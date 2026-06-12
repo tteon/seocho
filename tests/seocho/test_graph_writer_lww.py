@@ -141,3 +141,53 @@ def test_stale_write_does_not_clobber_newer_live():
         with store._driver.session(database=db) as s:
             s.run("MATCH (n:_LWWTest {id:$id}) DETACH DELETE n", id=nid)
         store.close()
+
+
+# --------------------------------------------------------------------------- #
+# issue #183 — multi-document provenance (_sources accumulation + safe delete)
+# --------------------------------------------------------------------------- #
+
+def test_node_write_accumulates_sources_outside_lww_guard():
+    store = _store_with_fake()
+    store.write(
+        [{"id": "c1", "label": "Company", "properties": {"name": "ACME"}}],
+        [],
+        database="testdb",
+        source_id="doc-a",
+    )
+    node_calls = [c for c in store._driver.rec.calls if "MERGE (n:" in c[0]]
+    query, _params = node_calls[0]
+    # _sources accumulation is a separate SET after the LWW-guarded one:
+    # NULL -> seed list, missing -> append, present -> keep (idempotent).
+    assert "SET n._sources = CASE WHEN n._sources IS NULL" in query
+    assert "n._sources + row.props._source_id" in query
+
+
+def test_rel_write_accumulates_sources():
+    store = _store_with_fake()
+    store.write(
+        [{"id": "a", "label": "Company", "properties": {}},
+         {"id": "b", "label": "Company", "properties": {}}],
+        [{"source": "a", "target": "b", "type": "REPORTED", "properties": {}}],
+        database="testdb",
+        source_id="doc-a",
+    )
+    rel_calls = [c for c in store._driver.rec.calls if "MERGE (a)-[r:" in c[0]]
+    query, _params = rel_calls[0]
+    assert "SET r._sources = CASE WHEN r._sources IS NULL" in query
+
+
+def test_delete_by_source_retires_before_deleting():
+    store = _store_with_fake()
+    store.delete_by_source("doc-a", database="testdb")
+    calls = [q for q, _ in store._driver.rec.calls]
+    retire = [q for q in calls if "SET n._sources = rest" in q]
+    delete = [q for q in calls if "DETACH DELETE n" in q]
+    assert retire, "no retire pass issued"
+    assert delete, "no delete pass issued"
+    # retire only touches multi-source nodes; delete only sole-source/legacy
+    assert "size([s IN n._sources WHERE s <> $sid]) > 0" in retire[0]
+    assert "size([s IN n._sources WHERE s <> $sid]) = 0" in delete[0]
+    assert "n._sources IS NULL AND n._source_id = $sid" in delete[0]
+    # retire runs before delete
+    assert calls.index(retire[0]) < calls.index(delete[0])

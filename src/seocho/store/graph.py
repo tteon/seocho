@@ -21,6 +21,7 @@ Usage::
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 import time
@@ -435,10 +436,21 @@ class Neo4jGraphStore(GraphStore):
                 # label validated against _LABEL_RE above; interpolated raw.
                 # LWW guard: apply incoming props only if this write is newer
                 # (or the node has no writer ts yet); stale replays no-op.
+                # issue #183: _source_id stays single-valued (LWW, keeps the
+                # delete/count filters working) while _sources accumulates
+                # every contributing document — outside the LWW guard, since
+                # a stale replay still proves that document referenced the
+                # node.
+                sources_clause = (
+                    " SET n._sources = CASE WHEN n._sources IS NULL THEN [{p}._source_id] "
+                    "WHEN NOT {p}._source_id IN n._sources THEN n._sources + {p}._source_id "
+                    "ELSE n._sources END"
+                )
                 batch_q = (
                     f"UNWIND $rows AS row MERGE (n:{label} {{id: row.id}}) "
                     "SET n += CASE WHEN n._writer_ts IS NULL "
                     "OR n._writer_ts <= row.props._writer_ts THEN row.props ELSE {} END"
+                    + sources_clause.format(p="row.props")
                 )
                 try:
                     session.run(batch_q, rows=rows)
@@ -449,7 +461,8 @@ class Neo4jGraphStore(GraphStore):
                             session.run(
                                 f"MERGE (n:{label} {{id: $id}}) SET n += CASE WHEN "
                                 "n._writer_ts IS NULL OR n._writer_ts <= $props._writer_ts "
-                                "THEN $props ELSE {} END",
+                                "THEN $props ELSE {} END"
+                                + sources_clause.format(p="$props"),
                                 id=row["id"], props=row["props"])
                             summary["nodes_created"] += 1
                         except Exception as exc:
@@ -458,10 +471,16 @@ class Neo4jGraphStore(GraphStore):
             # --- Relationships (one UNWIND per type) ---
             for rtype, rows in rels_by_type.items():
                 # rtype validated against _LABEL_RE above; interpolated raw
+                rel_sources_clause = (
+                    " SET r._sources = CASE WHEN r._sources IS NULL THEN [{p}._source_id] "
+                    "WHEN NOT {p}._source_id IN r._sources THEN r._sources + {p}._source_id "
+                    "ELSE r._sources END"
+                )
                 batch_q = (f"UNWIND $rows AS row MATCH (a {{id: row.src}}), (b {{id: row.tgt}}) "
                            f"MERGE (a)-[r:{rtype}]->(b) "
                            "SET r += CASE WHEN r._writer_ts IS NULL "
-                           "OR r._writer_ts <= row.props._writer_ts THEN row.props ELSE {} END")
+                           "OR r._writer_ts <= row.props._writer_ts THEN row.props ELSE {} END"
+                           + rel_sources_clause.format(p="row.props"))
                 try:
                     session.run(batch_q, rows=rows)
                     summary["relationships_created"] += len(rows)
@@ -472,7 +491,8 @@ class Neo4jGraphStore(GraphStore):
                                 f"MATCH (a {{id: $src}}), (b {{id: $tgt}}) "
                                 f"MERGE (a)-[r:{rtype}]->(b) SET r += CASE WHEN "
                                 "r._writer_ts IS NULL OR r._writer_ts <= $props._writer_ts "
-                                "THEN $props ELSE {} END",
+                                "THEN $props ELSE {} END"
+                                + rel_sources_clause.format(p="$props"),
                                 src=row["src"], tgt=row["tgt"], props=row["props"])
                             summary["relationships_created"] += 1
                         except Exception as exc:
@@ -855,10 +875,29 @@ class Neo4jGraphStore(GraphStore):
             except Exception as exc:
                 summary["errors"].append(f"Rel delete: {exc}")
 
-            # Delete orphaned nodes from this source
+            # issue #183: a node mentioned by several documents must survive
+            # until its LAST source is deleted. First retire this source from
+            # multi-source nodes (repointing _source_id when it was the
+            # latest), then DETACH DELETE only sole-source nodes. Legacy
+            # nodes without _sources keep the old _source_id semantics.
+            try:
+                session.run(
+                    "MATCH (n) WHERE n._sources IS NOT NULL AND $sid IN n._sources "
+                    "AND size([s IN n._sources WHERE s <> $sid]) > 0 "
+                    "WITH n, [s IN n._sources WHERE s <> $sid] AS rest LIMIT 10000 "
+                    "SET n._sources = rest, "
+                    "    n._source_id = CASE WHEN n._source_id = $sid "
+                    "THEN rest[-1] ELSE n._source_id END",
+                    sid=source_id,
+                )
+            except Exception as exc:
+                summary["errors"].append(f"Source retire: {exc}")
+
             try:
                 result = session.run(
-                    "MATCH (n) WHERE n._source_id = $sid "
+                    "MATCH (n) WHERE (n._sources IS NULL AND n._source_id = $sid) "
+                    "OR (n._sources IS NOT NULL AND $sid IN n._sources "
+                    "AND size([s IN n._sources WHERE s <> $sid]) = 0) "
                     "WITH n LIMIT 10000 DETACH DELETE n RETURN count(n) AS cnt",
                     sid=source_id,
                 )
@@ -1414,6 +1453,8 @@ class LadybugGraphStore(GraphStore):
         # ontology property (usually ``name``) turns every cross-document
         # re-mention of an entity into a duplicate-PK write failure.
         self._node_table_pk: Dict[str, str] = {}
+        # issue #183: node tables verified to carry the _sources column.
+        self._sources_column_ready: set = set()
         self._load_existing_schema()
 
     def _locked_execute(self, *args, **kwargs):
@@ -1526,6 +1567,73 @@ class LadybugGraphStore(GraphStore):
         self._rel_signature_to_table[signature] = physical_name
         return physical_name
 
+    # issue #183: Ladybug coerces string values that LOOK like JSON arrays
+    # ('["a"]' comes back as '[a]'), so the JSON list is stored behind a
+    # "json:" prefix, which round-trips verbatim.
+    _SOURCES_PREFIX = "json:"
+
+    @classmethod
+    def _encode_sources(cls, sources: List[str]) -> str:
+        return cls._SOURCES_PREFIX + json.dumps(sources)
+
+    @classmethod
+    def _decode_sources(cls, raw: Any) -> List[str]:
+        text = str(raw or "")
+        if text.startswith(cls._SOURCES_PREFIX):
+            text = text[len(cls._SOURCES_PREFIX):]
+        if not text:
+            return []
+        try:
+            parsed = json.loads(text)
+        except (TypeError, ValueError):
+            return []
+        if isinstance(parsed, list):
+            return [str(s) for s in parsed if s]
+        return []
+
+    def _ensure_sources_column(self, label: str) -> None:
+        """Make sure the node table carries the ``_sources`` column.
+
+        Tables created before issue #183 lack it; Ladybug supports
+        ``ALTER TABLE ... ADD`` so it is added lazily, once per label.
+        """
+        if label in self._sources_column_ready:
+            return
+        try:
+            self._locked_execute(f"ALTER TABLE `{label}` ADD `_sources` STRING")
+        except Exception:
+            # Column already exists (new tables declare it) — fine either way.
+            pass
+        self._sources_column_ready.add(label)
+
+    def _accumulated_sources_json(
+        self, label: str, merge_col: str, merge_value: Any, source_id: str
+    ) -> str:
+        """Existing ``_sources`` of the upsert target plus ``source_id``."""
+        sources: List[str] = []
+        try:
+            rows = self._locked_execute(
+                f"MATCH (n:`{label}` {{`{merge_col}`: $v}}) "
+                "RETURN n._sources, n._source_id",
+                {"v": merge_value},
+            )
+            for row in rows:
+                row_list = row if isinstance(row, list) else list(row)
+                existing_json = row_list[0] if row_list else None
+                existing_single = row_list[1] if len(row_list) > 1 else None
+                if existing_json:
+                    sources = self._decode_sources(existing_json)
+                if not sources and existing_single:
+                    # Legacy node written before #183: seed from _source_id.
+                    sources = [str(existing_single)]
+                break
+        except Exception:
+            # No such node / legacy table — no history to merge.
+            pass
+        if source_id and source_id not in sources:
+            sources.append(source_id)
+        return self._encode_sources(sources)
+
     def write(
         self,
         nodes: Sequence[Dict[str, Any]],
@@ -1568,6 +1676,14 @@ class LadybugGraphStore(GraphStore):
                 merge_col, merge_value = pk_col, props[pk_col]
             else:
                 merge_col, merge_value = "id", node_id
+            # issue #183: accumulate multi-document provenance. _source_id
+            # stays single-valued (latest writer — keeps the count/delete
+            # filters working) while _sources is a JSON-encoded list of every
+            # document that mentioned this node.
+            self._ensure_sources_column(label)
+            props["_sources"] = self._accumulated_sources_json(
+                label, merge_col, merge_value, source_id
+            )
             prop_keys = [k for k in props if _LABEL_RE.match(k)]
             set_keys = [k for k in prop_keys if k != merge_col]
             set_clause = ", ".join(f"`{k}`: $p_{i}" for i, k in enumerate(set_keys))
@@ -1799,16 +1915,69 @@ class LadybugGraphStore(GraphStore):
         except Exception as exc:
             summary["errors"].append(f"relationship delete: {exc}")
 
-        try:
-            self._locked_execute(
-                "MATCH (n) WHERE n._source_id = $sid DETACH DELETE n",
-                {"sid": source_id},
-            )
-        except Exception as exc:
-            summary["errors"].append(f"node delete: {exc}")
+        # issue #183: a node mentioned by several documents must survive
+        # until its LAST source is deleted. Per node table: retire this
+        # source from multi-source nodes (repointing _source_id when it was
+        # the latest writer), DETACH DELETE only sole-source nodes. Legacy
+        # nodes without _sources keep the old _source_id semantics.
+        nodes_deleted = 0
+        needle = json.dumps(source_id)  # JSON-quoted match inside the list
+        for label in sorted(self._declared_node_tables):
+            pk_col = self._node_table_pk.get(label, "id")
+            if not (_LABEL_RE.match(label) and _LABEL_RE.match(pk_col)):
+                continue
+            try:
+                rows = self._locked_execute(
+                    f"MATCH (n:`{label}`) WHERE n._source_id = $sid "
+                    "OR (n._sources IS NOT NULL AND n._sources CONTAINS $needle) "
+                    f"RETURN n.`{pk_col}`, n._sources",
+                    {"sid": source_id, "needle": needle},
+                )
+                pending = [row if isinstance(row, list) else list(row) for row in rows]
+            except Exception:
+                # Legacy table without the _sources column.
+                try:
+                    rows = self._locked_execute(
+                        f"MATCH (n:`{label}`) WHERE n._source_id = $sid "
+                        f"RETURN n.`{pk_col}`",
+                        {"sid": source_id},
+                    )
+                    pending = [
+                        [(row if isinstance(row, list) else list(row))[0], None]
+                        for row in rows
+                    ]
+                except Exception as exc:
+                    summary["errors"].append(f"{label} scan: {exc}")
+                    continue
+
+            for key_value, sources_json in pending:
+                remaining = [
+                    s for s in self._decode_sources(sources_json) if s != source_id
+                ]
+                if remaining:
+                    try:
+                        self._locked_execute(
+                            f"MATCH (n:`{label}` {{`{pk_col}`: $k}}) "
+                            "SET n._sources = $srcs, n._source_id = $latest",
+                            {"k": key_value, "srcs": self._encode_sources(remaining),
+                             "latest": remaining[-1]},
+                        )
+                    except Exception as exc:
+                        summary["errors"].append(f"{label} retire: {exc}")
+                else:
+                    try:
+                        self._locked_execute(
+                            f"MATCH (n:`{label}` {{`{pk_col}`: $k}}) DETACH DELETE n",
+                            {"k": key_value},
+                        )
+                        nodes_deleted += 1
+                    except Exception as exc:
+                        summary["errors"].append(f"{label} delete: {exc}")
 
         after = self.count_by_source(source_id, database=database)
-        summary["nodes_deleted"] = max(0, before["nodes"] - after["nodes"])
+        # Retired (multi-source) nodes survive on purpose — count only the
+        # physical deletions, not the before/after _source_id diff.
+        summary["nodes_deleted"] = nodes_deleted
         summary["relationships_deleted"] = max(0, before["relationships"] - after["relationships"])
         return summary
 

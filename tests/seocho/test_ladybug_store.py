@@ -664,3 +664,50 @@ class TestCrossDocumentEntityMerge:
             assert len(rows) == 1
         finally:
             store.close()
+
+    # -- issue #183: multi-document provenance ------------------------------
+
+    def test_shared_node_survives_deleting_one_source(self, store):
+        """A node mentioned by two documents must survive deleting one of
+        them — previously delete_by_source destroyed the other document's
+        data because _source_id was last-writer-wins (issue #183)."""
+        decode = LadybugGraphStore._decode_sources
+
+        store.write(
+            nodes=[{"id": "c_a", "label": "Company", "properties": {"name": "Acme"}}],
+            relationships=[], source_id="doc-a",
+        )
+        store.write(
+            nodes=[
+                {"id": "c_b", "label": "Company", "properties": {"name": "Acme"}},
+                {"id": "p_b", "label": "Person", "properties": {"name": "Jo", "age": 1}},
+            ],
+            relationships=[
+                {"source": "p_b", "target": "c_b", "type": "WORKS_AT", "properties": {}},
+            ],
+            source_id="doc-b",
+        )
+
+        rows = store.query("MATCH (c:Company) RETURN c._sources AS s")
+        assert len(rows) == 1
+        assert decode(rows[0]["s"]) == ["doc-a", "doc-b"]
+
+        summary = store.delete_by_source("doc-b")
+        # Person was doc-b-only (deleted); the shared Company survives.
+        assert summary["nodes_deleted"] == 1
+        survivors = store.query("MATCH (c:Company) RETURN c.name AS n, c._sources AS s, c._source_id AS sid")
+        assert len(survivors) == 1
+        assert decode(survivors[0]["s"]) == ["doc-a"]
+        assert survivors[0]["sid"] == "doc-a"
+
+        store.delete_by_source("doc-a")
+        assert store.query("MATCH (c:Company) RETURN c.name") == []
+
+    def test_sole_source_delete_unchanged(self, store):
+        store.write(
+            nodes=[{"id": "x", "label": "Person", "properties": {"name": "Solo", "age": 2}}],
+            relationships=[], source_id="doc-solo",
+        )
+        summary = store.delete_by_source("doc-solo")
+        assert summary["nodes_deleted"] == 1
+        assert store.query("MATCH (p:Person) RETURN p.name") == []

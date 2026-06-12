@@ -235,8 +235,31 @@ class CanonicalExtractionEngine:
                 lines.append(f"{label}: {value}")
         return "\n".join(lines)
 
-    def normalize_payload(self, extracted: Dict[str, Any]) -> Dict[str, Any]:
+    def normalize_payload(self, extracted: Any) -> Dict[str, Any]:
         """Normalize arbitrary LLM payloads into the graph write contract."""
+
+        # Some models (e.g. MiniMax) occasionally return a bare JSON array instead
+        # of the {nodes, relationships} object the prompt requests. Coerce it so a
+        # malformed-but-useful response is not silently dropped to the heuristic
+        # fallback (§18 no-silent-fallback): triple-shaped items -> relationships,
+        # everything else -> nodes.
+        if isinstance(extracted, list):
+            def _is_triple(item: Any) -> bool:
+                if not isinstance(item, dict):
+                    return False
+                keys = set(item)
+                return bool(
+                    {"subject", "object"} <= keys
+                    or {"source", "target"} <= keys
+                    or {"from", "to"} <= keys
+                    or {"head", "tail"} <= keys
+                )
+
+            rels = [x for x in extracted if _is_triple(x)]
+            nodes = [x for x in extracted if isinstance(x, dict) and not _is_triple(x)]
+            extracted = {"nodes": nodes, "relationships": rels}
+        elif not isinstance(extracted, dict):
+            extracted = {}
 
         raw_nodes = list(extracted.get("nodes", []) or [])
         raw_relationships = list(extracted.get("relationships", []) or [])

@@ -42,15 +42,16 @@ from seocho.tracing import (  # noqa: E402
 def _load_dotenv(path: Path) -> None:
     if not path.exists():
         return
-    for raw_line in path.read_text().splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        key = key.strip()
-        value = value.strip().strip('"').strip("'")
+    with path.open("r", encoding="utf-8") as f:
+        for raw_line in f:
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip().strip('"').strip("'")
         if key and key not in os.environ:
-            os.environ[key] = value
+                os.environ[key] = value
 
 
 def _default_dataset_path() -> Path:
@@ -116,7 +117,7 @@ def _limit_cases_per_category(cases: list, limit: int) -> list:
     for case in cases:
         category = str(case.category or "general")
         if int(counts.get(category, 0)) >= limit:
-            continue
+                continue
         selected.append(case)
         counts[category] = int(counts.get(category, 0)) + 1
     return selected
@@ -304,7 +305,7 @@ def _extract_token_usage(trace_steps: list[dict]) -> dict:
     for step in reversed(trace_steps):
         metadata = step.get("metadata")
         if not isinstance(metadata, dict):
-            continue
+                continue
         usage = metadata.get("usage")
         if isinstance(usage, dict):
             return dict(usage)
@@ -395,7 +396,7 @@ def _extract_query_metadata(payload: object) -> dict:
         step_type = str(step.get("type", "")).upper()
         step_metadata = step.get("metadata", {})
         if not isinstance(step_metadata, dict):
-            continue
+                continue
         if step_type == "GENERATION":
             for key in ("latency_breakdown_ms", "agent_pattern"):
                 value = step_metadata.get(key)

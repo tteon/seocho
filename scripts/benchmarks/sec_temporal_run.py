@@ -195,7 +195,12 @@ def run(
     from seocho.store.graph import Neo4jGraphStore
     from seocho.store.llm import create_llm_backend
 
-    rows = [json.loads(l) for l in Path(dataset_path).read_text().splitlines() if l.strip()]
+    rows = []
+    with Path(dataset_path).open("r") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                rows.append(json.loads(line))
 
     # group by (ticker, metric): index the shared multi-year corpus once,
     # then ask each year's question against it (temporal-resolution setup).

@@ -72,7 +72,12 @@ def run(dataset_path, tickers, *, database, uri, user, password, provider, model
     from seocho.store.llm import create_llm_backend
     from seocho.query.embedding_grounding import make_fastembed_scorer
 
-    rows = [json.loads(l) for l in Path(dataset_path).read_text().splitlines() if l.strip()]
+    rows = []
+    with Path(dataset_path).open("r") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                rows.append(json.loads(line))
     rows = [r for r in rows if r["ticker"] in set(tickers)]
     cik_by_ticker = bench.resolve_ciks(tickers)
     name_by_ticker = {r["ticker"].upper(): r.get("gold_entities", [""])[0] for r in rows}

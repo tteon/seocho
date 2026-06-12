@@ -55,6 +55,7 @@ python3 -m py_compile \
   src/seocho/index/enforcement.py \
   src/seocho/index/pipeline.py \
   src/seocho/run_spec.py \
+  src/seocho/run_template.py \
   src/seocho/run_preflight.py \
   src/seocho/e2e.py \
   src/seocho/cli.py
@@ -120,6 +121,8 @@ uv run pytest \
   tests/seocho/test_run_spec.py \
   tests/seocho/test_e2e_runner.py \
   tests/seocho/test_ontology_enforcement.py \
+  tests/seocho/test_run_template.py \
+  tests/seocho/test_sweep.py \
   -q
 
 git diff --check

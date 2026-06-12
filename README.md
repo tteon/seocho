@@ -116,9 +116,11 @@ export MARA_API_KEY=...
 seocho run examples/run/quickstart.yaml
 ```
 
-`seocho run --init` writes a commented template. See
-[docs/RUN_SPECS.md](docs/RUN_SPECS.md) for per-phase models, agent patterns,
-and ontology enforcement modes.
+`seocho run --init` writes a commented template. To compare N configurations
+(models, enforcement modes, agent patterns) in one table, declare them as
+variants of a Jinja2 template and run `seocho sweep` — see
+[docs/RUN_SPECS.md](docs/RUN_SPECS.md) for templates, sweeps, per-phase
+models, and ontology enforcement modes.
 
 ## How SEOCHO Works
 

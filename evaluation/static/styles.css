@@ -586,3 +586,18 @@ textarea:focus {
   box-shadow: 0 0 0 1px var(--accent-blue);
   outline: none;
 }
+
+#resetSessionBtn {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+#resetSessionBtn:hover {
+  color: #fff;
+}

@@ -1,0 +1,17 @@
+# Jinja2 run-spec template for the enforcement shootout sweep.
+# Reuses the quickstart schema and documents one directory up.
+name: enforcement-demo
+
+ontology:
+  path: ../schema.yaml
+  enforcement: "{{ enforcement | default('guided') }}"
+
+documents: ../docs/
+
+models:
+  default: "{{ model | default('mara/MiniMax-M2.5') }}"
+
+questions:
+  - What product does Acme Corp offer?
+  - Who is the CEO of Acme Corp?
+  - What did Beta Industries acquire?

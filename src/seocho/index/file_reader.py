@@ -478,6 +478,7 @@ class FileIndexer:
         force: bool = False,
         on_file: Optional[Callable[[str, int, int], None]] = None,
         strict_validation: Optional[bool] = None,
+        track: bool = True,
     ) -> DirectoryIndexResult:
         """Index all supported files in a directory.
 
@@ -494,6 +495,13 @@ class FileIndexer:
         strict_validation:
             When set, overrides the pipeline's ``strict_validation``
             flag for every file in this directory.
+        track:
+            When False, no ``.seocho_index`` tracking state is read or
+            written — every file is indexed fresh and the docs directory
+            stays untouched. Sweeps use this so variant N+1 is not
+            skipped as "unchanged" and the tracker is not rebound to a
+            variant-local graph. (``force`` is not a substitute: it still
+            records tracking state.)
 
         Returns
         -------
@@ -503,7 +511,7 @@ class FileIndexer:
         if not directory.is_dir():
             return DirectoryIndexResult(directory=str(directory))
 
-        tracker = FileTracker(directory)
+        tracker = FileTracker(directory) if track else None
 
         # Discover files
         files: List[Path] = []
@@ -547,5 +555,6 @@ class FileIndexer:
             elif file_result.status == "unchanged":
                 result.files_unchanged += 1
 
-        tracker.save()
+        if tracker is not None:
+            tracker.save()
         return result

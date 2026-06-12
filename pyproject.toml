@@ -35,7 +35,7 @@ seocho = "seocho.cli:main"
 local = [
     "fastapi",
     "httpx>=0.25.0",
-    "neo4j",
+    "neo4j-rust-ext",  # Rust PackStream codec, ADR-0111: W2 3.6x, parity-gated; pulls matching neo4j
     "openai",
     "openai-agents",
     "pydantic>=2.0",
@@ -48,7 +48,7 @@ ci = [
     "faiss-cpu",
     "fastapi",
     "lancedb",
-    "neo4j",
+    "neo4j-rust-ext",  # Rust PackStream codec, ADR-0111: W2 3.6x, parity-gated; pulls matching neo4j
     "numpy",
     "openai",
     "openai-agents",
@@ -80,7 +80,7 @@ dev = [
     "flake8",
     "black",
     "isort",
-    "neo4j",
+    "neo4j-rust-ext",  # Rust PackStream codec, ADR-0111: W2 3.6x, parity-gated; pulls matching neo4j
     "numpy",
     "openai",
     "openai-agents",

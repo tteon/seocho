@@ -1,0 +1,19 @@
+# Reference-ceiling probe ONLY (§21 / ADR scorecard for hq-5td).
+# neo4rs is a Neo4j Labs work-in-progress driver (0.8 stable line; 0.9 is rc):
+# Bolt 4.0-4.3 official, no Python bindings, no element_id accessor on the
+# Rust Node type (elementId() works fine as a Cypher-returned string).
+# This probe produces ONE number — "what would a full-Rust driver cost on the
+# W2 bulk scan" — it is NOT a port candidate (calling it from SEOCHO would
+# require custom PyO3, which §21.1(4) forbids without whole-path evidence).
+[package]
+name = "neo4rs_probe"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+neo4rs = "0.8"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+
+[profile.release]
+# §21.3: --release only — a debug build under-measures Rust and lies.
+opt-level = 3

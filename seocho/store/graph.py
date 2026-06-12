@@ -299,6 +299,28 @@ class GraphStore(ABC):
 # ---------------------------------------------------------------------------
 
 
+_packstream_codec_logged = False
+
+
+def _log_packstream_codec_once() -> None:
+    """Log which PackStream codec is live — rust-ext or pure-python.
+
+    ADR-0111 / CLAUDE.md §21.2: the ``neo4j-rust-ext`` codec is an install-time
+    drop-in, so operators and benchmarks must never have to guess which path
+    they measured. Logged once per process at first driver construction.
+    """
+    global _packstream_codec_logged
+    if _packstream_codec_logged:
+        return
+    _packstream_codec_logged = True
+    try:
+        from neo4j._codec.packstream import RUST_AVAILABLE
+        codec = "rust-ext" if RUST_AVAILABLE else "pure-python"
+    except ImportError:  # private flag moved — report honestly, don't guess
+        codec = "unknown (neo4j._codec.packstream.RUST_AVAILABLE not found)"
+    logger.info("neo4j packstream codec: %s active", codec)
+
+
 class Neo4jGraphStore(GraphStore):
     """Graph store backed by Neo4j or DozerDB.
 
@@ -323,6 +345,7 @@ class Neo4jGraphStore(GraphStore):
                 "Install it with: pip install neo4j"
             ) from exc
 
+        _log_packstream_codec_once()
         self._driver = GraphDatabase.driver(uri, auth=(user, password))
         self._uri = uri
         self._user = user

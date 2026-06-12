@@ -205,6 +205,37 @@ replacement** — reference-data lookups go to gold (cheap, fast, provenanced),
 narrative/multi-document questions go to federation. A question-type router
 over these lanes is the natural follow-up experiment.
 
+### Phase 3a — question-type router (`10_question_router.py`)
+
+Routing policies are evaluated by **$0 replay** of the stored lane answers
+(the only paid step is the optional 12-call LLM router). EXPLORATORY: the
+deterministic rule was designed after seeing slice-level results of this same
+run (disclosed in the artifact; confirmation needs held-out cases).
+
+| policy | overlap | abstain | ctx chars | lane mix |
+|---|---|---|---|---|
+| always-federation | 0.332 | 0.42 | 14,350 | federation×12 |
+| router-det@v1 / router-llm | 0.323 | 0.50 | **11,223** | federation×8, gold×4 |
+| always-gold | 0.113 | 0.67 | 3,539 | gold×12 |
+| oracle (ceiling) | 0.392 | 0.25 | 7,529 | gold×5, silo×5, fed×2 |
+
+The regex rule and the LLM classifier converged on identical decisions;
+routing preserves federation-level quality at **−22% context tokens**. The
+oracle shows 2-way routing's limit — reaching it needs silo-aware routing.
+
+### Phase 3b — Rust driver A/B (ADR-0111, §21 gate)
+
+"Switch to the Rust neo4j driver?" was answered by measurement
+(`scripts/profiling/bench_neo4j_driver.py`, isolated venvs, liveness-asserted,
+hash parity): the official `neo4j-rust-ext` PackStream codec gives **1.62×**
+on the live federation read and **3.57×** on bulk hydration (130k records,
+client codec = 91% of wall on localhost), with byte-identical results →
+**adopted** (pinned dep + one-time codec log in `Neo4jGraphStore` + CI parity
+test). `neo4rs` (pure-Rust driver) stays a reference ceiling — no Python
+bindings, rc-quality. Threads collapse under the GIL in both arms (0.13
+efficiency @ N=8) while processes hold 0.62 — **the >100-core answer is
+process/actor parallelism per shard, not a Rust driver.**
+
 ## Honesty contract (§20)
 
 - every dashboard number traces to a JSONL/JSON artifact under

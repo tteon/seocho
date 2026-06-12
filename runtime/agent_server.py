@@ -1430,7 +1430,7 @@ async def semantic_runs_list(
     intent_id: Optional[str] = Query(default=None),
 ):
     try:
-        require_runtime_permission(role="user", action="run_agent", workspace_id=workspace_id)
+        require_runtime_permission(role="user", action="read_semantic_runs", workspace_id=workspace_id)
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
 
@@ -1456,7 +1456,7 @@ async def semantic_runs_get(
     workspace_id: str = Query(default="default", pattern=WORKSPACE_ID_PATTERN),
 ):
     try:
-        require_runtime_permission(role="user", action="run_agent", workspace_id=workspace_id)
+        require_runtime_permission(role="user", action="read_semantic_runs", workspace_id=workspace_id)
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
 
@@ -1802,7 +1802,7 @@ async def rules_profiles_list(
 ):
     """List saved rule profiles in a workspace."""
     try:
-        require_runtime_permission(role="user", action="manage_rule_profiles", workspace_id=workspace_id)
+        require_runtime_permission(role="user", action="read_rule_profiles", workspace_id=workspace_id)
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
     return read_rule_profiles(workspace_id=workspace_id)
@@ -1816,7 +1816,7 @@ async def rules_profiles_get(
 ):
     """Read one saved rule profile."""
     try:
-        require_runtime_permission(role="user", action="manage_rule_profiles", workspace_id=workspace_id)
+        require_runtime_permission(role="user", action="read_rule_profiles", workspace_id=workspace_id)
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
 
@@ -1925,7 +1925,7 @@ async def semantic_artifacts_list(
     try:
         require_runtime_permission(
             role="user",
-            action="manage_semantic_artifacts",
+            action="read_semantic_artifacts",
             workspace_id=workspace_id,
         )
     except PermissionError as e:
@@ -1945,7 +1945,7 @@ async def semantic_artifacts_get(
     try:
         require_runtime_permission(
             role="user",
-            action="manage_semantic_artifacts",
+            action="read_semantic_artifacts",
             workspace_id=workspace_id,
         )
     except PermissionError as e:

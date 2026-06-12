@@ -154,3 +154,33 @@ def test_canonical_extraction_engine_retries_in_relaxed_mode_after_empty_ontolog
     assert "Retry once in relaxed mode" in llm.calls[1]["system"]
     assert llm.calls[1]["reasoning_mode"] is False
     assert llm.calls[1]["task_hint"] == "json_extraction_retry"
+
+
+def test_normalize_payload_coerces_bare_node_list():
+    # Some models (e.g. MiniMax) return a bare JSON array of entities instead of
+    # the {nodes, relationships} object. It must not crash into the heuristic
+    # fallback (§18) — coerce a node-shaped list to nodes.
+    engine = CanonicalExtractionEngine(ontology=None, llm=None)
+    out = engine.normalize_payload(
+        [
+            {"name": "Basal cell carcinoma", "label": "Disease"},
+            {"name": "skin", "label": "Anatomy"},
+        ]
+    )
+    assert len(out["nodes"]) == 2
+    assert out["relationships"] == []
+
+
+def test_normalize_payload_coerces_bare_triple_list():
+    engine = CanonicalExtractionEngine(ontology=None, llm=None)
+    out = engine.normalize_payload(
+        [{"subject": "BCC", "predicate": "IS_A", "object": "skin cancer"}]
+    )
+    assert len(out["relationships"]) == 1
+    assert out["relationships"][0]["type"] == "IS_A"
+
+
+def test_normalize_payload_tolerates_non_mapping():
+    engine = CanonicalExtractionEngine(ontology=None, llm=None)
+    assert engine.normalize_payload(None) == {"nodes": [], "relationships": []}
+    assert engine.normalize_payload("garbage") == {"nodes": [], "relationships": []}

@@ -11,19 +11,34 @@ on top of the existing design dialects:
 A run spec never redefines a key those dialects already own; it references or
 embeds their documents.
 
+## Running the CLI
+
+SEOCHO standardizes on [uv](https://docs.astral.sh/uv/). From a repo checkout,
+prefix every command with `uv run` — uv resolves the project environment and
+syncs dependencies, so there is no venv to activate:
+
+```bash
+uv run seocho run …
+uv run seocho sweep …
+```
+
+If you installed SEOCHO into your own environment instead (`uv pip install
+seocho`), drop the prefix and call `seocho …` directly. The examples below use
+the bare `seocho` form for brevity; prepend `uv run` when working from a clone.
+
 ## Quickstart
 
 ```bash
-seocho run --init           # writes a commented seocho.run.yaml template
+uv run seocho run --init    # writes a commented seocho.run.yaml template
 # edit ontology/documents/questions, then:
-seocho run                  # or: seocho run path/to/config.yaml
+uv run seocho run           # or: uv run seocho run path/to/config.yaml
 ```
 
 A working example ships in the repo:
 
 ```bash
 export MARA_API_KEY=...
-seocho run examples/run/quickstart.yaml
+uv run seocho run examples/run/quickstart.yaml
 ```
 
 ## Minimal spec

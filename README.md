@@ -91,7 +91,7 @@ Run a complete example:
 
 ```bash
 export OPENAI_API_KEY=...
-python examples/finance-compliance/quickstart.py
+uv run python examples/finance-compliance/quickstart.py
 ```
 
 The finance-compliance example ingests six short mock filings into an embedded
@@ -113,13 +113,18 @@ questions in YAML, then run the whole index → query → report flow:
 
 ```bash
 export MARA_API_KEY=...
-seocho run examples/run/quickstart.yaml
+uv run seocho run examples/run/quickstart.yaml
 ```
 
-`seocho run --init` writes a commented template. To compare N configurations
-(models, enforcement modes, agent patterns) in one table, declare them as
-variants of a Jinja2 template and run `seocho sweep` — see
-[docs/RUN_SPECS.md](docs/RUN_SPECS.md) for templates, sweeps, per-phase
+From a repo checkout, prefix the CLI with `uv run` — uv resolves the project
+environment and syncs dependencies for you, so there is no venv to activate.
+If you installed SEOCHO into your own environment instead (`uv pip install
+seocho`), drop the prefix and call `seocho run …` directly.
+
+`uv run seocho run --init` writes a commented template. To compare N
+configurations (models, enforcement modes, agent patterns) in one table,
+declare them as variants of a Jinja2 template and run `uv run seocho sweep` —
+see [docs/RUN_SPECS.md](docs/RUN_SPECS.md) for templates, sweeps, per-phase
 models, and ontology enforcement modes.
 
 ## How SEOCHO Works
@@ -146,14 +151,16 @@ being staged into `runtime/`.
 | HTTP runtime client | `Seocho.remote("http://localhost:8001")` | Consuming a running SEOCHO service. |
 | Local platform stack | `make setup-env && make up` | UI + API + DozerDB on one machine. |
 
-Install choices:
+Install choices. SEOCHO standardizes on [uv](https://docs.astral.sh/uv/) for
+project management; the `uv pip` forms below work in any environment, and `pip`
+is a drop-in if you are not on uv.
 
-| Install | Use it when |
+| Install (uv) | Use it when |
 |---|---|
-| `pip install seocho` | You only need the HTTP client. |
-| `pip install "seocho[local]"` | You want the local SDK engine, agents, and embedded graph path. |
-| `pip install "seocho[ontology]"` | You need offline ontology governance tools. |
-| `pip install -e ".[dev]"` | You are contributing to this repository. |
+| `uv pip install seocho` | You only need the HTTP client. |
+| `uv pip install "seocho[local]"` | You want the local SDK engine, agents, and embedded graph path. |
+| `uv pip install "seocho[ontology]"` | You need offline ontology governance tools. |
+| `uv sync --extra dev` (from a clone) | You are contributing to this repository. |
 
 ## What The Ontology Controls
 
@@ -234,8 +241,8 @@ For contributor placement rules, read
 ```bash
 git clone git@github.com:tteon/seocho.git
 cd seocho
-pip install -e ".[dev]"
-python -m pytest tests/seocho/ -q
+uv sync --extra dev
+uv run python -m pytest tests/seocho/ -q
 ```
 
 Before submitting broader changes, run:

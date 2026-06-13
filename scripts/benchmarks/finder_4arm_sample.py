@@ -339,6 +339,7 @@ def run_one(*, case: dict, arm: str, modules: list[str], llm_spec: str,
             pass
 
         graph_ctx = _graph_context(graph_store, workspace_id, database)
+        graph_ctx_keepraw = _graph_context(graph_store, workspace_id, database, keep_raw=True)
         vec_ctx = _vector_context(case["references"], case["query"], oai_client)
     except Exception as exc:
         error = f"{type(exc).__name__}: {exc}"
@@ -362,6 +363,10 @@ def run_one(*, case: dict, arm: str, modules: list[str], llm_spec: str,
 
     mode_specs = [
         ("graph", "graphrag", "graph", "=== GRAPH CONTEXT ===\n" + graph_ctx),
+        # keep_raw A/B: identical graph/arm/query/judge as `graph`; the ONLY
+        # difference is the graph serializer re-adding raw Chunk/Section text.
+        # graph_keepraw − graph = pure serialization effect (confound test, §20).
+        ("graph_keepraw", "graphrag", "graph", "=== GRAPH CONTEXT ===\n" + graph_ctx_keepraw),
         ("vector_graph", "hybrid", "vector_graph",
          "=== VECTOR CONTEXT (retrieved chunks) ===\n" + vec_ctx +
          "\n\n=== GRAPH CONTEXT ===\n" + graph_ctx),

@@ -434,21 +434,33 @@ def build_core_meta(
     # Minimal, human-readable, FILTERABLE tag set (CLAUDE.md §19 Opik contract):
     # keep the Opik project legible at ~7 tags/trace. Everything else lives in
     # metadata (reproduce/inspect) or feedback_scores (numeric, comparable).
+    # The 4 user-mandated filter axes are ALL promoted to tags so they're
+    # filterable chips in the Opik UI: (1) dataset, (2) model, (3) flow,
+    # (4) ontology. Plus mode/case/slice for slicing. Everything else stays
+    # in metadata (still searchable, just not a chip).
     tags = [
+        # 1. dataset
+        f"dataset:{dataset_name}",
+        f"case:{case_id}",
         f"slice:{slice_tag}",
+        # 2. model
         f"model:{llm_spec}",
+        f"provider:{provider}",
+        # 3. flow
         f"flow:{flow}",
+        f"mode:{mode}",
+        # 4. ontology
+        f"ontology_hash:{ontology_hash}",
+        f"modules:{ontology_modules}",
+        # graph-quality / cypher-agent A/B axes
         f"graph_quality:{graph_quality}",
+        f"cypher_agent:{cypher_agent_version}",
     ]
     if run_prefix:
         tags.append(f"run:{run_prefix}")
-    # Promote ONLY the two primary comparison axes from extra_tags to tags
-    # (retrieval, ontology); the rest (prompt, seed, …) go to metadata.
-    _TAG_WHITELIST = {"retrieval", "ontology"}
     if extra_tags:
         for k, v in extra_tags.items():
-            if k in _TAG_WHITELIST:
-                tags.append(f"{k}:{v}")
+            tags.append(f"{k}:{v}")
 
     metadata: dict = {
         # 1. dataset

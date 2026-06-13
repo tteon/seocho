@@ -17,18 +17,31 @@ spec.
 
 ## 0. Resolve the CLI first (do this before any seocho command)
 
-The global `seocho` on PATH is often a stale build without `run`/`sweep`. Prefer the
-editable venv in the repo:
+Invoke seocho through **`uv run` against the repo** — uv resolves the right
+environment from `pyproject.toml` and syncs deps before running, so you never
+depend on the PATH `seocho` (often a stale build without `run`/`sweep`) or a
+hardcoded venv path. `uv run` keeps the current working directory, so relative
+`ontology:` / `documents:` paths in the run spec still resolve.
 
 ```bash
-SEOCHO_BIN=/home/hadry/lab/seocho/.venv/bin/seocho
-[ -x "$SEOCHO_BIN" ] || SEOCHO_BIN=seocho
-"$SEOCHO_BIN" run --help >/dev/null 2>&1 || echo "needs: cd /home/hadry/lab/seocho && uv sync --extra local --extra ci"
+SEOCHO_REPO=/home/hadry/lab/seocho
+if command -v uv >/dev/null 2>&1 && [ -f "$SEOCHO_REPO/pyproject.toml" ]; then
+  SEOCHO="uv run --project $SEOCHO_REPO seocho"        # preferred
+elif [ -x "$SEOCHO_REPO/.venv/bin/seocho" ]; then
+  SEOCHO="$SEOCHO_REPO/.venv/bin/seocho"               # fallback: repo venv
+else
+  SEOCHO="seocho"                                      # last resort: PATH
+fi
+$SEOCHO run --help >/dev/null 2>&1 || echo "needs: cd $SEOCHO_REPO && uv sync --extra local --extra ci"
 ```
 
-If `run --help` fails (old build), tell the user to run
-`cd /home/hadry/lab/seocho && uv sync --extra local --extra ci` and stop — do not
-fall back to the stale global binary.
+Use `$SEOCHO` (not a bare `seocho`) for every command below — e.g.
+`$SEOCHO run seocho.run.yaml --dry-run`. If `run --help` still fails, the repo
+deps are not synced: run `cd $SEOCHO_REPO && uv sync --extra local --extra ci`
+and stop — do not fall back to a stale global binary.
+
+> The first `uv run` in a session may print a one-time dependency-sync line to
+> stderr; that is expected, not an error.
 
 Load the API key the same way the repo does (MARA-first):
 ```bash
@@ -50,7 +63,7 @@ Establish three things before writing YAML:
 
 Fastest start (bundled, zero setup) — use this to confirm the toolchain works:
 ```bash
-"$SEOCHO_BIN" run /home/hadry/lab/seocho/examples/run/quickstart.yaml --dry-run
+$SEOCHO run /home/hadry/lab/seocho/examples/run/quickstart.yaml --dry-run
 ```
 
 `seocho run --init` writes a fully commented `seocho.run.yaml` template into the
@@ -78,7 +91,7 @@ relationships:
     description: Person leads the company as chief executive
 ```
 
-Validate an ontology on its own: `"$SEOCHO_BIN" ontology check --schema schema.yaml`.
+Validate an ontology on its own: `$SEOCHO ontology check --schema schema.yaml`.
 
 ## 3. Run spec (seocho.run.yaml)
 
@@ -139,13 +152,13 @@ Always dry-run first — it runs the full preflight (ontology loads, documents
 scanned, API key present, graph reachable, vector deps) with **no LLM calls**:
 
 ```bash
-"$SEOCHO_BIN" run seocho.run.yaml --dry-run
+$SEOCHO run seocho.run.yaml --dry-run
 ```
 
 Fix whatever preflight reports (its messages name the exact fix), then run:
 
 ```bash
-"$SEOCHO_BIN" run seocho.run.yaml
+$SEOCHO run seocho.run.yaml
 ```
 
 Report lands at `runs/<name>-<timestamp>/report.md` (+ `report.json`). Read
@@ -166,9 +179,9 @@ When the user wants to compare configurations (models, enforcement, prompts), us
 sweep: one `run.yaml.j2` template × N named variants → N isolated runs → one table.
 
 ```bash
-"$SEOCHO_BIN" sweep --init     # writes seocho.sweep.yaml + run.yaml.j2
-"$SEOCHO_BIN" sweep examples/run/sweep-enforcement/sweep.yaml --dry-run
-"$SEOCHO_BIN" sweep examples/run/sweep-enforcement/sweep.yaml
+$SEOCHO sweep --init     # writes seocho.sweep.yaml + run.yaml.j2
+$SEOCHO sweep examples/run/sweep-enforcement/sweep.yaml --dry-run
+$SEOCHO sweep examples/run/sweep-enforcement/sweep.yaml
 ```
 
 ```yaml
@@ -204,7 +217,7 @@ Full reference: https://seocho.blog/sdk/enforcement-modes/
 
 ## Guardrails
 
-- Resolve `$SEOCHO_BIN` and verify `run --help` works before any run (§0).
+- Resolve `$SEOCHO` (uv run, §0) and verify `run --help` works before any run.
 - Always `--dry-run` before a real run; never claim a run succeeded without showing
   the report or the exit code.
 - MARA-first: don't switch to OpenAI embeddings/models unless asked.

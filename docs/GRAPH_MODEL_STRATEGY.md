@@ -202,9 +202,16 @@ mentions the same real-world entity?
 
 The structural end-state for metrics is the reified Observation model with
 explicit dimensions (ADR-0103 H4); `identity_keys` is the general-purpose
-contract that works for any entity type today. The remaining safety net —
-surfacing a `merge_conflicts` signal when a single-key MERGE would silently
-overwrite a differing value — is tracked as a follow-up (seocho-uxs.1).
+contract that works for any entity type today.
+
+**Safety net (seocho-uxs.1).** For node types *without* declared
+`identity_keys`, a single-key MERGE still silently last-writer-wins on a value
+clash. Both stores now surface this: when a MERGE lands on an existing node
+whose user-facing property already holds a different non-empty value, the
+write summary carries a non-fatal `merge_conflicts` entry
+(`{label, key, property, existing, incoming, source_id}`), propagated to
+`IndexingResult.merge_conflicts`. Ingestion still succeeds — the signal is
+advisory, so silent divergence becomes auditable instead of invisible.
 
 ## 9. Immediate Build Order
 

@@ -24,7 +24,7 @@ basic verification.
 
 Important:
 
-- `pip install seocho` alone does not provision DozerDB/Neo4j for you.
+- `uv pip install seocho` alone does not provision DozerDB/Neo4j for you.
 - local runtime success still depends on the graph backend being reachable.
 - `make up` starts the core local stack, not every legacy service in the repo.
 - `make up` rebuilds an image-backed `extraction-service`, so `localhost:8001`
@@ -72,17 +72,17 @@ If you explicitly want a live bind-mounted edit loop instead:
 make up-live
 ```
 
-Or through the local CLI:
+Or through the local CLI (from a clone):
 
 ```bash
-pip install -e ".[dev]"
-seocho serve
+uv sync --extra dev
+uv run seocho serve
 ```
 
 Published-package local engine path:
 
 ```bash
-pip install "seocho[local]"
+uv pip install "seocho[local]"
 ```
 
 The default core stack is:
@@ -348,14 +348,14 @@ docker compose up -d neo4j
 **Load the FIBO-lite test corpus** (idempotent, workspace-scoped):
 
 ```bash
-NEO4J_PASSWORD=... python -m scripts.eval.load_gopts_fibo_corpus
-# tear down: python -m scripts.eval.load_gopts_fibo_corpus --teardown
+NEO4J_PASSWORD=... uv run python -m scripts.eval.load_gopts_fibo_corpus
+# tear down: uv run python -m scripts.eval.load_gopts_fibo_corpus --teardown
 ```
 
 **Run the live Layer-1 integration test**:
 
 ```bash
-NEO4J_PASSWORD=... pytest -m integration_gopts tests/seocho/integration/
+NEO4J_PASSWORD=... uv run pytest -m integration_gopts tests/seocho/integration/
 ```
 
 The test session auto-loads the corpus on entry and tears it down on
@@ -384,7 +384,7 @@ on `FinancialMetric.name` (and similar metric subclasses). The Layer-1
 live runner filters out fixtures 05/06 (`finance_metric_lookup`,
 `finance_metric_delta`) because they need multi-year metric rows that
 the constraint forbids loading. Mock-oracle Layer-1
-(`pytest tests/seocho/test_gopts_ranking.py`) still covers them.
+(`uv run pytest tests/seocho/test_gopts_ranking.py`) still covers them.
 
 ## 13. Read Next
 

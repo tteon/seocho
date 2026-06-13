@@ -573,6 +573,14 @@ class IndexingPipeline:
             ontology_context,
         )
 
+        # seocho-uxs: rewrite ids to composite identities for node types that
+        # declare identity_keys, so dimension-bearing entities (same name,
+        # different company/year) stay distinct instead of collapsing on the
+        # store's single-key MERGE. No-op for ontologies without identity_keys.
+        from seocho.index.identity import apply_identity_keys
+
+        all_nodes, all_rels = apply_identity_keys(self.ontology, all_nodes, all_rels)
+
         if _graph_cot_properties_enabled():
             shaper = PropertyShaper()
             for node in all_nodes:

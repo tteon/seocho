@@ -53,6 +53,7 @@ python3 -m py_compile \
   src/seocho/index/extraction_engine.py \
   src/seocho/index/file_reader.py \
   src/seocho/index/enforcement.py \
+  src/seocho/index/identity.py \
   src/seocho/index/pipeline.py \
   src/seocho/run_spec.py \
   src/seocho/run_template.py \
@@ -123,6 +124,7 @@ uv run pytest \
   tests/seocho/test_ontology_enforcement.py \
   tests/seocho/test_run_template.py \
   tests/seocho/test_sweep.py \
+  tests/seocho/test_entity_identity.py \
   -q
 
 git diff --check

@@ -163,6 +163,49 @@ Runtime request path should not depend on synchronous heavyweight reasoning.
   - syntax/error retry loop
   - bounded result size
 
+## 8b. Entity Identity Contract (seocho-uxs)
+
+Cross-document node merging needs a *distinguishing point*: when are two
+mentions the same real-world entity?
+
+- **Default — single key.** A node type's identity is its first
+  `unique=True` property (else its `id`). Two mentions merge when that one
+  value matches. This is wrong for **dimension-bearing entities**: two
+  documents each naming a `FinancialMetric` "Total revenue" (one PTC's, one
+  Tesla's) collapse onto `name` — and the second write overwrites the first
+  value (silent last-writer-wins on the embedded store).
+
+- **Composite identity — `NodeDef.identity_keys`.** Declare the ordered
+  tuple that identifies the entity, e.g.
+
+  ```python
+  "FinancialMetric": NodeDef(
+      properties={"name": P(str, unique=True), "company": P(str),
+                  "year": P(str), "value": P(str)},
+      identity_keys=["name", "company", "year"],
+  )
+  ```
+
+  The indexing pipeline (`seocho.index.identity.apply_identity_keys`) rewrites
+  each such node's `id` to a deterministic composite
+  (`financialmetric|total revenue|ptc|2023`) before the write and remaps
+  relationship endpoints. PTC's and Tesla's revenue then key on distinct ids
+  and stay separate. `to_cypher_constraints` emits one composite
+  `REQUIRE (n.name, n.company, n.year) IS UNIQUE` instead of a per-member
+  `UNIQUE` (so distinct entities sharing `name` are not rejected), and the
+  Ladybug store keys its MERGE on the composite `id` rather than the bare
+  name PK.
+
+- **To distinguish, declare what distinguishes.** The discriminating
+  dimensions must be node *properties* listed in `identity_keys` (add
+  `company`/`issuer`/`year` to the node, not just to a linked edge).
+
+The structural end-state for metrics is the reified Observation model with
+explicit dimensions (ADR-0103 H4); `identity_keys` is the general-purpose
+contract that works for any entity type today. The remaining safety net —
+surfacing a `merge_conflicts` signal when a single-key MERGE would silently
+overwrite a differing value — is tracked as a follow-up (seocho-uxs.1).
+
 ## 9. Immediate Build Order
 
 1. Keep current rules APIs as baseline contract

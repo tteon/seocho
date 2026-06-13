@@ -171,12 +171,29 @@ class NodeDef:
     aliases: List[str] = field(default_factory=list)
     broader: List[str] = field(default_factory=list)
     same_as: Optional[str] = None  # e.g. "schema:Organization"
+    # seocho-uxs: ordered property names that TOGETHER identify one
+    # real-world entity. When set, identity is the tuple — not the first
+    # ``unique=True`` property. This is the "distinguishing point" for
+    # dimension-bearing entities: two documents that both mention a
+    # "Total revenue" FinancialMetric are the same node only when their
+    # (name, company, year) match, instead of collapsing on name alone.
+    # Empty == legacy behavior (single unique property / id is the key).
+    identity_keys: List[str] = field(default_factory=list)
 
     # --- introspection helpers ------------------------------------------------
 
     @property
     def unique_properties(self) -> List[str]:
         return [name for name, p in self.properties.items() if p.unique]
+
+    @property
+    def effective_identity_keys(self) -> List[str]:
+        """Ordered identity properties: explicit ``identity_keys`` when
+        declared, else the single first ``unique=True`` property, else empty."""
+        if self.identity_keys:
+            return list(self.identity_keys)
+        unique = self.unique_properties
+        return unique[:1]
 
     @property
     def indexed_properties(self) -> List[str]:
@@ -341,6 +358,7 @@ class Ontology:
                 aliases=nd.get("aliases", []),
                 broader=nd.get("broader", []),
                 same_as=nd.get("sameAs") or nd.get("same_as"),
+                identity_keys=list(nd.get("identity_keys", []) or nd.get("identityKeys", [])),
             )
 
         rels: Dict[str, RelDef] = {}
@@ -402,6 +420,8 @@ class Ontology:
                 node_entry["aliases"] = list(nd.aliases)
             if nd.broader:
                 node_entry["broader"] = list(nd.broader)
+            if nd.identity_keys:
+                node_entry["identity_keys"] = list(nd.identity_keys)
             nodes_out[label] = node_entry
 
         rels_out: Dict[str, Any] = {}
@@ -1660,8 +1680,22 @@ class Ontology:
         """Generate Cypher CREATE CONSTRAINT / CREATE INDEX statements."""
         stmts: List[str] = []
         for label, nd in self.nodes.items():
+            # seocho-uxs: when a composite identity is declared, the identity
+            # is the TUPLE — a per-property UNIQUE on a member (e.g. name)
+            # would wrongly reject two distinct entities that share that
+            # member (PTC's vs Tesla's "Total revenue"). Emit one composite
+            # uniqueness constraint over the identity members instead, and
+            # skip the per-member UNIQUE.
+            identity = set(nd.identity_keys)
+            if len(nd.identity_keys) > 1:
+                props = ", ".join(f"n.{k}" for k in nd.identity_keys)
+                cname = f"constraint_{label}_identity_unique"
+                stmts.append(
+                    f"CREATE CONSTRAINT {cname} IF NOT EXISTS "
+                    f"FOR (n:{label}) REQUIRE ({props}) IS UNIQUE"
+                )
             for pname, p in nd.properties.items():
-                if p.unique:
+                if p.unique and pname not in identity:
                     cname = f"constraint_{label}_{pname}_unique"
                     stmts.append(
                         f"CREATE CONSTRAINT {cname} IF NOT EXISTS "
@@ -2277,6 +2311,10 @@ class Ontology:
             aliases=list(set(left.aliases + right.aliases)),
             broader=list(set(left.broader + right.broader)),
             same_as=left.same_as or right.same_as,
+            # Identity is a contract, not a set union: keep the left side's
+            # declared identity when present (deterministic order matters),
+            # else adopt the right side's.
+            identity_keys=list(left.identity_keys or right.identity_keys),
         )
 
     @staticmethod

@@ -128,7 +128,11 @@ runs/
 # Public middleware code should not track editor/agent state directories.
 .agents/
 .beads/
-.claude/
+# .claude/ stays untracked EXCEPT shared project skills (ADR-0113): those are
+# version-controlled team tooling, so ignore everything under .claude/ and
+# re-include only .claude/skills/.
+.claude/*
+!.claude/skills/
 .githooks/
 .jules/
 .serena/

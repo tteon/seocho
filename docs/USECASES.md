@@ -20,7 +20,7 @@ which incident, which control."
 
 **Try it**: [`examples/finance-compliance/`](../examples/finance-compliance/)
 — 6 mock documents, 6 entity types, runs in under a minute on
-`pip install "seocho[local]"`.
+`uv pip install "seocho[local]"`.
 
 **What you will see**: The ontology declares the entities and relationships
 you already think in (`Company → SUBJECT_TO → Regulation → ENFORCED_BY →
@@ -68,7 +68,7 @@ actually runs. The order of work is:
 
 1. Open a draft PR that adds `examples/<your-usecase>/` with at minimum a
    starter ontology, 5–10 sample docs, and a `quickstart.py` that runs
-   end-to-end on `pip install "seocho[local]"`.
+   end-to-end on `uv pip install "seocho[local]"`.
 2. Have one other contributor run the quickstart against a fresh clone.
 3. Add the usecase section to this file.
 4. (Optional but encouraged) Drop a narrative walk-through into the blog.

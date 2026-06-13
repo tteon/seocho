@@ -711,3 +711,65 @@ class TestCrossDocumentEntityMerge:
         summary = store.delete_by_source("doc-solo")
         assert summary["nodes_deleted"] == 1
         assert store.query("MATCH (p:Person) RETURN p.name") == []
+
+    # -- seocho-uxs: composite identity keeps homonyms distinct -------------
+
+    def test_composite_identity_keeps_homonym_metrics_distinct(self, tmp_path):
+        """PTC's and Tesla's 'Total revenue' must NOT collapse into one node
+        once FinancialMetric declares a composite identity. Mirrors the
+        pipeline by keying nodes on the composite id before write."""
+        from seocho.index.identity import apply_identity_keys
+
+        ontology = Ontology(
+            name="finder",
+            nodes={
+                "Company": NodeDef(properties={"name": Property(str, unique=True)}),
+                "FinancialMetric": NodeDef(
+                    properties={
+                        "name": Property(str, unique=True),
+                        "company": Property(str),
+                        "year": Property(str),
+                        "value": Property(str),
+                    },
+                    identity_keys=["name", "company", "year"],
+                ),
+            },
+            relationships={"REPORTED": RelDef(source="Company", target="FinancialMetric")},
+        )
+        store = LadybugGraphStore(str(tmp_path / "identity.lbug"))
+        store.ensure_constraints(ontology)
+        try:
+            # composite identity table keys on the synthesized id, not name
+            assert store._node_table_pk["FinancialMetric"] == "id"
+
+            def write_doc(company, value, source):
+                nodes = [
+                    {"id": f"c_{company}", "label": "Company", "properties": {"name": company}},
+                    {"id": f"m_{company}", "label": "FinancialMetric",
+                     "properties": {"name": "Total revenue", "company": company,
+                                    "year": "2023", "value": value}},
+                ]
+                rels = [{"source": f"c_{company}", "target": f"m_{company}",
+                         "type": "REPORTED", "properties": {}}]
+                apply_identity_keys(ontology, nodes, rels)
+                return store.write(nodes=nodes, relationships=rels, source_id=source)
+
+            write_doc("PTC", "2.1 billion", "doc-ptc")
+            write_doc("Tesla", "96.8 billion", "doc-tsla")
+
+            metrics = store.query("MATCH (m:FinancialMetric) RETURN m.value AS v, m.company AS c")
+            # Two distinct nodes — PTC keeps 2.1B, Tesla keeps 96.8B.
+            assert len(metrics) == 2
+            by_company = {r["c"]: r["v"] for r in metrics}
+            assert by_company["PTC"] == "2.1 billion"
+            assert by_company["Tesla"] == "96.8 billion"
+
+            links = store.query(
+                "MATCH (c:Company)-[:REPORTED]->(m:FinancialMetric) "
+                "RETURN c.name AS company, m.value AS v"
+            )
+            assert {(r["company"], r["v"]) for r in links} == {
+                ("PTC", "2.1 billion"), ("Tesla", "96.8 billion")
+            }
+        finally:
+            store.close()

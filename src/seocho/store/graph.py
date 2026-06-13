@@ -1856,6 +1856,12 @@ class LadybugGraphStore(GraphStore):
                     pk_col = prop_name
 
             _append_ladybug_string_columns(cols, ("id", * _LADYBUG_COMMON_NODE_STRING_COLUMNS))
+            # seocho-uxs: with a composite identity declared, no single
+            # property is the identity — key on the synthesized composite
+            # ``id`` (the pipeline rewrites it to label|v1|v2|...), so two
+            # entities sharing one member (e.g. name) do not collapse.
+            if getattr(node_def, "identity_keys", None):
+                pk_col = "id"
             pk_col = pk_col or "id"
 
             try:

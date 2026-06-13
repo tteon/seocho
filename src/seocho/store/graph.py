@@ -386,7 +386,15 @@ class Neo4jGraphStore(GraphStore):
         if graph_model == "rdf" and triples:
             return self._write_rdf(triples, database=database, source_id=source_id)
 
-        summary = {"nodes_created": 0, "relationships_created": 0, "errors": []}
+        # seocho-uxs.1: merge_conflicts surfaces value divergence when a MERGE
+        # lands on an existing node whose user-facing property already holds a
+        # different value (audit signal for silent overwrites).
+        summary = {
+            "nodes_created": 0,
+            "relationships_created": 0,
+            "errors": [],
+            "merge_conflicts": [],
+        }
 
         # seocho-4rg (Lamport): stamp a writer timestamp so concurrent/replayed
         # writes are last-writer-wins by time rather than by arrival order. The
@@ -446,24 +454,53 @@ class Neo4jGraphStore(GraphStore):
                     "WHEN NOT {p}._source_id IN n._sources THEN n._sources + {p}._source_id "
                     "ELSE n._sources END"
                 )
+                # seocho-uxs.1: compute conflicts BEFORE the SET, so n[k] is
+                # the pre-write value. A conflict = a user-facing (non
+                # ``_``-prefixed) property whose stored non-null value differs
+                # from the incoming one. ``{P}`` is the props expression in
+                # scope (row.props for the batch, $props for the fallback).
+                def _conflict_with(prop_expr: str, carry: str) -> str:
+                    return (
+                        f" WITH {carry}, ["
+                        f"k IN keys({prop_expr}) WHERE NOT k STARTS WITH '_' "
+                        f"AND k <> 'id' "
+                        f"AND n[k] IS NOT NULL AND n[k] <> {prop_expr}[k] "
+                        f"| {{property: k, existing: toString(n[k]), incoming: toString({prop_expr}[k])}}"
+                        "] AS _conflicts"
+                    )
+
+                def _collect_conflicts(record: Any) -> None:
+                    for c in (record["conflicts"] or []):
+                        summary["merge_conflicts"].append(
+                            {"label": label, "key": record["id"], **c, "source_id": source_id}
+                        )
+
                 batch_q = (
-                    f"UNWIND $rows AS row MERGE (n:{label} {{id: row.id}}) "
-                    "SET n += CASE WHEN n._writer_ts IS NULL "
+                    f"UNWIND $rows AS row MERGE (n:{label} {{id: row.id}})"
+                    + _conflict_with("row.props", "n, row")
+                    + " SET n += CASE WHEN n._writer_ts IS NULL "
                     "OR n._writer_ts <= row.props._writer_ts THEN row.props ELSE {} END"
                     + sources_clause.format(p="row.props")
+                    + " RETURN row.id AS id, _conflicts AS conflicts"
                 )
                 try:
-                    session.run(batch_q, rows=rows)
-                    summary["nodes_created"] += len(rows)
+                    for record in session.run(batch_q, rows=rows):
+                        summary["nodes_created"] += 1
+                        _collect_conflicts(record)
                 except Exception:
                     for row in rows:
                         try:
-                            session.run(
-                                f"MERGE (n:{label} {{id: $id}}) SET n += CASE WHEN "
+                            single_q = (
+                                f"MERGE (n:{label} {{id: $id}})"
+                                + _conflict_with("$props", "n")
+                                + " SET n += CASE WHEN "
                                 "n._writer_ts IS NULL OR n._writer_ts <= $props._writer_ts "
                                 "THEN $props ELSE {} END"
-                                + sources_clause.format(p="$props"),
-                                id=row["id"], props=row["props"])
+                                + sources_clause.format(p="$props")
+                                + " RETURN $id AS id, _conflicts AS conflicts"
+                            )
+                            for record in session.run(single_q, id=row["id"], props=row["props"]):
+                                _collect_conflicts(record)
                             summary["nodes_created"] += 1
                         except Exception as exc:
                             summary["errors"].append(f"Node {row['id']}: {exc}")
@@ -1634,6 +1671,58 @@ class LadybugGraphStore(GraphStore):
             sources.append(source_id)
         return self._encode_sources(sources)
 
+    def _detect_merge_conflicts(
+        self,
+        label: str,
+        merge_col: str,
+        merge_value: Any,
+        props: Dict[str, Any],
+        *,
+        source_id: str,
+    ) -> List[Dict[str, Any]]:
+        """seocho-uxs.1: value-divergence on an upsert target.
+
+        When this MERGE lands on an existing node and a user-facing property
+        already holds a different non-empty value, the single-key MERGE would
+        silently last-writer-wins. Returns one record per diverging property
+        so the caller can surface it instead of overwriting blind. Empty when
+        the node is new or nothing diverges. Internal (``_``-prefixed) and the
+        merge key itself are not compared.
+        """
+        compare_keys = [
+            k for k in props
+            if _LABEL_RE.match(k) and not k.startswith("_")
+            and k not in (merge_col, "id")
+        ]
+        if not compare_keys:
+            return []
+        projection = ", ".join(f"n.`{k}`" for k in compare_keys)
+        try:
+            rows = self._locked_execute(
+                f"MATCH (n:`{label}` {{`{merge_col}`: $v}}) RETURN {projection}",
+                {"v": merge_value},
+            )
+        except Exception:
+            return []
+        conflicts: List[Dict[str, Any]] = []
+        for row in rows:
+            row_list = row if isinstance(row, list) else list(row)
+            for key, existing in zip(compare_keys, row_list):
+                incoming = props.get(key)
+                if existing in (None, "") or incoming in (None, ""):
+                    continue
+                if str(existing) != str(incoming):
+                    conflicts.append({
+                        "label": label,
+                        "key": str(merge_value),
+                        "property": key,
+                        "existing": str(existing),
+                        "incoming": str(incoming),
+                        "source_id": source_id,
+                    })
+            break  # PK MERGE target is unique — one row at most
+        return conflicts
+
     def write(
         self,
         nodes: Sequence[Dict[str, Any]],
@@ -1644,7 +1733,14 @@ class LadybugGraphStore(GraphStore):
         source_id: str = "",
         **_kwargs: Any,
     ) -> Dict[str, Any]:
-        summary = {"nodes_created": 0, "relationships_created": 0, "errors": []}
+        # seocho-uxs.1: merge_conflicts surfaces silent last-writer-wins
+        # value divergence on single-key MERGE targets (audit signal).
+        summary = {
+            "nodes_created": 0,
+            "relationships_created": 0,
+            "errors": [],
+            "merge_conflicts": [],
+        }
         node_label_by_id: Dict[str, str] = {}
 
         for node in nodes:
@@ -1681,6 +1777,12 @@ class LadybugGraphStore(GraphStore):
             # filters working) while _sources is a JSON-encoded list of every
             # document that mentioned this node.
             self._ensure_sources_column(label)
+            # seocho-uxs.1: detect divergence BEFORE the SET overwrites it.
+            summary["merge_conflicts"].extend(
+                self._detect_merge_conflicts(
+                    label, merge_col, merge_value, props, source_id=source_id
+                )
+            )
             props["_sources"] = self._accumulated_sources_json(
                 label, merge_col, merge_value, source_id
             )

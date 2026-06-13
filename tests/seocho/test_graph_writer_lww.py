@@ -191,3 +191,58 @@ def test_delete_by_source_retires_before_deleting():
     assert "n._sources IS NULL AND n._source_id = $sid" in delete[0]
     # retire runs before delete
     assert calls.index(retire[0]) < calls.index(delete[0])
+
+
+# --------------------------------------------------------------------------- #
+# seocho-uxs.1 — merge_conflicts surfacing on the node MERGE
+# --------------------------------------------------------------------------- #
+
+class _ConflictRec(_Rec):
+    """Fake whose node-MERGE returns one conflict record."""
+
+    def run(self, query, **params):
+        self.calls.append((query, params))
+        is_node_merge = "MERGE (n:" in query and "RETURN row.id AS id" in query
+
+        class _R:
+            def single(self_inner):
+                return None
+
+            def __iter__(self_inner):
+                if is_node_merge:
+                    return iter([
+                        {"id": "c1", "conflicts": [
+                            {"property": "value", "existing": "2.1B", "incoming": "96.8B"}
+                        ]}
+                    ])
+                return iter([])
+
+        return _R()
+
+
+def test_node_merge_query_computes_and_returns_conflicts():
+    store = _store_with_fake()
+    store.write(
+        [{"id": "c1", "label": "Company", "properties": {"name": "ACME", "value": "96.8B"}}],
+        [], database="testdb", source_id="doc-b",
+    )
+    node_calls = [c for c in store._driver.rec.calls if "MERGE (n:" in c[0]]
+    query = node_calls[0][0]
+    # conflict pre-SET capture + RETURN are wired into the batch query
+    assert "_conflicts" in query and "RETURN row.id AS id" in query
+    assert "k <> 'id'" in query and "NOT k STARTS WITH '_'" in query
+
+
+def test_merge_conflicts_collected_into_summary():
+    store = Neo4jGraphStore("bolt://unit-test:7687", "neo4j", "p")
+    store._driver = _FakeDriver()
+    store._driver.rec = _ConflictRec()
+    summary = store.write(
+        [{"id": "c1", "label": "Company", "properties": {"name": "ACME", "value": "96.8B"}}],
+        [], database="testdb", source_id="doc-b",
+    )
+    assert summary["merge_conflicts"] == [
+        {"label": "Company", "key": "c1", "property": "value",
+         "existing": "2.1B", "incoming": "96.8B", "source_id": "doc-b"}
+    ]
+    assert summary["nodes_created"] == 1

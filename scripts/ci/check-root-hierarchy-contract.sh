@@ -18,7 +18,9 @@ tracked_existing_under() {
 forbidden_tracked_paths=(
   ".agents"
   ".beads"
-  ".claude"
+  # ".claude" is checked separately below — .claude/skills/ is intentionally
+  # tracked (shared project skills, ADR-0113); everything else under .claude/
+  # stays forbidden.
   ".githooks"
   ".github/README.md"
   ".gitattributes"
@@ -41,6 +43,14 @@ for path in "${forbidden_tracked_paths[@]}"; do
     exit 1
   fi
 done
+
+# .claude/ is untracked EXCEPT .claude/skills/ (ADR-0113). Flag any tracked
+# file under .claude/ that is not a shared skill.
+claude_forbidden="$(git ls-files -- ".claude" ":(exclude).claude/skills" ":(exclude).claude/skills/**" 2>/dev/null | head -1)"
+if [ -n "$claude_forbidden" ]; then
+  echo "Forbidden tracked path under .claude/ (only .claude/skills/ may be tracked): $claude_forbidden" >&2
+  exit 1
+fi
 
 required_paths=(
   "src/seocho/__init__.py"

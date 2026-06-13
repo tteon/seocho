@@ -5,6 +5,13 @@ Each entry must link to a full ADR when impact is non-trivial.
 
 ## 2026-06-13
 
+- [Accepted] ADR-0113 track-claude-skills-in-repo
+  - version-control shared Claude Code skills under `.claude/skills/` while the
+    rest of `.claude/` (local agent/editor state) stays untracked; gitignore
+    re-includes only that subtree and the root-hierarchy contract gained a
+    skills-scoped exception so anything else under `.claude/` still fails CI
+  - first skill landed: `seocho-e2e` (author + run `seocho run` / `seocho sweep`)
+
 - [Proposed] ADR-0112 graph-rag-where-it-wins-governance-not-quality
   - synthesis of the content-vs-context arc: retrieval-quality TIE (graph ≈ vector)
     generalizes across 2 GraphRAG-Bench domains (novel + medical, 2-judge); the

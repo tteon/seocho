@@ -112,7 +112,10 @@ These are intentionally not tracked public surfaces:
 
 - `.agents/`
 - `.beads/`
-- `.claude/`
+- `.claude/` — **except `.claude/skills/`**, which is version-controlled
+  shared project tooling (ADR-0113). Claude Code auto-loads project skills
+  from there on clone; everything else under `.claude/` (settings, local
+  state) stays untracked.
 - `.githooks/`
 - `.jules/`
 - `.serena/`
@@ -121,6 +124,7 @@ These are intentionally not tracked public surfaces:
 - root `dataset/`, `images/`, `ontology/`, or `seocho/`
 
 Use `scripts/`, `examples/`, `docs/`, `.github/`, or `src/seocho/` instead.
+Shareable Claude Code skills go in `.claude/skills/<name>/SKILL.md`.
 
 ## Landing
 

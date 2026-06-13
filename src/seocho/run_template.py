@@ -442,6 +442,13 @@ def derive_variant_isolation(
     elif spec.graph.startswith(_BOLT_SCHEMES) and not spec.database:
         spec.database = _database_safe(f"{spec.name}")
 
+    # On-disk vector stores share the same comparison-poisoning hazard as
+    # graph.lbug — variant 2 would retrieve variant 1's chunks. Fill a blank
+    # lancedb uri with a variant-local path (explicit values untouched;
+    # faiss is in-memory and rebuilt per variant, nothing to isolate).
+    if spec.vector and spec.vector_kind() == "lancedb" and not str(spec.vector.get("uri") or "").strip():
+        spec.vector["uri"] = str(variant_dir / "vectors.lancedb")
+
     return spec
 
 

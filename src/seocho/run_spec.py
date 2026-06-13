@@ -28,6 +28,9 @@ _ALLOWED_ENFORCEMENT_MODES = {"strict", "guided", "open"}
 _ALLOWED_EXECUTION_MODES = {"pipeline", "agent", "supervisor"}
 _ALLOWED_ROUTING_POLICIES = {"fast", "balanced", "thorough"}
 _ALLOWED_ANSWER_STYLES = {"concise", "evidence", "table"}
+_ALLOWED_GRAPH_KINDS = {"neo4j", "dozerdb", "ladybug"}
+_ALLOWED_VECTOR_KINDS = {"faiss", "lancedb"}
+_BOLT_SCHEMES = ("bolt://", "neo4j://", "neo4j+s://", "bolt+s://")
 
 _TOP_LEVEL_KEYS = {
     "name",
@@ -43,6 +46,7 @@ _TOP_LEVEL_KEYS = {
     "indexing",
     "agent",
     "query",
+    "vector",
     "questions",
     "output",
 }
@@ -50,9 +54,11 @@ _SECTION_KEYS: Dict[str, set] = {
     "ontology": {"path", "enforcement"},
     "documents": {"path", "recursive"},
     "models": {"default", "indexing", "query"},
+    "graph": {"kind", "uri", "path", "user", "password", "database"},
     "indexing": {"design", "category", "force"},
     "agent": {"design", "execution_mode", "routing_policy"},
     "query": {"reasoning_mode", "repair_budget", "answer_style", "limit"},
+    "vector": {"kind", "embedding", "embedding_model", "dimension", "uri", "table_name"},
     "output": {"dir"},
 }
 
@@ -178,6 +184,10 @@ class RunSpec:
     documents_recursive: bool = True
     models: Dict[str, str] = field(default_factory=dict)
     graph: str = ""
+    # Optional explicit backend kind (neo4j | dozerdb | ladybug). Empty means
+    # infer from the graph value: bolt-scheme URI → Neo4j/DozerDB, anything
+    # else (or blank) → embedded LadybugDB path.
+    graph_kind: str = ""
     graph_user: str = "neo4j"
     graph_password: str = "password"
     database: str = ""
@@ -185,6 +195,9 @@ class RunSpec:
     indexing: Dict[str, Any] = field(default_factory=dict)
     agent: Dict[str, Any] = field(default_factory=dict)
     query: Dict[str, Any] = field(default_factory=dict)
+    # Optional hybrid-search vector store: {kind, embedding, embedding_model,
+    # dimension, uri, table_name}. Absent section → no vector store.
+    vector: Dict[str, Any] = field(default_factory=dict)
     questions: List[QuestionSpec] = field(default_factory=list)
     output_dir: str = "runs"
     source_path: str = ""
@@ -218,6 +231,27 @@ class RunSpec:
 
     def index_only(self) -> bool:
         return not self.questions
+
+    # -- backend resolution -------------------------------------------------
+
+    def resolved_graph_kind(self) -> str:
+        if self.graph_kind:
+            return self.graph_kind
+        if self.graph and self.graph.startswith(_BOLT_SCHEMES):
+            return "neo4j"
+        return "ladybug"
+
+    def uses_vector_store(self) -> bool:
+        return bool(self.vector)
+
+    def vector_kind(self) -> str:
+        return _string(self.vector.get("kind")).lower()
+
+    def vector_embedding(self) -> str:
+        """Embedding source for the vector store. Default ``fastembed``
+        (local bge, no network) per the MARA-first policy; any other value
+        is treated as an LLM provider preset name."""
+        return _string(self.vector.get("embedding")).lower() or "fastembed"
 
 
 def _parse_questions(value: Any, *, errors: List[str]) -> List[QuestionSpec]:
@@ -287,7 +321,28 @@ def parse_run_spec(payload: Any, *, source_path: str = "") -> RunSpec:
     indexing = _section(payload, "indexing", errors=errors)
     agent = _section(payload, "agent", errors=errors)
     query = _section(payload, "query", errors=errors)
+    vector = _section(payload, "vector", errors=errors)
     output = _section(payload, "output", errors=errors)
+
+    # ``graph`` accepts a bare string (bolt URI or ladybug path — inferred)
+    # or a mapping with an explicit backend kind. The mapping form
+    # normalizes into the flat fields so everything downstream is unchanged.
+    graph_value = payload.get("graph")
+    graph_kind = ""
+    if isinstance(graph_value, Mapping):
+        graph_section = _section(payload, "graph", errors=errors)
+        graph_kind = _string(graph_section.get("kind")).lower()
+        graph_target = _string(graph_section.get("uri")) or _string(graph_section.get("path"))
+        graph_user = _string(graph_section.get("user"))
+        graph_password = _string(graph_section.get("password"))
+        graph_database = _string(graph_section.get("database"))
+        if _string(graph_section.get("uri")) and _string(graph_section.get("path")):
+            errors.append("at graph: declare either 'uri' (bolt) or 'path' (ladybug), not both.")
+    else:
+        graph_target = _string(graph_value)
+        graph_user = ""
+        graph_password = ""
+        graph_database = ""
 
     default_name = Path(source_path).stem if source_path else "seocho-run"
     spec = RunSpec(
@@ -299,14 +354,16 @@ def parse_run_spec(payload: Any, *, source_path: str = "") -> RunSpec:
         documents_path=_string(documents.get("path")),
         documents_recursive=bool(documents.get("recursive", True)),
         models=models,
-        graph=_string(payload.get("graph")),
-        graph_user=_string(payload.get("graph_user")) or "neo4j",
-        graph_password=_string(payload.get("graph_password")) or "password",
-        database=_string(payload.get("database")),
+        graph=graph_target,
+        graph_kind=graph_kind,
+        graph_user=graph_user or _string(payload.get("graph_user")) or "neo4j",
+        graph_password=graph_password or _string(payload.get("graph_password")) or "password",
+        database=graph_database or _string(payload.get("database")),
         workspace_id=_string(payload.get("workspace_id")),
         indexing=indexing,
         agent=agent,
         query=query,
+        vector=vector,
         questions=_parse_questions(payload.get("questions"), errors=errors),
         output_dir=_string(output.get("dir")) or "runs",
         source_path=source_path,
@@ -350,6 +407,36 @@ def parse_run_spec(payload: Any, *, source_path: str = "") -> RunSpec:
     limit = spec.query.get("limit")
     if limit is not None and not isinstance(limit, int):
         errors.append("at query.limit: must be an integer.")
+
+    if spec.graph_kind:
+        if spec.graph_kind not in _ALLOWED_GRAPH_KINDS:
+            errors.append(
+                "at graph.kind: must be one of: "
+                f"{', '.join(sorted(_ALLOWED_GRAPH_KINDS))}; got {spec.graph_kind!r}."
+            )
+        else:
+            is_bolt = spec.graph.startswith(_BOLT_SCHEMES)
+            if spec.graph_kind in ("neo4j", "dozerdb") and not is_bolt:
+                errors.append(
+                    f"at graph: kind {spec.graph_kind!r} requires a bolt:// (or neo4j://) "
+                    f"uri; got {spec.graph!r}."
+                )
+            if spec.graph_kind == "ladybug" and is_bolt:
+                errors.append(
+                    "at graph: kind 'ladybug' is the embedded engine and takes a file "
+                    f"path, not a bolt uri; got {spec.graph!r}."
+                )
+
+    if spec.vector:
+        vector_kind = spec.vector_kind()
+        if vector_kind not in _ALLOWED_VECTOR_KINDS:
+            errors.append(
+                "at vector.kind: must be one of: "
+                f"{', '.join(sorted(_ALLOWED_VECTOR_KINDS))}; got {vector_kind!r}."
+            )
+        dimension = spec.vector.get("dimension")
+        if dimension is not None and not isinstance(dimension, int):
+            errors.append("at vector.dimension: must be an integer.")
 
     if errors:
         raise RunSpecError(errors)
@@ -407,6 +494,21 @@ questions:
 # graph_password: ${NEO4J_PASSWORD:-password}
 # database: neo4j                   # omit to derive from the ontology name
 # workspace_id: my_run
+#
+# graph:                            # mapping form with an explicit backend
+#   kind: dozerdb                   # neo4j | dozerdb | ladybug
+#   uri: bolt://localhost:7687      # (ladybug uses `path:` instead)
+#   user: neo4j
+#   password: ${NEO4J_PASSWORD}
+#   database: mydb
+#
+# vector:                           # optional hybrid-search vector store
+#   kind: faiss                     # faiss (in-memory) | lancedb (on-disk)
+#   embedding: fastembed            # local bge (default, no network) or an
+#                                   #   LLM provider preset (mara, openai, ...)
+#   embedding_model: BAAI/bge-small-en-v1.5
+#   uri: ./.lancedb                 # lancedb only
+#   table_name: seocho_vectors      # lancedb only
 #
 # indexing:
 #   design: ./indexing_design.yaml  # optional IndexingDesignSpec

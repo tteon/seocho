@@ -773,3 +773,40 @@ class TestCrossDocumentEntityMerge:
             }
         finally:
             store.close()
+
+    # -- seocho-uxs.1: merge-conflict surfacing -----------------------------
+
+    def test_merge_conflict_surfaced_on_silent_overwrite(self, store):
+        """Without composite identity, a second write to the same name-PK node
+        with a different value would silently last-writer-win. The write must
+        report it in summary['merge_conflicts'] (advisory, non-fatal)."""
+        first = store.write(
+            nodes=[{"id": "p1", "label": "Person",
+                    "properties": {"name": "Sam", "age": 30}}],
+            relationships=[], source_id="doc-a",
+        )
+        assert first["merge_conflicts"] == []  # new node, nothing to diverge
+
+        second = store.write(
+            nodes=[{"id": "p2", "label": "Person",
+                    "properties": {"name": "Sam", "age": 41}}],
+            relationships=[], source_id="doc-b",
+        )
+        assert second["errors"] == []
+        conflicts = second["merge_conflicts"]
+        assert len(conflicts) == 1
+        c = conflicts[0]
+        assert c["label"] == "Person" and c["property"] == "age"
+        assert c["existing"] == "30" and c["incoming"] == "41"
+        assert c["source_id"] == "doc-b"
+
+    def test_no_merge_conflict_when_value_unchanged(self, store):
+        store.write(
+            nodes=[{"id": "p1", "label": "Person", "properties": {"name": "Kim", "age": 5}}],
+            relationships=[], source_id="doc-a",
+        )
+        again = store.write(
+            nodes=[{"id": "p2", "label": "Person", "properties": {"name": "Kim", "age": 5}}],
+            relationships=[], source_id="doc-b",
+        )
+        assert again["merge_conflicts"] == []

@@ -107,6 +107,10 @@ class IndexingResult:
     total_relationships: int = 0
     validation_errors: List[str] = field(default_factory=list)
     write_errors: List[str] = field(default_factory=list)
+    # seocho-uxs.1: non-fatal value-divergence signals from the store's
+    # single-key MERGE (an existing node's property differed from the
+    # incoming write). Advisory — ingestion still succeeds.
+    merge_conflicts: List[Dict[str, Any]] = field(default_factory=list)
     skipped_chunks: int = 0
     deduplicated: bool = False
     rule_profile: Optional[Dict[str, Any]] = None
@@ -139,6 +143,7 @@ class IndexingResult:
             "total_relationships": self.total_relationships,
             "validation_errors": self.validation_errors,
             "write_errors": self.write_errors,
+            "merge_conflicts": self.merge_conflicts,
             "skipped_chunks": self.skipped_chunks,
             "deduplicated": self.deduplicated,
             "ok": self.ok,
@@ -629,6 +634,7 @@ class IndexingPipeline:
         result.total_nodes = summary.get("nodes_created", 0)
         result.total_relationships = summary.get("relationships_created", 0)
         result.write_errors = summary.get("errors", [])
+        result.merge_conflicts = summary.get("merge_conflicts", [])
 
         if not result.write_errors and self.vector_store is not None and chunk_records:
             try:

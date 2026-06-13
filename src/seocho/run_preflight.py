@@ -229,7 +229,7 @@ def _check_models(spec: RunSpec) -> List[PreflightCheck]:
 
 def _check_graph(spec: RunSpec, *, online: bool) -> PreflightCheck:
     target = spec.graph
-    if not target or not target.startswith(("bolt://", "neo4j://", "neo4j+s://", "bolt+s://")):
+    if spec.resolved_graph_kind() == "ladybug":
         path = target or ".seocho/local.lbug"
         try:
             import real_ladybug  # noqa: F401
@@ -241,9 +241,11 @@ def _check_graph(spec: RunSpec, *, online: bool) -> PreflightCheck:
                 fix="pip install 'seocho[local]', or set graph: bolt://... to use Neo4j/DozerDB",
             )
         return PreflightCheck(name="graph", status="ok", detail=f"embedded ladybug ({path})")
+    kind = spec.resolved_graph_kind()
     if not online:
         return PreflightCheck(
-            name="graph", status="ok", detail=f"{target} (connection not checked in dry-run)"
+            name="graph", status="ok",
+            detail=f"{kind} {target} (connection not checked in dry-run)",
         )
     try:
         from .store.graph import Neo4jGraphStore
@@ -266,6 +268,56 @@ def _check_graph(spec: RunSpec, *, online: bool) -> PreflightCheck:
     return PreflightCheck(name="graph", status="ok", detail=f"{target} connected")
 
 
+def _check_vector(spec: RunSpec) -> "PreflightCheck | None":
+    if not spec.uses_vector_store():
+        return None
+    kind = spec.vector_kind()
+    module = "faiss" if kind == "faiss" else "lancedb"
+    try:
+        __import__(module)
+    except ImportError:
+        return PreflightCheck(
+            name=f"vector {kind}",
+            status="fail",
+            detail=f"the '{module}' package is not installed.",
+            fix=f"pip install {'faiss-cpu' if kind == 'faiss' else 'lancedb'}",
+        )
+    embedding = spec.vector_embedding()
+    if embedding == "fastembed":
+        try:
+            __import__("fastembed")
+        except ImportError:
+            return PreflightCheck(
+                name=f"vector {kind}",
+                status="fail",
+                detail="embedding=fastembed but the 'fastembed' package is not installed.",
+                fix="pip install fastembed, or set vector.embedding to a provider (e.g. mara)",
+            )
+        return PreflightCheck(
+            name=f"vector {kind}", status="ok", detail="embedding=fastembed (local bge)"
+        )
+    import os
+
+    from .store.llm import get_provider_spec
+
+    try:
+        provider_spec = get_provider_spec(embedding)
+    except ValueError as exc:
+        return PreflightCheck(name=f"vector {kind}", status="fail", detail=str(exc))
+    env_names = (provider_spec.api_key_env, *provider_spec.api_key_env_aliases)
+    if any(os.getenv(name, "").strip() for name in env_names):
+        return PreflightCheck(
+            name=f"vector {kind}", status="ok",
+            detail=f"embedding={embedding} ({provider_spec.api_key_env} set)",
+        )
+    return PreflightCheck(
+        name=f"vector {kind}",
+        status="fail",
+        detail=f"embedding={embedding} but {provider_spec.api_key_env} is not set.",
+        fix=f"export {provider_spec.api_key_env}=..., or use vector.embedding: fastembed",
+    )
+
+
 def run_preflight(spec: RunSpec, *, online: bool = False) -> PreflightReport:
     """Run all preflight checks for a run spec.
 
@@ -281,6 +333,9 @@ def run_preflight(spec: RunSpec, *, online: bool = False) -> PreflightReport:
             report.checks.append(check)
     report.checks.extend(_check_models(spec))
     report.checks.append(_check_graph(spec, online=online))
+    vector_check = _check_vector(spec)
+    if vector_check is not None:
+        report.checks.append(vector_check)
     if spec.index_only():
         report.checks.append(
             PreflightCheck(name="questions", status="ok", detail="none (index-only run)")

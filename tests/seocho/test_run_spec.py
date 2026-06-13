@@ -190,3 +190,67 @@ def test_load_run_spec_missing_file() -> None:
     with pytest.raises(RunSpecError) as excinfo:
         load_run_spec("/nonexistent/run.yaml")
     assert "seocho run --init" in str(excinfo.value)
+
+
+def test_graph_mapping_form_with_kind() -> None:
+    spec = parse_run_spec(
+        {
+            "ontology": "s.yaml",
+            "documents": "d/",
+            "graph": {
+                "kind": "dozerdb",
+                "uri": "bolt://host:7687",
+                "user": "u",
+                "password": "pw",
+                "database": "db1",
+            },
+        }
+    )
+    assert spec.graph == "bolt://host:7687"
+    assert spec.graph_kind == "dozerdb"
+    assert spec.resolved_graph_kind() == "dozerdb"
+    assert spec.graph_user == "u"
+    assert spec.graph_password == "pw"
+    assert spec.database == "db1"
+
+
+def test_graph_bare_string_back_compat() -> None:
+    spec = parse_run_spec(
+        {"ontology": "s.yaml", "documents": "d/", "graph": "bolt://host:7687"}
+    )
+    assert spec.graph_kind == ""
+    assert spec.resolved_graph_kind() == "neo4j"  # inferred from bolt scheme
+    blank = parse_run_spec({"ontology": "s.yaml", "documents": "d/"})
+    assert blank.resolved_graph_kind() == "ladybug"
+
+
+def test_graph_kind_coherence_errors() -> None:
+    base = {"ontology": "s.yaml", "documents": "d/"}
+    with pytest.raises(RunSpecError, match="requires a bolt"):
+        parse_run_spec({**base, "graph": {"kind": "neo4j", "path": "./g.lbug"}})
+    with pytest.raises(RunSpecError, match="embedded engine"):
+        parse_run_spec({**base, "graph": {"kind": "ladybug", "uri": "bolt://h:7687"}})
+    with pytest.raises(RunSpecError, match="graph.kind"):
+        parse_run_spec({**base, "graph": {"kind": "postgres", "uri": "bolt://h:7687"}})
+    with pytest.raises(RunSpecError, match="not both"):
+        parse_run_spec(
+            {**base, "graph": {"kind": "ladybug", "uri": "x", "path": "y"}}
+        )
+
+
+def test_vector_section_parse_and_defaults() -> None:
+    base = {"ontology": "s.yaml", "documents": "d/"}
+    spec = parse_run_spec({**base, "vector": {"kind": "lancedb", "uri": "./v"}})
+    assert spec.uses_vector_store()
+    assert spec.vector_kind() == "lancedb"
+    assert spec.vector_embedding() == "fastembed"  # MARA-first default
+
+    none_spec = parse_run_spec(base)
+    assert not none_spec.uses_vector_store()
+
+    with pytest.raises(RunSpecError, match="vector.kind"):
+        parse_run_spec({**base, "vector": {"kind": "pinecone"}})
+    with pytest.raises(RunSpecError, match="vector.dimension"):
+        parse_run_spec({**base, "vector": {"kind": "faiss", "dimension": "big"}})
+    with pytest.raises(RunSpecError, match="unknown key"):
+        parse_run_spec({**base, "vector": {"kind": "faiss", "embeding": "x"}})

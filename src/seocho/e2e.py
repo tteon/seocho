@@ -126,7 +126,9 @@ def _build_llm(model_ref: str) -> Any:
 
 
 def _build_graph_store(spec: RunSpec, ontology: Any) -> Any:
-    if spec.graph and spec.graph.startswith(_BOLT_SCHEMES):
+    # Backend selection: explicit graph.kind wins; a bare string falls back
+    # to URI inference (bolt scheme → Neo4j/DozerDB, else embedded path).
+    if spec.resolved_graph_kind() in ("neo4j", "dozerdb"):
         from .store.graph import Neo4jGraphStore
 
         return Neo4jGraphStore(spec.graph, spec.graph_user, spec.graph_password)
@@ -138,6 +140,50 @@ def _build_graph_store(spec: RunSpec, ontology: Any) -> Any:
     except Exception:
         pass
     return store
+
+
+def _build_vector_store(spec: RunSpec) -> Optional[Any]:
+    """Build the optional hybrid-search vector store from the ``vector:``
+    section. Embedding defaults to local fastembed (bge) per the MARA-first
+    policy; any other value is an LLM provider preset."""
+    if not spec.uses_vector_store():
+        return None
+    from .store.vector import create_vector_store
+
+    embedding = spec.vector_embedding()
+    embedding_model = str(spec.vector.get("embedding_model") or "").strip()
+    if embedding == "fastembed":
+        from .store.fastembed_backend import make_fastembed_backend
+
+        backend = (
+            make_fastembed_backend(embedding_model)
+            if embedding_model
+            else make_fastembed_backend()
+        )
+        if backend is None:
+            raise RuntimeError(
+                "vector.embedding: fastembed is unavailable (pip install fastembed), "
+                "or the bge model could not load. Alternatively set "
+                "vector.embedding to an LLM provider preset (e.g. mara)."
+            )
+        # bge-small embeds at 384 dims; the factory default (1536) is the
+        # OpenAI shape, so derive unless the spec pins one.
+        dimension = int(spec.vector.get("dimension") or len(backend.embed(["probe"])[0]))
+    else:
+        from .store.llm import create_embedding_backend
+
+        backend = create_embedding_backend(
+            provider=embedding, model=embedding_model or None
+        )
+        dimension = int(spec.vector.get("dimension") or 1536)
+
+    return create_vector_store(
+        kind=spec.vector_kind(),
+        embedding_backend=backend,
+        dimension=dimension,
+        uri=str(spec.vector.get("uri") or "./.lancedb"),
+        table_name=str(spec.vector.get("table_name") or "seocho_vectors"),
+    )
 
 
 def build(spec: RunSpec) -> RunContext:
@@ -160,6 +206,9 @@ def build(spec: RunSpec) -> RunContext:
 
     graph_store = _build_graph_store(spec, ontology)
     client_kwargs["graph_store"] = graph_store
+    vector_store = _build_vector_store(spec)
+    if vector_store is not None:
+        client_kwargs["vector_store"] = vector_store
 
     index_client = Seocho(llm=_build_llm(spec.indexing_model()), **client_kwargs)
     if spec.uses_split_models():
@@ -381,6 +430,8 @@ def run(
             "enforcement": spec.enforcement,
             "models": {"indexing": spec.indexing_model(), "query": spec.query_model()},
             "graph": spec.graph or "",
+            "graph_kind": spec.resolved_graph_kind(),
+            "vector": spec.vector_kind() if spec.uses_vector_store() else "",
             "database": ctx.database,
             "workspace_id": spec.resolved_workspace_id(),
         }
@@ -541,7 +592,10 @@ def run_from_config(
         _emit(quiet, "Dry run: config valid, preflight passed. Resolved plan:")
         _emit(quiet, f"  models: indexing={spec.indexing_model()}, query={spec.query_model()}")
         _emit(quiet, f"  enforcement: {spec.enforcement} (strict_validation={spec.strict_validation()})")
-        _emit(quiet, f"  graph: {spec.graph or 'embedded ladybug (.seocho/local.lbug)'}")
+        _emit(quiet, f"  graph: {spec.resolved_graph_kind()} "
+                     f"({spec.graph or '.seocho/local.lbug'})")
+        if spec.uses_vector_store():
+            _emit(quiet, f"  vector: {spec.vector_kind()} (embedding={spec.vector_embedding()})")
         _emit(quiet, f"  workspace: {spec.resolved_workspace_id()}")
         _emit(quiet, f"  questions: {len(spec.questions)}")
         if json_output:
@@ -796,6 +850,19 @@ def run_sweep_from_config(
                               "variants": [v.name for v, _s, _r in prepared]},
                              ensure_ascii=False))
         return 1 if any_failed else 0
+
+    # Shared-server note: bolt variants coexist on one server — isolation
+    # rides on per-variant database/workspace only (panel-recommended warning).
+    bolt_variants = [v.name for v, s, _r in prepared if s.resolved_graph_kind() != "ladybug"]
+    if len(bolt_variants) > 1:
+        _emit(
+            quiet,
+            "note: variants "
+            + ", ".join(bolt_variants)
+            + " share one graph server — isolation relies on per-variant "
+            "database/workspace_id; data coexists on the server.",
+        )
+        _emit(quiet)
 
     # --- Stage 2: sequential execution, keep-going by default.
     rows: List[Dict[str, Any]] = []

@@ -282,3 +282,22 @@ def test_absolutized_rendered_text(tmp_path) -> None:
     assert Path(payload["agent"]["design"]).is_absolute()
     # secrets stay as unresolved placeholders
     assert payload["graph_password"] == "${SECRET:-pw}"
+
+
+def test_isolation_fills_blank_lancedb_uri(tmp_path) -> None:
+    spec = derive_variant_isolation(
+        _spec(vector={"kind": "lancedb"}), variant_name="v1", sweep_run_dir=tmp_path
+    )
+    assert spec.vector["uri"] == str(tmp_path / "v1" / "vectors.lancedb")
+
+    explicit = derive_variant_isolation(
+        _spec(vector={"kind": "lancedb", "uri": "/data/shared.lancedb"}),
+        variant_name="v1",
+        sweep_run_dir=tmp_path,
+    )
+    assert explicit.vector["uri"] == "/data/shared.lancedb"
+
+    faiss = derive_variant_isolation(
+        _spec(vector={"kind": "faiss"}), variant_name="v1", sweep_run_dir=tmp_path
+    )
+    assert "uri" not in faiss.vector  # in-memory: nothing to isolate

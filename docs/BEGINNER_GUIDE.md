@@ -112,9 +112,9 @@ internal seams.
 
 | Path | Use when | Requirement |
 |---|---|---|
-| Embedded local SDK | You want the fastest learning loop | `pip install "seocho[local]"` and an LLM key |
+| Embedded local SDK | You want the fastest learning loop | `uv pip install "seocho[local]"` and an LLM key |
 | Local platform stack | You want UI, API docs, and DozerDB together | `make setup-env && make up` |
-| Remote HTTP client | Someone else is running SEOCHO | `pip install seocho` and `base_url` |
+| Remote HTTP client | Someone else is running SEOCHO | `uv pip install seocho` and `base_url` |
 
 Start with embedded local SDK unless you explicitly need the UI or HTTP APIs.
 

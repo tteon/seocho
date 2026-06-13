@@ -19,37 +19,41 @@ If your first question is how to measure quality or latency, read
 
 Pick the mode first:
 
+SEOCHO standardizes on [uv](https://docs.astral.sh/uv/); the `uv pip` forms
+below work in any environment, and plain `pip` is a drop-in if you are not on
+uv.
+
 - HTTP client mode only:
 
 ```bash
-pip install seocho
+uv pip install seocho
 ```
 
 - local SDK engine from the published package:
 
 ```bash
-pip install "seocho[local]"
+uv pip install "seocho[local]"
 ```
 
 - repository development or local CLI authoring from a clone:
 
 ```bash
-pip install -e ".[dev]"
+uv sync --extra dev      # then prefix commands with `uv run` (no venv to activate)
 ```
 
 - offline ontology governance helpers:
 
 ```bash
-pip install "seocho[ontology]"
+uv pip install "seocho[ontology]"
 ```
 
 Important:
 
-- `pip install seocho` is enough for remote HTTP client mode.
-- `pip install "seocho[local]"` is the simplest published-package path for `Seocho.local(...)`.
+- `uv pip install seocho` is enough for remote HTTP client mode.
+- `uv pip install "seocho[local]"` is the simplest published-package path for `Seocho.local(...)`.
 - `Seocho.local(ontology)` defaults to embedded LadybugDB, so a Neo4j/DozerDB server is optional for hello world.
 - pass `graph="bolt://..."` or `Neo4jGraphStore(...)` when you want the production DozerDB/Neo4j path.
-- `pip install -e ".[dev]"` remains the right path when you are editing the repo itself.
+- `uv sync --extra dev` (then `uv run …`) is the right path when you are editing the repo itself.
 
 If you are iterating on schema evolution, use the offline governance CLI:
 

@@ -1,6 +1,6 @@
 # SEOCHO SDK Contract
 
-What `pip install seocho` promises, what it explicitly does not, and where
+What `uv pip install seocho` promises, what it explicitly does not, and where
 each promise is enforced. This document is the user-facing contract for
 fine-grained SDK use — composing `Session`, individual tools, and stores
 without going through the HTTP runtime.

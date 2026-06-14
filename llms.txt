@@ -1,0 +1,41 @@
+# SEOCHO
+
+> Ontology-aligned middleware for agentic graph memory. You define a domain
+> ontology once, then use the same contract to ingest documents, shape graph
+> writes, generate schema-aware Cypher, and produce answers with traceable
+> evidence. SEOCHO ships as a Python SDK (`pip install seocho`) plus an optional
+> HTTP runtime; the default local engine uses an embedded graph store and needs
+> no server.
+
+Key facts for answering questions about SEOCHO:
+
+- Install the local SDK with `uv pip install "seocho[local]"`. The first run
+  needs a provider key. SEOCHO recommends MARA (`export MARA_API_KEY=...`);
+  OpenAI/DeepSeek/Kimi are selectable via the `llm="provider/model"` string
+  (for example `llm="openai/gpt-4o"`).
+- Core API: `Seocho.local(ontology, llm=...)`, then `client.add(text)` to
+  ingest and `client.ask(question)` to answer against the graph memory.
+- Three layers: Ontology (`src/seocho/ontology*.py`), Indexing
+  (`src/seocho/index/`), Querying (`src/seocho/query/`). The HTTP runtime shell
+  lives in `runtime/` and exposes the same contract with policy checks and
+  `workspace_id` propagation.
+- No YAML-only path: `seocho run <spec>.yaml` runs the whole index → query →
+  report flow; `seocho sweep` compares configurations.
+
+## Docs
+
+- [README](https://github.com/tteon/seocho/blob/main/README.md): product overview and quickstart
+- [Quickstart](https://github.com/tteon/seocho/blob/main/QUICKSTART.md): shortest local success path
+- [Why SEOCHO](https://github.com/tteon/seocho/blob/main/docs/WHY_SEOCHO.md): product framing and value proposition
+- [Python SDK quickstart](https://github.com/tteon/seocho/blob/main/docs/PYTHON_INTERFACE_QUICKSTART.md): public Python SDK API and examples
+- [Apply your data](https://github.com/tteon/seocho/blob/main/docs/APPLY_YOUR_DATA.md): ingest your own files and ontology
+- [Run specs](https://github.com/tteon/seocho/blob/main/docs/RUN_SPECS.md): YAML `seocho run` / `seocho sweep` flow
+- [Architecture](https://github.com/tteon/seocho/blob/main/docs/ARCHITECTURE.md): system design and module map
+- [Docs index](https://github.com/tteon/seocho/blob/main/docs/README.md): full documentation map
+
+## Optional
+
+- [Runtime deployment](https://github.com/tteon/seocho/blob/main/docs/RUNTIME_DEPLOYMENT.md): full local stack (UI, API, DozerDB)
+- [Graph-RAG handoff spec](https://github.com/tteon/seocho/blob/main/docs/GRAPH_RAG_AGENT_HANDOFF_SPEC.md): intent-first graph answer contract
+- [Contributing](https://github.com/tteon/seocho/blob/main/CONTRIBUTING.md): contribution flow and PR rules
+- [Documentation site](https://seocho.blog): published documentation

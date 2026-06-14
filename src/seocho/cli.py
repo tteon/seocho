@@ -354,6 +354,20 @@ def build_parser() -> argparse.ArgumentParser:
     ontology_datahub_parser.add_argument("--emit", action="store_true", help="Actually emit to --gms (default: dry-run)")
     ontology_datahub_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
 
+    ontology_select_parser = ontology_subparsers.add_parser(
+        "select-guardrail",
+        help="Domain-adaptively pick the best guardrail ontology for a corpus (ADR-0122)",
+    )
+    ontology_select_parser.add_argument(
+        "--candidates", required=True,
+        help="Comma-separated name=path pairs, e.g. lean=fibo_minus.jsonld,rich=fibo_plus.jsonld",
+    )
+    ontology_select_parser.add_argument(
+        "--corpus", required=True,
+        help="Corpus profile JSON (label->freq, a CorpusProfile dict, or an experiment record)",
+    )
+    ontology_select_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
+
     serve_http_parser = subparsers.add_parser("serve-http", help="Serve a portable bundle behind a small FastAPI runtime")
     serve_http_parser.add_argument("--bundle", required=True, help="Path to portable bundle JSON file")
     serve_http_parser.add_argument("--host", default="0.0.0.0", help="Bind host")
@@ -1628,6 +1642,30 @@ def _cmd_ontology(args: argparse.Namespace) -> int:
                   f"({s['glossary_terms']} terms, {s['glossary_nodes']} nodes, {s['is_a_edges']} is-a edges)")
         else:
             print(text)
+        return 0
+
+    if args.ontology_command == "select-guardrail":
+        from .ontology import Ontology
+        from .guardrail_selector import load_corpus_profile, select_guardrail
+
+        candidates = {}
+        for pair in str(args.candidates).split(","):
+            pair = pair.strip()
+            if not pair:
+                continue
+            name, _, path = pair.partition("=")
+            if not path:
+                name, path = Path(name).stem, name
+            candidates[name.strip()] = Ontology.load(path.strip())
+        rec = select_guardrail(candidates, load_corpus_profile(args.corpus))
+        if getattr(args, "output_json", False):
+            print(json.dumps(rec.to_dict(), indent=2, ensure_ascii=False))
+        else:
+            print(f"chosen: {rec.chosen}  (domain={rec.domain_kind}, numeric_intensity={rec.numeric_intensity})")
+            print(f"  coverage: " + ", ".join(f"{n}={s['corpus_coverage']}" for n, s in rec.candidate_scores.items()))
+            print(f"  {rec.rationale}")
+            for a in rec.advisories:
+                print(f"  · {a}")
         return 0
 
     raise SeochoError(f"Unknown ontology command: {args.ontology_command}")

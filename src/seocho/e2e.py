@@ -186,10 +186,37 @@ def _build_vector_store(spec: RunSpec) -> Optional[Any]:
     )
 
 
+def resolve_guardrail(spec: RunSpec) -> RunSpec:
+    """Domain-adaptively pick the guardrail ontology when ``ontology.select`` was
+    declared (ADR-0123): score the candidates against the corpus profile and set
+    ``spec.ontology_path`` to the chosen candidate, recording the recommendation
+    on ``spec.selected_guardrail``. No-op when a fixed ``ontology.path`` is set."""
+    if spec.ontology_path or not spec.guardrail_candidates:
+        return spec
+    from .guardrail_selector import load_corpus_profile, select_guardrail
+    from .ontology import Ontology
+
+    candidates = {name: Ontology.load(_resolve(spec, path))
+                  for name, path in spec.guardrail_candidates.items()}
+    corpus_profile = load_corpus_profile(_resolve(spec, spec.guardrail_corpus_profile))
+    rec = select_guardrail(candidates, corpus_profile)
+    spec.ontology_path = spec.guardrail_candidates[rec.chosen]
+    spec.selected_guardrail = rec.to_dict()
+    return spec
+
+
 def build(spec: RunSpec) -> RunContext:
     """Assemble live SDK objects from a validated run spec."""
     from .client import Seocho
     from .ontology import Ontology
+
+    resolve_guardrail(spec)
+    if spec.selected_guardrail:
+        rec = spec.selected_guardrail
+        print(f"[guardrail] selected '{rec['chosen']}' ({spec.ontology_path}) for "
+              f"{rec['domain_kind']} corpus (numeric_intensity={rec['numeric_intensity']})")
+        for advisory in rec.get("advisories", []):
+            print(f"[guardrail] · {advisory}")
 
     ontology = Ontology.load(_resolve(spec, spec.ontology_path))
 

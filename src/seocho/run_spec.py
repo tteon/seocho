@@ -51,7 +51,7 @@ _TOP_LEVEL_KEYS = {
     "output",
 }
 _SECTION_KEYS: Dict[str, set] = {
-    "ontology": {"path", "enforcement"},
+    "ontology": {"path", "enforcement", "select"},
     "documents": {"path", "recursive"},
     "models": {"default", "indexing", "query"},
     "graph": {"kind", "uri", "path", "user", "password", "database"},
@@ -201,6 +201,14 @@ class RunSpec:
     questions: List[QuestionSpec] = field(default_factory=list)
     output_dir: str = "runs"
     source_path: str = ""
+    # Optional domain-adaptive guardrail selection (ADR-0123): when
+    # ``ontology.select`` is declared instead of a fixed ``ontology.path``, the
+    # runner scores the candidates against the corpus profile and picks one.
+    # ``ontology_path`` is then filled at resolve time and ``selected_guardrail``
+    # records the recommendation.
+    guardrail_candidates: Dict[str, str] = field(default_factory=dict)
+    guardrail_corpus_profile: str = ""
+    selected_guardrail: Optional[Dict[str, Any]] = None
 
     # -- model resolution ------------------------------------------------
 
@@ -312,6 +320,23 @@ def parse_run_spec(payload: Any, *, source_path: str = "") -> RunSpec:
     ontology = _path_or_mapping(payload, "ontology", errors=errors)
     documents = _path_or_mapping(payload, "documents", errors=errors)
 
+    # Optional domain-adaptive guardrail selection (ADR-0123).
+    select = ontology.get("select")
+    guardrail_candidates: Dict[str, str] = {}
+    guardrail_corpus_profile = ""
+    if select is not None:
+        if not isinstance(select, Mapping):
+            errors.append("at ontology.select: must be a mapping with 'candidates' and 'corpus_profile'.")
+        else:
+            cands = select.get("candidates") or {}
+            if not isinstance(cands, Mapping) or not cands:
+                errors.append("at ontology.select.candidates: a non-empty mapping of name -> ontology path is required.")
+            else:
+                guardrail_candidates = {str(k): _string(v) for k, v in cands.items()}
+            guardrail_corpus_profile = _string(select.get("corpus_profile"))
+            if not guardrail_corpus_profile:
+                errors.append("at ontology.select.corpus_profile: a corpus-profile path is required.")
+
     models_value = payload.get("models")
     if isinstance(models_value, str):
         models: Dict[str, str] = {"default": models_value.strip()}
@@ -367,10 +392,13 @@ def parse_run_spec(payload: Any, *, source_path: str = "") -> RunSpec:
         questions=_parse_questions(payload.get("questions"), errors=errors),
         output_dir=_string(output.get("dir")) or "runs",
         source_path=source_path,
+        guardrail_candidates=guardrail_candidates,
+        guardrail_corpus_profile=guardrail_corpus_profile,
     )
 
-    if not spec.ontology_path:
-        errors.append("at ontology: a run spec requires ontology (path or mapping with 'path').")
+    if not spec.ontology_path and not (spec.guardrail_candidates and spec.guardrail_corpus_profile):
+        errors.append("at ontology: a run spec requires ontology (path/mapping with 'path', "
+                      "or 'select' with candidates + corpus_profile).")
     if not spec.documents_path:
         errors.append("at documents: a run spec requires documents (path or mapping with 'path').")
     if spec.enforcement not in _ALLOWED_ENFORCEMENT_MODES:

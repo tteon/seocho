@@ -285,6 +285,9 @@ class MappingProposal:
     confidence: float = 0.0
     predicted_coverage_delta: Optional[float] = None
     rationale: str = ""
+    # OntoClean pre-validation of the proposed is-a edge (new_class under parent):
+    # None = not checked (no tags), "ok" = passes, else a violation message.
+    ontoclean: Optional[str] = None
 
     def to_spec_entry(self) -> Dict[str, Any]:
         entry: Dict[str, Any] = {"surface": self.surface, "action": self.action}
@@ -302,7 +305,7 @@ class MappingProposal:
             "surface": self.surface, "action": self.action, "target": self.target,
             "parent": self.parent, "description": self.description,
             "confidence": self.confidence, "predicted_coverage_delta": self.predicted_coverage_delta,
-            "rationale": self.rationale,
+            "rationale": self.rationale, "ontoclean": self.ontoclean,
         }
 
 
@@ -329,6 +332,23 @@ def _propose_prompt(clusters: List[Dict[str, Any]], ontology: Ontology) -> str:
     return "\n".join(lines)
 
 
+def _ontoclean_precheck(candidate: Ontology, prop: "MappingProposal", tags: Dict[str, Any]) -> Optional[str]:
+    """Run the OntoClean subsumption check on the candidate ontology (which now
+    contains the proposed ``new_class`` under its parent) and report the verdict
+    for that edge. Returns None when the proposed class is untagged (can't check)."""
+    from .ontology_ontoclean import check_ontoclean
+
+    child_label = prop.target or prop.surface
+    if child_label not in tags:
+        return None  # no meta-properties for the proposed class → cannot judge
+    result = check_ontoclean(candidate, tags)
+    hits = [v for v in result.violations
+            if v.severity == "violation" and v.child == child_label and v.parent == prop.parent]
+    if hits:
+        return f"violation: {hits[0].message}"
+    return "ok"
+
+
 def propose_mappings(
     clusters: List[Dict[str, Any]],
     ontology: Ontology,
@@ -336,11 +356,15 @@ def propose_mappings(
     backend: Any,
     model: Optional[str] = None,
     top_k: int = 20,
+    ontoclean_tags: Optional[Dict[str, Any]] = None,
 ) -> List[MappingProposal]:
     """Generate ranked mapping proposals for the top clusters via an LLM
     (injected ``backend``; routed through the provider-aware structured layer,
     ADR-0120). Each proposal is annotated with its predicted corpus-coverage lift
-    (computed offline by applying it and re-scoring). Fake-testable."""
+    (computed offline by applying it and re-scoring). When ``ontoclean_tags``
+    (``{label: MetaProperties}``) are supplied, a ``new_class`` proposal's
+    is-a placement under its parent is OntoClean-prechecked and the verdict is
+    recorded on ``proposal.ontoclean``. Fake-testable."""
     from .llm_structured import StructuredOutputError, structured_complete
 
     top = list(clusters)[:top_k]
@@ -388,6 +412,8 @@ def propose_mappings(
             try:
                 candidate = apply_mapping_spec(ontology, {"mappings": [prop.to_spec_entry()]})
                 prop.predicted_coverage_delta = round(_coverage(candidate) - base_cov, 4)
+                if action == "new_class" and prop.parent and ontoclean_tags:
+                    prop.ontoclean = _ontoclean_precheck(candidate, prop, ontoclean_tags)
             except Exception:
                 prop.predicted_coverage_delta = None
         proposals.append(prop)

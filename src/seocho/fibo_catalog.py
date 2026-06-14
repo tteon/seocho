@@ -42,6 +42,20 @@ def _local_name(iri: str) -> str:
     return frag
 
 
+def _first_iri(value: Any) -> str:
+    """Coerce a domain/range/subClassOf cell to a single IRI string. FIBO
+    properties may carry a list of IRIs (multiple domains/ranges) or a string."""
+    if isinstance(value, (list, tuple)):
+        return str(value[0]) if value else ""
+    return str(value or "")
+
+
+def _iri_list(value: Any) -> List[str]:
+    if isinstance(value, (list, tuple)):
+        return [str(v) for v in value if v]
+    return [str(value)] if value else []
+
+
 def _label_for(resource: Dict[str, Any], iri: str) -> str:
     """A valid SEOCHO class label: prefer the IRI local name (usually PascalCase),
     else a sanitized human label."""
@@ -77,7 +91,7 @@ def catalog_module_to_ontology(
         label = iri_to_label[iri]
         human = str(r.get("label", "")).strip()
         aliases = [human] if human and human != label else []
-        broader = [iri_to_label[p] for p in (r.get("subclass_of") or []) if p in iri_to_label]
+        broader = [iri_to_label[p] for p in _iri_list(r.get("subclass_of")) if p in iri_to_label]
         nodes[label] = NodeDef(
             description=str(definitions.get(iri, "")).strip(),
             aliases=aliases, broader=sorted(set(broader)), same_as=iri,
@@ -88,8 +102,8 @@ def catalog_module_to_ontology(
         if r.get("kind") not in _PROP_KINDS:
             continue
         rtype = re.sub(r"[^A-Za-z0-9]", "_", iri_to_label[iri]).upper() or "RELATED_TO"
-        src = iri_to_label.get(r.get("domain") or "", "Any")
-        tgt = iri_to_label.get(r.get("range") or "", "Any")
+        src = iri_to_label.get(_first_iri(r.get("domain")), "Any")
+        tgt = iri_to_label.get(_first_iri(r.get("range")), "Any")
         relationships[rtype] = RelDef(source=src or "Any", target=tgt or "Any",
                                       description=str(definitions.get(iri, "")).strip())
 

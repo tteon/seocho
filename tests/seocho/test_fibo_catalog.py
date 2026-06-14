@@ -74,3 +74,24 @@ def test_candidates_feed_guardrail_selector():
     rec = select_guardrail(cands, corpus)
     assert rec.chosen == "BE"
     assert rec.candidate_scores["BE"]["corpus_coverage"] > 0
+
+
+def test_handles_list_valued_domain_range_and_subclass():
+    """Real FIBO properties carry list-valued domain/range/subClassOf — must not
+    crash (regression: 'unhashable type: list')."""
+    BE = "https://spec.edmcouncil.org/fibo/ontology/BE/"
+    catalog = {
+        "schema_version": "seocho.fibo_catalog.v1", "snapshot_hash": "h", "fibo_commit": "c",
+        "modules": {"BE": {"code": "BE", "iri_prefix": BE, "summary": "s",
+            "label_index": {}, "definitions": {},
+            "resources": {
+                BE + "A": {"kind": "class", "local_name": "A", "label": "A", "subclass_of": [], "domain": "", "range": ""},
+                BE + "B": {"kind": "class", "local_name": "B", "label": "B",
+                           "subclass_of": [BE + "A", BE + "Missing"], "domain": "", "range": ""},
+                BE + "rel": {"kind": "object_property", "local_name": "rel", "label": "rel",
+                             "domain": [BE + "A", BE + "B"], "range": [BE + "B"], "subclass_of": []},
+            }}}}
+    onto = catalog_module_to_ontology(catalog, "BE")
+    assert onto.nodes["B"].broader == ["A"]              # missing parent dropped, list handled
+    assert onto.relationships["REL"].source == "A"        # first of domain list
+    assert onto.relationships["REL"].target == "B"        # first of range list

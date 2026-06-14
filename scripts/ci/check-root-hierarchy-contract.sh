@@ -61,7 +61,7 @@ required_paths=(
   "docs/assets/systemOverview.png"
   "docs/ontology/ONTOLOGY_GUIDE.md"
   "docs/GITHUB_AUTOMATION.md"
-  "docs/REPOSITORY_HIERARCHY_REVIEW.md"
+  "docs/internal/REPOSITORY_HIERARCHY_REVIEW.md"
 )
 
 for path in "${required_paths[@]}"; do

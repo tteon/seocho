@@ -32,10 +32,10 @@ architecture commitments:
 
 Supporting references:
 
-- [docs/SEMANTIC_CONTROL_PLANE.md](SEMANTIC_CONTROL_PLANE.md)
-- [docs/GRAPH_RAG_AGENT_HANDOFF_SPEC.md](GRAPH_RAG_AGENT_HANDOFF_SPEC.md)
+- [docs/SEMANTIC_CONTROL_PLANE.md](../SEMANTIC_CONTROL_PLANE.md)
+- [docs/GRAPH_RAG_AGENT_HANDOFF_SPEC.md](../GRAPH_RAG_AGENT_HANDOFF_SPEC.md)
 - [docs/BASELINE_INSTRUCTIONS.md](BASELINE_INSTRUCTIONS.md)
-- [docs/decisions/ADR-0029-typed-semantic-prompt-context-and-artifact-expert-surface.md](decisions/ADR-0029-typed-semantic-prompt-context-and-artifact-expert-surface.md)
+- [docs/decisions/ADR-0029-typed-semantic-prompt-context-and-artifact-expert-surface.md](../decisions/ADR-0029-typed-semantic-prompt-context-and-artifact-expert-surface.md)
 
 ## Working Consensus
 
@@ -45,7 +45,7 @@ The four review perspectives converged on the same position:
 2. SEOCHO should not expose a prompt DSL with unconstrained override freedom.
 3. Prompt assembly should be stage-aware and typed.
 4. Provider-specific behavior should stay in adapter code such as
-   [src/seocho/store/llm.py](../src/seocho/store/llm.py).
+   [src/seocho/store/llm.py](../../src/seocho/store/llm.py).
 5. The public seam should remain ontology- and artifact-centric.
 
 ## Proposed Boundary

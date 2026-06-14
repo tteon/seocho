@@ -75,8 +75,6 @@ Recommended onboarding order:
   still being decomposed
 - [presentations/SEOCHO_OVERVIEW_DEEP_DIVE.md](presentations/SEOCHO_OVERVIEW_DEEP_DIVE.md):
   20-30 minute beginner-friendly product and architecture deck
-- [RUNTIME_PACKAGE_MIGRATION.md](RUNTIME_PACKAGE_MIGRATION.md): staged
-  `extraction/` to `runtime/` migration plan
 - [GRAPH_RAG_AGENT_HANDOFF_SPEC.md](GRAPH_RAG_AGENT_HANDOFF_SPEC.md):
   intent-first graph answer contract
 - [ONTOLOGY_RUN_CONTEXT_STRATEGY.md](ONTOLOGY_RUN_CONTEXT_STRATEGY.md):
@@ -87,8 +85,6 @@ Recommended onboarding order:
   seams for the modular monolith
 - [MODULE_OWNERSHIP_MAP.md](MODULE_OWNERSHIP_MAP.md): canonical module
   ownership and compatibility boundaries
-- [ARCHITECTURE_HEALTH.md](ARCHITECTURE_HEALTH.md): per-domain quality
-  scorecard (grade + coverage + gaps, tracked over time)
 - [WORKFLOW.md](WORKFLOW.md): operational workflow
 - [GITHUB_AUTOMATION.md](GITHUB_AUTOMATION.md): GitHub Actions, Codex
   automation, and `.github/` placement rules
@@ -98,8 +94,6 @@ Recommended onboarding order:
 - [ISSUE_TASK_SYSTEM.md](ISSUE_TASK_SYSTEM.md): sprint and task governance
 - [REPOSITORY_LAYOUT.md](REPOSITORY_LAYOUT.md): root directory intent,
   canonical edit surfaces, and legacy/local-only paths
-- [REPOSITORY_HIERARCHY_REVIEW.md](REPOSITORY_HIERARCHY_REVIEW.md):
-  architecture review of repo hierarchy cleanup priorities and tradeoffs
 - [OPEN_SOURCE_PLAYBOOK.md](OPEN_SOURCE_PLAYBOOK.md): contributor onboarding
 - [decisions/DECISION_LOG.md](decisions/DECISION_LOG.md): architecture decision
   history
@@ -107,21 +101,18 @@ Recommended onboarding order:
 
 ## Internal & Maintainer Docs
 
-These are working documents (planning, reviews, migrations, known issues). They
-are not part of the getting-started path — skip them on a first read.
+These are working documents (planning, reviews, migrations, known issues),
+collected under [`docs/internal/`](internal/). They are not part of the
+getting-started path — skip them on a first read.
 
-- [AGENT_SERVER_REFACTOR_PLAN.md](AGENT_SERVER_REFACTOR_PLAN.md)
-- [RUNTIME_PACKAGE_MIGRATION.md](RUNTIME_PACKAGE_MIGRATION.md)
-- [ARCHITECTURE_HEALTH.md](ARCHITECTURE_HEALTH.md)
-- [REPOSITORY_HIERARCHY_REVIEW.md](REPOSITORY_HIERARCHY_REVIEW.md)
-- [PHILOSOPHY_FEASIBILITY_REVIEW.md](PHILOSOPHY_FEASIBILITY_REVIEW.md)
-- [PROMPT_ASSEMBLY_DISCUSSION_MEMO.md](PROMPT_ASSEMBLY_DISCUSSION_MEMO.md)
-- [BASELINE_INSTRUCTIONS.md](BASELINE_INSTRUCTIONS.md)
-- [KNOWN_ISSUE.md](KNOWN_ISSUE.md)
-
-> Follow-up: physically relocating these under `docs/internal/` is tracked
-> separately because the `website/` doc generator and several cross-links
-> reference their current paths.
+- [internal/AGENT_SERVER_REFACTOR_PLAN.md](internal/AGENT_SERVER_REFACTOR_PLAN.md)
+- [internal/RUNTIME_PACKAGE_MIGRATION.md](internal/RUNTIME_PACKAGE_MIGRATION.md): staged `extraction/` → `runtime/` migration plan
+- [internal/ARCHITECTURE_HEALTH.md](internal/ARCHITECTURE_HEALTH.md): per-domain quality scorecard
+- [internal/REPOSITORY_HIERARCHY_REVIEW.md](internal/REPOSITORY_HIERARCHY_REVIEW.md): repo hierarchy cleanup priorities
+- [internal/PHILOSOPHY_FEASIBILITY_REVIEW.md](internal/PHILOSOPHY_FEASIBILITY_REVIEW.md)
+- [internal/PROMPT_ASSEMBLY_DISCUSSION_MEMO.md](internal/PROMPT_ASSEMBLY_DISCUSSION_MEMO.md)
+- [internal/BASELINE_INSTRUCTIONS.md](internal/BASELINE_INSTRUCTIONS.md)
+- [internal/KNOWN_ISSUE.md](internal/KNOWN_ISSUE.md)
 
 ## Docs Sync Integration
 

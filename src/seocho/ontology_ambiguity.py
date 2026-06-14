@@ -265,3 +265,145 @@ def _bump_minor(version: str) -> str:
 def load_mapping_spec(path: str | Path) -> Dict[str, Any]:
     import yaml
     return yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
+
+
+# ---------------------------------------------------------------------------
+# Phase 2 — LLM proposal engine (ADR-0128, seocho-2mg). Phase 1 gives a
+# heuristic ``starter_mapping_spec``; this generates proposals with an LLM (via
+# the provider-aware structured layer) and scores each by its predicted
+# corpus-coverage lift, so the human reviews a ranked, consequence-annotated list.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(slots=True)
+class MappingProposal:
+    surface: str
+    action: str                       # alias | new_class | same_as | ignore
+    target: str = ""
+    parent: str = ""
+    description: str = ""
+    confidence: float = 0.0
+    predicted_coverage_delta: Optional[float] = None
+    rationale: str = ""
+
+    def to_spec_entry(self) -> Dict[str, Any]:
+        entry: Dict[str, Any] = {"surface": self.surface, "action": self.action}
+        if self.action in ("alias", "same_as", "new_class") and self.target:
+            entry["target"] = self.target
+        if self.action == "new_class":
+            if self.parent:
+                entry["parent"] = self.parent
+            if self.description:
+                entry["description"] = self.description
+        return entry
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "surface": self.surface, "action": self.action, "target": self.target,
+            "parent": self.parent, "description": self.description,
+            "confidence": self.confidence, "predicted_coverage_delta": self.predicted_coverage_delta,
+            "rationale": self.rationale,
+        }
+
+
+_PROPOSE_SYS = (
+    "You are an ontology engineer triaging out-of-ontology entity mentions. For each surface form, "
+    "choose how to map it into the ontology. Return ONLY JSON."
+)
+
+
+def _propose_prompt(clusters: List[Dict[str, Any]], ontology: Ontology) -> str:
+    labels = ", ".join(ontology.nodes.keys()) or "(none)"
+    lines = [f"EXISTING ONTOLOGY CLASSES: {labels}", "", "AMBIGUOUS SURFACE FORMS (with frequency / example context):"]
+    for c in clusters:
+        ex = (c.get("examples") or [""])[0][:160]
+        lines.append(f"- '{c['surface']}' (x{c.get('frequency', 1)}; candidates={c.get('candidate_labels', [])}) e.g. {ex!r}")
+    lines.append("")
+    lines.append(
+        'For each, choose an action: "alias" (a synonym of an existing class -> set "target" to that class), '
+        '"new_class" (a genuinely new type -> set "target" to a PascalCase label, "parent" to an existing class '
+        'or "", and a short "description"), or "ignore" (noise). '
+        'Return JSON: {"proposals":[{"surface","action","target","parent","description","confidence","rationale"}]} '
+        "with confidence in [0,1]."
+    )
+    return "\n".join(lines)
+
+
+def propose_mappings(
+    clusters: List[Dict[str, Any]],
+    ontology: Ontology,
+    *,
+    backend: Any,
+    model: Optional[str] = None,
+    top_k: int = 20,
+) -> List[MappingProposal]:
+    """Generate ranked mapping proposals for the top clusters via an LLM
+    (injected ``backend``; routed through the provider-aware structured layer,
+    ADR-0120). Each proposal is annotated with its predicted corpus-coverage lift
+    (computed offline by applying it and re-scoring). Fake-testable."""
+    from .llm_structured import StructuredOutputError, structured_complete
+
+    top = list(clusters)[:top_k]
+    if not top:
+        return []
+    try:
+        payload = structured_complete(
+            backend, system=_PROPOSE_SYS, user=_propose_prompt(top, ontology),
+            model=model, task_hint="json_extraction",
+        )
+    except StructuredOutputError:
+        return []
+    raw = payload.get("proposals", []) if isinstance(payload, dict) else []
+
+    # corpus profile from the clusters → measure each proposal's coverage lift
+    from .ontology_scorecard import CorpusProfile, score_ontology
+
+    profile = CorpusProfile(
+        label_frequencies={str(c["surface"]): int(c.get("frequency", 1)) for c in top},
+        source="ambiguity-clusters",
+    )
+
+    def _coverage(o: Ontology) -> float:
+        dim = score_ontology(o, corpus_profile=profile, profile="guardrail").dimension("corpus_coverage")
+        return dim.score if dim else 0.0
+
+    base_cov = _coverage(ontology)
+    proposals: List[MappingProposal] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        action = str(item.get("action", "")).strip()
+        if action not in _VALID_ACTIONS:
+            continue
+        prop = MappingProposal(
+            surface=str(item.get("surface", "")).strip(),
+            action=action,
+            target=str(item.get("target", "")).strip(),
+            parent=str(item.get("parent", "")).strip(),
+            description=str(item.get("description", "")).strip(),
+            confidence=float(item.get("confidence", 0.0) or 0.0),
+            rationale=str(item.get("rationale", "")).strip(),
+        )
+        if action != "ignore":
+            try:
+                candidate = apply_mapping_spec(ontology, {"mappings": [prop.to_spec_entry()]})
+                prop.predicted_coverage_delta = round(_coverage(candidate) - base_cov, 4)
+            except Exception:
+                prop.predicted_coverage_delta = None
+        proposals.append(prop)
+    # rank: biggest predicted lift first, then confidence
+    proposals.sort(key=lambda p: (-(p.predicted_coverage_delta or 0.0), -p.confidence))
+    return proposals
+
+
+def proposals_to_mapping_spec(
+    proposals: List[MappingProposal],
+    *,
+    min_confidence: float = 0.0,
+    ontology_name: str = "",
+) -> Dict[str, Any]:
+    """Convert accepted proposals (confidence >= threshold, non-ignore) into a
+    mapping-spec consumable by :func:`apply_mapping_spec`."""
+    mappings = [p.to_spec_entry() for p in proposals
+                if p.action != "ignore" and p.confidence >= min_confidence]
+    return {"ontology": ontology_name, "mappings": mappings}

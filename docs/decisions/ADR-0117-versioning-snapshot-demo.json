@@ -1,0 +1,88 @@
+{
+  "experiment": "ontology-versioning-snapshot-demo",
+  "store_dir": "/tmp/seocho_snap_b86i_077",
+  "corpus_source": "FinDER open-extract N=48 DeepSeek-V3.1",
+  "history": [
+    {
+      "version": "1.0.0",
+      "created_at": "2026-06-14T05:29:41.198360+00:00",
+      "schema_fingerprint": "053fa00f",
+      "grade": "C",
+      "overall_score": 0.7575,
+      "corpus_coverage": 0.3487,
+      "notes": "sparse FIBO (2 classes) — initial guardrail"
+    },
+    {
+      "version": "2.0.0",
+      "created_at": "2026-06-14T05:29:41.199197+00:00",
+      "schema_fingerprint": "c6c9959f",
+      "grade": "B",
+      "overall_score": 0.8042,
+      "corpus_coverage": 0.5951,
+      "notes": "rich FIBO (9 classes) — refined guardrail"
+    }
+  ],
+  "comparison": {
+    "package_id": "fibo_finder",
+    "from_version": "1.0.0",
+    "to_version": "2.0.0",
+    "schema_changed": true,
+    "recommended_bump": "major",
+    "requires_migration": true,
+    "changes": {
+      "metadata": {
+        "changed": [
+          "graph_type",
+          "version",
+          "description"
+        ]
+      },
+      "nodes": {
+        "added": [
+          "AccountingPolicy",
+          "Event",
+          "LegalIssue",
+          "Person",
+          "Product",
+          "Regulation",
+          "Risk"
+        ],
+        "removed": [],
+        "changed": [
+          "Company",
+          "FinancialMetric"
+        ]
+      },
+      "relationships": {
+        "added": [
+          "APPLIES",
+          "ATTENDED",
+          "EMPLOYS",
+          "FACES",
+          "FOLLOWS",
+          "INVOLVED_IN",
+          "PRODUCES"
+        ],
+        "removed": [],
+        "changed": [
+          "REPORTED"
+        ]
+      }
+    },
+    "scorecard_delta": {
+      "overall": 0.0467,
+      "by_dimension": {
+        "constraint_richness": 0.0188,
+        "corpus_coverage": 0.2464,
+        "definitional_completeness": -0.01,
+        "structural_integrity": 0.0,
+        "taxonomy_health": -0.2
+      }
+    },
+    "guardrail_verdict": {
+      "verdict": "better",
+      "basis": "corpus_coverage",
+      "delta": 0.2464
+    }
+  }
+}

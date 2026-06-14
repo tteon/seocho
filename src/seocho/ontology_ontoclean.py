@@ -284,28 +284,10 @@ def build_inference_prompt(ontology: Ontology) -> str:
 
 
 def _extract_json_object(text: str) -> Dict[str, Any]:
-    """Parse a JSON object from a model response, tolerating reasoning-model
-    preambles and code fences (MiniMax / gpt-oss emit chain-of-thought before the
-    JSON). Falls back to the outermost balanced ``{...}`` block."""
-    s = text.strip()
-    if s.startswith("```"):
-        s = "\n".join(l for l in s.split("\n") if not l.strip().startswith("```"))
-    try:
-        return json.loads(s)
-    except Exception:
-        pass
-    start = s.find("{")
-    if start == -1:
-        raise ValueError("no JSON object found in response")
-    depth = 0
-    for i in range(start, len(s)):
-        if s[i] == "{":
-            depth += 1
-        elif s[i] == "}":
-            depth -= 1
-            if depth == 0:
-                return json.loads(s[start:i + 1])
-    raise ValueError("unbalanced JSON object in response")
+    """Back-compat shim — delegates to the canonical robust extractor in
+    :mod:`seocho.llm_structured`."""
+    from .llm_structured import extract_json_object
+    return extract_json_object(text)
 
 
 def infer_metaproperties(
@@ -328,19 +310,19 @@ def infer_metaproperties(
     Returns a ``{label: MetaProperties}`` map. Labels the model omits are simply
     absent (treated as untagged by :func:`check_ontoclean`).
     """
+    from .llm_structured import StructuredOutputError, structured_complete
+
     user = build_inference_prompt(ontology)
-    response = backend.complete(
-        system=_INFER_SYSTEM,
-        user=user,
-        temperature=temperature,
-        max_tokens=max_tokens,
-        response_format={"type": "json_object"},
-        task_hint="json_extraction",
-    )
+    # Route through the provider/model-aware structured-output layer (seocho-ub5)
+    # so reasoning models (MiniMax/gpt-oss) that emit chain-of-thought or need a
+    # higher max_tokens floor are handled instead of lost to JSON-parse failure.
     try:
-        payload = response.json()
-    except Exception:
-        payload = _extract_json_object(response.text)
+        payload = structured_complete(
+            backend, system=_INFER_SYSTEM, user=user,
+            temperature=temperature, max_tokens=max_tokens, task_hint="json_extraction",
+        )
+    except StructuredOutputError:
+        return {}
     classes = payload.get("classes", payload) if isinstance(payload, dict) else {}
     tags: Dict[str, MetaProperties] = {}
     for label in ontology.nodes:

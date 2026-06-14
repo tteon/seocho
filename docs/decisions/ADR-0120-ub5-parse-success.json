@@ -1,0 +1,17 @@
+{
+  "experiment": "ub5-parse-success N=20/model",
+  "results": {
+    "MiniMax-M2.7": {
+      "naive_parse_success": 0.95,
+      "structured_parse_success": 1.0
+    },
+    "gpt-oss-120b": {
+      "naive_parse_success": 0.45,
+      "structured_parse_success": 1.0
+    },
+    "DeepSeek-V3.1": {
+      "naive_parse_success": 0.95,
+      "structured_parse_success": 1.0
+    }
+  }
+}

@@ -32,8 +32,12 @@ ALLOWED_EVENT_TYPES = {
 
 
 def _read_events(events_file: Path) -> list[dict[str, object]]:
-    lines = [line.strip() for line in events_file.read_text().splitlines() if line.strip()]
-    return [json.loads(line) for line in lines]
+    lines = []
+    with events_file.open("r", encoding="utf-8") as f:
+        for line in f:
+            if line.strip():
+                lines.append(json.loads(line.strip()))
+    return lines
 
 
 def _assert_event_contract(event: dict[str, object]) -> None:

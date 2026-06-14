@@ -343,6 +343,17 @@ def build_parser() -> argparse.ArgumentParser:
     ontology_review_parser.add_argument("--workspace", default="", help="workspace_id to stamp on quarantined items")
     ontology_review_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
 
+    ontology_datahub_parser = ontology_subparsers.add_parser(
+        "datahub",
+        help="Export an ontology to a DataHub Business Glossary (MCP payloads; optional live emit)",
+    )
+    ontology_datahub_parser.add_argument("--schema", required=True, help="Ontology file (JSON-LD, YAML, or TTL)")
+    ontology_datahub_parser.add_argument("--output", default=None, help="Write MCP JSON to this path (dry-run)")
+    ontology_datahub_parser.add_argument("--gms", default=None, help="DataHub GMS server URL (for live emit)")
+    ontology_datahub_parser.add_argument("--token", default=None, help="DataHub access token (for live emit)")
+    ontology_datahub_parser.add_argument("--emit", action="store_true", help="Actually emit to --gms (default: dry-run)")
+    ontology_datahub_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
+
     serve_http_parser = subparsers.add_parser("serve-http", help="Serve a portable bundle behind a small FastAPI runtime")
     serve_http_parser.add_argument("--bundle", required=True, help="Path to portable bundle JSON file")
     serve_http_parser.add_argument("--host", default="0.0.0.0", help="Bind host")
@@ -1593,6 +1604,31 @@ def _cmd_ontology(args: argparse.Namespace) -> int:
             return 0
 
         raise SeochoError(f"Unknown review action: {args.review_action}")
+
+    if args.ontology_command == "datahub":
+        from .ontology import Ontology
+        from .datahub_export import emit_to_datahub, glossary_mcps_to_json, ontology_to_glossary_mcps
+
+        ontology = Ontology.load(args.schema)
+        mcps = ontology_to_glossary_mcps(ontology)
+        if args.emit:
+            result = emit_to_datahub(mcps, gms_server=args.gms, token=args.token, dry_run=False)
+            if getattr(args, "output_json", False):
+                print(json.dumps({k: v for k, v in result.items() if k != "mcps"}, indent=2, ensure_ascii=False))
+            else:
+                print(f"datahub emit: mode={result['mode']} "
+                      + (f"sent={result.get('sent')}" if result.get("emitted") else f"({result.get('error','dry-run')})"))
+            return 0 if result.get("emitted") or result["mode"] == "dry_run" else 1
+        text = glossary_mcps_to_json(mcps)
+        if args.output:
+            Path(args.output).write_text(text + "\n", encoding="utf-8")
+            from .datahub_export import export_summary
+            s = export_summary(mcps)
+            print(f"wrote {s['mcp_count']} MCP(s) → {args.output} "
+                  f"({s['glossary_terms']} terms, {s['glossary_nodes']} nodes, {s['is_a_edges']} is-a edges)")
+        else:
+            print(text)
+        return 0
 
     raise SeochoError(f"Unknown ontology command: {args.ontology_command}")
 

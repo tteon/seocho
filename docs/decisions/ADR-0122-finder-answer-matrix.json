@@ -1,0 +1,1623 @@
+{
+  "experiment": "finder-guardrail-answer-matrix",
+  "model": "DeepSeek-V3.1",
+  "n_cases": 96,
+  "overall": {
+    "acc_sparse": 0.4583,
+    "acc_rich": 0.6667
+  },
+  "by_kind": {
+    "lookup": {
+      "acc_sparse": 0.4643,
+      "acc_rich": 0.6667
+    },
+    "reasoning": {
+      "acc_sparse": 0.4167,
+      "acc_rich": 0.6667
+    }
+  },
+  "per_category": {
+    "Accounting": {
+      "acc_sparse": 0.4167,
+      "acc_rich": 0.4167,
+      "acc_delta": 0.0,
+      "conf_sparse": 0.6945,
+      "conf_rich": 0.9643,
+      "n": 12
+    },
+    "Company overview": {
+      "acc_sparse": 0.4167,
+      "acc_rich": 0.8333,
+      "acc_delta": 0.4166,
+      "conf_sparse": 0.55,
+      "conf_rich": 0.881,
+      "n": 12
+    },
+    "Financials": {
+      "acc_sparse": 0.6667,
+      "acc_rich": 0.5833,
+      "acc_delta": -0.0834,
+      "conf_sparse": 0.8588,
+      "conf_rich": 0.75,
+      "n": 12
+    },
+    "Footnotes": {
+      "acc_sparse": 0.6667,
+      "acc_rich": 0.75,
+      "acc_delta": 0.0833,
+      "conf_sparse": 0.8056,
+      "conf_rich": 1.0,
+      "n": 12
+    },
+    "Governance": {
+      "acc_sparse": 0.25,
+      "acc_rich": 0.9167,
+      "acc_delta": 0.6667,
+      "conf_sparse": 0.0833,
+      "conf_rich": 0.8333,
+      "n": 12
+    },
+    "Legal": {
+      "acc_sparse": 0.4167,
+      "acc_rich": 0.8333,
+      "acc_delta": 0.4166,
+      "conf_sparse": 0.5833,
+      "conf_rich": 0.9833,
+      "n": 12
+    },
+    "Risk": {
+      "acc_sparse": 0.25,
+      "acc_rich": 0.5833,
+      "acc_delta": 0.3333,
+      "conf_sparse": 0.4167,
+      "conf_rich": 0.9722,
+      "n": 12
+    },
+    "Shareholder return": {
+      "acc_sparse": 0.5833,
+      "acc_rich": 0.4167,
+      "acc_delta": -0.1666,
+      "conf_sparse": 0.963,
+      "conf_rich": 1.0,
+      "n": 12
+    }
+  },
+  "results": [
+    {
+      "arm": "A_sparse",
+      "id": "0012cd67",
+      "category": "Accounting",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "A_sparse",
+      "id": "002451b2",
+      "category": "Accounting",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "A_sparse",
+      "id": "018ff1c9",
+      "category": "Accounting",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "A_sparse",
+      "id": "02b54a46",
+      "category": "Accounting",
+      "kind": "lookup",
+      "label_conformance": 0.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "03b929e0",
+      "category": "Accounting",
+      "kind": "lookup",
+      "label_conformance": 0.6667,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "0496b898",
+      "category": "Accounting",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "04e40770",
+      "category": "Accounting",
+      "kind": "lookup",
+      "label_conformance": 0.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "0506434f",
+      "category": "Accounting",
+      "kind": "lookup",
+      "label_conformance": 0.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "058f8cb2",
+      "category": "Accounting",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "0692fb7d",
+      "category": "Accounting",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "A_sparse",
+      "id": "06ea40c6",
+      "category": "Accounting",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "08924154",
+      "category": "Accounting",
+      "kind": "lookup",
+      "label_conformance": 0.6667,
+      "correct": true
+    },
+    {
+      "arm": "A_sparse",
+      "id": "013b2cfe",
+      "category": "Company overview",
+      "kind": "reasoning",
+      "label_conformance": 0.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "0191b4af",
+      "category": "Company overview",
+      "kind": "reasoning",
+      "label_conformance": 0.6,
+      "correct": true
+    },
+    {
+      "arm": "A_sparse",
+      "id": "01bb4fc0",
+      "category": "Company overview",
+      "kind": "reasoning",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "02b691db",
+      "category": "Company overview",
+      "kind": "reasoning",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "A_sparse",
+      "id": "03bb2a85",
+      "category": "Company overview",
+      "kind": "reasoning",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "03f83848",
+      "category": "Company overview",
+      "kind": "reasoning",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "010633b6",
+      "category": "Company overview",
+      "kind": "lookup",
+      "label_conformance": 0.0,
+      "correct": true
+    },
+    {
+      "arm": "A_sparse",
+      "id": "01364ca9",
+      "category": "Company overview",
+      "kind": "lookup",
+      "label_conformance": 0.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "01ee8a21",
+      "category": "Company overview",
+      "kind": "lookup",
+      "label_conformance": 0.0,
+      "correct": true
+    },
+    {
+      "arm": "A_sparse",
+      "id": "02354203",
+      "category": "Company overview",
+      "kind": "lookup",
+      "label_conformance": 0.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "02632d80",
+      "category": "Company overview",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "02e67f32",
+      "category": "Company overview",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "A_sparse",
+      "id": "0016fe33",
+      "category": "Financials",
+      "kind": "reasoning",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "0019de4b",
+      "category": "Financials",
+      "kind": "reasoning",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "A_sparse",
+      "id": "008beea7",
+      "category": "Financials",
+      "kind": "reasoning",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "0098df3b",
+      "category": "Financials",
+      "kind": "reasoning",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "A_sparse",
+      "id": "00b0e3cd",
+      "category": "Financials",
+      "kind": "reasoning",
+      "label_conformance": 0.75,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "00b622f5",
+      "category": "Financials",
+      "kind": "reasoning",
+      "label_conformance": 0.0,
+      "correct": true
+    },
+    {
+      "arm": "A_sparse",
+      "id": "00e57882",
+      "category": "Financials",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "A_sparse",
+      "id": "00f4fdce",
+      "category": "Financials",
+      "kind": "lookup",
+      "label_conformance": 0.5556,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "011e2750",
+      "category": "Financials",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "A_sparse",
+      "id": "021cafe5",
+      "category": "Financials",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "A_sparse",
+      "id": "037b46e9",
+      "category": "Financials",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "A_sparse",
+      "id": "03ae4ea2",
+      "category": "Financials",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "A_sparse",
+      "id": "001b53d3",
+      "category": "Footnotes",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "0035be65",
+      "category": "Footnotes",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "A_sparse",
+      "id": "0065ac90",
+      "category": "Footnotes",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "A_sparse",
+      "id": "006a120d",
+      "category": "Footnotes",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "00aa16a5",
+      "category": "Footnotes",
+      "kind": "lookup",
+      "label_conformance": 0.0,
+      "correct": true
+    },
+    {
+      "arm": "A_sparse",
+      "id": "00baaedf",
+      "category": "Footnotes",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "A_sparse",
+      "id": "01142856",
+      "category": "Footnotes",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "A_sparse",
+      "id": "019039a6",
+      "category": "Footnotes",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "02204e09",
+      "category": "Footnotes",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "A_sparse",
+      "id": "0223f23b",
+      "category": "Footnotes",
+      "kind": "lookup",
+      "label_conformance": 0.0,
+      "correct": true
+    },
+    {
+      "arm": "A_sparse",
+      "id": "02dc0ea1",
+      "category": "Footnotes",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "04389fb2",
+      "category": "Footnotes",
+      "kind": "lookup",
+      "label_conformance": 0.6667,
+      "correct": true
+    },
+    {
+      "arm": "A_sparse",
+      "id": "00058289",
+      "category": "Governance",
+      "kind": "lookup",
+      "label_conformance": 0.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "001536af",
+      "category": "Governance",
+      "kind": "lookup",
+      "label_conformance": 0.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "00f6b423",
+      "category": "Governance",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "A_sparse",
+      "id": "01207279",
+      "category": "Governance",
+      "kind": "lookup",
+      "label_conformance": 0.0,
+      "correct": true
+    },
+    {
+      "arm": "A_sparse",
+      "id": "0139e066",
+      "category": "Governance",
+      "kind": "lookup",
+      "label_conformance": 0.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "02037b95",
+      "category": "Governance",
+      "kind": "lookup",
+      "label_conformance": 0.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "0207e3fc",
+      "category": "Governance",
+      "kind": "lookup",
+      "label_conformance": 0.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "02651161",
+      "category": "Governance",
+      "kind": "lookup",
+      "label_conformance": 0.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "029fdcea",
+      "category": "Governance",
+      "kind": "lookup",
+      "label_conformance": 0.0,
+      "correct": true
+    },
+    {
+      "arm": "A_sparse",
+      "id": "02df4a77",
+      "category": "Governance",
+      "kind": "lookup",
+      "label_conformance": 0.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "038a64ad",
+      "category": "Governance",
+      "kind": "lookup",
+      "label_conformance": 0.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "03e4e09c",
+      "category": "Governance",
+      "kind": "lookup",
+      "label_conformance": 0.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "002d8b2b",
+      "category": "Legal",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "A_sparse",
+      "id": "00af2af1",
+      "category": "Legal",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "A_sparse",
+      "id": "01e84425",
+      "category": "Legal",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "A_sparse",
+      "id": "033627fb",
+      "category": "Legal",
+      "kind": "lookup",
+      "label_conformance": 0.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "064dbe0e",
+      "category": "Legal",
+      "kind": "lookup",
+      "label_conformance": 0.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "068a1239",
+      "category": "Legal",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "A_sparse",
+      "id": "06cb1da2",
+      "category": "Legal",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "0a6b86d1",
+      "category": "Legal",
+      "kind": "lookup",
+      "label_conformance": 0.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "0a6d7405",
+      "category": "Legal",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "0b050b73",
+      "category": "Legal",
+      "kind": "lookup",
+      "label_conformance": 0.0,
+      "correct": true
+    },
+    {
+      "arm": "A_sparse",
+      "id": "0b7b9455",
+      "category": "Legal",
+      "kind": "lookup",
+      "label_conformance": 0.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "0cf13966",
+      "category": "Legal",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "0144bfd6",
+      "category": "Risk",
+      "kind": "lookup",
+      "label_conformance": 0.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "021d681e",
+      "category": "Risk",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "031701a5",
+      "category": "Risk",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "032ab4b7",
+      "category": "Risk",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "0366e15b",
+      "category": "Risk",
+      "kind": "lookup",
+      "label_conformance": 0.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "0373c9f4",
+      "category": "Risk",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "A_sparse",
+      "id": "03b6872f",
+      "category": "Risk",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "A_sparse",
+      "id": "03c84735",
+      "category": "Risk",
+      "kind": "lookup",
+      "label_conformance": 0.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "03f6e507",
+      "category": "Risk",
+      "kind": "lookup",
+      "label_conformance": 0.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "03fa63cb",
+      "category": "Risk",
+      "kind": "lookup",
+      "label_conformance": 0.0,
+      "correct": true
+    },
+    {
+      "arm": "A_sparse",
+      "id": "0458dc8a",
+      "category": "Risk",
+      "kind": "lookup",
+      "label_conformance": 0.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "04a8b1c4",
+      "category": "Risk",
+      "kind": "lookup",
+      "label_conformance": 0.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "003a51f0",
+      "category": "Shareholder return",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "A_sparse",
+      "id": "008c8617",
+      "category": "Shareholder return",
+      "kind": "lookup",
+      "label_conformance": 0.5556,
+      "correct": true
+    },
+    {
+      "arm": "A_sparse",
+      "id": "009d2b5a",
+      "category": "Shareholder return",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "A_sparse",
+      "id": "01350b8a",
+      "category": "Shareholder return",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "013def13",
+      "category": "Shareholder return",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "A_sparse",
+      "id": "02a615b1",
+      "category": "Shareholder return",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "03754f32",
+      "category": "Shareholder return",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "A_sparse",
+      "id": "038ce6e8",
+      "category": "Shareholder return",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "A_sparse",
+      "id": "03d51e63",
+      "category": "Shareholder return",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "A_sparse",
+      "id": "042651a2",
+      "category": "Shareholder return",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "04931eea",
+      "category": "Shareholder return",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "A_sparse",
+      "id": "04db4dff",
+      "category": "Shareholder return",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "B_rich",
+      "id": "0012cd67",
+      "category": "Accounting",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "002451b2",
+      "category": "Accounting",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "018ff1c9",
+      "category": "Accounting",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "02b54a46",
+      "category": "Accounting",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "B_rich",
+      "id": "03b929e0",
+      "category": "Accounting",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "B_rich",
+      "id": "0496b898",
+      "category": "Accounting",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "B_rich",
+      "id": "04e40770",
+      "category": "Accounting",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "B_rich",
+      "id": "0506434f",
+      "category": "Accounting",
+      "kind": "lookup",
+      "label_conformance": 0.5714,
+      "correct": false
+    },
+    {
+      "arm": "B_rich",
+      "id": "058f8cb2",
+      "category": "Accounting",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "B_rich",
+      "id": "0692fb7d",
+      "category": "Accounting",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "06ea40c6",
+      "category": "Accounting",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "B_rich",
+      "id": "08924154",
+      "category": "Accounting",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "013b2cfe",
+      "category": "Company overview",
+      "kind": "reasoning",
+      "label_conformance": 0.5714,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "0191b4af",
+      "category": "Company overview",
+      "kind": "reasoning",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "01bb4fc0",
+      "category": "Company overview",
+      "kind": "reasoning",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "02b691db",
+      "category": "Company overview",
+      "kind": "reasoning",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "03bb2a85",
+      "category": "Company overview",
+      "kind": "reasoning",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "B_rich",
+      "id": "03f83848",
+      "category": "Company overview",
+      "kind": "reasoning",
+      "label_conformance": 0.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "010633b6",
+      "category": "Company overview",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "01364ca9",
+      "category": "Company overview",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "B_rich",
+      "id": "01ee8a21",
+      "category": "Company overview",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "02354203",
+      "category": "Company overview",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "02632d80",
+      "category": "Company overview",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "02e67f32",
+      "category": "Company overview",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "0016fe33",
+      "category": "Financials",
+      "kind": "reasoning",
+      "label_conformance": 0.0,
+      "correct": false
+    },
+    {
+      "arm": "B_rich",
+      "id": "0019de4b",
+      "category": "Financials",
+      "kind": "reasoning",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "008beea7",
+      "category": "Financials",
+      "kind": "reasoning",
+      "label_conformance": 0.0,
+      "correct": false
+    },
+    {
+      "arm": "B_rich",
+      "id": "0098df3b",
+      "category": "Financials",
+      "kind": "reasoning",
+      "label_conformance": 0.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "00b0e3cd",
+      "category": "Financials",
+      "kind": "reasoning",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "B_rich",
+      "id": "00b622f5",
+      "category": "Financials",
+      "kind": "reasoning",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "00e57882",
+      "category": "Financials",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "00f4fdce",
+      "category": "Financials",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "B_rich",
+      "id": "011e2750",
+      "category": "Financials",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "B_rich",
+      "id": "021cafe5",
+      "category": "Financials",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "037b46e9",
+      "category": "Financials",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "03ae4ea2",
+      "category": "Financials",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "001b53d3",
+      "category": "Footnotes",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "0035be65",
+      "category": "Footnotes",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "0065ac90",
+      "category": "Footnotes",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "006a120d",
+      "category": "Footnotes",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "B_rich",
+      "id": "00aa16a5",
+      "category": "Footnotes",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "00baaedf",
+      "category": "Footnotes",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "01142856",
+      "category": "Footnotes",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "019039a6",
+      "category": "Footnotes",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "B_rich",
+      "id": "02204e09",
+      "category": "Footnotes",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "0223f23b",
+      "category": "Footnotes",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "02dc0ea1",
+      "category": "Footnotes",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "B_rich",
+      "id": "04389fb2",
+      "category": "Footnotes",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "00058289",
+      "category": "Governance",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "001536af",
+      "category": "Governance",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "00f6b423",
+      "category": "Governance",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "01207279",
+      "category": "Governance",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "0139e066",
+      "category": "Governance",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "02037b95",
+      "category": "Governance",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "0207e3fc",
+      "category": "Governance",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "02651161",
+      "category": "Governance",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "B_rich",
+      "id": "029fdcea",
+      "category": "Governance",
+      "kind": "lookup",
+      "label_conformance": 0.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "02df4a77",
+      "category": "Governance",
+      "kind": "lookup",
+      "label_conformance": 0.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "038a64ad",
+      "category": "Governance",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "03e4e09c",
+      "category": "Governance",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "002d8b2b",
+      "category": "Legal",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "00af2af1",
+      "category": "Legal",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "01e84425",
+      "category": "Legal",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "033627fb",
+      "category": "Legal",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "064dbe0e",
+      "category": "Legal",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "B_rich",
+      "id": "068a1239",
+      "category": "Legal",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "06cb1da2",
+      "category": "Legal",
+      "kind": "lookup",
+      "label_conformance": 0.8,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "0a6b86d1",
+      "category": "Legal",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "0a6d7405",
+      "category": "Legal",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "B_rich",
+      "id": "0b050b73",
+      "category": "Legal",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "0b7b9455",
+      "category": "Legal",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "0cf13966",
+      "category": "Legal",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "0144bfd6",
+      "category": "Risk",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "021d681e",
+      "category": "Risk",
+      "kind": "lookup",
+      "label_conformance": 0.6667,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "031701a5",
+      "category": "Risk",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "B_rich",
+      "id": "032ab4b7",
+      "category": "Risk",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "0366e15b",
+      "category": "Risk",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "B_rich",
+      "id": "0373c9f4",
+      "category": "Risk",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "03b6872f",
+      "category": "Risk",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "03c84735",
+      "category": "Risk",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "B_rich",
+      "id": "03f6e507",
+      "category": "Risk",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "03fa63cb",
+      "category": "Risk",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "0458dc8a",
+      "category": "Risk",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "B_rich",
+      "id": "04a8b1c4",
+      "category": "Risk",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "B_rich",
+      "id": "003a51f0",
+      "category": "Shareholder return",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "008c8617",
+      "category": "Shareholder return",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "B_rich",
+      "id": "009d2b5a",
+      "category": "Shareholder return",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "B_rich",
+      "id": "01350b8a",
+      "category": "Shareholder return",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "B_rich",
+      "id": "013def13",
+      "category": "Shareholder return",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "02a615b1",
+      "category": "Shareholder return",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "B_rich",
+      "id": "03754f32",
+      "category": "Shareholder return",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "B_rich",
+      "id": "038ce6e8",
+      "category": "Shareholder return",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "03d51e63",
+      "category": "Shareholder return",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "042651a2",
+      "category": "Shareholder return",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": true
+    },
+    {
+      "arm": "B_rich",
+      "id": "04931eea",
+      "category": "Shareholder return",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": false
+    },
+    {
+      "arm": "B_rich",
+      "id": "04db4dff",
+      "category": "Shareholder return",
+      "kind": "lookup",
+      "label_conformance": 1.0,
+      "correct": false
+    }
+  ]
+}

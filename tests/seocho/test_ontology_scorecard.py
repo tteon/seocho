@@ -5,7 +5,10 @@ from __future__ import annotations
 from seocho.ontology import NodeDef, Ontology, P, RelDef
 from seocho.ontology_scorecard import (
     DEFAULT_WEIGHTS,
+    WEIGHT_PROFILES,
+    CorpusProfile,
     OntologyScorecard,
+    build_corpus_profile,
     score_ontology,
 )
 
@@ -160,3 +163,75 @@ def test_custom_weights_renormalise():
 
 def test_default_weights_sum_to_one():
     assert abs(sum(DEFAULT_WEIGHTS.values()) - 1.0) < 1e-9
+
+
+def test_all_weight_profiles_sum_to_one():
+    for name, w in WEIGHT_PROFILES.items():
+        assert abs(sum(w.values()) - 1.0) < 1e-9, name
+
+
+def _sparse_onto() -> Ontology:
+    return Ontology("sparse", nodes={
+        "Company": NodeDef(description="A company.", properties={"name": P(str, unique=True)}),
+        "FinancialMetric": NodeDef(description="A metric.", properties={"name": P(str, unique=True)}),
+    })
+
+
+def _rich_onto() -> Ontology:
+    return Ontology("rich", nodes={
+        "Company": NodeDef(description="A company.", properties={"name": P(str, unique=True)}),
+        "FinancialMetric": NodeDef(description="A metric.", properties={"name": P(str, unique=True)}),
+        "Person": NodeDef(description="A person.", properties={"name": P(str, unique=True)}),
+        "Regulation": NodeDef(description="A rule.", aliases=["Rule"], properties={"name": P(str, unique=True)}),
+        "Risk": NodeDef(description="A risk.", properties={"name": P(str, unique=True)}),
+    })
+
+
+# corpus that needs people, regulations, risks — not just companies/metrics
+_CORPUS = build_corpus_profile([
+    {"nodes": [{"label": "Company"}, {"label": "Person"}, {"label": "Regulation"}]},
+    {"nodes": [{"label": "Risk"}, {"label": "Person"}, {"label": "FinancialMetric"}]},
+    {"nodes": [{"label": "Regulation"}, {"label": "Risk"}]},
+], source="test")
+
+
+def test_build_corpus_profile_counts_labels():
+    assert _CORPUS.label_frequencies["Person"] == 2
+    assert _CORPUS.label_frequencies["Regulation"] == 2
+    assert _CORPUS.doc_count == 3
+
+
+def test_corpus_coverage_sparse_low_rich_high():
+    sparse = score_ontology(_sparse_onto(), corpus_profile=_CORPUS)
+    rich = score_ontology(_rich_onto(), corpus_profile=_CORPUS)
+    cs = sparse.dimension("corpus_coverage")
+    cr = rich.dimension("corpus_coverage")
+    assert cs is not None and cr is not None
+    assert cr.score > cs.score  # rich covers more of what the corpus needs
+    # sparse surfaces the missing classes as weak points
+    missing = {wp.target for wp in sparse.weak_points if wp.dimension == "corpus_coverage"}
+    assert {"Person", "Regulation", "Risk"} & missing
+
+
+def test_corpus_coverage_skipped_without_profile():
+    card = score_ontology(_rich_onto())
+    assert card.dimension("corpus_coverage") is None
+    assert any(wp.dimension == "corpus_coverage" for wp in card.weak_points)
+
+
+def test_guardrail_profile_ranks_rich_above_sparse_on_corpus():
+    # the divergence fix: with the guardrail profile + corpus, the rich (flat but
+    # corpus-adequate) ontology should outrank the sparse one overall.
+    sparse = score_ontology(_sparse_onto(), corpus_profile=_CORPUS, profile="guardrail")
+    rich = score_ontology(_rich_onto(), corpus_profile=_CORPUS, profile="guardrail")
+    assert rich.overall_score > sparse.overall_score
+    assert rich.stats["weight_profile"] == "guardrail"
+
+
+def test_profile_changes_weighting():
+    onto = _rich_onto()
+    guard = score_ontology(onto, corpus_profile=_CORPUS, profile="guardrail")
+    tax = score_ontology(onto, corpus_profile=_CORPUS, profile="taxonomy")
+    # taxonomy dimension carries more weight under the taxonomy profile
+    assert guard.dimension("taxonomy_health").weight < tax.dimension("taxonomy_health").weight
+    assert guard.dimension("corpus_coverage").weight > tax.dimension("corpus_coverage").weight

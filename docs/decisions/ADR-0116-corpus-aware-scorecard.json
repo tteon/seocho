@@ -1,0 +1,224 @@
+{
+  "experiment": "corpus-aware-scorecard-predicts-guardrail-value",
+  "model": "DeepSeek-V3.1",
+  "corpus_profile": {
+    "label_frequencies": {
+      "FinancialMetric": 230,
+      "Regulation": 28,
+      "BusinessProcess": 2,
+      "Product": 40,
+      "FinancialTerm": 10,
+      "Company": 43,
+      "BusinessUnit": 8,
+      "Service": 4,
+      "MonetaryValue": 13,
+      "Date": 27,
+      "Account": 1,
+      "Year": 12,
+      "FinancialConcept": 6,
+      "FinancialDocument": 1,
+      "BusinessStructure": 1,
+      "AssetType": 1,
+      "LegalTerm": 2,
+      "Industry": 15,
+      "Technology": 1,
+      "Risk": 33,
+      "PersonnelCount": 4,
+      "Country": 4,
+      "LegalIssue": 31,
+      "Organization": 10,
+      "Person": 60,
+      "BusinessSegment": 4,
+      "Concept": 37,
+      "Market": 1,
+      "CompetitorType": 1,
+      "ClientType": 1,
+      "PlatformType": 2,
+      "Competitor": 1,
+      "CompetitiveFactor": 10,
+      "Workflow": 1,
+      "ProductFeature": 1,
+      "MarketType": 1,
+      "FinancialInstrument": 4,
+      "ProductCategory": 2,
+      "Region": 5,
+      "OrganizationalUnit": 5,
+      "TimePeriod": 2,
+      "Document": 3,
+      "CurrencyAmount": 3,
+      "BusinessConcept": 5,
+      "FinancialActivity": 6,
+      "GovernmentAgency": 6,
+      "MonetaryThreshold": 1,
+      "Location": 9,
+      "LegalAction": 3,
+      "Entity": 7,
+      "Event": 1,
+      "Program": 13,
+      "Role": 3,
+      "Team": 2,
+      "Framework": 5,
+      "Plan": 2,
+      "Activity": 3,
+      "Training": 1,
+      "Facility": 1,
+      "Platform": 1,
+      "Committee": 5,
+      "Provider": 1,
+      "Process": 6,
+      "Impact": 3,
+      "RiskManagement": 1,
+      "System": 1,
+      "Infrastructure": 2,
+      "Data": 2,
+      "Certification": 1,
+      "Network": 1,
+      "Insurance": 1,
+      "Assessment": 1,
+      "Test": 1,
+      "Incident": 1,
+      "FinancialProgram": 5,
+      "StockExchange": 1,
+      "LegalDocument": 1,
+      "FinancialRole": 1,
+      "FinancialAction": 2,
+      "CorporateBody": 1,
+      "FinancialStatement": 1,
+      "Note": 1,
+      "AnnualReport": 1,
+      "Month": 1,
+      "Quantity": 1
+    },
+    "doc_count": 48,
+    "source": "FinDER open-extract N=48 DeepSeek-V3.1"
+  },
+  "downstream_guardrail_score": {
+    "fibo_minus": 0.734,
+    "fibo_plus": 0.898
+  },
+  "downstream_ranking": [
+    "fibo_plus",
+    "fibo_minus"
+  ],
+  "before_balanced": {
+    "fibo_minus": 0.8975,
+    "fibo_base": 0.8787,
+    "fibo_plus": 0.816
+  },
+  "before_ranking": [
+    "fibo_minus",
+    "fibo_base",
+    "fibo_plus"
+  ],
+  "after_guardrail_corpus": {
+    "fibo_minus": 0.7447,
+    "fibo_base": 0.7732,
+    "fibo_plus": 0.7728
+  },
+  "after_ranking": [
+    "fibo_base",
+    "fibo_plus",
+    "fibo_minus"
+  ],
+  "detail": {
+    "fibo_minus": {
+      "before_balanced": {
+        "overall": 0.8975,
+        "grade": "B"
+      },
+      "after_guardrail_corpus": {
+        "overall": 0.7447,
+        "grade": "C",
+        "corpus_coverage": 0.3487
+      },
+      "top_uncovered": [
+        {
+          "label": "Person",
+          "count": 60
+        },
+        {
+          "label": "Product",
+          "count": 40
+        },
+        {
+          "label": "Concept",
+          "count": 37
+        },
+        {
+          "label": "Risk",
+          "count": 33
+        },
+        {
+          "label": "LegalIssue",
+          "count": 31
+        }
+      ]
+    },
+    "fibo_base": {
+      "before_balanced": {
+        "overall": 0.8787,
+        "grade": "B"
+      },
+      "after_guardrail_corpus": {
+        "overall": 0.7732,
+        "grade": "C",
+        "corpus_coverage": 0.461
+      },
+      "top_uncovered": [
+        {
+          "label": "Product",
+          "count": 40
+        },
+        {
+          "label": "Concept",
+          "count": 37
+        },
+        {
+          "label": "Risk",
+          "count": 33
+        },
+        {
+          "label": "LegalIssue",
+          "count": 31
+        },
+        {
+          "label": "Date",
+          "count": 27
+        }
+      ]
+    },
+    "fibo_plus": {
+      "before_balanced": {
+        "overall": 0.816,
+        "grade": "B"
+      },
+      "after_guardrail_corpus": {
+        "overall": 0.7728,
+        "grade": "C",
+        "corpus_coverage": 0.5951
+      },
+      "top_uncovered": [
+        {
+          "label": "Concept",
+          "count": 37
+        },
+        {
+          "label": "Date",
+          "count": 27
+        },
+        {
+          "label": "Industry",
+          "count": 15
+        },
+        {
+          "label": "MonetaryValue",
+          "count": 13
+        },
+        {
+          "label": "Program",
+          "count": 13
+        }
+      ]
+    }
+  }
+}

@@ -25,6 +25,7 @@ duplicated; the genuinely new contribution is the taxonomy-health tier.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from statistics import mean
 from typing import Any, Dict, List, Optional, Sequence, Union
@@ -36,15 +37,78 @@ from .ontology_governance import (
     lint_ontology,
 )
 
-# Default dimension weights. functional_coverage is only counted when
-# competency questions are supplied (see ``score_ontology``).
+# Default dimension weights. functional_coverage / corpus_coverage are only
+# counted when their inputs are supplied (see ``score_ontology``); absent
+# dimensions are dropped and the remaining weights renormalised.
 DEFAULT_WEIGHTS: Dict[str, float] = {
     "structural_integrity": 0.30,
     "taxonomy_health": 0.25,
     "definitional_completeness": 0.20,
     "constraint_richness": 0.15,
     "functional_coverage": 0.10,
+    "corpus_coverage": 0.0,
 }
+
+# Purpose-specific weight profiles. The FinDER guardrail ablation (ADR-0115)
+# showed the intrinsic ``balanced`` grade can DIVERGE from downstream guardrail
+# value: a flat-but-rich ontology graded below a sparse one yet was the better
+# extraction guardrail. The fix is to weight by intended use. ``guardrail``
+# de-emphasises taxonomy shape and leans on constraint richness + how well the
+# ontology covers what the target corpus actually needs (corpus_coverage);
+# ``taxonomy`` (reasoning/subsumption use) does the opposite.
+WEIGHT_PROFILES: Dict[str, Dict[str, float]] = {
+    "balanced": dict(DEFAULT_WEIGHTS),
+    "guardrail": {
+        "structural_integrity": 0.15,
+        "taxonomy_health": 0.10,
+        "definitional_completeness": 0.20,
+        "constraint_richness": 0.25,
+        "functional_coverage": 0.05,
+        "corpus_coverage": 0.25,
+    },
+    "taxonomy": {
+        "structural_integrity": 0.25,
+        "taxonomy_health": 0.35,
+        "definitional_completeness": 0.20,
+        "constraint_richness": 0.10,
+        "functional_coverage": 0.10,
+        "corpus_coverage": 0.0,
+    },
+}
+
+
+@dataclass(slots=True)
+class CorpusProfile:
+    """A summary of the entity types a target corpus actually needs, computed
+    upstream (so the scorecard stays offline). The canonical way to build one is
+    an OPEN, ontology-free extraction over the corpus (``build_corpus_profile``):
+    the resulting label frequencies are *independent of any candidate ontology*
+    and represent what that corpus demands. Scoring a candidate ontology's
+    coverage of this profile is what the FinDER ablation showed actually
+    predicts downstream guardrail value."""
+
+    label_frequencies: Dict[str, int] = field(default_factory=dict)
+    doc_count: int = 0
+    source: str = ""
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"label_frequencies": dict(self.label_frequencies),
+                "doc_count": self.doc_count, "source": self.source}
+
+
+def build_corpus_profile(graphs: Sequence[Dict[str, Any]], *, source: str = "") -> CorpusProfile:
+    """Build a :class:`CorpusProfile` from extracted graphs. Pass graphs from an
+    OPEN (ontology-free) extraction so the label set reflects the corpus's needs,
+    not a guardrail's vocabulary. Each graph is ``{"nodes": [{"label": ...}]}``."""
+    freqs: Dict[str, int] = {}
+    for g in graphs:
+        for node in (g or {}).get("nodes", []):
+            if not isinstance(node, dict):
+                continue
+            label = str(node.get("label", "")).strip()
+            if label:
+                freqs[label] = freqs.get(label, 0) + 1
+    return CorpusProfile(label_frequencies=freqs, doc_count=len(graphs), source=source)
 
 
 @dataclass(slots=True)
@@ -593,6 +657,72 @@ def _score_functional_coverage(
     return dim, weak
 
 
+def _score_corpus_coverage(
+    ontology: Ontology, profile: CorpusProfile, weight: float
+) -> tuple[DimensionScore, List[WeakPoint]]:
+    """Corpus-aware tier: does the ontology's vocabulary cover the entity types
+    the TARGET CORPUS actually needs? Score = frequency-weighted fraction of the
+    corpus's observed labels that the ontology declares (as a label or alias,
+    case-insensitively). This is the metric the FinDER ablation showed predicts
+    downstream guardrail value, where intrinsic structure did not: a sparse
+    ontology scores LOW here because the corpus mentions entities it cannot
+    represent. The biggest uncovered labels become weak points — the precise
+    classes to add."""
+    weak: List[WeakPoint] = []
+
+    # membership set: labels + aliases, casefolded (also a spaced form)
+    members = set()
+    for label, nd in ontology.nodes.items():
+        members.add(label.casefold())
+        members.add(re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", label).replace("_", " ").casefold())
+        for alias in (getattr(nd, "aliases", []) or []):
+            members.add(str(alias).strip().casefold())
+
+    freqs = profile.label_frequencies
+    total = sum(freqs.values())
+    if total == 0:
+        dim = DimensionScore("corpus_coverage", 1.0, weight,
+                             ["Empty corpus profile — corpus coverage not assessed."],
+                             {"covered_mass": 0, "total_mass": 0})
+        return dim, weak
+
+    covered_mass = 0
+    uncovered: List[tuple] = []
+    for label, count in freqs.items():
+        forms = {label.casefold(),
+                 re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", label).replace("_", " ").casefold()}
+        if forms & members:
+            covered_mass += count
+        else:
+            uncovered.append((label, count))
+
+    score = covered_mass / total
+    uncovered.sort(key=lambda kv: -kv[1])
+    for label, count in uncovered[:10]:
+        share = count / total
+        sev = "major" if share >= 0.05 else "minor"
+        weak.append(WeakPoint(
+            sev, "corpus_coverage", label,
+            f"Corpus mentions '{label}' {count}× ({share:.0%} of entities) but the ontology has no "
+            f"matching class — add it (or an alias) so the guardrail can represent it.",
+        ))
+
+    findings = [f"Covers {score:.0%} of corpus entity mentions "
+                f"({len(freqs) - len(uncovered)}/{len(freqs)} distinct labels)."]
+    if uncovered:
+        findings.append(f"Top uncovered: {', '.join(l for l, _ in uncovered[:5])}.")
+
+    dim = DimensionScore(
+        "corpus_coverage", score, weight, findings,
+        {"covered_mass": covered_mass, "total_mass": total,
+         "distinct_labels_covered": len(freqs) - len(uncovered),
+         "distinct_labels_total": len(freqs),
+         "top_uncovered": [{"label": l, "count": c} for l, c in uncovered[:10]],
+         "corpus_doc_count": profile.doc_count},
+    )
+    return dim, weak
+
+
 # ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
@@ -603,6 +733,8 @@ def score_ontology(
     *,
     competency_questions: Optional[Sequence[Union[str, Dict[str, Any]]]] = None,
     ontoclean_tags: Optional[Dict[str, Any]] = None,
+    corpus_profile: Optional[CorpusProfile] = None,
+    profile: str = "balanced",
     weights: Optional[Dict[str, float]] = None,
 ) -> OntologyScorecard:
     """Compute a graded, multi-dimensional quality scorecard for an ontology.
@@ -623,10 +755,21 @@ def score_ontology(
         ``ontology_ontoclean.infer_metaproperties``). When supplied, is-a edges
         are checked against the OntoClean subsumption constraints and violations
         fold into ``taxonomy_health``. No LLM is called here.
+    corpus_profile:
+        Optional :class:`CorpusProfile` (from :func:`build_corpus_profile` over
+        an OPEN extraction of the target corpus). When supplied, adds the
+        ``corpus_coverage`` dimension — how well the ontology's vocabulary covers
+        the entity types the corpus actually needs. This is what predicts
+        downstream guardrail value (ADR-0115/0116).
+    profile:
+        Named weight profile — ``"balanced"`` (default), ``"guardrail"`` (weights
+        constraint_richness + corpus_coverage for extraction-guardrail use), or
+        ``"taxonomy"`` (weights taxonomy_health for reasoning use). See
+        :data:`WEIGHT_PROFILES`. Ignored when ``weights`` is given.
     weights:
-        Optional override of :data:`DEFAULT_WEIGHTS`. Dimensions absent from the
-        run (e.g. functional_coverage with no CQs) are dropped and the remaining
-        weights are renormalised.
+        Explicit override of the resolved profile weights. Dimensions absent from
+        the run (e.g. functional_coverage with no CQs, corpus_coverage with no
+        corpus) are dropped and the remaining weights renormalised.
 
     Returns
     -------
@@ -636,7 +779,10 @@ def score_ontology(
         error), per-dimension breakdowns, and a severity-sorted list of weak
         points to drive the refinement loop.
     """
-    w = dict(weights or DEFAULT_WEIGHTS)
+    if weights is not None:
+        w = dict(weights)
+    else:
+        w = dict(WEIGHT_PROFILES.get(profile, DEFAULT_WEIGHTS))
     dimensions: List[DimensionScore] = []
     weak_points: List[WeakPoint] = []
 
@@ -670,6 +816,19 @@ def score_ontology(
             )
         )
 
+    if corpus_profile is not None:
+        corpus, weak = _score_corpus_coverage(ontology, corpus_profile, w.get("corpus_coverage", 0.0))
+        dimensions.append(corpus)
+        weak_points.extend(weak)
+    else:
+        weak_points.append(
+            WeakPoint(
+                "minor", "corpus_coverage", "<ontology>",
+                "No corpus profile supplied — corpus-coverage (does the vocabulary fit the target "
+                "documents?) was skipped. This is the signal that predicts guardrail value.",
+            )
+        )
+
     # Blocking iff the hygiene linter found a structural error.
     blocking = any(wp.severity == "blocking" for wp in weak_points)
 
@@ -698,5 +857,7 @@ def score_ontology(
             "relationship_count": len(ontology.relationships),
             "schema_fingerprint": ontology.schema_fingerprint(),
             "competency_questions_supplied": bool(competency_questions),
+            "corpus_profile_supplied": corpus_profile is not None,
+            "weight_profile": "custom" if weights is not None else profile,
         },
     )

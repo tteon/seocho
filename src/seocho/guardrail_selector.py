@@ -169,3 +169,69 @@ def load_corpus_profile(data: Union[str, Dict[str, Any]]) -> CorpusProfile:
         )
     # assume a bare {label: freq} mapping
     return CorpusProfile(label_frequencies={str(k): int(v) for k, v in data.items()})
+
+
+# ---------------------------------------------------------------------------
+# Learning the numeric-intensity threshold from measured answer-accuracy deltas
+# (ADR-0126). ADR-0123 hard-coded 0.5; ADR-0122/0124 give per-domain deltas
+# (rich-minus-sparse answer accuracy) we can use to calibrate the boundary.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(slots=True)
+class DomainObservation:
+    """A measured per-domain point: how numeric the domain's corpus is, and
+    whether the richer guardrail actually helped its answers."""
+
+    domain: str
+    numeric_intensity: float
+    rich_minus_sparse_delta: float  # measured answer-accuracy delta; >0 = rich helped
+
+
+def calibrate_numeric_threshold(
+    observations: Sequence[DomainObservation],
+    *,
+    default: float = 0.5,
+) -> Dict[str, Any]:
+    """Find the numeric_intensity threshold T that best separates domains where
+    the rich guardrail helped (delta>0 → should be treated as entity, ni<T) from
+    those where it did not (delta<=0 → numeric, ni>=T).
+
+    Scans candidate thresholds (midpoints between sorted unique intensities, plus
+    the 0/1 bounds), scores each by agreement with the measured outcomes, and
+    returns the best (ties broken toward ``default``). Pure/deterministic."""
+    obs = list(observations)
+    if not obs:
+        return {"threshold": default, "accuracy": None, "n": 0, "default": default}
+
+    intensities = sorted({o.numeric_intensity for o in obs})
+    candidates = [0.0]
+    for a, b in zip(intensities, intensities[1:]):
+        candidates.append((a + b) / 2.0)
+    candidates.append(1.0)
+    # also allow thresholds just above each observed intensity so a point can be
+    # classified numeric (ni >= T) exactly at a boundary
+    candidates = sorted(set(candidates))
+
+    def agreement(t: float) -> int:
+        correct = 0
+        for o in obs:
+            predict_rich_helps = o.numeric_intensity < t
+            actual_rich_helps = o.rich_minus_sparse_delta > 0
+            if predict_rich_helps == actual_rich_helps:
+                correct += 1
+        return correct
+
+    best_t = default
+    best_score = -1
+    for t in candidates:
+        s = agreement(t)
+        if s > best_score or (s == best_score and abs(t - default) < abs(best_t - default)):
+            best_score, best_t = s, t
+
+    return {
+        "threshold": round(best_t, 4),
+        "accuracy": round(best_score / len(obs), 4),
+        "n": len(obs),
+        "default": default,
+    }

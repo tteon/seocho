@@ -106,9 +106,18 @@ class NumericValidationResult:
         }
 
 
-def validate_numeric_facts(facts: List[Dict[str, Any]]) -> NumericValidationResult:
+def validate_numeric_facts(
+    facts: List[Dict[str, Any]],
+    *,
+    source_text: Optional[str] = None,
+) -> NumericValidationResult:
     """Soft, precision-first validation. Confidence drops only on ``warn`` findings;
-    ``info`` (relaxed signals like a missing period or unknown unit) does not."""
+    ``info`` (relaxed signals like a missing period or unknown unit) does not.
+
+    When ``source_text`` is supplied, also grounds each value against the numbers
+    present in the source (ADR-0131): an extracted value absent from the source is
+    a ``warn`` (``ungrounded_value``) — the recall lever for wrong/fabricated
+    numbers that isolated-fact rules cannot see (ADR-0130)."""
     findings: List[NumericFinding] = []
     repairs: List[str] = []
     parsed = [NumericFact.from_dict(f) for f in facts if isinstance(f, dict)]
@@ -136,6 +145,12 @@ def validate_numeric_facts(facts: List[Dict[str, Any]]) -> NumericValidationResu
         if finding is not None:
             findings.append(finding)
             repairs.append(f"reconcile components of '{group['total'].name}'")
+
+    # source grounding (the recall lever — ADR-0131)
+    if source_text:
+        grounding = ground_facts(facts, source_text)
+        findings.extend(grounding.findings)
+        repairs.extend(f"verify '{f.fact}' against the source" for f in grounding.findings)
 
     n_warn = sum(1 for f in findings if f.severity == "warn")
     confidence = max(0.0, 1.0 - 0.34 * n_warn)
@@ -170,3 +185,99 @@ def find_reconciliation_groups(facts: List[NumericFact]) -> List[Dict[str, Any]]
         if len(parts) >= 2:
             groups.append({"total": total, "parts": parts})
     return groups
+
+
+# ---------------------------------------------------------------------------
+# Source-grounded numeric check (ADR-0131): the recall lever ADR-0130 identified.
+# The dominant structural error is "wrong number pulled" — a plausible value that
+# is wrong. Isolated-fact rules can't see it, but we CAN check whether an
+# extracted value actually appears in the source text. A value absent from the
+# source was fabricated or mis-computed → flag it.
+# ---------------------------------------------------------------------------
+
+_SCALE_MULT = {"thousand": 1e3, "million": 1e6, "billion": 1e9}
+# a number, optionally $-prefixed / %-suffixed / parenthesised-negative, with commas/decimals
+_NUM_RE = re.compile(r"\(?\$?\s*-?\d{1,3}(?:,\d{3})+(?:\.\d+)?|\(?\$?\s*-?\d+(?:\.\d+)?")
+_SCALE_AFTER_RE = re.compile(r"\s*(thousand|million|billion)s?\b", re.I)
+
+
+def extract_source_numbers(text: str) -> List[float]:
+    """All numeric values present in the source text, including scale-expanded
+    forms (``$539.2 million`` contributes both 539.2 and 539_200_000) and
+    parenthesised negatives. Used to ground extracted fact values."""
+    if not text:
+        return []
+    out: set = set()
+    for m in _NUM_RE.finditer(text):
+        tok = m.group(0)
+        neg = tok.strip().startswith("(")
+        cleaned = tok.replace("(", "").replace(")", "").replace("$", "").replace(",", "").strip()
+        try:
+            val = float(cleaned)
+        except Exception:
+            continue
+        if neg:
+            val = -abs(val)
+        out.add(val)
+        # scale word immediately after the number → add the scaled value too
+        after = text[m.end():m.end() + 12]
+        sm = _SCALE_AFTER_RE.match(after)
+        if sm:
+            out.add(round(val * _SCALE_MULT[sm.group(1).lower()], 6))
+    return sorted(out)
+
+
+def _matches(value: float, source_numbers: List[float], *, rel_tol: float, scale: str = "") -> bool:
+    candidates = [value]
+    mult = _SCALE_MULT.get((scale or "").strip().lower())
+    if mult:
+        candidates += [value * mult, value / mult]
+    for c in candidates:
+        for s in source_numbers:
+            denom = max(abs(s), abs(c), 1.0)
+            if abs(c - s) / denom <= rel_tol:
+                return True
+    return False
+
+
+@dataclass(slots=True)
+class GroundingResult:
+    findings: List[NumericFinding] = field(default_factory=list)
+    grounded: int = 0
+    checked: int = 0
+
+    @property
+    def grounded_ratio(self) -> float:
+        return round(self.grounded / self.checked, 4) if self.checked else 1.0
+
+    @property
+    def any_ungrounded(self) -> bool:
+        return any(f.code == "ungrounded_value" for f in self.findings)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"findings": [f.to_dict() for f in self.findings],
+                "grounded": self.grounded, "checked": self.checked,
+                "grounded_ratio": self.grounded_ratio}
+
+
+def ground_facts(facts: List[Dict[str, Any]], source_text: str, *, rel_tol: float = 0.01) -> GroundingResult:
+    """Check each extracted fact's value against the numbers actually present in
+    ``source_text``. An extracted value with no source match is ``warn``
+    (``ungrounded_value``) — the catch for fabricated / mis-computed numbers that
+    isolated-fact rules (ADR-0130) cannot see."""
+    src = extract_source_numbers(source_text)
+    res = GroundingResult()
+    for f in facts:
+        if not isinstance(f, dict):
+            continue
+        fct = NumericFact.from_dict(f)
+        if fct.value is None:
+            continue
+        res.checked += 1
+        if _matches(fct.value, src, rel_tol=rel_tol, scale=fct.scale):
+            res.grounded += 1
+        else:
+            res.findings.append(NumericFinding(
+                "warn", "ungrounded_value", fct.name or "(unnamed)",
+                f"value {fct.value} not found in the source text (possible wrong/fabricated number)"))
+    return res

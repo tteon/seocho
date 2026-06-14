@@ -1,0 +1,24 @@
+{
+  "experiment": "P3-shacl-numeric-validation",
+  "model": "DeepSeek-V3.1",
+  "ontology": "fin-numeric",
+  "summary": {
+    "n_cases": 80,
+    "n_scored": 80,
+    "numeric_accuracy": 0.5625,
+    "n_wrong": 35,
+    "wrong_structural": 32,
+    "wrong_arithmetic": 3,
+    "pct_wrong_structural": 0.9143,
+    "pct_wrong_arithmetic": 0.0857,
+    "shacl_catch_rate_on_structural": 0.9375,
+    "validator_false_positive_rate_on_correct": 0.9111,
+    "by_type_accuracy": {
+      "Compositional": 0.625,
+      "Division": 0.625,
+      "Multiplication": 0.375,
+      "Subtract": 0.562,
+      "Addition": 0.625
+    }
+  }
+}

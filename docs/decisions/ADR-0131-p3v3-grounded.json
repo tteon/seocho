@@ -1,0 +1,698 @@
+{
+  "experiment": "P3v3-grounded-validator",
+  "model": "DeepSeek-V3.1",
+  "summary": {
+    "n_scored": 80,
+    "n_correct": 45,
+    "n_structural_wrong": 18,
+    "OLD": {
+      "recall_on_structural": 0.9444,
+      "false_positive_on_correct": 0.9111
+    },
+    "NEW": {
+      "recall_on_structural": 0.0,
+      "false_positive_on_correct": 0.0
+    },
+    "GROUNDED": {
+      "recall_on_structural": 0.2222,
+      "false_positive_on_correct": 0.5111
+    }
+  },
+  "results": [
+    {
+      "id": "0019de4b",
+      "type": "Compositional",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": false,
+      "correct": true
+    },
+    {
+      "id": "008beea7",
+      "type": "Compositional",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": true,
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "00b0e3cd",
+      "type": "Compositional",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": false,
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "0191b4af",
+      "type": "Compositional",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": true,
+      "correct": true
+    },
+    {
+      "id": "0264fa95",
+      "type": "Compositional",
+      "old_flagged": false,
+      "new_flagged": false,
+      "grounded_flagged": false,
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "027b67ae",
+      "type": "Compositional",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": false,
+      "correct": true
+    },
+    {
+      "id": "03bb2a85",
+      "type": "Compositional",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": false,
+      "correct": true
+    },
+    {
+      "id": "03f83848",
+      "type": "Compositional",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": true,
+      "correct": true
+    },
+    {
+      "id": "04867d1f",
+      "type": "Compositional",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": true,
+      "correct": false,
+      "error_type": "arithmetic"
+    },
+    {
+      "id": "0542261a",
+      "type": "Compositional",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": true,
+      "correct": true
+    },
+    {
+      "id": "05d9f1d9",
+      "type": "Compositional",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": false,
+      "correct": false,
+      "error_type": "arithmetic"
+    },
+    {
+      "id": "06a2f739",
+      "type": "Compositional",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": true,
+      "correct": false,
+      "error_type": "arithmetic"
+    },
+    {
+      "id": "06c09d44",
+      "type": "Compositional",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": true,
+      "correct": true
+    },
+    {
+      "id": "06cbd247",
+      "type": "Compositional",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": true,
+      "correct": true
+    },
+    {
+      "id": "070a12e3",
+      "type": "Compositional",
+      "old_flagged": false,
+      "new_flagged": false,
+      "grounded_flagged": false,
+      "correct": true
+    },
+    {
+      "id": "0748ea37",
+      "type": "Compositional",
+      "old_flagged": false,
+      "new_flagged": false,
+      "grounded_flagged": false,
+      "correct": false,
+      "error_type": "arithmetic"
+    },
+    {
+      "id": "02b691db",
+      "type": "Division",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": true,
+      "correct": true
+    },
+    {
+      "id": "080ee40b",
+      "type": "Division",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": false,
+      "correct": true
+    },
+    {
+      "id": "08117364",
+      "type": "Division",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": true,
+      "correct": true
+    },
+    {
+      "id": "0ae7ad85",
+      "type": "Division",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": false,
+      "correct": false,
+      "error_type": "arithmetic"
+    },
+    {
+      "id": "1023e5b0",
+      "type": "Division",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": true,
+      "correct": true
+    },
+    {
+      "id": "1127cdbe",
+      "type": "Division",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": false,
+      "correct": true
+    },
+    {
+      "id": "116f7dd0",
+      "type": "Division",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": false,
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "1248cfe0",
+      "type": "Division",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": true,
+      "correct": true
+    },
+    {
+      "id": "128144b8",
+      "type": "Division",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": true,
+      "correct": true
+    },
+    {
+      "id": "1447cf8d",
+      "type": "Division",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": false,
+      "correct": true
+    },
+    {
+      "id": "14d30823",
+      "type": "Division",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": false,
+      "correct": true
+    },
+    {
+      "id": "15b5a805",
+      "type": "Division",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": false,
+      "correct": false,
+      "error_type": "arithmetic"
+    },
+    {
+      "id": "17504a14",
+      "type": "Division",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": true,
+      "correct": true
+    },
+    {
+      "id": "17d90aad",
+      "type": "Division",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": false,
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "182f0809",
+      "type": "Division",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": false,
+      "correct": true
+    },
+    {
+      "id": "18da327f",
+      "type": "Division",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": false,
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "09e02aa0",
+      "type": "Multiplication",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": false,
+      "correct": true
+    },
+    {
+      "id": "0aa82f46",
+      "type": "Multiplication",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": true,
+      "correct": true
+    },
+    {
+      "id": "0b916241",
+      "type": "Multiplication",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": true,
+      "correct": true
+    },
+    {
+      "id": "0b9424ce",
+      "type": "Multiplication",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": false,
+      "correct": true
+    },
+    {
+      "id": "0e73082a",
+      "type": "Multiplication",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": true,
+      "correct": true
+    },
+    {
+      "id": "1212a36a",
+      "type": "Multiplication",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": false,
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "13e75b54",
+      "type": "Multiplication",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": false,
+      "correct": false,
+      "error_type": "arithmetic"
+    },
+    {
+      "id": "17e2ebe3",
+      "type": "Multiplication",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": true,
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "17f2bd61",
+      "type": "Multiplication",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": false,
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "1c44a557",
+      "type": "Multiplication",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": true,
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "1dc1afeb",
+      "type": "Multiplication",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": true,
+      "correct": true
+    },
+    {
+      "id": "200b60b0",
+      "type": "Multiplication",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": true,
+      "correct": true
+    },
+    {
+      "id": "21b12275",
+      "type": "Multiplication",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": false,
+      "correct": true
+    },
+    {
+      "id": "23e48bf5",
+      "type": "Multiplication",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": false,
+      "correct": false,
+      "error_type": "arithmetic"
+    },
+    {
+      "id": "24132b64",
+      "type": "Multiplication",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": false,
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "2448d34a",
+      "type": "Multiplication",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": false,
+      "correct": false,
+      "error_type": "arithmetic"
+    },
+    {
+      "id": "0098df3b",
+      "type": "Subtract",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": false,
+      "correct": true
+    },
+    {
+      "id": "00b622f5",
+      "type": "Subtract",
+      "old_flagged": false,
+      "new_flagged": false,
+      "grounded_flagged": true,
+      "correct": true
+    },
+    {
+      "id": "01d03a27",
+      "type": "Subtract",
+      "old_flagged": false,
+      "new_flagged": false,
+      "grounded_flagged": true,
+      "correct": true
+    },
+    {
+      "id": "04617585",
+      "type": "Subtract",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": false,
+      "correct": true
+    },
+    {
+      "id": "062e1065",
+      "type": "Subtract",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": false,
+      "correct": true
+    },
+    {
+      "id": "08f24d41",
+      "type": "Subtract",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": true,
+      "correct": false,
+      "error_type": "arithmetic"
+    },
+    {
+      "id": "0ab8560c",
+      "type": "Subtract",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": false,
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "0f41b58e",
+      "type": "Subtract",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": false,
+      "correct": false,
+      "error_type": "arithmetic"
+    },
+    {
+      "id": "114821a1",
+      "type": "Subtract",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": false,
+      "correct": false,
+      "error_type": "arithmetic"
+    },
+    {
+      "id": "17c1ab79",
+      "type": "Subtract",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": false,
+      "correct": true
+    },
+    {
+      "id": "1cd23310",
+      "type": "Subtract",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": true,
+      "correct": false,
+      "error_type": "arithmetic"
+    },
+    {
+      "id": "2043c063",
+      "type": "Subtract",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": true,
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "21e0225d",
+      "type": "Subtract",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": false,
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "227a8b74",
+      "type": "Subtract",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": true,
+      "correct": true
+    },
+    {
+      "id": "232e9758",
+      "type": "Subtract",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": true,
+      "correct": false,
+      "error_type": "arithmetic"
+    },
+    {
+      "id": "24b36dea",
+      "type": "Subtract",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": false,
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "0016fe33",
+      "type": "Addition",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": false,
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "03d190de",
+      "type": "Addition",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": false,
+      "correct": true
+    },
+    {
+      "id": "08ba441b",
+      "type": "Addition",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": false,
+      "correct": true
+    },
+    {
+      "id": "09aaa84a",
+      "type": "Addition",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": false,
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "0a89f264",
+      "type": "Addition",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": false,
+      "correct": true
+    },
+    {
+      "id": "0dbaf98d",
+      "type": "Addition",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": true,
+      "correct": true
+    },
+    {
+      "id": "0e7dfbe5",
+      "type": "Addition",
+      "old_flagged": false,
+      "new_flagged": false,
+      "grounded_flagged": false,
+      "correct": false,
+      "error_type": "arithmetic"
+    },
+    {
+      "id": "187d825c",
+      "type": "Addition",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": true,
+      "correct": false,
+      "error_type": "arithmetic"
+    },
+    {
+      "id": "18a79c92",
+      "type": "Addition",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": false,
+      "correct": false,
+      "error_type": "arithmetic"
+    },
+    {
+      "id": "217c0933",
+      "type": "Addition",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": true,
+      "correct": true
+    },
+    {
+      "id": "22bb7b97",
+      "type": "Addition",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": false,
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "2a614102",
+      "type": "Addition",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": true,
+      "correct": true
+    },
+    {
+      "id": "2af21ee3",
+      "type": "Addition",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": false,
+      "correct": true
+    },
+    {
+      "id": "2bac5828",
+      "type": "Addition",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": false,
+      "correct": true
+    },
+    {
+      "id": "303b76f5",
+      "type": "Addition",
+      "old_flagged": true,
+      "new_flagged": false,
+      "grounded_flagged": true,
+      "correct": true
+    },
+    {
+      "id": "3a06278d",
+      "type": "Addition",
+      "old_flagged": false,
+      "new_flagged": false,
+      "grounded_flagged": false,
+      "correct": true
+    }
+  ]
+}

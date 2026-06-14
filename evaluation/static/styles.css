@@ -114,7 +114,8 @@ body {
   border-left: 2px solid transparent;
 }
 
-.rail-btn:hover {
+.rail-btn:hover,
+.rail-btn:focus-visible {
   color: var(--text-main);
 }
 
@@ -254,6 +255,11 @@ body {
   cursor: not-allowed;
 }
 
+#ingestBtn:hover:not(:disabled),
+#ingestBtn:focus-visible:not(:disabled) {
+  opacity: 0.9;
+}
+
 #oneClickDemoBtn {
   background: var(--accent-blue);
   color: #fff;
@@ -268,6 +274,11 @@ body {
 #oneClickDemoBtn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+#oneClickDemoBtn:hover:not(:disabled),
+#oneClickDemoBtn:focus-visible:not(:disabled) {
+  opacity: 0.9;
 }
 
 /* Dual Pane Workspace */
@@ -367,7 +378,8 @@ body {
   cursor: not-allowed;
 }
 
-.composer button:hover:not(:disabled) {
+.composer button:hover:not(:disabled),
+.composer button:focus-visible:not(:disabled) {
   opacity: 0.9;
 }
 
@@ -441,7 +453,8 @@ body {
   transition: transform 0.2s, border-color 0.2s;
 }
 
-.workflow-node:hover {
+.workflow-node:hover,
+.workflow-node:focus-visible {
   transform: translateY(-2px);
   border-color: rgba(255, 255, 255, 0.2);
 }

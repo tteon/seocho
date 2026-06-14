@@ -1,8 +1,12 @@
+![SEOCHO](docs/assets/banner.png)
+
 # SEOCHO
 
 **Ontology-aligned middleware for agentic graph memory.**
 
 [![PyPI](https://img.shields.io/pypi/v/seocho)](https://pypi.org/project/seocho/)
+[![Python](https://img.shields.io/pypi/pyversions/seocho)](https://pypi.org/project/seocho/)
+[![Status: Alpha](https://img.shields.io/badge/status-alpha-orange.svg)](https://pypi.org/project/seocho/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Docs](https://img.shields.io/badge/Docs-seocho.blog-0f172a)](https://seocho.blog/docs/)
 [![Quickstart](https://img.shields.io/badge/Quickstart-5_min-2563eb)](QUICKSTART.md)

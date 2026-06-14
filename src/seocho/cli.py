@@ -325,6 +325,24 @@ def build_parser() -> argparse.ArgumentParser:
     ontology_inspect_parser.add_argument("--source", required=True, help="OWL file path or URI")
     ontology_inspect_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
 
+    ontology_review_parser = ontology_subparsers.add_parser(
+        "review",
+        help="Ambiguity review loop: quarantine OOV entities, cluster them, and map them back into the taxonomy",
+    )
+    ontology_review_parser.add_argument(
+        "review_action",
+        choices=["ingest", "clusters", "export-spec", "apply"],
+        help="ingest: detect+quarantine from an extracted-graph JSON; clusters: list ranked quarantine; "
+             "export-spec: write a starter mapping-spec YAML; apply: apply a mapping-spec to an ontology",
+    )
+    ontology_review_parser.add_argument("--quarantine", default=".seocho_quarantine.jsonl", help="Quarantine JSONL path")
+    ontology_review_parser.add_argument("--schema", default=None, help="Ontology file (for ingest/export-spec/apply)")
+    ontology_review_parser.add_argument("--graph", default=None, help="Extracted-graph JSON (for ingest)")
+    ontology_review_parser.add_argument("--spec", default=None, help="Mapping-spec YAML (for apply)")
+    ontology_review_parser.add_argument("--output", default=None, help="Output path (export-spec / apply)")
+    ontology_review_parser.add_argument("--workspace", default="", help="workspace_id to stamp on quarantined items")
+    ontology_review_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
+
     serve_http_parser = subparsers.add_parser("serve-http", help="Serve a portable bundle behind a small FastAPI runtime")
     serve_http_parser.add_argument("--bundle", required=True, help="Path to portable bundle JSON file")
     serve_http_parser.add_argument("--host", default="0.0.0.0", help="Bind host")
@@ -1506,6 +1524,75 @@ def _cmd_ontology(args: argparse.Namespace) -> int:
                 f"imports={inspection.stats.get('import_count', 0)}"
             )
         return 0 if inspection.available and inspection.error is None else 1
+
+    if args.ontology_command == "review":
+        from .ontology import Ontology
+        from .ontology_ambiguity import (
+            AmbiguityQuarantine,
+            apply_mapping_spec,
+            detect_ambiguities,
+            load_mapping_spec,
+            starter_mapping_spec,
+        )
+
+        q = AmbiguityQuarantine(args.quarantine)
+
+        if args.review_action == "ingest":
+            if not args.schema or not args.graph:
+                raise SeochoError("review ingest requires --schema and --graph")
+            ontology = Ontology.load(args.schema)
+            graph = json.loads(Path(args.graph).read_text(encoding="utf-8"))
+            found = detect_ambiguities(graph, ontology, source=args.graph, workspace_id=args.workspace)
+            n = q.add(found)
+            if getattr(args, "output_json", False):
+                print(json.dumps({"ingested": n, "items": [f.to_dict() for f in found]}, indent=2, ensure_ascii=False))
+            else:
+                print(f"quarantined {n} ambiguous mention(s) → {args.quarantine}")
+            return 0
+
+        if args.review_action == "clusters":
+            clusters = q.clusters()
+            if getattr(args, "output_json", False):
+                print(json.dumps(clusters, indent=2, ensure_ascii=False))
+            else:
+                if not clusters:
+                    print("quarantine empty")
+                for c in clusters:
+                    print(f"  {c['frequency']:4d}×  {c['surface']:30s} signals={c['signals']} "
+                          f"candidates={c['candidate_labels']}")
+            return 0
+
+        if args.review_action == "export-spec":
+            if not args.schema:
+                raise SeochoError("review export-spec requires --schema")
+            import yaml
+            ontology = Ontology.load(args.schema)
+            spec = starter_mapping_spec(q.clusters(), ontology)
+            text = yaml.safe_dump(spec, sort_keys=False, allow_unicode=True)
+            if args.output:
+                Path(args.output).write_text(text, encoding="utf-8")
+                print(f"wrote starter mapping-spec → {args.output} ({len(spec['mappings'])} mappings)")
+            else:
+                print(text)
+            return 0
+
+        if args.review_action == "apply":
+            if not args.schema or not args.spec:
+                raise SeochoError("review apply requires --schema and --spec")
+            ontology = Ontology.load(args.schema)
+            spec = load_mapping_spec(args.spec)
+            new_onto = apply_mapping_spec(ontology, spec)
+            payload = new_onto.to_jsonld()
+            if args.output:
+                Path(args.output).write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+                print(f"applied {len(spec.get('mappings', []))} mapping(s): "
+                      f"{ontology.version} → {new_onto.version}, {len(ontology.nodes)} → {len(new_onto.nodes)} classes "
+                      f"→ {args.output}")
+            else:
+                print(json.dumps(payload, indent=2, ensure_ascii=False))
+            return 0
+
+        raise SeochoError(f"Unknown review action: {args.review_action}")
 
     raise SeochoError(f"Unknown ontology command: {args.ontology_command}")
 

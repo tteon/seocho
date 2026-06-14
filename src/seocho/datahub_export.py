@@ -163,3 +163,109 @@ def emit_to_datahub(
 
 def glossary_mcps_to_json(mcps: List[Dict[str, Any]]) -> str:
     return json.dumps(mcps, indent=2, ensure_ascii=False)
+
+
+# ---------------------------------------------------------------------------
+# Phase B/C (ADR-0129): surface the ambiguity-review queue + SEOCHO governance
+# (scorecard / numeric validation) in DataHub. Pure dict-MCP construction — no
+# live `datahub` calls. Aspect field names follow DataHub's documented model;
+# verify against the target datahub version before live emit.
+# ---------------------------------------------------------------------------
+
+
+def ambiguity_clusters_to_glossary_proposals(
+    clusters: List[Dict[str, Any]],
+    *,
+    package_id: str,
+    status: str = "PROPOSED",
+) -> List[Dict[str, Any]]:
+    """Render ambiguity-review clusters as PROPOSED glossary terms under a
+    ``<package_id>.Proposed`` node — the review queue, visible in DataHub."""
+    proposed_node_id = f"{package_id}.Proposed"
+    mcps: List[Dict[str, Any]] = [_mcp("glossaryNode", _node_urn(proposed_node_id), "glossaryNodeInfo", {
+        "name": f"{package_id} — Proposed (ambiguity review)",
+        "definition": "Out-of-ontology mentions awaiting human mapping (SEOCHO ambiguity review).",
+        "id": _slug(proposed_node_id),
+        "parentNode": _node_urn(package_id),
+    })]
+    for c in clusters:
+        surface = str(c.get("surface", ""))
+        if not surface:
+            continue
+        term_id = f"{package_id}.proposed.{surface}"
+        mcps.append(_mcp("glossaryTerm", _term_urn(term_id), "glossaryTermInfo", {
+            "name": surface,
+            "definition": ((c.get("examples") or [""])[0] or f"Proposed term '{surface}' (under review)")[:280],
+            "termSource": "INTERNAL",
+            "parentNode": _node_urn(proposed_node_id),
+            "customProperties": {
+                "review_status": status,
+                "frequency": str(c.get("frequency", 0)),
+                "signals": json.dumps(c.get("signals", {}), ensure_ascii=False),
+                "candidate_labels": ", ".join(c.get("candidate_labels", []) or []),
+            },
+        }))
+    return mcps
+
+
+def scorecard_to_structured_properties(
+    scorecard: Dict[str, Any],
+    *,
+    target_urn: str,
+) -> List[Dict[str, Any]]:
+    """Map an ``OntologyScorecard.to_dict()`` onto DataHub structuredProperties on
+    ``target_urn`` (e.g. the package glossaryNode): overall score, grade, blocking,
+    and each dimension score under ``seocho.scorecard.*`` keys."""
+    props: List[Dict[str, Any]] = [
+        {"propertyUrn": "urn:li:structuredProperty:seocho.scorecard.overall_score",
+         "values": [scorecard.get("overall_score")]},
+        {"propertyUrn": "urn:li:structuredProperty:seocho.scorecard.grade",
+         "values": [scorecard.get("grade")]},
+        {"propertyUrn": "urn:li:structuredProperty:seocho.scorecard.blocking",
+         "values": [bool(scorecard.get("blocking"))]},
+    ]
+    for dim in scorecard.get("dimensions", []):
+        name = dim.get("name")
+        if name:
+            props.append({
+                "propertyUrn": f"urn:li:structuredProperty:seocho.scorecard.{name}",
+                "values": [dim.get("score")],
+            })
+    entity_type = "glossaryNode" if ":glossaryNode:" in target_urn else "dataset"
+    return [_mcp(entity_type, target_urn, "structuredProperties", {"properties": props})]
+
+
+def numeric_validation_to_assertions(
+    validation: Dict[str, Any],
+    *,
+    dataset_urn: str,
+    confidence_threshold: float = 1.0,
+) -> List[Dict[str, Any]]:
+    """Map a ``NumericValidationResult.to_dict()`` onto DataHub assertion MCPs on
+    ``dataset_urn``: an assertionInfo (the rule) + an assertionRunEvent (the
+    result — SUCCESS iff confidence >= threshold and no warnings)."""
+    confidence = float(validation.get("confidence", 1.0) or 0.0)
+    warnings = [f for f in validation.get("findings", []) if f.get("severity") == "warn"]
+    passed = confidence >= confidence_threshold and not warnings
+    assertion_urn = f"urn:li:assertion:seocho.numeric_validation.{_slug(dataset_urn)}"
+    return [
+        _mcp("assertion", assertion_urn, "assertionInfo", {
+            "type": "DATASET",
+            "description": "SEOCHO numeric-fact validation (unit/scale/period/reconciliation; ADR-0127).",
+            "datasetAssertion": {"dataset": dataset_urn, "scope": "DATASET_ROWS",
+                                 "operator": "_NATIVE_", "nativeType": "seocho.numeric_validation"},
+        }),
+        _mcp("assertion", assertion_urn, "assertionRunEvent", {
+            "assertionUrn": assertion_urn,
+            "asserteeUrn": dataset_urn,
+            "status": "COMPLETE",
+            "result": {
+                "type": "SUCCESS" if passed else "FAILURE",
+                "nativeResults": {
+                    "confidence": str(round(confidence, 4)),
+                    "warning_count": str(len(warnings)),
+                    "findings": json.dumps(validation.get("findings", []), ensure_ascii=False)[:900],
+                },
+            },
+        }),
+    ]

@@ -1,0 +1,135 @@
+{
+  "experiment": "ontology-scorecard-before-after",
+  "domain": "company/person/product first-draft → governed",
+  "before": {
+    "overall_score": 0.5543,
+    "grade": "F",
+    "blocking": false,
+    "dimensions": {
+      "structural_integrity": 0.92,
+      "taxonomy_health": 0.3,
+      "definitional_completeness": 0.375,
+      "constraint_richness": 0.3,
+      "functional_coverage": 0.8333
+    },
+    "weak_point_count": 13,
+    "weak_points": [
+      {
+        "severity": "major",
+        "dimension": "definitional_completeness",
+        "target": "Company",
+        "message": "Class 'Company' has no identity (no identity_keys and no unique property) — instances cannot be deduplicated across documents."
+      },
+      {
+        "severity": "major",
+        "dimension": "definitional_completeness",
+        "target": "Deal",
+        "message": "Class 'Deal' has no identity (no identity_keys and no unique property) — instances cannot be deduplicated across documents."
+      },
+      {
+        "severity": "major",
+        "dimension": "definitional_completeness",
+        "target": "Founder",
+        "message": "Class 'Founder' has no identity (no identity_keys and no unique property) — instances cannot be deduplicated across documents."
+      },
+      {
+        "severity": "major",
+        "dimension": "definitional_completeness",
+        "target": "Metric",
+        "message": "Class 'Metric' has no identity (no identity_keys and no unique property) — instances cannot be deduplicated across documents."
+      },
+      {
+        "severity": "major",
+        "dimension": "definitional_completeness",
+        "target": "Person",
+        "message": "Class 'Person' has no identity (no identity_keys and no unique property) — instances cannot be deduplicated across documents."
+      },
+      {
+        "severity": "major",
+        "dimension": "definitional_completeness",
+        "target": "Product",
+        "message": "Class 'Product' has no identity (no identity_keys and no unique property) — instances cannot be deduplicated across documents."
+      },
+      {
+        "severity": "major",
+        "dimension": "taxonomy_health",
+        "target": "<ontology>",
+        "message": "6 classes but no 'broader' hierarchy — consider an is-a taxonomy to enable subsumption."
+      },
+      {
+        "severity": "major",
+        "dimension": "taxonomy_health",
+        "target": "Deal",
+        "message": "Class 'Deal' is disconnected — give it a 'broader' parent or a relationship, or remove it."
+      },
+      {
+        "severity": "major",
+        "dimension": "taxonomy_health",
+        "target": "Founder",
+        "message": "Class 'Founder' is disconnected — give it a 'broader' parent or a relationship, or remove it."
+      },
+      {
+        "severity": "major",
+        "dimension": "taxonomy_health",
+        "target": "Metric",
+        "message": "Class 'Metric' is disconnected — give it a 'broader' parent or a relationship, or remove it."
+      },
+      {
+        "severity": "minor",
+        "dimension": "constraint_richness",
+        "target": "CEO_OF",
+        "message": "Relationship 'CEO_OF' has an untyped endpoint (source/target = Any) — it constrains no traversal."
+      },
+      {
+        "severity": "minor",
+        "dimension": "structural_integrity",
+        "target": "CEO_OF",
+        "message": "Relationship 'CEO_OF' has no definition."
+      },
+      {
+        "severity": "minor",
+        "dimension": "structural_integrity",
+        "target": "Company",
+        "message": "Class 'Company' has no definition (ISO 704 / FIBO require label + definition)."
+      }
+    ]
+  },
+  "after": {
+    "overall_score": 0.9176,
+    "grade": "A",
+    "blocking": false,
+    "dimensions": {
+      "structural_integrity": 1.0,
+      "taxonomy_health": 0.8071,
+      "definitional_completeness": 1.0,
+      "constraint_richness": 0.9054,
+      "functional_coverage": 0.8
+    },
+    "weak_point_count": 2,
+    "weak_points": [
+      {
+        "severity": "major",
+        "dimension": "taxonomy_health",
+        "target": "Deal",
+        "message": "Class 'Deal' is disconnected — give it a 'broader' parent or a relationship, or remove it."
+      },
+      {
+        "severity": "minor",
+        "dimension": "taxonomy_health",
+        "target": "Person",
+        "message": "Class 'Person' has exactly one subclass — a single-child branch is usually under-modeled or redundant."
+      }
+    ]
+  },
+  "delta": {
+    "overall_score": 0.3633,
+    "weak_point_count": -11,
+    "by_dimension": {
+      "structural_integrity": 0.08,
+      "taxonomy_health": 0.5071,
+      "definitional_completeness": 0.625,
+      "constraint_richness": 0.6054,
+      "functional_coverage": -0.0333
+    }
+  }
+}

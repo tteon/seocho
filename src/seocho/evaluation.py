@@ -334,3 +334,155 @@ def _flatten_values(value: Any) -> List[str]:
 def _normalize_token(value: Any) -> str:
     text = str(value or "").strip().lower()
     return " ".join(text.split())
+
+
+# ---------------------------------------------------------------------------
+# Answer-accuracy evaluation (ADR-0122/0123): conformance is NOT a safe proxy
+# for answer quality — they can move in opposite directions — so the eval
+# surface must measure actual answer correctness over a gold QA set, with an
+# ontology injected as the extraction guardrail.
+# ---------------------------------------------------------------------------
+
+import time
+from concurrent.futures import ThreadPoolExecutor
+from threading import Lock
+
+
+@dataclass(slots=True)
+class AnswerCase:
+    """One gold QA case: a question + expected answer, with the source context to
+    extract/answer from and an optional category for per-segment breakdown."""
+
+    question: str
+    gold_answer: str
+    context: str = ""
+    category: str = ""
+    case_id: str = ""
+
+
+@dataclass(slots=True)
+class AnswerAccuracyReport:
+    n_scored: int
+    accuracy: float
+    by_category: Dict[str, float] = field(default_factory=dict)
+    by_category_n: Dict[str, int] = field(default_factory=dict)
+    errors: int = 0
+    results: List[Dict[str, Any]] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "n_scored": self.n_scored, "accuracy": self.accuracy,
+            "by_category": dict(self.by_category), "by_category_n": dict(self.by_category_n),
+            "errors": self.errors, "results": list(self.results),
+        }
+
+
+_ANS_SYS = ("You are a financial analyst. Use ONLY the entity/relationship types in the provided "
+            "ontology to extract the relevant facts, then answer the question. Return ONLY JSON.")
+_JUDGE_SYS = "You grade answers. Return ONLY JSON."
+_JUDGE_USER = ('QUESTION: {q}\nGOLD: {gold}\nMODEL ANSWER: {ans}\n'
+               'Is the model answer correct vs gold (same entity/number/fact, allowing phrasing/'
+               'rounding)? Return JSON {{"correct": true|false}}')
+
+
+def _ans_user(ontology: "Ontology", context: str, question: str) -> str:
+    ctx = ontology.to_extraction_context()
+    return (f"ONTOLOGY ENTITY TYPES:\n{ctx.get('entity_types','')}\n\n"
+            f"ONTOLOGY RELATIONSHIP TYPES:\n{ctx.get('relationship_types','')}\n\n"
+            f"CONTEXT:\n{context}\n\nQUESTION: {question}\n\n"
+            'Return JSON: {"facts":[{"label":"...","name":"...","value":"..."}],"answer":"..."}')
+
+
+def _eval_retry(fn, *, attempts: int = 5, base: float = 2.0):
+    last = None
+    for i in range(attempts):
+        try:
+            return fn()
+        except Exception as e:  # noqa: BLE001
+            last = e
+            msg = str(e).lower()
+            if "429" in msg or "rate limit" in msg or "timeout" in msg or "temporarily" in msg:
+                time.sleep(base * (2 ** i))
+                continue
+            raise
+    raise last
+
+
+def evaluate_answer_accuracy(
+    backend: Any,
+    ontology: "Ontology",
+    cases: Sequence[AnswerCase],
+    *,
+    judge_backend: Optional[Any] = None,
+    model: Optional[str] = None,
+    max_chars: int = 3500,
+    workers: int = 6,
+) -> AnswerAccuracyReport:
+    """Measure answer accuracy over a gold QA set with ``ontology`` as the
+    extraction guardrail. For each case: extract facts + answer (robustly, via the
+    provider-aware structured layer), then LLM-judge the answer vs gold. Returns
+    overall + per-category accuracy. ``backend``/``judge_backend`` follow the
+    SEOCHO ``LLMBackend`` contract; injected, so this is testable with fakes.
+
+    Concurrency is bounded by ``workers`` with 429-retry (MARA rate-limits at high
+    concurrency — see ADR-0122)."""
+    from .llm_structured import StructuredOutputError, structured_complete
+
+    judge = judge_backend or backend
+    mdl = model or getattr(backend, "model", "")
+    done = {"n": 0}
+    lock = Lock()
+
+    def run(case: AnswerCase) -> Dict[str, Any]:
+        out: Dict[str, Any] = {"case_id": case.case_id, "category": case.category}
+        try:
+            ex = _eval_retry(lambda: structured_complete(
+                backend, system=_ANS_SYS, user=_ans_user(ontology, case.context[:max_chars], case.question),
+                model=mdl, task_hint="json_extraction"))
+            ans = str(ex.get("answer", "")) if isinstance(ex, dict) else ""
+            facts = ex.get("facts", []) if isinstance(ex, dict) else []
+            labels = [str(f.get("label", "")) for f in facts if isinstance(f, dict)]
+            out["label_conformance"] = (
+                round(sum(1 for l in labels if l in ontology.nodes) / len(labels), 4) if labels else 0.0)
+            jc = _eval_retry(lambda: structured_complete(
+                judge, system=_JUDGE_SYS,
+                user=_JUDGE_USER.format(q=case.question, gold=case.gold_answer, ans=ans), model=mdl))
+            out["correct"] = bool(jc.get("correct")) if isinstance(jc, dict) else False
+        except Exception as e:  # noqa: BLE001
+            out["error"] = f"{type(e).__name__}: {str(e)[:80]}"
+        with lock:
+            done["n"] += 1
+        return out
+
+    if workers > 1 and len(cases) > 1:
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            results = list(pool.map(run, cases))
+    else:
+        results = [run(c) for c in cases]
+
+    scored = [r for r in results if "correct" in r]
+    errors = sum(1 for r in results if "error" in r)
+    by_cat: Dict[str, List[int]] = {}
+    for r in scored:
+        by_cat.setdefault(r.get("category", ""), []).append(1 if r["correct"] else 0)
+    return AnswerAccuracyReport(
+        n_scored=len(scored),
+        accuracy=round(mean([1 if r["correct"] else 0 for r in scored]), 4) if scored else 0.0,
+        by_category={c: round(mean(v), 4) for c, v in by_cat.items() if v},
+        by_category_n={c: len(v) for c, v in by_cat.items()},
+        errors=errors, results=results,
+    )
+
+
+def compare_guardrails_by_answer(
+    backend: Any,
+    ontologies: Dict[str, "Ontology"],
+    cases: Sequence[AnswerCase],
+    **kwargs: Any,
+) -> Dict[str, AnswerAccuracyReport]:
+    """Answer-accuracy per candidate guardrail — the reusable form of the FinDER
+    answer matrix (ADR-0122). Pairs with the offline guardrail selector
+    (``seocho.guardrail_selector``): the selector picks offline, this validates the
+    pick against gold answers."""
+    return {name: evaluate_answer_accuracy(backend, onto, cases, **kwargs)
+            for name, onto in ontologies.items()}

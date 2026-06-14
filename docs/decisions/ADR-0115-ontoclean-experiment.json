@@ -1,0 +1,71 @@
+{
+  "experiment": "ontoclean-rigidity-before-after",
+  "meta_properties": {
+    "Person": {
+      "rigid": true,
+      "carries_identity": true,
+      "supplies_identity": true,
+      "unity": true,
+      "dependent": false,
+      "rationale": "A human is permanently a human."
+    },
+    "Student": {
+      "rigid": false,
+      "carries_identity": true,
+      "supplies_identity": false,
+      "unity": true,
+      "dependent": true,
+      "rationale": "One can stop being a student; depends on a school."
+    },
+    "Employee": {
+      "rigid": false,
+      "carries_identity": true,
+      "supplies_identity": false,
+      "unity": true,
+      "dependent": true,
+      "rationale": "A role; depends on an employer."
+    },
+    "Company": {
+      "rigid": true,
+      "carries_identity": true,
+      "supplies_identity": true,
+      "unity": true,
+      "dependent": false,
+      "rationale": "An incorporated entity."
+    }
+  },
+  "before": {
+    "ontoclean_ok": false,
+    "violations": [
+      {
+        "constraint": "rigidity",
+        "parent": "Student",
+        "child": "Person",
+        "severity": "violation",
+        "message": "'Person' (rigid: being a Person is permanent) is placed under anti-rigid 'Student' (an instance can stop being a Student). An anti-rigid class cannot subsume a rigid one — re-parent 'Person' or model the 'Student' aspect as a role/relationship, not a superclass."
+      },
+      {
+        "constraint": "dependence",
+        "parent": "Student",
+        "child": "Person",
+        "severity": "violation",
+        "message": "'Student' is externally dependent but its subclass 'Person' is independent. A dependent class cannot subsume an independent one — dependence is inherited downward."
+      }
+    ],
+    "overall": 0.7806,
+    "grade": "C",
+    "taxonomy_health": 0.25
+  },
+  "after": {
+    "ontoclean_ok": true,
+    "violations": [],
+    "overall": 0.9194,
+    "grade": "A",
+    "taxonomy_health": 0.75
+  },
+  "delta": {
+    "overall": 0.1389,
+    "taxonomy_health": 0.5,
+    "violations_cleared": 2
+  }
+}

@@ -1,0 +1,898 @@
+{
+  "experiment": "ontology-guardrail-ablation",
+  "provider": "MARA (api.cloud.mara.com)",
+  "models": [
+    "DeepSeek-V3.1",
+    "MiniMax-M2.5",
+    "MiniMax-M2.7",
+    "gpt-oss-120b"
+  ],
+  "phase_a": {
+    "models_succeeded": [
+      "DeepSeek-V3.1",
+      "MiniMax-M2.5",
+      "gpt-oss-120b"
+    ],
+    "per_model_tags": {
+      "DeepSeek-V3.1": {
+        "Employee": {
+          "rigid": false,
+          "carries_identity": true,
+          "supplies_identity": false,
+          "unity": true,
+          "dependent": true,
+          "rationale": "Employee is a role that can be entered and left while the person continues to exist, and depends on a company for its existence."
+        },
+        "Person": {
+          "rigid": true,
+          "carries_identity": true,
+          "supplies_identity": true,
+          "unity": true,
+          "dependent": false,
+          "rationale": "Person is a fundamental and permanent category with inherent identity and unity, not dependent on other entities."
+        },
+        "Company": {
+          "rigid": true,
+          "carries_identity": true,
+          "supplies_identity": true,
+          "unity": true,
+          "dependent": false,
+          "rationale": "Company is a rigid, independent entity with its own identity and unity as an organization."
+        },
+        "Product": {
+          "rigid": true,
+          "carries_identity": true,
+          "supplies_identity": true,
+          "unity": true,
+          "dependent": false,
+          "rationale": "Product is a concrete object with essential identity and unity, existing independently as a manufactured item."
+        }
+      },
+      "MiniMax-M2.5": {
+        "Employee": {
+          "rigid": false,
+          "carries_identity": false,
+          "supplies_identity": false,
+          "unity": false,
+          "dependent": true,
+          "rationale": "Employee is a role that is anti-rigid, does not carry or supply its own identity, is not a unified whole, and necessarily depends on a company."
+        },
+        "Person": {
+          "rigid": true,
+          "carries_identity": true,
+          "supplies_identity": true,
+          "unity": true,
+          "dependent": false,
+          "rationale": "Person is a rigid, identity-carrying, identity-supplying, unified, independent entity."
+        },
+        "Company": {
+          "rigid": false,
+          "carries_identity": true,
+          "supplies_identity": true,
+          "unity": true,
+          "dependent": false,
+          "rationale": "Company is anti-rigid, carries and supplies its own identity, is a unified entity, and does not necessarily depend on another entity."
+        },
+        "Product": {
+          "rigid": false,
+          "carries_identity": true,
+          "supplies_identity": false,
+          "unity": true,
+          "dependent": false,
+          "rationale": "Product is anti-rigid, carries identity but does not supply its own identity, is a unified physical object, and does not necessarily depend on another entity."
+        }
+      },
+      "gpt-oss-120b": {
+        "Employee": {
+          "rigid": false,
+          "carries_identity": true,
+          "supplies_identity": false,
+          "unity": true,
+          "dependent": true,
+          "rationale": "Employee is an anti‑rigid role (can be lost), inherits identity from the underlying person, does not introduce its own identity criterion, each employee is a whole person, and employment necessarily depends on a company."
+        },
+        "Person": {
+          "rigid": true,
+          "carries_identity": true,
+          "supplies_identity": true,
+          "unity": true,
+          "dependent": false,
+          "rationale": "Person is a rigid, essential kind of entity with its own identity criterion, each person is a unified whole, and persons do not ontologically depend on other entities."
+        },
+        "Company": {
+          "rigid": true,
+          "carries_identity": true,
+          "supplies_identity": true,
+          "unity": true,
+          "dependent": false,
+          "rationale": "Company is a rigid organizational entity that supplies its own legal identity, is a unified whole, and exists independently of other entities."
+        },
+        "Product": {
+          "rigid": true,
+          "carries_identity": true,
+          "supplies_identity": false,
+          "unity": true,
+          "dependent": true,
+          "rationale": "Product is treated as a rigid artifact kind, inherits identity from its material/artifact nature, does not introduce a new identity criterion, each product is a whole object, and its existence depends on having been created by a producer."
+        }
+      }
+    },
+    "consensus_tags": {
+      "Employee": {
+        "rigid": false,
+        "carries_identity": true,
+        "supplies_identity": false,
+        "unity": true,
+        "dependent": true,
+        "rationale": ""
+      },
+      "Person": {
+        "rigid": true,
+        "carries_identity": true,
+        "supplies_identity": true,
+        "unity": true,
+        "dependent": false,
+        "rationale": ""
+      },
+      "Company": {
+        "rigid": true,
+        "carries_identity": true,
+        "supplies_identity": true,
+        "unity": true,
+        "dependent": false,
+        "rationale": ""
+      },
+      "Product": {
+        "rigid": true,
+        "carries_identity": true,
+        "supplies_identity": false,
+        "unity": true,
+        "dependent": false,
+        "rationale": ""
+      }
+    },
+    "inference_prompt": "For each class decide, using its label, definition and properties:\n\n- rigid: true if being an instance of this class is ESSENTIAL and PERMANENT (a thing\n  cannot stop being one while continuing to exist, e.g. Person, Organism). false if\n  ANTI-RIGID — an instance can stop being one yet keep existing (roles like Student,\n  Employee, CEO; phases like Child). null if unsure.\n- carries_identity: true if instances have an identity criterion (a way to tell two\n  apart and re-identify one over time). Most concrete object types are true; pure\n  qualities/amounts are often false. null if unsure.\n- supplies_identity: true if THIS class introduces its own identity criterion rather\n  than inheriting one from a parent. null if unsure.\n- unity: true if every instance is a single connected WHOLE under one unifying relation\n  (e.g. an Organism, a Machine). false (anti-unity) for amounts/collections that need\n  not be wholes. null if unsure.\n- dependent: true if every instance NECESSARILY depends on some other distinct entity\n  existing (Student needs a school; Spouse needs a partner; Subsidiary needs a parent\n  company). false for independent substances. null if unsure.\n\nAlso give a one-sentence \"rationale\".\n\n\nClasses:\n- Employee: A person employed by a company. | properties: (none) | broader: (none)\n- Person: (no definition) | properties: name | broader: Employee\n- Company: (no definition) | properties: name | broader: (none)\n- Product: A product. | properties: (none) | broader: (none)\n\nReturn JSON: {\"classes\": {\"<Label>\": {\"rigid\": <bool|null>, \"carries_identity\": <bool|null>, \"supplies_identity\": <bool|null>, \"unity\": <bool|null>, \"dependent\": <bool|null>, \"rationale\": \"<str>\"}}}",
+    "draft_ontoclean": {
+      "ok": false,
+      "edges_checked": 1,
+      "violation_count": 2,
+      "violations": [
+        {
+          "constraint": "rigidity",
+          "parent": "Employee",
+          "child": "Person",
+          "severity": "violation",
+          "message": "'Person' (rigid: being a Person is permanent) is placed under anti-rigid 'Employee' (an instance can stop being a Employee). An anti-rigid class cannot subsume a rigid one — re-parent 'Person' or model the 'Employee' aspect as a role/relationship, not a superclass."
+        },
+        {
+          "constraint": "dependence",
+          "parent": "Employee",
+          "child": "Person",
+          "severity": "violation",
+          "message": "'Employee' is externally dependent but its subclass 'Person' is independent. A dependent class cannot subsume an independent one — dependence is inherited downward."
+        }
+      ],
+      "untagged_classes": []
+    },
+    "refined_ontoclean": {
+      "ok": true,
+      "edges_checked": 1,
+      "violation_count": 0,
+      "violations": [],
+      "untagged_classes": []
+    },
+    "draft_score": {
+      "overall": 0.5965,
+      "grade": "F",
+      "taxonomy_health": 0.55
+    },
+    "refined_score": {
+      "overall": 0.9557,
+      "grade": "A",
+      "taxonomy_health": 0.95
+    },
+    "delta_overall": 0.3592,
+    "violations_cleared": 2
+  },
+  "phase_b": {
+    "documents": [
+      "Acme Corp announced that Jane Doe will become its new chief executive officer next month.",
+      "Globex Inc acquired its smaller rival Initech in a deal worth two billion dollars.",
+      "The startup Hooli launched a new cloud product called Nucleus aimed at enterprises.",
+      "John Smith, a senior engineer at Hooli, was promoted to vice president of product.",
+      "Initech reported quarterly revenue of 450 million dollars, up 12 percent year over year.",
+      "Stark Industries offers a flagship product, the Arc Reactor, to industrial customers."
+    ],
+    "reference_schema": "biz-refined",
+    "results": {
+      "A_draft_guardrail": {
+        "per_model": {
+          "DeepSeek-V3.1": {
+            "aggregate": {
+              "docs_ok": 6,
+              "mean_label_conformance": 1.0,
+              "mean_rel_conformance": 0.6667,
+              "mean_extraction_score": 0.963,
+              "total_distinct_labels": 3
+            },
+            "per_doc": [
+              {
+                "node_count": 2,
+                "rel_count": 1,
+                "distinct_labels": 2,
+                "label_conformance": 1.0,
+                "rel_conformance": 1.0,
+                "extraction_score": 1.0,
+                "labels": [
+                  "Person",
+                  "Company"
+                ]
+              },
+              {
+                "node_count": 2,
+                "rel_count": 1,
+                "distinct_labels": 1,
+                "label_conformance": 1.0,
+                "rel_conformance": 1.0,
+                "extraction_score": 1.0,
+                "labels": [
+                  "Company",
+                  "Company"
+                ]
+              },
+              {
+                "node_count": 2,
+                "rel_count": 1,
+                "distinct_labels": 2,
+                "label_conformance": 1.0,
+                "rel_conformance": 1.0,
+                "extraction_score": 0.889,
+                "labels": [
+                  "Company",
+                  "Product"
+                ]
+              },
+              {
+                "node_count": 2,
+                "rel_count": 0,
+                "distinct_labels": 2,
+                "label_conformance": 1.0,
+                "rel_conformance": 0.0,
+                "extraction_score": 1.0,
+                "labels": [
+                  "Person",
+                  "Company"
+                ]
+              },
+              {
+                "node_count": 1,
+                "rel_count": 0,
+                "distinct_labels": 1,
+                "label_conformance": 1.0,
+                "rel_conformance": 0.0,
+                "extraction_score": 1.0,
+                "labels": [
+                  "Company"
+                ]
+              },
+              {
+                "node_count": 2,
+                "rel_count": 1,
+                "distinct_labels": 2,
+                "label_conformance": 1.0,
+                "rel_conformance": 1.0,
+                "extraction_score": 0.889,
+                "labels": [
+                  "Company",
+                  "Product"
+                ]
+              }
+            ]
+          },
+          "MiniMax-M2.5": {
+            "aggregate": {
+              "docs_ok": 6,
+              "mean_label_conformance": 1.0,
+              "mean_rel_conformance": 0.6667,
+              "mean_extraction_score": 0.9815,
+              "total_distinct_labels": 3
+            },
+            "per_doc": [
+              {
+                "node_count": 2,
+                "rel_count": 1,
+                "distinct_labels": 2,
+                "label_conformance": 1.0,
+                "rel_conformance": 1.0,
+                "extraction_score": 1.0,
+                "labels": [
+                  "Person",
+                  "Company"
+                ]
+              },
+              {
+                "node_count": 2,
+                "rel_count": 1,
+                "distinct_labels": 1,
+                "label_conformance": 1.0,
+                "rel_conformance": 1.0,
+                "extraction_score": 1.0,
+                "labels": [
+                  "Company",
+                  "Company"
+                ]
+              },
+              {
+                "node_count": 2,
+                "rel_count": 1,
+                "distinct_labels": 2,
+                "label_conformance": 1.0,
+                "rel_conformance": 1.0,
+                "extraction_score": 1.0,
+                "labels": [
+                  "Company",
+                  "Product"
+                ]
+              },
+              {
+                "node_count": 2,
+                "rel_count": 0,
+                "distinct_labels": 2,
+                "label_conformance": 1.0,
+                "rel_conformance": 0.0,
+                "extraction_score": 1.0,
+                "labels": [
+                  "Person",
+                  "Company"
+                ]
+              },
+              {
+                "node_count": 1,
+                "rel_count": 0,
+                "distinct_labels": 1,
+                "label_conformance": 1.0,
+                "rel_conformance": 0.0,
+                "extraction_score": 1.0,
+                "labels": [
+                  "Company"
+                ]
+              },
+              {
+                "node_count": 2,
+                "rel_count": 1,
+                "distinct_labels": 2,
+                "label_conformance": 1.0,
+                "rel_conformance": 1.0,
+                "extraction_score": 0.889,
+                "labels": [
+                  "Company",
+                  "Product"
+                ]
+              }
+            ]
+          },
+          "MiniMax-M2.7": {
+            "aggregate": {
+              "docs_ok": 6,
+              "mean_label_conformance": 1.0,
+              "mean_rel_conformance": 0.6667,
+              "mean_extraction_score": 0.963,
+              "total_distinct_labels": 3
+            },
+            "per_doc": [
+              {
+                "node_count": 2,
+                "rel_count": 1,
+                "distinct_labels": 2,
+                "label_conformance": 1.0,
+                "rel_conformance": 1.0,
+                "extraction_score": 1.0,
+                "labels": [
+                  "Person",
+                  "Company"
+                ]
+              },
+              {
+                "node_count": 2,
+                "rel_count": 1,
+                "distinct_labels": 1,
+                "label_conformance": 1.0,
+                "rel_conformance": 1.0,
+                "extraction_score": 1.0,
+                "labels": [
+                  "Company",
+                  "Company"
+                ]
+              },
+              {
+                "node_count": 2,
+                "rel_count": 1,
+                "distinct_labels": 2,
+                "label_conformance": 1.0,
+                "rel_conformance": 1.0,
+                "extraction_score": 0.889,
+                "labels": [
+                  "Company",
+                  "Product"
+                ]
+              },
+              {
+                "node_count": 2,
+                "rel_count": 0,
+                "distinct_labels": 2,
+                "label_conformance": 1.0,
+                "rel_conformance": 0.0,
+                "extraction_score": 1.0,
+                "labels": [
+                  "Person",
+                  "Company"
+                ]
+              },
+              {
+                "node_count": 1,
+                "rel_count": 0,
+                "distinct_labels": 1,
+                "label_conformance": 1.0,
+                "rel_conformance": 0.0,
+                "extraction_score": 1.0,
+                "labels": [
+                  "Company"
+                ]
+              },
+              {
+                "node_count": 2,
+                "rel_count": 1,
+                "distinct_labels": 2,
+                "label_conformance": 1.0,
+                "rel_conformance": 1.0,
+                "extraction_score": 0.889,
+                "labels": [
+                  "Company",
+                  "Product"
+                ]
+              }
+            ]
+          },
+          "gpt-oss-120b": {
+            "aggregate": {
+              "docs_ok": 6,
+              "mean_label_conformance": 1.0,
+              "mean_rel_conformance": 0.6667,
+              "mean_extraction_score": 0.963,
+              "total_distinct_labels": 3
+            },
+            "per_doc": [
+              {
+                "node_count": 2,
+                "rel_count": 1,
+                "distinct_labels": 2,
+                "label_conformance": 1.0,
+                "rel_conformance": 1.0,
+                "extraction_score": 1.0,
+                "labels": [
+                  "Person",
+                  "Company"
+                ]
+              },
+              {
+                "node_count": 2,
+                "rel_count": 1,
+                "distinct_labels": 1,
+                "label_conformance": 1.0,
+                "rel_conformance": 1.0,
+                "extraction_score": 1.0,
+                "labels": [
+                  "Company",
+                  "Company"
+                ]
+              },
+              {
+                "node_count": 2,
+                "rel_count": 1,
+                "distinct_labels": 2,
+                "label_conformance": 1.0,
+                "rel_conformance": 1.0,
+                "extraction_score": 0.889,
+                "labels": [
+                  "Company",
+                  "Product"
+                ]
+              },
+              {
+                "node_count": 2,
+                "rel_count": 0,
+                "distinct_labels": 2,
+                "label_conformance": 1.0,
+                "rel_conformance": 0.0,
+                "extraction_score": 1.0,
+                "labels": [
+                  "Person",
+                  "Company"
+                ]
+              },
+              {
+                "node_count": 1,
+                "rel_count": 0,
+                "distinct_labels": 1,
+                "label_conformance": 1.0,
+                "rel_conformance": 0.0,
+                "extraction_score": 1.0,
+                "labels": [
+                  "Company"
+                ]
+              },
+              {
+                "node_count": 2,
+                "rel_count": 1,
+                "distinct_labels": 2,
+                "label_conformance": 1.0,
+                "rel_conformance": 1.0,
+                "extraction_score": 0.889,
+                "labels": [
+                  "Company",
+                  "Product"
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "B_refined_guardrail": {
+        "per_model": {
+          "DeepSeek-V3.1": {
+            "aggregate": {
+              "docs_ok": 6,
+              "mean_label_conformance": 1.0,
+              "mean_rel_conformance": 0.6667,
+              "mean_extraction_score": 1.0,
+              "total_distinct_labels": 4
+            },
+            "per_doc": [
+              {
+                "node_count": 2,
+                "rel_count": 1,
+                "distinct_labels": 2,
+                "label_conformance": 1.0,
+                "rel_conformance": 1.0,
+                "extraction_score": 1.0,
+                "labels": [
+                  "Person",
+                  "Company"
+                ]
+              },
+              {
+                "node_count": 2,
+                "rel_count": 1,
+                "distinct_labels": 1,
+                "label_conformance": 1.0,
+                "rel_conformance": 1.0,
+                "extraction_score": 1.0,
+                "labels": [
+                  "Company",
+                  "Company"
+                ]
+              },
+              {
+                "node_count": 2,
+                "rel_count": 1,
+                "distinct_labels": 2,
+                "label_conformance": 1.0,
+                "rel_conformance": 1.0,
+                "extraction_score": 1.0,
+                "labels": [
+                  "Company",
+                  "Product"
+                ]
+              },
+              {
+                "node_count": 3,
+                "rel_count": 0,
+                "distinct_labels": 3,
+                "label_conformance": 1.0,
+                "rel_conformance": 0.0,
+                "extraction_score": 1.0,
+                "labels": [
+                  "Person",
+                  "Employee",
+                  "Company"
+                ]
+              },
+              {
+                "node_count": 1,
+                "rel_count": 0,
+                "distinct_labels": 1,
+                "label_conformance": 1.0,
+                "rel_conformance": 0.0,
+                "extraction_score": 1.0,
+                "labels": [
+                  "Company"
+                ]
+              },
+              {
+                "node_count": 2,
+                "rel_count": 1,
+                "distinct_labels": 2,
+                "label_conformance": 1.0,
+                "rel_conformance": 1.0,
+                "extraction_score": 1.0,
+                "labels": [
+                  "Company",
+                  "Product"
+                ]
+              }
+            ]
+          },
+          "MiniMax-M2.5": {
+            "aggregate": {
+              "docs_ok": 6,
+              "mean_label_conformance": 1.0,
+              "mean_rel_conformance": 0.6667,
+              "mean_extraction_score": 1.0,
+              "total_distinct_labels": 4
+            },
+            "per_doc": [
+              {
+                "node_count": 2,
+                "rel_count": 1,
+                "distinct_labels": 2,
+                "label_conformance": 1.0,
+                "rel_conformance": 1.0,
+                "extraction_score": 1.0,
+                "labels": [
+                  "Person",
+                  "Company"
+                ]
+              },
+              {
+                "node_count": 2,
+                "rel_count": 1,
+                "distinct_labels": 1,
+                "label_conformance": 1.0,
+                "rel_conformance": 1.0,
+                "extraction_score": 1.0,
+                "labels": [
+                  "Company",
+                  "Company"
+                ]
+              },
+              {
+                "node_count": 2,
+                "rel_count": 1,
+                "distinct_labels": 2,
+                "label_conformance": 1.0,
+                "rel_conformance": 1.0,
+                "extraction_score": 1.0,
+                "labels": [
+                  "Company",
+                  "Product"
+                ]
+              },
+              {
+                "node_count": 3,
+                "rel_count": 0,
+                "distinct_labels": 3,
+                "label_conformance": 1.0,
+                "rel_conformance": 0.0,
+                "extraction_score": 1.0,
+                "labels": [
+                  "Person",
+                  "Company",
+                  "Employee"
+                ]
+              },
+              {
+                "node_count": 1,
+                "rel_count": 0,
+                "distinct_labels": 1,
+                "label_conformance": 1.0,
+                "rel_conformance": 0.0,
+                "extraction_score": 1.0,
+                "labels": [
+                  "Company"
+                ]
+              },
+              {
+                "node_count": 2,
+                "rel_count": 1,
+                "distinct_labels": 2,
+                "label_conformance": 1.0,
+                "rel_conformance": 1.0,
+                "extraction_score": 1.0,
+                "labels": [
+                  "Company",
+                  "Product"
+                ]
+              }
+            ]
+          },
+          "MiniMax-M2.7": {
+            "aggregate": {
+              "docs_ok": 6,
+              "mean_label_conformance": 1.0,
+              "mean_rel_conformance": 0.6667,
+              "mean_extraction_score": 1.0,
+              "total_distinct_labels": 4
+            },
+            "per_doc": [
+              {
+                "node_count": 2,
+                "rel_count": 1,
+                "distinct_labels": 2,
+                "label_conformance": 1.0,
+                "rel_conformance": 1.0,
+                "extraction_score": 1.0,
+                "labels": [
+                  "Person",
+                  "Company"
+                ]
+              },
+              {
+                "node_count": 2,
+                "rel_count": 1,
+                "distinct_labels": 1,
+                "label_conformance": 1.0,
+                "rel_conformance": 1.0,
+                "extraction_score": 1.0,
+                "labels": [
+                  "Company",
+                  "Company"
+                ]
+              },
+              {
+                "node_count": 2,
+                "rel_count": 1,
+                "distinct_labels": 2,
+                "label_conformance": 1.0,
+                "rel_conformance": 1.0,
+                "extraction_score": 1.0,
+                "labels": [
+                  "Company",
+                  "Product"
+                ]
+              },
+              {
+                "node_count": 3,
+                "rel_count": 0,
+                "distinct_labels": 3,
+                "label_conformance": 1.0,
+                "rel_conformance": 0.0,
+                "extraction_score": 1.0,
+                "labels": [
+                  "Person",
+                  "Employee",
+                  "Company"
+                ]
+              },
+              {
+                "node_count": 1,
+                "rel_count": 0,
+                "distinct_labels": 1,
+                "label_conformance": 1.0,
+                "rel_conformance": 0.0,
+                "extraction_score": 1.0,
+                "labels": [
+                  "Company"
+                ]
+              },
+              {
+                "node_count": 2,
+                "rel_count": 1,
+                "distinct_labels": 2,
+                "label_conformance": 1.0,
+                "rel_conformance": 1.0,
+                "extraction_score": 1.0,
+                "labels": [
+                  "Company",
+                  "Product"
+                ]
+              }
+            ]
+          },
+          "gpt-oss-120b": {
+            "aggregate": {
+              "docs_ok": 6,
+              "mean_label_conformance": 1.0,
+              "mean_rel_conformance": 0.6667,
+              "mean_extraction_score": 1.0,
+              "total_distinct_labels": 4
+            },
+            "per_doc": [
+              {
+                "node_count": 2,
+                "rel_count": 1,
+                "distinct_labels": 2,
+                "label_conformance": 1.0,
+                "rel_conformance": 1.0,
+                "extraction_score": 1.0,
+                "labels": [
+                  "Person",
+                  "Company"
+                ]
+              },
+              {
+                "node_count": 2,
+                "rel_count": 1,
+                "distinct_labels": 1,
+                "label_conformance": 1.0,
+                "rel_conformance": 1.0,
+                "extraction_score": 1.0,
+                "labels": [
+                  "Company",
+                  "Company"
+                ]
+              },
+              {
+                "node_count": 2,
+                "rel_count": 1,
+                "distinct_labels": 2,
+                "label_conformance": 1.0,
+                "rel_conformance": 1.0,
+                "extraction_score": 1.0,
+                "labels": [
+                  "Company",
+                  "Product"
+                ]
+              },
+              {
+                "node_count": 3,
+                "rel_count": 0,
+                "distinct_labels": 3,
+                "label_conformance": 1.0,
+                "rel_conformance": 0.0,
+                "extraction_score": 1.0,
+                "labels": [
+                  "Person",
+                  "Employee",
+                  "Company"
+                ]
+              },
+              {
+                "node_count": 1,
+                "rel_count": 0,
+                "distinct_labels": 1,
+                "label_conformance": 1.0,
+                "rel_conformance": 0.0,
+                "extraction_score": 1.0,
+                "labels": [
+                  "Company"
+                ]
+              },
+              {
+                "node_count": 2,
+                "rel_count": 1,
+                "distinct_labels": 2,
+                "label_conformance": 1.0,
+                "rel_conformance": 1.0,
+                "extraction_score": 1.0,
+                "labels": [
+                  "Company",
+                  "Product"
+                ]
+              }
+            ]
+          }
+        }
+      }
+    },
+    "summary": {
+      "A_draft_guardrail": {
+        "mean_label_conformance": 1.0,
+        "mean_rel_conformance": 0.6667,
+        "mean_extraction_score": 0.9676,
+        "total_distinct_labels": 3
+      },
+      "B_refined_guardrail": {
+        "mean_label_conformance": 1.0,
+        "mean_rel_conformance": 0.6667,
+        "mean_extraction_score": 1.0,
+        "total_distinct_labels": 4
+      },
+      "delta_B_minus_A": {
+        "mean_label_conformance": 0.0,
+        "mean_rel_conformance": 0.0,
+        "mean_extraction_score": 0.0324,
+        "total_distinct_labels": 1
+      }
+    }
+  }
+}

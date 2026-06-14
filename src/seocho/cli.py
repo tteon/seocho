@@ -368,6 +368,20 @@ def build_parser() -> argparse.ArgumentParser:
     )
     ontology_select_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
 
+    ontology_eval_answers_parser = ontology_subparsers.add_parser(
+        "eval-answers",
+        help="Measure answer accuracy of an ontology guardrail over a gold QA set (ADR-0124/0125)",
+    )
+    ontology_eval_answers_parser.add_argument("--schema", required=True, help="Ontology file (JSON-LD, YAML, or TTL)")
+    ontology_eval_answers_parser.add_argument(
+        "--cases", required=True,
+        help="Gold QA cases JSON: list of {question, gold_answer, context, category, case_id}",
+    )
+    ontology_eval_answers_parser.add_argument("--provider", default="mara", help="LLM provider preset (default: mara)")
+    ontology_eval_answers_parser.add_argument("--model", default=None, help="Model override (default: provider default)")
+    ontology_eval_answers_parser.add_argument("--workers", type=int, default=6, help="Concurrent workers (default: 6)")
+    ontology_eval_answers_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
+
     serve_http_parser = subparsers.add_parser("serve-http", help="Serve a portable bundle behind a small FastAPI runtime")
     serve_http_parser.add_argument("--bundle", required=True, help="Path to portable bundle JSON file")
     serve_http_parser.add_argument("--host", default="0.0.0.0", help="Bind host")
@@ -1666,6 +1680,24 @@ def _cmd_ontology(args: argparse.Namespace) -> int:
             print(f"  {rec.rationale}")
             for a in rec.advisories:
                 print(f"  · {a}")
+        return 0
+
+    if args.ontology_command == "eval-answers":
+        from .ontology import Ontology
+        from .evaluation import evaluate_answer_accuracy, load_answer_cases
+        from .store.llm import create_llm_backend
+
+        ontology = Ontology.load(args.schema)
+        cases = load_answer_cases(args.cases)
+        backend = create_llm_backend(provider=args.provider, model=args.model)
+        report = evaluate_answer_accuracy(backend, ontology, cases, model=args.model, workers=args.workers)
+        if getattr(args, "output_json", False):
+            print(json.dumps(report.to_dict(), indent=2, ensure_ascii=False))
+        else:
+            print(f"answer accuracy: {report.accuracy}  (scored={report.n_scored}, errors={report.errors})")
+            for cat in sorted(report.by_category):
+                print(f"  {cat or '(uncategorized)'}: {report.by_category[cat]} "
+                      f"(n={report.by_category_n.get(cat, 0)})")
         return 0
 
     raise SeochoError(f"Unknown ontology command: {args.ontology_command}")

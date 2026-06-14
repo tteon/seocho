@@ -360,6 +360,30 @@ class AnswerCase:
     case_id: str = ""
 
 
+def load_answer_cases(path: str) -> List[AnswerCase]:
+    """Load gold QA cases from a JSON file (a list of objects). Each object needs
+    ``question`` and ``gold_answer``; ``context``/``category``/``case_id`` are
+    optional and default to empty. Pure/offline — no backend involved."""
+    import json
+    from pathlib import Path
+
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(data, list):
+        raise ValueError(f"answer-cases file must be a JSON list, got {type(data).__name__}")
+    cases: List[AnswerCase] = []
+    for i, obj in enumerate(data):
+        if not isinstance(obj, dict):
+            raise ValueError(f"answer-case #{i} must be a JSON object, got {type(obj).__name__}")
+        cases.append(AnswerCase(
+            question=str(obj.get("question", "")),
+            gold_answer=str(obj.get("gold_answer", "")),
+            context=str(obj.get("context", "")),
+            category=str(obj.get("category", "")),
+            case_id=str(obj.get("case_id", "")),
+        ))
+    return cases
+
+
 @dataclass(slots=True)
 class AnswerAccuracyReport:
     n_scored: int

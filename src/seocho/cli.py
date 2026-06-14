@@ -368,6 +368,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     ontology_select_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
 
+    ontology_dhapply_parser = ontology_subparsers.add_parser(
+        "datahub-apply",
+        help="Round-trip approved DataHub glossary terms back into the ontology (close the review loop)",
+    )
+    ontology_dhapply_parser.add_argument("--schema", required=True, help="Ontology file (JSON-LD, YAML, or TTL)")
+    ontology_dhapply_parser.add_argument("--terms", required=True, help="Reviewed glossary terms JSON (list of records)")
+    ontology_dhapply_parser.add_argument("--status", default="APPROVED", help="Only apply terms with this review status")
+    ontology_dhapply_parser.add_argument("--output", default=None, help="Write the new ontology JSON-LD here")
+    ontology_dhapply_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
+
     ontology_eval_answers_parser = ontology_subparsers.add_parser(
         "eval-answers",
         help="Measure answer accuracy of an ontology guardrail over a gold QA set (ADR-0124/0125)",
@@ -1656,6 +1666,24 @@ def _cmd_ontology(args: argparse.Namespace) -> int:
                   f"({s['glossary_terms']} terms, {s['glossary_nodes']} nodes, {s['is_a_edges']} is-a edges)")
         else:
             print(text)
+        return 0
+
+    if args.ontology_command == "datahub-apply":
+        from .ontology import Ontology
+        from .datahub_export import datahub_glossary_to_mapping_spec
+        from .ontology_ambiguity import apply_mapping_spec
+
+        ontology = Ontology.load(args.schema)
+        term_records = json.loads(Path(args.terms).read_text(encoding="utf-8"))
+        spec = datahub_glossary_to_mapping_spec(term_records, only_status=args.status, ontology_name=ontology.name)
+        new_onto = apply_mapping_spec(ontology, spec)
+        payload = new_onto.to_jsonld()
+        if args.output:
+            Path(args.output).write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+            print(f"applied {len(spec['mappings'])} approved term(s): {ontology.version} → {new_onto.version}, "
+                  f"{len(ontology.nodes)} → {len(new_onto.nodes)} classes → {args.output}")
+        else:
+            print(json.dumps(payload, indent=2, ensure_ascii=False))
         return 0
 
     if args.ontology_command == "select-guardrail":

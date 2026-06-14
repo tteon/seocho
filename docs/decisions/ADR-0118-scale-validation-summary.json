@@ -1,0 +1,151 @@
+{
+  "experiment": "ADR-0118 scale validation N=320",
+  "sample": {
+    "per_category": 40,
+    "total_docs": 320,
+    "max_chars": 3000,
+    "categories": {
+      "Accounting": 40,
+      "Company overview": 40,
+      "Financials": 40,
+      "Footnotes": 40,
+      "Governance": 40,
+      "Legal": 40,
+      "Risk": 40,
+      "Shareholder return": 40
+    }
+  },
+  "models": [
+    "DeepSeek-V3.1",
+    "MiniMax-M2.5",
+    "MiniMax-M2.7",
+    "gpt-oss-120b"
+  ],
+  "guardrail_ablation_cross_model": {
+    "A_sparse_fibo_minus": {
+      "mean_nodes": 4.2862,
+      "mean_rels": 3.076,
+      "mean_label_conformance": 0.7447,
+      "mean_rel_conformance": 0.4732,
+      "mean_extraction_score": 0.7332,
+      "distinct_labels": 2.25,
+      "label_entropy_bits": 0.8086,
+      "top1_label_share": 0.7606
+    },
+    "B_rich_fibo_plus": {
+      "mean_nodes": 8.5565,
+      "mean_rels": 6.9852,
+      "mean_label_conformance": 0.9022,
+      "mean_rel_conformance": 0.7953,
+      "mean_extraction_score": 0.8912,
+      "distinct_labels": 9.75,
+      "label_entropy_bits": 2.5894,
+      "top1_label_share": 0.4173
+    },
+    "delta_B_minus_A": {
+      "mean_nodes": 4.2703,
+      "mean_rels": 3.9092,
+      "mean_label_conformance": 0.1575,
+      "mean_rel_conformance": 0.3221,
+      "mean_extraction_score": 0.158,
+      "distinct_labels": 7.5,
+      "label_entropy_bits": 1.7808,
+      "top1_label_share": -0.3433
+    }
+  },
+  "per_model_extraction_score": {
+    "DeepSeek-V3.1": {
+      "A": 0.8364,
+      "B": 0.9707,
+      "errors_A": 0,
+      "errors_B": 0
+    },
+    "MiniMax-M2.5": {
+      "A": 0.7091,
+      "B": 0.9499,
+      "errors_A": 0,
+      "errors_B": 2
+    },
+    "MiniMax-M2.7": {
+      "A": 0.7562,
+      "B": 0.776,
+      "errors_A": 51,
+      "errors_B": 53
+    },
+    "gpt-oss-120b": {
+      "A": 0.6312,
+      "B": 0.8684,
+      "errors_A": 0,
+      "errors_B": 0
+    }
+  },
+  "per_category_delta": {
+    "Accounting": {
+      "delta_score": 0.1377,
+      "conf_A": 0.786,
+      "conf_B": 0.918
+    },
+    "Company overview": {
+      "delta_score": 0.1304,
+      "conf_A": 0.787,
+      "conf_B": 0.916
+    },
+    "Financials": {
+      "delta_score": 0.0024,
+      "conf_A": 0.738,
+      "conf_B": 0.747
+    },
+    "Footnotes": {
+      "delta_score": 0.019,
+      "conf_A": 0.867,
+      "conf_B": 0.887
+    },
+    "Governance": {
+      "delta_score": 0.5458,
+      "conf_A": 0.417,
+      "conf_B": 0.96
+    },
+    "Legal": {
+      "delta_score": 0.1631,
+      "conf_A": 0.752,
+      "conf_B": 0.914
+    },
+    "Risk": {
+      "delta_score": 0.3242,
+      "conf_A": 0.65,
+      "conf_B": 0.974
+    },
+    "Shareholder return": {
+      "delta_score": -0.0288,
+      "conf_A": 0.973,
+      "conf_B": 0.941
+    }
+  },
+  "corpus_aware": {
+    "before_balanced": {
+      "fibo_minus": 0.8975,
+      "fibo_base": 0.8787,
+      "fibo_plus": 0.816
+    },
+    "before_ranking": [
+      "fibo_minus",
+      "fibo_base",
+      "fibo_plus"
+    ],
+    "after_guardrail_corpus": {
+      "fibo_minus": 0.7551,
+      "fibo_base": 0.7814,
+      "fibo_plus": 0.7813
+    },
+    "after_ranking": [
+      "fibo_base",
+      "fibo_plus",
+      "fibo_minus"
+    ],
+    "downstream_ranking": [
+      "fibo_plus",
+      "fibo_minus"
+    ],
+    "corpus_distinct_types": 268
+  }
+}

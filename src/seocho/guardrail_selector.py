@@ -158,7 +158,7 @@ def load_corpus_profile(data: Union[str, Dict[str, Any]]) -> CorpusProfile:
     import json
     from pathlib import Path
 
-    if isinstance(data, str):
+    if isinstance(data, (str, Path)):
         data = json.loads(Path(data).read_text(encoding="utf-8"))
     if "corpus_profile" in data and isinstance(data["corpus_profile"], dict):
         data = data["corpus_profile"]

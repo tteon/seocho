@@ -70,3 +70,45 @@ def test_proposals_to_spec_filters_and_round_trips():
 
 def test_empty_clusters_returns_empty():
     assert propose_mappings([], _onto(), backend=_FakeBackend()) == []
+
+
+def test_ontoclean_precheck_flags_rigid_under_role():
+    from seocho.ontology_ontoclean import MetaProperties
+
+    onto = Ontology("roles", version="1.0.0", nodes={
+        "Employee": NodeDef(description="A role.", properties={"id": P(str, unique=True)}),
+    })
+    clusters = [{"surface": "Person", "frequency": 9, "signals": {"oov": 9}, "candidate_labels": [], "examples": []}]
+
+    class _Fake:
+        model = "DeepSeek-V3.1"
+        def complete(self, *, system, user, **kw):
+            return _Resp(json.dumps({"proposals": [
+                {"surface": "Person", "action": "new_class", "target": "Person",
+                 "parent": "Employee", "description": "A human.", "confidence": 0.9, "rationale": "x"}]}))
+
+    tags = {"Person": MetaProperties(rigid=True), "Employee": MetaProperties(rigid=False)}
+    props = propose_mappings(clusters, onto, backend=_Fake(), ontoclean_tags=tags)
+    p = props[0]
+    assert p.action == "new_class" and p.parent == "Employee"
+    assert p.ontoclean and p.ontoclean.startswith("violation")  # rigid Person under anti-rigid Employee
+
+
+def test_ontoclean_precheck_ok_and_skipped():
+    from seocho.ontology_ontoclean import MetaProperties
+
+    onto = Ontology("biz2", version="1.0.0", nodes={"Concept": NodeDef(description="c.")})
+    clusters = [{"surface": "Regulation", "frequency": 9, "signals": {"oov": 9}, "candidate_labels": [], "examples": []}]
+
+    class _Fake:
+        model = "DeepSeek-V3.1"
+        def complete(self, *, system, user, **kw):
+            return _Resp(json.dumps({"proposals": [
+                {"surface": "Regulation", "action": "new_class", "target": "Regulation",
+                 "parent": "Concept", "description": "A rule.", "confidence": 0.9, "rationale": "x"}]}))
+
+    # both tagged rigid → ok
+    tags = {"Regulation": MetaProperties(rigid=True), "Concept": MetaProperties(rigid=True)}
+    assert propose_mappings(clusters, onto, backend=_Fake(), ontoclean_tags=tags)[0].ontoclean == "ok"
+    # no tags supplied → not checked (None)
+    assert propose_mappings(clusters, onto, backend=_Fake())[0].ontoclean is None

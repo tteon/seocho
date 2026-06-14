@@ -269,3 +269,45 @@ def numeric_validation_to_assertions(
             },
         }),
     ]
+
+
+def datahub_glossary_to_mapping_spec(
+    term_records: List[Dict[str, Any]],
+    *,
+    only_status: str = "APPROVED",
+    ontology_name: str = "",
+) -> Dict[str, Any]:
+    """Round-trip: turn reviewed DataHub glossary terms back into a SEOCHO
+    mapping-spec (consumable by ``ontology_ambiguity.apply_mapping_spec``), closing
+    the human-approval loop. ``term_records`` is the normalized form a DataHub
+    read yields after human edits: dicts with ``name`` and (from customProperties)
+    ``review_status`` / ``action`` / ``target`` / ``parent`` / ``description``.
+    Only terms whose status matches ``only_status`` become mappings.
+
+    (A live DataHub GraphQL source adapter that produces these records is a
+    follow-up; this function defines the offline contract and is fully tested.)"""
+    mappings: List[Dict[str, Any]] = []
+    for rec in term_records:
+        if not isinstance(rec, dict):
+            continue
+        if str(rec.get("review_status") or rec.get("status") or "").upper() != only_status.upper():
+            continue
+        name = str(rec.get("name", "")).strip()
+        if not name:
+            continue
+        action = str(rec.get("action") or "new_class").strip()
+        if action not in {"alias", "new_class", "same_as"}:
+            continue
+        entry: Dict[str, Any] = {"surface": name, "action": action}
+        target = str(rec.get("target") or (name if action == "new_class" else "")).strip()
+        if target:
+            entry["target"] = target
+        if action == "new_class":
+            parent = str(rec.get("parent", "")).strip()
+            if parent:
+                entry["parent"] = parent
+            desc = str(rec.get("description", "")).strip()
+            if desc:
+                entry["description"] = desc
+        mappings.append(entry)
+    return {"ontology": ontology_name, "mappings": mappings}

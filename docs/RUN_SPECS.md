@@ -136,7 +136,31 @@ data against the ontology vocabulary:
 | `guided` | Default — the tuned behavior the FinDER experiments validated. The ontology guides extraction prompts; relaxed retry and `Entity` fallback stay available; validation errors are reported but content is written. |
 | `open` | Admit everything: same write behavior as `guided`, plus every out-of-vocabulary node/relationship is stamped with `_out_of_ontology: "true"` — the triage signal for offline ontology-evolution governance. `validation_on_fail: reject` is rejected as incoherent. |
 
-The policy is compiled by `seocho.EnforcementPolicy` from
+## Domain-adaptive guardrail selection
+
+Instead of a fixed `ontology.path`, a run can declare `ontology.select` to let
+SEOCHO pick the best guardrail ontology for the target corpus (ADR-0123). The
+runner scores each candidate against the corpus profile with the corpus-aware
+scorecard and chooses — richest-adequate for entity/qualitative corpora, leanest
+for numeric corpora (where vocabulary enrichment does not improve answers,
+ADR-0122):
+
+```yaml
+ontology:
+  select:
+    candidates:
+      lean: ./fibo_minus.jsonld
+      rich: ./fibo_plus.jsonld
+    corpus_profile: ./corpus_profile.json   # {label: freq} or build_corpus_profile output
+  enforcement: guided
+```
+
+The corpus profile comes from an open (ontology-free) extraction over the corpus
+(`seocho.ontology_scorecard.build_corpus_profile`). At run time the chosen
+ontology is logged (`[guardrail] selected '<name>' …`) and recorded on the run.
+Provide either `ontology.path` (fixed) or `ontology.select` — not neither.
+
+The enforcement policy is compiled by `seocho.EnforcementPolicy` from
 `AgentConfig.ontology_enforcement`; agent design specs may declare
 `ontology.enforcement` too, and an explicit run-spec value overrides the
 design (the implicit `guided` default never does). These are admission

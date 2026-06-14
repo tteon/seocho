@@ -16,10 +16,9 @@ evidence.
 In one sentence: SEOCHO turns your ontology into the operating contract for
 graph memory, retrieval, and agent answers.
 
-The durable product layer is the ontology control plane: indexing and query
-runs emit ontology signals, SEOCHO compiles those signals into reviewable
-profiles, and agents select the best profile before routing, text-to-Cypher,
-debate, reasoning, or answer synthesis.
+Under the hood, indexing and query runs emit ontology signals that SEOCHO
+compiles into reviewable profiles, so an agent picks the right profile before
+routing, text-to-Cypher, reasoning, or answer synthesis.
 
 ```mermaid
 flowchart LR
@@ -63,11 +62,15 @@ ontology = Ontology(
     },
 )
 
-client = Seocho.local(ontology)
+client = Seocho.local(ontology, llm="mara/MiniMax-M2.5")
 client.add("Marie Curie worked at the University of Paris.")
 
 print(client.ask("Where did Marie Curie work?"))
 ```
+
+> Export your provider key first — SEOCHO recommends MARA: `export MARA_API_KEY=...`.
+> Prefer another provider? Pass `llm="openai/gpt-4o"` (or `deepseek/…`, `kimi/…`)
+> and export that provider's key instead.
 
 That example creates a local ontology-aware graph memory. The same public
 facade can later point at a running SEOCHO runtime:
@@ -90,8 +93,8 @@ uv pip install "seocho[local]"
 Run a complete example:
 
 ```bash
-export OPENAI_API_KEY=...
-uv run python examples/finance-compliance/quickstart.py
+export MARA_API_KEY=...
+uv run python examples/finance-compliance/quickstart.py --llm mara/MiniMax-M2.5
 ```
 
 The finance-compliance example ingests six short mock filings into an embedded
@@ -222,15 +225,18 @@ For contributor placement rules, read
 
 ## Learn More
 
+Same order as the [docs onboarding path](docs/README.md), top to bottom:
+
 | Need | Start here |
 |---|---|
+| Why SEOCHO exists | [docs/WHY_SEOCHO.md](docs/WHY_SEOCHO.md) |
 | First run | [QUICKSTART.md](QUICKSTART.md) |
 | Beginner walkthrough | [docs/BEGINNER_GUIDE.md](docs/BEGINNER_GUIDE.md) |
-| Bring your own data | [docs/APPLY_YOUR_DATA.md](docs/APPLY_YOUR_DATA.md) |
 | Python SDK details | [docs/PYTHON_INTERFACE_QUICKSTART.md](docs/PYTHON_INTERFACE_QUICKSTART.md) |
+| Bring your own data | [docs/APPLY_YOUR_DATA.md](docs/APPLY_YOUR_DATA.md) |
+| File/artifact locations | [docs/FILES_AND_ARTIFACTS.md](docs/FILES_AND_ARTIFACTS.md) |
 | Architecture | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | Runtime deployment | [docs/RUNTIME_DEPLOYMENT.md](docs/RUNTIME_DEPLOYMENT.md) |
-| File/artifact locations | [docs/FILES_AND_ARTIFACTS.md](docs/FILES_AND_ARTIFACTS.md) |
 | Contributing | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | Maintainer workflow | [docs/WORKFLOW.md](docs/WORKFLOW.md) |
 | Issue and task system | [docs/ISSUE_TASK_SYSTEM.md](docs/ISSUE_TASK_SYSTEM.md) |

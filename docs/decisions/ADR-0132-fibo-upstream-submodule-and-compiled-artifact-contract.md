@@ -1,4 +1,7 @@
-# ADR-0112: FIBO Upstream Submodule And Compiled Artifact Contract
+# ADR-0132: FIBO Upstream Submodule And Compiled Artifact Contract
+
+> Renumbered from ADR-0112 (the original number collided with
+> `ADR-0112-graph-rag-where-it-wins-governance-not-quality.md`).
 
 Date: 2026-06-14
 Status: Accepted

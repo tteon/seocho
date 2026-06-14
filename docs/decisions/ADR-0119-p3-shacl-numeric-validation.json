@@ -1,0 +1,1140 @@
+{
+  "experiment": "P3-shacl-numeric-validation",
+  "model": "DeepSeek-V3.1",
+  "ontology": "fin-numeric",
+  "summary": {
+    "n_cases": 80,
+    "n_scored": 80,
+    "numeric_accuracy": 0.5625,
+    "n_wrong": 35,
+    "wrong_structural": 32,
+    "wrong_arithmetic": 3,
+    "pct_wrong_structural": 0.9143,
+    "pct_wrong_arithmetic": 0.0857,
+    "shacl_catch_rate_on_structural": 0.9375,
+    "validator_false_positive_rate_on_correct": 0.9111,
+    "by_type_accuracy": {
+      "Compositional": 0.625,
+      "Division": 0.625,
+      "Multiplication": 0.375,
+      "Subtract": 0.562,
+      "Addition": 0.625
+    }
+  },
+  "results": [
+    {
+      "id": "0019de4b",
+      "type": "Compositional",
+      "n_facts": 4,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "net_earnings_2024: unit 'millions of dollars' off-vocabulary",
+        "net_earnings_2024: scale 'absolute' off-vocabulary",
+        "net_earnings_2023: unit 'millions of dollars' off-vocabulary",
+        "net_earnings_2023: scale 'absolute' off-vocabulary",
+        "diluted_eps_2024: unit 'dollars per share' off-vocabulary"
+      ],
+      "correct": true
+    },
+    {
+      "id": "008beea7",
+      "type": "Compositional",
+      "n_facts": 2,
+      "validator_flagged": true,
+      "shacl_errors": [
+        "Node 'm1' (FinancialMetric) missing required property 'value'"
+      ],
+      "rule_flags": [
+        "interest_expense: unit 'millions' off-vocabulary",
+        "interest_expense: scale 'absolute' off-vocabulary",
+        "total_debt: unit 'millions' off-vocabulary",
+        "total_debt: scale 'absolute' off-vocabulary"
+      ],
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "00b0e3cd",
+      "type": "Compositional",
+      "n_facts": 2,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "Diluted EPS 2022: scale 'per share' off-vocabulary",
+        "Diluted EPS 2024: scale 'per share' off-vocabulary"
+      ],
+      "correct": true
+    },
+    {
+      "id": "0191b4af",
+      "type": "Compositional",
+      "n_facts": 2,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "Timberlands employees: unit 'employees' off-vocabulary",
+        "Timberlands employees: scale 'absolute' off-vocabulary",
+        "Timberlands employees: period 'current' not a recognizable fiscal period",
+        "Corporate employees: unit 'employees' off-vocabulary",
+        "Corporate employees: scale 'absolute' off-vocabulary"
+      ],
+      "correct": true
+    },
+    {
+      "id": "0264fa95",
+      "type": "Compositional",
+      "n_facts": 2,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "Total Revenues: unit 'thousands of dollars' off-vocabulary",
+        "Total Revenues: scale 'actual' off-vocabulary",
+        "Operating Income: unit 'thousands of dollars' off-vocabulary",
+        "Operating Income: scale 'actual' off-vocabulary"
+      ],
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "027b67ae",
+      "type": "Compositional",
+      "n_facts": 2,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "diluted_eps: scale 'per_share' off-vocabulary",
+        "diluted_eps: scale 'per_share' off-vocabulary"
+      ],
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "03bb2a85",
+      "type": "Compositional",
+      "n_facts": 1,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "total_employees: unit 'employees' off-vocabulary",
+        "total_employees: scale 'absolute' off-vocabulary"
+      ],
+      "correct": true
+    },
+    {
+      "id": "03f83848",
+      "type": "Compositional",
+      "n_facts": 2,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "total_employees: unit 'employees' off-vocabulary",
+        "total_employees: scale 'absolute' off-vocabulary",
+        "advanced_degree_percentage: scale 'percentage' off-vocabulary"
+      ],
+      "correct": true
+    },
+    {
+      "id": "04867d1f",
+      "type": "Compositional",
+      "n_facts": 6,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "net_income: unit 'thousands' off-vocabulary",
+        "net_income: scale 'absolute' off-vocabulary",
+        "operating_revenues: unit 'thousands' off-vocabulary",
+        "operating_revenues: scale 'absolute' off-vocabulary",
+        "net_income: unit 'thousands' off-vocabulary"
+      ],
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "0542261a",
+      "type": "Compositional",
+      "n_facts": 6,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "Operating Income 2021: unit 'thousands of dollars' off-vocabulary",
+        "Operating Income 2021: scale 'absolute' off-vocabulary",
+        "Operating Revenues 2021: unit 'thousands of dollars' off-vocabulary",
+        "Operating Revenues 2021: scale 'absolute' off-vocabulary",
+        "Operating Income 2022: unit 'thousands of dollars' off-vocabulary"
+      ],
+      "correct": false,
+      "error_type": "arithmetic"
+    },
+    {
+      "id": "05d9f1d9",
+      "type": "Compositional",
+      "n_facts": 2,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "diluted_eps_2023: scale 'per_share' off-vocabulary",
+        "diluted_eps_2022: scale 'per_share' off-vocabulary"
+      ],
+      "correct": true
+    },
+    {
+      "id": "06a2f739",
+      "type": "Compositional",
+      "n_facts": 6,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "Selling, administrative and general expenses 2021: unit 'millions' off-vocabulary",
+        "Selling, administrative and general expenses 2021: scale 'absolute' off-vocabulary",
+        "Selling, administrative and general expenses 2022: unit 'millions' off-vocabulary",
+        "Selling, administrative and general expenses 2022: scale 'absolute' off-vocabulary",
+        "Selling, administrative and general expenses 2023: unit 'millions' off-vocabulary"
+      ],
+      "correct": true
+    },
+    {
+      "id": "06c09d44",
+      "type": "Compositional",
+      "n_facts": 6,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "EPS 2023: scale 'per share' off-vocabulary",
+        "EPS 2022: scale 'per share' off-vocabulary",
+        "Operating Income 2023: unit 'millions usd' off-vocabulary",
+        "Operating Income 2023: scale 'absolute' off-vocabulary",
+        "Operating Income 2022: unit 'millions usd' off-vocabulary"
+      ],
+      "correct": true
+    },
+    {
+      "id": "06cbd247",
+      "type": "Compositional",
+      "n_facts": 6,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "Operating revenue: unit 'millions usd' off-vocabulary",
+        "Operating revenue: scale 'absolute' off-vocabulary",
+        "Cost of services: unit 'millions usd' off-vocabulary",
+        "Cost of services: scale 'absolute' off-vocabulary",
+        "Operating revenue: unit 'millions usd' off-vocabulary"
+      ],
+      "correct": true
+    },
+    {
+      "id": "070a12e3",
+      "type": "Compositional",
+      "n_facts": 2,
+      "validator_flagged": false,
+      "shacl_errors": [],
+      "rule_flags": [],
+      "correct": true
+    },
+    {
+      "id": "0748ea37",
+      "type": "Compositional",
+      "n_facts": 4,
+      "validator_flagged": false,
+      "shacl_errors": [],
+      "rule_flags": [],
+      "correct": false,
+      "error_type": "arithmetic"
+    },
+    {
+      "id": "02b691db",
+      "type": "Division",
+      "n_facts": 3,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "production and maintenance employees in U.S.: unit 'employees' off-vocabulary",
+        "production and maintenance employees in U.S.: scale 'absolute' off-vocabulary",
+        "percentage of unionized production and maintenance employees in U.S.: scale 'percentage' off-vocabulary",
+        "number of collective bargaining agreements: unit 'agreements' off-vocabulary",
+        "number of collective bargaining agreements: scale 'absolute' off-vocabulary"
+      ],
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "080ee40b",
+      "type": "Division",
+      "n_facts": 2,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "Net Income: unit 'millions usd' off-vocabulary",
+        "Net Income: scale 'absolute' off-vocabulary",
+        "Total Net Revenues: unit 'millions usd' off-vocabulary",
+        "Total Net Revenues: scale 'absolute' off-vocabulary"
+      ],
+      "correct": true
+    },
+    {
+      "id": "08117364",
+      "type": "Division",
+      "n_facts": 2,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "total_employees: unit 'employees' off-vocabulary",
+        "total_employees: scale 'absolute' off-vocabulary",
+        "union_represented_percentage: scale 'percentage' off-vocabulary"
+      ],
+      "correct": true
+    },
+    {
+      "id": "0ae7ad85",
+      "type": "Division",
+      "n_facts": 2,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "Aflac Japan full-time employees: unit 'employees' off-vocabulary",
+        "Aflac Japan full-time employees: scale 'absolute' off-vocabulary",
+        "Total full-time employees: unit 'employees' off-vocabulary",
+        "Total full-time employees: scale 'absolute' off-vocabulary"
+      ],
+      "correct": true
+    },
+    {
+      "id": "1023e5b0",
+      "type": "Division",
+      "n_facts": 2,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "international_workforce_percentage: scale 'none' off-vocabulary",
+        "us_ethnically_diverse_percentage: scale 'none' off-vocabulary"
+      ],
+      "correct": true
+    },
+    {
+      "id": "1127cdbe",
+      "type": "Division",
+      "n_facts": 2,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "Full-time associates: unit 'associates' off-vocabulary",
+        "Full-time associates: scale 'absolute' off-vocabulary",
+        "Total associates: unit 'associates' off-vocabulary",
+        "Total associates: scale 'absolute' off-vocabulary"
+      ],
+      "correct": true
+    },
+    {
+      "id": "116f7dd0",
+      "type": "Division",
+      "n_facts": 1,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "European workforce size: unit 'employees' off-vocabulary",
+        "European workforce size: scale 'absolute' off-vocabulary"
+      ],
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "1248cfe0",
+      "type": "Division",
+      "n_facts": 2,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "Revenues: unit 'millions' off-vocabulary",
+        "Revenues: scale 'absolute' off-vocabulary",
+        "Income from operations: unit 'millions' off-vocabulary",
+        "Income from operations: scale 'absolute' off-vocabulary"
+      ],
+      "correct": true
+    },
+    {
+      "id": "128144b8",
+      "type": "Division",
+      "n_facts": 10,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "total_employees: unit 'employees' off-vocabulary",
+        "total_employees: scale 'absolute' off-vocabulary",
+        "macau_employees: unit 'employees' off-vocabulary",
+        "macau_employees: scale 'absolute' off-vocabulary",
+        "us_employees: unit 'employees' off-vocabulary"
+      ],
+      "correct": true
+    },
+    {
+      "id": "1447cf8d",
+      "type": "Division",
+      "n_facts": 2,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "Electric segment employees represented by collective bargaining: unit 'employees' off-vocabulary",
+        "Electric segment employees represented by collective bargaining: scale 'absolute' off-vocabulary",
+        "Electric segment total employees: unit 'employees' off-vocabulary",
+        "Electric segment total employees: scale 'absolute' off-vocabulary"
+      ],
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "14d30823",
+      "type": "Division",
+      "n_facts": 2,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "Operating income: unit 'millions of dollars' off-vocabulary",
+        "Operating income: scale 'absolute' off-vocabulary",
+        "Net sales: unit 'millions of dollars' off-vocabulary",
+        "Net sales: scale 'absolute' off-vocabulary"
+      ],
+      "correct": true
+    },
+    {
+      "id": "15b5a805",
+      "type": "Division",
+      "n_facts": 3,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "engineering_employees: unit 'employees' off-vocabulary",
+        "engineering_employees: scale 'absolute' off-vocabulary",
+        "total_employees: unit 'employees' off-vocabulary",
+        "total_employees: scale 'absolute' off-vocabulary",
+        "voluntary_turnover_rate: scale 'annual' off-vocabulary"
+      ],
+      "correct": true
+    },
+    {
+      "id": "17504a14",
+      "type": "Division",
+      "n_facts": 2,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "Net income: unit 'thousands of usd' off-vocabulary",
+        "Net income: scale 'absolute' off-vocabulary",
+        "Net sales: unit 'thousands of usd' off-vocabulary",
+        "Net sales: scale 'absolute' off-vocabulary"
+      ],
+      "correct": true
+    },
+    {
+      "id": "17d90aad",
+      "type": "Division",
+      "n_facts": 1,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "engineers_and_scientists_count: unit 'employees' off-vocabulary",
+        "engineers_and_scientists_count: scale 'absolute' off-vocabulary"
+      ],
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "182f0809",
+      "type": "Division",
+      "n_facts": 4,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "Operating Income 2023: unit 'millions usd' off-vocabulary",
+        "Operating Income 2023: scale 'absolute' off-vocabulary",
+        "Total Net Sales and Revenue 2023: unit 'millions usd' off-vocabulary",
+        "Total Net Sales and Revenue 2023: scale 'absolute' off-vocabulary",
+        "Operating Income 2022: unit 'millions usd' off-vocabulary"
+      ],
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "18da327f",
+      "type": "Division",
+      "n_facts": 6,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "Net Income Attributable to Deere & Company 2024: unit 'millions of dollars' off-vocabulary",
+        "Net Income Attributable to Deere & Company 2024: scale 'absolute' off-vocabulary",
+        "Net Sales and Revenues 2024: unit 'millions of dollars' off-vocabulary",
+        "Net Sales and Revenues 2024: scale 'absolute' off-vocabulary",
+        "Net Income Attributable to Deere & Company 2023: unit 'millions of dollars' off-vocabulary"
+      ],
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "09e02aa0",
+      "type": "Multiplication",
+      "n_facts": 1,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "reported_net_income: unit 'millions' off-vocabulary",
+        "reported_net_income: scale 'absolute' off-vocabulary"
+      ],
+      "correct": true
+    },
+    {
+      "id": "0aa82f46",
+      "type": "Multiplication",
+      "n_facts": 2,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "projected_revenue: unit 'millions' off-vocabulary",
+        "projected_revenue: scale 'usd' off-vocabulary",
+        "projected_revenue: period 'projected' not a recognizable fiscal period",
+        "projected_operating_profit_margin: scale 'percentage' off-vocabulary",
+        "projected_operating_profit_margin: period 'projected' not a recognizable fiscal period"
+      ],
+      "correct": true
+    },
+    {
+      "id": "0b916241",
+      "type": "Multiplication",
+      "n_facts": 3,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "net_income: unit 'thousands' off-vocabulary",
+        "net_income: scale 'absolute' off-vocabulary",
+        "basic_eps: scale 'per_share' off-vocabulary",
+        "basic_shares: scale 'absolute' off-vocabulary"
+      ],
+      "correct": true
+    },
+    {
+      "id": "0b9424ce",
+      "type": "Multiplication",
+      "n_facts": 2,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "Operating Income 2021: unit 'millions usd' off-vocabulary",
+        "Operating Income 2021: scale 'absolute' off-vocabulary",
+        "Operating Income 2023: unit 'millions usd' off-vocabulary",
+        "Operating Income 2023: scale 'absolute' off-vocabulary"
+      ],
+      "correct": true
+    },
+    {
+      "id": "0e73082a",
+      "type": "Multiplication",
+      "n_facts": 2,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "number of employees: unit 'employees' off-vocabulary",
+        "number of employees: scale 'absolute' off-vocabulary",
+        "cost per employee: scale 'per employee' off-vocabulary",
+        "cost per employee: period 'current' not a recognizable fiscal period"
+      ],
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "1212a36a",
+      "type": "Multiplication",
+      "n_facts": 1,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "number_of_employees: unit 'employees' off-vocabulary",
+        "number_of_employees: scale 'absolute' off-vocabulary"
+      ],
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "13e75b54",
+      "type": "Multiplication",
+      "n_facts": 2,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "Depreciation and Amortization: unit 'millions' off-vocabulary",
+        "Depreciation and Amortization: scale 'absolute' off-vocabulary",
+        "Depreciation and Amortization: unit 'millions' off-vocabulary",
+        "Depreciation and Amortization: scale 'absolute' off-vocabulary"
+      ],
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "17e2ebe3",
+      "type": "Multiplication",
+      "n_facts": 2,
+      "validator_flagged": false,
+      "shacl_errors": [],
+      "rule_flags": [],
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "17f2bd61",
+      "type": "Multiplication",
+      "n_facts": 2,
+      "validator_flagged": false,
+      "shacl_errors": [],
+      "rule_flags": [],
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "1c44a557",
+      "type": "Multiplication",
+      "n_facts": 1,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "number_of_employees: unit 'employees' off-vocabulary",
+        "number_of_employees: scale 'absolute' off-vocabulary"
+      ],
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "1dc1afeb",
+      "type": "Multiplication",
+      "n_facts": 2,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "Premiums earned 2022: unit 'millions of u.s. dollars' off-vocabulary",
+        "Premiums earned 2022: scale 'absolute' off-vocabulary",
+        "Premiums earned 2023: unit 'millions of u.s. dollars' off-vocabulary",
+        "Premiums earned 2023: scale 'absolute' off-vocabulary"
+      ],
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "200b60b0",
+      "type": "Multiplication",
+      "n_facts": 6,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "R&D expense: unit 'millions usd' off-vocabulary",
+        "R&D expense: scale 'absolute' off-vocabulary",
+        "Net sales: unit 'millions usd' off-vocabulary",
+        "Net sales: scale 'absolute' off-vocabulary",
+        "R&D expense: unit 'millions usd' off-vocabulary"
+      ],
+      "correct": true
+    },
+    {
+      "id": "21b12275",
+      "type": "Multiplication",
+      "n_facts": 2,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "Operating Revenues 2021: unit 'millions of usd' off-vocabulary",
+        "Operating Revenues 2021: scale 'absolute' off-vocabulary",
+        "Operating Revenues 2023: unit 'millions of usd' off-vocabulary",
+        "Operating Revenues 2023: scale 'absolute' off-vocabulary"
+      ],
+      "correct": true
+    },
+    {
+      "id": "23e48bf5",
+      "type": "Multiplication",
+      "n_facts": 4,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "Homebuilding headcount: unit 'employees' off-vocabulary",
+        "Homebuilding headcount: scale 'absolute' off-vocabulary",
+        "Financial Services headcount: unit 'employees' off-vocabulary",
+        "Financial Services headcount: scale 'absolute' off-vocabulary",
+        "Multifamily headcount: unit 'employees' off-vocabulary"
+      ],
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "24132b64",
+      "type": "Multiplication",
+      "n_facts": 1,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "delivery_professionals_2021: unit 'employees' off-vocabulary",
+        "delivery_professionals_2021: scale 'absolute' off-vocabulary"
+      ],
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "2448d34a",
+      "type": "Multiplication",
+      "n_facts": 1,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "Interest Expense: unit 'millions of dollars' off-vocabulary",
+        "Interest Expense: scale 'absolute' off-vocabulary"
+      ],
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "0098df3b",
+      "type": "Subtract",
+      "n_facts": 2,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "Operating profit: unit 'millions' off-vocabulary",
+        "Operating profit: scale 'absolute' off-vocabulary",
+        "Operating profit: unit 'millions' off-vocabulary",
+        "Operating profit: scale 'absolute' off-vocabulary"
+      ],
+      "correct": true
+    },
+    {
+      "id": "00b622f5",
+      "type": "Subtract",
+      "n_facts": 2,
+      "validator_flagged": false,
+      "shacl_errors": [],
+      "rule_flags": [],
+      "correct": true
+    },
+    {
+      "id": "01d03a27",
+      "type": "Subtract",
+      "n_facts": 2,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "Revenue from products 2023: unit 'millions of usd' off-vocabulary",
+        "Revenue from products 2023: scale 'absolute' off-vocabulary",
+        "Revenue from products 2022: unit 'millions of usd' off-vocabulary",
+        "Revenue from products 2022: scale 'absolute' off-vocabulary"
+      ],
+      "correct": true
+    },
+    {
+      "id": "04617585",
+      "type": "Subtract",
+      "n_facts": 2,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "Total operating expenses 2023: unit 'thousands of dollars' off-vocabulary",
+        "Total operating expenses 2021: unit 'thousands of dollars' off-vocabulary"
+      ],
+      "correct": true
+    },
+    {
+      "id": "062e1065",
+      "type": "Subtract",
+      "n_facts": 2,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "Total expenses: unit 'millions of usd' off-vocabulary",
+        "Total expenses: scale 'absolute' off-vocabulary",
+        "Total expenses: unit 'millions of usd' off-vocabulary",
+        "Total expenses: scale 'absolute' off-vocabulary"
+      ],
+      "correct": true
+    },
+    {
+      "id": "08f24d41",
+      "type": "Subtract",
+      "n_facts": 2,
+      "validator_flagged": false,
+      "shacl_errors": [],
+      "rule_flags": [],
+      "correct": true
+    },
+    {
+      "id": "0ab8560c",
+      "type": "Subtract",
+      "n_facts": 1,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "number_of_associates: unit 'people' off-vocabulary",
+        "number_of_associates: scale 'absolute' off-vocabulary"
+      ],
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "0f41b58e",
+      "type": "Subtract",
+      "n_facts": 3,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "Selling & administrative expenses: unit 'millions of usd' off-vocabulary",
+        "Selling & administrative expenses: scale 'absolute' off-vocabulary",
+        "Selling & administrative expenses: unit 'millions of usd' off-vocabulary",
+        "Selling & administrative expenses: scale 'absolute' off-vocabulary",
+        "Selling & administrative expenses: unit 'millions of usd' off-vocabulary"
+      ],
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "114821a1",
+      "type": "Subtract",
+      "n_facts": 2,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "brokerage_comp_to_rev_ratio: scale 'none' off-vocabulary",
+        "risk_management_comp_to_rev_ratio: scale 'none' off-vocabulary"
+      ],
+      "correct": true
+    },
+    {
+      "id": "17c1ab79",
+      "type": "Subtract",
+      "n_facts": 2,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "Gross Profit: unit 'millions' off-vocabulary",
+        "Gross Profit: scale 'absolute' off-vocabulary",
+        "Gross Profit: unit 'millions' off-vocabulary",
+        "Gross Profit: scale 'absolute' off-vocabulary"
+      ],
+      "correct": true
+    },
+    {
+      "id": "1cd23310",
+      "type": "Subtract",
+      "n_facts": 4,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "Net Profit 2023: unit 'millions of dollars' off-vocabulary",
+        "Net Profit 2023: scale 'absolute' off-vocabulary",
+        "Net Profit 2022: unit 'millions of dollars' off-vocabulary",
+        "Net Profit 2022: scale 'absolute' off-vocabulary",
+        "Sales 2023: unit 'millions of dollars' off-vocabulary"
+      ],
+      "correct": false,
+      "error_type": "arithmetic"
+    },
+    {
+      "id": "2043c063",
+      "type": "Subtract",
+      "n_facts": 6,
+      "validator_flagged": true,
+      "shacl_errors": [
+        "Node 'm1' (FinancialMetric) missing required property 'value'"
+      ],
+      "rule_flags": [
+        "Goodwill impairment charge 2023: unit 'millions usd' off-vocabulary",
+        "Goodwill impairment charge 2023: scale 'absolute' off-vocabulary",
+        "Goodwill impairment charge 2022: unit 'millions usd' off-vocabulary",
+        "Goodwill impairment charge 2022: scale 'absolute' off-vocabulary",
+        "Restructuring and asset related charges 2023: unit 'millions usd' off-vocabulary"
+      ],
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "21e0225d",
+      "type": "Subtract",
+      "n_facts": 1,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "total_employees: unit 'people' off-vocabulary",
+        "total_employees: scale 'absolute' off-vocabulary"
+      ],
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "227a8b74",
+      "type": "Subtract",
+      "n_facts": 2,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "US employee headcount: unit 'employees' off-vocabulary",
+        "US employee headcount: scale 'absolute' off-vocabulary",
+        "US employee headcount: period 'current' not a recognizable fiscal period",
+        "International employee headcount: unit 'employees' off-vocabulary",
+        "International employee headcount: scale 'absolute' off-vocabulary"
+      ],
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "232e9758",
+      "type": "Subtract",
+      "n_facts": 4,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "Net Operating Revenues 2023: unit 'millions usd' off-vocabulary",
+        "Net Operating Revenues 2023: scale 'absolute' off-vocabulary",
+        "Net Operating Revenues 2022: unit 'millions usd' off-vocabulary",
+        "Net Operating Revenues 2022: scale 'absolute' off-vocabulary",
+        "Cost of Goods Sold 2023: unit 'millions usd' off-vocabulary"
+      ],
+      "correct": true
+    },
+    {
+      "id": "24b36dea",
+      "type": "Subtract",
+      "n_facts": 3,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "total_employees: unit 'employees' off-vocabulary",
+        "total_employees: scale 'absolute' off-vocabulary",
+        "us_employees: unit 'employees' off-vocabulary",
+        "us_employees: scale 'absolute' off-vocabulary",
+        "international_employees: unit 'employees' off-vocabulary"
+      ],
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "0016fe33",
+      "type": "Addition",
+      "n_facts": 2,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "Net Income: unit 'millions of dollars' off-vocabulary",
+        "Net Income: scale 'absolute' off-vocabulary",
+        "Other Income: unit 'millions of dollars' off-vocabulary",
+        "Other Income: scale 'absolute' off-vocabulary"
+      ],
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "03d190de",
+      "type": "Addition",
+      "n_facts": 3,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "Net earnings: unit 'millions' off-vocabulary",
+        "Net earnings: scale 'absolute' off-vocabulary",
+        "Net earnings attributable to noncontrolling interests: unit 'millions' off-vocabulary",
+        "Net earnings attributable to noncontrolling interests: scale 'absolute' off-vocabulary",
+        "Net earnings attributable to Devon: unit 'millions' off-vocabulary"
+      ],
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "08ba441b",
+      "type": "Addition",
+      "n_facts": 1,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "employee_count: unit 'employees' off-vocabulary",
+        "employee_count: scale 'absolute' off-vocabulary"
+      ],
+      "correct": true
+    },
+    {
+      "id": "09aaa84a",
+      "type": "Addition",
+      "n_facts": 3,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "total_employees: unit 'people' off-vocabulary",
+        "total_employees: scale 'absolute' off-vocabulary",
+        "us_employees: unit 'people' off-vocabulary",
+        "us_employees: scale 'absolute' off-vocabulary",
+        "us_union_employees: unit 'people' off-vocabulary"
+      ],
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "0a89f264",
+      "type": "Addition",
+      "n_facts": 3,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "Operating income: unit 'millions of usd' off-vocabulary",
+        "Operating income: scale 'absolute' off-vocabulary",
+        "Other income (expense): unit 'millions of usd' off-vocabulary",
+        "Other income (expense): scale 'absolute' off-vocabulary",
+        "Reported income before taxes: unit 'millions of usd' off-vocabulary"
+      ],
+      "correct": true
+    },
+    {
+      "id": "0dbaf98d",
+      "type": "Addition",
+      "n_facts": 3,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "SG&A: unit 'millions' off-vocabulary",
+        "SG&A: scale 'absolute' off-vocabulary",
+        "Engineering: unit 'millions' off-vocabulary",
+        "Engineering: scale 'absolute' off-vocabulary",
+        "Amortization: unit 'millions' off-vocabulary"
+      ],
+      "correct": true
+    },
+    {
+      "id": "0e7dfbe5",
+      "type": "Addition",
+      "n_facts": 2,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "hedge_gains_current: unit 'thousands' off-vocabulary",
+        "hedge_gains_current: scale 'absolute' off-vocabulary",
+        "hedge_gains_prior: unit 'thousands' off-vocabulary",
+        "hedge_gains_prior: scale 'absolute' off-vocabulary"
+      ],
+      "correct": true
+    },
+    {
+      "id": "187d825c",
+      "type": "Addition",
+      "n_facts": 3,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "Net Income 2021: unit 'millions of dollars' off-vocabulary",
+        "Net Income 2021: scale 'absolute' off-vocabulary",
+        "Net Income 2022: unit 'millions of dollars' off-vocabulary",
+        "Net Income 2022: scale 'absolute' off-vocabulary",
+        "Net Income 2023: unit 'millions of dollars' off-vocabulary"
+      ],
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "18a79c92",
+      "type": "Addition",
+      "n_facts": 2,
+      "validator_flagged": false,
+      "shacl_errors": [],
+      "rule_flags": [],
+      "correct": true
+    },
+    {
+      "id": "217c0933",
+      "type": "Addition",
+      "n_facts": 3,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "Net earnings attributable to General Mills: unit 'millions' off-vocabulary",
+        "Net earnings attributable to General Mills: scale 'absolute' off-vocabulary",
+        "Net earnings attributable to General Mills: unit 'millions' off-vocabulary",
+        "Net earnings attributable to General Mills: scale 'absolute' off-vocabulary",
+        "Net earnings attributable to General Mills: unit 'millions' off-vocabulary"
+      ],
+      "correct": true
+    },
+    {
+      "id": "22bb7b97",
+      "type": "Addition",
+      "n_facts": 2,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "basic_net_income_per_share: scale 'per_share' off-vocabulary",
+        "diluted_net_income_per_share: scale 'per_share' off-vocabulary"
+      ],
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "2a614102",
+      "type": "Addition",
+      "n_facts": 4,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "R&D expenses 2023: unit 'millions' off-vocabulary",
+        "R&D expenses 2023: scale 'absolute' off-vocabulary",
+        "SGA expenses 2023: unit 'millions' off-vocabulary",
+        "SGA expenses 2023: scale 'absolute' off-vocabulary",
+        "R&D expenses 2022: unit 'millions' off-vocabulary"
+      ],
+      "correct": true
+    },
+    {
+      "id": "2af21ee3",
+      "type": "Addition",
+      "n_facts": 2,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "Net income from consolidated operations: unit 'millions' off-vocabulary",
+        "Net income from consolidated operations: scale 'absolute' off-vocabulary",
+        "Income from unconsolidated operations: unit 'millions' off-vocabulary",
+        "Income from unconsolidated operations: scale 'absolute' off-vocabulary"
+      ],
+      "correct": true
+    },
+    {
+      "id": "2bac5828",
+      "type": "Addition",
+      "n_facts": 3,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "in-store sales associates: unit 'associates' off-vocabulary",
+        "in-store sales associates: scale 'absolute' off-vocabulary",
+        "CEC sales associates: unit 'associates' off-vocabulary",
+        "CEC sales associates: scale 'absolute' off-vocabulary",
+        "Edmunds sales associates: unit 'associates' off-vocabulary"
+      ],
+      "correct": false,
+      "error_type": "structural"
+    },
+    {
+      "id": "303b76f5",
+      "type": "Addition",
+      "n_facts": 6,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "Product development expense 2023: unit 'millions of usd' off-vocabulary",
+        "Product development expense 2023: scale 'absolute' off-vocabulary",
+        "Sales and marketing expense 2023: unit 'millions of usd' off-vocabulary",
+        "Sales and marketing expense 2023: scale 'absolute' off-vocabulary",
+        "Product development expense 2021: unit 'millions of usd' off-vocabulary"
+      ],
+      "correct": true
+    },
+    {
+      "id": "3a06278d",
+      "type": "Addition",
+      "n_facts": 1,
+      "validator_flagged": true,
+      "shacl_errors": [],
+      "rule_flags": [
+        "Total Revenues: unit 'millions of usd' off-vocabulary",
+        "Total Revenues: scale 'absolute' off-vocabulary"
+      ],
+      "correct": true
+    }
+  ]
+}

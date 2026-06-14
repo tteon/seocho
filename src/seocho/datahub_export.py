@@ -1,0 +1,165 @@
+"""DataHub connector (PoC, seocho-qxj Phase A): export a SEOCHO Ontology to a
+DataHub Business Glossary.
+
+Decision (user, 2026-06-14): the ambiguity-mapping surface / distribution target
+is DataHub, not a bespoke Streamlit app — couple to an existing metadata
+ecosystem. SEOCHO stays the authoring/quality engine (scorecard + OntoClean,
+which DataHub lacks); DataHub provides the glossary tree, search, and approval
+workflow we ride instead of rebuilding.
+
+This module is **pure and offline**: it maps an Ontology to a list of DataHub
+Metadata Change Proposals (MCPs) as plain dicts (the same shape the
+``datahub`` SDK's ``MetadataChangeProposalWrapper`` serializes to). Emission to a
+live GMS is optional and guarded behind an import, so the connector is fully
+testable without DataHub installed or a server running. URNs are deterministic
+(``<package_id>.<label>``) so re-export is an idempotent UPSERT.
+
+Mapping:
+- one ``glossaryNode`` per ontology package (the container);
+- one ``glossaryTerm`` per class, with definition, parentNode = the package node,
+  and customProperties carrying aliases / same_as / identity_keys / version;
+- ``glossaryRelatedTerms.isRelatedTerms`` for each ``broader`` (is-a) edge
+  (DataHub's "Is A" relationship);
+- relationship types as terms under a ``<package> Relationships`` child node,
+  with source/target/cardinality in customProperties.
+
+NOTE: exact aspect field names follow DataHub's documented model; verify against
+the target ``datahub`` version when wiring live emit (Phase C).
+"""
+
+from __future__ import annotations
+
+import json
+import re
+from typing import Any, Dict, List, Optional
+
+from .ontology import Ontology
+
+
+def _slug(s: str) -> str:
+    return re.sub(r"[^A-Za-z0-9_.-]", "_", str(s).strip())
+
+
+def _node_urn(node_id: str) -> str:
+    return f"urn:li:glossaryNode:{_slug(node_id)}"
+
+
+def _term_urn(term_id: str) -> str:
+    return f"urn:li:glossaryTerm:{_slug(term_id)}"
+
+
+def _mcp(entity_type: str, urn: str, aspect_name: str, aspect: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "entityType": entity_type,
+        "entityUrn": urn,
+        "changeType": "UPSERT",
+        "aspectName": aspect_name,
+        "aspect": aspect,
+    }
+
+
+def ontology_to_glossary_mcps(ontology: Ontology) -> List[Dict[str, Any]]:
+    """Map an Ontology to DataHub glossary MCPs (pure; deterministic URNs)."""
+    pkg = ontology.package_id or ontology.name
+    pkg_node_id = pkg
+    rel_node_id = f"{pkg}.Relationships"
+    mcps: List[Dict[str, Any]] = []
+
+    # package container node
+    mcps.append(_mcp("glossaryNode", _node_urn(pkg_node_id), "glossaryNodeInfo", {
+        "name": ontology.name,
+        "definition": (ontology.description or f"SEOCHO ontology '{ontology.name}'").strip(),
+        "id": _slug(pkg_node_id),
+    }))
+
+    # classes → terms
+    for label, nd in ontology.nodes.items():
+        term_id = f"{pkg}.{label}"
+        custom: Dict[str, str] = {"seocho_class": label, "ontology_version": str(ontology.version)}
+        aliases = [str(a) for a in (getattr(nd, "aliases", []) or [])]
+        if aliases:
+            custom["aliases"] = ", ".join(aliases)
+        if getattr(nd, "same_as", None):
+            custom["same_as"] = str(nd.same_as)
+        ik = nd.effective_identity_keys
+        if ik:
+            custom["identity_keys"] = ", ".join(ik)
+        mcps.append(_mcp("glossaryTerm", _term_urn(term_id), "glossaryTermInfo", {
+            "name": label,
+            "definition": (str(getattr(nd, "description", "") or "").strip() or f"{label} (no definition)"),
+            "termSource": "INTERNAL",
+            "parentNode": _node_urn(pkg_node_id),
+            "customProperties": custom,
+        }))
+        # broader (is-a) → glossaryRelatedTerms.isRelatedTerms
+        parents = [p for p in (getattr(nd, "broader", []) or []) if p in ontology.nodes]
+        if parents:
+            mcps.append(_mcp("glossaryTerm", _term_urn(term_id), "glossaryRelatedTerms", {
+                "isRelatedTerms": [_term_urn(f"{pkg}.{p}") for p in parents],
+            }))
+
+    # relationships → terms under a Relationships sub-node
+    if ontology.relationships:
+        mcps.append(_mcp("glossaryNode", _node_urn(rel_node_id), "glossaryNodeInfo", {
+            "name": f"{ontology.name} Relationships",
+            "definition": "Relationship types declared by this ontology.",
+            "id": _slug(rel_node_id),
+            "parentNode": _node_urn(pkg_node_id),
+        }))
+        for rtype, rd in ontology.relationships.items():
+            rterm_id = f"{pkg}.rel.{rtype}"
+            mcps.append(_mcp("glossaryTerm", _term_urn(rterm_id), "glossaryTermInfo", {
+                "name": rtype,
+                "definition": (str(getattr(rd, "description", "") or "").strip() or f"{rtype} relationship"),
+                "termSource": "INTERNAL",
+                "parentNode": _node_urn(rel_node_id),
+                "customProperties": {
+                    "source": str(getattr(rd, "source", "Any")),
+                    "target": str(getattr(rd, "target", "Any")),
+                    "cardinality": str(getattr(rd, "cardinality", "MANY_TO_MANY")),
+                },
+            }))
+    return mcps
+
+
+def export_summary(mcps: List[Dict[str, Any]]) -> Dict[str, int]:
+    return {
+        "mcp_count": len(mcps),
+        "glossary_nodes": sum(1 for m in mcps if m["entityType"] == "glossaryNode"),
+        "glossary_terms": len({m["entityUrn"] for m in mcps if m["entityType"] == "glossaryTerm"}),
+        "is_a_edges": sum(len(m["aspect"].get("isRelatedTerms", [])) for m in mcps
+                          if m["aspectName"] == "glossaryRelatedTerms"),
+    }
+
+
+def emit_to_datahub(
+    mcps: List[Dict[str, Any]],
+    *,
+    gms_server: Optional[str] = None,
+    token: Optional[str] = None,
+    dry_run: bool = True,
+) -> Dict[str, Any]:
+    """Emit MCPs to a DataHub GMS if the ``datahub`` SDK and a server are
+    available; otherwise return the dry-run payload. Idempotent (UPSERT by URN)."""
+    if dry_run or not gms_server:
+        return {"emitted": False, "mode": "dry_run", "summary": export_summary(mcps), "mcps": mcps}
+    try:
+        from datahub.emitter.mce_builder import make_glossary_term_urn  # noqa: F401
+        from datahub.emitter.mcp import MetadataChangeProposalWrapper  # noqa: F401
+        from datahub.emitter.rest_emitter import DatahubRestEmitter
+    except Exception as exc:  # datahub not installed
+        return {"emitted": False, "mode": "unavailable", "error": f"datahub SDK not available: {exc}",
+                "summary": export_summary(mcps), "mcps": mcps}
+    emitter = DatahubRestEmitter(gms_server=gms_server, token=token)
+    sent = 0
+    for m in mcps:
+        emitter.emit_mcp(MetadataChangeProposalWrapper(
+            entityUrn=m["entityUrn"], aspectName=m["aspectName"], aspect=m["aspect"],
+        ))
+        sent += 1
+    return {"emitted": True, "mode": "live", "sent": sent, "gms_server": gms_server,
+            "summary": export_summary(mcps)}
+
+
+def glossary_mcps_to_json(mcps: List[Dict[str, Any]]) -> str:
+    return json.dumps(mcps, indent=2, ensure_ascii=False)

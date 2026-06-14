@@ -1,0 +1,22 @@
+{
+  "experiment": "answer-eval-surface-live",
+  "n_cases": 15,
+  "sparse": {
+    "accuracy": 0.4667,
+    "by_category": {
+      "Governance": 0.4,
+      "Financials": 0.4,
+      "Company overview": 0.6
+    },
+    "errors": 0
+  },
+  "rich": {
+    "accuracy": 0.6667,
+    "by_category": {
+      "Governance": 0.8,
+      "Financials": 0.4,
+      "Company overview": 0.8
+    },
+    "errors": 0
+  }
+}

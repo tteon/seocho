@@ -173,6 +173,28 @@ Useful starting points:
 - `examples/datasets/fibo_plus.jsonld`
 - `examples/datasets/fibo_minus.jsonld`
 
+FIBO upstream governance:
+
+- `third_party/fibo/` — pinned EDM Council FIBO git submodule; source snapshot only
+- `outputs/semantic_artifacts/fibo/latest/manifest.json`
+- `outputs/semantic_artifacts/fibo/latest/catalog.json`
+- `outputs/semantic_artifacts/fibo/latest/compatibility_report.json`
+- `outputs/semantic_artifacts/fibo/latest/artifact_index.json`
+
+Compile or refresh the runtime artifacts with:
+
+```bash
+git submodule update --init --recursive
+uv run python scripts/ontology/compile_fibo_snapshot.py \
+  --source third_party/fibo \
+  --curated-yaml-dir examples/finder/datasets/fibo_modules \
+  --modules BE,FBC,FND,SEC \
+  --out outputs/semantic_artifacts/fibo/latest
+```
+
+Runtime code should consume the compiled catalog/artifact. Direct FIBO OWL/RDF
+inspection belongs in offline governance and benchmark-gated promotion.
+
 ## 8. Compose Runtime Shape
 
 Default `make up` or `docker compose up -d` starts:

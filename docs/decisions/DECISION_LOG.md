@@ -3,6 +3,16 @@
 This file is the lightweight index of architecture/product decisions.
 Each entry must link to a full ADR when impact is non-trivial.
 
+## 2026-06-14
+
+- Accepted `ADR-0112-fibo-upstream-submodule-and-compiled-artifact-contract.md`
+  - add official EDM Council FIBO as pinned `third_party/fibo` submodule
+  - keep FIBO as an offline source snapshot; runtime consumes compiled
+    manifest/catalog/compatibility artifacts only
+  - add `scripts/ontology/compile_fibo_snapshot.py` to emit upstream commit,
+    snapshot hash, imports, label/definition catalog, and curated-slice
+    compatibility report for benchmark-gated ontology promotion
+
 ## 2026-06-13
 
 - [Accepted] ADR-0113 track-claude-skills-in-repo

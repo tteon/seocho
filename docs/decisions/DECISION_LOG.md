@@ -5,7 +5,7 @@ Each entry must link to a full ADR when impact is non-trivial.
 
 ## 2026-06-14
 
-- Accepted `ADR-0112-fibo-upstream-submodule-and-compiled-artifact-contract.md`
+- Accepted `ADR-0132-fibo-upstream-submodule-and-compiled-artifact-contract.md` (renumbered from ADR-0112 — collided with the graph-rag ADR-0112)
   - add official EDM Council FIBO as pinned `third_party/fibo` submodule
   - keep FIBO as an offline source snapshot; runtime consumes compiled
     manifest/catalog/compatibility artifacts only

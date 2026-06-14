@@ -1,0 +1,38 @@
+{
+  "experiment": "fibo-catalog-selector-on-finder",
+  "provenance": {
+    "schema_version": "seocho.fibo_catalog.v1",
+    "fibo_commit": "fee10a4ebe807f647565f7aa3da8968423826dd1",
+    "snapshot_hash": "a5fbf8e4f50fe0df"
+  },
+  "fibo_resource_count": 13958,
+  "corpus_distinct_types": 85,
+  "numeric_intensity": 0.3308,
+  "chosen": "curated_plus",
+  "candidates": {
+    "curated_minus": {
+      "corpus_coverage": 0.3487,
+      "n_classes": 2
+    },
+    "curated_plus": {
+      "corpus_coverage": 0.5951,
+      "n_classes": 9
+    },
+    "BE": {
+      "corpus_coverage": 0.0077,
+      "n_classes": 193
+    },
+    "FBC": {
+      "corpus_coverage": 0.0932,
+      "n_classes": 515
+    },
+    "FND": {
+      "corpus_coverage": 0.1992,
+      "n_classes": 437
+    },
+    "SEC": {
+      "corpus_coverage": 0.0051,
+      "n_classes": 795
+    }
+  }
+}

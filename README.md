@@ -434,6 +434,32 @@ onto = Ontology(name="fibo", graph_model="rdf",
                 namespace="https://spec.edmcouncil.org/fibo/", ...)
 ```
 
+## FIBO Upstream Governance
+
+SEOCHO keeps the official EDM Council FIBO repository as a pinned source
+snapshot under `third_party/fibo`. Runtime code should not read the full FIBO
+OWL/RDF tree directly; use compiled governance artifacts instead.
+
+```bash
+git submodule update --init --recursive
+uv run python scripts/ontology/compile_fibo_snapshot.py \
+  --source third_party/fibo \
+  --curated-yaml-dir examples/finder/datasets/fibo_modules \
+  --modules BE,FBC,FND,SEC \
+  --out outputs/semantic_artifacts/fibo/latest
+```
+
+The compiler emits:
+
+- `manifest.json` — upstream commit, imports, module/resource counts, snapshot hash
+- `catalog.json` — runtime selector label/definition/IRI index
+- `compatibility_report.json` — official FIBO vs SEOCHO curated LPG slice alignment
+- `artifact_index.json` — source snapshot vs runtime artifact contract
+
+FIBO updates should be promoted only after compatibility review and benchmark
+gates over FinDER/private finance cases. Heavy OWL reasoning remains an offline
+governance concern; request paths consume the compiled catalog/artifact.
+
 ## Documentation
 
 `seocho.blog` is built from the tracked Astro/Starlight site under `website/`.

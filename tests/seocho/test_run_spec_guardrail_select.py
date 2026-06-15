@@ -77,3 +77,48 @@ def test_resolve_guardrail_noop_when_path_fixed(tmp_path):
     resolve_guardrail(spec)
     assert spec.ontology_path == "./schema.yaml"
     assert spec.selected_guardrail is None
+
+
+def test_parse_select_fibo_block():
+    spec = parse_run_spec({
+        "ontology": {"select": {
+            "fibo": {"catalog": "cat.json", "modules": ["BE", "FBC"], "bridge": "lexical"},
+            "corpus_profile": "profile.json",
+        }},
+        "documents": "./docs", "questions": ["q?"],
+    })
+    assert spec.guardrail_fibo_catalog == "cat.json"
+    assert spec.guardrail_fibo_modules == ["BE", "FBC"]
+    assert spec.guardrail_fibo_bridge == "lexical"
+    assert spec.ontology_path == ""
+
+
+def test_parse_select_requires_candidates_or_fibo():
+    with pytest.raises(RunSpecError):
+        parse_run_spec({"ontology": {"select": {"corpus_profile": "p.json"}},
+                        "documents": "./docs", "questions": ["q?"]})
+
+
+def test_resolve_guardrail_fibo_offline(tmp_path):
+    import json
+    BE = "https://spec.edmcouncil.org/fibo/ontology/BE/"
+    catalog = {"schema_version": "seocho.fibo_catalog.v1", "snapshot_hash": "h", "fibo_commit": "abc123",
+        "modules": {"BE": {"code": "BE", "iri_prefix": BE, "summary": "s", "label_index": {}, "definitions": {},
+            "resources": {
+                BE + "LegalEntity": {"kind": "class", "local_name": "LegalEntity", "label": "Legal Entity", "subclass_of": [], "domain": "", "range": ""},
+                BE + "Corporation": {"kind": "class", "local_name": "Corporation", "label": "Corporation", "subclass_of": [BE + "LegalEntity"], "domain": "", "range": ""},
+            }}}}
+    (tmp_path / "cat.json").write_text(json.dumps(catalog))
+    (tmp_path / "profile.json").write_text(json.dumps({"label_frequencies": {"Company": 9, "LegalEntity": 4}}))
+    (tmp_path / "run.yaml").write_text("x")
+
+    spec = parse_run_spec({
+        "ontology": {"select": {"fibo": {"catalog": "cat.json", "modules": ["BE"], "bridge": "lexical"},
+                                "corpus_profile": "profile.json"}},
+        "documents": "./docs", "questions": ["q?"],
+    }, source_path=str(tmp_path / "run.yaml"))
+
+    resolve_guardrail(spec)
+    assert spec.resolved_ontology is not None           # in-memory FIBO-derived guardrail
+    assert spec.selected_guardrail["chosen"] == "fibo_BE"
+    assert "Company" in spec.resolved_ontology.nodes     # collapsed generic guardrail covers the corpus

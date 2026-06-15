@@ -209,6 +209,16 @@ class RunSpec:
     guardrail_candidates: Dict[str, str] = field(default_factory=dict)
     guardrail_corpus_profile: str = ""
     selected_guardrail: Optional[Dict[str, Any]] = None
+    # Optional FIBO-catalog-derived candidates (ADR-0142): build guardrail
+    # candidates from a compiled FIBO catalog, bridged to the corpus.
+    # bridge: "stable" (multi-model auto seed) | "lexical"/"none" (offline seed).
+    guardrail_fibo_catalog: str = ""
+    guardrail_fibo_modules: List[str] = field(default_factory=list)
+    guardrail_fibo_bridge: str = "stable"
+    guardrail_fibo_derive_models: List[str] = field(default_factory=list)
+    # In-memory ontology chosen at resolve time (FIBO-derived guardrails have no
+    # file path); build() uses this when set, else loads ontology_path.
+    resolved_ontology: Any = None
 
     # -- model resolution ------------------------------------------------
 
@@ -320,19 +330,37 @@ def parse_run_spec(payload: Any, *, source_path: str = "") -> RunSpec:
     ontology = _path_or_mapping(payload, "ontology", errors=errors)
     documents = _path_or_mapping(payload, "documents", errors=errors)
 
-    # Optional domain-adaptive guardrail selection (ADR-0123).
+    # Optional domain-adaptive guardrail selection (ADR-0123/0142).
     select = ontology.get("select")
     guardrail_candidates: Dict[str, str] = {}
     guardrail_corpus_profile = ""
+    g_fibo_catalog = ""
+    g_fibo_modules: List[str] = []
+    g_fibo_bridge = "stable"
+    g_fibo_models: List[str] = []
     if select is not None:
         if not isinstance(select, Mapping):
-            errors.append("at ontology.select: must be a mapping with 'candidates' and 'corpus_profile'.")
+            errors.append("at ontology.select: must be a mapping with 'corpus_profile' and 'candidates' or 'fibo'.")
         else:
             cands = select.get("candidates") or {}
-            if not isinstance(cands, Mapping) or not cands:
-                errors.append("at ontology.select.candidates: a non-empty mapping of name -> ontology path is required.")
-            else:
-                guardrail_candidates = {str(k): _string(v) for k, v in cands.items()}
+            if cands:
+                if not isinstance(cands, Mapping):
+                    errors.append("at ontology.select.candidates: must be a mapping of name -> ontology path.")
+                else:
+                    guardrail_candidates = {str(k): _string(v) for k, v in cands.items()}
+            fibo = select.get("fibo")
+            if fibo is not None:
+                if not isinstance(fibo, Mapping) or not _string(fibo.get("catalog")):
+                    errors.append("at ontology.select.fibo: must be a mapping with a 'catalog' path.")
+                else:
+                    g_fibo_catalog = _string(fibo.get("catalog"))
+                    mods = fibo.get("modules") or []
+                    g_fibo_modules = [str(x) for x in mods] if isinstance(mods, (list, tuple)) else []
+                    g_fibo_bridge = _string(fibo.get("bridge")).lower() or "stable"
+                    dm = fibo.get("derive_models") or []
+                    g_fibo_models = [str(x) for x in dm] if isinstance(dm, (list, tuple)) else []
+            if not guardrail_candidates and not g_fibo_catalog:
+                errors.append("at ontology.select: provide 'candidates' (name->path) or 'fibo' (catalog).")
             guardrail_corpus_profile = _string(select.get("corpus_profile"))
             if not guardrail_corpus_profile:
                 errors.append("at ontology.select.corpus_profile: a corpus-profile path is required.")
@@ -394,11 +422,16 @@ def parse_run_spec(payload: Any, *, source_path: str = "") -> RunSpec:
         source_path=source_path,
         guardrail_candidates=guardrail_candidates,
         guardrail_corpus_profile=guardrail_corpus_profile,
+        guardrail_fibo_catalog=g_fibo_catalog,
+        guardrail_fibo_modules=g_fibo_modules,
+        guardrail_fibo_bridge=g_fibo_bridge,
+        guardrail_fibo_derive_models=g_fibo_models,
     )
 
-    if not spec.ontology_path and not (spec.guardrail_candidates and spec.guardrail_corpus_profile):
+    _has_select = (spec.guardrail_candidates or spec.guardrail_fibo_catalog) and spec.guardrail_corpus_profile
+    if not spec.ontology_path and not _has_select:
         errors.append("at ontology: a run spec requires ontology (path/mapping with 'path', "
-                      "or 'select' with candidates + corpus_profile).")
+                      "or 'select' with corpus_profile + candidates/fibo).")
     if not spec.documents_path:
         errors.append("at documents: a run spec requires documents (path or mapping with 'path').")
     if spec.enforcement not in _ALLOWED_ENFORCEMENT_MODES:

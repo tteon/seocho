@@ -393,3 +393,73 @@ def derive_fibo_roots_stable(
             break
         _merge_seed(seed, more)
     return seed
+
+
+# ---------------------------------------------------------------------------
+# Productionized builders (ADR-0142): one-call FIBO-derived guardrail candidates
+# for the selector / run-spec. catalog + corpus → bridged module ontologies →
+# select. backends given → fully-auto stable bridge (ADR-0140); else the
+# FINDER_FIBO_ROOTS fallback (lexical+seed, offline).
+# ---------------------------------------------------------------------------
+
+
+def build_fibo_guardrail(
+    catalog: Union[str, Path, Dict[str, Any]],
+    corpus_profile: Any,
+    module: str,
+    *,
+    backends: Optional[List[Any]] = None,
+    models: Optional[List[Optional[str]]] = None,
+    collapse: bool = False,
+    fallback_seed: Optional[Dict[str, List[str]]] = None,
+    top_generic: int = 20,
+) -> Ontology:
+    """Build one corpus-bridged FIBO-module guardrail. Lexical-bridges to the
+    corpus, then semantic-bridges with either a stable multi-model auto seed (if
+    ``backends`` given) or ``fallback_seed`` / FINDER_FIBO_ROOTS (offline). When
+    ``collapse`` is set, returns a small generic-vocabulary guardrail (prompt-sized,
+    version-pinned)."""
+    cat = load_catalog(catalog)
+    onto = catalog_module_to_ontology(cat, module)
+    gterms = sorted(getattr(corpus_profile, "label_frequencies", {}),
+                    key=lambda k: -corpus_profile.label_frequencies[k])[:top_generic]
+    if backends:
+        seed = derive_fibo_roots_stable(gterms, onto, backends=backends, models=models, passes=2)
+    else:
+        seed = fallback_seed if fallback_seed is not None else FINDER_FIBO_ROOTS
+    bridged = semantic_bridge(bridge_to_corpus(onto, corpus_profile), seed)
+    if not collapse:
+        return bridged
+    generic = set(corpus_profile.label_frequencies) | set(seed)
+    terms = sorted({a for nd in bridged.nodes.values() for a in nd.aliases if a in generic})
+    return Ontology(f"fibo_{module}_generic", package_id=f"fibo.{module}.generic",
+                    version=catalog_provenance(cat)["fibo_commit"][:12],
+                    nodes={t: NodeDef(description=f"{t} (FIBO-{module} derived).") for t in terms})
+
+
+def select_fibo_guardrail(
+    catalog: Union[str, Path, Dict[str, Any]],
+    corpus_profile: Any,
+    *,
+    modules: Optional[List[str]] = None,
+    backends: Optional[List[Any]] = None,
+    models: Optional[List[Optional[str]]] = None,
+    collapse: bool = True,
+    extra_candidates: Optional[Dict[str, Ontology]] = None,
+):
+    """Build corpus-bridged guardrail candidates from FIBO catalog modules and
+    pick the best for the corpus (composes with ``guardrail_selector``). Returns
+    ``(recommendation, {name: Ontology})``. ``extra_candidates`` (e.g. a curated
+    slice) are scored alongside."""
+    from .guardrail_selector import select_guardrail
+
+    cat = load_catalog(catalog)
+    codes = modules if modules is not None else list(cat["modules"].keys())
+    cands: Dict[str, Ontology] = {
+        f"fibo_{m}": build_fibo_guardrail(cat, corpus_profile, m, backends=backends, models=models, collapse=collapse)
+        for m in codes if m in cat["modules"]
+    }
+    if extra_candidates:
+        cands.update(extra_candidates)
+    rec = select_guardrail(cands, corpus_profile)
+    return rec, cands

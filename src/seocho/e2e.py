@@ -191,14 +191,34 @@ def resolve_guardrail(spec: RunSpec) -> RunSpec:
     declared (ADR-0123): score the candidates against the corpus profile and set
     ``spec.ontology_path`` to the chosen candidate, recording the recommendation
     on ``spec.selected_guardrail``. No-op when a fixed ``ontology.path`` is set."""
-    if spec.ontology_path or not spec.guardrail_candidates:
+    if spec.ontology_path or not (spec.guardrail_candidates or spec.guardrail_fibo_catalog):
         return spec
     from .guardrail_selector import load_corpus_profile, select_guardrail
     from .ontology import Ontology
 
+    corpus_profile = load_corpus_profile(_resolve(spec, spec.guardrail_corpus_profile))
+
+    if spec.guardrail_fibo_catalog:
+        # FIBO-catalog-derived candidates (ADR-0142): build bridged module
+        # ontologies and pick. "stable" bridge derives a multi-model seed (needs a
+        # provider); "lexical"/"none" stays offline via the fallback seed.
+        from .fibo_catalog import select_fibo_guardrail
+        backends = models = None
+        if spec.guardrail_fibo_bridge == "stable":
+            from .store.llm import create_llm_backend
+            models = spec.guardrail_fibo_derive_models or [spec.indexing_model()]
+            backends = [create_llm_backend(provider="mara", model=m) for m in models]
+        extra = {name: Ontology.load(_resolve(spec, p)) for name, p in spec.guardrail_candidates.items()}
+        rec, cands = select_fibo_guardrail(
+            _resolve(spec, spec.guardrail_fibo_catalog), corpus_profile,
+            modules=spec.guardrail_fibo_modules or None, backends=backends, models=models,
+            collapse=True, extra_candidates=extra or None)
+        spec.resolved_ontology = cands[rec.chosen]
+        spec.selected_guardrail = rec.to_dict()
+        return spec
+
     candidates = {name: Ontology.load(_resolve(spec, path))
                   for name, path in spec.guardrail_candidates.items()}
-    corpus_profile = load_corpus_profile(_resolve(spec, spec.guardrail_corpus_profile))
     rec = select_guardrail(candidates, corpus_profile)
     spec.ontology_path = spec.guardrail_candidates[rec.chosen]
     spec.selected_guardrail = rec.to_dict()
@@ -213,12 +233,14 @@ def build(spec: RunSpec) -> RunContext:
     resolve_guardrail(spec)
     if spec.selected_guardrail:
         rec = spec.selected_guardrail
-        print(f"[guardrail] selected '{rec['chosen']}' ({spec.ontology_path}) for "
+        where = spec.ontology_path or f"in-memory:{rec['chosen']}"
+        print(f"[guardrail] selected '{rec['chosen']}' ({where}) for "
               f"{rec['domain_kind']} corpus (numeric_intensity={rec['numeric_intensity']})")
         for advisory in rec.get("advisories", []):
             print(f"[guardrail] · {advisory}")
 
-    ontology = Ontology.load(_resolve(spec, spec.ontology_path))
+    # A FIBO-derived guardrail is resolved in-memory (no file); else load the path.
+    ontology = spec.resolved_ontology if spec.resolved_ontology is not None else Ontology.load(_resolve(spec, spec.ontology_path))
 
     client_kwargs: Dict[str, Any] = {
         "ontology": ontology,

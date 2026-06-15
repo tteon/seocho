@@ -3,6 +3,17 @@
 This file is the lightweight index of architecture/product decisions.
 Each entry must link to a full ADR when impact is non-trivial.
 
+## 2026-06-16
+
+- [Proposed] ADR-0143 full-corpus-finder-profile
+  - profile the entire FinDER corpus once (5,654 docs, open extraction, MARA
+    DeepSeek-V3.1) → canonical financial `corpus_profile` artifact
+  - re-rank guardrail candidates at full scale: selector picks
+    `fibo_FND_stable` (coverage 0.876) over hand-curated `curated_plus` (0.712);
+    stable multi-model 2-pass FIBO bridge corroborates ADR-0140 at full scale
+  - honest: coverage is a selection proxy — answer accuracy stays equivalent
+    (ADR-0141); concludes the FIBO arc 0132→0143
+
 ## 2026-06-14
 
 - Accepted `ADR-0132-fibo-upstream-submodule-and-compiled-artifact-contract.md` (renumbered from ADR-0112 — collided with the graph-rag ADR-0112)

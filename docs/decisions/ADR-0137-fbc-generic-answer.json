@@ -1,0 +1,55 @@
+{
+  "experiment": "fibo-fbc-generic-vs-curated",
+  "provenance": {
+    "schema_version": "seocho.fibo_catalog.v1",
+    "fibo_commit": "fee10a4ebe807f647565f7aa3da8968423826dd1",
+    "snapshot_hash": "a5fbf8e4f50fe0df"
+  },
+  "fbc_generic_terms": [
+    "Account",
+    "Company",
+    "Data",
+    "Date",
+    "Entity",
+    "Event",
+    "Exchange",
+    "Facility",
+    "FinancialInstrument",
+    "FinancialMetric",
+    "GovernmentAgency",
+    "Industry",
+    "Insurance",
+    "Market",
+    "Network",
+    "Note",
+    "Organization",
+    "Process",
+    "Product",
+    "Program",
+    "Provider",
+    "Regulation",
+    "Risk",
+    "Service",
+    "System"
+  ],
+  "curated_plus": {
+    "accuracy": 0.6,
+    "by_category": {
+      "Company overview": 0.6,
+      "Financials": 0.2,
+      "Governance": 1
+    },
+    "n": 15,
+    "errors": 0
+  },
+  "fibo_fbc_generic": {
+    "accuracy": 0.6667,
+    "by_category": {
+      "Company overview": 0.6,
+      "Financials": 0.4,
+      "Governance": 1
+    },
+    "n": 15,
+    "errors": 0
+  }
+}

@@ -47,5 +47,5 @@ FIBO-derived guardrail and selects it. `run_basic_ci` + `check-doc-contracts` pa
   bridged to the run's corpus.
 - `bridge: stable` spends a few MARA derive calls at resolve time; `bridge: lexical`
   is free/offline. Default `stable`.
-- Follow-up: a full-corpus FinDER coverage profile to ship as a default
-  `corpus_profile` for financial runs (ADR-0143, in progress).
+- Follow-up DONE: a full-corpus FinDER coverage profile shipped as the default
+  `corpus_profile` for financial runs (ADR-0143).

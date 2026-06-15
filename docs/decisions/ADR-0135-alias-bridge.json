@@ -1,0 +1,39 @@
+{
+  "experiment": "fibo-alias-bridge-coverage",
+  "provenance": {
+    "schema_version": "seocho.fibo_catalog.v1",
+    "fibo_commit": "fee10a4ebe807f647565f7aa3da8968423826dd1",
+    "snapshot_hash": "a5fbf8e4f50fe0df"
+  },
+  "corpus": "ADR-0116 FinDER open-extraction profile",
+  "modules": {
+    "BE": {
+      "coverage_before": 0.0077,
+      "coverage_after": 0.1814,
+      "delta": 0.1737,
+      "aliases_added": 45,
+      "classes": 193
+    },
+    "FBC": {
+      "coverage_before": 0.0932,
+      "coverage_after": 0.3155,
+      "delta": 0.2223,
+      "aliases_added": 208,
+      "classes": 515
+    },
+    "FND": {
+      "coverage_before": 0.1992,
+      "coverage_after": 0.3001,
+      "delta": 0.1009,
+      "aliases_added": 71,
+      "classes": 437
+    },
+    "SEC": {
+      "coverage_before": 0.0051,
+      "coverage_after": 0.1916,
+      "delta": 0.1865,
+      "aliases_added": 78,
+      "classes": 795
+    }
+  }
+}

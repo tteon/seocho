@@ -155,6 +155,25 @@ ontology:
   enforcement: guided
 ```
 
+Candidates can instead be built automatically from a compiled FIBO catalog
+(ADR-0142): `select.fibo.catalog` points at `catalog.json`; each module is
+corpus-bridged (lexical + semantic) and the best is chosen. `bridge: stable`
+derives a multi-model auto seed (uses the MARA provider — ADR-0140);
+`bridge: lexical` stays offline. The chosen guardrail is held in memory
+(version-pinned to the FIBO commit), no file needed.
+
+```yaml
+ontology:
+  select:
+    fibo:
+      catalog: ./outputs/semantic_artifacts/fibo/latest/catalog.json
+      modules: [BE, FBC, FND, SEC]   # omit → all modules
+      bridge: stable                 # stable (multi-model auto seed) | lexical (offline)
+      derive_models: [DeepSeek-V3.1, MiniMax-M2.5, gpt-oss-120b]
+    corpus_profile: ./corpus_profile.json
+  enforcement: guided
+```
+
 The corpus profile comes from an open (ontology-free) extraction over the corpus
 (`seocho.ontology_scorecard.build_corpus_profile`). At run time the chosen
 ontology is logged (`[guardrail] selected '<name>' …`) and recorded on the run.

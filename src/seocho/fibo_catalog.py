@@ -138,3 +138,47 @@ def catalog_provenance(catalog: Union[str, Path, Dict[str, Any]]) -> Dict[str, s
         "fibo_commit": str(catalog.get("fibo_commit", "")),
         "snapshot_hash": str(catalog.get("snapshot_hash", "")),
     }
+
+
+# ---------------------------------------------------------------------------
+# Alias-bridging (ADR-0135): official FIBO's fine-grained labels (JointStockCompany)
+# don't match the LLM's generic extraction vocabulary (Company) → corpus_coverage
+# ~0 (ADR-0134). Bridge by adding each generic term as an alias to FIBO classes
+# whose label lexically contains it, so coverage can match. Offline/deterministic.
+# ---------------------------------------------------------------------------
+
+
+def _tokens(s: str) -> frozenset:
+    """Normalized word tokens of a label: split camelCase + non-alnum, lowercased.
+    'JointStockCompany' → {joint, stock, company}; 'Legal Entity' → {legal, entity}."""
+    spaced = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", str(s))
+    return frozenset(t.lower() for t in re.split(r"[^A-Za-z0-9]+", spaced) if len(t) >= 3)
+
+
+def alias_bridge(ontology: Ontology, terms: List[str], *, min_len: int = 4) -> Ontology:
+    """Return a NEW ontology where each generic ``term`` is added as an alias to
+    every class whose label/alias token-set CONTAINS the term's token-set, e.g.
+    ``Company`` → alias of ``JointStockCompany``/``PubliclyHeldCompany``;
+    ``FinancialMetric`` matches a class with both tokens. Token-subset matching
+    (not raw substring) avoids spurious hits (``Date`` ⊄ ``Candidate``)."""
+    data = ontology.to_dict()
+    nodes: Dict[str, Any] = data.get("nodes", {})
+    norm_terms = [(term, _tokens(term)) for term in terms
+                  if len(re.sub(r"[^A-Za-z0-9]", "", str(term))) >= min_len]
+    for label, nd in nodes.items():
+        label_tokens = [_tokens(label)] + [_tokens(a) for a in (nd.get("aliases") or [])]
+        for term, tt in norm_terms:
+            if not tt:
+                continue
+            if any(tt <= lt for lt in label_tokens):
+                aliases = nd.setdefault("aliases", [])
+                if term not in aliases:
+                    aliases.append(term)
+    return Ontology.from_dict(data)
+
+
+def bridge_to_corpus(ontology: Ontology, corpus_profile: Any, *, min_len: int = 4) -> Ontology:
+    """Alias-bridge an ontology to a corpus's observed labels (the LLM's
+    extraction vocabulary) — the automatic form of :func:`alias_bridge`."""
+    terms = list(getattr(corpus_profile, "label_frequencies", {}).keys())
+    return alias_bridge(ontology, terms, min_len=min_len)

@@ -121,3 +121,36 @@ def test_alias_bridge_token_subset_match_no_spurious():
     before = score_ontology(onto, corpus_profile=corpus, profile="guardrail").dimension("corpus_coverage").score
     after = score_ontology(bridge_to_corpus(onto, corpus), corpus_profile=corpus, profile="guardrail").dimension("corpus_coverage").score
     assert after > before
+
+
+def test_semantic_bridge_propagates_down_subclassof():
+    from seocho.ontology import NodeDef, Ontology
+    from seocho.fibo_catalog import semantic_bridge
+    from seocho.ontology_scorecard import build_corpus_profile, score_ontology
+
+    # LegalEntity (root, label has no 'Company' token) → Corporation → Subsidiary
+    onto = Ontology("m", nodes={
+        "LegalEntity": NodeDef(description="root"),
+        "Corporation": NodeDef(description="c", broader=["LegalEntity"]),
+        "Subsidiary": NodeDef(description="s", broader=["Corporation"]),
+        "Unrelated": NodeDef(description="u"),
+    })
+    bridged = semantic_bridge(onto, {"Company": ["LegalEntity"]})
+    # generic 'Company' propagated to the root + all descendants, not the unrelated class
+    assert "Company" in bridged.nodes["LegalEntity"].aliases
+    assert "Company" in bridged.nodes["Corporation"].aliases
+    assert "Company" in bridged.nodes["Subsidiary"].aliases
+    assert "Company" not in bridged.nodes["Unrelated"].aliases
+    # a 'Company' corpus is now covered though no FIBO label lexically contains 'Company'
+    corpus = build_corpus_profile([{"nodes": [{"label": "Company"}]}])
+    before = score_ontology(onto, corpus_profile=corpus, profile="guardrail").dimension("corpus_coverage").score
+    after = score_ontology(bridged, corpus_profile=corpus, profile="guardrail").dimension("corpus_coverage").score
+    assert before == 0.0 and after == 1.0
+
+
+def test_semantic_bridge_ignores_absent_roots():
+    from seocho.ontology import NodeDef, Ontology
+    from seocho.fibo_catalog import semantic_bridge
+    onto = Ontology("m", nodes={"Foo": NodeDef(description="f")})
+    bridged = semantic_bridge(onto, {"Company": ["LegalEntity"]})  # root absent → no-op
+    assert bridged.nodes["Foo"].aliases == []

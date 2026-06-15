@@ -329,3 +329,67 @@ def auto_semantic_bridge(
     fully-automated form of the ADR-0136 pipeline (no hand seed)."""
     seed = derive_fibo_roots(generic_terms, ontology, backend=backend, model=model)
     return semantic_bridge(ontology, seed)
+
+
+# ---------------------------------------------------------------------------
+# Stabilized seed derivation (ADR-0140): single-model auto-seed was module-variable
+# (ADR-0139, FBC/SEC < hand). Stabilize by (a) unioning the mapping across several
+# models and (b) a 2nd pass that re-derives only the generic terms the 1st pass
+# left unmapped. More models surface more valid roots; the 2nd pass rescues misses.
+# ---------------------------------------------------------------------------
+
+
+def _merge_seed(into: Dict[str, List[str]], add: Dict[str, List[str]]) -> Dict[str, List[str]]:
+    for term, roots in add.items():
+        bucket = into.setdefault(term, [])
+        for r in roots:
+            if r not in bucket:
+                bucket.append(r)
+    return into
+
+
+def derive_fibo_roots_multi(
+    generic_terms: List[str],
+    ontology: Ontology,
+    *,
+    backends: List[Any],
+    models: Optional[List[Optional[str]]] = None,
+    top_candidates: int = 30,
+) -> Dict[str, List[str]]:
+    """Union ``derive_fibo_roots`` across several model backends — more models
+    surface more valid roots (each result is validated against the ontology).
+    ``backends`` and ``models`` are parallel lists; ``models[i]`` may be None."""
+    models = models or [None] * len(backends)
+    merged: Dict[str, List[str]] = {}
+    for be, model in zip(backends, models):
+        try:
+            seed = derive_fibo_roots(generic_terms, ontology, backend=be, model=model, top_candidates=top_candidates)
+        except Exception:
+            seed = {}
+        _merge_seed(merged, seed)
+    return merged
+
+
+def derive_fibo_roots_stable(
+    generic_terms: List[str],
+    ontology: Ontology,
+    *,
+    backends: List[Any],
+    models: Optional[List[Optional[str]]] = None,
+    passes: int = 2,
+    top_candidates: int = 30,
+    top_candidates_p2: int = 60,
+) -> Dict[str, List[str]]:
+    """Multi-model + multi-pass seed derivation. Pass 1 unions across models;
+    each further pass re-derives ONLY the terms still unmapped, with a wider
+    candidate window. Returns the merged seed."""
+    seed = derive_fibo_roots_multi(generic_terms, ontology, backends=backends, models=models, top_candidates=top_candidates)
+    for _ in range(max(0, passes - 1)):
+        missing = [t for t in generic_terms if not seed.get(t)]
+        if not missing:
+            break
+        more = derive_fibo_roots_multi(missing, ontology, backends=backends, models=models, top_candidates=top_candidates_p2)
+        if not more:
+            break
+        _merge_seed(seed, more)
+    return seed

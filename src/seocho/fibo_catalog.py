@@ -182,3 +182,61 @@ def bridge_to_corpus(ontology: Ontology, corpus_profile: Any, *, min_len: int = 
     extraction vocabulary) — the automatic form of :func:`alias_bridge`."""
     terms = list(getattr(corpus_profile, "label_frequencies", {}).keys())
     return alias_bridge(ontology, terms, min_len=min_len)
+
+
+# ---------------------------------------------------------------------------
+# Semantic bridge (ADR-0136): lexical token-bridge (ADR-0135) can't reach FIBO's
+# non-obvious roots — FIBO's company concept is `LegalEntity`, not lexically
+# "Company". Seed generic term → FIBO root class(es) and propagate the alias DOWN
+# the subClassOf hierarchy (a subclass of a Company IS a Company), so a doc's
+# `Bank`/`Corporation` (under the root) matches the generic `Company`.
+# ---------------------------------------------------------------------------
+
+# A small generic→FIBO-root seed for the FinDER financial domain (roots verified
+# present in the compiled BE/FBC/FND/SEC modules). Only roots that exist take effect.
+FINDER_FIBO_ROOTS: Dict[str, List[str]] = {
+    "Company": ["LegalEntity", "BusinessEntity", "FormalOrganization",
+                "FinancialServiceProvider", "FinancialInstitution"],
+    "Person": ["Person", "ResponsibleParty", "AutonomousAgent"],
+    "FinancialMetric": ["Security", "Share", "DebtInstrument", "MonetaryAmount", "FinancialInstrument"],
+    "Regulation": ["LegalConstruct", "Agreement", "ContractualElement"],
+    "Exchange": ["Exchange"],
+}
+
+
+def _descendants(children: Dict[str, List[str]], root: str) -> set:
+    from collections import deque
+    seen: set = set()
+    q = deque([root])
+    while q:
+        x = q.popleft()
+        for c in children.get(x, []):
+            if c not in seen:
+                seen.add(c)
+                q.append(c)
+    return seen
+
+
+def semantic_bridge(ontology: Ontology, root_aliases: Dict[str, List[str]], *, include_self: bool = True) -> Ontology:
+    """Return a NEW ontology where each generic term is added as an alias to its
+    seeded FIBO root class(es) AND all their subClassOf descendants — propagating
+    the generic label down the is-a hierarchy. Non-lexical: bridges roots whose
+    own label doesn't contain the term (`LegalEntity` ← "Company")."""
+    data = ontology.to_dict()
+    nodes: Dict[str, Any] = data.get("nodes", {})
+    children: Dict[str, List[str]] = {}
+    for lbl, nd in nodes.items():
+        for p in (nd.get("broader") or []):
+            children.setdefault(p, []).append(lbl)
+    for term, roots in root_aliases.items():
+        targets: set = set()
+        for root in roots:
+            if root in nodes:
+                if include_self:
+                    targets.add(root)
+                targets |= _descendants(children, root)
+        for t in targets:
+            aliases = nodes[t].setdefault("aliases", [])
+            if term not in aliases:
+                aliases.append(term)
+    return Ontology.from_dict(data)

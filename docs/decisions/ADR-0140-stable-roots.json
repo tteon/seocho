@@ -1,0 +1,120 @@
+{
+  "experiment": "stable-multimodel-2pass-roots",
+  "provenance": {
+    "schema_version": "seocho.fibo_catalog.v1",
+    "fibo_commit": "fee10a4ebe807f647565f7aa3da8968423826dd1",
+    "snapshot_hash": "a5fbf8e4f50fe0df"
+  },
+  "models": [
+    "DeepSeek-V3.1",
+    "MiniMax-M2.5",
+    "gpt-oss-120b"
+  ],
+  "curated_plus": 0.595,
+  "generic_terms": [
+    "FinancialMetric",
+    "Person",
+    "Company",
+    "Product",
+    "Concept",
+    "Risk",
+    "LegalIssue",
+    "Regulation",
+    "Date",
+    "Industry",
+    "MonetaryValue",
+    "Program",
+    "Year",
+    "FinancialTerm",
+    "Organization",
+    "CompetitiveFactor",
+    "Location",
+    "BusinessUnit",
+    "Entity",
+    "FinancialConcept"
+  ],
+  "modules": {
+    "BE": {
+      "lexical": 0.1814,
+      "hand": 0.1814,
+      "single_auto": 0.1916,
+      "stable_multi2pass": 0.2273,
+      "seed_terms": [
+        "BusinessUnit",
+        "Company",
+        "Entity",
+        "Industry",
+        "Organization",
+        "Person",
+        "Program"
+      ]
+    },
+    "FBC": {
+      "lexical": 0.3155,
+      "hand": 0.6092,
+      "single_auto": 0.3397,
+      "stable_multi2pass": 0.7842,
+      "seed_terms": [
+        "BusinessUnit",
+        "Company",
+        "Entity",
+        "FinancialConcept",
+        "FinancialMetric",
+        "FinancialTerm",
+        "LegalIssue",
+        "Location",
+        "MonetaryValue",
+        "Organization",
+        "Person",
+        "Product",
+        "Program",
+        "Regulation",
+        "Risk"
+      ]
+    },
+    "FND": {
+      "lexical": 0.3001,
+      "hand": 0.5939,
+      "single_auto": 0.8621,
+      "stable_multi2pass": 0.8621,
+      "seed_terms": [
+        "BusinessUnit",
+        "Company",
+        "CompetitiveFactor",
+        "Concept",
+        "Date",
+        "Entity",
+        "FinancialConcept",
+        "FinancialMetric",
+        "FinancialTerm",
+        "Industry",
+        "LegalIssue",
+        "Location",
+        "MonetaryValue",
+        "Organization",
+        "Person",
+        "Product",
+        "Program",
+        "Regulation",
+        "Risk",
+        "Year"
+      ]
+    },
+    "SEC": {
+      "lexical": 0.1916,
+      "hand": 0.4853,
+      "single_auto": 0.2797,
+      "stable_multi2pass": 0.613,
+      "seed_terms": [
+        "Entity",
+        "FinancialConcept",
+        "FinancialMetric",
+        "FinancialTerm",
+        "LegalIssue",
+        "MonetaryValue",
+        "Product",
+        "Regulation"
+      ]
+    }
+  }
+}

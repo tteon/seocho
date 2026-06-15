@@ -154,3 +154,44 @@ def test_semantic_bridge_ignores_absent_roots():
     onto = Ontology("m", nodes={"Foo": NodeDef(description="f")})
     bridged = semantic_bridge(onto, {"Company": ["LegalEntity"]})  # root absent → no-op
     assert bridged.nodes["Foo"].aliases == []
+
+
+def test_root_candidates_ranks_by_descendants():
+    from seocho.ontology import NodeDef, Ontology
+    from seocho.fibo_catalog import root_candidates
+    onto = Ontology("m", nodes={
+        "LegalEntity": NodeDef(description="root"),
+        "Corporation": NodeDef(description="c", broader=["LegalEntity"]),
+        "Subsidiary": NodeDef(description="s", broader=["Corporation"]),
+        "Loner": NodeDef(description="l"),
+    })
+    cands = root_candidates(onto, top=10)
+    labels = [c["label"] for c in cands]
+    assert labels[0] == "LegalEntity"          # most descendants first
+    assert "Loner" not in labels               # 0 descendants excluded
+
+
+def test_derive_fibo_roots_with_fake_backend_and_validation():
+    import json as _json
+    from seocho.ontology import NodeDef, Ontology
+    from seocho.fibo_catalog import derive_fibo_roots, auto_semantic_bridge
+
+    onto = Ontology("m", nodes={
+        "LegalEntity": NodeDef(description="a registered org"),
+        "Corporation": NodeDef(description="c", broader=["LegalEntity"]),
+        "Subsidiary": NodeDef(description="s", broader=["Corporation"]),
+    })
+
+    class _Resp:
+        def __init__(self, t): self.text = t
+    class _Fake:
+        model = "DeepSeek-V3.1"
+        def complete(self, *, system, user, **kw):
+            # maps Company→LegalEntity (valid) and Bogus→Nonexistent (filtered out)
+            return _Resp(_json.dumps({"roots": {"Company": ["LegalEntity"], "Bogus": ["Nonexistent"]}}))
+
+    seed = derive_fibo_roots(["Company", "Bogus"], onto, backend=_Fake())
+    assert seed == {"Company": ["LegalEntity"]}          # absent root filtered
+    # auto-bridge propagates Company down the subClassOf tree
+    bridged = auto_semantic_bridge(onto, ["Company", "Bogus"], backend=_Fake())
+    assert "Company" in bridged.nodes["Subsidiary"].aliases

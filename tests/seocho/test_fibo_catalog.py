@@ -95,3 +95,29 @@ def test_handles_list_valued_domain_range_and_subclass():
     assert onto.nodes["B"].broader == ["A"]              # missing parent dropped, list handled
     assert onto.relationships["REL"].source == "A"        # first of domain list
     assert onto.relationships["REL"].target == "B"        # first of range list
+
+
+def test_alias_bridge_token_subset_match_no_spurious():
+    from seocho.ontology import NodeDef, Ontology
+    from seocho.fibo_catalog import alias_bridge, bridge_to_corpus
+    from seocho.ontology_scorecard import build_corpus_profile
+
+    onto = Ontology("m", nodes={
+        "JointStockCompany": NodeDef(description="c"),
+        "PubliclyHeldCompany": NodeDef(description="c"),
+        "Candidate": NodeDef(description="c"),   # must NOT get a 'Date' alias
+        "FinancialInstrument": NodeDef(description="c"),
+    })
+    bridged = alias_bridge(onto, ["Company", "Date", "FinancialMetric"])
+    assert "Company" in bridged.nodes["JointStockCompany"].aliases     # token subset {company} ⊆ {joint,stock,company}
+    assert "Company" in bridged.nodes["PubliclyHeldCompany"].aliases
+    assert "Date" not in bridged.nodes["Candidate"].aliases            # no spurious substring match
+    # FinancialMetric ({financial,metric}) ⊄ FinancialInstrument ({financial,instrument})
+    assert "FinancialMetric" not in bridged.nodes["FinancialInstrument"].aliases
+
+    # bridging lifts corpus_coverage: a Company-heavy corpus now matches the FIBO classes
+    corpus = build_corpus_profile([{"nodes": [{"label": "Company"}, {"label": "Company"}]}])
+    from seocho.ontology_scorecard import score_ontology
+    before = score_ontology(onto, corpus_profile=corpus, profile="guardrail").dimension("corpus_coverage").score
+    after = score_ontology(bridge_to_corpus(onto, corpus), corpus_profile=corpus, profile="guardrail").dimension("corpus_coverage").score
+    assert after > before

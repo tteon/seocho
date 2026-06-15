@@ -246,3 +246,39 @@ def test_derive_fibo_roots_stable_second_pass_rescues_missing():
     seed = derive_fibo_roots_stable(["Company", "FinancialMetric"], onto, backends=[_Pass()], models=["m"], passes=2)
     assert seed.get("Company") == ["LegalEntity"]
     assert seed.get("FinancialMetric") == ["Security"]   # rescued by pass 2
+
+
+def _bridge_catalog():
+    BE = "https://spec.edmcouncil.org/fibo/ontology/BE/"
+    return {"schema_version": "seocho.fibo_catalog.v1", "snapshot_hash": "h", "fibo_commit": "deadbeefcafe",
+        "modules": {"BE": {"code": "BE", "iri_prefix": BE, "summary": "Business entities.",
+            "label_index": {}, "definitions": {},
+            "resources": {
+                BE + "LegalEntity": {"kind": "class", "local_name": "LegalEntity", "label": "Legal Entity", "subclass_of": [], "domain": "", "range": ""},
+                BE + "Corporation": {"kind": "class", "local_name": "Corporation", "label": "Corporation", "subclass_of": [BE + "LegalEntity"], "domain": "", "range": ""},
+            }}}}
+
+
+def test_build_fibo_guardrail_collapse_with_fallback_seed():
+    from seocho.fibo_catalog import build_fibo_guardrail
+    from seocho.ontology_scorecard import build_corpus_profile
+    cp = build_corpus_profile([{"nodes": [{"label": "Company"}, {"label": "Company"}]}])
+    # fallback seed maps Company → LegalEntity (a real root in the synthetic catalog)
+    g = build_fibo_guardrail(_bridge_catalog(), cp, "BE", collapse=True,
+                             fallback_seed={"Company": ["LegalEntity"]})
+    assert "Company" in g.nodes              # collapsed to the generic term it surfaced
+    assert g.version == "deadbeefcafe"       # version-pinned to the FIBO commit
+    assert g.package_id == "fibo.BE.generic"
+
+
+def test_select_fibo_guardrail_picks_module():
+    from seocho.fibo_catalog import select_fibo_guardrail
+    from seocho.ontology import NodeDef, Ontology
+    from seocho.ontology_scorecard import build_corpus_profile
+    cp = build_corpus_profile([{"nodes": [{"label": "Company"}, {"label": "LegalEntity"}]}])
+    curated = Ontology("curated", nodes={"Widget": NodeDef(description="w")})  # irrelevant to corpus
+    rec, cands = select_fibo_guardrail(_bridge_catalog(), cp, collapse=False,
+                                       extra_candidates={"curated": curated},
+                                       backends=None)  # offline (FINDER_FIBO_ROOTS fallback)
+    assert "fibo_BE" in cands and "curated" in cands
+    assert rec.chosen == "fibo_BE"           # FIBO module covers the corpus; curated doesn't

@@ -1,7 +1,12 @@
 # ADR-0137: A Bridged-FIBO-Derived Guardrail Matches/Beats the Curated Slice on FinDER Answers
 
 Date: 2026-06-14
-Status: Proposed
+Status: Superseded by ADR-0138
+
+> **Superseded:** the N=15 "matches/beats" here was a small-N artifact. The powered
+> re-measurement (ADR-0138: N=96, 2 judges, McNemar p=0.31, 95% CI [−0.16, +0.04])
+> finds the two guardrails **statistically equivalent**, not fibo-better. Cite
+> ADR-0138.
 
 ## Context
 

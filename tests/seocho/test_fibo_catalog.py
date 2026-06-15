@@ -195,3 +195,54 @@ def test_derive_fibo_roots_with_fake_backend_and_validation():
     # auto-bridge propagates Company down the subClassOf tree
     bridged = auto_semantic_bridge(onto, ["Company", "Bogus"], backend=_Fake())
     assert "Company" in bridged.nodes["Subsidiary"].aliases
+
+
+def test_derive_fibo_roots_multi_unions_models():
+    import json as _json
+    from seocho.ontology import NodeDef, Ontology
+    from seocho.fibo_catalog import derive_fibo_roots_multi, derive_fibo_roots_stable
+
+    onto = Ontology("m", nodes={
+        "LegalEntity": NodeDef(description="org"), "Security": NodeDef(description="sec"),
+        "Corporation": NodeDef(description="c", broader=["LegalEntity"]),
+    })
+
+    class _R:
+        def __init__(self, t): self.text = t
+    class _M1:
+        model = "m1"
+        def complete(self, *, system, user, **kw):
+            return _R(_json.dumps({"roots": {"Company": ["LegalEntity"]}}))  # only Company
+    class _M2:
+        model = "m2"
+        def complete(self, *, system, user, **kw):
+            return _R(_json.dumps({"roots": {"FinancialMetric": ["Security"]}}))  # only FinancialMetric
+
+    merged = derive_fibo_roots_multi(["Company", "FinancialMetric"], onto, backends=[_M1(), _M2()], models=["m1", "m2"])
+    assert merged == {"Company": ["LegalEntity"], "FinancialMetric": ["Security"]}  # union of both models
+
+
+def test_derive_fibo_roots_stable_second_pass_rescues_missing():
+    import json as _json
+    from seocho.ontology import NodeDef, Ontology
+    from seocho.fibo_catalog import derive_fibo_roots_stable
+
+    onto = Ontology("m", nodes={
+        "LegalEntity": NodeDef(description="o"), "Corporation": NodeDef(description="c", broader=["LegalEntity"]),
+        "Security": NodeDef(description="s"), "Bond": NodeDef(description="b", broader=["Security"]),
+    })
+
+    class _R:
+        def __init__(self, t): self.text = t
+    class _Pass:
+        """Pass 1 maps only Company; when re-asked (pass 2) with just the missing
+        term, it maps FinancialMetric."""
+        model = "m"
+        def complete(self, *, system, user, **kw):
+            if "FinancialMetric" in user and "Company" not in user:   # pass-2 focused prompt
+                return _R(_json.dumps({"roots": {"FinancialMetric": ["Security"]}}))
+            return _R(_json.dumps({"roots": {"Company": ["LegalEntity"]}}))
+
+    seed = derive_fibo_roots_stable(["Company", "FinancialMetric"], onto, backends=[_Pass()], models=["m"], passes=2)
+    assert seed.get("Company") == ["LegalEntity"]
+    assert seed.get("FinancialMetric") == ["Security"]   # rescued by pass 2

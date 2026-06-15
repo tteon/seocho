@@ -1,0 +1,5675 @@
+{
+  "experiment": "fbc-stable-powered",
+  "provenance": {
+    "schema_version": "seocho.fibo_catalog.v1",
+    "fibo_commit": "fee10a4ebe807f647565f7aa3da8968423826dd1",
+    "snapshot_hash": "a5fbf8e4f50fe0df"
+  },
+  "summary": {
+    "n_scored": 400,
+    "answer_model": "DeepSeek-V3.1",
+    "judge2_model": "gpt-oss-120b",
+    "fibo_fbc_stable_terms": [
+      "Account",
+      "BusinessUnit",
+      "Company",
+      "Data",
+      "Date",
+      "Entity",
+      "Event",
+      "Facility",
+      "FinancialConcept",
+      "FinancialInstrument",
+      "FinancialMetric",
+      "FinancialTerm",
+      "GovernmentAgency",
+      "Industry",
+      "Insurance",
+      "LegalIssue",
+      "Location",
+      "Market",
+      "MonetaryValue",
+      "Network",
+      "Note",
+      "Organization",
+      "Person",
+      "Process",
+      "Product",
+      "Program",
+      "Provider",
+      "Regulation",
+      "Risk",
+      "Service",
+      "System"
+    ],
+    "derive_models": [
+      "DeepSeek-V3.1",
+      "MiniMax-M2.5",
+      "gpt-oss-120b"
+    ],
+    "curated_plus": {
+      "consensus_acc": 0.5725,
+      "j1": 0.665,
+      "j2": 0.635
+    },
+    "fibo_fbc_stable": {
+      "consensus_acc": 0.575,
+      "j1": 0.67,
+      "j2": 0.6475
+    },
+    "accuracy_delta_consensus": 0.0025,
+    "mcnemar": {
+      "b": 41,
+      "c": 42,
+      "chi2": 0.0,
+      "p_value": 1.0
+    },
+    "bootstrap_95ci_delta": [
+      -0.0425,
+      0.0475
+    ],
+    "inter_judge_agreement": 0.8387
+  },
+  "results": [
+    {
+      "id": "0012cd67",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "002451b2",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "018ff1c9",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "02b54a46",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "03b929e0",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0496b898",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "04e40770",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0506434f",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "058f8cb2",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0692fb7d",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "06ea40c6",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "08924154",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "08d88344",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "08ecfbe3",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "09c7fe13",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "09e19762",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0afad95e",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0b77d3a7",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0d5ac529",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0ecaedfb",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0ef12cca",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0f5f0f0f",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "1038f2d9",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "1098a682",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      }
+    },
+    {
+      "id": "111e3c78",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "11dab93a",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "11dac9fd",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "121c7067",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "126e5f91",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "13aa1ff1",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "142fb376",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "14939d05",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      }
+    },
+    {
+      "id": "15e127bc",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "16115d44",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      }
+    },
+    {
+      "id": "161a41d9",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "1629d803",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "16f8810f",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "17055e17",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "171c0d0e",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "18325403",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "18c2380e",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "1ac4c8e6",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "1b3c8958",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "1b91dba8",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "1b9cfbba",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "1d729f09",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "1daf63a4",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "1db1d5fc",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "1dca6315",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "1dcdaacf",
+      "category": "Accounting",
+      "curated_plus": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "010633b6",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "01364ca9",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "013b2cfe",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0191b4af",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "01bb4fc0",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "01ee8a21",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "02354203",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "02632d80",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "02b691db",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "02e67f32",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "03bb2a85",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "03c79c9d",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "03d0b73d",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "03f83848",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0458a8e2",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "04c89485",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "05830b14",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "061240a6",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0652bb9e",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0715d1c6",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "074679b1",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "07851579",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "07a20cbe",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "08117364",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "08ba441b",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "08c5453b",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "09378347",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0940142b",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0945b83d",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "096db711",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "098c212e",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      }
+    },
+    {
+      "id": "09aaa84a",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0a84c170",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0ab8560c",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0ae7ad85",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0b203279",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0b2189b0",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0bd0d81f",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0c35338d",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0ca21392",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0cd962f2",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0d177134",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0e3e9873",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0e5c5e48",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0e73082a",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0ecb620f",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0ed7397a",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0eef73a1",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0f66ee0e",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0fb849c2",
+      "category": "Company overview",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0016fe33",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0019de4b",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "008beea7",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0098df3b",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "00b0e3cd",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "00b622f5",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "00e57882",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "00f4fdce",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "011e2750",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "01d03a27",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "021cafe5",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0264fa95",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "027b67ae",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "037b46e9",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "03ae4ea2",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "03d190de",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "04617585",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "04867d1f",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "04aed8fa",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0542261a",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "05d9f1d9",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0608f52b",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "062e1065",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "06a2f739",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      }
+    },
+    {
+      "id": "06ab7894",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "06c09d44",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "06cbd247",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "070a12e3",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0748ea37",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "074d3c82",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0809aec0",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "080ee40b",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0849713d",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "089c8be7",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      }
+    },
+    {
+      "id": "08bfcd62",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "08f24d41",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0912ecfd",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "094f4aee",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0954af1f",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "09e02aa0",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      }
+    },
+    {
+      "id": "09f09387",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0a19c044",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0a89f264",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0aa82f46",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0ac81b90",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0b56dcdc",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0b916241",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0b9424ce",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0bb7750c",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0bfccb93",
+      "category": "Financials",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "001b53d3",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0035be65",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0065ac90",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "006a120d",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "00aa16a5",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "00baaedf",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "01142856",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "019039a6",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "02204e09",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0223f23b",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "02dc0ea1",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "04389fb2",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "04914952",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "04a24da7",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "04d4db4c",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "05095fe2",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "061bb000",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0636e3c9",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "06aea5ba",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "06df91a4",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "06e16f3a",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "07106e33",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "079d16cc",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "07a24577",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0831c38e",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "08326489",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0871482c",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "08d4d817",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      }
+    },
+    {
+      "id": "08de8104",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "094d5944",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "09843496",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0995362d",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0a43fded",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0a58042e",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0abb3803",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0ae8f2f5",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0aea3719",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0ba30328",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0bb64eb9",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0bf707c3",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0c350892",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0c69c45d",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0c9d6824",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0ca4e01a",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0cabbc69",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0cf87abd",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0d0d16d0",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0d4a09ce",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0d87b595",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0daaa98a",
+      "category": "Footnotes",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "00058289",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "001536af",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "00f6b423",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "01207279",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0139e066",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "02037b95",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0207e3fc",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "02651161",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "029fdcea",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "02df4a77",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "038a64ad",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "03e4e09c",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "03fc5e68",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "04c42c12",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "04e09aec",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "04e657e3",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0564d6a0",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "061bd28a",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "06642fdc",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "06968744",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "071eeca7",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "07994506",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "083c81e0",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      }
+    },
+    {
+      "id": "08b5c7f0",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "08b7269b",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "09f68daf",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0ac99337",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0b3d25a5",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0b43c077",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0b606743",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0bb2b4c4",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0c43ad3e",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0da0b592",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0db27b54",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0e783bd2",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0ea050ed",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0f941d3e",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0faa43e5",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "1002ef84",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "10097787",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "10a0023f",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      }
+    },
+    {
+      "id": "10e94b61",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "1175ed6d",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      }
+    },
+    {
+      "id": "117f8300",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "132a45f4",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "139a0415",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "13d1f47a",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "13ec0e25",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "1463dac0",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "1464730f",
+      "category": "Governance",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "002d8b2b",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "00af2af1",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "01e84425",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "033627fb",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      }
+    },
+    {
+      "id": "064dbe0e",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "068a1239",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "06cb1da2",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0a6b86d1",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0a6d7405",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0b050b73",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0b7b9455",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0cf13966",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0d021da5",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0d73a9c9",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0d7a8a0f",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0db2d911",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "103fc818",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "122a90a9",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "137d7560",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "140b702e",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "14fd39b3",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "154baa50",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "15cf0974",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "167e2665",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "1682332c",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "168c4b06",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "17c56a21",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "186aaab4",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "19366a7d",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "193dd375",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "1b91644c",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "1c37f36d",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "1e547123",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      }
+    },
+    {
+      "id": "1e719aea",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "1e8be09e",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      }
+    },
+    {
+      "id": "1e92c787",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "1f7925e3",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "1fe55322",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "2185b65c",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "21af12e0",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "21c9dee5",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "21ea4b83",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      }
+    },
+    {
+      "id": "22d52b35",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "23726d6c",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "23851096",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "23af3155",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "24b50ba1",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "25bf25cd",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "27596848",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      }
+    },
+    {
+      "id": "276c717e",
+      "category": "Legal",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0144bfd6",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "021d681e",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "031701a5",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "032ab4b7",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0366e15b",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0373c9f4",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "03b6872f",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "03c84735",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "03f6e507",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "03fa63cb",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0458dc8a",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "04a8b1c4",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "05807c0d",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "05c4a27b",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "05fa53fc",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "072fbcdf",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "07cc004d",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "08bc93be",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "09439cfb",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0966d919",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "09690af4",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0a854fa0",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0b0f4cb6",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0bb56f71",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0d0ff11f",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0da96550",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0fc7a24d",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "11f0e3fd",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "12eb374e",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "133a4c15",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "1377d233",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "13bc19e4",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "13e1bb0c",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "14fb6372",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "151efd09",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "155b0d36",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "159e25ed",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "159fe4b7",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      }
+    },
+    {
+      "id": "15b19f69",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "1619611a",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "16321037",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "1672b3e6",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "16ffa02e",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "17655f41",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "1787a493",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "17bfabfc",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "181cf6f3",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "18269a3a",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "18c4c8e0",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "19590cee",
+      "category": "Risk",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      }
+    },
+    {
+      "id": "003a51f0",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "008c8617",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "009d2b5a",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "01350b8a",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "013def13",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "02a615b1",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "03754f32",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "038ce6e8",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "03d51e63",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "042651a2",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "04931eea",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "04db4dff",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      }
+    },
+    {
+      "id": "04ea9545",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "05281bdb",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "059c3c10",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "05ffad35",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0614f13a",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "068322be",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "06cd2e50",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "07308ac3",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "07312099",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "08242e01",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0847caa8",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "08999a5a",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "095ae0b8",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0a11d21c",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0a53bb17",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0b15f981",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0b9c744b",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0d550543",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0d6a8f28",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0de4513f",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "0efabecc",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "0ff54d8c",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "10bc2a96",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "113a2985",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "12f7d961",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "13cd5bcc",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "13eefd3a",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "1417a8e1",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "14331ce6",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "15c80065",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": true,
+        "j2": false,
+        "consensus": false
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "15dace7c",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "16265b0a",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "1966f01c",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "1990dde4",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "1b0fa6b2",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": true,
+        "consensus": false
+      }
+    },
+    {
+      "id": "1b8c157c",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": false,
+        "j2": false,
+        "consensus": false
+      }
+    },
+    {
+      "id": "1bc1bdca",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    },
+    {
+      "id": "1c41ffb9",
+      "category": "Shareholder return",
+      "curated_plus": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      },
+      "fibo_fbc_stable": {
+        "j1": true,
+        "j2": true,
+        "consensus": true
+      }
+    }
+  ]
+}

@@ -1,0 +1,72 @@
+{
+  "experiment": "fibo-semantic-bridge-coverage",
+  "provenance": {
+    "schema_version": "seocho.fibo_catalog.v1",
+    "fibo_commit": "fee10a4ebe807f647565f7aa3da8968423826dd1",
+    "snapshot_hash": "a5fbf8e4f50fe0df"
+  },
+  "seed": {
+    "Company": [
+      "LegalEntity",
+      "BusinessEntity",
+      "FormalOrganization",
+      "FinancialServiceProvider",
+      "FinancialInstitution"
+    ],
+    "Person": [
+      "Person",
+      "ResponsibleParty",
+      "AutonomousAgent"
+    ],
+    "FinancialMetric": [
+      "Security",
+      "Share",
+      "DebtInstrument",
+      "MonetaryAmount",
+      "FinancialInstrument"
+    ],
+    "Regulation": [
+      "LegalConstruct",
+      "Agreement",
+      "ContractualElement"
+    ],
+    "Exchange": [
+      "Exchange"
+    ]
+  },
+  "curated_plus_reference": 0.595,
+  "modules": {
+    "BE": {
+      "base": 0.0077,
+      "lexical": 0.1814,
+      "lexical+semantic": 0.1814,
+      "aliases_base": 176,
+      "aliases_lex": 221,
+      "aliases_both": 262
+    },
+    "FBC": {
+      "base": 0.0932,
+      "lexical": 0.3155,
+      "lexical+semantic": 0.6092,
+      "aliases_base": 458,
+      "aliases_lex": 666,
+      "aliases_both": 755
+    },
+    "FND": {
+      "base": 0.1992,
+      "lexical": 0.3001,
+      "lexical+semantic": 0.5939,
+      "aliases_base": 405,
+      "aliases_lex": 476,
+      "aliases_both": 554
+    },
+    "SEC": {
+      "base": 0.0051,
+      "lexical": 0.1916,
+      "lexical+semantic": 0.4853,
+      "aliases_base": 780,
+      "aliases_lex": 858,
+      "aliases_both": 1249
+    }
+  }
+}

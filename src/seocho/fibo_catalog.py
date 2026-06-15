@@ -240,3 +240,92 @@ def semantic_bridge(ontology: Ontology, root_aliases: Dict[str, List[str]], *, i
             if term not in aliases:
                 aliases.append(term)
     return Ontology.from_dict(data)
+
+
+# ---------------------------------------------------------------------------
+# Auto-derived seed (ADR-0139): replace the hand-written FINDER_FIBO_ROOTS with
+# an LLM mapping generic corpus term → FIBO root class(es). Candidate roots are
+# the classes with the most subClassOf descendants (the meaningful propagation
+# anchors); the LLM picks which roots each generic term subsumes. Injected
+# backend (fake-testable); the result feeds semantic_bridge.
+# ---------------------------------------------------------------------------
+
+
+def root_candidates(ontology: Ontology, *, top: int = 30) -> List[Dict[str, str]]:
+    """The most root-like classes (highest subClassOf-descendant count) with their
+    definitions — the anchors worth seeding a generic alias onto."""
+    children: Dict[str, List[str]] = {}
+    for lbl, nd in ontology.nodes.items():
+        for p in (getattr(nd, "broader", []) or []):
+            children.setdefault(p, []).append(lbl)
+    scored = sorted(((len(_descendants(children, lbl)), lbl) for lbl in ontology.nodes), reverse=True)
+    out = []
+    for n_desc, lbl in scored[:top]:
+        if n_desc == 0:
+            continue
+        out.append({"label": lbl, "descendants": str(n_desc),
+                    "definition": str(getattr(ontology.nodes[lbl], "description", "") or "")[:160]})
+    return out
+
+
+_ROOTS_SYS = (
+    "You are an ontology engineer aligning a generic extraction vocabulary to FIBO. "
+    "For each generic term, pick the FIBO root class(es) it SUBSUMES — i.e. instances of "
+    "that FIBO class (and its subclasses) are examples of the generic term. Return ONLY JSON."
+)
+
+
+def _roots_prompt(generic_terms: List[str], candidates: List[Dict[str, str]]) -> str:
+    lines = ["GENERIC TERMS: " + ", ".join(generic_terms), "", "FIBO ROOT CANDIDATES (label — #subclasses — definition):"]
+    for c in candidates:
+        lines.append(f"- {c['label']} — {c['descendants']} — {c['definition']}")
+    lines.append("")
+    lines.append('Map each generic term to 0+ FIBO root labels from the list above (only labels that '
+                 'genuinely subsume the term). Return JSON: {"roots": {"<GenericTerm>": ["<FiboLabel>", ...]}}')
+    return "\n".join(lines)
+
+
+def derive_fibo_roots(
+    generic_terms: List[str],
+    ontology: Ontology,
+    *,
+    backend: Any,
+    model: Optional[str] = None,
+    top_candidates: int = 30,
+) -> Dict[str, List[str]]:
+    """LLM-derive a ``{generic_term: [FIBO root labels]}`` seed (the automated
+    replacement for the hand-written FINDER_FIBO_ROOTS). Injected ``backend`` via
+    the provider-aware structured layer; roots are validated to exist in the
+    ontology. Fake-testable."""
+    from .llm_structured import StructuredOutputError, structured_complete
+
+    candidates = root_candidates(ontology, top=top_candidates)
+    if not candidates:
+        return {}
+    try:
+        payload = structured_complete(
+            backend, system=_ROOTS_SYS, user=_roots_prompt(generic_terms, candidates),
+            model=model, task_hint="json_extraction",
+        )
+    except StructuredOutputError:
+        return {}
+    raw = payload.get("roots", payload) if isinstance(payload, dict) else {}
+    seed: Dict[str, List[str]] = {}
+    for term, roots in (raw.items() if isinstance(raw, dict) else []):
+        valid = [str(r) for r in (roots or []) if str(r) in ontology.nodes]
+        if valid:
+            seed[str(term)] = valid
+    return seed
+
+
+def auto_semantic_bridge(
+    ontology: Ontology,
+    generic_terms: List[str],
+    *,
+    backend: Any,
+    model: Optional[str] = None,
+) -> Ontology:
+    """Derive the generic→root seed with the LLM, then semantic-bridge — the
+    fully-automated form of the ADR-0136 pipeline (no hand seed)."""
+    seed = derive_fibo_roots(generic_terms, ontology, backend=backend, model=model)
+    return semantic_bridge(ontology, seed)

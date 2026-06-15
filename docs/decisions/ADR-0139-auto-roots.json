@@ -1,0 +1,378 @@
+{
+  "experiment": "auto-fibo-roots-vs-hand",
+  "provenance": {
+    "schema_version": "seocho.fibo_catalog.v1",
+    "fibo_commit": "fee10a4ebe807f647565f7aa3da8968423826dd1",
+    "snapshot_hash": "a5fbf8e4f50fe0df"
+  },
+  "generic_terms": [
+    "FinancialMetric",
+    "Person",
+    "Company",
+    "Product",
+    "Concept",
+    "Risk",
+    "LegalIssue",
+    "Regulation",
+    "Date",
+    "Industry",
+    "MonetaryValue",
+    "Program",
+    "Year",
+    "FinancialTerm",
+    "Organization",
+    "CompetitiveFactor",
+    "Location",
+    "BusinessUnit",
+    "Entity",
+    "FinancialConcept"
+  ],
+  "curated_plus": 0.595,
+  "modules": {
+    "BE": {
+      "lexical": 0.1814,
+      "hand_seed": 0.1814,
+      "auto_seed": 0.1916
+    },
+    "FBC": {
+      "lexical": 0.3155,
+      "hand_seed": 0.6092,
+      "auto_seed": 0.3397
+    },
+    "FND": {
+      "lexical": 0.3001,
+      "hand_seed": 0.5939,
+      "auto_seed": 0.8621
+    },
+    "SEC": {
+      "lexical": 0.1916,
+      "hand_seed": 0.4853,
+      "auto_seed": 0.2797
+    }
+  },
+  "auto_seeds": {
+    "BE": {
+      "Person": [
+        "LegalEntity",
+        "ResponsibleParty",
+        "EntityOwner",
+        "FunctionalEntity",
+        "LegalPerson",
+        "EntityControllingParty",
+        "ConstitutionalOwner",
+        "AuthorizedIndividual",
+        "Signatory",
+        "Executive",
+        "VotingShareholder",
+        "TotalOwner",
+        "SignificantShareholder"
+      ],
+      "Company": [
+        "LegalEntity",
+        "BusinessEntity",
+        "Corporation",
+        "PrivateCompanyWithLimitedLiability",
+        "Partnership",
+        "NotForProfitCorporation",
+        "FunctionalBusinessEntity"
+      ],
+      "Organization": [
+        "LegalEntity",
+        "BusinessEntity",
+        "GovernmentBody",
+        "NotForProfitOrganization",
+        "Corporation",
+        "Partnership",
+        "NotForProfitCorporation",
+        "FunctionalBusinessEntity"
+      ],
+      "BusinessUnit": [
+        "FunctionalEntity",
+        "FunctionalBusinessEntity"
+      ],
+      "Entity": [
+        "LegalEntity",
+        "BusinessEntity",
+        "LegallyDelegatedAuthority",
+        "ResponsibleParty",
+        "GovernmentBody",
+        "EntityOwner",
+        "FunctionalEntity",
+        "LegalPerson",
+        "EntityControllingParty",
+        "Corporation",
+        "ConstitutionalOwner",
+        "AuthorizedIndividual",
+        "Signatory",
+        "Polity",
+        "NotForProfitOrganization",
+        "Government",
+        "Executive",
+        "VotingShareholder",
+        "Trust",
+        "PrivateCompanyWithLimitedLiability",
+        "Partnership",
+        "DeJureControllingInterestParty",
+        "TotalOwner",
+        "SignificantShareholder",
+        "NotForProfitCorporation",
+        "FunctionalBusinessEntity",
+        "CorporateOfficer"
+      ]
+    },
+    "FBC": {
+      "Company": [
+        "FinancialServiceProvider",
+        "FinancialInstitution",
+        "NonDepositoryInstitution",
+        "DomesticEntity",
+        "Bank",
+        "DepositoryInstitution",
+        "CreditInstitutionInvestmentFirm",
+        "CommercialBank",
+        "USBank"
+      ],
+      "Product": [
+        "Product",
+        "FinancialProduct",
+        "BankingProduct"
+      ],
+      "Risk": [
+        "CreditEvent",
+        "ObligationSpecificCreditEvent",
+        "DefaultEvent"
+      ],
+      "Regulation": [
+        "RegulatoryAgency"
+      ],
+      "MonetaryValue": [
+        "SecurityPrice",
+        "MarketPrice"
+      ],
+      "Organization": [
+        "FinancialServiceProvider",
+        "FinancialInstitution",
+        "Exchange",
+        "NonDepositoryInstitution",
+        "DomesticEntity",
+        "Bank",
+        "DepositoryInstitution",
+        "CreditInstitutionInvestmentFirm",
+        "CommercialBank",
+        "USBank",
+        "RegulatoryAgency"
+      ],
+      "Entity": [
+        "FinancialServiceProvider",
+        "FinancialInstitution",
+        "Exchange",
+        "NonDepositoryInstitution",
+        "DomesticEntity",
+        "Bank",
+        "DepositoryInstitution",
+        "CreditInstitutionInvestmentFirm",
+        "CommercialBank",
+        "USBank",
+        "RegulatoryAgency",
+        "LegalAgent"
+      ],
+      "FinancialConcept": [
+        "FinancialInstrument",
+        "CreditAgreement",
+        "Guaranty"
+      ]
+    },
+    "FND": {
+      "FinancialMetric": [
+        "StatisticalMeasure"
+      ],
+      "Person": [
+        "Person"
+      ],
+      "Company": [
+        "Party"
+      ],
+      "Product": [
+        "Asset"
+      ],
+      "Concept": [
+        "OccurrenceKind"
+      ],
+      "Risk": [
+        "OccurrenceKind"
+      ],
+      "LegalIssue": [
+        "LegalConstruct"
+      ],
+      "Regulation": [
+        "ContractualElement"
+      ],
+      "Date": [
+        "RecurrenceInterval"
+      ],
+      "Industry": [
+        "Scheme"
+      ],
+      "MonetaryValue": [
+        "MonetaryAmount"
+      ],
+      "Program": [
+        "Scheme"
+      ],
+      "Year": [
+        "RecurrenceInterval"
+      ],
+      "FinancialTerm": [
+        "OccurrenceKind"
+      ],
+      "Organization": [
+        "Party"
+      ],
+      "CompetitiveFactor": [
+        "OccurrenceKind"
+      ],
+      "Location": [
+        "Address"
+      ],
+      "BusinessUnit": [
+        "Party"
+      ],
+      "Entity": [
+        "Party"
+      ],
+      "FinancialConcept": [
+        "OccurrenceKind"
+      ]
+    },
+    "SEC": {
+      "Product": [
+        "Security",
+        "Share",
+        "RegisteredSecurity",
+        "PreferredShare",
+        "PreferredShareWithFixedRateDividend",
+        "DebtInstrument",
+        "TradableDebtInstrument",
+        "ExtendablePreferredShare",
+        "ExchangeablePreferredShare",
+        "NonCumulativePreferredShare",
+        "ParticipatingPreferredShare",
+        "NonParticipatingPreferredShare",
+        "CumulativePreferredShare",
+        "SingleVotingShare",
+        "RestrictedVotingShare",
+        "NonVotingShare",
+        "EnhancedVotingShare",
+        "Bond",
+        "PoolBackedSecurity",
+        "PreferredShareWithAuctionRateDividend",
+        "PreferredShareWithAdjustableRateDividend",
+        "PerpetualPreferredShare",
+        "CommonShare"
+      ],
+      "Program": [
+        "Pool",
+        "PooledFund",
+        "InstrumentPool",
+        "CollectiveInvestmentVehicle",
+        "DebtPool"
+      ],
+      "FinancialTerm": [
+        "Security",
+        "Share",
+        "RegisteredSecurity",
+        "PreferredShare",
+        "PreferredShareWithFixedRateDividend",
+        "DebtInstrument",
+        "TradableDebtInstrument",
+        "ExtendablePreferredShare",
+        "ExchangeablePreferredShare",
+        "NonCumulativePreferredShare",
+        "ParticipatingPreferredShare",
+        "NonParticipatingPreferredShare",
+        "CumulativePreferredShare",
+        "SingleVotingShare",
+        "RestrictedVotingShare",
+        "NonVotingShare",
+        "EnhancedVotingShare",
+        "Bond",
+        "SecuritiesOffering",
+        "PoolBackedSecurity",
+        "DebtOffering",
+        "PreferredShareWithAuctionRateDividend",
+        "PreferredShareWithAdjustableRateDividend",
+        "PerpetualPreferredShare",
+        "Pool",
+        "PooledFund",
+        "InstrumentPool",
+        "CommonShare",
+        "CollectiveInvestmentVehicle",
+        "DebtPool"
+      ],
+      "Entity": [
+        "Security",
+        "Share",
+        "RegisteredSecurity",
+        "PreferredShare",
+        "PreferredShareWithFixedRateDividend",
+        "DebtInstrument",
+        "TradableDebtInstrument",
+        "ExtendablePreferredShare",
+        "ExchangeablePreferredShare",
+        "NonCumulativePreferredShare",
+        "ParticipatingPreferredShare",
+        "NonParticipatingPreferredShare",
+        "CumulativePreferredShare",
+        "SingleVotingShare",
+        "RestrictedVotingShare",
+        "NonVotingShare",
+        "EnhancedVotingShare",
+        "Bond",
+        "SecuritiesOffering",
+        "PoolBackedSecurity",
+        "DebtOffering",
+        "PreferredShareWithAuctionRateDividend",
+        "PreferredShareWithAdjustableRateDividend",
+        "PerpetualPreferredShare",
+        "Pool",
+        "PooledFund",
+        "InstrumentPool",
+        "CommonShare",
+        "CollectiveInvestmentVehicle",
+        "DebtPool"
+      ],
+      "FinancialConcept": [
+        "Security",
+        "Share",
+        "RegisteredSecurity",
+        "PreferredShare",
+        "PreferredShareWithFixedRateDividend",
+        "DebtInstrument",
+        "TradableDebtInstrument",
+        "ExtendablePreferredShare",
+        "ExchangeablePreferredShare",
+        "NonCumulativePreferredShare",
+        "ParticipatingPreferredShare",
+        "NonParticipatingPreferredShare",
+        "CumulativePreferredShare",
+        "SingleVotingShare",
+        "RestrictedVotingShare",
+        "NonVotingShare",
+        "EnhancedVotingShare",
+        "Bond",
+        "SecuritiesOffering",
+        "PoolBackedSecurity",
+        "DebtOffering",
+        "PreferredShareWithAuctionRateDividend",
+        "PreferredShareWithAdjustableRateDividend",
+        "PerpetualPreferredShare",
+        "Pool",
+        "PooledFund",
+        "InstrumentPool",
+        "CommonShare",
+        "CollectiveInvestmentVehicle",
+        "DebtPool"
+      ]
+    }
+  }
+}

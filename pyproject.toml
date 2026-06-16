@@ -106,11 +106,13 @@ duckdb = [
 ontology = [
     "owlready2",
     "pyshacl",
+    "pyyaml",
     "rdflib>=6.0",
 ]
 embedded = [
     "real_ladybug>=0.15.0",
     "openai",
+    "pyyaml",
 ]
 pdf = [
     "opendataloader-pdf",

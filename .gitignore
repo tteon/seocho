@@ -92,6 +92,8 @@ data/
 neo4j/data/
 !website/src/data/
 !website/src/data/**
+!tutorials/data/
+!tutorials/data/**
 neo4j/logs/
 .dolt/
 .seocho/

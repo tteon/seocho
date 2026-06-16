@@ -61,6 +61,7 @@ and must not be tracked as part of the public GitHub surface.
 
 | Path | Status | Notes |
 |---|---|---|
+| `tutorials/` | Curated learning track | Self-contained, infrastructure-free guided notebooks (one capability each), with cached artifacts for reproducibility. Narrower and more opinionated than `examples/`. |
 | `examples/` | Canonical hub | Preferred home for runnable notebooks, datasets, demos, and example configs. |
 | `examples/datasets/` | Active reference | Small tracked datasets used by tutorials, smoke tests, and documented benchmark samples. |
 | `examples/demos/` | Active reference | Demo scripts and tracing examples; useful for targeted walkthroughs, not the primary docs path. |

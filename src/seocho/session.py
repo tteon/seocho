@@ -32,6 +32,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import queue
 import threading
 import time
 import uuid
@@ -104,6 +105,53 @@ def _run_sync(
     if "error" in box:
         raise box["error"]
     return box["value"]
+
+
+def _stream_async_in_thread(make_agen):
+    """Drive an async generator from synchronous code, yielding items as they arrive.
+
+    Like :func:`_run_sync`, the work runs in a worker thread that owns its own event
+    loop, so this is safe to call from a thread that already has a running loop
+    (Jupyter, FastAPI, ``pytest-asyncio``) instead of crashing on a nested
+    ``loop.run_until_complete``. Items stream through a queue in real time; iterator
+    cleanup (``aclose`` + task cancellation on loop shutdown) happens in the worker.
+
+    ``make_agen`` is a zero-arg factory that returns the async generator; it is
+    invoked inside the worker's loop so loop-bound setup runs on the right loop.
+    """
+    items: "queue.Queue" = queue.Queue()
+
+    def _runner() -> None:
+        async def _drive() -> None:
+            agen = make_agen()
+            try:
+                async for item in agen:
+                    items.put(("item", item))
+            finally:
+                aclose = getattr(agen, "aclose", None)
+                if aclose is not None:
+                    try:
+                        await aclose()
+                    except Exception:  # noqa: BLE001
+                        pass
+
+        try:
+            asyncio.run(_drive())
+        except BaseException as exc:  # noqa: BLE001
+            items.put(("error", exc))
+        finally:
+            items.put(("done", None))
+
+    worker = threading.Thread(target=_runner, name="seocho-stream", daemon=True)
+    worker.start()
+    while True:
+        kind, payload = items.get()
+        if kind == "item":
+            yield payload
+        elif kind == "error":
+            raise payload
+        else:
+            return
 
 
 class Session:
@@ -862,42 +910,20 @@ class Session:
             from .agents_runtime import get_agents_runtime
             agent = self._get_query_agent()
 
-            async def _stream():
-                result = get_agents_runtime().run_streamed(agent=agent, input=full_msg)
-                async for event in result.stream_events():
-                    if hasattr(event, 'data') and hasattr(event.data, 'delta'):
-                        yield event.data.delta
+            def _make_stream():
+                async def _agen():
+                    result = get_agents_runtime().run_streamed(agent=agent, input=full_msg)
+                    async for event in result.stream_events():
+                        if hasattr(event, "data") and hasattr(event.data, "delta"):
+                            yield event.data.delta
 
-            import asyncio
-            loop = asyncio.new_event_loop()
-            ait = _stream().__aiter__()
-            try:
-                while True:
-                    try:
-                        chunk = loop.run_until_complete(ait.__anext__())
-                        yield chunk
-                    except StopAsyncIteration:
-                        break
-            finally:
-                # seocho-hnf9: drain the async iterator + cancel any
-                # pending tasks before closing the loop so resources
-                # bound to the iterator (HTTP connections, etc.) are
-                # released even if the consumer raised mid-stream.
-                try:
-                    loop.run_until_complete(ait.aclose())
-                except Exception:
-                    pass
-                try:
-                    pending = asyncio.all_tasks(loop=loop)
-                    for task in pending:
-                        task.cancel()
-                    if pending:
-                        loop.run_until_complete(
-                            asyncio.gather(*pending, return_exceptions=True)
-                        )
-                except Exception:
-                    pass
-                loop.close()
+                return _agen()
+
+            # Drive the async stream from a worker thread that owns its own loop,
+            # so ask_stream is safe to call inside an already-running loop
+            # (Jupyter/FastAPI) instead of crashing on a nested run_until_complete.
+            # Chunks still stream in real time through the queue.
+            yield from _stream_async_in_thread(_make_stream)
         except Exception as exc:
             logger.warning("Streaming failed, falling back: %s", exc)
             answer = self.ask(question, database=database)

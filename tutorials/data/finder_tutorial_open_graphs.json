@@ -1,0 +1,402 @@
+[
+  {
+    "nodes": [
+      {
+        "label": "Company",
+        "name": "Apple Inc."
+      },
+      {
+        "label": "Ticker",
+        "name": "AAPL"
+      },
+      {
+        "label": "Location",
+        "name": "Cupertino, California"
+      },
+      {
+        "label": "Product",
+        "name": "smartphones"
+      },
+      {
+        "label": "Product",
+        "name": "personal computers"
+      },
+      {
+        "label": "Product",
+        "name": "tablets"
+      },
+      {
+        "label": "Product",
+        "name": "wearables"
+      },
+      {
+        "label": "Product",
+        "name": "accessories"
+      }
+    ]
+  },
+  {
+    "nodes": [
+      {
+        "label": "Company",
+        "name": "Microsoft Corporation"
+      },
+      {
+        "label": "FinancialMetric",
+        "name": "total revenue"
+      },
+      {
+        "label": "CurrencyAmount",
+        "name": "$211.9 billion"
+      },
+      {
+        "label": "TimePeriod",
+        "name": "fiscal year 2023"
+      },
+      {
+        "label": "Percentage",
+        "name": "7%"
+      },
+      {
+        "label": "FinancialMetric",
+        "name": "operating income"
+      },
+      {
+        "label": "CurrencyAmount",
+        "name": "$88.5 billion"
+      },
+      {
+        "label": "BusinessSegment",
+        "name": "Intelligent Cloud"
+      },
+      {
+        "label": "Product",
+        "name": "Azure"
+      },
+      {
+        "label": "CurrencyAmount",
+        "name": "$87.9 billion"
+      },
+      {
+        "label": "Percentage",
+        "name": "17%"
+      }
+    ]
+  },
+  {
+    "nodes": [
+      {
+        "label": "Company",
+        "name": "NVIDIA Corporation"
+      },
+      {
+        "label": "FinancialMetric",
+        "name": "fiscal year 2023"
+      },
+      {
+        "label": "FinancialMetric",
+        "name": "$10.44 billion"
+      },
+      {
+        "label": "FinancialMetric",
+        "name": "share repurchases"
+      },
+      {
+        "label": "FinancialMetric",
+        "name": "cash dividends"
+      },
+      {
+        "label": "FinancialMetric",
+        "name": "$395 million"
+      },
+      {
+        "label": "FinancialMetric",
+        "name": "dividends"
+      },
+      {
+        "label": "FinancialMetric",
+        "name": "$10.04 billion"
+      },
+      {
+        "label": "FinancialMetric",
+        "name": "23 million shares"
+      },
+      {
+        "label": "FinancialInstrument",
+        "name": "common stock"
+      }
+    ]
+  },
+  {
+    "nodes": [
+      {
+        "label": "Company",
+        "name": "Alphabet Inc."
+      },
+      {
+        "label": "Person",
+        "name": "Sundar Pichai"
+      },
+      {
+        "label": "Person",
+        "name": "John L. Hennessy"
+      },
+      {
+        "label": "Person",
+        "name": "Frances H. Arnold"
+      },
+      {
+        "label": "Person",
+        "name": "L. John Doerr"
+      },
+      {
+        "label": "OrganizationalUnit",
+        "name": "Board of Directors"
+      },
+      {
+        "label": "OrganizationalUnit",
+        "name": "Audit Committee"
+      },
+      {
+        "label": "FinancialProcess",
+        "name": "financial reporting process"
+      }
+    ]
+  },
+  {
+    "nodes": [
+      {
+        "label": "Company",
+        "name": "Meta Platforms, Inc."
+      },
+      {
+        "label": "Regulation",
+        "name": "Federal Trade Commission"
+      },
+      {
+        "label": "Product",
+        "name": "WhatsApp"
+      },
+      {
+        "label": "Product",
+        "name": "Instagram"
+      },
+      {
+        "label": "LegalAction",
+        "name": "antitrust lawsuit"
+      },
+      {
+        "label": "LegalAction",
+        "name": "Cambridge Analytica class action lawsuit"
+      },
+      {
+        "label": "FinancialMetric",
+        "name": "$725 million settlement agreement"
+      }
+    ]
+  },
+  {
+    "nodes": [
+      {
+        "label": "Company",
+        "name": "Tesla, Inc."
+      },
+      {
+        "label": "FinancialMetric",
+        "name": "automotive revenues"
+      },
+      {
+        "label": "FinancialMetric",
+        "name": "energy generation and storage revenues"
+      },
+      {
+        "label": "FinancialMetric",
+        "name": "fiscal year 2023"
+      },
+      {
+        "label": "FinancialMetric",
+        "name": "automotive revenue"
+      },
+      {
+        "label": "FinancialMetric",
+        "name": "$82.4 billion"
+      },
+      {
+        "label": "FinancialMetric",
+        "name": "energy generation and storage revenue"
+      },
+      {
+        "label": "FinancialMetric",
+        "name": "$6.04 billion"
+      },
+      {
+        "label": "FinancialMetric",
+        "name": "Services and other revenue"
+      },
+      {
+        "label": "FinancialMetric",
+        "name": "$8.32 billion"
+      },
+      {
+        "label": "FinancialMetric",
+        "name": "total revenues"
+      },
+      {
+        "label": "FinancialMetric",
+        "name": "$96.77 billion"
+      }
+    ]
+  },
+  {
+    "nodes": [
+      {
+        "label": "Company",
+        "name": "JPMorgan Chase & Co."
+      },
+      {
+        "label": "FinancialMetric",
+        "name": "Tier 1 capital ratio"
+      },
+      {
+        "label": "FinancialMetric",
+        "name": "Common Equity Tier 1 (CET1) capital ratio"
+      },
+      {
+        "label": "FinancialMetric",
+        "name": "Total assets"
+      },
+      {
+        "label": "Regulation",
+        "name": "regulatory minimum"
+      },
+      {
+        "label": "Methodology",
+        "name": "Standardized approach"
+      }
+    ]
+  },
+  {
+    "nodes": [
+      {
+        "label": "Company",
+        "name": "Berkshire Hathaway Inc."
+      },
+      {
+        "label": "Company",
+        "name": "GEICO"
+      },
+      {
+        "label": "Company",
+        "name": "General Re"
+      },
+      {
+        "label": "Risk",
+        "name": "climate change"
+      },
+      {
+        "label": "FinancialMetric",
+        "name": "catastrophe losses"
+      },
+      {
+        "label": "FinancialMetric",
+        "name": "$5 billion"
+      }
+    ]
+  },
+  {
+    "nodes": [
+      {
+        "label": "Company",
+        "name": "Amazon.com, Inc."
+      },
+      {
+        "label": "BusinessSegment",
+        "name": "North America"
+      },
+      {
+        "label": "BusinessSegment",
+        "name": "International"
+      },
+      {
+        "label": "BusinessSegment",
+        "name": "Amazon Web Services (AWS)"
+      },
+      {
+        "label": "Product",
+        "name": "cloud infrastructure services"
+      },
+      {
+        "label": "OrganizationType",
+        "name": "startups"
+      },
+      {
+        "label": "OrganizationType",
+        "name": "enterprises"
+      },
+      {
+        "label": "OrganizationType",
+        "name": "government agencies"
+      },
+      {
+        "label": "OrganizationType",
+        "name": "academic institutions"
+      },
+      {
+        "label": "Person",
+        "name": "Andy Jassy"
+      },
+      {
+        "label": "Role",
+        "name": "President"
+      },
+      {
+        "label": "Role",
+        "name": "Chief Executive Officer"
+      }
+    ]
+  },
+  {
+    "nodes": [
+      {
+        "label": "Company",
+        "name": "Berkshire Hathaway"
+      },
+      {
+        "label": "Company",
+        "name": "Apple Inc."
+      },
+      {
+        "label": "FinancialMetric",
+        "name": "$174.3 billion"
+      },
+      {
+        "label": "Company",
+        "name": "Bank of America"
+      },
+      {
+        "label": "FinancialMetric",
+        "name": "$34.8 billion"
+      },
+      {
+        "label": "Company",
+        "name": "American Express"
+      },
+      {
+        "label": "FinancialMetric",
+        "name": "$28.4 billion"
+      },
+      {
+        "label": "Company",
+        "name": "Coca-Cola"
+      },
+      {
+        "label": "FinancialMetric",
+        "name": "$23.6 billion"
+      },
+      {
+        "label": "Date",
+        "name": "December 31, 2023"
+      }
+    ]
+  }
+]

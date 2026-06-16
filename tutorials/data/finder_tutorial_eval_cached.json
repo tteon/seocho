@@ -1,0 +1,128 @@
+{
+  "model": "DeepSeek-V3.1 (MARA)",
+  "chosen": "rich",
+  "before_acc": 0.9,
+  "after_acc": 0.8,
+  "rows": [
+    {
+      "id": "finder_tut_001",
+      "category": "Company Overview",
+      "q": "Where is Apple Inc. headquartered?",
+      "ref": "Cupertino, California",
+      "before": "Cupertino, California.",
+      "after": "Based solely on the provided graph context, I cannot determine the headquarters location of Apple Inc. The graph only lists the company and its products, not its headquarters.",
+      "before_ok": true,
+      "after_ok": false,
+      "n_open": 8,
+      "n_guard": 6
+    },
+    {
+      "id": "finder_tut_002",
+      "category": "Financials",
+      "q": "What was Microsoft's total revenue in fiscal year 2023?",
+      "ref": "$211.9 billion",
+      "before": "Microsoft's total revenue in fiscal year 2023 was $211.9 billion.",
+      "after": "Microsoft's total revenue in fiscal year 2023 was $211.9 billion.",
+      "before_ok": true,
+      "after_ok": true,
+      "n_open": 11,
+      "n_guard": 10
+    },
+    {
+      "id": "finder_tut_003",
+      "category": "Shareholder Return",
+      "q": "How much did NVIDIA pay in dividends during fiscal year 2023?",
+      "ref": "$395 million",
+      "before": "NVIDIA paid $395 million in dividends during fiscal year 2023.",
+      "after": "Based on the graph, NVIDIA paid $395 million in dividends during fiscal year 2023.",
+      "before_ok": true,
+      "after_ok": true,
+      "n_open": 10,
+      "n_guard": 10
+    },
+    {
+      "id": "finder_tut_004",
+      "category": "Governance",
+      "q": "Who is the Chair of Alphabet's Board of Directors?",
+      "ref": "John L. Hennessy",
+      "before": "Based on the provided graph, John L. Hennessy is the Chair of Alphabet's Board of Directors.",
+      "after": "Based on the provided graph, John L. Hennessy is the Chair of Alphabet's Board of Directors.",
+      "before_ok": true,
+      "after_ok": true,
+      "n_open": 8,
+      "n_guard": 6
+    },
+    {
+      "id": "finder_tut_005",
+      "category": "Legal",
+      "q": "What was the value of Meta's Cambridge Analytica settlement?",
+      "ref": "$725 million",
+      "before": "$725 million.",
+      "after": "$725 million.",
+      "before_ok": true,
+      "after_ok": true,
+      "n_open": 7,
+      "n_guard": 8
+    },
+    {
+      "id": "finder_tut_006",
+      "category": "Accounting",
+      "q": "What was Tesla's automotive revenue in fiscal year 2023?",
+      "ref": "$82.4 billion",
+      "before": "Tesla's automotive revenue in fiscal year 2023 was $82.4 billion.",
+      "after": "Based on the provided graph context, I cannot determine Tesla's automotive revenue for fiscal year 2023 as the graph does not contain any specific numerical data or time-series information.",
+      "before_ok": true,
+      "after_ok": false,
+      "n_open": 12,
+      "n_guard": 7
+    },
+    {
+      "id": "finder_tut_007",
+      "category": "Footnotes",
+      "q": "What was JPMorgan Chase's CET1 capital ratio at year-end 2023?",
+      "ref": "15.0%",
+      "before": "Based on the provided graph context, the specific CET1 capital ratio value for JPMorgan Chase at year-end 2023 is not available in the given information.",
+      "after": "15.0%",
+      "before_ok": false,
+      "after_ok": true,
+      "n_open": 6,
+      "n_guard": 9
+    },
+    {
+      "id": "finder_tut_008",
+      "category": "Risk",
+      "q": "Which subsidiary of Berkshire Hathaway provides reinsurance?",
+      "ref": "General Re",
+      "before": "General Re",
+      "after": "General Re",
+      "before_ok": true,
+      "after_ok": true,
+      "n_open": 6,
+      "n_guard": 5
+    },
+    {
+      "id": "finder_tut_009",
+      "category": "Company Overview",
+      "q": "Who is the CEO of Amazon.com, Inc.?",
+      "ref": "Andy Jassy",
+      "before": "Andy Jassy is the Chief Executive Officer of Amazon.com, Inc.",
+      "after": "Andy Jassy is the CEO of Amazon.com, Inc.",
+      "before_ok": true,
+      "after_ok": true,
+      "n_open": 12,
+      "n_guard": 3
+    },
+    {
+      "id": "finder_tut_010",
+      "category": "Financials",
+      "q": "What was the fair value of Berkshire Hathaway's investment in Apple Inc. as of December 31, 2023?",
+      "ref": "$174.3 billion",
+      "before": "$174.3 billion",
+      "after": "Based on the provided graph, the fair value of Berkshire Hathaway's investment in Apple Inc. as of December 31, 2023, was $174.3 billion.",
+      "before_ok": true,
+      "after_ok": true,
+      "n_open": 10,
+      "n_guard": 10
+    }
+  ]
+}

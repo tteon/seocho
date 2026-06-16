@@ -77,6 +77,23 @@ def _safe_str(x) -> str:
     return str(x)
 
 
+_MEANINGFUL_TOK_RE = re.compile(r"[A-Za-z0-9가-힣]+")
+_STOPWORDS = frozenset({
+    "the", "a", "an", "is", "are", "was", "were", "of", "in", "on", "for",
+    "to", "and", "or", "with", "by", "from", "at", "as", "be", "this",
+    "that", "it", "its", "such",
+})
+
+
+def _meaningful_token_count(text: str) -> int:
+    """Non-stopword tokens of length > 1 in ``text``."""
+    s = _safe_str(text).lower()
+    return sum(
+        1 for tok in _MEANINGFUL_TOK_RE.findall(s)
+        if tok not in _STOPWORDS and len(tok) > 1
+    )
+
+
 def token_f1(pred, gold) -> float:
     def norm(s):
         return re.sub(r"[^a-z0-9 ]", " ", _safe_str(s).lower()).split()
@@ -115,6 +132,22 @@ def _parse_judge(text: str) -> dict:
 
 
 def judge_one(llm, query: str, gold: str, candidate: str) -> dict:
+    # Sanity guard — when the candidate has fewer than 3 meaningful tokens,
+    # skip the LLM call entirely. LLM judges (especially same-vendor as the
+    # generator) tend to return plausible-sounding 'correct'/'partial' on
+    # empty/whitespace-only candidates; a cross-vendor spot-check on 38 such
+    # cells confirmed all 38 are 'incorrect'. Empties never needed a model
+    # call in the first place.
+    if _meaningful_token_count(candidate) < 3:
+        return {
+            "verdict": "incorrect",
+            "score": 0.0,
+            "rationale": "candidate has <3 meaningful tokens (sanity guard, no LLM call)",
+            "matched": [],
+            "missing_or_wrong": [],
+            "parse_error": False,
+            "sanity_skipped": True,
+        }
     user = (f"QUESTION:\n{_safe_str(query)}\n\n"
             f"GOLD ANSWER (ground truth):\n{_safe_str(gold)}\n\n"
             f"CANDIDATE ANSWER:\n{_safe_str(candidate)}")

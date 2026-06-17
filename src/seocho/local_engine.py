@@ -624,6 +624,53 @@ class _LocalEngine:
             ):
                 yield
 
+    def _annotate_synthesis_span(
+        self,
+        span: Any,
+        synthesizer: Any,
+        ontology_context: Any,
+    ) -> None:
+        """Stamp gen_ai.* + prompt/cache identity on rag.synthesize (ADR-0144).
+
+        External-API deployments control the prompt, not the model internals, so
+        the joinable signal is (model, params, tokens) + the cacheable system-
+        prompt prefix hash (stable_prefix_hash / ontology_context_hash).
+        """
+        from .tracing import is_tracing_enabled
+
+        if not is_tracing_enabled():
+            return
+        try:
+            attrs: Dict[str, Any] = {
+                "gen_ai.request.model": getattr(self.llm, "model", "unknown"),
+            }
+            provider = getattr(self.llm, "provider", "") or getattr(
+                self.llm, "provider_name", ""
+            )
+            if provider:
+                attrs["gen_ai.system"] = str(provider)
+            temp = getattr(synthesizer, "last_temperature", None)
+            if temp is not None:
+                attrs["gen_ai.request.temperature"] = temp
+            usage = getattr(synthesizer, "last_usage", None) or {}
+            if usage.get("prompt_tokens"):
+                attrs["gen_ai.usage.input_tokens"] = int(usage["prompt_tokens"])
+            if usage.get("completion_tokens"):
+                attrs["gen_ai.usage.output_tokens"] = int(usage["completion_tokens"])
+            if usage.get("total_tokens"):
+                attrs["gen_ai.usage.total_tokens"] = int(usage["total_tokens"])
+            try:
+                layout = ontology_context.kv_cache_layout()
+                if layout.get("stable_prefix_hash"):
+                    attrs["stable_prefix_hash"] = layout["stable_prefix_hash"]
+                if layout.get("context_hash"):
+                    attrs["ontology_context_hash"] = layout["context_hash"]
+            except Exception:
+                pass
+            span.set_metadata(attrs)
+        except Exception:
+            pass
+
     def _run_query_pipeline(
         self,
         question: str,
@@ -911,18 +958,18 @@ class _LocalEngine:
             with start_span(
                 "rag.synthesize",
                 output_data={"result_count": len(records) if records else 0},
-                metadata={
-                    "workspace_id": self.workspace_id,
-                    "model": getattr(self.llm, "model", "unknown"),
-                },
+                metadata={"workspace_id": self.workspace_id},
                 tags=["rag"],
-            ):
+            ) as syn_span:
                 answer_text = answer_synthesizer.synthesize(
                     question,
                     records,
                     reasoning_trace=reasoning_trace,
                     vector_context=vector_context,
                     answer_shape=answer_shape,
+                )
+                self._annotate_synthesis_span(
+                    syn_span, answer_synthesizer, ontology_context
                 )
 
         timer.mark_total()

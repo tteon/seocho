@@ -396,6 +396,9 @@ class OTLPBackend(TracingBackend):
         self._Status = Status
         self._StatusCode = StatusCode
 
+        self._meter = None
+        self._meter_provider = None
+        self._counters: Dict[str, Any] = {}
         try:
             resource = Resource.create({"service.name": self._service_name})
             provider = TracerProvider(resource=resource)
@@ -407,6 +410,29 @@ class OTLPBackend(TracingBackend):
             self._provider = provider
             self._tracer = provider.get_tracer("seocho.tracing")
             self._init_error: Optional[str] = None
+            # Metrics pipeline (ADR-0144 §6): isolated so a missing/old metrics
+            # SDK never disables tracing.
+            try:
+                from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import (
+                    OTLPMetricExporter,
+                )
+                from opentelemetry.sdk.metrics import MeterProvider
+                from opentelemetry.sdk.metrics.export import (
+                    PeriodicExportingMetricReader,
+                )
+
+                reader = PeriodicExportingMetricReader(
+                    OTLPMetricExporter(
+                        endpoint=self._endpoint,
+                        insecure=self._endpoint.startswith("http://"),
+                    )
+                )
+                self._meter_provider = MeterProvider(
+                    resource=resource, metric_readers=[reader]
+                )
+                self._meter = self._meter_provider.get_meter("seocho.tracing")
+            except Exception as exc:
+                logger.debug("OTLP meter init skipped: %s", exc)
         except Exception as exc:
             logger.warning("OTLP backend init failed: %s", exc)
             self._provider = None
@@ -494,10 +520,34 @@ class OTLPBackend(TracingBackend):
             except Exception:
                 pass
 
+    def record_metric(
+        self,
+        name: str,
+        value: float = 1,
+        *,
+        attributes: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Add to a monotonic counter (Prometheus appends ``_total``)."""
+        if self._meter is None:
+            return
+        try:
+            counter = self._counters.get(name)
+            if counter is None:
+                counter = self._meter.create_counter(name)
+                self._counters[name] = counter
+            counter.add(value, attributes or {})
+        except Exception as exc:
+            logger.debug("OTLP record_metric failed: %s", exc)
+
     def flush(self) -> None:
         if self._provider is not None:
             try:
                 self._provider.force_flush()
+            except Exception:
+                pass
+        if self._meter_provider is not None:
+            try:
+                self._meter_provider.force_flush()
             except Exception:
                 pass
 
@@ -505,6 +555,11 @@ class OTLPBackend(TracingBackend):
         if self._provider is not None:
             try:
                 self._provider.shutdown()
+            except Exception:
+                pass
+        if self._meter_provider is not None:
+            try:
+                self._meter_provider.shutdown()
             except Exception:
                 pass
 
@@ -740,6 +795,28 @@ def log_span(
                 metadata=metadata,
                 tags=tags,
             )
+        except Exception:
+            pass
+
+
+def record_metric(
+    name: str,
+    value: float = 1,
+    *,
+    attributes: Optional[Dict[str, Any]] = None,
+) -> None:
+    """Record a counter metric on backends that support metrics (OTLP → Prometheus).
+
+    No-op on flat backends. Counter names are emitted as-is; the OTel→Prometheus
+    exporter appends ``_total`` (so ``seocho_validation_errors`` →
+    ``seocho_validation_errors_total``). ADR-0144 §6.
+    """
+    for b in _BACKENDS:
+        fn = getattr(b, "record_metric", None)
+        if fn is None:
+            continue
+        try:
+            fn(name, value, attributes=attributes)
         except Exception:
             pass
 

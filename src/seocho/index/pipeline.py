@@ -621,6 +621,16 @@ class IndexingPipeline:
                     ensure_observation_constraint(self.graph_store, database)
                     all_nodes = list(all_nodes) + obs_nodes
                     all_rels = list(all_rels) + obs_rels
+                    try:  # ADR-0144 §6: reification was previously silent
+                        from seocho.tracing import record_metric
+
+                        record_metric(
+                            "seocho_observations_reified",
+                            len(obs_nodes),
+                            attributes={"ontology": self.ontology.name},
+                        )
+                    except Exception:
+                        pass
             except Exception as exc:  # never let reification break ingestion
                 logger.warning("Observation dual-write skipped: %s", exc)
 
@@ -1033,10 +1043,27 @@ class IndexingPipeline:
             except Exception:
                 pass
 
-        # --- Tracing ---
+        # --- Tracing (ADR-0144 §6: governance observability) ---
         try:
-            from seocho.tracing import log_extraction, is_tracing_enabled
+            from seocho.tracing import (
+                capture_text,
+                is_tracing_enabled,
+                log_extraction,
+                record_metric,
+            )
             if is_tracing_enabled():
+                _mode = self.enforcement_policy.mode
+                _meta: Dict[str, Any] = {"enforcement_mode": _mode}
+                if _total_usage:
+                    _meta["usage"] = _total_usage
+                # Per-error validation detail (content-gated): the actual
+                # failures, not just the count, when capture is enabled.
+                if result.validation_errors:
+                    _detail = capture_text(
+                        "; ".join(str(e) for e in result.validation_errors[:20])
+                    )
+                    if _detail:
+                        _meta["validation_errors_detail"] = _detail
                 log_extraction(
                     text_preview=content[:200] if content else "",
                     ontology_name=self.ontology.name,
@@ -1046,7 +1073,12 @@ class IndexingPipeline:
                     score=_score,
                     validation_errors=len(result.validation_errors),
                     elapsed_seconds=_pipeline_elapsed,
-                    metadata={"usage": _total_usage} if _total_usage else None,
+                    metadata=_meta,
+                )
+                record_metric(
+                    "seocho_validation_errors",
+                    len(result.validation_errors),
+                    attributes={"mode": _mode, "ontology": self.ontology.name},
                 )
         except Exception:
             pass

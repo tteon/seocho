@@ -1,0 +1,40 @@
+{
+  "uid": "seocho-rag",
+  "title": "SEOCHO RAG (ADR-0144)",
+  "tags": ["seocho", "rag", "adr-0144"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "About",
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 0 },
+      "options": {
+        "mode": "markdown",
+        "content": "## SEOCHO span trace (ADR-0144)\n\nEach `ask()` is a **`rag.ask`** root span over nested stages: `rag.compile_cypher` -> `rag.execute` -> `db.query` -> `rag.retrieve_ctx` -> `rag.synthesize`.\n\n- **Explore -> Tempo** with TraceQL, e.g. `{ name=\"rag.ask\" }`, `{ name=\"db.query\" && span.db.duration_hydrate_ms > 50 }` (catches pure-python codec fallback), or `{ span.workspace_id=\"<ws>\" }`.\n- Set `SEOCHO_TRACE_BACKEND=otlp`; full prompt/Cypher bodies only appear with `SEOCHO_TRACE_CAPTURE_CONTENT=1`.\n- `seocho_*` Prometheus metrics arrive once ADR-0144 ts6 (governance metrics) lands."
+      }
+    },
+    {
+      "id": 2,
+      "type": "table",
+      "title": "Recent rag.ask traces",
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 6 },
+      "datasource": { "type": "tempo", "uid": "tempo" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "tempo", "uid": "tempo" },
+          "queryType": "traceqlSearch",
+          "query": "{ name = \"rag.ask\" }",
+          "limit": 50,
+          "tableType": "traces"
+        }
+      ],
+      "options": { "showHeader": true }
+    }
+  ]
+}

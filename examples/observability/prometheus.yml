@@ -1,0 +1,9 @@
+# Prometheus scrapes the collector's Prometheus exposition endpoint, where
+# SEOCHO's OTLP metrics (seocho_*, ADR-0144 §6 follow-ups) are re-exposed.
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: seocho-otel-collector
+    static_configs:
+      - targets: ["otel-collector:8889"]

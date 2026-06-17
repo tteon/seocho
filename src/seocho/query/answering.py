@@ -74,6 +74,9 @@ class QueryAnswerSynthesizer:
     def __init__(self, *, query_strategy: Any, llm: Any) -> None:
         self.query_strategy = query_strategy
         self.llm = llm
+        # ADR-0144: last LLM-synthesis usage/params, surfaced on rag.synthesize.
+        self.last_usage: Optional[Dict[str, int]] = None
+        self.last_temperature: Optional[float] = None
 
     def build_deterministic_answer(
         self,
@@ -130,14 +133,17 @@ class QueryAnswerSynthesizer:
             directive = terse_directive(answer_shape)
             if directive:
                 user_ans += f"\n\nOutput format requirement: {directive}"
-        return complete_with_task_hints(
+        resp = complete_with_task_hints(
             self.llm,
             system=system_ans,
             user=user_ans,
             temperature=0.1,
             reasoning_mode=False,
             task_hint="answer_synthesis",
-        ).text
+        )
+        self.last_usage = getattr(resp, "usage", None)
+        self.last_temperature = 0.1
+        return resp.text
 
     def _build_financial_answer(
         self,

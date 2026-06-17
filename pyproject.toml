@@ -115,6 +115,12 @@ embedded = [
 pdf = [
     "opendataloader-pdf",
 ]
+otel = [
+    # ADR-0144: local OpenTelemetry tracing backend (otlp). Lightweight
+    # alternative to self-hosted Opik; exports spans to an OTel Collector.
+    "opentelemetry-sdk",
+    "opentelemetry-exporter-otlp-proto-grpc",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["extraction/tests", "tests"]

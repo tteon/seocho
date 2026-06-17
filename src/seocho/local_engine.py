@@ -4,7 +4,8 @@ import json
 import logging
 import os
 import re
-from typing import Any, Dict, List, Optional, Sequence
+from contextlib import contextmanager
+from typing import Any, Dict, Iterator, List, Optional, Sequence
 
 from .curation_design import CurationDesignSpec, load_curation_design_spec
 from .graph_projector import GraphProjector
@@ -580,12 +581,114 @@ class _LocalEngine:
             except Exception as exc:  # never let the new lane break ask()
                 logger.warning("Semantic-layer lane skipped: %s", exc)
 
+        # ADR-0144: wrap the retrieval pipeline in a single rag.ask root span so
+        # its stages (compile_cypher -> execute -> retrieve_ctx -> synthesize)
+        # nest as a tree in Tempo/Opik instead of one flat sdk.query event.
+        from .tracing import start_span
+
+        with start_span(
+            "rag.ask",
+            input_data={"question": question[:200]},
+            metadata={
+                "workspace_id": self.workspace_id,
+                "query_mode": query_mode,
+                "ontology": getattr(active_ontology, "name", ""),
+            },
+            tags=["rag"],
+        ):
+            return self._run_query_pipeline(
+                question,
+                database=database,
+                reasoning_mode=reasoning_mode,
+                repair_budget=repair_budget,
+                query_mode=query_mode,
+                active_ontology=active_ontology,
+                ontology_context=ontology_context,
+            )
+
+    @contextmanager
+    def _traced_stage(
+        self,
+        timer: StageTimer,
+        timer_key: str,
+        span_name: Optional[str] = None,
+    ) -> Iterator[None]:
+        """Run a StageTimer stage and emit a nested rag.* span (ADR-0144)."""
+        from .tracing import start_span
+
+        with timer.stage(timer_key):
+            with start_span(
+                span_name or f"rag.{timer_key}",
+                metadata={"workspace_id": self.workspace_id},
+                tags=["rag"],
+            ):
+                yield
+
+    def _annotate_synthesis_span(
+        self,
+        span: Any,
+        synthesizer: Any,
+        ontology_context: Any,
+    ) -> None:
+        """Stamp gen_ai.* + prompt/cache identity on rag.synthesize (ADR-0144).
+
+        External-API deployments control the prompt, not the model internals, so
+        the joinable signal is (model, params, tokens) + the cacheable system-
+        prompt prefix hash (stable_prefix_hash / ontology_context_hash).
+        """
+        from .tracing import is_tracing_enabled
+
+        if not is_tracing_enabled():
+            return
+        try:
+            attrs: Dict[str, Any] = {
+                "gen_ai.request.model": getattr(self.llm, "model", "unknown"),
+            }
+            provider = getattr(self.llm, "provider", "") or getattr(
+                self.llm, "provider_name", ""
+            )
+            if provider:
+                attrs["gen_ai.system"] = str(provider)
+            temp = getattr(synthesizer, "last_temperature", None)
+            if temp is not None:
+                attrs["gen_ai.request.temperature"] = temp
+            usage = getattr(synthesizer, "last_usage", None) or {}
+            if usage.get("prompt_tokens"):
+                attrs["gen_ai.usage.input_tokens"] = int(usage["prompt_tokens"])
+            if usage.get("completion_tokens"):
+                attrs["gen_ai.usage.output_tokens"] = int(usage["completion_tokens"])
+            if usage.get("total_tokens"):
+                attrs["gen_ai.usage.total_tokens"] = int(usage["total_tokens"])
+            try:
+                layout = ontology_context.kv_cache_layout()
+                if layout.get("stable_prefix_hash"):
+                    attrs["stable_prefix_hash"] = layout["stable_prefix_hash"]
+                if layout.get("context_hash"):
+                    attrs["ontology_context_hash"] = layout["context_hash"]
+            except Exception:
+                pass
+            span.set_metadata(attrs)
+        except Exception:
+            pass
+
+    def _run_query_pipeline(
+        self,
+        question: str,
+        *,
+        database: str,
+        reasoning_mode: bool,
+        repair_budget: int,
+        query_mode: str,
+        active_ontology: Any,
+        ontology_context: Any,
+    ) -> str:
+        """Retrieval pipeline body for ask(), wrapped by the rag.ask span."""
         timer = StageTimer()
         agent_design_pattern = str(self.agent_config.extra.get("agent_design_pattern", "") or "")
         if query_mode == "graph_cot" and not agent_design_pattern:
             agent_design_pattern = "graph_cot"
 
-        with timer.stage("schema"):
+        with self._traced_stage(timer, "schema"):
             schema_info = self._get_schema_info(database)
         self._query.schema_info = schema_info
         planner = DeterministicQueryPlanner(
@@ -599,7 +702,7 @@ class _LocalEngine:
             llm=self.llm,
         )
 
-        with timer.stage("plan"):
+        with self._traced_stage(timer, "plan", "rag.compile_cypher"):
             cypher, params, intent_data, error = self._generate_cypher(
                 question,
                 active_ontology,
@@ -630,7 +733,7 @@ class _LocalEngine:
             )
             return error
 
-        with timer.stage("execute"):
+        with self._traced_stage(timer, "execute", "rag.execute"):
             records, exec_error = self._execute_cypher(
                 cypher,
                 params,
@@ -766,7 +869,7 @@ class _LocalEngine:
                 if chunk_ctx:
                     vector_context = chunk_ctx
 
-        with timer.stage("ontology_context_check"):
+        with self._traced_stage(timer, "ontology_context_check"):
             ontology_context_mismatch = self._query_ontology_context_mismatch(database, ontology_context)
         if ontology_context_mismatch.get("mismatch"):
             logger.warning(
@@ -776,7 +879,7 @@ class _LocalEngine:
                 ontology_context_mismatch.get("indexed_context_hashes", []),
             )
 
-        with timer.stage("deterministic_answer"):
+        with self._traced_stage(timer, "deterministic_answer"):
             deterministic_answer = self._build_deterministic_answer(
                 question,
                 records,
@@ -821,6 +924,26 @@ class _LocalEngine:
         if reasoning_mode and attempts:
             reasoning_trace = json.dumps(attempts, default=str)
 
+        # ADR-0144: capture WHAT is fed to synthesis (the previously-dark
+        # retrieved context). Bodies are content-gated; counts/intent always.
+        from .tracing import capture_text, start_span
+
+        _rec_preview = capture_text(json.dumps(records[:5], default=str)) if records else None
+        with start_span(
+            "rag.retrieve_ctx",
+            output_data={
+                "n_records": len(records) if records else 0,
+                "has_vector_context": bool(vector_context),
+                "intent": intent_data.get("intent") if intent_data else None,
+            },
+            metadata={
+                "workspace_id": self.workspace_id,
+                **({"records_preview": _rec_preview} if _rec_preview else {}),
+            },
+            tags=["rag"],
+        ):
+            pass
+
         with timer.stage("generation"):
             # AnswerShape (opik-derived): classify the question's expected
             # answer shape and steer the synthesizer toward a terse
@@ -832,13 +955,22 @@ class _LocalEngine:
 
             if answer_shape_enabled():
                 answer_shape = classify_answer_shape(question)
-            answer_text = answer_synthesizer.synthesize(
-                question,
-                records,
-                reasoning_trace=reasoning_trace,
-                vector_context=vector_context,
-                answer_shape=answer_shape,
-            )
+            with start_span(
+                "rag.synthesize",
+                output_data={"result_count": len(records) if records else 0},
+                metadata={"workspace_id": self.workspace_id},
+                tags=["rag"],
+            ) as syn_span:
+                answer_text = answer_synthesizer.synthesize(
+                    question,
+                    records,
+                    reasoning_trace=reasoning_trace,
+                    vector_context=vector_context,
+                    answer_shape=answer_shape,
+                )
+                self._annotate_synthesis_span(
+                    syn_span, answer_synthesizer, ontology_context
+                )
 
         timer.mark_total()
         self._last_query_metadata = build_local_query_metadata(
@@ -905,7 +1037,7 @@ class _LocalEngine:
     def _log_semantic_route(self, question: str, sr: Any) -> None:
         """Emit the arbiter route (ADR-0103 H3) as a tracing span for observability."""
         try:
-            from .tracing import is_tracing_enabled, log_span
+            from .tracing import is_tracing_enabled, log_span, record_metric
 
             if not is_tracing_enabled():
                 return
@@ -917,6 +1049,7 @@ class _LocalEngine:
                 metadata=(hint.to_span() if hint is not None else {"arbiter.route": sr.route}),
                 tags=["semantic-layer", f"route:{sr.route}"],
             )
+            record_metric("seocho_arbiter_route", 1, attributes={"route": sr.route})
         except Exception:
             pass
 

@@ -229,13 +229,16 @@ _MODULE_EXPORTS: Dict[str, Iterable[str]] = {
     ".tracing": [
         "SessionTrace",
         "begin_session",
+        "capture_text",
         "configure_tracing_from_env",
+        "content_capture_enabled",
         "current_backend_names",
         "disable_tracing",
         "enable_tracing",
         "flush_tracing",
         "is_backend_enabled",
         "is_tracing_enabled",
+        "start_span",
     ],
     ".runtime_bundle": [
         "PortablePromptTemplate",
@@ -443,6 +446,8 @@ __all__ = [
     "enable_tracing",
     "disable_tracing",
     "flush_tracing",
+    "start_span",
+    "capture_text",
     # Errors users catch
     "SeochoError",
     "SeochoConnectionError",

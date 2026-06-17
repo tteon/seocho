@@ -105,12 +105,15 @@ compatibility; the new spans nest under the `rag.ask` root.
 
 ### 4. First-class `workspace_id` + DB instrumentation
 
-`rag.execute` wraps `graph_store.query()` with OTel `db.*` semantic-convention
-attributes (`db.system=neo4j`, `db.name`, `db.statement` content-gated,
-`db.rows_returned`) and carries `workspace_id` as a first-class attribute on
-every span. `X-Request-ID` (already in middleware) is threaded into a Cypher
-comment for DB-log ↔ trace correlation. Slow-query `PROFILE` capture is sampled,
-not always-on.
+`rag.execute` is the engine *stage*; the actual DB round-trip is a nested
+`db.query` span emitted inside `graph_store.query()` (and `db.execute_write`
+inside `execute_write()`), so every execution path — main, repair, fallback,
+and non-`ask()` callers like the runtime query proxy — is covered, not just the
+main lane. The `db.*` span carries OTel semantic-convention attributes
+(`db.system=neo4j`, `db.name`, `db.statement` content-gated, `db.rows_returned`)
+and `workspace_id` as a first-class attribute. `X-Request-ID` (already in
+middleware) is threaded into a Cypher comment for DB-log ↔ trace correlation.
+Slow-query `PROFILE` capture is sampled, not always-on.
 
 **Rust-ext-aware timing split (ADR-0111).** Because hydration dominates
 client-side cost, `rag.execute` splits the single timing into three attributes
@@ -122,10 +125,13 @@ instead of one `db.duration_ms`:
   cost rust-ext targets)
 - `db.rows_returned` — denominator for per-row hydration cost
 
-The active PackStream codec (`rust-ext` / `pure-python`, already detected at
-init) is emitted as an OTel **resource attribute** `db.client.codec` (process-
-global, not per query), so every trace records which codec produced its
-latency and a silent fallback to pure-python is immediately visible.
+The active PackStream codec (`rust-ext` / `pure-python` / `unknown`, detected
+once and cached via `packstream_codec()`) is stamped as `db.client.codec` on
+each `db.query` span, so every trace records which codec produced its latency
+and a silent fallback to pure-python is immediately visible as elevated
+`db.duration_hydrate_ms`. (Span attribute rather than an OTel resource
+attribute: the resource is fixed at provider-init, which may precede graph-
+store construction; a per-span stamp avoids that ordering coupling.)
 `execute_write()` additionally surfaces `result.consume().counters`
 (`db.nodes_created`, `db.relationships_created`, `db.properties_set`) as span
 attributes — already computed today, currently unused for observability.

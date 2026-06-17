@@ -1,0 +1,7 @@
+{
+  "startup_ms": 800,
+  "startup_names": ["sdk.session.start", "startup", "boot"],
+  "default_ceiling_ms": 2000,
+  "name_ceilings": {},
+  "ignore_names": []
+}

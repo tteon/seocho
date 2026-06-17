@@ -160,12 +160,102 @@ measure of ingestion quality.
 
 The current peer baseline set is:
 
-- Graphiti
 - Cognee
+- Graphiti
 - mem0 graph memory
 
 These are useful peer systems, but they are not identical products. Results
 must be reported by track and by capability, not as a single overall winner.
+
+### Peer Memory Benchmark Contract
+
+For Cognee, Graphiti, and mem0 comparisons, use SEOCHO's existing result/judge shape and
+swap only the system adapter. The common contract is:
+
+- dataset: one JSONL row per case with `corpus` or `messages`, `question`,
+  `answer`, optional `gold_entities`, and optional `tags`
+- embedding: BGE only for the shared vector lane, default
+  `BAAI/bge-small-en-v1.5`
+- answer model: MARA gateway, default `mara/DeepSeek-V3.1`
+- judge model: MARA gateway, default `mara/gpt-oss-120b`
+- graph backend: DozerDB for SEOCHO; peer systems may use their native backend
+  but must report backend/version in the artifact
+- retrieval budget: same top-k/context budget across systems
+- artifact: every case records `answer`, `evidence`, `retrieved_entities`,
+  `latency_ms`, token usage or estimate, and structured error state
+
+Run-plan validation starts here:
+
+```bash
+uv run python scripts/benchmarks/peer_memory_benchmark.py check-env
+
+uv run python scripts/benchmarks/peer_memory_benchmark.py plan \
+  --dataset examples/benchmarks/peer_memory_smoke.jsonl \
+  --systems seocho,cognee,graphiti,mem0 \
+  --embedding-model BAAI/bge-small-en-v1.5 \
+  --answer-model mara/DeepSeek-V3.1 \
+  --judge-model mara/gpt-oss-120b \
+  --out outputs/evaluation/graphrag_bench/peer_memory_plan.json
+```
+
+Parallel smoke execution uses `uv` and writes a reproducible JSON artifact. It
+records skipped jobs when optional peer packages or MARA credentials are absent:
+
+```bash
+uv run python scripts/benchmarks/peer_memory_benchmark.py run \
+  --dataset examples/benchmarks/peer_memory_smoke.jsonl \
+  --track memory \
+  --mode graph_cot \
+  --max-workers 4 \
+  --out outputs/evaluation/graphrag_bench/peer_memory_smoke_graph_cot.json
+```
+
+Current first concrete memory adapters:
+
+- `seocho`: runnable contract-local evidence adapter for reproducible smoke
+  comparisons
+- `mem0`: runnable native `Memory.add/search` adapter with local Qdrant and BGE
+  embeddings; mem0 is serialized inside the thread pool because its local
+  migration Qdrant path is not concurrency-safe
+- `cognee`: runnable native `remember/recall` adapter with session-scoped
+  recall; the artifact records Cognee session evidence separately from graph
+  dataset permission warnings
+- `graphiti`: native `add_episode/search` adapter is wired with MARA LLM, BGE
+  embedder, and lexical reranker; current MARA `DeepSeek-V3.1` runs record
+  adapter errors because Graphiti's OpenAI client uses the Responses API path
+  that MARA rejects for that model
+
+EnterpriseRAG-Bench-style GraphRAG framework comparison uses the separate track:
+
+```bash
+uv run python scripts/benchmarks/peer_memory_benchmark.py plan \
+  --dataset examples/benchmarks/peer_memory_smoke.jsonl \
+  --track enterprise_rag \
+  --systems seocho,microsoft_graphrag,lightrag,neo4j_graphrag,cognee \
+  --out outputs/evaluation/graphrag_bench/enterprise_rag_peer_plan.json
+```
+
+Report peer results by slice:
+
+- `fact_lookup`
+- `temporal_change`
+- `decision_summary`
+- `decision_action_who_when_where_how`
+- `multi_hop_entity_relation`
+- `abstention_missing_evidence`
+
+Interpretation rule:
+
+- Graphiti is expected to be strong on temporal change, provenance, and evolving
+  facts.
+- mem0 is expected to be strong on memory add/search ergonomics and latency.
+- Cognee is expected to be strong as an ontology-aware memory baseline that
+  combines graph, vector search, and generated ontology structure.
+- SEOCHO is expected to be strong where ontology guardrails, slot completeness,
+  and approved schema contracts affect answer quality.
+- If a peer system cannot expose comparable provenance, score answer quality
+  normally but mark evidence coverage as unavailable rather than fabricating a
+  graph-quality number.
 
 ## Measurement Order
 

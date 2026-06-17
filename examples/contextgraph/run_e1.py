@@ -22,9 +22,11 @@ meaningless for narrative); partials are finder_judge-format → score with
   finder_judge.py --judge-domain decision --judge-llms openai/gpt-5.5
 """
 from __future__ import annotations
-import argparse, csv, os, re, sys, json, math, statistics
+import argparse, csv, os, re, sys, json, math, statistics, time, subprocess, threading, signal
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections import defaultdict
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
@@ -38,7 +40,7 @@ from scripts.benchmarks.finder_4arm_sample import _graph_context, _vector_contex
 from seocho.query.strategy import PromptTemplate
 from seocho.store.graph import Neo4jGraphStore, sanitize_database_name
 from seocho.store.llm import create_llm_backend
-from seocho import Seocho
+from seocho import Ontology, Seocho
 from decision_modules.compose import compose_modules, ARMS
 
 SEP = "===EVIDENCE_BOUNDARY==="
@@ -53,6 +55,155 @@ _ANSWER_SYSTEM = (
     "- Do not invent people, proposals, or decisions not in the context.\n"
     "- If the answer is not in the context, say 'not in the provided context'."
 )
+
+
+class _AddTimeoutError(TimeoutError):
+    pass
+
+
+def _run_with_alarm_timeout(timeout_seconds: float, fn, *args, **kwargs):
+    if timeout_seconds <= 0:
+        return fn(*args, **kwargs)
+    if threading.current_thread() is not threading.main_thread():
+        return fn(*args, **kwargs)
+    previous_handler = signal.getsignal(signal.SIGALRM)
+
+    def _raise_timeout(signum, frame):  # noqa: ANN001
+        raise _AddTimeoutError(f"operation exceeded {timeout_seconds:.1f}s")
+
+    signal.signal(signal.SIGALRM, _raise_timeout)
+    signal.setitimer(signal.ITIMER_REAL, timeout_seconds)
+    try:
+        return fn(*args, **kwargs)
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0.0)
+        signal.signal(signal.SIGALRM, previous_handler)
+
+
+class BuildObserver:
+    """Collect runner-local extraction hygiene metrics without changing core SDK.
+
+    The arbiter is too noisy for prompt/schema micro-tuning, so this observer
+    records deterministic leading indicators per (thread, arm): validation
+    errors, illegal relationship types, and simple repair/drop counts.
+    """
+
+    def __init__(
+        self,
+        *,
+        declared_relationships: set[str],
+        repair_invalid_rels: bool = False,
+    ) -> None:
+        self.declared_relationships = declared_relationships
+        self.repair_invalid_rels = repair_invalid_rels
+        self.reset()
+
+    def reset(self) -> None:
+        self.validation_errors = 0
+        self.unknown_relationship_errors = 0
+        self.illegal_relationships = 0
+        self.repaired_relationships = 0
+        self.dropped_relationships = 0
+        self.add_timeouts = 0
+        self.add_errors = 0
+        self.illegal_relationship_types: set[str] = set()
+
+    def after_validate(
+        self,
+        nodes: list[dict[str, Any]],
+        rels: list[dict[str, Any]],
+        errors: list[str],
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
+        self.validation_errors += len(errors or [])
+        unknown_errors = [
+            err for err in (errors or []) if str(err).startswith("Unknown relationship type")
+        ]
+        self.unknown_relationship_errors += len(unknown_errors)
+
+        declared = self.declared_relationships
+        if not declared:
+            return nodes, rels, errors
+
+        node_by_id = {str(n.get("id")): n for n in nodes or []}
+        kept: list[dict[str, Any]] = []
+        residual_errors = list(errors or [])
+        repaired_this_call = 0
+        dropped_this_call = 0
+
+        def _label(node_id: Any) -> str:
+            node = node_by_id.get(str(node_id))
+            return str((node or {}).get("label") or "")
+
+        def _polarity(props: dict[str, Any]) -> str:
+            for key in ("polarity", "direction", "stance"):
+                value = str(props.get(key) or "").strip().upper()
+                if value in {"FOR", "AGAINST", "NEUTRAL"}:
+                    return value
+                if value == "SUPPORT":
+                    return "FOR"
+                if value == "OPPOSE":
+                    return "AGAINST"
+            return ""
+
+        for rel in rels or []:
+            rtype = str(rel.get("type") or "").strip()
+            if rtype in declared:
+                kept.append(rel)
+                continue
+
+            self.illegal_relationships += 1
+            self.illegal_relationship_types.add(rtype or "<empty>")
+
+            if self.repair_invalid_rels and rtype == "OTHER":
+                source_node = node_by_id.get(str(rel.get("source")))
+                if source_node and source_node.get("label") == "DecisionEvent":
+                    props = source_node.setdefault("properties", {})
+                    props.setdefault("event_type", "OTHER")
+                    repaired_this_call += 1
+                    continue
+
+            if (
+                self.repair_invalid_rels
+                and "HOLDS_POSITION" in declared
+                and _label(rel.get("source")) == "Person"
+                and _label(rel.get("target")) == "Topic"
+            ):
+                props = rel.setdefault("properties", {})
+                polarity = _polarity(props)
+                if polarity:
+                    props["polarity"] = polarity
+                    rel["type"] = "HOLDS_POSITION"
+                    kept.append(rel)
+                    repaired_this_call += 1
+                    continue
+
+            dropped_this_call += 1
+
+        if self.repair_invalid_rels and (repaired_this_call or dropped_this_call):
+            # The invalid rels have been removed/repaired locally, so the matching
+            # unknown-type validation errors are no longer actionable. Other SHACL
+            # errors remain visible to strict mode.
+            residual_errors = [
+                err for err in residual_errors
+                if not str(err).startswith("Unknown relationship type")
+            ]
+
+        self.repaired_relationships += repaired_this_call
+        self.dropped_relationships += dropped_this_call
+        return nodes, kept, residual_errors
+
+    def snapshot(self) -> dict[str, Any]:
+        return {
+            "validation_errors": self.validation_errors,
+            "unknown_relationship_errors": self.unknown_relationship_errors,
+            "illegal_relationships": self.illegal_relationships,
+            "illegal_relationship_types": sorted(self.illegal_relationship_types),
+            "repaired_relationships": self.repaired_relationships,
+            "dropped_relationships": self.dropped_relationships,
+            "add_timeouts": self.add_timeouts,
+            "add_errors": self.add_errors,
+            "repair_invalid_rels": self.repair_invalid_rels,
+        }
 
 
 def _tok(s):
@@ -89,6 +240,13 @@ def build_decision_prompt(ontology, arm: str, prompt_file=None) -> PromptTemplat
                       f'RELATIONSHIP TYPES:\n{ctx.get("relationship_types","")}')
     sys_tmpl = sys_tmpl.replace("{{ontology}}", onto_block)
     return PromptTemplate(system=sys_tmpl, user="Email thread to extract:\n\n{{text}}")
+
+
+def _load_ontology_for_arm(arm: str, artifact_json: str = "") -> Ontology:
+    if artifact_json:
+        payload = json.loads(Path(artifact_json).read_text(encoding="utf-8"))
+        return Ontology.from_artifact(payload)
+    return compose_modules(ARMS[arm])
 
 
 def _bge_vector_context(refs, query, bge, *, top_k: int = 5, chunk_size: int = 800) -> str:
@@ -130,12 +288,153 @@ def answer(llm, query, context):
     return (getattr(r, "text", "") or ""), dict(getattr(r, "usage", {}) or {})
 
 
+def _safe_id(value: str) -> str:
+    return re.sub(r"[^A-Za-z0-9_.-]+", "_", str(value))
+
+
+def _append_jsonl(path: Path, record: dict[str, Any], lock: threading.Lock | None = None) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if lock is None:
+        with path.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(record, default=str) + "\n")
+        return
+    with lock:
+        with path.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(record, default=str) + "\n")
+
+
+def _run_build_workers(
+    *,
+    args: argparse.Namespace,
+    thread_ids: list[str],
+    db: str,
+    out_run: str,
+    out_dir: Path,
+    metrics_path: Path,
+) -> int:
+    """Build threads in isolated child processes with per-thread timeout.
+
+    This is intentionally subprocess-based rather than in-process multiprocessing:
+    each worker gets a fresh LLM/graph/tracing client and can be killed without
+    poisoning the parent run. Workspaces stay thread-scoped, and status JSONL is
+    the source of truth for completed vs timeout/partial builds.
+    """
+
+    status_path = Path(args.status_jsonl) if args.status_jsonl else out_dir.parent / "build_status.jsonl"
+    logs_dir = out_dir.parent / "worker_logs"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    status_lock = threading.Lock()
+    timeout = float(args.thread_timeout_seconds or 0)
+
+    def run_one(tid: str) -> dict[str, Any]:
+        safe_tid = _safe_id(tid)
+        log_path = logs_dir / f"{safe_tid}.log"
+        trace_path = args.trace_jsonl
+        if trace_path and args.trace_backend and "jsonl" in args.trace_backend:
+            base = Path(trace_path)
+            trace_path = str(base.with_name(f"{base.stem}.{safe_tid}{base.suffix or '.jsonl'}"))
+
+        cmd = [
+            sys.executable,
+            str(Path(__file__).resolve()),
+            "--model", args.model,
+            "--provider", args.provider,
+            "--arms", args.arms,
+            "--threads", "1",
+            "--thread-ids", tid,
+            "--run", args.run,
+            "--out-run", out_run,
+            "--data", str(args.data),
+            "--prompt-file", str(args.prompt_file),
+            "--database", db,
+            "--embed", args.embed,
+            "--build-only",
+            "--strict", args.strict,
+            "--metrics-jsonl", str(metrics_path),
+            "--build-workers", "1",
+        ]
+        if args.repair_invalid_rels:
+            cmd.append("--repair-invalid-rels")
+        if args.trace_backend:
+            cmd.extend(["--trace-backend", args.trace_backend])
+        if trace_path:
+            cmd.extend(["--trace-jsonl", trace_path])
+        if args.per_add_timeout_seconds:
+            cmd.extend(["--per-add-timeout-seconds", str(args.per_add_timeout_seconds)])
+        if args.ontology_artifact_json:
+            cmd.extend(["--ontology-artifact-json", str(args.ontology_artifact_json)])
+
+        start = time.time()
+        record: dict[str, Any] = {
+            "run": args.run,
+            "out_run": out_run,
+            "thread_id": tid,
+            "database": db,
+            "status": "started",
+            "timeout_seconds": timeout,
+            "log_path": str(log_path),
+            "started_at": start,
+        }
+        _append_jsonl(status_path, record, status_lock)
+        with log_path.open("w", encoding="utf-8") as log_fh:
+            try:
+                completed = subprocess.run(
+                    cmd,
+                    cwd=str(ROOT),
+                    stdout=log_fh,
+                    stderr=subprocess.STDOUT,
+                    timeout=timeout if timeout > 0 else None,
+                    check=False,
+                )
+                status = "completed" if completed.returncode == 0 else "failed"
+                returncode = completed.returncode
+            except subprocess.TimeoutExpired:
+                status = "timeout"
+                returncode = None
+            except Exception as exc:
+                status = "failed"
+                returncode = None
+                log_fh.write(f"\nworker exception: {type(exc).__name__}: {exc}\n")
+
+        elapsed = time.time() - start
+        done = {
+            **record,
+            "status": status,
+            "returncode": returncode,
+            "elapsed_seconds": round(elapsed, 3),
+            "completed_at": time.time(),
+        }
+        _append_jsonl(status_path, done, status_lock)
+        return done
+
+    print(
+        f"== worker build: threads={len(thread_ids)} workers={args.build_workers} "
+        f"timeout={timeout or 'none'}s status={status_path} =="
+    )
+    failures = 0
+    with ThreadPoolExecutor(max_workers=max(1, int(args.build_workers))) as pool:
+        futures = [pool.submit(run_one, tid) for tid in thread_ids]
+        for fut in as_completed(futures):
+            rec = fut.result()
+            if rec["status"] != "completed":
+                failures += 1
+            print(
+                f"  [worker {rec['thread_id']}] {rec['status']} "
+                f"elapsed={rec.get('elapsed_seconds')}s log={rec['log_path']}"
+            )
+    print(f"worker status -> {status_path}")
+    print(f"build metrics -> {metrics_path}")
+    return 1 if failures else 0
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", default="MiniMax-M2.5")
     ap.add_argument("--provider", default="mara")
     ap.add_argument("--arms", default="non-ontology,decision")  # general vs ontology
     ap.add_argument("--threads", type=int, default=4, help="number of distinct threads to sample")
+    ap.add_argument("--thread-ids", default="",
+                    help="comma-separated thread ids to run; overrides --threads when provided")
     ap.add_argument("--run", default="e1-bc3")
     ap.add_argument("--data", default=str(DATA), help="slices CSV (bc3_slices.csv / ami_slices.csv)")
     ap.add_argument("--prompt-file", default=str(PROMPT_FILE),
@@ -144,6 +443,8 @@ def main():
     ap.add_argument("--database", default=None, help="pin exact graph DB (decouples from --model; for --reuse-graph)")
     ap.add_argument("--embed", default="bge", choices=["bge", "openai"],
                     help="vector-lane embedder: bge=local (default, $0, cost policy) | openai")
+    ap.add_argument("--bge-device", default=None,
+                    help="local BGE device: auto, cuda, cpu, or mps; defaults to SEOCHO_BGE_DEVICE/auto")
     ap.add_argument("--build-only", action="store_true",
                     help="build graphs only, skip answering (round-1: $0 CQ/SHACL metrics, judge deferred)")
     ap.add_argument("--reuse-graph", action="store_true",
@@ -153,6 +454,28 @@ def main():
     ap.add_argument("--strict", default="off", choices=["off", "strip", "true"],
                     help="relation firewall: off (default) | strip (drop only undeclared relation "
                          "types, keep valid nodes) | true (reject whole chunk on any validation error)")
+    ap.add_argument("--repair-invalid-rels", action="store_true",
+                    help="runner-local repair pass for known invalid relation drift, e.g. OTHER rels "
+                         "from process-context prompts; emits repair/drop metrics")
+    ap.add_argument("--metrics-jsonl", default=None,
+                    help="write per-build local metric records here (default: outputs/.../<out-run>/build_metrics.jsonl)")
+    ap.add_argument("--trace-backend", default=None,
+                    help="enable tracing backend for this run: none|console|jsonl|opik|jsonl,opik "
+                         "(default: SEOCHO_TRACE_BACKEND env)")
+    ap.add_argument("--trace-jsonl", default=None,
+                    help="JSONL trace path when jsonl tracing is enabled")
+    ap.add_argument("--build-workers", type=int, default=1,
+                    help="build-only subprocess workers across thread ids; use >1 for timeout-safe parallel build")
+    ap.add_argument("--thread-timeout-seconds", type=float, default=0.0,
+                    help="per-thread worker timeout when --build-workers > 1; 0 disables timeout")
+    ap.add_argument("--per-add-timeout-seconds", type=float, default=0.0,
+                    help="per-message client.add timeout inside build workers; timed-out messages are skipped")
+    ap.add_argument("--status-jsonl", default=None,
+                    help="write parent worker terminal status records here")
+    ap.add_argument("--ontology-artifact-json", default="",
+                    help="load the extraction ontology from an approved/draft semantic artifact JSON "
+                         "instead of composing the named arm modules; useful for approved_only-style "
+                         "local experiment reruns")
     args = ap.parse_args()
     _STRICT = {"off": False, "strip": "strip", "true": True}[args.strict]
 
@@ -161,7 +484,11 @@ def main():
     by_thread = defaultdict(list)
     for c in all_cases:
         by_thread[str(c["_id"]).split("#")[0]].append(c)
-    thread_ids = list(by_thread)[: args.threads]
+    if args.thread_ids.strip():
+        requested = [x.strip() for x in args.thread_ids.split(",") if x.strip()]
+        thread_ids = [tid for tid in requested if tid in by_thread]
+    else:
+        thread_ids = list(by_thread)[: args.threads]
     arms = [a.strip() for a in args.arms.split(",") if a.strip() in ARMS]
 
     # DB prefix from dataset stem (bc3_slices -> cgbc3, ami_slices -> cgami) so
@@ -178,13 +505,52 @@ def main():
     out_run = args.out_run or args.run  # decouple output dir from workspace run-tag (reuse-graph)
     out_dir = ROOT / "outputs" / "evaluation" / "contextgraph" / out_run / "partial"
     out_dir.mkdir(parents=True, exist_ok=True)
-    # Embedder for the vector lane. Default local BGE ($0, no OpenAI) per cost policy.
+    metrics_path = Path(args.metrics_jsonl) if args.metrics_jsonl else out_dir.parent / "build_metrics.jsonl"
+    metrics_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if (
+        args.build_only
+        and not args.reuse_graph
+        and int(args.build_workers or 1) > 1
+        and len(thread_ids) > 1
+    ):
+        parent_gs = Neo4jGraphStore(
+            os.environ["NEO4J_URI"],
+            os.environ.get("NEO4J_USER", "neo4j"),
+            os.environ.get("NEO4J_PASSWORD", ""),
+        )
+        parent_gs.ensure_database(db, wait_online=True, timeout=30.0)
+        parent_gs.close()
+        code = _run_build_workers(
+            args=args,
+            thread_ids=thread_ids,
+            db=db,
+            out_run=out_run,
+            out_dir=out_dir,
+            metrics_path=metrics_path,
+        )
+        raise SystemExit(code)
+
+    if args.trace_backend:
+        from seocho.tracing import enable_tracing
+        enable_tracing(
+            backend=[b.strip() for b in args.trace_backend.split(",") if b.strip()],
+            output=args.trace_jsonl or str(out_dir.parent / "trace.jsonl"),
+            project_name=os.getenv("OPIK_PROJECT_NAME", "seocho-contextgraph"),
+        )
+    else:
+        from seocho.tracing import configure_tracing_from_env
+        configure_tracing_from_env()
+    # Embedder for the vector lane. Build-only runs never answer vector lanes, so
+    # avoid requiring optional sentence-transformers in pure graph-build jobs.
     bge = None
     oai = None
-    if args.embed == "bge":
+    if args.build_only:
+        print("  [embed] skipped for build-only run")
+    elif args.embed == "bge":
         from seocho.store.local_embedding import LocalBGEEmbeddingBackend
-        bge = LocalBGEEmbeddingBackend()
-        print(f"  [embed] local BGE {bge._model_name} dim={bge.dim} ($0, no OpenAI)")
+        bge = LocalBGEEmbeddingBackend(device=args.bge_device)
+        print(f"  [embed] local BGE {bge._model_name} dim={bge.dim} device={bge.device} ($0, no OpenAI)")
     else:
         from openai import OpenAI
         oai = OpenAI(timeout=60)
@@ -202,19 +568,46 @@ def main():
         # build the decision graph ONCE per (thread, arm)
         gctx_by_arm = {}
         for arm in arms:
-            onto = compose_modules(ARMS[arm])
+            onto = _load_ontology_for_arm(arm, args.ontology_artifact_json)
             ws = f"{args.run}-{arm}-{tid}"
+            observer = BuildObserver(
+                declared_relationships=set(onto.relationships),
+                repair_invalid_rels=args.repair_invalid_rels,
+            )
             client = Seocho(ontology=onto, graph_store=gs, llm=llm,
                             workspace_id=ws, extraction_prompt=build_decision_prompt(onto, arm, args.prompt_file))
             client.default_database = db
+            if getattr(client, "_engine", None) is not None:
+                client._engine._indexing.on_after_validate = observer.after_validate
+            build_elapsed = 0.0
             if args.reuse_graph:
                 pass  # round-2: graph already built (build-only round-1); answer only, no re-extract
             else:
                 try:
+                    build_start = time.time()
                     for r in refs:
-                        client.add(r, user_id=ws, strict_validation=_STRICT)
+                        try:
+                            _run_with_alarm_timeout(
+                                float(args.per_add_timeout_seconds or 0.0),
+                                client.add,
+                                r,
+                                user_id=ws,
+                                strict_validation=_STRICT,
+                            )
+                        except _AddTimeoutError as e:
+                            observer.add_timeouts += 1
+                            print(
+                                f"  [build {tid} @{arm}] add timeout after "
+                                f"{args.per_add_timeout_seconds:.1f}s: {str(e)[:80]}"
+                            )
+                            continue
+                        except Exception:
+                            observer.add_errors += 1
+                            raise
                 except Exception as e:
                     print(f"  [build {tid} @{arm}] add err: {type(e).__name__}: {str(e)[:80]}")
+                finally:
+                    build_elapsed = time.time() - build_start
             # NOTE: do NOT client.close() here — it closes the SHARED gs driver,
             # which silently broke every subsequent build (build 1 wrote, close
             # killed gs, builds 2..N wrote 0 nodes). gs is closed once at the end.
@@ -229,6 +622,52 @@ def main():
             except Exception:
                 nodes = -1
             gctx_by_arm[arm] = gctx
+            metric_record = {
+                "run": args.run,
+                "out_run": out_run,
+                "thread_id": tid,
+                "arm": arm,
+                "workspace_id": ws,
+                "database": db,
+                "strict": args.strict,
+                "reuse_graph": bool(args.reuse_graph),
+                "nodes": nodes,
+                "graph_context_chars": len(gctx),
+                "elapsed_seconds": round(build_elapsed if not args.reuse_graph else 0.0, 3),
+                **observer.snapshot(),
+            }
+            with metrics_path.open("a", encoding="utf-8") as fh:
+                fh.write(json.dumps(metric_record, default=str) + "\n")
+            try:
+                from seocho.tracing import log_span, is_tracing_enabled
+                if is_tracing_enabled():
+                    log_span(
+                        "contextgraph.build",
+                        input_data={
+                            "run": args.run,
+                            "thread_id": tid,
+                            "arm": arm,
+                            "strict": args.strict,
+                        },
+                        output_data={
+                            "nodes": nodes,
+                            "graph_context_chars": len(gctx),
+                            "validation_errors": observer.validation_errors,
+                            "illegal_relationships": observer.illegal_relationships,
+                            "repaired_relationships": observer.repaired_relationships,
+                            "dropped_relationships": observer.dropped_relationships,
+                        },
+                        metadata={
+                            "workspace_id": ws,
+                            "database": db,
+                            "model": f"{args.provider}/{args.model}",
+                            "elapsed_seconds": metric_record["elapsed_seconds"],
+                            "illegal_relationship_types": metric_record["illegal_relationship_types"],
+                        },
+                        tags=["contextgraph", "build", f"arm:{arm}", f"strict:{args.strict}"],
+                    )
+            except Exception:
+                pass
             print(f"  [build {tid} @{arm:<12}] nodes={nodes} gctx_chars={len(gctx)}")
 
         if args.build_only:
@@ -266,6 +705,11 @@ def main():
                 f"{l}@{a}={token_f1(v[0], gold):.2f}" for (l, a), v in lanes.items()))
 
     gs.close()
+    try:
+        from seocho.tracing import flush_tracing
+        flush_tracing()
+    except Exception:
+        pass
     print(f"\n=== E1 rollup [{data_path.stem}]: token_f1 by lane×arm (decision) ===")
     agg = defaultdict(list); chars = defaultdict(list)
     for s in summary:
@@ -273,6 +717,7 @@ def main():
     for k in sorted(agg):
         print(f"  {k[0]:<8}@{k[1]:<12} f1={statistics.mean(agg[k]):.3f}  ctx_chars={statistics.mean(chars[k]):.0f}  n={len(agg[k])}")
     print(f"\nwrote {len(summary)} partials -> {out_dir}")
+    print(f"build metrics -> {metrics_path}")
     print("judge: python scripts/benchmarks/finder_judge.py --judge-domain decision "
           f"--judge-llms openai/gpt-5.5 --inputs 'outputs/evaluation/contextgraph/{args.run}/partial/*.json' "
           f"--out outputs/evaluation/contextgraph/{args.run}_judged.json")

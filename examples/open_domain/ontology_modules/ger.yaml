@@ -1,0 +1,72 @@
+graph_type: "od_ger"
+package_id: "od_ger"
+version: "1.0.0"
+description: "Generic entity-relation module — open-domain named entities and core relations for Wikipedia/news/novel multi-hop QA (RAG-vs-GraphRAG, arXiv 2502.11371)"
+graph_model: "lpg"
+nodes:
+  Person:
+    description: "A named individual (real or fictional character)"
+    aliases: [Character, Individual, Author]
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+  Organization:
+    description: "A company, institution, group, or other named organization"
+    aliases: [Company, Institution, Group, Team]
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+  Location:
+    description: "A named place, region, or geographic entity"
+    aliases: [Place, Region, Country, City]
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+  Work:
+    description: "A named created work — book, film, song, publication, artwork"
+    aliases: [Book, Film, Song, Publication, Artwork]
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+  Event:
+    description: "A named happening, incident, or occurrence"
+    aliases: [Incident, Occurrence]
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+relationships:
+  MEMBER_OF:
+    source: Person
+    target: Organization
+    description: "Person is a member/employee/part of an organization"
+    cardinality: MANY_TO_MANY
+  LOCATED_IN:
+    source: Organization
+    target: Location
+    description: "Organization is located in a place"
+    cardinality: MANY_TO_MANY
+  CREATED_BY:
+    source: Work
+    target: Person
+    description: "Work was authored/created/directed by a person"
+    cardinality: MANY_TO_MANY
+  PARTICIPATED_IN:
+    source: Person
+    target: Event
+    description: "Person took part in an event"
+    cardinality: MANY_TO_MANY
+  RELATED_TO:
+    source: Person
+    target: Person
+    description: "Generic association between two people (family, colleague, rival)"
+    cardinality: MANY_TO_MANY

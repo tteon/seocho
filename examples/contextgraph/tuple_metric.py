@@ -88,6 +88,8 @@ def main():
     ap.add_argument("--db", default="cgbc3minimaxm25")
     ap.add_argument("--ws-prefix", default="e1-bc3-a1-decision-")
     ap.add_argument("--label", default="a1")
+    ap.add_argument("--skip-missing-workspaces", action="store_true",
+                    help="for small-N runs, ignore gold cases whose workspace was not built")
     args = ap.parse_args()
     gold = json.loads(GOLD.read_text())
     gs = Neo4jGraphStore(os.environ["NEO4J_URI"], os.environ.get("NEO4J_USER", "neo4j"),
@@ -101,6 +103,14 @@ def main():
             sl = rec["slice"]
             tid = str(rec["_id"]).split("#")[0]
             ws = f"{args.ws_prefix}{tid}"
+            if args.skip_missing_workspaces:
+                exists = gs.query(
+                    "MATCH (n {_workspace_id:$w}) RETURN count(n) AS n",
+                    params={"w": ws},
+                    database=args.db,
+                ) or []
+                if not exists or not exists[0].get("n"):
+                    continue
             e3, e4 = _graph_tuples(gs, ws, args.db)
             ext = e3 if sl == "E3_PROPOSALS" else e4
             mfn = _match_e3 if sl == "E3_PROPOSALS" else _match_e4

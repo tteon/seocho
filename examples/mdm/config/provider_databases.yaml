@@ -1,0 +1,22 @@
+# Provider fleet on one DozerDB DBMS.
+# Scenario hq-42k, single-DBMS topology: each MARA model-provider owns a
+# separate database on the same local DozerDB server. DozerDB 5.26 does not
+# support CREATE COMPOSITE DATABASE, so benchmark federation uses client-side
+# fan-out over these databases as the composite-like execution model.
+instances:
+  deepseek:
+    uri: bolt://localhost:7687
+    database: mdmdeepseek
+    model: DeepSeek-V3.1
+  gptoss:
+    uri: bolt://localhost:7687
+    database: mdmgptoss
+    model: gpt-oss-120b
+  minimax25:
+    uri: bolt://localhost:7687
+    database: mdmminimax25
+    model: MiniMax-M2.5
+  minimax27:
+    uri: bolt://localhost:7687
+    database: mdmminimax27
+    model: MiniMax-M2.7

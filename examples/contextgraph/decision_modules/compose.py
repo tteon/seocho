@@ -25,7 +25,14 @@ from seocho import Ontology
 
 _THIS_DIR = Path(__file__).resolve().parent
 
-KNOWN_MODULES = ("email_core", "decision_entities", "argument_stance", "position_topic")
+KNOWN_MODULES = (
+    "email_core",
+    "decision_entities",
+    "argument_stance",
+    "position_topic",
+    "proposal_stance",
+    "process_context",
+)
 
 # Nested-superset arms (email_core is the anchor; never a dangling rel source).
 ARMS: Dict[str, List[str]] = {
@@ -37,6 +44,22 @@ ARMS: Dict[str, List[str]] = {
     # HOLDS_POSITION→Topic edge, flipping E4_POSITIONS UNCOVERED→CERTIFIED for the
     # polarity-aggregation question class. Deliberately NOT argument_stance.
     "position": ["email_core", "decision_entities", "position_topic"],
+    # Experiment arm for a1/a2/r1 prompt variants that intentionally extract
+    # direct Person->Proposal stance edges consumed by graph_answer.py.
+    "proposal_stance": ["email_core", "decision_entities", "proposal_stance"],
+    "process_context": [
+        "email_core",
+        "decision_entities",
+        "proposal_stance",
+        "process_context",
+    ],
+    "process_position": [
+        "email_core",
+        "decision_entities",
+        "proposal_stance",
+        "process_context",
+        "position_topic",
+    ],
 }
 
 

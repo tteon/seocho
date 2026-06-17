@@ -27,8 +27,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional, Sequence, Tuple
 
-ROUTE_POLICY_VERSION = "route_policy@v1"
+ROUTE_POLICY_VERSION = "route_policy@v2"
 ANSWERABILITY_VERSION = "answerability@v1"
+PROCESS_POSITION_PROFILE_VERSION = "process_position_guardrail@v1"
 
 
 @dataclass(frozen=True)
@@ -112,12 +113,15 @@ class LanePolicy:
     policy_version: str
     rationale: Tuple[str, ...]
     answerability: Optional[Answerability] = None
+    specialist_profile: Optional[dict] = None
 
 
 def recommend_lane(
     route_class: str,
     question_determinism: str,
     *,
+    intent_id: str = "",
+    focus_slots: Sequence[str] = (),
     source_types: Sequence[str] = (),
     required_relations: Sequence[str] = (),
     declared_relations: Sequence[str] = (),
@@ -134,6 +138,11 @@ def recommend_lane(
     """
     rc = str(route_class or "").strip() or "R1_LOOKUP"
     det = str(question_determinism or "").strip() or "hybrid"
+    specialist_profile = _process_position_specialist_profile(
+        intent_id=intent_id,
+        route_class=rc,
+        focus_slots=focus_slots,
+    )
 
     gate: Optional[Answerability] = None
     if required_relations and declared_relations:
@@ -155,6 +164,7 @@ def recommend_lane(
                 "subject to per-case serving certificate (declared grounded tuples present)",
             ),
             answerability=gate,
+            specialist_profile=specialist_profile,
         )
 
     relational = rc in {"R4_GRAPH_JOIN", "R5_LONG_CONTEXT_REASONING"}
@@ -171,6 +181,7 @@ def recommend_lane(
                 "refuse graph lane (no governed edge to serve/cite)",
             ),
             answerability=gate,
+            specialist_profile=specialist_profile,
         )
 
     if relational:
@@ -208,4 +219,46 @@ def recommend_lane(
         policy_version=ROUTE_POLICY_VERSION,
         rationale=rationale,
         answerability=gate,
+        specialist_profile=specialist_profile,
     )
+
+
+def _process_position_specialist_profile(
+    *,
+    intent_id: str,
+    route_class: str,
+    focus_slots: Sequence[str],
+) -> Optional[dict]:
+    """Recommend the AMI-validated process_position guardrail profile.
+
+    Large-N AMI guardrail results showed pure graph parity overall, graph lift on
+    fact/summary, and robust hybrid lift on decision/action slices. Runtime keeps
+    the profile as routing metadata so answer paths can use content+graph for the
+    slices where the guardrail helped without globally replacing vector retrieval.
+    """
+    iid = str(intent_id or "").strip()
+    slots = {str(slot).strip() for slot in focus_slots if str(slot).strip()}
+    action_slots = {"decision_event", "action_items", "responsible_party", "process_context"}
+    if iid not in {"decision_process_lookup", "engineering_tradeoff_lookup"} and not (slots & action_slots):
+        return None
+
+    if iid == "decision_process_lookup" or slots & action_slots:
+        return {
+            "schema_version": "runtime_guardrail_profile.v1",
+            "profile_id": "process_position",
+            "profile_version": PROCESS_POSITION_PROFILE_VERSION,
+            "role": "decision_action_specialist",
+            "recommended_retrieval": "hybrid",
+            "ontology_guardrail": "strict_strip_repair",
+            "expected_lift": {
+                "basis": "AMI large-N contextgraph guardrail run",
+                "strong_slices": ["A3_DECISIONS", "A4_ACTIONS"],
+                "paired_delta_vs_vector": 0.044,
+            },
+            "rationale": [
+                "use vector content for surface evidence",
+                "use process-position graph for who/when/where/how decision structure",
+                "avoid pure graph as the default answer lane",
+            ],
+        }
+    return None

@@ -1,0 +1,40 @@
+# Category-centric federation topology for hq-42k.
+#
+# Each category owns one database on the same DozerDB DBMS. Provider/model
+# outputs are projected into the matching category database with provider_id,
+# model, provider_database, prompt_id/hash, ontology_modules/hash, case_id, and
+# category preserved as properties. This is the topology the federation agent
+# should route over first: category instance -> provider/model evidence.
+categories:
+  accounting:
+    category: Accounting
+    uri: bolt://localhost:7687
+    database: mdmcataccounting
+  company_overview:
+    category: Company overview
+    uri: bolt://localhost:7687
+    database: mdmcatcompany
+  financials:
+    category: Financials
+    uri: bolt://localhost:7687
+    database: mdmcatfinancials
+  footnotes:
+    category: Footnotes
+    uri: bolt://localhost:7687
+    database: mdmcatfootnotes
+  governance:
+    category: Governance
+    uri: bolt://localhost:7687
+    database: mdmcatgovernance
+  legal:
+    category: Legal
+    uri: bolt://localhost:7687
+    database: mdmcatlegal
+  risk:
+    category: Risk
+    uri: bolt://localhost:7687
+    database: mdmcatrisk
+  shareholder_return:
+    category: Shareholder return
+    uri: bolt://localhost:7687
+    database: mdmcatshareholder

@@ -3,6 +3,25 @@
 This file is the lightweight index of architecture/product decisions.
 Each entry must link to a full ADR when impact is non-trivial.
 
+## 2026-06-15
+
+- Accepted peer memory benchmark contract for `seocho-n2n`
+  - compare SEOCHO against Cognee, Graphiti, and mem0 through a shared dataset,
+    BGE embedding policy, MARA answer/judge models, and fixed retrieval budget
+  - split EnterpriseRAG-style framework comparison from LOCOMO-style memory
+    comparison, with `uv` commands for reproducible parallel smoke runs
+  - keep peer adapters optional and report slice-level strengths instead of one
+    blended winner
+  - add `scripts/benchmarks/peer_memory_benchmark.py` to validate run plans and
+    environment readiness before installing/running peer packages
+
+- Accepted `ADR-0113-process-position-runtime-guardrail-specialist.md`
+  - promote AMI large-N contextgraph guardrail results into runtime route
+    profiles as a `process_position` decision/action specialist
+  - keep retrieval recommendation as hybrid content+graph, not pure graph
+  - expose specialist metadata and answerability gate state through semantic
+    context/evidence bundles while keeping heavy ontology reasoning offline
+
 ## 2026-06-14
 
 - Accepted `ADR-0112-fibo-upstream-submodule-and-compiled-artifact-contract.md`

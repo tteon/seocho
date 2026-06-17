@@ -1,0 +1,48 @@
+graph_type: "od_evt"
+package_id: "od_evt"
+version: "1.0.0"
+description: "Event-temporal module — adds time anchoring and event ordering on top of od_ger. Targets MultiHop-RAG temporal reasoning (must be composed AFTER ger; references Event/Person from ger)"
+graph_model: "lpg"
+nodes:
+  TimePoint:
+    description: "A named point or interval in time (date, year, period label)"
+    aliases: [Date, Year, Period]
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+  Role:
+    description: "A role played by a participant in an event"
+    aliases: [Capacity, Function]
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+relationships:
+  OCCURRED_ON:
+    source: Event
+    target: TimePoint
+    description: "Event happened on/at a time point"
+    cardinality: MANY_TO_MANY
+  PRECEDED_BY:
+    source: Event
+    target: Event
+    description: "Event was preceded by another event (temporal ordering)"
+    cardinality: MANY_TO_MANY
+  CAUSED:
+    source: Event
+    target: Event
+    description: "Event causally led to another event"
+    cardinality: MANY_TO_MANY
+  HAS_PARTICIPANT:
+    source: Event
+    target: Person
+    description: "Event had a person participant"
+    cardinality: MANY_TO_MANY
+  HAS_ROLE:
+    source: Person
+    target: Role
+    description: "Person held a role"
+    cardinality: MANY_TO_MANY

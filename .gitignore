@@ -89,6 +89,7 @@ outputs/
 
 # Data & Database
 data/
+dataset/robustness/
 neo4j/data/
 !website/src/data/
 !website/src/data/**

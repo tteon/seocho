@@ -1,0 +1,67 @@
+# Provider fleet (scenario hq-42k): 4 physical DozerDB instances, one per MARA
+# model-provider. Same bronze topology as docker-compose.instances.yml — APOC
+# only, no GDS (entity resolution runs on the main graphrag-neo4j "designated
+# secondary"). Isolated ports/dirs so this coexists with the dept demo.
+#
+# Usage (repo root):
+#   docker compose --project-directory . -f examples/mdm/docker-compose.providers.yml up -d
+#   bash examples/mdm/10b_up_providers.sh   # up + wait-online wrapper
+
+x-dozer-provider: &dozer-provider
+  image: graphstack/dozerdb:5.26.3.0
+  environment: &dozer-provider-env
+    - NEO4J_AUTH=${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in .env}
+    - NEO4J_PLUGINS=["apoc"]
+    - NEO4J_dbms_security_procedures_unrestricted=apoc.*
+    - NEO4J_dbms_security_procedures_allowlist=apoc.*
+    - NEO4J_server_memory_heap_initial__size=512m
+    - NEO4J_server_memory_heap_max__size=1g
+    - NEO4J_server_memory_pagecache_size=256m
+  networks:
+    - graphrag-net
+
+services:
+  dozer-deepseek:
+    <<: *dozer-provider
+    container_name: dozer-deepseek
+    ports:
+      - "${SEOCHO_BIND_HOST:-127.0.0.1}:7481:7474"
+      - "${SEOCHO_BIND_HOST:-127.0.0.1}:7691:7687"
+    volumes:
+      - ./data/mdm-providers/deepseek/data:/data
+      - ./data/mdm-providers/deepseek/logs:/logs
+
+  dozer-gptoss:
+    <<: *dozer-provider
+    container_name: dozer-gptoss
+    ports:
+      - "${SEOCHO_BIND_HOST:-127.0.0.1}:7482:7474"
+      - "${SEOCHO_BIND_HOST:-127.0.0.1}:7692:7687"
+    volumes:
+      - ./data/mdm-providers/gptoss/data:/data
+      - ./data/mdm-providers/gptoss/logs:/logs
+
+  dozer-minimax25:
+    <<: *dozer-provider
+    container_name: dozer-minimax25
+    ports:
+      - "${SEOCHO_BIND_HOST:-127.0.0.1}:7483:7474"
+      - "${SEOCHO_BIND_HOST:-127.0.0.1}:7693:7687"
+    volumes:
+      - ./data/mdm-providers/minimax25/data:/data
+      - ./data/mdm-providers/minimax25/logs:/logs
+
+  dozer-minimax27:
+    <<: *dozer-provider
+    container_name: dozer-minimax27
+    ports:
+      - "${SEOCHO_BIND_HOST:-127.0.0.1}:7484:7474"
+      - "${SEOCHO_BIND_HOST:-127.0.0.1}:7694:7687"
+    volumes:
+      - ./data/mdm-providers/minimax27/data:/data
+      - ./data/mdm-providers/minimax27/logs:/logs
+
+networks:
+  graphrag-net:
+    name: seocho_graphrag-net
+    external: true

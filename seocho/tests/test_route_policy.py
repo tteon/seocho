@@ -1,8 +1,8 @@
 """F3 — data-grounded retrieval-lane policy tests.
 
-Pins the measured contract: vector ≈ hybrid ≫ graph across FinDER/BC3/AMI, so the
-policy NEVER routes to pure graph and uses the cheap vector-only path (skipping
-expensive synthesis) for deterministic single-lookups.
+Pins the measured contract: vector remains the cheap lookup baseline, while
+AMI large-N evidence promotes process-position context graphs as a hybrid
+specialist for decision/action queries.
 """
 from __future__ import annotations
 
@@ -59,6 +59,7 @@ def test_unknown_route_class_defaults_safely():
     [
         ("relationship_lookup", "R4_GRAPH_JOIN"),
         ("responsibility_lookup", "R4_GRAPH_JOIN"),
+        ("decision_process_lookup", "R5_LONG_CONTEXT_REASONING"),
         ("engineering_tradeoff_lookup", "R5_LONG_CONTEXT_REASONING"),
         ("entity_lookup", "R1_LOOKUP"),
         ("metric_lookup", "R1_LOOKUP"),
@@ -113,6 +114,29 @@ def test_route_profile_carries_lane_policy():
     assert lp["retrieval"] in {"vector", "hybrid"}
     assert lp["policy_version"] == ROUTE_POLICY_VERSION
     assert isinstance(lp["escalate_synthesis"], bool)
+
+
+def test_decision_process_route_profile_carries_process_position_specialist():
+    from seocho.query.intent import _build_route_profile, infer_question_intent
+
+    intent = infer_question_intent("What action was assigned after the decision?", [])
+    prof = _build_route_profile(
+        question="What action was assigned after the decision?",
+        intent=intent,
+        semantic_context={},
+        memory_payload={},
+        candidate_entities=[],
+        selected_triples=[],
+        grounded_slots=[],
+        missing_slots=["decision_event", "action_items"],
+    )
+
+    assert intent["intent_id"] == "decision_process_lookup"
+    assert prof["route_class"] == "R5_LONG_CONTEXT_REASONING"
+    assert prof["lane_policy"]["retrieval"] == "hybrid"
+    specialist = prof["lane_policy"]["specialist_profile"]
+    assert specialist["profile_id"] == "process_position"
+    assert specialist["recommended_retrieval"] == "hybrid"
 
 
 # --- Answerability Gate (ontology-as-predicate, opt-in) ---

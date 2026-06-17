@@ -57,6 +57,7 @@ DEPARTMENTS = [
 
 
 def embedding_candidates(proxies: list[dict], *, threshold: float, model_name: str,
+                         device: str | None = None,
                          existing: set[tuple[int, int]]) -> tuple[list[dict], str]:
     """Tier-b: cosine over local BGE embeddings of normalized names.
 
@@ -65,12 +66,14 @@ def embedding_candidates(proxies: list[dict], *, threshold: float, model_name: s
     try:
         import numpy as np
         from sentence_transformers import SentenceTransformer
+        from seocho.store.local_embedding import resolve_local_embedding_device
     except ImportError as exc:
         return [], f"skipped: {exc}"
     names = sorted({p["norm_name"] for p in proxies})
     if len(names) < 2:
         return [], "skipped: fewer than 2 distinct names"
-    model = SentenceTransformer(model_name)
+    resolved_device = resolve_local_embedding_device(device)
+    model = SentenceTransformer(model_name, device=resolved_device)
     vecs = model.encode(names, normalize_embeddings=True, show_progress_bar=False)
     sim = np.asarray(vecs) @ np.asarray(vecs).T
     name_idx = {n: i for i, n in enumerate(names)}
@@ -85,7 +88,7 @@ def embedding_candidates(proxies: list[dict], *, threshold: float, model_name: s
         if score >= threshold:
             pairs.append({"i": i, "j": j, "method": "embedding",
                           "score": round(score, 4)})
-    return pairs, f"computed over {len(names)} distinct names"
+    return pairs, f"computed over {len(names)} distinct names; device={resolved_device}"
 
 
 def main() -> int:
@@ -98,6 +101,8 @@ def main() -> int:
                     help="read from PHYSICAL department instances (bronze tier) "
                          "instead of multi-database on the main DBMS; optional "
                          "path to an instances.yaml")
+    ap.add_argument("--bge-device", default=None,
+                    help="local BGE device: auto, cuda, cpu, or mps; defaults to SEOCHO_BGE_DEVICE/auto")
     args = ap.parse_args()
     resolve_labels = {x.strip() for x in args.resolve_labels.split(",") if x.strip()}
 
@@ -196,7 +201,7 @@ def main() -> int:
                 seen.add((i, j))
         emb_pairs, emb_status = embedding_candidates(
             proxies, threshold=ruleset.embedding_threshold,
-            model_name=ruleset.embedding_model, existing=seen)
+            model_name=ruleset.embedding_model, device=args.bge_device, existing=seen)
         pairs.extend(emb_pairs)
         print(f"== candidates: {len(pairs)} pairs "
               f"(exact/prefix {len(seen)}, embedding {len(emb_pairs)} [{emb_status}]) ==")

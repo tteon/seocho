@@ -1,0 +1,42 @@
+graph_type: "proposal_stance"
+package_id: "proposal_stance"
+version: "1.0.0"
+description: >
+  Direct proposal-stance relation for the context-graph robustness experiment.
+  This declares the answer-surface edges used by the a1/a2/r1 extraction prompts
+  and the deterministic graph answerer:
+  (:Person)-[:SUPPORTS|OPPOSES]->(:Proposal).
+graph_model: "lpg"
+nodes:
+  Person:
+    description: "A participant (anchored in email_core; redeclared for standalone merge)"
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+  Proposal:
+    description: "An action or option being put forward for consideration"
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+      source_quote:
+        type: STRING
+        description: "Verbatim sentence(s) grounding the proposal"
+relationships:
+  SUPPORTS:
+    source: Person
+    target: Proposal
+    description: >
+      Person expressed support for the proposal. Edge properties should include
+      source_quote and, when stated, rationale.
+    cardinality: MANY_TO_MANY
+  OPPOSES:
+    source: Person
+    target: Proposal
+    description: >
+      Person expressed opposition to the proposal. Edge properties should include
+      source_quote and, when stated, rationale.
+    cardinality: MANY_TO_MANY

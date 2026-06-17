@@ -309,6 +309,19 @@ def test_canonical_semantic_agent_flow_supports_graph_cot_query_mode():
     assert any(step["agent"] == "AnswerGuardrailAgent" for step in result["trace_steps"])
 
 
+def test_semantic_flow_surfaces_process_position_runtime_guardrail_profile():
+    flow = SemanticAgentFlow(FakeConnector())
+    result = flow.run("What action was assigned after the Neo4j decision?", ["kgnormal"])
+
+    route_profile = result["evidence_bundle"]["route_profile"]
+    specialist = route_profile["lane_policy"]["specialist_profile"]
+    assert result["semantic_context"]["intent"]["intent_id"] == "decision_process_lookup"
+    assert route_profile["route_class"] == "R5_LONG_CONTEXT_REASONING"
+    assert route_profile["lane_policy"]["retrieval"] == "hybrid"
+    assert specialist["profile_id"] == "process_position"
+    assert result["semantic_context"]["runtime_guardrail_profile"]["profile_id"] == "process_position"
+
+
 def test_answer_generation_preserves_long_supporting_sentence_product_ids():
     supporting_fact = (
         "NVIDIA Corporation reported data center revenue of $15.0 billion in fiscal 2024, "

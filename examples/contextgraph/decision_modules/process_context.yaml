@@ -1,0 +1,97 @@
+graph_type: "process_context"
+package_id: "process_context"
+version: "1.0.0"
+description: >
+  Process context for decision threads: who did what, when, where, and how.
+  This is an answer-context arm, meant to make graph serialization carry the
+  decision process rather than only proposal/stance endpoints.
+graph_model: "lpg"
+nodes:
+  DecisionEvent:
+    description: >
+      A grounded event in the decision process, such as proposing, objecting,
+      supporting, revising a position, requesting a next step, or deciding.
+    aliases: [ProcessStep, Action, Interaction]
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+      event_type:
+        type: STRING
+        description: "PROPOSED | SUPPORTED | OPPOSED | REQUESTED | REVISED | DECIDED | OTHER"
+      occurred_at:
+        type: STRING
+        description: "Timestamp as written or normalized when discernible; null if absent"
+      how:
+        type: STRING
+        description: "How the step happened or was proposed to happen"
+      source_quote:
+        type: STRING
+        description: "Verbatim sentence(s) grounding the event"
+  Location:
+    description: "Explicit place, venue, channel, meeting, or forum named in the thread"
+    aliases: [Place, Venue, Forum, Channel]
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+  Method:
+    description: "Procedure, mechanism, or implementation method discussed in the decision"
+    aliases: [Procedure, Mechanism, Approach, Process]
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+      source_quote:
+        type: STRING
+        description: "Verbatim grounding for the method when available"
+  Organization:
+    description: "Organization, company, working group, committee, or institution named in the thread"
+    aliases: [Company, Institution, Group, Committee, WorkingGroup]
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+        required: true
+      source_quote:
+        type: STRING
+        description: "Verbatim grounding for the organization when available"
+relationships:
+  PERFORMED_BY:
+    source: DecisionEvent
+    target: Person
+    description: "The actor who performed or expressed this decision-process step"
+    cardinality: MANY_TO_MANY
+  EVENT_FOR:
+    source: DecisionEvent
+    target: Proposal
+    description: "The proposal or option this process event concerns"
+    cardinality: MANY_TO_MANY
+  EVENT_DECIDES:
+    source: DecisionEvent
+    target: Decision
+    description: "The decision event that records a resolved outcome"
+    cardinality: MANY_TO_MANY
+  OCCURRED_IN_THREAD:
+    source: DecisionEvent
+    target: EmailThread
+    description: "The email thread or conversation where the event occurred"
+    cardinality: MANY_TO_MANY
+  OCCURRED_AT:
+    source: DecisionEvent
+    target: Location
+    description: "Explicit place, venue, meeting, or forum where the event applies"
+    cardinality: MANY_TO_MANY
+  INVOLVES_ORG:
+    source: DecisionEvent
+    target: Organization
+    description: "Organization, working group, committee, or institution involved in the event"
+    cardinality: MANY_TO_MANY
+  USES_METHOD:
+    source: DecisionEvent
+    target: Method
+    description: "How the step happened or the method/procedure it proposes"
+    cardinality: MANY_TO_MANY

@@ -1,0 +1,28 @@
+# Provider fleet — one MARA model per physical DozerDB instance.
+# Scenario hq-42k: each model-provider indexes FinDER across ALL 8 categories
+# into its own sovereign store; the FederationAgent routes + merges per query.
+#
+# Reuses the Instance shape from lib/federation.py (dept==provider_id). Fresh
+# instances on :7691-7694 keep this experiment isolated from the dept demo
+# (:7688-7690). All 4 MARA gateway models are represented (MARA_MODELS).
+instances:
+  deepseek:
+    uri: bolt://localhost:7691
+    database: neo4j
+    model: DeepSeek-V3.1
+    rpd: 1500              # tightest MARA budget — scheduler guards on this
+  gptoss:
+    uri: bolt://localhost:7692
+    database: neo4j
+    model: gpt-oss-120b
+    rpd: 5000
+  minimax25:
+    uri: bolt://localhost:7693
+    database: neo4j
+    model: MiniMax-M2.5
+    rpd: 5000
+  minimax27:
+    uri: bolt://localhost:7694
+    database: neo4j
+    model: MiniMax-M2.7
+    rpd: 5000             # loosest — preferred for federation synthesis + router

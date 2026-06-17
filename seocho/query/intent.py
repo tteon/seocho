@@ -188,6 +188,33 @@ INTENT_CATALOG: tuple[IntentSpec, ...] = (
         ),
     ),
     IntentSpec(
+        intent_id="decision_process_lookup",
+        required_relations=("DECIDED_BY", "ASSIGNED_TO", "RESULTED_IN", "HAS_SOURCE_QUOTE"),
+        required_entity_types=("DecisionEvent", "ActionItem", "Person"),
+        focus_slots=(
+            "decision_event",
+            "action_items",
+            "responsible_party",
+            "process_context",
+            "supporting_fact",
+        ),
+        trigger_keywords=(
+            "decision",
+            "decisions",
+            "decided",
+            "outcome",
+            "action",
+            "actions",
+            "action item",
+            "assigned",
+            "responsible",
+            "who",
+            "when",
+            "where",
+            "how",
+        ),
+    ),
+    IntentSpec(
         intent_id="explanation_lookup",
         required_relations=(),
         required_entity_types=("Entity",),
@@ -477,7 +504,7 @@ def derive_route_class(
     iid = str(intent_id or "").strip()
     if iid in {"relationship_lookup", "responsibility_lookup"}:
         return "R4_GRAPH_JOIN"
-    if iid == "engineering_tradeoff_lookup":
+    if iid in {"decision_process_lookup", "engineering_tradeoff_lookup"}:
         return "R5_LONG_CONTEXT_REASONING"
     if iid == "explanation_lookup":
         return "R5_LONG_CONTEXT_REASONING" if "text" in source_types else "R1_LOOKUP"
@@ -535,7 +562,15 @@ def _build_route_profile(
     # in the profile so retrieval/cost gating and traces can consume one decision.
     from .route_policy import recommend_lane
 
-    lane = recommend_lane(route_class, question_determinism, source_types=source_types)
+    lane = recommend_lane(
+        route_class,
+        question_determinism,
+        intent_id=intent_id,
+        focus_slots=focus_slots,
+        source_types=source_types,
+        required_relations=[str(relation) for relation in intent.get("required_relations", [])],
+        declared_relations=_declared_relations_from_semantic_context(semantic_context),
+    )
 
     return {
         "schema_version": "route_profile.v1",
@@ -549,8 +584,42 @@ def _build_route_profile(
             "escalate_synthesis": lane.escalate_synthesis,
             "policy_version": lane.policy_version,
             "rationale": list(lane.rationale),
+            "specialist_profile": dict(lane.specialist_profile or {}),
+            "answerability": (
+                {
+                    "verdict": lane.answerability.verdict,
+                    "declared_match": list(lane.answerability.declared_match),
+                    "rationale": lane.answerability.rationale,
+                    "version": lane.answerability.version,
+                }
+                if lane.answerability is not None
+                else {}
+            ),
         },
     }
+
+
+def _declared_relations_from_semantic_context(semantic_context: Dict[str, Any]) -> List[str]:
+    """Read already-compiled runtime relation metadata for lightweight gating."""
+    semantic_layer = semantic_context.get("semantic_layer")
+    if not isinstance(semantic_layer, dict):
+        return []
+    databases = semantic_layer.get("databases")
+    if not isinstance(databases, dict):
+        return []
+    declared: List[str] = []
+    for payload in databases.values():
+        if not isinstance(payload, dict):
+            continue
+        for key in ("allowed_relationship_types", "relationship_types", "relations"):
+            values = payload.get(key)
+            if not isinstance(values, list):
+                continue
+            for value in values:
+                cleaned = str(value).strip()
+                if cleaned and cleaned not in declared:
+                    declared.append(cleaned)
+    return declared
 
 
 def _source_types_for_route(
@@ -594,7 +663,7 @@ def _question_determinism(question: str, intent_id: str) -> Tuple[str, List[str]
     if intent_id in {"relationship_lookup", "responsibility_lookup"}:
         deterministic_score += 1
         reasons.append("relation intent can be checked against explicit graph slots")
-    if intent_id in {"engineering_tradeoff_lookup", "explanation_lookup"}:
+    if intent_id in {"decision_process_lookup", "engineering_tradeoff_lookup", "explanation_lookup"}:
         nondeterministic_score += 1
         reasons.append("intent needs supporting evidence before synthesis")
     if any(term in normalized for term in ("how many", "count", "average", "sum", "highest", "lowest")):

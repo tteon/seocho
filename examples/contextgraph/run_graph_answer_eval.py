@@ -46,6 +46,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--threads", type=int, default=15)
     ap.add_argument("--run", default="e1-bc3-detgraph")
+    ap.add_argument("--db", default=DB)
+    ap.add_argument("--ws-run", default=WS_RUN)
+    ap.add_argument("--arm", default="decision")
     args = ap.parse_args()
     rows = list(csv.DictReader(open(DATA)))
     by_thread = defaultdict(list)
@@ -59,12 +62,12 @@ def main():
     n = 0
     try:
         for tid in tids:
-            w = f"{WS_RUN}-decision-{tid}"
+            w = f"{args.ws_run}-{args.arm}-{tid}"
             for c in by_thread[tid]:
                 fn = SLICE_FN.get(c["slice"])
                 if fn is None:
                     continue
-                ans, ok = fn(gs, w, DB)
+                ans, ok = fn(gs, w, args.db)
                 rec = {"_id": f"{c['_id']}|graph|deterministic", "slice": c["slice"],
                        "category": "Decision", "query": c["query"], "expected_answer": c["answer"],
                        "answer": ans, "retrieval": "graph", "mode": "graph", "arm": "deterministic",

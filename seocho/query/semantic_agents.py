@@ -2190,6 +2190,7 @@ class LPGAgent:
             "artifact_ids": list(constraint_slice.get("artifact_ids", [])),
             "label_count": len(constraint_slice.get("allowed_labels", [])),
             "relationship_count": len(constraint_slice.get("allowed_relationship_types", [])),
+            "allowed_relationship_types": list(constraint_slice.get("allowed_relationship_types", []))[:64],
             "property_count": len(constraint_slice.get("allowed_properties", [])),
         }
 

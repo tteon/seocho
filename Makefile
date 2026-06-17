@@ -72,6 +72,12 @@ test-integration: ## Run integration-focused extraction tests
 e2e-smoke: ## Run dockerized runtime smoke checks (ingest + semantic + debate)
 	@echo "🧪 Running e2e smoke checks..."
 	@bash scripts/integration/e2e_runtime_smoke.sh
+	@echo "📐 Perf-budget gate (seocho-6q9.2)..."
+	@if [ -f "$${SEOCHO_TRACE_JSONL_PATH:-traces/seocho.jsonl}" ]; then \
+		bash scripts/benchmarks/check-perf-budgets.sh; \
+	else \
+		echo "  SKIP perf-budget gate: no JSONL trace at $${SEOCHO_TRACE_JSONL_PATH:-traces/seocho.jsonl} (run a benchmark with SEOCHO_TRACE_BACKEND=jsonl to enforce budgets)"; \
+	fi
 
 demo-raw: ## Run beginner raw-data demo pipeline
 	@bash scripts/demo/pipeline_raw_data.sh

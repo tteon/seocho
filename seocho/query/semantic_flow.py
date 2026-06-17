@@ -167,6 +167,7 @@ class SemanticAgentFlow:
                     )
                 if isinstance(lpg_result.get("evidence_bundle"), dict):
                     semantic_context["evidence_bundle_preview"] = lpg_result["evidence_bundle"]
+                    self._surface_runtime_guardrail_profile(semantic_context, lpg_result["evidence_bundle"])
                 if isinstance(lpg_result.get("reasoning"), dict):
                     semantic_context["reasoning"] = lpg_result["reasoning"]
                 if isinstance(lpg_result.get("support_assessment"), dict):
@@ -416,6 +417,10 @@ class SemanticAgentFlow:
                 "missing_slots": list(packet.missing_slots),
                 "database": packet.database,
             }
+        self._surface_runtime_guardrail_profile(
+            semantic_context,
+            semantic_context.get("evidence_bundle_preview", {}),
+        )
         base_support_assessment = (
             lpg_result.get("support_assessment", {})
             if isinstance(lpg_result, dict) and isinstance(lpg_result.get("support_assessment"), dict)
@@ -554,6 +559,23 @@ class SemanticAgentFlow:
             "final_answer": final_answer.to_dict(),
         }
         return final_answer.answer_text, lpg_result, rdf_result
+
+    @staticmethod
+    def _surface_runtime_guardrail_profile(
+        semantic_context: Dict[str, Any],
+        evidence_bundle: Dict[str, Any],
+    ) -> None:
+        route_profile = evidence_bundle.get("route_profile")
+        if not isinstance(route_profile, dict):
+            return
+        lane_policy = route_profile.get("lane_policy")
+        if not isinstance(lane_policy, dict):
+            return
+        specialist_profile = lane_policy.get("specialist_profile")
+        if isinstance(specialist_profile, dict) and specialist_profile:
+            semantic_context["runtime_guardrail_profile"] = specialist_profile
+        if isinstance(lane_policy.get("answerability"), dict) and lane_policy["answerability"]:
+            semantic_context["answerability_gate"] = lane_policy["answerability"]
 
     @staticmethod
     def _apply_entity_overrides(

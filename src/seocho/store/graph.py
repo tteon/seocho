@@ -312,6 +312,26 @@ class GraphStore(ABC):
 
 
 _packstream_codec_logged = False
+_packstream_codec: Optional[str] = None
+
+
+def packstream_codec() -> str:
+    """Active PackStream codec: ``rust-ext`` | ``pure-python`` | ``unknown``.
+
+    ADR-0111: the ``neo4j-rust-ext`` codec is an install-time drop-in whose win
+    is result hydration. ADR-0144 stamps this on ``db.query`` spans so a silent
+    fallback to pure-python (e.g. a lost wheel) shows up as elevated hydration
+    latency in traces instead of going unnoticed. Cached after first probe.
+    """
+    global _packstream_codec
+    if _packstream_codec is not None:
+        return _packstream_codec
+    try:
+        from neo4j._codec.packstream import RUST_AVAILABLE
+        _packstream_codec = "rust-ext" if RUST_AVAILABLE else "pure-python"
+    except ImportError:  # private flag moved — report honestly, don't guess
+        _packstream_codec = "unknown"
+    return _packstream_codec
 
 
 def _log_packstream_codec_once() -> None:
@@ -325,12 +345,7 @@ def _log_packstream_codec_once() -> None:
     if _packstream_codec_logged:
         return
     _packstream_codec_logged = True
-    try:
-        from neo4j._codec.packstream import RUST_AVAILABLE
-        codec = "rust-ext" if RUST_AVAILABLE else "pure-python"
-    except ImportError:  # private flag moved — report honestly, don't guess
-        codec = "unknown (neo4j._codec.packstream.RUST_AVAILABLE not found)"
-    logger.info("neo4j packstream codec: %s active", codec)
+    logger.info("neo4j packstream codec: %s active", packstream_codec())
 
 
 class Neo4jGraphStore(GraphStore):
@@ -571,9 +586,54 @@ class Neo4jGraphStore(GraphStore):
             merged_params["workspace_id"] = workspace_id
         if enforce_workspace_filter and "$workspace_id" not in cypher:
             raise WorkspaceFilterMissingError(cypher)
-        with self._driver.session(database=database) as session:
-            result = session.run(cypher, parameters=merged_params)
-            return [record.data() for record in result]
+
+        from ..tracing import (
+            capture_text,
+            content_capture_enabled,
+            is_tracing_enabled,
+            start_span,
+        )
+
+        ws = workspace_id or merged_params.get("workspace_id") or ""
+        if not is_tracing_enabled():
+            with self._driver.session(database=database) as session:
+                result = session.run(cypher, parameters=merged_params)
+                return [record.data() for record in result]
+
+        # ADR-0144: instrument the read at the execution boundary. The
+        # record.data() loop is where the PackStream codec runs, so we split
+        # server time (ResultSummary) from client hydration — the slice the
+        # ADR-0111 rust-ext win lives in — and stamp the active codec.
+        with start_span(
+            "db.query",
+            metadata={"db.system": "neo4j", "db.name": database, "workspace_id": ws},
+            tags=["db"],
+        ) as span:
+            with self._driver.session(database=database) as session:
+                started = time.perf_counter()
+                result = session.run(cypher, parameters=merged_params)
+                rows = [record.data() for record in result]
+                wall_ms = (time.perf_counter() - started) * 1000.0
+                try:
+                    summary = result.consume()
+                    server_ms = float(getattr(summary, "result_available_after", 0) or 0) + float(
+                        getattr(summary, "result_consumed_after", 0) or 0
+                    )
+                except Exception:
+                    server_ms = None
+            attrs: Dict[str, Any] = {
+                "db.rows_returned": len(rows),
+                "db.client.codec": packstream_codec(),
+            }
+            if server_ms is not None:
+                attrs["db.duration_server_ms"] = round(server_ms, 2)
+                attrs["db.duration_hydrate_ms"] = round(max(0.0, wall_ms - server_ms), 2)
+            if content_capture_enabled():
+                stmt = capture_text(cypher)
+                if stmt:
+                    attrs["db.statement"] = stmt
+            span.set_metadata(attrs)
+            return rows
 
     def execute_write(
         self,
@@ -591,20 +651,45 @@ class Neo4jGraphStore(GraphStore):
             merged_params["workspace_id"] = workspace_id
         if enforce_workspace_filter and "$workspace_id" not in cypher:
             raise WorkspaceFilterMissingError(cypher)
-        with self._driver.session(database=database) as session:
-            result = session.run(cypher, parameters=merged_params)
-            counters = result.consume().counters
-            return {
-                "nodes_affected": (
-                    getattr(counters, "nodes_created", 0)
-                    + getattr(counters, "nodes_deleted", 0)
-                ),
-                "relationships_affected": (
-                    getattr(counters, "relationships_created", 0)
-                    + getattr(counters, "relationships_deleted", 0)
-                ),
-                "properties_set": getattr(counters, "properties_set", 0),
-            }
+        from ..tracing import is_tracing_enabled, start_span
+
+        ws = workspace_id or merged_params.get("workspace_id") or ""
+
+        def _run() -> Any:
+            with self._driver.session(database=database) as session:
+                result = session.run(cypher, parameters=merged_params)
+                return result.consume().counters
+
+        if is_tracing_enabled():
+            with start_span(
+                "db.execute_write",
+                metadata={"db.system": "neo4j", "db.name": database, "workspace_id": ws},
+                tags=["db", "write"],
+            ) as span:
+                counters = _run()
+                span.set_metadata(
+                    {
+                        "db.client.codec": packstream_codec(),
+                        "db.nodes_created": getattr(counters, "nodes_created", 0),
+                        "db.nodes_deleted": getattr(counters, "nodes_deleted", 0),
+                        "db.relationships_created": getattr(counters, "relationships_created", 0),
+                        "db.relationships_deleted": getattr(counters, "relationships_deleted", 0),
+                        "db.properties_set": getattr(counters, "properties_set", 0),
+                    }
+                )
+        else:
+            counters = _run()
+        return {
+            "nodes_affected": (
+                getattr(counters, "nodes_created", 0)
+                + getattr(counters, "nodes_deleted", 0)
+            ),
+            "relationships_affected": (
+                getattr(counters, "relationships_created", 0)
+                + getattr(counters, "relationships_deleted", 0)
+            ),
+            "properties_set": getattr(counters, "properties_set", 0),
+        }
 
     def ensure_constraints(
         self,

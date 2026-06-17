@@ -30,26 +30,66 @@ Multiple backends supported::
 
 from __future__ import annotations
 
+import contextvars
 import functools
 import json
 import logging
 import os
 import time
+import uuid
 from abc import ABC, abstractmethod
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Sequence, Union
+from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Union
 
 logger = logging.getLogger(__name__)
 
 TRACE_BACKEND_ENV = "SEOCHO_TRACE_BACKEND"
 TRACE_JSONL_PATH_ENV = "SEOCHO_TRACE_JSONL_PATH"
 TRACE_OPIK_MODE_ENV = "SEOCHO_TRACE_OPIK_MODE"
-_VALID_BACKEND_NAMES = {"none", "console", "jsonl", "opik"}
+TRACE_OTLP_ENDPOINT_ENV = "SEOCHO_TRACE_OTLP_ENDPOINT"
+TRACE_CONTENT_CAPTURE_ENV = "SEOCHO_TRACE_CAPTURE_CONTENT"
+_VALID_BACKEND_NAMES = {"none", "console", "jsonl", "opik", "otlp"}
+_TRUTHY = {"1", "true", "yes", "on"}
 
 # Module-level state
 _BACKENDS: List["TracingBackend"] = []
 _BACKEND_NAMES: List[str] = []
+
+# Nesting stack for start_span(): a tuple ``(trace_id, span_id, span_id, ...)``
+# where element 0 is the trace id and the last element is the immediate parent.
+_span_stack: contextvars.ContextVar = contextvars.ContextVar(
+    "seocho_span_stack", default=()
+)
+
+
+# ======================================================================
+# Content-capture policy (ADR-0144)
+# ======================================================================
+
+def content_capture_enabled() -> bool:
+    """True when full content (prompts, Cypher, retrieved bodies) may be traced.
+
+    Span *attributes* (hashes, versions, counts, ids) are always emitted; large
+    *content* is gated behind ``SEOCHO_TRACE_CAPTURE_CONTENT`` so the default
+    trace stays light. This is the root mitigation for "tracing is too heavy".
+    """
+    return str(os.getenv(TRACE_CONTENT_CAPTURE_ENV, "") or "").strip().lower() in _TRUTHY
+
+
+def capture_text(text: Any, *, max_chars: int = 2000) -> Optional[str]:
+    """Return text for tracing only when content capture is on, else ``None``.
+
+    Truncates to ``max_chars`` with a marker. Callers should omit the field when
+    this returns ``None`` so disabled-capture traces carry no content at all.
+    """
+    if text is None or not content_capture_enabled():
+        return None
+    s = text if isinstance(text, str) else str(text)
+    if len(s) > max_chars:
+        return s[:max_chars] + f"...[+{len(s) - max_chars} chars]"
+    return s
 
 
 # ======================================================================
@@ -272,6 +312,258 @@ class ConsoleBackend(TracingBackend):
         print("  ".join(parts))
 
 
+def _flatten_attributes(
+    data: Optional[Dict[str, Any]], prefix: str = ""
+) -> Dict[str, Any]:
+    """Flatten a nested dict into OTel-safe attributes (primitives / lists).
+
+    OpenTelemetry attributes must be primitives or homogeneous sequences of
+    primitives. Nested dicts become dotted keys; mixed/complex values are
+    JSON-encoded; ``None`` values are dropped.
+    """
+    attrs: Dict[str, Any] = {}
+    if not data:
+        return attrs
+    for key, value in data.items():
+        attr_key = f"{prefix}{key}"
+        if value is None:
+            continue
+        if isinstance(value, bool) or isinstance(value, (str, int, float)):
+            attrs[attr_key] = value
+        elif isinstance(value, dict):
+            attrs.update(_flatten_attributes(value, prefix=f"{attr_key}."))
+        elif isinstance(value, (list, tuple)):
+            if all(isinstance(x, (str, bool, int, float)) for x in value):
+                attrs[attr_key] = list(value)
+            else:
+                attrs[attr_key] = json.dumps(value, default=str)
+        else:
+            attrs[attr_key] = str(value)
+    return attrs
+
+
+class OTLPBackend(TracingBackend):
+    """Export spans over OTLP gRPC to an OpenTelemetry Collector (ADR-0144).
+
+    The lightweight local alternative to self-hosted Opik: spans flow to a
+    Collector and on to Tempo (traces) / Prometheus (metrics) / Grafana. Opik
+    stays the cloud team backend; both can run together via a backend list.
+
+    Requires the OTel SDK + OTLP exporter::
+
+        pip install opentelemetry-sdk opentelemetry-exporter-otlp-proto-grpc
+
+    Config: ``SEOCHO_TRACE_OTLP_ENDPOINT`` (default ``http://localhost:4317``),
+    ``OTEL_SERVICE_NAME`` (default ``seocho``).
+
+    Unlike the flat backends, this one supports real parent/child nesting via
+    :func:`start_span` (``open_span`` / ``close_span`` drive the OTel context),
+    so a single ``ask()`` lands as a span tree in Tempo.
+    """
+
+    def __init__(
+        self,
+        *,
+        endpoint: Optional[str] = None,
+        service_name: Optional[str] = None,
+    ) -> None:
+        try:
+            from opentelemetry import context as _ot_context
+            from opentelemetry import trace as _ot_trace
+            from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
+                OTLPSpanExporter,
+            )
+            from opentelemetry.sdk.resources import Resource
+            from opentelemetry.sdk.trace import TracerProvider
+            from opentelemetry.sdk.trace.export import BatchSpanProcessor
+            from opentelemetry.trace import Status, StatusCode
+        except ImportError as exc:
+            raise ImportError(
+                "OTLPBackend requires opentelemetry: pip install "
+                "opentelemetry-sdk opentelemetry-exporter-otlp-proto-grpc"
+            ) from exc
+
+        self._endpoint = (
+            endpoint
+            or os.getenv(TRACE_OTLP_ENDPOINT_ENV, "")
+            or "http://localhost:4317"
+        )
+        self._service_name = (
+            service_name or os.getenv("OTEL_SERVICE_NAME", "") or "seocho"
+        )
+        self._ot_trace = _ot_trace
+        self._ot_context = _ot_context
+        self._Status = Status
+        self._StatusCode = StatusCode
+
+        self._meter = None
+        self._meter_provider = None
+        self._counters: Dict[str, Any] = {}
+        try:
+            resource = Resource.create({"service.name": self._service_name})
+            provider = TracerProvider(resource=resource)
+            exporter = OTLPSpanExporter(
+                endpoint=self._endpoint,
+                insecure=self._endpoint.startswith("http://"),
+            )
+            provider.add_span_processor(BatchSpanProcessor(exporter))
+            self._provider = provider
+            self._tracer = provider.get_tracer("seocho.tracing")
+            self._init_error: Optional[str] = None
+            # Metrics pipeline (ADR-0144 §6): isolated so a missing/old metrics
+            # SDK never disables tracing.
+            try:
+                from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import (
+                    OTLPMetricExporter,
+                )
+                from opentelemetry.sdk.metrics import MeterProvider
+                from opentelemetry.sdk.metrics.export import (
+                    PeriodicExportingMetricReader,
+                )
+
+                reader = PeriodicExportingMetricReader(
+                    OTLPMetricExporter(
+                        endpoint=self._endpoint,
+                        insecure=self._endpoint.startswith("http://"),
+                    )
+                )
+                self._meter_provider = MeterProvider(
+                    resource=resource, metric_readers=[reader]
+                )
+                self._meter = self._meter_provider.get_meter("seocho.tracing")
+            except Exception as exc:
+                logger.debug("OTLP meter init skipped: %s", exc)
+        except Exception as exc:
+            logger.warning("OTLP backend init failed: %s", exc)
+            self._provider = None
+            self._tracer = None
+            self._init_error = f"{type(exc).__name__}: {exc}"
+
+    def _attributes(
+        self,
+        input_data: Optional[Dict[str, Any]],
+        output_data: Optional[Dict[str, Any]],
+        metadata: Optional[Dict[str, Any]],
+        tags: Optional[List[str]],
+    ) -> Dict[str, Any]:
+        attrs: Dict[str, Any] = {}
+        attrs.update(_flatten_attributes(input_data, prefix="input."))
+        attrs.update(_flatten_attributes(output_data, prefix="output."))
+        attrs.update(_flatten_attributes(metadata))
+        if tags:
+            attrs["seocho.tags"] = list(tags)
+        return attrs
+
+    def log_span(
+        self,
+        name: str,
+        *,
+        input_data: Optional[Dict[str, Any]] = None,
+        output_data: Optional[Dict[str, Any]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        tags: Optional[List[str]] = None,
+    ) -> None:
+        # Leaf/point event: a one-shot span under whatever context is current,
+        # so it nests under any active start_span().
+        if self._tracer is None:
+            return
+        try:
+            span = self._tracer.start_span(name)
+            for k, v in self._attributes(input_data, output_data, metadata, tags).items():
+                span.set_attribute(k, v)
+            span.end()
+        except Exception as exc:
+            logger.debug("OTLP log_span failed: %s", exc)
+
+    def open_span(self, name: str, *, attributes: Optional[Dict[str, Any]] = None) -> Any:
+        """Open a span, attach it as current context, return a handle for close_span."""
+        if self._tracer is None:
+            return None
+        try:
+            span = self._tracer.start_span(name)
+            if attributes:
+                for k, v in attributes.items():
+                    span.set_attribute(k, v)
+            ctx = self._ot_trace.set_span_in_context(span)
+            token = self._ot_context.attach(ctx)
+            return (span, token)
+        except Exception as exc:
+            logger.debug("OTLP open_span failed: %s", exc)
+            return None
+
+    def close_span(
+        self,
+        handle: Any,
+        *,
+        attributes: Optional[Dict[str, Any]] = None,
+        error: Optional[BaseException] = None,
+    ) -> None:
+        if not handle:
+            return
+        span, token = handle
+        try:
+            if attributes:
+                for k, v in attributes.items():
+                    span.set_attribute(k, v)
+            if error is not None:
+                span.record_exception(error)
+                span.set_status(self._Status(self._StatusCode.ERROR))
+        except Exception as exc:
+            logger.debug("OTLP close_span failed: %s", exc)
+        finally:
+            try:
+                self._ot_context.detach(token)
+            except Exception:
+                pass
+            try:
+                span.end()
+            except Exception:
+                pass
+
+    def record_metric(
+        self,
+        name: str,
+        value: float = 1,
+        *,
+        attributes: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Add to a monotonic counter (Prometheus appends ``_total``)."""
+        if self._meter is None:
+            return
+        try:
+            counter = self._counters.get(name)
+            if counter is None:
+                counter = self._meter.create_counter(name)
+                self._counters[name] = counter
+            counter.add(value, attributes or {})
+        except Exception as exc:
+            logger.debug("OTLP record_metric failed: %s", exc)
+
+    def flush(self) -> None:
+        if self._provider is not None:
+            try:
+                self._provider.force_flush()
+            except Exception:
+                pass
+        if self._meter_provider is not None:
+            try:
+                self._meter_provider.force_flush()
+            except Exception:
+                pass
+
+    def close(self) -> None:
+        if self._provider is not None:
+            try:
+                self._provider.shutdown()
+            except Exception:
+                pass
+        if self._meter_provider is not None:
+            try:
+                self._meter_provider.shutdown()
+            except Exception:
+                pass
+
+
 # ======================================================================
 # Public API
 # ======================================================================
@@ -280,6 +572,7 @@ _BACKEND_MAP = {
     "opik": OpikBackend,
     "jsonl": JSONLBackend,
     "console": ConsoleBackend,
+    "otlp": OTLPBackend,
 }
 
 
@@ -337,7 +630,7 @@ def configure_tracing_from_env() -> bool:
     """Enable tracing from the repository's env contract.
 
     Supported values for ``SEOCHO_TRACE_BACKEND``:
-    ``none | console | jsonl | opik``.
+    ``none | console | jsonl | opik | otlp``.
     """
     backend_name = str(os.getenv(TRACE_BACKEND_ENV, "none") or "none").strip().lower()
     if backend_name not in _VALID_BACKEND_NAMES:
@@ -427,6 +720,9 @@ def enable_tracing(
                 elif b == "console":
                     new_backends.append(ConsoleBackend())
                     active_backend_names.append("console")
+                elif b == "otlp":
+                    new_backends.append(OTLPBackend())
+                    active_backend_names.append("otlp")
                 elif b == "none":
                     continue
                 else:
@@ -501,6 +797,193 @@ def log_span(
             )
         except Exception:
             pass
+
+
+def record_metric(
+    name: str,
+    value: float = 1,
+    *,
+    attributes: Optional[Dict[str, Any]] = None,
+) -> None:
+    """Record a counter metric on backends that support metrics (OTLP → Prometheus).
+
+    No-op on flat backends. Counter names are emitted as-is; the OTel→Prometheus
+    exporter appends ``_total`` (so ``seocho_validation_errors`` →
+    ``seocho_validation_errors_total``). ADR-0144 §6.
+    """
+    for b in _BACKENDS:
+        fn = getattr(b, "record_metric", None)
+        if fn is None:
+            continue
+        try:
+            fn(name, value, attributes=attributes)
+        except Exception:
+            pass
+
+
+# ---------------------------------------------------------------------------
+# Structured spans with parent/child nesting (ADR-0144)
+# ---------------------------------------------------------------------------
+
+class _NullSpan:
+    """Returned by start_span() when tracing is disabled — zero overhead."""
+
+    def set_input(self, *_a: Any, **_kw: Any) -> None: ...
+    def set_output(self, *_a: Any, **_kw: Any) -> None: ...
+    def set_metadata(self, *_a: Any, **_kw: Any) -> None: ...
+    def set_tags(self, *_tags: str) -> None: ...
+
+
+class SpanHandle:
+    """Mutable handle yielded by :func:`start_span` to enrich a span in-flight."""
+
+    def __init__(self, name: str, span_id: str, parent_span_id: Optional[str], trace_id: str) -> None:
+        self.name = name
+        self.span_id = span_id
+        self.parent_span_id = parent_span_id
+        self.trace_id = trace_id
+        self.error: Optional[BaseException] = None
+        self._input: Dict[str, Any] = {}
+        self._output: Dict[str, Any] = {}
+        self._metadata: Dict[str, Any] = {}
+        self._tags: List[str] = []
+
+    def set_input(self, mapping: Optional[Dict[str, Any]] = None, **kw: Any) -> None:
+        if mapping:
+            self._input.update(mapping)
+        if kw:
+            self._input.update(kw)
+
+    def set_output(self, mapping: Optional[Dict[str, Any]] = None, **kw: Any) -> None:
+        if mapping:
+            self._output.update(mapping)
+        if kw:
+            self._output.update(kw)
+
+    def set_metadata(self, mapping: Optional[Dict[str, Any]] = None, **kw: Any) -> None:
+        # ``mapping`` carries dotted OTel keys (db.name, gen_ai.*); kwargs are
+        # the convenience form for plain identifiers.
+        if mapping:
+            self._metadata.update(mapping)
+        if kw:
+            self._metadata.update(kw)
+
+    def set_tags(self, *tags: str) -> None:
+        self._tags.extend(tags)
+
+
+@contextmanager
+def start_span(
+    name: str,
+    *,
+    input_data: Optional[Dict[str, Any]] = None,
+    output_data: Optional[Dict[str, Any]] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+    tags: Optional[List[str]] = None,
+) -> Iterator[Any]:
+    """Open a timed span with parent/child nesting, across all backends.
+
+    Backends exposing ``open_span``/``close_span`` (OTLP) get real nested spans
+    via the OTel context, so an ``ask()`` lands as a tree in Tempo. Flat
+    backends (JSONL, console, Opik) receive one record at span close, carrying
+    ``span_id`` / ``parent_span_id`` / ``trace_id`` / ``duration_ms`` so the
+    tree is reconstructable offline.
+
+    No-op with zero overhead when tracing is disabled. Body exceptions
+    propagate (they are recorded on the span first); tracing-internal failures
+    never escape.
+    """
+    if not _BACKENDS:
+        yield _NullSpan()
+        return
+
+    parent = _span_stack.get()
+    if parent:
+        trace_id = parent[0]
+        parent_span_id: Optional[str] = parent[-1]
+        new_stack = parent
+    else:
+        trace_id = uuid.uuid4().hex
+        parent_span_id = None
+        new_stack = (trace_id,)
+    span_id = uuid.uuid4().hex[:16]
+    new_stack = new_stack + (span_id,)
+
+    handle = SpanHandle(name, span_id, parent_span_id, trace_id)
+    handle._input = dict(input_data or {})
+    handle._output = dict(output_data or {})
+    handle._metadata = dict(metadata or {})
+    handle._tags = list(tags or [])
+
+    # Open native nested spans on capable backends (OTLP).
+    opened: List[Any] = []
+    for b in _BACKENDS:
+        opener = getattr(b, "open_span", None)
+        if opener is None:
+            continue
+        try:
+            init_attrs = (
+                b._attributes(handle._input, None, handle._metadata, handle._tags)
+                if hasattr(b, "_attributes")
+                else None
+            )
+            native = opener(name, attributes=init_attrs)
+            if native is not None:
+                opened.append((b, native))
+        except Exception:
+            pass
+
+    stack_token = _span_stack.set(new_stack)
+    start = time.perf_counter()
+    try:
+        yield handle
+    except BaseException as exc:  # record then re-raise — never swallow business errors
+        handle.error = exc
+        raise
+    finally:
+        duration_ms = round((time.perf_counter() - start) * 1000.0, 2)
+        try:
+            _span_stack.reset(stack_token)
+        except Exception:
+            pass
+
+        # Close native spans (OTLP): final output + duration + error status.
+        for b, native in opened:
+            try:
+                close_attrs = (
+                    b._attributes(None, handle._output, {"duration_ms": duration_ms}, None)
+                    if hasattr(b, "_attributes")
+                    else None
+                )
+                b.close_span(native, attributes=close_attrs, error=handle.error)
+            except Exception:
+                pass
+
+        # Emit one record to flat backends (those without open_span).
+        meta = {
+            **handle._metadata,
+            "span_id": span_id,
+            "trace_id": trace_id,
+            "duration_ms": duration_ms,
+        }
+        if parent_span_id:
+            meta["parent_span_id"] = parent_span_id
+        if handle.error is not None:
+            meta["error"] = str(handle.error)
+        out_tags = handle._tags + (["error"] if handle.error is not None else [])
+        for b in _BACKENDS:
+            if getattr(b, "open_span", None) is not None:
+                continue
+            try:
+                b.log_span(
+                    name,
+                    input_data=handle._input or None,
+                    output_data=handle._output or None,
+                    metadata=meta,
+                    tags=out_tags or None,
+                )
+            except Exception:
+                pass
 
 
 def log_extraction(

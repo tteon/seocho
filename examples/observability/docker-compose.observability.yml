@@ -1,0 +1,90 @@
+# ADR-0144: lightweight local OpenTelemetry observability stack.
+#
+# Four containers (Collector + Tempo + Prometheus + Grafana) — the local
+# alternative to self-hosted Opik (8 containers). Opik stays the cloud team
+# backend; this is for local development. Pattern borrowed from LMCache's
+# examples/observability (NOT a manifest copy): SEOCHO services push OTLP to the
+# collector by container name, so no host.docker.internal is needed.
+#
+# Run alongside the main stack (shares the external seocho-net created by
+# docker-compose.yml):
+#
+#   docker compose -f examples/observability/docker-compose.observability.yml \
+#       --profile observability up -d
+#
+# Then point SEOCHO at the collector (in-compose app → otel-collector:4317;
+# host-run app → localhost:4317, the default):
+#
+#   SEOCHO_TRACE_BACKEND=otlp
+#   SEOCHO_TRACE_OTLP_ENDPOINT=http://otel-collector:4317   # in-compose
+#
+# Grafana: http://localhost:3000 (anonymous admin — DEV ONLY; harden for prod).
+# Image tags are pinned (ADR-0144); bump deliberately.
+
+services:
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.119.0
+    container_name: seocho-otel-collector
+    profiles: ["observability"]
+    command: ["--config=/etc/otel-collector.yaml"]
+    volumes:
+      - ./otel-collector.yaml:/etc/otel-collector.yaml:ro
+    ports:
+      - "4317:4317"   # OTLP gRPC (SEOCHO_TRACE_OTLP_ENDPOINT)
+      - "4318:4318"   # OTLP HTTP
+      - "8889:8889"   # Prometheus exposition (scraped by prometheus)
+    networks: [seocho-net]
+    depends_on: [tempo, prometheus]
+
+  tempo:
+    image: grafana/tempo:2.7.2
+    container_name: seocho-tempo
+    profiles: ["observability"]
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./tempo.yaml:/etc/tempo.yaml:ro
+      - tempo-data:/var/tempo
+    ports:
+      - "3200:3200"   # Tempo query API (Grafana datasource)
+    networks: [seocho-net]
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: seocho-prometheus
+    profiles: ["observability"]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=7d
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9091:9090"   # 9091 host to avoid clashing with the opik profile
+    networks: [seocho-net]
+
+  grafana:
+    image: grafana/grafana:11.5.1
+    container_name: seocho-grafana
+    profiles: ["observability"]
+    environment:
+      # DEV ONLY: anonymous admin, login disabled. Do not use in production.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Admin"
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"   # already in SEOCHO_CORS_ORIGINS by default
+    networks: [seocho-net]
+    depends_on: [prometheus, tempo]
+
+networks:
+  seocho-net:
+    external: true
+    name: seocho-net
+
+volumes:
+  tempo-data:
+  prometheus-data:
+  grafana-data:

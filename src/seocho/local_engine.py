@@ -1037,7 +1037,7 @@ class _LocalEngine:
     def _log_semantic_route(self, question: str, sr: Any) -> None:
         """Emit the arbiter route (ADR-0103 H3) as a tracing span for observability."""
         try:
-            from .tracing import is_tracing_enabled, log_span
+            from .tracing import is_tracing_enabled, log_span, record_metric
 
             if not is_tracing_enabled():
                 return
@@ -1049,6 +1049,7 @@ class _LocalEngine:
                 metadata=(hint.to_span() if hint is not None else {"arbiter.route": sr.route}),
                 tags=["semantic-layer", f"route:{sr.route}"],
             )
+            record_metric("seocho_arbiter_route", 1, attributes={"route": sr.route})
         except Exception:
             pass
 

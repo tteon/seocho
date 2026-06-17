@@ -238,6 +238,7 @@ _MODULE_EXPORTS: Dict[str, Iterable[str]] = {
         "flush_tracing",
         "is_backend_enabled",
         "is_tracing_enabled",
+        "record_metric",
         "start_span",
     ],
     ".runtime_bundle": [
@@ -448,6 +449,7 @@ __all__ = [
     "flush_tracing",
     "start_span",
     "capture_text",
+    "record_metric",
     # Errors users catch
     "SeochoError",
     "SeochoConnectionError",

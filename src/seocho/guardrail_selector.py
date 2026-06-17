@@ -135,10 +135,32 @@ def select_guardrail(
             advisories.append("Mixed numeric/entity corpus — consider splitting by sub-domain and "
                               "selecting a guardrail per split.")
 
-    return GuardrailRecommendation(
+    recommendation = GuardrailRecommendation(
         chosen=chosen, domain_kind=domain_kind, numeric_intensity=ni,
         rationale=rationale, advisories=advisories, candidate_scores=scores,
     )
+
+    # ADR-0144 §6: the selection was previously returned but logged nowhere.
+    # Emit an audit span so the decision (and its inputs) is observable.
+    try:
+        from .tracing import is_tracing_enabled, log_span
+
+        if is_tracing_enabled():
+            log_span(
+                "ontology.guardrail_select",
+                input_data={"candidates": sorted(candidates)},
+                output_data={
+                    "chosen": chosen,
+                    "domain_kind": domain_kind,
+                    "numeric_intensity": ni,
+                },
+                metadata={"rationale": rationale, "candidate_scores": scores},
+                tags=["ontology", "guardrail"],
+            )
+    except Exception:
+        pass
+
+    return recommendation
 
 
 def select_per_domain(

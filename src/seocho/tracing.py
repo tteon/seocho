@@ -751,9 +751,9 @@ def log_span(
 class _NullSpan:
     """Returned by start_span() when tracing is disabled — zero overhead."""
 
-    def set_input(self, **_kw: Any) -> None: ...
-    def set_output(self, **_kw: Any) -> None: ...
-    def set_metadata(self, **_kw: Any) -> None: ...
+    def set_input(self, *_a: Any, **_kw: Any) -> None: ...
+    def set_output(self, *_a: Any, **_kw: Any) -> None: ...
+    def set_metadata(self, *_a: Any, **_kw: Any) -> None: ...
     def set_tags(self, *_tags: str) -> None: ...
 
 
@@ -771,14 +771,25 @@ class SpanHandle:
         self._metadata: Dict[str, Any] = {}
         self._tags: List[str] = []
 
-    def set_input(self, **kw: Any) -> None:
-        self._input.update(kw)
+    def set_input(self, mapping: Optional[Dict[str, Any]] = None, **kw: Any) -> None:
+        if mapping:
+            self._input.update(mapping)
+        if kw:
+            self._input.update(kw)
 
-    def set_output(self, **kw: Any) -> None:
-        self._output.update(kw)
+    def set_output(self, mapping: Optional[Dict[str, Any]] = None, **kw: Any) -> None:
+        if mapping:
+            self._output.update(mapping)
+        if kw:
+            self._output.update(kw)
 
-    def set_metadata(self, **kw: Any) -> None:
-        self._metadata.update(kw)
+    def set_metadata(self, mapping: Optional[Dict[str, Any]] = None, **kw: Any) -> None:
+        # ``mapping`` carries dotted OTel keys (db.name, gen_ai.*); kwargs are
+        # the convenience form for plain identifiers.
+        if mapping:
+            self._metadata.update(mapping)
+        if kw:
+            self._metadata.update(kw)
 
     def set_tags(self, *tags: str) -> None:
         self._tags.extend(tags)

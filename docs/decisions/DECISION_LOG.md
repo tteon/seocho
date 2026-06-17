@@ -3,6 +3,26 @@
 This file is the lightweight index of architecture/product decisions.
 Each entry must link to a full ADR when impact is non-trivial.
 
+## 2026-06-17
+
+- [Proposed] ADR-0144 local-otel-observability-and-span-trace-structure
+  - extends ADR-0045: add `otlp` tracing backend → lightweight local stack
+    (OTel Collector + Tempo + Prometheus + Grafana, 4 containers) as the
+    alternative to heavy self-hosted Opik; Opik stays the cloud team backend,
+    JSONL stays canonical. LMCache's topology was the pattern source; its
+    metrics don't apply (no local vLLM+LMCache serving)
+  - replace the single flat `sdk.query` span with a nested `rag.ask` tree
+    (decompose → arbitrate → compile_cypher → execute → retrieve_ctx →
+    synthesize) using existing `StageTimer` + `SessionTrace`; `retrieve_ctx`
+    (what was fed to the LLM) is new and top-priority
+  - external-API deployment → prompt is the control surface: adopt `gen_ai.*`
+    conventions + surface `prompt_version` and `stable_prefix_hash`;
+    content-capture (full prompt/Cypher/records) gated behind
+    `SEOCHO_TRACE_CAPTURE_CONTENT` (root fix for "Opik felt heavy")
+  - `workspace_id` first-class on every span; `rag.execute` splits
+    server vs hydration time + `db.client.codec` resource attr, making the
+    ADR-0111 neo4j-rust-ext hydration win observable/regression-guarded
+
 ## 2026-06-16
 
 - [Proposed] ADR-0143 full-corpus-finder-profile

@@ -2330,14 +2330,20 @@ class Ontology:
         if strategy == "right_wins":
             return right
 
-        # Check source/target compatibility
+        # Record any conflicting definitions. merge() raises on the accumulated
+        # list afterward in strict mode, so record ALL conflicts here instead of
+        # returning on the first — otherwise a cardinality mismatch went
+        # uncompared and was silently dropped in favor of the left side (#130).
         if left.source != right.source or left.target != right.target:
             conflicts.append(
                 f"Relationship '{rtype}': "
                 f"{left.source}->{left.target} vs {right.source}->{right.target}"
             )
-            if strategy == "strict":
-                return left
+        if str(left.cardinality).strip().upper() != str(right.cardinality).strip().upper():
+            conflicts.append(
+                f"Relationship '{rtype}': cardinality "
+                f"{left.cardinality} vs {right.cardinality}"
+            )
 
         merged_props = dict(left.properties)
         merged_props.update(right.properties)

@@ -1,13 +1,39 @@
 from __future__ import annotations
 
 import json
+import logging
+import os
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 
+logger = logging.getLogger(__name__)
+
 DEFAULT_SEMANTIC_ARTIFACT_DIR = "outputs/semantic_artifacts"
+
+
+def _atomic_write_json(path: Path, payload: Dict[str, Any]) -> None:
+    """Write JSON atomically: serialize to a temp file in the same directory,
+    fsync, then os.replace into place. A crash or concurrent write can no
+    longer leave a truncated artifact that breaks every later read (issue #139).
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fp:
+            json.dump(payload, fp, indent=2)
+            fp.flush()
+            os.fsync(fp.fileno())
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
 
 
 def save_semantic_artifact(
@@ -55,8 +81,7 @@ def save_semantic_artifact(
     }
 
     artifact_path = workspace_path / f"{artifact_id}.json"
-    with artifact_path.open("w", encoding="utf-8") as fp:
-        json.dump(payload, fp, indent=2)
+    _atomic_write_json(artifact_path, payload)
     return payload
 
 
@@ -150,8 +175,14 @@ def list_semantic_artifacts(
 
     rows: List[Dict[str, Any]] = []
     for path in workspace_path.glob("*.json"):
-        with path.open("r", encoding="utf-8") as fp:
-            payload = json.load(fp)
+        try:
+            with path.open("r", encoding="utf-8") as fp:
+                payload = json.load(fp)
+        except (json.JSONDecodeError, OSError) as exc:
+            # A single corrupt/partially-written artifact must not take down the
+            # whole list endpoint (issue #139). Skip it and keep going.
+            logger.warning("Skipping unreadable semantic artifact %s: %s", path, exc)
+            continue
         row = {
             "artifact_id": payload.get("artifact_id"),
             "workspace_id": payload.get("workspace_id"),
@@ -203,8 +234,7 @@ def approve_semantic_artifact(
     payload["governance"] = governance
     if governance_enforce and not governance.get("ok", True):
         # Persist the failed verdict so the refusal is auditable, then refuse.
-        with artifact_path.open("w", encoding="utf-8") as fp:
-            json.dump(payload, fp, indent=2)
+        _atomic_write_json(artifact_path, payload)
         raise ValueError(
             f"semantic artifact '{artifact_id}' failed governance gate "
             f"(structural_ok={governance['structural']['ok']}, "
@@ -221,8 +251,7 @@ def approve_semantic_artifact(
     payload["deprecation_note"] = None
     payload["deprecated_at"] = None
 
-    with artifact_path.open("w", encoding="utf-8") as fp:
-        json.dump(payload, fp, indent=2)
+    _atomic_write_json(artifact_path, payload)
     return payload
 
 
@@ -291,8 +320,7 @@ def deprecate_semantic_artifact(
     payload["deprecation_note"] = deprecation_note
     payload["deprecated_at"] = _now_iso()
 
-    with artifact_path.open("w", encoding="utf-8") as fp:
-        json.dump(payload, fp, indent=2)
+    _atomic_write_json(artifact_path, payload)
     return payload
 
 

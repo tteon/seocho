@@ -174,7 +174,8 @@ class OntologySnapshotStore:
         out = []
         for f in d.glob("*.json"):
             try:
-                out.append(OntologySnapshot.from_dict(json.loads(f.read_text(encoding="utf-8"))))
+                with f.open("r", encoding="utf-8") as fh:
+                    out.append(OntologySnapshot.from_dict(json.load(fh)))
             except Exception:
                 continue
         return out

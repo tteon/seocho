@@ -189,17 +189,20 @@ class OpikBackend(TracingBackend):
             or ("self_host" if self._url else "hosted")
         ).strip().lower()
 
-        # Set env vars so the SDK client can resolve hosted vs self-hosted config
-        if self._url:
-            os.environ["OPIK_URL_OVERRIDE"] = self._url
+        # Configure the client through its constructor rather than mutating
+        # os.environ. Writing OPIK_* (including OPIK_API_KEY) into the process
+        # environment clobbered any values the host app had set, leaked into
+        # child processes, and widened the key's exposure (issue #141).
+        client_kwargs: Dict[str, Any] = {"project_name": self._project}
         if self._workspace:
-            os.environ["OPIK_WORKSPACE"] = self._workspace
-        os.environ["OPIK_PROJECT_NAME"] = self._project
+            client_kwargs["workspace"] = self._workspace
+        if self._url:
+            client_kwargs["host"] = self._url
         if self._api_key:
-            os.environ["OPIK_API_KEY"] = self._api_key
+            client_kwargs["api_key"] = self._api_key
 
         try:
-            self._client = self._opik.Opik(project_name=self._project)
+            self._client = self._opik.Opik(**client_kwargs)
             self._init_error: Optional[str] = None
         except Exception as exc:
             logger.warning("Opik client init failed: %s", exc)

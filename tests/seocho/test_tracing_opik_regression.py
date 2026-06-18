@@ -116,3 +116,50 @@ def test_init_failure_degrades_silently(_opik_env, monkeypatch):
     assert backend._init_error and "init boom" in backend._init_error
     # no-op, must not raise
     backend.log_span("t", tags=["x"], metadata={"k": "v"})
+
+
+def test_init_does_not_mutate_os_environ(monkeypatch):
+    # Regression #141: init must not write OPIK_* (incl. OPIK_API_KEY) into the
+    # process environment, clobbering values the host app had set.
+    import os
+
+    fake = _make_fake_opik()
+    monkeypatch.setitem(sys.modules, "opik", fake)
+    monkeypatch.setattr(tracing, "_OPIK_VERSION_WARNED", False)
+    original = {
+        "OPIK_URL_OVERRIDE": "orig-url",
+        "OPIK_WORKSPACE": "orig-ws",
+        "OPIK_PROJECT_NAME": "orig-proj",
+        "OPIK_API_KEY": "orig-key",
+    }
+    for k, v in original.items():
+        monkeypatch.setenv(k, v)
+
+    OpikBackend(url="http://h:1/api", workspace="ws-b",
+                project_name="proj-b", api_key="key-b")
+
+    for k, v in original.items():
+        assert os.environ[k] == v  # unchanged
+
+
+def test_config_passed_through_constructor(_opik_env, monkeypatch):
+    # The Opik client is configured via its constructor instead of env vars.
+    captured = {}
+    fake = _make_fake_opik()
+    base_opik = fake.Opik
+
+    class CapturingOpik(base_opik):
+        def __init__(self, **kw):
+            captured.update(kw)
+            super().__init__(**kw)
+
+    fake.Opik = CapturingOpik
+    monkeypatch.setitem(sys.modules, "opik", fake)
+
+    OpikBackend(url="http://h:1/api", workspace="ws-b",
+                project_name="proj-b", api_key="key-b")
+
+    assert captured["project_name"] == "proj-b"
+    assert captured["workspace"] == "ws-b"
+    assert captured["host"] == "http://h:1/api"
+    assert captured["api_key"] == "key-b"

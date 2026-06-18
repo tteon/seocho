@@ -107,10 +107,12 @@ ontology = [
     "owlready2",
     "pyshacl",
     "rdflib>=6.0",
+    "pyyaml",
 ]
 embedded = [
     "real_ladybug>=0.15.0",
     "openai",
+    "pyyaml",
 ]
 pdf = [
     "opendataloader-pdf",

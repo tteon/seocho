@@ -153,12 +153,13 @@ def _is_true(value: Any) -> bool:
 def _read_redirect_from_config(config_path: Path) -> str:
     if not config_path.exists():
         return ""
-    for raw in config_path.read_text().splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#"):
+    with config_path.open("r", encoding="utf-8") as f:
+        for raw in f:
+                line = raw.strip()
+            if not line or line.startswith("#"):
             continue
-        if line.startswith("redirect:"):
-            return line.split(":", 1)[1].strip().strip("'\"")
+            if line.startswith("redirect:"):
+                return line.split(":", 1)[1].strip().strip("'\"")
     return ""
 
 
@@ -176,7 +177,7 @@ def _discover_redirect_target(beads_dir: Path) -> tuple[str, str]:
         return config_value, str(config_path)
 
     if beads_dir.is_symlink():
-        try:
+            try:
             return os.readlink(beads_dir), f"{beads_dir} (symlink)"
         except OSError:
             return "", ""
@@ -228,13 +229,14 @@ def _load_issues_from_jsonl(issues_file: Path) -> tuple[list[dict[str, Any]], in
 
     rows: list[dict[str, Any]] = []
     invalid_lines = 0
-    for line_no, raw in enumerate(issues_file.read_text().splitlines(), start=1):
-        line = raw.strip()
-        if not line:
+    with issues_file.open("r", encoding="utf-8") as f:
+        for line_no, raw in enumerate(f, start=1):
+                line = raw.strip()
+            if not line:
             continue
-        try:
+            try:
             parsed = json.loads(line)
-        except json.JSONDecodeError:
+            except json.JSONDecodeError:
             invalid_lines += 1
             continue
         if not isinstance(parsed, dict):

@@ -254,7 +254,6 @@ class IndexingPipeline:
         self.enable_dedup = enable_dedup
         self.enable_rule_constraints = enable_rule_constraints
         self.vector_store = vector_store
-        self._seen_hashes: set = set()
         self.extraction_prompt = extraction_prompt
         self.ontology_profile = str(ontology_profile or "default")
 
@@ -692,6 +691,7 @@ class IndexingPipeline:
         metadata: Optional[Dict[str, Any]] = None,
         on_chunk: Optional[Callable[[int, int], None]] = None,
         source_id: Optional[str] = None,
+        _seen_hashes: Optional[set] = None,
     ) -> IndexingResult:
         """Index a single document (with automatic chunking).
 
@@ -722,15 +722,18 @@ class IndexingPipeline:
         )
         result.ontology_context = ontology_context.metadata(usage="indexing")
 
-        # Dedup check
-        if self.enable_dedup:
+        # Dedup check — scoped to a single batch ingest via _seen_hashes.
+        # Standalone index() calls pass None and are never deduplicated against
+        # earlier, independent calls (issue #133: a process-lifetime instance
+        # set silently dropped legitimately re-submitted documents).
+        if self.enable_dedup and _seen_hashes is not None:
             h = content_hash(content)
-            if h in self._seen_hashes:
+            if h in _seen_hashes:
                 result.deduplicated = True
                 result.skipped_chunks = 1
-                logger.info("Skipping duplicate content (hash=%s)", h)
+                logger.info("Skipping duplicate content within batch (hash=%s)", h)
                 return result
-            self._seen_hashes.add(h)
+            _seen_hashes.add(h)
 
         # Chunk
         import time as _time
@@ -1263,6 +1266,9 @@ class IndexingPipeline:
         BatchIndexingResult with per-document results.
         """
         batch = BatchIndexingResult(total_documents=len(documents))
+        # Dedup is scoped to THIS batch only — a later batch (or a standalone
+        # index() call) re-submitting the same text indexes it again (#133).
+        seen_hashes: set = set()
 
         for i, doc in enumerate(documents):
             if on_document:
@@ -1271,6 +1277,7 @@ class IndexingPipeline:
             result = self.index(
                 doc, database=database,
                 category=category, metadata=metadata,
+                _seen_hashes=seen_hashes,
             )
 
             batch.results.append(result)
@@ -1391,11 +1398,8 @@ class IndexingPipeline:
             source_id,
         )
 
-        # 2. Remove from dedup cache (allow re-indexing same content)
-        h = content_hash(content)
-        self._seen_hashes.discard(h)
-
-        # 3. Index fresh
+        # 2. Index fresh. Dedup is per-batch now, so a standalone index() call
+        #    is never blocked by an earlier ingest — no dedup cache to clear.
         result = self.index(
             content,
             database=database,

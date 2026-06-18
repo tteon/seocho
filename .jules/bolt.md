@@ -1,0 +1,1 @@
+When parsing files, avoid loading the entire file into an array of strings using `path.read_text().splitlines()`, as this creates O(N) memory overhead. Instead, use a lazy file iterator (e.g., `with path.open("r", encoding="utf-8") as f: for line in f:`) to parse lines incrementally and reduce I/O bottlenecks.

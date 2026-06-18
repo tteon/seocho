@@ -113,14 +113,15 @@ def _load_events(path: Path, task_id: str) -> tuple[list[dict[str, Any]], int]:
         return [], 0
     events: list[dict[str, Any]] = []
     invalid_lines = 0
-    for raw in path.read_text().splitlines():
-        line = raw.strip()
-        if not line:
-            continue
-        try:
-            event = json.loads(line)
-        except json.JSONDecodeError:
-            invalid_lines += 1
+    with path.open("r", encoding="utf-8") as f:
+        for raw in f:
+            line = raw.strip()
+            if not line:
+                continue
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                invalid_lines += 1
             continue
         if isinstance(event, dict) and event.get("task_id") == task_id:
             events.append(event)

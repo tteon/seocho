@@ -1590,7 +1590,8 @@ def _cmd_ontology(args: argparse.Namespace) -> int:
             if not args.schema or not args.graph:
                 raise SeochoError("review ingest requires --schema and --graph")
             ontology = Ontology.load(args.schema)
-            graph = json.loads(Path(args.graph).read_text(encoding="utf-8"))
+            with open(args.graph, "r", encoding="utf-8") as f:
+                graph = json.load(f)
             found = detect_ambiguities(graph, ontology, source=args.graph, workspace_id=args.workspace)
             n = q.add(found)
             if getattr(args, "output_json", False):
@@ -1674,7 +1675,8 @@ def _cmd_ontology(args: argparse.Namespace) -> int:
         from .ontology_ambiguity import apply_mapping_spec
 
         ontology = Ontology.load(args.schema)
-        term_records = json.loads(Path(args.terms).read_text(encoding="utf-8"))
+        with open(args.terms, "r", encoding="utf-8") as f:
+            term_records = json.load(f)
         spec = datahub_glossary_to_mapping_spec(term_records, only_status=args.status, ontology_name=ontology.name)
         new_onto = apply_mapping_spec(ontology, spec)
         payload = new_onto.to_jsonld()

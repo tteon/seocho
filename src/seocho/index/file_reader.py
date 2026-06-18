@@ -126,7 +126,8 @@ class FileTracker:
     def _load(self) -> None:
         if self._tracking_path.exists():
             try:
-                data = json.loads(self._tracking_path.read_text())
+                with self._tracking_path.open("r", encoding="utf-8") as f:
+                    data = json.load(f)
                 for entry in data.get("files", []):
                     state = _FileState(**entry)
                     self._states[state.path] = state
@@ -212,7 +213,8 @@ def read_csv_file(path: Path) -> List[Dict[str, Any]]:
 
 def read_json_file(path: Path) -> List[Dict[str, Any]]:
     """Read a .json file — expects an array of objects with 'content' field."""
-    data = json.loads(path.read_text(encoding="utf-8"))
+    with path.open("r", encoding="utf-8") as f:
+        data = json.load(f)
     if isinstance(data, list):
         records = []
         for i, item in enumerate(data):

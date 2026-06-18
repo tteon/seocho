@@ -1931,8 +1931,17 @@ class Ontology:
                             type_correct += 1
                         elif p.property_type.value in ("DATETIME", "DATE") and isinstance(val, str):
                             type_correct += 1
+                        elif p.property_type.value == "LIST" and isinstance(val, (list, tuple)):
+                            type_correct += 1
+                        elif p.property_type.value == "POINT" and isinstance(val, (dict, list, tuple)):
+                            type_correct += 1
                         else:
-                            type_correct += 0.5  # partial credit for other types
+                            # A genuine type mismatch scores 0. STRING is the
+                            # default type for most properties, so the old +0.5
+                            # partial credit kept malformed extractions above the
+                            # quality_threshold and silently disabled the
+                            # indexing quality-retry gate (issue #129).
+                            type_correct += 0
                 score_parts["type_correctness"] = (
                     type_correct / type_checks if type_checks > 0 else 1.0
                 )

@@ -180,7 +180,8 @@ class RuntimeBundle(JsonSerializable):
     @classmethod
     def load(cls, path: str | Path) -> "RuntimeBundle":
         bundle_path = Path(path).expanduser().resolve()
-        payload = json.loads(bundle_path.read_text(encoding="utf-8"))
+        with open(bundle_path, "r", encoding="utf-8") as f:
+            payload = json.load(f)
         if not isinstance(payload, dict):
             raise ValueError(f"Runtime bundle must be a JSON object: {bundle_path}")
         return cls.from_dict(payload)

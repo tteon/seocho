@@ -212,7 +212,8 @@ def read_csv_file(path: Path) -> List[Dict[str, Any]]:
 
 def read_json_file(path: Path) -> List[Dict[str, Any]]:
     """Read a .json file — expects an array of objects with 'content' field."""
-    data = json.loads(path.read_text(encoding="utf-8"))
+    with path.open("r", encoding="utf-8") as f:
+        data = json.load(f)
     if isinstance(data, list):
         records = []
         for i, item in enumerate(data):

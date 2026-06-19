@@ -482,8 +482,7 @@ class _LocalEngine:
         metadata: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Run extraction only (no graph write)."""
-        self._extraction.category = category
-        system, user = self._extraction.render(content, metadata=metadata)
+        system, user = self._extraction.render(content, metadata=metadata, category=category)
 
         response = complete_with_task_hints(
             self.llm,

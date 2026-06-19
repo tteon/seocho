@@ -52,8 +52,7 @@ def make_extract_entities_tool(ontology: Any, llm: Any, extraction_prompt: Any =
         Returns:
             JSON string with extracted nodes and relationships.
         """
-        strategy.category = category
-        system, user = strategy.render(text)
+        system, user = strategy.render(text, category=category)
         try:
             response = complete_with_task_hints(
                 llm,

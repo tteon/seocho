@@ -842,7 +842,7 @@ class IndexingPipeline:
                         f"Available relationships: {', '.join(self.ontology.relationships.keys())}."
                     )
                     try:
-                        retry_system, retry_user = self._extraction.render(chunk, metadata=metadata)
+                        retry_system, retry_user = self._extraction.render(chunk, metadata=metadata, category=category)
                         retry_system += f"\n\n{guidance}"
                         retry_response = complete_with_task_hints(
                             self.llm,

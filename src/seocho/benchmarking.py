@@ -296,7 +296,8 @@ def filter_finder_cases(
 
 
 def load_finder_cases(path: str | Path) -> List[FinDERBenchmarkCase]:
-    raw = json.loads(Path(path).read_text())
+    with open(path, "r", encoding="utf-8") as f:
+        raw = json.load(f)
     return [
         FinDERBenchmarkCase(
             case_id=str(item["id"]),
@@ -355,7 +356,8 @@ def summarize_finance_contract_findings(
 
 
 def load_finance_cases(path: str | Path) -> List[FinanceBenchmarkCase]:
-    raw = json.loads(Path(path).read_text())
+    with open(path, "r", encoding="utf-8") as f:
+        raw = json.load(f)
     return [
         FinanceBenchmarkCase(
             case_id=str(item["id"]),

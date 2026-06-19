@@ -32,8 +32,8 @@ ALLOWED_EVENT_TYPES = {
 
 
 def _read_events(events_file: Path) -> list[dict[str, object]]:
-    lines = [line.strip() for line in events_file.read_text().splitlines() if line.strip()]
-    return [json.loads(line) for line in lines]
+    with open(events_file, "r", encoding="utf-8") as f:
+        return [json.loads(line) for line in f if line.strip()]
 
 
 def _assert_event_contract(event: dict[str, object]) -> None:
@@ -44,7 +44,8 @@ def _assert_event_contract(event: dict[str, object]) -> None:
 
 
 def test_context_event_schema_has_expected_contract() -> None:
-    schema = json.loads(SCHEMA_PATH.read_text())
+    with open(SCHEMA_PATH, "r", encoding="utf-8") as f:
+        schema = json.load(f)
     assert schema["properties"]["schema_version"]["const"] == "cg.v0"
     assert set(schema["required"]) == REQUIRED_FIELDS
     assert set(schema["properties"]["event_type"]["enum"]) == ALLOWED_EVENT_TYPES

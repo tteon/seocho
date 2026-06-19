@@ -367,7 +367,8 @@ def load_answer_cases(path: str) -> List[AnswerCase]:
     import json
     from pathlib import Path
 
-    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
     if not isinstance(data, list):
         raise ValueError(f"answer-cases file must be a JSON list, got {type(data).__name__}")
     cases: List[AnswerCase] = []

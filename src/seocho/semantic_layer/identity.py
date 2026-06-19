@@ -73,7 +73,8 @@ class EntityResolver:
     def from_frozen(cls, path: "Path" = _FROZEN_TABLE) -> Optional["EntityResolver"]:
         """Load the full offline-built table (by_ticker + by_name), or None."""
         try:
-            data = json.loads(path.read_text(encoding="utf-8"))
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
         except Exception:
             return None
         by_ticker = {str(k).upper(): str(v) for k, v in data.get("by_ticker", {}).items()}

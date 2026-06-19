@@ -86,7 +86,8 @@ def test_cli_ontology_export_shacl_to_output(tmp_path, capsys) -> None:
     captured = capsys.readouterr()
     assert exit_code == 0
     assert "exported shacl" in captured.out
-    payload = json.loads(output_path.read_text(encoding="utf-8"))
+    with open(output_path, "r", encoding="utf-8") as f:
+        payload = json.load(f)
     assert "shapes" in payload
 
 

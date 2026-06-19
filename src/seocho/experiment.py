@@ -340,7 +340,8 @@ class ExperimentRegistry:
     def load(path: Union[str, Path]) -> WorkbenchResults:
         """Load results from a saved experiment directory."""
         results_file = Path(path) / "results.json"
-        data = json.loads(results_file.read_text())
+        with open(results_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
         results = []
         for r in data.get("results", []):
             results.append(ExperimentResult(

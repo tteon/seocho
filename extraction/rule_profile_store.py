@@ -258,7 +258,8 @@ def _maybe_import_legacy_workspace(conn: sqlite3.Connection, base_dir: str, work
     payloads: List[Dict[str, Any]] = []
     for path in sorted(legacy_dir.glob("*.json")):
         try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
+            with open(path, "r", encoding="utf-8") as f:
+                payload = json.load(f)
         except json.JSONDecodeError:
             continue
         if not isinstance(payload, dict):

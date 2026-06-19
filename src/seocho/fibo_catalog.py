@@ -30,7 +30,8 @@ def load_catalog(data: Union[str, Path, Dict[str, Any]]) -> Dict[str, Any]:
     """Load a compiled FIBO catalog from a path or accept a dict. Validates the
     schema marker."""
     if isinstance(data, (str, Path)):
-        data = json.loads(Path(data).read_text(encoding="utf-8"))
+        with open(data, "r", encoding="utf-8") as f:
+            data = json.load(f)
     if not isinstance(data, dict) or "modules" not in data:
         raise ValueError("not a FIBO catalog (missing 'modules')")
     return data

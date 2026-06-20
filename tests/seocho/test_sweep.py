@@ -178,7 +178,8 @@ def test_sweep_writes_summary_and_artifacts(tmp_path, monkeypatch) -> None:
     run_dirs = list((tmp_path / "runs").iterdir())
     assert len(run_dirs) == 1
     sweep_dir = run_dirs[0]
-    summary = json.loads((sweep_dir / "summary.json").read_text(encoding="utf-8"))
+    with open(sweep_dir / "summary.json", "r", encoding="utf-8") as f:
+        summary = json.load(f)
     assert [row["variant"] for row in summary["variants"]] == ["alpha", "beta"]
     assert all(row["status"] == "ok" for row in summary["variants"])
     md = (sweep_dir / "summary.md").read_text(encoding="utf-8")
@@ -198,7 +199,8 @@ def test_sweep_keeps_going_after_variant_failure(tmp_path, monkeypatch) -> None:
     assert code == 1  # one variant failed
 
     sweep_dir = next((tmp_path / "runs").iterdir())
-    summary = json.loads((sweep_dir / "summary.json").read_text(encoding="utf-8"))
+    with open(sweep_dir / "summary.json", "r", encoding="utf-8") as f:
+        summary = json.load(f)
     by_name = {row["variant"]: row for row in summary["variants"]}
     assert by_name["alpha"]["status"] == "failed"  # query error -> RunReport.ok False
     assert by_name["beta"]["status"] == "ok"  # still executed
@@ -212,7 +214,8 @@ def test_sweep_fail_fast_stops_after_first_failure(tmp_path, monkeypatch) -> Non
     code = e2e.run_sweep_from_config(sweep_path, json_output=True, fail_fast=True)
     assert code == 1
     sweep_dir = next((tmp_path / "runs").iterdir())
-    summary = json.loads((sweep_dir / "summary.json").read_text(encoding="utf-8"))
+    with open(sweep_dir / "summary.json", "r", encoding="utf-8") as f:
+        summary = json.load(f)
     assert [row["variant"] for row in summary["variants"]] == ["alpha"]
 
 
@@ -225,7 +228,8 @@ def test_sweep_only_variant_subset(tmp_path, monkeypatch) -> None:
     )
     assert code == 0
     sweep_dir = next((tmp_path / "runs").iterdir())
-    summary = json.loads((sweep_dir / "summary.json").read_text(encoding="utf-8"))
+    with open(sweep_dir / "summary.json", "r", encoding="utf-8") as f:
+        summary = json.load(f)
     assert [row["variant"] for row in summary["variants"]] == ["beta"]
 
     assert e2e.run_sweep_from_config(

@@ -239,7 +239,8 @@ def load_runtime_ontologies_from_manifest(
         return 0
 
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        with open(path, "r", encoding="utf-8") as f:
+            payload = json.load(f)
     except (OSError, json.JSONDecodeError) as exc:
         logger.warning("Failed to read runtime ontology manifest %s: %s", path, exc)
         return 0

@@ -100,10 +100,14 @@ def test_compile_fibo_snapshot_outputs_manifest_catalog_and_report(
 
     assert compile_main() == 0
 
-    manifest = json.loads((out / "manifest.json").read_text(encoding="utf-8"))
-    catalog = json.loads((out / "catalog.json").read_text(encoding="utf-8"))
-    report = json.loads((out / "compatibility_report.json").read_text(encoding="utf-8"))
-    index = json.loads((out / "artifact_index.json").read_text(encoding="utf-8"))
+    with open(out / "manifest.json", "r", encoding="utf-8") as f:
+        manifest = json.load(f)
+    with open(out / "catalog.json", "r", encoding="utf-8") as f:
+        catalog = json.load(f)
+    with open(out / "compatibility_report.json", "r", encoding="utf-8") as f:
+        report = json.load(f)
+    with open(out / "artifact_index.json", "r", encoding="utf-8") as f:
+        index = json.load(f)
 
     assert manifest["schema_version"] == "seocho.fibo_snapshot.v1"
     assert manifest["source"]["commit"]

@@ -216,7 +216,8 @@ def test_run_produces_report_and_continues_on_question_error(tmp_path) -> None:
 
     assert report.report_json is not None and report.report_json.exists()
     assert report.report_md is not None and report.report_md.exists()
-    payload = json.loads(report.report_json.read_text(encoding="utf-8"))
+    with open(report.report_json, "r", encoding="utf-8") as f:
+        payload = json.load(f)
     assert payload["indexing"]["total_nodes"] == 4
     assert payload["indexing"]["total_relationships"] == 2
     assert payload["indexing"]["validation_errors_count"] == 1

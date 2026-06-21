@@ -73,7 +73,7 @@ Primary surfaces:
 - for semantic retrieval or graph-grounded answer work, align the change with
   `docs/GRAPH_RAG_AGENT_HANDOFF_SPEC.md`
 - confirm philosophy alignment against `docs/PHILOSOPHY.md` (ontology evidence, router/graph mapping, traceability)
-- for architecture-significant work, run a panel feasibility review using `docs/PHILOSOPHY_FEASIBILITY_REVIEW.md`
+- for architecture-significant work, run a panel feasibility review using `docs/internal/PHILOSOPHY_FEASIBILITY_REVIEW.md`
 - before coding, have the agent restate the active `DEV-DECISION`, `DEV-CONSTRAINT`, `DEV-API-CONTRACT`, and `DEV-ACCEPTANCE` lines it will implement
 
 2. Ingestion and graph build
@@ -179,7 +179,7 @@ Operational notes:
   - `bash scripts/ci/check-module-ownership-contract.sh`
   - `scripts/pm/lint-agent-docs.sh`
 
-Runtime migration slices should follow `docs/RUNTIME_PACKAGE_MIGRATION.md` and
+Runtime migration slices should follow `docs/internal/RUNTIME_PACKAGE_MIGRATION.md` and
 the runtime shell validation contract in `scripts/ci/check-runtime-shell-contract.sh`.
 
 6. Daily Codex Maintenance Automation

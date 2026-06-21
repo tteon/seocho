@@ -125,10 +125,10 @@ echo "Checking active runtime migration docs..."
 check_present '`runtime/runtime_ingest.py`' \
   docs/AGENT_DEVELOPMENT.md \
   docs/ARCHITECTURE.md \
-  docs/RUNTIME_PACKAGE_MIGRATION.md
+  docs/internal/RUNTIME_PACKAGE_MIGRATION.md
 check_present '`runtime/memory_service.py`' \
   docs/ARCHITECTURE.md \
-  docs/RUNTIME_PACKAGE_MIGRATION.md
+  docs/internal/RUNTIME_PACKAGE_MIGRATION.md
 check_absent '`extraction/runtime_ingest.py`' \
   docs/AGENT_DEVELOPMENT.md
 

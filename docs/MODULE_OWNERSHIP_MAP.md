@@ -62,5 +62,5 @@ Most collision-prone seams are:
 ## Related Docs
 
 - `docs/ARCHITECTURE.md`
-- `docs/RUNTIME_PACKAGE_MIGRATION.md`
+- `docs/internal/RUNTIME_PACKAGE_MIGRATION.md`
 - `docs/ISSUE_TASK_SYSTEM.md`

@@ -31,7 +31,7 @@ READ_ORDER = [
 ]
 # required sections per key doc (substring match on a heading line).
 REQUIRED_SECTIONS = {
-    "docs/ARCHITECTURE_HEALTH.md": ["Architecture Health Scorecard", "How to use this"],
+    "docs/internal/ARCHITECTURE_HEALTH.md": ["Architecture Health Scorecard", "How to use this"],
     "docs/MODULE_OWNERSHIP_MAP.md": ["Ownership Table"],
 }
 

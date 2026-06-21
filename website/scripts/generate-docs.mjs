@@ -159,17 +159,17 @@ const blogMappings = [
       '> *Source mirrored from `seocho/docs/PHILOSOPHY.md`*\n\n',
   },
   {
-    src: 'docs/PHILOSOPHY_FEASIBILITY_REVIEW.md',
+    src: 'docs/internal/PHILOSOPHY_FEASIBILITY_REVIEW.md',
     dest: 'feasibility-review-framework.md',
     frontmatter:
       '---\n' +
       'title: "Feasibility Review Framework & Rubrics"\n' +
-      `date: ${sourceDateFor('docs/PHILOSOPHY_FEASIBILITY_REVIEW.md')}\n` +
+      `date: ${sourceDateFor('docs/internal/PHILOSOPHY_FEASIBILITY_REVIEW.md')}\n` +
       'authors:\n' +
       '  - seocho\n' +
       'excerpt: Multi-role feasibility review framework and Go/No-Go rubric for graph data implementations.\n' +
       '---\n\n' +
-      '> *Source mirrored from `seocho/docs/PHILOSOPHY_FEASIBILITY_REVIEW.md`*\n\n',
+      '> *Source mirrored from `seocho/docs/internal/PHILOSOPHY_FEASIBILITY_REVIEW.md`*\n\n',
   },
 ];
 
@@ -186,7 +186,7 @@ const routeReplacements = new Map([
   ['`docs/TUTORIAL_FIRST_RUN.md`', '[`/docs/tutorial/`](/docs/tutorial/)'],
   ['`docs/OPEN_SOURCE_PLAYBOOK.md`', '[`/docs/open_source_playbook/`](/docs/open_source_playbook/)'],
   ['`docs/PHILOSOPHY.md`', '[`/docs/philosophy/`](/docs/philosophy/)'],
-  ['`docs/PHILOSOPHY_FEASIBILITY_REVIEW.md`', '[`/blog/feasibility-review-framework/`](/blog/feasibility-review-framework/)'],
+  ['`docs/internal/PHILOSOPHY_FEASIBILITY_REVIEW.md`', '[`/blog/feasibility-review-framework/`](/blog/feasibility-review-framework/)'],
   ['(../README.md#execution-surfaces)', `(${SOURCE_BLOB_BASE}README.md#execution-surfaces)`],
   ['(../QUICKSTART.md)', '(/docs/quickstart/)'],
   ['(WHY_SEOCHO.md)', '(/docs/why_seocho/)'],
@@ -204,7 +204,7 @@ const routeReplacements = new Map([
   ['(TUTORIAL_FIRST_RUN.md)', '(/docs/tutorial/)'],
   ['(OPEN_SOURCE_PLAYBOOK.md)', '(/docs/open_source_playbook/)'],
   ['(PHILOSOPHY.md)', '(/docs/philosophy/)'],
-  ['(PHILOSOPHY_FEASIBILITY_REVIEW.md)', '(/blog/feasibility-review-framework/)'],
+  ['(internal/PHILOSOPHY_FEASIBILITY_REVIEW.md)', '(/blog/feasibility-review-framework/)'],
   ['(BENCHMARKS.md)', `(${SOURCE_BLOB_BASE}docs/BENCHMARKS.md)`],
   ['(AGENT_DESIGN_SPECS.md)', `(${SOURCE_BLOB_BASE}docs/AGENT_DESIGN_SPECS.md)`],
   ['(INDEXING_DESIGN_SPECS.md)', `(${SOURCE_BLOB_BASE}docs/INDEXING_DESIGN_SPECS.md)`],
@@ -213,7 +213,14 @@ const routeReplacements = new Map([
   ['(MODULE_OWNERSHIP_MAP.md)', `(${SOURCE_BLOB_BASE}docs/MODULE_OWNERSHIP_MAP.md)`],
   ['(USECASES.md)', `(${SOURCE_BLOB_BASE}docs/USECASES.md)`],
   ['(presentations/SEOCHO_OVERVIEW_DEEP_DIVE.md)', `(${SOURCE_BLOB_BASE}docs/presentations/SEOCHO_OVERVIEW_DEEP_DIVE.md)`],
-  ['(RUNTIME_PACKAGE_MIGRATION.md)', `(${SOURCE_BLOB_BASE}docs/RUNTIME_PACKAGE_MIGRATION.md)`],
+  ['(internal/RUNTIME_PACKAGE_MIGRATION.md)', `(${SOURCE_BLOB_BASE}docs/internal/RUNTIME_PACKAGE_MIGRATION.md)`],
+  ['(internal/AGENT_SERVER_REFACTOR_PLAN.md)', `(${SOURCE_BLOB_BASE}docs/internal/AGENT_SERVER_REFACTOR_PLAN.md)`],
+  ['(internal/ARCHITECTURE_HEALTH.md)', `(${SOURCE_BLOB_BASE}docs/internal/ARCHITECTURE_HEALTH.md)`],
+  ['(internal/REPOSITORY_HIERARCHY_REVIEW.md)', `(${SOURCE_BLOB_BASE}docs/internal/REPOSITORY_HIERARCHY_REVIEW.md)`],
+  ['(internal/PROMPT_ASSEMBLY_DISCUSSION_MEMO.md)', `(${SOURCE_BLOB_BASE}docs/internal/PROMPT_ASSEMBLY_DISCUSSION_MEMO.md)`],
+  ['(internal/BASELINE_INSTRUCTIONS.md)', `(${SOURCE_BLOB_BASE}docs/internal/BASELINE_INSTRUCTIONS.md)`],
+  ['(internal/KNOWN_ISSUE.md)', `(${SOURCE_BLOB_BASE}docs/internal/KNOWN_ISSUE.md)`],
+  ['(internal/)', `(${SOURCE_TREE_BASE}docs/internal)`],
   ['(GRAPH_RAG_AGENT_HANDOFF_SPEC.md)', `(${SOURCE_BLOB_BASE}docs/GRAPH_RAG_AGENT_HANDOFF_SPEC.md)`],
   ['(ONTOLOGY_RUN_CONTEXT_STRATEGY.md)', `(${SOURCE_BLOB_BASE}docs/ONTOLOGY_RUN_CONTEXT_STRATEGY.md)`],
   ['(PROPERTY_GRAPH_LENS_STRATEGY.md)', `(${SOURCE_BLOB_BASE}docs/PROPERTY_GRAPH_LENS_STRATEGY.md)`],

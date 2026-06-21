@@ -587,7 +587,8 @@ select:focus,
 textarea:focus {
   border-color: var(--accent-blue);
   box-shadow: 0 0 0 1px var(--accent-blue);
-  outline: none;
+  outline: 2px solid var(--accent-blue);
+  outline-offset: 2px;
 }
 
 #resetSessionBtn {

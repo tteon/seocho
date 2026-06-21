@@ -255,6 +255,11 @@ body {
   cursor: not-allowed;
 }
 
+#ingestBtn:hover:not(:disabled),
+#ingestBtn:focus-visible:not(:disabled) {
+  opacity: 0.9;
+}
+
 #oneClickDemoBtn {
   background: var(--accent-blue);
   color: #fff;
@@ -269,6 +274,11 @@ body {
 #oneClickDemoBtn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+#oneClickDemoBtn:hover:not(:disabled),
+#oneClickDemoBtn:focus-visible:not(:disabled) {
+  opacity: 0.9;
 }
 
 /* Dual Pane Workspace */

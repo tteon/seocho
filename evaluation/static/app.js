@@ -42,7 +42,9 @@
 
   function updateRailMode(mode) {
     railButtons.forEach((btn) => {
-      btn.classList.toggle("active", btn.dataset.mode === mode);
+      const isActive = btn.dataset.mode === mode;
+      btn.classList.toggle("active", isActive);
+      btn.setAttribute("aria-pressed", isActive ? "true" : "false");
     });
     modeSelect.value = mode;
   }

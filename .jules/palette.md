@@ -1,0 +1,1 @@
+When adding or styling CSS :focus-visible pseudo-classes on non-interactive elements like `<div>`, ensure the corresponding HTML element has a tabindex="0" attribute; otherwise, keyboard users cannot navigate to it to trigger the focus state.

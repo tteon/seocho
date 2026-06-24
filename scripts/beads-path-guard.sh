@@ -84,12 +84,13 @@ REDIRECT_MARKERS = [
 def _read_redirect_from_config(config_path: Path) -> str:
     if not config_path.exists():
         return ""
-    for raw in config_path.read_text().splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#"):
-            continue
-        if line.startswith("redirect:"):
-            return line.split(":", 1)[1].strip().strip("'\"")
+    with config_path.open("r", encoding="utf-8") as _f:
+        for raw in _f:
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            if line.startswith("redirect:"):
+                return line.split(":", 1)[1].strip().strip("'\"")
     return ""
 
 

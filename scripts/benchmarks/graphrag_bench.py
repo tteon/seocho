@@ -262,7 +262,8 @@ def run_case(client: Any, case: Dict[str, Any]) -> CaseResult:
 
 def load_dataset(task: str, dataset_path: Optional[str]) -> tuple[Dict[str, Any], List[Dict[str, Any]]]:
     if dataset_path:
-        rows = [json.loads(line) for line in Path(dataset_path).read_text().splitlines() if line.strip()]
+        with Path(dataset_path).open("r", encoding="utf-8") as _f:
+            rows = [json.loads(line) for line in _f if line.strip()]
         onto = rows[0].get("ontology", SMOKE_ONTOLOGY) if rows else SMOKE_ONTOLOGY
         return onto, rows
     if task == "sample":

@@ -78,8 +78,24 @@ print(client.ask("Where did Marie Curie work?"))
 > Prefer another provider? Pass `llm="openai/gpt-4o"` (or `deepseek/…`, `kimi/…`)
 > and export that provider's key instead.
 
-That example writes an ontology-aware graph memory to DozerDB or Neo4j. The same public
-facade can later point at a running SEOCHO runtime:
+That example writes an ontology-aware graph memory to DozerDB or Neo4j. Local
+answers can also receive optional ask-time context for final synthesis
+without changing graph retrieval:
+
+```python
+print(client.ask(
+    "What does the ACME acquisition imply?",
+    query_context={
+        "role": "business analyst",
+        "task": "integration planning",
+        "focus": ["operational impact", "evidence gaps"],
+    },
+))
+```
+
+The context is an opt-in final-synthesis hint. It is currently supported only
+by the local deterministic engine; retrieval and Cypher generation remain
+unchanged. The same public facade can later point at a running SEOCHO runtime:
 
 ```python
 from seocho import Seocho

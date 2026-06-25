@@ -76,6 +76,20 @@ print(client.ask("Where did Marie Curie work?"))
 > Prefer another provider? Pass `llm="openai/gpt-4o"` (or `deepseek/…`, `kimi/…`)
 > and export that provider's key instead.
 
+Local answers can also receive optional ask-time context for final synthesis
+without changing graph retrieval:
+
+```python
+print(client.ask(
+    "What does the ACME acquisition imply?",
+    query_context={
+        "role": "business analyst",
+        "task": "integration planning",
+        "focus": ["operational impact", "evidence gaps"],
+    },
+))
+```
+
 That example creates a local ontology-aware graph memory. The same public
 facade can later point at a running SEOCHO runtime:
 

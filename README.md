@@ -149,9 +149,21 @@ client = Seocho.local(
 try:
     client.add("Jane Park is the CEO of Acme Corp.", database="neo4j")
     print(client.ask("Who leads Acme Corp?", database="neo4j"))
+    print(client.ask(
+        "What does Acme Corp.'s leadership imply?",
+        database="neo4j",
+        query_context={
+            "role": "business analyst",
+            "task": "integration planning",
+            "focus": ["operational impact", "evidence gaps"],
+        },
+    ))
 finally:
     client.close()
 ```
+
+Local deterministic-engine calls accept optional `query_context` hints for
+final answer synthesis; retrieval and Cypher generation remain unchanged.
 
 Use `Seocho.remote("http://localhost:8001")` for an existing runtime service.
 See the [SDK guide](docs/PYTHON_INTERFACE_QUICKSTART.md),

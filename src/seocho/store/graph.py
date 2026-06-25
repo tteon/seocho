@@ -861,60 +861,109 @@ class Neo4jGraphStore(GraphStore):
 
                 label_counts: Dict[str, int] = {}
                 label_count_meta: Dict[str, Dict[str, Any]] = {}
+                valid_labels = []
                 for r in session.run("CALL db.labels()"):
                     label = r["label"]
                     if not is_valid_identifier(label):
                         logger.warning("skipping non-identifier label '%s'", label)
                         continue
+                    valid_labels.append(label)
+
+                for i in range(0, len(valid_labels), 50):
+                    batch = valid_labels[i:i+50]
+                    query_parts = []
+                    for label in batch:
+                        query_parts.append(
+                            f"MATCH (n:{label}) WHERE n._workspace_id = $workspace_id WITH n LIMIT $sample_limit RETURN count(n) AS cnt, '{label}' AS element"
+                        )
+                    batched_query = " UNION ALL ".join(query_parts)
                     try:
-                        # F7: LIMIT-bounded probe caps the scan at sample_limit.
-                        count_rec = session.run(
-                            # label passed is_valid_identifier above; interpolated raw
-                            f"MATCH (n:{label}) "
-                            "WHERE n._workspace_id = $workspace_id "
-                            "WITH n LIMIT $sample_limit "
-                            "RETURN count(n) AS cnt",
-                            workspace_id=workspace_id,
-                            sample_limit=sample_limit,
-                        ).single()
-                        probe = int(count_rec["cnt"]) if count_rec else 0
-                        value, sampled = self._interpret_label_probe(probe, sample_limit)
-                        label_counts[label] = value
-                        label_count_meta[label] = {
-                            "value": value,
-                            "sampled": sampled,
-                            "sample_limit": sample_limit,
-                        }
+                        results = session.run(batched_query, workspace_id=workspace_id, sample_limit=sample_limit)
+                        for count_rec in results:
+                            label = count_rec["element"]
+                            probe = int(count_rec["cnt"])
+                            value, sampled = self._interpret_label_probe(probe, sample_limit)
+                            label_counts[label] = value
+                            label_count_meta[label] = {
+                                "value": value,
+                                "sampled": sampled,
+                                "sample_limit": sample_limit,
+                            }
                     except Exception as exc:
-                        logger.warning("label count failed for '%s': %s", label, exc)
+                        logger.warning("batched label count failed, falling back to individual queries: %s", exc)
+                        for label in batch:
+                            try:
+                                count_rec = session.run(
+                                    f"MATCH (n:{label}) "
+                                    "WHERE n._workspace_id = $workspace_id "
+                                    "WITH n LIMIT $sample_limit "
+                                    "RETURN count(n) AS cnt",
+                                    workspace_id=workspace_id,
+                                    sample_limit=sample_limit,
+                                ).single()
+                                probe = int(count_rec["cnt"]) if count_rec else 0
+                                value, sampled = self._interpret_label_probe(probe, sample_limit)
+                                label_counts[label] = value
+                                label_count_meta[label] = {
+                                    "value": value,
+                                    "sampled": sampled,
+                                    "sample_limit": sample_limit,
+                                }
+                            except Exception as inner_exc:
+                                logger.warning("label count failed for '%s': %s", label, inner_exc)
 
                 rel_counts: Dict[str, int] = {}
                 rel_count_meta: Dict[str, Dict[str, Any]] = {}
+                valid_rels = []
                 for r in session.run("CALL db.relationshipTypes()"):
                     rt = r["relationshipType"]
                     if not is_valid_identifier(rt):
                         logger.warning("skipping non-identifier rel type '%s'", rt)
                         continue
+                    valid_rels.append(rt)
+
+                for i in range(0, len(valid_rels), 50):
+                    batch = valid_rels[i:i+50]
+                    query_parts = []
+                    for rt in batch:
+                        query_parts.append(
+                            f"MATCH ()-[r:{rt}]->() WHERE r._workspace_id = $workspace_id WITH r LIMIT $sample_limit RETURN count(r) AS cnt, '{rt}' AS element"
+                        )
+                    batched_query = " UNION ALL ".join(query_parts)
                     try:
-                        count_rec = session.run(
-                            # rt passed is_valid_identifier above; interpolated raw
-                            f"MATCH ()-[r:{rt}]->() "
-                            "WHERE r._workspace_id = $workspace_id "
-                            "WITH r LIMIT $sample_limit "
-                            "RETURN count(r) AS cnt",
-                            workspace_id=workspace_id,
-                            sample_limit=sample_limit,
-                        ).single()
-                        probe = int(count_rec["cnt"]) if count_rec else 0
-                        value, sampled = self._interpret_label_probe(probe, sample_limit)
-                        rel_counts[rt] = value
-                        rel_count_meta[rt] = {
-                            "value": value,
-                            "sampled": sampled,
-                            "sample_limit": sample_limit,
-                        }
+                        results = session.run(batched_query, workspace_id=workspace_id, sample_limit=sample_limit)
+                        for count_rec in results:
+                            rt = count_rec["element"]
+                            probe = int(count_rec["cnt"])
+                            value, sampled = self._interpret_label_probe(probe, sample_limit)
+                            rel_counts[rt] = value
+                            rel_count_meta[rt] = {
+                                "value": value,
+                                "sampled": sampled,
+                                "sample_limit": sample_limit,
+                            }
                     except Exception as exc:
-                        logger.warning("rel count failed for '%s': %s", rt, exc)
+                        logger.warning("batched rel count failed, falling back to individual queries: %s", exc)
+                        for rt in batch:
+                            try:
+                                count_rec = session.run(
+                                    f"MATCH ()-[r:{rt}]->() "
+                                    "WHERE r._workspace_id = $workspace_id "
+                                    "WITH r LIMIT $sample_limit "
+                                    "RETURN count(r) AS cnt",
+                                    workspace_id=workspace_id,
+                                    sample_limit=sample_limit,
+                                ).single()
+                                probe = int(count_rec["cnt"]) if count_rec else 0
+                                value, sampled = self._interpret_label_probe(probe, sample_limit)
+                                rel_counts[rt] = value
+                                rel_count_meta[rt] = {
+                                    "value": value,
+                                    "sampled": sampled,
+                                    "sample_limit": sample_limit,
+                                }
+                            except Exception as inner_exc:
+                                logger.warning("rel count failed for '%s': %s", rt, inner_exc)
 
             payload = {
                 "indexes": indexes,

@@ -239,3 +239,42 @@ def test_query_answer_synthesizer_marks_answer_generation_non_reasoning() -> Non
             "task_hint": "answer_synthesis",
         }
     ]
+
+
+def test_query_answer_synthesizer_passes_query_context_to_answer_strategy() -> None:
+    class _RecordingStrategy:
+        def __init__(self) -> None:
+            self.kwargs = {}
+
+        def render_answer(self, question: str, records_json: str, **kwargs):  # noqa: ANN003
+            self.kwargs = dict(kwargs)
+            return "System answer prompt", f"Question: {question}\nRecords: {records_json}"
+
+    class _TextResponse:
+        def __init__(self, text: str) -> None:
+            self.text = text
+
+    class _RecordingLLM:
+        def complete(
+            self,
+            *,
+            system,
+            user,
+            temperature,
+            reasoning_mode=None,
+            task_hint=None,
+        ):  # noqa: ANN001
+            return _TextResponse("final answer")
+
+    strategy = _RecordingStrategy()
+    query_context = {"role": "legal reviewer", "focus": ["obligations", "gaps"]}
+    synthesizer = QueryAnswerSynthesizer(query_strategy=strategy, llm=_RecordingLLM())
+
+    answer = synthesizer.synthesize(
+        "What happened?",
+        [{"company": "Acme", "fact": "Acme acquired Beta"}],
+        query_context=query_context,
+    )
+
+    assert answer == "final answer"
+    assert strategy.kwargs == {"query_context": query_context}

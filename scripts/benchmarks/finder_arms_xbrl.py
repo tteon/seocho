@@ -40,18 +40,22 @@ from finder_backbone import Case, DATASET, select_xcat_cases  # noqa: E402
 from finder_arms import ANSWER_SPEC, CONTEXT_BUDGET, answer, judge  # noqa: E402
 from finder_judge import token_f1  # noqa: E402
 from examples.finder.lib import llm_io  # noqa: E402
-from seocho.index.xbrl_ingest import companyfacts_to_observations, fetch_companyfacts  # noqa: E402
+from seocho.index.xbrl_ingest import (
+    companyfacts_to_observations,
+    fetch_companyfacts,
+)  # noqa: E402
 from seocho.semantic_layer.concepts import default_registry  # noqa: E402
 from seocho.semantic_layer.identity import EntityResolver  # noqa: E402
 
 try:
     from dotenv import load_dotenv
+
     load_dotenv(_ROOT / ".env")
 except Exception:
     pass
 
 _REG = default_registry()
-_FACTS_CACHE: Dict[str, str] = {}     # cik -> rendered xbrl context
+_FACTS_CACHE: Dict[str, str] = {}  # cik -> rendered xbrl context
 _GOLD: Dict[str, str] = {}
 
 
@@ -69,8 +73,9 @@ def xbrl_lines(cik: str) -> str:
         return _FACTS_CACHE[cik]
     try:
         facts = fetch_companyfacts(cik)
-        nodes, _ = companyfacts_to_observations(facts, registry=_REG, cik=cik,
-                                                n_years=5, min_fiscal_year=2021)
+        nodes, _ = companyfacts_to_observations(
+            facts, registry=_REG, cik=cik, n_years=5, min_fiscal_year=2021
+        )
         lines = []
         for n in nodes:
             if n["label"] != "Observation":
@@ -86,10 +91,12 @@ def xbrl_lines(cik: str) -> str:
     return out
 
 
-def ctx_closed(case, company_cases): return ""
+def ctx_closed(case, company_cases):
+    return ""
 
 
-def ctx_isolated(case, company_cases): return "\n\n".join(case.evidence)[:CONTEXT_BUDGET]
+def ctx_isolated(case, company_cases):
+    return "\n\n".join(case.evidence)[:CONTEXT_BUDGET]
 
 
 def ctx_backbone_snippet(case, company_cases):
@@ -117,11 +124,16 @@ ARMS = {
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--n", type=int, default=6, help="number of Financials cases (0 = all)")
+    ap.add_argument(
+        "--n", type=int, default=6, help="number of Financials cases (0 = all)"
+    )
     # CROSS-MODEL judge (step 3): different model than the MiniMax-M2.5 answerer,
     # to remove the generator==judge self-preference that made closed_book ~0.8.
-    ap.add_argument("--judge", default="mara/gpt-oss-120b",
-                    help="judge LLM spec (default cross-model mara/gpt-oss-120b)")
+    ap.add_argument(
+        "--judge",
+        default="mara/gpt-oss-120b",
+        help="judge LLM spec (default cross-model mara/gpt-oss-120b)",
+    )
     args = ap.parse_args()
 
     resolver = EntityResolver.from_frozen()
@@ -134,7 +146,7 @@ def main() -> int:
         by_cik.setdefault(c.cik, []).append(c)
     # focus on Financials cases (where structured numbers matter most)
     fin = [c for c in cases if c.category == "Financials"]
-    sample = fin if args.n == 0 else fin[:args.n]
+    sample = fin if args.n == 0 else fin[: args.n]
 
     aspec = llm_io.parse_llm_spec(ANSWER_SPEC)
     jspec = llm_io.parse_llm_spec(args.judge)
@@ -142,8 +154,10 @@ def main() -> int:
     jclient = llm_io.make_chat_client(jspec)
 
     print("=" * 84)
-    print(f"FinDER arms + XBRL — answerer={aspec.model}, judge={jspec.model}; "
-          f"{len(sample)} Financials cases, fixed {CONTEXT_BUDGET}-char budget")
+    print(
+        f"FinDER arms + XBRL — answerer={aspec.model}, judge={jspec.model}; "
+        f"{len(sample)} Financials cases, fixed {CONTEXT_BUDGET}-char budget"
+    )
     print("=" * 84)
     agg: Dict[str, dict] = {a: {"f1": [], "judge": []} for a in ARMS}
     for i, case in enumerate(sample, 1):
@@ -165,16 +179,32 @@ def main() -> int:
         f1s, js = agg[arm]["f1"], agg[arm]["judge"]
         print(f"  {arm:<20} {sum(f1s)/len(f1s):>14.3f} {sum(js)/len(js):>12.3f}")
     print("\n  Findings (honest, smoke n=5):")
-    print("  - CROSS-MODEL judge (gpt-oss-120b judging MiniMax-M2.5 answers) removes the")
-    print("    self-preference confound: closed_book (no context) drops 0.80 (self-judge) ->")
-    print("    0.00 (cross-judge) — context-free answers are correctly scored unanswerable.")
+    print(
+        "  - CROSS-MODEL judge (gpt-oss-120b judging MiniMax-M2.5 answers) removes the"
+    )
+    print(
+        "    self-preference confound: closed_book (no context) drops 0.80 (self-judge) ->"
+    )
+    print(
+        "    0.00 (cross-judge) — context-free answers are correctly scored unanswerable."
+    )
     print("    Always judge with a DIFFERENT model than the answerer.")
-    print("  - Under the trustworthy judge the arms separate: isolated 0.94 > backbone_snippet")
-    print("    0.80 > backbone_xbrl 0.50 > closed_book 0.00. On SINGLE-category questions the")
-    print("    focused (isolated) context still beats the backbone — cross-category breadth")
-    print("    dilutes; the backbone must be GATED to questions that need >=2 categories.")
+    print(
+        "  - Under the trustworthy judge the arms separate: isolated 0.94 > backbone_snippet"
+    )
+    print(
+        "    0.80 > backbone_xbrl 0.50 > closed_book 0.00. On SINGLE-category questions the"
+    )
+    print(
+        "    focused (isolated) context still beats the backbone — cross-category breadth"
+    )
+    print(
+        "    dilutes; the backbone must be GATED to questions that need >=2 categories."
+    )
     print("  - structured XBRL lifts token_f1 (0.233 vs 0.208) but not judge here; the")
-    print("    deterministic metric (PR #195/#196) remains the headline. Step 4: cross-category")
+    print(
+        "    deterministic metric (PR #195/#196) remains the headline. Step 4: cross-category"
+    )
     print("    B-questions + Spearman rho(cross_category_success, judge_score).")
     return 0
 

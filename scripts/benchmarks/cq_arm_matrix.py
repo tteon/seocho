@@ -16,6 +16,7 @@ w.r.t. the experiment's questions.
 Usage:
     PYTHONPATH=src python3 scripts/benchmarks/cq_arm_matrix.py
 """
+
 from __future__ import annotations
 
 import importlib.util
@@ -71,16 +72,23 @@ def main() -> int:
             "verdicts": verdicts,
         }
         cells = "  ".join(" E" if verdicts[i] else " ." for i in ids)
-        print(arm.ljust(13), cells,
-              f" | {rep['expressible_count']}/{rep['question_count']}"
-              f" conf={cf['score']} nodes={len(onto.nodes)} pass={cf['passed']}")
+        print(
+            arm.ljust(13),
+            cells,
+            f" | {rep['expressible_count']}/{rep['question_count']}"
+            f" conf={cf['score']} nodes={len(onto.nodes)} pass={cf['passed']}",
+        )
 
     # Goldilocks signal: does large cover more CQs than medium?
-    if rows["large"]["expressible"] == rows["medium"]["expressible"] \
-            and rows["large"]["nodes"] > rows["medium"]["nodes"]:
+    if (
+        rows["large"]["expressible"] == rows["medium"]["expressible"]
+        and rows["large"]["nodes"] > rows["medium"]["nodes"]
+    ):
         extra = rows["large"]["nodes"] - rows["medium"]["nodes"]
-        print(f"\n[goldilocks] large carries +{extra} nodes over medium for "
-              f"+0 CQ coverage -> peripheral modules are schema noise w.r.t. the CQs.")
+        print(
+            f"\n[goldilocks] large carries +{extra} nodes over medium for "
+            f"+0 CQ coverage -> peripheral modules are schema noise w.r.t. the CQs."
+        )
 
     print("\nJSON:\n" + json.dumps(rows, indent=2))
     return 0

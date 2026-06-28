@@ -12,6 +12,7 @@ Outputs:
   outputs/evaluation/finder_phase_experiment/<run_prefix>/aggregate.json
   outputs/evaluation/finder_phase_experiment/<run_prefix>/partial/<phase>_<case>_<variant>.json
 """
+
 from __future__ import annotations
 
 import argparse
@@ -33,17 +34,20 @@ for path in (SRC, ROOT):
 
 from examples.finder.lib import bench_common as bc  # noqa: E402
 
-
 REF_SEPARATOR = "===EVIDENCE_BOUNDARY==="
-_NUM_RE = re.compile(r"-?\$?\d[\d,]*\.?\d*(?:%| million| billion| thousand)?", re.IGNORECASE)
+_NUM_RE = re.compile(
+    r"-?\$?\d[\d,]*\.?\d*(?:%| million| billion| thousand)?", re.IGNORECASE
+)
 
 
 # ---------------------------------------------------------------------------
 # Data loading
 # ---------------------------------------------------------------------------
 
+
 def load_cases() -> dict[str, dict]:
     import pandas as pd
+
     csv_path = ROOT / ".seocho/datasets/finder/slices/all_slices.csv"
     if not csv_path.is_file():
         raise SystemExit(
@@ -70,6 +74,7 @@ def load_cases() -> dict[str, dict]:
 # ---------------------------------------------------------------------------
 # Answer evaluation (number-aware)
 # ---------------------------------------------------------------------------
+
 
 def _extract_numbers(text: str) -> list[str]:
     return [n.replace(",", "").strip().lower() for n in _NUM_RE.findall(text or "")]
@@ -102,6 +107,7 @@ def evaluate_answer(expected: str, actual: str) -> dict:
 # Ontology hash (matches bench_common.short_hash convention)
 # ---------------------------------------------------------------------------
 
+
 def _ontology_hash(ontology) -> str:
     try:
         ctx = ontology.to_extraction_context()
@@ -109,8 +115,10 @@ def _ontology_hash(ontology) -> str:
     except Exception:
         try:
             blob = json.dumps(
-                {"nodes": sorted(ontology.nodes.keys()),
-                 "rels": sorted(ontology.relationships.keys())},
+                {
+                    "nodes": sorted(ontology.nodes.keys()),
+                    "rels": sorted(ontology.relationships.keys()),
+                },
                 sort_keys=True,
             )
         except Exception:
@@ -121,6 +129,7 @@ def _ontology_hash(ontology) -> str:
 # ---------------------------------------------------------------------------
 # Run a single (phase × case × variant)
 # ---------------------------------------------------------------------------
+
 
 def run_one(
     *,
@@ -143,7 +152,9 @@ def run_one(
     from examples.finder.datasets.fibo_modules.compose import compose_modules
 
     ontology = compose_modules(list(ontology_modules))
-    workspace_id = bc.workspace_id_for(phase.code, case["case_id"], variant, prefix=workspace_prefix)
+    workspace_id = bc.workspace_id_for(
+        phase.code, case["case_id"], variant, prefix=workspace_prefix
+    )
     trace_name = f"{phase.code}/{case['case_id']}/{variant}"
 
     neo4j_uri = os.environ.get("NEO4J_URI") or os.environ.get("BOLT_URL")
@@ -151,7 +162,9 @@ def run_one(
     if use_neo4j:
         ladybug_path = None  # not used in this branch
     else:
-        ladybug_path = bc.fresh_ladybug(bc.DEFAULT_LBUG_DIR / f"{phase.code}_{case['case_id']}_{variant}.lbug")
+        ladybug_path = bc.fresh_ladybug(
+            bc.DEFAULT_LBUG_DIR / f"{phase.code}_{case['case_id']}_{variant}.lbug"
+        )
 
     onto_hash = _ontology_hash(ontology)
     prompt_hash = bc.short_hash(meta_prompt) if meta_prompt else "noprompt"
@@ -209,9 +222,15 @@ def run_one(
 
     client = None
     try:
-        provider, model = (llm_spec.split("/", 1) if "/" in llm_spec else ("openai", llm_spec))
+        provider, model = (
+            llm_spec.split("/", 1) if "/" in llm_spec else ("openai", llm_spec)
+        )
         raw_backend = create_llm_backend(provider=provider.strip(), model=model.strip())
-        wrapped_llm = bc.MetaPromptLLMWrapper(raw_backend, meta_prompt) if meta_prompt else raw_backend
+        wrapped_llm = (
+            bc.MetaPromptLLMWrapper(raw_backend, meta_prompt)
+            if meta_prompt
+            else raw_backend
+        )
 
         if use_neo4j:
             graph_store = Neo4jGraphStore(
@@ -257,7 +276,9 @@ def run_one(
             )
             timing["ask_ms"] = round((time.perf_counter() - t1) * 1000.0, 2)
             print(f"    {trace_name}: ask done in {timing['ask_ms']}ms", flush=True)
-            bc.set_opik_trace_metadata(name=trace_name, tags=trace_tags, metadata=trace_metadata)
+            bc.set_opik_trace_metadata(
+                name=trace_name, tags=trace_tags, metadata=trace_metadata
+            )
             return _answer
 
         answer = bc.run_under_opik_track(
@@ -352,13 +373,21 @@ def run_one(
 # Aggregation
 # ---------------------------------------------------------------------------
 
+
 def _phase_summary(results: list[dict]) -> dict:
     by_phase: dict[str, dict] = {}
     for r in results:
-        by_phase.setdefault(r["phase"], {"baseline": [], "treatment": []}).setdefault(r["variant"], []).append(r)
+        by_phase.setdefault(r["phase"], {"baseline": [], "treatment": []}).setdefault(
+            r["variant"], []
+        ).append(r)
     summary = {}
     for p, by_variant in by_phase.items():
-        row = {"phase": p, "n_cases": len(by_variant.get("treatment") or by_variant.get("baseline") or [])}
+        row = {
+            "phase": p,
+            "n_cases": len(
+                by_variant.get("treatment") or by_variant.get("baseline") or []
+            ),
+        }
         for v in ("baseline", "treatment"):
             runs = by_variant.get(v) or []
             if not runs:
@@ -374,7 +403,9 @@ def _phase_summary(results: list[dict]) -> dict:
 
 
 def _print_table(phase_summary: dict) -> None:
-    print("\nphase | n  | baseline overlap → treatment overlap | baseline contains → treatment contains | ask_ms b→t")
+    print(
+        "\nphase | n  | baseline overlap → treatment overlap | baseline contains → treatment contains | ask_ms b→t"
+    )
     print("-" * 110)
     for p, row in phase_summary.items():
         bo = row.get("baseline_number_overlap_mean", 0.0)
@@ -394,13 +425,22 @@ def _print_table(phase_summary: dict) -> None:
 # Main
 # ---------------------------------------------------------------------------
 
+
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--phases", default="all", help="Comma list of phase codes (P0,P1A,P1B,P1C,P1D) or 'all'.")
+    parser.add_argument(
+        "--phases",
+        default="all",
+        help="Comma list of phase codes (P0,P1A,P1B,P1C,P1D) or 'all'.",
+    )
     parser.add_argument("--llm", default=os.environ.get("SEOCHO_LLM", "kimi/kimi-k2.5"))
-    parser.add_argument("--dry-run", action="store_true", help="Skip LLM calls; report plan only.")
-    parser.add_argument("--workspace-prefix",
-                        default=f"finder-phase-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Skip LLM calls; report plan only."
+    )
+    parser.add_argument(
+        "--workspace-prefix",
+        default=f"finder-phase-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
+    )
     parser.add_argument("--no-meta-prompt", action="store_true")
     parser.add_argument(
         "--variants",
@@ -408,17 +448,29 @@ def main() -> int:
         choices=("treatment", "baseline", "both"),
         help="Default 'treatment' (FIBO-only). Use 'both' to also run an empty-ontology baseline.",
     )
-    parser.add_argument("--reasoning-mode", action="store_true", default=True,
-                        help="Enable SEOCHO reasoning loop (default True per T2.1).")
-    parser.add_argument("--no-reasoning-mode", dest="reasoning_mode", action="store_false")
-    parser.add_argument("--repair-budget", type=int, default=2,
-                        help="Number of repair attempts in ask() reasoning loop (default 2 per T2.1).")
+    parser.add_argument(
+        "--reasoning-mode",
+        action="store_true",
+        default=True,
+        help="Enable SEOCHO reasoning loop (default True per T2.1).",
+    )
+    parser.add_argument(
+        "--no-reasoning-mode", dest="reasoning_mode", action="store_false"
+    )
+    parser.add_argument(
+        "--repair-budget",
+        type=int,
+        default=2,
+        help="Number of repair attempts in ask() reasoning loop (default 2 per T2.1).",
+    )
     args = parser.parse_args()
 
     bc.bootstrap(verbose=True)
     meta_prompt = "" if args.no_meta_prompt else bc.load_meta_prompt()
     if meta_prompt:
-        print(f"== meta prompt loaded ({len(meta_prompt)} chars, hash={bc.short_hash(meta_prompt)}) ==")
+        print(
+            f"== meta prompt loaded ({len(meta_prompt)} chars, hash={bc.short_hash(meta_prompt)}) =="
+        )
     else:
         print("== meta prompt: disabled or missing ==")
 
@@ -449,7 +501,9 @@ def main() -> int:
         for case_spec in phase.cases:
             case = cases_index.get(case_spec.case_id)
             if case is None:
-                print(f"  ! case {case_spec.case_id} not found in slices CSV — skipping")
+                print(
+                    f"  ! case {case_spec.case_id} not found in slices CSV — skipping"
+                )
                 continue
             plan.append((phase, case))
 
@@ -459,17 +513,28 @@ def main() -> int:
     if args.variants in ("treatment", "both"):
         variant_plan.append(("treatment", None))  # resolved per-phase below
 
-    print(f"\n== plan ({len(plan)} cases × {len(variant_plan)} variants = {len(plan)*len(variant_plan)} runs) ==")
+    print(
+        f"\n== plan ({len(plan)} cases × {len(variant_plan)} variants = {len(plan)*len(variant_plan)} runs) =="
+    )
     for phase, case in plan:
-        print(f"  {phase.code:5s} {case['case_id']} [{case['slice']}]  {case['query'][:80]}")
+        print(
+            f"  {phase.code:5s} {case['case_id']} [{case['slice']}]  {case['query'][:80]}"
+        )
 
     if args.dry_run:
         print("\n(dry-run: stopping before LLM calls)")
         return 0
 
-    from seocho.tracing import configure_tracing_from_env, current_backend_names, flush_tracing
+    from seocho.tracing import (
+        configure_tracing_from_env,
+        current_backend_names,
+        flush_tracing,
+    )
+
     tracing_on = configure_tracing_from_env()
-    print(f"\n== tracing ==\n  enabled: {tracing_on}  backends: {current_backend_names()}\n")
+    print(
+        f"\n== tracing ==\n  enabled: {tracing_on}  backends: {current_backend_names()}\n"
+    )
 
     run_prefix = args.workspace_prefix
     out_dir = ROOT / "outputs" / "evaluation" / "finder_phase_experiment" / run_prefix

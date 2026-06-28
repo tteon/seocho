@@ -71,7 +71,15 @@ def _profile(graph_store, database, cypher, params):
 def run(dataset_path, *, limit_tickers, database, uri, user, password):
     from seocho.store.graph import Neo4jGraphStore
 
-    rows = [json.loads(l) for l in Path(dataset_path).read_text().splitlines() if l.strip()]
+    rows = []
+
+    with Path(dataset_path).open("r", encoding="utf-8") as f:
+
+        for l in f:
+
+            if l.strip():
+
+                rows.append(json.loads(l))
     tickers = sorted({r["ticker"] for r in rows})
     if limit_tickers:
         tickers = tickers[:limit_tickers]
@@ -89,25 +97,36 @@ def run(dataset_path, *, limit_tickers, database, uri, user, password):
     time.sleep(1.0)  # let the index come online
 
     samples, scan_hits = [], 0
-    for r in rows[:10]:   # a handful of representative lookups
+    for r in rows[:10]:  # a handful of representative lookups
         cik = cik_by_ticker.get(r["ticker"].upper())
         concept_id = registry.resolve(r["metric"].replace("_", " "))
         period_key = normalize_period(f"FY{r['fiscal_year']}")
         if not (cik and concept_id and period_key):
             continue
-        slots = ObservationSlots(entity_cik=cik, concept_id=concept_id,
-                                 period_keys=(period_key,))
+        slots = ObservationSlots(
+            entity_cik=cik, concept_id=concept_id, period_keys=(period_key,)
+        )
         cypher, params = compile_observation_lookup(slots, workspace_id=_WS)
         ops, db_hits, nrows = _profile(gs, database, cypher, params)
         used_scan = any(o in _SCAN_OPS for o in ops)
         used_seek = any(o in _SEEK_OPS for o in ops)
         scan_hits += int(used_scan)
-        samples.append({"ticker": r["ticker"], "metric": r["metric"],
-                        "rows": nrows, "db_hits": db_hits,
-                        "seek": used_seek, "scan": used_scan, "ops": ops})
-        print(f"  [{r['ticker']} {r['metric']} FY{r['fiscal_year']}] "
-              f"rows={nrows} db_hits={db_hits} seek={used_seek} scan={used_scan}",
-              file=sys.stderr)
+        samples.append(
+            {
+                "ticker": r["ticker"],
+                "metric": r["metric"],
+                "rows": nrows,
+                "db_hits": db_hits,
+                "seek": used_seek,
+                "scan": used_scan,
+                "ops": ops,
+            }
+        )
+        print(
+            f"  [{r['ticker']} {r['metric']} FY{r['fiscal_year']}] "
+            f"rows={nrows} db_hits={db_hits} seek={used_seek} scan={used_scan}",
+            file=sys.stderr,
+        )
     try:
         gs.close()
     except Exception:
@@ -115,15 +134,22 @@ def run(dataset_path, *, limit_tickers, database, uri, user, password):
 
     n = len(samples)
     return {
-        "config": {"database": database, "seeded": seeded, "constraints": ok,
-                   "llm": "none"},
+        "config": {
+            "database": database,
+            "seeded": seeded,
+            "constraints": ok,
+            "llm": "none",
+        },
         "summary": {
             "n": n,
             "seek_rate": round(sum(s["seek"] for s in samples) / n, 3) if n else None,
             "scan_count": scan_hits,
             "max_db_hits": max((s["db_hits"] for s in samples), default=0),
-            "verdict": "index-backed (seek, no scan)" if n and scan_hits == 0
-                       else "SCAN DETECTED — index not used",
+            "verdict": (
+                "index-backed (seek, no scan)"
+                if n and scan_hits == 0
+                else "SCAN DETECTED — index not used"
+            ),
         },
         "samples": samples,
     }
@@ -139,8 +165,14 @@ def main() -> int:
     p.add_argument("--password", default="neo4jpassword")
     p.add_argument("--out", default="-")
     args = p.parse_args()
-    result = run(args.dataset, limit_tickers=args.limit_tickers, database=args.database,
-                 uri=args.uri, user=args.user, password=args.password)
+    result = run(
+        args.dataset,
+        limit_tickers=args.limit_tickers,
+        database=args.database,
+        uri=args.uri,
+        user=args.user,
+        password=args.password,
+    )
     out = json.dumps(result, indent=2, ensure_ascii=False)
     if args.out == "-":
         print(out)

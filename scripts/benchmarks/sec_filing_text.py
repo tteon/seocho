@@ -47,9 +47,11 @@ class Filing:
 # Pure logic
 # ---------------------------------------------------------------------------
 
+
 def html_to_text(html: str) -> str:
     """Strip an inline-XBRL 10-K HTML document down to whitespace-collapsed text."""
     from bs4 import BeautifulSoup
+
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")  # inline-XBRL trips XMLParsedAsHTMLWarning
         text = BeautifulSoup(html, "lxml").get_text(" ")
@@ -83,7 +85,7 @@ def chunk_text(text: str, *, size: int = 1200, overlap: int = 150) -> List[str]:
     out: List[str] = []
     step = max(size - overlap, 1)
     for i in range(0, len(text), step):
-        piece = text[i:i + size].strip()
+        piece = text[i : i + size].strip()
         if piece:
             out.append(piece)
     return out
@@ -92,6 +94,7 @@ def chunk_text(text: str, *, size: int = 1200, overlap: int = 150) -> List[str]:
 # ---------------------------------------------------------------------------
 # Network
 # ---------------------------------------------------------------------------
+
 
 def _get(url: str, *, raw: bool = False):
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
@@ -108,8 +111,11 @@ def latest_10k(ticker: str, cik: str) -> Optional[Filing]:
             accn = rec["accessionNumber"][i].replace("-", "")
             doc = rec["primaryDocument"][i]
             return Filing(
-                ticker=ticker, cik=cik, form=form,
-                filing_date=rec["filingDate"][i], report_date=rec["reportDate"][i],
+                ticker=ticker,
+                cik=cik,
+                form=form,
+                filing_date=rec["filingDate"][i],
+                report_date=rec["reportDate"][i],
                 doc_url=f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{accn}/{doc}",
             )
     return None
@@ -176,8 +182,10 @@ def extract_table_facts(html: str, *, registry: Any) -> List[TableFact]:
     facts: List[TableFact] = []
     seen: set = set()
     for table in soup.find_all("table"):
-        rows = [[c.get_text(" ", strip=True) for c in tr.find_all(["td", "th"])]
-                for tr in table.find_all("tr")]
+        rows = [
+            [c.get_text(" ", strip=True) for c in tr.find_all(["td", "th"])]
+            for tr in table.find_all("tr")
+        ]
         # find the header row that carries >=2 fiscal-year columns
         year_cols: dict = {}
         for row in rows[:8]:

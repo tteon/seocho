@@ -6,7 +6,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 import sec_filing_text as ft
 
-
 # A miniature 10-K text: table of contents (Item 7 header appears first here)
 # followed by the real section bodies.
 _TOC = (
@@ -83,15 +82,17 @@ _INCOME_TABLE_HTML = """
 def _registry():
     import sys
     from pathlib import Path
+
     sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
     from seocho.semantic_layer import default_registry
+
     return default_registry()
 
 
 def test_extract_table_facts_income_statement():
     facts = ft.extract_table_facts(_INCOME_TABLE_HTML, registry=_registry())
     by = {(f.concept_id, f.fiscal_year): f.value_num for f in facts}
-    assert by[("metric:Revenue", 2025)] == 416_161_000_000.0     # scaled by millions
+    assert by[("metric:Revenue", 2025)] == 416_161_000_000.0  # scaled by millions
     assert by[("metric:Revenue", 2024)] == 391_035_000_000.0
     assert by[("metric:NetIncome", 2025)] == 112_010_000_000.0
     # "Cost of sales" is out of the closed vocab -> not extracted

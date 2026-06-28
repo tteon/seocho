@@ -43,13 +43,23 @@ for _p in (_ROOT / "src", _ROOT, Path(__file__).resolve().parent):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 
-from finder_backbone import DB, Case, build_backbone, select_xcat_cases  # noqa: E402  (reuse 303/88b)
-from finder_judge import JUDGE_SYSTEM, _parse_judge, token_f1        # noqa: E402  (reuse judge bits)
+from finder_backbone import (
+    DB,
+    Case,
+    build_backbone,
+    select_xcat_cases,
+)  # noqa: E402  (reuse 303/88b)
+from finder_judge import (
+    JUDGE_SYSTEM,
+    _parse_judge,
+    token_f1,
+)  # noqa: E402  (reuse judge bits)
 from examples.finder.lib import llm_io  # noqa: E402
 from seocho.semantic_layer.identity import EntityResolver  # noqa: E402
 
-try:                                   # MARA_API_KEY etc. live in .env
+try:  # MARA_API_KEY etc. live in .env
     from dotenv import load_dotenv
+
     load_dotenv(_ROOT / ".env")
 except Exception:
     pass
@@ -60,8 +70,8 @@ IMAGE = "graphstack/dozerdb:5.26.3.0"
 BOLT = "bolt://localhost:7694"
 # DB name is imported from finder_backbone so build_backbone() and ctx_backbone()
 # agree on the database (finder_backbone.DB == "finderbackbone").
-CONTEXT_BUDGET = 2200          # chars — identical for every arm (fair-eval)
-ANSWER_SPEC = "mara/"          # MARA-first answerer + judge
+CONTEXT_BUDGET = 2200  # chars — identical for every arm (fair-eval)
+ANSWER_SPEC = "mara/"  # MARA-first answerer + judge
 JUDGE_SPEC = "mara/"
 
 ANSWER_SYSTEM = (
@@ -78,9 +88,23 @@ ANSWER_SYSTEM = (
 def boot():
     subprocess.run(["docker", "rm", "-f", CONTAINER], capture_output=True)
     subprocess.run(
-        ["docker", "run", "-d", "--rm", "--name", CONTAINER,
-         "-e", f"NEO4J_AUTH=neo4j/{PASSWORD}", "-p", "7481:7474", "-p", "7694:7687", IMAGE],
-        capture_output=True, text=True,
+        [
+            "docker",
+            "run",
+            "-d",
+            "--rm",
+            "--name",
+            CONTAINER,
+            "-e",
+            f"NEO4J_AUTH=neo4j/{PASSWORD}",
+            "-p",
+            "7481:7474",
+            "-p",
+            "7694:7687",
+            IMAGE,
+        ],
+        capture_output=True,
+        text=True,
     )
     for _ in range(60):
         try:
@@ -129,7 +153,9 @@ def ctx_backbone(case: Case, all_cases: List[Case], drv) -> str:
         rows = s.run(
             "MATCH (co:Company {cik:$cik})-[:FOR_YEAR]->(:CompanyYear)"
             "-[:HAS_SECTION]->(fs:FilingSection)-[:CONTAINS]->(e:Evidence) "
-            "RETURN fs.kind AS kind, e.text AS text", cik=case.cik).data()
+            "RETURN fs.kind AS kind, e.text AS text",
+            cik=case.cik,
+        ).data()
     blocks = [f"[{r['kind']}] {r['text']}" for r in rows]
     return _clip("\n\n".join(blocks))
 
@@ -147,8 +173,13 @@ ARMS = {
 # --------------------------------------------------------------------------
 def _chat(client, model, system, user, max_tokens=320):
     r = client.chat.completions.create(
-        model=model, temperature=0, max_tokens=max_tokens,
-        messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
+        model=model,
+        temperature=0,
+        max_tokens=max_tokens,
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
     )
     return (r.choices[0].message.content or "").strip()
 
@@ -164,8 +195,10 @@ def answer(client, model, query: str, context: str) -> str:
 
 
 def judge(client, model, query: str, gold: str, candidate: str) -> float:
-    user = (f"Question: {query}\nReference answer: {gold}\n"
-            f"Candidate answer: {candidate}\n\nReturn the JSON verdict.")
+    user = (
+        f"Question: {query}\nReference answer: {gold}\n"
+        f"Candidate answer: {candidate}\n\nReturn the JSON verdict."
+    )
     # MiniMax-M2.5 emits reasoning before the JSON verdict; 400 tokens truncated
     # it (finish_reason=length) -> unparseable -> a spurious 0.0. Give it room.
     txt = _chat(client, model, JUDGE_SYSTEM, user, max_tokens=1600)
@@ -174,7 +207,9 @@ def judge(client, model, query: str, gold: str, candidate: str) -> float:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--n", type=int, default=6, help="number of cases (smoke); 0 = all 27")
+    ap.add_argument(
+        "--n", type=int, default=6, help="number of cases (smoke); 0 = all 27"
+    )
     args = ap.parse_args()
 
     resolver = EntityResolver.from_frozen()
@@ -187,7 +222,7 @@ def main() -> int:
     for c in cases:
         cats_by_cik[c.cik].add(c.category)
     cases.sort(key=lambda c: -len(cats_by_cik[c.cik]))
-    sample = cases if args.n == 0 else cases[:args.n]
+    sample = cases if args.n == 0 else cases[: args.n]
 
     aspec = llm_io.parse_llm_spec(ANSWER_SPEC)
     jspec = llm_io.parse_llm_spec(JUDGE_SPEC)
@@ -200,16 +235,20 @@ def main() -> int:
         subprocess.run(["docker", "rm", "-f", CONTAINER], capture_output=True)
         return 1
     try:
-        build_backbone(drv, cases)   # full backbone (all companies) for backbone_multi
+        build_backbone(drv, cases)  # full backbone (all companies) for backbone_multi
         print("=" * 84)
-        print(f"FinDER LLM-answer arms — MARA ({aspec.model}); {len(sample)} cases, "
-              f"fixed {CONTEXT_BUDGET}-char budget")
+        print(
+            f"FinDER LLM-answer arms — MARA ({aspec.model}); {len(sample)} cases, "
+            f"fixed {CONTEXT_BUDGET}-char budget"
+        )
         print("=" * 84)
         agg: Dict[str, dict] = {a: {"f1": [], "judge": []} for a in ARMS}
         for i, case in enumerate(sample, 1):
             ncat = len(cats_by_cik[case.cik])
-            print(f"\n[{i}/{len(sample)}] {case.ticker}/{case.category} (company spans {ncat} cats): "
-                  f"{case.query[:70]}")
+            print(
+                f"\n[{i}/{len(sample)}] {case.ticker}/{case.category} (company spans {ncat} cats): "
+                f"{case.query[:70]}"
+            )
             for arm, ctx_fn in ARMS.items():
                 ctx = ctx_fn(case, cases, drv)
                 ans = answer(aclient, aspec.model, case.query, ctx)
@@ -226,16 +265,36 @@ def main() -> int:
             f1s, js = agg[arm]["f1"], agg[arm]["judge"]
             print(f"  {arm:<16} {sum(f1s)/len(f1s):>14.3f} {sum(js)/len(js):>12.3f}")
         print("\n  Findings (honest):")
-        print("  - token_f1 (primary): isolated_multi > backbone_multi here. On SINGLE-category")
-        print("    FinDER questions, FOCUSED context beats the backbone's all-category context —")
-        print("    cross-category breadth is a DISTRACTOR (dilution) under a fixed budget. The")
-        print("    backbone must be used SELECTIVELY (fetch other categories only when the")
-        print("    question needs them). The structural cross-category capability is the")
-        print("    deterministic metric (PR #195/#196); this layer shows it must be gated.")
-        print("  - flat_rag > closed_book but below isolated; it draws cross-company text.")
-        print("  - MARA judge here is ~0: the judge MECHANISM is verified (1.0 on a control),")
-        print("    but MiniMax answers from gold-snippet context don't satisfy the strict")
-        print("    multi-step compositional gold. token_f1 carries the signal; the judge needs")
+        print(
+            "  - token_f1 (primary): isolated_multi > backbone_multi here. On SINGLE-category"
+        )
+        print(
+            "    FinDER questions, FOCUSED context beats the backbone's all-category context —"
+        )
+        print(
+            "    cross-category breadth is a DISTRACTOR (dilution) under a fixed budget. The"
+        )
+        print(
+            "    backbone must be used SELECTIVELY (fetch other categories only when the"
+        )
+        print(
+            "    question needs them). The structural cross-category capability is the"
+        )
+        print(
+            "    deterministic metric (PR #195/#196); this layer shows it must be gated."
+        )
+        print(
+            "  - flat_rag > closed_book but below isolated; it draws cross-company text."
+        )
+        print(
+            "  - MARA judge here is ~0: the judge MECHANISM is verified (1.0 on a control),"
+        )
+        print(
+            "    but MiniMax answers from gold-snippet context don't satisfy the strict"
+        )
+        print(
+            "    multi-step compositional gold. token_f1 carries the signal; the judge needs"
+        )
         print("    full-filing context or easier slices to be informative (follow-up).")
     finally:
         try:
@@ -257,6 +316,7 @@ def _gold(case: Case) -> str:
     if not _GOLD:
         import csv
         from finder_backbone import DATASET
+
         with open(DATASET, newline="") as fh:
             for row in csv.DictReader(fh):
                 _GOLD[row["_id"]] = row["answer"]

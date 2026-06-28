@@ -25,6 +25,7 @@ Usage:
     scripts/benchmarks/finder_arbiter_routes.py --n-per-slice 10 --seed 42 \\
     --out outputs/evaluation/finder_arbiter_routes/routes.json
 """
+
 from __future__ import annotations
 
 import argparse
@@ -39,8 +40,8 @@ for p in (ROOT / "src", ROOT / "extraction", ROOT / "scripts" / "benchmarks"):
     if str(p) not in sys.path:
         sys.path.insert(0, str(p))
 
-import finder_4arm_sample as finder          # reuse load_sample + DATASET_CSV
-import sec_temporal_bench as bench            # reuse EDGAR resolve_ciks
+import finder_4arm_sample as finder  # reuse load_sample + DATASET_CSV
+import sec_temporal_bench as bench  # reuse EDGAR resolve_ciks
 from seocho.query.arbiter import arbitrate
 from seocho.query.semantic_decompose import decompose
 from seocho.semantic_layer import EntityResolver, default_registry
@@ -60,7 +61,9 @@ def _candidate_tickers(cases) -> list[str]:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="FinDER × arbiter route distribution (Fork B)")
+    ap = argparse.ArgumentParser(
+        description="FinDER × arbiter route distribution (Fork B)"
+    )
     ap.add_argument("--n-per-slice", type=int, default=10)
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--provider", default="mara")
@@ -70,6 +73,7 @@ def main() -> int:
 
     cases = finder.load_sample(args.n_per_slice, args.seed)
     from seocho.store.llm import create_llm_backend
+
     llm = create_llm_backend(provider=args.provider, model=args.model)
     registry = default_registry()
 
@@ -80,10 +84,16 @@ def main() -> int:
     try:
         cik_by_ticker = bench.resolve_ciks(tickers)
     except Exception as exc:  # pragma: no cover (network)
-        print(f"[warn] EDGAR resolve_ciks failed ({exc}); using seed resolver", file=sys.stderr)
+        print(
+            f"[warn] EDGAR resolve_ciks failed ({exc}); using seed resolver",
+            file=sys.stderr,
+        )
         cik_by_ticker = {}
     resolver = EntityResolver.from_ticker_map(cik_by_ticker, {})
-    print(f"resolver: {len(cik_by_ticker)}/{len(tickers)} candidate tickers → CIK", file=sys.stderr)
+    print(
+        f"resolver: {len(cik_by_ticker)}/{len(tickers)} candidate tickers → CIK",
+        file=sys.stderr,
+    )
 
     rows = []
     routes = Counter()
@@ -91,7 +101,9 @@ def main() -> int:
     elig = 0
     for i, c in enumerate(cases, 1):
         try:
-            qs, slots = decompose(c["query"], llm=llm, registry=registry, resolver=resolver)
+            qs, slots = decompose(
+                c["query"], llm=llm, registry=registry, resolver=resolver
+            )
             hint = arbitrate(slots)  # empty probe → STRUCTURED impossible w/o seeding
             concept_ok = bool(slots.concept_id)
             entity_ok = bool(slots.entity_cik)
@@ -106,31 +118,48 @@ def main() -> int:
             print(f"  [{i}] {c['case_id']} ERROR {exc}", file=sys.stderr)
         routes[route] += 1
         by_slice[c["slice"]][route] += 1
-        rows.append({
-            "case_id": c["case_id"], "slice": c["slice"], "query": c["query"][:120],
-            "intent": getattr(qs, "intent", None),
-            "metric_surface": getattr(qs, "metric_surface", None),
-            "concept_resolved": concept_ok, "entity_resolved": entity_ok,
-            "period_resolved": period_ok, "structured_eligible": eligible,
-            "route": route,
-        })
+        rows.append(
+            {
+                "case_id": c["case_id"],
+                "slice": c["slice"],
+                "query": c["query"][:120],
+                "intent": getattr(qs, "intent", None),
+                "metric_surface": getattr(qs, "metric_surface", None),
+                "concept_resolved": concept_ok,
+                "entity_resolved": entity_ok,
+                "period_resolved": period_ok,
+                "structured_eligible": eligible,
+                "route": route,
+            }
+        )
         mark = "ELIG" if eligible else "    "
-        print(f"  [{i}/{len(cases)}] {c['slice']:24} {route:18} {mark} "
-              f"c={int(concept_ok)} e={int(entity_ok)} p={int(period_ok)} "
-              f"metric={getattr(qs,'metric_surface','?')!r}", flush=True)
+        print(
+            f"  [{i}/{len(cases)}] {c['slice']:24} {route:18} {mark} "
+            f"c={int(concept_ok)} e={int(entity_ok)} p={int(period_ok)} "
+            f"metric={getattr(qs,'metric_surface','?')!r}",
+            flush=True,
+        )
 
     n = len(cases)
     summary = {
-        "n": n, "routes": dict(routes),
+        "n": n,
+        "routes": dict(routes),
         "structured_eligible": elig,
         "structured_eligible_pct": round(100 * elig / n, 1) if n else 0,
         "by_slice": {s: dict(c) for s, c in by_slice.items()},
-        "note": ("STRUCTURED is 0 by construction (no Observations seeded); "
-                 "structured_eligible = concept∧entity∧period resolve = would route "
-                 "STRUCTURED if seeded. Dominant gate is the closed MetricConcept vocab."),
+        "note": (
+            "STRUCTURED is 0 by construction (no Observations seeded); "
+            "structured_eligible = concept∧entity∧period resolve = would route "
+            "STRUCTURED if seeded. Dominant gate is the closed MetricConcept vocab."
+        ),
     }
-    out = {"summary": summary, "rows": rows, "provider": args.provider, "model": args.model,
-           "registry_concepts": [c.concept_id for c in registry.concepts]}
+    out = {
+        "summary": summary,
+        "rows": rows,
+        "provider": args.provider,
+        "model": args.model,
+        "registry_concepts": [c.concept_id for c in registry.concepts],
+    }
     text = json.dumps(out, indent=2)
     if args.out == "-":
         print(text)

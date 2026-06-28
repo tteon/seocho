@@ -45,6 +45,7 @@ from seocho.semantic_layer.identity import EntityResolver  # noqa: E402
 
 try:
     from dotenv import load_dotenv
+
     load_dotenv(_ROOT / ".env")
 except Exception:
     pass
@@ -88,11 +89,11 @@ def _bqid(bq) -> str:
 
 
 def _route_cats(bq, rc, rm, arch) -> Set[str]:
-    with span("router", arch, _bqid(bq)) as s:   # the arbiter/schema-selection step
+    with span("router", arch, _bqid(bq)) as s:  # the arbiter/schema-selection step
         cats = set(_llm_route(bq.query, rc, rm) or route(bq.query).required_categories)
         s["decision"] = sorted(cats)
         # step-correctness: did the gate pick exactly the gold-required categories?
-        s["step_correct"] = (cats == bq.required)
+        s["step_correct"] = cats == bq.required
         s["recall"] = len(cats & bq.required) / len(bq.required)
         s["precision"] = len(cats & bq.required) / len(cats) if cats else 0.0
     return cats
@@ -121,17 +122,29 @@ def a_react(bq, ac, am, rc, rm, max_steps: int = 3):
     for _ in range(max_steps):
         with span("react.decide", "react", _bqid(bq), llm=True) as s:
             opts = ", ".join(c for c in CATEGORIES if c not in seen) or "(none)"
-            sysmsg = ("You are answering a 10-K question. Decide the NEXT action. "
-                      f"Reply ONE token: a section to read [{opts}] or ANSWER if you "
-                      "have enough. Output only the token.")
-            user = (f"Question: {bq.query}\nAlready read: {list(seen)}\n"
-                    f"Evidence so far:\n{chr(10).join(seen.values())[:1200]}")
-            r = ac.chat.completions.create(model=am, temperature=0, max_tokens=300,
-                                           messages=[{"role": "system", "content": sysmsg},
-                                                     {"role": "user", "content": user}])
+            sysmsg = (
+                "You are answering a 10-K question. Decide the NEXT action. "
+                f"Reply ONE token: a section to read [{opts}] or ANSWER if you "
+                "have enough. Output only the token."
+            )
+            user = (
+                f"Question: {bq.query}\nAlready read: {list(seen)}\n"
+                f"Evidence so far:\n{chr(10).join(seen.values())[:1200]}"
+            )
+            r = ac.chat.completions.create(
+                model=am,
+                temperature=0,
+                max_tokens=300,
+                messages=[
+                    {"role": "system", "content": sysmsg},
+                    {"role": "user", "content": user},
+                ],
+            )
             calls += 1
             choice = (r.choices[0].message.content or "").upper()
-            picked = next((c for c in CATEGORIES if c.upper() in choice and c not in seen), None)
+            picked = next(
+                (c for c in CATEGORIES if c.upper() in choice and c not in seen), None
+            )
             still_needed = bq.required - set(seen)
             s["decision"] = picked or "ANSWER"
             # bad step = stopped (ANSWER) while a required category is still unread
@@ -148,24 +161,38 @@ def a_reflexion(bq, ac, am, rc, rm):
     cats = _route_cats(bq, rc, rm, "reflexion")
     calls = 1
     with span("answer", "reflexion", _bqid(bq), llm=True):
-        ans = answer(ac, am, bq.query, _ctx(bq, cats)); calls += 1
-    with span("reflexion.critique", "reflexion", _bqid(bq), llm=True) as s:
-        crit = ("Critique whether the answer fully addresses EVERY part of the "
-                "question. Reply a comma list of additional sections needed from "
-                f"[{', '.join(CATEGORIES)}], or NONE. Output only that.")
-        r = ac.chat.completions.create(model=am, temperature=0, max_tokens=400,
-                                       messages=[{"role": "system", "content": crit},
-                                                 {"role": "user", "content": f"Q: {bq.query}\nA: {ans}"}])
+        ans = answer(ac, am, bq.query, _ctx(bq, cats))
         calls += 1
-        extra = {c for c in CATEGORIES if c.lower() in (r.choices[0].message.content or "").lower()}
+    with span("reflexion.critique", "reflexion", _bqid(bq), llm=True) as s:
+        crit = (
+            "Critique whether the answer fully addresses EVERY part of the "
+            "question. Reply a comma list of additional sections needed from "
+            f"[{', '.join(CATEGORIES)}], or NONE. Output only that."
+        )
+        r = ac.chat.completions.create(
+            model=am,
+            temperature=0,
+            max_tokens=400,
+            messages=[
+                {"role": "system", "content": crit},
+                {"role": "user", "content": f"Q: {bq.query}\nA: {ans}"},
+            ],
+        )
+        calls += 1
+        extra = {
+            c
+            for c in CATEGORIES
+            if c.lower() in (r.choices[0].message.content or "").lower()
+        }
         missing = bq.required - cats
         s["decision"] = sorted(extra)
         # good critique = it flagged a genuinely-missing required category (or none missing)
-        s["step_correct"] = (bool(extra & missing) if missing else not extra)
+        s["step_correct"] = bool(extra & missing) if missing else not extra
     if extra - cats:
         cats |= extra
         with span("reflexion.reanswer", "reflexion", _bqid(bq), llm=True):
-            ans = answer(ac, am, bq.query, _ctx(bq, cats)); calls += 1
+            ans = answer(ac, am, bq.query, _ctx(bq, cats))
+            calls += 1
     return ans, cats, calls
 
 
@@ -175,19 +202,31 @@ def a_plan_multi(bq, ac, am, rc, rm):
     sub = []
     for c in sorted(cats):
         with span("plan.subanswer", "plan_multi", _bqid(bq), llm=True, cat=c):
-            sub.append(f"[{c}] " + answer(ac, am, bq.query, _ctx(bq, {c}))); calls += 1
+            sub.append(f"[{c}] " + answer(ac, am, bq.query, _ctx(bq, {c})))
+            calls += 1
     with span("plan.compose", "plan_multi", _bqid(bq), llm=True):
-        compose = "Compose a single answer from these per-section findings. Keep the numbers."
-        r = ac.chat.completions.create(model=am, temperature=0, max_tokens=900,
-                                       messages=[{"role": "system", "content": compose},
-                                                 {"role": "user", "content": f"Q: {bq.query}\n\n" + "\n\n".join(sub)}])
+        compose = (
+            "Compose a single answer from these per-section findings. Keep the numbers."
+        )
+        r = ac.chat.completions.create(
+            model=am,
+            temperature=0,
+            max_tokens=900,
+            messages=[
+                {"role": "system", "content": compose},
+                {"role": "user", "content": f"Q: {bq.query}\n\n" + "\n\n".join(sub)},
+            ],
+        )
         calls += 1
     return (r.choices[0].message.content or "").strip(), cats, calls
 
 
 ARCHETYPES = {
-    "single_shot": a_single_shot, "intent_gated": a_intent_gated,
-    "react": a_react, "reflexion": a_reflexion, "plan_multi": a_plan_multi,
+    "single_shot": a_single_shot,
+    "intent_gated": a_intent_gated,
+    "react": a_react,
+    "reflexion": a_reflexion,
+    "plan_multi": a_plan_multi,
 }
 
 
@@ -197,14 +236,16 @@ def main() -> int:
     ap.add_argument("--trace", action="store_true", help="emit per-step spans to JSONL")
     args = ap.parse_args()
     if args.trace:
-        tracing.enable_tracing(backend="jsonl", output=str(_ROOT / "traces/bakeoff.jsonl"))
+        tracing.enable_tracing(
+            backend="jsonl", output=str(_ROOT / "traces/bakeoff.jsonl")
+        )
 
     resolver = EntityResolver.from_frozen()
     if resolver is None:
         print("FATAL: frozen CIK table not found", file=sys.stderr)
         return 1
     bqs = build_bquestions(resolver)
-    sample = bqs if args.n == 0 else bqs[:args.n]
+    sample = bqs if args.n == 0 else bqs[: args.n]
 
     aspec = llm_io.parse_llm_spec(ANSWER_SPEC)
     jspec = llm_io.parse_llm_spec(JUDGE_SPEC)
@@ -212,10 +253,15 @@ def main() -> int:
     ac, jc, rc = (llm_io.make_chat_client(s) for s in (aspec, jspec, rspec))
 
     print("=" * 94)
-    print(f"Agent-design bake-off (per-step instrumented) — answerer={aspec.model}, "
-          f"judge={jspec.model}; {len(sample)} B-questions")
+    print(
+        f"Agent-design bake-off (per-step instrumented) — answerer={aspec.model}, "
+        f"judge={jspec.model}; {len(sample)} B-questions"
+    )
     print("=" * 94)
-    agg = {a: {"cov": [], "prec": [], "calls": [], "f1": [], "judge": []} for a in ARCHETYPES}
+    agg = {
+        a: {"cov": [], "prec": [], "calls": [], "f1": [], "judge": []}
+        for a in ARCHETYPES
+    }
     for i, bq in enumerate(sample, 1):
         print(f"[{i}/{len(sample)}] {bq.ticker} required={sorted(bq.required)}")
         for name, fn in ARCHETYPES.items():
@@ -224,17 +270,27 @@ def main() -> int:
             prec = (len(fetched & bq.required) / len(fetched)) if fetched else 0.0
             f1 = token_f1(ans, bq.gold)
             js = judge(jc, jspec.model, bq.query, bq.gold, ans)
-            for k, v in (("cov", cov), ("prec", prec), ("calls", calls), ("f1", f1), ("judge", js)):
+            for k, v in (
+                ("cov", cov),
+                ("prec", prec),
+                ("calls", calls),
+                ("f1", f1),
+                ("judge", js),
+            ):
                 agg[name][k].append(v)
 
-    print(f"\n  {'archetype':<14}{'routing_cov':>12}{'routing_prec':>13}{'cost(calls)':>12}"
-          f"{'token_f1':>10}{'judge':>8}")
+    print(
+        f"\n  {'archetype':<14}{'routing_cov':>12}{'routing_prec':>13}{'cost(calls)':>12}"
+        f"{'token_f1':>10}{'judge':>8}"
+    )
     print("  " + "-" * 70)
     for name in ARCHETYPES:
         a = agg[name]
         m = lambda k: sum(a[k]) / len(a[k])  # noqa: E731
-        print(f"  {name:<14}{m('cov'):>12.2f}{m('prec'):>13.2f}{m('calls'):>12.1f}"
-              f"{m('f1'):>10.3f}{m('judge'):>8.2f}")
+        print(
+            f"  {name:<14}{m('cov'):>12.2f}{m('prec'):>13.2f}{m('calls'):>12.1f}"
+            f"{m('f1'):>10.3f}{m('judge'):>8.2f}"
+        )
 
     # ---- PER-STEP ATTRIBUTION: where is each archetype good/bad? ----
     print("\n  PER-STEP attribution (step latency + step-correctness, from spans):")
@@ -249,10 +305,16 @@ def main() -> int:
         cr = f"{sum(corr)/len(corr):.2f}" if corr else "-"
         print(f"  {arch+'.'+step:<26}{len(rows):>6}{ms:>9.0f}{cr:>13}")
     print("\n  Reading: the router step's step_correct = gate accuracy; react.decide")
-    print("  step_correct<1 = stopped early with a required category unread (the coverage-")
-    print("  loss step); plan.subanswer count x mean_ms = where plan_multi's cost goes.")
+    print(
+        "  step_correct<1 = stopped early with a required category unread (the coverage-"
+    )
+    print(
+        "  loss step); plan.subanswer count x mean_ms = where plan_multi's cost goes."
+    )
     if args.trace:
-        print(f"\n  spans -> {_ROOT / 'traces/bakeoff.jsonl'} (query with: seocho traces ...)")
+        print(
+            f"\n  spans -> {_ROOT / 'traces/bakeoff.jsonl'} (query with: seocho traces ...)"
+        )
     return 0
 
 

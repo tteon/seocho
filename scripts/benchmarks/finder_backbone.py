@@ -97,21 +97,40 @@ def select_xcat_cases(resolver: EntityResolver) -> List[Case]:
             cik = resolver.resolve(hit)
             if not cik:
                 continue
-            cases.append(Case(
-                case_id=row["_id"], ticker=hit, cik=cik, category=row["category"],
-                rtype=row["type"], years=_years(q) or _years(row["references_joined"]),
-                query=q, evidence=_split_refs(row["references_joined"]),
-            ))
+            cases.append(
+                Case(
+                    case_id=row["_id"],
+                    ticker=hit,
+                    cik=cik,
+                    category=row["category"],
+                    rtype=row["type"],
+                    years=_years(q) or _years(row["references_joined"]),
+                    query=q,
+                    evidence=_split_refs(row["references_joined"]),
+                )
+            )
     return cases
 
 
 def write_slice(cases: List[Case]) -> None:
     with open(SLICE_OUT, "w", newline="") as fh:
         w = csv.writer(fh)
-        w.writerow(["slice", "case_id", "ticker", "cik", "category", "type", "years", "query"])
+        w.writerow(
+            ["slice", "case_id", "ticker", "cik", "category", "type", "years", "query"]
+        )
         for c in cases:
-            w.writerow(["SE_XCAT_HELDOUT", c.case_id, c.ticker, c.cik, c.category,
-                        c.rtype, "|".join(map(str, c.years)), c.query])
+            w.writerow(
+                [
+                    "SE_XCAT_HELDOUT",
+                    c.case_id,
+                    c.ticker,
+                    c.cik,
+                    c.category,
+                    c.rtype,
+                    "|".join(map(str, c.years)),
+                    c.query,
+                ]
+            )
 
 
 # --------------------------------------------------------------------------
@@ -120,9 +139,23 @@ def write_slice(cases: List[Case]) -> None:
 def boot() -> Optional["GraphDatabase.driver"]:
     subprocess.run(["docker", "rm", "-f", CONTAINER], capture_output=True)
     subprocess.run(
-        ["docker", "run", "-d", "--rm", "--name", CONTAINER,
-         "-e", f"NEO4J_AUTH=neo4j/{PASSWORD}", "-p", "7479:7474", "-p", "7692:7687", IMAGE],
-        capture_output=True, text=True,
+        [
+            "docker",
+            "run",
+            "-d",
+            "--rm",
+            "--name",
+            CONTAINER,
+            "-e",
+            f"NEO4J_AUTH=neo4j/{PASSWORD}",
+            "-p",
+            "7479:7474",
+            "-p",
+            "7692:7687",
+            IMAGE,
+        ],
+        capture_output=True,
+        text=True,
     )
     for _ in range(60):
         try:
@@ -131,7 +164,7 @@ def boot() -> Optional["GraphDatabase.driver"]:
                 # system DB forbids `RETURN 1`; use a system-valid readiness probe
                 s.run("SHOW DATABASES YIELD name RETURN count(name) AS n").single()
                 s.run(f"CREATE DATABASE `{DB}` IF NOT EXISTS").consume()
-            for _ in range(20):           # wait for the new DB to come online
+            for _ in range(20):  # wait for the new DB to come online
                 try:
                     with drv.session(database=DB) as s:
                         s.run("RETURN 1").single()
@@ -145,9 +178,17 @@ def boot() -> Optional["GraphDatabase.driver"]:
 
 
 def _rows(cases: List[Case]) -> List[dict]:
-    return [{"cik": c.cik, "ticker": c.ticker, "cat": c.category,
-             "years": c.years or [0], "case": c.case_id,
-             "ev": [e[:400] for e in c.evidence]} for c in cases]
+    return [
+        {
+            "cik": c.cik,
+            "ticker": c.ticker,
+            "cat": c.category,
+            "years": c.years or [0],
+            "case": c.case_id,
+            "ev": [e[:400] for e in c.evidence],
+        }
+        for c in cases
+    ]
 
 
 # --------------------------------------------------------------------------
@@ -166,7 +207,9 @@ def build_backbone(drv, cases: List[Case]) -> None:
             "  SET cy.cik=r.cik, cy.fy=fy "
             "MERGE (co)-[:FOR_YEAR]->(cy) "
             "MERGE (fs:FilingSection {fs_id:cy.cy_id+':'+r.cat}) SET fs.kind=r.cat "
-            "MERGE (cy)-[:HAS_SECTION]->(fs)", rows=_rows(cases)).consume()
+            "MERGE (cy)-[:HAS_SECTION]->(fs)",
+            rows=_rows(cases),
+        ).consume()
         s.run(
             "UNWIND $rows AS r "
             "WITH r, 'cy:'+r.cik+':'+toString(coalesce(r.years[0],0))+':'+r.cat AS fsid "
@@ -174,7 +217,9 @@ def build_backbone(drv, cases: List[Case]) -> None:
             "UNWIND range(0,size(r.ev)-1) AS i "
             "MERGE (e:Evidence {ev_id:r.case+':'+toString(i)}) "
             "  SET e.category=r.cat, e.cik=r.cik, e.text=r.ev[i] "
-            "MERGE (fs)-[:CONTAINS]->(e)", rows=_rows(cases)).consume()
+            "MERGE (fs)-[:CONTAINS]->(e)",
+            rows=_rows(cases),
+        ).consume()
 
 
 def build_isolated(drv, cases: List[Case]) -> None:
@@ -190,7 +235,9 @@ def build_isolated(drv, cases: List[Case]) -> None:
             "WITH r, fs UNWIND range(0,size(r.ev)-1) AS i "
             "MERGE (e:Evidence {ev_id:r.case+':'+toString(i)}) "
             "  SET e.category=r.cat, e.cik=r.cik, e.text=r.ev[i] "
-            "MERGE (fs)-[:CONTAINS]->(e)", rows=_rows(cases)).consume()
+            "MERGE (fs)-[:CONTAINS]->(e)",
+            rows=_rows(cases),
+        ).consume()
 
 
 # --------------------------------------------------------------------------
@@ -203,18 +250,30 @@ def metrics(drv, cases: List[Case], mode: str) -> Dict[str, float]:
         cat_by_cik.setdefault(c.cik, set()).add(c.category)
     multi = [cik for cik in ciks if len(cat_by_cik[cik]) >= 2]
     with drv.session(database=DB) as s:
-        nodes = {r["cik"]: r["n"] for r in
-                 s.run("MATCH (co:Company) RETURN co.cik AS cik, count(*) AS n").data()}
+        nodes = {
+            r["cik"]: r["n"]
+            for r in s.run(
+                "MATCH (co:Company) RETURN co.cik AS cik, count(*) AS n"
+            ).data()
+        }
         # reachable categories from a SINGLE company anchor
         if mode == "backbone":
-            reach = {r["cik"]: r["k"] for r in s.run(
-                "MATCH (co:Company)-[:FOR_YEAR]->(:CompanyYear)-[:HAS_SECTION]->(fs) "
-                "RETURN co.cik AS cik, count(DISTINCT fs.kind) AS k").data()}
+            reach = {
+                r["cik"]: r["k"]
+                for r in s.run(
+                    "MATCH (co:Company)-[:FOR_YEAR]->(:CompanyYear)-[:HAS_SECTION]->(fs) "
+                    "RETURN co.cik AS cik, count(DISTINCT fs.kind) AS k"
+                ).data()
+            }
         else:
-            reach = {r["cik"]: r["k"] for r in s.run(
-                "MATCH (co:Company)-[:HAS_SECTION]->(fs) "
-                "WITH co, count(DISTINCT fs.kind) AS k "
-                "RETURN co.cik AS cik, max(k) AS k").data()}
+            reach = {
+                r["cik"]: r["k"]
+                for r in s.run(
+                    "MATCH (co:Company)-[:HAS_SECTION]->(fs) "
+                    "WITH co, count(DISTINCT fs.kind) AS k "
+                    "RETURN co.cik AS cik, max(k) AS k"
+                ).data()
+            }
     identity = sum(1 for cik in ciks if nodes.get(cik, 0) == 1) / len(ciks)
     avg_nodes = sum(nodes.get(cik, 0) for cik in ciks) / len(ciks)
     xcat_success = sum(1 for cik in multi if reach.get(cik, 0) >= 2) / len(multi)
@@ -229,7 +288,9 @@ def metrics(drv, cases: List[Case], mode: str) -> Dict[str, float]:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--select-only", action="store_true", help="write the slice CSV and exit")
+    ap.add_argument(
+        "--select-only", action="store_true", help="write the slice CSV and exit"
+    )
     args = ap.parse_args()
 
     resolver = EntityResolver.from_frozen()
@@ -238,9 +299,11 @@ def main() -> int:
         return 1
     cases = select_xcat_cases(resolver)
     write_slice(cases)
-    print(f"seocho-88b: SE_XCAT_HELDOUT = {len(cases)} cases / "
-          f"{len({c.cik for c in cases})} companies / "
-          f"{len({c.category for c in cases})} categories -> {SLICE_OUT}")
+    print(
+        f"seocho-88b: SE_XCAT_HELDOUT = {len(cases)} cases / "
+        f"{len({c.cik for c in cases})} companies / "
+        f"{len({c.category for c in cases})} categories -> {SLICE_OUT}"
+    )
     if args.select_only:
         return 0
 
@@ -251,21 +314,34 @@ def main() -> int:
         return 1
     try:
         print("\n" + "=" * 84)
-        print("FinDER backbone vs isolated — Tier-1 deterministic metrics (LIVE DozerDB)")
+        print(
+            "FinDER backbone vs isolated — Tier-1 deterministic metrics (LIVE DozerDB)"
+        )
         print("=" * 84)
         rows = {}
-        for mode, builder in (("isolated", build_isolated), ("backbone", build_backbone)):
+        for mode, builder in (
+            ("isolated", build_isolated),
+            ("backbone", build_backbone),
+        ):
             builder(drv, cases)
             rows[mode] = metrics(drv, cases, mode)
-        keys = ["entity_identity_consistency", "avg_company_nodes_per_cik",
-                "cross_category_reachability_success", "avg_reachable_categories"]
+        keys = [
+            "entity_identity_consistency",
+            "avg_company_nodes_per_cik",
+            "cross_category_reachability_success",
+            "avg_reachable_categories",
+        ]
         print(f"\n  {'metric':<38} {'ISOLATED':>10} {'BACKBONE':>10}")
         print("  " + "-" * 60)
         for k in keys:
-            print(f"  {k:<38} {rows['isolated'][k]:>10.2f} {rows['backbone'][k]:>10.2f}")
+            print(
+                f"  {k:<38} {rows['isolated'][k]:>10.2f} {rows['backbone'][k]:>10.2f}"
+            )
         print("\n  Reading: backbone = 1 Company node/CIK reaching ALL its categories;")
         print("  isolated duplicates the company per case and reaches only 1 category.")
-        print("  => cross-category joins are possible on the backbone, impossible when isolated.")
+        print(
+            "  => cross-category joins are possible on the backbone, impossible when isolated."
+        )
     finally:
         try:
             with drv.session(database="system") as s:

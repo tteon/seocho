@@ -13,6 +13,7 @@ Reports cross-session cache_hit_rate and cold-vs-warm p50/p99 latency.
 Requires a reachable graph (DozerDB/Neo4j) and an LLM (MARA via MARA_API_KEY).
 Run:  scripts/benchmarks/finder_cache_synergy.py --neo4j-password seocho-dev --limit 5
 """
+
 from __future__ import annotations
 
 import argparse
@@ -70,11 +71,20 @@ def _mara_key() -> str:
 
 def _ontology():
     from seocho import NodeDef, Ontology, P, RelDef
+
     return Ontology(
         name="cachesyn",
         nodes={
-            "Company": NodeDef(properties={"name": P(str, unique=True), "sector": P(str)}),
-            "FinancialMetric": NodeDef(properties={"name": P(str, unique=True), "value": P(str), "year": P(str)}),
+            "Company": NodeDef(
+                properties={"name": P(str, unique=True), "sector": P(str)}
+            ),
+            "FinancialMetric": NodeDef(
+                properties={
+                    "name": P(str, unique=True),
+                    "value": P(str),
+                    "year": P(str),
+                }
+            ),
         },
         relationships={"REPORTED": RelDef(source="Company", target="FinancialMetric")},
     )
@@ -84,9 +94,13 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--graph", default="bolt://localhost:7687")
     ap.add_argument("--neo4j-user", default="neo4j")
-    ap.add_argument("--neo4j-password", default=os.getenv("NEO4J_PASSWORD", "seocho-dev"))
+    ap.add_argument(
+        "--neo4j-password", default=os.getenv("NEO4J_PASSWORD", "seocho-dev")
+    )
     ap.add_argument("--database", default="cachesynbench")
-    ap.add_argument("--dataset", default="examples/finder/datasets/finder_tutorial_subset.json")
+    ap.add_argument(
+        "--dataset", default="examples/finder/datasets/finder_tutorial_subset.json"
+    )
     ap.add_argument("--limit", type=int, default=5)
     ap.add_argument("--model", default="mara/DeepSeek-V3.1")
     args = ap.parse_args()
@@ -99,8 +113,14 @@ def main() -> None:
     from seocho.benchmarking import load_finder_cases
 
     cases = load_finder_cases(ROOT / args.dataset)[: args.limit]
-    client = Seocho.local(_ontology(), llm=args.model, graph=args.graph,
-                          neo4j_user=args.neo4j_user, neo4j_password=args.neo4j_password, api_key=key)
+    client = Seocho.local(
+        _ontology(),
+        llm=args.model,
+        graph=args.graph,
+        neo4j_user=args.neo4j_user,
+        neo4j_password=args.neo4j_password,
+        api_key=key,
+    )
     gs = client._engine.graph_store
     try:
         gs.ensure_database(args.database)
@@ -116,14 +136,18 @@ def main() -> None:
             except Exception:  # noqa: BLE001
                 pass
             dt = (time.perf_counter() - t0) * 1000
-            mode = session.context.queries[-1]["mode"] if session.context.queries else "?"
+            mode = (
+                session.context.queries[-1]["mode"] if session.context.queries else "?"
+            )
             rows.append((dt, mode))
             print(f"  [{label}] {dt:8.1f} ms  mode={mode}")
         return rows
 
     try:
         for c in cases:
-            client.add(c.text, database=args.database, category=str(c.category or "memory"))
+            client.add(
+                c.text, database=args.database, category=str(c.category or "memory")
+            )
         print("=== cold (compute + persist) ===")
         cold = run(client.session(name="cold", database=args.database), "cold")
         print("=== warm (fresh session, persistent-cache hit) ===")
@@ -133,14 +157,21 @@ def main() -> None:
         print("\n" + "=" * 60)
         print("SYNERGY #1 — persistent cache hit-rate + latency win")
         print("=" * 60)
-        print(f"  cross-session cache_hit_rate: {s['cache_hit_rate']*100:.0f}%  (n={int(s['n'])})")
+        print(
+            f"  cross-session cache_hit_rate: {s['cache_hit_rate']*100:.0f}%  (n={int(s['n'])})"
+        )
         print(f"  cold  p50={s['cold_p50_ms']:.0f}ms  p99={s['cold_p99_ms']:.0f}ms")
         print(f"  warm  p50={s['warm_p50_ms']:.1f}ms  p99={s['warm_p99_ms']:.1f}ms")
-        print(f"  warm/cold p99 ratio = {s['warm_over_cold_p99_ratio']:.4f}x  "
-              f"({'<0.5x target MET' if s['meets_0_5x_target'] else 'above target'})")
+        print(
+            f"  warm/cold p99 ratio = {s['warm_over_cold_p99_ratio']:.4f}x  "
+            f"({'<0.5x target MET' if s['meets_0_5x_target'] else 'above target'})"
+        )
     finally:
         try:
-            gs.query("MATCH (n) WHERE n._source_id IS NOT NULL DETACH DELETE n", database=args.database)
+            gs.query(
+                "MATCH (n) WHERE n._source_id IS NOT NULL DETACH DELETE n",
+                database=args.database,
+            )
         except Exception:  # noqa: BLE001
             pass
         client.close()

@@ -28,7 +28,9 @@ def main() -> None:
     ap.add_argument("--store", default=None, help="store dir (default: temp)")
     args = ap.parse_args()
 
-    corpus_data = json.loads(Path(CORPUS_SRC).read_text(encoding="utf-8"))["corpus_profile"]
+    corpus_data = json.loads(Path(CORPUS_SRC).read_text(encoding="utf-8"))[
+        "corpus_profile"
+    ]
     corpus = CorpusProfile(
         label_frequencies=corpus_data["label_frequencies"],
         doc_count=corpus_data.get("doc_count", 0),
@@ -43,12 +45,20 @@ def main() -> None:
 
     store_dir = args.store or tempfile.mkdtemp(prefix="seocho_snap_")
     store = OntologySnapshotStore(store_dir)
-    store.save(v1, scorecard=score_ontology(v1, corpus_profile=corpus, profile="guardrail"),
-               corpus_profile=corpus, weight_profile="guardrail",
-               notes="sparse FIBO (2 classes) — initial guardrail")
-    store.save(v2, scorecard=score_ontology(v2, corpus_profile=corpus, profile="guardrail"),
-               corpus_profile=corpus, weight_profile="guardrail",
-               notes="rich FIBO (9 classes) — refined guardrail")
+    store.save(
+        v1,
+        scorecard=score_ontology(v1, corpus_profile=corpus, profile="guardrail"),
+        corpus_profile=corpus,
+        weight_profile="guardrail",
+        notes="sparse FIBO (2 classes) — initial guardrail",
+    )
+    store.save(
+        v2,
+        scorecard=score_ontology(v2, corpus_profile=corpus, profile="guardrail"),
+        corpus_profile=corpus,
+        weight_profile="guardrail",
+        notes="rich FIBO (9 classes) — refined guardrail",
+    )
 
     history = store.history("fibo_finder")
     comparison = store.compare("fibo_finder", "1.0.0", "2.0.0")
@@ -60,17 +70,25 @@ def main() -> None:
         "history": history,
         "comparison": comparison,
     }
-    Path(args.out).write_text(json.dumps(record, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    Path(args.out).write_text(
+        json.dumps(record, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
     print(f"[written] {args.out}\n")
     print("HISTORY (fibo_finder):")
     for h in history:
-        print(f"  v{h['version']:6s} grade={h['grade']} overall={h['overall_score']} "
-              f"corpus_coverage={h['corpus_coverage']}  fp={h['schema_fingerprint']}  — {h['notes']}")
+        print(
+            f"  v{h['version']:6s} grade={h['grade']} overall={h['overall_score']} "
+            f"corpus_coverage={h['corpus_coverage']}  fp={h['schema_fingerprint']}  — {h['notes']}"
+        )
     gv = comparison["guardrail_verdict"]
-    print(f"\nCOMPARE 1.0.0 -> 2.0.0: schema_changed={comparison['schema_changed']} "
-          f"bump={comparison['recommended_bump']}")
+    print(
+        f"\nCOMPARE 1.0.0 -> 2.0.0: schema_changed={comparison['schema_changed']} "
+        f"bump={comparison['recommended_bump']}"
+    )
     print(f"  added nodes: {comparison['changes'].get('nodes', {}).get('added')}")
-    print(f"  GUARDRAIL VERDICT: v2 is '{gv['verdict']}' (basis={gv['basis']}, delta={gv['delta']:+})")
+    print(
+        f"  GUARDRAIL VERDICT: v2 is '{gv['verdict']}' (basis={gv['basis']}, delta={gv['delta']:+})"
+    )
 
 
 if __name__ == "__main__":

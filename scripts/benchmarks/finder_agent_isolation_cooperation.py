@@ -65,9 +65,23 @@ CATEGORIES = ["Financials", "Company overview", "Footnotes"]
 def boot():
     subprocess.run(["docker", "rm", "-f", CONTAINER], capture_output=True)
     subprocess.run(
-        ["docker", "run", "-d", "--rm", "--name", CONTAINER,
-         "-e", f"NEO4J_AUTH=neo4j/{PASSWORD}", "-p", "7480:7474", "-p", "7693:7687", IMAGE],
-        capture_output=True, text=True,
+        [
+            "docker",
+            "run",
+            "-d",
+            "--rm",
+            "--name",
+            CONTAINER,
+            "-e",
+            f"NEO4J_AUTH=neo4j/{PASSWORD}",
+            "-p",
+            "7480:7474",
+            "-p",
+            "7693:7687",
+            IMAGE,
+        ],
+        capture_output=True,
+        text=True,
     )
     for _ in range(60):
         try:
@@ -84,9 +98,17 @@ def boot():
 
 
 def _rows(cases: List[Case]) -> List[dict]:
-    return [{"cik": c.cik, "ticker": c.ticker, "cat": c.category,
-             "years": c.years or [0], "case": c.case_id,
-             "ev": [e[:400] for e in c.evidence]} for c in cases]
+    return [
+        {
+            "cik": c.cik,
+            "ticker": c.ticker,
+            "cat": c.category,
+            "years": c.years or [0],
+            "case": c.case_id,
+            "ev": [e[:400] for e in c.evidence],
+        }
+        for c in cases
+    ]
 
 
 def build(drv, db: str, cases: List[Case], shared: bool) -> None:
@@ -99,14 +121,18 @@ def build(drv, db: str, cases: List[Case], shared: bool) -> None:
                 "MERGE (cy:CompanyYear {cy_id:'cy:'+r.cik+':'+toString(fy)}) SET cy.cik=r.cik "
                 "MERGE (co)-[:FOR_YEAR]->(cy) "
                 "MERGE (fs:FilingSection {fs_id:cy.cy_id+':'+r.cat}) SET fs.kind=r.cat, fs.cik=r.cik "
-                "MERGE (cy)-[:HAS_SECTION]->(fs)", rows=_rows(cases)).consume()
+                "MERGE (cy)-[:HAS_SECTION]->(fs)",
+                rows=_rows(cases),
+            ).consume()
             s.run(
                 "UNWIND $rows AS r WITH r, "
                 "'cy:'+r.cik+':'+toString(coalesce(r.years[0],0))+':'+r.cat AS fsid "
                 "MATCH (fs:FilingSection {fs_id:fsid}) UNWIND range(0,size(r.ev)-1) AS i "
                 "MERGE (e:Evidence {ev_id:r.case+':'+toString(i)}) "
                 "  SET e.category=r.cat, e.cik=r.cik, e.text=r.ev[i] "
-                "MERGE (fs)-[:CONTAINS]->(e)", rows=_rows(cases)).consume()
+                "MERGE (fs)-[:CONTAINS]->(e)",
+                rows=_rows(cases),
+            ).consume()
         else:
             s.run(
                 "UNWIND $rows AS r "
@@ -115,14 +141,17 @@ def build(drv, db: str, cases: List[Case], shared: bool) -> None:
                 "MERGE (co)-[:HAS_SECTION]->(fs) WITH r, fs UNWIND range(0,size(r.ev)-1) AS i "
                 "MERGE (e:Evidence {ev_id:r.case+':'+toString(i)}) "
                 "  SET e.category=r.cat, e.cik=r.cik, e.text=r.ev[i] "
-                "MERGE (fs)-[:CONTAINS]->(e)", rows=_rows(cases)).consume()
+                "MERGE (fs)-[:CONTAINS]->(e)",
+                rows=_rows(cases),
+            ).consume()
 
 
 # --------------------------------------------------------------------------
 # Agents: a category specialist retrieves its slot from the tenant backbone.
 # --------------------------------------------------------------------------
-def specialist_retrieve(drv, db: str, cik: str, category: str, shared: bool,
-                        entry_case: str = "") -> List[dict]:
+def specialist_retrieve(
+    drv, db: str, cik: str, category: str, shared: bool, entry_case: str = ""
+) -> List[dict]:
     """One category specialist agent: fetch evidence for (company, category)
     from its tenant DB. Anchors on Company{cik} — never names another company.
 
@@ -132,23 +161,31 @@ def specialist_retrieve(drv, db: str, cik: str, category: str, shared: bool,
     is reachable — cross-category composition is structurally impossible."""
     with drv.session(database=db) as s:
         if shared:
-            q = ("MATCH (co:Company {cik:$cik})-[:FOR_YEAR]->(:CompanyYear)"
-                 "-[:HAS_SECTION]->(fs:FilingSection {kind:$cat})-[:CONTAINS]->(e:Evidence) "
-                 "RETURN e.cik AS cik, e.category AS category, e.text AS text")
+            q = (
+                "MATCH (co:Company {cik:$cik})-[:FOR_YEAR]->(:CompanyYear)"
+                "-[:HAS_SECTION]->(fs:FilingSection {kind:$cat})-[:CONTAINS]->(e:Evidence) "
+                "RETURN e.cik AS cik, e.category AS category, e.text AS text"
+            )
             params = {"cik": cik, "cat": category}
         else:
-            q = ("MATCH (co:Company {cik:$cik, _case_id:$entry})"
-                 "-[:HAS_SECTION]->(fs:FilingSection {kind:$cat})-[:CONTAINS]->(e:Evidence) "
-                 "RETURN e.cik AS cik, e.category AS category, e.text AS text")
+            q = (
+                "MATCH (co:Company {cik:$cik, _case_id:$entry})"
+                "-[:HAS_SECTION]->(fs:FilingSection {kind:$cat})-[:CONTAINS]->(e:Evidence) "
+                "RETURN e.cik AS cik, e.category AS category, e.text AS text"
+            )
             params = {"cik": cik, "cat": category, "entry": entry_case}
         return [dict(r) for r in s.run(q, **params).data()]
 
 
-def supervisor_answer(drv, db: str, cik: str, shared: bool, entry_case: str = "") -> dict:
+def supervisor_answer(
+    drv, db: str, cik: str, shared: bool, entry_case: str = ""
+) -> dict:
     """Supervisor dispatches all 3 category specialists over the SAME backbone
     and composes: which categories were filled, bound to one company node."""
-    bundles = {cat: specialist_retrieve(drv, db, cik, cat, shared, entry_case)
-               for cat in CATEGORIES}
+    bundles = {
+        cat: specialist_retrieve(drv, db, cik, cat, shared, entry_case)
+        for cat in CATEGORIES
+    }
     filled = [cat for cat, ev in bundles.items() if ev]
     all_ev = [e for ev in bundles.values() for e in ev]
     return {"cik": cik, "categories_filled": filled, "evidence": all_ev}
@@ -185,7 +222,9 @@ def run_condition(drv, cases: List[Case], shared: bool) -> Dict[str, float]:
     lock = threading.Lock()
 
     def agent_job(cik: str) -> None:
-        ans = supervisor_answer(drv, cik_tenant[cik], cik, shared, entry_case.get(cik, ""))
+        ans = supervisor_answer(
+            drv, cik_tenant[cik], cik, shared, entry_case.get(cik, "")
+        )
         with lock:
             results[cik] = ans
 
@@ -196,7 +235,9 @@ def run_condition(drv, cases: List[Case], shared: bool) -> Dict[str, float]:
         th.join()
 
     # cooperation: multi-category companies whose specialists filled >=2 categories
-    coop = sum(1 for k in multi if len(results[k]["categories_filled"]) >= 2) / len(multi)
+    coop = sum(1 for k in multi if len(results[k]["categories_filled"]) >= 2) / len(
+        multi
+    )
     # isolation: any retrieved evidence whose cik belongs to a different company
     contamination = 0
     for k, ans in results.items():
@@ -205,7 +246,9 @@ def run_condition(drv, cases: List[Case], shared: bool) -> Dict[str, float]:
     ident_ok = 0
     for k in cik_tenant:
         with drv.session(database=cik_tenant[k]) as s:
-            n = s.run("MATCH (co:Company {cik:$c}) RETURN count(co) AS n", c=k).single()["n"]
+            n = s.run(
+                "MATCH (co:Company {cik:$c}) RETURN count(co) AS n", c=k
+            ).single()["n"]
         ident_ok += 1 if n == 1 else 0
     return {
         "cross_category_composition_success": coop,
@@ -223,10 +266,14 @@ def isolation_probe(drv, cases: List[Case]) -> float:
     leaks = 0
     for t in TENANTS:
         # CIKs that belong to OTHER tenants
-        foreign = [resolver.resolve(tk) for ot, otk in TENANTS.items() if ot != t for tk in otk]
+        foreign = [
+            resolver.resolve(tk) for ot, otk in TENANTS.items() if ot != t for tk in otk
+        ]
         with drv.session(database=t) as s:
             for cik in foreign:
-                n = s.run("MATCH (co:Company {cik:$c}) RETURN count(co) AS n", c=cik).single()["n"]
+                n = s.run(
+                    "MATCH (co:Company {cik:$c}) RETURN count(co) AS n", c=cik
+                ).single()["n"]
                 leaks += n
     return float(leaks)
 
@@ -244,24 +291,42 @@ def main() -> int:
         return 1
     try:
         print("=" * 86)
-        print("FinDER agent isolation & cooperation — LIVE DozerDB (2 tenants, 3 category agents)")
+        print(
+            "FinDER agent isolation & cooperation — LIVE DozerDB (2 tenants, 3 category agents)"
+        )
         print(f"  tenants: " + " | ".join(f"{t}={tks}" for t, tks in TENANTS.items()))
         print("=" * 86)
         rows = {}
         for shared in (False, True):
-            rows["backbone" if shared else "isolated"] = run_condition(drv, cases, shared)
+            rows["backbone" if shared else "isolated"] = run_condition(
+                drv, cases, shared
+            )
         xtenant = isolation_probe(drv, cases)  # boundary holds regardless of arm
-        keys = ["entity_identity_consistency", "cross_category_composition_success",
-                "cross_tenant_or_company_contamination", "multi_category_companies"]
+        keys = [
+            "entity_identity_consistency",
+            "cross_category_composition_success",
+            "cross_tenant_or_company_contamination",
+            "multi_category_companies",
+        ]
         print(f"\n  {'metric':<42} {'ISOLATED':>10} {'BACKBONE':>10}")
         print("  " + "-" * 64)
         for k in keys:
-            print(f"  {k:<42} {rows['isolated'][k]:>10.2f} {rows['backbone'][k]:>10.2f}")
+            print(
+                f"  {k:<42} {rows['isolated'][k]:>10.2f} {rows['backbone'][k]:>10.2f}"
+            )
         print(f"\n  cross-TENANT company visibility probe (want 0): {xtenant:.0f}")
-        print("\n  COOPERATION: on the backbone, specialists fill multiple categories for one")
-        print("  company (composition succeeds); isolated, each agent reaches only its island.")
-        print("  ISOLATION: agents never retrieve another company/tenant's evidence (contam=0),")
-        print("  and tenant DBs cannot see each other's companies — even under concurrent agents.")
+        print(
+            "\n  COOPERATION: on the backbone, specialists fill multiple categories for one"
+        )
+        print(
+            "  company (composition succeeds); isolated, each agent reaches only its island."
+        )
+        print(
+            "  ISOLATION: agents never retrieve another company/tenant's evidence (contam=0),"
+        )
+        print(
+            "  and tenant DBs cannot see each other's companies — even under concurrent agents."
+        )
     finally:
         try:
             with drv.session(database="system") as s:

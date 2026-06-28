@@ -77,8 +77,10 @@ CONCEPT_GROUPS: List[Dict[str, Any]] = [
     {
         "metric": "stockholders_equity",
         "phrase": "stockholders' equity",
-        "concepts": ["StockholdersEquity",
-                     "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest"],
+        "concepts": [
+            "StockholdersEquity",
+            "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",
+        ],
     },
 ]
 
@@ -86,6 +88,7 @@ CONCEPT_GROUPS: List[Dict[str, Any]] = [
 # ---------------------------------------------------------------------------
 # Pure conversion logic (no network, no LLM) — unit-tested
 # ---------------------------------------------------------------------------
+
 
 def fiscal_year_from_frame(frame: Optional[str]) -> Optional[int]:
     """Return the fiscal year for a full-year XBRL ``frame`` (``CY2024``→2024).
@@ -143,7 +146,9 @@ def format_value(value: Any, unit: str) -> str:
     return f"{value} {unit}".strip()
 
 
-def pick_concept(usgaap: Dict[str, Any], group: Dict[str, Any], n_years: int) -> Optional[Dict[str, Any]]:
+def pick_concept(
+    usgaap: Dict[str, Any], group: Dict[str, Any], n_years: int
+) -> Optional[Dict[str, Any]]:
     """Merge annual facts across all concepts in the group, newest ``n_years``.
 
     Filers migrate concept tags over time (e.g. ``Revenues`` →
@@ -166,7 +171,9 @@ def pick_concept(usgaap: Dict[str, Any], group: Dict[str, Any], n_years: int) ->
                 concept_for_year[fy] = concept
     if not by_year:
         return None
-    facts = sorted(by_year.values(), key=lambda r: r["fiscal_year"], reverse=True)[:n_years]
+    facts = sorted(by_year.values(), key=lambda r: r["fiscal_year"], reverse=True)[
+        :n_years
+    ]
     # report the concept backing the newest selected year (diagnostic only)
     primary_concept = concept_for_year[facts[0]["fiscal_year"]]
     return {"concept": primary_concept, "facts": facts}
@@ -196,8 +203,9 @@ def build_qa_rows(
         if not picked:
             continue
         concept = picked["concept"]
-        picked["facts"] = [f for f in picked["facts"]
-                           if f["fiscal_year"] >= min_fiscal_year]
+        picked["facts"] = [
+            f for f in picked["facts"] if f["fiscal_year"] >= min_fiscal_year
+        ]
         if not picked["facts"]:
             continue
         # Corpus: one fact-sentence per year for this metric. Indexed together,
@@ -209,30 +217,33 @@ def build_qa_rows(
             for f in picked["facts"]
         ]
         for f in picked["facts"]:
-            rows.append({
-                "corpus": corpus,
-                "question": (
-                    f"What was {company}'s {group['phrase']} "
-                    f"for fiscal year {f['fiscal_year']}?"
-                ),
-                "answer": format_value(f["value"], f["unit"]),
-                "gold_entities": [company, group["metric"]],
-                # temporal / diagnostic fields
-                "ticker": ticker,
-                "metric": group["metric"],
-                "concept": concept,
-                "fiscal_year": f["fiscal_year"],
-                "period_end": f["period_end"],
-                "raw_value": f["value"],
-                "unit": f["unit"],
-                "prior_stale": f["fiscal_year"] > cutoff_year,
-            })
+            rows.append(
+                {
+                    "corpus": corpus,
+                    "question": (
+                        f"What was {company}'s {group['phrase']} "
+                        f"for fiscal year {f['fiscal_year']}?"
+                    ),
+                    "answer": format_value(f["value"], f["unit"]),
+                    "gold_entities": [company, group["metric"]],
+                    # temporal / diagnostic fields
+                    "ticker": ticker,
+                    "metric": group["metric"],
+                    "concept": concept,
+                    "fiscal_year": f["fiscal_year"],
+                    "period_end": f["period_end"],
+                    "raw_value": f["value"],
+                    "unit": f["unit"],
+                    "prior_stale": f["fiscal_year"] > cutoff_year,
+                }
+            )
     return rows
 
 
 # ---------------------------------------------------------------------------
 # EDGAR network helpers (the only impure surface)
 # ---------------------------------------------------------------------------
+
 
 def _get_json(url: str, *, retries: int = 3, pause: float = 0.4) -> Any:
     last: Optional[Exception] = None
@@ -286,8 +297,12 @@ def generate(
         company = cf.get("entityName", t)
         usgaap = cf.get("facts", {}).get("us-gaap", {})
         company_rows = build_qa_rows(
-            company, t.upper(), usgaap, n_years=n_years,
-            cutoff_year=cutoff_year, min_fiscal_year=min_fiscal_year,
+            company,
+            t.upper(),
+            usgaap,
+            n_years=n_years,
+            cutoff_year=cutoff_year,
+            min_fiscal_year=min_fiscal_year,
         )
         rows.extend(company_rows)
         print(f"  [{t}] {company}: {len(company_rows)} rows", file=sys.stderr)
@@ -297,32 +312,73 @@ def generate(
 
 # The 20-company basket (FinDER-aligned large-cap issuers). Mutable via --tickers.
 DEFAULT_TICKERS = [
-    "AAPL", "MSFT", "NVDA", "GOOGL", "AMZN", "META", "TSLA", "JPM", "BRK-B",
-    "V", "JNJ", "WMT", "PG", "XOM", "HD", "KO", "PEP", "CSCO", "INTC", "CVX",
+    "AAPL",
+    "MSFT",
+    "NVDA",
+    "GOOGL",
+    "AMZN",
+    "META",
+    "TSLA",
+    "JPM",
+    "BRK-B",
+    "V",
+    "JNJ",
+    "WMT",
+    "PG",
+    "XOM",
+    "HD",
+    "KO",
+    "PEP",
+    "CSCO",
+    "INTC",
+    "CVX",
 ]
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="SEC temporal benchmark generator")
-    parser.add_argument("--tickers", default=",".join(DEFAULT_TICKERS),
-                        help="Comma-separated tickers (default: 20-company basket)")
-    parser.add_argument("--years", type=int, default=3,
-                        help="Most recent N fiscal years per metric")
-    parser.add_argument("--cutoff-year", type=int, default=2024,
-                        help="Model training-horizon FY; facts after are prior_stale")
-    parser.add_argument("--min-fiscal-year", type=int, default=None,
-                        help="Drop years older than this (default: cutoff-year - 2)")
+    parser.add_argument(
+        "--tickers",
+        default=",".join(DEFAULT_TICKERS),
+        help="Comma-separated tickers (default: 20-company basket)",
+    )
+    parser.add_argument(
+        "--years", type=int, default=3, help="Most recent N fiscal years per metric"
+    )
+    parser.add_argument(
+        "--cutoff-year",
+        type=int,
+        default=2024,
+        help="Model training-horizon FY; facts after are prior_stale",
+    )
+    parser.add_argument(
+        "--min-fiscal-year",
+        type=int,
+        default=None,
+        help="Drop years older than this (default: cutoff-year - 2)",
+    )
     parser.add_argument("--out", default="-", help="Output JSONL path (- for stdout)")
     args = parser.parse_args()
 
     tickers = [t.strip() for t in args.tickers.split(",") if t.strip()]
-    min_fy = args.min_fiscal_year if args.min_fiscal_year is not None else args.cutoff_year - 2
-    rows = generate(tickers, n_years=args.years, cutoff_year=args.cutoff_year,
-                    min_fiscal_year=min_fy)
+    min_fy = (
+        args.min_fiscal_year
+        if args.min_fiscal_year is not None
+        else args.cutoff_year - 2
+    )
+    rows = generate(
+        tickers,
+        n_years=args.years,
+        cutoff_year=args.cutoff_year,
+        min_fiscal_year=min_fy,
+    )
 
     stale = sum(1 for r in rows if r["prior_stale"])
-    print(f"\nGenerated {len(rows)} rows ({stale} prior-stale) "
-          f"across {len(tickers)} tickers", file=sys.stderr)
+    print(
+        f"\nGenerated {len(rows)} rows ({stale} prior-stale) "
+        f"across {len(tickers)} tickers",
+        file=sys.stderr,
+    )
 
     payload = "\n".join(json.dumps(r, ensure_ascii=False) for r in rows)
     if args.out == "-":

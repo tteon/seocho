@@ -37,7 +37,10 @@ for _p in (_ROOT / "src", _ROOT, Path(__file__).resolve().parent):
         sys.path.insert(0, str(_p))
 
 from finder_backbone import select_xcat_cases  # noqa: E402  (seocho-88b)
-from seocho.index.xbrl_ingest import companyfacts_to_observations, fetch_companyfacts  # noqa: E402
+from seocho.index.xbrl_ingest import (
+    companyfacts_to_observations,
+    fetch_companyfacts,
+)  # noqa: E402
 from seocho.semantic_layer.concepts import default_registry  # noqa: E402
 from seocho.semantic_layer.identity import EntityResolver  # noqa: E402
 
@@ -47,15 +50,29 @@ IMAGE = "graphstack/dozerdb:5.26.3.0"
 BOLT = "bolt://localhost:7695"
 DB = "xbrlbackbone"
 N_YEARS = 5
-MIN_FY = 2021          # FinDER questions span FY2021-2024
+MIN_FY = 2021  # FinDER questions span FY2021-2024
 
 
 def boot():
     subprocess.run(["docker", "rm", "-f", CONTAINER], capture_output=True)
     subprocess.run(
-        ["docker", "run", "-d", "--rm", "--name", CONTAINER,
-         "-e", f"NEO4J_AUTH=neo4j/{PASSWORD}", "-p", "7482:7474", "-p", "7695:7687", IMAGE],
-        capture_output=True, text=True,
+        [
+            "docker",
+            "run",
+            "-d",
+            "--rm",
+            "--name",
+            CONTAINER,
+            "-e",
+            f"NEO4J_AUTH=neo4j/{PASSWORD}",
+            "-p",
+            "7482:7474",
+            "-p",
+            "7695:7687",
+            IMAGE,
+        ],
+        capture_output=True,
+        text=True,
     )
     for _ in range(60):
         try:
@@ -87,14 +104,26 @@ def ingest_company(drv, cik: str, registry) -> int:
         print(f"   ! fetch failed for {cik}: {type(exc).__name__}")
         return 0
     nodes, _ = companyfacts_to_observations(
-        facts, registry=registry, cik=cik, n_years=N_YEARS, min_fiscal_year=MIN_FY)
+        facts, registry=registry, cik=cik, n_years=N_YEARS, min_fiscal_year=MIN_FY
+    )
     obs = [n["properties"] for n in nodes if n["label"] == "Observation"]
-    name = next((n["properties"].get("name") for n in nodes if n["label"] == "Company"), cik)
+    name = next(
+        (n["properties"].get("name") for n in nodes if n["label"] == "Company"), cik
+    )
     rows = []
     for p in obs:
         fy = _fy_from_period_key(p["period_key"])
-        rows.append({"cik": cik, "name": name, "fy": fy, "obs_id": p["obs_id"],
-                     "concept": p["concept_id"], "val": p["value_num"], "unit": p["unit"]})
+        rows.append(
+            {
+                "cik": cik,
+                "name": name,
+                "fy": fy,
+                "obs_id": p["obs_id"],
+                "concept": p["concept_id"],
+                "val": p["value_num"],
+                "unit": p["unit"],
+            }
+        )
     with drv.session(database=DB) as s:
         s.run(
             "UNWIND $rows AS r "
@@ -106,7 +135,9 @@ def ingest_company(drv, cik: str, registry) -> int:
             "  SET o.concept_id=r.concept, o.entity_cik=r.cik, o.fy=r.fy, "
             "      o.value_num=r.val, o.unit=r.unit "
             "MERGE (co)-[:HAS_OBSERVATION]->(o) "
-            "MERGE (cy)-[:REPORTS]->(o)", rows=rows).consume()
+            "MERGE (cy)-[:REPORTS]->(o)",
+            rows=rows,
+        ).consume()
     return len(obs)
 
 
@@ -116,7 +147,9 @@ def xbrl_context(drv, cik: str) -> str:
         recs = s.run(
             "MATCH (co:Company {cik:$cik})-[:HAS_OBSERVATION]->(o:Observation) "
             "RETURN o.concept_id AS c, o.fy AS fy, o.value_num AS v, o.unit AS u "
-            "ORDER BY c, fy", cik=cik).data()
+            "ORDER BY c, fy",
+            cik=cik,
+        ).data()
     return "\n".join(f"{r['c']} FY{r['fy']} = {r['v']:.0f} {r['u']}" for r in recs)
 
 
@@ -137,15 +170,17 @@ def main() -> int:
         return 1
     try:
         print("=" * 80)
-        print(f"SEC XBRL companyfacts -> backbone Observations ({len(ciks)} companies, "
-              f"FY>={MIN_FY})")
+        print(
+            f"SEC XBRL companyfacts -> backbone Observations ({len(ciks)} companies, "
+            f"FY>={MIN_FY})"
+        )
         print("=" * 80)
         total = 0
         for cik in ciks:
             n = ingest_company(drv, cik, registry)
             total += n
             print(f"  {tk_by_cik[cik]:<6} cik={cik}  observations={n}")
-            time.sleep(0.3)   # be gentle to EDGAR
+            time.sleep(0.3)  # be gentle to EDGAR
         print(f"\n  TOTAL observations ingested: {total}")
         # sanity: show real numbers for one company (UAL revenue series)
         ual = resolver.resolve("UAL")
@@ -153,7 +188,9 @@ def main() -> int:
         for line in xbrl_context(drv, ual).splitlines():
             if "Revenue" in line or "OperatingIncome" in line:
                 print(f"    {line}")
-        print("\n  These structured numbers are what the compositional FinDER gold needs;")
+        print(
+            "\n  These structured numbers are what the compositional FinDER gold needs;"
+        )
         print("  next: feed xbrl_context into the backbone_multi arm so the MARA judge")
         print("  becomes informative (seocho-992 step 2).")
     finally:

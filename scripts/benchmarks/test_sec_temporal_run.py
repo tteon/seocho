@@ -18,9 +18,9 @@ def test_extract_usd_scale_aware():
 
 def test_value_matches_handles_million_and_billion_forms():
     gold = 416_161_000_000
-    assert run.value_matches("$416,161 million", gold)       # verbose grounded
+    assert run.value_matches("$416,161 million", gold)  # verbose grounded
     assert run.value_matches("approximately $416.2 billion", gold)  # rounded prior
-    assert run.value_matches("416,161", gold) is False       # bare millions w/o scale != raw
+    assert run.value_matches("416,161", gold) is False  # bare millions w/o scale != raw
     assert run.value_matches("$391,035 million", gold) is False  # different year
 
 
@@ -30,27 +30,43 @@ def test_value_matches_rejects_zero_and_nonnumeric():
 
 
 def test_temporal_verdict_correct_wrong_no_match():
-    asked = 416_161_000_000          # FY2025
+    asked = 416_161_000_000  # FY2025
     other = [391_035_000_000, 383_285_000_000]  # FY2024, FY2023 in same corpus
     assert run.temporal_verdict("$416,161 million", asked, other) == "correct"
     assert run.temporal_verdict("$391,035 million", asked, other) == "wrong_year"
     assert run.temporal_verdict("no data found", asked, other) == "no_match"
     # answer stating both years still resolves the asked one
-    assert run.temporal_verdict("FY2024 was $391,035M and FY2025 was $416,161M",
-                                asked, other) == "correct"
+    assert (
+        run.temporal_verdict(
+            "FY2024 was $391,035M and FY2025 was $416,161M", asked, other
+        )
+        == "correct"
+    )
 
 
 def test_aggregate_three_abs():
     records = [
         # fresh: prior knows it; grounded also right
-        {"prior_stale": False, "closed_book_match": True, "grounded_match": True,
-         "temporal": "correct"},
+        {
+            "prior_stale": False,
+            "closed_book_match": True,
+            "grounded_match": True,
+            "temporal": "correct",
+        },
         # stale: prior wrong, grounded right -> the money case
-        {"prior_stale": True, "closed_book_match": False, "grounded_match": True,
-         "temporal": "correct"},
+        {
+            "prior_stale": True,
+            "closed_book_match": False,
+            "grounded_match": True,
+            "temporal": "correct",
+        },
         # stale: both wrong, grounded retrieved wrong year
-        {"prior_stale": True, "closed_book_match": False, "grounded_match": False,
-         "temporal": "wrong_year"},
+        {
+            "prior_stale": True,
+            "closed_book_match": False,
+            "grounded_match": False,
+            "temporal": "wrong_year",
+        },
     ]
     s = run.aggregate(records)
     assert s["n"] == 3

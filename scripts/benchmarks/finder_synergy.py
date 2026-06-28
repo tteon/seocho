@@ -23,6 +23,7 @@ Run:
   scripts/benchmarks/finder_synergy.py --dataset examples/finder/datasets/finder_tutorial_subset.json
   scripts/benchmarks/finder_synergy.py --live 3   # + MARA support-parity sample
 """
+
 from __future__ import annotations
 
 import argparse
@@ -67,13 +68,17 @@ def route_tier_for_case(case: FinDERBenchmarkCase) -> ModelTier:
     if category in _FAST_CATEGORIES:
         return ModelTier.FAST
     if category == "financials":
-        return ModelTier.FRONTIER  # numbers with units/periods — don't risk a cheap model
+        return (
+            ModelTier.FRONTIER
+        )  # numbers with units/periods — don't risk a cheap model
     if category in _BALANCED_CATEGORIES:
         return ModelTier.BALANCED
     return ModelTier.BALANCED
 
 
-def synergy_cost_report(cases: List[FinDERBenchmarkCase], router: ModelRouter) -> Dict[str, Any]:
+def synergy_cost_report(
+    cases: List[FinDERBenchmarkCase], router: ModelRouter
+) -> Dict[str, Any]:
     """Deterministic: routed vs all-frontier relative cost on the real FinDER mix."""
     routed = 0.0
     frontier = 0.0
@@ -99,6 +104,7 @@ def synergy_cost_report(cases: List[FinDERBenchmarkCase], router: ModelRouter) -
 # Live support-parity arm (optional, MARA)
 # --------------------------------------------------------------------------- #
 
+
 def _mara_key() -> Optional[str]:
     key = os.getenv("MARA_API_KEY")
     if key:
@@ -115,12 +121,23 @@ def _mara_key() -> Optional[str]:
 
 def _ontology():
     from seocho import NodeDef, Ontology, P, RelDef
+
     return Ontology(
         name="finder_synergy",
         nodes={
-            "Company": NodeDef(properties={"name": P(str, unique=True), "sector": P(str)}),
-            "FinancialMetric": NodeDef(properties={"name": P(str, unique=True), "value": P(str), "year": P(str)}),
-            "Risk": NodeDef(properties={"name": P(str, unique=True), "category": P(str)}),
+            "Company": NodeDef(
+                properties={"name": P(str, unique=True), "sector": P(str)}
+            ),
+            "FinancialMetric": NodeDef(
+                properties={
+                    "name": P(str, unique=True),
+                    "value": P(str),
+                    "year": P(str),
+                }
+            ),
+            "Risk": NodeDef(
+                properties={"name": P(str, unique=True), "category": P(str)}
+            ),
         },
         relationships={
             "REPORTED": RelDef(source="Company", target="FinancialMetric"),
@@ -129,7 +146,9 @@ def _ontology():
     )
 
 
-def run_live_support_arm(cases: List[FinDERBenchmarkCase], router: ModelRouter, key: str) -> Dict[str, Any]:
+def run_live_support_arm(
+    cases: List[FinDERBenchmarkCase], router: ModelRouter, key: str
+) -> Dict[str, Any]:
     """Answer a sample under all-frontier vs routed model; compare support/match parity.
 
     Ontology-governed answering is held fixed; only the answer model varies, so
@@ -140,8 +159,12 @@ def run_live_support_arm(cases: List[FinDERBenchmarkCase], router: ModelRouter, 
     frontier_model = router.tier_models[ModelTier.FRONTIER]
 
     def _score(model: str, case: FinDERBenchmarkCase) -> Dict[str, Any]:
-        client = Seocho.local(_ontology(), llm=f"mara/{model}", api_key=key,
-                              workspace_id=f"synergy-{model}")
+        client = Seocho.local(
+            _ontology(),
+            llm=f"mara/{model}",
+            api_key=key,
+            workspace_id=f"synergy-{model}",
+        )
         try:
             client.add(case.text, category=str(case.category or "memory"))
             ans = client.ask(case.question)
@@ -149,7 +172,10 @@ def run_live_support_arm(cases: List[FinDERBenchmarkCase], router: ModelRouter, 
             client.close()
         exact, contains = compare_answers(case.expected_answer, ans)
         slots = score_answer_slots(case.expected_answer, ans)
-        return {"contains": contains, "numeric_recall": slots.get("numeric_recall", 0.0)}
+        return {
+            "contains": contains,
+            "numeric_recall": slots.get("numeric_recall", 0.0),
+        }
 
     arms: Dict[str, Dict[str, float]] = {"all_frontier": {}, "routed": {}}
     rows = []
@@ -158,21 +184,48 @@ def run_live_support_arm(cases: List[FinDERBenchmarkCase], router: ModelRouter, 
         routed_model = router.tier_models[tier]
         f = _score(frontier_model, case)
         r = _score(routed_model, case)
-        rows.append({"case": case.case_id, "tier": tier.name, "routed_model": routed_model,
-                     "frontier": f, "routed": r})
+        rows.append(
+            {
+                "case": case.case_id,
+                "tier": tier.name,
+                "routed_model": routed_model,
+                "frontier": f,
+                "routed": r,
+            }
+        )
+
     def _agg(keyarm):
         vals = [row[keyarm] for row in rows]
         return {
-            "contains_rate": round(sum(v["contains"] for v in vals) / len(vals), 3) if vals else 0.0,
-            "numeric_recall": round(sum(v["numeric_recall"] for v in vals) / len(vals), 3) if vals else 0.0,
+            "contains_rate": (
+                round(sum(v["contains"] for v in vals) / len(vals), 3) if vals else 0.0
+            ),
+            "numeric_recall": (
+                round(sum(v["numeric_recall"] for v in vals) / len(vals), 3)
+                if vals
+                else 0.0
+            ),
         }
-    return {"n": len(rows), "all_frontier": _agg("frontier"), "routed": _agg("routed"), "rows": rows}
+
+    return {
+        "n": len(rows),
+        "all_frontier": _agg("frontier"),
+        "routed": _agg("routed"),
+        "rows": rows,
+    }
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--dataset", default="examples/finder/datasets/finder_tutorial_subset.json")
-    ap.add_argument("--live", type=int, default=0, help="answer N sampled cases live via MARA for support parity")
+    ap.add_argument(
+        "--dataset", default="examples/finder/datasets/finder_tutorial_subset.json"
+    )
+    ap.add_argument(
+        "--live",
+        type=int,
+        default=0,
+        help="answer N sampled cases live via MARA for support parity",
+    )
     ap.add_argument("--out", default="outputs/evaluation/finder_synergy")
     args = ap.parse_args()
 
@@ -189,7 +242,9 @@ def main() -> None:
     if args.live > 0:
         key = _mara_key()
         if key:
-            report["support_arm"] = run_live_support_arm(cases[: args.live], router, key)
+            report["support_arm"] = run_live_support_arm(
+                cases[: args.live], router, key
+            )
         else:
             report["support_arm"] = {"skipped": "MARA_API_KEY unavailable"}
 
@@ -204,13 +259,19 @@ def main() -> None:
     print("FinDER SYNERGY — ontology-governed answering + signal-routed model")
     print("=" * 64)
     print(f"  cases={c['n']}  tier mix={c['tier_counts']}")
-    print(f"  routed cost {c['routed_cost']:.0f} vs all-frontier {c['all_frontier_cost']:.0f}")
-    print(f"  -> cost {c['cost_ratio']:.2f}x  (saving {c['cost_saving_pct']}%)  "
-          f"{'MEETS' if c['meets_0_6x_target'] else 'below'} the <0.6x target")
+    print(
+        f"  routed cost {c['routed_cost']:.0f} vs all-frontier {c['all_frontier_cost']:.0f}"
+    )
+    print(
+        f"  -> cost {c['cost_ratio']:.2f}x  (saving {c['cost_saving_pct']}%)  "
+        f"{'MEETS' if c['meets_0_6x_target'] else 'below'} the <0.6x target"
+    )
     if report.get("support_arm", {}).get("rows"):
         s = report["support_arm"]
-        print(f"  support parity (n={s['n']}): all-frontier contains={s['all_frontier']['contains_rate']} "
-              f"vs routed contains={s['routed']['contains_rate']}")
+        print(
+            f"  support parity (n={s['n']}): all-frontier contains={s['all_frontier']['contains_rate']} "
+            f"vs routed contains={s['routed']['contains_rate']}"
+        )
     print(f"  written: {out_path}")
 
 

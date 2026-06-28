@@ -22,6 +22,7 @@ Outputs:
   outputs/evaluation/finder_compare/<run_prefix>/partial/{llm}__{phase}_{case}_{mode}.json
   outputs/evaluation/finder_compare/<run_prefix>/aggregate.json
 """
+
 from __future__ import annotations
 
 import argparse
@@ -45,17 +46,18 @@ for path in (SRC, ROOT):
 from examples.finder.lib import bench_common as bc  # noqa: E402
 from examples.finder.lib import llm_io  # noqa: E402
 
-
 DATASET_NAME = "all_slices.csv"
-DEFAULT_SMOKE_CASE = "4af93b03"   # P0 ROST
+DEFAULT_SMOKE_CASE = "4af93b03"  # P0 ROST
 
 
 # ---------------------------------------------------------------------------
 # data loading
 # ---------------------------------------------------------------------------
 
+
 def load_case_data(case_id: str) -> dict:
     import pandas as pd
+
     df = pd.read_csv(ROOT / ".seocho/datasets/finder/slices/all_slices.csv")
     row = df[df["_id"] == case_id]
     if row.empty:
@@ -74,13 +76,18 @@ def load_case_data(case_id: str) -> dict:
 # retrieval
 # ---------------------------------------------------------------------------
 
+
 def vector_retrieve(query: str, *, case_id: str, top_k: int = 5) -> str:
     """LanceDB semantic top-k over the phase evidence index."""
     import lancedb
     from openai import OpenAI
 
     client = OpenAI(timeout=60)
-    qvec = client.embeddings.create(model="text-embedding-3-small", input=[query]).data[0].embedding
+    qvec = (
+        client.embeddings.create(model="text-embedding-3-small", input=[query])
+        .data[0]
+        .embedding
+    )
 
     db = lancedb.connect(str(ROOT / ".seocho/lancedb"))
     table = db.open_table("finder_phase_evidence")
@@ -93,11 +100,23 @@ def vector_retrieve(query: str, *, case_id: str, top_k: int = 5) -> str:
     return "\n\n---\n\n".join(pieces)
 
 
-_KEEP_PROPS = frozenset({
-    "name", "value", "period", "amount", "amount_per_share",
-    "principal_amount", "coupon_rate", "maturity_date", "description",
-    "ticker", "jurisdiction", "category", "standard",
-})
+_KEEP_PROPS = frozenset(
+    {
+        "name",
+        "value",
+        "period",
+        "amount",
+        "amount_per_share",
+        "principal_amount",
+        "coupon_rate",
+        "maturity_date",
+        "description",
+        "ticker",
+        "jurisdiction",
+        "category",
+        "standard",
+    }
+)
 
 
 def graph_retrieve(case_id: str, query: str) -> str:
@@ -145,12 +164,18 @@ def graph_retrieve(case_id: str, query: str) -> str:
     for n in nodes_rows:
         lbl = n["lbl"] or "Entity"
         props = n["props"] or {}
-        clean = {k: v for k, v in props.items() if k in _KEEP_PROPS and v is not None and v != ""}
+        clean = {
+            k: v
+            for k, v in props.items()
+            if k in _KEEP_PROPS and v is not None and v != ""
+        }
         lines.append(f"({lbl}) " + ", ".join(f"{k}={v}" for k, v in clean.items()))
     if edge_rows:
         lines.append("\n=== Relations ===")
         for e in edge_rows:
-            lines.append(f"({e['a_lbl']} {e['a_name']}) -[{e['rt']}]-> ({e['b_lbl']} {e['b_name']})")
+            lines.append(
+                f"({e['a_lbl']} {e['a_name']}) -[{e['rt']}]-> ({e['b_lbl']} {e['b_name']})"
+            )
     if chunk_rows:
         lines.append("\n=== Evidence chunks (from graph) ===")
         for i, c in enumerate(chunk_rows, 1):
@@ -178,7 +203,9 @@ _BASE_SYSTEM = (
 )
 
 
-def generate_answer(query: str, context: str, *, llm_spec, meta_prompt: str, client) -> str:
+def generate_answer(
+    query: str, context: str, *, llm_spec, meta_prompt: str, client
+) -> str:
     system_text = bc.compose_system_prompt(meta_prompt, _BASE_SYSTEM)
     user_text = f"## Context\n{context}\n\n## Question\n{query}\n\n## Answer\n"
     return llm_io.chat_complete(
@@ -186,7 +213,11 @@ def generate_answer(query: str, context: str, *, llm_spec, meta_prompt: str, cli
         model=llm_spec.model,
         system=system_text,
         user=user_text,
-        temperature=llm_spec.forced_temperature if llm_spec.forced_temperature is not None else 0.0,
+        temperature=(
+            llm_spec.forced_temperature
+            if llm_spec.forced_temperature is not None
+            else 0.0
+        ),
         label=f"answer/{llm_spec.provider}",
         max_attempts=3,
         spec=llm_spec,
@@ -196,6 +227,7 @@ def generate_answer(query: str, context: str, *, llm_spec, meta_prompt: str, cli
 # ---------------------------------------------------------------------------
 # evaluation: token_f1
 # ---------------------------------------------------------------------------
+
 
 def _normalize_for_f1(s: str) -> str:
     s = s.lower()
@@ -222,6 +254,7 @@ def token_f1(prediction: str, gold: str) -> float:
 # ---------------------------------------------------------------------------
 # orchestration
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class RunRecord:
@@ -307,8 +340,13 @@ def run_one(
             context = hybrid_retrieve(case["query"], case_id=case_id, top_k=retrieval_k)
         else:
             raise ValueError(f"unknown mode {mode}")
-        answer = generate_answer(case["query"], context,
-                                 llm_spec=llm_spec, meta_prompt=meta_prompt, client=chat_client)
+        answer = generate_answer(
+            case["query"],
+            context,
+            llm_spec=llm_spec,
+            meta_prompt=meta_prompt,
+            client=chat_client,
+        )
         return answer
 
     try:
@@ -325,7 +363,9 @@ def run_one(
     if answer:
         try:
             judge = bc.run_under_opik_track(
-                name=judge_name, tags=judge_tags, metadata=metadata,
+                name=judge_name,
+                tags=judge_tags,
+                metadata=metadata,
                 work_fn=lambda: llm_io.llm_judge(
                     client=judge_client,
                     model=judge_spec.model,
@@ -336,24 +376,38 @@ def run_one(
                 ),
             )
         except Exception as exc:
-            judge = {"score": -1, "rationale": f"judge call err: {type(exc).__name__}: {exc}"}
+            judge = {
+                "score": -1,
+                "rationale": f"judge call err: {type(exc).__name__}: {exc}",
+            }
 
     rec = RunRecord(
-        phase=phase, case_id=case_id, slice_tag=case["slice"],
-        category=case["category"], mode=mode,
-        provider=llm_spec.provider, llm=llm_spec.llm_string, judge=judge_spec.llm_string,
+        phase=phase,
+        case_id=case_id,
+        slice_tag=case["slice"],
+        category=case["category"],
+        mode=mode,
+        provider=llm_spec.provider,
+        llm=llm_spec.llm_string,
+        judge=judge_spec.llm_string,
         query=case["query"],
-        gold=case["expected_answer"], context_chars=len(context),
-        answer=answer, answer_chars=len(answer),
-        token_f1=f1, judge_score=int(judge.get("score", -1) or -1),
+        gold=case["expected_answer"],
+        context_chars=len(context),
+        answer=answer,
+        answer_chars=len(answer),
+        token_f1=f1,
+        judge_score=int(judge.get("score", -1) or -1),
         judge_rationale=str(judge.get("rationale", "")),
         latency_s=latency,
-        graph_quality=graph_quality, cypher_agent_version=cypher_agent_version,
+        graph_quality=graph_quality,
+        cypher_agent_version=cypher_agent_version,
         error=error,
     )
 
     # Partial checkpoint — atomic (includes provider in filename for multi-LLM)
-    partial_path = out_partial_dir / f"{llm_spec.provider}__{phase}_{case_id}_{mode}.json"
+    partial_path = (
+        out_partial_dir / f"{llm_spec.provider}__{phase}_{case_id}_{mode}.json"
+    )
     try:
         bc.atomic_write_json(partial_path, asdict(rec))
     except Exception as exc:
@@ -369,6 +423,7 @@ def _build_case_list(args, slices_csv_path: Path) -> list[tuple[str, dict]]:
     Smoke mode (--smoke) forces a single case (default DEFAULT_SMOKE_CASE).
     """
     import pandas as pd
+
     df = pd.read_csv(slices_csv_path)
 
     # Resolve case_id → phase from bench_common.PHASES (single source of truth)
@@ -409,7 +464,10 @@ def _build_case_list(args, slices_csv_path: Path) -> list[tuple[str, dict]]:
         for cspec in p.cases:
             row = df[df["_id"] == cspec.case_id]
             if row.empty:
-                print(f"  ! case {cspec.case_id} missing in slices CSV — skipping", flush=True)
+                print(
+                    f"  ! case {cspec.case_id} missing in slices CSV — skipping",
+                    flush=True,
+                )
                 continue
             out.append((p.code, _row_to_case(row.iloc[0])))
     return out
@@ -434,25 +492,46 @@ def _modules_label_for_phase(phase_code: str) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--llms", default="kimi,openai,xai,deepseek",
-                        help="Comma list of provider names (default: all 4).")
-    parser.add_argument("--judge", default="openai/gpt-4o-mini",
-                        help="Judge LLM spec (provider/model). Default gpt-4o-mini.")
-    parser.add_argument("--modes", default="vector,graph,hybrid",
-                        help="Comma list of retrieval modes.")
-    parser.add_argument("--smoke", action="store_true",
-                        help="Smoke mode: 1 case × all llms × all modes (default case: 4af93b03).")
-    parser.add_argument("--case", default="",
-                        help="Single case_id (overrides --phases/--stratified).")
-    parser.add_argument("--phases", default="all",
-                        help="Comma list of phase codes (P0,P1A,...) or 'all'.")
-    parser.add_argument("--stratified", default="",
-                        help="Stratified sample fraction (e.g. 0.10 for 10%% per slice).")
+    parser.add_argument(
+        "--llms",
+        default="kimi,openai,xai,deepseek",
+        help="Comma list of provider names (default: all 4).",
+    )
+    parser.add_argument(
+        "--judge",
+        default="openai/gpt-4o-mini",
+        help="Judge LLM spec (provider/model). Default gpt-4o-mini.",
+    )
+    parser.add_argument(
+        "--modes", default="vector,graph,hybrid", help="Comma list of retrieval modes."
+    )
+    parser.add_argument(
+        "--smoke",
+        action="store_true",
+        help="Smoke mode: 1 case × all llms × all modes (default case: 4af93b03).",
+    )
+    parser.add_argument(
+        "--case", default="", help="Single case_id (overrides --phases/--stratified)."
+    )
+    parser.add_argument(
+        "--phases",
+        default="all",
+        help="Comma list of phase codes (P0,P1A,...) or 'all'.",
+    )
+    parser.add_argument(
+        "--stratified",
+        default="",
+        help="Stratified sample fraction (e.g. 0.10 for 10%% per slice).",
+    )
     parser.add_argument("--retrieval-k", type=int, default=5)
-    parser.add_argument("--graph-quality", default="raw",
-                        help="Meta dim for graph quality (raw/qualified/denormalized).")
-    parser.add_argument("--cypher-agent", default="v1",
-                        help="Meta dim for text2cypher agent version.")
+    parser.add_argument(
+        "--graph-quality",
+        default="raw",
+        help="Meta dim for graph quality (raw/qualified/denormalized).",
+    )
+    parser.add_argument(
+        "--cypher-agent", default="v1", help="Meta dim for text2cypher agent version."
+    )
     parser.add_argument("--run-prefix", default="")
     args = parser.parse_args()
 
@@ -464,15 +543,18 @@ def main() -> int:
         raise SystemExit("--llms and --modes must each have at least one entry")
     unknown = [p for p in requested_providers if p not in llm_io.known_providers()]
     if unknown:
-        raise SystemExit(f"unknown providers: {unknown}. Known: {llm_io.known_providers()}")
+        raise SystemExit(
+            f"unknown providers: {unknown}. Known: {llm_io.known_providers()}"
+        )
 
     report = bc.preflight(
         strict=True,
         require_moonshot="kimi" in requested_providers,
-        require_openai_chat=("openai" in requested_providers) or args.judge.startswith("openai/"),
+        require_openai_chat=("openai" in requested_providers)
+        or args.judge.startswith("openai/"),
         require_xai="xai" in requested_providers,
         require_deepseek="deepseek" in requested_providers,
-        require_openai_embed=True,   # vector mode needs embeddings
+        require_openai_embed=True,  # vector mode needs embeddings
         require_neo4j=any(m in requested_modes for m in ("graph", "hybrid")),
         require_slices=True,
     )
@@ -481,12 +563,19 @@ def main() -> int:
         raise SystemExit("preflight failed — fix env/connectivity before running")
 
     try:
-        from seocho.tracing import configure_tracing_from_env, current_backend_names, flush_tracing
+        from seocho.tracing import (
+            configure_tracing_from_env,
+            current_backend_names,
+            flush_tracing,
+        )
+
         configure_tracing_from_env()
         print(f"tracing backends: {current_backend_names()}")
     except Exception as e:
         print(f"tracing init skipped: {e}")
-        def flush_tracing(): pass  # type: ignore
+
+        def flush_tracing():
+            pass  # type: ignore
 
     # Build LLM client pool
     answer_specs: dict[str, llm_io.LLMSpec] = {}
@@ -500,9 +589,14 @@ def main() -> int:
     judge_client = llm_io.make_chat_client(judge_spec)
 
     meta_prompt = bc.load_meta_prompt()
-    print(f"meta prompt loaded ({len(meta_prompt)} chars, hash={bc.short_hash(meta_prompt)})", flush=True)
+    print(
+        f"meta prompt loaded ({len(meta_prompt)} chars, hash={bc.short_hash(meta_prompt)})",
+        flush=True,
+    )
 
-    cases = _build_case_list(args, ROOT / ".seocho/datasets/finder/slices/all_slices.csv")
+    cases = _build_case_list(
+        args, ROOT / ".seocho/datasets/finder/slices/all_slices.csv"
+    )
     if not cases:
         raise SystemExit("No cases resolved from CLI args")
 
@@ -516,7 +610,10 @@ def main() -> int:
 
     records: list[RunRecord] = []
     total = len(cases) * len(requested_providers) * len(requested_modes)
-    print(f"\n== plan: {len(cases)} cases × {len(requested_providers)} llms × {len(requested_modes)} modes = {total} runs ==", flush=True)
+    print(
+        f"\n== plan: {len(cases)} cases × {len(requested_providers)} llms × {len(requested_modes)} modes = {total} runs ==",
+        flush=True,
+    )
     print(f"  providers: {requested_providers}")
     print(f"  modes:     {requested_modes}")
     print(f"  judge:     {judge_spec.llm_string}")
@@ -534,10 +631,17 @@ def main() -> int:
                 label = f"[{counter:3d}/{total}] {prov:9s} {mode:6s} {phase_code}/{case['case_id']}"
                 print(f">>> {label}", flush=True)
                 rec = run_one(
-                    phase=phase_code, case_id=case["case_id"], modules_label=modules_label,
-                    mode=mode, case=case, meta_prompt=meta_prompt, run_prefix=run_prefix,
-                    llm_spec=spec, chat_client=client,
-                    judge_spec=judge_spec, judge_client=judge_client,
+                    phase=phase_code,
+                    case_id=case["case_id"],
+                    modules_label=modules_label,
+                    mode=mode,
+                    case=case,
+                    meta_prompt=meta_prompt,
+                    run_prefix=run_prefix,
+                    llm_spec=spec,
+                    chat_client=client,
+                    judge_spec=judge_spec,
+                    judge_client=judge_client,
                     out_partial_dir=out_partial_dir,
                     graph_quality=args.graph_quality,
                     cypher_agent_version=args.cypher_agent,
@@ -605,44 +709,57 @@ def main() -> int:
         cr = [r for r in records if r.case_id == case_id]
         best_f1 = max(cr, key=lambda r: r.token_f1)
         best_judge = max(cr, key=lambda r: r.judge_score)
-        case_winners.append({
-            "case_id": case_id,
-            "phase": cr[0].phase,
-            "best_f1_combo": f"{best_f1.provider}/{best_f1.mode}", "best_f1": best_f1.token_f1,
-            "best_judge_combo": f"{best_judge.provider}/{best_judge.mode}", "best_judge": best_judge.judge_score,
-        })
+        case_winners.append(
+            {
+                "case_id": case_id,
+                "phase": cr[0].phase,
+                "best_f1_combo": f"{best_f1.provider}/{best_f1.mode}",
+                "best_f1": best_f1.token_f1,
+                "best_judge_combo": f"{best_judge.provider}/{best_judge.mode}",
+                "best_judge": best_judge.judge_score,
+            }
+        )
 
     aggregate_path = out_dir / "aggregate.json"
-    bc.atomic_write_json(aggregate_path, {
-        "run_prefix": run_prefix,
-        "providers": requested_providers,
-        "modes": requested_modes,
-        "judge": judge_spec.llm_string,
-        "dataset": DATASET_NAME,
-        "prompt_hash": bc.short_hash(meta_prompt) if meta_prompt else "noprompt",
-        "graph_quality": args.graph_quality,
-        "cypher_agent_version": args.cypher_agent,
-        "total_wall_s": total_wall,
-        "n_cases": len(cases),
-        "aggregate_by_mode": aggregate,
-        "aggregate_by_llm_mode": aggregate_table,
-        "case_winners": case_winners,
-        "records": [asdict(r) for r in records],
-    })
+    bc.atomic_write_json(
+        aggregate_path,
+        {
+            "run_prefix": run_prefix,
+            "providers": requested_providers,
+            "modes": requested_modes,
+            "judge": judge_spec.llm_string,
+            "dataset": DATASET_NAME,
+            "prompt_hash": bc.short_hash(meta_prompt) if meta_prompt else "noprompt",
+            "graph_quality": args.graph_quality,
+            "cypher_agent_version": args.cypher_agent,
+            "total_wall_s": total_wall,
+            "n_cases": len(cases),
+            "aggregate_by_mode": aggregate,
+            "aggregate_by_llm_mode": aggregate_table,
+            "case_winners": case_winners,
+            "records": [asdict(r) for r in records],
+        },
+    )
     print(f"\nwrote {aggregate_path.relative_to(ROOT)}")
 
     print("\n===== aggregate by LLM × mode =====")
-    print(f"{'llm/mode':28s} {'token_f1':>10s} {'judge':>8s} {'judge_err':>10s} {'latency_s':>10s} {'ctx_chars':>10s}")
+    print(
+        f"{'llm/mode':28s} {'token_f1':>10s} {'judge':>8s} {'judge_err':>10s} {'latency_s':>10s} {'ctx_chars':>10s}"
+    )
     for key in sorted(aggregate_table):
         ag = aggregate_table[key]
-        print(f"{key:28s} {ag['mean_token_f1']:>10.4f} {ag['mean_judge_score']:>8.2f} "
-              f"{ag['judge_parse_err']:>10d} {ag['mean_latency_s']:>10.2f} {ag['mean_context_chars']:>10.0f}")
+        print(
+            f"{key:28s} {ag['mean_token_f1']:>10.4f} {ag['mean_judge_score']:>8.2f} "
+            f"{ag['judge_parse_err']:>10d} {ag['mean_latency_s']:>10.2f} {ag['mean_context_chars']:>10.0f}"
+        )
 
     print("\n===== per case winners =====")
     for w in case_winners:
-        print(f"  {w['phase']}/{w['case_id']:8s}  "
-              f"f1: {w['best_f1_combo']:24s}({w['best_f1']:.3f})  "
-              f"judge: {w['best_judge_combo']:24s}({w['best_judge']})")
+        print(
+            f"  {w['phase']}/{w['case_id']:8s}  "
+            f"f1: {w['best_f1_combo']:24s}({w['best_f1']:.3f})  "
+            f"judge: {w['best_judge_combo']:24s}({w['best_judge']})"
+        )
     return 0
 
 

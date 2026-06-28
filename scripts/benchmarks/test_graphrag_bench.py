@@ -47,13 +47,21 @@ def test_aggregate_empty_returns_zeros():
 def test_aggregate_computes_percentiles():
     cases = [
         bench.CaseResult(
-            question="q1", gold_answer="a", predicted_answer="a",
-            exact_match=True, substring_match=True, latency_ms=100.0,
+            question="q1",
+            gold_answer="a",
+            predicted_answer="a",
+            exact_match=True,
+            substring_match=True,
+            latency_ms=100.0,
             entity_recall=1.0,
         ),
         bench.CaseResult(
-            question="q2", gold_answer="b", predicted_answer="wrong",
-            exact_match=False, substring_match=False, latency_ms=200.0,
+            question="q2",
+            gold_answer="b",
+            predicted_answer="wrong",
+            exact_match=False,
+            substring_match=False,
+            latency_ms=200.0,
             entity_recall=0.5,
         ),
     ]
@@ -67,12 +75,20 @@ def test_aggregate_computes_percentiles():
 def test_aggregate_skips_errored_cases():
     cases = [
         bench.CaseResult(
-            question="q1", gold_answer="a", predicted_answer="a",
-            exact_match=True, substring_match=True, latency_ms=50.0,
+            question="q1",
+            gold_answer="a",
+            predicted_answer="a",
+            exact_match=True,
+            substring_match=True,
+            latency_ms=50.0,
         ),
         bench.CaseResult(
-            question="q2", gold_answer="b", predicted_answer="",
-            exact_match=False, substring_match=False, latency_ms=0.0,
+            question="q2",
+            gold_answer="b",
+            predicted_answer="",
+            exact_match=False,
+            substring_match=False,
+            latency_ms=0.0,
             error="ingest_failed: boom",
         ),
     ]
@@ -89,12 +105,15 @@ def test_load_dataset_sample():
 def test_load_dataset_from_file(tmp_path):
     dataset_path = tmp_path / "custom.jsonl"
     dataset_path.write_text(
-        json.dumps({
-            "corpus": ["Alice works at Apple."],
-            "question": "Where does Alice work?",
-            "answer": "Apple",
-            "gold_entities": ["Alice", "Apple"],
-        }) + "\n",
+        json.dumps(
+            {
+                "corpus": ["Alice works at Apple."],
+                "question": "Where does Alice work?",
+                "answer": "Apple",
+                "gold_entities": ["Alice", "Apple"],
+            }
+        )
+        + "\n",
         encoding="utf-8",
     )
     _, rows = bench.load_dataset("custom", str(dataset_path))

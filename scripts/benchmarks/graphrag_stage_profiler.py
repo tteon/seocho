@@ -42,7 +42,10 @@ for _p in (_ROOT / "src", _ROOT, Path(__file__).resolve().parent):
         sys.path.insert(0, str(_p))
 
 from finder_arms import ANSWER_SPEC, answer  # noqa: E402
-from finder_backbone import build_backbone, select_xcat_cases  # noqa: E402  (load a real graph)
+from finder_backbone import (
+    build_backbone,
+    select_xcat_cases,
+)  # noqa: E402  (load a real graph)
 from finder_intent_router import route  # noqa: E402
 from examples.finder.lib import llm_io  # noqa: E402
 from seocho.query.arbiter import OntologyManifest, select_ontology  # noqa: E402
@@ -51,6 +54,7 @@ from seocho.semantic_layer.identity import EntityResolver  # noqa: E402
 
 try:
     from dotenv import load_dotenv
+
     load_dotenv(_ROOT / ".env")
 except Exception:
     pass
@@ -98,9 +102,25 @@ def timed(stat: StageStat, fn: Callable):
 
 def boot():
     subprocess.run(["docker", "rm", "-f", CONTAINER], capture_output=True)
-    subprocess.run(["docker", "run", "-d", "--rm", "--name", CONTAINER,
-                    "-e", f"NEO4J_AUTH=neo4j/{PASSWORD}", "-p", "7484:7474", "-p", "7697:7687", IMAGE],
-                   capture_output=True, text=True)
+    subprocess.run(
+        [
+            "docker",
+            "run",
+            "-d",
+            "--rm",
+            "--name",
+            CONTAINER,
+            "-e",
+            f"NEO4J_AUTH=neo4j/{PASSWORD}",
+            "-p",
+            "7484:7474",
+            "-p",
+            "7697:7687",
+            IMAGE,
+        ],
+        capture_output=True,
+        text=True,
+    )
     for _ in range(60):
         try:
             drv = GraphDatabase.driver(BOLT, auth=("neo4j", PASSWORD))
@@ -141,7 +161,8 @@ def main() -> int:
             "answer": StageStat("answer", "I/O"),
         }
         # warm caches (model load, JIT, connection) so steady-state is measured
-        route(question); select_ontology("revenue", manifests)
+        route(question)
+        select_ontology("revenue", manifests)
         with drv.session(database=DB) as s:
             s.run("MATCH (c:Company {cik:$c}) RETURN c.cik", c=cik).consume()
 
@@ -151,45 +172,68 @@ def main() -> int:
         print("=" * 86)
         for _ in range(ITERS):
             timed(stats["intent"], lambda: route(question))
-            m = timed(stats["arbiter"], lambda: select_ontology("revenue growth", manifests))
+            m = timed(
+                stats["arbiter"], lambda: select_ontology("revenue growth", manifests)
+            )
 
             def _retrieve():
                 with drv.session(database=DB) as s:
                     return s.run(
                         "MATCH (c:Company {cik:$c})-[:FOR_YEAR]->(:CompanyYear)"
                         "-[:HAS_SECTION]->(fs)-[:CONTAINS]->(e:Evidence) "
-                        "RETURN fs.kind AS kind, e.text AS text", c=cik).data()
+                        "RETURN fs.kind AS kind, e.text AS text",
+                        c=cik,
+                    ).data()
+
             rows = timed(stats["retrieve"], _retrieve)
 
-            ctx = timed(stats["evidence"],
-                        lambda: "\n\n".join(f"[{r['kind']}] {r['text']}" for r in rows)[:2200])
+            ctx = timed(
+                stats["evidence"],
+                lambda: "\n\n".join(f"[{r['kind']}] {r['text']}" for r in rows)[:2200],
+            )
             ans = timed(stats["answer"], lambda: answer(aclient, amodel, question, ctx))
 
         # bandwidth signals (last iteration)
-        stats["arbiter"].bandwidth = f"{len(list(manifests[0].registry.candidate_surfaces))} surfaces scored"
-        stats["retrieve"].bandwidth = f"{len(rows)} rows, {sum(len(r['text']) for r in rows)} bytes"
+        stats["arbiter"].bandwidth = (
+            f"{len(list(manifests[0].registry.candidate_surfaces))} surfaces scored"
+        )
+        stats["retrieve"].bandwidth = (
+            f"{len(rows)} rows, {sum(len(r['text']) for r in rows)} bytes"
+        )
         stats["evidence"].bandwidth = f"{len(ctx)} ctx chars"
-        stats["answer"].bandwidth = f"~{len(ans)//4} out tokens, ~{len(ctx)//4} in tokens"
+        stats["answer"].bandwidth = (
+            f"~{len(ans)//4} out tokens, ~{len(ctx)//4} in tokens"
+        )
 
-        print(f"\n  {'stage':<10}{'mean_wall_ms':>13}{'mean_cpu_ms':>12}{'cpu/wall':>9}"
-              f"{'bound':>10}   bandwidth")
+        print(
+            f"\n  {'stage':<10}{'mean_wall_ms':>13}{'mean_cpu_ms':>12}{'cpu/wall':>9}"
+            f"{'bound':>10}   bandwidth"
+        )
         print("  " + "-" * 84)
         total = 0.0
         for st in stats.values():
             r = st.mean_cpu / st.mean_wall if st.mean_wall else 0.0
             total += st.mean_wall
-            print(f"  {st.name:<10}{st.mean_wall:>13.1f}{st.mean_cpu:>12.1f}{r:>9.2f}"
-                  f"{st.bound:>10}   {st.bandwidth}")
+            print(
+                f"  {st.name:<10}{st.mean_wall:>13.1f}{st.mean_cpu:>12.1f}{r:>9.2f}"
+                f"{st.bound:>10}   {st.bandwidth}"
+            )
         print("  " + "-" * 84)
         print(f"  {'TOTAL':<10}{total:>13.1f} ms/query")
         bottleneck = max(stats.values(), key=lambda s: s.mean_wall)
-        print(f"\n  Bottleneck: '{bottleneck.name}' ({bottleneck.mean_wall:.0f}ms, "
-              f"{bottleneck.mean_wall/total*100:.0f}% of wall, {bottleneck.bound}).")
+        print(
+            f"\n  Bottleneck: '{bottleneck.name}' ({bottleneck.mean_wall:.0f}ms, "
+            f"{bottleneck.mean_wall/total*100:.0f}% of wall, {bottleneck.bound})."
+        )
         io = [s.name for s in stats.values() if s.bound == "I/O/wait"]
         cpu = [s.name for s in stats.values() if s.bound == "CPU"]
         print(f"  I/O/wait-bound: {io or '—'}  |  CPU-bound: {cpu or '—'}")
-        print("  Reading: I/O/wait stages (DB round-trip, LLM call) scale with backend/network,")
-        print("  not local CPU — batch/cache/parallelize them; CPU stages scale with local cores.")
+        print(
+            "  Reading: I/O/wait stages (DB round-trip, LLM call) scale with backend/network,"
+        )
+        print(
+            "  not local CPU — batch/cache/parallelize them; CPU stages scale with local cores."
+        )
     finally:
         try:
             with drv.session(database="system") as s:

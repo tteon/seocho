@@ -15,6 +15,7 @@ Outputs (single consolidated set under .seocho/datasets/finder/slices/):
   SLICES.md        — human-readable catalog
   previews.md      — 3 random query+answer+evidence samples per slice (single file)
 """
+
 from __future__ import annotations
 
 import json
@@ -44,7 +45,9 @@ def slice_predicates(df: pd.DataFrame) -> dict[str, pd.Series]:
         "S1_FIN_COMP": (df["category"].eq("Financials") & is_comp),
         "S2_FIN_NONQUANT_MULTI": (df["category"].eq("Financials") & ~is_quant & multi),
         "S3_CO_COMP": (df["category"].eq("Company overview") & is_comp),
-        "S4_CO_MULTI_NONQUANT": (df["category"].eq("Company overview") & ~is_quant & multi),
+        "S4_CO_MULTI_NONQUANT": (
+            df["category"].eq("Company overview") & ~is_quant & multi
+        ),
         "S5_FN_MULTI": (df["category"].eq("Footnotes") & multi),
     }
 
@@ -74,14 +77,20 @@ def stats(records: pd.DataFrame) -> dict:
     qwords = records["text"].str.split().str.len()
     return {
         "count": int(len(records)),
-        "by_category": {k: int(v) for k, v in records["category"].value_counts().items()},
-        "by_type": {k: int(v) for k, v in records["type"].fillna("None").value_counts().items()},
+        "by_category": {
+            k: int(v) for k, v in records["category"].value_counts().items()
+        },
+        "by_type": {
+            k: int(v) for k, v in records["type"].fillna("None").value_counts().items()
+        },
         "n_refs": {
             "min": int(n_refs.min()),
             "mean": round(float(n_refs.mean()), 3),
             "median": int(n_refs.median()),
             "max": int(n_refs.max()),
-            "distribution": {int(k): int(v) for k, v in n_refs.value_counts().sort_index().items()},
+            "distribution": {
+                int(k): int(v) for k, v in n_refs.value_counts().sort_index().items()
+            },
         },
         "query_words": {
             "min": int(qwords.min()),
@@ -206,10 +215,16 @@ def write_summary_md(manifest: dict) -> None:
     lines: list[str] = []
     lines.append("# FinDER Selected Slices — Indexing Manifest")
     lines.append("")
-    lines.append(f"- Source: `{manifest['source_parquet']}` ({manifest['source_total_rows']} rows)")
+    lines.append(
+        f"- Source: `{manifest['source_parquet']}` ({manifest['source_total_rows']} rows)"
+    )
     lines.append(f"- Target categories: `{', '.join(manifest['target_categories'])}`")
-    lines.append(f"- Baseline sample per category (S6): {manifest['baseline_sample_per_category']}")
-    lines.append(f"- Selected unique total (after dedup): **{manifest['selected_unique_total']}**")
+    lines.append(
+        f"- Baseline sample per category (S6): {manifest['baseline_sample_per_category']}"
+    )
+    lines.append(
+        f"- Selected unique total (after dedup): **{manifest['selected_unique_total']}**"
+    )
     lines.append("")
     lines.append("## Slice catalog")
     lines.append("")
@@ -232,10 +247,16 @@ def write_summary_md(manifest: dict) -> None:
         lines.append(f"- **By category**: {s['by_category']}")
         lines.append(f"- **By type**: {s['by_type']}")
         lines.append(f"- **reasoning=True**: {s['reasoning_true_count']}")
-        lines.append(f"- **n_refs**: min={s['n_refs']['min']}, mean={s['n_refs']['mean']}, median={s['n_refs']['median']}, max={s['n_refs']['max']}")
+        lines.append(
+            f"- **n_refs**: min={s['n_refs']['min']}, mean={s['n_refs']['mean']}, median={s['n_refs']['median']}, max={s['n_refs']['max']}"
+        )
         lines.append(f"- **n_refs distribution**: {s['n_refs']['distribution']}")
-        lines.append(f"- **Query length (words)**: min={s['query_words']['min']}, mean={s['query_words']['mean']}, max={s['query_words']['max']}")
-        lines.append(f"- **Sample tickers in queries**: {', '.join(s['unique_companies_sampled'])}")
+        lines.append(
+            f"- **Query length (words)**: min={s['query_words']['min']}, mean={s['query_words']['mean']}, max={s['query_words']['max']}"
+        )
+        lines.append(
+            f"- **Sample tickers in queries**: {', '.join(s['unique_companies_sampled'])}"
+        )
         lines.append("")
     md.write_text("\n".join(lines), encoding="utf-8")
 
@@ -243,8 +264,10 @@ def write_summary_md(manifest: dict) -> None:
 def main() -> None:
     # Determinism — slice membership depends on stratified sampling (S6)
     import sys
+
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
     from examples.finder.lib import bench_common as bc
+
     bc.set_global_determinism(SEED)
 
     df = pd.read_parquet(SRC)
@@ -256,7 +279,13 @@ def main() -> None:
     s3 = df[preds["S3_CO_COMP"]]
     s4 = df[preds["S4_CO_MULTI_NONQUANT"]]
     s5 = df[preds["S5_FN_MULTI"]]
-    excl = set(s1["_id"]) | set(s2["_id"]) | set(s3["_id"]) | set(s4["_id"]) | set(s5["_id"])
+    excl = (
+        set(s1["_id"])
+        | set(s2["_id"])
+        | set(s3["_id"])
+        | set(s4["_id"])
+        | set(s5["_id"])
+    )
     s6 = stratified_baseline(df, excl)
 
     slices = {
@@ -280,15 +309,19 @@ def main() -> None:
     )
     write_summary_md(manifest)
 
-    print(json.dumps(
-        {
-            "source_total": total,
-            "selected_unique": manifest["selected_unique_total"],
-            "slices": {k: v["stats"]["count"] for k, v in manifest["slices"].items()},
-            "output_dir": str(OUT.relative_to(ROOT)),
-        },
-        indent=2,
-    ))
+    print(
+        json.dumps(
+            {
+                "source_total": total,
+                "selected_unique": manifest["selected_unique_total"],
+                "slices": {
+                    k: v["stats"]["count"] for k, v in manifest["slices"].items()
+                },
+                "output_dir": str(OUT.relative_to(ROOT)),
+            },
+            indent=2,
+        )
+    )
 
 
 if __name__ == "__main__":

@@ -40,24 +40,95 @@ CATEGORIES = ["Financials", "Company overview", "Footnotes"]
 # the ConceptRegistry surfaces (revenue/margin/EPS/...) added at import time.
 _LEX: Dict[str, Set[str]] = {
     "Financials": {
-        "revenue", "income", "margin", "eps", "earnings", "ratio", "ratios",
-        "growth", "cash", "flow", "leverage", "operating", "profit", "profitability",
-        "sales", "cost", "costs", "expense", "debt", "asset", "assets", "liability",
-        "dividend", "dividends", "buyback", "buybacks", "capital", "net", "diluted",
-        "%", "financial", "liquidity", "interest", "shareholder",
+        "revenue",
+        "income",
+        "margin",
+        "eps",
+        "earnings",
+        "ratio",
+        "ratios",
+        "growth",
+        "cash",
+        "flow",
+        "leverage",
+        "operating",
+        "profit",
+        "profitability",
+        "sales",
+        "cost",
+        "costs",
+        "expense",
+        "debt",
+        "asset",
+        "assets",
+        "liability",
+        "dividend",
+        "dividends",
+        "buyback",
+        "buybacks",
+        "capital",
+        "net",
+        "diluted",
+        "%",
+        "financial",
+        "liquidity",
+        "interest",
+        "shareholder",
     },
     "Company overview": {
-        "headcount", "employee", "employees", "fte", "pte", "workforce", "strategy",
-        "business", "segment", "segments", "overview", "scaling", "comp", "hr",
-        "allocation", "geographic", "split", "us", "non-us", "headquarters",
-        "product", "market", "competition", "operations",
+        "headcount",
+        "employee",
+        "employees",
+        "fte",
+        "pte",
+        "workforce",
+        "strategy",
+        "business",
+        "segment",
+        "segments",
+        "overview",
+        "scaling",
+        "comp",
+        "hr",
+        "allocation",
+        "geographic",
+        "split",
+        "us",
+        "non-us",
+        "headquarters",
+        "product",
+        "market",
+        "competition",
+        "operations",
     },
     "Footnotes": {
-        "footnote", "footnotes", "note", "notes", "disclosure", "disclosures",
-        "policy", "policies", "pledge", "pledges", "pledged", "accounting",
-        "contingency", "contingencies", "commitment", "commitments", "lease",
-        "leases", "restrict", "restricts", "restriction", "flexibility",
-        "guarantee", "guarantees", "off-balance", "recognition", "impairment",
+        "footnote",
+        "footnotes",
+        "note",
+        "notes",
+        "disclosure",
+        "disclosures",
+        "policy",
+        "policies",
+        "pledge",
+        "pledges",
+        "pledged",
+        "accounting",
+        "contingency",
+        "contingencies",
+        "commitment",
+        "commitments",
+        "lease",
+        "leases",
+        "restrict",
+        "restricts",
+        "restriction",
+        "flexibility",
+        "guarantee",
+        "guarantees",
+        "off-balance",
+        "recognition",
+        "impairment",
     },
 }
 
@@ -67,7 +138,7 @@ for _c in default_registry().concepts:
         for _tok in re.findall(r"[a-z]+", str(_s).lower()):
             _LEX["Financials"].add(_tok)
 
-_THRESHOLD = 1   # >=1 lexicon hit gates a category in
+_THRESHOLD = 1  # >=1 lexicon hit gates a category in
 
 
 @dataclass
@@ -94,23 +165,34 @@ def route(question: str, *, llm=None, llm_model: str = "") -> IntentSpec:
         cats = _llm_route(question, llm, llm_model)
         if cats:
             gated, used_fallback = cats, True
-    if not gated:                       # safe default: the dominant FinDER lane
+    if not gated:  # safe default: the dominant FinDER lane
         gated = ["Financials"]
-    return IntentSpec(question=question, required_categories=sorted(gated),
-                      scores=scores, used_fallback=used_fallback,
-                      is_cross_category=len(gated) >= 2)
+    return IntentSpec(
+        question=question,
+        required_categories=sorted(gated),
+        scores=scores,
+        used_fallback=used_fallback,
+        is_cross_category=len(gated) >= 2,
+    )
 
 
 def _llm_route(question: str, llm, model: str) -> Optional[List[str]]:
-    sys_p = ("Classify which 10-K sections a question needs. Reply with a comma "
-             "list from exactly: Financials, Company overview, Footnotes. "
-             "Output only the list.")
+    sys_p = (
+        "Classify which 10-K sections a question needs. Reply with a comma "
+        "list from exactly: Financials, Company overview, Footnotes. "
+        "Output only the list."
+    )
     try:
         r = llm.chat.completions.create(
-            model=model, temperature=0, max_tokens=400,
-            messages=[{"role": "system", "content": sys_p},
-                      {"role": "user", "content": question}])
-        txt = (r.choices[0].message.content or "")
+            model=model,
+            temperature=0,
+            max_tokens=400,
+            messages=[
+                {"role": "system", "content": sys_p},
+                {"role": "user", "content": question},
+            ],
+        )
+        txt = r.choices[0].message.content or ""
         return [c for c in CATEGORIES if c.lower() in txt.lower()] or None
     except Exception:
         return None
@@ -122,6 +204,7 @@ def _llm_route(question: str, llm, model: str) -> Optional[List[str]]:
 def _evaluate(router, cases) -> dict:
     """Routing accuracy of a `router(question)->set[str]` over single + B questions."""
     from itertools import combinations
+
     recall = pnum = pden = over = 0
     for c in cases:
         got = router(c.query)
@@ -144,14 +227,23 @@ def _evaluate(router, cases) -> dict:
             if {a, b} <= router(f"{seen[a].query}  ALSO: {seen[b].query}"):
                 both += 1
     n = len(cases)
-    return {"recall": recall / n, "precision": pnum / pden, "over": over, "n": n,
-            "bq_both": both / bq, "bq": bq}
+    return {
+        "recall": recall / n,
+        "precision": pnum / pden,
+        "over": over,
+        "n": n,
+        "bq_both": both / bq,
+        "bq": bq,
+    }
 
 
 def main() -> int:
     import argparse
+
     ap = argparse.ArgumentParser()
-    ap.add_argument("--llm", default="", help="also evaluate an LLM router, e.g. mara/gpt-oss-120b")
+    ap.add_argument(
+        "--llm", default="", help="also evaluate an LLM router, e.g. mara/gpt-oss-120b"
+    )
     args = ap.parse_args()
 
     resolver = EntityResolver.from_frozen()
@@ -164,26 +256,38 @@ def main() -> int:
     if args.llm:
         try:
             from dotenv import load_dotenv
+
             load_dotenv(_ROOT / ".env")
         except Exception:
             pass
         from examples.finder.lib import llm_io
+
         spec = llm_io.parse_llm_spec(args.llm)
         client = llm_io.make_chat_client(spec)
-        routers[f"llm({spec.model})"] = lambda q: set(_llm_route(q, client, spec.model) or ["Financials"])
+        routers[f"llm({spec.model})"] = lambda q: set(
+            _llm_route(q, client, spec.model) or ["Financials"]
+        )
 
     print("=" * 78)
     print("Intent-gated router — routing accuracy vs gold-required categories")
     print("=" * 78)
-    print(f"\n  {'router':<22} {'single recall':>13} {'precision':>10} {'over>=2':>8} "
-          f"{'B both-recall':>13}")
+    print(
+        f"\n  {'router':<22} {'single recall':>13} {'precision':>10} {'over>=2':>8} "
+        f"{'B both-recall':>13}"
+    )
     print("  " + "-" * 70)
     for name, r in routers.items():
         m = _evaluate(r, cases)
-        print(f"  {name:<22} {m['recall']:>13.2f} {m['precision']:>10.2f} "
-              f"{str(m['over'])+'/'+str(m['n']):>8} {m['bq_both']:>13.2f}")
-    print("\n  high single precision = no over-fetch (avoids dilution); high B both-recall")
-    print("  = detects cross-category need (enables the backbone). The better router is the")
+        print(
+            f"  {name:<22} {m['recall']:>13.2f} {m['precision']:>10.2f} "
+            f"{str(m['over'])+'/'+str(m['n']):>8} {m['bq_both']:>13.2f}"
+        )
+    print(
+        "\n  high single precision = no over-fetch (avoids dilution); high B both-recall"
+    )
+    print(
+        "  = detects cross-category need (enables the backbone). The better router is the"
+    )
     print("  gate the bake-off archetypes use.")
     return 0
 

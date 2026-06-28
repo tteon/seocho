@@ -23,6 +23,7 @@ Usage:
     --inputs-vector "outputs/evaluation/finder_vector_arm/<run>/partial/*.json" \
     --inputs-graph  "outputs/evaluation/finder_4arm_sample/<run>/partial/*.json"
 """
+
 from __future__ import annotations
 
 import argparse
@@ -46,9 +47,9 @@ from examples.finder.lib import bench_common as bc  # noqa: E402
 
 DIMENSIONS = {
     "comprehensiveness": "How much detail does the answer provide to cover all "
-                         "aspects and details of the question?",
+    "aspects and details of the question?",
     "diversity": "How varied and rich is the answer in providing different "
-                 "perspectives and insights on the question?",
+    "perspectives and insights on the question?",
 }
 
 JUDGE_SYSTEM = (
@@ -56,7 +57,7 @@ JUDGE_SYSTEM = (
     "single quality dimension. Decide which answer is better on that dimension "
     "ONLY — ignore length padding, style, and which one you think is factually "
     "correct unless the dimension is about it.\n"
-    "Output STRICT JSON only: {\"winner\": \"1\"|\"2\"|\"tie\", \"reason\": \"one short sentence\"}"
+    'Output STRICT JSON only: {"winner": "1"|"2"|"tie", "reason": "one short sentence"}'
 )
 
 
@@ -86,24 +87,29 @@ def _parse(text: str) -> str:
     return w if w in {"1", "2", "tie"} else "tie"
 
 
-def compare(llm, question: str, arm_answer: str, vector_answer: str, dim: str,
-            flip: bool) -> str:
+def compare(
+    llm, question: str, arm_answer: str, vector_answer: str, dim: str, flip: bool
+) -> str:
     """Return 'arm' | 'vector' | 'tie' for which answer wins on `dim`."""
     a, b = (vector_answer, arm_answer) if flip else (arm_answer, vector_answer)
     # answer-1 is arm unless flipped
-    user = (f"QUESTION:\n{_safe_str(question)}\n\n"
-            f"DIMENSION — {dim}: {DIMENSIONS[dim]}\n\n"
-            f"ANSWER 1:\n{_safe_str(a)}\n\n"
-            f"ANSWER 2:\n{_safe_str(b)}\n\n"
-            f"Which answer is better on {dim}?")
+    user = (
+        f"QUESTION:\n{_safe_str(question)}\n\n"
+        f"DIMENSION — {dim}: {DIMENSIONS[dim]}\n\n"
+        f"ANSWER 1:\n{_safe_str(a)}\n\n"
+        f"ANSWER 2:\n{_safe_str(b)}\n\n"
+        f"Which answer is better on {dim}?"
+    )
     try:
         resp = llm.complete(system=JUDGE_SYSTEM, user=user, temperature=0.0)
     except TypeError:
         resp = llm.complete(system=JUDGE_SYSTEM, user=user)
-    w = _parse(getattr(resp, "text", None) or getattr(resp, "content", None) or str(resp))
+    w = _parse(
+        getattr(resp, "text", None) or getattr(resp, "content", None) or str(resp)
+    )
     if w == "tie":
         return "tie"
-    winner_is_first = (w == "1")
+    winner_is_first = w == "1"
     first_is_arm = not flip
     arm_won = winner_is_first == first_is_arm
     return "arm" if arm_won else "vector"
@@ -117,7 +123,10 @@ def main() -> int:
     ap.add_argument("--modes", default="graph,vector_graph")
     ap.add_argument("--dimensions", default="comprehensiveness,diversity")
     ap.add_argument("--limit-cases", type=int, default=0)
-    ap.add_argument("--out", default=f"outputs/evaluation/graphrag_metrics_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}.json")
+    ap.add_argument(
+        "--out",
+        default=f"outputs/evaluation/graphrag_metrics_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}.json",
+    )
     args = ap.parse_args()
 
     bc.bootstrap(verbose=True)
@@ -139,9 +148,12 @@ def main() -> int:
     cases = sorted(vec)
     if args.limit_cases:
         cases = cases[: args.limit_cases]
-    print(f"== GraphRAG metrics: {len(cases)} cases, modes={modes}, dims={dims}, judge={args.judge_llm} ==")
+    print(
+        f"== GraphRAG metrics: {len(cases)} cases, modes={modes}, dims={dims}, judge={args.judge_llm} =="
+    )
 
     from seocho.store.llm import create_llm_backend
+
     provider, model = args.judge_llm.split("/", 1)
     llm = create_llm_backend(provider=provider.strip(), model=model.strip())
 
@@ -158,11 +170,20 @@ def main() -> int:
             if ckey != cid:
                 continue
             for dim in dims:
-                w = compare(llm, q, ar.get("answer", ""), v_ans, dim,
-                            _flip(cid, arm, mode, dim))
+                w = compare(
+                    llm, q, ar.get("answer", ""), v_ans, dim, _flip(cid, arm, mode, dim)
+                )
                 agg[(arm, mode, dim)][w] += 1
-                records.append({"case_id": cid, "slice": vr.get("slice"), "arm": arm,
-                                "mode": mode, "dimension": dim, "winner": w})
+                records.append(
+                    {
+                        "case_id": cid,
+                        "slice": vr.get("slice"),
+                        "arm": arm,
+                        "mode": mode,
+                        "dimension": dim,
+                        "winner": w,
+                    }
+                )
                 n += 1
         if n and n % 40 == 0:
             print(f"  {n} comparisons ({round(time.perf_counter()-t0)}s)", flush=True)
@@ -172,25 +193,38 @@ def main() -> int:
         decided = c["arm"] + c["vector"]
         win_rate = round(c["arm"] / decided, 3) if decided else None
         summary[f"{arm}|{mode}|{dim}"] = {
-            "arm": arm, "mode": mode, "dimension": dim,
-            "arm_wins": c["arm"], "vector_wins": c["vector"], "ties": c["tie"],
+            "arm": arm,
+            "mode": mode,
+            "dimension": dim,
+            "arm_wins": c["arm"],
+            "vector_wins": c["vector"],
+            "ties": c["tie"],
             "arm_win_rate_vs_vector": win_rate,
         }
 
     out_path = ROOT / args.out
-    bc.atomic_write_json(out_path, {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-        "judge_llm": args.judge_llm, "metric": "graphrag_pairwise_vs_vector",
-        "dimensions": dims, "modes": modes, "n_comparisons": n,
-        "summary": summary, "records": records,
-    })
+    bc.atomic_write_json(
+        out_path,
+        {
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "judge_llm": args.judge_llm,
+            "metric": "graphrag_pairwise_vs_vector",
+            "dimensions": dims,
+            "modes": modes,
+            "n_comparisons": n,
+            "summary": summary,
+            "records": records,
+        },
+    )
     print(f"\n== wrote {out_path.relative_to(ROOT)} ==")
     print(f"\n(arm vs vector win-rate; >0.5 = arm's answers richer than vector)")
     print(f"{'arm':<14}{'mode':<14}{'dimension':<18} win/tie/loss  win_rate")
     print("-" * 74)
     for row in summary.values():
-        print(f"{row['arm']:<14}{row['mode']:<14}{row['dimension']:<18} "
-              f"{row['arm_wins']}/{row['ties']}/{row['vector_wins']}        {row['arm_win_rate_vs_vector']}")
+        print(
+            f"{row['arm']:<14}{row['mode']:<14}{row['dimension']:<18} "
+            f"{row['arm_wins']}/{row['ties']}/{row['vector_wins']}        {row['arm_win_rate_vs_vector']}"
+        )
     return 0
 
 

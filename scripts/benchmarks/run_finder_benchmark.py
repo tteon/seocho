@@ -42,15 +42,16 @@ from seocho.tracing import (  # noqa: E402
 def _load_dotenv(path: Path) -> None:
     if not path.exists():
         return
-    for raw_line in path.read_text().splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        key = key.strip()
-        value = value.strip().strip('"').strip("'")
-        if key and key not in os.environ:
-            os.environ[key] = value
+    with path.open("r", encoding="utf-8") as f:
+        for raw_line in f:
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip().strip('"').strip("'")
+            if key and key not in os.environ:
+                os.environ[key] = value
 
 
 def _default_dataset_path() -> Path:
@@ -71,7 +72,10 @@ def _local_graph_path_for_run(
 ) -> str:
     root = base_dir or (ROOT / ".seocho" / "benchmarks" / "local")
     root.mkdir(parents=True, exist_ok=True)
-    slug = re.sub(r"[^a-z0-9]+", "-", str(workspace_id).lower()).strip("-") or "finder-local"
+    slug = (
+        re.sub(r"[^a-z0-9]+", "-", str(workspace_id).lower()).strip("-")
+        or "finder-local"
+    )
     path = root / f"{slug}.lbug"
     if fresh and path.exists():
         path.unlink()
@@ -126,11 +130,25 @@ def _build_finder_ontology() -> Ontology:
     return Ontology(
         name="finder_benchmark",
         nodes={
-            "Company": NodeDef(properties={"name": P(str, unique=True), "sector": P(str)}),
-            "Person": NodeDef(properties={"name": P(str, unique=True), "title": P(str)}),
-            "FinancialMetric": NodeDef(properties={"name": P(str, unique=True), "value": P(str), "year": P(str)}),
-            "Risk": NodeDef(properties={"name": P(str, unique=True), "category": P(str)}),
-            "LegalIssue": NodeDef(properties={"name": P(str, unique=True), "status": P(str)}),
+            "Company": NodeDef(
+                properties={"name": P(str, unique=True), "sector": P(str)}
+            ),
+            "Person": NodeDef(
+                properties={"name": P(str, unique=True), "title": P(str)}
+            ),
+            "FinancialMetric": NodeDef(
+                properties={
+                    "name": P(str, unique=True),
+                    "value": P(str),
+                    "year": P(str),
+                }
+            ),
+            "Risk": NodeDef(
+                properties={"name": P(str, unique=True), "category": P(str)}
+            ),
+            "LegalIssue": NodeDef(
+                properties={"name": P(str, unique=True), "status": P(str)}
+            ),
             "AccountingStandard": NodeDef(properties={"name": P(str, unique=True)}),
         },
         relationships={
@@ -171,7 +189,9 @@ def _write_summary(payload: dict) -> Path:
     return target
 
 
-def _benchmark_setup_payload(args: argparse.Namespace, *, tracing_configured: bool) -> dict:
+def _benchmark_setup_payload(
+    args: argparse.Namespace, *, tracing_configured: bool
+) -> dict:
     active_trace_backends = current_backend_names()
     return {
         "provider": args.provider,
@@ -209,7 +229,9 @@ def _request_json(
     if payload is not None:
         headers["Content-Type"] = "application/json"
         data = json.dumps(payload).encode("utf-8")
-    request = urllib.request.Request(url, data=data, headers=headers, method=method.upper())
+    request = urllib.request.Request(
+        url, data=data, headers=headers, method=method.upper()
+    )
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
             body = response.read().decode("utf-8", errors="replace")
@@ -274,8 +296,12 @@ def _extract_trace_steps(payload: object) -> list[dict]:
     if isinstance(payload, dict) and isinstance(payload.get("trace_steps"), list):
         steps.extend(item for item in payload["trace_steps"] if isinstance(item, dict))
     runtime_payload = _runtime_payload(payload)
-    if runtime_payload is not payload and isinstance(runtime_payload.get("trace_steps"), list):
-        steps.extend(item for item in runtime_payload["trace_steps"] if isinstance(item, dict))
+    if runtime_payload is not payload and isinstance(
+        runtime_payload.get("trace_steps"), list
+    ):
+        steps.extend(
+            item for item in runtime_payload["trace_steps"] if isinstance(item, dict)
+        )
     return steps
 
 
@@ -284,7 +310,9 @@ def _extract_evidence_bundle(payload: object) -> dict:
     if isinstance(runtime_payload.get("evidence_bundle"), dict):
         return runtime_payload["evidence_bundle"]
     semantic_context = runtime_payload.get("semantic_context")
-    if isinstance(semantic_context, dict) and isinstance(semantic_context.get("evidence_bundle_preview"), dict):
+    if isinstance(semantic_context, dict) and isinstance(
+        semantic_context.get("evidence_bundle_preview"), dict
+    ):
         return semantic_context["evidence_bundle_preview"]
     return {}
 
@@ -318,7 +346,11 @@ def _extract_agent_metrics(payload: object) -> dict:
     if not isinstance(support_assessment, dict):
         support_assessment = {}
     evidence_bundle = _extract_evidence_bundle(payload)
-    missing_slots = evidence_bundle.get("missing_slots") or support_assessment.get("missing_slots") or []
+    missing_slots = (
+        evidence_bundle.get("missing_slots")
+        or support_assessment.get("missing_slots")
+        or []
+    )
     if not isinstance(missing_slots, list):
         missing_slots = []
 
@@ -327,9 +359,17 @@ def _extract_agent_metrics(payload: object) -> dict:
     semantic_reused = False
     for step in trace_steps:
         step_type = str(step.get("type", "")).strip()
-        if step_type in {"TOOL_CALL", "DETERMINISTIC_PREFLIGHT", "DETERMINISTIC_FALLBACK"}:
+        if step_type in {
+            "TOOL_CALL",
+            "DETERMINISTIC_PREFLIGHT",
+            "DETERMINISTIC_FALLBACK",
+        }:
             tool_call_count += 1
-        if step_type in {"DETERMINISTIC_PREFLIGHT", "DETERMINISTIC_FALLBACK", "SYNTHESIS_BYPASSED"}:
+        if step_type in {
+            "DETERMINISTIC_PREFLIGHT",
+            "DETERMINISTIC_FALLBACK",
+            "SYNTHESIS_BYPASSED",
+        }:
             semantic_reused = True
         metadata = step.get("metadata")
         if isinstance(metadata, dict):
@@ -356,7 +396,9 @@ def _extract_agent_metrics(payload: object) -> dict:
     debate_results = runtime_payload.get("debate_results")
     if isinstance(debate_results, list):
         semantic_reused = semantic_reused or any(
-            bool(item.get("semantic_reused")) for item in debate_results if isinstance(item, dict)
+            bool(item.get("semantic_reused"))
+            for item in debate_results
+            if isinstance(item, dict)
         )
 
     return {
@@ -525,7 +567,9 @@ def _run_remote_endpoint_benchmark(
             ask_latency_ms = round((time.perf_counter() - started) * 1000.0, 2)
             if 200 <= status_code < 300:
                 answer = _extract_answer(payload)
-                reasoning_cycle_status, reasoning_cycle_sources = _extract_reasoning_cycle(payload)
+                reasoning_cycle_status, reasoning_cycle_sources = (
+                    _extract_reasoning_cycle(payload)
+                )
                 agent_metrics = _extract_agent_metrics(payload)
                 exact, contains = compare_answers(case.expected_answer, answer)
                 observability = finder_record_observability(
@@ -574,13 +618,23 @@ def _run_remote_endpoint_benchmark(
                 reasoning_attempt_count=int(agent_metrics["reasoning_attempt_count"]),
                 semantic_reused=bool(agent_metrics["semantic_reused"]),
                 debate_state=str(agent_metrics["debate_state"]),
-                token_usage=dict(agent_metrics["token_usage"] or observability.get("token_usage", {})),
+                token_usage=dict(
+                    agent_metrics["token_usage"] or observability.get("token_usage", {})
+                ),
                 support_answer_gap="support_claim_answer_mismatch" in diagnosis,
                 diagnosis=diagnosis,
-                latency_breakdown_ms=dict(observability.get("latency_breakdown_ms", {})),
-                retrieval_latency_ms=float(observability.get("retrieval_latency_ms", 0.0) or 0.0),
-                generation_latency_ms=float(observability.get("generation_latency_ms", 0.0) or 0.0),
-                evidence_coverage=float(observability.get("evidence_coverage", 0.0) or 0.0),
+                latency_breakdown_ms=dict(
+                    observability.get("latency_breakdown_ms", {})
+                ),
+                retrieval_latency_ms=float(
+                    observability.get("retrieval_latency_ms", 0.0) or 0.0
+                ),
+                generation_latency_ms=float(
+                    observability.get("generation_latency_ms", 0.0) or 0.0
+                ),
+                evidence_coverage=float(
+                    observability.get("evidence_coverage", 0.0) or 0.0
+                ),
                 slot_metrics=dict(observability.get("slot_metrics", {})),
                 agent_pattern=dict(observability.get("agent_pattern", {})),
                 error=error,
@@ -603,9 +657,13 @@ def main() -> int:
         default=str(_default_dataset_path()),
         help="Path to a FinDER-format JSON dataset. This repo does not ship benchmark evidence.",
     )
-    parser.add_argument("--scenario", choices=("all", "beginner", "advanced"), default="all")
+    parser.add_argument(
+        "--scenario", choices=("all", "beginner", "advanced"), default="all"
+    )
     parser.add_argument("--database", default="neo4j")
-    parser.add_argument("--base-url", default=os.getenv("SEOCHO_BASE_URL", "http://localhost:8001"))
+    parser.add_argument(
+        "--base-url", default=os.getenv("SEOCHO_BASE_URL", "http://localhost:8001")
+    )
     parser.add_argument(
         "--graph",
         default=os.getenv("NEO4J_URI", "") if os.getenv("FINDER_USE_BOLT") else "",
@@ -617,7 +675,9 @@ def main() -> int:
         help="Optional Ladybug file path for local mode. Defaults to an isolated per-workspace benchmark file.",
     )
     parser.add_argument("--neo4j-user", default=os.getenv("NEO4J_USER", "neo4j"))
-    parser.add_argument("--neo4j-password", default=os.getenv("NEO4J_PASSWORD", "password"))
+    parser.add_argument(
+        "--neo4j-password", default=os.getenv("NEO4J_PASSWORD", "password")
+    )
     parser.add_argument(
         "--provider",
         default=os.getenv("FINDER_LLM_PROVIDER", ""),
@@ -634,10 +694,17 @@ def main() -> int:
         default=0,
         help="Limit selected FinDER cases per category; 0 means no limit.",
     )
-    parser.add_argument("--workspace-id", default=f"finder-benchmark-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}")
+    parser.add_argument(
+        "--workspace-id",
+        default=f"finder-benchmark-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
+    )
     parser.add_argument("--reasoning-mode", action="store_true")
     parser.add_argument("--repair-budget", type=int, default=0)
-    parser.add_argument("--timeout", type=float, default=float(os.getenv("FINDER_RUNTIME_TIMEOUT", "180")))
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=float(os.getenv("FINDER_RUNTIME_TIMEOUT", "180")),
+    )
     args = parser.parse_args()
     try:
         llm_selection = _resolve_llm_selection(args.provider, args.model)
@@ -744,7 +811,9 @@ def main() -> int:
     output = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "dataset": str(dataset_path),
-        "benchmark_setup": _benchmark_setup_payload(args, tracing_configured=tracing_configured),
+        "benchmark_setup": _benchmark_setup_payload(
+            args, tracing_configured=tracing_configured
+        ),
         "database": args.database,
         "workspace_id": args.workspace_id,
         "scenario": args.scenario,

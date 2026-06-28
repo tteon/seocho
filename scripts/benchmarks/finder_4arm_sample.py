@@ -23,6 +23,7 @@ Outputs:
   outputs/evaluation/finder_4arm_sample/<run_prefix>/aggregate.json
   outputs/evaluation/finder_4arm_sample/<run_prefix>/partial/<slice>_<case>_<arm>.json
 """
+
 from __future__ import annotations
 
 import argparse
@@ -47,7 +48,9 @@ from seocho.query.strategy import PromptTemplate  # noqa: E402
 from seocho.tracing import current_backend_names  # noqa: E402
 
 REF_SEPARATOR = "===EVIDENCE_BOUNDARY==="
-_NUM_RE = re.compile(r"-?\$?\d[\d,]*\.?\d*(?:%| million| billion| thousand)?", re.IGNORECASE)
+_NUM_RE = re.compile(
+    r"-?\$?\d[\d,]*\.?\d*(?:%| million| billion| thousand)?", re.IGNORECASE
+)
 
 DATASET_CSV = ROOT / "examples" / "datasets" / "finder" / "all_slices.csv"
 GROK_META_PROMPT = ROOT / "examples/finder/datasets/grok_meta_system_prompt.md"
@@ -103,8 +106,10 @@ class KGPromptTemplate(PromptTemplate):
 # Data loading + sampling
 # ---------------------------------------------------------------------------
 
+
 def load_sample(n_per_slice: int, seed: int) -> list[dict]:
     import pandas as pd
+
     if not DATASET_CSV.is_file():
         raise SystemExit(f"Missing dataset CSV at {DATASET_CSV}")
     df = pd.read_csv(DATASET_CSV)
@@ -115,23 +120,30 @@ def load_sample(n_per_slice: int, seed: int) -> list[dict]:
     sample = pd.concat(parts, ignore_index=True)
     cases: list[dict] = []
     for _, r in sample.iterrows():
-        refs = [x.strip() for x in str(r["references_joined"]).split(REF_SEPARATOR) if x.strip()]
-        cases.append({
-            "case_id": r["_id"],
-            "slice": r["slice"],
-            "category": r["category"],
-            "type": r["type"] if isinstance(r["type"], str) else "",
-            "n_refs": int(r["n_refs"]),
-            "query": r["query"],
-            "expected_answer": r["answer"],
-            "references": refs,
-        })
+        refs = [
+            x.strip()
+            for x in str(r["references_joined"]).split(REF_SEPARATOR)
+            if x.strip()
+        ]
+        cases.append(
+            {
+                "case_id": r["_id"],
+                "slice": r["slice"],
+                "category": r["category"],
+                "type": r["type"] if isinstance(r["type"], str) else "",
+                "n_refs": int(r["n_refs"]),
+                "query": r["query"],
+                "expected_answer": r["answer"],
+                "references": refs,
+            }
+        )
     return cases
 
 
 # ---------------------------------------------------------------------------
 # Answer evaluation (number-aware, same metric across all arms — §20.3)
 # ---------------------------------------------------------------------------
+
 
 def _safe_str(x) -> str:
     """Coerce to str, treating NaN/None as empty (CSV answers can be NaN floats)."""
@@ -143,7 +155,9 @@ def _safe_str(x) -> str:
 
 
 def _nums(text) -> set[str]:
-    return {n.replace(",", "").strip().lower() for n in _NUM_RE.findall(_safe_str(text))}
+    return {
+        n.replace(",", "").strip().lower() for n in _NUM_RE.findall(_safe_str(text))
+    }
 
 
 def evaluate_answer(expected, actual) -> dict:
@@ -151,7 +165,8 @@ def evaluate_answer(expected, actual) -> dict:
     exp, act = _nums(exp_s), _nums(act_s)
     shared = exp & act
     return {
-        "contains_match": bool(act_s) and exp_s.strip().lower() in act_s.strip().lower(),
+        "contains_match": bool(act_s)
+        and exp_s.strip().lower() in act_s.strip().lower(),
         "shared_numbers": len(shared),
         "expected_number_count": len(exp),
         "actual_number_count": len(act),
@@ -203,7 +218,9 @@ def _graph_context(graph_store, ws: str, db: str, *, keep_raw: bool = False) -> 
     raw_passages: list[str] = []
     nodes = graph_store.query(
         "MATCH (n {_workspace_id:$w}) RETURN labels(n) AS l, properties(n) AS p",
-        params={"w": ws}, database=db)
+        params={"w": ws},
+        database=db,
+    )
     for r in nodes or []:
         all_labs = r["l"] or []
         labs = [x for x in all_labs if x not in _INFRA_LABELS]
@@ -215,14 +232,30 @@ def _graph_context(graph_store, ws: str, db: str, *, keep_raw: bool = False) -> 
                     raw_passages.append(txt)
             continue
         nm = p.get("name") or p.get("uri") or ""
-        bits = [f"{k}={p[k]}" for k in
-                ("value", "period", "basis", "segment", "amount", "amount_per_share",
-                 "coupon_rate", "maturity_date") if p.get(k)]
-        lines.append(f"- ({'/'.join(labs)}) {nm}" + (f" [{', '.join(bits)}]" if bits else ""))
+        bits = [
+            f"{k}={p[k]}"
+            for k in (
+                "value",
+                "period",
+                "basis",
+                "segment",
+                "amount",
+                "amount_per_share",
+                "coupon_rate",
+                "maturity_date",
+            )
+            if p.get(k)
+        ]
+        lines.append(
+            f"- ({'/'.join(labs)}) {nm}" + (f" [{', '.join(bits)}]" if bits else "")
+        )
     rels = graph_store.query(
         "MATCH (a {_workspace_id:$w})-[x]->(b {_workspace_id:$w}) "
         "RETURN coalesce(a.name,a.uri,'?') AS s, type(x) AS t, coalesce(b.name,b.uri,'?') AS o "
-        "LIMIT 80", params={"w": ws}, database=db)
+        "LIMIT 80",
+        params={"w": ws},
+        database=db,
+    )
     if rels:
         lines.append("=== Relationships ===")
         for r in rels:
@@ -237,13 +270,14 @@ def _graph_context(graph_store, ws: str, db: str, *, keep_raw: bool = False) -> 
 def _embed_texts(texts: list[str], oai_client) -> list[list[float]]:
     out: list[list[float]] = []
     for i in range(0, len(texts), 64):
-        resp = oai_client.embeddings.create(model=_EMBED_MODEL, input=texts[i:i + 64])
+        resp = oai_client.embeddings.create(model=_EMBED_MODEL, input=texts[i : i + 64])
         out.extend(d.embedding for d in resp.data)
     return out
 
 
-def _vector_context(refs: list[str], query: str, oai_client, *, top_k: int = 5,
-                    chunk_size: int = 800) -> str:
+def _vector_context(
+    refs: list[str], query: str, oai_client, *, top_k: int = 5, chunk_size: int = 800
+) -> str:
     """Top-k dense retrieval over the same gold references (vector lane context)."""
     chunks: list[str] = []
     for ref in refs:
@@ -255,20 +289,26 @@ def _vector_context(refs: list[str], query: str, oai_client, *, top_k: int = 5,
         else:
             s = 0
             while s < len(t):
-                chunks.append(t[s:s + chunk_size])
+                chunks.append(t[s : s + chunk_size])
                 s += chunk_size - 100
     if not chunks:
         return ""
     cv = _embed_texts(chunks, oai_client)
     qv = _embed_texts([query], oai_client)[0]
+
     def _norm(v):
         n = math.sqrt(sum(x * x for x in v)) or 1.0
         return [x / n for x in v]
+
     q = _norm(qv)
-    scored = sorted(((sum(a * b for a, b in zip(q, _norm(r))), i) for i, r in enumerate(cv)),
-                    reverse=True)
+    scored = sorted(
+        ((sum(a * b for a, b in zip(q, _norm(r))), i) for i, r in enumerate(cv)),
+        reverse=True,
+    )
     idxs = [i for _, i in scored[:top_k]]
-    return "\n\n---\n\n".join(f"[chunk #{j+1}]\n{chunks[i]}" for j, i in enumerate(idxs))
+    return "\n\n---\n\n".join(
+        f"[chunk #{j+1}]\n{chunks[i]}" for j, i in enumerate(idxs)
+    )
 
 
 def _grok_answer(llm, query: str, context: str) -> str:
@@ -278,9 +318,19 @@ def _grok_answer(llm, query: str, context: str) -> str:
     return getattr(resp, "text", None) or getattr(resp, "content", None) or str(resp)
 
 
-def run_one(*, case: dict, arm: str, modules: list[str], llm_spec: str,
-            extraction_tmpl: PromptTemplate, prompt_hash: str, run_prefix: str,
-            database: str, oai_client, out_partial_dir: Path) -> list[dict]:
+def run_one(
+    *,
+    case: dict,
+    arm: str,
+    modules: list[str],
+    llm_spec: str,
+    extraction_tmpl: PromptTemplate,
+    prompt_hash: str,
+    run_prefix: str,
+    database: str,
+    oai_client,
+    out_partial_dir: Path,
+) -> list[dict]:
     from seocho import Seocho
     from seocho.store.graph import Neo4jGraphStore
     from seocho.store.llm import create_llm_backend
@@ -293,9 +343,12 @@ def run_one(*, case: dict, arm: str, modules: list[str], llm_spec: str,
     modules_label = "+".join(modules) or "baseline"
     onto_hash = _ontology_hash(ontology)
     dataset_index = f"{case['slice']}/{case['case_id']}"
-    provider, model = (llm_spec.split("/", 1) if "/" in llm_spec else ("grok", llm_spec))
+    provider, model = llm_spec.split("/", 1) if "/" in llm_spec else ("grok", llm_spec)
 
-    print(f"    {trace_name}: arm={arm} modules={modules_label} onto={onto_hash}", flush=True)
+    print(
+        f"    {trace_name}: arm={arm} modules={modules_label} onto={onto_hash}",
+        flush=True,
+    )
 
     started = time.perf_counter()
     error = ""
@@ -311,8 +364,13 @@ def run_one(*, case: dict, arm: str, modules: list[str], llm_spec: str,
             os.environ.get("NEO4J_PASSWORD", ""),
         )
         llm = create_llm_backend(provider=provider.strip(), model=model.strip())
-        client = Seocho(ontology=ontology, graph_store=graph_store, llm=llm,
-                        workspace_id=workspace_id, extraction_prompt=extraction_tmpl)
+        client = Seocho(
+            ontology=ontology,
+            graph_store=graph_store,
+            llm=llm,
+            workspace_id=workspace_id,
+            extraction_prompt=extraction_tmpl,
+        )
         # ONE fixed experiment DB (Opik-style name); per-(case×arm) isolated by
         # _workspace_id. DB created+onlined once in main().
         client.default_database = database
@@ -324,15 +382,24 @@ def run_one(*, case: dict, arm: str, modules: list[str], llm_spec: str,
         # Extract the gold references into the graph (ontology-guided).
         t0 = time.perf_counter()
         for i, ref in enumerate(case["references"], 1):
-            print(f"    {trace_name}: add ref {i}/{len(case['references'])} ({len(ref)} chars)", flush=True)
+            print(
+                f"    {trace_name}: add ref {i}/{len(case['references'])} ({len(ref)} chars)",
+                flush=True,
+            )
             client.add(ref, user_id=workspace_id)
         add_ms = round((time.perf_counter() - t0) * 1000, 2)
 
         try:
-            n = graph_store.query("MATCH (n {_workspace_id:$w}) RETURN count(n) AS c",
-                                  params={"w": workspace_id}, database=database)
-            r = graph_store.query("MATCH (a {_workspace_id:$w})-[x]->() RETURN count(x) AS c",
-                                  params={"w": workspace_id}, database=database)
+            n = graph_store.query(
+                "MATCH (n {_workspace_id:$w}) RETURN count(n) AS c",
+                params={"w": workspace_id},
+                database=database,
+            )
+            r = graph_store.query(
+                "MATCH (a {_workspace_id:$w})-[x]->() RETURN count(x) AS c",
+                params={"w": workspace_id},
+                database=database,
+            )
             nodes_created = int(n[0]["c"]) if n else 0
             rels_created = int(r[0]["c"]) if r else 0
         except Exception:
@@ -362,26 +429,54 @@ def run_one(*, case: dict, arm: str, modules: list[str], llm_spec: str,
 
     mode_specs = [
         ("graph", "graphrag", "graph", "=== GRAPH CONTEXT ===\n" + graph_ctx),
-        ("vector_graph", "hybrid", "vector_graph",
-         "=== VECTOR CONTEXT (retrieved chunks) ===\n" + vec_ctx +
-         "\n\n=== GRAPH CONTEXT ===\n" + graph_ctx),
+        (
+            "vector_graph",
+            "hybrid",
+            "vector_graph",
+            "=== VECTOR CONTEXT (retrieved chunks) ===\n"
+            + vec_ctx
+            + "\n\n=== GRAPH CONTEXT ===\n"
+            + graph_ctx,
+        ),
     ]
     results: list[dict] = []
     for mode_name, flow, retrieval_tag, context in mode_specs:
         tname = f"{case['slice']}/{case['case_id']}/{arm}/{mode_name}"
         tags, metadata = bc.build_core_meta(
-            dataset_name="all_slices.csv", dataset_index=dataset_index,
-            case_id=case["case_id"], slice_tag=case["slice"], category=case["category"],
-            llm_spec=llm_spec, provider=provider, mode=mode_name, reasoning_mode=False,
-            repair_budget=0, flow=flow, ontology_hash=onto_hash, ontology_modules=modules_label,
-            prompt_hash=prompt_hash, run_prefix=run_prefix, workspace_id=workspace_id,
-            extra_tags={"ontology": arm, "retrieval": retrieval_tag, "prompt": PROMPT_ID, "seed": "42"},
+            dataset_name="all_slices.csv",
+            dataset_index=dataset_index,
+            case_id=case["case_id"],
+            slice_tag=case["slice"],
+            category=case["category"],
+            llm_spec=llm_spec,
+            provider=provider,
+            mode=mode_name,
+            reasoning_mode=False,
+            repair_budget=0,
+            flow=flow,
+            ontology_hash=onto_hash,
+            ontology_modules=modules_label,
+            prompt_hash=prompt_hash,
+            run_prefix=run_prefix,
+            workspace_id=workspace_id,
+            extra_tags={
+                "ontology": arm,
+                "retrieval": retrieval_tag,
+                "prompt": PROMPT_ID,
+                "seed": "42",
+            },
             extra_metadata={
-                "ontology_arm": arm, "ontology_modules_list": modules,
-                "ontology_node_count": len(ontology.nodes), "ontology_rel_count": len(ontology.relationships),
-                "nodes_created": nodes_created, "relationships_created": rels_created,
-                "prompt_id": PROMPT_ID, "experiment_database": database,
-                "case_query": case["query"], "case_n_refs": case["n_refs"], "case_type": case["type"],
+                "ontology_arm": arm,
+                "ontology_modules_list": modules,
+                "ontology_node_count": len(ontology.nodes),
+                "ontology_rel_count": len(ontology.relationships),
+                "nodes_created": nodes_created,
+                "relationships_created": rels_created,
+                "prompt_id": PROMPT_ID,
+                "experiment_database": database,
+                "case_query": case["query"],
+                "case_n_refs": case["n_refs"],
+                "case_type": case["type"],
             },
         )
         ans_err = ""
@@ -393,39 +488,65 @@ def run_one(*, case: dict, arm: str, modules: list[str], llm_spec: str,
             # Opik UI shows a sortable/chartable column (judge_score is backfilled
             # offline by finder_judge). Set metadata too.
             m = evaluate_answer(_exp, ans)
-            bc.set_opik_feedback_scores({
-                "number_overlap": m["number_overlap_ratio"],
-                "contains_match": 1.0 if m["contains_match"] else 0.0,
-            })
+            bc.set_opik_feedback_scores(
+                {
+                    "number_overlap": m["number_overlap_ratio"],
+                    "contains_match": 1.0 if m["contains_match"] else 0.0,
+                }
+            )
             bc.set_opik_trace_metadata(name=tname, tags=tags, metadata=metadata)
             return ans
 
         try:
             if llm is None:
                 raise RuntimeError("LLM backend unavailable")
-            answer = bc.run_under_opik_track(name=tname, tags=tags, metadata=metadata, work_fn=_work)
+            answer = bc.run_under_opik_track(
+                name=tname, tags=tags, metadata=metadata, work_fn=_work
+            )
         except Exception as exc:
             answer, ans_err = "", f"{type(exc).__name__}: {exc}"
         ask_ms = round((time.perf_counter() - t1) * 1000, 2)
         metrics = evaluate_answer(case["expected_answer"], answer)
         result = {
-            "case_id": case["case_id"], "slice": case["slice"], "category": case["category"],
-            "type": case["type"], "n_refs": case["n_refs"], "arm": arm, "mode": mode_name,
-            "retrieval": retrieval_tag, "ontology_modules": modules, "ontology_hash": onto_hash,
-            "ontology_node_count": len(ontology.nodes), "ontology_rel_count": len(ontology.relationships),
-            "model": llm_spec, "prompt_id": PROMPT_ID, "prompt_hash": prompt_hash,
-            "workspace_id": workspace_id, "graph_backend": "neo4j", "database": database,
-            "query": case["query"], "expected_answer": case["expected_answer"], "answer": answer,
+            "case_id": case["case_id"],
+            "slice": case["slice"],
+            "category": case["category"],
+            "type": case["type"],
+            "n_refs": case["n_refs"],
+            "arm": arm,
+            "mode": mode_name,
+            "retrieval": retrieval_tag,
+            "ontology_modules": modules,
+            "ontology_hash": onto_hash,
+            "ontology_node_count": len(ontology.nodes),
+            "ontology_rel_count": len(ontology.relationships),
+            "model": llm_spec,
+            "prompt_id": PROMPT_ID,
+            "prompt_hash": prompt_hash,
+            "workspace_id": workspace_id,
+            "graph_backend": "neo4j",
+            "database": database,
+            "query": case["query"],
+            "expected_answer": case["expected_answer"],
+            "answer": answer,
             "evaluation": metrics,
-            "latency_ms": {"add": add_ms, "ask": ask_ms,
-                           "total": round((time.perf_counter() - started) * 1000, 2)},
-            "nodes_created": nodes_created, "relationships_created": rels_created,
-            "graph_context_chars": len(graph_ctx), "vector_context_chars": len(vec_ctx),
+            "latency_ms": {
+                "add": add_ms,
+                "ask": ask_ms,
+                "total": round((time.perf_counter() - started) * 1000, 2),
+            },
+            "nodes_created": nodes_created,
+            "relationships_created": rels_created,
+            "graph_context_chars": len(graph_ctx),
+            "vector_context_chars": len(vec_ctx),
             "error": error or ans_err,
         }
         try:
             bc.atomic_write_json(
-                out_partial_dir / f"{case['slice']}_{case['case_id']}_{arm}_{mode_name}.json", result)
+                out_partial_dir
+                / f"{case['slice']}_{case['case_id']}_{arm}_{mode_name}.json",
+                result,
+            )
         except Exception as exc:
             print(f"  [warn] partial write failed: {exc}", flush=True)
         results.append(result)
@@ -435,6 +556,7 @@ def run_one(*, case: dict, arm: str, modules: list[str], llm_spec: str,
 # ---------------------------------------------------------------------------
 # Aggregation: per (slice × arm)
 # ---------------------------------------------------------------------------
+
 
 def summarize(results: list[dict]) -> dict:
     by: dict[tuple[str, str, str], list[dict]] = {}
@@ -447,7 +569,10 @@ def summarize(results: list[dict]) -> dict:
         nodes = [r["nodes_created"] for r in runs]
         errs = sum(1 for r in runs if r["error"])
         out[f"{slc}|{arm}|{mode}"] = {
-            "slice": slc, "arm": arm, "mode": mode, "n": len(runs),
+            "slice": slc,
+            "arm": arm,
+            "mode": mode,
+            "n": len(runs),
             "number_overlap_mean": round(sum(ov) / len(ov), 3) if ov else 0.0,
             "contains_rate": round(sum(ct) / len(ct), 3) if ct else 0.0,
             "nodes_mean": round(sum(nodes) / len(nodes), 1) if nodes else 0.0,
@@ -457,30 +582,42 @@ def summarize(results: list[dict]) -> dict:
 
 
 def print_table(summary: dict) -> None:
-    print("\nslice                   | arm          | mode         |  n | overlap | contains | nodes | err")
+    print(
+        "\nslice                   | arm          | mode         |  n | overlap | contains | nodes | err"
+    )
     print("-" * 100)
     for row in summary.values():
-        print(f"{row['slice']:<23} | {row['arm']:<12} | {row['mode']:<12} | {row['n']:2d} | "
-              f"{row['number_overlap_mean']:.3f}   | {row['contains_rate']:.2f}     | "
-              f"{row['nodes_mean']:5.1f} | {row['errors']}")
+        print(
+            f"{row['slice']:<23} | {row['arm']:<12} | {row['mode']:<12} | {row['n']:2d} | "
+            f"{row['number_overlap_mean']:.3f}   | {row['contains_rate']:.2f}     | "
+            f"{row['nodes_mean']:5.1f} | {row['errors']}"
+        )
 
 
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--n-per-slice", type=int, default=10)
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--llm", default=os.environ.get("SEOCHO_LLM", "grok/grok-4.3"))
-    ap.add_argument("--database", default=os.environ.get("SEOCHO_EXPERIMENT_DB", "yitae0530grok"),
-                    help="Fixed experiment DB (Opik-style name+date+model, Neo4j-sanitized; no hyphens).")
+    ap.add_argument(
+        "--database",
+        default=os.environ.get("SEOCHO_EXPERIMENT_DB", "yitae0530grok"),
+        help="Fixed experiment DB (Opik-style name+date+model, Neo4j-sanitized; no hyphens).",
+    )
     ap.add_argument("--arms", default="non-ontology,small,medium,large")
-    ap.add_argument("--limit-cases", type=int, default=0, help="Cap total cases (smoke). 0=all.")
+    ap.add_argument(
+        "--limit-cases", type=int, default=0, help="Cap total cases (smoke). 0=all."
+    )
     ap.add_argument("--dry-run", action="store_true")
-    ap.add_argument("--run-prefix",
-                    default=f"4arm-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}")
+    ap.add_argument(
+        "--run-prefix",
+        default=f"4arm-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
+    )
     args = ap.parse_args()
 
     bc.bootstrap(verbose=True)
@@ -494,7 +631,9 @@ def main() -> int:
         system=system_tmpl,
         user="Source 10-K text to extract into the graph:\n\n{{text}}",
     )
-    print(f"== extraction prompt: {GROK_META_PROMPT.name} ({len(system_tmpl)} chars, hash={prompt_hash}) ==")
+    print(
+        f"== extraction prompt: {GROK_META_PROMPT.name} ({len(system_tmpl)} chars, hash={prompt_hash}) =="
+    )
 
     arms = [a.strip() for a in args.arms.split(",") if a.strip() in ARMS]
     cases = load_sample(args.n_per_slice, args.seed)
@@ -520,27 +659,37 @@ def main() -> int:
     # experiment traces come ONLY from bc.run_under_opik_track (@track) + set_opik_
     # trace_metadata, which use opik's own env/config (~/.opik.config) directly.
     # Result: the Opik project shows exactly one clean, tagged trace per run.
-    print(f"== tracing: experiment-traces-only (no SEOCHO backend) "
-          f"project={os.environ.get('OPIK_PROJECT_NAME')} ws={os.environ.get('OPIK_WORKSPACE')} ==")
+    print(
+        f"== tracing: experiment-traces-only (no SEOCHO backend) "
+        f"project={os.environ.get('OPIK_PROJECT_NAME')} ws={os.environ.get('OPIK_WORKSPACE')} =="
+    )
 
     def flush_tracing():  # opik @track flushes on its own; best-effort explicit flush
         try:
             import opik
+
             opik.flush_tracker()
         except Exception:
             pass
 
     # Validate + create the single experiment DB up front, wait until online.
     from seocho.store.graph import Neo4jGraphStore, sanitize_database_name
+
     database = sanitize_database_name(args.database)
-    _gs = Neo4jGraphStore(os.environ["NEO4J_URI"], os.environ.get("NEO4J_USER", "neo4j"),
-                          os.environ.get("NEO4J_PASSWORD", ""))
+    _gs = Neo4jGraphStore(
+        os.environ["NEO4J_URI"],
+        os.environ.get("NEO4J_USER", "neo4j"),
+        os.environ.get("NEO4J_PASSWORD", ""),
+    )
     _ensure_db_ready(_gs, database)
     _gs.close()
     print(f"== experiment database: {database} (online) ==")
 
     from openai import OpenAI
-    oai_client = OpenAI(timeout=60)   # for vector-context embeddings (same model as vector lane)
+
+    oai_client = OpenAI(
+        timeout=60
+    )  # for vector-context embeddings (same model as vector lane)
 
     out_dir = ROOT / "outputs" / "evaluation" / "finder_4arm_sample" / args.run_prefix
     out_partial = out_dir / "partial"
@@ -553,17 +702,27 @@ def main() -> int:
         for arm in arms:
             run_i += 1
             print(f"\n>>> [{run_i}/{total}] {case['slice']} {case['case_id']} ({arm})")
-            mode_results = run_one(case=case, arm=arm, modules=ARMS[arm], llm_spec=args.llm,
-                                   extraction_tmpl=extraction_tmpl, prompt_hash=prompt_hash,
-                                   run_prefix=args.run_prefix, database=database,
-                                   oai_client=oai_client, out_partial_dir=out_partial)
+            mode_results = run_one(
+                case=case,
+                arm=arm,
+                modules=ARMS[arm],
+                llm_spec=args.llm,
+                extraction_tmpl=extraction_tmpl,
+                prompt_hash=prompt_hash,
+                run_prefix=args.run_prefix,
+                database=database,
+                oai_client=oai_client,
+                out_partial_dir=out_partial,
+            )
             for res in mode_results:
                 ev = res["evaluation"]
                 mark = "OK" if not res["error"] else "ERR"
-                print(f"    [{res['mode']:<12}] {mark}  overlap={ev['number_overlap_ratio']:.2f} "
-                      f"nums={ev['shared_numbers']}/{ev['expected_number_count']} "
-                      f"contains={ev['contains_match']} nodes={res['nodes_created']} "
-                      f"ask={res['latency_ms']['ask']}ms")
+                print(
+                    f"    [{res['mode']:<12}] {mark}  overlap={ev['number_overlap_ratio']:.2f} "
+                    f"nums={ev['shared_numbers']}/{ev['expected_number_count']} "
+                    f"contains={ev['contains_match']} nodes={res['nodes_created']} "
+                    f"ask={res['latency_ms']['ask']}ms"
+                )
                 if res["error"]:
                     print(f"      error: {res['error']}")
                 results.append(res)
@@ -576,10 +735,14 @@ def main() -> int:
     summary = summarize(results)
     payload = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "run_prefix": args.run_prefix, "llm": args.llm, "seed": args.seed,
+        "run_prefix": args.run_prefix,
+        "llm": args.llm,
+        "seed": args.seed,
         "database": database,
-        "n_per_slice": args.n_per_slice, "arms": arms,
-        "prompt_id": PROMPT_ID, "prompt_hash": prompt_hash,
+        "n_per_slice": args.n_per_slice,
+        "arms": arms,
+        "prompt_id": PROMPT_ID,
+        "prompt_hash": prompt_hash,
         "opik_project": os.environ.get("OPIK_PROJECT_NAME", ""),
         "opik_workspace": os.environ.get("OPIK_WORKSPACE", ""),
         "tracing_backends": current_backend_names(),

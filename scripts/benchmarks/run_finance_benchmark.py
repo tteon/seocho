@@ -32,11 +32,25 @@ def _build_finance_benchmark_ontology() -> Ontology:
     return Ontology(
         name="finance_benchmark",
         nodes={
-            "Company": NodeDef(properties={"name": P(str, unique=True), "sector": P(str)}),
-            "Person": NodeDef(properties={"name": P(str, unique=True), "title": P(str)}),
-            "FinancialMetric": NodeDef(properties={"name": P(str, unique=True), "value": P(str), "year": P(str)}),
-            "Risk": NodeDef(properties={"name": P(str, unique=True), "category": P(str)}),
-            "LegalIssue": NodeDef(properties={"name": P(str, unique=True), "status": P(str)}),
+            "Company": NodeDef(
+                properties={"name": P(str, unique=True), "sector": P(str)}
+            ),
+            "Person": NodeDef(
+                properties={"name": P(str, unique=True), "title": P(str)}
+            ),
+            "FinancialMetric": NodeDef(
+                properties={
+                    "name": P(str, unique=True),
+                    "value": P(str),
+                    "year": P(str),
+                }
+            ),
+            "Risk": NodeDef(
+                properties={"name": P(str, unique=True), "category": P(str)}
+            ),
+            "LegalIssue": NodeDef(
+                properties={"name": P(str, unique=True), "status": P(str)}
+            ),
             "AccountingStandard": NodeDef(properties={"name": P(str, unique=True)}),
         },
         relationships={
@@ -72,7 +86,9 @@ def _write_summary(payload: dict) -> Path:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Run the SEOCHO finance-domain benchmark harness.")
+    parser = argparse.ArgumentParser(
+        description="Run the SEOCHO finance-domain benchmark harness."
+    )
     parser.add_argument("--mode", choices=("local", "remote", "both"), default="local")
     parser.add_argument(
         "--dataset",
@@ -80,12 +96,21 @@ def main() -> int:
         help="Path to a local JSON dataset. The bundled sample is tutorial-only and should not be used as benchmark evidence.",
     )
     parser.add_argument("--database", default="neo4j")
-    parser.add_argument("--base-url", default=os.getenv("SEOCHO_BASE_URL", "http://localhost:8001"))
-    parser.add_argument("--graph", default=os.getenv("NEO4J_URI", "bolt://localhost:7687"))
+    parser.add_argument(
+        "--base-url", default=os.getenv("SEOCHO_BASE_URL", "http://localhost:8001")
+    )
+    parser.add_argument(
+        "--graph", default=os.getenv("NEO4J_URI", "bolt://localhost:7687")
+    )
     parser.add_argument("--neo4j-user", default=os.getenv("NEO4J_USER", "neo4j"))
-    parser.add_argument("--neo4j-password", default=os.getenv("NEO4J_PASSWORD", "password"))
+    parser.add_argument(
+        "--neo4j-password", default=os.getenv("NEO4J_PASSWORD", "password")
+    )
     parser.add_argument("--model", default=os.getenv("OPENAI_MODEL", "gpt-4o-mini"))
-    parser.add_argument("--workspace-id", default=f"finance-benchmark-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}")
+    parser.add_argument(
+        "--workspace-id",
+        default=f"finance-benchmark-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
+    )
     args = parser.parse_args()
 
     cases = load_finance_cases(args.dataset)
@@ -123,7 +148,12 @@ def main() -> int:
         "summaries": summaries,
     }
     path = _write_summary(output)
-    print(json.dumps({"output_path": str(path), "modes": [item["mode"] for item in summaries]}, indent=2))
+    print(
+        json.dumps(
+            {"output_path": str(path), "modes": [item["mode"] for item in summaries]},
+            indent=2,
+        )
+    )
     return 0
 
 

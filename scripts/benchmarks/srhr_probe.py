@@ -37,11 +37,30 @@ from seocho.query.semantic_query import semantic_answer
 from seocho.semantic_layer import EntityResolver, default_registry
 
 
-def run(dataset_path, *, limit_tickers, database, uri, user, password, provider, model, use_bge):
+def run(
+    dataset_path,
+    *,
+    limit_tickers,
+    database,
+    uri,
+    user,
+    password,
+    provider,
+    model,
+    use_bge,
+):
     from seocho.store.graph import Neo4jGraphStore
     from seocho.store.llm import create_llm_backend
 
-    rows = [json.loads(l) for l in Path(dataset_path).read_text().splitlines() if l.strip()]
+    rows = []
+
+    with Path(dataset_path).open("r", encoding="utf-8") as f:
+
+        for l in f:
+
+            if l.strip():
+
+                rows.append(json.loads(l))
     tickers = sorted({r["ticker"] for r in rows})
     if limit_tickers:
         tickers = tickers[:limit_tickers]
@@ -56,6 +75,7 @@ def run(dataset_path, *, limit_tickers, database, uri, user, password, provider,
     scorer = None
     if use_bge:
         from seocho.query.embedding_grounding import make_fastembed_scorer
+
         scorer = make_fastembed_scorer()
 
     gs = Neo4jGraphStore(uri=uri, user=user, password=password)
@@ -64,22 +84,45 @@ def run(dataset_path, *, limit_tickers, database, uri, user, password, provider,
     time.sleep(1.0)
     seeded = seed_observations(gs, database, rows, cik_by_ticker, registry)
     ensure_observation_constraint(gs, database)
-    print(f"seeded {seeded} observations across {len(tickers)} tickers", file=sys.stderr)
+    print(
+        f"seeded {seeded} observations across {len(tickers)} tickers", file=sys.stderr
+    )
 
     llm = create_llm_backend(provider=provider, model=model)
     records: List[Dict[str, Any]] = []
     for r in rows:
-        sr = semantic_answer(r["question"], llm=llm, graph_store=gs, database=database,
-                             workspace_id=_WS, registry=registry, resolver=resolver,
-                             scorer=scorer)
-        hit = sr.route == "STRUCTURED" and sr.answer is not None and \
-            value_matches(sr.answer, r["raw_value"])
-        records.append({"ticker": r["ticker"], "metric": r["metric"],
-                        "fiscal_year": r["fiscal_year"], "prior_stale": r["prior_stale"],
-                        "route": sr.route, "answer": sr.answer, "gold": r["answer"],
-                        "srhr_hit": hit})
-        print(f"  [{r['ticker']} {r['metric']} FY{r['fiscal_year']}] "
-              f"route={sr.route} hit={'Y' if hit else 'n'} ans={sr.answer!r}", file=sys.stderr)
+        sr = semantic_answer(
+            r["question"],
+            llm=llm,
+            graph_store=gs,
+            database=database,
+            workspace_id=_WS,
+            registry=registry,
+            resolver=resolver,
+            scorer=scorer,
+        )
+        hit = (
+            sr.route == "STRUCTURED"
+            and sr.answer is not None
+            and value_matches(sr.answer, r["raw_value"])
+        )
+        records.append(
+            {
+                "ticker": r["ticker"],
+                "metric": r["metric"],
+                "fiscal_year": r["fiscal_year"],
+                "prior_stale": r["prior_stale"],
+                "route": sr.route,
+                "answer": sr.answer,
+                "gold": r["answer"],
+                "srhr_hit": hit,
+            }
+        )
+        print(
+            f"  [{r['ticker']} {r['metric']} FY{r['fiscal_year']}] "
+            f"route={sr.route} hit={'Y' if hit else 'n'} ans={sr.answer!r}",
+            file=sys.stderr,
+        )
     try:
         gs.close()
     except Exception:
@@ -88,12 +131,21 @@ def run(dataset_path, *, limit_tickers, database, uri, user, password, provider,
     n = len(records)
     stale = [x for x in records if x["prior_stale"]]
     return {
-        "config": {"fallback": "OFF (structured-only)", "provider": provider,
-                   "model": model, "bge": bool(scorer), "seeded": seeded},
+        "config": {
+            "fallback": "OFF (structured-only)",
+            "provider": provider,
+            "model": model,
+            "bge": bool(scorer),
+            "seeded": seeded,
+        },
         "summary": {
             "n": n,
             "srhr": round(sum(x["srhr_hit"] for x in records) / n, 3) if n else None,
-            "stale_srhr": round(sum(x["srhr_hit"] for x in stale) / len(stale), 3) if stale else None,
+            "stale_srhr": (
+                round(sum(x["srhr_hit"] for x in stale) / len(stale), 3)
+                if stale
+                else None
+            ),
             "routes": dict(Counter(x["route"] for x in records)),
             "note": "fallback-OFF; SRHR = pure STRUCTURED graph contribution",
         },
@@ -114,9 +166,17 @@ def main() -> int:
     p.add_argument("--no-bge", action="store_true")
     p.add_argument("--out", default="-")
     args = p.parse_args()
-    result = run(args.dataset, limit_tickers=args.limit_tickers, database=args.database,
-                 uri=args.uri, user=args.user, password=args.password,
-                 provider=args.provider, model=args.model, use_bge=not args.no_bge)
+    result = run(
+        args.dataset,
+        limit_tickers=args.limit_tickers,
+        database=args.database,
+        uri=args.uri,
+        user=args.user,
+        password=args.password,
+        provider=args.provider,
+        model=args.model,
+        use_bge=not args.no_bge,
+    )
     out = json.dumps(result, indent=2, ensure_ascii=False)
     if args.out == "-":
         print(out)
@@ -124,7 +184,10 @@ def main() -> int:
         Path(args.out).parent.mkdir(parents=True, exist_ok=True)
         Path(args.out).write_text(out, encoding="utf-8")
         print(f"Wrote {args.out}", file=sys.stderr)
-    print(f"\n=== SRHR (closed-loop, fallback-OFF) === {result['summary']}", file=sys.stderr)
+    print(
+        f"\n=== SRHR (closed-loop, fallback-OFF) === {result['summary']}",
+        file=sys.stderr,
+    )
     return 0
 
 

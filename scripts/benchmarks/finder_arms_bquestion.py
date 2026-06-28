@@ -46,6 +46,7 @@ from seocho.semantic_layer.identity import EntityResolver  # noqa: E402
 
 try:
     from dotenv import load_dotenv
+
     load_dotenv(_ROOT / ".env")
 except Exception:
     pass
@@ -63,6 +64,7 @@ def _load_gold() -> None:
 
 class BQuestion:
     """A synthetic cross-category question built from two single-category rows."""
+
     def __init__(self, ticker: str, cik: str, a: Case, b: Case):
         _load_gold()
         self.ticker, self.cik = ticker, cik
@@ -78,6 +80,7 @@ def build_bquestions(resolver: EntityResolver) -> List[BQuestion]:
     (BBWI/SYK/UAL/VRTX) yields C(3,2)=3 B-questions; a 2-category company yields
     1 — maximizing cross-category data points for a more robust Spearman rho."""
     from itertools import combinations
+
     cases = select_xcat_cases(resolver)
     by_cik: Dict[str, List[Case]] = {}
     for c in cases:
@@ -86,7 +89,7 @@ def build_bquestions(resolver: EntityResolver) -> List[BQuestion]:
     for cik, cs in by_cik.items():
         seen_cat: Dict[str, Case] = {}
         for c in cs:
-            seen_cat.setdefault(c.category, c)   # first case per category
+            seen_cat.setdefault(c.category, c)  # first case per category
         for ca, cb in combinations(sorted(seen_cat), 2):
             out.append(BQuestion(cs[0].ticker, cik, seen_cat[ca], seen_cat[cb]))
     return out
@@ -96,9 +99,9 @@ def build_bquestions(resolver: EntityResolver) -> List[BQuestion]:
 # Arm contexts + their deterministic cross-category coverage
 # --------------------------------------------------------------------------
 def ctx_isolated_one(bq: BQuestion) -> Tuple[str, float]:
-    cat = sorted(bq.required)[0]               # only ONE required category
+    cat = sorted(bq.required)[0]  # only ONE required category
     ctx = "\n\n".join(bq.ev_by_cat.get(cat, []))[:CONTEXT_BUDGET]
-    coverage = 1.0 / len(bq.required)          # covers 1 of N required
+    coverage = 1.0 / len(bq.required)  # covers 1 of N required
     return ctx, coverage
 
 
@@ -112,9 +115,12 @@ def ctx_backbone_both(bq: BQuestion) -> Tuple[str, float]:
 def ctx_backbone_xbrl(bq: BQuestion) -> Tuple[str, float]:
     nums = xbrl_lines(bq.cik)
     remaining = CONTEXT_BUDGET - len(nums) - 40
-    both = "\n\n".join(f"[{c}]\n" + "\n\n".join(bq.ev_by_cat.get(c, []))
-                       for c in sorted(bq.required))
-    block = "STRUCTURED FINANCIALS:\n" + nums + "\n\nNOTES:\n" + both[:max(0, remaining)]
+    both = "\n\n".join(
+        f"[{c}]\n" + "\n\n".join(bq.ev_by_cat.get(c, [])) for c in sorted(bq.required)
+    )
+    block = (
+        "STRUCTURED FINANCIALS:\n" + nums + "\n\nNOTES:\n" + both[: max(0, remaining)]
+    )
     return block[:CONTEXT_BUDGET], 1.0
 
 
@@ -144,6 +150,7 @@ def spearman(xs: List[float], ys: List[float]) -> float:
                 r[order[k]] = avg
             i = j + 1
         return r
+
     rx, ry = ranks(xs), ranks(ys)
     mx, my = sum(rx) / n, sum(ry) / n
     num = sum((rx[i] - mx) * (ry[i] - my) for i in range(n))
@@ -155,8 +162,11 @@ def spearman(xs: List[float], ys: List[float]) -> float:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--n", type=int, default=0, help="number of B-questions (0 = all)")
-    ap.add_argument("--judge", default="mara/gpt-oss-120b",
-                    help="cross-model judge (different from the answerer)")
+    ap.add_argument(
+        "--judge",
+        default="mara/gpt-oss-120b",
+        help="cross-model judge (different from the answerer)",
+    )
     args = ap.parse_args()
 
     resolver = EntityResolver.from_frozen()
@@ -164,7 +174,7 @@ def main() -> int:
         print("FATAL: frozen CIK table not found", file=sys.stderr)
         return 1
     bqs = build_bquestions(resolver)
-    sample = bqs if args.n == 0 else bqs[:args.n]
+    sample = bqs if args.n == 0 else bqs[: args.n]
 
     aspec = llm_io.parse_llm_spec(ANSWER_SPEC)
     jspec = llm_io.parse_llm_spec(args.judge)
@@ -172,8 +182,10 @@ def main() -> int:
     jclient = llm_io.make_chat_client(jspec)
 
     print("=" * 86)
-    print(f"FinDER cross-category B-questions — answerer={aspec.model}, judge={jspec.model}; "
-          f"{len(sample)} B-questions")
+    print(
+        f"FinDER cross-category B-questions — answerer={aspec.model}, judge={jspec.model}; "
+        f"{len(sample)} B-questions"
+    )
     print("=" * 86)
     agg: Dict[str, dict] = {a: {"f1": [], "judge": [], "cov": []} for a in ARMS}
     cov_points: List[float] = []
@@ -192,24 +204,42 @@ def main() -> int:
             judge_points.append(js)
             print(f"   {arm:<18} coverage={coverage:.2f} f1={f1:.3f} judge={js:.2f}")
     print("\n" + "=" * 86)
-    print(f"  {'arm':<18} {'mean coverage':>13} {'mean token_f1':>14} {'mean judge':>12}")
+    print(
+        f"  {'arm':<18} {'mean coverage':>13} {'mean token_f1':>14} {'mean judge':>12}"
+    )
     print("  " + "-" * 60)
     for arm in ARMS:
         a = agg[arm]
-        print(f"  {arm:<18} {sum(a['cov'])/len(a['cov']):>13.2f} "
-              f"{sum(a['f1'])/len(a['f1']):>14.3f} {sum(a['judge'])/len(a['judge']):>12.3f}")
+        print(
+            f"  {arm:<18} {sum(a['cov'])/len(a['cov']):>13.2f} "
+            f"{sum(a['f1'])/len(a['f1']):>14.3f} {sum(a['judge'])/len(a['judge']):>12.3f}"
+        )
     rho = spearman(cov_points, judge_points)
     print(f"\n  Spearman rho(cross_category_coverage, judge_score) = {rho}")
     print("  Honest reading (full 17 B-questions vs the n=6 smoke):")
     print("  - rho fell 0.435 (smoke, homogeneous Fin+Overview) -> ~0.18 (full, with")
-    print("    Footnotes pairs): the coverage->judge bridge is WEAK-positive, not strong;")
-    print("    the smoke overstated it. The 'isolated scores 0 on every B-question' from")
-    print("    the smoke also breaks (some single-category answers land 0.5 on the full set).")
-    print("  - token_f1 still ranks backbone_both > isolated; the LLM judge is NOISY at this")
+    print(
+        "    Footnotes pairs): the coverage->judge bridge is WEAK-positive, not strong;"
+    )
+    print(
+        "    the smoke overstated it. The 'isolated scores 0 on every B-question' from"
+    )
+    print(
+        "    the smoke also breaks (some single-category answers land 0.5 on the full set)."
+    )
+    print(
+        "  - token_f1 still ranks backbone_both > isolated; the LLM judge is NOISY at this"
+    )
     print("    scale (backbone_xbrl tops judge but bottoms token_f1 — contradictory).")
-    print("  - Takeaway: the backbone's cross-category advantage holds DIRECTIONALLY, but the")
-    print("    deterministic metric (PR #195/#196) is the reliable signal; the LLM judge is")
-    print("    confirmatory and noisy. Caveat: synthetic B-questions, n=17, MARA variance.")
+    print(
+        "  - Takeaway: the backbone's cross-category advantage holds DIRECTIONALLY, but the"
+    )
+    print(
+        "    deterministic metric (PR #195/#196) is the reliable signal; the LLM judge is"
+    )
+    print(
+        "    confirmatory and noisy. Caveat: synthetic B-questions, n=17, MARA variance."
+    )
     return 0
 
 

@@ -21,9 +21,21 @@ from seocho.ontology import NodeDef, Ontology, P, RelDef
 from seocho.ontology_scorecard import score_ontology
 
 CQS = [
-    {"id": "cq1", "question": "Who is the CEO of a company?", "requires": ["Person", "CEO_OF", "Company"]},
-    {"id": "cq2", "question": "What products does a company offer?", "requires": ["Company", "OFFERS", "Product"]},
-    {"id": "cq3", "question": "Which company acquired another?", "requires": ["Company", "ACQUIRED"]},
+    {
+        "id": "cq1",
+        "question": "Who is the CEO of a company?",
+        "requires": ["Person", "CEO_OF", "Company"],
+    },
+    {
+        "id": "cq2",
+        "question": "What products does a company offer?",
+        "requires": ["Company", "OFFERS", "Product"],
+    },
+    {
+        "id": "cq3",
+        "question": "Which company acquired another?",
+        "requires": ["Company", "ACQUIRED"],
+    },
 ]
 
 
@@ -35,17 +47,27 @@ def messy_first_draft() -> Ontology:
         "quickstart-draft",
         version="v1",  # invalid semver
         nodes={
-            "Company": NodeDef(properties={"name": P(str)}),  # no description, name not unique → no identity
+            "Company": NodeDef(
+                properties={"name": P(str)}
+            ),  # no description, name not unique → no identity
             "Person": NodeDef(description="A person."),  # no identity
-            "Founder": NodeDef(description="A founder."),  # no identity, single child of nothing
+            "Founder": NodeDef(
+                description="A founder."
+            ),  # no identity, single child of nothing
             "Product": NodeDef(description="A product."),  # no identity
             "Deal": NodeDef(description="A transaction."),  # no identity
-            "Metric": NodeDef(description="A KPI."),  # orphan: no broader, no relationship
+            "Metric": NodeDef(
+                description="A KPI."
+            ),  # orphan: no broader, no relationship
         },
         relationships={
-            "CEO_OF": RelDef(source="Person", target="Any"),  # untyped target, no description
+            "CEO_OF": RelDef(
+                source="Person", target="Any"
+            ),  # untyped target, no description
             "OFFERS": RelDef(source="Company", target="Product", description="offers"),
-            "ACQUIRED": RelDef(source="Company", target="Company", description="acquired"),
+            "ACQUIRED": RelDef(
+                source="Company", target="Company", description="acquired"
+            ),
         },
     )
 
@@ -59,11 +81,15 @@ def improved_ontology() -> Ontology:
         version="1.1.0",
         description="Minimal company/person/product schema (taxonomy + cardinality hardened).",
         nodes={
-            "Agent": NodeDef(description="An entity that can participate in business activity."),
+            "Agent": NodeDef(
+                description="An entity that can participate in business activity."
+            ),
             "Company": NodeDef(
                 description="A business organization.",
                 broader=["Agent"],
-                properties={"name": P(str, unique=True, description="Registered company name.")},
+                properties={
+                    "name": P(str, unique=True, description="Registered company name.")
+                },
                 identity_keys=["name"],
             ),
             "Person": NodeDef(
@@ -85,7 +111,9 @@ def improved_ontology() -> Ontology:
             ),
             "Deal": NodeDef(
                 description="An acquisition or transaction between companies.",
-                properties={"label": P(str, unique=True, description="Deal identifier.")},
+                properties={
+                    "label": P(str, unique=True, description="Deal identifier.")
+                },
                 identity_keys=["label"],
             ),
             "Metric": NodeDef(
@@ -95,14 +123,30 @@ def improved_ontology() -> Ontology:
             ),
         },
         relationships={
-            "CEO_OF": RelDef(source="Person", target="Company", cardinality="MANY_TO_ONE",
-                             description="Person leads the company as chief executive."),
-            "ACQUIRED": RelDef(source="Company", target="Company", cardinality="MANY_TO_MANY",
-                               description="Company acquired another company."),
-            "OFFERS": RelDef(source="Company", target="Product", cardinality="ONE_TO_MANY",
-                             description="Company offers a product or service."),
-            "REPORTS": RelDef(source="Company", target="Metric", cardinality="ONE_TO_MANY",
-                              description="Company reports a performance metric."),
+            "CEO_OF": RelDef(
+                source="Person",
+                target="Company",
+                cardinality="MANY_TO_ONE",
+                description="Person leads the company as chief executive.",
+            ),
+            "ACQUIRED": RelDef(
+                source="Company",
+                target="Company",
+                cardinality="MANY_TO_MANY",
+                description="Company acquired another company.",
+            ),
+            "OFFERS": RelDef(
+                source="Company",
+                target="Product",
+                cardinality="ONE_TO_MANY",
+                description="Company offers a product or service.",
+            ),
+            "REPORTS": RelDef(
+                source="Company",
+                target="Metric",
+                cardinality="ONE_TO_MANY",
+                description="Company reports a performance metric.",
+            ),
         },
     )
 
@@ -136,17 +180,29 @@ def main() -> None:
         "after": _summarise(after),
         "delta": {
             "overall_score": round(after.overall_score - before.overall_score, 4),
-            "weak_point_count": after.weak_point_count if hasattr(after, "weak_point_count") else len(after.weak_points) - len(before.weak_points),
+            "weak_point_count": (
+                after.weak_point_count
+                if hasattr(after, "weak_point_count")
+                else len(after.weak_points) - len(before.weak_points)
+            ),
             "by_dimension": {
                 d.name: round(
-                    d.score - (before.dimension(d.name).score if before.dimension(d.name) else 0.0), 4
+                    d.score
+                    - (
+                        before.dimension(d.name).score
+                        if before.dimension(d.name)
+                        else 0.0
+                    ),
+                    4,
                 )
                 for d in after.dimensions
             },
         },
     }
     # weak_point_count delta computed plainly
-    record["delta"]["weak_point_count"] = len(after.weak_points) - len(before.weak_points)
+    record["delta"]["weak_point_count"] = len(after.weak_points) - len(
+        before.weak_points
+    )
 
     text = json.dumps(record, indent=2, ensure_ascii=False)
     print(text)

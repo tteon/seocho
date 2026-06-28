@@ -51,18 +51,28 @@ def load_finder(per_category: int, max_chars: int):
     from huggingface_hub import hf_hub_download
     import pandas as pd
 
-    p = hf_hub_download("Linq-AI-Research/FinDER", "data/train-00000-of-00001.parquet", repo_type="dataset")
+    p = hf_hub_download(
+        "Linq-AI-Research/FinDER",
+        "data/train-00000-of-00001.parquet",
+        repo_type="dataset",
+    )
     df = pd.read_parquet(p)
     docs = []
     for cat, group in df.sort_values("_id").groupby("category"):
         taken = 0
         for _, row in group.iterrows():
             refs = row["references"]
-            text = " ".join(str(x) for x in refs) if hasattr(refs, "__iter__") and not isinstance(refs, str) else str(refs)
+            text = (
+                " ".join(str(x) for x in refs)
+                if hasattr(refs, "__iter__") and not isinstance(refs, str)
+                else str(refs)
+            )
             text = text.strip()
             if len(text) < 80:
                 continue
-            docs.append({"id": str(row["_id"]), "category": str(cat), "text": text[:max_chars]})
+            docs.append(
+                {"id": str(row["_id"]), "category": str(cat), "text": text[:max_chars]}
+            )
             taken += 1
             if taken >= per_category:
                 break
@@ -112,7 +122,8 @@ def _doc_metrics(graph: dict, guardrail: Ontology) -> dict:
     rtype_ok = sum(1 for t in rtypes if t in guardrail.relationships)
     sc = guardrail.score_extraction({"nodes": nodes, "relationships": rels})
     return {
-        "nodes": len(nodes), "rels": len(rels),
+        "nodes": len(nodes),
+        "rels": len(rels),
         "label_conformance": round(label_ok / len(labels), 4) if labels else 0.0,
         "rel_conformance": round(rtype_ok / len(rtypes), 4) if rtypes else 0.0,
         "extraction_score": sc["overall"],
@@ -132,9 +143,15 @@ def _aggregate(per_doc):
         "docs_ok": len(ok),
         "mean_nodes": round(statistics.mean([d["nodes"] for d in ok]), 3),
         "mean_rels": round(statistics.mean([d["rels"] for d in ok]), 3),
-        "mean_label_conformance": round(statistics.mean([d["label_conformance"] for d in ok]), 4),
-        "mean_rel_conformance": round(statistics.mean([d["rel_conformance"] for d in ok]), 4),
-        "mean_extraction_score": round(statistics.mean([d["extraction_score"] for d in ok]), 4),
+        "mean_label_conformance": round(
+            statistics.mean([d["label_conformance"] for d in ok]), 4
+        ),
+        "mean_rel_conformance": round(
+            statistics.mean([d["rel_conformance"] for d in ok]), 4
+        ),
+        "mean_extraction_score": round(
+            statistics.mean([d["extraction_score"] for d in ok]), 4
+        ),
         "distinct_labels": len(set(all_labels)),
         "label_entropy_bits": _entropy(all_labels),
         "top1_label_share": top1,
@@ -149,8 +166,10 @@ def main() -> None:
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
 
-    key = re.search(r'ontology_guardrail_mara_api_key\s*=\s*"([^"]+)"',
-                    Path(".env").read_text(encoding="utf-8")).group(1)
+    key = re.search(
+        r'ontology_guardrail_mara_api_key\s*=\s*"([^"]+)"',
+        Path(".env").read_text(encoding="utf-8"),
+    ).group(1)
 
     docs = load_finder(args.per_category, args.max_chars)
     cats = Counter(d["category"] for d in docs)
@@ -161,17 +180,28 @@ def main() -> None:
     cqs = None
     if cq_path.exists():
         import yaml
+
         raw = yaml.safe_load(cq_path.read_text())
         cqs = raw.get("competency_questions", raw) if isinstance(raw, dict) else raw
-    scorecards = {arm: score_ontology(o, competency_questions=cqs).to_dict() for arm, o in ontos.items()}
+    scorecards = {
+        arm: score_ontology(o, competency_questions=cqs).to_dict()
+        for arm, o in ontos.items()
+    }
     for arm, sc in scorecards.items():
         print(f"scorecard {arm}: {sc['grade']} ({sc['overall_score']})")
 
     # One backend per model, shared across threads (openai client is thread-safe
     # for independent requests). Calls are network I/O bound, so a thread pool
     # over the full (arm, model, doc) grid gives a large speedup.
-    backends = {m: create_llm_backend(provider="mara", model=m, api_key=key) for m in MODELS}
-    tasks = [(arm, m, di, doc) for arm in ontos for m in MODELS for di, doc in enumerate(docs)]
+    backends = {
+        m: create_llm_backend(provider="mara", model=m, api_key=key) for m in MODELS
+    }
+    tasks = [
+        (arm, m, di, doc)
+        for arm in ontos
+        for m in MODELS
+        for di, doc in enumerate(docs)
+    ]
 
     done = {"n": 0}
     lock = Lock()
@@ -180,8 +210,12 @@ def main() -> None:
         arm, m, di, doc = t
         try:
             r = backends[m].complete(
-                system=_EXTRACT_SYSTEM, user=extraction_prompt(ontos[arm], doc["text"]),
-                temperature=0.0, max_tokens=4096, response_format={"type": "json_object"})
+                system=_EXTRACT_SYSTEM,
+                user=extraction_prompt(ontos[arm], doc["text"]),
+                temperature=0.0,
+                max_tokens=4096,
+                response_format={"type": "json_object"},
+            )
             md = _doc_metrics(_parse_graph(r.text), ontos[arm])
         except Exception as e:
             md = {"error": f"{type(e).__name__}: {str(e)[:80]}"}
@@ -205,42 +239,78 @@ def main() -> None:
             per_doc = buckets[arm][m]
             agg = _aggregate(per_doc)
             results[arm]["per_model"][m] = {"aggregate": agg, "per_doc": per_doc}
-            print(f"[{arm} / {m}] nodes={agg.get('mean_nodes')} conf={agg.get('mean_label_conformance')} "
-                  f"score={agg.get('mean_extraction_score')} entropy={agg.get('label_entropy_bits')} "
-                  f"distinct={agg.get('distinct_labels')}")
+            print(
+                f"[{arm} / {m}] nodes={agg.get('mean_nodes')} conf={agg.get('mean_label_conformance')} "
+                f"score={agg.get('mean_extraction_score')} entropy={agg.get('label_entropy_bits')} "
+                f"distinct={agg.get('distinct_labels')}"
+            )
 
     # cross-model means per arm
     summary = {}
-    keys = ("mean_nodes", "mean_rels", "mean_label_conformance", "mean_rel_conformance",
-            "mean_extraction_score", "distinct_labels", "label_entropy_bits", "top1_label_share")
+    keys = (
+        "mean_nodes",
+        "mean_rels",
+        "mean_label_conformance",
+        "mean_rel_conformance",
+        "mean_extraction_score",
+        "distinct_labels",
+        "label_entropy_bits",
+        "top1_label_share",
+    )
     for arm in ontos:
-        aggs = [results[arm]["per_model"][m]["aggregate"] for m in MODELS
-                if results[arm]["per_model"][m]["aggregate"].get("docs_ok")]
-        summary[arm] = {k: round(statistics.mean([a[k] for a in aggs]), 4) for k in keys} if aggs else {}
+        aggs = [
+            results[arm]["per_model"][m]["aggregate"]
+            for m in MODELS
+            if results[arm]["per_model"][m]["aggregate"].get("docs_ok")
+        ]
+        summary[arm] = (
+            {k: round(statistics.mean([a[k] for a in aggs]), 4) for k in keys}
+            if aggs
+            else {}
+        )
     if all(summary.values()):
         summary["delta_B_minus_A"] = {
-            k: round(summary["B_rich_fibo_plus"][k] - summary["A_sparse_fibo_minus"][k], 4) for k in keys
+            k: round(
+                summary["B_rich_fibo_plus"][k] - summary["A_sparse_fibo_minus"][k], 4
+            )
+            for k in keys
         }
 
     record = {
         "experiment": "finder-guardrail-ablation",
         "corpus": "Linq-AI-Research/FinDER",
-        "sample": {"per_category": args.per_category, "total_docs": len(docs),
-                   "max_chars": args.max_chars, "categories": dict(cats)},
+        "sample": {
+            "per_category": args.per_category,
+            "total_docs": len(docs),
+            "max_chars": args.max_chars,
+            "categories": dict(cats),
+        },
         "models": MODELS,
         "arms": ARMS,
         "scorecards": scorecards,
         "results": results,
         "summary": summary,
     }
-    Path(args.out).write_text(json.dumps(record, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    Path(args.out).write_text(
+        json.dumps(record, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
     print(f"\n[written] {args.out}")
     if "delta_B_minus_A" in summary:
-        a, b, d = summary["A_sparse_fibo_minus"], summary["B_rich_fibo_plus"], summary["delta_B_minus_A"]
+        a, b, d = (
+            summary["A_sparse_fibo_minus"],
+            summary["B_rich_fibo_plus"],
+            summary["delta_B_minus_A"],
+        )
         print(f"\nCROSS-MODEL MEANS:")
-        print(f"  A (sparse): nodes={a['mean_nodes']} conf={a['mean_label_conformance']} score={a['mean_extraction_score']} entropy={a['label_entropy_bits']} distinct={a['distinct_labels']}")
-        print(f"  B (rich)  : nodes={b['mean_nodes']} conf={b['mean_label_conformance']} score={b['mean_extraction_score']} entropy={b['label_entropy_bits']} distinct={b['distinct_labels']}")
-        print(f"  Δ(B-A)    : nodes={d['mean_nodes']:+} conf={d['mean_label_conformance']:+} score={d['mean_extraction_score']:+} entropy={d['label_entropy_bits']:+}")
+        print(
+            f"  A (sparse): nodes={a['mean_nodes']} conf={a['mean_label_conformance']} score={a['mean_extraction_score']} entropy={a['label_entropy_bits']} distinct={a['distinct_labels']}"
+        )
+        print(
+            f"  B (rich)  : nodes={b['mean_nodes']} conf={b['mean_label_conformance']} score={b['mean_extraction_score']} entropy={b['label_entropy_bits']} distinct={b['distinct_labels']}"
+        )
+        print(
+            f"  Δ(B-A)    : nodes={d['mean_nodes']:+} conf={d['mean_label_conformance']:+} score={d['mean_extraction_score']:+} entropy={d['label_entropy_bits']:+}"
+        )
 
 
 if __name__ == "__main__":

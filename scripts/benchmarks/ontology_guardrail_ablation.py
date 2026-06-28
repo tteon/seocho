@@ -51,8 +51,16 @@ DOCS = [
 ]
 
 CQS = [
-    {"id": "cq1", "question": "Who is the CEO of a company?", "requires": ["Person", "CEO_OF", "Company"]},
-    {"id": "cq2", "question": "What product does a company offer?", "requires": ["Company", "OFFERS", "Product"]},
+    {
+        "id": "cq1",
+        "question": "Who is the CEO of a company?",
+        "requires": ["Person", "CEO_OF", "Company"],
+    },
+    {
+        "id": "cq2",
+        "question": "What product does a company offer?",
+        "requires": ["Company", "OFFERS", "Product"],
+    },
 ]
 
 
@@ -64,15 +72,21 @@ def draft_ontology() -> Ontology:
         "biz-draft",
         version="v1",
         nodes={
-            "Employee": NodeDef(description="A person employed by a company."),  # role, no identity
-            "Person": NodeDef(broader=["Employee"], properties={"name": P(str)}),  # VIOLATION + no def/identity
+            "Employee": NodeDef(
+                description="A person employed by a company."
+            ),  # role, no identity
+            "Person": NodeDef(
+                broader=["Employee"], properties={"name": P(str)}
+            ),  # VIOLATION + no def/identity
             "Company": NodeDef(properties={"name": P(str)}),  # no def, name not unique
             "Product": NodeDef(description="A product."),  # no identity
         },
         relationships={
             "CEO_OF": RelDef(source="Person", target="Any"),  # untyped
             "OFFERS": RelDef(source="Company", target="Product", description="offers"),
-            "ACQUIRED": RelDef(source="Company", target="Company", description="acquired"),
+            "ACQUIRED": RelDef(
+                source="Company", target="Company", description="acquired"
+            ),
         },
     )
 
@@ -84,26 +98,49 @@ def refined_ontology() -> Ontology:
         "biz-refined",
         version="1.1.0",
         nodes={
-            "Person": NodeDef(description="A human being.",
-                              properties={"name": P(str, unique=True, description="Full name.")},
-                              identity_keys=["name"]),
-            "Employee": NodeDef(description="A person employed by a company (a role).",
-                                broader=["Person"],
-                                properties={"name": P(str, unique=True), "title": P(str)},
-                                identity_keys=["name"]),
-            "Company": NodeDef(description="A business organization.",
-                               properties={"name": P(str, unique=True, description="Registered name.")},
-                               identity_keys=["name"]),
-            "Product": NodeDef(description="A product or service offered by a company.",
-                               properties={"name": P(str, unique=True)}, identity_keys=["name"]),
+            "Person": NodeDef(
+                description="A human being.",
+                properties={"name": P(str, unique=True, description="Full name.")},
+                identity_keys=["name"],
+            ),
+            "Employee": NodeDef(
+                description="A person employed by a company (a role).",
+                broader=["Person"],
+                properties={"name": P(str, unique=True), "title": P(str)},
+                identity_keys=["name"],
+            ),
+            "Company": NodeDef(
+                description="A business organization.",
+                properties={
+                    "name": P(str, unique=True, description="Registered name.")
+                },
+                identity_keys=["name"],
+            ),
+            "Product": NodeDef(
+                description="A product or service offered by a company.",
+                properties={"name": P(str, unique=True)},
+                identity_keys=["name"],
+            ),
         },
         relationships={
-            "CEO_OF": RelDef(source="Person", target="Company", cardinality="MANY_TO_ONE",
-                             description="Person leads the company as chief executive."),
-            "OFFERS": RelDef(source="Company", target="Product", cardinality="ONE_TO_MANY",
-                             description="Company offers a product."),
-            "ACQUIRED": RelDef(source="Company", target="Company", cardinality="MANY_TO_MANY",
-                               description="Company acquired another company."),
+            "CEO_OF": RelDef(
+                source="Person",
+                target="Company",
+                cardinality="MANY_TO_ONE",
+                description="Person leads the company as chief executive.",
+            ),
+            "OFFERS": RelDef(
+                source="Company",
+                target="Product",
+                cardinality="ONE_TO_MANY",
+                description="Company offers a product.",
+            ),
+            "ACQUIRED": RelDef(
+                source="Company",
+                target="Company",
+                cardinality="MANY_TO_MANY",
+                description="Company acquired another company.",
+            ),
         },
     )
 
@@ -121,8 +158,11 @@ def ensemble_consensus(per_model_tags: dict, labels) -> dict:
     for label in labels:
         md = {}
         for key in _META_KEYS:
-            votes = [getattr(per_model_tags[m].get(label, MetaProperties()), key)
-                     for m in per_model_tags if label in per_model_tags[m]]
+            votes = [
+                getattr(per_model_tags[m].get(label, MetaProperties()), key)
+                for m in per_model_tags
+                if label in per_model_tags[m]
+            ]
             votes = [v for v in votes if v is not None]
             if not votes:
                 md[key] = None
@@ -160,10 +200,16 @@ def phase_a(key: str) -> dict:
         "inference_prompt": build_inference_prompt(draft),
         "draft_ontoclean": draft_oc.to_dict(),
         "refined_ontoclean": refined_oc.to_dict(),
-        "draft_score": {"overall": round(b.overall_score, 4), "grade": b.grade,
-                        "taxonomy_health": round(b.dimension("taxonomy_health").score, 4)},
-        "refined_score": {"overall": round(a.overall_score, 4), "grade": a.grade,
-                          "taxonomy_health": round(a.dimension("taxonomy_health").score, 4)},
+        "draft_score": {
+            "overall": round(b.overall_score, 4),
+            "grade": b.grade,
+            "taxonomy_health": round(b.dimension("taxonomy_health").score, 4),
+        },
+        "refined_score": {
+            "overall": round(a.overall_score, 4),
+            "grade": a.grade,
+            "taxonomy_health": round(a.dimension("taxonomy_health").score, 4),
+        },
         "delta_overall": round(a.overall_score - b.overall_score, 4),
         "violations_cleared": len(draft_oc.violations) - len(refined_oc.violations),
     }
@@ -223,7 +269,10 @@ def _conformance(graph: dict, reference: Ontology) -> dict:
 
 def phase_b(key: str) -> dict:
     reference = refined_ontology()  # common target schema for fair conformance scoring
-    arms = {"A_draft_guardrail": draft_ontology(), "B_refined_guardrail": refined_ontology()}
+    arms = {
+        "A_draft_guardrail": draft_ontology(),
+        "B_refined_guardrail": refined_ontology(),
+    }
     results = {arm: {"per_model": {}} for arm in arms}
 
     for arm, onto in arms.items():
@@ -232,8 +281,13 @@ def phase_b(key: str) -> dict:
             per_doc = []
             for doc in DOCS:
                 try:
-                    r = be.complete(system=_EXTRACT_SYSTEM, user=extraction_prompt(onto, doc),
-                                    temperature=0.0, max_tokens=4096, response_format={"type": "json_object"})
+                    r = be.complete(
+                        system=_EXTRACT_SYSTEM,
+                        user=extraction_prompt(onto, doc),
+                        temperature=0.0,
+                        max_tokens=4096,
+                        response_format={"type": "json_object"},
+                    )
                     graph = _parse_graph(r.text)
                     per_doc.append(_conformance(graph, reference))
                 except Exception as e:
@@ -241,28 +295,56 @@ def phase_b(key: str) -> dict:
             ok = [d for d in per_doc if "error" not in d]
             agg = {
                 "docs_ok": len(ok),
-                "mean_label_conformance": round(statistics.mean([d["label_conformance"] for d in ok]), 4) if ok else 0.0,
-                "mean_rel_conformance": round(statistics.mean([d["rel_conformance"] for d in ok]), 4) if ok else 0.0,
-                "mean_extraction_score": round(statistics.mean([d["extraction_score"] for d in ok]), 4) if ok else 0.0,
+                "mean_label_conformance": (
+                    round(statistics.mean([d["label_conformance"] for d in ok]), 4)
+                    if ok
+                    else 0.0
+                ),
+                "mean_rel_conformance": (
+                    round(statistics.mean([d["rel_conformance"] for d in ok]), 4)
+                    if ok
+                    else 0.0
+                ),
+                "mean_extraction_score": (
+                    round(statistics.mean([d["extraction_score"] for d in ok]), 4)
+                    if ok
+                    else 0.0
+                ),
                 "total_distinct_labels": len(set(l for d in ok for l in d["labels"])),
             }
             results[arm]["per_model"][m] = {"aggregate": agg, "per_doc": per_doc}
-            print(f"[B] {arm} / {m}: label_conf={agg['mean_label_conformance']} "
-                  f"score={agg['mean_extraction_score']} distinct={agg['total_distinct_labels']}")
+            print(
+                f"[B] {arm} / {m}: label_conf={agg['mean_label_conformance']} "
+                f"score={agg['mean_extraction_score']} distinct={agg['total_distinct_labels']}"
+            )
 
     # cross-model aggregate per arm
     summary = {}
     for arm in arms:
-        ms = [results[arm]["per_model"][m]["aggregate"] for m in MODELS if m in results[arm]["per_model"]]
+        ms = [
+            results[arm]["per_model"][m]["aggregate"]
+            for m in MODELS
+            if m in results[arm]["per_model"]
+        ]
         summary[arm] = {
             k: round(statistics.mean([a[k] for a in ms]), 4)
-            for k in ("mean_label_conformance", "mean_rel_conformance", "mean_extraction_score", "total_distinct_labels")
+            for k in (
+                "mean_label_conformance",
+                "mean_rel_conformance",
+                "mean_extraction_score",
+                "total_distinct_labels",
+            )
         }
     summary["delta_B_minus_A"] = {
         k: round(summary["B_refined_guardrail"][k] - summary["A_draft_guardrail"][k], 4)
         for k in summary["A_draft_guardrail"]
     }
-    return {"documents": DOCS, "reference_schema": reference.name, "results": results, "summary": summary}
+    return {
+        "documents": DOCS,
+        "reference_schema": reference.name,
+        "results": results,
+        "summary": summary,
+    }
 
 
 def main() -> None:
@@ -282,20 +364,26 @@ def main() -> None:
         print("=== Phase B: guardrail extraction ablation ===")
         record["phase_b"] = phase_b(key)
 
-    Path(args.out).write_text(json.dumps(record, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    Path(args.out).write_text(
+        json.dumps(record, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
     print(f"\n[written] {args.out}")
     if "phase_a" in record:
         pa = record["phase_a"]
-        print(f"\nPhase A: draft {pa['draft_score']['grade']} ({pa['draft_score']['overall']}) "
-              f"-> refined {pa['refined_score']['grade']} ({pa['refined_score']['overall']}), "
-              f"violations cleared {pa['violations_cleared']}")
+        print(
+            f"\nPhase A: draft {pa['draft_score']['grade']} ({pa['draft_score']['overall']}) "
+            f"-> refined {pa['refined_score']['grade']} ({pa['refined_score']['overall']}), "
+            f"violations cleared {pa['violations_cleared']}"
+        )
     if "phase_b" in record:
         s = record["phase_b"]["summary"]
-        print(f"Phase B (cross-model mean): A label_conf={s['A_draft_guardrail']['mean_label_conformance']} "
-              f"score={s['A_draft_guardrail']['mean_extraction_score']} | "
-              f"B label_conf={s['B_refined_guardrail']['mean_label_conformance']} "
-              f"score={s['B_refined_guardrail']['mean_extraction_score']} | "
-              f"Δscore={s['delta_B_minus_A']['mean_extraction_score']:+}")
+        print(
+            f"Phase B (cross-model mean): A label_conf={s['A_draft_guardrail']['mean_label_conformance']} "
+            f"score={s['A_draft_guardrail']['mean_extraction_score']} | "
+            f"B label_conf={s['B_refined_guardrail']['mean_label_conformance']} "
+            f"score={s['B_refined_guardrail']['mean_extraction_score']} | "
+            f"Δscore={s['delta_B_minus_A']['mean_extraction_score']:+}"
+        )
 
 
 if __name__ == "__main__":

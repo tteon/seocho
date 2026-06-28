@@ -10,6 +10,7 @@ with three injected meta-properties so the merged graph stays sliceable:
 Relationships are loaded with the same meta-props and proper endpoints
 resolved via a lbug-local id map.
 """
+
 from __future__ import annotations
 
 import json
@@ -31,7 +32,6 @@ for path in (SRC, ROOT):
 from examples.finder.lib import bench_common as bc  # noqa: E402
 from seocho.store.graph import LadybugGraphStore  # noqa: E402
 
-
 LBUG_DIR = bc.DEFAULT_LBUG_DIR
 
 
@@ -49,7 +49,9 @@ def lbug_id_key(lid) -> str:
     return str(lid)
 
 
-def clean_props(props: dict, phase: str, case_id: str, src: str, workspace_id: str) -> dict:
+def clean_props(
+    props: dict, phase: str, case_id: str, src: str, workspace_id: str
+) -> dict:
     """Strip Ladybug internal fields, inject meta. Drop None values for tidy props."""
     EXCLUDE = {"_ID", "_LABEL"}
     out: dict = {}
@@ -83,17 +85,35 @@ def safe_reltype(rt: str) -> str:
     return re.sub(r"[^A-Za-z0-9_]", "_", rt or "RELATED_TO").upper()
 
 
-def load_one(driver, lbug_path: Path, batch: int = 200, *, workspace_prefix: str = "finder-load") -> dict:
+def load_one(
+    driver, lbug_path: Path, batch: int = 200, *, workspace_prefix: str = "finder-load"
+) -> dict:
     phase, case_id, variant = parse_lbug_name(lbug_path.name)
-    workspace_id = bc.workspace_id_for(phase, case_id, variant or "loaded", prefix=workspace_prefix)
+    workspace_id = bc.workspace_id_for(
+        phase, case_id, variant or "loaded", prefix=workspace_prefix
+    )
     g = LadybugGraphStore(str(lbug_path))
-    stats = {"phase": phase, "case_id": case_id, "lbug": lbug_path.name, "variant": variant,
-             "workspace_id": workspace_id,
-             "nodes": 0, "rels": 0, "labels": Counter(), "rel_types": Counter(), "errors": []}
+    stats = {
+        "phase": phase,
+        "case_id": case_id,
+        "lbug": lbug_path.name,
+        "variant": variant,
+        "workspace_id": workspace_id,
+        "nodes": 0,
+        "rels": 0,
+        "labels": Counter(),
+        "rel_types": Counter(),
+        "errors": [],
+    }
     try:
         node_rows = g.query("MATCH (n) RETURN n, id(n) AS lid, labels(n) AS lbl") or []
-        rel_rows = g.query("MATCH (a)-[r]->(b) RETURN id(a) AS sid, id(b) AS tid, "
-                           "type(r) AS rt, properties(r) AS rp") or []
+        rel_rows = (
+            g.query(
+                "MATCH (a)-[r]->(b) RETURN id(a) AS sid, id(b) AS tid, "
+                "type(r) AS rt, properties(r) AS rp"
+            )
+            or []
+        )
     except Exception as e:
         stats["errors"].append(f"read err: {type(e).__name__}: {e}")
         g.close()
@@ -115,12 +135,16 @@ def load_one(driver, lbug_path: Path, batch: int = 200, *, workspace_prefix: str
                     labels = [safe_label(l) for l in lbl_raw] or ["Entity"]
                 else:
                     labels = ["Entity"]
-                props = clean_props(row.get("n") or {}, phase, case_id, lbug_path.name, workspace_id)
+                props = clean_props(
+                    row.get("n") or {}, phase, case_id, lbug_path.name, workspace_id
+                )
                 # Use the first label only for clean Neo4j label; keep all in _all_labels
                 primary = labels[0]
                 props["_all_labels"] = labels
                 props["_lbug_lid"] = lbug_id_key(row.get("lid"))
-                params.append({"label": primary, "props": props, "lid_key": props["_lbug_lid"]})
+                params.append(
+                    {"label": primary, "props": props, "lid_key": props["_lbug_lid"]}
+                )
                 stats["labels"][primary] += 1
                 stats["nodes"] += 1
 
@@ -140,7 +164,9 @@ def load_one(driver, lbug_path: Path, batch: int = 200, *, workspace_prefix: str
                     for r in result:
                         lid_to_eid[r["lk"]] = r["eid"]
                 except Exception as e:
-                    stats["errors"].append(f"node insert err ({lbl}): {type(e).__name__}: {str(e)[:160]}")
+                    stats["errors"].append(
+                        f"node insert err ({lbl}): {type(e).__name__}: {str(e)[:160]}"
+                    )
 
         # Insert relationships in batches per rel_type
         rel_by_type: dict[str, list] = {}
@@ -152,15 +178,19 @@ def load_one(driver, lbug_path: Path, batch: int = 200, *, workspace_prefix: str
             rt = safe_reltype(row.get("rt"))
             stats["rel_types"][rt] += 1
             rp = row.get("rp") or {}
-            rp = {k: v for k, v in rp.items() if v is not None and not isinstance(v, dict)}
+            rp = {
+                k: v for k, v in rp.items() if v is not None and not isinstance(v, dict)
+            }
             rp["_phase"] = phase
             rp["_case_id"] = case_id
             rp["_workspace_id"] = workspace_id
-            rel_by_type.setdefault(rt, []).append({
-                "sid": lid_to_eid[sid_key],
-                "tid": lid_to_eid[tid_key],
-                "props": rp,
-            })
+            rel_by_type.setdefault(rt, []).append(
+                {
+                    "sid": lid_to_eid[sid_key],
+                    "tid": lid_to_eid[tid_key],
+                    "props": rp,
+                }
+            )
 
         for rt, rows in rel_by_type.items():
             for i in range(0, len(rows), batch):
@@ -176,16 +206,27 @@ def load_one(driver, lbug_path: Path, batch: int = 200, *, workspace_prefix: str
                     session.run(q, rows=chunk)
                     stats["rels"] += len(chunk)
                 except Exception as e:
-                    stats["errors"].append(f"rel insert err ({rt}): {type(e).__name__}: {str(e)[:160]}")
+                    stats["errors"].append(
+                        f"rel insert err ({rt}): {type(e).__name__}: {str(e)[:160]}"
+                    )
     return stats
 
 
 # Auto-created indexes after load (T2.7)
 _AUTO_INDEXES = [
     ("node_phase", "CREATE INDEX node_phase IF NOT EXISTS FOR (n:_) ON (n._phase)"),
-    ("node_case_id", "CREATE INDEX node_case_id IF NOT EXISTS FOR (n:_) ON (n._case_id)"),
-    ("node_workspace", "CREATE INDEX node_workspace IF NOT EXISTS FOR (n:_) ON (n._workspace_id)"),
-    ("node_source_id", "CREATE INDEX node_source_id IF NOT EXISTS FOR (n:_) ON (n._source_id)"),
+    (
+        "node_case_id",
+        "CREATE INDEX node_case_id IF NOT EXISTS FOR (n:_) ON (n._case_id)",
+    ),
+    (
+        "node_workspace",
+        "CREATE INDEX node_workspace IF NOT EXISTS FOR (n:_) ON (n._workspace_id)",
+    ),
+    (
+        "node_source_id",
+        "CREATE INDEX node_source_id IF NOT EXISTS FOR (n:_) ON (n._source_id)",
+    ),
     ("node_name", "CREATE INDEX node_name IF NOT EXISTS FOR (n:_) ON (n.name)"),
 ]
 # Fulltext index needs a label list; we'll resolve it after seeing actual labels.
@@ -199,11 +240,17 @@ def _create_indexes(session, labels: list[str]) -> list[dict]:
     index covers all domain labels (name, description).
     """
     results = []
-    domain_labels = [l for l in labels if l not in {"Chunk", "Document", "DocumentVersion", "Section"}]
+    domain_labels = [
+        l
+        for l in labels
+        if l not in {"Chunk", "Document", "DocumentVersion", "Section"}
+    ]
     for prop in ("_phase", "_case_id", "_workspace_id", "_source_id", "name"):
         for lbl in labels:
             idx_name = f"node_{lbl}_{prop.lstrip('_')}"
-            stmt = f"CREATE INDEX {idx_name} IF NOT EXISTS FOR (n:`{lbl}`) ON (n.`{prop}`)"
+            stmt = (
+                f"CREATE INDEX {idx_name} IF NOT EXISTS FOR (n:`{lbl}`) ON (n.`{prop}`)"
+            )
             try:
                 session.run(stmt)
                 results.append({"index": idx_name, "ok": True})
@@ -261,8 +308,10 @@ def main() -> int:
         t0 = time.perf_counter()
         s = load_one(drv, f, workspace_prefix=workspace_prefix)
         elapsed = round(time.perf_counter() - t0, 2)
-        print(f"  {f.name:55s} nodes={s['nodes']:3d}  rels={s['rels']:3d}  "
-              f"labels={dict(s['labels'])}  ws={s['workspace_id'][-20:]}  ({elapsed}s)")
+        print(
+            f"  {f.name:55s} nodes={s['nodes']:3d}  rels={s['rels']:3d}  "
+            f"labels={dict(s['labels'])}  ws={s['workspace_id'][-20:]}  ({elapsed}s)"
+        )
         if s["errors"]:
             for e in s["errors"][:3]:
                 print(f"      ! {e}")
@@ -271,9 +320,21 @@ def main() -> int:
     with drv.session() as s:
         n1 = s.run("MATCH (n) RETURN count(n) AS c").single()["c"]
         r1 = s.run("MATCH ()-[r]->() RETURN count(r) AS c").single()["c"]
-        labels = [x["label"] for x in s.run("CALL db.labels() YIELD label RETURN label ORDER BY label").data()]
-        rels = [x["relationshipType"] for x in s.run("CALL db.relationshipTypes() YIELD relationshipType RETURN relationshipType ORDER BY relationshipType").data()]
-        per_phase = s.run("MATCH (n) RETURN n._phase AS p, count(n) AS c ORDER BY p").data()
+        labels = [
+            x["label"]
+            for x in s.run(
+                "CALL db.labels() YIELD label RETURN label ORDER BY label"
+            ).data()
+        ]
+        rels = [
+            x["relationshipType"]
+            for x in s.run(
+                "CALL db.relationshipTypes() YIELD relationshipType RETURN relationshipType ORDER BY relationshipType"
+            ).data()
+        ]
+        per_phase = s.run(
+            "MATCH (n) RETURN n._phase AS p, count(n) AS c ORDER BY p"
+        ).data()
     print(f"\nafter load: nodes={n1} rels={r1}")
     print(f"labels: {labels}")
     print(f"rel types: {rels}")
@@ -298,19 +359,24 @@ def main() -> int:
         "rel_types": rels,
         "per_phase": per_phase,
         "indexes_created": index_results,
-        "files": [{
-            "lbug": st["lbug"],
-            "phase": st["phase"],
-            "case_id": st["case_id"],
-            "workspace_id": st["workspace_id"],
-            "nodes": st["nodes"],
-            "rels": st["rels"],
-            "labels": dict(st["labels"]),
-            "rel_types": dict(st["rel_types"]),
-            "errors": st["errors"],
-        } for st in all_stats],
+        "files": [
+            {
+                "lbug": st["lbug"],
+                "phase": st["phase"],
+                "case_id": st["case_id"],
+                "workspace_id": st["workspace_id"],
+                "nodes": st["nodes"],
+                "rels": st["rels"],
+                "labels": dict(st["labels"]),
+                "rel_types": dict(st["rel_types"]),
+                "errors": st["errors"],
+            }
+            for st in all_stats
+        ],
     }
-    out_path = out_dir / f"load_manifest_{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}.json"
+    out_path = (
+        out_dir / f"load_manifest_{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}.json"
+    )
     bc.atomic_write_json(out_path, manifest)
     print(f"\nmanifest → {out_path.relative_to(ROOT)}")
     return 0

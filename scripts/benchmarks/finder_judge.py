@@ -18,6 +18,7 @@ Usage:
                "outputs/evaluation/finder_4arm_sample/<run>/partial/*.json" \
       --out outputs/evaluation/judged_<tag>.json
 """
+
 from __future__ import annotations
 
 import argparse
@@ -80,6 +81,7 @@ def _safe_str(x) -> str:
 def token_f1(pred, gold) -> float:
     def norm(s):
         return re.sub(r"[^a-z0-9 ]", " ", _safe_str(s).lower()).split()
+
     p, g = norm(pred), norm(gold)
     if not p or not g:
         return 0.0
@@ -97,27 +99,45 @@ def _parse_judge(text: str) -> dict:
         t = re.sub(r"^```[a-z]*\n?|\n?```$", "", t).strip()
     m = re.search(r"\{.*\}", t, re.DOTALL)
     if not m:
-        return {"verdict": "incorrect", "score": 0.0, "rationale": "unparseable judge output",
-                "matched": [], "missing_or_wrong": [], "parse_error": True}
+        return {
+            "verdict": "incorrect",
+            "score": 0.0,
+            "rationale": "unparseable judge output",
+            "matched": [],
+            "missing_or_wrong": [],
+            "parse_error": True,
+        }
     try:
         d = json.loads(m.group(0))
     except Exception:
-        return {"verdict": "incorrect", "score": 0.0, "rationale": "json error",
-                "matched": [], "missing_or_wrong": [], "parse_error": True}
+        return {
+            "verdict": "incorrect",
+            "score": 0.0,
+            "rationale": "json error",
+            "matched": [],
+            "missing_or_wrong": [],
+            "parse_error": True,
+        }
     verdict = str(d.get("verdict", "incorrect")).lower().strip()
     score = d.get("score")
     if not isinstance(score, (int, float)):
         score = _SCORE.get(verdict, 0.0)
-    return {"verdict": verdict if verdict in _SCORE else "incorrect",
-            "score": float(score), "rationale": str(d.get("rationale", ""))[:300],
-            "matched": d.get("matched", []), "missing_or_wrong": d.get("missing_or_wrong", []),
-            "parse_error": False}
+    return {
+        "verdict": verdict if verdict in _SCORE else "incorrect",
+        "score": float(score),
+        "rationale": str(d.get("rationale", ""))[:300],
+        "matched": d.get("matched", []),
+        "missing_or_wrong": d.get("missing_or_wrong", []),
+        "parse_error": False,
+    }
 
 
 def judge_one(llm, query: str, gold: str, candidate: str) -> dict:
-    user = (f"QUESTION:\n{_safe_str(query)}\n\n"
-            f"GOLD ANSWER (ground truth):\n{_safe_str(gold)}\n\n"
-            f"CANDIDATE ANSWER:\n{_safe_str(candidate)}")
+    user = (
+        f"QUESTION:\n{_safe_str(query)}\n\n"
+        f"GOLD ANSWER (ground truth):\n{_safe_str(gold)}\n\n"
+        f"CANDIDATE ANSWER:\n{_safe_str(candidate)}"
+    )
     try:
         resp = llm.complete(system=JUDGE_SYSTEM, user=user, temperature=0.0)
     except TypeError:
@@ -147,10 +167,17 @@ def _panel(per_judge: dict) -> dict:
     panel_score = round(sum(scores) / len(scores), 4) if scores else 0.0
     counts = Counter(verdicts)
     top = max(counts.values())
-    winners = [vd for vd in ("incorrect", "partial", "correct") if counts.get(vd, 0) == top]
-    panel_verdict = winners[0]  # stricter wins ties (incorrect < partial < correct order)
-    return {"panel_score": panel_score, "panel_verdict": panel_verdict,
-            "disagreement": len(set(verdicts)) > 1}
+    winners = [
+        vd for vd in ("incorrect", "partial", "correct") if counts.get(vd, 0) == top
+    ]
+    panel_verdict = winners[
+        0
+    ]  # stricter wins ties (incorrect < partial < correct order)
+    return {
+        "panel_score": panel_score,
+        "panel_verdict": panel_verdict,
+        "disagreement": len(set(verdicts)) > 1,
+    }
 
 
 def _cohen_kappa(labels_a: list, labels_b: list) -> float:
@@ -177,11 +204,15 @@ def _inter_judge_agreement(judged: list, judge_models: list) -> dict:
             for r in judged:
                 pj = r.get("judge_per_model", {})
                 if ma in pj and mb in pj:
-                    la.append(pj[ma]["verdict"]); lb.append(pj[mb]["verdict"])
+                    la.append(pj[ma]["verdict"])
+                    lb.append(pj[mb]["verdict"])
             if la:
                 agree = sum(1 for a, b in zip(la, lb) if a == b) / len(la)
-                out[f"{ma} vs {mb}"] = {"n": len(la), "agreement": round(agree, 3),
-                                        "cohen_kappa": _cohen_kappa(la, lb)}
+                out[f"{ma} vs {mb}"] = {
+                    "n": len(la),
+                    "agreement": round(agree, 3),
+                    "cohen_kappa": _cohen_kappa(la, lb),
+                }
     return out
 
 
@@ -192,6 +223,7 @@ def _wilcoxon(deltas: list) -> dict:
         return {"n_nonzero": 0, "p_value": None, "method": "none"}
     try:
         from scipy.stats import wilcoxon  # type: ignore
+
         stat, p = wilcoxon(nz)
         return {"n_nonzero": len(nz), "p_value": round(float(p), 5), "method": "scipy"}
     except Exception:
@@ -210,12 +242,16 @@ def _paired_analysis(judged: list) -> dict:
     for r in judged:
         ret = r.get("retrieval") or r.get("mode") or "graph"
         arm = "n-a" if ret == "vector" else r.get("arm", "?")
-        by_case[r["case_id"]][f"{ret}|{arm}"] = r.get("panel_score", r.get("judge_score", 0.0))
+        by_case[r["case_id"]][f"{ret}|{arm}"] = r.get(
+            "panel_score", r.get("judge_score", 0.0)
+        )
     # vector is the baseline lane; compare every OTHER lane (graph + vector_graph)
     # against it. NB: exclude only the exact baseline "vector|n-a" — not anything
     # starting with "vector" (that wrongly dropped the vector_graph hybrid lanes).
     pairs = {}
-    lanes = sorted({lane for c in by_case.values() for lane in c if lane != "vector|n-a"})
+    lanes = sorted(
+        {lane for c in by_case.values() for lane in c if lane != "vector|n-a"}
+    )
     for lane in lanes:
         deltas, win = [], {"lane_wins": 0, "tie": 0, "vector_wins": 0}
         for case, scores in by_case.items():
@@ -232,25 +268,38 @@ def _paired_analysis(judged: list) -> dict:
             pairs[f"{lane} vs vector"] = {
                 "n_paired": len(deltas),
                 "mean_delta": round(sum(deltas) / len(deltas), 4),
-                **win, "wilcoxon": _wilcoxon(deltas),
+                **win,
+                "wilcoxon": _wilcoxon(deltas),
             }
     return pairs
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--inputs", nargs="+", required=True, help="Glob(s) of partial result JSONs.")
-    ap.add_argument("--out", default=f"outputs/evaluation/judged_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}.json")
-    ap.add_argument("--judge-llms", default=JUDGE_MODEL,
-                    help="Comma list of judges, e.g. grok/grok-4.3,openai/gpt-5.5. "
-                         "Multiple judges form a cross-vendor panel (removes self-preference).")
-    ap.add_argument("--judge-llm", default=None, help="(deprecated alias for --judge-llms)")
+    ap.add_argument(
+        "--inputs", nargs="+", required=True, help="Glob(s) of partial result JSONs."
+    )
+    ap.add_argument(
+        "--out",
+        default=f"outputs/evaluation/judged_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}.json",
+    )
+    ap.add_argument(
+        "--judge-llms",
+        default=JUDGE_MODEL,
+        help="Comma list of judges, e.g. grok/grok-4.3,openai/gpt-5.5. "
+        "Multiple judges form a cross-vendor panel (removes self-preference).",
+    )
+    ap.add_argument(
+        "--judge-llm", default=None, help="(deprecated alias for --judge-llms)"
+    )
     ap.add_argument("--limit", type=int, default=0)
     args = ap.parse_args()
 
     bc.bootstrap(verbose=True)
 
-    judge_models = [m.strip() for m in (args.judge_llm or args.judge_llms).split(",") if m.strip()]
+    judge_models = [
+        m.strip() for m in (args.judge_llm or args.judge_llms).split(",") if m.strip()
+    ]
 
     files: list[str] = []
     for pat in args.inputs:
@@ -261,10 +310,13 @@ def main() -> int:
     print(f"== judging {len(files)} answers with panel {judge_models} ==")
 
     from seocho.store.llm import create_llm_backend
+
     judges = {}
     for spec in judge_models:
         provider, model = spec.split("/", 1)
-        judges[spec] = create_llm_backend(provider=provider.strip(), model=model.strip())
+        judges[spec] = create_llm_backend(
+            provider=provider.strip(), model=model.strip()
+        )
 
     judged: list[dict] = []
     t0 = time.perf_counter()
@@ -278,8 +330,11 @@ def main() -> int:
         per_model = {}
         for spec, llm in judges.items():
             jr = judge_one(llm, q, gold, cand)
-            per_model[spec] = {"verdict": jr["verdict"], "score": jr["score"],
-                               "rationale": jr["rationale"]}
+            per_model[spec] = {
+                "verdict": jr["verdict"],
+                "score": jr["score"],
+                "rationale": jr["rationale"],
+            }
         r["judge_per_model"] = per_model
         r["judge_models"] = judge_models
         panel = _panel(per_model)
@@ -291,7 +346,10 @@ def main() -> int:
         r["judge_verdict"] = panel["panel_verdict"]
         judged.append(r)
         if i % 10 == 0 or i == len(files):
-            print(f"  [{i}/{len(files)}] judged ({round(time.perf_counter()-t0)}s)", flush=True)
+            print(
+                f"  [{i}/{len(files)}] judged ({round(time.perf_counter()-t0)}s)",
+                flush=True,
+            )
 
     # Aggregate by (slice, retrieval, arm) on the PANEL score.
     by = defaultdict(list)
@@ -301,44 +359,68 @@ def main() -> int:
     for k, runs in sorted(by.items()):
         slc, ret, arm = k
         summary[f"{slc}|{ret}|{arm}"] = {
-            "slice": slc, "retrieval": ret, "arm": arm, "n": len(runs),
-            "judge_score_mean": round(sum(x["panel_score"] for x in runs) / len(runs), 3),
+            "slice": slc,
+            "retrieval": ret,
+            "arm": arm,
+            "n": len(runs),
+            "judge_score_mean": round(
+                sum(x["panel_score"] for x in runs) / len(runs), 3
+            ),
             "token_f1_mean": round(sum(x["token_f1"] for x in runs) / len(runs), 3),
-            "overlap_mean": round(sum(x["evaluation"]["number_overlap_ratio"] for x in runs) / len(runs), 3),
+            "overlap_mean": round(
+                sum(x["evaluation"]["number_overlap_ratio"] for x in runs) / len(runs),
+                3,
+            ),
             "correct": sum(1 for x in runs if x["panel_verdict"] == "correct"),
             "partial": sum(1 for x in runs if x["panel_verdict"] == "partial"),
             "incorrect": sum(1 for x in runs if x["panel_verdict"] == "incorrect"),
         }
 
-    agreement = _inter_judge_agreement(judged, judge_models) if len(judge_models) > 1 else {}
+    agreement = (
+        _inter_judge_agreement(judged, judge_models) if len(judge_models) > 1 else {}
+    )
     paired = _paired_analysis(judged)
 
     out_path = ROOT / args.out
-    bc.atomic_write_json(out_path, {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-        "judge_models": judge_models, "judge_prompt_id": JUDGE_PROMPT_ID,
-        "n_judged": len(judged), "summary": summary,
-        "inter_judge_agreement": agreement, "paired_vs_vector": paired,
-        "results": judged,
-    })
+    bc.atomic_write_json(
+        out_path,
+        {
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "judge_models": judge_models,
+            "judge_prompt_id": JUDGE_PROMPT_ID,
+            "n_judged": len(judged),
+            "summary": summary,
+            "inter_judge_agreement": agreement,
+            "paired_vs_vector": paired,
+            "results": judged,
+        },
+    )
     print(f"\n== wrote {out_path.relative_to(ROOT)} ==")
-    print(f"\n{'slice':<22} {'retrieval':<13} {'arm':<13} n  judge  tok_f1  overlap  (C/P/I)")
+    print(
+        f"\n{'slice':<22} {'retrieval':<13} {'arm':<13} n  judge  tok_f1  overlap  (C/P/I)"
+    )
     print("-" * 92)
     for row in summary.values():
-        print(f"{row['slice']:<22} {row['retrieval']:<13} {row['arm']:<13} {row['n']:<2} "
-              f"{row['judge_score_mean']:.3f}  {row['token_f1_mean']:.3f}   {row['overlap_mean']:.3f}    "
-              f"({row['correct']}/{row['partial']}/{row['incorrect']})")
+        print(
+            f"{row['slice']:<22} {row['retrieval']:<13} {row['arm']:<13} {row['n']:<2} "
+            f"{row['judge_score_mean']:.3f}  {row['token_f1_mean']:.3f}   {row['overlap_mean']:.3f}    "
+            f"({row['correct']}/{row['partial']}/{row['incorrect']})"
+        )
     if agreement:
         print("\n-- inter-judge agreement --")
         for k, v in agreement.items():
-            print(f"  {k}: agree={v['agreement']} kappa={v['cohen_kappa']} (n={v['n']})")
+            print(
+                f"  {k}: agree={v['agreement']} kappa={v['cohen_kappa']} (n={v['n']})"
+            )
     if paired:
         print("\n-- paired vs vector (same-case panel-score deltas) --")
         for k, v in paired.items():
             wp = v["wilcoxon"]["p_value"]
-            print(f"  {k}: n={v['n_paired']} mean_delta={v['mean_delta']:+.3f} "
-                  f"(lane/tie/vec = {v['lane_wins']}/{v['tie']}/{v['vector_wins']}) "
-                  f"wilcoxon_p={wp}")
+            print(
+                f"  {k}: n={v['n_paired']} mean_delta={v['mean_delta']:+.3f} "
+                f"(lane/tie/vec = {v['lane_wins']}/{v['tie']}/{v['vector_wins']}) "
+                f"wilcoxon_p={wp}"
+            )
     return 0
 
 

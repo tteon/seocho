@@ -53,13 +53,26 @@ def _per_metric(records: List[Dict[str, Any]]) -> Dict[str, Any]:
     return out
 
 
-def run(dataset_path: str, tickers: List[str], *, database: str, uri: str,
-        user: str, password: str, provider: str, model: str) -> Dict[str, Any]:
+def run(
+    dataset_path: str,
+    tickers: List[str],
+    *,
+    database: str,
+    uri: str,
+    user: str,
+    password: str,
+    provider: str,
+    model: str,
+) -> Dict[str, Any]:
     from seocho import Seocho
     from seocho.store.graph import Neo4jGraphStore
     from seocho.store.llm import create_llm_backend
 
-    rows = [json.loads(l) for l in Path(dataset_path).read_text().splitlines() if l.strip()]
+    rows = []
+    with Path(dataset_path).open("r", encoding="utf-8") as f:
+        for l in f:
+            if l.strip():
+                rows.append(json.loads(l))
     ciks = bench.resolve_ciks(tickers)
 
     llm = create_llm_backend(provider=provider, model=model)
@@ -85,11 +98,16 @@ def run(dataset_path: str, tickers: List[str], *, database: str, uri: str,
             continue
         mdna = ft.fetch_mdna(filing)
         chunks = ft.chunk_text(mdna)
-        print(f"  [{ticker}] 10-K {filing.report_date}: MD&A {len(mdna)} chars, "
-              f"{len(chunks)} chunks", file=sys.stderr)
+        print(
+            f"  [{ticker}] 10-K {filing.report_date}: MD&A {len(mdna)} chars, "
+            f"{len(chunks)} chunks",
+            file=sys.stderr,
+        )
 
         ws = f"mdna_{ticker}".lower().replace("-", "_")
-        client = Seocho(ontology=ontology, graph_store=graph_store, llm=llm, workspace_id=ws)
+        client = Seocho(
+            ontology=ontology, graph_store=graph_store, llm=llm, workspace_id=ws
+        )
         for ch in chunks:
             try:
                 client.add(content=ch, database=database, category="mdna")
@@ -110,9 +128,12 @@ def run(dataset_path: str, tickers: List[str], *, database: str, uri: str,
                 gr = f"<error: {exc}>"
             others = [v for y, v in years_in_set.items() if y != r["fiscal_year"]]
             rec = {
-                "ticker": ticker.upper(), "metric": r["metric"],
-                "fiscal_year": r["fiscal_year"], "prior_stale": r["prior_stale"],
-                "gold": r["answer"], "raw_value": r["raw_value"],
+                "ticker": ticker.upper(),
+                "metric": r["metric"],
+                "fiscal_year": r["fiscal_year"],
+                "prior_stale": r["prior_stale"],
+                "gold": r["answer"],
+                "raw_value": r["raw_value"],
                 "gold_in_corpus": gold_in_corpus,
                 "closed_book_match": tr.value_matches(cb, r["raw_value"]),
                 "grounded_match": tr.value_matches(gr, r["raw_value"]),
@@ -120,10 +141,13 @@ def run(dataset_path: str, tickers: List[str], *, database: str, uri: str,
                 "grounded": gr.strip()[:300],
             }
             records.append(rec)
-            print(f"    [{ticker} {r['metric']} FY{r['fiscal_year']}] "
-                  f"gold_in_mdna={'Y' if gold_in_corpus else 'n'} "
-                  f"gr={'Y' if rec['grounded_match'] else 'n'} "
-                  f"temporal={rec['temporal']}", file=sys.stderr)
+            print(
+                f"    [{ticker} {r['metric']} FY{r['fiscal_year']}] "
+                f"gold_in_mdna={'Y' if gold_in_corpus else 'n'} "
+                f"gr={'Y' if rec['grounded_match'] else 'n'} "
+                f"temporal={rec['temporal']}",
+                file=sys.stderr,
+            )
 
     try:
         graph_store.close()
@@ -131,9 +155,13 @@ def run(dataset_path: str, tickers: List[str], *, database: str, uri: str,
         pass
 
     return {
-        "config": {"corpus": "real 10-K MD&A (Item 7)", "tickers": tickers,
-                   "provider": provider, "model": model,
-                   "chunk_fallback": os.environ.get("SEOCHO_CHUNK_FALLBACK", "")},
+        "config": {
+            "corpus": "real 10-K MD&A (Item 7)",
+            "tickers": tickers,
+            "provider": provider,
+            "model": model,
+            "chunk_fallback": os.environ.get("SEOCHO_CHUNK_FALLBACK", ""),
+        },
         "summary": tr.aggregate(records),
         "per_metric": _per_metric(records),
         "records": records,
@@ -154,9 +182,16 @@ def main() -> int:
     args = p.parse_args()
 
     tickers = [t.strip() for t in args.tickers.split(",") if t.strip()]
-    result = run(args.dataset, tickers, database=args.database, uri=args.uri,
-                 user=args.user, password=args.password,
-                 provider=args.provider, model=args.model)
+    result = run(
+        args.dataset,
+        tickers,
+        database=args.database,
+        uri=args.uri,
+        user=args.user,
+        password=args.password,
+        provider=args.provider,
+        model=args.model,
+    )
     out = json.dumps(result, indent=2, ensure_ascii=False)
     if args.out == "-":
         print(out)
@@ -165,7 +200,9 @@ def main() -> int:
         Path(args.out).write_text(out, encoding="utf-8")
         print(f"Wrote results to {args.out}", file=sys.stderr)
     print("\n=== MD&A e2e ===", file=sys.stderr)
-    print(f"summary:    {result['summary']['closed_book_vs_grounded']}", file=sys.stderr)
+    print(
+        f"summary:    {result['summary']['closed_book_vs_grounded']}", file=sys.stderr
+    )
     print(f"per-metric: {result['per_metric']}", file=sys.stderr)
     return 0
 

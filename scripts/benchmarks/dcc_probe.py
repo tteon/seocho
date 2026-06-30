@@ -50,8 +50,13 @@ def _metric_to_concept(registry, metric: str):
     return registry.resolve(metric.replace("_", " "))
 
 
-def seed_observations(graph_store, database: str, rows: List[Dict[str, Any]],
-                      cik_by_ticker: Dict[str, str], registry) -> int:
+def seed_observations(
+    graph_store,
+    database: str,
+    rows: List[Dict[str, Any]],
+    cik_by_ticker: Dict[str, str],
+    registry,
+) -> int:
     """Write reified Company + Observation (MERGE on obs_id) from gold facts."""
     written = 0
     with graph_store._driver.session(database=database) as s:
@@ -62,9 +67,13 @@ def seed_observations(graph_store, database: str, rows: List[Dict[str, Any]],
             period_key = normalize_period(f"FY{r['fiscal_year']}")
             if not (cik and concept_id and period_key):
                 continue
-            obs_id = observation_key(entity_key=cik, concept_id=concept_id,
-                                     period_key=period_key, unit=r.get("unit", "USD"),
-                                     workspace_id=_WS)
+            obs_id = observation_key(
+                entity_key=cik,
+                concept_id=concept_id,
+                period_key=period_key,
+                unit=r.get("unit", "USD"),
+                workspace_id=_WS,
+            )
             s.run(
                 "MERGE (c:Company {cik: $cik, _workspace_id: $ws}) "
                 "SET c.name = $name "
@@ -74,10 +83,15 @@ def seed_observations(graph_store, database: str, rows: List[Dict[str, Any]],
                 "    o.value_num=$value_num, o.unit=$unit, o.basis='consolidated', "
                 "    o.workspace_id=$ws, o._workspace_id=$ws "
                 "MERGE (c)-[:HAS_OBSERVATION]->(o)",
-                cik=cik, name=r["ticker"].upper(), obs_id=obs_id,
-                concept_id=concept_id, period_key=period_key,
-                period_end=r.get("period_end", ""), value_num=float(r["raw_value"]),
-                unit=r.get("unit", "USD"), ws=_WS,
+                cik=cik,
+                name=r["ticker"].upper(),
+                obs_id=obs_id,
+                concept_id=concept_id,
+                period_key=period_key,
+                period_end=r.get("period_end", ""),
+                value_num=float(r["raw_value"]),
+                unit=r.get("unit", "USD"),
+                ws=_WS,
             )
             written += 1
     return written
@@ -86,7 +100,11 @@ def seed_observations(graph_store, database: str, rows: List[Dict[str, Any]],
 def run(dataset_path: str, *, limit_tickers, database, uri, user, password):
     from seocho.store.graph import Neo4jGraphStore
 
-    rows = [json.loads(l) for l in Path(dataset_path).read_text().splitlines() if l.strip()]
+    rows = []
+    with Path(dataset_path).open("r", encoding="utf-8") as f:
+        for l in f:
+            if l.strip():
+                rows.append(json.loads(l))
     tickers = sorted({r["ticker"] for r in rows})
     if limit_tickers:
         tickers = tickers[:limit_tickers]
@@ -100,7 +118,9 @@ def run(dataset_path: str, *, limit_tickers, database, uri, user, password):
     time.sleep(1.0)
 
     written = seed_observations(graph_store, database, rows, cik_by_ticker, registry)
-    print(f"seeded {written} observations across {len(tickers)} tickers", file=sys.stderr)
+    print(
+        f"seeded {written} observations across {len(tickers)} tickers", file=sys.stderr
+    )
 
     records: List[Dict[str, Any]] = []
     for r in rows:
@@ -110,14 +130,26 @@ def run(dataset_path: str, *, limit_tickers, database, uri, user, password):
         if not (cik and concept_id and period_key):
             records.append({**_slim(r), "skipped": True, "correct": False})
             continue
-        slots = ObservationSlots(entity_cik=cik, concept_id=concept_id,
-                                 period_keys=(period_key,), unit=r.get("unit", "USD"))
+        slots = ObservationSlots(
+            entity_cik=cik,
+            concept_id=concept_id,
+            period_keys=(period_key,),
+            unit=r.get("unit", "USD"),
+        )
         cypher, params = compile_observation_lookup(slots, workspace_id=_WS)
         result = graph_store.query(cypher, params=params, database=database)
         got = float(result[0]["value"]) if result else None
         correct = got is not None and abs(got - float(r["raw_value"])) < 1.0
-        records.append({**_slim(r), "skipped": False, "rows": len(result or []),
-                        "got": got, "gold": float(r["raw_value"]), "correct": correct})
+        records.append(
+            {
+                **_slim(r),
+                "skipped": False,
+                "rows": len(result or []),
+                "got": got,
+                "gold": float(r["raw_value"]),
+                "correct": correct,
+            }
+        )
 
     try:
         graph_store.close()
@@ -127,15 +159,25 @@ def run(dataset_path: str, *, limit_tickers, database, uri, user, password):
     scored = [x for x in records if not x["skipped"]]
     dcc = round(sum(x["correct"] for x in scored) / len(scored), 3) if scored else None
     return {
-        "config": {"dataset": dataset_path, "tickers": tickers, "seeded": written,
-                   "llm": "none (pure structure probe)"},
-        "dcc": dcc, "scored": len(scored), "skipped": len(records) - len(scored),
+        "config": {
+            "dataset": dataset_path,
+            "tickers": tickers,
+            "seeded": written,
+            "llm": "none (pure structure probe)",
+        },
+        "dcc": dcc,
+        "scored": len(scored),
+        "skipped": len(records) - len(scored),
         "records": records,
     }
 
 
 def _slim(r):
-    return {"ticker": r["ticker"], "metric": r["metric"], "fiscal_year": r["fiscal_year"]}
+    return {
+        "ticker": r["ticker"],
+        "metric": r["metric"],
+        "fiscal_year": r["fiscal_year"],
+    }
 
 
 def main() -> int:
@@ -149,8 +191,14 @@ def main() -> int:
     p.add_argument("--out", default="-")
     args = p.parse_args()
 
-    result = run(args.dataset, limit_tickers=args.limit_tickers, database=args.database,
-                 uri=args.uri, user=args.user, password=args.password)
+    result = run(
+        args.dataset,
+        limit_tickers=args.limit_tickers,
+        database=args.database,
+        uri=args.uri,
+        user=args.user,
+        password=args.password,
+    )
     out = json.dumps(result, indent=2, ensure_ascii=False)
     if args.out == "-":
         print(out)
@@ -158,8 +206,11 @@ def main() -> int:
         Path(args.out).parent.mkdir(parents=True, exist_ok=True)
         Path(args.out).write_text(out, encoding="utf-8")
         print(f"Wrote {args.out}", file=sys.stderr)
-    print(f"\n=== DCC (oracle slots, no LLM) = {result['dcc']} "
-          f"({result['scored']} scored, {result['skipped']} skipped) ===", file=sys.stderr)
+    print(
+        f"\n=== DCC (oracle slots, no LLM) = {result['dcc']} "
+        f"({result['scored']} scored, {result['skipped']} skipped) ===",
+        file=sys.stderr,
+    )
     return 0
 
 

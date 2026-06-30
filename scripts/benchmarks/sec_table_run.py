@@ -50,9 +50,14 @@ def _seed_table_facts(gs, database, cik, facts) -> int:
     written = 0
     with gs._driver.session(database=database) as s:
         for f in facts:
-            period_key = Period(fiscal_year=f.fiscal_year).key   # fiscal:YYYY:FY
-            obs_id = observation_key(entity_key=cik, concept_id=f.concept_id,
-                                     period_key=period_key, unit=f.unit, workspace_id=_WS)
+            period_key = Period(fiscal_year=f.fiscal_year).key  # fiscal:YYYY:FY
+            obs_id = observation_key(
+                entity_key=cik,
+                concept_id=f.concept_id,
+                period_key=period_key,
+                unit=f.unit,
+                workspace_id=_WS,
+            )
             s.run(
                 "MERGE (c:Company {cik:$cik, _workspace_id:$ws}) "
                 "MERGE (o:Observation {obs_id:$obs_id}) "
@@ -60,8 +65,13 @@ def _seed_table_facts(gs, database, cik, facts) -> int:
                 "    o.value_num=$val, o.unit=$unit, o.basis='consolidated', "
                 "    o.workspace_id=$ws, o._workspace_id=$ws "
                 "MERGE (c)-[:HAS_OBSERVATION]->(o)",
-                cik=cik, obs_id=obs_id, concept_id=f.concept_id, pk=period_key,
-                val=float(f.value_num), unit=f.unit, ws=_WS,
+                cik=cik,
+                obs_id=obs_id,
+                concept_id=f.concept_id,
+                pk=period_key,
+                val=float(f.value_num),
+                unit=f.unit,
+                ws=_WS,
             )
             written += 1
     return written
@@ -72,10 +82,16 @@ def run(dataset_path, tickers, *, database, uri, user, password, provider, model
     from seocho.store.llm import create_llm_backend
     from seocho.query.embedding_grounding import make_fastembed_scorer
 
-    rows = [json.loads(l) for l in Path(dataset_path).read_text().splitlines() if l.strip()]
+    rows = []
+    with Path(dataset_path).open("r", encoding="utf-8") as f:
+        for l in f:
+            if l.strip():
+                rows.append(json.loads(l))
     rows = [r for r in rows if r["ticker"] in set(tickers)]
     cik_by_ticker = bench.resolve_ciks(tickers)
-    name_by_ticker = {r["ticker"].upper(): r.get("gold_entities", [""])[0] for r in rows}
+    name_by_ticker = {
+        r["ticker"].upper(): r.get("gold_entities", [""])[0] for r in rows
+    }
     resolver = EntityResolver.from_ticker_map(cik_by_ticker, name_by_ticker)
     registry = default_registry()
     scorer = make_fastembed_scorer()
@@ -96,25 +112,51 @@ def run(dataset_path, tickers, *, database, uri, user, password, provider, model
         filing = ft.latest_10k(t.upper(), cik)
         facts = ft.fetch_table_facts(filing, registry=registry) if filing else []
         n = _seed_table_facts(gs, database, cik, facts)
-        extracted[t] = {"facts": len(facts),
-                        "concepts": sorted({f.concept_id for f in facts}),
-                        "years": sorted({f.fiscal_year for f in facts})}
-        print(f"  [{t}] 10-K {filing.report_date if filing else '?'}: "
-              f"{len(facts)} table facts seeded", file=sys.stderr)
+        extracted[t] = {
+            "facts": len(facts),
+            "concepts": sorted({f.concept_id for f in facts}),
+            "years": sorted({f.fiscal_year for f in facts}),
+        }
+        print(
+            f"  [{t}] 10-K {filing.report_date if filing else '?'}: "
+            f"{len(facts)} table facts seeded",
+            file=sys.stderr,
+        )
 
     llm = create_llm_backend(provider=provider, model=model)
     records: List[Dict[str, Any]] = []
     for r in rows:
-        sr = semantic_answer(r["question"], llm=llm, graph_store=gs, database=database,
-                             workspace_id=_WS, registry=registry, resolver=resolver,
-                             scorer=scorer)
-        hit = sr.route == "STRUCTURED" and sr.answer is not None and \
-            value_matches(sr.answer, r["raw_value"])
-        records.append({"ticker": r["ticker"], "metric": r["metric"],
-                        "fiscal_year": r["fiscal_year"], "route": sr.route,
-                        "answer": sr.answer, "gold": r["answer"], "hit": hit})
-        print(f"    [{r['ticker']} {r['metric']} FY{r['fiscal_year']}] "
-              f"route={sr.route} hit={'Y' if hit else 'n'}", file=sys.stderr)
+        sr = semantic_answer(
+            r["question"],
+            llm=llm,
+            graph_store=gs,
+            database=database,
+            workspace_id=_WS,
+            registry=registry,
+            resolver=resolver,
+            scorer=scorer,
+        )
+        hit = (
+            sr.route == "STRUCTURED"
+            and sr.answer is not None
+            and value_matches(sr.answer, r["raw_value"])
+        )
+        records.append(
+            {
+                "ticker": r["ticker"],
+                "metric": r["metric"],
+                "fiscal_year": r["fiscal_year"],
+                "route": sr.route,
+                "answer": sr.answer,
+                "gold": r["answer"],
+                "hit": hit,
+            }
+        )
+        print(
+            f"    [{r['ticker']} {r['metric']} FY{r['fiscal_year']}] "
+            f"route={sr.route} hit={'Y' if hit else 'n'}",
+            file=sys.stderr,
+        )
     try:
         gs.close()
     except Exception:
@@ -122,8 +164,12 @@ def run(dataset_path, tickers, *, database, uri, user, password, provider, model
 
     n = len(records)
     return {
-        "config": {"corpus": "real 10-K Item-8 tables", "tickers": tickers,
-                   "provider": provider, "model": model},
+        "config": {
+            "corpus": "real 10-K Item-8 tables",
+            "tickers": tickers,
+            "provider": provider,
+            "model": model,
+        },
         "extracted": extracted,
         "summary": {
             "n": n,
@@ -149,9 +195,16 @@ def main() -> int:
     p.add_argument("--out", default="-")
     args = p.parse_args()
     tickers = [t.strip() for t in args.tickers.split(",") if t.strip()]
-    result = run(args.dataset, tickers, database=args.database, uri=args.uri,
-                 user=args.user, password=args.password, provider=args.provider,
-                 model=args.model)
+    result = run(
+        args.dataset,
+        tickers,
+        database=args.database,
+        uri=args.uri,
+        user=args.user,
+        password=args.password,
+        provider=args.provider,
+        model=args.model,
+    )
     out = json.dumps(result, indent=2, ensure_ascii=False)
     if args.out == "-":
         print(out)

@@ -58,9 +58,14 @@ def _gold_slots(row, registry, cik_by_ticker):
 
 def _paraphrase(llm, question) -> List[str]:
     try:
-        resp = llm.complete(system=_PARAPHRASE_SYS, user=question, temperature=0.7,
-                            response_format={"type": "json_object"})
+        resp = llm.complete(
+            system=_PARAPHRASE_SYS,
+            user=question,
+            temperature=0.7,
+            response_format={"type": "json_object"},
+        )
         import re
+
         m = re.search(r"\[.*\]", resp.text, re.S)
         arr = json.loads(m.group(0)) if m else []
         return [str(x) for x in arr if isinstance(x, str)][:3]
@@ -69,20 +74,30 @@ def _paraphrase(llm, question) -> List[str]:
 
 
 def run(dataset_path, *, limit, provider, model, paraphrase):
-    rows = [json.loads(l) for l in Path(dataset_path).read_text().splitlines() if l.strip()][:limit]
+    rows = []
+    with Path(dataset_path).open("r", encoding="utf-8") as f:
+        for l in f:
+            if l.strip():
+                rows.append(json.loads(l))
+    rows = rows[:limit]
     tickers = sorted({r["ticker"] for r in rows})
     cik_by_ticker = bench.resolve_ciks(tickers)
-    name_by_ticker = {r["ticker"].upper(): r.get("gold_entities", [""])[0] for r in rows}
+    name_by_ticker = {
+        r["ticker"].upper(): r.get("gold_entities", [""])[0] for r in rows
+    }
     resolver = EntityResolver.from_ticker_map(cik_by_ticker, name_by_ticker)
     registry = default_registry()
 
     idx = FewShotIndex()  # bge by default; lexical fallback if unavailable
-    print(f"few-shot embed backend: {'bge' if idx._embed else 'lexical fallback'}",
-          file=sys.stderr)
+    print(
+        f"few-shot embed backend: {'bge' if idx._embed else 'lexical fallback'}",
+        file=sys.stderr,
+    )
 
     llm = None
     if paraphrase:
         from seocho.store.llm import create_llm_backend
+
         llm = create_llm_backend(provider=provider, model=model)
 
     n_seed = n_aug = 0
@@ -94,28 +109,52 @@ def run(dataset_path, *, limit, provider, model, paraphrase):
         company = name_by_ticker.get(r["ticker"].upper(), r["ticker"])
         metric_surface = r["metric"].replace("_", " ")
         period_surface = f"fiscal year {r['fiscal_year']}"
-        idx.add(question=r["question"], cypher=cypher, entity=company,
-                metric=metric_surface, period=period_surface, slots=slots,
-                metadata={"src": "seed", "concept": slots.concept_id})
+        idx.add(
+            question=r["question"],
+            cypher=cypher,
+            entity=company,
+            metric=metric_surface,
+            period=period_surface,
+            slots=slots,
+            metadata={"src": "seed", "concept": slots.concept_id},
+        )
         n_seed += 1
         for para in (_paraphrase(llm, r["question"]) if llm else []):
-            idx.add(question=para, cypher=cypher, entity=company, metric=metric_surface,
-                    period=period_surface, slots=slots,
-                    metadata={"src": "paraphrase", "concept": slots.concept_id})
+            idx.add(
+                question=para,
+                cypher=cypher,
+                entity=company,
+                metric=metric_surface,
+                period=period_surface,
+                slots=slots,
+                metadata={"src": "paraphrase", "concept": slots.concept_id},
+            )
             n_aug += 1
 
     # DEMONSTRATE structure-aware retrieval on a fresh cross-surface query
     demo_q = "Could you tell me Microsoft's net income figure for the 2024 fiscal year?"
-    hits = idx.search(demo_q, entity="Microsoft", metric="net income",
-                      period="fiscal year 2024", k=3)
-    demo = [{"q": h.question[:70], "concept": h.metadata.get("concept"),
-             "score": round(s, 3)} for h, s in hits]
+    hits = idx.search(
+        demo_q, entity="Microsoft", metric="net income", period="fiscal year 2024", k=3
+    )
+    demo = [
+        {
+            "q": h.question[:70],
+            "concept": h.metadata.get("concept"),
+            "score": round(s, 3),
+        }
+        for h, s in hits
+    ]
 
     return {
-        "config": {"provider": provider, "model": model, "paraphrase": paraphrase,
-                   "embed": "bge" if idx._embed else "lexical"},
+        "config": {
+            "provider": provider,
+            "model": model,
+            "paraphrase": paraphrase,
+            "embed": "bge" if idx._embed else "lexical",
+        },
         "summary": {"seed": n_seed, "augmented": n_aug, "total": len(idx.examples)},
-        "demo_query": demo_q, "demo_top3": demo,
+        "demo_query": demo_q,
+        "demo_top3": demo,
     }
 
 
@@ -128,8 +167,13 @@ def main() -> int:
     p.add_argument("--no-paraphrase", action="store_true")
     p.add_argument("--out", default="-")
     args = p.parse_args()
-    result = run(args.dataset, limit=args.limit, provider=args.provider,
-                 model=args.model, paraphrase=not args.no_paraphrase)
+    result = run(
+        args.dataset,
+        limit=args.limit,
+        provider=args.provider,
+        model=args.model,
+        paraphrase=not args.no_paraphrase,
+    )
     out = json.dumps(result, indent=2, ensure_ascii=False)
     if args.out == "-":
         print(out)
@@ -137,8 +181,10 @@ def main() -> int:
         Path(args.out).parent.mkdir(parents=True, exist_ok=True)
         Path(args.out).write_text(out, encoding="utf-8")
         print(f"Wrote {args.out}", file=sys.stderr)
-    print(f"\n=== augment === {result['summary']}  demo_top1={result['demo_top3'][:1]}",
-          file=sys.stderr)
+    print(
+        f"\n=== augment === {result['summary']}  demo_top1={result['demo_top3'][:1]}",
+        file=sys.stderr,
+    )
     return 0
 
 

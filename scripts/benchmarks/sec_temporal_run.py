@@ -48,10 +48,16 @@ from typing import Any, Dict, List, Optional, Tuple
 # ---------------------------------------------------------------------------
 
 _SCALE = {
-    "thousand": 1e3, "k": 1e3,
-    "million": 1e6, "mm": 1e6, "m": 1e6,
-    "billion": 1e9, "bn": 1e9, "b": 1e9,
-    "trillion": 1e12, "t": 1e12,
+    "thousand": 1e3,
+    "k": 1e3,
+    "million": 1e6,
+    "mm": 1e6,
+    "m": 1e6,
+    "billion": 1e9,
+    "bn": 1e9,
+    "b": 1e9,
+    "trillion": 1e12,
+    "t": 1e12,
 }
 
 # A number (commas / decimal) optionally followed by a scale word/suffix.
@@ -122,6 +128,7 @@ def temporal_verdict(
 
 def aggregate(records: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Roll per-question records up into the three A/Bs."""
+
     def acc(rows: List[Dict[str, Any]], key: str) -> Optional[float]:
         return round(sum(1 for r in rows if r[key]) / len(rows), 3) if rows else None
 
@@ -151,9 +158,11 @@ def aggregate(records: List[Dict[str, Any]]) -> Dict[str, Any]:
             "correct": temporal_counts.get("correct", 0),
             "wrong_year": temporal_counts.get("wrong_year", 0),
             "no_match": temporal_counts.get("no_match", 0),
-            "resolution_rate": round(
-                temporal_counts.get("correct", 0) / len(grounded), 3
-            ) if grounded else None,
+            "resolution_rate": (
+                round(temporal_counts.get("correct", 0) / len(grounded), 3)
+                if grounded
+                else None
+            ),
         },
     }
 
@@ -170,6 +179,7 @@ CLOSED_BOOK_SYSTEM = (
 
 def _finance_ontology() -> Any:
     from seocho import Ontology, NodeDef, RelDef, P
+
     return Ontology(
         name="sec_temporal",
         nodes={
@@ -195,7 +205,11 @@ def run(
     from seocho.store.graph import Neo4jGraphStore
     from seocho.store.llm import create_llm_backend
 
-    rows = [json.loads(l) for l in Path(dataset_path).read_text().splitlines() if l.strip()]
+    rows = []
+    with Path(dataset_path).open("r", encoding="utf-8") as f:
+        for l in f:
+            if l.strip():
+                rows.append(json.loads(l))
 
     # group by (ticker, metric): index the shared multi-year corpus once,
     # then ask each year's question against it (temporal-resolution setup).
@@ -222,7 +236,10 @@ def run(
     for (ticker, metric), grp in sorted(groups.items()):
         ws = f"{ticker}_{metric}".lower().replace("-", "_")
         client = Seocho(
-            ontology=ontology, graph_store=graph_store, llm=llm, workspace_id=ws,
+            ontology=ontology,
+            graph_store=graph_store,
+            llm=llm,
+            workspace_id=ws,
         )
         corpus = grp[0]["corpus"]  # identical across the group's rows
         for doc in corpus:
@@ -246,9 +263,12 @@ def run(
 
             others = [v for y, v in years_in_corpus.items() if y != r["fiscal_year"]]
             rec = {
-                "ticker": ticker, "metric": metric,
-                "fiscal_year": r["fiscal_year"], "prior_stale": r["prior_stale"],
-                "gold": r["answer"], "raw_value": r["raw_value"],
+                "ticker": ticker,
+                "metric": metric,
+                "fiscal_year": r["fiscal_year"],
+                "prior_stale": r["prior_stale"],
+                "gold": r["answer"],
+                "raw_value": r["raw_value"],
                 "closed_book": cb.strip()[:300],
                 "grounded": gr.strip()[:300],
                 "closed_book_match": value_matches(cb, r["raw_value"]),
@@ -271,9 +291,13 @@ def run(
         pass
 
     return {
-        "config": {"dataset": dataset_path, "database": database,
-                   "provider": provider, "model": model,
-                   "chunk_fallback": os.environ.get("SEOCHO_CHUNK_FALLBACK", "")},
+        "config": {
+            "dataset": dataset_path,
+            "database": database,
+            "provider": provider,
+            "model": model,
+            "chunk_fallback": os.environ.get("SEOCHO_CHUNK_FALLBACK", ""),
+        },
         "summary": aggregate(records),
         "records": records,
     }
@@ -281,9 +305,15 @@ def run(
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="SEC temporal benchmark runner")
-    parser.add_argument("--dataset", default="outputs/evaluation/sec_temporal/dataset.jsonl")
-    parser.add_argument("--limit-tickers", type=int, default=None,
-                        help="Run only the first N tickers (smoke)")
+    parser.add_argument(
+        "--dataset", default="outputs/evaluation/sec_temporal/dataset.jsonl"
+    )
+    parser.add_argument(
+        "--limit-tickers",
+        type=int,
+        default=None,
+        help="Run only the first N tickers (smoke)",
+    )
     parser.add_argument("--database", default="sectemporal")
     parser.add_argument("--uri", default="bolt://localhost:7687")
     parser.add_argument("--user", default="neo4j")
@@ -294,9 +324,14 @@ def main() -> int:
     args = parser.parse_args()
 
     result = run(
-        args.dataset, limit_tickers=args.limit_tickers, database=args.database,
-        uri=args.uri, user=args.user, password=args.password,
-        provider=args.provider, model=args.model,
+        args.dataset,
+        limit_tickers=args.limit_tickers,
+        database=args.database,
+        uri=args.uri,
+        user=args.user,
+        password=args.password,
+        provider=args.provider,
+        model=args.model,
     )
 
     out = json.dumps(result, indent=2, ensure_ascii=False)

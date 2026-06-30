@@ -120,6 +120,7 @@ SMOKE_DATASET = [
 # Result container
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class CaseResult:
     question: str
@@ -156,6 +157,7 @@ class BenchmarkResult:
 # Ontology builder
 # ---------------------------------------------------------------------------
 
+
 def build_ontology(spec: Dict[str, Any]) -> Any:
     """Construct a seocho Ontology from the dataset's ontology spec."""
     from seocho import Ontology, NodeDef, Property, RelDef
@@ -185,6 +187,7 @@ def build_ontology(spec: Dict[str, Any]) -> Any:
 # ---------------------------------------------------------------------------
 # Runner
 # ---------------------------------------------------------------------------
+
 
 def run_case(client: Any, case: Dict[str, Any]) -> CaseResult:
     """Index the corpus, ask the question, score the answer."""
@@ -242,10 +245,9 @@ def run_case(client: Any, case: Dict[str, Any]) -> CaseResult:
     if not retrieved_lc:
         # Fallback: check predicted answer for entity mentions
         retrieved_lc = [e for e in gold_ents if e in predicted_str.lower()]
-    recall = (
-        sum(1 for e in gold_ents if any(e in r or r in e for r in retrieved_lc))
-        / max(len(gold_ents), 1)
-    )
+    recall = sum(
+        1 for e in gold_ents if any(e in r or r in e for r in retrieved_lc)
+    ) / max(len(gold_ents), 1)
 
     return CaseResult(
         question=case["question"],
@@ -260,9 +262,15 @@ def run_case(client: Any, case: Dict[str, Any]) -> CaseResult:
     )
 
 
-def load_dataset(task: str, dataset_path: Optional[str]) -> tuple[Dict[str, Any], List[Dict[str, Any]]]:
+def load_dataset(
+    task: str, dataset_path: Optional[str]
+) -> tuple[Dict[str, Any], List[Dict[str, Any]]]:
     if dataset_path:
-        rows = [json.loads(line) for line in Path(dataset_path).read_text().splitlines() if line.strip()]
+        rows = []
+        with Path(dataset_path).open("r", encoding="utf-8") as f:
+            for line in f:
+                if line.strip():
+                    rows.append(json.loads(line))
         onto = rows[0].get("ontology", SMOKE_ONTOLOGY) if rows else SMOKE_ONTOLOGY
         return onto, rows
     if task == "sample":
@@ -313,10 +321,14 @@ def main() -> int:
     parser.add_argument("--task", default="sample", help="Bundled task name")
     parser.add_argument("--dataset", default=None, help="Custom JSONL dataset path")
     parser.add_argument("--limit", type=int, default=None, help="Cap number of cases")
-    parser.add_argument("--graph", default=None,
-                        help="Graph backend URI (defaults to embedded LadybugDB)")
-    parser.add_argument("--llm", default="openai/gpt-4o-mini",
-                        help="Provider/model string")
+    parser.add_argument(
+        "--graph",
+        default=None,
+        help="Graph backend URI (defaults to embedded LadybugDB)",
+    )
+    parser.add_argument(
+        "--llm", default="openai/gpt-4o-mini", help="Provider/model string"
+    )
     parser.add_argument("--out", default="-", help="Output JSON path (- for stdout)")
     args = parser.parse_args()
 

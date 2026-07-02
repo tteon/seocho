@@ -48,7 +48,11 @@ def _gold(row, registry, cik_by_ticker):
 def run(dataset_path: str, *, limit_tickers, provider, model, use_bge):
     from seocho.store.llm import create_llm_backend
 
-    rows = [json.loads(l) for l in Path(dataset_path).read_text().splitlines() if l.strip()]
+    rows = []
+    with open(dataset_path, "r", encoding="utf-8") as f:
+        for l in f:
+            if l.strip():
+                rows.append(json.loads(l))
     tickers = sorted({r["ticker"] for r in rows})
     if limit_tickers:
         tickers = tickers[:limit_tickers]

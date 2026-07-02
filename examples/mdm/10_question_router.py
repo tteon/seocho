@@ -107,7 +107,8 @@ def main() -> int:
     args = ap.parse_args()
 
     out_dir = ROOT / "outputs" / "evaluation" / "mdm_demo" / args.run_prefix
-    bench = json.loads((out_dir / "benchmark_aggregate.json").read_text())
+    with open((out_dir / "benchmark_aggregate.json"), "r", encoding="utf-8") as f:
+        bench = json.load(f)
 
     # case -> lane -> stored record
     by_case: dict[str, dict[str, dict]] = defaultdict(dict)

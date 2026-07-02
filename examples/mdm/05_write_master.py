@@ -109,8 +109,10 @@ def main() -> int:
 
     ruleset = load_ruleset()
     out_dir = ROOT / "outputs" / "evaluation" / "mdm_demo" / args.run_prefix
-    staging = json.loads((out_dir / "staging_artifact.json").read_text())
-    resolve = json.loads((out_dir / "resolve_artifact.json").read_text())
+    with open((out_dir / "staging_artifact.json"), "r", encoding="utf-8") as f:
+        staging = json.load(f)
+    with open((out_dir / "resolve_artifact.json"), "r", encoding="utf-8") as f:
+        resolve = json.load(f)
     panel_size = len(staging["dept_node_counts"])
 
     # --- 1. golden entities from WCC clusters -------------------------------

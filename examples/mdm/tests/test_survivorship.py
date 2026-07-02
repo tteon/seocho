@@ -211,6 +211,7 @@ def test_lock_file_tracks_versions(tmp_path):
     assert bumped != src
     (cfg_dir / "survivorship.yaml").write_text(bumped)
     update_lock(cfg_dir)
-    lock = json.loads((cfg_dir / "survivorship.lock.json").read_text())
+    with (cfg_dir / "survivorship.lock.json").open("r", encoding="utf-8") as f:
+        lock = json.load(f)
     assert set(lock) == {"1.1.2", "1.2.0"}
     assert load_ruleset(cfg_dir).version == "1.2.0"

@@ -207,7 +207,8 @@ def main() -> int:
                 partial = out_partial / f"{dept.name}_{case['case_id']}.json"
                 if args.resume and partial.is_file():
                     try:
-                        rec = json.loads(partial.read_text())
+                        with partial.open("r", encoding="utf-8") as f:
+                            rec = json.load(f)
                     except Exception:
                         rec = None
                     if (rec and rec.get("prompt_hash") == prompt_hash

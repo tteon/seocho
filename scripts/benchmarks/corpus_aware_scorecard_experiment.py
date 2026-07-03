@@ -126,7 +126,8 @@ def main() -> None:
     cqs = None
     if cq_path.exists():
         import yaml
-        raw = yaml.safe_load(cq_path.read_text())
+        with open(cq_path, "r", encoding="utf-8") as f:
+            raw = yaml.safe_load(f)
         cqs = raw.get("competency_questions", raw) if isinstance(raw, dict) else raw
 
     before, after = {}, {}

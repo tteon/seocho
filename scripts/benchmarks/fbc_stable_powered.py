@@ -100,7 +100,8 @@ def main():
     from huggingface_hub import hf_hub_download
     import pandas as pd
 
-    key = re.search(r'ontology_guardrail_mara_api_key\s*=\s*"([^"]+)"', Path(".env").read_text()).group(1)
+    with open(".env", "r", encoding="utf-8") as env_file:
+        key = re.search(r'ontology_guardrail_mara_api_key\s*=\s*"([^"]+)"', env_file.read()).group(1)
     print("building stable-bridged FBC generic guardrail (multi-model derive)...", flush=True)
     fbc_stable, seed, terms = build_fbc_stable_generic(args.catalog, args.corpus, key)
     ontos = {"curated_plus": Ontology.load("examples/datasets/fibo_plus.jsonld"), "fibo_fbc_stable": fbc_stable}

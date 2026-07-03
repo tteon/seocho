@@ -59,7 +59,8 @@ def run(dataset_path: str, tickers: List[str], *, database: str, uri: str,
     from seocho.store.graph import Neo4jGraphStore
     from seocho.store.llm import create_llm_backend
 
-    rows = [json.loads(l) for l in Path(dataset_path).read_text().splitlines() if l.strip()]
+    with open(dataset_path, "r", encoding="utf-8") as f:
+        rows = [json.loads(l) for l in f if l.strip()]
     ciks = bench.resolve_ciks(tickers)
 
     llm = create_llm_backend(provider=provider, model=model)

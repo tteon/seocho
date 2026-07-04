@@ -85,7 +85,8 @@ def load_ruleset(config_dir: Path = CONFIG_DIR) -> Ruleset:
     if not lock_path.is_file():
         raise RuleVersionError(
             f"missing {LOCK_FILE}; run `python lib/survivorship.py --update-lock`")
-    lock = json.loads(lock_path.read_text(encoding="utf-8"))
+    with open(lock_path, "r", encoding="utf-8") as f:
+        lock = json.load(f)
     if lock.get(version) != sha:
         raise RuleVersionError(
             f"survivorship.yaml (sha {sha[:12]}…) does not match the locked sha for "
@@ -99,7 +100,10 @@ def update_lock(config_dir: Path = CONFIG_DIR) -> str:
     sha = hashlib.sha256(text.encode("utf-8")).hexdigest()
     version = str(yaml.safe_load(text)["rule_set_version"])
     lock_path = config_dir / LOCK_FILE
-    lock = json.loads(lock_path.read_text(encoding="utf-8")) if lock_path.is_file() else {}
+    lock = {}
+    if lock_path.is_file():
+        with open(lock_path, "r", encoding="utf-8") as f:
+            lock = json.load(f)
     lock[version] = sha
     lock_path.write_text(json.dumps(lock, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return sha

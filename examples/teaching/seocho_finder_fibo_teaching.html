@@ -210,7 +210,8 @@ s = Seocho.local(
 )
 
 # 3. Ingest the FinDER-shaped sample (10 cases, same 8 categories)
-sample = json.loads(Path('datasets/tutorial_filings_sample.json').read_text())
+with open('datasets/tutorial_filings_sample.json', 'r', encoding='utf-8') as f:
+    sample = json.load(f)
 with s.session('finder-smoke') as sess:
     for case in sample:
         sess.add(case['text'])

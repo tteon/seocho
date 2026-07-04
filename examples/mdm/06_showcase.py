@@ -43,8 +43,10 @@ def main() -> int:
     args = ap.parse_args()
 
     out_dir = ROOT / "outputs" / "evaluation" / "mdm_demo" / args.run_prefix
-    staging = json.loads((out_dir / "staging_artifact.json").read_text())
-    master = json.loads((out_dir / "master_artifact.json").read_text())
+    with open(out_dir / "staging_artifact.json", "r", encoding="utf-8") as f:
+        staging = json.load(f)
+    with open(out_dir / "master_artifact.json", "r", encoding="utf-8") as f:
+        master = json.load(f)
     goldens = master["golden_entities"]
     facts = master["golden_facts"]
     tasks = master["steward_tasks"]

@@ -67,7 +67,8 @@ def open_extract_all(jsonl_path, *, model, workers, max_chars, resume):
         docs.append({"id": _id, "category": str(row["category"]), "text": text.strip()[:max_chars]})
     print(f"total in corpus minus done = {len(docs)} to extract ({len(done_ids)} resumed)", flush=True)
 
-    key = re.search(r'ontology_guardrail_mara_api_key\s*=\s*"([^"]+)"', Path(".env").read_text()).group(1)
+    with open(".env", "r", encoding="utf-8") as env_file:
+        key = re.search(r'ontology_guardrail_mara_api_key\s*=\s*"([^"]+)"', env_file.read()).group(1)
     be = create_llm_backend(provider="mara", model=model, api_key=key)
     fh = jp.open("a", encoding="utf-8"); lock = Lock(); done = {"n": 0}
 
@@ -139,7 +140,8 @@ def main():
     if Path(cat_path).exists():
         cat = load_catalog(cat_path)
         gterms = sorted(cp.label_frequencies, key=lambda k: -cp.label_frequencies[k])[:20]
-        key = re.search(r'ontology_guardrail_mara_api_key\s*=\s*"([^"]+)"', Path(".env").read_text()).group(1)
+        with open(".env", "r", encoding="utf-8") as env_file:
+            key = re.search(r'ontology_guardrail_mara_api_key\s*=\s*"([^"]+)"', env_file.read()).group(1)
         bes = [create_llm_backend(provider="mara", model=m, api_key=key) for m in ["DeepSeek-V3.1", "MiniMax-M2.5", "gpt-oss-120b"]]
         for m, o in fibo_guardrail_candidates(cat).items():
             seed = derive_fibo_roots_stable(gterms, o, backends=bes, models=["DeepSeek-V3.1", "MiniMax-M2.5", "gpt-oss-120b"], passes=2)

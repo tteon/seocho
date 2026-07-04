@@ -106,7 +106,8 @@ def main():
     from huggingface_hub import hf_hub_download
     import pandas as pd
 
-    key = re.search(r'ontology_guardrail_mara_api_key\s*=\s*"([^"]+)"', Path(".env").read_text()).group(1)
+    with open(".env", "r", encoding="utf-8") as env_file:
+        key = re.search(r'ontology_guardrail_mara_api_key\s*=\s*"([^"]+)"', env_file.read()).group(1)
     ontos = {"curated_plus": Ontology.load("examples/datasets/fibo_plus.jsonld"),
              "fibo_fbc_generic": build_fbc_generic(args.catalog, args.corpus)}
     df = pd.read_parquet(hf_hub_download("Linq-AI-Research/FinDER", "data/train-00000-of-00001.parquet", repo_type="dataset"))

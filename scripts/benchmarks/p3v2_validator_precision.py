@@ -134,7 +134,8 @@ def main():
     ap.add_argument("--model", default="DeepSeek-V3.1")
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
-    key = re.search(r'ontology_guardrail_mara_api_key\s*=\s*"([^"]+)"', Path(".env").read_text()).group(1)
+    with open(".env", "r", encoding="utf-8") as env_file:
+        key = re.search(r'ontology_guardrail_mara_api_key\s*=\s*"([^"]+)"', env_file.read()).group(1)
     be = create_llm_backend(provider="mara", model=args.model, api_key=key)
     cases = load_cases(args.per_type, args.max_chars)
     print(f"{len(cases)} numeric cases")

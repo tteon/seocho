@@ -86,7 +86,8 @@ def seed_observations(graph_store, database: str, rows: List[Dict[str, Any]],
 def run(dataset_path: str, *, limit_tickers, database, uri, user, password):
     from seocho.store.graph import Neo4jGraphStore
 
-    rows = [json.loads(l) for l in Path(dataset_path).read_text().splitlines() if l.strip()]
+    with open(dataset_path, "r", encoding="utf-8") as f:
+        rows = [json.loads(l) for l in f if l.strip()]
     tickers = sorted({r["ticker"] for r in rows})
     if limit_tickers:
         tickers = tickers[:limit_tickers]

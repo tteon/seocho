@@ -142,13 +142,14 @@ class AmbiguityQuarantine:
         if not self.path.exists():
             return []
         out = []
-        for line in self.path.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if line:
-                try:
-                    out.append(AmbiguousEntity.from_dict(json.loads(line)))
-                except Exception:
-                    continue
+        with self.path.open("r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    try:
+                        out.append(AmbiguousEntity.from_dict(json.loads(line)))
+                    except Exception:
+                        continue
         return out
 
     def clusters(self) -> List[Dict[str, Any]]:

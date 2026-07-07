@@ -286,7 +286,8 @@ def main() -> int:
         return 0
 
     out_dir = ROOT / "outputs" / "evaluation" / "mdm_demo" / args.run_prefix
-    master = json.loads((out_dir / "master_artifact.json").read_text())
+    with open(out_dir / "master_artifact.json", "r", encoding="utf-8") as f:
+        master = json.load(f)
     instances = federation.load_instances(MDM_ROOT / "config" / "instances.yaml")
     dept_uri = {i.dept: i.uri for i in instances}
     auth = (os.environ.get("NEO4J_USER", "neo4j"), os.environ.get("NEO4J_PASSWORD", ""))
@@ -309,7 +310,8 @@ def main() -> int:
                 i += 1
                 partial = out_partial / f"{lane}_{case['case_id']}.json"
                 if args.resume and partial.is_file():
-                    rec = json.loads(partial.read_text())
+                    with open(partial, "r", encoding="utf-8") as f:
+                        rec = json.load(f)
                     if rec.get("llm") == f"mara/{spec.model}" and not rec.get("error"):
                         print(f">>> [{i}/{total}] {lane} {case['case_id']} — SKIP (resume)")
                         records.append(rec)

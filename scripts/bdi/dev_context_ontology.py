@@ -116,7 +116,8 @@ def load_graph(input_path: str, database: str = "dev_context") -> None:
     """Load extracted BDI graph into Neo4j via seocho."""
     from seocho.store.graph import Neo4jGraphStore
 
-    data = json.loads(Path(input_path).read_text(encoding="utf-8"))
+    with open(input_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
     store = Neo4jGraphStore("bolt://localhost:7687", "neo4j", "password")
 
     try:

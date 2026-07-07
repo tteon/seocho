@@ -63,20 +63,21 @@ def load_env_files(roots: Iterable[Path] = DEFAULT_ENV_FILES) -> EnvReport:
         if not path.is_file():
             continue
         loaded.append(str(path))
-        for raw in path.read_text(encoding="utf-8").splitlines():
-            line = raw.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            k, v = line.split("=", 1)
-            k = k.strip()
-            v = v.strip().strip('"').strip("'")
-            if not k:
-                continue
-            if k in os.environ:
-                skipped.append(k)
-                continue
-            os.environ[k] = v
-            set_keys.append(k)
+        with open(path, "r", encoding="utf-8") as f:
+            for raw in f:
+                    line = raw.strip()
+                    if not line or line.startswith("#") or "=" not in line:
+                        continue
+                    k, v = line.split("=", 1)
+                    k = k.strip()
+                    v = v.strip().strip('"').strip("'")
+                    if not k:
+                        continue
+                    if k in os.environ:
+                        skipped.append(k)
+                        continue
+                    os.environ[k] = v
+                    set_keys.append(k)
     return EnvReport(tuple(loaded), tuple(set_keys), tuple(skipped))
 
 

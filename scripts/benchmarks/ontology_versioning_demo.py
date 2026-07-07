@@ -28,7 +28,8 @@ def main() -> None:
     ap.add_argument("--store", default=None, help="store dir (default: temp)")
     args = ap.parse_args()
 
-    corpus_data = json.loads(Path(CORPUS_SRC).read_text(encoding="utf-8"))["corpus_profile"]
+    with open(Path(CORPUS_SRC), "r", encoding="utf-8") as f:
+        corpus_data = json.load(f)
     corpus = CorpusProfile(
         label_frequencies=corpus_data["label_frequencies"],
         doc_count=corpus_data.get("doc_count", 0),

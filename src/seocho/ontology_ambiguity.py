@@ -265,7 +265,8 @@ def _bump_minor(version: str) -> str:
 
 def load_mapping_spec(path: str | Path) -> Dict[str, Any]:
     import yaml
-    return yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
+    with open(path, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f) or {}
 
 
 # ---------------------------------------------------------------------------

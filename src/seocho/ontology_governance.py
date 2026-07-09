@@ -179,7 +179,8 @@ def load_competency_questions(path: str | Path) -> List[Dict[str, Any]]:
     source = Path(path)
     if not source.exists():
         raise FileNotFoundError(f"Competency-question file not found: {source}")
-    data = yaml.safe_load(source.read_text(encoding="utf-8")) or {}
+    with open(source, "r", encoding="utf-8") as f:
+        data = yaml.safe_load(f) or {}
     questions = data.get("competency_questions", [])
     if not isinstance(questions, list):
         raise ValueError(f"{source}: 'competency_questions' must be a list.")

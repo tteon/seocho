@@ -126,7 +126,8 @@ class CurationDesignSpec:
     def from_yaml(cls, path: str | Path) -> "CurationDesignSpec":
         import yaml
 
-        payload = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
+        with open(path, "r", encoding="utf-8") as f:
+            payload = yaml.safe_load(f) or {}
         if not isinstance(payload, Mapping):
             raise ValueError("Curation design YAML must decode to a mapping.")
         return cls.from_dict(payload)

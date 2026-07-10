@@ -47,6 +47,17 @@ The complete validation ladder is:
 5. A Mara explanation lane must measure evidence coverage, unsupported-claim
    rate, disclosure leakage, token cost, and latency with the answerer fixed.
 
+The LLM smoke lane is now available independently of the public-chain fetch:
+
+    uv run python scripts/benchmarks/okx_risk_llm_e2e.py \
+      --dataset examples/okx-risk-preflight/llm_e2e_dataset.jsonl \
+      --model MiniMax-M2.5
+
+It runs six deterministic risk cases through Mara when `MARA_API_KEY` is set.
+Without the key it reports an explicit skip. It records disposition accuracy,
+provenance coverage, leakage count, response hash, and latency; it does not
+persist completions.
+
 Public sanctions data supplies a high-confidence labelled seed, not complete
 ground truth for illicit activity. Precision and recall claims beyond direct
 seed matching require a separately governed labelled dataset and human review.

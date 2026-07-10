@@ -7,7 +7,11 @@ from dataclasses import dataclass
 from typing import Any, Mapping, Tuple
 
 from .cypher_validator import FORBIDDEN_CYPHER_TOKENS
-from .workloads import QueryFamilySpec, WITHDRAWAL_EXPLANATION
+from .workloads import (
+    QueryFamilySpec,
+    TRANSACTION_RISK_PREFLIGHT,
+    WITHDRAWAL_EXPLANATION,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,6 +59,29 @@ LIMIT $limit
 """.strip()
 
 
+_RISK_PREFLIGHT_RECIPE = """
+MATCH (customer:Customer {id: $customer_id, workspace_id: $workspace_id})
+MATCH (destination:Wallet {address_hash: $destination_wallet_hash, workspace_id: $workspace_id})
+OPTIONAL MATCH owned_path=(customer)-[:OWNS|INITIATED|SENT_TO|RECEIVED_FROM*1..4]->(destination)
+OPTIONAL MATCH (destination)-[:HAS_RISK_SIGNAL]->(direct_signal:RiskSignal)
+OPTIONAL MATCH risk_path=(destination)-[:SENT_TO|RECEIVED_FROM|CLUSTERED_WITH*1..4]->(related:Wallet)
+OPTIONAL MATCH (related)-[:HAS_RISK_SIGNAL]->(related_signal:RiskSignal)
+OPTIONAL MATCH (direct_signal)-[:SUPPORTED_BY]->(direct_source:EvidenceSource)
+OPTIONAL MATCH (related_signal)-[:SUPPORTED_BY]->(related_source:EvidenceSource)
+RETURN length(owned_path) AS subject_hops,
+       length(risk_path) AS risk_hops,
+       direct_signal.reason_code AS direct_reason_code,
+       direct_signal.severity AS direct_severity,
+       direct_signal.observed_at AS direct_observed_at,
+       related_signal.reason_code AS related_reason_code,
+       related_signal.severity AS related_severity,
+       related_signal.observed_at AS related_observed_at,
+       direct_source.id AS direct_provenance_id,
+       related_source.id AS related_provenance_id
+LIMIT $limit
+""".strip()
+
+
 def validate_workload_query(
     cypher: str,
     *,
@@ -92,16 +119,44 @@ def compile_workload_query(
 
     if not workspace_id.strip():
         raise ValueError("workspace_id is required")
-    if family.intent_id != WITHDRAWAL_EXPLANATION.intent_id:
+    if family.intent_id == WITHDRAWAL_EXPLANATION.intent_id:
+        recipe = _WITHDRAWAL_RECIPE
+        withdrawal_id = str(input_slots.get("withdrawal_id", "")).strip()
+        if not withdrawal_id:
+            raise ValueError("withdrawal_id is required")
+        required_parameters = ("workspace_id", "withdrawal_id", "limit")
+        params: Mapping[str, Any] = {
+            "workspace_id": workspace_id,
+            "withdrawal_id": withdrawal_id,
+        }
+    elif family.intent_id == TRANSACTION_RISK_PREFLIGHT.intent_id:
+        recipe = _RISK_PREFLIGHT_RECIPE
+        customer_id = str(input_slots.get("customer_id", "")).strip()
+        destination_wallet_hash = str(
+            input_slots.get("destination_wallet_hash", "")
+        ).strip()
+        if not customer_id:
+            raise ValueError("customer_id is required")
+        if not destination_wallet_hash:
+            raise ValueError("destination_wallet_hash is required")
+        required_parameters = (
+            "workspace_id",
+            "customer_id",
+            "destination_wallet_hash",
+            "limit",
+        )
+        params = {
+            "workspace_id": workspace_id,
+            "customer_id": customer_id,
+            "destination_wallet_hash": destination_wallet_hash,
+        }
+    else:
         raise KeyError(f"no approved Cypher recipe for {family.intent_id}")
-    withdrawal_id = str(input_slots.get("withdrawal_id", "")).strip()
-    if not withdrawal_id:
-        raise ValueError("withdrawal_id is required")
 
     bounded_limit = max(1, min(int(limit), 50))
     violations = validate_workload_query(
-        _WITHDRAWAL_RECIPE,
-        required_parameters=("workspace_id", "withdrawal_id", "limit"),
+        recipe,
+        required_parameters=required_parameters,
         max_graph_hops=family.safety.max_graph_hops,
     )
     if violations:
@@ -109,12 +164,8 @@ def compile_workload_query(
     return WorkloadQueryPlan(
         family_id=family.intent_id,
         tier="approved_recipe",
-        cypher=_WITHDRAWAL_RECIPE,
-        params={
-            "workspace_id": workspace_id,
-            "withdrawal_id": withdrawal_id,
-            "limit": bounded_limit,
-        },
+        cypher=recipe,
+        params={**params, "limit": bounded_limit},
         prompt_name=family.prompt.name,
         prompt_version=family.prompt.version,
     )
@@ -128,4 +179,3 @@ def fallback_policy_for(family: QueryFamilySpec) -> Text2CypherFallbackPolicy:
         allowed_relationships=family.required_relations,
         max_graph_hops=family.safety.max_graph_hops,
     )
-

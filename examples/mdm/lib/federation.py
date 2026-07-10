@@ -24,7 +24,7 @@ import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 OUTPUTS_DIR = Path(__file__).resolve().parents[1] / "outputs"
 MODE_FILE = "mode.json"
@@ -65,7 +65,8 @@ def read_mode(*, outputs_dir: Path = OUTPUTS_DIR) -> str:
     path = outputs_dir / MODE_FILE
     if not path.is_file():
         raise RuntimeError(f"{path} missing — run 00_preflight.py first")
-    mode = json.loads(path.read_text(encoding="utf-8")).get("mode")
+    with open(path, "r", encoding="utf-8") as f:
+        mode = json.load(f).get("mode")
     if mode not in ("composite", "fanout"):
         raise RuntimeError(f"corrupt {path}: mode={mode!r}")
     return mode

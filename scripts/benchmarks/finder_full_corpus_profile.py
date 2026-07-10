@@ -50,11 +50,12 @@ def open_extract_all(jsonl_path, *, model, workers, max_chars, resume):
     jp = Path(jsonl_path); jp.parent.mkdir(parents=True, exist_ok=True)
     done_ids = set()
     if resume and jp.exists():
-        for line in jp.read_text(encoding="utf-8").splitlines():
-            try:
-                done_ids.add(json.loads(line)["id"])
-            except Exception:
-                pass
+        with open(jp, "r", encoding="utf-8") as f:
+            for line in f:
+                try:
+                    done_ids.add(json.loads(line)["id"])
+                except Exception:
+                    pass
     docs = []
     for _, row in df.iterrows():
         _id = str(row["_id"])
@@ -77,7 +78,7 @@ def open_extract_all(jsonl_path, *, model, workers, max_chars, resume):
             ex = _retry(lambda: structured_complete(be, system=_OPEN_SYS, user=_OPEN_USER.format(doc=doc["text"]),
                         model=model, task_hint="json_extraction"))
             labels = [str(n.get("label", "")).strip() for n in ex.get("nodes", []) if isinstance(n, dict)]
-        except Exception as e:
+        except Exception:
             labels = []
         rec = {"id": doc["id"], "category": doc["category"], "labels": [l for l in labels if l]}
         with lock:
@@ -96,14 +97,15 @@ def open_extract_all(jsonl_path, *, model, workers, max_chars, resume):
 def build_profile_from_jsonl(jsonl_path):
     from collections import Counter
     freqs = Counter(); ndoc = 0
-    for line in Path(jsonl_path).read_text(encoding="utf-8").splitlines():
-        try:
-            rec = json.loads(line)
-        except Exception:
-            continue
-        ndoc += 1
-        for l in rec.get("labels", []):
-            freqs[l] += 1
+    with open(jsonl_path, "r", encoding="utf-8") as f:
+        for line in f:
+            try:
+                rec = json.loads(line)
+            except Exception:
+                continue
+            ndoc += 1
+            for l in rec.get("labels", []):
+                freqs[l] += 1
     return dict(freqs), ndoc
 
 
@@ -126,7 +128,7 @@ def main():
 
     # score candidates against the full-corpus profile
     from seocho.fibo_catalog import (load_catalog, fibo_guardrail_candidates, bridge_to_corpus,
-                                     semantic_bridge, derive_fibo_roots_stable, catalog_provenance)
+                                     semantic_bridge, derive_fibo_roots_stable)
     from seocho.guardrail_selector import select_guardrail, numeric_intensity
     from seocho.ontology_scorecard import CorpusProfile, score_ontology
     from seocho.ontology import Ontology

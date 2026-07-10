@@ -186,7 +186,79 @@ WITHDRAWAL_EXPLANATION = QueryFamilySpec(
 )
 
 
-OKX_QUERY_FAMILIES: Tuple[QueryFamilySpec, ...] = (WITHDRAWAL_EXPLANATION,)
+TRANSACTION_RISK_PREFLIGHT_PROMPT = """You explain a pre-transaction risk preflight from supplied evidence.
+Use only disclosure-filtered reason codes, graph distance, policy version, and
+provenance references. Never reveal raw wallet addresses, customer identity,
+internal watchlist labels, model features, or risk-score thresholds. Never
+authorize or submit a transaction. Preserve review_required or policy_block
+exactly as produced by the deterministic policy engine."""
+
+
+TRANSACTION_RISK_PREFLIGHT = QueryFamilySpec(
+    intent_id="transaction_risk_preflight.v1",
+    description="Detect bounded-hop wallet risk before a transaction.",
+    trigger_phrases=(
+        "preflight transaction risk",
+        "check wallet risk before transfer",
+        "is this destination wallet risky",
+        "black wallet exposure",
+        "거래 전 위험",
+        "지갑 위험 확인",
+        "블랙 월렛",
+    ),
+    required_relations=(
+        "OWNS",
+        "INITIATED",
+        "SENT_TO",
+        "RECEIVED_FROM",
+        "CLUSTERED_WITH",
+        "HAS_RISK_SIGNAL",
+        "SUPPORTED_BY",
+    ),
+    required_entity_types=(
+        "Customer",
+        "Wallet",
+        "Transaction",
+        "RiskSignal",
+        "RiskPolicy",
+        "EvidenceSource",
+    ),
+    evidence=(
+        EvidenceRequirement("subject_scope", ("authoritative_memory",)),
+        EvidenceRequirement("destination_wallet", ("wallet_registry",)),
+        EvidenceRequirement("risk_paths", ("graph_projection",)),
+        EvidenceRequirement("risk_signals", ("risk_signal_store",)),
+        EvidenceRequirement("active_policy_version", ("coordination_policy_pointer",)),
+        EvidenceRequirement("projection_watermark", ("coordination_projection_watermark",)),
+        EvidenceRequirement("provenance", ("risk_evidence_registry",)),
+    ),
+    prompt=PromptIdentity(
+        name="okx.transaction_risk_preflight",
+        version="1.0.0",
+        template=TRANSACTION_RISK_PREFLIGHT_PROMPT,
+    ),
+    safety=QuerySafetyPolicy(
+        max_graph_hops=4,
+        allowed_tools=(
+            "risk_policy_read",
+            "wallet_graph_read",
+            "projection_watermark_read",
+        ),
+        forbidden_actions=(
+            "authorize_transaction",
+            "submit_transaction",
+            "withdraw",
+            "trade",
+            "reveal_restricted_evidence",
+        ),
+    ),
+)
+
+
+OKX_QUERY_FAMILIES: Tuple[QueryFamilySpec, ...] = (
+    WITHDRAWAL_EXPLANATION,
+    TRANSACTION_RISK_PREFLIGHT,
+)
 
 
 def classify_okx_query(question: str) -> QueryFamilySpec | None:
@@ -197,4 +269,3 @@ def classify_okx_query(question: str) -> QueryFamilySpec | None:
         if any(trigger in normalized for trigger in family.trigger_phrases):
             return family
     return None
-

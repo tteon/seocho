@@ -44,6 +44,11 @@ their latency, cost, consistency, and failure effects.
   withdrawal workload and a bounded one-repair Text2Cypher fallback policy.
 - [x] (2026-07-10) Added Mara/OpenAI-compatible `gen_ai.chat`, evidence bundle,
   and typed agent-exchange telemetry with content capture off by default.
+- [x] (2026-07-11) Added `transaction_risk_preflight.v1`, a bounded four-hop
+  wallet-risk recipe, deterministic risk disposition, etcd-safe coordination
+  pointers, and role/subject-aware ontology disclosure filtering.
+- [x] (2026-07-11) Ran 24 focused risk/workload tests and basic CI after the
+  risk milestone (631 passed, 3 skipped).
 - [x] (2026-07-10) Ran 18 focused tests plus basic CI (631 passed, 3 skipped);
   recorded live-MARA and live-Collector validation gaps.
 
@@ -101,6 +106,19 @@ their latency, cost, consistency, and failure effects.
   schema-constrained, `EXPLAIN`-first fallback with one repair attempt.
   Date/Author: 2026-07-10 / Codex
 
+- Decision: Do not store user or wallet risk data in etcd.
+  Rationale: etcd coordinates active policy, worker ownership, fencing, and
+  projection progress. Authoritative customer/risk history belongs in durable
+  memory and graph projections; this avoids turning the coordination plane into
+  a sensitive operational database.
+  Date/Author: 2026-07-11 / Codex
+
+- Decision: Enforce disclosure before prompting.
+  Rationale: Ontology property classifications compile to deterministic
+  role/subject filtering. Prompts explain already-filtered evidence and cannot
+  grant access to restricted properties.
+  Date/Author: 2026-07-11 / Codex
+
 ## Outcomes & Retrospective
 
 The first two milestones now provide an optional OTLP exporter, backend-neutral
@@ -110,6 +128,15 @@ Mara/provider, evidence-selection, and typed agent-exchange spans are present.
 Focused slice validation passed 19 tests after the second milestone and basic
 CI again passed 631 tests with three skips. Live Mara, a live OTel Collector,
 native OTel span links, and durable shared memory remain follow-up work.
+
+The risk-preflight milestone adds a second measurable workload without adding
+a live etcd dependency. It proves the storage boundary with coordination
+record validators, creates a parameterized hop-bounded query, fails stale
+projections to review, and strips restricted evidence before synthesis. Its 24
+focused tests pass, as does basic CI with 631 passed and three skipped. This is
+a contract-level vertical slice: live etcd, FoundationDB-backed authoritative
+memory, graph ingestion, and a live Mara/LiteLLM integration remain explicit
+follow-up work.
 
 ## Context and Orientation
 
@@ -264,3 +291,7 @@ results; kept live provider and distributed-memory work explicitly open.
 Revision note (2026-07-10): Added tiered Cypher compilation, provider/evidence/
 exchange telemetry, and a second successful basic-CI run. Native span links and
 live-service validation remain explicit gaps.
+
+Revision note (2026-07-11): Added the transaction risk-preflight workload,
+coordination-plane validation, deterministic disposition, and ontology-based
+subject disclosure guardrails; recorded focused and basic-CI validation.

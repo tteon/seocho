@@ -1,4 +1,5 @@
 from seocho.query.workloads import (
+    TRANSACTION_RISK_PREFLIGHT,
     WITHDRAWAL_EXPLANATION,
     classify_okx_query,
 )
@@ -57,3 +58,12 @@ def test_prompt_forbids_action_and_requires_provenance() -> None:
     assert "provenance" in template
     assert "never authorize" in template
     assert "required slot that is missing" in template
+
+
+def test_risk_preflight_family_is_detected_and_never_executes() -> None:
+    family = classify_okx_query("거래 전 위험 지갑 확인을 해주세요")
+    assert family is TRANSACTION_RISK_PREFLIGHT
+    assert family.safety.max_graph_hops == 4
+    assert "authorize_transaction" in family.safety.forbidden_actions
+    assert "submit_transaction" in family.safety.forbidden_actions
+    assert "wallet_graph_read" in family.safety.allowed_tools

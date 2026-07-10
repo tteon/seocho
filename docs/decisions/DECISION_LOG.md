@@ -3,6 +3,15 @@
 This file is the lightweight index of architecture/product decisions.
 Each entry must link to a full ADR when impact is non-trivial.
 
+## 2026-07-11
+
+- [Proposed] `ADR-0145-blockchain-long-term-memory.md`
+  - keep append-only canonical/orphaned blockchain event revisions in an
+    authoritative transactional memory plane
+  - update risk aggregates and graph outbox entries in the same transaction
+  - keep DozerDB rebuildable, etcd coordination-only, and the FoundationDB
+    native client optional behind a tested transaction-runner contract
+
 ## 2026-07-10
 
 - [Proposed] `ADR-0144-otlp-and-query-workload-observability.md`

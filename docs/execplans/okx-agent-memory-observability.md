@@ -55,6 +55,9 @@ their latency, cost, consistency, and failure effects.
   transactional risk aggregates/outbox, and causal projection watermarks.
 - [x] (2026-07-11) Ran 34 focused memory/risk/query tests, repeated the live
   OFAC/Bitcoin benchmark, and passed basic CI (631 passed, 3 skipped).
+- [x] (2026-07-11) Added a six-case Mara risk-preflight E2E dataset and
+  provider runner; no-key execution reports an explicit skip and never sends
+  unfiltered evidence.
 - [x] (2026-07-10) Ran 18 focused tests plus basic CI (631 passed, 3 skipped);
   recorded live-MARA and live-Collector validation gaps.
 
@@ -172,6 +175,12 @@ checks. Thirty-four focused tests pass and final basic CI passes 631 tests with
 three skips. Live FoundationDB cluster behavior, versionstamp-based sequence
 allocation, partition manifests above 128 events, and live DozerDB projection
 remain explicit scale gaps.
+
+The LLM E2E dataset is intentionally small and contract-focused rather than a
+claim of production answer quality. It fixes disposition and provenance gold,
+checks forbidden-field leakage, and leaves model judgment to the opt-in Mara
+run. The current environment has no `MARA_API_KEY`, so only the safe skip path
+was executed here.
 
 ## Context and Orientation
 

@@ -58,6 +58,20 @@ Without the key it reports an explicit skip. It records disposition accuracy,
 provenance coverage, leakage count, response hash, and latency; it does not
 persist completions.
 
+The integrated vertical slice combines all layers in one run:
+
+    set -a; source .env; set +a
+    uv run --extra local python scripts/benchmarks/okx_full_vertical_slice.py \
+      --model gpt-oss-120b --max-addresses 1 --max-pages 1 \
+      --max-cases 6 --concurrency 3
+
+The verified run fetched two real transactions, produced 102 versioned memory
+events and 102 outbox entries, replayed two blocks as no-ops, compiled six
+approved risk recipes, and completed six concurrent Mara explanations. All six
+dispositions and provenance references matched, with zero leakage cases and a
+2.69-second LLM p95. This result is a smoke demonstration, not an SLA: live
+FoundationDB/DozerDB and sustained-load runs remain separate gates.
+
 Public sanctions data supplies a high-confidence labelled seed, not complete
 ground truth for illicit activity. Precision and recall claims beyond direct
 seed matching require a separately governed labelled dataset and human review.

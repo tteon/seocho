@@ -1,0 +1,29 @@
+{
+  "generated_at": "2026-07-10T15:45:29.509409+00:00",
+  "input": {
+    "available_xbt_labels": 518,
+    "canonical_blocks": 2,
+    "confirmed_interaction_events": 102,
+    "fetched_transactions": 2,
+    "selected_label_hashes": [
+      "wallet:8560ff2798ff23779e6bb8bbc417a5818e159b3df82b40f37b68c3829395c45a"
+    ]
+  },
+  "memory": {
+    "applied_blocks": 2,
+    "elapsed_ms": 12.899,
+    "events_per_second": 7907.29,
+    "outbox_entries": 102,
+    "replay_noop_blocks": 2
+  },
+  "privacy": {
+    "raw_addresses_in_report": false,
+    "raw_transaction_payloads_persisted": false
+  },
+  "schema_version": "okx_public_chain_memory_benchmark.v1",
+  "sources": {
+    "chain": "https://blockstream.info/api",
+    "label_semantics": "address interaction; no wallet-owner attribution",
+    "sanctions": "https://www.treasury.gov/ofac/downloads/sdn.xml"
+  }
+}

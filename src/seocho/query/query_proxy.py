@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 from dataclasses import dataclass
 from typing import Any, Dict, Mapping, Optional, Protocol
 
 from seocho.events import DomainEvent, EventPublisher, NullEventPublisher
+from seocho.tracing import capture_text, start_span
 
 
 def _env_enforce_workspace_filter() -> bool:
@@ -166,31 +168,53 @@ class QueryProxy:
             database=request.database,
             params=params,
         )
+        statement = capture_text(request.cypher)
+        input_data = {"db.statement": statement} if statement is not None else None
+        metadata = {
+            "db.system": "neo4j",
+            "db.name": request.database,
+            "db.operation.name": "query",
+            "seocho.workspace_hash": hashlib.sha256(
+                request.workspace_id.encode("utf-8")
+            ).hexdigest()[:16],
+            "seocho.ontology_profile": request.ontology_profile,
+            "seocho.query.template_hash": hashlib.sha256(
+                request.cypher.encode("utf-8")
+            ).hexdigest()[:16],
+            "seocho.query.workspace_filter_enforced": self._enforce_workspace_filter,
+        }
         try:
-            if self._enforce_workspace_filter:
+            with start_span(
+                "db.query",
+                input_data=input_data,
+                metadata=metadata,
+                tags=["query", "graph"],
+            ) as span:
+                if self._enforce_workspace_filter:
                 # Tenant-isolation enforced: thread workspace_id (auto-merged
                 # into params by the store) and refuse Cypher that doesn't scope
                 # to $workspace_id. Only passed when enabled so the default path
                 # keeps the exact call shape backends/test-doubles already accept.
-                raw_records = self._graph_store.query(
-                    request.cypher,
-                    params=params,
+                    raw_records = self._graph_store.query(
+                        request.cypher,
+                        params=params,
+                        database=request.database,
+                        workspace_id=request.workspace_id,
+                        enforce_workspace_filter=True,
+                    )
+                else:
+                    raw_records = self._graph_store.query(
+                        request.cypher,
+                        params=params,
+                        database=request.database,
+                    )
+                records = coerce_query_records(
+                    raw_records,
                     database=request.database,
-                    workspace_id=request.workspace_id,
-                    enforce_workspace_filter=True,
+                    cypher=request.cypher,
+                    source=type(self._graph_store).__name__,
                 )
-            else:
-                raw_records = self._graph_store.query(
-                    request.cypher,
-                    params=params,
-                    database=request.database,
-                )
-            records = coerce_query_records(
-                raw_records,
-                database=request.database,
-                cypher=request.cypher,
-                source=type(self._graph_store).__name__,
-            )
+                span.set_output(**{"db.rows_returned": len(records)})
         except Exception as exc:
             self._publisher.publish(
                 DomainEvent(

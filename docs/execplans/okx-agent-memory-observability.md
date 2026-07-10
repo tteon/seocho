@@ -58,6 +58,9 @@ their latency, cost, consistency, and failure effects.
 - [x] (2026-07-11) Added a six-case Mara risk-preflight E2E dataset and
   provider runner; no-key execution reports an explicit skip and never sends
   unfiltered evidence.
+- [x] (2026-07-11) Added the integrated public-chain → long-term-memory →
+  approved-query → disclosure → concurrent-Mara vertical-slice runner and
+  verified it against two real blocks.
 - [x] (2026-07-10) Ran 18 focused tests plus basic CI (631 passed, 3 skipped);
   recorded live-MARA and live-Collector validation gaps.
 
@@ -181,6 +184,13 @@ claim of production answer quality. It fixes disposition and provenance gold,
 checks forbidden-field leakage, and leaves model judgment to the opt-in Mara
 run. The current environment has no `MARA_API_KEY`, so only the safe skip path
 was executed here.
+
+The integrated live run later used the configured Mara `gpt-oss-120b` endpoint:
+two real transactions became 102 events, six approved recipes were built, and
+six concurrent explanations completed with disposition/provenance accuracy
+1.0, zero leakage, and approximately 2.69 seconds p95. This is an end-to-end
+smoke result; sustained FoundationDB/DozerDB load and streaming token latency
+remain explicit production gates.
 
 ## Context and Orientation
 

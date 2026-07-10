@@ -42,6 +42,18 @@ Instrument `QueryProxy` with a `db.query` span containing database identity,
 query-template hash, workspace hash, workspace-filter status, row count, and
 duration. Full Cypher is content-gated.
 
+Compile known query families with approved, parameterized Cypher recipes. An
+LLM extracts typed slots but does not generate the query for these families.
+Unknown families may use schema-constrained Text2Cypher with mandatory
+`workspace_id`, read-only validation, a four-hop and 50-row bound, `EXPLAIN`
+before execution, and at most one repair attempt.
+
+Instrument OpenAI-compatible provider calls, including Mara, with content-free
+`gen_ai.chat` spans by default. Agent-to-agent handoffs exchange typed memory
+and evidence references; telemetry records counts and hashes, not referenced
+contents. Evidence-bundle construction emits coverage, missing-slot,
+provenance-count, and support-status signals.
+
 ## Consequences
 
 Prompt and query changes can be compared by cost, latency, trace shape, and
@@ -68,4 +80,3 @@ follow-up decisions after their expected effects can be measured.
 - The withdrawal workload exposes prompt version, required slots, missing
   slots, bounded traversal, and forbidden actions deterministically.
 - Existing workspace-enforcement tests remain green.
-

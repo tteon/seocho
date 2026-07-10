@@ -85,6 +85,13 @@ from .workloads import (
     WITHDRAWAL_EXPLANATION,
     classify_okx_query,
 )
+from .workload_compiler import (
+    Text2CypherFallbackPolicy,
+    WorkloadQueryPlan,
+    compile_workload_query,
+    fallback_policy_for,
+    validate_workload_query,
+)
 
 __all__ = [
     "IntentSpec",
@@ -152,4 +159,9 @@ __all__ = [
     "WITHDRAWAL_EXPLANATION",
     "OKX_QUERY_FAMILIES",
     "classify_okx_query",
+    "WorkloadQueryPlan",
+    "Text2CypherFallbackPolicy",
+    "compile_workload_query",
+    "fallback_policy_for",
+    "validate_workload_query",
 ]

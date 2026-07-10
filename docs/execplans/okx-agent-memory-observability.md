@@ -49,6 +49,12 @@ their latency, cost, consistency, and failure effects.
   pointers, and role/subject-aware ontology disclosure filtering.
 - [x] (2026-07-11) Ran 24 focused risk/workload tests and basic CI after the
   risk milestone (631 passed, 3 skipped).
+- [x] (2026-07-11) Implemented and validated the blockchain long-term-memory
+  contract and public-data benchmark. The milestone includes
+  versioned canonical events, idempotent block ingestion, reorg revisions,
+  transactional risk aggregates/outbox, and causal projection watermarks.
+- [x] (2026-07-11) Ran 34 focused memory/risk/query tests, repeated the live
+  OFAC/Bitcoin benchmark, and passed basic CI (631 passed, 3 skipped).
 - [x] (2026-07-10) Ran 18 focused tests plus basic CI (631 passed, 3 skipped);
   recorded live-MARA and live-Collector validation gaps.
 
@@ -119,6 +125,20 @@ their latency, cost, consistency, and failure effects.
   grant access to restricted properties.
   Date/Author: 2026-07-11 / Codex
 
+- Decision: Treat the blockchain event log as authoritative and the graph as a
+  rebuildable serving projection.
+  Rationale: Reorganizations and policy changes require append-only revisions
+  and replay. Mutating graph edges in place would lose the evidence needed to
+  explain or roll back an earlier risk decision.
+  Date/Author: 2026-07-11 / Codex
+
+- Decision: Keep the FoundationDB client optional behind a transaction-runner
+  boundary and validate semantics with a deterministic in-memory runner.
+  Rationale: The Python binding requires a matching native client and live
+  cluster. SEOCHO's default import and CI must remain usable without either,
+  while the same key layout and transaction function can run on FoundationDB.
+  Date/Author: 2026-07-11 / Codex
+
 ## Outcomes & Retrospective
 
 The first two milestones now provide an optional OTLP exporter, backend-neutral
@@ -138,6 +158,21 @@ a contract-level vertical slice: live etcd, FoundationDB-backed authoritative
 memory, graph ingestion, and a live Mara/LiteLLM integration remain explicit
 follow-up work.
 
+The first public-data memory run read the current OFAC SDN XML and Blockstream
+Esplora mainnet API. It found 518 XBT-labelled seeds; a bounded one-address run
+fetched two confirmed transactions and derived 102 address-interaction events
+across two blocks. The reference runner created 102 outbox entries and treated
+both complete block replays as no-ops. Its approximately 7,907 events/second is
+an in-memory contract measurement, not a FoundationDB performance result.
+
+The long-term-memory milestone now has a lazy official-FDB transaction runner,
+an atomic in-memory reference runner, append-only canonical/orphan revisions,
+risk aggregate compensation, projection outbox entries, and causal watermark
+checks. Thirty-four focused tests pass and final basic CI passes 631 tests with
+three skips. Live FoundationDB cluster behavior, versionstamp-based sequence
+allocation, partition manifests above 128 events, and live DozerDB projection
+remain explicit scale gaps.
+
 ## Context and Orientation
 
 `src/seocho/tracing.py` owns the SDK trace backend abstraction. JSONL is the
@@ -145,6 +180,8 @@ canonical portable artifact and Opik is an optional exporter.
 `src/seocho/store/llm.py` owns OpenAI-compatible providers including Mara.
 `src/seocho/query/query_proxy.py` is the canonical guarded graph-query seam.
 `src/seocho/query/` owns intent, evidence, routing, and answer orchestration.
+`src/seocho/memory/` owns authoritative versioned blockchain memory and the
+transaction boundary used by its in-memory and optional FoundationDB runners.
 `runtime/` is the deployment shell and must preserve `workspace_id` and policy
 checks. New canonical behavior belongs under `src/seocho/`, not `extraction/`.
 
@@ -219,6 +256,15 @@ preserves trace identifiers in the typed envelope.
 
 Finally run the focused suite and basic CI. Live Mara and Collector tests are
 explicit opt-in validations and must self-skip without credentials or services.
+
+The blockchain-memory milestone adds immutable transaction revisions keyed by
+workspace, chain, transaction hash, and event index. One transaction reconciles
+a block, marks events from a replaced block orphaned, updates repeated-risk
+aggregates, and appends graph projection work. Projection consumers acknowledge
+a monotonic causal watermark. A lazy FoundationDB runner uses the official tuple
+layer and retrying transaction decorator when its native Python binding is
+available; focused tests use the identical transaction function through an
+in-memory runner.
 
 ## Concrete Steps
 
@@ -295,3 +341,11 @@ live-service validation remain explicit gaps.
 Revision note (2026-07-11): Added the transaction risk-preflight workload,
 coordination-plane validation, deterministic disposition, and ontology-based
 subject disclosure guardrails; recorded focused and basic-CI validation.
+
+Revision note (2026-07-11): Began the blockchain long-term-memory milestone
+with an authoritative event-log, reorg, outbox, aggregate, and causal-watermark
+contract; kept live FoundationDB cluster validation explicit and optional.
+
+Revision note (2026-07-11): Added a bounded live-data evaluation lane using
+current OFAC XBT labels and Blockstream Esplora transactions. Reports retain
+only opaque address references and avoid wallet-owner attribution.

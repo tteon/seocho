@@ -4,6 +4,7 @@ import re
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 from .contracts import IntentSpec
+from ..tracing import log_span
 
 
 LIMITATION_TEXT_HINTS = (
@@ -420,7 +421,7 @@ def build_evidence_bundle(
         missing_slots=missing_slots,
     )
 
-    return {
+    bundle = {
         "schema_version": "evidence_bundle.v2",
         "intent_id": str(intent.get("intent_id", "")).strip(),
         "route_profile": route_profile,
@@ -454,6 +455,25 @@ def build_evidence_bundle(
             "answer_shape": answer_shape["shape"],
         },
     }
+    log_span(
+        "rag.retrieve_ctx",
+        output_data={
+            "seocho.evidence.candidate_count": len(candidate_entities),
+            "seocho.evidence.selected_triple_count": len(bundle["selected_triples"]),
+            "seocho.evidence.grounded_slot_count": len(grounded_slots),
+            "seocho.evidence.missing_slot_count": len(missing_slots),
+            "seocho.evidence.missing_slots": list(missing_slots),
+            "seocho.evidence.provenance_count": len(provenance),
+            "seocho.evidence.coverage": coverage,
+            "seocho.answer.support_status": support_status,
+        },
+        metadata={
+            "seocho.query.intent_id": bundle["intent_id"],
+            "seocho.evidence.schema_version": bundle["schema_version"],
+        },
+        tags=["rag", "evidence"],
+    )
+    return bundle
 
 
 def _build_route_profile(

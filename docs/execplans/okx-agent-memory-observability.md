@@ -36,9 +36,14 @@ their latency, cost, consistency, and failure effects.
 - [ ] Instrument prompt assembly, provider invocation, graph query, evidence
   selection, and agent exchange with privacy-safe attributes.
 - [ ] Partially complete: QueryProxy emits privacy-safe `db.query` spans.
-  Provider, evidence-selection, and agent-exchange spans remain.
+  Provider, evidence-selection, and agent-exchange spans are now implemented;
+  native OTel span links and live service validation remain.
 - [x] (2026-07-10) Added deterministic tests for tenant scope, content
   redaction, prompt versioning, missing evidence, and trace shape.
+- [x] (2026-07-10) Added approved, parameterized Cypher compilation for the
+  withdrawal workload and a bounded one-repair Text2Cypher fallback policy.
+- [x] (2026-07-10) Added Mara/OpenAI-compatible `gen_ai.chat`, evidence bundle,
+  and typed agent-exchange telemetry with content capture off by default.
 - [x] (2026-07-10) Ran 18 focused tests plus basic CI (631 passed, 3 skipped);
   recorded live-MARA and live-Collector validation gaps.
 
@@ -90,14 +95,21 @@ their latency, cost, consistency, and failure effects.
   and privacy requirements that can justify later infrastructure.
   Date/Author: 2026-07-10 / Codex
 
+- Decision: Use approved Cypher recipes before free-form Text2Cypher.
+  Rationale: Known customer workloads need deterministic tenant scope and
+  bounded reads. Mara extracts typed slots; only unknown families enter a
+  schema-constrained, `EXPLAIN`-first fallback with one repair attempt.
+  Date/Author: 2026-07-10 / Codex
+
 ## Outcomes & Retrospective
 
-The first milestone now provides an optional OTLP exporter, backend-neutral
+The first two milestones now provide an optional OTLP exporter, backend-neutral
 nested spans, default-off content capture, a typed withdrawal workload, and a
-privacy-safe `db.query` span. Focused validation passed 18 tests with one
-expected skip for an uninstalled optional OTLP exporter. Basic CI passed 631
-tests with three skips. Live Mara, a live OTel Collector, provider spans,
-evidence-selection spans, and agent-exchange spans remain follow-up work.
+privacy-safe `db.query` span. Approved recipes now precede bounded Text2Cypher;
+Mara/provider, evidence-selection, and typed agent-exchange spans are present.
+Focused slice validation passed 19 tests after the second milestone and basic
+CI again passed 631 tests with three skips. Live Mara, a live OTel Collector,
+native OTel span links, and durable shared memory remain follow-up work.
 
 ## Context and Orientation
 
@@ -248,3 +260,7 @@ narrowed to observability plus one workload before distributed-memory services.
 Revision note (2026-07-10): Updated after the first implementation milestone.
 Recorded the OTLP/workload/query-span behavior and exact focused/basic-CI
 results; kept live provider and distributed-memory work explicitly open.
+
+Revision note (2026-07-10): Added tiered Cypher compilation, provider/evidence/
+exchange telemetry, and a second successful basic-CI run. Native span links and
+live-service validation remain explicit gaps.

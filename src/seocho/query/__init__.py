@@ -82,6 +82,7 @@ from .workloads import (
     PromptIdentity,
     QueryFamilySpec,
     QuerySafetyPolicy,
+    TRANSACTION_RISK_PREFLIGHT,
     WITHDRAWAL_EXPLANATION,
     classify_okx_query,
 )
@@ -157,6 +158,7 @@ __all__ = [
     "QuerySafetyPolicy",
     "QueryFamilySpec",
     "WITHDRAWAL_EXPLANATION",
+    "TRANSACTION_RISK_PREFLIGHT",
     "OKX_QUERY_FAMILIES",
     "classify_okx_query",
     "WorkloadQueryPlan",

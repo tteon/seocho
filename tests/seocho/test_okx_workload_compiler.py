@@ -5,7 +5,7 @@ from seocho.query.workload_compiler import (
     fallback_policy_for,
     validate_workload_query,
 )
-from seocho.query.workloads import WITHDRAWAL_EXPLANATION
+from seocho.query.workloads import TRANSACTION_RISK_PREFLIGHT, WITHDRAWAL_EXPLANATION
 
 
 def test_known_workload_uses_parameterized_recipe() -> None:
@@ -62,3 +62,22 @@ def test_text2cypher_fallback_is_schema_bounded_and_one_repair_only() -> None:
     assert policy.required_parameters == ("workspace_id",)
     assert "Withdrawal" in policy.allowed_labels
     assert "BLOCKED_BY" in policy.allowed_relationships
+
+
+def test_risk_preflight_recipe_is_hop_bounded_and_parameterized() -> None:
+    plan = compile_workload_query(
+        TRANSACTION_RISK_PREFLIGHT,
+        workspace_id="tenant-a",
+        input_slots={
+            "customer_id": "customer-secret",
+            "destination_wallet_hash": "wallet-hash-secret",
+        },
+    )
+    assert plan.tier == "approved_recipe"
+    assert "*1..4" in plan.cypher
+    assert "$customer_id" in plan.cypher
+    assert "$destination_wallet_hash" in plan.cypher
+    assert "customer-secret" not in plan.cypher
+    assert "wallet-hash-secret" not in plan.cypher
+    assert plan.params["customer_id"] == "customer-secret"
+    assert plan.params["destination_wallet_hash"] == "wallet-hash-secret"

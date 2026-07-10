@@ -70,6 +70,19 @@ Memgraph, Kafka, Neo4j federation, and a self-hosted observability stack are not
 introduced. FoundationDB shared memory and etcd worker coordination remain
 follow-up decisions after their expected effects can be measured.
 
+The second workload, `transaction_risk_preflight.v1`, keeps user, wallet,
+transaction, repeated-counterparty, and risk-signal data out of etcd. Those
+records belong in the future authoritative memory plane and its graph
+projection. etcd-compatible coordination records may contain only active
+policy pointers, projection watermarks, worker leases, shard ownership, and
+fencing tokens. The preflight traverses at most four hops and produces a
+deterministic disposition that never authorizes a transaction.
+
+Before any risk evidence reaches an LLM, a compiled ontology disclosure policy
+filters properties by role clearance plus subject-specific denied fields. This
+is a deterministic ABAC/redaction boundary; the explanatory prompt is not a
+security boundary.
+
 ## Validation
 
 - Importing SEOCHO without OTel installed succeeds.

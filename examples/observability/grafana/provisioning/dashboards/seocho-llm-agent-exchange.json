@@ -1,0 +1,8 @@
+{
+  "uid":"seocho-llm-agent-exchange","title":"SEOCHO LLM and Agent Exchange","tags":["seocho","llm","agents"],"schemaVersion":41,"version":1,"refresh":"15s","time":{"from":"now-1h","to":"now"},
+  "panels":[
+    {"id":1,"type":"timeseries","title":"LLM operation p95","gridPos":{"h":8,"w":12,"x":0,"y":0},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"refId":"A","expr":"histogram_quantile(0.95, sum by (le, gen_ai_provider_name, gen_ai_request_model) (rate(gen_ai_client_operation_duration_seconds_bucket[5m])))","legendFormat":"{{gen_ai_provider_name}} {{gen_ai_request_model}}"}]},
+    {"id":2,"type":"timeseries","title":"Token usage","gridPos":{"h":8,"w":12,"x":12,"y":0},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"refId":"A","expr":"sum by (gen_ai_request_model, gen_ai_token_type) (rate(gen_ai_client_token_usage_tokens_sum[5m]))","legendFormat":"{{gen_ai_request_model}} {{gen_ai_token_type}}"}]},
+    {"id":3,"type":"timeseries","title":"Retries and repairs","gridPos":{"h":8,"w":24,"x":0,"y":8},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"refId":"A","expr":"sum by (gen_ai_request_model, reason) (rate(seocho_gen_ai_retry_count_total[5m]))","legendFormat":"retry {{gen_ai_request_model}} {{reason}}"},{"refId":"B","expr":"sum by (gen_ai_request_model, reason) (rate(seocho_gen_ai_structured_output_repair_count_total[5m]))","legendFormat":"repair {{gen_ai_request_model}} {{reason}}"}]}
+  ]
+}

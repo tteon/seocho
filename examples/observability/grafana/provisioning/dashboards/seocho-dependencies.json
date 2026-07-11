@@ -1,0 +1,8 @@
+{
+  "uid":"seocho-dependencies","title":"SEOCHO Dependencies","tags":["seocho","dependencies"],"schemaVersion":41,"version":1,"refresh":"15s","time":{"from":"now-1h","to":"now"},
+  "panels":[
+    {"id":1,"type":"stat","title":"Scrape targets up","gridPos":{"h":5,"w":8,"x":0,"y":0},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"refId":"A","expr":"sum(up)"}]},
+    {"id":2,"type":"stat","title":"Collector export failures","gridPos":{"h":5,"w":8,"x":8,"y":0},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"refId":"A","expr":"sum(increase(otelcol_exporter_send_failed_metric_points_total[15m])) + sum(increase(otelcol_exporter_send_failed_spans_total[15m]))"}]},
+    {"id":3,"type":"timeseries","title":"Database client p95","gridPos":{"h":10,"w":24,"x":0,"y":5},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"refId":"A","expr":"histogram_quantile(0.95, sum by (le, db_system_name, db_operation_name) (rate(db_client_operation_duration_seconds_bucket[5m])))","legendFormat":"{{db_system_name}} {{db_operation_name}}"}]}
+  ]
+}

@@ -37,6 +37,42 @@ _FORBIDDEN_ATTRIBUTE_FRAGMENTS = (
     "payload",
 )
 
+# Default OTel histogram boundaries are far too coarse for graph retrieval and
+# agent hot paths (sub-second observations collapse into the first bucket and
+# produce misleading multi-second p95 values in Prometheus).  Keep boundaries
+# explicit and low-cardinality so dashboards reflect the latency actually seen
+# by callers.
+_DURATION_SECONDS_BUCKETS = (
+    0.001,
+    0.0025,
+    0.005,
+    0.01,
+    0.025,
+    0.05,
+    0.1,
+    0.25,
+    0.5,
+    1.0,
+    2.5,
+    5.0,
+    10.0,
+    30.0,
+)
+_LATENCY_MILLISECONDS_BUCKETS = (
+    1.0,
+    2.5,
+    5.0,
+    10.0,
+    25.0,
+    50.0,
+    100.0,
+    250.0,
+    500.0,
+    1000.0,
+    2500.0,
+    5000.0,
+)
+
 
 @dataclass(frozen=True, slots=True)
 class MetricSpec:
@@ -211,13 +247,37 @@ def enable_metrics(*, backend: str | None = None, endpoint: str | None = None) -
             from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
             from opentelemetry.sdk.metrics import MeterProvider
             from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+            from opentelemetry.sdk.metrics.view import (
+                ExplicitBucketHistogramAggregation,
+                View,
+            )
             from opentelemetry.sdk.resources import Resource
         except ImportError as exc:
             raise ImportError("OTLP metrics require the seocho[otel] extra") from exc
         exporter = OTLPMetricExporter(endpoint=target, insecure=target.startswith("http://"))
         reader = PeriodicExportingMetricReader(exporter, export_interval_millis=5000)
         resource = Resource.create({"service.name": os.getenv("OTEL_SERVICE_NAME", "seocho")})
-        _provider = MeterProvider(resource=resource, metric_readers=(reader,))
+        views = (
+            View(
+                instrument_name="*.duration",
+                instrument_unit="s",
+                aggregation=ExplicitBucketHistogramAggregation(
+                    _DURATION_SECONDS_BUCKETS
+                ),
+            ),
+            View(
+                instrument_name="*.latency",
+                instrument_unit="ms",
+                aggregation=ExplicitBucketHistogramAggregation(
+                    _LATENCY_MILLISECONDS_BUCKETS
+                ),
+            ),
+        )
+        _provider = MeterProvider(
+            resource=resource,
+            metric_readers=(reader,),
+            views=views,
+        )
         _metrics = ProductionMetrics(_provider.get_meter("seocho", "1"))
         return _metrics
 

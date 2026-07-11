@@ -114,6 +114,9 @@ class PromptAssemblyReceipt:
     response_format: Dict[str, Any] = field(default_factory=dict)
     stable_prefix_hash: str = ""
     adapter_hint_keys: List[str] = field(default_factory=list)
+    optimization: "PromptOptimizationReceipt" = field(
+        default_factory=lambda: PromptOptimizationReceipt()
+    )
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -127,6 +130,67 @@ class PromptAssemblyReceipt:
             "response_format": dict(self.response_format),
             "stable_prefix_hash": self.stable_prefix_hash,
             "adapter_hint_keys": list(self.adapter_hint_keys),
+            "optimization": self.optimization.to_dict(),
+        }
+
+    def to_trace_attributes(self) -> Dict[str, Any]:
+        """Return bounded, content-free attributes for an OTel span.
+
+        Section bodies, user input, identifiers, and exclusion details stay out
+        of telemetry.  The full receipt can still be returned by an authorized
+        debug/API surface because it contains section IDs and reasons, not the
+        prompt text itself.
+        """
+        optimization = self.optimization
+        return {
+            "seocho.prompt.stage": self.stage.value,
+            "seocho.prompt.provider": self.provider,
+            "seocho.prompt.query_mode": self.query_mode,
+            "seocho.prompt.stable_prefix_hash": self.stable_prefix_hash[:16],
+            "seocho.prompt.candidate_sections": optimization.candidate_section_count,
+            "seocho.prompt.selected_sections": optimization.selected_section_count,
+            "seocho.prompt.omitted_sections": optimization.omitted_section_count,
+            "seocho.prompt.candidate_tokens_estimate": optimization.estimated_candidate_tokens,
+            "seocho.prompt.selected_tokens_estimate": optimization.estimated_selected_tokens,
+            "seocho.prompt.token_budget": optimization.token_budget,
+            "seocho.prompt.compression_ratio": optimization.compression_ratio,
+            "seocho.prompt.cacheable_prefix_tokens_estimate": optimization.cacheable_prefix_tokens,
+            "seocho.prompt.evidence_count": optimization.evidence_count,
+            "seocho.prompt.provenance_count": optimization.provenance_count,
+        }
+
+
+@dataclass(slots=True)
+class PromptOptimizationReceipt:
+    """Privacy-safe explanation of how a prompt was reduced and assembled."""
+
+    strategy: str = "stage_aware_selection"
+    candidate_section_count: int = 0
+    selected_section_count: int = 0
+    omitted_section_count: int = 0
+    estimated_candidate_tokens: int = 0
+    estimated_selected_tokens: int = 0
+    token_budget: int = 0
+    compression_ratio: float = 1.0
+    cacheable_prefix_tokens: int = 0
+    excluded_section_reasons: Dict[str, str] = field(default_factory=dict)
+    evidence_count: int = 0
+    provenance_count: int = 0
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "strategy": self.strategy,
+            "candidate_section_count": self.candidate_section_count,
+            "selected_section_count": self.selected_section_count,
+            "omitted_section_count": self.omitted_section_count,
+            "estimated_candidate_tokens": self.estimated_candidate_tokens,
+            "estimated_selected_tokens": self.estimated_selected_tokens,
+            "token_budget": self.token_budget,
+            "compression_ratio": self.compression_ratio,
+            "cacheable_prefix_tokens": self.cacheable_prefix_tokens,
+            "excluded_section_reasons": dict(self.excluded_section_reasons),
+            "evidence_count": self.evidence_count,
+            "provenance_count": self.provenance_count,
         }
 
 
@@ -172,18 +236,59 @@ class StagePromptSpec:
         *,
         provider: str = "",
         query_mode: str = "",
+        candidate_section_ids: Optional[List[str]] = None,
+        excluded_section_reasons: Optional[Dict[str, str]] = None,
+        token_budget: int = 0,
+        estimated_candidate_tokens: Optional[int] = None,
+        evidence_count: int = 0,
+        provenance_count: int = 0,
     ) -> PromptAssemblyReceipt:
+        selected = self.selected_section_ids()
+        candidates = list(dict.fromkeys(candidate_section_ids or selected))
+        selected_text = "\n\n".join(
+            rendered
+            for section in [*self.system_sections, *self.user_sections]
+            if (rendered := _render_section(section))
+        )
+        selected_tokens = max((len(selected_text) + 3) // 4, 0)
+        candidate_tokens = max(
+            estimated_candidate_tokens
+            if estimated_candidate_tokens is not None
+            else selected_tokens,
+            selected_tokens,
+        )
+        # The composer may know only IDs for omitted sections.  In that case
+        # report a conservative selected-token estimate instead of inventing
+        # the size of content that was deliberately not retained.
+        omitted = max(len(candidates) - len(selected), 0)
+        compression_ratio = 1.0 if candidate_tokens == 0 else round(
+            selected_tokens / candidate_tokens, 4
+        )
+        optimization = PromptOptimizationReceipt(
+            candidate_section_count=len(candidates),
+            selected_section_count=len(selected),
+            omitted_section_count=omitted,
+            estimated_candidate_tokens=candidate_tokens,
+            estimated_selected_tokens=selected_tokens,
+            token_budget=max(token_budget, 0),
+            compression_ratio=compression_ratio,
+            cacheable_prefix_tokens=(len(self.stable_prefix_text()) + 3) // 4,
+            excluded_section_reasons=dict(excluded_section_reasons or {}),
+            evidence_count=max(evidence_count, 0),
+            provenance_count=max(provenance_count, 0),
+        )
         return PromptAssemblyReceipt(
             stage=self.stage,
             task_hint=self.task_hint,
             provider=provider,
             query_mode=query_mode,
             reasoning_mode=self.reasoning_mode,
-            selected_section_ids=self.selected_section_ids(),
+            selected_section_ids=selected,
             precedence_sources=self.semantic_precedence_sources(),
             response_format=dict(self.response_format or {}),
             stable_prefix_hash=self.stable_prefix_hash(),
             adapter_hint_keys=sorted(self.adapter_hints.keys()),
+            optimization=optimization,
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -202,6 +307,7 @@ class StagePromptSpec:
 
 __all__ = [
     "PromptAssemblyReceipt",
+    "PromptOptimizationReceipt",
     "PromptSection",
     "PromptSectionKind",
     "PromptSource",

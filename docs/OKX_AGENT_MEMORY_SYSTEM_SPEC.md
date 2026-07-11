@@ -160,6 +160,25 @@ Raw model reasoning is never persisted. Record reasoning-token count, input
 and output tokens, time to first token, latency, retries, and response schema
 validity.
 
+### 3.6 LiteLLM versus Envoy AI Gateway
+
+Use LiteLLM first for the current SEOCHO evaluation because the immediate
+requirements are model/provider normalization, structured-output behavior,
+routing/fallback, per-model usage, budgets, and optional virtual keys. Do not
+add Envoy AI Gateway as a second gateway in the default profile.
+
+Admit Envoy AI Gateway only for a measured Kubernetes/networking profile that
+needs Envoy's data plane, Gateway API integration, centralized mTLS/security
+policy, high-throughput connection management, or infrastructure-owned rate
+limiting. At that point compare it directly with LiteLLM on Mara traffic. A
+possible later production layering is Envoy at the network edge and LiteLLM as
+the model-aware control plane, but it is intentionally excluded until one
+gateway fails a measured requirement.
+
+LiteLLM and Envoy are gateways, not the agent-to-agent exchange protocol.
+Agents continue to exchange typed intent, evidence, causal-token, and receipt
+references through SEOCHO.
+
 ## 4. Canonical data model
 
 The minimum durable entities are:
@@ -512,6 +531,13 @@ disposition and provenance, zero forbidden-field leakage, and 3,247.99 ms p95.
 The live run found a model-specific evidence-echo array shape; normalization
 now selects the unique object satisfying the complete output schema. Raw
 reasoning and completions were not persisted.
+
+First live OTel stack result:
+`docs/experiments/okx-agent-transactions/otel-stack-live-2026-07-11.json`.
+SEOCHO exported one nested trace through Collector 0.156.0 into Tempo 3.0.0;
+Prometheus 3.13.1 reported the Collector target up and Grafana 13.1.0 loaded
+both datasources. This validates transport and topology only. Trace overhead,
+sampling, application metrics, TLS probes, and alerts remain live gates.
 
 ### P6. Portfolio handoff
 

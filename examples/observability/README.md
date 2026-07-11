@@ -58,3 +58,16 @@ Open Grafana at <http://localhost:3000> (anonymous admin) → **Explore → Temp
 - Full prompt/Cypher bodies are only captured with `SEOCHO_TRACE_CAPTURE_CONTENT=1`
   (off by default). Attributes (ids, hashes, counts, timings) always flow.
 - Port `9091` (not 9090) avoids clashing with the `opik` profile's MinIO console.
+
+## Live acceptance
+
+Running containers are not sufficient evidence. A validated profile must show:
+
+1. Prometheus reports the Collector target as `up`.
+2. Grafana provisions both Tempo and Prometheus datasources.
+3. Tempo returns the expected root workflow span.
+4. Required retrieval, context, model, and governance children are present.
+
+Use stable container names (`seocho-tempo`, `seocho-otel-collector`, and
+`seocho-prometheus`) when launching an ad-hoc profile outside this compose
+file; Docker resolves actual names unless explicit aliases are configured.

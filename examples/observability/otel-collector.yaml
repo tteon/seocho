@@ -9,7 +9,12 @@ receivers:
         endpoint: 0.0.0.0:4318
 
 processors:
-  batch: {}
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 256
+  batch:
+    timeout: 1s
+    send_batch_size: 512
 
 exporters:
   otlp/tempo:
@@ -24,11 +29,11 @@ exporters:
 
 service:
   pipelines:
-    traces:
-      receivers: [otlp]
-      processors: [batch]
+      traces:
+        receivers: [otlp]
+      processors: [memory_limiter, batch]
       exporters: [otlp/tempo]
     metrics:
       receivers: [otlp]
-      processors: [batch]
+      processors: [memory_limiter, batch]
       exporters: [prometheus]

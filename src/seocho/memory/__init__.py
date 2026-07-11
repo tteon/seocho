@@ -26,7 +26,11 @@ from .postgres_schema import (
     POSTGRES_MEMORY_SCHEMA_VERSION,
     postgres_memory_schema_statements,
 )
-from .postgres_repository import MemoryCommitResult, PostgreSQLMemoryRepository
+from .postgres_repository import (
+    MemoryCommitResult,
+    PostgreSQLMemoryRepository,
+    StaleAuthoritativeMemoryError,
+)
 
 __all__ = [
     "AnswerReceipt",
@@ -46,6 +50,7 @@ __all__ = [
     "ProjectionOutboxEntry",
     "ProjectionStatus",
     "RiskAggregate",
+    "StaleAuthoritativeMemoryError",
     "TransactionEvent",
     "TransactionEventRevision",
     "TransactionState",

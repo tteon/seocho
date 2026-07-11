@@ -15,6 +15,7 @@ from .models import CausalToken
 class Cursor(Protocol):
     def execute(self, query: str, params: tuple[Any, ...] = ()) -> Any: ...
     def fetchone(self) -> tuple[Any, ...] | None: ...
+    def fetchall(self) -> list[tuple[Any, ...]]: ...
     def __enter__(self) -> "Cursor": ...
     def __exit__(self, *args: object) -> None: ...
 
@@ -30,6 +31,10 @@ class MemoryCommitResult:
     applied: bool
     revision: MemoryRevision
     causal_token: CausalToken
+
+
+class StaleAuthoritativeMemoryError(RuntimeError):
+    """Raised when a caller requires a sequence not committed in PostgreSQL."""
 
 
 def _canonical_json(payload: Mapping[str, Any]) -> str:
@@ -97,11 +102,15 @@ class PostgreSQLMemoryRepository:
                         raise ValueError(
                             "idempotency key was reused with a different payload"
                         )
-                    stored = self._read_revision(cursor, workspace_id, memory_id, int(revision))
+                    stored = self._read_revision(
+                        cursor, workspace_id, memory_id, int(revision)
+                    )
                     return MemoryCommitResult(
                         applied=False,
                         revision=stored,
-                        causal_token=CausalToken.for_workspace(workspace_id, int(sequence)),
+                        causal_token=CausalToken.for_workspace(
+                            workspace_id, int(sequence)
+                        ),
                     )
 
                 # Serialize writers for one logical memory while allowing
@@ -150,9 +159,19 @@ class PostgreSQLMemoryRepository:
                         supersedes_revision, canonical, schema_version)
                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, %s)""",
                     (
-                        workspace_id, memory_id, revision, sequence, event_type,
-                        occurred_at, ingested_at, provenance_id, payload_json,
-                        payload_hash, supersedes, canonical, schema_version,
+                        workspace_id,
+                        memory_id,
+                        revision,
+                        sequence,
+                        event_type,
+                        occurred_at,
+                        ingested_at,
+                        provenance_id,
+                        payload_json,
+                        payload_hash,
+                        supersedes,
+                        canonical,
+                        schema_version,
                     ),
                 )
                 cursor.execute(
@@ -167,8 +186,12 @@ class PostgreSQLMemoryRepository:
                        (workspace_id, idempotency_key, memory_id, revision, sequence,
                         payload_hash) VALUES (%s, %s, %s, %s, %s, %s)""",
                     (
-                        workspace_id, idempotency_key, memory_id, revision,
-                        sequence, payload_hash,
+                        workspace_id,
+                        idempotency_key,
+                        memory_id,
+                        revision,
+                        sequence,
+                        payload_hash,
                     ),
                 )
                 stored = MemoryRevision(
@@ -190,6 +213,108 @@ class PostgreSQLMemoryRepository:
                     revision=stored,
                     causal_token=CausalToken.for_workspace(workspace_id, sequence),
                 )
+
+    def read_revision(
+        self,
+        *,
+        workspace_id: str,
+        memory_id: str,
+        at_sequence: int | None = None,
+        required_causal_token: CausalToken | None = None,
+    ) -> MemoryRevision | None:
+        """Read the latest logical revision at or before a memory sequence."""
+
+        if not workspace_id.strip() or not memory_id.strip():
+            raise ValueError("workspace_id and memory_id are required")
+        if at_sequence is not None and at_sequence < 1:
+            raise ValueError("at_sequence must be positive")
+        if required_causal_token is not None:
+            required_causal_token.assert_workspace(workspace_id)
+
+        with self._connection_factory() as connection:
+            with connection.cursor() as cursor:
+                if required_causal_token is not None:
+                    cursor.execute(
+                        """SELECT COALESCE(next_sequence - 1, 0)
+                           FROM agent_memory_heads WHERE workspace_id = %s""",
+                        (workspace_id,),
+                    )
+                    head = cursor.fetchone()
+                    committed = int(head[0] if head else 0)
+                    if committed < required_causal_token.sequence:
+                        raise StaleAuthoritativeMemoryError(
+                            f"committed sequence {committed} is behind required "
+                            f"sequence {required_causal_token.sequence}"
+                        )
+                query = """SELECT revision, sequence, event_type, occurred_at,
+                                  ingested_at, provenance_id, payload,
+                                  supersedes_revision, canonical, schema_version
+                           FROM agent_memory_revisions
+                           WHERE workspace_id = %s AND memory_id = %s"""
+                params: tuple[Any, ...] = (workspace_id, memory_id)
+                if at_sequence is not None:
+                    query += " AND sequence <= %s"
+                    params += (at_sequence,)
+                query += " ORDER BY sequence DESC LIMIT 1"
+                cursor.execute(query, params)
+                row = cursor.fetchone()
+                return (
+                    None
+                    if row is None
+                    else self._revision_from_read_row(workspace_id, memory_id, row)
+                )
+
+    def read_history(
+        self,
+        *,
+        workspace_id: str,
+        memory_id: str,
+        through_sequence: int | None = None,
+        limit: int = 100,
+    ) -> tuple[MemoryRevision, ...]:
+        if limit < 1 or limit > 1000:
+            raise ValueError("limit must be between 1 and 1000")
+        with self._connection_factory() as connection:
+            with connection.cursor() as cursor:
+                query = """SELECT revision, sequence, event_type, occurred_at,
+                                  ingested_at, provenance_id, payload,
+                                  supersedes_revision, canonical, schema_version
+                           FROM agent_memory_revisions
+                           WHERE workspace_id = %s AND memory_id = %s"""
+                params: tuple[Any, ...] = (workspace_id, memory_id)
+                if through_sequence is not None:
+                    if through_sequence < 1:
+                        raise ValueError("through_sequence must be positive")
+                    query += " AND sequence <= %s"
+                    params += (through_sequence,)
+                query += " ORDER BY sequence DESC LIMIT %s"
+                cursor.execute(query, params + (limit,))
+                return tuple(
+                    self._revision_from_read_row(workspace_id, memory_id, row)
+                    for row in cursor.fetchall()
+                )
+
+    @staticmethod
+    def _revision_from_read_row(
+        workspace_id: str, memory_id: str, row: tuple[Any, ...]
+    ) -> MemoryRevision:
+        payload = row[6]
+        if isinstance(payload, str):
+            payload = json.loads(payload)
+        return MemoryRevision(
+            workspace_id=workspace_id,
+            memory_id=memory_id,
+            revision=int(row[0]),
+            sequence=int(row[1]),
+            event_type=str(row[2]),
+            occurred_at=str(row[3]),
+            ingested_at=str(row[4]),
+            provenance_id=str(row[5]),
+            payload=dict(payload),
+            supersedes_revision=None if row[7] is None else int(row[7]),
+            canonical=bool(row[8]),
+            schema_version=str(row[9]),
+        )
 
     @staticmethod
     def _read_revision(
@@ -224,4 +349,8 @@ class PostgreSQLMemoryRepository:
         )
 
 
-__all__ = ["MemoryCommitResult", "PostgreSQLMemoryRepository"]
+__all__ = [
+    "MemoryCommitResult",
+    "PostgreSQLMemoryRepository",
+    "StaleAuthoritativeMemoryError",
+]

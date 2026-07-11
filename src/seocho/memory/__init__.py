@@ -14,18 +14,39 @@ from .models import (
     workspace_token,
 )
 
+from .contracts import (
+    AnswerReceipt,
+    ContextEnvelope,
+    MemoryRevision,
+    MemoryUsageReceipt,
+    TransactionState,
+)
+from .postgres_schema import (
+    POSTGRES_MEMORY_SCHEMA_SQL,
+    POSTGRES_MEMORY_SCHEMA_VERSION,
+    postgres_memory_schema_statements,
+)
+
 __all__ = [
+    "AnswerReceipt",
     "BlockchainLongTermMemory",
     "BlockIngestResult",
     "BlockReplayConflictError",
     "CausalToken",
+    "ContextEnvelope",
     "FoundationDBTransactionRunner",
     "InMemoryTransactionRunner",
+    "MemoryRevision",
+    "MemoryUsageReceipt",
+    "POSTGRES_MEMORY_SCHEMA_SQL",
+    "POSTGRES_MEMORY_SCHEMA_VERSION",
     "ProjectionOutboxEntry",
     "ProjectionStatus",
     "RiskAggregate",
     "TransactionEvent",
     "TransactionEventRevision",
+    "TransactionState",
     "opaque_ref",
+    "postgres_memory_schema_statements",
     "workspace_token",
 ]

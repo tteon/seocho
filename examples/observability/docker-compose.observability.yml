@@ -57,6 +57,7 @@ services:
       - --storage.tsdb.retention.time=7d
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus-rules.yml:/etc/prometheus/seocho-rules.yml:ro
       - prometheus-data:/prometheus
     ports:
       - "9091:9090"   # 9091 host to avoid clashing with the opik profile

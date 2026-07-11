@@ -29,6 +29,9 @@ their latency, cost, consistency, and failure effects.
 
 ## Progress
 
+- [x] (2026-07-11) Ran the first live PostgreSQL-to-DozerDB projection: 635
+  entries, exact watermark parity, zero pending/replay work, 409 typed nodes,
+  748 relationships, and live exact one-to-four-hop retrieval measurements.
 - [x] (2026-07-11) Started P1 with an optional-psycopg PostgreSQL repository
   that atomically allocates a workspace sequence and writes a memory revision,
   idempotency receipt, and projection outbox entry.

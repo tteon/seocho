@@ -385,6 +385,9 @@ degradation, recovery, and explicit partial/stale status.
 
 Thresholds are initial hypotheses, not production SLAs. Every report must name
 hardware, service versions, dataset manifest, concurrency, sampling, and warmup.
+Mock and in-memory results are contract evidence only and must never be used as
+latency, throughput, scalability, compatibility, or production-readiness
+evidence. Each such claim requires a run against every service named by it.
 
 ## 9. OTel span and dashboard contract
 
@@ -484,6 +487,14 @@ transaction. Point-in-time/causal reads and transaction-state APIs remain.
 - [ ] Run dataset-fixed Mara E2E and prompt optimization A/B tests.
 - [ ] Produce machine-readable scorecard and Grafana snapshots.
 - [ ] Document every skipped live-service gate as a gap.
+
+First live PostgreSQL result: `docs/experiments/okx-agent-transactions/
+postgres-live-2026-07-11.json`. PostgreSQL 18.4 processed the same 635-event
+agent corpus at concurrency 1/8/32 with no lost commits, exact revision/outbox
+parity, and zero events reapplied during replay. Concurrency 8 had the highest
+bounded throughput (221.68 events/s); concurrency 32 increased p95 to 248.107
+ms without improving throughput. This is evidence for PostgreSQL only, not the
+unstarted DozerDB/etcd/Mara/OTel lanes.
 
 ### P6. Portfolio handoff
 

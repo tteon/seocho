@@ -80,6 +80,13 @@ their latency, cost, consistency, and failure effects.
 
 ## Surprises & Discoveries
 
+- Observation: The first live PostgreSQL concurrency run found that an
+  advisory-lock text key containing a NUL separator passes mock cursor tests
+  but fails psycopg/PostgreSQL with `text fields cannot contain NUL bytes`.
+  Evidence: the live PostgreSQL 18 run failed before measurement; the key was
+  replaced with an unambiguous length-prefixed text encoding and the identical
+  workload must be rerun. No performance result is claimed from the failed run.
+
 - Observation: The current `main` checkout has vendor-neutral JSONL/Opik
   tracing but no OTel backend, while the separate `feat/observability-otel`
   worktree contains a substantial implementation.
@@ -100,6 +107,14 @@ their latency, cost, consistency, and failure effects.
   QueryProxy tests report 6 passed.
 
 ## Decision Log
+
+- Decision: Mocks and in-memory runners may prove contracts only; every
+  performance, scalability, compatibility, or production-readiness claim must
+  come from the actual named services and dataset.
+  Rationale: The first PostgreSQL concurrency attempt exposed a real protocol
+  incompatibility that the mock cursor could not detect. Missing live services
+  remain explicit gaps rather than being substituted with synthetic numbers.
+  Date/Author: 2026-07-11 / User and Codex
 
 - Decision: Retain the July 2026 Memgraph PostgreSQL 19 SQL/PGQ benchmark as a
   reproducible hypothesis for the PostgreSQL-authority/DozerDB-serving split,

@@ -118,7 +118,7 @@ class PostgreSQLMemoryRepository:
                 # unrelated memories to progress concurrently.
                 cursor.execute(
                     "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
-                    (f"{workspace_id}\0{memory_id}",),
+                    (f"{len(workspace_id)}:{workspace_id}{memory_id}",),
                 )
                 cursor.execute(
                     """INSERT INTO agent_memory_heads (workspace_id, next_sequence)

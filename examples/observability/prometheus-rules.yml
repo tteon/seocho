@@ -50,6 +50,20 @@ groups:
           severity: page
         annotations:
           summary: SEOCHO agent error ratio exceeds the initial burn threshold
+      - alert: SeochoPostgreSQLDown
+        expr: pg_up == 0
+        for: 2m
+        labels:
+          severity: page
+        annotations:
+          summary: SEOCHO authoritative PostgreSQL is unavailable
+      - alert: SeochoEtcdNoLeader
+        expr: etcd_server_has_leader == 0
+        for: 1m
+        labels:
+          severity: page
+        annotations:
+          summary: SEOCHO etcd coordination cluster has no leader
 
   - name: seocho-ticket
     rules:

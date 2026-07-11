@@ -22,6 +22,8 @@ def test_rules_cover_slo_freshness_governance_and_projection() -> None:
         "SeochoDisclosureViolation",
         "SeochoProjectionStalled",
         "SeochoAgentErrorBudgetBurn",
+        "SeochoPostgreSQLDown",
+        "SeochoEtcdNoLeader",
     } <= alerts
 
 

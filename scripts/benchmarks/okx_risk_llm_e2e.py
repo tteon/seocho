@@ -36,6 +36,24 @@ def _prompt(case: dict[str, Any]) -> str:
     )
 
 
+def _object_payload(value: Any) -> dict[str, Any]:
+    required = {
+        "disposition",
+        "explanation",
+        "provenance_ids",
+        "missing_information",
+    }
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, list):
+        candidates = [
+            item for item in value if isinstance(item, dict) and required <= item.keys()
+        ]
+        if len(candidates) == 1:
+            return candidates[0]
+    raise ValueError("model output must be one JSON object")
+
+
 def run(*, dataset: Path, limit: int, model: str, output: Path | None) -> dict[str, Any]:
     cases = _load(dataset)[:limit]
     if not os.environ.get("MARA_API_KEY"):
@@ -64,7 +82,7 @@ def run(*, dataset: Path, limit: int, model: str, output: Path | None) -> dict[s
         )
         elapsed_ms = round((time.perf_counter() - started) * 1000, 2)
         try:
-            parsed = response.json()
+            parsed = _object_payload(response.json())
             parse_error = ""
         except (TypeError, ValueError, json.JSONDecodeError) as exc:
             parsed = {}
@@ -72,6 +90,8 @@ def run(*, dataset: Path, limit: int, model: str, output: Path | None) -> dict[s
         expected = case["expected"]
         disposition_ok = parsed.get("disposition") == expected["disposition"]
         provenance = parsed.get("provenance_ids") or []
+        if isinstance(provenance, str):
+            provenance = [provenance]
         provenance_ok = expected["required_provenance"] in provenance
         text = json.dumps(parsed, ensure_ascii=False)
         leakage = tuple(
@@ -147,15 +167,16 @@ async def run_async(
                     mode="pipeline",
                     model=model,
                 )
-                parsed = response.json()
+                parsed = _object_payload(response.json())
                 parse_error = ""
                 text = json.dumps(parsed, ensure_ascii=False)
                 leakage = tuple(
                     field for field in case["expected"]["must_not_reveal"] if field in text
                 )
-                provenance_ok = case["expected"]["required_provenance"] in (
-                    parsed.get("provenance_ids") or []
-                )
+                provenance = parsed.get("provenance_ids") or []
+                if isinstance(provenance, str):
+                    provenance = [provenance]
+                provenance_ok = case["expected"]["required_provenance"] in provenance
                 return {
                     "id": case["id"],
                     "disposition_ok": parsed.get("disposition")

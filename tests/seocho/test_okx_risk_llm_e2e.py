@@ -33,6 +33,17 @@ def test_prompt_contains_only_disclosure_filtered_evidence() -> None:
     assert "policy_block" in prompt
 
 
+def test_object_payload_unwraps_single_object_array() -> None:
+    answer = {
+        "disposition": "review",
+        "explanation": "bounded evidence",
+        "provenance_ids": ["p1"],
+        "missing_information": [],
+    }
+    evidence_echo = {"disposition": "review", "graph_hops": 0}
+    assert MODULE._object_payload([evidence_echo, answer]) == answer
+
+
 def test_async_runner_skips_without_key(tmp_path, monkeypatch) -> None:
     monkeypatch.delenv("MARA_API_KEY", raising=False)
     import asyncio

@@ -9,6 +9,11 @@ item `seocho-47m`.
 
 ## Purpose / Big Picture
 
+The consolidated implementation and evaluation contract now lives in
+`docs/OKX_AGENT_MEMORY_SYSTEM_SPEC.md`. This ExecPlan retains the chronological
+record of the initial vertical slice; new milestones should use the system
+spec's P0-P6 checklist and Q1-Q12 evaluation matrix.
+
 After this change, a developer can run an OKX-style customer-support query
 through SEOCHO and inspect one portable trace that explains prompt identity,
 provider usage, graph-query work, evidence coverage, tenant scope, and failure
@@ -24,6 +29,9 @@ their latency, cost, consistency, and failure effects.
 
 ## Progress
 
+- [x] (2026-07-11) Added the consolidated system specification, PostgreSQL v1
+  authoritative-memory schema, typed context/usage/answer receipts, and a
+  deterministic single-user longitudinal generator with Q1-Q12 gold queries.
 - [x] (2026-07-10) Created local work item `seocho-47m` and an isolated
   `feat/okx-agent-memory` worktree from current `main`.
 - [x] (2026-07-10) Located the prior OTel implementation in
@@ -86,6 +94,23 @@ their latency, cost, consistency, and failure effects.
   QueryProxy tests report 6 passed.
 
 ## Decision Log
+
+- Decision: Use Beads only as the local coordination ledger for multi-step,
+  dependency-bearing, or parallel agent work; keep GitHub issues/PRs as the
+  canonical public record and this ExecPlan/system spec as the durable design
+  narrative.
+  Rationale: Beads is useful for claim, ready/blocked, dependency, and handoff
+  state, but duplicating every small edit creates stale planning state and
+  worktree overhead. The OKX memory P1-P6 milestones qualify; single-file and
+  same-session changes do not need separate Beads items.
+  Date/Author: 2026-07-11 / User and Codex
+
+- Decision: Share one Beads workspace across the OKX feature worktrees rather
+  than initializing independent `.beads` histories in each worktree.
+  Rationale: Separate trackers would fork coordination truth. Before relying
+  on Beads gates, align the CLI/hooks and verify the shared workspace with
+  `bd doctor` and sandboxed reads.
+  Date/Author: 2026-07-11 / User and Codex
 
 - Decision: Keep DozerDB as the graph baseline and exclude Memgraph from this
   implementation.

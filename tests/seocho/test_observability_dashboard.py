@@ -20,15 +20,16 @@ def test_seven_production_and_evaluation_dashboards_are_provisioned() -> None:
         "seocho-dependencies",
         "seocho-critical-agent-memory",
     }
-    observed = {
-        json.loads(path.read_text(encoding="utf-8"))["uid"]
-        for path in DASHBOARD_DIR.glob("seocho-*.json")
-    }
+    observed = set()
+    for path in DASHBOARD_DIR.glob("seocho-*.json"):
+        with open(path, "r", encoding="utf-8") as f:
+            observed.add(json.load(f)["uid"])
     assert expected <= observed
 
 
 def test_critical_dashboard_covers_governance_and_memory_signals() -> None:
-    dashboard = json.loads(DASHBOARD.read_text(encoding="utf-8"))
+    with open(DASHBOARD, "r", encoding="utf-8") as f:
+        dashboard = json.load(f)
     assert dashboard["uid"] == "seocho-critical-agent-memory"
     expressions = "\n".join(
         target["expr"]

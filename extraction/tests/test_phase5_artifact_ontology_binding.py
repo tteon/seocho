@@ -158,7 +158,8 @@ def test_get_semantic_artifact_legacy_unknown(tmp_path):
         base_dir=str(tmp_path),
     )
     artifact_path = sas._workspace_dir(str(tmp_path), "acme") / f"{payload['artifact_id']}.json"
-    raw = _json.loads(artifact_path.read_text())
+    with open(artifact_path, "r", encoding="utf-8") as f:
+        raw = json.load(f)
     raw.pop("ontology_identity_hash", None)
     artifact_path.write_text(_json.dumps(raw))
 

@@ -29,6 +29,11 @@ their latency, cost, consistency, and failure effects.
 
 ## Progress
 
+- [x] (2026-07-11) Started the live lightweight observability stack and
+  verified one SEOCHO nested trace in Tempo, an `up` Collector target in
+  Prometheus, and provisioned Tempo/Prometheus Grafana datasources. The first
+  attempt exposed invalid Docker service aliases and was corrected to stable
+  container names.
 - [x] (2026-07-11) Ran live Mara MiniMax-M2.7 at concurrency three after
   hardening JSON normalization: 6/6 successful, exact disposition/provenance,
   zero leakage, and approximately 3.248-second p95.
@@ -113,6 +118,15 @@ their latency, cost, consistency, and failure effects.
   QueryProxy tests report 6 passed.
 
 ## Decision Log
+
+- Decision: Keep LiteLLM as the first model-aware gateway seam and defer Envoy
+  AI Gateway to a measured Kubernetes/network-security scale profile.
+  Rationale: LiteLLM directly addresses current provider normalization,
+  routing/fallback, budgets, virtual keys, and model usage. Adding Envoy now
+  creates two gateway layers without a failed throughput, mTLS, or Gateway API
+  requirement. Envoy remains the stronger candidate when the network data
+  plane rather than model semantics becomes the bottleneck.
+  Date/Author: 2026-07-11 / User and Codex
 
 - Decision: Mocks and in-memory runners may prove contracts only; every
   performance, scalability, compatibility, or production-readiness claim must

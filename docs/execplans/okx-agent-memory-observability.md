@@ -29,6 +29,9 @@ their latency, cost, consistency, and failure effects.
 
 ## Progress
 
+- [x] (2026-07-11) Ran live Mara MiniMax-M2.7 at concurrency three after
+  hardening JSON normalization: 6/6 successful, exact disposition/provenance,
+  zero leakage, and approximately 3.248-second p95.
 - [x] (2026-07-11) Ran the first live PostgreSQL-to-DozerDB projection: 635
   entries, exact watermark parity, zero pending/replay work, 409 typed nodes,
   748 relationships, and live exact one-to-four-hop retrieval measurements.

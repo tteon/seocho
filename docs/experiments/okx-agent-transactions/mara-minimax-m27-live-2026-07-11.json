@@ -1,0 +1,40 @@
+{
+  "schema_version": "okx-risk-llm-live.v1",
+  "date": "2026-07-11",
+  "provider": "Mara",
+  "model": "MiniMax-M2.7",
+  "mode": "live-api",
+  "case_count": 6,
+  "concurrency": 3,
+  "success_count": 6,
+  "error_count": 0,
+  "disposition_accuracy": 1.0,
+  "provenance_coverage": 1.0,
+  "leakage_cases": 0,
+  "latency_ms": {
+    "min": 1742.65,
+    "max": 4759.09,
+    "p95": 3247.99
+  },
+  "output_normalization": {
+    "fenced_json": true,
+    "reasoning_preamble": true,
+    "string_provenance_to_list": true,
+    "schema_key_object_selection": true,
+    "raw_reasoning_persisted": false,
+    "completion_persisted": false,
+    "completion_hash_only": true
+  },
+  "discovery": {
+    "initial_success_count": 5,
+    "initial_error": "M2.7 returned an evidence object and final answer object in one array for one case.",
+    "fix": "Select the unique object containing every required output-schema key; do not choose by array position."
+  },
+  "not_measured": [
+    "sustained request rate",
+    "provider cost",
+    "reasoning token count",
+    "time to first token",
+    "OTel overhead"
+  ]
+}

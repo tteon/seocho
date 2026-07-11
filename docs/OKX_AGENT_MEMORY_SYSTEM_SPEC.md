@@ -496,6 +496,15 @@ bounded throughput (221.68 events/s); concurrency 32 increased p95 to 248.107
 ms without improving throughput. This is evidence for PostgreSQL only, not the
 unstarted DozerDB/etcd/Mara/OTel lanes.
 
+First live PostgreSQL-to-DozerDB result:
+`docs/experiments/okx-agent-transactions/postgres-dozerdb-live-2026-07-11.json`.
+All 635 pending entries projected in seven batches; PostgreSQL then reported
+pending zero and watermark 635, while replay projected zero entries. DozerDB
+contained the expected 409 typed nodes and 748 relationships. Exact directed
+agent-handoff traversal p95 stayed between 7.193 and 10.935 ms for one-to-four
+hops in this small graph. This is a bounded live measurement, not a sustained
+load or PostgreSQL SQL/PGQ comparison.
+
 ### P6. Portfolio handoff
 
 - [ ] Provide one-command local demo and one-command evaluation run.

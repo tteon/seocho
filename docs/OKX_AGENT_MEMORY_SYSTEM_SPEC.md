@@ -388,6 +388,11 @@ Grafana dashboards:
 - [ ] Retain in-memory repository for deterministic tests.
 - [ ] Keep FoundationDB as an opt-in comparison adapter only.
 
+Progress note: the first PostgreSQL repository slice now allocates a
+workspace sequence under row lock, serializes writers per logical memory,
+and commits revision, idempotency receipt, and projection outbox in one DB
+transaction. Point-in-time/causal reads and transaction-state APIs remain.
+
 ### P2. Graph projection and retrieval
 
 - [ ] Implement PostgreSQL-outbox to DozerDB projector and rebuild command.
@@ -413,6 +418,8 @@ Grafana dashboards:
 - [ ] Add low-cardinality metrics and Collector redaction/batch/memory limits.
 - [ ] Configure sampling, exemplars, dashboards, and alert rules.
 - [ ] Benchmark tracing off/on overhead at concurrency 1/16/32.
+- [ ] Scrape Neo4j/DozerDB cluster metrics and add low-frequency TLS
+  expiry/handshake/reload probes per `docs/NEO4J_TLS_OBSERVABILITY.md`.
 
 ### P5. Reliability and load evaluation
 

@@ -1,4 +1,4 @@
-# ADR-0144: OTLP and Query-Workload Observability
+# ADR-0147: OTLP and Query-Workload Observability
 
 Date: 2026-07-10
 Status: Proposed

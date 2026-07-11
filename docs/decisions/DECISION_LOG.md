@@ -5,6 +5,14 @@ Each entry must link to a full ADR when impact is non-trivial.
 
 ## 2026-07-11
 
+- [Accepted] `ADR-0146-production-observability-profiles-and-metric-contract.md`
+  - make production observability a supported SEOCHO capability with core,
+    dependency, cluster, TLS, and evaluation enablement profiles
+  - separate production SLO paging from first-class blockchain evaluation
+    scorecards while provisioning both surfaces
+  - require bounded labels, capability-truthful signals, derived recording
+    rules, privacy/cardinality gates, and live OTLP verification
+
 - [Proposed] `ADR-0145-blockchain-long-term-memory.md`
   - keep append-only canonical/orphaned blockchain event revisions in an
     authoritative transactional memory plane

@@ -21,6 +21,9 @@
     "prometheus_collector_target": "up",
     "grafana_prometheus_datasource": true,
     "grafana_tempo_datasource": true,
+    "grafana_critical_dashboard_uid": "seocho-critical-agent-memory",
+    "grafana_critical_dashboard_api_verified": true,
+    "scenario_metric_series_present": false,
     "raw_content_capture": false
   },
   "discovery": {
@@ -31,7 +34,7 @@
   "not_measured": [
     "trace overhead",
     "tail sampling",
-    "span-derived business metrics",
+    "live-evaluator business metric emission",
     "Neo4j TLS probes",
     "alert delivery"
   ]

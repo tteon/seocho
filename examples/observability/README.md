@@ -71,3 +71,19 @@ Running containers are not sufficient evidence. A validated profile must show:
 Use stable container names (`seocho-tempo`, `seocho-otel-collector`, and
 `seocho-prometheus`) when launching an ad-hoc profile outside this compose
 file; Docker resolves actual names unless explicit aliases are configured.
+
+## Critical-scenario dashboard
+
+Provision `grafana-dashboards.yaml` and mount `dashboards/` at
+`/var/lib/grafana/dashboards`. Grafana then exposes **SEOCHO Critical Agent
+Memory** (`uid=seocho-critical-agent-memory`) in the SEOCHO folder. It shows:
+
+- critical-scenario pass ratio and current support state;
+- authoritative PostgreSQL sequence versus DozerDB projection watermark;
+- silent-stale answers and ontology disclosure violations;
+- per-scenario, per-stage p95 latency;
+- a link to the matching `seocho-agent-memory` Tempo traces.
+
+Only bounded identifiers such as `scenario_id`, `stage`, and `support_status`
+are metric labels. Prompts, query text, wallet identifiers, and transaction
+payloads must remain out of metrics and trace attributes.

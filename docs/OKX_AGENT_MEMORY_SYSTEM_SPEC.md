@@ -393,6 +393,11 @@ degradation, recovery, and explicit partial/stale status.
 
 ## 8. Metrics and acceptance gates
 
+The normative production catalog, units, labels, enablement profiles,
+dashboards, alerts, privacy rules, and verification gates live in
+`docs/PRODUCTION_OBSERVABILITY_METRICS_SPEC.md`. This section summarizes the
+evaluation gates; it does not replace the production contract.
+
 | Dimension | Metrics | Initial gate |
 |---|---|---|
 | Memory correctness | idempotency, revision accuracy, rollback/reorg parity | 100% deterministic cases |
@@ -438,11 +443,17 @@ retained. Collector export is asynchronous and must not fail the request.
 
 Grafana dashboards:
 
-1. Agent E2E latency/error/trace breakdown
-2. Long-term memory revisions/conflicts/rollback
-3. Graph federation/query plans/projection lag
-4. Context selection/prompt tokens/Mara TTFT and quality
-5. Governance/disclosure/version drift
+1. Service Overview: rate, outcomes, p50/p95/p99, inflight, SLO burn
+2. Memory Consistency: commits, outbox depth/age, watermark, replay, reorg
+3. GraphRAG and Context: federation/Text2Cypher, evidence and token compression
+4. LLM and Agent Exchange: TTFT, tokens, cost, retry/repair and handoff loops
+5. Governance and Audit: disclosure, version drift, receipts and provenance
+6. Dependencies: PostgreSQL, DozerDB, etcd and telemetry-pipeline saturation
+7. Evaluation: versioned blockchain dataset quality and S1-S10 scorecards
+
+The evaluation dashboard is separate from production paging but remains a
+supported SEOCHO surface. Capability-gated cluster, replication, and TLS
+signals report `unsupported` when absent; they never emit fake healthy zeroes.
 
 ## 10. Implementation TODO
 
@@ -494,9 +505,13 @@ transaction. Point-in-time/causal reads and transaction-state APIs remain.
 
 ### P4. Observability stack
 
-- [ ] Provision OTel Collector, Tempo, Prometheus, and Grafana locally.
+- [x] Provision OTel Collector, Tempo, Prometheus, and Grafana locally.
 - [ ] Instrument only the stable E2E and I/O boundaries in section 9.
-- [ ] Add low-cardinality metrics and Collector redaction/batch/memory limits.
+- [x] Define the normative low-cardinality metric, label, profile, privacy,
+  SLO, dashboard, and verification contract in
+  `docs/PRODUCTION_OBSERVABILITY_METRICS_SPEC.md`.
+- [ ] Implement the production metric instruments and Collector
+  redaction/batch/memory limits from that contract.
 - [ ] Configure sampling, exemplars, dashboards, and alert rules.
 - [ ] Benchmark tracing off/on overhead at concurrency 1/16/32.
 - [ ] Scrape Neo4j/DozerDB cluster metrics and add low-frequency TLS
@@ -552,10 +567,13 @@ added about 0.205 ms per four-span tree including final flush amortization;
 this is not an E2E p95 claim. The current DozerDB image exposed no matching
 dynamic TLS reload or SSL policy settings, so TLS reload remains unverified.
 
-### P6. Portfolio handoff
+### P6. Production enablement
 
 - [ ] Provide one-command local demo and one-command evaluation run.
-- [ ] Publish architecture, trace waterfall, dashboards, and scorecard.
+- [ ] Provide `seocho observability enable` profiles and one-command live
+  verification.
+- [ ] Publish architecture, trace waterfall, seven production/evaluation
+  dashboards, alerts, and scorecard.
 - [ ] Map results back to the five OKX responsibilities in section 2.
 - [ ] Separate measured claims from design targets and future scale work.
 

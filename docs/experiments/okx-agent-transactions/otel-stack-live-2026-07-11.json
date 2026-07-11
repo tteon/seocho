@@ -1,0 +1,41 @@
+{
+  "schema_version": "seocho-otel-stack-live.v1",
+  "date": "2026-07-11",
+  "mode": "live-containers",
+  "versions": {
+    "otel_collector_contrib": "0.156.0",
+    "tempo": "3.0.0",
+    "prometheus": "3.13.1",
+    "grafana": "13.1.0"
+  },
+  "validation": {
+    "seocho_otlp_export": true,
+    "tempo_trace_id": "1b5793a7bf38abd4c4ad786f79dae4ee",
+    "tempo_root_service": "seocho-agent-memory",
+    "tempo_root_span": "agent.memory_answer",
+    "nested_spans": [
+      "graph.federated_retrieve",
+      "context.assemble",
+      "gen_ai.chat"
+    ],
+    "prometheus_collector_target": "up",
+    "grafana_prometheus_datasource": true,
+    "grafana_tempo_datasource": true,
+    "grafana_critical_dashboard_uid": "seocho-critical-agent-memory",
+    "grafana_critical_dashboard_api_verified": true,
+    "scenario_metric_series_present": false,
+    "raw_content_capture": false
+  },
+  "discovery": {
+    "first_attempt": "Collector and Prometheus could not resolve conceptual aliases tempo and otel-collector.",
+    "fix": "Use actual Docker container names or configure explicit network aliases.",
+    "dropped_initial_spans": 4
+  },
+  "not_measured": [
+    "trace overhead",
+    "tail sampling",
+    "live-evaluator business metric emission",
+    "Neo4j TLS probes",
+    "alert delivery"
+  ]
+}

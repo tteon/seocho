@@ -3,6 +3,31 @@
 This file is the lightweight index of architecture/product decisions.
 Each entry must link to a full ADR when impact is non-trivial.
 
+## 2026-07-11
+
+- [Accepted] `ADR-0146-production-observability-profiles-and-metric-contract.md`
+  - make production observability a supported SEOCHO capability with core,
+    dependency, cluster, TLS, and evaluation enablement profiles
+  - separate production SLO paging from first-class blockchain evaluation
+    scorecards while provisioning both surfaces
+  - require bounded labels, capability-truthful signals, derived recording
+    rules, privacy/cardinality gates, and live OTLP verification
+
+- [Proposed] `ADR-0145-blockchain-long-term-memory.md`
+  - keep append-only canonical/orphaned blockchain event revisions in an
+    authoritative transactional memory plane
+  - update risk aggregates and graph outbox entries in the same transaction
+  - keep DozerDB rebuildable, etcd coordination-only, and the FoundationDB
+    native client optional behind a tested transaction-runner contract
+
+## 2026-07-10
+
+- [Proposed] `ADR-0147-otlp-and-query-workload-observability.md`
+  - add optional OTLP export and nested spans without changing JSONL/Opik
+  - default to content-free, privacy-safe prompt and graph-query telemetry
+  - make `withdrawal_explanation.v1` the first bounded OKX-style workload;
+    defer FoundationDB, etcd, and LiteLLM deployment until effects are measurable
+
 ## 2026-06-17
 
 - [Proposed] ADR-0144 local-otel-observability-and-span-trace-structure

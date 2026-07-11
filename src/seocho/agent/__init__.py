@@ -15,6 +15,7 @@ from .factory import (
 )
 from .graph_loop import GraphAgenticLoop, LoopIteration, LoopResult
 from .runtime_factory import RuntimeBackedAgentFactory
+from .exchange import AgentExchange
 
 __all__ = [
     "AGENT_EXECUTION_MODES",
@@ -32,4 +33,5 @@ __all__ = [
     "indexing_system_prompt",
     "query_system_prompt",
     "supervisor_system_prompt",
+    "AgentExchange",
 ]

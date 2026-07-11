@@ -124,6 +124,19 @@ are private workspace aids only.
 
 ## Validation
 
+### Live-evidence rule
+
+- Mocks and in-memory runners validate contracts, deterministic failure paths,
+  and no-service CI only. They are never evidence for throughput, latency,
+  scalability, production readiness, or external-system compatibility.
+- Performance and production claims require an actual run against every
+  service named in the claim (for example PostgreSQL, DozerDB, etcd, Mara, or
+  an OTel Collector). Reports must identify service versions, dataset,
+  concurrency, hardware/container limits, warmup, and any skipped component.
+- A failed or unavailable live gate is reported as a gap, not replaced with a
+  mock number. Keep the mock test, fix the integration, and rerun the same
+  workload before making the claim.
+
 Run the narrowest relevant command first, then broaden if the touched surface is
 shared.
 

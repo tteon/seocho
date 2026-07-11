@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import re
+import time
 from dataclasses import dataclass
 from typing import Any, Mapping, Tuple
+
+from ..metrics import get_metrics
 
 from .cypher_validator import FORBIDDEN_CYPHER_TOKENS
 from .workloads import (
@@ -117,7 +120,13 @@ def compile_workload_query(
 ) -> WorkloadQueryPlan:
     """Compile a known workload to an approved recipe without LLM Cypher."""
 
+    started = time.perf_counter()
+    metrics = get_metrics()
     if not workspace_id.strip():
+        metrics.add(
+            "seocho.text2cypher.validation_failure.count",
+            attributes={"reason": "missing_workspace"},
+        )
         raise ValueError("workspace_id is required")
     if family.intent_id == WITHDRAWAL_EXPLANATION.intent_id:
         recipe = _WITHDRAWAL_RECIPE
@@ -160,8 +169,17 @@ def compile_workload_query(
         max_graph_hops=family.safety.max_graph_hops,
     )
     if violations:
+        metrics.add(
+            "seocho.text2cypher.validation_failure.count",
+            attributes={"reason": "unsafe_recipe"},
+        )
+        metrics.record(
+            "seocho.text2cypher.duration",
+            time.perf_counter() - started,
+            {"stage": "approved_recipe", "outcome": "rejected"},
+        )
         raise ValueError("unsafe workload recipe: " + ", ".join(violations))
-    return WorkloadQueryPlan(
+    result = WorkloadQueryPlan(
         family_id=family.intent_id,
         tier="approved_recipe",
         cypher=recipe,
@@ -169,6 +187,12 @@ def compile_workload_query(
         prompt_name=family.prompt.name,
         prompt_version=family.prompt.version,
     )
+    metrics.record(
+        "seocho.text2cypher.duration",
+        time.perf_counter() - started,
+        {"stage": "approved_recipe", "outcome": "success"},
+    )
+    return result
 
 
 def fallback_policy_for(family: QueryFamilySpec) -> Text2CypherFallbackPolicy:

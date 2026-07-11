@@ -12,6 +12,8 @@ from enum import Enum
 from hashlib import sha256
 from typing import Any, Dict, List, Optional
 
+from .metrics import get_metrics
+
 
 class PromptStage(str, Enum):
     ONTOLOGY_CANDIDATE = "ontology_candidate"
@@ -277,7 +279,7 @@ class StagePromptSpec:
             evidence_count=max(evidence_count, 0),
             provenance_count=max(provenance_count, 0),
         )
-        return PromptAssemblyReceipt(
+        receipt = PromptAssemblyReceipt(
             stage=self.stage,
             task_hint=self.task_hint,
             provider=provider,
@@ -290,6 +292,34 @@ class StagePromptSpec:
             adapter_hint_keys=sorted(self.adapter_hints.keys()),
             optimization=optimization,
         )
+        metrics = get_metrics()
+        strategy = self.stage.value
+        metrics.record(
+            "seocho.context.candidate_token_count",
+            candidate_tokens,
+            {"strategy": strategy},
+        )
+        metrics.record(
+            "seocho.context.selected_token_count",
+            selected_tokens,
+            {"strategy": strategy},
+        )
+        metrics.record(
+            "seocho.context.item_count",
+            len(candidates),
+            {"strategy": strategy, "state": "candidate"},
+        )
+        metrics.record(
+            "seocho.context.item_count",
+            len(selected),
+            {"strategy": strategy, "state": "selected"},
+        )
+        if token_budget and selected_tokens > token_budget:
+            metrics.add(
+                "seocho.context.budget_exceeded.count",
+                attributes={"strategy": strategy},
+            )
+        return receipt
 
     def to_dict(self) -> Dict[str, Any]:
         return {

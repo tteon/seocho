@@ -74,9 +74,10 @@ file; Docker resolves actual names unless explicit aliases are configured.
 
 ## Critical-scenario dashboard
 
-Provision `grafana-dashboards.yaml` and mount `dashboards/` at
-`/var/lib/grafana/dashboards`. Grafana then exposes **SEOCHO Critical Agent
-Memory** (`uid=seocho-critical-agent-memory`) in the SEOCHO folder. It shows:
+The compose profile mounts `grafana/provisioning/` and automatically exposes
+the seven production/evaluation dashboards in the SEOCHO folder. The
+**SEOCHO Evaluation** dashboard retains
+`uid=seocho-critical-agent-memory` for compatibility. It shows:
 
 - critical-scenario pass ratio and current support state;
 - authoritative PostgreSQL sequence versus DozerDB projection watermark;

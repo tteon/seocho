@@ -178,13 +178,39 @@ class LLMResponse:
     usage: Dict[str, int] = field(default_factory=dict)
 
     def json(self) -> Any:
-        """Parse the response text as JSON. Handles fenced code blocks."""
+        """Parse JSON from plain, fenced, or reasoning-prefixed model output."""
         text = self.text.strip()
         if text.startswith("```"):
             lines = text.split("\n")
             lines = [line for line in lines if not line.strip().startswith("```")]
             text = "\n".join(lines)
-        return json.loads(text)
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            start = text.find("{")
+            if start < 0:
+                raise
+            depth = 0
+            quoted = False
+            escaped = False
+            for index, character in enumerate(text[start:], start=start):
+                if quoted:
+                    if escaped:
+                        escaped = False
+                    elif character == "\\":
+                        escaped = True
+                    elif character == '"':
+                        quoted = False
+                    continue
+                if character == '"':
+                    quoted = True
+                elif character == "{":
+                    depth += 1
+                elif character == "}":
+                    depth -= 1
+                    if depth == 0:
+                        return json.loads(text[start : index + 1])
+            raise
 
 
 class LLMBackend(ABC):

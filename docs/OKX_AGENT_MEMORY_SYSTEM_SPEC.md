@@ -505,6 +505,14 @@ agent-handoff traversal p95 stayed between 7.193 and 10.935 ms for one-to-four
 hops in this small graph. This is a bounded live measurement, not a sustained
 load or PostgreSQL SQL/PGQ comparison.
 
+First live Mara MiniMax-M2.7 result:
+`docs/experiments/okx-agent-transactions/mara-minimax-m27-live-2026-07-11.json`.
+Six disclosure-filtered cases at concurrency three completed 6/6 with exact
+disposition and provenance, zero forbidden-field leakage, and 3,247.99 ms p95.
+The live run found a model-specific evidence-echo array shape; normalization
+now selects the unique object satisfying the complete output schema. Raw
+reasoning and completions were not persisted.
+
 ### P6. Portfolio handoff
 
 - [ ] Provide one-command local demo and one-command evaluation run.

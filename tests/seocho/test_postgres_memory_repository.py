@@ -47,7 +47,7 @@ class FakeConnection:
 
 
 def test_commit_is_one_transaction_for_revision_outbox_and_idempotency() -> None:
-    cursor = FakeCursor([None, (1,), (0,)])
+    cursor = FakeCursor([None, (1,), None])
     connection = FakeConnection(cursor)
     repository = PostgreSQLMemoryRepository(lambda: connection)
 

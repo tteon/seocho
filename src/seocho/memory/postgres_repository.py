@@ -71,6 +71,7 @@ class PostgreSQLMemoryRepository:
         idempotency_key: str,
         schema_version: str = "agent-memory.v1",
         canonical: bool = True,
+        allowed_previous_event_types: tuple[str, ...] | None = None,
     ) -> MemoryCommitResult:
         required = (
             workspace_id,
@@ -137,13 +138,26 @@ class PostgreSQLMemoryRepository:
                     (sequence + 1, workspace_id),
                 )
                 cursor.execute(
-                    """SELECT COALESCE(MAX(revision), 0)
-                       FROM agent_memory_revisions
-                       WHERE workspace_id = %s AND memory_id = %s""",
+                    """SELECT revision, event_type FROM agent_memory_revisions
+                       WHERE workspace_id = %s AND memory_id = %s
+                       ORDER BY revision DESC LIMIT 1""",
                     (workspace_id, memory_id),
                 )
                 row = cursor.fetchone()
                 previous_revision = int(row[0] if row else 0)
+                previous_event_type = str(row[1]) if row and len(row) > 1 else ""
+                if allowed_previous_event_types is not None:
+                    allowed = set(allowed_previous_event_types)
+                    valid = (
+                        previous_revision == 0 and "__initial__" in allowed
+                    ) or (
+                        previous_revision > 0 and previous_event_type in allowed
+                    )
+                    if not valid:
+                        actual = previous_event_type or "__initial__"
+                        raise ValueError(
+                            f"invalid memory transition from {actual} to {event_type}"
+                        )
                 revision = previous_revision + 1
                 supersedes = previous_revision or None
                 if canonical and previous_revision:

@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
 from ..tracing import start_span
+from ..metrics import get_metrics
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,34 +37,62 @@ class AgentTransactionProjector:
     def project_pending(
         self, *, workspace_id: str, database: str, limit: int = 100
     ) -> AgentProjectionResult:
+        started = time.perf_counter()
+        metrics = get_metrics()
         entries = self._repository.read_outbox_batch(
             workspace_id=workspace_id, limit=limit
         )
         if not entries:
+            metrics.set(
+                "seocho.projection.outbox.pending", 0, {"projection": database}
+            )
             return AgentProjectionResult(0, 0, 0, 0)
         nodes, relationships = self._build_graph(entries)
         max_sequence = max(entry.sequence for entry in entries)
-        with start_span(
-            "projection.batch",
-            metadata={
-                "seocho.projection.entry_count": len(entries),
-                "seocho.projection.max_sequence": max_sequence,
-                "seocho.projection.database": database,
-            },
-        ):
-            summary = self._graph_store.write(
-                nodes,
-                relationships,
-                database=database,
-                workspace_id=workspace_id,
-                source_id=f"agent-memory:{max_sequence}",
+        try:
+            with start_span(
+                "projection.batch",
+                metadata={
+                    "seocho.projection.entry_count": len(entries),
+                    "seocho.projection.max_sequence": max_sequence,
+                    "seocho.projection.database": database,
+                },
+            ):
+                summary = self._graph_store.write(
+                    nodes,
+                    relationships,
+                    database=database,
+                    workspace_id=workspace_id,
+                    source_id=f"agent-memory:{max_sequence}",
+                )
+                self._repository.acknowledge_projection(
+                    workspace_id=workspace_id,
+                    projection=database,
+                    applied_sequence=max_sequence,
+                    entries=entries,
+                )
+        except Exception:
+            metrics.record(
+                "seocho.projection.batch.duration",
+                time.perf_counter() - started,
+                {"projection": database, "outcome": "error"},
             )
-            self._repository.acknowledge_projection(
-                workspace_id=workspace_id,
-                projection=database,
-                applied_sequence=max_sequence,
-                entries=entries,
-            )
+            raise
+        metrics.record(
+            "seocho.projection.batch.duration",
+            time.perf_counter() - started,
+            {"projection": database, "outcome": "success"},
+        )
+        metrics.record(
+            "seocho.projection.batch.entry_count",
+            len(entries),
+            {"projection": database},
+        )
+        metrics.set(
+            "seocho.projection.watermark",
+            max_sequence,
+            {"projection": database},
+        )
         return AgentProjectionResult(
             applied_entries=len(entries),
             applied_sequence=max_sequence,

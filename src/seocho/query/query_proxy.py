@@ -3,10 +3,12 @@ from __future__ import annotations
 import json
 import hashlib
 import os
+import time
 from dataclasses import dataclass
 from typing import Any, Dict, Mapping, Optional, Protocol
 
 from seocho.events import DomainEvent, EventPublisher, NullEventPublisher
+from seocho.metrics import get_metrics
 from seocho.tracing import capture_text, start_span
 
 
@@ -160,6 +162,8 @@ class QueryProxy:
         )
 
     def query(self, request: QueryRequest) -> list[Dict[str, Any]]:
+        metric_started = time.perf_counter()
+        metrics = get_metrics()
         params = dict(request.params or {})
         self._policy.validate_query(
             cypher=request.cypher,
@@ -216,6 +220,11 @@ class QueryProxy:
                 )
                 span.set_output(**{"db.rows_returned": len(records)})
         except Exception as exc:
+            metrics.record(
+                "seocho.retrieval.duration",
+                time.perf_counter() - metric_started,
+                {"source": "neo4j", "outcome": "error"},
+            )
             self._publisher.publish(
                 DomainEvent(
                     kind="query.failed",
@@ -229,6 +238,22 @@ class QueryProxy:
                 )
             )
             raise
+
+        metrics.record(
+            "seocho.retrieval.duration",
+            time.perf_counter() - metric_started,
+            {"source": "neo4j", "outcome": "success"},
+        )
+        metrics.record(
+            "seocho.retrieval.candidate_count",
+            len(records),
+            {"source": "neo4j"},
+        )
+        metrics.record(
+            "seocho.retrieval.selected_count",
+            len(records),
+            {"source": "neo4j"},
+        )
 
         self._publisher.publish(
             DomainEvent(

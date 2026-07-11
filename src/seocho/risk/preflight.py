@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any, Mapping, Tuple
 
 from ..tracing import log_span
+from ..metrics import get_metrics
 
 
 _SEVERITY = {"low": 1, "medium": 2, "high": 3, "critical": 4}
@@ -111,6 +112,13 @@ def evaluate_risk_preflight(
         },
         tags=["risk", "preflight"],
     )
+    get_metrics().add(
+        "seocho.governance.policy_decision.count",
+        attributes={
+            "policy.version": policy.version,
+            "policy.disposition": result.disposition,
+        },
+    )
     return result
 
 
@@ -195,6 +203,10 @@ class OntologyDisclosurePolicy:
         binding: SubjectDisclosureBinding,
     ) -> DisclosureResult:
         if (binding.policy_id, binding.policy_version) != (self.policy_id, self.version):
+            get_metrics().add(
+                "seocho.governance.policy_version_mismatch.count",
+                attributes={"stage": "disclosure"},
+            )
             raise ValueError("subject disclosure binding does not match active policy")
         return self.filter_record(
             record,

@@ -1,0 +1,8 @@
+{
+  "uid":"seocho-governance-audit","title":"SEOCHO Governance and Audit","tags":["seocho","governance"],"schemaVersion":41,"version":1,"refresh":"15s","time":{"from":"now-6h","to":"now"},
+  "panels":[
+    {"id":1,"type":"stat","title":"Disclosure violations","gridPos":{"h":5,"w":8,"x":0,"y":0},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"refId":"A","expr":"sum(increase(seocho_governance_disclosure_violation_count_total[$__range]))"}]},
+    {"id":2,"type":"stat","title":"Policy version mismatch","gridPos":{"h":5,"w":8,"x":8,"y":0},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"refId":"A","expr":"sum(increase(seocho_governance_policy_version_mismatch_count_total[$__range]))"}]},
+    {"id":3,"type":"timeseries","title":"Policy decisions","gridPos":{"h":10,"w":24,"x":0,"y":5},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"refId":"A","expr":"sum by (policy_version, policy_disposition) (rate(seocho_governance_policy_decision_count_total[5m]))","legendFormat":"{{policy_version}} {{policy_disposition}}"}]}
+  ]
+}

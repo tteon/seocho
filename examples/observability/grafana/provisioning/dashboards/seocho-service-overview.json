@@ -1,0 +1,9 @@
+{
+  "uid":"seocho-service-overview","title":"SEOCHO Service Overview","tags":["seocho","production"],"schemaVersion":41,"version":1,"refresh":"15s","time":{"from":"now-1h","to":"now"},
+  "panels":[
+    {"id":1,"type":"stat","title":"Request rate","gridPos":{"h":5,"w":6,"x":0,"y":0},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"refId":"A","expr":"sum(rate(seocho_agent_request_count_total[5m]))"}]},
+    {"id":2,"type":"stat","title":"Error ratio","gridPos":{"h":5,"w":6,"x":6,"y":0},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"refId":"A","expr":"seocho:agent_error_ratio:5m"}]},
+    {"id":3,"type":"stat","title":"Inflight","gridPos":{"h":5,"w":6,"x":12,"y":0},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"refId":"A","expr":"sum(seocho_agent_request_inflight_requests)"}]},
+    {"id":4,"type":"timeseries","title":"Request latency p50 / p95 / p99","gridPos":{"h":10,"w":24,"x":0,"y":5},"datasource":{"type":"prometheus","uid":"prometheus"},"targets":[{"refId":"A","expr":"histogram_quantile(0.50, sum by (le, operation) (rate(seocho_agent_request_duration_seconds_bucket[5m])))","legendFormat":"p50 {{operation}}"},{"refId":"B","expr":"histogram_quantile(0.95, sum by (le, operation) (rate(seocho_agent_request_duration_seconds_bucket[5m])))","legendFormat":"p95 {{operation}}"},{"refId":"C","expr":"histogram_quantile(0.99, sum by (le, operation) (rate(seocho_agent_request_duration_seconds_bucket[5m])))","legendFormat":"p99 {{operation}}"}]}
+  ]
+}

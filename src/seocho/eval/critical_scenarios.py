@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any, Mapping, Tuple
 
+from seocho.metrics import ProductionMetrics, get_metrics
+
 
 CRITICAL_SCENARIO_IDS: tuple[str, ...] = tuple(f"S{i}" for i in range(1, 11))
 
@@ -75,8 +77,59 @@ def assert_live_evidence(
         )
 
 
+def emit_critical_scenario_metrics(
+    result: CriticalScenarioResult, *, metrics: ProductionMetrics | None = None
+) -> None:
+    """Emit bounded evaluation metrics after a scenario reaches a terminal state."""
+
+    sink = metrics or get_metrics()
+    labels = {
+        "scenario_id": result.scenario_id,
+        "support_status": result.support_status,
+    }
+    sink.add("seocho.critical.scenario.runs", attributes=labels)
+    if result.passed_common_gates:
+        sink.add(
+            "seocho.critical.scenario.passed",
+            attributes={"scenario_id": result.scenario_id},
+        )
+    sink.add(
+        "seocho.critical.silent_stale",
+        result.silent_stale_answers,
+        {"scenario_id": result.scenario_id},
+    )
+    sink.add(
+        "seocho.critical.disclosure_violations",
+        result.disclosure_violations,
+        {"scenario_id": result.scenario_id},
+    )
+    sink.set(
+        "seocho.critical.memory_sequence",
+        result.memory_sequence,
+        {"scenario_id": result.scenario_id},
+    )
+    sink.set(
+        "seocho.critical.projection_watermark",
+        result.projection_watermark,
+        {"scenario_id": result.scenario_id},
+    )
+    sink.set(
+        "seocho.critical.projection_lag",
+        max(result.memory_sequence - result.projection_watermark, 0),
+        {"scenario_id": result.scenario_id},
+    )
+    sink.set("seocho.critical.scenario.info", 1, labels)
+    for stage, latency_ms in result.latency_ms.items():
+        sink.record(
+            "seocho.critical.latency",
+            latency_ms,
+            {"scenario_id": result.scenario_id, "stage": stage},
+        )
+
+
 __all__ = [
     "CRITICAL_SCENARIO_IDS",
     "CriticalScenarioResult",
     "assert_live_evidence",
+    "emit_critical_scenario_metrics",
 ]

@@ -16,10 +16,17 @@ class LongitudinalEvent:
     workspace_id: str
     user_ref: str
     sequence: int
+    chain_id: str
+    block_height: int
+    block_hash_ref: str
     transaction_ref: str
     agent_ref: str
     counterparty_ref: str
     state: str
+    event_kind: str
+    direction: str
+    amount_sats: int
+    confirmation_count: int
     occurred_at: str
     provenance_id: str
     idempotency_key: str
@@ -71,31 +78,60 @@ def generate_longitudinal_events(
     origin = start_at or datetime(2025, 1, 1, tzinfo=timezone.utc)
     if origin.tzinfo is None:
         raise ValueError("start_at must be timezone-aware")
-    state_cycle = (
-        TransactionState.INTENT_CREATED.value,
-        TransactionState.PENDING.value,
-        TransactionState.CONFIRMED.value,
-        TransactionState.FAILED.value,
-        TransactionState.REPLACED.value,
-        TransactionState.REVERSED.value,
+    lifecycle_patterns = (
+        (
+            TransactionState.INTENT_CREATED.value,
+            TransactionState.PENDING.value,
+            TransactionState.CONFIRMED.value,
+        ),
+        (
+            TransactionState.INTENT_CREATED.value,
+            TransactionState.PENDING.value,
+            TransactionState.FAILED.value,
+        ),
+        (
+            TransactionState.INTENT_CREATED.value,
+            TransactionState.PENDING.value,
+            TransactionState.REPLACED.value,
+        ),
+        (
+            TransactionState.INTENT_CREATED.value,
+            TransactionState.CONFIRMED.value,
+            TransactionState.REVERSED.value,
+        ),
     )
 
     for index in range(event_count):
         sequence = index + 1
         transaction_number = index // 3
+        lifecycle_step = index % 3
         transaction_ref = _ref("tx", f"{seed}:{transaction_number}")
-        state = state_cycle[index % len(state_cycle)]
+        state = lifecycle_patterns[transaction_number % len(lifecycle_patterns)][
+            lifecycle_step
+        ]
         agent_ref = f"agent:{1 + transaction_number % 8:02d}"
         counterparty_ref = _ref("counterparty", str(transaction_number % 97))
         occurred_at = origin + timedelta(seconds=index * 11 + rng.randint(0, 3))
+        block_height = 880_000 + transaction_number // 32
+        is_confirmed = state in {
+            TransactionState.CONFIRMED.value,
+            TransactionState.REVERSED.value,
+        }
         yield LongitudinalEvent(
             workspace_id=workspace_id,
             user_ref=user_ref,
             sequence=sequence,
+            chain_id="bitcoin-mainnet",
+            block_height=block_height,
+            block_hash_ref=_ref("block", f"{seed}:{block_height}"),
             transaction_ref=transaction_ref,
             agent_ref=agent_ref,
             counterparty_ref=counterparty_ref,
             state=state,
+            event_kind=f"transaction.{state}",
+            direction="outbound" if transaction_number % 2 == 0 else "inbound",
+            amount_sats=10_000 + (transaction_number * 7_919) % 5_000_000,
+            confirmation_count=(1 + transaction_number % 144) if is_confirmed else 0,
             occurred_at=occurred_at.isoformat(),
             provenance_id=f"synthetic:{seed}:{sequence}",
             idempotency_key=_ref("idem", f"{seed}:{sequence}"),

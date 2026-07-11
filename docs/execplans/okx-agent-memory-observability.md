@@ -106,7 +106,7 @@ their latency, cost, consistency, and failure effects.
   not as evidence for SEOCHO or DozerDB.
   Rationale: The published exact-hop setup is narrow and useful, but it is
   vendor-authored and engine-specific. SEOCHO will rerun result-equivalent
-  one-to-five-hop workloads on Pokec medium and its transaction graph with
+  one-to-five-hop workloads on its Bitcoin transaction-memory graph with
   matched resources, indexes, warmups, timeout, and plan/resource telemetry.
   Date/Author: 2026-07-11 / User and Codex
 

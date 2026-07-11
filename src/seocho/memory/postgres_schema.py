@@ -10,6 +10,11 @@ from __future__ import annotations
 POSTGRES_MEMORY_SCHEMA_VERSION = "agent-memory-pg.v1"
 
 POSTGRES_MEMORY_SCHEMA_SQL = r"""
+CREATE TABLE IF NOT EXISTS agent_memory_heads (
+    workspace_id text PRIMARY KEY,
+    next_sequence bigint NOT NULL CHECK (next_sequence > 0)
+);
+
 CREATE TABLE IF NOT EXISTS agent_memory_revisions (
     workspace_id text NOT NULL,
     memory_id text NOT NULL,
@@ -36,6 +41,17 @@ CREATE INDEX IF NOT EXISTS agent_memory_revision_event_time_idx
 CREATE INDEX IF NOT EXISTS agent_memory_revision_current_idx
     ON agent_memory_revisions (workspace_id, memory_id, canonical)
     WHERE canonical;
+
+CREATE TABLE IF NOT EXISTS agent_memory_idempotency (
+    workspace_id text NOT NULL,
+    idempotency_key text NOT NULL,
+    memory_id text NOT NULL,
+    revision bigint NOT NULL CHECK (revision > 0),
+    sequence bigint NOT NULL CHECK (sequence > 0),
+    payload_hash text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (workspace_id, idempotency_key)
+);
 
 CREATE TABLE IF NOT EXISTS agent_transaction_intents (
     workspace_id text NOT NULL,

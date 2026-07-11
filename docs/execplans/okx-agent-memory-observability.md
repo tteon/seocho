@@ -29,6 +29,12 @@ their latency, cost, consistency, and failure effects.
 
 ## Progress
 
+- [x] (2026-07-11) Started P1 with an optional-psycopg PostgreSQL repository
+  that atomically allocates a workspace sequence and writes a memory revision,
+  idempotency receipt, and projection outbox entry.
+- [x] (2026-07-11) Defined the Neo4j/DozerDB TLS observability contract:
+  native Prometheus scraping plus low-frequency certificate expiry,
+  handshake, and reload probes correlated with graph request traces.
 - [x] (2026-07-11) Added the consolidated system specification, PostgreSQL v1
   authoritative-memory schema, typed context/usage/answer receipts, and a
   deterministic single-user longitudinal generator with Q1-Q12 gold queries.

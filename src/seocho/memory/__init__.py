@@ -26,6 +26,7 @@ from .postgres_schema import (
     POSTGRES_MEMORY_SCHEMA_VERSION,
     postgres_memory_schema_statements,
 )
+from .postgres_repository import MemoryCommitResult, PostgreSQLMemoryRepository
 
 __all__ = [
     "AnswerReceipt",
@@ -37,9 +38,11 @@ __all__ = [
     "FoundationDBTransactionRunner",
     "InMemoryTransactionRunner",
     "MemoryRevision",
+    "MemoryCommitResult",
     "MemoryUsageReceipt",
     "POSTGRES_MEMORY_SCHEMA_SQL",
     "POSTGRES_MEMORY_SCHEMA_VERSION",
+    "PostgreSQLMemoryRepository",
     "ProjectionOutboxEntry",
     "ProjectionStatus",
     "RiskAggregate",

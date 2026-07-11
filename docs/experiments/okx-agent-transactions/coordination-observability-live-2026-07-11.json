@@ -1,0 +1,31 @@
+{
+  "schema_version": "seocho-coordination-observability-live.v1",
+  "date": "2026-07-11",
+  "etcd": {
+    "version": "3.5.17",
+    "endpoint_health": "healthy",
+    "proposal_latency_ms": 1.119804,
+    "stored_records": ["active_policy", "projection_watermark"],
+    "stored_customer_or_transaction_body": false,
+    "lease_ttl_seconds": 30,
+    "lease_bound_record": "projector owner + fencing token",
+    "owner_removed_after_expiry": true
+  },
+  "otel_overhead_probe": {
+    "trace_trees": 200,
+    "spans_per_tree": 4,
+    "none_total_ms": 0.682,
+    "live_otlp_with_final_flush_total_ms": 41.73,
+    "bounded_increment_ms_per_tree": 0.20524,
+    "production_p95_claim": false,
+    "interpretation": "Transport micro-probe only; repeat around the real E2E workload for an SLA claim."
+  },
+  "dozerdb_tls_capability": {
+    "image": "graphstack/dozerdb:5.26.3.0",
+    "query": "SHOW SETTINGS filtered for tls_reload and ssl.policy",
+    "matching_settings": 0,
+    "dynamic_reload_claimed": false,
+    "status": "unsupported-or-not-exposed-in-this-image",
+    "required_follow_up": "TLS-enabled Neo4j Enterprise profile"
+  }
+}

@@ -307,6 +307,10 @@ is outside this evaluation and never enabled by default.
 
 ## 7. Evaluation queries and scenarios
 
+The production-critical incident definitions, failure injections, and exact
+pass/fail gates are specified in `docs/OKX_CRITICAL_AGENT_MEMORY_SCENARIOS.md`.
+The Q1-Q12 catalog below remains the broader coverage index.
+
 ### Q1. Cross-session memory recall
 
 > 지난 세션에서 내가 반복 거래 대상으로 지정한 agent와 최근 세 건의
@@ -538,6 +542,15 @@ SEOCHO exported one nested trace through Collector 0.156.0 into Tempo 3.0.0;
 Prometheus 3.13.1 reported the Collector target up and Grafana 13.1.0 loaded
 both datasources. This validates transport and topology only. Trace overhead,
 sampling, application metrics, TLS probes, and alerts remain live gates.
+
+First live etcd/OTel-overhead/TLS-capability result:
+`docs/experiments/okx-agent-transactions/
+coordination-observability-live-2026-07-11.json`. etcd 3.5.17 stored only
+validated policy/watermark pointers, bound projector ownership to a 30-second
+lease, and removed the owner after expiry. A 200-tree OTLP transport probe
+added about 0.205 ms per four-span tree including final flush amortization;
+this is not an E2E p95 claim. The current DozerDB image exposed no matching
+dynamic TLS reload or SSL policy settings, so TLS reload remains unverified.
 
 ### P6. Portfolio handoff
 

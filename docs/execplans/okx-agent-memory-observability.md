@@ -29,6 +29,10 @@ their latency, cost, consistency, and failure effects.
 
 ## Progress
 
+- [x] (2026-07-11) Validated live etcd 3.5.17 policy/watermark records and a
+  lease-bound projector owner that disappeared after TTL expiry; measured a
+  bounded OTel transport micro-probe and recorded that the current DozerDB
+  image exposes no dynamic TLS reload/SSL policy setting.
 - [x] (2026-07-11) Started the live lightweight observability stack and
   verified one SEOCHO nested trace in Tempo, an `up` Collector target in
   Prometheus, and provisioned Tempo/Prometheus Grafana datasources. The first

@@ -933,6 +933,20 @@ def start_span(
         except Exception:
             pass
 
+    # OTLP creates the authoritative trace identity. Expose that identity on
+    # the public handle so receipts and Grafana links address the trace Tempo
+    # actually stores, rather than SEOCHO's fallback correlation UUID.
+    if parent_span_id is None and opened:
+        try:
+            native_context = opened[0][1].get_span_context()
+            native_trace_id = f"{native_context.trace_id:032x}"
+            if native_trace_id != "0" * 32:
+                trace_id = native_trace_id
+                handle.trace_id = native_trace_id
+                new_stack = (native_trace_id, span_id)
+        except Exception:
+            pass
+
     stack_token = _span_stack.set(new_stack)
     start = time.perf_counter()
     try:

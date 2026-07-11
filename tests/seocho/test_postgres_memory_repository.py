@@ -2,7 +2,11 @@ from typing import Any
 
 import pytest
 
-from seocho.memory import PostgreSQLMemoryRepository
+from seocho.memory import (
+    CausalToken,
+    PostgreSQLMemoryRepository,
+    StaleAuthoritativeMemoryError,
+)
 
 
 class FakeCursor:
@@ -15,6 +19,10 @@ class FakeCursor:
 
     def fetchone(self) -> tuple[Any, ...] | None:
         return self.fetches.pop(0)
+
+    def fetchall(self) -> list[tuple[Any, ...]]:
+        rows = self.fetches.pop(0)
+        return [] if rows is None else list(rows)  # type: ignore[arg-type]
 
     def __enter__(self) -> "FakeCursor":
         return self
@@ -81,3 +89,42 @@ def test_idempotency_key_reuse_with_different_payload_rolls_back() -> None:
         )
 
     assert connection.exit_exception is ValueError
+
+
+def test_point_in_time_read_returns_revision_at_bounded_sequence() -> None:
+    row = (
+        2,
+        7,
+        "transaction.pending",
+        "2026-07-11T00:00:00+00:00",
+        "2026-07-11T00:00:01+00:00",
+        "source-2",
+        '{"state":"pending"}',
+        1,
+        False,
+        "agent-memory.v1",
+    )
+    cursor = FakeCursor([row])
+    repository = PostgreSQLMemoryRepository(lambda: FakeConnection(cursor))
+
+    revision = repository.read_revision(
+        workspace_id="ws-1", memory_id="transaction-1", at_sequence=7
+    )
+
+    assert revision is not None
+    assert revision.revision == 2
+    assert revision.sequence == 7
+    assert revision.payload["state"] == "pending"
+    assert cursor.executed[-1][1] == ("ws-1", "transaction-1", 7)
+
+
+def test_causal_read_rejects_uncommitted_required_sequence() -> None:
+    cursor = FakeCursor([(8,)])
+    repository = PostgreSQLMemoryRepository(lambda: FakeConnection(cursor))
+
+    with pytest.raises(StaleAuthoritativeMemoryError, match="behind required"):
+        repository.read_revision(
+            workspace_id="ws-1",
+            memory_id="transaction-1",
+            required_causal_token=CausalToken.for_workspace("ws-1", 9),
+        )

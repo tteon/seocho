@@ -308,6 +308,72 @@ class PostgreSQLMemoryRepository:
                     for row in cursor.fetchall()
                 )
 
+    def read_outbox_batch(
+        self, *, workspace_id: str, limit: int = 100
+    ) -> tuple[Any, ...]:
+        """Read an ordered, bounded pending projection batch."""
+
+        if limit < 1 or limit > 1000:
+            raise ValueError("limit must be between 1 and 1000")
+        from .agent_projection import AgentProjectionEntry
+
+        with self._connection_factory() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """SELECT sequence, ordinal, aggregate_id, payload
+                       FROM agent_memory_outbox
+                       WHERE workspace_id = %s AND projected_at IS NULL
+                       ORDER BY sequence, ordinal LIMIT %s""",
+                    (workspace_id, limit),
+                )
+                entries = []
+                for sequence, ordinal, aggregate_id, payload in cursor.fetchall():
+                    if isinstance(payload, str):
+                        payload = json.loads(payload)
+                    entries.append(
+                        AgentProjectionEntry(
+                            workspace_id=workspace_id,
+                            sequence=int(sequence),
+                            ordinal=int(ordinal),
+                            aggregate_id=str(aggregate_id),
+                            payload=dict(payload),
+                        )
+                    )
+                return tuple(entries)
+
+    def acknowledge_projection(
+        self,
+        *,
+        workspace_id: str,
+        projection: str,
+        applied_sequence: int,
+        entries: tuple[Any, ...],
+    ) -> None:
+        """Atomically mark exactly one batch and advance a monotonic watermark."""
+
+        if applied_sequence < 1 or not entries:
+            raise ValueError("a non-empty applied projection batch is required")
+        with self._connection_factory() as connection:
+            with connection.cursor() as cursor:
+                for entry in entries:
+                    cursor.execute(
+                        """UPDATE agent_memory_outbox SET projected_at = now()
+                           WHERE workspace_id = %s AND sequence = %s AND ordinal = %s
+                             AND projected_at IS NULL""",
+                        (workspace_id, entry.sequence, entry.ordinal),
+                    )
+                cursor.execute(
+                    """INSERT INTO agent_projection_watermarks
+                       (workspace_id, projection, applied_sequence, fencing_token)
+                       VALUES (%s, %s, %s, 0)
+                       ON CONFLICT (workspace_id, projection) DO UPDATE
+                       SET applied_sequence = GREATEST(
+                               agent_projection_watermarks.applied_sequence,
+                               EXCLUDED.applied_sequence),
+                           updated_at = now()""",
+                    (workspace_id, projection, applied_sequence),
+                )
+
     @staticmethod
     def _revision_from_read_row(
         workspace_id: str, memory_id: str, row: tuple[Any, ...]

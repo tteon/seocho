@@ -1,0 +1,58 @@
+{
+  "schema_version": "okx-agent-memory-concurrency-sweep.v1",
+  "date": "2026-07-11",
+  "dataset": {
+    "generator": "okx-agent-transaction.v1",
+    "transactions_per_arm": 100,
+    "events_per_arm": 635,
+    "instrument": "BTC-USDT-SWAP",
+    "lifecycle_mix": ["filled", "canceled", "rejected"]
+  },
+  "environment": {
+    "mode": "live-postgresql",
+    "postgresql": "18.4",
+    "image": "postgres:18-alpine",
+    "container_cpu_limit": "unlimited",
+    "container_memory_limit": "unlimited",
+    "host_kernel": "Linux 6.8.0-94-generic x86_64"
+  },
+  "failed_first_run": {
+    "error": "PostgreSQL text fields cannot contain NUL bytes",
+    "resolution": "length-prefixed advisory-lock text key",
+    "performance_claimed": false
+  },
+  "arms": [
+    {
+      "concurrency": 1,
+      "events_per_second": 95.55,
+      "latency_ms": {"mean": 10.461, "p50": 10.416, "p95": 10.872, "p99": 11.536},
+      "lost_commits": 0,
+      "replay_applied_events": 0,
+      "revision_count": 635,
+      "outbox_count": 635
+    },
+    {
+      "concurrency": 8,
+      "events_per_second": 221.68,
+      "latency_ms": {"mean": 35.298, "p50": 36.223, "p95": 44.856, "p99": 51.479},
+      "lost_commits": 0,
+      "replay_applied_events": 0,
+      "revision_count": 635,
+      "outbox_count": 635
+    },
+    {
+      "concurrency": 32,
+      "events_per_second": 210.6,
+      "latency_ms": {"mean": 139.872, "p50": 181.767, "p95": 248.107, "p99": 278.112},
+      "lost_commits": 0,
+      "replay_applied_events": 0,
+      "revision_count": 635,
+      "outbox_count": 635
+    }
+  ],
+  "interpretation": {
+    "measured": "Concurrency 8 maximized throughput in this bounded sweep; concurrency 32 increased tail latency and did not improve throughput.",
+    "hypothesis": "The workspace-wide sequence-head row is a likely serialization point and requires a targeted contention measurement before redesign.",
+    "not_measured": ["DozerDB projection", "etcd", "Mara", "OTel overhead", "sustained load", "PostgreSQL 19 SQL/PGQ"]
+  }
+}

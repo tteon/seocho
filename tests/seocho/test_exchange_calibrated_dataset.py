@@ -15,6 +15,8 @@ def test_faults_are_explicit_not_mislabeled_as_observed() -> None:
     assert faults
     assert all(event.evidence_class == "fault_injected" for event in faults)
     assert all(event.evidence_class != "observed_public_chain" for event in events)
+    event_ids = [event.event_id for event in events]
+    assert len(event_ids) > len(set(event_ids))
 
 
 def test_venue_terminal_states_follow_documented_vocabularies() -> None:

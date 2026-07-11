@@ -108,12 +108,18 @@ def generate_exchange_calibrated_events(
         scenario = rng.choices(scenarios, weights=weights, k=1)[0]
         intent_id = _ref("intent", f"{seed}:{index}")
         parent = None
+        previous_event: ExchangeCalibratedEvent | None = None
         for ordinal, step in enumerate(_STEPS[scenario]):
+            if step == "duplicate_message":
+                if previous_event is None:
+                    raise RuntimeError("duplicate delivery requires a prior event")
+                yield previous_event
+                continue
             sequence += 1
             event_id = _ref("event", f"{seed}:{index}:{ordinal}")
             event_time = origin + timedelta(milliseconds=index * 500 + ordinal * 25)
             late = step == "late_active_message"
-            yield ExchangeCalibratedEvent(
+            event = ExchangeCalibratedEvent(
                 sequence=sequence,
                 intent_id=intent_id,
                 event_id=event_id,
@@ -127,13 +133,15 @@ def generate_exchange_calibrated_events(
                 gateway_in_time=(event_time + timedelta(milliseconds=2)).isoformat(),
                 gateway_out_time=(event_time + timedelta(milliseconds=5)).isoformat(),
                 ingest_time=(event_time + timedelta(milliseconds=10 if not late else 200)).isoformat(),
-                evidence_class="fault_injected" if step in {"duplicate_message", "late_active_message", "transport_timeout", "sequence_gap"} else "synthetic_calibrated",
+                evidence_class="fault_injected" if step in {"late_active_message", "transport_timeout", "sequence_gap"} or scenario == "duplicate_stream" and step == "partial_fill" else "synthetic_calibrated",
                 chain_anchor_ref=_ref("bitcoin-tx", f"public-anchor:{index % 102}"),
-                duplicate=step == "duplicate_message",
+                duplicate=scenario == "duplicate_stream" and step == "partial_fill",
                 late=late,
                 policy_version="2.0.0" if step in {"policy_version_changed", "context_invalidated", "risk_rechecked"} else "1.0.0",
                 ontology_version="exchange-memory-1",
             )
+            yield event
+            previous_event = event
             parent = event_id
 
 

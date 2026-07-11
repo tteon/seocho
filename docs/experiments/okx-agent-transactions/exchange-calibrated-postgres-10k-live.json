@@ -1,0 +1,26 @@
+{
+  "applied_events": 84944,
+  "concurrency": 8,
+  "delivered_events": 85286,
+  "duplicate_deliveries": 342,
+  "elapsed_seconds": 439.316167,
+  "events_per_second": 194.13,
+  "idempotent_replays": 342,
+  "intents": 10000,
+  "latency_ms": {
+    "mean": 41.196,
+    "p50": 40.727,
+    "p95": 64.539,
+    "p99": 85.809
+  },
+  "lost_commits": 0,
+  "mode": "live-postgresql",
+  "outbox_count": 84944,
+  "parity": true,
+  "postgresql_version": "18.4",
+  "revision_count": 84944,
+  "schema_version": "exchange-calibrated-postgres-live.v1",
+  "seed": 20260711,
+  "unique_events": 84944,
+  "workspace_id": "exchange-calibrated-10000-21535787"
+}

@@ -90,7 +90,7 @@
   "time": {"from": "now-15m", "to": "now"},
   "timepicker": {},
   "timezone": "browser",
-  "title": "SEOCHO Critical Agent Memory",
+  "title": "SEOCHO Evaluation",
   "uid": "seocho-critical-agent-memory",
   "version": 1
 }

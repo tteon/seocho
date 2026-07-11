@@ -1,0 +1,69 @@
+groups:
+  - name: seocho-recording
+    interval: 15s
+    rules:
+      - record: seocho:agent_error_ratio:5m
+        expr: |
+          sum(rate(seocho_agent_request_count_total{outcome=~"error|timeout"}[5m]))
+          /
+          clamp_min(sum(rate(seocho_agent_request_count_total[5m])), 1)
+      - record: seocho:projection_lag_events
+        expr: |
+          clamp_min(
+            max(seocho_memory_sequence)
+            - max by (projection) (seocho_projection_watermark),
+            0
+          )
+      - record: seocho:projection_stalled
+        expr: |
+          (seocho_projection_outbox_pending > 0)
+          and on (projection)
+          (seocho_projection_outbox_oldest_age_seconds > 60)
+
+  - name: seocho-page
+    rules:
+      - alert: SeochoSilentStaleAnswer
+        expr: increase(seocho_answer_freshness_violation_count_total[5m]) > 0
+        for: 0m
+        labels:
+          severity: page
+        annotations:
+          summary: SEOCHO blocked or detected a stale answer
+      - alert: SeochoDisclosureViolation
+        expr: increase(seocho_governance_disclosure_violation_count_total[5m]) > 0
+        for: 0m
+        labels:
+          severity: page
+        annotations:
+          summary: SEOCHO disclosure policy violation detected
+      - alert: SeochoProjectionStalled
+        expr: seocho:projection_stalled > 0
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: Authoritative memory projection is stalled
+      - alert: SeochoAgentErrorBudgetBurn
+        expr: seocho:agent_error_ratio:5m > 0.05
+        for: 10m
+        labels:
+          severity: page
+        annotations:
+          summary: SEOCHO agent error ratio exceeds the initial burn threshold
+
+  - name: seocho-ticket
+    rules:
+      - alert: SeochoLLMRepairRegression
+        expr: sum(rate(seocho_gen_ai_structured_output_repair_count_total[15m])) > 0.05
+        for: 15m
+        labels:
+          severity: ticket
+        annotations:
+          summary: Structured-output repair rate is elevated
+      - alert: SeochoTelemetryExportFailure
+        expr: increase(seocho_observability_export_failure_count_total[10m]) > 0
+        for: 10m
+        labels:
+          severity: ticket
+        annotations:
+          summary: SEOCHO telemetry export failures are sustained

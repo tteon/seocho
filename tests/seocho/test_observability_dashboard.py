@@ -3,13 +3,28 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
+DASHBOARD_DIR = ROOT / "examples" / "observability" / "grafana" / "provisioning" / "dashboards"
 DASHBOARD = (
-    ROOT
-    / "examples"
-    / "observability"
-    / "dashboards"
-    / "seocho-critical-agent-memory.json"
+    DASHBOARD_DIR
+    / "seocho-evaluation.json"
 )
+
+
+def test_seven_production_and_evaluation_dashboards_are_provisioned() -> None:
+    expected = {
+        "seocho-service-overview",
+        "seocho-memory-consistency",
+        "seocho-graphrag-context",
+        "seocho-llm-agent-exchange",
+        "seocho-governance-audit",
+        "seocho-dependencies",
+        "seocho-critical-agent-memory",
+    }
+    observed = {
+        json.loads(path.read_text(encoding="utf-8"))["uid"]
+        for path in DASHBOARD_DIR.glob("seocho-*.json")
+    }
+    assert expected <= observed
 
 
 def test_critical_dashboard_covers_governance_and_memory_signals() -> None:

@@ -4,6 +4,7 @@ from seocho.coordination import (
     CoordinationRecord,
     active_policy_record,
     projection_watermark_record,
+    projector_lease_record,
 )
 
 
@@ -44,3 +45,15 @@ def test_etcd_contract_rejects_large_values() -> None:
     )
     with pytest.raises(ValueError, match="8 KiB"):
         record.validate()
+
+
+def test_projector_lease_contains_only_worker_and_fencing_metadata() -> None:
+    record = projector_lease_record(
+        workspace_id="ws-1",
+        projection="neo4j",
+        worker_id="projector-1",
+        fencing_token=7,
+    )
+
+    assert record.kind == "worker_lease"
+    assert record.value == {"worker_id": "projector-1", "fencing_token": 7}

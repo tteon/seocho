@@ -79,3 +79,22 @@ def projection_watermark_record(
     )
     record.validate()
     return record
+
+
+def projector_lease_record(
+    *, workspace_id: str, projection: str, worker_id: str, fencing_token: int
+) -> CoordinationRecord:
+    if not projection.strip() or not worker_id.strip():
+        raise ValueError("projection and worker_id are required")
+    if fencing_token < 1:
+        raise ValueError("fencing_token must be positive")
+    record = CoordinationRecord(
+        kind="worker_lease",
+        key=(
+            f"/seocho/workspaces/{workspace_token(workspace_id)}"
+            f"/projectors/{projection}/owner"
+        ),
+        value={"worker_id": worker_id, "fencing_token": fencing_token},
+    )
+    record.validate()
+    return record

@@ -229,7 +229,10 @@ def main() -> None:
     if values["concurrency"] > 1 or values["rounds"] > 1:
         print(json.dumps(asyncio.run(run_async(**values)), indent=2, ensure_ascii=False))
     else:
-        print(json.dumps(run(**values), indent=2, ensure_ascii=False))
+        sync_values = dict(values)
+        sync_values.pop("concurrency")
+        sync_values.pop("rounds")
+        print(json.dumps(run(**sync_values), indent=2, ensure_ascii=False))
 
 
 if __name__ == "__main__":

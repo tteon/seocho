@@ -160,6 +160,15 @@ Runtime artifacts should make it obvious whether the miss came from:
 
 This is required for honest evaluation and triage.
 
+### 7. Prompt Optimization Must Emit A Receipt
+
+The context composer should emit a content-free `PromptAssemblyReceipt` that
+shows candidate/selected section counts, token estimates, token budget,
+compression ratio, stable-prefix identity, evidence/provenance counts, and
+bounded exclusion reasons. Attach only its aggregate trace attributes to the
+`context.assemble` span; keep prompt text and model reasoning out of telemetry.
+See `docs/PROMPT_OPTIMIZATION_OBSERVABILITY.md`.
+
 ## Target Runtime Mapping
 
 ### Semantic Layer

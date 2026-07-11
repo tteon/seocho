@@ -106,6 +106,39 @@ Multi-database queries use application-level bounded fan-out with per-target
 timeouts, partial-result status, and one merged evidence bundle. Cross-instance
 native federation is not assumed.
 
+### 3.3a PostgreSQL SQL/PGQ versus native graph hypothesis
+
+The Memgraph article "PostgreSQL 19 vs Memgraph: Comparing Graph Traversal
+Performance" is retained as a vendor-authored benchmark hypothesis, not as
+SEOCHO evidence. It reports exact outbound N-hop reachability over Pokec medium
+(100,000 vertices and 1,768,515 edges), one-to-five hops, warmup before timing,
+and a 30-second timeout. The reported boundary appears at deeper hops, but the
+comparison uses Memgraph-specific loading, indexes, query syntax, and execution
+modes and therefore cannot establish DozerDB performance.
+
+SEOCHO will reproduce the workload as PostgreSQL 19 SQL/PGQ versus DozerDB,
+then repeat it on the longitudinal transaction graph. The purpose is to test
+the architecture boundary:
+
+- PostgreSQL remains authoritative regardless of traversal latency.
+- DozerDB remains justified only when measured retrieval latency, throughput,
+  or query-plan stability improves the online agent workload enough to offset
+  projection lag and operational cost.
+- One-hop parity must not be generalized into a deep-traversal claim.
+- A native-graph win must not be generalized into write, audit, rollback, or
+  point-in-time-memory superiority.
+
+Fairness controls are identical vertex/edge sets, start vertices, direction,
+exact-hop semantics, distinct-count semantics, warmup, repetitions, timeout,
+container resources, cold/warm reporting, indexes, and result parity. Record
+PostgreSQL `EXPLAIN (ANALYZE, BUFFERS)`, DozerDB plan/db-hits, p50/p95/p99,
+peak memory/CPU, timeout rate, result count, and projection freshness.
+
+Reference hypothesis:
+`https://memgraph.com/blog/postgresql-19-alternatives-memgraph`; reproduction
+source cited by the article:
+`https://github.com/memgraph/best-practices/tree/main/benchmarks/postgres_lpg_pokec_benchmark`.
+
 ### 3.4 GraphScope: deferred analytics plane
 
 GraphScope is admitted only after a single DozerDB serving instance fails a
@@ -401,6 +434,10 @@ transaction. Point-in-time/causal reads and transaction-state APIs remain.
 - [ ] Implement bounded application-level federation and partial-result contract.
 - [ ] Add query-plan/db-hit capture and workload-specific index experiments.
 - [ ] Keep GraphScope behind an offline scale benchmark gate.
+- [ ] Reproduce exact N-hop reachability for PostgreSQL 19 SQL/PGQ versus
+  DozerDB at hops 1-5 using Pokec medium and the transaction-memory graph.
+- [ ] Publish result-parity, plan, latency, resource, timeout, and projection
+  freshness results; do not reuse Memgraph's reported speedup as our claim.
 
 ### P3. Context, prompt, and Graph-CoT
 

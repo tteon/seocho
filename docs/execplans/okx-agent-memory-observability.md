@@ -101,6 +101,15 @@ their latency, cost, consistency, and failure effects.
 
 ## Decision Log
 
+- Decision: Retain the July 2026 Memgraph PostgreSQL 19 SQL/PGQ benchmark as a
+  reproducible hypothesis for the PostgreSQL-authority/DozerDB-serving split,
+  not as evidence for SEOCHO or DozerDB.
+  Rationale: The published exact-hop setup is narrow and useful, but it is
+  vendor-authored and engine-specific. SEOCHO will rerun result-equivalent
+  one-to-five-hop workloads on Pokec medium and its transaction graph with
+  matched resources, indexes, warmups, timeout, and plan/resource telemetry.
+  Date/Author: 2026-07-11 / User and Codex
+
 - Decision: Use Beads only as the local coordination ledger for multi-step,
   dependency-bearing, or parallel agent work; keep GitHub issues/PRs as the
   canonical public record and this ExecPlan/system spec as the durable design

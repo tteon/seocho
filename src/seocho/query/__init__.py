@@ -76,6 +76,23 @@ from .strategy import (
     RDFQueryStrategy,
 )
 from .strategy_chooser import ExecutionStrategyChooser, IntentSupportValidator
+from .workloads import (
+    EvidenceRequirement,
+    OKX_QUERY_FAMILIES,
+    PromptIdentity,
+    QueryFamilySpec,
+    QuerySafetyPolicy,
+    TRANSACTION_RISK_PREFLIGHT,
+    WITHDRAWAL_EXPLANATION,
+    classify_okx_query,
+)
+from .workload_compiler import (
+    Text2CypherFallbackPolicy,
+    WorkloadQueryPlan,
+    compile_workload_query,
+    fallback_policy_for,
+    validate_workload_query,
+)
 
 __all__ = [
     "IntentSpec",
@@ -136,4 +153,17 @@ __all__ = [
     "ExtractionStrategy",
     "QueryStrategy",
     "LinkingStrategy",
+    "PromptIdentity",
+    "EvidenceRequirement",
+    "QuerySafetyPolicy",
+    "QueryFamilySpec",
+    "WITHDRAWAL_EXPLANATION",
+    "TRANSACTION_RISK_PREFLIGHT",
+    "OKX_QUERY_FAMILIES",
+    "classify_okx_query",
+    "WorkloadQueryPlan",
+    "Text2CypherFallbackPolicy",
+    "compile_workload_query",
+    "fallback_policy_for",
+    "validate_workload_query",
 ]

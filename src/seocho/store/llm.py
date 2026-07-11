@@ -8,11 +8,16 @@ interface can be reused across OpenAI, DeepSeek, Kimi, Grok, and Qwen.
 from __future__ import annotations
 
 import json
+import hashlib
 import logging
 import os
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Optional, Sequence
+
+from ..tracing import capture_text, start_span
+from ..metrics import get_metrics
 
 logger = logging.getLogger(__name__)
 
@@ -175,13 +180,39 @@ class LLMResponse:
     usage: Dict[str, int] = field(default_factory=dict)
 
     def json(self) -> Any:
-        """Parse the response text as JSON. Handles fenced code blocks."""
+        """Parse JSON from plain, fenced, or reasoning-prefixed model output."""
         text = self.text.strip()
         if text.startswith("```"):
             lines = text.split("\n")
             lines = [line for line in lines if not line.strip().startswith("```")]
             text = "\n".join(lines)
-        return json.loads(text)
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            start = text.find("{")
+            if start < 0:
+                raise
+            depth = 0
+            quoted = False
+            escaped = False
+            for index, character in enumerate(text[start:], start=start):
+                if quoted:
+                    if escaped:
+                        escaped = False
+                    elif character == "\\":
+                        escaped = True
+                    elif character == '"':
+                        quoted = False
+                    continue
+                if character == '"':
+                    quoted = True
+                elif character == "{":
+                    depth += 1
+                elif character == "}":
+                    depth -= 1
+                    if depth == 0:
+                        return json.loads(text[start : index + 1])
+            raise
 
 
 class LLMBackend(ABC):
@@ -625,6 +656,37 @@ class OpenAICompatibleBackend(LLMBackend):
 
         return variants
 
+    def _completion_trace_payload(
+        self,
+        *,
+        system: str,
+        user: str,
+        temperature: float,
+        task_hint: Optional[str],
+        mode: Optional[str],
+        model: Optional[str],
+    ) -> tuple[Optional[Dict[str, Any]], Dict[str, Any]]:
+        captured_system = capture_text(system)
+        captured_user = capture_text(user)
+        input_data: Dict[str, Any] = {}
+        if captured_system is not None:
+            input_data["gen_ai.prompt.system"] = captured_system
+        if captured_user is not None:
+            input_data["gen_ai.prompt.user"] = captured_user
+        metadata = {
+            "gen_ai.operation.name": "chat",
+            "gen_ai.provider.name": self.provider,
+            "gen_ai.request.model": model or self.model,
+            "gen_ai.request.temperature": float(temperature),
+            "seocho.prompt.system_hash": hashlib.sha256(system.encode("utf-8")).hexdigest()[:16],
+            "seocho.prompt.user_hash": hashlib.sha256(user.encode("utf-8")).hexdigest()[:16],
+            "seocho.prompt.system_chars": len(system),
+            "seocho.prompt.user_chars": len(user),
+            "seocho.task_hint": str(task_hint or ""),
+            "seocho.llm.mode": str(mode or ""),
+        }
+        return input_data or None, metadata
+
     def complete(
         self,
         *,
@@ -652,15 +714,85 @@ class OpenAICompatibleBackend(LLMBackend):
             mode=mode,
             model=model,
         )
-        last_exc: Optional[Exception] = None
-        for attempt_kwargs in self._completion_retry_variants(kwargs):
-            try:
-                resp = self._client.chat.completions.create(**attempt_kwargs)
-                return self._build_response(resp)
-            except Exception as exc:
-                last_exc = exc
-        assert last_exc is not None
-        raise last_exc
+        trace_input, trace_metadata = self._completion_trace_payload(
+            system=system,
+            user=user,
+            temperature=temperature,
+            task_hint=task_hint,
+            mode=mode,
+            model=model,
+        )
+        metric_started = time.perf_counter()
+        metrics = get_metrics()
+        resolved_model = model or self.model
+        variants = self._completion_retry_variants(kwargs)
+        with start_span(
+            "gen_ai.chat",
+            input_data=trace_input,
+            metadata=trace_metadata,
+            tags=["gen_ai", f"provider:{self.provider}"],
+        ) as span:
+            last_exc: Optional[Exception] = None
+            for attempt, attempt_kwargs in enumerate(variants, start=1):
+                try:
+                    resp = self._client.chat.completions.create(**attempt_kwargs)
+                    result = self._build_response(resp)
+                    span.set_output(
+                        **{
+                            "gen_ai.response.model": result.model,
+                            "gen_ai.usage.input_tokens": result.usage.get("prompt_tokens", 0),
+                            "gen_ai.usage.output_tokens": result.usage.get("completion_tokens", 0),
+                            "gen_ai.usage.total_tokens": result.usage.get("total_tokens", 0),
+                            "seocho.llm.attempt_count": attempt,
+                        }
+                    )
+                    completion = capture_text(result.text)
+                    if completion is not None:
+                        span.set_output(**{"gen_ai.completion": completion})
+                    metric_labels = {
+                        "gen_ai.provider.name": self.provider,
+                        "gen_ai.request.model": resolved_model,
+                    }
+                    metrics.record(
+                        "gen_ai.client.operation.duration",
+                        time.perf_counter() - metric_started,
+                        {**metric_labels, "gen_ai.operation.name": "chat"},
+                    )
+                    for token_type, usage_key in (
+                        ("input", "prompt_tokens"),
+                        ("output", "completion_tokens"),
+                    ):
+                        usage = int(result.usage.get(usage_key, 0) or 0)
+                        if usage:
+                            metrics.record(
+                                "gen_ai.client.token.usage",
+                                usage,
+                                {**metric_labels, "gen_ai.token.type": token_type},
+                            )
+                    return result
+                except Exception as exc:
+                    last_exc = exc
+                    if attempt < len(variants):
+                        metrics.add(
+                            "seocho.gen_ai.retry.count",
+                            attributes={
+                                "gen_ai.provider.name": self.provider,
+                                "gen_ai.request.model": resolved_model,
+                                "reason": type(exc).__name__,
+                            },
+                        )
+            assert last_exc is not None
+            metrics.record(
+                "gen_ai.client.operation.duration",
+                time.perf_counter() - metric_started,
+                {
+                    "gen_ai.provider.name": self.provider,
+                    "gen_ai.request.model": resolved_model,
+                    "gen_ai.operation.name": "chat",
+                    "error.type": type(last_exc).__name__,
+                },
+            )
+            raise last_exc
 
     async def acomplete(
         self,
@@ -689,15 +821,85 @@ class OpenAICompatibleBackend(LLMBackend):
             mode=mode,
             model=model,
         )
-        last_exc: Optional[Exception] = None
-        for attempt_kwargs in self._completion_retry_variants(kwargs):
-            try:
-                resp = await self._async_client.chat.completions.create(**attempt_kwargs)
-                return self._build_response(resp)
-            except Exception as exc:
-                last_exc = exc
-        assert last_exc is not None
-        raise last_exc
+        trace_input, trace_metadata = self._completion_trace_payload(
+            system=system,
+            user=user,
+            temperature=temperature,
+            task_hint=task_hint,
+            mode=mode,
+            model=model,
+        )
+        metric_started = time.perf_counter()
+        metrics = get_metrics()
+        resolved_model = model or self.model
+        variants = self._completion_retry_variants(kwargs)
+        with start_span(
+            "gen_ai.chat",
+            input_data=trace_input,
+            metadata=trace_metadata,
+            tags=["gen_ai", f"provider:{self.provider}"],
+        ) as span:
+            last_exc: Optional[Exception] = None
+            for attempt, attempt_kwargs in enumerate(variants, start=1):
+                try:
+                    resp = await self._async_client.chat.completions.create(**attempt_kwargs)
+                    result = self._build_response(resp)
+                    span.set_output(
+                        **{
+                            "gen_ai.response.model": result.model,
+                            "gen_ai.usage.input_tokens": result.usage.get("prompt_tokens", 0),
+                            "gen_ai.usage.output_tokens": result.usage.get("completion_tokens", 0),
+                            "gen_ai.usage.total_tokens": result.usage.get("total_tokens", 0),
+                            "seocho.llm.attempt_count": attempt,
+                        }
+                    )
+                    completion = capture_text(result.text)
+                    if completion is not None:
+                        span.set_output(**{"gen_ai.completion": completion})
+                    metric_labels = {
+                        "gen_ai.provider.name": self.provider,
+                        "gen_ai.request.model": resolved_model,
+                    }
+                    metrics.record(
+                        "gen_ai.client.operation.duration",
+                        time.perf_counter() - metric_started,
+                        {**metric_labels, "gen_ai.operation.name": "chat"},
+                    )
+                    for token_type, usage_key in (
+                        ("input", "prompt_tokens"),
+                        ("output", "completion_tokens"),
+                    ):
+                        usage = int(result.usage.get(usage_key, 0) or 0)
+                        if usage:
+                            metrics.record(
+                                "gen_ai.client.token.usage",
+                                usage,
+                                {**metric_labels, "gen_ai.token.type": token_type},
+                            )
+                    return result
+                except Exception as exc:
+                    last_exc = exc
+                    if attempt < len(variants):
+                        metrics.add(
+                            "seocho.gen_ai.retry.count",
+                            attributes={
+                                "gen_ai.provider.name": self.provider,
+                                "gen_ai.request.model": resolved_model,
+                                "reason": type(exc).__name__,
+                            },
+                        )
+            assert last_exc is not None
+            metrics.record(
+                "gen_ai.client.operation.duration",
+                time.perf_counter() - metric_started,
+                {
+                    "gen_ai.provider.name": self.provider,
+                    "gen_ai.request.model": resolved_model,
+                    "gen_ai.operation.name": "chat",
+                    "error.type": type(last_exc).__name__,
+                },
+            )
+            raise last_exc
 
     def embed(
         self,

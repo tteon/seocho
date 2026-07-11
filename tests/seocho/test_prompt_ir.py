@@ -143,3 +143,47 @@ def test_receipt_and_spec_serialize_enum_values() -> None:
     assert receipt_payload["stage"] == "answer_synthesis"
     assert receipt_payload["provider"] == "openai"
     assert receipt_payload["adapter_hint_keys"] == ["openai"]
+
+
+def test_optimization_receipt_explains_selection_without_prompt_content() -> None:
+    spec = StagePromptSpec(
+        stage=PromptStage.ANSWER_SYNTHESIS,
+        system_sections=[
+            PromptSection(
+                section_id="policy-v3",
+                kind=PromptSectionKind.CONTRACT,
+                source=PromptSource.SYSTEM_CONTRACT,
+                title="Policy",
+                content="private policy body that must not enter telemetry",
+            )
+        ],
+    )
+
+    receipt = spec.build_receipt(
+        provider="mara",
+        query_mode="graph_cot",
+        candidate_section_ids=["policy-v3", "old-memory", "irrelevant-edge"],
+        excluded_section_reasons={
+            "old-memory": "superseded_revision",
+            "irrelevant-edge": "below_relevance_threshold",
+        },
+        token_budget=2048,
+        estimated_candidate_tokens=400,
+        evidence_count=4,
+        provenance_count=4,
+    )
+
+    payload = receipt.to_dict()
+    optimization = payload["optimization"]
+    assert optimization["candidate_section_count"] == 3
+    assert optimization["selected_section_count"] == 1
+    assert optimization["omitted_section_count"] == 2
+    assert optimization["estimated_candidate_tokens"] == 400
+    assert optimization["compression_ratio"] < 1.0
+    assert optimization["excluded_section_reasons"]["old-memory"] == "superseded_revision"
+
+    trace_attributes = receipt.to_trace_attributes()
+    assert trace_attributes["seocho.prompt.provider"] == "mara"
+    assert trace_attributes["seocho.prompt.provenance_count"] == 4
+    assert "private policy body" not in repr(trace_attributes)
+    assert "old-memory" not in repr(trace_attributes)

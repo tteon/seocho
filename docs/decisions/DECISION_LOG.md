@@ -22,7 +22,7 @@ Each entry must link to a full ADR when impact is non-trivial.
 
 ## 2026-07-10
 
-- [Proposed] `ADR-0144-otlp-and-query-workload-observability.md`
+- [Proposed] `ADR-0147-otlp-and-query-workload-observability.md`
   - add optional OTLP export and nested spans without changing JSONL/Opik
   - default to content-free, privacy-safe prompt and graph-query telemetry
   - make `withdrawal_explanation.v1` the first bounded OKX-style workload;

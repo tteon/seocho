@@ -10,6 +10,11 @@ def test_longitudinal_generator_is_deterministic_and_single_user() -> None:
     assert {event.user_ref for event in first} == {"user:synthetic-001"}
     assert len({event.idempotency_key for event in first}) == 20
     assert all("raw_wallet_address" in event.private_metadata for event in first)
+    assert {event.chain_id for event in first} == {"bitcoin-mainnet"}
+    assert first[0].state == "intent_created"
+    assert first[3].state == "intent_created"
+    assert all(event.amount_sats > 0 for event in first)
+    assert all(event.block_hash_ref.startswith("block:") for event in first)
 
 
 def test_gold_queries_cover_memory_causality_and_context_budget() -> None:

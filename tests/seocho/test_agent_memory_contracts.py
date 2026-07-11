@@ -55,6 +55,8 @@ def test_answer_receipt_binds_usage_to_answer_and_workspace() -> None:
 
 def test_postgres_schema_has_authoritative_memory_outbox_and_receipts() -> None:
     assert "agent_memory_revisions" in POSTGRES_MEMORY_SCHEMA_SQL
+    assert "agent_memory_heads" in POSTGRES_MEMORY_SCHEMA_SQL
+    assert "agent_memory_idempotency" in POSTGRES_MEMORY_SCHEMA_SQL
     assert "agent_memory_outbox" in POSTGRES_MEMORY_SCHEMA_SQL
     assert "agent_projection_watermarks" in POSTGRES_MEMORY_SCHEMA_SQL
     assert "agent_memory_usage_receipts" in POSTGRES_MEMORY_SCHEMA_SQL

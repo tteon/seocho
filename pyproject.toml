@@ -121,6 +121,9 @@ otel = [
     "opentelemetry-sdk",
     "opentelemetry-exporter-otlp-proto-grpc",
 ]
+postgres = [
+    "psycopg[binary]>=3.1",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["extraction/tests", "tests"]

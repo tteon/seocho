@@ -1,0 +1,69 @@
+{
+  "schema_version": "okx-agent-projection-live.v1",
+  "date": "2026-07-11",
+  "environment": {
+    "postgresql": "18.4",
+    "postgres_image": "postgres:18-alpine",
+    "dozerdb_image": "graphstack/dozerdb:5.26.3.0",
+    "mode": "live-postgresql-dozerdb",
+    "container_resource_limits": "unlimited"
+  },
+  "dataset": {
+    "transactions": 100,
+    "outbox_entries": 635,
+    "workspace_id": "okx-agent-exchange-eval"
+  },
+  "projection": {
+    "batch_size": 100,
+    "batches": 7,
+    "projected_entries": 635,
+    "seconds": 4.787715,
+    "entries_per_second": 132.63,
+    "batch_latency_ms": {"mean": 682.665, "p95": 2379.616},
+    "postgres_pending_after": 0,
+    "postgres_watermark_after": 635,
+    "replay_projected_entries": 0
+  },
+  "graph": {
+    "nodes": 409,
+    "relationships": 748,
+    "labels": {
+      "Agent": 6,
+      "Exchange": 1,
+      "Fill": 68,
+      "MemoryRevision": 100,
+      "Order": 100,
+      "Settlement": 34,
+      "TransactionIntent": 100
+    },
+    "relationship_types": {
+      "ACTED_ON": 435,
+      "HANDED_OFF_TO": 11,
+      "HAS_FILL": 68,
+      "MATERIALIZED_AS": 100,
+      "RECORDED_AS": 100,
+      "SETTLED_BY": 34
+    }
+  },
+  "exact_hop_traversal": [
+    {"hops": 1, "distinct_results": 3, "mean_ms": 4.757, "p95_ms": 8.98},
+    {"hops": 2, "distinct_results": 4, "mean_ms": 6.525, "p95_ms": 10.935},
+    {"hops": 3, "distinct_results": 4, "mean_ms": 5.919, "p95_ms": 10.622},
+    {"hops": 4, "distinct_results": 5, "mean_ms": 4.266, "p95_ms": 7.193}
+  ],
+  "method": {
+    "traversal_runs_per_hop": 11,
+    "warmup_runs_discarded": 1,
+    "start_node": "strategy_agent",
+    "relationship": "HANDED_OFF_TO",
+    "semantics": "exact directed N-hop distinct actor reachability"
+  },
+  "not_measured": [
+    "projector concurrency sweep",
+    "etcd coordination",
+    "Mara answer generation",
+    "OTel overhead",
+    "TLS rotation",
+    "PostgreSQL 19 SQL/PGQ"
+  ]
+}

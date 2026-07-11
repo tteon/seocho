@@ -7,9 +7,12 @@ datasources:
     url: http://seocho-prometheus:9090
     isDefault: true
   - name: Tempo
+    uid: tempo
     type: tempo
     access: proxy
     url: http://seocho-tempo:3200
     jsonData:
       tracesToMetrics:
         datasourceUid: prometheus
+      nodeGraph:
+        enabled: true

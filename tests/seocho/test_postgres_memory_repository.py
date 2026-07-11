@@ -128,3 +128,18 @@ def test_causal_read_rejects_uncommitted_required_sequence() -> None:
             memory_id="transaction-1",
             required_causal_token=CausalToken.for_workspace("ws-1", 9),
         )
+
+
+def test_outbox_batch_is_ordered_and_normalized() -> None:
+    rows = [
+        (3, 0, "intent-1", '{"event_id":"event-1"}'),
+        (4, 0, "intent-1", {"event_id": "event-2"}),
+    ]
+    cursor = FakeCursor([rows])  # type: ignore[list-item]
+    repository = PostgreSQLMemoryRepository(lambda: FakeConnection(cursor))
+
+    entries = repository.read_outbox_batch(workspace_id="ws-1", limit=10)
+
+    assert [entry.sequence for entry in entries] == [3, 4]
+    assert entries[0].payload["event_id"] == "event-1"
+    assert cursor.executed[0][1] == ("ws-1", 10)

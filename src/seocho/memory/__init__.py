@@ -22,6 +22,11 @@ from .contracts import (
     TransactionState,
 )
 from .agent_transactions import AgentTransactionMemory
+from .agent_projection import (
+    AgentProjectionEntry,
+    AgentProjectionResult,
+    AgentTransactionProjector,
+)
 from .postgres_schema import (
     POSTGRES_MEMORY_SCHEMA_SQL,
     POSTGRES_MEMORY_SCHEMA_VERSION,
@@ -36,6 +41,9 @@ from .postgres_repository import (
 __all__ = [
     "AnswerReceipt",
     "AgentTransactionMemory",
+    "AgentProjectionEntry",
+    "AgentProjectionResult",
+    "AgentTransactionProjector",
     "BlockchainLongTermMemory",
     "BlockIngestResult",
     "BlockReplayConflictError",

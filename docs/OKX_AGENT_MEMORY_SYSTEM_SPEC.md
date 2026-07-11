@@ -271,6 +271,21 @@ Gold labels describe deterministic system facts, not inferred wallet risk:
 - expected causal watermark behavior
 - acceptable query family and hop bound
 
+### 6.4 Agent-to-agent OKX transaction corpus
+
+The core interaction corpus is separate from the on-chain longitudinal corpus.
+It models `strategy_agent -> risk_agent -> execution_agent -> okx_demo ->
+settlement_agent -> memory_agent -> support_agent` as a typed causal chain.
+Each transaction records proposal, approval/rejection, place/amend/cancel,
+acknowledgement, partial/full fill, settlement, and durable-memory publication.
+
+The field vocabulary follows OKX v5 order/fill rows (`instId`, `instType`,
+`clOrdId`, `ordId`, `state`, `side`, `posSide`, `ordType`, `sz`, `px`,
+`accFillSz`, `avgPx`, `uTime`) but normalizes names and hashes exchange order
+IDs. The default corpus is deterministic replay. An opt-in collector may use
+`python-okx` with `flag="1"` for demo trading only; live trading (`flag="0"`)
+is outside this evaluation and never enabled by default.
+
 ## 7. Evaluation queries and scenarios
 
 ### Q1. Cross-session memory recall

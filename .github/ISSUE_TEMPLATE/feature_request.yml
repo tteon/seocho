@@ -1,0 +1,63 @@
+name: Feature request
+description: Propose a scoped user-facing feature, connector, or runtime capability.
+title: "feat: "
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - sdk
+        - runtime
+        - connector
+        - query
+        - indexing
+        - ontology
+        - observability
+        - docs
+        - examples
+        - other
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user workflow is blocked or painful today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed shape
+      description: Keep this at the API, CLI, data contract, or example level if possible.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      placeholder: |
+        - A user can ...
+        - The response includes ...
+        - The validation command is ...
+    validations:
+      required: true
+  - type: dropdown
+    id: contribution
+    attributes:
+      label: Contribution size
+      options:
+        - good first issue
+        - small scoped PR
+        - design discussion first
+        - architecture decision required
+    validations:
+      required: true
+  - type: textarea
+    id: related
+    attributes:
+      label: Related docs or code
+      description: Links to docs, files, ADRs, or examples that should be kept aligned.
+    validations:
+      required: false

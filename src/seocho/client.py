@@ -138,6 +138,7 @@ if TYPE_CHECKING:
     from .runtime_bundle import RuntimeBundle
 
 logger = logging.getLogger(__name__)
+DEFAULT_LOCAL_LLM = "mara/MiniMax-M2.5"
 
 
 def _env_str(name: str, default: str) -> str:
@@ -333,7 +334,7 @@ class Seocho:
         cls,
         ontology: Any,
         *,
-        llm: str = "openai/gpt-4o",
+        llm: str = DEFAULT_LOCAL_LLM,
         graph: Optional[str] = None,
         neo4j_user: str = "neo4j",
         neo4j_password: str = "password",
@@ -354,9 +355,10 @@ class Seocho:
 
         Args:
             ontology: :class:`~seocho.ontology.Ontology` to bind.
-            llm: Provider/model string (``"openai/gpt-4o"``,
-                ``"deepseek/deepseek-chat"``, ``"kimi/kimi-k2.5"``) or plain
-                model name (defaults to ``openai``).
+            llm: Provider/model string (``"mara/MiniMax-M2.5"``,
+                ``"openai/gpt-4o"``, ``"deepseek/deepseek-chat"``,
+                ``"kimi/kimi-k2.5"``) or plain model name. Plain model names
+                still default to the OpenAI provider for backward compatibility.
             graph: Graph backend selector.
                 - ``None`` (default): embedded LadybugDB at ``.seocho/local.lbug``.
                 - ``"bolt://..."``: Neo4j/DozerDB over Bolt protocol.
@@ -364,7 +366,8 @@ class Seocho:
             neo4j_user: Neo4j username (only used when *graph* is a Bolt URI).
             neo4j_password: Neo4j password (only used when *graph* is a Bolt URI).
             api_key: Optional API key override for the LLM provider.
-                Falls back to the provider's env var (``OPENAI_API_KEY`` etc.).
+                Falls back to the provider's env var (``MARA_API_KEY``,
+                ``OPENAI_API_KEY``, etc.).
             **kwargs: Extra arguments forwarded to the :class:`Seocho`
                 constructor (``workspace_id``, ``agent_config``,
                 ``extraction_prompt``, …).
@@ -490,7 +493,7 @@ class Seocho:
 
         return cls.local(
             ontology,
-            llm=str(llm or "openai/gpt-4o"),
+            llm=str(llm or DEFAULT_LOCAL_LLM),
             graph=graph,
             neo4j_user=neo4j_user,
             neo4j_password=neo4j_password,
@@ -579,7 +582,7 @@ class Seocho:
                 )
             client = cls.local(
                 materialized_ontology,
-                llm=str(llm or "openai/gpt-4o"),
+                llm=str(llm or DEFAULT_LOCAL_LLM),
                 graph=graph,
                 neo4j_user=neo4j_user,
                 neo4j_password=neo4j_password,

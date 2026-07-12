@@ -15,6 +15,8 @@ product-first root `README.md`.
 |---|---|
 | `.github/workflows/` | GitHub Actions workflows that run CI, docs checks, docs deploy, and maintainer automation. |
 | `.github/codex/prompts/` | Prompt contracts used by scheduled Codex maintenance workflows. |
+| `.github/ISSUE_TEMPLATE/` | Public bug, feature, and docs/example intake forms. |
+| `.github/PULL_REQUEST_TEMPLATE.md` | PR review envelope matching SEOCHO's public PR contract. |
 
 Reusable shell or Python logic belongs in `scripts/`, then workflows can call
 it. Product documentation belongs in `README.md`, `docs/`, or `website/`.
@@ -29,6 +31,18 @@ it. Product documentation belongs in `README.md`, `docs/`, or `website/`.
 
 If a PR fails here, prefer fixing the source code, docs, or reusable scripts
 that the workflow calls before patching workflow YAML.
+
+## Contributor Intake
+
+GitHub issue templates collect the minimum information maintainers need:
+
+- bug reports: area, reproduction, expected behavior, actual behavior, environment
+- feature requests: problem, proposed shape, acceptance criteria, contribution size
+- docs/examples: confusing surface, suggested improvement, validation command
+
+The pull request template mirrors the repository PR contract: `Feature`, `Why`,
+`Design`, `Validation`, `Risks / Gaps`, and `Docs`. Maintainers should ask for
+exact validation commands before reviewing behavior-changing PRs.
 
 ## Maintainer Automation
 
@@ -46,6 +60,8 @@ are documented in `docs/WORKFLOW.md`.
 
 - Add new GitHub Actions workflows under `.github/workflows/`.
 - Add Codex prompt contracts under `.github/codex/prompts/`.
+- Add or update issue templates under `.github/ISSUE_TEMPLATE/`.
+- Keep the pull request template at `.github/PULL_REQUEST_TEMPLATE.md`.
 - Put reusable automation helpers under `scripts/ci/` or another appropriate
   `scripts/` subdirectory.
 - Do not store generated output, credentials, local state, or personal tool

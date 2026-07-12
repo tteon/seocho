@@ -1,0 +1,72 @@
+name: Bug report
+description: Report a reproducible defect or regression.
+title: "fix: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. The best reports include a small reproduction and the exact command that failed.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - sdk
+        - runtime
+        - query
+        - indexing
+        - ontology
+        - docs
+        - examples
+        - ci
+        - other
+    validations:
+      required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What went wrong?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction
+      description: Smallest commands, code snippet, or run spec that reproduces the issue.
+      placeholder: |
+        uv run pytest tests/seocho/test_run_spec.py -q
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include the relevant error output or payload shape. Redact secrets.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: |
+        OS:
+        Python:
+        SEOCHO version or commit:
+        Graph backend:
+        LLM provider:
+    validations:
+      required: false
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation already tried
+      description: Commands you ran while debugging, if any.
+    validations:
+      required: false

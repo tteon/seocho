@@ -80,9 +80,19 @@ Use GitHub issues and pull requests for public work state. Local maintainer
 tools are fine for private coordination, but their state directories are not
 part of the public repository.
 
+Use the issue templates for public intake:
+
+- bug reports: reproducible defect, failing command, expected vs actual result
+- feature requests: user workflow, proposed contract, acceptance criteria
+- docs/examples: confusing page, missing example, validation command
+
 Active work items must include collaboration labels:
 
 - `sev-*`, `impact-*`, `urgency-*`, `sprint-*`, `roadmap-*`, `area-*`, `kind-*`
+
+Use `good first issue` only when the change can be completed without deep
+runtime/query migration context. Good candidates are docs wording, run-spec
+examples, small tests, validation messages, and onboarding inconsistencies.
 
 Validation commands:
 
@@ -100,12 +110,16 @@ When extending runtime behavior:
 - keep heavy ontology reasoning out of hot path
 - preserve trace topology contract (`node_id`, `parent_id`, `parent_ids`)
 
-Core extension points:
+Public plugin surfaces:
 
-- `extraction/semantic_query_flow.py`
-- `extraction/agent_factory.py`
-- `extraction/debate.py`
-- `extraction/platform_agents.py`
+- `GraphStore` for graph database backends
+- `VectorStore` for vector similarity backends
+- `LLMBackend` for chat-completion providers
+- `EmbeddingBackend` for embedding providers
+
+Everything else is an internal contract unless a new ADR explicitly promotes
+it. Query flow, indexing internals, runtime bundles, and agent factories should
+not be treated as open subclass/plugin surfaces.
 
 ## 7. Minimum Reproducible Workflow
 
@@ -155,13 +169,20 @@ curl -sS -X POST http://localhost:8001/platform/chat/send \
 Run relevant gates before opening a PR:
 
 ```bash
-make test
-make test-integration
+bash scripts/ci/run_basic_ci.sh
+```
+
+Use narrower commands while developing, then run the relevant broader gate
+before review. Examples:
+
+```bash
+uv run pytest tests/seocho/test_run_spec.py -q
+bash scripts/ci/check-doc-contracts.sh
 make e2e-smoke
 scripts/pm/lint-agent-docs.sh
 ```
 
-If full suite is not run, state exact gap and reason in the PR.
+If a relevant suite is not run, state the exact gap and reason in the PR.
 
 ## 9. Documentation Contract
 

@@ -28,8 +28,8 @@ Each surface has a different job.
 |---|---|---|---|
 | SEOCHO GitHub | source of truth | code, issues, PRs, releases, docs, ADRs, reproducible commands | casual discussion and untracked decisions |
 | `seocho.blog` | SEOCHO docs and onboarding | quickstart, concepts, API docs, tutorials, release docs | community news that belongs on Ghost |
-| GraphUserGroup / Ghost | public editorial archive | Graph Omakase, GraphTravel, product reviews, GraphTalk recaps, interviews, jobs | raw coordination and private planning |
-| Discord | real-time community | Q&A, study support, product-review discussion, job-board posts, event follow-up | evidence packs and monthly reports |
+| GraphUserGroup / Ghost | public editorial archive | Omakase, GraphTravel, reviews, recaps, interviews, jobs | raw coordination |
+| Discord | real-time community | Q&A, study, reviews, jobs, event follow-up | evidence packs |
 
 Default flow:
 
@@ -183,7 +183,7 @@ broader English-first operating model.
 
 | Surface | Current state | Next action |
 |---|---|---|
-| Home | live at `https://www.graphusergroup.com/` | make the homepage show research, product experience, open source, jobs, and events; do not make Graph Omakase look like the whole community |
+| Home | live at `https://www.graphusergroup.com/` | show research, product experience, open source, jobs, and events |
 | Graph Omakase | live tag page with corrected SEO metadata | keep as weekly trend archive and route summaries to `#weekly-trends` |
 | GraphTravel | live tag page with corrected SEO metadata | use for experience and review notes from trying graph products and workflows |
 | GraphTalks | live page with English metadata | move future talks into smaller event recap posts |
@@ -217,7 +217,7 @@ Use the Ghost Admin API only from a secure server-side relay.
 
 | Direction | Mechanism | Use |
 |---|---|---|
-| GitHub or Knowledge OS to Ghost | Ghost Admin API | create draft posts for product reviews, tutorials, weekly trends, event recaps, and SEOCHO explainers |
+| GitHub or Knowledge OS to Ghost | Ghost Admin API | create drafts for reviews, tutorials, trends, recaps, and SEOCHO explainers |
 | Ghost to Discord | Ghost webhook to relay | route published posts by tag to the right Discord channel |
 | Discord to Ghost/GitHub | maintainer curation | turn useful discussion into an article, issue, or docs update |
 

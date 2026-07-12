@@ -2,7 +2,17 @@
 
 ## Overview
 
-SEOCHO transforms unstructured data into structured Knowledge Graphs. It implements an asynchronous, dynamic Agent Pool architecture leveraging a **Parallel Debate** pattern to answer complex queries against dynamically provisioned graph targets.
+SEOCHO turns unstructured data into ontology-aligned graph memory.
+
+The default product path is not "run every agent." It is:
+
+1. ingest data against one ontology contract
+2. write graph facts with provenance
+3. resolve a question through the semantic layer
+4. return an answer with evidence and trace metadata
+
+Parallel debate is an advanced mode for explicit multi-graph comparison, not
+the default first-run path.
 
 Current baseline:
 
@@ -25,6 +35,10 @@ This page is the system map. It is not the first-run path.
 
 Read `WHY_SEOCHO.md` first if you need the product idea. Read
 `RUNTIME_DEPLOYMENT.md` first if you only need to run the stack.
+
+Most readers can stop after [Architecture In One Page](#architecture-in-one-page).
+Continue only when you are changing runtime boundaries, query behavior, or
+module ownership.
 
 ## Architecture In One Page
 
@@ -341,7 +355,7 @@ quality. See `docs/BENCHMARKS.md`.
   User Question → Router/DebateOrchestrator → AgentPool → SharedMemory → Supervisor → Answer
 ```
 
-## Query-Time Semantic Flow (New)
+## Query-Time Semantic Flow
 
 For graph QA with hard entity disambiguation requirements:
 
@@ -399,24 +413,19 @@ typed artifacts for this lane live in `src/seocho/query/graph_cot_contracts.py`,
 and the per-agent reasoning/tool specs live in
 `src/seocho/query/graph_cot_design.py`.
 
-Canonical direction:
+Canonical query ownership:
 
-- `src/seocho/query/` is the canonical query engine surface
-- local SDK and server runtime should share planner, executor, and answer
-  shaping contracts from `src/seocho/query/*`
-- semantic query Phase A now also shares intent, support assessment, strategy
-  selection, Cypher validation, and insufficiency contracts from
-  `src/seocho/query/{intent,strategy_chooser,cypher_validator,insufficiency,contracts}.py`
-- semantic query Phase B now also shares constraint-slice building and run
-  metadata persistence from `src/seocho/query/{constraints,run_registry}.py`
-- semantic query Phase C now also shares entity resolution, route selection,
-  LPG/RDF specialists, and answer framing from
-  `src/seocho/query/semantic_agents.py`
-- semantic query Phase D now also shares `SemanticAgentFlow` orchestration from
-  `src/seocho/query/semantic_flow.py`; extraction keeps runtime injection and
-  compatibility aliases only
-- `extraction/*` should keep transport and runtime orchestration concerns, not
-  grow a second query engine
+| Layer | Owns | Main files |
+|---|---|---|
+| Query engine | planner, executor, answer shaping | `src/seocho/query/*` |
+| Phase A | intent, support, strategy, Cypher validation | `intent.py`, `strategy_chooser.py`, guards |
+| Phase B | constraint slices and run metadata | `constraints.py`, `run_registry.py` |
+| Phase C | entity resolution, route selection, LPG/RDF specialists, answer framing | `semantic_agents.py` |
+| Phase D | shared semantic orchestration | `semantic_flow.py` |
+| Compatibility | runtime injection and legacy aliases | `extraction/*` |
+
+Rule of thumb: add query behavior under `src/seocho/query/`. Keep
+`extraction/*` focused on compatibility, transport, and runtime injection.
 
 Server entrypoint direction:
 
@@ -424,7 +433,7 @@ Server entrypoint direction:
 - `runtime/server_runtime.py` owns shared runtime service composition
 - routers should prefer lazy service getters over eager singleton boot at import
 
-## Extraction Cleanup Classification (Current)
+## Extraction Cleanup Classification
 
 The extraction layer is being reduced toward transport, provisioning, and
 compatibility roles.
@@ -499,25 +508,15 @@ Reference design brief: `docs/GRAPH_RAG_AGENT_HANDOFF_SPEC.md`
 
 ## Enterprise Vocabulary Layer (Planned Direction)
 
-To reduce keyword brittleness in graph retrieval, SEOCHO adopts a governed vocabulary layer derived from extraction and SHACL-like artifacts.
+The vocabulary layer reduces brittle keyword matching in graph retrieval. It
+turns labels, aliases, and rule-derived terms into a governed lookup surface.
 
-Control-plane responsibilities:
-
-- maintain vocabulary lifecycle (`draft -> approved -> deprecated`)
-- enforce approval policy and promotion gates before runtime exposure
-- manage global baseline vocabulary and workspace-scoped override policy
-
-Data-plane responsibilities:
-
-- generate vocabulary candidates from entity extraction/linking results
-- enrich candidate terms from SHACL-like rule artifacts (labels, aliases, value constraints)
-- persist artifacts for review and provenance audit
-
-Runtime contract:
-
-- resolve query terms using approved vocabulary (global baseline + `workspace_id` override)
-- apply lightweight expansion/disambiguation only in hot path
-- keep heavy ontology reasoning in offline governance path (`owlready2`)
+| Plane | Responsibility |
+|---|---|
+| Control plane | manage lifecycle, promotion gates, and workspace overrides |
+| Data plane | generate candidates, enrich terms, and persist provenance |
+| Runtime | resolve query terms with approved vocabulary and keep expansion lightweight |
+| Offline governance | run heavy ontology reasoning and OWL inspection outside the request path |
 
 Offline ontology governance operators should prefer the SDK CLI surface:
 

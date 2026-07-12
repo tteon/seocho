@@ -323,7 +323,11 @@ and capability-gated rows remain engineering work, not inferred evidence.
 
 `tags: [dataset, customer-query, english, market, counterparty, personal-history]`
 
-- Generated 10,000 deterministic English questions across 10 customer intents
+- The original 10,000-row corpus is retained only as a load-test artifact. A
+  later audit found only 60 exact-unique questions (six forms per intent), so
+  its 100% routing result must not be cited as natural-language generalization.
+- The replacement v2 corpus contains 10,000 exact- and normalized-unique
+  English questions across 10 customer intents, 50 semantic template families,
   and five relationships: user-to-self, user-to-market, user-to-network,
   user-to-counterparty, and self-to-prior-self.
 - Each row carries required evidence slots, live and memory sources, maximum
@@ -333,7 +337,12 @@ and capability-gated rows remain engineering work, not inferred evidence.
   order status/fills/slippage, withdrawal confirmation, send/receive delivery,
   funding history, and historical statements. The generated frequency is an
   evaluation hypothesis, not measured support-ticket frequency.
-- Artifact SHA-256: `a44121da173fe5d50ab731d2e0157ed3cfd5b8385483a4726d345deb6bd888e1`.
+- Replacement corpus SHA-256:
+  `3f02b9a8ebc610f276bcd88a9d0e522acad5e805f0c6fbeddd297476cef07938`.
+- A separate 300-query boundary corpus is evenly split across ambiguous,
+  multi-intent, and out-of-scope requests, with expected actions `clarify`,
+  `decompose`, and `reject`. SHA-256:
+  `9277226760b65417bfed7118b3fda5deaebe426f44b40569d337b05b77f832b2`.
 
 ### E-015 — Unified evaluation observability
 
@@ -376,6 +385,35 @@ and capability-gated rows remain engineering work, not inferred evidence.
   support status outside model judgment fixed the causal issue.
 - Bulk artifact SHA-256: `60fc4c6cbb8baf88fa5af8912d1d7a65c09a6e9bebe7fac94bcded8cea955a68`.
 - MARA artifact SHA-256: `878ee8702772c665b9ea47ffd068c1a835aa033784481a3d5df36606bb686b2f`.
+
+### E-017 — Diverse intent routing and boundary governance
+
+`tags: [live-api, dataset-quality, intent-routing, held-out, ambiguity, governance]`
+
+- Diversity gate: 10,000/10,000 exact-unique and normalized-unique questions,
+  zero duplicate rate, 50 template families with 101–351 examples each, and
+  300/300 unique boundary questions. The quality artifact passed.
+- Keyword baseline: evaluation-family accuracy 94.83% and held-out-family
+  accuracy 97.27%. The live source pipeline exposed the remaining gap rather
+  than hiding it: 4,955 supported, 4,566 partial, and 479 unsupported routes.
+  Live Bitcoin height was 957,668 and Coinbase supplied BTC spot; private OKX
+  order/transfer/withdrawal sources remained explicitly unavailable.
+- Initial MARA prompt-only baseline failed: evaluation intent accuracy 76%,
+  held-out 60%, and ambiguous clarification 0%. This invalidated a model-only
+  router despite good multi-intent and rejection behavior.
+- Candidate hybrid: a deterministic ontology-boundary guard handles known
+  ambiguity before the model, while MARA receives intent definitions,
+  relationships, and required evidence slots. On 130 live cases it achieved
+  evaluation 100%, held-out 90%, ambiguous clarify 100%, multi-intent 90%,
+  out-of-scope 100%, and zero ontology-invalid intents. The run passed its
+  complete gate; p95 latency was 22.815 s, making fallback rate and provider
+  latency explicit production constraints.
+- Diversity artifact SHA-256:
+  `00ec88833072f9fa4b083655907b82fbae5fb9545c274bc9361bbcf9af467655`.
+- Hybrid MARA artifact SHA-256:
+  `72d715b5c2b111689ad12e5ab324d00b5b39fb98d9376b293de573525cc3ec1c`.
+- Diverse live bulk artifact SHA-256:
+  `4e774ea069d37596e47ba8470ee1aaf418a6513c70966458e45de4506fd3af69`.
 
 #### SRE metric decision
 

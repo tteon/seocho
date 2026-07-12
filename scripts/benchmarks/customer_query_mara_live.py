@@ -6,12 +6,14 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import statistics
 import time
 from collections import defaultdict
 from pathlib import Path
 
 from seocho.store.llm import MaraBackend
+from seocho.tracing import disable_tracing, enable_tracing, flush_tracing, start_span
 
 
 async def run(args: argparse.Namespace) -> dict:
@@ -111,12 +113,42 @@ def main() -> None:
     parser.add_argument("--model", default="gpt-oss-120b")
     parser.add_argument("--per-intent", type=int, default=2)
     parser.add_argument("--concurrency", type=int, default=4)
+    parser.add_argument("--otlp-grpc")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    report = asyncio.run(run(args))
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(report, indent=2, sort_keys=True)+"\n")
-    print(json.dumps(report, indent=2, sort_keys=True))
+    tracing_enabled = bool(args.otlp_grpc)
+    if tracing_enabled:
+        os.environ["SEOCHO_TRACE_OTLP_ENDPOINT"] = args.otlp_grpc
+        os.environ["OTEL_SERVICE_NAME"] = "seocho-customer-mara-eval"
+        os.environ.setdefault("OTEL_SERVICE_INSTANCE_ID", "customer-mara-eval")
+        enable_tracing(backend="otlp")
+    try:
+        with start_span(
+            "customer_query.mara.run",
+            metadata={
+                "seocho.evaluation.model": args.model,
+                "seocho.evaluation.per_intent": args.per_intent,
+                "seocho.evaluation.concurrency": args.concurrency,
+                "traffic.type": "evaluation",
+            },
+        ) as span:
+            report = asyncio.run(run(args))
+            span.set_output(
+                {
+                    "passed": report["passed"],
+                    "queries": report["queries"],
+                    "status_accuracy": report["status_accuracy"],
+                    "missing_source_accuracy": report["missing_source_accuracy"],
+                    "leakage_cases": report["leakage_cases"],
+                }
+            )
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(json.dumps(report, indent=2, sort_keys=True)+"\n")
+        print(json.dumps(report, indent=2, sort_keys=True))
+    finally:
+        if tracing_enabled:
+            flush_tracing()
+            disable_tracing()
     raise SystemExit(0 if report["passed"] else 1)
 
 

@@ -223,6 +223,9 @@ Docs sync critical set for seocho.blog:
 - `docs/PYTHON_INTERFACE_QUICKSTART.md`
 - `docs/RUN_SPECS.md`
 - `docs/ARCHITECTURE.md`
+- `docs/RUNTIME_ARCHITECTURE.md`
+- `docs/QUERY_ARCHITECTURE.md`
+- `docs/MAINTAINER_ARCHITECTURE_NOTES.md`
 - `docs/WORKFLOW.md`
 - `docs/OPEN_SOURCE_PLAYBOOK.md`
 - `docs/RELEASE_AND_COMMUNITY_OPERATIONS.md`

@@ -243,7 +243,9 @@ Same order as the [docs onboarding path](docs/README.md), top to bottom:
 | Python SDK details | [docs/PYTHON_INTERFACE_QUICKSTART.md](docs/PYTHON_INTERFACE_QUICKSTART.md) |
 | Bring your own data | [docs/APPLY_YOUR_DATA.md](docs/APPLY_YOUR_DATA.md) |
 | File/artifact locations | [docs/FILES_AND_ARTIFACTS.md](docs/FILES_AND_ARTIFACTS.md) |
-| Architecture | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| Architecture overview | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| Runtime internals | [docs/RUNTIME_ARCHITECTURE.md](docs/RUNTIME_ARCHITECTURE.md) |
+| Query internals | [docs/QUERY_ARCHITECTURE.md](docs/QUERY_ARCHITECTURE.md) |
 | Runtime deployment | [docs/RUNTIME_DEPLOYMENT.md](docs/RUNTIME_DEPLOYMENT.md) |
 | Contributing | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | Maintainer workflow | [docs/WORKFLOW.md](docs/WORKFLOW.md) |

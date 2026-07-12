@@ -29,7 +29,7 @@ going in the wrong place.
 | Runtime shell and API wiring | `runtime/*` | flat `extraction/*` aliases such as `extraction/agent_server.py` | Runtime routes, policy, readiness, and registry are deployment-shell concerns |
 | Extraction compatibility and batch-only helpers | migration target varies; prefer `src/seocho/*` or `runtime/*` | `extraction/*` | Keep these as wrappers or migration surfaces, not new canonical homes |
 | Benchmark harnesses and internal evaluation loops | `src/seocho/eval/*`, `src/seocho/benchmarking.py`, `evaluation/*`, `scripts/benchmarks/*` | local `.seocho/benchmarks/results/*` artifacts | Tutorial data is onboarding-only; benchmark loops use private corpora |
-| Entry docs and contributor contracts | `README.md`, `AGENTS.md`, `CLAUDE.md`, `docs/WORKFLOW.md`, `docs/ARCHITECTURE.md` | website mirrors | Treat these as one shared seam during edits |
+| Entry docs and contributor contracts | `README.md`, `AGENTS.md`, `CLAUDE.md`, `docs/WORKFLOW.md`, `docs/ARCHITECTURE.md`, `docs/RUNTIME_ARCHITECTURE.md`, `docs/QUERY_ARCHITECTURE.md` | website mirrors | Treat these as one shared seam during edits |
 | GitHub automation and CI | `.github/*`, `scripts/ci/*` | none | Keep automation slices isolated and reviewable |
 
 ## Decision Checklist
@@ -62,5 +62,8 @@ Most collision-prone seams are:
 ## Related Docs
 
 - `docs/ARCHITECTURE.md`
+- `docs/RUNTIME_ARCHITECTURE.md`
+- `docs/QUERY_ARCHITECTURE.md`
+- `docs/MAINTAINER_ARCHITECTURE_NOTES.md`
 - `docs/RUNTIME_PACKAGE_MIGRATION.md`
 - `docs/ISSUE_TASK_SYSTEM.md`

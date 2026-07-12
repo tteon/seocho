@@ -122,8 +122,20 @@ def extract_json_object(text: str) -> Dict[str, Any]:
     best_len = -1
     depth = 0
     start = -1
+    quoted = False
+    escaped = False
     for i, ch in enumerate(s):
-        if ch == "{":
+        if quoted:
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == '"':
+                quoted = False
+            continue
+        if ch == '"' and depth > 0:
+            quoted = True
+        elif ch == "{":
             if depth == 0:
                 start = i
             depth += 1

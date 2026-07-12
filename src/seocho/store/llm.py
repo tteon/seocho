@@ -189,30 +189,13 @@ class LLMResponse:
         try:
             return json.loads(text)
         except json.JSONDecodeError:
-            start = text.find("{")
-            if start < 0:
-                raise
-            depth = 0
-            quoted = False
-            escaped = False
-            for index, character in enumerate(text[start:], start=start):
-                if quoted:
-                    if escaped:
-                        escaped = False
-                    elif character == "\\":
-                        escaped = True
-                    elif character == '"':
-                        quoted = False
-                    continue
-                if character == '"':
-                    quoted = True
-                elif character == "{":
-                    depth += 1
-                elif character == "}":
-                    depth -= 1
-                    if depth == 0:
-                        return json.loads(text[start : index + 1])
-            raise
+            # Reasoning models may mention an invalid or illustrative object
+            # before emitting the final payload. Reuse the provider-aware
+            # parser that examines every balanced object and selects the
+            # largest valid one instead of failing on the first ``{...}``.
+            from ..llm_structured import extract_json_object
+
+            return extract_json_object(text)
 
 
 class LLMBackend(ABC):

@@ -23,7 +23,24 @@ Before you start, know the main local locations:
 
 See `FILES_AND_ARTIFACTS.md` if you want the full map and inspection commands.
 
+## Path Summary
+
+| Step | Decision | Default recommendation |
+|---|---|---|
+| ingest | choose `add(...)`, `raw_ingest(...)`, or `add_graph(...)` | use `raw_ingest(...)` for repeatable datasets |
+| target | choose a graph/database boundary | one dataset -> one `target_database` |
+| query | choose the query surface | start with `ask(...)`, then use `semantic(...)` for debugging |
+| repair | decide whether to retry constrained graph queries | use `reasoning_mode=True` with `repair_budget=1..2` |
+| advanced comparison | decide whether debate is needed | reserve `advanced(...)` for explicit graph comparison |
+
 ## 1. Pick an Ingestion Path
+
+| Method | Use it when | Output to inspect |
+|---|---|---|
+| `add(...)` | one short note or memory-style developer path | `memory_id` |
+| `raw_ingest(...)` | records, batches, files, or ETL output | status and processed count |
+| `add_graph(...)` | you already have ontology-shaped nodes and relationships | graph summary and validation metadata |
+| qualification store | you need reviewable deduplication or canonical projection | curation cases and projection stats |
 
 Use `add(...)` when you have one small piece of text and want the memory-style
 developer path.

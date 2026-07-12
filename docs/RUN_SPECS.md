@@ -11,6 +11,26 @@ on top of the existing design dialects:
 A run spec never redefines a key those dialects already own; it references or
 embeds their documents.
 
+## At A Glance
+
+Use this page when you want a reproducible run instead of one-off Python code.
+
+| Reader task | Section to read | Output |
+|---|---|---|
+| create the first YAML file | [Quickstart](#quickstart) and [Minimal spec](#minimal-spec) | `seocho.run.yaml` |
+| understand all supported fields | [Full spec](#full-spec) | a complete run config |
+| choose ontology strictness | [Ontology enforcement](#ontology-enforcement) | `strict`, `guided`, or `open` |
+| compare multiple variants | [Templates and sweeps](#templates-and-sweeps) | one comparison report |
+| debug a failed run | [CLI](#cli) and [Report](#report) | preflight errors and `report.md` |
+
+The short mental model:
+
+| File | Job |
+|---|---|
+| `seocho.run.yaml` | one resolved run: index, query, report |
+| `run.yaml.j2` | a template for multiple variants |
+| `seocho.sweep.yaml` | the list of variants to render and compare |
+
 ## Running the CLI
 
 SEOCHO standardizes on [uv](https://docs.astral.sh/uv/). From a repo checkout,
@@ -57,6 +77,16 @@ Defaults: `mara/MiniMax-M2.5` for both phases, embedded LadybugDB
 (`.seocho/local.lbug`), `guided` enforcement, `pipeline` execution mode.
 
 ## Full spec
+
+The full spec has five practical blocks:
+
+| Block | Controls | Usually start with |
+|---|---|---|
+| `ontology` | schema source and enforcement policy | `path` + `enforcement: guided` |
+| `documents` | files or records to index | `path` + `recursive: true` |
+| `models` | model used for indexing and querying | `default` |
+| `graph` / `vector` | storage backend | omit for embedded LadybugDB |
+| `query` / `questions` / `output` | questions and report location | one or more `questions` |
 
 ```yaml
 name: filings-demo                  # default: config filename stem
@@ -130,11 +160,21 @@ Omitting `questions` entirely makes the run index-only.
 `ontology.enforcement` declares the admission policy for extracted graph
 data against the ontology vocabulary:
 
-| Mode | Behavior |
+| Mode | Use it when | Write behavior | Failure behavior |
 | --- | --- |
-| `strict` | Closed vocabulary. A constant closed-vocabulary instruction is appended to extraction prompts; the relaxed retry and the `Entity`/heuristic fallbacks are disabled (an empty extraction is a legitimate outcome); validation runs closed (no `Entity` exemption, dangling-endpoint and domain/range conformance checks via the `broader` chain); chunks with errors are rejected, not written; linking output is re-checked and reverted on regression. Default `validation_on_fail` becomes `reject` (`relax`/`warn` are rejected as incoherent). |
-| `guided` | Default — the tuned behavior the FinDER experiments validated. The ontology guides extraction prompts; relaxed retry and `Entity` fallback stay available; validation errors are reported but content is written. |
-| `open` | Admit everything: same write behavior as `guided`, plus every out-of-vocabulary node/relationship is stamped with `_out_of_ontology: "true"` — the triage signal for offline ontology-evolution governance. `validation_on_fail: reject` is rejected as incoherent. |
+| `strict` | the graph must stay inside a closed vocabulary | reject invalid chunks | empty extraction is allowed; `validation_on_fail` defaults to `reject` |
+| `guided` | you want the default product behavior | write content and report validation errors | relaxed retry and `Entity` fallback remain available |
+| `open` | you are discovering a new ontology | write content and mark out-of-vocabulary facts | `validation_on_fail: reject` is incoherent |
+
+Implementation notes:
+
+- `strict` disables relaxed retry and heuristic fallbacks.
+- `strict` validates dangling endpoints and domain/range conformance through
+  the broader chain.
+- `open` stamps out-of-vocabulary nodes and relationships with
+  `_out_of_ontology: "true"` for later governance review.
+- These modes are admission policies for extracted data, not CWA/OWA inference
+  semantics. Query-time entailment is unchanged.
 
 ## Domain-adaptive guardrail selection
 

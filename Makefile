@@ -3,6 +3,7 @@
 DOCKER_COMPOSE = docker compose
 DOCKER_COMPOSE_LIVE = docker compose -f docker-compose.yml -f docker-compose.dev.yml
 DOCKER_COMPOSE_TUTORIALS = docker compose -f docker-compose.tutorials.yml
+DOCKER_COMPOSE_OPIK = docker compose -f docker-compose.opik.yml --profile opik
 
 # Shared stack project name (fixed so per-instance app tiers can target its
 # neo4j for ephemeral-database admin — see src/seocho/local.py).
@@ -149,16 +150,17 @@ observability-logs: ## Tail Collector, Tempo, Prometheus, and Grafana logs
 
 opik-up: ## Start core + Opik services
 	@echo "🔭 Starting Seocho with Opik observability..."
-	@docker compose --profile opik up -d
+	@$(MAKE) up
+	@COMPOSE_PROJECT_NAME=seocho-opik $(DOCKER_COMPOSE_OPIK) up -d --wait --remove-orphans
 	@echo "✅ Services started with Opik!"
 	@echo "🔭 Access Opik UI: http://localhost:5173"
 
 opik-down: ## Stop all services including Opik
 	@echo "🛑 Stopping services (including Opik)..."
-	@docker compose --profile opik down
+	@COMPOSE_PROJECT_NAME=seocho-opik $(DOCKER_COMPOSE_OPIK) down
 
 opik-logs: ## View Opik service logs
-	@docker compose --profile opik logs -f --tail=100 opik-backend opik-python-backend opik-frontend
+	@COMPOSE_PROJECT_NAME=seocho-opik $(DOCKER_COMPOSE_OPIK) logs -f --tail=100 opik-backend opik-python-backend opik-frontend
 
 ##@ FinDER Tutorials
 

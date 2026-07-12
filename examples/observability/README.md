@@ -23,11 +23,11 @@ Flow: `SEOCHO → OTLP gRPC → Collector → Tempo (traces) + Prometheus (metri
 ## Run
 
 The stack joins the **external** `seocho-net` network created by the repo's main
-`docker-compose.yml`, so bring the main stack up first, then:
+`docker-compose.yml`, so bring the main stack up first, then use the repository
+entry point:
 
 ```bash
-docker compose -f examples/observability/docker-compose.observability.yml \
-    --profile observability up -d
+make observability-up
 ```
 
 Point SEOCHO at the collector:

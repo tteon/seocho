@@ -81,6 +81,37 @@
       "title": "Latest scenario support status",
       "transformations": [{"id": "organize", "options": {"excludeByName": {"Time": true, "__name__": true}, "indexByName": {"scenario_id": 0, "support_status": 1, "Value": 2}, "renameByName": {"Value": "observed"}}}],
       "type": "table"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 0, "y": 17},
+      "id": 8,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "sum by (gen_ai_provider_name, gen_ai_request_model) (rate(seocho_gen_ai_prompt_cache_request_total{outcome=\"hit\"}[$__rate_interval])) / clamp_min(sum by (gen_ai_provider_name, gen_ai_request_model) (rate(seocho_gen_ai_prompt_cache_request_total[$__rate_interval])), 0.000001)", "legendFormat": "{{gen_ai_provider_name}} / {{gen_ai_request_model}}", "refId": "A"}],
+      "title": "Provider-reported prompt cache hit ratio",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 8, "y": 17},
+      "id": 9,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "sum by (gen_ai_provider_name, gen_ai_request_model) (rate(gen_ai_client_token_usage_sum{gen_ai_token_type=\"cached_input\"}[$__rate_interval])) / clamp_min(sum by (gen_ai_provider_name, gen_ai_request_model) (rate(gen_ai_client_token_usage_sum{gen_ai_token_type=\"input\"}[$__rate_interval])), 0.000001)", "legendFormat": "{{gen_ai_provider_name}} / {{gen_ai_request_model}}", "refId": "A"}],
+      "title": "Cached share of input tokens",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "description": "Estimated input-cost reduction when cached input costs 20% of fresh input. Change the multiplier for a different provider contract.",
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 0.8}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 17},
+      "id": 10,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "0.8 * sum by (gen_ai_provider_name, gen_ai_request_model) (rate(gen_ai_client_token_usage_sum{gen_ai_token_type=\"cached_input\"}[$__rate_interval])) / clamp_min(sum by (gen_ai_provider_name, gen_ai_request_model) (rate(gen_ai_client_token_usage_sum{gen_ai_token_type=\"input\"}[$__rate_interval])), 0.000001)", "legendFormat": "{{gen_ai_provider_name}} / {{gen_ai_request_model}}", "refId": "A"}],
+      "title": "Estimated input-cost reduction",
+      "type": "timeseries"
     }
   ],
   "refresh": "5s",

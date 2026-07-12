@@ -130,6 +130,33 @@ The map follows this structure:
 | How-to guides | solve a concrete task | [Bring Your Data](APPLY_YOUR_DATA.md), [Run Specs](RUN_SPECS.md) |
 | Reference | preserve contracts, surfaces, and decisions | [Files and Artifacts](FILES_AND_ARTIFACTS.md), [Query Architecture](QUERY_ARCHITECTURE.md), [Decision Log](decisions/DECISION_LOG.md) |
 
+## System Deep-Dive Map
+
+Generated code indexes such as [DeepWiki](https://deepwiki.com/tteon/seocho)
+are useful as secondary maps, but the source docs in this repository remain the
+contract. Use this table to move from a system area to the maintained guide.
+
+| System area | What you are trying to understand | Maintained docs |
+|---|---|---|
+| Product overview | why SEOCHO exists and where it fits | [Why SEOCHO](WHY_SEOCHO.md), [Architecture Overview](ARCHITECTURE.md) |
+| SDK and client interface | how users call SEOCHO from Python | [Python SDK](PYTHON_INTERFACE_QUICKSTART.md), [Quickstart](../QUICKSTART.md) |
+| Ontology system | how schema, context, drift checks, and governance shape behavior | [Why SEOCHO](WHY_SEOCHO.md), [SDK Ontology Guide](https://seocho.blog/sdk/ontology-guide/), [Maintainer Architecture Notes](MAINTAINER_ARCHITECTURE_NOTES.md) |
+| Indexing and ingestion | how documents become graph facts | [Bring Your Data](APPLY_YOUR_DATA.md), [Run Specs](RUN_SPECS.md), [Files and Artifacts](FILES_AND_ARTIFACTS.md) |
+| Query and agent orchestration | how questions become evidence-backed answers | [Query Architecture](QUERY_ARCHITECTURE.md), [Graph-RAG Agent Handoff Spec](GRAPH_RAG_AGENT_HANDOFF_SPEC.md) |
+| Runtime and HTTP API | how the shared service is composed and operated | [Runtime Deployment](RUNTIME_DEPLOYMENT.md), [Runtime Architecture](RUNTIME_ARCHITECTURE.md) |
+| Storage and graph backends | where graph state, generated files, and backend assumptions live | [Files and Artifacts](FILES_AND_ARTIFACTS.md), [Runtime Architecture](RUNTIME_ARCHITECTURE.md) |
+| LLM, tracing, and evaluation | how runs stay inspectable and how claims are validated | [Files and Artifacts](FILES_AND_ARTIFACTS.md), [Runtime Architecture](RUNTIME_ARCHITECTURE.md), [Workflow](WORKFLOW.md) |
+| Developer tooling and CI | how contributors keep changes reviewable and deployable | [Open Source Playbook](OPEN_SOURCE_PLAYBOOK.md), [Workflow](WORKFLOW.md), [Maintainer Architecture Notes](MAINTAINER_ARCHITECTURE_NOTES.md) |
+
+Current gap list:
+
+| Gap | Current workaround | Good future doc |
+|---|---|---|
+| ontology internals are split across product, SDK, and maintainer docs | start from the SDK ontology guide, then read maintainer notes | `Ontology Architecture` |
+| indexing/data-plane internals are spread across how-to and artifact docs | start from Bring Your Data, Run Specs, and Files and Artifacts | `Indexing Architecture` |
+| graph backend details are mostly operational today | start from Files and Artifacts and Runtime Architecture | `Storage And Backend Guide` |
+| tracing/evaluation guidance is distributed across workflow and runtime docs | start from Files and Artifacts, Runtime Architecture, and Workflow | `Tracing And Evaluation Guide` |
+
 ## Common Questions
 
 | Question | Short answer | Read next |

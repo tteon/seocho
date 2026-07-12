@@ -29,6 +29,7 @@ TITLE_KIND_RULES = {
     "performance": "kind-perf",
     "chore": "kind-maintenance",
     "maint": "kind-maintenance",
+    "release": "kind-release",
 }
 
 AREA_VALUE_RULES = {
@@ -49,6 +50,8 @@ AREA_VALUE_RULES = {
     "observability": "area-observability",
     "website": "area-website",
     "security": "area-security",
+    "community": "area-community",
+    "discord": "area-community",
 }
 
 FILE_AREA_RULES = [

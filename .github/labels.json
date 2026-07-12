@@ -60,6 +60,11 @@
     "description": "Security-sensitive behavior, vulnerability policy, or disclosure path."
   },
   {
+    "name": "area-community",
+    "color": "0e8a16",
+    "description": "Discord, contributor communication, support, or community operations."
+  },
+  {
     "name": "kind-bug",
     "color": "d73a4a",
     "description": "A reproducible defect or regression."
@@ -98,6 +103,11 @@
     "name": "kind-maintenance",
     "color": "cfd3d7",
     "description": "Maintenance, chores, dependency hygiene, or repo cleanup."
+  },
+  {
+    "name": "kind-release",
+    "color": "0052cc",
+    "description": "Release planning, release notes, package publishing, or announcement work."
   },
   {
     "name": "status-needs-triage",

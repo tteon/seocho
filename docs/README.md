@@ -159,7 +159,7 @@ Use these after the first local success:
 
 | Topic | Reference |
 |---|---|
-| Architecture details | [Architecture Overview](ARCHITECTURE.md), [Runtime Architecture](RUNTIME_ARCHITECTURE.md), [Query Architecture](QUERY_ARCHITECTURE.md), [Maintainer Architecture Notes](MAINTAINER_ARCHITECTURE_NOTES.md) |
+| Architecture details | [Architecture Overview](ARCHITECTURE.md), [Runtime Architecture](RUNTIME_ARCHITECTURE.md), [Query Architecture](QUERY_ARCHITECTURE.md), [Maintainer Architecture Notes](MAINTAINER_ARCHITECTURE_NOTES.md), [Internal Class Design](INTERNAL_CLASS_DESIGN.md) |
 | Repository shape | [Repository Layout](REPOSITORY_LAYOUT.md), [Workflow](WORKFLOW.md) |
 | Automation | [GitHub Automation](GITHUB_AUTOMATION.md), [Release And Community Operations](RELEASE_AND_COMMUNITY_OPERATIONS.md) |
 | Design history | [Decision Log](decisions/DECISION_LOG.md), [Reference Docs](reference/README.md) |

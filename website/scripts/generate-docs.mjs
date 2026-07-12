@@ -93,6 +93,16 @@ const fileMappings = [
       '> *Source mirrored from `seocho/docs/FILES_AND_ARTIFACTS.md`*\n\n',
   },
   {
+    src: 'docs/RUN_SPECS.md',
+    dest: 'run_specs.md',
+    frontmatter:
+      '---\n' +
+      'title: Run Specs\n' +
+      'description: Declare ontology, documents, questions, models, and sweeps in YAML.\n' +
+      '---\n\n' +
+      '> *Source mirrored from `seocho/docs/RUN_SPECS.md`*\n\n',
+  },
+  {
     src: 'docs/ARCHITECTURE.md',
     dest: 'architecture.md',
     frontmatter:
@@ -131,6 +141,16 @@ const fileMappings = [
       'description: Extension guide for ontology, data, agent, and runtime integration.\n' +
       '---\n\n' +
       '> *Source mirrored from `seocho/docs/OPEN_SOURCE_PLAYBOOK.md`*\n\n',
+  },
+  {
+    src: 'docs/RELEASE_AND_COMMUNITY_OPERATIONS.md',
+    dest: 'release_and_community_operations.md',
+    frontmatter:
+      '---\n' +
+      'title: Release And Community Operations\n' +
+      'description: Release gates, Discord update policy, and open-source community operating rules.\n' +
+      '---\n\n' +
+      '> *Source mirrored from `seocho/docs/RELEASE_AND_COMMUNITY_OPERATIONS.md`*\n\n',
   },
   {
     src: 'docs/PHILOSOPHY.md',
@@ -181,14 +201,21 @@ const routeReplacements = new Map([
   ['`docs/APPLY_YOUR_DATA.md`', '[`/docs/apply_your_data/`](/docs/apply_your_data/)'],
   ['`docs/PYTHON_INTERFACE_QUICKSTART.md`', '[`/docs/python_sdk/`](/docs/python_sdk/)'],
   ['`docs/FILES_AND_ARTIFACTS.md`', '[`/docs/files_and_artifacts/`](/docs/files_and_artifacts/)'],
+  ['`docs/RUN_SPECS.md`', '[`/docs/run_specs/`](/docs/run_specs/)'],
   ['`docs/ARCHITECTURE.md`', '[`/docs/architecture/`](/docs/architecture/)'],
   ['`docs/WORKFLOW.md`', '[`/docs/workflow/`](/docs/workflow/)'],
   ['`docs/TUTORIAL_FIRST_RUN.md`', '[`/docs/tutorial/`](/docs/tutorial/)'],
   ['`docs/OPEN_SOURCE_PLAYBOOK.md`', '[`/docs/open_source_playbook/`](/docs/open_source_playbook/)'],
+  ['`docs/RELEASE_AND_COMMUNITY_OPERATIONS.md`', '[`/docs/release_and_community_operations/`](/docs/release_and_community_operations/)'],
   ['`docs/PHILOSOPHY.md`', '[`/docs/philosophy/`](/docs/philosophy/)'],
   ['`docs/PHILOSOPHY_FEASIBILITY_REVIEW.md`', '[`/blog/feasibility-review-framework/`](/blog/feasibility-review-framework/)'],
   ['(../README.md#execution-surfaces)', `(${SOURCE_BLOB_BASE}README.md#execution-surfaces)`],
+  ['(../README.md#choose-a-mode)', `(${SOURCE_BLOB_BASE}README.md#choose-a-mode)`],
+  ['(../README.md)', `(${SOURCE_BLOB_BASE}README.md)`],
+  ['(README.md)', `(${SOURCE_BLOB_BASE}README.md)`],
   ['(../QUICKSTART.md)', '(/docs/quickstart/)'],
+  ['(RELEASE_AND_COMMUNITY_OPERATIONS.md)', '(/docs/release_and_community_operations/)'],
+  ['(RUN_SPECS.md)', '(/docs/run_specs/)'],
   ['(WHY_SEOCHO.md)', '(/docs/why_seocho/)'],
   ['(QUICKSTART.md)', '(/docs/quickstart/)'],
   ['(docs/RUNTIME_DEPLOYMENT.md)', '(/docs/runtime_deployment/)'],
@@ -196,6 +223,8 @@ const routeReplacements = new Map([
   ['(docs/APPLY_YOUR_DATA.md)', '(/docs/apply_your_data/)'],
   ['(docs/PYTHON_INTERFACE_QUICKSTART.md)', '(/docs/python_sdk/)'],
   ['(docs/FILES_AND_ARTIFACTS.md)', '(/docs/files_and_artifacts/)'],
+  ['(docs/RUN_SPECS.md)', '(/docs/run_specs/)'],
+  ['(docs/RELEASE_AND_COMMUNITY_OPERATIONS.md)', '(/docs/release_and_community_operations/)'],
   ['(PYTHON_INTERFACE_QUICKSTART.md)', '(/docs/python_sdk/)'],
   ['(APPLY_YOUR_DATA.md)', '(/docs/apply_your_data/)'],
   ['(FILES_AND_ARTIFACTS.md)', '(/docs/files_and_artifacts/)'],
@@ -209,6 +238,10 @@ const routeReplacements = new Map([
   ['(AGENT_DESIGN_SPECS.md)', `(${SOURCE_BLOB_BASE}docs/AGENT_DESIGN_SPECS.md)`],
   ['(INDEXING_DESIGN_SPECS.md)', `(${SOURCE_BLOB_BASE}docs/INDEXING_DESIGN_SPECS.md)`],
   ['(BEGINNER_GUIDE.md)', `(${SOURCE_BLOB_BASE}docs/BEGINNER_GUIDE.md)`],
+  ['(BEGINNER_PIPELINES_DEMO.md)', `(${SOURCE_BLOB_BASE}docs/BEGINNER_PIPELINES_DEMO.md)`],
+  ['(REPOSITORY_LAYOUT.md)', `(${SOURCE_BLOB_BASE}docs/REPOSITORY_LAYOUT.md)`],
+  ['(GITHUB_AUTOMATION.md)', `(${SOURCE_BLOB_BASE}docs/GITHUB_AUTOMATION.md)`],
+  ['(ARCHITECTURE_HEALTH.md)', `(${SOURCE_BLOB_BASE}docs/ARCHITECTURE_HEALTH.md)`],
   ['(INTERNAL_CLASS_DESIGN.md)', `(${SOURCE_BLOB_BASE}docs/INTERNAL_CLASS_DESIGN.md)`],
   ['(MODULE_OWNERSHIP_MAP.md)', `(${SOURCE_BLOB_BASE}docs/MODULE_OWNERSHIP_MAP.md)`],
   ['(USECASES.md)', `(${SOURCE_BLOB_BASE}docs/USECASES.md)`],
@@ -218,6 +251,8 @@ const routeReplacements = new Map([
   ['(ONTOLOGY_RUN_CONTEXT_STRATEGY.md)', `(${SOURCE_BLOB_BASE}docs/ONTOLOGY_RUN_CONTEXT_STRATEGY.md)`],
   ['(PROPERTY_GRAPH_LENS_STRATEGY.md)', `(${SOURCE_BLOB_BASE}docs/PROPERTY_GRAPH_LENS_STRATEGY.md)`],
   ['(ISSUE_TASK_SYSTEM.md)', `(${SOURCE_BLOB_BASE}docs/ISSUE_TASK_SYSTEM.md)`],
+  ['(REPOSITORY_HIERARCHY_REVIEW.md)', `(${SOURCE_BLOB_BASE}docs/REPOSITORY_HIERARCHY_REVIEW.md)`],
+  ['(KNOWN_ISSUE.md)', `(${SOURCE_BLOB_BASE}docs/KNOWN_ISSUE.md)`],
   ['(BEADS_OPERATING_MODEL.md)', `(${SOURCE_BLOB_BASE}docs/BEADS_OPERATING_MODEL.md)`],
   ['(decisions/DECISION_LOG.md)', `(${SOURCE_BLOB_BASE}docs/decisions/DECISION_LOG.md)`],
   ['(../CONTRIBUTING.md)', `(${SOURCE_BLOB_BASE}CONTRIBUTING.md)`],

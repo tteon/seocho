@@ -62,27 +62,23 @@
         <div class="mx-auto text-xs text-zinc-500 font-mono">seocho-ontology-first</div>
       </div>
       <div class="p-6 text-sm font-mono text-zinc-300 overflow-x-auto">
-        <Fragment set:html={`<pre class="!bg-transparent !m-0 !p-0"><code class="language-python">from seocho import Seocho, Ontology, NodeDef, RelDef, P
-from seocho.store import Neo4jGraphStore, OpenAIBackend
+        <Fragment set:html={`<pre class="!bg-transparent !m-0 !p-0"><code class="language-python">from seocho import Seocho, Ontology, NodeDef, RelDef, Property
 
 ontology = Ontology(
-    name="finance_core",
+    name="work",
     nodes={
-        "Company": NodeDef(properties={"name": P(str, unique=True)}),
+        "Person": NodeDef(properties={"name": Property(str, unique=True)}),
+        "Company": NodeDef(properties={"name": Property(str, unique=True)}),
     },
     relationships={
-        "ACQUIRED": RelDef(source="Company", target="Company"),
+        "WORKS_AT": RelDef(source="Person", target="Company"),
     },
 )
 
-client = Seocho(
-    ontology=ontology,
-    graph_store=Neo4jGraphStore("bolt://localhost:7687", "neo4j", "password"),
-    llm=OpenAIBackend(model="gpt-4o-mini"),
-)
+client = Seocho.local(ontology, llm="mara/MiniMax-M2.5")
+client.add("Marie Curie worked at the University of Paris.")
 
-client.add("ACME acquired Beta in 2024.")
-print(client.ask("Who did ACME acquire?", reasoning_mode=True))
+print(client.ask("Where did Marie Curie work?"))
 </code></pre>`} />
       </div>
     </div>

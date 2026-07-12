@@ -7,39 +7,39 @@ description: From zero to a working knowledge graph in 5 minutes
 
 SEOCHO has two valid starting points:
 
-- use `pip install seocho` when you are consuming an existing runtime over HTTP
-- use `pip install "seocho[local]"` when you are authoring the ontology and graph locally
+- use `uv pip install seocho` when you are consuming an existing runtime over HTTP
+- use `uv pip install "seocho[local]"` when you want the local SDK engine and embedded first-run path
 
 If you want the product rationale first, read [/docs/why_seocho/](/docs/why_seocho/).
 
 ## 1. Install
 
 ```bash
-pip install seocho
+uv pip install seocho
 ```
 
-For local engine mode against your own Neo4j/DozerDB, use:
+For local engine mode with an embedded graph path, use:
 
 ```bash
-pip install "seocho[local]"
+uv pip install "seocho[local]"
 ```
 
 If you are editing the repository itself, prefer:
 
 ```bash
-pip install -e ".[dev]"
+uv sync --extra dev
 ```
 
 ## 2. Define your schema
 
 ```python
-from seocho import Ontology, NodeDef, RelDef, P
+from seocho import Ontology, NodeDef, RelDef, Property
 
 ontology = Ontology(
-    name="my_domain",
+    name="work",
     nodes={
-        "Person":  NodeDef(properties={"name": P(str, unique=True)}),
-        "Company": NodeDef(properties={"name": P(str, unique=True)}),
+        "Person": NodeDef(properties={"name": Property(str, unique=True)}),
+        "Company": NodeDef(properties={"name": Property(str, unique=True)}),
     },
     relationships={
         "WORKS_AT": RelDef(source="Person", target="Company"),
@@ -47,34 +47,29 @@ ontology = Ontology(
 )
 ```
 
-`P(str, unique=True)` = string property, must be unique. This drives the extraction prompt, query prompt, a Neo4j UNIQUE constraint, and SHACL validation — all from one declaration.
+`Property(str, unique=True)` declares a unique string property. The ontology
+drives extraction, query context, validation, and graph constraints from one
+declaration.
 
 ## 3. Connect
 
 ```python
 from seocho import Seocho
-from seocho.store import Neo4jGraphStore, OpenAIBackend
 
-s = Seocho(
-    ontology=ontology,
-    graph_store=Neo4jGraphStore("bolt://localhost:7687", "neo4j", "password"),
-    llm=OpenAIBackend(model="gpt-4o"),
-)
-
-s.ensure_constraints()
+client = Seocho.local(ontology, llm="mara/MiniMax-M2.5")
 ```
 
 ## 4. Index data
 
 ```python
 # Single text
-s.add("Marie Curie worked at the University of Paris.")
+client.add("Marie Curie worked at the University of Paris.")
 
 # From files
-s.index_directory("./my_data/")
+client.index_directory("./my_data/")
 
 # Batch
-s.add_batch([
+client.add_batch([
     "Apple CEO Tim Cook announced new AI features.",
     "Samsung's Jay Y. Lee met with NVIDIA's Jensen Huang.",
 ])
@@ -83,18 +78,18 @@ s.add_batch([
 ## 5. Query
 
 ```python
-print(s.ask("Where did Marie Curie work?"))
+print(client.ask("Where did Marie Curie work?"))
 
 # With auto-retry for hard questions
-print(s.ask("Which companies are involved in chip supply?",
-            reasoning_mode=True, repair_budget=2))
+print(client.ask("Which companies are involved in chip supply?",
+                 reasoning_mode=True, repair_budget=2))
 ```
 
 ## 6. Inspect extraction
 
 ```python
 # Preview what gets extracted (without writing)
-result = s.extract("Elon Musk is the CEO of Tesla and SpaceX.")
+result = client.extract("Elon Musk is the CEO of Tesla and SpaceX.")
 print(result)
 
 # Check quality
@@ -115,10 +110,13 @@ actually live on disk.
 
 ## 8. Use domain-specific prompts
 
+When you move from `Seocho.local(...)` to an explicit graph store and LLM
+backend, you can also choose domain prompts:
+
 ```python
 from seocho.query import PRESET_PROMPTS
 
-s = Seocho(
+client = Seocho(
     ontology=ontology,
     graph_store=store,
     llm=llm,
@@ -132,7 +130,7 @@ If you want teammates to use the same SDK-authored setup through HTTP client
 mode, export a portable runtime bundle and serve it separately:
 
 ```python
-bundle = s.export_runtime_bundle(
+bundle = client.export_runtime_bundle(
     "portable.bundle.json",
     app_name="team-memory-runtime",
     default_database="neo4j",
@@ -149,7 +147,7 @@ seocho serve-http --bundle portable.bundle.json --port 8010
 Sessions maintain context across multiple indexing and querying operations:
 
 ```python
-with s.session("research") as sess:
+with client.session("research") as sess:
     sess.add("Samsung CEO Jay Y. Lee reported $234B revenue.")
     sess.add("Apple CEO Tim Cook reported $383B revenue.")
     # QueryAgent sees structured context from both documents

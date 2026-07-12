@@ -30,16 +30,25 @@ export default defineConfig({
             sidebar: [
                 { label: 'Home', link: '/' },
                 {
-                    label: 'Docs', items: [
-                        { label: 'Introduction', link: '/docs/' },
+                    label: 'Start Here', items: [
+                        { label: 'Docs Home', link: '/docs/' },
                         { label: 'Why SEOCHO', link: '/docs/why_seocho/' },
-                        { label: 'Quick Start', link: '/docs/quickstart/' },
-                        { label: 'Runtime Deployment', link: '/docs/runtime_deployment/' },
+                        { label: 'Quickstart', link: '/docs/quickstart/' },
                         { label: 'Bring Your Data', link: '/docs/apply_your_data/' },
-                        { label: 'Python SDK', link: '/docs/python_sdk/' },
+                    ]
+                },
+                {
+                    label: 'Build', items: [
+                        { label: 'Python SDK Guide', link: '/docs/python_sdk/' },
+                        { label: 'Run Specs', link: '/docs/run_specs/' },
                         { label: 'Files and Artifacts', link: '/docs/files_and_artifacts/' },
                         { label: 'Tutorial', link: '/docs/tutorial/' },
-                        { label: 'Open Source Playbook', link: '/docs/open_source_playbook/' },
+                        { label: 'Examples', link: '/examples/' },
+                    ]
+                },
+                {
+                    label: 'Operate', items: [
+                        { label: 'Runtime Deployment', link: '/docs/runtime_deployment/' },
                         { label: 'Architecture', link: '/docs/architecture/' },
                         { label: 'Workflow', link: '/docs/workflow/' },
                         { label: 'Philosophy', link: '/docs/philosophy/' }
@@ -54,9 +63,14 @@ export default defineConfig({
                         { label: 'Examples', link: '/sdk/examples/' },
                     ]
                 },
-                { label: 'Examples', link: '/examples/' },
-                { label: 'Changelog', link: '/changelog/' },
-                { label: 'Community', link: '/community/' },
+                {
+                    label: 'Contribute', items: [
+                        { label: 'Open Source Playbook', link: '/docs/open_source_playbook/' },
+                        { label: 'Release & Community', link: '/docs/release_and_community_operations/' },
+                        { label: 'Community', link: '/community/' },
+                        { label: 'Changelog', link: '/changelog/' },
+                    ]
+                },
             ],
             head: [
                 { tag: 'link', attrs: { rel: 'icon', href: 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>✨</text></svg>' } },

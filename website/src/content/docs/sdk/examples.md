@@ -10,31 +10,27 @@ description: Copy-pasteable patterns for building knowledge graphs with SEOCHO
 The easiest way to bring your own data:
 
 ```python
-from seocho import Seocho, Ontology, NodeDef, RelDef, P
-from seocho.store import Neo4jGraphStore, OpenAIBackend
+from seocho import Seocho, Ontology, NodeDef, RelDef, Property
+
 ontology = Ontology(
-    name="my_domain",
+    name="work",
     nodes={
-        "Person":  NodeDef(properties={"name": P(str, unique=True)}),
-        "Company": NodeDef(properties={"name": P(str, unique=True)}),
+        "Person": NodeDef(properties={"name": Property(str, unique=True)}),
+        "Company": NodeDef(properties={"name": Property(str, unique=True)}),
     },
     relationships={
         "WORKS_AT": RelDef(source="Person", target="Company"),
     },
 )
 
-s = Seocho(
-    ontology=ontology,
-    graph_store=Neo4jGraphStore("bolt://localhost:7687", "neo4j", "pass"),
-    llm=OpenAIBackend(model="gpt-4o"),
-)
+client = Seocho.local(ontology, llm="mara/MiniMax-M2.5")
 
 # Index a whole directory
-results = s.index_directory("./my_data/", database="mydb")
+results = client.index_directory("./my_data/", database="mydb")
 print(f"Indexed {results['files_indexed']} files")
 
 # Re-run — only changed files are processed
-results = s.index_directory("./my_data/", database="mydb")
+results = client.index_directory("./my_data/", database="mydb")
 # files_unchanged: 5, files_indexed: 0
 ```
 

@@ -54,6 +54,13 @@ class AgentTransactionProjector:
         validate_projection_format(nodes, relationships)
         max_sequence = max(entry.sequence for entry in entries)
         try:
+            assert_fence = getattr(self._repository, "assert_projection_fence", None)
+            if assert_fence is not None:
+                assert_fence(
+                    workspace_id=workspace_id,
+                    projection=database,
+                    fencing_token=fencing_token,
+                )
             with start_span(
                 "projection.batch",
                 metadata={

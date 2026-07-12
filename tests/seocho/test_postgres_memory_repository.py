@@ -181,3 +181,16 @@ def test_stale_projection_acknowledgement_rolls_back_outbox_updates() -> None:
         )
 
     assert connection.exit_exception is ProjectionFencingError
+
+
+def test_preflight_fence_rejects_before_graph_write() -> None:
+    cursor = FakeCursor([(10,)])
+    connection = FakeConnection(cursor)
+    repository = PostgreSQLMemoryRepository(lambda: connection)
+
+    with pytest.raises(ProjectionFencingError, match="before graph write"):
+        repository.assert_projection_fence(
+            workspace_id="ws-1", projection="neo4j", fencing_token=9
+        )
+
+    assert cursor.executed[-1][1] == ("ws-1", "neo4j")

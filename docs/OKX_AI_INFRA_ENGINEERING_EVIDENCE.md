@@ -126,6 +126,9 @@ with their provenance, limitation, and reproducible artifact.
   alive; after the three-second TTL B acquired token 2.
 - PostgreSQL result: token 2 advanced the durable watermark; stale token 1 was
   rejected and the watermark remained at sequence 1/token 2.
+- Write ordering: the repository checks the durable fence before graph mutation
+  and checks it again atomically while acknowledging outbox rows and watermark.
+  A known-stale worker therefore cannot pollute the graph before being rejected.
 - Benefit: etcd provides fast ephemeral ownership, while PostgreSQL prevents a
   paused/stale worker from acknowledging a graph write after lease loss.
 - Governance: current etcd data contains only active policy and watermark

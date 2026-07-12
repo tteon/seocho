@@ -389,6 +389,25 @@ class PostgreSQLMemoryRepository:
                         "stale projector fencing token was rejected"
                     )
 
+    def assert_projection_fence(
+        self, *, workspace_id: str, projection: str, fencing_token: int
+    ) -> None:
+        """Reject a known-stale worker before it mutates the graph."""
+        if fencing_token < 0:
+            raise ValueError("fencing_token cannot be negative")
+        with self._connection_factory() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """SELECT fencing_token FROM agent_projection_watermarks
+                       WHERE workspace_id = %s AND projection = %s""",
+                    (workspace_id, projection),
+                )
+                row = cursor.fetchone()
+                if row is not None and int(row[0]) > fencing_token:
+                    raise ProjectionFencingError(
+                        "stale projector fencing token was rejected before graph write"
+                    )
+
     @staticmethod
     def _revision_from_read_row(
         workspace_id: str, memory_id: str, row: tuple[Any, ...]

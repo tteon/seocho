@@ -89,9 +89,13 @@ first-read sequence.
 - GitHub `README.md` is the fastest product landing page.
 - `docs/*` is the source of truth for long-form product, operator, and system
   contracts.
-- `website/` is the tracked Astro/Starlight source for `https://seocho.blog`.
+- `website/` is the tracked Astro/Starlight source app in this repository.
+- Current live deployment for `https://seocho.blog` is still owned by
+  `tteon/tteon.github.io` GitHub Pages until Pages is enabled on `tteon/seocho`.
 - `website/scripts/generate-docs.mjs` materializes selected `/docs/*` and
-  `/blog/*` pages from repo-root source docs at build time.
+  `/blog/*` pages from repo-root source docs for the in-repo site app.
+- the `scripts/sync.mjs` helper in `tteon/tteon.github.io` mirrors selected
+  source docs into the live GitHub Pages repository.
 - Generated mirror files under `website/src/content/docs/docs/` are derived
   artifacts; edit the repo-root source docs instead.
 - Validate the site with `cd website && npm ci && npm run check:docs && npm run build && bash scripts/check-built-links.sh`.

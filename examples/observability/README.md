@@ -23,11 +23,11 @@ Flow: `SEOCHO → OTLP gRPC → Collector → Tempo (traces) + Prometheus (metri
 ## Run
 
 The stack joins the **external** `seocho-net` network created by the repo's main
-`docker-compose.yml`, so bring the main stack up first, then:
+`docker-compose.yml`, so bring the main stack up first, then use the repository
+entry point:
 
 ```bash
-docker compose -f examples/observability/docker-compose.observability.yml \
-    --profile observability up -d
+make observability-up
 ```
 
 Point SEOCHO at the collector:
@@ -88,3 +88,32 @@ the seven production/evaluation dashboards in the SEOCHO folder. The
 Only bounded identifiers such as `scenario_id`, `stage`, and `support_status`
 are metric labels. Prompts, query text, wallet identifiers, and transaction
 payloads must remain out of metrics and trace attributes.
+
+## Dependency profile
+
+The dependency overlay enables PostgreSQL 18 server metrics through the
+official `postgres_exporter` v0.19.1 image and scrapes etcd's native `/metrics`
+endpoint. Create a local secret file without committing it:
+
+```bash
+mkdir -p examples/observability/secrets
+printf '%s' "$POSTGRES_PASSWORD" > \
+  examples/observability/secrets/postgres_exporter_password
+chmod 600 examples/observability/secrets/postgres_exporter_password
+
+docker compose \
+  -f examples/observability/docker-compose.observability.yml \
+  -f examples/observability/docker-compose.dependencies.yml \
+  --profile observability --profile dependencies up -d
+```
+
+The validated local defaults expect PostgreSQL on host port `55432` and etcd
+on `52379`; PostgreSQL host/port/database/user/SSL mode are configurable with
+the `POSTGRES_EXPORTER_*` variables. Production must replace the etcd static
+target with member service discovery.
+
+DozerDB Community 5.26.3.0 did not expose a supported native Prometheus or
+dynamic TLS-reload endpoint in the live capability probe. SEOCHO therefore
+uses standard `db.client.operation.duration` at the application boundary and
+reports native server/cluster/TLS signals as unsupported. Enable those scrapes
+only after verifying the exact deployed edition and authenticated endpoint.

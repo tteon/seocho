@@ -155,6 +155,8 @@ def ensure_memory_graph(
                 "source": source,
                 "target": target,
                 "type": rel_type,
+                "source_label": str(node_map.get(source, {}).get("label", "")),
+                "target_label": str(node_map.get(target, {}).get("label", "")),
                 "properties": properties,
             }
         )
@@ -171,6 +173,8 @@ def ensure_memory_graph(
                 "source": document_id,
                 "target": node_id,
                 "type": "MENTIONS",
+                "source_label": "Document",
+                "target_label": str(node_map.get(node_id, {}).get("label", "")),
                 "properties": {
                     "source_id": source_id,
                     "memory_id": source_id,
@@ -199,6 +203,15 @@ def ensure_memory_graph(
     semantic_payload["record_context"] = record_metadata
     if layered_summary:
         semantic_payload["layered_graph_summary"] = layered_summary
+    for relationship in normalized_relationships:
+        source = str(relationship.get("source", ""))
+        target = str(relationship.get("target", ""))
+        relationship.setdefault(
+            "source_label", str(node_map.get(source, {}).get("label", ""))
+        )
+        relationship.setdefault(
+            "target_label", str(node_map.get(target, {}).get("label", ""))
+        )
     return {
         "nodes": list(node_map.values()),
         "relationships": normalized_relationships,

@@ -1,0 +1,23 @@
+services:
+  postgres-exporter:
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.19.1
+    profiles: ["dependencies"]
+    environment:
+      DATA_SOURCE_URI: "${POSTGRES_EXPORTER_HOST:-host.docker.internal}:${POSTGRES_EXPORTER_PORT:-55432}/${POSTGRES_EXPORTER_DB:-seocho_memory}?sslmode=${POSTGRES_EXPORTER_SSLMODE:-disable}"
+      DATA_SOURCE_USER: "${POSTGRES_EXPORTER_USER:-seocho}"
+      DATA_SOURCE_PASS_FILE: /run/secrets/postgres_exporter_password
+    secrets:
+      - postgres_exporter_password
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks: [seocho-net]
+
+  prometheus:
+    volumes:
+      - ./prometheus.dependencies.yml:/etc/prometheus/prometheus.yml:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+secrets:
+  postgres_exporter_password:
+    file: ${POSTGRES_EXPORTER_PASSWORD_FILE:-./secrets/postgres_exporter_password}

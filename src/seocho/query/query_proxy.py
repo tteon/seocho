@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import hashlib
 import os
+import threading
 import time
 from dataclasses import dataclass
 from typing import Any, Dict, Mapping, Optional, Protocol
@@ -22,6 +23,26 @@ def _env_enforce_workspace_filter() -> bool:
     return os.getenv("SEOCHO_ENFORCE_WORKSPACE_FILTER", "").strip().lower() in (
         "1", "true", "yes", "on",
     )
+
+
+def _env_non_negative_int(name: str, default: int = 0) -> int:
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return default
+    value = int(raw)
+    if value < 0:
+        raise ValueError(f"{name} must be non-negative")
+    return value
+
+
+def _env_non_negative_float(name: str, default: float = 0.0) -> float:
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return default
+    value = float(raw)
+    if value < 0:
+        raise ValueError(f"{name} must be non-negative")
+    return value
 
 
 class QueryPolicy(Protocol):
@@ -52,6 +73,40 @@ class NullQueryPolicy:
         params: Optional[Mapping[str, Any]] = None,
     ) -> None:  # noqa: ARG002
         return None
+
+
+class QueryAdmissionRejected(RuntimeError):
+    """Raised when a bounded query executor has no capacity before deadline."""
+
+
+class QueryAdmissionController:
+    """Process-local concurrency gate for graph queries.
+
+    Deployments normally share one controller across every ``QueryProxy`` in a
+    worker. A zero limit disables admission control for backward compatibility.
+    Cross-instance capacity remains an infrastructure concern (pool sizing and
+    autoscaling), while this gate prevents one worker from flooding the graph.
+    """
+
+    def __init__(self, max_inflight: int = 0, wait_seconds: float = 0.0) -> None:
+        if max_inflight < 0:
+            raise ValueError("max_inflight must be non-negative")
+        if wait_seconds < 0:
+            raise ValueError("wait_seconds must be non-negative")
+        self.max_inflight = max_inflight
+        self.wait_seconds = wait_seconds
+        self._semaphore = (
+            threading.BoundedSemaphore(max_inflight) if max_inflight else None
+        )
+
+    def acquire(self) -> bool:
+        if self._semaphore is None:
+            return True
+        return self._semaphore.acquire(timeout=self.wait_seconds)
+
+    def release(self) -> None:
+        if self._semaphore is not None:
+            self._semaphore.release()
 
 
 @dataclass(slots=True)
@@ -150,6 +205,7 @@ class QueryProxy:
         publisher: Optional[EventPublisher] = None,
         policy: Optional[QueryPolicy] = None,
         enforce_workspace_filter: Optional[bool] = None,
+        admission_controller: Optional[QueryAdmissionController] = None,
     ) -> None:
         self._graph_store = graph_store
         self._publisher = publisher or NullEventPublisher()
@@ -159,6 +215,12 @@ class QueryProxy:
             _env_enforce_workspace_filter()
             if enforce_workspace_filter is None
             else enforce_workspace_filter
+        )
+        self._admission = admission_controller or QueryAdmissionController(
+            max_inflight=_env_non_negative_int("SEOCHO_GRAPH_QUERY_MAX_INFLIGHT"),
+            wait_seconds=_env_non_negative_float(
+                "SEOCHO_GRAPH_QUERY_ADMISSION_WAIT_SECONDS"
+            ),
         )
 
     def query(self, request: QueryRequest) -> list[Dict[str, Any]]:
@@ -186,7 +248,30 @@ class QueryProxy:
                 request.cypher.encode("utf-8")
             ).hexdigest()[:16],
             "seocho.query.workspace_filter_enforced": self._enforce_workspace_filter,
+            "seocho.query.max_inflight": self._admission.max_inflight,
         }
+        admitted = self._admission.acquire()
+        if not admitted:
+            metrics.add(
+                "seocho.retrieval.admission_rejection.count",
+                attributes={"source": "neo4j", "reason": "capacity"},
+            )
+            self._publisher.publish(
+                DomainEvent(
+                    kind="query.rejected",
+                    workspace_id=request.workspace_id,
+                    payload={
+                        "database": request.database,
+                        "ontology_profile": request.ontology_profile,
+                        "reason": "capacity",
+                    },
+                )
+            )
+            raise QueryAdmissionRejected("graph query capacity exhausted")
+        metrics.add(
+            "seocho.retrieval.inflight",
+            attributes={"source": "neo4j"},
+        )
         try:
             with start_span(
                 "db.query",
@@ -238,6 +323,13 @@ class QueryProxy:
                 )
             )
             raise
+        finally:
+            metrics.add(
+                "seocho.retrieval.inflight",
+                -1,
+                {"source": "neo4j"},
+            )
+            self._admission.release()
 
         metrics.record(
             "seocho.retrieval.duration",

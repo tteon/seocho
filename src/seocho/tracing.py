@@ -400,7 +400,10 @@ class OTLPBackend(TracingBackend):
         self._meter_provider = None
         self._counters: Dict[str, Any] = {}
         try:
-            resource = Resource.create({"service.name": self._service_name})
+            resource_attributes = {"service.name": self._service_name}
+            if instance_id := os.getenv("OTEL_SERVICE_INSTANCE_ID"):
+                resource_attributes["service.instance.id"] = instance_id
+            resource = Resource.create(resource_attributes)
             provider = TracerProvider(resource=resource)
             exporter = OTLPSpanExporter(
                 endpoint=self._endpoint,
@@ -667,6 +670,8 @@ def enable_tracing(
     project_name: Optional[str] = None,
     api_key: Optional[str] = None,
     opik_mode: Optional[str] = None,
+    endpoint: Optional[str] = None,
+    service_name: Optional[str] = None,
 ) -> bool:
     """Enable tracing with one or more backends.
 
@@ -686,6 +691,9 @@ def enable_tracing(
         Opik-specific configuration.
     opik_mode:
         ``"hosted"`` or ``"self_host"``. Used only for the Opik backend.
+    endpoint, service_name:
+        OTLP collector endpoint and OTel service name. Environment defaults are
+        used when omitted.
 
     Returns True if at least one backend was enabled.
     """
@@ -721,7 +729,9 @@ def enable_tracing(
                     new_backends.append(ConsoleBackend())
                     active_backend_names.append("console")
                 elif b == "otlp":
-                    new_backends.append(OTLPBackend())
+                    new_backends.append(
+                        OTLPBackend(endpoint=endpoint, service_name=service_name)
+                    )
                     active_backend_names.append("otlp")
                 elif b == "none":
                     continue
@@ -930,6 +940,20 @@ def start_span(
             native = opener(name, attributes=init_attrs)
             if native is not None:
                 opened.append((b, native))
+        except Exception:
+            pass
+
+    # OTLP creates the authoritative trace identity. Expose that identity on
+    # the public handle so receipts and Grafana links address the trace Tempo
+    # actually stores, rather than SEOCHO's fallback correlation UUID.
+    if parent_span_id is None and opened:
+        try:
+            native_context = opened[0][1].get_span_context()
+            native_trace_id = f"{native_context.trace_id:032x}"
+            if native_trace_id != "0" * 32:
+                trace_id = native_trace_id
+                handle.trace_id = native_trace_id
+                new_stack = (native_trace_id, span_id)
         except Exception:
             pass
 

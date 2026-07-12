@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import hashlib
 import importlib.util
 import json
 import tempfile
@@ -183,6 +182,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             concurrency=args.concurrency,
             rounds=args.rounds,
             output=None,
+            max_attempts=args.max_attempts,
         )
     finally:
         dataset.unlink(missing_ok=True)
@@ -247,9 +247,30 @@ def main() -> None:
     parser.add_argument("--max-cases", type=int, default=6)
     parser.add_argument("--concurrency", type=int, default=3)
     parser.add_argument("--rounds", type=int, default=1)
+    parser.add_argument("--max-attempts", type=int, default=2)
+    parser.add_argument("--output", type=Path)
+    parser.add_argument("--strict", action="store_true")
     parser.add_argument("--model", default="gpt-oss-120b")
     parser.add_argument("--timeout", type=float, default=20.0)
-    print(json.dumps(asyncio.run(run(parser.parse_args())), indent=2, ensure_ascii=False))
+    args = parser.parse_args()
+    report = asyncio.run(run(args))
+    rendered = json.dumps(report, indent=2, ensure_ascii=False)
+    if args.output:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(rendered + "\n", encoding="utf-8")
+    print(rendered)
+    llm = report["llm"]
+    passed = (
+        llm.get("status") == "complete"
+        and llm.get("error_count") == 0
+        and llm.get("disposition_accuracy") == 1.0
+        and llm.get("provenance_coverage") == 1.0
+        and llm.get("leakage_cases") == 0
+        and report["memory"]["projection_current"]
+        and not report["guardrail"]["raw_address_in_cases"]
+    )
+    if args.strict and not passed:
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

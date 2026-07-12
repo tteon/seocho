@@ -5,6 +5,7 @@ import pytest
 from seocho.memory import (
     CausalToken,
     PostgreSQLMemoryRepository,
+    ProjectionFencingError,
     StaleAuthoritativeMemoryError,
 )
 
@@ -143,3 +144,53 @@ def test_outbox_batch_is_ordered_and_normalized() -> None:
     assert [entry.sequence for entry in entries] == [3, 4]
     assert entries[0].payload["event_id"] == "event-1"
     assert cursor.executed[0][1] == ("ws-1", 10)
+
+
+def test_projection_acknowledgement_persists_fencing_token() -> None:
+    entry = type("Entry", (), {"sequence": 7, "ordinal": 0})()
+    cursor = FakeCursor([(9,)])
+    connection = FakeConnection(cursor)
+    repository = PostgreSQLMemoryRepository(lambda: connection)
+
+    repository.acknowledge_projection(
+        workspace_id="ws-1",
+        projection="neo4j",
+        applied_sequence=7,
+        entries=(entry,),
+        fencing_token=9,
+    )
+
+    assert cursor.executed[-1][1] == ("ws-1", "neo4j", 7, 9)
+    assert "RETURNING fencing_token" in cursor.executed[-1][0]
+    assert connection.exit_exception is None
+
+
+def test_stale_projection_acknowledgement_rolls_back_outbox_updates() -> None:
+    entry = type("Entry", (), {"sequence": 7, "ordinal": 0})()
+    cursor = FakeCursor([None])
+    connection = FakeConnection(cursor)
+    repository = PostgreSQLMemoryRepository(lambda: connection)
+
+    with pytest.raises(ProjectionFencingError, match="stale projector"):
+        repository.acknowledge_projection(
+            workspace_id="ws-1",
+            projection="neo4j",
+            applied_sequence=7,
+            entries=(entry,),
+            fencing_token=8,
+        )
+
+    assert connection.exit_exception is ProjectionFencingError
+
+
+def test_preflight_fence_rejects_before_graph_write() -> None:
+    cursor = FakeCursor([(10,)])
+    connection = FakeConnection(cursor)
+    repository = PostgreSQLMemoryRepository(lambda: connection)
+
+    with pytest.raises(ProjectionFencingError, match="before graph write"):
+        repository.assert_projection_fence(
+            workspace_id="ws-1", projection="neo4j", fencing_token=9
+        )
+
+    assert cursor.executed[-1][1] == ("ws-1", "neo4j")

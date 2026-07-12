@@ -7,7 +7,7 @@
     {
       "title": "Open recent SEOCHO traces",
       "type": "link",
-      "url": "/explore?schemaVersion=1&panes=%7B%22trace%22:%7B%22datasource%22:%22tempo%22,%22queries%22:%5B%7B%22queryType%22:%22traceqlSearch%22,%22query%22:%22%7B.resource.service.name%3D%5C%22seocho-agent-memory%5C%22%7D%22%7D%5D%7D%7D"
+      "url": "/explore?schemaVersion=1&panes=%7B%22trace%22:%7B%22datasource%22:%22tempo%22,%22queries%22:%5B%7B%22queryType%22:%22traceqlSearch%22,%22query%22:%22%7B.resource.service.name%20%3D~%20%5C%22seocho-(evaluation%7Cokx-live%7Ccustomer-.*-eval)%5C%22%7D%22%7D%5D%7D%7D"
     }
   ],
   "panels": [
@@ -81,13 +81,154 @@
       "title": "Latest scenario support status",
       "transformations": [{"id": "organize", "options": {"excludeByName": {"Time": true, "__name__": true}, "indexByName": {"scenario_id": 0, "support_status": 1, "Value": 2}, "renameByName": {"Value": "observed"}}}],
       "type": "table"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 0, "y": 17},
+      "id": 8,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "sum by (gen_ai_provider_name, gen_ai_request_model) (rate(seocho_gen_ai_prompt_cache_request_total{outcome=\"hit\"}[$__rate_interval])) / clamp_min(sum by (gen_ai_provider_name, gen_ai_request_model) (rate(seocho_gen_ai_prompt_cache_request_total[$__rate_interval])), 0.000001)", "legendFormat": "{{gen_ai_provider_name}} / {{gen_ai_request_model}}", "refId": "A"}],
+      "title": "Provider-reported prompt cache hit ratio",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 8, "y": 17},
+      "id": 9,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "sum by (gen_ai_provider_name, gen_ai_request_model) (rate(gen_ai_client_token_usage_sum{gen_ai_token_type=\"cached_input\"}[$__rate_interval])) / clamp_min(sum by (gen_ai_provider_name, gen_ai_request_model) (rate(gen_ai_client_token_usage_sum{gen_ai_token_type=\"input\"}[$__rate_interval])), 0.000001)", "legendFormat": "{{gen_ai_provider_name}} / {{gen_ai_request_model}}", "refId": "A"}],
+      "title": "Cached share of input tokens",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "description": "Estimated input-cost reduction when cached input costs 20% of fresh input. Change the multiplier for a different provider contract.",
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 0.8}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 17},
+      "id": 10,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"expr": "0.8 * sum by (gen_ai_provider_name, gen_ai_request_model) (rate(gen_ai_client_token_usage_sum{gen_ai_token_type=\"cached_input\"}[$__rate_interval])) / clamp_min(sum by (gen_ai_provider_name, gen_ai_request_model) (rate(gen_ai_client_token_usage_sum{gen_ai_token_type=\"input\"}[$__rate_interval])), 0.000001)", "legendFormat": "{{gen_ai_provider_name}} / {{gen_ai_request_model}}", "refId": "A"}],
+      "title": "Estimated input-cost reduction",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1}, "overrides": []},
+      "gridPos": {"h": 6, "w": 6, "x": 0, "y": 24},
+      "id": 11,
+      "options": {"colorMode": "background", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+      "targets": [{"expr": "max by (cohort) (last_over_time(seocho_evaluation_query_accuracy_ratio[24h]))", "legendFormat": "{{cohort}}", "refId": "A"}],
+      "title": "Customer query routing accuracy",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1}, "overrides": []},
+      "gridPos": {"h": 6, "w": 6, "x": 6, "y": 24},
+      "id": 12,
+      "options": {"colorMode": "background", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+      "targets": [{"expr": "max by (strategy) (last_over_time(seocho_evaluation_context_reduction_ratio[24h]))", "legendFormat": "{{strategy}}", "refId": "A"}],
+      "title": "Context input reduction",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 6, "w": 6, "x": 12, "y": 24},
+      "id": 13,
+      "options": {"cellHeight": "sm", "showHeader": true},
+      "targets": [{"expr": "max by (scenario_id, status) (last_over_time(seocho_evaluation_scenario_status_ratio[24h]))", "format": "table", "instant": true, "legendFormat": "", "refId": "A"}],
+      "title": "S2-S10 evaluation status",
+      "type": "table"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 6, "w": 6, "x": 18, "y": 24},
+      "id": 14,
+      "options": {"cellHeight": "sm", "showHeader": true},
+      "targets": [{"expr": "max by (capability, status) (last_over_time(seocho_evaluation_capability_status_ratio[24h]))", "format": "table", "instant": true, "legendFormat": "", "refId": "A"}],
+      "title": "Capability gates",
+      "type": "table"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 0, "y": 30},
+      "id": 15,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "showLegend": true}},
+      "targets": [{"expr": "max by (outcome) (last_over_time(seocho_evaluation_customer_outcome_ratio[24h]))", "legendFormat": "{{outcome}}", "refId": "A"}],
+      "title": "Customer query outcome ratio",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 8, "y": 30},
+      "id": 16,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "showLegend": true}},
+      "targets": [{"expr": "max by (query_class) (last_over_time(seocho_evaluation_customer_evidence_coverage_ratio[24h]))", "legendFormat": "{{query_class}}", "refId": "A"}],
+      "title": "Evidence coverage by intent",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 30},
+      "id": 17,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "showLegend": true}},
+      "targets": [{"expr": "max by (dimension) (last_over_time(seocho_evaluation_answer_accuracy_ratio[24h]))", "legendFormat": "{{dimension}}", "refId": "A"}],
+      "title": "MARA answer contract accuracy",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "tempo", "uid": "tempo"},
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 10, "w": 24, "x": 0, "y": 37},
+      "id": 18,
+      "options": {"showHeader": true},
+      "targets": [{"datasource": {"type": "tempo", "uid": "tempo"}, "queryType": "traceqlSearch", "query": "{ resource.service.name =~ \"seocho-(evaluation|okx-live|customer-.*-eval)\" }", "refId": "A", "tableType": "traces"}],
+      "title": "Live E2E run traces — click a row for stage waterfall",
+      "type": "table"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 47},
+      "id": 19,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "showLegend": true}},
+      "targets": [{"expr": "max by (dimension) (last_over_time(seocho_evaluation_dataset_ratio[24h]))", "legendFormat": "{{dimension}}", "refId": "A"}],
+      "title": "Diverse v4 dataset quality",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 47},
+      "id": 20,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "showLegend": true}},
+      "targets": [{"expr": "max by (cohort, group, dimension) (last_over_time(seocho_evaluation_intent_accuracy_ratio[24h]))", "legendFormat": "{{cohort}} / {{group}} / {{dimension}}", "refId": "A"}],
+      "title": "Hybrid intent and boundary accuracy",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1}, "overrides": []},
+      "gridPos": {"h": 7, "w": 24, "x": 0, "y": 55},
+      "id": 21,
+      "options": {"colorMode": "background", "graphMode": "area", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+      "targets": [{"expr": "max by (cohort) (last_over_time(seocho_evaluation_answer_progress_ratio[10m]))", "legendFormat": "{{cohort}}", "refId": "A"}],
+      "title": "10K full answer generation progress",
+      "type": "stat"
     }
   ],
   "refresh": "5s",
   "schemaVersion": 41,
   "tags": ["seocho", "agent-memory", "governance", "okx"],
   "templating": {"list": []},
-  "time": {"from": "now-15m", "to": "now"},
+  "time": {"from": "now-24h", "to": "now"},
   "timepicker": {},
   "timezone": "browser",
   "title": "SEOCHO Evaluation",

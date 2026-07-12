@@ -30,11 +30,11 @@ services:
     volumes:
       - ./otel-collector.yaml:/etc/otel-collector.yaml:ro
     ports:
-      - "4317:4317"   # OTLP gRPC (SEOCHO_TRACE_OTLP_ENDPOINT)
-      - "4318:4318"   # OTLP HTTP
-      - "8889:8889"   # Prometheus exposition (scraped by prometheus)
+      - "${SEOCHO_BIND_HOST:-127.0.0.1}:${OTLP_GRPC_PORT:-4317}:4317"
+      - "${SEOCHO_BIND_HOST:-127.0.0.1}:${OTLP_HTTP_PORT:-4318}:4318"
+      - "${SEOCHO_BIND_HOST:-127.0.0.1}:${OTEL_METRICS_PORT:-8889}:8889"
     networks: [seocho-net]
-    depends_on: [tempo, prometheus]
+    depends_on: [tempo]
 
   tempo:
     image: grafana/tempo:2.7.2
@@ -45,7 +45,7 @@ services:
       - ./tempo.yaml:/etc/tempo.yaml:ro
       - tempo-data:/var/tempo
     ports:
-      - "3200:3200"   # Tempo query API (Grafana datasource)
+      - "${SEOCHO_BIND_HOST:-127.0.0.1}:${TEMPO_PORT:-3200}:3200"
     networks: [seocho-net]
 
   prometheus:
@@ -60,7 +60,7 @@ services:
       - ./prometheus-rules.yml:/etc/prometheus/seocho-rules.yml:ro
       - prometheus-data:/prometheus
     ports:
-      - "9091:9090"   # 9091 host to avoid clashing with the opik profile
+      - "${SEOCHO_BIND_HOST:-127.0.0.1}:${PROMETHEUS_PORT:-9091}:9090"
     networks: [seocho-net]
 
   grafana:
@@ -76,7 +76,7 @@ services:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - grafana-data:/var/lib/grafana
     ports:
-      - "3000:3000"   # already in SEOCHO_CORS_ORIGINS by default
+      - "${SEOCHO_BIND_HOST:-127.0.0.1}:${GRAFANA_PORT:-3000}:3000"
     networks: [seocho-net]
     depends_on: [prometheus, tempo]
 

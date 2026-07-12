@@ -1,10 +1,90 @@
 from seocho.prompt_ir import (
+    PromptBackendCapabilities,
+    PromptCacheScope,
     PromptSection,
     PromptSectionKind,
     PromptSource,
     PromptStage,
+    PromptStability,
     StagePromptSpec,
 )
+
+
+def _cache_aware_spec() -> StagePromptSpec:
+    return StagePromptSpec(
+        stage=PromptStage.ANSWER_SYNTHESIS,
+        system_sections=[
+            PromptSection(
+                section_id="ontology-v4",
+                kind=PromptSectionKind.ONTOLOGY,
+                source=PromptSource.APPROVED_ARTIFACTS,
+                title="Ontology",
+                content="Agent, Wallet, Transaction",
+                stability=PromptStability.WORKSPACE,
+                cache_scope=PromptCacheScope.WORKSPACE,
+            )
+        ],
+        user_sections=[
+            PromptSection(
+                section_id="question",
+                kind=PromptSectionKind.USER_INPUT,
+                source=PromptSource.USER_INPUT,
+                title="Question",
+                content="Which agent paid wallet A?",
+                cacheable=False,
+                stability=PromptStability.REQUEST,
+                cache_scope=PromptCacheScope.NONE,
+            )
+        ],
+    )
+
+
+def test_prompt_package_renders_provider_cache_controls_without_content_in_receipt() -> None:
+    spec = _cache_aware_spec()
+    vllm = spec.render_package(backend="vllm", cache_salt="workspace-42")
+    anthropic = spec.render_package(backend="anthropic")
+
+    assert vllm["request"]["cache_salt"] == "workspace-42"
+    assert vllm["request"]["messages"][0]["content"].startswith("Ontology")
+    assert anthropic["request"]["system"][0]["cache_control"] == {"type": "ephemeral"}
+    assert vllm["receipt"]["schema_version"] == "seocho.prompt.v1"
+    assert vllm["receipt"]["cache_salt_hash"]
+    assert "workspace-42" not in repr(vllm["receipt"])
+
+
+def test_capability_profile_supports_xai_and_unknown_openai_compatible_gateways() -> None:
+    spec = _cache_aware_spec()
+    xai = spec.render_package(backend="xai", cache_key="agent-memory-v4")
+    custom = spec.render_package(
+        backend="customer-qwen-proxy",
+        cache_key="tenant-a",
+        capabilities=PromptBackendCapabilities(cache_key_field="custom_cache_key"),
+    )
+    kimi = spec.render_package(backend="kimi", cache_key="session-7")
+
+    assert xai["request"]["prompt_cache_key"] == "agent-memory-v4"
+    assert custom["request"]["custom_cache_key"] == "tenant-a"
+    assert custom["receipt"]["backend"] == "customer-qwen-proxy"
+    assert kimi["request"]["prompt_cache_key"] == "session-7"
+
+    sdk_call = spec.render_llm_call(backend="kimi", cache_key="session-7")
+    assert sdk_call["completion_args"]["provider_options"] == {
+        "prompt_cache_key": "session-7"
+    }
+    assert sdk_call["completion_args"]["system"].startswith("Ontology")
+    assert sdk_call["prompt_receipt"]["stable_prefix_hash"]
+
+
+def test_cache_layout_rejects_sensitive_workspace_shared_prefix() -> None:
+    spec = _cache_aware_spec()
+    spec.system_sections[0].sensitive = True
+
+    try:
+        spec.render_package(backend="sglang")
+    except ValueError as exc:
+        assert "Sensitive prompt sections" in str(exc)
+    else:
+        raise AssertionError("unsafe shared prefix was accepted")
 
 
 def test_stable_prefix_hash_ignores_user_input_and_noncacheable_sections() -> None:

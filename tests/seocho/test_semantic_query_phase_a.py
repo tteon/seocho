@@ -112,6 +112,30 @@ def test_cypher_validator_and_insufficiency_classifier_contract():
     assert assessment.reason == "sufficient"
 
 
+def test_cypher_validator_rejects_unbounded_or_over_budget_generated_plan():
+    validator = CypherQueryValidator()
+    plan = CypherPlan(
+        database="kgnormal",
+        query="MATCH (n:Company)-[:ACQUIRED*]->(m:Company) WHERE elementId(n) = $node_id RETURN m LIMIT $limit",
+        params={"node_id": "1", "limit": 500},
+        strategy="direct",
+        anchor_entity="Apple",
+        relation_types=("ACQUIRED",),
+    )
+    validation = validator.validate(
+        plan,
+        {
+            "allowed_labels": ["Company"],
+            "allowed_relationship_types": ["ACQUIRED"],
+            "max_graph_hops": 4,
+            "max_result_rows": 50,
+        },
+    )
+    assert validation["ok"] is False
+    assert "unbounded_graph_path" in validation["violations"]
+    assert "result_limit_exceeded" in validation["violations"]
+
+
 def test_support_validator_and_strategy_chooser_contract():
     support_validator = IntentSupportValidator()
     chooser = ExecutionStrategyChooser()

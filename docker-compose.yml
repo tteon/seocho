@@ -1,5 +1,17 @@
 services:
   # --- Core Local Stack: graph DB + runtime API + thin UI proxy ---
+  apoc-extended-init:
+    image: curlimages/curl:8.10.1
+    user: "${UID:-1000}:${GID:-1000}"
+    environment:
+      APOC_EXTENDED_VERSION: ${APOC_EXTENDED_VERSION:-5.26.4}
+      SEOCHO_NEO4J_PLUGIN_DIR: /plugins
+    entrypoint: ["/bin/sh", "/setup/install-apoc-extended.sh"]
+    volumes:
+      - ./scripts/setup:/setup:ro
+      - ./data/neo4j/plugins:/plugins
+    restart: "no"
+
   neo4j:
     image: graphstack/dozerdb:5.26.3.0
     container_name: graphrag-neo4j
@@ -24,8 +36,17 @@ services:
       - ./data/neo4j/logs:/logs
       - ./data/neo4j/import:/var/lib/neo4j/import
       - ./data/neo4j/plugins:/plugins
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:7474 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
     networks:
       - graphrag-net
+    depends_on:
+      apoc-extended-init:
+        condition: service_completed_successfully
 
 
   # --- Application Services ---
@@ -56,7 +77,8 @@ services:
       - OPIK_PROJECT_NAME=${OPIK_PROJECT_NAME:-seocho}
       - OPIK_API_KEY=${OPIK_API_KEY:-}
     depends_on:
-      - neo4j
+      neo4j:
+        condition: service_healthy
     networks:
       - graphrag-net
 
@@ -75,189 +97,6 @@ services:
     networks:
       - graphrag-net
 
-  # --- Opik Observability (opt-in: docker compose --profile opik up -d) ---
-  opik-mysql:
-    image: mysql:8.4.2
-    container_name: opik-mysql
-    profiles: ["opik"]
-    environment:
-      MYSQL_ROOT_PASSWORD: ${OPIK_MYSQL_PASSWORD:-opik}
-      MYSQL_DATABASE: opik
-      MYSQL_USER: opik
-      MYSQL_PASSWORD: ${OPIK_MYSQL_PASSWORD:-opik}
-    ports:
-      - "${SEOCHO_BIND_HOST:-127.0.0.1}:3306:3306"
-    volumes:
-      - ./data/opik/mysql:/var/lib/mysql
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - graphrag-net
-
-  opik-redis:
-    image: redis:7.2.4-alpine3.19
-    container_name: opik-redis
-    profiles: ["opik"]
-    command: redis-server --requirepass ${OPIK_REDIS_PASSWORD:-opik}
-    ports:
-      - "${SEOCHO_BIND_HOST:-127.0.0.1}:6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${OPIK_REDIS_PASSWORD:-opik}", "ping"]
-      interval: 2s
-      timeout: 4s
-      retries: 20
-      start_period: 30s
-    networks:
-      - graphrag-net
-
-  opik-zookeeper:
-    image: zookeeper:3.9.4
-    container_name: opik-zookeeper
-    profiles: ["opik"]
-    ports:
-      - "${SEOCHO_BIND_HOST:-127.0.0.1}:2181:2181"
-    networks:
-      - graphrag-net
-
-  opik-clickhouse:
-    image: clickhouse/clickhouse-server:25.3.6.56-alpine
-    container_name: opik-clickhouse
-    profiles: ["opik"]
-    environment:
-      CLICKHOUSE_USER: ${OPIK_CH_USER:-opik}
-      CLICKHOUSE_PASSWORD: ${OPIK_CH_PASSWORD:-opik}
-      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
-      CLICKHOUSE_DB: opik
-    ports:
-      - "${SEOCHO_BIND_HOST:-127.0.0.1}:8123:8123"
-      - "${SEOCHO_BIND_HOST:-127.0.0.1}:9000:9000"
-    volumes:
-      - ./data/opik/clickhouse:/var/lib/clickhouse
-      - ./opik/clickhouse_config/additional_config.xml:/etc/clickhouse-server/config.d/additional_config.xml:ro
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8123/ping"]
-      interval: 2s
-      timeout: 5s
-      retries: 60
-    depends_on:
-      - opik-zookeeper
-    networks:
-      - graphrag-net
-
-  opik-minio:
-    image: minio/minio:RELEASE.2025-03-12T18-04-18Z
-    container_name: opik-minio
-    profiles: ["opik"]
-    environment:
-      MINIO_ROOT_USER: ${OPIK_MINIO_USER:-opik}
-      MINIO_ROOT_PASSWORD: ${OPIK_MINIO_PASSWORD:-opikopik}
-    command: server /data --console-address ":9090"
-    ports:
-      - "${SEOCHO_BIND_HOST:-127.0.0.1}:9001:9000"
-      - "${SEOCHO_BIND_HOST:-127.0.0.1}:9090:9090"
-    volumes:
-      - ./data/opik/minio:/data
-    networks:
-      - graphrag-net
-
-  opik-minio-init:
-    image: minio/mc:RELEASE.2025-03-12T17-29-24Z
-    container_name: opik-minio-init
-    profiles: ["opik"]
-    entrypoint: >
-      /bin/sh -c "
-      mc alias set opik http://opik-minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD};
-      mc mb --ignore-existing opik/opik;
-      exit 0;
-      "
-    environment:
-      MINIO_ROOT_USER: ${OPIK_MINIO_USER:-opik}
-      MINIO_ROOT_PASSWORD: ${OPIK_MINIO_PASSWORD:-opikopik}
-    depends_on:
-      - opik-minio
-    networks:
-      - graphrag-net
-
-  opik-backend:
-    image: ghcr.io/comet-ml/opik/opik-backend:${OPIK_VERSION:-1.10.18}
-    container_name: opik-backend
-    profiles: ["opik"]
-    command: [ "bash", "-c", "./run_db_migrations.sh && ./entrypoint.sh" ]
-    environment:
-      STATE_DB_PROTOCOL: "jdbc:mysql://"
-      STATE_DB_URL: "opik-mysql:3306/opik?createDatabaseIfNotExist=true&rewriteBatchedStatements=true"
-      STATE_DB_DATABASE_NAME: opik
-      STATE_DB_USER: opik
-      STATE_DB_PASS: ${OPIK_MYSQL_PASSWORD:-opik}
-      ANALYTICS_DB_MIGRATIONS_URL: "jdbc:clickhouse://opik-clickhouse:8123"
-      ANALYTICS_DB_MIGRATIONS_USER: ${OPIK_CH_USER:-opik}
-      ANALYTICS_DB_MIGRATIONS_PASS: ${OPIK_CH_PASSWORD:-opik}
-      ANALYTICS_DB_PROTOCOL: HTTP
-      ANALYTICS_DB_HOST: opik-clickhouse
-      ANALYTICS_DB_PORT: 8123
-      ANALYTICS_DB_USERNAME: ${OPIK_CH_USER:-opik}
-      ANALYTICS_DB_PASS: ${OPIK_CH_PASSWORD:-opik}
-      ANALYTICS_DB_DATABASE_NAME: opik
-      REDIS_URL: redis://:${OPIK_REDIS_PASSWORD:-opik}@opik-redis:6379/
-      AWS_ACCESS_KEY_ID: ${OPIK_MINIO_USER:-opik}
-      AWS_SECRET_ACCESS_KEY: ${OPIK_MINIO_PASSWORD:-opikopik}
-      IS_MINIO: "true"
-      S3_URL: http://opik-minio:9000
-      PYTHON_EVALUATOR_URL: http://opik-python-backend:8000
-      JAVA_OPTS: "-Dliquibase.propertySubstitutionEnabled=true -XX:+UseG1GC -XX:MaxRAMPercentage=80.0"
-    ports:
-      - "${SEOCHO_BIND_HOST:-127.0.0.1}:8080:8080"
-      - "${SEOCHO_BIND_HOST:-127.0.0.1}:3003:3003"
-    healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8080/health-check" ]
-      interval: 2s
-      timeout: 10s
-      retries: 120
-      start_period: 3s
-    depends_on:
-      opik-mysql:
-        condition: service_healthy
-      opik-clickhouse:
-        condition: service_healthy
-      opik-redis:
-        condition: service_healthy
-      opik-minio-init:
-        condition: service_completed_successfully
-    networks:
-      - graphrag-net
-
-  opik-python-backend:
-    image: ghcr.io/comet-ml/opik/opik-python-backend:${OPIK_VERSION:-1.10.18}
-    container_name: opik-python-backend
-    profiles: ["opik"]
-    privileged: true
-    environment:
-      OPIK_URL_OVERRIDE: http://opik-backend:8080
-      REDIS_URL: redis://:${OPIK_REDIS_PASSWORD:-opik}@opik-redis:6379/0
-      OPIK_VERSION: ${OPIK_VERSION:-1.10.18}
-      PYTHON_CODE_EXECUTOR_STRATEGY: process
-    ports:
-      - "${SEOCHO_BIND_HOST:-127.0.0.1}:8000:8000"
-    depends_on:
-      opik-backend:
-        condition: service_healthy
-    networks:
-      - graphrag-net
-
-  opik-frontend:
-    image: ghcr.io/comet-ml/opik/opik-frontend:${OPIK_VERSION:-1.10.18}
-    container_name: opik-frontend
-    profiles: ["opik"]
-    ports:
-      - "${SEOCHO_BIND_HOST:-127.0.0.1}:5173:5173"
-    depends_on:
-      opik-backend:
-        condition: service_healthy
-    networks:
-      - graphrag-net
 
 networks:
   graphrag-net:

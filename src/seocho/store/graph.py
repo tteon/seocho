@@ -189,6 +189,9 @@ class GraphStore(ABC):
             List of dicts ``{"id", "label", "properties": {...}}``.
         relationships:
             List of dicts ``{"source", "target", "type", "properties": {...}}``.
+            Callers that know endpoint types should also supply
+            ``source_label`` and ``target_label``. Neo4j-compatible backends
+            then use label-specific indexes instead of global node scans.
         database:
             Target database name.
         workspace_id:
@@ -438,11 +441,19 @@ class Neo4jGraphStore(GraphStore):
             props["id"] = node_id
             nodes_by_label.setdefault(label, []).append({"id": node_id, "props": props})
 
-        rels_by_type: Dict[str, List[Dict[str, Any]]] = {}
+        rels_by_type: Dict[tuple[str, str, str], List[Dict[str, Any]]] = {}
         for rel in relationships:
             rtype = rel.get("type", "RELATED_TO")
             if not _LABEL_RE.match(rtype):
                 summary["errors"].append(f"Invalid relationship type: {rtype}")
+                continue
+            source_label = str(rel.get("source_label", "") or "")
+            target_label = str(rel.get("target_label", "") or "")
+            if source_label and not _LABEL_RE.match(source_label):
+                summary["errors"].append(f"Invalid source label: {source_label}")
+                continue
+            if target_label and not _LABEL_RE.match(target_label):
+                summary["errors"].append(f"Invalid target label: {target_label}")
                 continue
             props = {k: v for k, v in dict(rel.get("properties", {})).items()
                      if _is_property_value(v)}
@@ -450,7 +461,7 @@ class Neo4jGraphStore(GraphStore):
             props["_workspace_id"] = workspace_id
             props["_writer_ts"] = now
             props["_writer_agent"] = source_id or "unknown"
-            rels_by_type.setdefault(rtype, []).append(
+            rels_by_type.setdefault((rtype, source_label, target_label), []).append(
                 {"src": rel.get("source", ""), "tgt": rel.get("target", ""), "props": props})
 
         with self._driver.session(database=database) as session:
@@ -521,14 +532,16 @@ class Neo4jGraphStore(GraphStore):
                             summary["errors"].append(f"Node {row['id']}: {exc}")
 
             # --- Relationships (one UNWIND per type) ---
-            for rtype, rows in rels_by_type.items():
+            for (rtype, source_label, target_label), rows in rels_by_type.items():
                 # rtype validated against _LABEL_RE above; interpolated raw
                 rel_sources_clause = (
                     " SET r._sources = CASE WHEN r._sources IS NULL THEN [{p}._source_id] "
                     "WHEN NOT {p}._source_id IN r._sources THEN r._sources + {p}._source_id "
                     "ELSE r._sources END"
                 )
-                batch_q = (f"UNWIND $rows AS row MATCH (a {{id: row.src}}), (b {{id: row.tgt}}) "
+                source_pattern = f"(a:{source_label} {{id: row.src}})" if source_label else "(a {id: row.src})"
+                target_pattern = f"(b:{target_label} {{id: row.tgt}})" if target_label else "(b {id: row.tgt})"
+                batch_q = (f"UNWIND $rows AS row MATCH {source_pattern}, {target_pattern} "
                            f"MERGE (a)-[r:{rtype}]->(b) "
                            "SET r += CASE WHEN r._writer_ts IS NULL "
                            "OR r._writer_ts <= row.props._writer_ts THEN row.props ELSE {} END"
@@ -539,8 +552,10 @@ class Neo4jGraphStore(GraphStore):
                 except Exception:
                     for row in rows:
                         try:
+                            source_single = f"(a:{source_label} {{id: $src}})" if source_label else "(a {id: $src})"
+                            target_single = f"(b:{target_label} {{id: $tgt}})" if target_label else "(b {id: $tgt})"
                             session.run(
-                                f"MATCH (a {{id: $src}}), (b {{id: $tgt}}) "
+                                f"MATCH {source_single}, {target_single} "
                                 f"MERGE (a)-[r:{rtype}]->(b) SET r += CASE WHEN "
                                 "r._writer_ts IS NULL OR r._writer_ts <= $props._writer_ts "
                                 "THEN $props ELSE {} END"

@@ -205,6 +205,53 @@ with their provenance, limitation, and reproducible artifact.
 - Public-lane artifact SHA-256: `e309596e6958b2af26ae0563767f98372abe4b729b6fd167c8c271936670d3ba`.
 - Failover-lane artifact SHA-256: `0f0e7254befded7fa99580979ae1da546899f52c53a21e24089f1b673d736e6e`.
 
+### E-011 — User-question to memory-answer utility
+
+`tags: [live, intent-routing, approved-recipe, text2cypher, postgresql, dozerdb, mara, context-optimization]`
+
+- Dataset: 100 exchange-shaped intents generated 866 deliveries across 15
+  lifecycle/failure scenarios. PostgreSQL retained 863 unique revisions and
+  idempotently ignored three duplicate deliveries. Scenario frequencies are
+  synthetic hypotheses, not exchange production statistics.
+- Path: the evaluator receives only the user question, classifies one of six
+  supported transaction-memory intents, compiles a workspace-scoped approved
+  recipe, retrieves the DozerDB causal event chain, builds a cache-stable policy
+  prefix plus variable evidence suffix, and asks MARA `gpt-oss-120b` to answer.
+- Result: 6/6 intent, evidence-contract, state/support-status, and disclosure
+  gates passed. Projection lag was deliberately injected and detected; no
+  restricted field leaked. LLM p95 was 5,817.7 ms.
+- Context A/B: full context used 60 events (~2,994 estimated tokens), while
+  causal selection used 10 events (~499 tokens). Both returned the correct
+  state, an estimated 83.33% input reduction. Token counts are byte-based
+  estimates because MARA does not return provider token accounting.
+- Unknown intent: MARA Text2Cypher generated a workspace-scoped, parameterized
+  read query. Label, relationship, property, hop, result-limit, and tenant-scope
+  validation plus live DozerDB `EXPLAIN` preceded execution; it returned 10
+  evidence rows. A prior run was correctly discarded after exposing validator
+  gaps for an unknown property and unbounded `*0..` path.
+- Utility artifact SHA-256: `3fad58ea37cc63ffcc186adddb42c49a9da2bbed893a5e1e8217bb8f24c44fca`.
+- Text2Cypher artifact SHA-256: `fd4b4f434716d4669c15482c039e71a4498650ee1bc5783b20a5f797b5faa60f`.
+
+#### Q1–Q12 coverage audit
+
+| Query | Capability | Evidence level |
+|---|---|---|
+| Q1 | cross-session/current memory | live current state; cross-session gold contract |
+| Q2 | point-in-time/supersession | live event chain; explicit historical-answer scorer pending |
+| Q3 | bounded agent handoff | live answer path |
+| Q4 | federated history | contract only; live multi-target answer pending |
+| Q5 | causal read/projection lag | live answer path |
+| Q6 | concurrent canonical state | live DB/fencing plus answer path |
+| Q7 | duplicate/out-of-order ingest | live duplicate; deterministic out-of-order |
+| Q8 | reorg/rollback | deterministic contract; PITR live gate pending |
+| Q9 | ontology disclosure | live disclosure gate |
+| Q10 | bounded Text2Cypher | live generation, validation, EXPLAIN, execution |
+| Q11 | long-context selection | live A/B |
+| Q12 | dependency degradation | live projection-lag partial answer; broader outage pending |
+
+This matrix prevents a gold-query declaration from being presented as a live
+capability. Q4 and Q8 remain the principal utility gaps.
+
 ## Current engineering decisions
 
 1. PostgreSQL remains authoritative; DozerDB is disposable and replayable.

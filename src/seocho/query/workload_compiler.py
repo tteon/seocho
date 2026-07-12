@@ -36,6 +36,8 @@ class Text2CypherFallbackPolicy:
 
     allowed_labels: Tuple[str, ...]
     allowed_relationships: Tuple[str, ...]
+    allowed_properties: Tuple[str, ...] = ()
+    workspace_property: str = "workspace_id"
     required_parameters: Tuple[str, ...] = ("workspace_id",)
     max_graph_hops: int = 4
     max_result_rows: int = 50
@@ -147,6 +149,19 @@ def validate_text2cypher_fallback(
         violations.append(
             "unknown_relationships:" + ",".join(sorted(unknown_relationships))
         )
+    if re.search(r"\*\s*\d*\s*\.\.(?!\s*\d)", cypher):
+        violations.append("unbounded_graph_path")
+    if policy.allowed_properties:
+        properties = set(re.findall(r"\.([A-Za-z_][A-Za-z0-9_]*)", cypher))
+        properties.update(
+            re.findall(r"[,{]\s*([A-Za-z_][A-Za-z0-9_]*)\s*:\s*\$", cypher)
+        )
+        unknown_properties = properties - set(policy.allowed_properties)
+        if unknown_properties:
+            violations.append("unknown_properties:" + ",".join(sorted(unknown_properties)))
+    scope_pattern = rf"{re.escape(policy.workspace_property)}\s*:\s*\$workspace_id"
+    if not re.search(scope_pattern, cypher):
+        violations.append("missing_workspace_scope_expression")
     for parameter in policy.required_parameters:
         if not str(params.get(parameter, "")).strip():
             violations.append(f"missing_parameter_value:{parameter}")

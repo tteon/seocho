@@ -230,6 +230,60 @@ Docs sync critical set for seocho.blog:
 - `docs/OPEN_SOURCE_PLAYBOOK.md`
 - `docs/RELEASE_AND_COMMUNITY_OPERATIONS.md`
 
+Documentation writing style:
+
+| Page element | Rule |
+|---|---|
+| opening | Start with one sentence that says what the page helps the reader do. |
+| source context | Name the relevant source files, APIs, commands, or artifacts early. |
+| audience | Say whether the page is for users, operators, contributors, or maintainers. |
+| concept order | Explain the plain-language idea before introducing module names or acronyms. |
+| ownership | For each system area, say what it owns and where the code lives. |
+| flow | Prefer a small table, numbered flow, or text diagram over a long paragraph. |
+| evidence | Include validation commands, generated artifacts, URLs, or trace locations when the page makes an operational claim. |
+| navigation | End with a short "read next" path instead of a long unordered link dump. |
+
+Generated code indexes such as DeepWiki are useful style references because
+they usually connect concepts to source files and child pages. Do not copy their
+text into the source docs. Use them to check whether the maintained docs explain
+the same system area clearly enough.
+
+Use this template for new or rewritten system pages:
+
+```markdown
+# Page Title
+
+One sentence: what this page helps the reader do.
+
+## Use This Page When
+
+| Situation | Read |
+|---|---|
+| ... | ... |
+
+## Relevant Surfaces
+
+| Surface | Owner |
+|---|---|
+| ... | `path/or/url` |
+
+## Flow
+
+1. first step
+2. second step
+3. validation or evidence
+
+## Evidence And Validation
+
+| Claim | Evidence |
+|---|---|
+| ... | command, artifact, URL, or trace |
+
+## Read Next
+
+- `next/doc.md`
+```
+
 The tracked in-repo site source lives in `website/`, and generated mirror files
 under `website/src/content/docs/docs/` are derived from the repo-root docs.
 Current live `seocho.blog` deployment is still served from

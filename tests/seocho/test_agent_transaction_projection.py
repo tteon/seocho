@@ -68,6 +68,21 @@ def test_projector_builds_agent_order_fill_settlement_memory_graph() -> None:
     assert repository.acks[0]["applied_sequence"] == 8
 
 
+def test_projector_forwards_control_plane_fencing_token() -> None:
+    repository = FakeRepository(_entries())
+    projector = AgentTransactionProjector(
+        graph_store=FakeGraphStore(), repository=repository
+    )
+
+    projector.project_pending(
+        workspace_id="okx-agent-exchange-eval",
+        database="agent-transactions",
+        fencing_token=12,
+    )
+
+    assert repository.acks[0]["fencing_token"] == 12
+
+
 def test_projector_does_not_ack_when_graph_write_fails() -> None:
     repository = FakeRepository(_entries())
     projector = AgentTransactionProjector(

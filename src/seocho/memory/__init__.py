@@ -36,6 +36,7 @@ from .postgres_schema import (
 from .postgres_repository import (
     MemoryCommitResult,
     PostgreSQLMemoryRepository,
+    ProjectionFencingError,
     StaleAuthoritativeMemoryError,
 )
 
@@ -58,6 +59,7 @@ __all__ = [
     "POSTGRES_MEMORY_SCHEMA_SQL",
     "POSTGRES_MEMORY_SCHEMA_VERSION",
     "PostgreSQLMemoryRepository",
+    "ProjectionFencingError",
     "ProjectionOutboxEntry",
     "ProjectionStatus",
     "REQUIRED_PROJECTION_PROPERTIES",

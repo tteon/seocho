@@ -9,6 +9,7 @@ from typing import Any, Mapping, Sequence
 from ..tracing import start_span
 from ..metrics import get_metrics
 from .projection_format import validate_projection_format
+from .postgres_repository import ProjectionFencingError
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,7 +37,8 @@ class AgentTransactionProjector:
         self._repository = repository
 
     def project_pending(
-        self, *, workspace_id: str, database: str, limit: int = 100
+        self, *, workspace_id: str, database: str, limit: int = 100,
+        fencing_token: int = 0,
     ) -> AgentProjectionResult:
         started = time.perf_counter()
         metrics = get_metrics()
@@ -72,8 +74,14 @@ class AgentTransactionProjector:
                     projection=database,
                     applied_sequence=max_sequence,
                     entries=entries,
+                    fencing_token=fencing_token,
                 )
-        except Exception:
+        except Exception as exc:
+            if isinstance(exc, ProjectionFencingError):
+                metrics.add(
+                    "seocho.projection.fencing_rejection.count",
+                    attributes={"projection": database},
+                )
             metrics.record(
                 "seocho.projection.batch.duration",
                 time.perf_counter() - started,

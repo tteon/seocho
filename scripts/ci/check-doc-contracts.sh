@@ -61,11 +61,9 @@ scripts/pm/lint-agent-docs.sh
 echo "Checking active docs for stale endpoint and sync-contract patterns..."
 check_absent "http://localhost:8501/api/chat/send" "${ACTIVE_DOCS[@]}"
 check_absent "sync-docs-website.yml" "${ACTIVE_DOCS[@]}"
-check_absent "repository_dispatch" "${ACTIVE_DOCS[@]}"
 check_absent "seocho-docs-sync" "${ACTIVE_DOCS[@]}"
 check_absent "Synced automatically from" "${ACTIVE_DOCS[@]}"
 check_absent "tteon.github.io/" "${ACTIVE_DOCS[@]}"
-check_absent "check:sync" "${ACTIVE_DOCS[@]}"
 
 echo "Checking active docs for required current runtime guidance..."
 check_present "http://localhost:8001/platform/chat/send" \
@@ -87,6 +85,8 @@ check_present ".github/workflows/docs-consistency.yml" \
 check_present ".github/workflows/docs-site-quality.yml" \
   "docs/WORKFLOW.md"
 check_present ".github/workflows/docs-site-deploy.yml" \
+  "docs/WORKFLOW.md"
+check_present "SEOCHO_BLOG_SYNC_TOKEN" \
   "docs/WORKFLOW.md"
 check_present "npm run check:docs" \
   "docs/WORKFLOW.md"

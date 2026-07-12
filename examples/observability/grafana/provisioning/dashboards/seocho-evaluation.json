@@ -212,6 +212,16 @@
       "targets": [{"expr": "max by (cohort, group, dimension) (last_over_time(seocho_evaluation_intent_accuracy_ratio[24h]))", "legendFormat": "{{cohort}} / {{group}} / {{dimension}}", "refId": "A"}],
       "title": "Hybrid intent and boundary accuracy",
       "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1}, "overrides": []},
+      "gridPos": {"h": 7, "w": 24, "x": 0, "y": 55},
+      "id": 21,
+      "options": {"colorMode": "background", "graphMode": "area", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+      "targets": [{"expr": "max by (cohort) (last_over_time(seocho_evaluation_answer_progress_ratio[10m]))", "legendFormat": "{{cohort}}", "refId": "A"}],
+      "title": "10K full answer generation progress",
+      "type": "stat"
     }
   ],
   "refresh": "5s",

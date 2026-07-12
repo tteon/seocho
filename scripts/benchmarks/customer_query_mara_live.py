@@ -24,9 +24,15 @@ async def run(args: argparse.Namespace) -> dict:
         for source, detail in bulk["source_details"].items()
     }
     for source in (
-        "postgresql_revision", "graph_projection", "order_history", "fill_history",
-        "withdrawal_history", "counterparty_history", "funding_history",
-        "answer_receipt", "context_graph",
+        "postgresql_revision",
+        "graph_projection",
+        "order_history",
+        "fill_history",
+        "withdrawal_history",
+        "counterparty_history",
+        "funding_history",
+        "answer_receipt",
+        "context_graph",
     ):
         available[source] = True
     selected = []
@@ -36,12 +42,40 @@ async def run(args: argparse.Namespace) -> dict:
         if counts[intent] < args.per_intent:
             selected.append(row)
             counts[intent] += 1
-    backend = MaraBackend(model=args.model)
+    checkpoint: Path | None = getattr(args, "checkpoint", None)
+    completed: dict[str, dict] = {}
+    if checkpoint and checkpoint.exists():
+        for line in checkpoint.read_text().splitlines():
+            if not line:
+                continue
+            try:
+                item = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if query_id := item.get("query_id"):
+                completed[query_id] = item
+        if getattr(args, "retry_failures", False):
+            completed = {
+                query_id: item
+                for query_id, item in completed.items()
+                if item.get("status_ok")
+                and item.get("missing_ok")
+                and not item.get("leakage")
+            }
+    resumed_queries = sum(row["query_id"] in completed for row in selected)
+    backend = MaraBackend(
+        model=args.model,
+        timeout=float(getattr(args, "request_timeout", 120.0)),
+    )
     semaphore = asyncio.Semaphore(args.concurrency)
 
     async def one(row: dict) -> dict:
-        sources = tuple(row["gold"]["live_sources"]) + tuple(row["gold"]["memory_sources"])
-        missing = sorted(source for source in sources if not available.get(source, False))
+        sources = tuple(row["gold"]["live_sources"]) + tuple(
+            row["gold"]["memory_sources"]
+        )
+        missing = sorted(
+            source for source in sources if not available.get(source, False)
+        )
         expected = "partial" if missing else "supported"
         async with semaphore:
             started = time.perf_counter()
@@ -57,7 +91,14 @@ async def run(args: argparse.Namespace) -> dict:
                             "supported and partial. Never infer wallet ownership or identity."
                         ),
                         user=json.dumps(
-                            {"question": row["question"], "authoritative_support_status": expected, "available_sources": sorted(set(sources)-set(missing)), "missing_sources": missing},
+                            {
+                                "question": row["question"],
+                                "authoritative_support_status": expected,
+                                "available_sources": sorted(
+                                    set(sources) - set(missing)
+                                ),
+                                "missing_sources": missing,
+                            },
                             sort_keys=True,
                         ),
                         temperature=0.0,
@@ -72,37 +113,104 @@ async def run(args: argparse.Namespace) -> dict:
                     errors.append(type(exc).__name__)
             if payload is None:
                 return {
-                    "intent": row["gold"]["intent"], "expected": expected,
-                    "status_ok": False, "missing_ok": False, "leakage": False,
-                    "attempts": 2, "errors": errors,
-                    "latency_ms": round((time.perf_counter()-started)*1000, 3),
+                    "query_id": row["query_id"],
+                    "intent": row["gold"]["intent"],
+                    "expected": expected,
+                    "status_ok": False,
+                    "missing_ok": False,
+                    "leakage": False,
+                    "attempts": 2,
+                    "errors": errors,
+                    "latency_ms": round((time.perf_counter() - started) * 1000, 3),
                 }
             rendered = json.dumps(payload).lower()
+            counterparty_intent = row["gold"]["intent"] in {
+                "recipient_missing",
+                "transfer_history",
+            }
+            leakage = counterparty_intent and any(
+                phrase in rendered
+                for phrase in (
+                    "wallet belongs to",
+                    "address belongs to",
+                    "wallet is owned by",
+                    "address is owned by",
+                    "real identity",
+                )
+            )
             return {
+                "query_id": row["query_id"],
                 "intent": row["gold"]["intent"],
                 "expected": expected,
                 "answer_status": payload.get("support_status"),
                 "status_ok": payload.get("support_status") == expected,
                 "missing_ok": sorted(payload.get("missing_sources") or []) == missing,
-                "leakage": "belongs to" in rendered or "real identity" in rendered,
+                "leakage": leakage,
                 "attempts": attempt,
                 "errors": errors,
-                "latency_ms": round((time.perf_counter()-started)*1000, 3),
+                "latency_ms": round((time.perf_counter() - started) * 1000, 3),
             }
 
-    results = await asyncio.gather(*(one(row) for row in selected))
+    pending = [row for row in selected if row["query_id"] not in completed]
+    checkpoint_handle = None
+    if checkpoint:
+        checkpoint.parent.mkdir(parents=True, exist_ok=True)
+        checkpoint_handle = checkpoint.open("a", encoding="utf-8")
+    try:
+        for finished, task in enumerate(
+            asyncio.as_completed(one(row) for row in pending), start=1
+        ):
+            result = await task
+            completed[result["query_id"]] = result
+            if checkpoint_handle:
+                checkpoint_handle.write(json.dumps(result, sort_keys=True) + "\n")
+                checkpoint_handle.flush()
+            progress_every = int(getattr(args, "progress_every", 100))
+            if progress_every > 0 and (
+                finished % progress_every == 0 or finished == len(pending)
+            ):
+                print(
+                    json.dumps(
+                        {
+                            "event": "progress",
+                            "completed": resumed_queries + finished,
+                            "total": len(selected),
+                            "executed_this_run": finished,
+                            "failures": sum(
+                                not (row["status_ok"] and row["missing_ok"])
+                                for row in completed.values()
+                            ),
+                        }
+                    ),
+                    flush=True,
+                )
+    finally:
+        if checkpoint_handle:
+            checkpoint_handle.close()
+    results = [completed[row["query_id"]] for row in selected]
     latencies = sorted(row["latency_ms"] for row in results)
-    passed = all(row["status_ok"] and row["missing_ok"] and not row["leakage"] for row in results)
+    passed = all(
+        row["status_ok"] and row["missing_ok"] and not row["leakage"] for row in results
+    )
     return {
         "schema_version": "seocho.customer-query-mara-live.v1",
-        "model": args.model, "queries": len(results), "concurrency": args.concurrency,
+        "model": args.model,
+        "queries": len(results),
+        "concurrency": args.concurrency,
+        "resumed_queries": resumed_queries,
+        "executed_queries": len(pending),
         "supported": sum(row["expected"] == "supported" for row in results),
         "partial": sum(row["expected"] == "partial" for row in results),
-        "status_accuracy": sum(row["status_ok"] for row in results)/len(results),
-        "missing_source_accuracy": sum(row["missing_ok"] for row in results)/len(results),
+        "status_accuracy": sum(row["status_ok"] for row in results) / len(results),
+        "missing_source_accuracy": sum(row["missing_ok"] for row in results)
+        / len(results),
         "leakage_cases": sum(row["leakage"] for row in results),
-        "latency_ms": {"mean": statistics.fmean(latencies), "p95": latencies[round((len(latencies)-1)*0.95)]},
-        "rows": results, "passed": passed,
+        "latency_ms": {
+            "mean": statistics.fmean(latencies),
+            "p95": latencies[round((len(latencies) - 1) * 0.95)],
+        },
+        "rows": results,
+        "passed": passed,
     }
 
 
@@ -113,6 +221,11 @@ def main() -> None:
     parser.add_argument("--model", default="gpt-oss-120b")
     parser.add_argument("--per-intent", type=int, default=2)
     parser.add_argument("--concurrency", type=int, default=4)
+    parser.add_argument("--request-timeout", type=float, default=120.0)
+    parser.add_argument("--checkpoint", type=Path)
+    parser.add_argument("--retry-failures", action="store_true")
+    parser.add_argument("--progress-every", type=int, default=100)
+    parser.add_argument("--summary-only", action="store_true")
     parser.add_argument("--otlp-grpc")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
@@ -143,8 +256,13 @@ def main() -> None:
                 }
             )
         args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(json.dumps(report, indent=2, sort_keys=True)+"\n")
-        print(json.dumps(report, indent=2, sort_keys=True))
+        args.output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+        rendered = (
+            {key: value for key, value in report.items() if key != "rows"}
+            if args.summary_only
+            else report
+        )
+        print(json.dumps(rendered, indent=2, sort_keys=True))
     finally:
         if tracing_enabled:
             flush_tracing()

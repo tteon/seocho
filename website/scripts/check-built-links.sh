@@ -9,16 +9,17 @@ if [[ ! -d dist ]]; then
   exit 1
 fi
 
-mapfile -t targets < <(
-  find dist -type f \( -name '*.html' -o -name '*.xml' \) -print0 |
-    xargs -0 rg -o '((href|src)="/[^"#?]+")' |
-    sed -E 's/.*="([^"]+)"/\1/' |
-    sort -u
-)
+targets_file="$(mktemp)"
+trap 'rm -f "$targets_file"' EXIT
+
+find dist -type f \( -name '*.html' -o -name '*.xml' \) -print0 |
+  xargs -0 rg -o '((href|src)="/[^"#?]+")' |
+  sed -E 's/.*="([^"]+)"/\1/' |
+  sort -u > "$targets_file"
 
 missing=()
 
-for target in "${targets[@]}"; do
+while IFS= read -r target; do
   if [[ "$target" == "/" ]]; then
     candidate="dist/index.html"
     [[ -f "$candidate" ]] || missing+=("$target -> $candidate")
@@ -41,7 +42,7 @@ for target in "${targets[@]}"; do
   fi
 
   missing+=("$target")
-done
+done < "$targets_file"
 
 if (( ${#missing[@]} > 0 )); then
   echo "Broken built-site links detected:" >&2

@@ -1,136 +1,97 @@
 # SEOCHO Documentation
 
-SEOCHO docs are organized around one question: what do you need to do right
-now?
+SEOCHO docs are organized around jobs, not around the repository tree. Start
+with the path that matches what you are trying to do today, then move deeper
+only when you need the extra detail.
 
-[![Quickstart](https://img.shields.io/badge/Quickstart-First_Run-2563eb)](../QUICKSTART.md)
-[![Python SDK](https://img.shields.io/badge/Python_SDK-Examples-0f766e)](PYTHON_INTERFACE_QUICKSTART.md)
-[![Architecture Deep Dive](https://img.shields.io/badge/Architecture-Deep_Dive-7c3aed)](ARCHITECTURE.md)
+## Choose Your Path
 
-## Start Here
+| I want to... | Start here | What you should get |
+|---|---|---|
+| understand the product idea | [Why SEOCHO](WHY_SEOCHO.md) | why ontology-first graph memory is different from generic AI memory |
+| get a first local success | [Quickstart](../QUICKSTART.md) | install, define a tiny ontology, add text, ask a question |
+| use SEOCHO from Python | [Python SDK](PYTHON_INTERFACE_QUICKSTART.md) | local SDK, HTTP client, semantic query, and artifact examples |
+| bring my own records or files | [Bring Your Data](APPLY_YOUR_DATA.md) | ingestion paths, graph targets, query order, and inspection points |
+| run the local platform | [Runtime Deployment](RUNTIME_DEPLOYMENT.md) | UI, API, DozerDB, environment, and troubleshooting |
+| contribute to the project | [Open Source Playbook](OPEN_SOURCE_PLAYBOOK.md) | issue/PR workflow, labels, examples, and review expectations |
 
-| If you need to... | Start here |
+If you are new, use this order:
+
+1. [Why SEOCHO](WHY_SEOCHO.md)
+2. [Quickstart](../QUICKSTART.md)
+3. [Python SDK](PYTHON_INTERFACE_QUICKSTART.md)
+4. [Bring Your Data](APPLY_YOUR_DATA.md)
+5. [Files and Artifacts](FILES_AND_ARTIFACTS.md)
+6. [Architecture](ARCHITECTURE.md)
+
+## The Mental Model
+
+SEOCHO keeps one ontology contract aligned across four surfaces:
+
+| Surface | What the ontology controls |
 |---|---|
-| understand why SEOCHO exists | [WHY_SEOCHO.md](WHY_SEOCHO.md) |
-| get a first local success path | [../QUICKSTART.md](../QUICKSTART.md) |
-| understand local `ask()` vs runtime `semantic/react/debate` | [../README.md#choose-a-mode](../README.md#choose-a-mode) |
-| bring up the full local runtime stack | [RUNTIME_DEPLOYMENT.md](RUNTIME_DEPLOYMENT.md) |
-| follow a runnable notebook walkthrough | [../examples/quickstart.ipynb](../examples/quickstart.ipynb) |
-| understand SEOCHO with architecture snippets | [BEGINNER_GUIDE.md](BEGINNER_GUIDE.md) |
-| use the Python SDK directly | [PYTHON_INTERFACE_QUICKSTART.md](PYTHON_INTERFACE_QUICKSTART.md) |
-| declare reusable agent patterns in YAML | [AGENT_DESIGN_SPECS.md](AGENT_DESIGN_SPECS.md) |
-| declare graph-model-aware indexing in YAML | [INDEXING_DESIGN_SPECS.md](INDEXING_DESIGN_SPECS.md) |
-| bring your own ontology and data | [APPLY_YOUR_DATA.md](APPLY_YOUR_DATA.md) |
-| inspect files, artifacts, and traces | [FILES_AND_ARTIFACTS.md](FILES_AND_ARTIFACTS.md) |
-| understand the system design | [ARCHITECTURE.md](ARCHITECTURE.md) |
-| understand the top-level repository layout | [REPOSITORY_LAYOUT.md](REPOSITORY_LAYOUT.md) |
-| understand GitHub automation | [GITHUB_AUTOMATION.md](GITHUB_AUTOMATION.md) |
-| present SEOCHO to a technical audience | [presentations/SEOCHO_OVERVIEW_DEEP_DIVE.md](presentations/SEOCHO_OVERVIEW_DEEP_DIVE.md) |
-| measure behavior with FinDER and benchmark tracks | [BENCHMARKS.md](BENCHMARKS.md) |
+| Ingestion | which entities, relationships, and properties should be extracted |
+| Graph writes | constraints, provenance, and schema-shaped payloads |
+| Querying | schema-aware retrieval, Cypher generation, and bounded repair |
+| Runtime | HTTP-facing semantic artifacts, traces, policy, and `workspace_id` scope |
 
-Recommended onboarding order:
+The fastest first run is `Seocho.local(...)`. The runtime path is for teams that
+want a shared API, UI, and DozerDB-backed deployment.
 
-1. [WHY_SEOCHO.md](WHY_SEOCHO.md)
-2. [../QUICKSTART.md](../QUICKSTART.md)
-3. [../examples/quickstart.ipynb](../examples/quickstart.ipynb)
-4. [BEGINNER_GUIDE.md](BEGINNER_GUIDE.md)
-5. [PYTHON_INTERFACE_QUICKSTART.md](PYTHON_INTERFACE_QUICKSTART.md)
-6. [APPLY_YOUR_DATA.md](APPLY_YOUR_DATA.md)
-7. [FILES_AND_ARTIFACTS.md](FILES_AND_ARTIFACTS.md)
-8. [ARCHITECTURE.md](ARCHITECTURE.md)
-9. [presentations/SEOCHO_OVERVIEW_DEEP_DIVE.md](presentations/SEOCHO_OVERVIEW_DEEP_DIVE.md)
+## Common Questions
 
-## Product Entry Points
+| Question | Short answer | Read next |
+|---|---|---|
+| Do I need Neo4j or DozerDB for hello world? | No. `Seocho.local(...)` uses the embedded local path by default. | [Quickstart](../QUICKSTART.md) |
+| When should I use the runtime? | When another process or agent needs to consume the same graph contract over HTTP. | [Runtime Deployment](RUNTIME_DEPLOYMENT.md) |
+| Where do generated artifacts go? | Local graph data, semantic artifacts, rule profiles, and traces are filesystem-visible. | [Files and Artifacts](FILES_AND_ARTIFACTS.md) |
+| Is debate the default mode? | No. Start with semantic graph QA and use debate only for explicit comparison work. | [Python SDK](PYTHON_INTERFACE_QUICKSTART.md) |
+| Where are release and Discord rules? | GitHub releases and docs are canonical; Discord is for curated community updates. | [Release And Community Operations](RELEASE_AND_COMMUNITY_OPERATIONS.md) |
 
-- [WHY_SEOCHO.md](WHY_SEOCHO.md): product framing and ontology-aligned value
-  proposition
-- [../QUICKSTART.md](../QUICKSTART.md): shortest local success path
-- [RUNTIME_DEPLOYMENT.md](RUNTIME_DEPLOYMENT.md): full local runtime
-  deployment guide for Docker stack, services, and environment setup
-- [../examples/quickstart.ipynb](../examples/quickstart.ipynb): runnable
-  notebook covering ontology, indexing design, agent design, indexing, query,
-  `.env`-backed provider setup, safe Ladybug fallback, optional Neo4j/DozerDB,
-  and provider comparison
-- [BEGINNER_GUIDE.md](BEGINNER_GUIDE.md): first-run guide that connects SDK
-  snippets to architecture seams
-- [PYTHON_INTERFACE_QUICKSTART.md](PYTHON_INTERFACE_QUICKSTART.md): public
-  Python SDK path and API examples
-- [AGENT_DESIGN_SPECS.md](AGENT_DESIGN_SPECS.md): YAML-backed agent patterns
-  with required ontology bindings
-- [INDEXING_DESIGN_SPECS.md](INDEXING_DESIGN_SPECS.md): YAML-backed indexing
-  variants for LPG, RDF, hybrid, and inquiry-cycle defaults
-- [APPLY_YOUR_DATA.md](APPLY_YOUR_DATA.md): ingest your own records and query
-  them safely
-- [FILES_AND_ARTIFACTS.md](FILES_AND_ARTIFACTS.md): where ontology files,
-  semantic artifacts, rule profiles, and traces live
-- [BENCHMARKS.md](BENCHMARKS.md): FinDER and GraphRAG benchmark tracks
-- [ARCHITECTURE.md](ARCHITECTURE.md): architecture deep dive and module map
+## Builder References
+
+- [Run Specs](RUN_SPECS.md): declare ontology, documents, questions, and sweeps in YAML.
+- [Tutorial First Run](TUTORIAL_FIRST_RUN.md): end-to-end local runtime tutorial.
+- [Agent Design Specs](AGENT_DESIGN_SPECS.md): YAML-backed agent patterns with ontology bindings.
+- [Indexing Design Specs](INDEXING_DESIGN_SPECS.md): graph-model-aware indexing variants.
+- [Benchmarks](BENCHMARKS.md): FinDER and GraphRAG benchmark tracks.
 
 ## Architecture And Operations
 
-- [ARCHITECTURE.md](ARCHITECTURE.md): system architecture and runtime/module map
-- [INTERNAL_CLASS_DESIGN.md](INTERNAL_CLASS_DESIGN.md): internal orchestration
-  seam classes (`DomainEvent`, `IngestionFacade`, `QueryProxy`,
-  `AgentFactory`, `AgentStateMachine`) used while the modular monolith is
-  still being decomposed
-- [presentations/SEOCHO_OVERVIEW_DEEP_DIVE.md](presentations/SEOCHO_OVERVIEW_DEEP_DIVE.md):
-  20-30 minute beginner-friendly product and architecture deck
-- [RUNTIME_PACKAGE_MIGRATION.md](RUNTIME_PACKAGE_MIGRATION.md): staged
-  `extraction/` to `runtime/` migration plan
-- [GRAPH_RAG_AGENT_HANDOFF_SPEC.md](GRAPH_RAG_AGENT_HANDOFF_SPEC.md):
-  intent-first graph answer contract
-- [ONTOLOGY_RUN_CONTEXT_STRATEGY.md](ONTOLOGY_RUN_CONTEXT_STRATEGY.md):
-  ontology context contract across indexing, query, and agents
-- [PROPERTY_GRAPH_LENS_STRATEGY.md](PROPERTY_GRAPH_LENS_STRATEGY.md):
-  semantic overlay strategy for property graphs
-- [INTERNAL_CLASS_DESIGN.md](INTERNAL_CLASS_DESIGN.md): internal orchestration
-  seams for the modular monolith
-- [MODULE_OWNERSHIP_MAP.md](MODULE_OWNERSHIP_MAP.md): canonical module
-  ownership and compatibility boundaries
-- [ARCHITECTURE_HEALTH.md](ARCHITECTURE_HEALTH.md): per-domain quality
-  scorecard (grade + coverage + gaps, tracked over time)
-- [WORKFLOW.md](WORKFLOW.md): operational workflow
-- [GITHUB_AUTOMATION.md](GITHUB_AUTOMATION.md): GitHub Actions, Codex
-  automation, and `.github/` placement rules
+- [Architecture](ARCHITECTURE.md): system architecture and module map.
+- [Workflow](WORKFLOW.md): canonical development and operations workflow.
+- [Graph-RAG Agent Handoff Spec](GRAPH_RAG_AGENT_HANDOFF_SPEC.md): intent-first graph answer contract.
+- [Repository Layout](REPOSITORY_LAYOUT.md): root directory intent and canonical edit surfaces.
+- [GitHub Automation](GITHUB_AUTOMATION.md): CI, docs deploy, labels, Discord, and maintainer automation.
+- [Release And Community Operations](RELEASE_AND_COMMUNITY_OPERATIONS.md): release gates and `#seocho` community rules.
 
 ## Contributor References
 
-- [ISSUE_TASK_SYSTEM.md](ISSUE_TASK_SYSTEM.md): sprint and task governance
-- [REPOSITORY_LAYOUT.md](REPOSITORY_LAYOUT.md): root directory intent,
-  canonical edit surfaces, and legacy/local-only paths
-- [REPOSITORY_HIERARCHY_REVIEW.md](REPOSITORY_HIERARCHY_REVIEW.md):
-  architecture review of repo hierarchy cleanup priorities and tradeoffs
-- [OPEN_SOURCE_PLAYBOOK.md](OPEN_SOURCE_PLAYBOOK.md): contributor onboarding
-- [decisions/DECISION_LOG.md](decisions/DECISION_LOG.md): architecture decision
-  history
-- [../CONTRIBUTING.md](../CONTRIBUTING.md): contribution flow and PR rules
+- [Open Source Playbook](OPEN_SOURCE_PLAYBOOK.md): contributor onboarding.
+- [Issue Task System](ISSUE_TASK_SYSTEM.md): public issue and task metadata.
+- [Decision Log](decisions/DECISION_LOG.md): architecture decision history.
+- [Contributing](../CONTRIBUTING.md): PR and contribution flow.
 
-## Internal & Maintainer Docs
+## Internal And Maintainer Docs
 
-These are working documents (planning, reviews, migrations, known issues). They
-are not part of the getting-started path — skip them on a first read.
+These are useful after you know the product path. They are not part of the
+first-read sequence.
 
-- [AGENT_SERVER_REFACTOR_PLAN.md](AGENT_SERVER_REFACTOR_PLAN.md)
-- [RUNTIME_PACKAGE_MIGRATION.md](RUNTIME_PACKAGE_MIGRATION.md)
-- [ARCHITECTURE_HEALTH.md](ARCHITECTURE_HEALTH.md)
-- [REPOSITORY_HIERARCHY_REVIEW.md](REPOSITORY_HIERARCHY_REVIEW.md)
-- [PHILOSOPHY_FEASIBILITY_REVIEW.md](PHILOSOPHY_FEASIBILITY_REVIEW.md)
-- [PROMPT_ASSEMBLY_DISCUSSION_MEMO.md](PROMPT_ASSEMBLY_DISCUSSION_MEMO.md)
-- [BASELINE_INSTRUCTIONS.md](BASELINE_INSTRUCTIONS.md)
-- [KNOWN_ISSUE.md](KNOWN_ISSUE.md)
+- [Architecture Health](ARCHITECTURE_HEALTH.md)
+- [Internal Class Design](INTERNAL_CLASS_DESIGN.md)
+- [Runtime Package Migration](RUNTIME_PACKAGE_MIGRATION.md)
+- [Repository Hierarchy Review](REPOSITORY_HIERARCHY_REVIEW.md)
+- [Philosophy Feasibility Review](PHILOSOPHY_FEASIBILITY_REVIEW.md)
+- [Known Issue](KNOWN_ISSUE.md)
 
-> Follow-up: physically relocating these under `docs/internal/` is tracked
-> separately because the `website/` doc generator and several cross-links
-> reference their current paths.
-
-## Docs Sync Integration
+## Docs Site Integration
 
 - GitHub `README.md` is the fastest product landing page.
 - `docs/*` is the source of truth for long-form product, operator, and system
   contracts.
 - `website/` is the tracked Astro/Starlight source for `https://seocho.blog`.
 - `website/scripts/generate-docs.mjs` materializes selected `/docs/*` and
-  `/blog/*` pages from the repo-root source docs at build time.
+  `/blog/*` pages from repo-root source docs at build time.
 - Generated mirror files under `website/src/content/docs/docs/` are derived
   artifacts; edit the repo-root source docs instead.
 - Validate the site with `cd website && npm ci && npm run check:docs && npm run build && bash scripts/check-built-links.sh`.

@@ -98,7 +98,9 @@ BUILTIN_PROMPT_BACKENDS: Dict[str, PromptBackendCapabilities] = {
     "xai": PromptBackendCapabilities(
         cache_key_field="prompt_cache_key", reports_cached_tokens=True
     ),
-    "kimi": PromptBackendCapabilities(),
+    "kimi": PromptBackendCapabilities(
+        cache_key_field="prompt_cache_key", reports_cached_tokens=True
+    ),
     "qwen": PromptBackendCapabilities(reports_cached_tokens=True),
     "mara": PromptBackendCapabilities(),
     "vllm": PromptBackendCapabilities(

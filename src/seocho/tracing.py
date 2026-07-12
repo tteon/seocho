@@ -667,6 +667,8 @@ def enable_tracing(
     project_name: Optional[str] = None,
     api_key: Optional[str] = None,
     opik_mode: Optional[str] = None,
+    endpoint: Optional[str] = None,
+    service_name: Optional[str] = None,
 ) -> bool:
     """Enable tracing with one or more backends.
 
@@ -686,6 +688,9 @@ def enable_tracing(
         Opik-specific configuration.
     opik_mode:
         ``"hosted"`` or ``"self_host"``. Used only for the Opik backend.
+    endpoint, service_name:
+        OTLP collector endpoint and OTel service name. Environment defaults are
+        used when omitted.
 
     Returns True if at least one backend was enabled.
     """
@@ -721,7 +726,9 @@ def enable_tracing(
                     new_backends.append(ConsoleBackend())
                     active_backend_names.append("console")
                 elif b == "otlp":
-                    new_backends.append(OTLPBackend())
+                    new_backends.append(
+                        OTLPBackend(endpoint=endpoint, service_name=service_name)
+                    )
                     active_backend_names.append("otlp")
                 elif b == "none":
                     continue

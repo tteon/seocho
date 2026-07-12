@@ -147,6 +147,31 @@ def test_otlp_is_a_valid_backend_name(monkeypatch) -> None:
         disable_tracing()
 
 
+def test_named_otlp_backend_receives_explicit_endpoint(monkeypatch) -> None:
+    import seocho.tracing as tracing
+
+    captured: Dict[str, Any] = {}
+
+    class _FakeOTLP(_Recorder):
+        def __init__(self, *, endpoint=None, service_name=None) -> None:
+            super().__init__()
+            captured.update(endpoint=endpoint, service_name=service_name)
+
+    monkeypatch.setattr(tracing, "OTLPBackend", _FakeOTLP)
+    try:
+        assert enable_tracing(
+            backend="otlp",
+            endpoint="http://127.0.0.1:54317",
+            service_name="seocho-e2e",
+        )
+        assert captured == {
+            "endpoint": "http://127.0.0.1:54317",
+            "service_name": "seocho-e2e",
+        }
+    finally:
+        disable_tracing()
+
+
 def test_otlp_backend_real_init_when_available() -> None:
     pytest.importorskip("opentelemetry.exporter.otlp.proto.grpc.trace_exporter")
     from seocho.tracing import OTLPBackend

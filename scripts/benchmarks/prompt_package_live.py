@@ -101,23 +101,34 @@ def _usage_dict(usage: Any) -> dict[str, Any]:
 
 
 def _cached_tokens(usage: dict[str, Any]) -> int | None:
+    if usage.get("cached_tokens") is not None:
+        return int(usage["cached_tokens"])
     details = usage.get("prompt_tokens_details") or usage.get("input_tokens_details") or {}
     value = details.get("cached_tokens")
     return int(value) if value is not None else None
 
 
-def _call(client: OpenAI, model: str, request: dict[str, Any]) -> dict[str, Any]:
+def _call(
+    client: OpenAI,
+    model: str,
+    request: dict[str, Any],
+    *,
+    temperature: float,
+    max_completion_tokens: int,
+) -> dict[str, Any]:
     started = time.perf_counter()
     first_token: float | None = None
     pieces: list[str] = []
     usage: dict[str, Any] = {}
+    extra_body = {key: value for key, value in request.items() if key != "messages"}
     stream = client.chat.completions.create(
         model=model,
         messages=request["messages"],
-        temperature=0.0,
-        max_tokens=500,
+        temperature=temperature,
+        max_completion_tokens=max_completion_tokens,
         stream=True,
         stream_options={"include_usage": True},
+        extra_body=extra_body or None,
     )
     for chunk in stream:
         if getattr(chunk, "usage", None) is not None:
@@ -151,11 +162,16 @@ def main() -> None:
     parser.add_argument("--models", nargs="+", required=True)
     parser.add_argument("--trials", type=int, default=2)
     parser.add_argument("--base-url", default="https://api.cloud.mara.com/v1")
+    parser.add_argument("--provider", default="mara")
+    parser.add_argument("--api-key-env", default="MARA_API_KEY")
+    parser.add_argument("--temperature", type=float, default=0.0)
+    parser.add_argument("--max-completion-tokens", type=int, default=500)
+    parser.add_argument("--disable-thinking", action="store_true")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    key = os.environ.get("MARA_API_KEY")
+    key = os.environ.get(args.api_key_env)
     if not key:
-        raise SystemExit("MARA_API_KEY is required")
+        raise SystemExit(f"{args.api_key_env} is required")
     client = OpenAI(api_key=key, base_url=args.base_url, timeout=120.0, max_retries=2)
     records: list[dict[str, Any]] = []
     for model in args.models:
@@ -165,8 +181,19 @@ def main() -> None:
                 ("cold", "Which transaction proves that agent-a paid wallet-b?"),
                 ("warm", "How much BTC did wallet-b later pay agent-c?"),
             ):
-                package = _spec(trial, question).render_package(backend="mara")
-                result = _call(client, model, package["request"])
+                package = _spec(trial, question).render_package(
+                    backend=args.provider,
+                    cache_key=f"seocho-agent-memory-{model}-{index}",
+                )
+                if args.disable_thinking:
+                    package["request"]["thinking"] = {"type": "disabled"}
+                result = _call(
+                    client,
+                    model,
+                    package["request"],
+                    temperature=args.temperature,
+                    max_completion_tokens=args.max_completion_tokens,
+                )
                 records.append(
                     {
                         "model": model,
@@ -217,7 +244,7 @@ def main() -> None:
         }
     output = {
         "schema_version": "seocho.prompt-cache-live.v1",
-        "provider": "mara",
+        "provider": args.provider,
         "base_url": args.base_url,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "method": "unique-prefix cold request followed by byte-identical-prefix warm request",

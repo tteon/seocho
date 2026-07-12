@@ -9,7 +9,7 @@ DOCKER_COMPOSE_TUTORIALS = docker compose -f docker-compose.tutorials.yml
 SHARED_PROJECT = seocho
 SEOCHO_CLI = python3 -m seocho.cli
 
-.PHONY: up up-live down restart logs clean bootstrap shell test test-integration e2e-smoke lint format help opik-up opik-down opik-logs demo-raw demo-meta demo-neo4j demo-graphrag-opik demo-all setup-env tutorials-up tutorials-down tutorials-logs tutorials-shell tutorials-build tutorials-smoke tutorials-test tutorials-pytest tutorials-gds
+.PHONY: up up-build up-live down restart logs clean bootstrap shell test test-integration e2e-smoke lint format help observability-up observability-down observability-logs opik-up opik-down opik-logs demo-raw demo-meta demo-neo4j demo-graphrag-opik demo-all setup-env tutorials-up tutorials-down tutorials-logs tutorials-shell tutorials-build tutorials-smoke tutorials-test tutorials-pytest tutorials-gds
 
 ##@ Development
 
@@ -33,7 +33,7 @@ setup-env: ## Interactive .env setup (OpenAI key, Opik, ports)
 up: ## Start core local stack; or an isolated app tier with INSTANCE=<id>
 ifeq ($(strip $(INSTANCE)),)
 	@echo "🐳 Starting Seocho core local stack from an image-backed source snapshot..."
-	@COMPOSE_PROJECT_NAME=$(SHARED_PROJECT) docker compose up -d --build
+	@COMPOSE_PROJECT_NAME=$(SHARED_PROJECT) docker compose up -d --wait --remove-orphans
 	@echo "✅ Services started!"
 	@echo "🖥️  Platform UI: http://localhost:$${CHAT_INTERFACE_PORT:-8501}"
 	@echo "🧠 Backend API Docs: http://localhost:$${EXTRACTION_API_PORT:-8001}/docs"
@@ -45,6 +45,9 @@ else
 	@echo "ℹ️  Requires the shared stack to be running first: make up"
 	@$(SEOCHO_CLI) serve --instance $(INSTANCE) --build
 endif
+
+up-build: ## Rebuild changed application images and start the core stack
+	@COMPOSE_PROJECT_NAME=$(SHARED_PROJECT) docker compose up -d --build --wait --remove-orphans
 
 up-live: ## Start core local stack with live bind mounts for extraction/runtime/src/seocho
 	@echo "🐳 Starting Seocho core local stack with live source mounts..."
@@ -127,6 +130,22 @@ clean: ## Clean up containers and volumes
 	@docker system prune -f
 
 ##@ Opik Observability
+
+observability-up: ## Start the lightweight OTel + Tempo + Prometheus + Grafana stack
+	@COMPOSE_PROJECT_NAME=seocho-observability docker compose \
+		-f examples/observability/docker-compose.observability.yml \
+		--profile observability up -d --wait --remove-orphans
+	@echo "📊 Grafana: http://$${SEOCHO_BIND_HOST:-127.0.0.1}:$${GRAFANA_PORT:-3000}"
+
+observability-down: ## Stop the lightweight observability stack
+	@COMPOSE_PROJECT_NAME=seocho-observability docker compose \
+		-f examples/observability/docker-compose.observability.yml \
+		--profile observability down
+
+observability-logs: ## Tail Collector, Tempo, Prometheus, and Grafana logs
+	@COMPOSE_PROJECT_NAME=seocho-observability docker compose \
+		-f examples/observability/docker-compose.observability.yml \
+		--profile observability logs -f --tail=100
 
 opik-up: ## Start core + Opik services
 	@echo "🔭 Starting Seocho with Opik observability..."

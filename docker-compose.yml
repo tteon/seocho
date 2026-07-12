@@ -24,6 +24,12 @@ services:
       - ./data/neo4j/logs:/logs
       - ./data/neo4j/import:/var/lib/neo4j/import
       - ./data/neo4j/plugins:/plugins
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:7474 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
     networks:
       - graphrag-net
 
@@ -56,7 +62,8 @@ services:
       - OPIK_PROJECT_NAME=${OPIK_PROJECT_NAME:-seocho}
       - OPIK_API_KEY=${OPIK_API_KEY:-}
     depends_on:
-      - neo4j
+      neo4j:
+        condition: service_healthy
     networks:
       - graphrag-net
 

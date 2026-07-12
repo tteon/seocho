@@ -60,10 +60,12 @@ def test_capability_profile_supports_xai_and_unknown_openai_compatible_gateways(
         cache_key="tenant-a",
         capabilities=PromptBackendCapabilities(cache_key_field="custom_cache_key"),
     )
+    kimi = spec.render_package(backend="kimi", cache_key="session-7")
 
     assert xai["request"]["prompt_cache_key"] == "agent-memory-v4"
     assert custom["request"]["custom_cache_key"] == "tenant-a"
     assert custom["receipt"]["backend"] == "customer-qwen-proxy"
+    assert kimi["request"]["prompt_cache_key"] == "session-7"
 
 
 def test_cache_layout_rejects_sensitive_workspace_shared_prefix() -> None:

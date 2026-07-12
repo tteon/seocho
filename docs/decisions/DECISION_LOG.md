@@ -3,6 +3,15 @@
 This file is the lightweight index of architecture/product decisions.
 Each entry must link to a full ADR when impact is non-trivial.
 
+## 2026-07-12
+
+- [Status note] `ADR-0089-in-repo-docs-site-and-pages-deploy.md`
+  - in-repo site source and quality gates are active in `website/`
+  - current public `seocho.blog` deployment still runs from
+    `tteon/tteon.github.io` until Pages is enabled on `tteon/seocho`
+  - live docs changes must be mirrored and validated in the Pages repository
+    during the transition
+
 ## 2026-07-11
 
 - [Accepted] `ADR-0146-production-observability-profiles-and-metric-contract.md`

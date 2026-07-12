@@ -7,7 +7,9 @@ This directory hosts the official documentation and landing page for the
 - **Framework**: [Astro](https://astro.build)
 - **Docs Theme**: [Starlight](https://starlight.astro.build)
 - **Styling**: Tailwind CSS + Custom Dark Theme
-- **Deployment**: Automatic via GitHub Actions to GitHub Pages.
+- **Deployment**: GitHub Actions validates this in-repo site; current live
+  `seocho.blog` deployment is still served from `tteon/tteon.github.io` until
+  GitHub Pages is enabled on `tteon/seocho`.
 
 ## Source Of Truth
 
@@ -15,6 +17,7 @@ This directory is the website presentation layer.
 
 - public domain: `https://seocho.blog`
 - source of truth: repo-root `README.md` and `docs/*`
+- current live Pages repo: `https://github.com/tteon/tteon.github.io`
 
 Current site-doc policy is build-time generation inside this repository:
 
@@ -23,6 +26,9 @@ Current site-doc policy is build-time generation inside this repository:
 - generated pages should say `Source mirrored from ...`
 - generated pages under `src/content/docs/docs/` are derived artifacts;
   edit the repo-root source docs instead
+- when a change must reach `https://seocho.blog` now, mirror it into
+  `tteon/tteon.github.io` with that repo's `scripts/sync.mjs` and validate the
+  Pages repo before pushing
 
 ## GitHub Pages Boundaries
 

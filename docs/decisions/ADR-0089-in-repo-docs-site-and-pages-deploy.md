@@ -3,6 +3,11 @@
 Date: 2026-05-03
 Status: Accepted
 
+Status note, 2026-07-12: the in-repo site source and quality gates are active,
+but the public `seocho.blog` GitHub Pages deployment still runs from
+`tteon/tteon.github.io` until Pages is enabled on `tteon/seocho`. Live docs
+changes must be mirrored and validated in that repository during the transition.
+
 ## Context
 
 `seocho.blog` has been running from a separate `tteon.github.io` repository
@@ -61,3 +66,4 @@ Tradeoffs:
 - site quality workflow: `.github/workflows/docs-site-quality.yml`
 - site deploy workflow: `.github/workflows/docs-site-deploy.yml`
 - repo-doc contract: `scripts/ci/check-doc-contracts.sh`
+- transition live deploy repository: `tteon/tteon.github.io`

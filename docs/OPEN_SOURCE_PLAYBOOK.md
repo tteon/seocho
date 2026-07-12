@@ -206,11 +206,19 @@ Docs sync critical set for seocho.blog:
 
 - `docs/README.md`
 - `docs/RUNTIME_DEPLOYMENT.md`
+- `docs/APPLY_YOUR_DATA.md`
+- `docs/PYTHON_INTERFACE_QUICKSTART.md`
+- `docs/RUN_SPECS.md`
 - `docs/ARCHITECTURE.md`
 - `docs/WORKFLOW.md`
+- `docs/OPEN_SOURCE_PLAYBOOK.md`
+- `docs/RELEASE_AND_COMMUNITY_OPERATIONS.md`
 
-The tracked site source lives in `website/`, and generated mirror files under
-`website/src/content/docs/docs/` are derived from the repo-root docs.
+The tracked in-repo site source lives in `website/`, and generated mirror files
+under `website/src/content/docs/docs/` are derived from the repo-root docs.
+Current live `seocho.blog` deployment is still served from
+`tteon/tteon.github.io`; live docs changes must be synced and validated there
+until GitHub Pages is enabled on `tteon/seocho`.
 
 ## 10. Open Source Workflow Backlog
 

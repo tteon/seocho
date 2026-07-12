@@ -1,11 +1,6 @@
 name: Discord Updates
 
 on:
-  workflow_run:
-    workflows:
-      - Basic CI
-    types:
-      - completed
   release:
     types:
       - published
@@ -27,23 +22,12 @@ jobs:
   notify:
     name: Notify Discord
     runs-on: ubuntu-latest
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      github.event_name == 'release' ||
-      (
-        github.event_name == 'workflow_run' &&
-        github.event.workflow_run.conclusion == 'success' &&
-        github.event.workflow_run.head_branch == 'main'
-      )
     steps:
       - name: Build Discord payload
         env:
           EVENT_NAME: ${{ github.event_name }}
           REPOSITORY: ${{ github.repository }}
           SERVER_URL: ${{ github.server_url }}
-          WORKFLOW_RUN_TITLE: ${{ github.event.workflow_run.display_title }}
-          WORKFLOW_RUN_URL: ${{ github.event.workflow_run.html_url }}
-          WORKFLOW_RUN_SHA: ${{ github.event.workflow_run.head_sha }}
           RELEASE_NAME: ${{ github.event.release.name }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}
           RELEASE_URL: ${{ github.event.release.html_url }}
@@ -58,21 +42,7 @@ jobs:
           repo = os.environ["REPOSITORY"]
           server_url = os.environ.get("SERVER_URL", "https://github.com")
 
-          if event_name == "workflow_run":
-              sha = os.environ.get("WORKFLOW_RUN_SHA", "")
-              short_sha = sha[:7] if sha else "unknown"
-              title = os.environ.get("WORKFLOW_RUN_TITLE") or "main update"
-              url = os.environ.get("WORKFLOW_RUN_URL") or f"{server_url}/{repo}/commit/{sha}"
-              content = "\n".join(
-                  [
-                      "**SEOCHO update**",
-                      "",
-                      "- Basic CI passed on `main`",
-                      f"- Commit `{short_sha}`: {title}",
-                      f"- {url}",
-                  ]
-              )
-          elif event_name == "release":
+          if event_name == "release":
               tag = os.environ.get("RELEASE_TAG") or "release"
               title = os.environ.get("RELEASE_NAME") or tag
               url = os.environ.get("RELEASE_URL") or f"{server_url}/{repo}/releases/tag/{tag}"
@@ -81,7 +51,7 @@ jobs:
                       "**SEOCHO release**",
                       "",
                       f"- `{tag}`: {title}",
-                      f"- {url}",
+                      f"- <{url}>",
                   ]
               )
           else:
@@ -92,7 +62,7 @@ jobs:
                       f"**{title}**",
                       "",
                       f"- {details}",
-                      f"- {server_url}/{repo}",
+                      f"- <{server_url}/{repo}>",
                   ]
               )
 

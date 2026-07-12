@@ -10,9 +10,10 @@ item `seocho-47m`.
 ## Purpose / Big Picture
 
 The consolidated implementation and evaluation contract now lives in
-`docs/OKX_AGENT_MEMORY_SYSTEM_SPEC.md`. This ExecPlan retains the chronological
-record of the initial vertical slice; new milestones should use the system
-spec's P0-P6 checklist and Q1-Q12 evaluation matrix.
+[`docs/experiments/okx-agent-memory/OKX_AGENT_MEMORY_SYSTEM_SPEC.md`](../experiments/okx-agent-memory/OKX_AGENT_MEMORY_SYSTEM_SPEC.md).
+This ExecPlan retains the chronological record of the initial vertical slice;
+new milestones should use the system spec's P0-P6 checklist and Q1-Q12
+evaluation matrix.
 
 After this change, a developer can run an OKX-style customer-support query
 through SEOCHO and inspect one portable trace that explains prompt identity,

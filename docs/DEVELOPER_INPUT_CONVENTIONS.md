@@ -111,14 +111,14 @@ Use the prefixes in these files first:
 
 1. `docs/PRD_MVP.md`
 2. `docs/GRAPH_MEMORY_API.md`
-3. `docs/AGENT_DEVELOPMENT.md`
+3. `docs/maintainers/AGENT_DEVELOPMENT.md`
 4. `docs/CODING_STYLE.md`
 
 Recommended usage:
 
 - product behavior goes in `PRD_MVP.md`
 - public API behavior goes in `GRAPH_MEMORY_API.md`
-- implementation guardrails go in `AGENT_DEVELOPMENT.md`
+- implementation guardrails go in `docs/maintainers/AGENT_DEVELOPMENT.md`
 - code and test conventions go in `CODING_STYLE.md`
 - repo gaps or blocked decisions should become public follow-up issues or PR
   notes

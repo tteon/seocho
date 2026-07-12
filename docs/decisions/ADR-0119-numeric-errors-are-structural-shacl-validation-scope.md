@@ -18,7 +18,8 @@ numeric-reasoning cases** (16 each × Compositional/Division/Multiplication/Subt
 Per case: extract numeric facts + answer → validate facts with SEOCHO's real
 `Ontology.validate_with_shacl` + a numeric-rule supplement → LLM-judge correctness vs gold →
 LLM-judge error type (structural vs arithmetic) for wrong answers. Record:
-`ADR-0119-p3-shacl-numeric-validation.json`.
+`ADR-0119-p3-shacl-numeric-validation.json`; summary:
+`ADR-0119-p3-summary.json`.
 
 ## Findings (measured)
 

@@ -17,7 +17,8 @@ Two inputs informed this ADR:
 1. **Scale replication (measured).** FinDER guardrail ablation at **N=320** (40 × 8 categories,
    all 4 MARA models, 2,560 thread-pooled extractions) + corpus-aware scorecard over a 268-type
    open-extraction profile. Data: `ADR-0118-scale-validation-summary.json` (full per-doc records
-   retained out-of-repo).
+   retained in `ADR-0118-finder-guardrail-ablation-N320.json`; corpus profile in
+   `ADR-0118-corpus-aware-N320.json`).
 2. **Problem-definition survey (deep-research, 23 verified / 2 refuted claims from authoritative
    sources).** Full writeup in the Obsidian vault (`wiki/finance-ontology-problem-definition.md`).
 

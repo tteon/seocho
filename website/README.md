@@ -24,8 +24,9 @@ Current site-doc policy is build-time generation inside this repository:
 - `scripts/generate-docs.mjs` materializes selected `/docs/*` and `/blog/*`
   pages into `src/content/docs/` before `dev` and `build`
 - generated pages should say `Source mirrored from ...`
-- generated pages under `src/content/docs/docs/` are derived artifacts;
-  edit the repo-root source docs instead
+- generated pages under `src/content/docs/docs/` are derived site artifacts
+  that keep the static docs app deployable; preserve them through generation,
+  but edit the repo-root source docs instead of hand-editing mirrors
 - when a change must reach `https://seocho.blog` now, mirror it into
   `tteon/tteon.github.io` with that repo's `scripts/sync.mjs` and validate the
   Pages repo before pushing

@@ -180,6 +180,9 @@ Primary surfaces:
   - `docs/RUN_SPECS.md`
   - `docs/RELEASE_AND_COMMUNITY_OPERATIONS.md`
   - `docs/ARCHITECTURE.md`
+  - `docs/RUNTIME_ARCHITECTURE.md`
+  - `docs/QUERY_ARCHITECTURE.md`
+  - `docs/MAINTAINER_ARCHITECTURE_NOTES.md`
   - `docs/WORKFLOW.md`
 - repo-side source-doc contract is checked by `.github/workflows/docs-consistency.yml`
   using `bash scripts/ci/check-doc-contracts.sh`

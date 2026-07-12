@@ -1,808 +1,179 @@
-# SEOCHO Architecture — Agent-Driven Development Platform
+# SEOCHO Architecture Overview
 
-## Overview
+SEOCHO turns unstructured data into ontology-aligned graph memory. This page is
+the public architecture overview: it explains the product boundary, the main
+planes, and where to go for deeper implementation detail.
 
-SEOCHO turns unstructured data into ontology-aligned graph memory.
+Do not start here if you only want a first run. Use `QUICKSTART.md` or
+`docs/RUNTIME_DEPLOYMENT.md` first.
 
-The default product path is not "run every agent." It is:
+## Reader Guide
+
+| If you need... | Read this page until... | Then read |
+|---|---|---|
+| the product shape | [Architecture In One Page](#architecture-in-one-page) | [Why SEOCHO](WHY_SEOCHO.md) |
+| the runtime internals | [Runtime Boundary](#runtime-boundary) | [Runtime Architecture](RUNTIME_ARCHITECTURE.md) |
+| query and Graph-RAG internals | [Query Boundary](#query-boundary) | [Query Architecture](QUERY_ARCHITECTURE.md) |
+| module ownership | [Module Ownership](#module-ownership) | [Module Ownership Map](MODULE_OWNERSHIP_MAP.md) |
+| maintainer migration notes | [Read Next](#read-next) | [Maintainer Architecture Notes](MAINTAINER_ARCHITECTURE_NOTES.md) |
+
+Most users can stop after the first three sections.
+
+## Architecture In One Page
+
+SEOCHO has one public shape: a Python SDK plus an optional runtime service.
+Internally, it is split into planes so graph behavior stays reviewable.
+
+| Plane | Owns | Main paths |
+|---|---|---|
+| Public facade | stable user calls such as `Seocho.add()`, `Seocho.ask()`, `Seocho.local()`, `Seocho.remote()` | `src/seocho/client.py`, `src/seocho/session.py` |
+| Ontology plane | schema contract, context hash, JSON-LD, offline governance | `src/seocho/ontology*.py` |
+| Indexing plane | document ingest, extraction, linking, rule assessment, graph writes | `src/seocho/index/`, `src/seocho/rules.py` |
+| Query plane | intent, retrieval, Cypher validation, evidence, answer synthesis | `src/seocho/query/` |
+| Runtime shell | HTTP routes, policy, readiness, workspace/database scope | `runtime/` |
+| Compatibility shell | legacy imports and batch compatibility while migration continues | `extraction/` |
+
+The invariant is simple:
+
+```text
+ontology
+  -> indexing prompt
+  -> graph write metadata
+  -> query intent and evidence
+  -> trace
+  -> supported answer
+```
+
+If that ontology context is lost, the system may still answer, but the answer is
+not auditable in the way SEOCHO promises.
+
+## Core Loop
+
+```text
+Documents or records
+    -> ontology-shaped extraction
+    -> graph facts with provenance
+    -> semantic query planning
+    -> graph evidence
+    -> grounded answer
+```
+
+The default path is not "run every agent." It is:
 
 1. ingest data against one ontology contract
 2. write graph facts with provenance
 3. resolve a question through the semantic layer
 4. return an answer with evidence and trace metadata
 
-Parallel debate is an advanced mode for explicit multi-graph comparison, not
-the default first-run path.
+Parallel debate is an advanced mode for explicit multi-graph comparison.
 
-Current baseline:
+## Runtime Boundary
 
-- Agent runtime: OpenAI Agents SDK
-- Trace/evaluation contract: vendor-neutral (`none|console|jsonl|opik`)
-- Preferred team backend: Opik
-- Canonical neutral artifact: JSONL
-- Graph backend: DozerDB (Neo4j protocol compatible)
+The runtime shell exposes the same graph contract over HTTP. It owns deployment
+concerns, not canonical engine logic.
 
-## Reader Guide
+| Runtime concern | Owner |
+|---|---|
+| route wiring and request validation | `runtime/agent_server.py` |
+| shared service composition | `runtime/server_runtime.py` |
+| memory/search facade | `runtime/memory_service.py` |
+| raw runtime ingestion | `runtime/runtime_ingest.py` |
+| request policy | `runtime/policy.py` |
+| readiness and graph-agent state | `runtime/agent_readiness.py` |
+| request ID propagation | `runtime/middleware.py` |
 
-This page is the system map. It is not the first-run path.
+`extraction-service` still exists as the local compose service name, but the
+long-term package owner is `runtime/`. Compatibility aliases in `extraction/*`
+keep older imports working while canonical runtime code moves into `runtime/`.
 
-| If you need to understand... | Start with | Then read |
-|---|---|---|
-| the current product boundary | [Architecture In One Page](#architecture-in-one-page) | [Local Runtime Shape](#local-runtime-shape) |
-| where files and evidence live | [Storage And Artifact Layout](#storage-and-artifact-layout) | [Files And Artifacts](FILES_AND_ARTIFACTS.md) |
-| which module owns a change | [Module Map](#module-map) | [Repository Layout](REPOSITORY_LAYOUT.md) |
-| current implementation priorities | [Priority Execution Board](#priority-execution-board-2026-02-21) | linked ADRs and issues |
-
-Read `WHY_SEOCHO.md` first if you need the product idea. Read
-`RUNTIME_DEPLOYMENT.md` first if you only need to run the stack.
-
-Most readers can stop after [Architecture In One Page](#architecture-in-one-page).
-Continue only when you are changing runtime boundaries, query behavior, or
-module ownership.
-
-## Architecture In One Page
-
-SEOCHO is an ontology-aligned modular monolith. The product boundary is one
-Python SDK plus one runtime shell, but the internal system is split into clear
-planes:
-
-- **Public facade**: `Seocho.add()`, `Seocho.ask()`, `Seocho.local()`, and
-  `Seocho.remote()` stay stable for users.
-- **Data plane**: `src/seocho/index/*` owns document/file ingestion, extraction,
-  linking, rule assessment, and graph writes.
-- **Control plane**: `src/seocho/query/*` owns intent extraction, ontology-aware
-  strategy selection, evidence bundles, semantic routing, debate reuse, and
-  answer synthesis.
-- **Ontology plane**: `src/seocho/ontology.py` and `src/seocho/ontology_context.py`
-  provide the schema contract and compact context hash that both indexing and
-  querying carry.
-- **Runtime shell**: `runtime/*` owns HTTP routes, request validation, policy,
-  readiness, workspace/database registry, and deployment-specific health.
-- **Compatibility shell**: `extraction/*` is being reduced to legacy import
-  compatibility and batch-only helpers while canonical logic moves into
-  `src/seocho/*` and `runtime/*`.
-
-The key invariant is that ontology context must survive the full loop:
-
-```text
-ontology -> indexing prompt -> graph write metadata -> query intent/evidence
-         -> agent/debate trace -> answer support assessment
-```
-
-FinDER-style evaluation is useful because it exercises that invariant end to
-end. A case is not considered healthy just because the runtime returns
-`support_status=supported`; benchmark artifacts also track answer matching,
-missing slots, semantic evidence reuse, tool calls, reasoning attempts, and
-token usage so false support claims become visible.
-
-## Local Runtime Shape
-
-Default local activation is intentionally smaller than the full historical repo:
+The supported local stack is intentionally small:
 
 - `neo4j`
 - `extraction-service`
 - `evaluation-interface`
 
-This is the supported first-run path for developers.
-
-That distinction matters because most current onboarding, API verification, and
-platform UX flow through `extraction-service`, not the standalone legacy
-semantic container.
-
-During the staged runtime rename, `extraction-service` still starts the legacy
-flat `agent_server` module. The default compose path now bakes `extraction/`,
-`runtime/`, and `seocho/` into the image so the runtime matches a known build
-snapshot. The flat `extraction/*` compatibility aliases still bootstrap
-canonical `runtime/*` modules inside that image. Live bind mounts remain
-available only through `docker-compose.dev.yml` for explicit development loops.
-
-## Storage And Artifact Layout
-
-The main local artifacts are deliberately file-system visible:
-
-- ontology contract: usually `schema.jsonld`
-- graph state for the local compose stack: `data/neo4j/`
-- semantic artifacts: `outputs/semantic_artifacts/`
-- rule profile registry: `outputs/rule_profiles/rule_profiles.db`
-- semantic run metadata: `outputs/semantic_metadata/`
-- traces: path from `SEOCHO_TRACE_JSONL_PATH`
-
-Operators should inspect these directly during debugging instead of treating the
-runtime as opaque. See `docs/FILES_AND_ARTIFACTS.md` for the concrete commands.
-
-## Priority Execution Board (2026-02-21)
-
-This board is the active architecture priority order.
-
-### P0: Runtime Contract Stability
-
-- isolate OpenAI Agents SDK calls behind one adapter layer
-- enforce contract tests for runner signatures and response payload shape
-- block release when strict runtime e2e smoke fails
-
-### P0: Real-Database Agent Provisioning
-
-- only create debate agents for databases that actually exist and are reachable
-- expose degraded/partial state in runtime payload when some DB agents are skipped
-- keep routing safe when registry includes stale DB names
-
-### P1: Graph Query Durability
-
-- migrate `id(node)` usage to `elementId(node)` contract-safe path
-- validate query templates against DozerDB/Neo4j deprecation warnings
-  - status: semantic query flow path migrated to `elementId` contract
-
-### P1: Process Isolation and Health Model
-
-- separate runtime API readiness from batch/notebook pipeline readiness
-- split health checks and operational alerts by service role
-  - status: `/health/runtime` and `/health/batch` endpoints added
-
-### P1: Agent Readiness State Machine
-
-- define `ready | degraded | blocked` for each graph agent
-- make router/supervisor allocate requests using readiness metadata
-  - status: debate runtime emits readiness state and platform fallback on `blocked`
-
-### P2: Governance Automation
-
-- enforce `/rules/assess` as promotion gate for rule profile rollout
-- expand CI integration checks for ontology artifact and rule export paths
-
-## User Activation Critical Path
-
-Architecture changes are not complete unless users can run this path directly:
-
-1. ingest raw data via `/platform/ingest/raw`
-2. ensure semantic index via `/indexes/fulltext/ensure`
-3. ask semantic/debate questions via `/api/chat/send`
-4. inspect trace and runtime payload in UI
-5. pass `make e2e-smoke`
-
-This critical path is the default acceptance gate for user-facing releases.
-
-## Control Plane vs Data Plane
-
-### Control Plane
-
-- agent orchestration and routing policies
-- runtime authorization policy enforcement
-- deployment quality gates and ADR governance
-
-Canonical SDK control-plane modules:
-
-- `src/seocho/agent/`
-- `src/seocho/query/`
-- `src/seocho/http_transport.py`
-- `src/seocho/ontology.py` as the stable public ontology facade
-- `src/seocho/ontology_context.py` for compact shared ontology context descriptors and cache
-- `src/seocho/ontology_serialization.py` for JSON-LD persistence
-- `src/seocho/ontology_artifacts.py` for runtime artifact and typed prompt generation
-- `src/seocho/ontology_governance.py` for offline diff/check/export flows
-- `src/seocho/runtime_contract.py`
-
-Primary modules:
-
-- `runtime/agent_server.py`
-- `runtime/server_runtime.py`
-- `runtime/policy.py`
-- `docs/decisions/`
-
-## Runtime Package Target (Active Direction)
-
-`extraction/` is a historical package name, not the desired long-term runtime
-name.
-
-Long-term package shape:
-
-- `seocho/`
-  - canonical engine modules
-- `runtime/`
-  - deployment shell, route wiring, policy, readiness, registry
-- `extraction/`
-  - extraction-only helpers or compatibility wrappers during migration
-
-We are intentionally choosing `runtime/` over `server/` because the shell owns
-more than HTTP route files. The staged migration contract lives in
-`docs/RUNTIME_PACKAGE_MIGRATION.md`. Contributor-facing placement guidance
-lives in `docs/MODULE_OWNERSHIP_MAP.md`, and each ownership domain's quality
-grade + open gaps are tracked in `docs/ARCHITECTURE_HEALTH.md`.
-
-## Internal Orchestration Seams (2026-04-17)
-
-`ADR-0080` introduced internal seams for the modular monolith. The important
-question now is where those seams are actually in use.
-
-Current wiring:
-
-- local SDK ingest path: `Seocho.add()` -> `seocho/local_engine._LocalEngine`
-  -> `seocho.index.ingestion_facade.IngestionFacade` -> `seocho.index.pipeline.IndexingPipeline`
-- runtime semantic composition root: `runtime/server_runtime.py` now builds the
-  shared `SemanticAgentFlow` through the canonical `seocho.query.AgentFactory`
-- runtime graph reads: `runtime/memory_service.py` and runtime Cypher tool
-  execution now route read queries through `seocho.query.QueryProxy`
-  - `QueryProxy` now owns the typed query-result contract so runtime and
-    semantic paths can distinguish empty results from connector/contract failures
-- runtime readiness model: `runtime.agent_readiness.summarize_readiness()`
-  normalizes debate availability onto `runtime.agent_state.AgentStateMachine`
-
-Explicit non-goal for this slice:
-
-- the legacy debate specialist-agent factory in `extraction/agent_factory.py`
-  is still in place. That path remains compatible, but it is not yet the
-  canonical factory seam.
-
-## Ontology Module Boundaries (Active Direction)
-
-Ontology remains a first-class SDK primitive, but it should no longer behave as
-one monolithic implementation file.
-
-- `src/seocho/ontology.py`
-  - stable public `Ontology`, `NodeDef`, `RelDef`, and `P` surface
-  - schema validation, SHACL derivation, and prompt-facing API entrypoints
-- `src/seocho/ontology_context.py`
-  - stable `ontology_context_hash` descriptor shared by indexing, query, traces, and agent sessions
-  - small in-process cache for compiled extraction/query/agent context artifacts
-  - SKOS-style glossary/vocabulary hash derived from ontology labels, aliases, properties, and relationship terms
-  - graph-write metadata helpers that attach compact `_ontology_*` properties to persisted nodes and relationships
-  - query guardrail helpers that compare active ontology context with indexed graph context hashes
-  - typed HTTP response metadata for memory search/chat, semantic query, router, debate, execution-plan, and platform chat clients
-- Target middleware contract: `docs/ONTOLOGY_RUN_CONTEXT_STRATEGY.md`
-  - aligns workspace, graph/database scope, ontology profile, glossary identity, policy, tool use, debate, session carryover, and evidence status
-- Target property-graph lens contract: `docs/PROPERTY_GRAPH_LENS_STRATEGY.md`
-  - preserves schemaless graph flexibility while marking only agent-visible anchors, evidence sources, evidence paths, provenance, importance, confidence, and context metadata
-- `src/seocho/ontology_serialization.py`
-  - canonical JSON-LD load/save helpers
-  - no runtime governance side effects
-- `src/seocho/ontology_artifacts.py`
-  - runtime-facing typed artifact promotion
-  - approved artifacts, semantic prompt context, vocabulary shaping
-- `src/seocho/ontology_governance.py`
-  - offline check/diff/export/OWL inspection path
-
-Canonical direction:
-
-- local SDK and runtime promotion paths should consume explicit ontology-side
-  contracts instead of hand-built client glue
-- public API compatibility should stay centered on `Ontology`
-- heavy governance and OWL inspection stays out of the request hot path
-
-## Client Facade Boundaries (Active Direction)
-
-`Seocho` should stay a public facade, not a second home for canonical engine
-logic.
-
-- `src/seocho/client.py`
-  - public SDK facade and orchestration entrypoints
-- `src/seocho/http_transport.py`
-  - HTTP request/response wrapping and exception mapping
-- `src/seocho/client_artifacts.py`
-  - ontology-to-runtime-artifact bridge helpers
-- `src/seocho/query/*`, `src/seocho/agent/*`, `seocho/ontology_*`
-  - canonical engine subdomains used by the facade
-
-Canonical direction:
-
-- keep the constructor and top-level SDK calls stable
-- move HTTP transport, ontology bridge helpers, and local engine internals out
-  of `client.py` over incremental slices
-- avoid adding new canonical business logic directly to the facade
-
-### Data Plane
-
-- data ingestion and extraction pipeline
-- SHACL-like rule inference and validation
-- graph loading/query execution on DozerDB
-
-Primary modules:
-
-- `src/seocho/rules.py` — canonical rule inference/validation (shared by SDK + server)
-- `src/seocho/index/pipeline.py` — canonical indexing pipeline with rule + embedding support
-- `src/seocho/index/linker.py` — canonical embedding-based entity linker
-- `extraction/pipeline.py` — legacy batch pipeline
-- `extraction/rule_constraints.py` — re-export shim to `seocho.rules`
-- `extraction/vector_store.py` — adapter shim to `seocho.store.vector`
-- `extraction/graph_loader.py`
-
-## Benchmark Contract (Active Direction)
-
-Performance and quality must be measured in two tracks:
-
-- `private finance corpus`
-  - ingestion, graph construction, finance-domain QA
-- `GraphRAG-Bench`
-  - retrieval, evidence quality, reasoning
-
-Measurement order:
-
-1. SEOCHO local SDK baseline
-2. SEOCHO runtime baseline
-3. peer baselines
-
-That rule prevents us from confusing deployment overhead with canonical engine
-quality. See `docs/BENCHMARKS.md`.
-
-## End-to-End Data Flow
-
-```
-[External Data]
-       │
-       ▼
-  DataSource (CSV/JSON/Parquet/API)
-       │
-       ▼
-  OntologyPromptBridge (ontology → LLM prompt injection)
-       │
-       ▼
-  EntityExtractor (LLM-based entity/relationship extraction)
-       │
-       ▼
-  EntityLinker (LLM-based entity resolution)
-       │
-       ▼
-  EntityDeduplicator (embedding similarity dedup)
-       │
-       ▼
-  RuleConstraints (SHACL-like inference + validation)
-       │
-       ▼
-  DatabaseManager (Neo4j DB creation + schema + load)
-       │
-       ▼
-  AgentFactory (DB별 전용 Agent 생성)
-       │
-       ▼
-  User Question → Router/DebateOrchestrator → AgentPool → SharedMemory → Supervisor → Answer
-```
-
-## Query-Time Semantic Flow
-
-For graph QA with hard entity disambiguation requirements:
-
-```
-User Question
-    │
-    ▼
-Semantic Layer
-- extract question entities
-- fulltext lookup on DozerDB/Neo4j
-- semantic dedup/disambiguation with label hints
-    │
-    ▼
-RouterAgent
-    ├── LPGAgent (property graph neighborhood path)
-    └── RDFAgent (RDF/ontology-oriented path)
-             │
-             ▼
-AnswerGenerationAgent (final synthesis)
-```
-
-Why this path exists:
-
-- query-time entity mapping is the hardest failure point in graph QA
-- fulltext-first lookup improves recall for imperfect user entity strings
-- semantic re-ranking + dedup reduces wrong-node selection before Cypher generation
-
-Planned `graph_cot` semantic sub-mode:
-
-```text
-User Question
-    │
-    ▼
-SemanticLayer
-    │
-    ▼
-QuerySupervisorAgent
-    │
-    ▼
-Text2CypherAgent
-    │
-    ▼
-AnswerGenerationAgent
-    │
-    ▼
-AnswerGuardrailAgent
-    │
-    ▼
-Finalize
-```
-
-`query_mode="graph_cot"` keeps the same public semantic API surface, but the
-intended internal lane is more explicit than the baseline semantic flow. The
-typed artifacts for this lane live in `src/seocho/query/graph_cot_contracts.py`,
-and the per-agent reasoning/tool specs live in
-`src/seocho/query/graph_cot_design.py`.
-
-Canonical query ownership:
-
-| Layer | Owns | Main files |
-|---|---|---|
-| Query engine | planner, executor, answer shaping | `src/seocho/query/*` |
-| Phase A | intent, support, strategy, Cypher validation | `intent.py`, `strategy_chooser.py`, guards |
-| Phase B | constraint slices and run metadata | `constraints.py`, `run_registry.py` |
-| Phase C | entity resolution, route selection, LPG/RDF specialists, answer framing | `semantic_agents.py` |
-| Phase D | shared semantic orchestration | `semantic_flow.py` |
-| Compatibility | runtime injection and legacy aliases | `extraction/*` |
+Use `docs/RUNTIME_ARCHITECTURE.md` when changing runtime internals. Use
+`docs/RUNTIME_DEPLOYMENT.md` when you only need to run the service.
+
+## Query Boundary
+
+The query plane turns a user question into graph-grounded evidence and a
+supported answer.
+
+| Query step | Owner |
+|---|---|
+| intent and answerability | `src/seocho/query/intent.py` and related contracts |
+| strategy selection | `src/seocho/query/strategy_chooser.py` |
+| Cypher validation | `src/seocho/query/cypher_validator.py` |
+| constraints and run metadata | `src/seocho/query/constraints.py`, `src/seocho/query/run_registry.py` |
+| semantic specialists and routing | `src/seocho/query/semantic_agents.py` |
+| shared orchestration | `src/seocho/query/semantic_flow.py` |
 
 Rule of thumb: add query behavior under `src/seocho/query/`. Keep
 `extraction/*` focused on compatibility, transport, and runtime injection.
 
-Server entrypoint direction:
+For details, read `docs/QUERY_ARCHITECTURE.md`.
 
-- `runtime/agent_server.py` is the FastAPI transport shell
-- `runtime/server_runtime.py` owns shared runtime service composition
-- routers should prefer lazy service getters over eager singleton boot at import
+## Data And Evidence
 
-## Extraction Cleanup Classification
+SEOCHO keeps generated artifacts visible so users and maintainers can inspect
+the system instead of treating it as a black box.
 
-The extraction layer is being reduced toward transport, provisioning, and
-compatibility roles.
+| Artifact | Usual location | Why it matters |
+|---|---|---|
+| ontology contract | `schema.jsonld` or a Python `Ontology` | defines the graph contract |
+| graph state | `data/neo4j/` for the local compose stack | shows persisted graph facts |
+| semantic artifacts | `outputs/semantic_artifacts/` | stores approved/draft semantic context |
+| rule profile registry | `outputs/rule_profiles/rule_profiles.db` | records validation and promotion state |
+| semantic run metadata | `outputs/semantic_metadata/` | explains query behavior after the run |
+| traces | `SEOCHO_TRACE_JSONL_PATH` | preserves execution evidence |
 
-- shim now:
-  - `extraction/rule_constraints.py`
-  - `extraction/vector_store.py`
-- compatibility alias now:
-  - `extraction/agent_server.py`
-  - `extraction/agent_readiness.py`
-  - `extraction/middleware.py`
-  - `extraction/memory_service.py`
-  - `extraction/public_memory_api.py`
-  - `extraction/server_runtime.py`
-  - `extraction/policy.py`
-- keep as transport/composition:
-  - `runtime/agent_server.py`
-  - `runtime/agent_readiness.py`
-  - `runtime/middleware.py`
-  - `runtime/memory_service.py`
-  - `runtime/public_memory_api.py`
-  - `runtime/server_runtime.py`
-  - `runtime/runtime_ingest.py`
-- keep as compatibility caller over canonical seam:
-  - `extraction/pipeline.py`
-- compatibility alias now:
-  - `extraction/runtime_ingest.py`
-- canonical helper seams now shared with runtime ingest:
-  - `src/seocho/index/runtime_memory.py`
-  - `src/seocho/index/runtime_artifacts.py`
-- migrate later:
-  - remaining runtime ingest orchestration beyond extraction/linking setup
+Use `docs/FILES_AND_ARTIFACTS.md` for concrete inspection commands.
 
-Shared ingestion seam:
+## Module Ownership
 
-- `src/seocho/index/extraction_engine.py`
-  - canonical extraction prompt rendering
-  - canonical linking prompt rendering
-  - canonical graph payload normalization
-  - reused by SDK indexing, extraction compatibility pipeline, and runtime
-    ingest prompt-driven extraction/linking setup
+Use this table before editing code.
 
-## Intent-First Graph-RAG Contract (Active Direction)
+| Change area | Start in | Also check |
+|---|---|---|
+| public SDK calls | `src/seocho/client.py`, `src/seocho/session.py` | README and Python SDK docs |
+| ontology behavior | `src/seocho/ontology*.py` | ontology docs and governance rules |
+| indexing or graph shaping | `src/seocho/index/`, `src/seocho/rules.py` | examples and ingestion tests |
+| query, retrieval, answering | `src/seocho/query/` | `docs/QUERY_ARCHITECTURE.md` and Graph-RAG contracts |
+| runtime routes or policy | `runtime/` | runtime compatibility tests |
+| legacy compatibility | `extraction/` | migration notes and alias tests |
+| website/docs publishing | `docs/`, `website/`, `tteon.github.io` mirror | docs sync contract |
 
-Semantic QA and memory-first answering should move toward an explicit
-intent-to-evidence contract:
+If a change crosses more than one row, explain the ownership boundary in the PR.
 
-- `intent_id`
-- `required_relations`
-- `required_entity_types`
-- `focus_slots`
-- `selected_triples`
-- `slot_fills`
-- `missing_slots`
-- provenance and confidence
+## Evidence Standard
 
-This keeps graph retrieval accountable to answerability rather than vague local
-relevance.
+Mocks are useful for contracts and no-service CI. They are not evidence for
+throughput, latency, scalability, production readiness, or external-system
+compatibility.
 
-Primary implementation anchors:
+Performance or production claims need a live run against every named service.
+The report should include:
 
-- `src/seocho/query/intent.py`
-- `src/seocho/query/strategy_chooser.py`
-- `src/seocho/query/cypher_validator.py`
-- `src/seocho/query/insufficiency.py`
-- `extraction/semantic_query_flow.py` as the compatibility surface during migration
-- `runtime/memory_service.py`
-- `runtime/public_memory_api.py`
-- `src/seocho/types.py`
+- service versions
+- dataset
+- concurrency
+- hardware or container limits
+- warmup
+- skipped components
+- exact commands
 
-Reference design brief: `docs/GRAPH_RAG_AGENT_HANDOFF_SPEC.md`
+If a live gate is unavailable, report the gap. Do not replace it with a mock
+number.
 
-## Enterprise Vocabulary Layer (Planned Direction)
+## Read Next
 
-The vocabulary layer reduces brittle keyword matching in graph retrieval. It
-turns labels, aliases, and rule-derived terms into a governed lookup surface.
-
-| Plane | Responsibility |
+| Need | Document |
 |---|---|
-| Control plane | manage lifecycle, promotion gates, and workspace overrides |
-| Data plane | generate candidates, enrich terms, and persist provenance |
-| Runtime | resolve query terms with approved vocabulary and keep expansion lightweight |
-| Offline governance | run heavy ontology reasoning and OWL inspection outside the request path |
-
-Offline ontology governance operators should prefer the SDK CLI surface:
-
-- `seocho ontology check --schema schema.jsonld`
-- `seocho ontology export --schema schema.jsonld --format shacl --output shacl.json`
-- `seocho ontology diff --left old.jsonld --right new.jsonld`
-- `seocho ontology inspect-owl --source ontology.owl`
-
-## Module Map
-
-### Data Ingestion Layer
-
-| Module | File | Purpose |
-|--------|------|---------|
-| DataSource | `extraction/data_source.py` | ABC + FileDataSource(CSV/JSON/Parquet) + APIDataSource |
-| DataCollector | `extraction/collector.py` | Legacy HuggingFace collector (backward compat) |
-
-**Standard record format**: `{"id": str, "content": str, "category": str, "source": str, "metadata": dict}`
-
-### Extraction Layer
-
-| CanonicalExtractionEngine | `src/seocho/index/extraction_engine.py` | Shared extraction/linking prompt + normalization seam for SDK and extraction compatibility paths |
-| RuntimeMemoryHelpers | `src/seocho/index/runtime_memory.py` | Shared deterministic memory-graph shaping helpers for SDK/runtime ingestion paths |
-| RuntimeArtifactHelpers | `src/seocho/index/runtime_artifacts.py` | Shared deterministic runtime semantic-artifact merge, vocabulary, and summary helpers |
-| OntologyPromptBridge | `extraction/ontology_prompt_bridge.py` | Backward-compatible ontology → prompt bridge; new code should prefer ontology contracts directly |
-| EntityExtractor | `extraction/extractor.py` | Legacy OpenAI extractor wrapper retained for compatibility paths that have not yet moved to the canonical seam |
-| EntityLinker | `extraction/linker.py` | Legacy LLM linker wrapper retained for compatibility paths that have not yet moved to the canonical seam |
-| EntityDeduplicator | `extraction/deduplicator.py` | Embedding cosine similarity-based semantic deduplication |
-| RuleConstraints | `extraction/rule_constraints.py` | SHACL-like rule inference and node constraint validation annotations |
-| PromptManager | `extraction/prompt_manager.py` | Jinja2 prompt templating + history logging |
-
-### Database Layer
-
-| Module | File | Purpose |
-|--------|------|---------|
-| DatabaseRegistry | `extraction/config.py` | Runtime-extensible DB name allowlist (singleton: `db_registry`) |
-| GraphRegistry | `extraction/config.py` | Graph target descriptors (`graph_id -> uri/database/ontology/vocabulary`) |
-| DatabaseManager | `extraction/database_manager.py` | DB provisioning + schema + data loading |
-| GraphLoader | `extraction/graph_loader.py` | Neo4j MERGE operations (label-validated) |
-| SchemaManager | `extraction/schema_manager.py` | Constraint/index application |
-
-### Agent Layer
-
-| Module | File | Purpose |
-|--------|------|---------|
-| AgentsRuntimeAdapter | `extraction/agents_runtime.py` | SDK compatibility layer for runner/trace contracts (`starting_agent` vs `agent`) |
-| AgentFactory | `extraction/agent_factory.py` | Dynamically provisions dedicated Agents per graph target |
-| SharedMemory | `extraction/shared_memory.py` | Request-scoped shared memory between agents + query cache |
-| DebateOrchestrator | `extraction/debate.py` | Executes Parallel Debate pattern (fan-out → collect → synthesize) |
-| Agent Server | `runtime/agent_server.py` | FastAPI endpoints (`/run_agent`, `/run_debate`, `/run_agent_semantic`, `/platform/chat/send`, `/platform/ingest/raw`) |
-| Agent Readiness | `runtime/agent_readiness.py` | Runtime readiness summary helpers for graph-agent orchestration |
-| Request Middleware | `runtime/middleware.py` | Request ID correlation middleware for runtime HTTP endpoints |
-| Memory Service | `runtime/memory_service.py` | Memory-first runtime facade over ingest and semantic graph search |
-| Platform Agents | `extraction/platform_agents.py` | Backend/Frontend specialist orchestration + session state management |
-| Runtime Raw Ingestor | `runtime/runtime_ingest.py` | Runtime raw-text extraction/linking/rule-annotation and DB loading |
-
-### Observability Layer
-
-| Module | File | Purpose |
-|--------|------|---------|
-| Tracing | `extraction/tracing.py` | Vendor-neutral trace contract with optional Opik exporter activation: `configure_opik()`, `wrap_openai_client()`, `@track`, `update_current_span` |
-| Config | `extraction/config.py` | `SEOCHO_TRACE_BACKEND`, `SEOCHO_TRACE_JSONL_PATH`, `SEOCHO_TRACE_OPIK_MODE`, `OPIK_URL`, `OPIK_WORKSPACE`, `OPIK_PROJECT_NAME` |
-
-### UI Layer
-
-| Module | File | Purpose |
-|--------|------|---------|
-| Platform Server | `evaluation/server.py` | Custom chat frontend backend (proxy + static hosting) |
-| Platform UI | `evaluation/static/` | Interactive chat UI (trace + candidate override + raw ingest controls) |
-
-## Three Execution Modes
-
-### 1. Legacy Router Mode (`POST /run_agent`)
-
-```
-User → Router → {GraphAgent, VectorAgent, WebAgent, TableAgent} → Supervisor → Answer
-```
-
-- Legacy static 7-agent pipeline.
-- The Router delegates the query to exactly 1 specialist agent.
-- Sequential hand-off chain execution.
-
-### 2. Parallel Debate Mode (`POST /run_debate`)
-
-```
-User → DebateOrchestrator → [Agent_db1 ∥ Agent_db2 ∥ ... ∥ Agent_dbN] → SharedMemory → Supervisor → Answer
-```
-
-- All database-bound agents execute concurrently via `asyncio.gather()`.
-- Each agent stores its isolated conclusion in Shared Memory.
-- A Supervisor Agent aggregates and synthesizes the final comprehensive answer.
-- Fault Isolated: If one agent fails, the Supervisor synthesizes using the remaining successful agent answers.
-- Runtime payload includes per-database readiness metadata (`agent_statuses`) and overall degraded flag (`degraded`) for safe UI/ops handling.
-
-### 3. Semantic Graph QA Mode (`POST /run_agent_semantic`)
-
-```
-User → SemanticLayer → RouterAgent → {LPGAgent | RDFAgent | both} → AnswerGenerationAgent
-```
-
-- 4-agent model aligned with current query-time disambiguation requirement
-- semantic layer performs:
-  - question entity extraction
-  - fulltext index candidate search
-  - contains-based fallback search
-  - optional ontology-hint alias/label boost from offline artifact (`output/ontology_hints.json`)
-  - lightweight semantic dedup/disambiguation
-- frontend can pin candidate mappings and resend as `entity_overrides`
-- route policy:
-  - RDF hints (`rdf`, `owl`, `shacl`, `sparql`) → RDFAgent
-  - default → LPGAgent
-  - mixed hints → hybrid path (both agents)
-
-## Key Patterns
-
-### DatabaseRegistry (Global Singleton)
-
-```python
-from config import db_registry
-
-db_registry.register("mydb01")         # 등록
-db_registry.is_valid("mydb01")         # 검증 (True)
-db_registry.list_databases()           # 사용자 DB 목록 (system/neo4j 제외)
-```
-
-- DB Name Validation: `^[A-Za-z][A-Za-z0-9]*$` (Must start with a letter, alphanumeric only)
-- `VALID_DATABASES` (legacy fallback lookup) statically references `db_registry._databases`.
-
-### GraphRegistry (Control Plane)
-
-```python
-from config import graph_registry
-
-graph_registry.list_graph_ids()       # graph IDs used by debate/runtime APIs
-graph_registry.get_graph("kgfibo")    # uri/database/ontology/vocabulary descriptor
-```
-
-- Graph targets are loaded from `SEOCHO_GRAPH_REGISTRY_FILE`.
-- Each `graph_id` can point to a different Neo4j or DozerDB instance.
-- Debate mode fans out by `graph_id`, not only by database name.
-
-### AgentFactory (Closure-bound Tools)
-
-```python
-factory = AgentFactory(neo4j_connector)
-agent = factory.create_graph_agent(graph_target, schema_info)
-```
-
-- Each agent's query tool is closure-bound directly to a specific graph target context.
-- Automatic SharedMemory cache integration (via `RunContextWrapper`).
-
-### SharedMemory (Request-scoped)
-
-```python
-memory = SharedMemory()
-memory.cache_query_result("kgnormal", "MATCH (n) RETURN n", "[...]")
-memory.get_cached_query("kgnormal", "MATCH (n) RETURN n")  # cache hit
-memory.put("agent_result:kgnormal", "answer text")
-memory.get_all_results()  # Supervisor용 전체 결과
-```
-
-- Request-scoped: Exactly 1 instance instantiated per API request.
-- Implements MD5 hashing on Cypher queries for rapid caching lookups.
-
-### OntologyPromptBridge
-
-```python
-from ontology.base import Ontology
-from ontology_prompt_bridge import OntologyPromptBridge
-
-ontology = Ontology.from_yaml("conf/schemas/fibo.yaml")
-bridge = OntologyPromptBridge(ontology)
-context = bridge.render_extraction_context()
-# → {"entity_types": "- Organization: ...", "relationship_types": "...", "ontology_name": "FIBO"}
-```
-
-- Converts `NodeDefinition` and `RelationshipDefinition` from the Ontology YAML into native LLM prompt variables.
-- The `default.yaml` prompt dynamically switches between static mapping vs dynamic logic using standard `{% if ontology_name %}` templating blocks.
-
-## Frontend Trace vs Opik
-
-두 시스템의 역할이 명확히 분리되어 있습니다:
-
-### Custom Platform (Interactive UI)
-- **Purpose**: Interactive operational chat UX + semantic disambiguation override loop.
-- **Location**: `evaluation/server.py` + `evaluation/static/*` (listening on port 8501).
-- **Tracing**: The backend streams `trace_steps` and `ui_payload` to the frontend for real-time visualization.
-- **Capabilities**: Allows the user to select semantic candidates, trigger override re-queries, and maintains strict session-level dialog history.
-- **Additional capability**: Supports direct raw-text ingestion (`Ingest Raw`) before query execution.
-
-### Opik (Optional Team Exporter)
-- **Purpose**: Team-grade eval, debugging, LLM scoring, and deep agent visualization.
-- **Location**: `http://localhost:5173` (opt-in via `docker compose --profile opik up -d`).
-- **Tracing**: activated only when the trace backend is explicitly set to `opik`; otherwise runtime traces can stay local in JSONL or console form.
-- **Capabilities**: Captures parent-child span trees, exact LLM costs/latency, custom datasets & experiments, and prompt scoring metrics.
-
-### Opik Span Tree (Debate Pattern)
-
-Opik에서 Debate 패턴은 다음과 같은 span hierarchy로 표현됩니다:
-
-```
-agent_server.run_debate                          [tags: debate-mode]
-  └─ debate.run_debate                           [phase: orchestration, agent_count: N]
-       ├─ debate.run_single_agent                [phase: fan-out, db: kgnormal]
-       │    └─ (OpenAI chat.completions.create)  [auto-traced]
-       ├─ debate.run_single_agent                [phase: fan-out, db: kgfibo]
-       │    └─ (OpenAI chat.completions.create)  [auto-traced]
-       └─ debate.supervisor_synthesis            [phase: synthesis]
-            └─ (OpenAI chat.completions.create)  [auto-traced]
-```
-
-Each individual recursive span carries heavy `metadata` (e.g., db_name, agent_name, phase) and diagnostic `tags` allowing rapid filtering and auditing within the Opik Dashboard UI.
-
-### Frontend Trace Topology
-
-```
-FANOUT (yellow) ─┬─ DEBATE: Agent_kgnormal (blue)
-                 ├─ DEBATE: Agent_kgfibo   (blue)
-                 └─ DEBATE: Agent_xxx      (blue)
-                          │
-                 COLLECT (orange) ← 모든 DEBATE
-                          │
-                 SYNTHESIS: Supervisor (green)
-```
-
-Edge routing in the UI is rendered strictly via the `metadata.parent` (for the fan-out trajectory) and `metadata.sources` (for the collection synthesis loop) properties on the payload.
-
-## Configuration
-
-### Environment Variables (`.env`)
-```
-OPENAI_API_KEY=sk-...
-OPENAI_MODEL=gpt-4o-mini
-DEEPSEEK_API_KEY=
-MOONSHOT_API_KEY=
-XAI_API_KEY=
-NEO4J_URI=bolt://localhost:7687
-NEO4J_USER=neo4j
-NEO4J_PASSWORD=password
-
-# Opik (opt-in)
-SEOCHO_TRACE_BACKEND=none
-SEOCHO_TRACE_JSONL_PATH=./traces/seocho-runtime.jsonl
-SEOCHO_TRACE_OPIK_MODE=self_host
-OPIK_VERSION=1.10.18
-OPIK_URL=http://opik-backend:8080
-OPIK_WORKSPACE=default
-OPIK_PROJECT_NAME=seocho
-OPIK_API_KEY=
-```
-
-### Pipeline Config (`extraction/conf/`)
-```
-conf/
-├── config.yaml          # Reference defaults (runtime is env-first)
-├── prompts/
-│   ├── default.yaml     # Extraction prompt (supports ontology variables)
-│   ├── linking.yaml     # Entity linking prompt
-└── ingestion/
-    ├── config.yaml      # Ingestion dataset/openai/neo4j + schema selector
-    └── schema/
-        ├── baseline.yaml
-        ├── fibo.yaml
-        └── tracing.yaml
-```
-
-## API Endpoints
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/run_agent` | POST | Legacy router mode |
-| `/run_agent_semantic` | POST | Semantic entity-resolution flow (Router/LPG/RDF/Answer) |
-| `/run_debate` | POST | Parallel debate mode |
-| `/indexes/fulltext/ensure` | POST | Ensure fulltext index exists for semantic routing |
-| `/platform/chat/send` | POST | Custom interactive platform chat endpoint |
-| `/platform/ingest/raw` | POST | Runtime raw record ingestion into target graph DB |
-| `/platform/chat/session/{session_id}` | GET | Read platform session history |
-| `/platform/chat/session/{session_id}` | DELETE | Reset platform session |
-| `/semantic/artifacts/drafts` | POST | Save ontology/SHACL/vocabulary candidates as draft artifact |
-| `/semantic/artifacts` | GET | List semantic artifacts (`draft`/`approved`/`deprecated`) |
-| `/semantic/artifacts/{artifact_id}` | GET | Read one semantic artifact |
-| `/semantic/artifacts/{artifact_id}/approve` | POST | Promote draft artifact to approved |
-| `/semantic/artifacts/{artifact_id}/deprecate` | POST | Deprecate approved artifact for runtime vocabulary retirement |
-| `/databases` | GET | List registered databases |
-| `/agents` | GET | List active DB-bound agents |
-
-Offline helper:
-
-- `scripts/ontology/build_ontology_hints.py` builds `output/ontology_hints.json` from OWL via owlready2.
+| run the local service | [Runtime Deployment](RUNTIME_DEPLOYMENT.md) |
+| understand runtime internals | [Runtime Architecture](RUNTIME_ARCHITECTURE.md) |
+| understand query and Graph-RAG internals | [Query Architecture](QUERY_ARCHITECTURE.md) |
+| find generated files | [Files and Artifacts](FILES_AND_ARTIFACTS.md) |
+| contribute safely | [Open Source Playbook](OPEN_SOURCE_PLAYBOOK.md) |
+| inspect internal migration notes | [Maintainer Architecture Notes](MAINTAINER_ARCHITECTURE_NOTES.md) |
+| see detailed ownership | [Module Ownership Map](MODULE_OWNERSHIP_MAP.md) |

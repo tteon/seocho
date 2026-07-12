@@ -407,3 +407,4 @@ the constraint forbids loading. Mock-oracle Layer-1
 - `docs/TUTORIAL_FIRST_RUN.md`
 - `docs/BEGINNER_PIPELINES_DEMO.md`
 - `docs/ARCHITECTURE.md`
+- `docs/RUNTIME_ARCHITECTURE.md`

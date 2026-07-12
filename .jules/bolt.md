@@ -1,0 +1,1 @@
+- Replaced `path.read_text().splitlines()` overhead when reading large datasets/checkpoints during benchmarks with explicit context manager loop `with open(..., "r", encoding="utf-8") as f: for line in f:` to reduce memory usage and String allocation. Replaced `json.loads(path.read_text())` with `json.load(f)` when loading JSON arrays/dicts.

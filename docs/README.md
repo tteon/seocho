@@ -119,7 +119,7 @@ Use these after the first local success:
 
 | Topic | Reference |
 |---|---|
-| Architecture details | [Architecture](ARCHITECTURE.md), [Graph-RAG Agent Handoff Spec](GRAPH_RAG_AGENT_HANDOFF_SPEC.md) |
+| Architecture details | [Architecture](ARCHITECTURE.md), [Internal Class Design](INTERNAL_CLASS_DESIGN.md), [Graph-RAG Agent Handoff Spec](GRAPH_RAG_AGENT_HANDOFF_SPEC.md) |
 | Repository shape | [Repository Layout](REPOSITORY_LAYOUT.md), [Workflow](WORKFLOW.md) |
 | Automation | [GitHub Automation](GITHUB_AUTOMATION.md), [Release And Community Operations](RELEASE_AND_COMMUNITY_OPERATIONS.md) |
 | Design history | [Decision Log](decisions/DECISION_LOG.md), [Reference Docs](reference/README.md) |

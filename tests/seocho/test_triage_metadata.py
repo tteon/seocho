@@ -79,3 +79,11 @@ def test_docs_pr_defaults_to_docs_kind_from_file() -> None:
 
     assert "kind-docs" in labels
     assert "area-docs" in labels
+
+
+def test_release_issue_title_maps_to_release_kind() -> None:
+    labels = triage_metadata.infer_labels(_issue("release: v0.6.0", ""), [])
+
+    assert "kind-release" in labels
+    assert "status-needs-triage" in labels
+    assert "kind-maintenance" not in labels

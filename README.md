@@ -112,6 +112,9 @@ Open [examples/finance-compliance/](examples/finance-compliance/) to inspect
 the ontology, sample documents, and script.
 
 Prefer the smallest possible hello world? Use [QUICKSTART.md](QUICKSTART.md).
+Maintainers should use
+[Release And Community Operations](docs/RELEASE_AND_COMMUNITY_OPERATIONS.md)
+for release criteria and the `#seocho` real-time open-source channel.
 
 ### One YAML, one command
 

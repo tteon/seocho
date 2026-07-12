@@ -1,0 +1,100 @@
+name: Release checklist
+description: Track release readiness, evidence, and Discord/community announcement.
+title: "release: v"
+labels:
+  - kind-release
+  - area-ci
+  - area-community
+  - status-needs-triage
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for stable releases, pre-releases, and package publishes. Keep the issue open until the GitHub Release, changelog, docs, and Discord announcement are complete.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      placeholder: v0.6.0
+    validations:
+      required: true
+  - type: dropdown
+    id: release_type
+    attributes:
+      label: Release type
+      options:
+        - patch
+        - minor
+        - major
+        - pre-release
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Release scope
+      description: What user-visible reason justifies this release?
+      placeholder: |
+        - Adds ...
+        - Fixes ...
+        - Changes ...
+    validations:
+      required: true
+  - type: textarea
+    id: linked_work
+    attributes:
+      label: Linked work
+      description: Link PRs, issues, ADRs, docs, and notable commits.
+      placeholder: |
+        - #123
+        - ADR-...
+    validations:
+      required: true
+  - type: textarea
+    id: gates
+    attributes:
+      label: Required gates
+      value: |
+        - [ ] `bash scripts/ci/run_basic_ci.sh`
+        - [ ] GitHub `Basic CI` green on release commit
+        - [ ] `CHANGELOG.md` updated
+        - [ ] README/QUICKSTART/docs updated for public behavior
+        - [ ] Known gaps documented in release notes
+        - [ ] No release-blocking issue remains open
+        - [ ] No secrets, local state, generated outputs, or private data included
+    validations:
+      required: true
+  - type: textarea
+    id: extra_validation
+    attributes:
+      label: Extra validation
+      description: Required when runtime, query, indexing, performance, security, or packaging changed.
+      placeholder: |
+        - Runtime:
+        - Query / Graph-RAG:
+        - Indexing / ontology:
+        - Packaging:
+        - Live evidence:
+    validations:
+      required: false
+  - type: textarea
+    id: release_notes
+    attributes:
+      label: Release notes draft
+      description: Draft the GitHub Release notes or link to the draft.
+    validations:
+      required: true
+  - type: textarea
+    id: discord
+    attributes:
+      label: Discord announcement
+      description: Draft the short #seocho announcement.
+      placeholder: |
+        **SEOCHO release v...**
+
+        - ...
+        - ...
+
+        Release: https://github.com/tteon/seocho/releases/tag/...
+    validations:
+      required: true

@@ -3,6 +3,14 @@
 All notable changes to this project are documented here. Versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Operations
+- Added release and Discord community operating criteria in
+  `docs/RELEASE_AND_COMMUNITY_OPERATIONS.md`.
+- Added a GitHub release checklist issue template to capture release gates,
+  release notes, and the `#seocho` announcement draft before publishing.
+
 ## [0.5.0] — 2026-06-04
 
 Minor release shipping the ontology-as-semantic-layer + arbiter retrieval path

@@ -9,7 +9,7 @@ By the end of onboarding, a contributor should be able to:
 
 1. run SEOCHO locally and verify ingest -> semantic/debate chat
 2. deliver one scoped change with tests and docs
-3. pass licensing and release checklists without maintainer rework
+3. pass licensing and release/community checklists without maintainer rework
 
 ## 2. 14-Day Onboarding Plan
 
@@ -94,6 +94,10 @@ The repository syncs its public label vocabulary from `.github/labels.json`.
 The `Triage Metadata` workflow applies first-pass labels from issue form fields,
 PR titles, and PR changed-file paths. Maintainers still own final severity,
 priority, roadmap, and sprint decisions.
+
+Release and real-time community operations are tracked in
+`docs/RELEASE_AND_COMMUNITY_OPERATIONS.md`. Use the release checklist issue
+template before publishing a package, GitHub Release, or public pre-release.
 
 Use `good first issue` only when the change can be completed without deep
 runtime/query migration context. Good candidates are docs wording, run-spec
@@ -216,6 +220,7 @@ Use this as the maintainer TODO list for the next operational improvements:
   relying on dashboard or roadmap views
 - add CODEOWNERS after stable maintainer ownership is clear
 - add release-note drafting once merged PR volume is large enough to need it
+- define a release-blocking label if release checklist issues start to pile up
 - add a weekly stale-review report before enabling any stale-closing bot
 - add contributor welcome/comment automation only after the label workflow has
   enough signal to avoid noisy or misleading comments

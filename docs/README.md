@@ -19,12 +19,25 @@ read first, and which words matter before you go deeper.
 If you only have ten minutes, read [Why SEOCHO](WHY_SEOCHO.md), then run the
 [Quickstart](../QUICKSTART.md).
 
+## Reader Map
+
+Do not read the docs tree from top to bottom. Pick the path closest to your job
+and move one step at a time.
+
+<figure class="docs-figure">
+  <img src="../website/public/images/docs-reader-map.svg" alt="SEOCHO documentation reader paths">
+  <figcaption>SEOCHO docs follow a common open-source pattern: understand the idea, try the smallest example, then move into build, operate, or contribute paths.</figcaption>
+</figure>
+
 ## The Core Loop
 
 SEOCHO keeps the same ontology contract across ingestion, graph writes,
 retrieval, answer synthesis, and runtime APIs.
 
-![SEOCHO core loop](../website/public/images/docs-core-loop.svg)
+<figure class="docs-figure">
+  <img src="../website/public/images/docs-core-loop.svg" alt="SEOCHO core loop">
+  <figcaption>The product loop is small on purpose: define the contract, ingest data, shape graph facts, query evidence, and improve the contract.</figcaption>
+</figure>
 
 In plain terms:
 
@@ -80,6 +93,24 @@ uv run python examples/finance-compliance/quickstart.py --llm mara/MiniMax-M2.5
 Use the runtime later, when another process needs the same graph contract over
 HTTP.
 
+## Evidence And Artifacts
+
+SEOCHO docs should make evidence visible. Every serious run should leave files
+or links that another person can inspect.
+
+<figure class="docs-figure">
+  <img src="../website/public/images/docs-evidence-loop.svg" alt="SEOCHO evidence and artifact loop">
+  <figcaption>Artifacts turn graph behavior into reviewable evidence. Use them to debug extraction, validate answers, and decide the next ontology or rule change.</figcaption>
+</figure>
+
+| Artifact | Why it exists | Read next |
+|---|---|---|
+| Run config | shows which ontology, documents, questions, and models were used | [Run Specs](RUN_SPECS.md) |
+| Graph payloads | show the nodes, relationships, and evidence before or after write | [Files and Artifacts](FILES_AND_ARTIFACTS.md) |
+| Traces | show how retrieval, routing, and answer synthesis behaved | [Files and Artifacts](FILES_AND_ARTIFACTS.md) |
+| Reports | compare runs, gaps, costs, and failure modes | [Tutorial First Run](TUTORIAL_FIRST_RUN.md) |
+| PRs and issues | keep public work reviewable and scoped | [Open Source Playbook](OPEN_SOURCE_PLAYBOOK.md) |
+
 ## Document Map
 
 | Area | Documents |
@@ -89,6 +120,15 @@ HTTP.
 | Repeatable runs | [Run Specs](RUN_SPECS.md), [Tutorial First Run](TUTORIAL_FIRST_RUN.md), [Files and Artifacts](FILES_AND_ARTIFACTS.md) |
 | Operations | [Runtime Deployment](RUNTIME_DEPLOYMENT.md), [Workflow](WORKFLOW.md), [Release And Community Operations](RELEASE_AND_COMMUNITY_OPERATIONS.md) |
 | Open source work | [Open Source Playbook](OPEN_SOURCE_PLAYBOOK.md), [Issue Task System](ISSUE_TASK_SYSTEM.md), [Contributing](../CONTRIBUTING.md) |
+
+The map follows this structure:
+
+| Docs pattern | Purpose | SEOCHO examples |
+|---|---|---|
+| Concepts | explain why the system exists and which words matter | [Why SEOCHO](WHY_SEOCHO.md), [Architecture](ARCHITECTURE.md) |
+| Tutorials | guide a first successful run | [Quickstart](../QUICKSTART.md), [Tutorial First Run](TUTORIAL_FIRST_RUN.md) |
+| How-to guides | solve a concrete task | [Bring Your Data](APPLY_YOUR_DATA.md), [Run Specs](RUN_SPECS.md) |
+| Reference | preserve contracts, surfaces, and decisions | [Files and Artifacts](FILES_AND_ARTIFACTS.md), [Decision Log](decisions/DECISION_LOG.md) |
 
 ## Common Questions
 

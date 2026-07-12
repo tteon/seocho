@@ -1,0 +1,117 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="540" viewBox="0 0 1200 540" role="img" aria-labelledby="title desc">
+  <title id="title">SEOCHO documentation reader paths</title>
+  <desc id="desc">A map that routes new users, builders, operators, contributors, and maintainers to the right SEOCHO documents.</desc>
+  <defs>
+    <marker id="arrow-reader" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#cbd5e1"/>
+    </marker>
+    <linearGradient id="reader-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#09111f"/>
+      <stop offset="1" stop-color="#050608"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="1" y="1" width="1198" height="538" rx="8" fill="url(#reader-bg)" stroke="#334155" stroke-width="2"/>
+  <text x="60" y="64" fill="#ffffff" font-family="Inter, Arial, sans-serif" font-size="34" font-weight="700">Pick a path, then go one step deeper</text>
+  <text x="60" y="101" fill="#a1a1aa" font-family="Inter, Arial, sans-serif" font-size="18">The docs are organized by reader job, not by repository folder order.</text>
+
+  <g font-family="Inter, Arial, sans-serif" font-size="15">
+    <text x="310" y="148" fill="#93c5fd" font-weight="700">Understand</text>
+    <text x="515" y="148" fill="#86efac" font-weight="700">Try</text>
+    <text x="690" y="148" fill="#fcd34d" font-weight="700">Build</text>
+    <text x="890" y="148" fill="#c4b5fd" font-weight="700">Operate / Contribute</text>
+  </g>
+
+  <g font-family="Inter, Arial, sans-serif">
+    <rect x="60" y="170" width="180" height="58" rx="8" fill="#0f172a" stroke="#38bdf8"/>
+    <text x="86" y="207" fill="#e0f2fe" font-size="20" font-weight="700">New user</text>
+
+    <rect x="300" y="170" width="160" height="58" rx="8" fill="#111827" stroke="#60a5fa"/>
+    <text x="330" y="194" fill="#dbeafe" font-size="16" font-weight="700">Why SEOCHO</text>
+    <text x="330" y="216" fill="#bfdbfe" font-size="13">concepts</text>
+
+    <rect x="505" y="170" width="150" height="58" rx="8" fill="#052e16" stroke="#34d399"/>
+    <text x="538" y="194" fill="#d1fae5" font-size="16" font-weight="700">Quickstart</text>
+    <text x="538" y="216" fill="#bbf7d0" font-size="13">first run</text>
+
+    <rect x="700" y="170" width="150" height="58" rx="8" fill="#1c1917" stroke="#fbbf24"/>
+    <text x="731" y="194" fill="#fef3c7" font-size="16" font-weight="700">Python SDK</text>
+    <text x="731" y="216" fill="#fde68a" font-size="13">local or remote</text>
+  </g>
+
+  <g font-family="Inter, Arial, sans-serif">
+    <rect x="60" y="262" width="180" height="58" rx="8" fill="#0f172a" stroke="#38bdf8"/>
+    <text x="82" y="299" fill="#e0f2fe" font-size="20" font-weight="700">Data builder</text>
+
+    <rect x="300" y="262" width="160" height="58" rx="8" fill="#111827" stroke="#60a5fa"/>
+    <text x="323" y="286" fill="#dbeafe" font-size="16" font-weight="700">Bring Data</text>
+    <text x="323" y="308" fill="#bfdbfe" font-size="13">records and files</text>
+
+    <rect x="505" y="262" width="150" height="58" rx="8" fill="#052e16" stroke="#34d399"/>
+    <text x="540" y="286" fill="#d1fae5" font-size="16" font-weight="700">Run Specs</text>
+    <text x="540" y="308" fill="#bbf7d0" font-size="13">repeat runs</text>
+
+    <rect x="700" y="262" width="150" height="58" rx="8" fill="#1c1917" stroke="#fbbf24"/>
+    <text x="727" y="286" fill="#fef3c7" font-size="16" font-weight="700">Artifacts</text>
+    <text x="727" y="308" fill="#fde68a" font-size="13">evidence</text>
+  </g>
+
+  <g font-family="Inter, Arial, sans-serif">
+    <rect x="60" y="354" width="180" height="58" rx="8" fill="#0f172a" stroke="#38bdf8"/>
+    <text x="83" y="391" fill="#e0f2fe" font-size="20" font-weight="700">Operator</text>
+
+    <rect x="300" y="354" width="160" height="58" rx="8" fill="#111827" stroke="#60a5fa"/>
+    <text x="330" y="378" fill="#dbeafe" font-size="16" font-weight="700">Architecture</text>
+    <text x="330" y="400" fill="#bfdbfe" font-size="13">system shape</text>
+
+    <rect x="505" y="354" width="150" height="58" rx="8" fill="#052e16" stroke="#34d399"/>
+    <text x="531" y="378" fill="#d1fae5" font-size="16" font-weight="700">Deployment</text>
+    <text x="531" y="400" fill="#bbf7d0" font-size="13">runtime stack</text>
+
+    <rect x="700" y="354" width="150" height="58" rx="8" fill="#1c1917" stroke="#fbbf24"/>
+    <text x="742" y="378" fill="#fef3c7" font-size="16" font-weight="700">Workflow</text>
+    <text x="742" y="400" fill="#fde68a" font-size="13">runbook</text>
+  </g>
+
+  <g font-family="Inter, Arial, sans-serif">
+    <rect x="60" y="446" width="180" height="58" rx="8" fill="#0f172a" stroke="#38bdf8"/>
+    <text x="82" y="483" fill="#e0f2fe" font-size="20" font-weight="700">Contributor</text>
+
+    <rect x="300" y="446" width="160" height="58" rx="8" fill="#111827" stroke="#60a5fa"/>
+    <text x="328" y="470" fill="#dbeafe" font-size="16" font-weight="700">Playbook</text>
+    <text x="328" y="492" fill="#bfdbfe" font-size="13">scope work</text>
+
+    <rect x="505" y="446" width="150" height="58" rx="8" fill="#052e16" stroke="#34d399"/>
+    <text x="548" y="470" fill="#d1fae5" font-size="16" font-weight="700">Issues</text>
+    <text x="548" y="492" fill="#bbf7d0" font-size="13">public tasks</text>
+
+    <rect x="700" y="446" width="150" height="58" rx="8" fill="#1c1917" stroke="#fbbf24"/>
+    <text x="740" y="470" fill="#fef3c7" font-size="16" font-weight="700">PRs</text>
+    <text x="740" y="492" fill="#fde68a" font-size="13">validated change</text>
+  </g>
+
+  <g stroke="#cbd5e1" stroke-width="2.2" fill="none" marker-end="url(#arrow-reader)">
+    <path d="M 240 199 H 292"/>
+    <path d="M 460 199 H 497"/>
+    <path d="M 655 199 H 692"/>
+    <path d="M 240 291 H 292"/>
+    <path d="M 460 291 H 497"/>
+    <path d="M 655 291 H 692"/>
+    <path d="M 240 383 H 292"/>
+    <path d="M 460 383 H 497"/>
+    <path d="M 655 383 H 692"/>
+    <path d="M 240 475 H 292"/>
+    <path d="M 460 475 H 497"/>
+    <path d="M 655 475 H 692"/>
+  </g>
+
+  <g font-family="Inter, Arial, sans-serif">
+    <rect x="900" y="195" width="235" height="238" rx="8" fill="#111827" stroke="#64748b"/>
+    <text x="930" y="235" fill="#ffffff" font-size="22" font-weight="700">Rule of thumb</text>
+    <text x="930" y="275" fill="#cbd5e1" font-size="16">If a page does not answer</text>
+    <text x="930" y="299" fill="#cbd5e1" font-size="16">your next action, move to</text>
+    <text x="930" y="323" fill="#cbd5e1" font-size="16">the next path step.</text>
+    <text x="930" y="371" fill="#fcd34d" font-size="16" font-weight="700">Docs are a workflow,</text>
+    <text x="930" y="395" fill="#fcd34d" font-size="16" font-weight="700">not a file list.</text>
+  </g>
+</svg>

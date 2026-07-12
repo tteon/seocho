@@ -440,6 +440,140 @@ and capability-gated rows remain engineering work, not inferred evidence.
 - Diverse live bulk artifact SHA-256:
   `807a5b9da75f7ba920041bccf9bf66cf322b630b2ad17d97da06cf4ca0072ee0`.
 
+### E-018 — Million-revision long-term memory and mixed workload
+
+`tags: [live, postgresql, long-term-memory, point-in-time, concurrency, idempotency, reorg, recovery]`
+
+This is the resume and interview source of truth for the long-term-memory scale
+claim. The workload ran against the live PostgreSQL container, not an in-memory
+repository or mocked response. The input is deterministic blockchain-style
+transaction memory with three revisions per logical transaction, including
+time, block, counterparty, confirmation, and state metadata.
+
+Run provenance: PostgreSQL 18.4 from `postgres:18-alpine`, Docker Engine/client
+29.5.3, Linux 6.8.0-94 x86_64. The PostgreSQL container had no explicit Docker
+CPU, memory, or cpuset limit and shared the host with the rest of the SEOCHO
+stack. The reported read and mixed-workload phases did not perform a separate
+warmup pass; the database already contained and had queried the 999,999-event
+workspace. Results are therefore host-local live measurements, not portable
+hardware-normalized capacity claims.
+
+```text
+English user/API traffic
+        |
+        v
+weighted scheduler: steady(16) -> spike(64) -> recovery(16)
+   |          |             |              |
+ current     point-in-time context       atomic writer
+ read        read          compaction     + replay/reorg
+   +----------+-------------+--------------+
+                PostgreSQL authority
+       revision + idempotency + outbox + head
+                         |
+                incremental projection
+                         |
+            parity + lag drain + RTO gate
+```
+
+#### Scale and correctness result
+
+- 999,999 revisions, idempotency receipts, outbox rows, and max sequence matched
+  exactly. This proves atomic cardinality at the tested scale; it does not prove
+  multi-node PostgreSQL availability.
+- At 32 concurrent workers, 2,000 alternating current/point-in-time checks were
+  2,000/2,000 correct. Current p95/p99 were 10.33/13.79 ms; historical p95/p99
+  were 10.99/14.79 ms; aggregate read rate was 1,317.92 reads/s.
+- Selecting the latest state of the same 100 memories reduced serialized context
+  from 179,790 to 59,560 bytes (66.87%) with answer-state parity. Rebuilding the
+  PostgreSQL projection shadow produced 333,333/333,333 logical memories in
+  2.796 seconds.
+- The final artifact is a resume of an interrupted 1M load. Consequently its
+  ingestion rate and storage delta are zero and must not be cited. The separate
+  uninterrupted 100K run measured 23,462.65 events/s and about 2,034.8 bytes per
+  event for transactional batch replay; this is not the production single-event
+  commit rate.
+- Operational finding: the initial 1M ingestion caused PostgreSQL checkpoints
+  every 5-13 seconds and `checkpoints are occurring too frequently` warnings.
+  WAL/checkpoint tuning is therefore a measured capacity task, not a claimed fix.
+
+Scale artifact SHA-256:
+`f9c0aeef78a26ac6f810ece9ef94a082f70830a2a635daba3e4e7d6b5212d6ad`.
+
+#### Production-path mixed workload result
+
+The final acceptance run executed 7,000 closed-loop operations with this fixed
+mix: current read 35%, point-in-time read 20%, projection read 15%, context
+compaction 10%, atomic live write 8%, duplicate replay 5%, invalid transition
+3%, reorg compensation 2%, and projection refresh 2%.
+
+- Steady: 2,000 operations at concurrency 16, 764.25 ops/s, zero unexpected
+  errors. Current/PIT/write p95 were 23.13/22.73/49.30 ms.
+- Spike: 4,000 operations at concurrency 64, 711.87 ops/s, zero unexpected
+  errors. Current/PIT p95 rose to 53.66/52.02 ms. Atomic write p95/p99 rose to
+  1,493.11/2,417.29 ms and reorg compensation p95 to 1,386.85 ms.
+- Recovery: 1,000 operations at concurrency 16, zero unexpected errors. The
+  remaining seven projection events drained in one batch and 0.271 seconds;
+  final projection lag was zero.
+- Across the run, 382/382 duplicate deliveries were idempotently replayed and
+  217/217 invalid transitions were rejected. The authority gained 711 committed
+  revisions and ended with revision/idempotency/outbox/head all equal to
+  1,002,884.
+- Engineering finding: the workspace-scoped monotonic sequence uses one
+  `agent_memory_heads` row under `FOR UPDATE`. The write tail-latency jump under
+  64-way concurrency exposes a real hot-row boundary. Candidate follow-up is
+  leased sequence ranges or partitioned sequence domains while preserving a
+  causal-token ordering contract.
+- The projection lane here is a PostgreSQL shadow consumer used to isolate
+  memory correctness and recovery. DozerDB traversal and transport are evidenced
+  separately; this run is not a DozerDB scalability claim. Fixed-count
+  closed-loop phases also do not model an open-loop arrival distribution.
+
+Mixed workload artifact SHA-256:
+`96189406fb6f06b8a8a7b16f3fdf220ea9ba543cc1a1fd031ff2db3c0bf1757a`.
+
+#### Experiment-driven engineering changes
+
+1. A first projection consumer used `DISTINCT ON ... LIMIT` and could advance a
+   watermark past unprocessed sequences. The final runner performs a complete
+   parity rebuild, then consumes contiguous sequence batches.
+2. A repeat run reused deterministic benchmark idempotency keys. Run UUIDs now
+   namespace live writes while duplicates intentionally reuse only a key and
+   byte-identical payload from the same run.
+3. A point-in-time query before a memory's creation was initially scored as an
+   error. The scorer now treats absence as the correct historical state.
+4. Projection reads now require exact revision parity; an empty shadow lookup is
+   no longer counted as success. The acceptance gate requires authoritative
+   cardinality, head/max-sequence parity, zero unexpected errors, and zero final
+   projection lag.
+
+#### Resume-ready bullets
+
+- Architected and live-tested append-only agent long-term memory on PostgreSQL
+  with atomic revision, idempotency, outbox, causal sequence, point-in-time read,
+  and rebuildable graph-projection contracts; verified 999,999-row parity and
+  2,000/2,000 correct temporal reads at 32-way concurrency.
+- Designed a 7,000-operation blockchain memory workload spanning current and
+  historical retrieval, context compaction, concurrent writes, duplicate
+  delivery, invalid state transitions, reorg compensation, and projection
+  recovery; preserved authoritative integrity with zero unexpected errors and
+  recovered seven lagging projection events in 271 ms.
+- Diagnosed a workspace sequence-head contention boundary from live measurements:
+  atomic-write p95 increased from 49 ms at concurrency 16 to 1.49 s at
+  concurrency 64, motivating leased/partitioned sequence allocation rather than
+  presenting an unqualified scalability claim.
+- Reduced same-memory long-history context serialization by 66.87% while
+  preserving latest-state answer parity, and connected memory/projection SLIs
+  to the existing OpenTelemetry, Prometheus, Tempo, and Grafana evidence plane.
+
+#### Full answer-generation status
+
+The background MARA run completed 10,000 English answer calls with no transport
+errors, but did not pass its quality gate: support-status accuracy was 99.91%,
+missing-source accuracy 99.58%, and p95 provider latency 29.218 seconds. This is
+retained as a provider/prompt scorer improvement item rather than cited as a
+successful E2E result. Artifact SHA-256:
+`cbc03265b75dca6ca746c4c79ee1ed4692361ab5c3c6176e870ec785c04704f0`.
+
 #### SRE metric decision
 
 - Paging SLIs use production event counters, never sampled traces or one-shot

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import random
+import re
 from dataclasses import asdict, dataclass
 from typing import Any, Iterator, Tuple
 
@@ -59,4 +60,21 @@ def generate_customer_queries(*, count: int, seed: int = 20260712) -> Iterator[d
         }
 
 
-__all__ = ["CustomerQuerySeed", "SEEDS", "generate_customer_queries"]
+def classify_customer_query(question: str) -> CustomerQuerySeed | None:
+    """Route an English customer question by stable support-workflow vocabulary."""
+
+    tokens = set(re.findall(r"[a-z0-9]+", question.lower()))
+    stop = {"the", "a", "an", "my", "this", "that", "what", "why", "how", "is", "was", "to", "i"}
+    scored = []
+    for item in SEEDS:
+        signature = set(re.findall(r"[a-z0-9]+", item.question.lower())) - stop
+        scored.append((len(tokens & signature) / max(len(signature), 1), item))
+    scored.sort(key=lambda value: value[0], reverse=True)
+    if not scored or scored[0][0] < 0.45:
+        return None
+    if len(scored) > 1 and scored[0][0] == scored[1][0]:
+        return None
+    return scored[0][1]
+
+
+__all__ = ["CustomerQuerySeed", "SEEDS", "classify_customer_query", "generate_customer_queries"]

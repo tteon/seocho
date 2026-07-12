@@ -152,6 +152,36 @@
       "targets": [{"expr": "seocho_evaluation_capability_status_ratio", "format": "table", "instant": true, "legendFormat": "", "refId": "A"}],
       "title": "Capability gates",
       "type": "table"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 0, "y": 30},
+      "id": 15,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "showLegend": true}},
+      "targets": [{"expr": "last_over_time(seocho_evaluation_customer_outcome_ratio[24h])", "legendFormat": "{{outcome}}", "refId": "A"}],
+      "title": "Customer query outcome ratio",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 8, "y": 30},
+      "id": 16,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "showLegend": true}},
+      "targets": [{"expr": "last_over_time(seocho_evaluation_customer_evidence_coverage_ratio[24h])", "legendFormat": "{{query_class}}", "refId": "A"}],
+      "title": "Evidence coverage by intent",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 30},
+      "id": 17,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "showLegend": true}},
+      "targets": [{"expr": "last_over_time(seocho_evaluation_answer_accuracy_ratio[24h])", "legendFormat": "{{dimension}}", "refId": "A"}],
+      "title": "MARA answer contract accuracy",
+      "type": "timeseries"
     }
   ],
   "refresh": "5s",

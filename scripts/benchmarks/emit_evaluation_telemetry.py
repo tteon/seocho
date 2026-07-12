@@ -34,6 +34,8 @@ def main() -> None:
     utility = _load(root / "okx-memory-utility-live-2026-07-12.json")
     text2cypher = _load(root / "okx-text2cypher-live-2026-07-12.json")
     routing = _load(root / "customer-query-routing-10k-2026-07-12.json")
+    mara = _load(root / "customer-query-mara-10-live-2026-07-12.json")
+    bulk = _load(root / "customer-query-bulk-live-10k-2026-07-12.json")
     for scenario_id, passed in (
         ("S2", s23["s2"]["passed"]), ("S3", s23["s3"]["passed"]),
         ("S5", utility["passed"]), ("S6", s67["s6"]["passed"]),
@@ -45,6 +47,18 @@ def main() -> None:
     metrics.set("seocho.evaluation.context.reduction", utility["context_ab"]["estimated_token_reduction"], {"strategy": "causal"})
     metrics.record("seocho.evaluation.text2cypher.attempts", text2cypher["attempts"], {"outcome": "passed" if text2cypher["passed"] else "failed"})
     emit_query_evaluation(cohort="customer-template-10k", total=routing["queries"], correct=routing["queries"] - routing["errors"], metrics=metrics)
+    metrics.set("seocho.evaluation.answer.accuracy", mara["status_accuracy"], {"cohort": "customer-mara-10", "dimension": "support_status"})
+    metrics.set("seocho.evaluation.answer.accuracy", mara["missing_source_accuracy"], {"cohort": "customer-mara-10", "dimension": "missing_sources"})
+    metrics.record("seocho.evaluation.answer.latency", mara["latency_ms"]["p95"], {"cohort": "customer-mara-10"})
+    metrics.add("seocho.evaluation.answer.leakage", mara["leakage_cases"], {"cohort": "customer-mara-10"})
+    for outcome, count in bulk["outcomes"].items():
+        metrics.set("seocho.evaluation.customer.outcome_ratio", count / bulk["queries"], {"outcome": outcome})
+    for query_class, outcomes in bulk["by_intent"].items():
+        supported = outcomes.get("supported", 0)
+        partial = outcomes.get("partial", 0)
+        unsupported = outcomes.get("unsupported", 0)
+        coverage = (supported + 0.5 * partial) / max(supported + partial + unsupported, 1)
+        metrics.set("seocho.evaluation.customer.evidence_coverage", coverage, {"query.class": query_class})
     flush_tracing()
     disable_tracing()
     shutdown_metrics()

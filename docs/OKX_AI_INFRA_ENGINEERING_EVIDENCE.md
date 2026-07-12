@@ -327,13 +327,51 @@ and capability-gated rows remain engineering work, not inferred evidence.
   `capability_gated` with TLS reload capability value 0.
 - Live Tempo verification: seven `evaluation.scenario` traces were retained for
   the exported scenarios under service `seocho-evaluation`.
-- Grafana Evaluation dashboard version 3 contains fourteen panels, including
+- Grafana Evaluation dashboard version 5 contains seventeen panels, including
   customer routing accuracy, context input reduction, S2-S10 status, and
   capability gates. Remote path: `/d/seocho-critical-agent-memory/seocho-evaluation`.
 - Runtime finding: the active Grafana container was an older manually managed
   instance that mounted only its datasource, not repository dashboards. The
   updated dashboard was therefore safely overwritten through the authenticated
   local Grafana API; repository Compose remains the reproducible source.
+
+### E-016 — Customer-query bulk and answer execution
+
+`tags: [live, customer-query, market-data, blockchain, mara, sre, slo]`
+
+- All 10,000 English questions executed through intent routing, source planning,
+  freshness policy, and evidence coverage. Coinbase supplied a live BTC spot
+  snapshot after the OKX public endpoint returned an HTTP error; Blockstream
+  supplied live tip height 957,657. PostgreSQL and DozerDB were live.
+- Result: 5,000 supported and 5,000 explicit partial answers, zero unsupported,
+  mean evidence coverage 0.8333. Partial outcomes are expected because private
+  order, withdrawal, and transfer credentials were not configured; no private
+  result was fabricated.
+- A bounded MARA `gpt-oss-120b` cohort covered all 10 intents: support-status
+  accuracy 100%, missing-source accuracy 100%, leakage zero, p95 2,275.2 ms.
+  The first prompt version failed at 50% status accuracy; moving the deterministic
+  support status outside model judgment fixed the causal issue.
+- Bulk artifact SHA-256: `19916deff326798fe3711973af3c63a695fbf9cfcb8f53352b0b1a02d8fba3c5`.
+- MARA artifact SHA-256: `22d903b32d1709449b78be49520faa6a035d67b12350ba54545dbac97d1140dc`.
+
+#### SRE metric decision
+
+- Paging SLIs use production event counters, never sampled traces or one-shot
+  evaluation gauges. Evaluation snapshots use 24-hour `last_over_time` panels.
+- The initial customer-query objective is a hypothesis: 99% fully supported.
+  A multi-window 14.4x fast-burn alert requires both 5-minute and 1-hour breach
+  plus at least 20 bad events, preventing low-traffic alert noise.
+- Paging: user-visible unsupported/partial rate, silent stale answers,
+  disclosure violations, projection stall, dependency loss.
+- Diagnosis only: GraphRAG candidates/selected, DB hits, hop count, context
+  reduction, Text2Cypher repair, model tokens/cache, agent handoff depth.
+- Metric labels remain bounded. Query text, prompt content, wallet, user,
+  workspace, transaction, trace, and model output never become metric labels.
+- Runtime drift finding: the active manually managed Prometheus mounts only a
+  scrape config and does not load repository recording/alert rules. Metrics and
+  dashboards are live, but the new burn alert is source-validated rather than
+  active. Recreating the stack from repository Compose is required to activate
+  rules without pretending the current container has them.
 
 ## Current engineering decisions
 

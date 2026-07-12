@@ -19,6 +19,16 @@ groups:
           (seocho_projection_outbox_pending > 0)
           and on (projection)
           (seocho_projection_outbox_oldest_age_seconds > 60)
+      - record: seocho:customer_query_bad_ratio:5m
+        expr: |
+          sum(rate(seocho_customer_query_count_total{traffic_type="production",outcome!="supported"}[5m]))
+          /
+          clamp_min(sum(rate(seocho_customer_query_count_total{traffic_type="production"}[5m])), 1)
+      - record: seocho:customer_query_bad_ratio:1h
+        expr: |
+          sum(rate(seocho_customer_query_count_total{traffic_type="production",outcome!="supported"}[1h]))
+          /
+          clamp_min(sum(rate(seocho_customer_query_count_total{traffic_type="production"}[1h])), 1)
 
   - name: seocho-page
     rules:
@@ -64,6 +74,18 @@ groups:
           severity: page
         annotations:
           summary: SEOCHO etcd coordination cluster has no leader
+      - alert: SeochoCustomerQueryFastBurn
+        expr: |
+          (seocho:customer_query_bad_ratio:5m / 0.01 > 14.4)
+          and
+          (seocho:customer_query_bad_ratio:1h / 0.01 > 14.4)
+          and
+          (sum(increase(seocho_customer_query_count_total{traffic_type="production",outcome!="supported"}[1h])) > 20)
+        for: 2m
+        labels:
+          severity: page
+        annotations:
+          summary: SEOCHO customer-query 99% SLO is burning too quickly
 
   - name: seocho-ticket
     rules:

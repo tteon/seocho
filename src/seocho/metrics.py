@@ -160,6 +160,16 @@ METRIC_SPECS: dict[str, MetricSpec] = {
         _spec("seocho.evaluation.context.reduction", "gauge", "1", ("strategy",), "Input-context reduction ratio."),
         _spec("seocho.evaluation.text2cypher.attempts", "histogram", "{attempt}", ("outcome",), "Validated Text2Cypher attempts."),
         _spec("seocho.evaluation.capability.status", "gauge", "1", ("capability", "status"), "Capability-gated evaluation status."),
+        _spec("seocho.customer.query.count", "counter", "{query}", ("query.class", "outcome", "traffic.type"), "Customer query outcomes."),
+        _spec("seocho.customer.query.duration", "histogram", "s", ("query.class", "outcome", "traffic.type"), "Customer query pipeline duration."),
+        _spec("seocho.customer.evidence.coverage", "histogram", "1", ("query.class",), "Required source evidence coverage."),
+        _spec("seocho.customer.source.freshness", "histogram", "s", ("source",), "Age of live source snapshot."),
+        _spec("seocho.customer.source.failure.count", "counter", "{failure}", ("source", "reason"), "Customer evidence source failures."),
+        _spec("seocho.evaluation.answer.accuracy", "gauge", "1", ("cohort", "dimension"), "Latest answer evaluation accuracy."),
+        _spec("seocho.evaluation.answer.latency", "histogram", "ms", ("cohort",), "Answer evaluation latency."),
+        _spec("seocho.evaluation.answer.leakage", "counter", "{case}", ("cohort",), "Answer evaluation leakage cases."),
+        _spec("seocho.evaluation.customer.outcome_ratio", "gauge", "1", ("outcome",), "Latest customer-query outcome ratio."),
+        _spec("seocho.evaluation.customer.evidence_coverage", "gauge", "1", ("query.class",), "Latest evidence coverage by customer query class."),
     )
 }
 

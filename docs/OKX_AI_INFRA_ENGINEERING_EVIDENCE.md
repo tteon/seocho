@@ -326,7 +326,7 @@ and capability-gated rows remain engineering work, not inferred evidence.
 - The original 10,000-row corpus is retained only as a load-test artifact. A
   later audit found only 60 exact-unique questions (six forms per intent), so
   its 100% routing result must not be cited as natural-language generalization.
-- The replacement v2 corpus contains 10,000 exact- and normalized-unique
+- The final replacement v4 corpus contains 10,000 exact- and normalized-unique
   English questions across 10 customer intents, 50 semantic template families,
   and five relationships: user-to-self, user-to-market, user-to-network,
   user-to-counterparty, and self-to-prior-self.
@@ -338,11 +338,11 @@ and capability-gated rows remain engineering work, not inferred evidence.
   funding history, and historical statements. The generated frequency is an
   evaluation hypothesis, not measured support-ticket frequency.
 - Replacement corpus SHA-256:
-  `3f02b9a8ebc610f276bcd88a9d0e522acad5e805f0c6fbeddd297476cef07938`.
+  `26c0ba9ab569c7bb62650bcbe67948c6e46fe03c089a834e67276423bdfdd15e`.
 - A separate 300-query boundary corpus is evenly split across ambiguous,
   multi-intent, and out-of-scope requests, with expected actions `clarify`,
   `decompose`, and `reject`. SHA-256:
-  `9277226760b65417bfed7118b3fda5deaebe426f44b40569d337b05b77f832b2`.
+  `39842bf4dde3cbf276f28ebf3040e29d8e136da50ecef22fc0e892612ee2be2c`.
 
 ### E-015 — Unified evaluation observability
 
@@ -358,9 +358,10 @@ and capability-gated rows remain engineering work, not inferred evidence.
 - Live Tempo verification: one `evaluation.run` root and seven child
   `evaluation.scenario` spans were retained under service `seocho-evaluation`;
   the separate live execution trace is recorded in E-008.
-- Grafana Evaluation dashboard version 7 contains eighteen panels, including
+- Grafana Evaluation dashboard version 9 contains twenty panels, including
   customer routing accuracy, context input reduction, S2-S10 status, and
-  capability gates plus an embedded Tempo live-run table. Remote path:
+  capability gates, diverse-dataset quality, hybrid intent accuracy, and an
+  embedded Tempo live-run table. Remote path:
   `/d/seocho-critical-agent-memory/seocho-evaluation`.
 - Runtime finding: the active Grafana container was an older manually managed
   instance that mounted only its datasource, not repository dashboards. The
@@ -391,29 +392,45 @@ and capability-gated rows remain engineering work, not inferred evidence.
 `tags: [live-api, dataset-quality, intent-routing, held-out, ambiguity, governance]`
 
 - Diversity gate: 10,000/10,000 exact-unique and normalized-unique questions,
-  zero duplicate rate, 50 template families with 101–351 examples each, and
-  300/300 unique boundary questions. The quality artifact passed.
-- Keyword baseline: evaluation-family accuracy 94.83% and held-out-family
-  accuracy 97.27%. The live source pipeline exposed the remaining gap rather
-  than hiding it: 4,955 supported, 4,566 partial, and 479 unsupported routes.
-  Live Bitcoin height was 957,668 and Coinbase supplied BTC spot; private OKX
-  order/transfer/withdrawal sources remained explicitly unavailable.
+  zero duplicate rate, 50 template families with exactly 200 examples each,
+  and 300/300 unique boundary questions. The v4 quality artifact passed.
+- The ontology/template-controlled v4 router passed all 10,000 clear questions.
+  This is a closed-universe contract test, not an external customer-language
+  generalization claim. The live source pipeline returned 5,000 supported,
+  5,000 explicit partial, and zero unsupported routes. Live Bitcoin height was
+  957,669 and Coinbase supplied BTC spot; private OKX order/transfer/withdrawal
+  sources remained explicitly unavailable.
 - Initial MARA prompt-only baseline failed: evaluation intent accuracy 76%,
   held-out 60%, and ambiguous clarification 0%. This invalidated a model-only
   router despite good multi-intent and rejection behavior.
-- Candidate hybrid: a deterministic ontology-boundary guard handles known
-  ambiguity before the model, while MARA receives intent definitions,
-  relationships, and required evidence slots. On 130 live cases it achieved
-  evaluation 100%, held-out 90%, ambiguous clarify 100%, multi-intent 90%,
-  out-of-scope 100%, and zero ontology-invalid intents. The run passed its
-  complete gate; p95 latency was 22.815 s, making fallback rate and provider
-  latency explicit production constraints.
+- Candidate hybrid: deterministic ontology guards handle known ambiguity and
+  explicit decomposition before the model, while MARA receives intent
+  definitions, relationships, and required evidence slots. On 130 live cases
+  it achieved evaluation 98%, held-out 90%, ambiguous clarify 100%,
+  multi-intent 100%, out-of-scope 100%, and zero ontology-invalid intents.
+  The run passed; p95 latency was 24.534 s, making provider latency an explicit
+  production constraint.
+- The complete 300-query boundary corpus then passed: 100/100 clarify,
+  100/100 decompose, 100/100 reject, and zero invalid ontology outputs. The
+  200 deterministic guard decisions avoid unnecessary model calls; the 100
+  rejection decisions exercise the live MARA governance boundary.
+- A stratified 50-query answer cohort across all ten intents achieved 100%
+  support-status accuracy, 100% missing-source accuracy, zero leakage, and
+  p95 7.294 s.
 - Diversity artifact SHA-256:
-  `00ec88833072f9fa4b083655907b82fbae5fb9545c274bc9361bbcf9af467655`.
+  `812b4128a7c1bcfd6327b5a6bdbfa27ffb492d0ff723c6f34f8cf30bdc0dd3fd`.
 - Hybrid MARA artifact SHA-256:
-  `72d715b5c2b111689ad12e5ab324d00b5b39fb98d9376b293de573525cc3ec1c`.
+  `396e16c8996798d1c6e5b9df92e321b7dae7aaaeba8f966a14206947d959bba9`.
+- Complete boundary artifact SHA-256:
+  `52adfbf89a8496a49455e6e85c1b28d0c2a9733f52496334ded0276afc17ef3f`.
+- Answer cohort artifact SHA-256:
+  `22b2ad9f81cc94555e1919857131bfd77b00acc5c76cca608df87f495895eda5`.
+- Live Tempo roots are linked from Grafana: boundary/intent runs use service
+  `seocho-customer-intent-eval`; the 50-answer run is trace
+  `c6d1e9201aa99f205533311ac2cd573` under
+  `seocho-customer-mara-eval`.
 - Diverse live bulk artifact SHA-256:
-  `4e774ea069d37596e47ba8470ee1aaf418a6513c70966458e45de4506fd3af69`.
+  `807a5b9da75f7ba920041bccf9bf66cf322b630b2ad17d97da06cf4ca0072ee0`.
 
 #### SRE metric decision
 

@@ -4,6 +4,7 @@ from seocho.eval.customer_query_dataset import (
     detect_customer_query_boundary,
     generate_customer_query_challenges,
     generate_customer_queries,
+    route_customer_query,
 )
 
 
@@ -33,6 +34,9 @@ def test_generated_customer_questions_route_to_gold_intent() -> None:
         correct += routed is not None and routed.intent == row["gold"]["intent"]
     assert correct / len(rows) >= 0.90
     assert classify_customer_query("Tell me a joke") is None
+    decision = route_customer_query("Tell me a joke")
+    assert decision.intent is None
+    assert 0 <= decision.confidence <= 1
 
 
 def test_generated_questions_are_unique_and_family_split() -> None:
@@ -51,10 +55,13 @@ def test_challenges_cover_clarify_decompose_and_reject() -> None:
     assert {row["gold"]["expected_action"] for row in rows} == {
         "clarify", "decompose", "reject",
     }
-    ambiguous = [row for row in rows if row["gold"]["kind"] == "ambiguous"]
-    assert ambiguous
-    for row in ambiguous:
+    guarded = [
+        row for row in rows
+        if row["gold"]["kind"] in {"ambiguous", "multi_intent"}
+    ]
+    assert guarded
+    for row in guarded:
         decision = detect_customer_query_boundary(row["question"])
         assert decision is not None
-        assert decision.action == "clarify"
+        assert decision.action == row["gold"]["expected_action"]
         assert set(decision.intents) == set(row["gold"]["acceptable_intents"])

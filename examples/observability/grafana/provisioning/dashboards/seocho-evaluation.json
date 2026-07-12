@@ -7,7 +7,7 @@
     {
       "title": "Open recent SEOCHO traces",
       "type": "link",
-      "url": "/explore?schemaVersion=1&panes=%7B%22trace%22:%7B%22datasource%22:%22tempo%22,%22queries%22:%5B%7B%22queryType%22:%22traceqlSearch%22,%22query%22:%22%7B.resource.service.name%20%3D~%20%5C%22seocho-(evaluation%7Cokx-live)%5C%22%7D%22%7D%5D%7D%7D"
+      "url": "/explore?schemaVersion=1&panes=%7B%22trace%22:%7B%22datasource%22:%22tempo%22,%22queries%22:%5B%7B%22queryType%22:%22traceqlSearch%22,%22query%22:%22%7B.resource.service.name%20%3D~%20%5C%22seocho-(evaluation%7Cokx-live%7Ccustomer-.*-eval)%5C%22%7D%22%7D%5D%7D%7D"
     }
   ],
   "panels": [
@@ -189,9 +189,29 @@
       "gridPos": {"h": 10, "w": 24, "x": 0, "y": 37},
       "id": 18,
       "options": {"showHeader": true},
-      "targets": [{"datasource": {"type": "tempo", "uid": "tempo"}, "queryType": "traceqlSearch", "query": "{ resource.service.name =~ \"seocho-(evaluation|okx-live)\" }", "refId": "A", "tableType": "traces"}],
+      "targets": [{"datasource": {"type": "tempo", "uid": "tempo"}, "queryType": "traceqlSearch", "query": "{ resource.service.name =~ \"seocho-(evaluation|okx-live|customer-.*-eval)\" }", "refId": "A", "tableType": "traces"}],
       "title": "Live E2E run traces — click a row for stage waterfall",
       "type": "table"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 47},
+      "id": 19,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "showLegend": true}},
+      "targets": [{"expr": "max by (dimension) (last_over_time(seocho_evaluation_dataset_ratio[24h]))", "legendFormat": "{{dimension}}", "refId": "A"}],
+      "title": "Diverse v4 dataset quality",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 47},
+      "id": 20,
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "showLegend": true}},
+      "targets": [{"expr": "max by (cohort, group, dimension) (last_over_time(seocho_evaluation_intent_accuracy_ratio[24h]))", "legendFormat": "{{cohort}} / {{group}} / {{dimension}}", "refId": "A"}],
+      "title": "Hybrid intent and boundary accuracy",
+      "type": "timeseries"
     }
   ],
   "refresh": "5s",

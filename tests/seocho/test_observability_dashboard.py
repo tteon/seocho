@@ -46,12 +46,14 @@ def test_critical_dashboard_covers_governance_and_memory_signals() -> None:
     assert "seocho_evaluation_context_reduction_ratio" in expressions
     assert "seocho_evaluation_scenario_status_ratio" in expressions
     assert "seocho_evaluation_capability_status_ratio" in expressions
+    assert "seocho_evaluation_dataset_ratio" in expressions
+    assert "seocho_evaluation_intent_accuracy_ratio" in expressions
     trace_panels = [
         panel for panel in dashboard["panels"]
         if panel.get("datasource", {}).get("type") == "tempo"
     ]
     assert len(trace_panels) == 1
-    assert "seocho-(evaluation|okx-live)" in trace_panels[0]["targets"][0]["query"]
+    assert "seocho-(evaluation|okx-live|customer-.*-eval)" in trace_panels[0]["targets"][0]["query"]
 
 
 def test_dashboard_labels_do_not_capture_sensitive_content() -> None:

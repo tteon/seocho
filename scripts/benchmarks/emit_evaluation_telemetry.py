@@ -51,11 +51,21 @@ def main() -> None:
     routing = _load(root / "customer-query-routing-10k-2026-07-12.json")
     mara = _load(root / "customer-query-mara-10-live-2026-07-12.json")
     bulk = _load(root / "customer-query-bulk-live-10k-2026-07-12.json")
+    diverse = _load(root / "customer-query-diversity-v4-live-2026-07-12.json")
+    diverse_bulk = _load(root / "customer-query-diverse-v4-bulk-live-10k-2026-07-12.json")
+    intent_hybrid = _load(root / "customer-query-intent-hybrid-130-v4-final-live-2026-07-12.json")
+    boundary_hybrid = _load(root / "customer-query-boundary-hybrid-300-v4-live-2026-07-12.json")
+    answer_v4 = _load(root / "customer-query-answer-mara-50-v4-live-2026-07-12.json")
     artifact_digest = hashlib.sha256(
         b"".join(path.read_bytes() for path in sorted(root.glob("*.json")))
     ).hexdigest()[:16]
     run_status = "passed" if all(
-        (s23["passed"], s67["passed"], s8["passed"], utility["passed"], text2cypher["passed"], mara["passed"])
+        (
+            s23["passed"], s67["passed"], s8["passed"], utility["passed"],
+            text2cypher["passed"], mara["passed"], diverse["passed"],
+            diverse_bulk["passed"], intent_hybrid["passed"],
+            boundary_hybrid["passed"], answer_v4["passed"],
+        )
     ) else "failed"
     with start_span(
         "evaluation.run",
@@ -89,6 +99,18 @@ def main() -> None:
             unsupported = outcomes.get("unsupported", 0)
             coverage = (supported + 0.5 * partial) / max(supported + partial + unsupported, 1)
             metrics.set("seocho.evaluation.customer.evidence_coverage", coverage, {"query.class": query_class})
+        metrics.set("seocho.evaluation.dataset.ratio", 1 - diverse["exact_duplicate_rate"], {"cohort": "customer-diverse-v4-10k", "dimension": "unique"})
+        metrics.set("seocho.evaluation.dataset.ratio", diverse["routing_accuracy"]["held_out_family"], {"cohort": "customer-diverse-v4-10k", "dimension": "held_out_routing"})
+        for cohort, report in (("intent-hybrid-130-v4", intent_hybrid), ("boundary-hybrid-300-v4", boundary_hybrid)):
+            for group, result in report["by_group"].items():
+                metrics.set("seocho.evaluation.intent.accuracy", result["action_accuracy"], {"cohort": cohort, "group": group, "dimension": "action"})
+                metrics.set("seocho.evaluation.intent.accuracy", result["intent_accuracy"], {"cohort": cohort, "group": group, "dimension": "intent"})
+        metrics.set("seocho.evaluation.answer.accuracy", answer_v4["status_accuracy"], {"cohort": "customer-diverse-v4-mara-50", "dimension": "support_status"})
+        metrics.set("seocho.evaluation.answer.accuracy", answer_v4["missing_source_accuracy"], {"cohort": "customer-diverse-v4-mara-50", "dimension": "missing_sources"})
+        metrics.record("seocho.evaluation.answer.latency", answer_v4["latency_ms"]["p95"], {"cohort": "customer-diverse-v4-mara-50"})
+        metrics.add("seocho.evaluation.answer.leakage", answer_v4["leakage_cases"], {"cohort": "customer-diverse-v4-mara-50"})
+        for outcome, count in diverse_bulk["outcomes"].items():
+            metrics.set("seocho.evaluation.customer.outcome_ratio", count / diverse_bulk["queries"], {"outcome": f"v4_{outcome}"})
     flush_tracing()
     disable_tracing()
     shutdown_metrics()

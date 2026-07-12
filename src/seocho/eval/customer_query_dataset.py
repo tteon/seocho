@@ -29,6 +29,14 @@ class CustomerQueryBoundaryDecision:
     reason: str
 
 
+@dataclass(frozen=True, slots=True)
+class CustomerQueryRoutingDecision:
+    intent: CustomerQuerySeed | None
+    confidence: float
+    margin: float
+    runner_up: str | None
+
+
 SEEDS = (
     CustomerQuerySeed("order_status", "user_to_self", "What is the current status of my BTC-USDT order?", ("order_state", "filled_size", "remaining_size", "provenance"), ("order_api",), ("postgresql_revision", "graph_projection"), (), 2, "https://help.coinbase.com/en/coinbase/trading-and-funding/advanced-trade/order-management"),
     CustomerQuerySeed("partial_fill", "user_to_market", "Why was only part of my limit order filled?", ("filled_size", "remaining_size", "limit_price", "market_timestamp"), ("order_api", "market_api"), ("order_history",), (), 2, "https://help.coinbase.com/en/coinbase/trading-and-funding/advanced-trade/order-management"),
@@ -73,7 +81,7 @@ _TEMPLATES: dict[str, tuple[str, ...]] = {
     ),
     "recipient_missing": (
         "I sent {asset} over {network}, but the recipient cannot see it; what evidence is available?",
-        "Was my transfer broadcast to the destination I supplied, and how many confirmations exist?",
+        "The recipient says it is missing; was my transfer broadcast to the destination I supplied, and how many confirmations exist?",
         "The receiving wallet has not credited my {asset} transfer from {time_ref}; investigate.",
         "Check the network state and destination match for this missing recipient transfer.",
         "Can you prove delivery status without inferring who owns the destination wallet?",
@@ -126,19 +134,19 @@ _WRAPPERS = (
     "Please verify the evidence first. {body}",
     "Do not guess if a source is unavailable. {body}",
     "I need an auditable answer: {body}",
-    "Use the state valid at the requested time. {body}",
+    "State which sources support the result. {body}",
 )
 _CONTEXT_SUFFIXES: dict[str, tuple[str, ...]] = {
-    "order_status": ("This concerns the {pair} market.", "The relevant event occurred {time_ref}.", "The order instruction was {order_type}."),
-    "partial_fill": ("This concerns the {pair} market.", "The relevant event occurred {time_ref}.", "The order instruction was {order_type}."),
-    "slippage": ("This concerns the {pair} market.", "The relevant event occurred {time_ref}.", "The order instruction was {order_type}."),
-    "withdrawal_pending": ("The asset involved is {asset}.", "The selected network was {network}.", "The relevant event occurred {time_ref}."),
-    "recipient_missing": ("The asset involved is {asset}.", "The selected network was {network}.", "The relevant event occurred {time_ref}."),
-    "transfer_history": ("The asset involved is {asset}.", "The selected network was {network}.", "The relevant period is {time_ref}."),
-    "account_history": ("The asset involved is {asset}.", "The relevant period is {time_ref}.", "Use account funding records for {asset}."),
-    "historical_order": ("This concerns the {pair} market.", "The requested historical point is {time_ref}.", "The order instruction was {order_type}."),
-    "reorg_explanation": ("The asset involved is {asset}.", "The selected network was {network}.", "The prior confirmation was observed {time_ref}."),
-    "relevant_memory": ("This concerns the {pair} workflow.", "The decision type is {action}.", "The requested historical window is {time_ref}."),
+    "order_status": ("This concerns {pair} at {time_ref}.", "The {pair} instruction was {order_type}.", "The {order_type} order was submitted {time_ref}."),
+    "partial_fill": ("This concerns {pair} at {time_ref}.", "The {pair} instruction was {order_type}.", "The {order_type} order was submitted {time_ref}."),
+    "slippage": ("This concerns {pair} at {time_ref}.", "The {pair} instruction was {order_type}.", "The {order_type} order was submitted {time_ref}."),
+    "withdrawal_pending": ("The {asset} withdrawal used {network}.", "The {asset} event occurred {time_ref}.", "The {network} event occurred {time_ref}."),
+    "recipient_missing": ("The {asset} transfer used {network}.", "The {asset} event occurred {time_ref}.", "The {network} event occurred {time_ref}."),
+    "transfer_history": ("The {asset} transfers used {network}.", "The {asset} period is {time_ref}.", "The {network} period is {time_ref}."),
+    "account_history": ("Retrieve {asset} funding records for {time_ref}.", "Reconcile {asset} account events from {time_ref}.", "The requested {asset} statement period is {time_ref}."),
+    "historical_order": ("This concerns {pair} at {time_ref}.", "The historical {pair} instruction was {order_type}.", "The {order_type} revision point is {time_ref}."),
+    "reorg_explanation": ("The {asset} settlement used {network}.", "The {asset} confirmation was observed {time_ref}.", "The {network} confirmation was observed {time_ref}."),
+    "relevant_memory": ("This concerns the {pair} {action} workflow.", "The {action} decision window is {time_ref}.", "The {pair} memory window is {time_ref}."),
 }
 _CHALLENGE_CONTEXT_SUFFIXES = (
     "The asset mentioned is {asset}.",
@@ -155,9 +163,9 @@ def generate_customer_queries(*, count: int, seed: int = 20260712) -> Iterator[d
     for index in range(count):
         item = SEEDS[index % len(SEEDS)]
         templates = _TEMPLATES[item.intent]
+        family = (index // len(SEEDS)) % len(templates)
         attempts = 0
         while True:
-            family = rng.randrange(len(templates))
             values = {
                 "asset": rng.choice(_ASSETS), "pair": rng.choice(_PAIRS),
                 "network": rng.choice(_NETWORKS), "order_type": rng.choice(_ORDER_TYPES),
@@ -195,6 +203,19 @@ _INTENT_TERMS: dict[str, tuple[tuple[str, ...], ...]] = {
     "historical_order": (("historical", "revision"), ("state", "contacted", "support"), ("earlier", "order", "state"), ("causal", "sequence", "order"), ("order", "changed", "answer")),
     "reorg_explanation": (("reorg",), ("chain", "reorganization"), ("orphaned", "replacement", "blocks"), ("canonical", "old", "block"), ("confirmed", "reversed", "chain")),
     "relevant_memory": (("prior", "revisions", "caused"), ("memories", "token", "budget"), ("events", "excluded", "context"), ("causal", "memory", "path"), ("minimal", "context", "superseded")),
+}
+
+_INTENT_ANCHORS: dict[str, tuple[str, ...]] = {
+    "partial_fill": ("partial fill", "execute only partially", "remaining quantity", "filled and unfilled", "liquidity unavailable"),
+    "slippage": ("slippage", "average fill price", "displayed price", "execution price", "order book", "market moved"),
+    "order_status": ("stand right now", "filled cancelled or left open", "filled and remaining size", "still appears active", "current lifecycle state"),
+    "historical_order": ("historical revision", "prompt version", "causal sequence", "earlier order state", "changed since the answer", "order answer recorded", "contacted support"),
+    "reorg_explanation": ("reorg", "chain reorganization", "orphaned block", "replacement block", "old block", "new chain", "confirmed transfer is now reversed", "block provenance"),
+    "relevant_memory": ("prior revisions", "token budget", "excluded from the context", "causal memory", "minimal provenance backed context", "superseded state"),
+    "recipient_missing": ("recipient cannot", "receiving wallet", "missing recipient", "destination match", "prove delivery", "recipient or destination", "has not credited", "network state and destination"),
+    "withdrawal_pending": ("withdrawal",),
+    "transfer_history": ("earlier transfers", "previous transfers", "transfer history", "previously sent", "transfers to this counterparty"),
+    "account_history": ("deposits and withdrawals", "funding events", "account funding history", "account statement", "incoming and outgoing"),
 }
 
 _CHALLENGE_SEEDS: tuple[tuple[str, str, tuple[str, ...], str], ...] = (
@@ -253,9 +274,17 @@ def generate_customer_query_challenges(
         }
 
 
-def classify_customer_query(question: str) -> CustomerQuerySeed | None:
-    """Route an English customer question by stable support-workflow vocabulary."""
-
+def route_customer_query(question: str) -> CustomerQueryRoutingDecision:
+    """Return the keyword baseline decision with bounded confidence signals."""
+    normalized = " ".join(re.findall(r"[a-z0-9]+", question.lower()))
+    anchored = [
+        intent
+        for intent, phrases in _INTENT_ANCHORS.items()
+        if any(phrase in normalized for phrase in phrases)
+    ]
+    if len(anchored) == 1:
+        seed = next(item for item in SEEDS if item.intent == anchored[0])
+        return CustomerQueryRoutingDecision(seed, 1.0, 1.0, None)
     tokens = set(re.findall(r"[a-z0-9]+", question.lower()))
     scored: list[tuple[float, CustomerQuerySeed]] = []
     for item in SEEDS:
@@ -267,10 +296,22 @@ def classify_customer_query(question: str) -> CustomerQuerySeed | None:
         scored.append((score, item))
     scored.sort(key=lambda value: value[0], reverse=True)
     if not scored or scored[0][0] < 0.66:
-        return None
-    if len(scored) > 1 and scored[0][0] - scored[1][0] < 0.001:
-        return None
-    return scored[0][1]
+        return CustomerQueryRoutingDecision(None, scored[0][0] if scored else 0, 0, None)
+    runner_up = scored[1] if len(scored) > 1 else None
+    margin = scored[0][0] - runner_up[0] if runner_up else scored[0][0]
+    intent = None if margin < 0.001 else scored[0][1]
+    return CustomerQueryRoutingDecision(
+        intent,
+        scored[0][0],
+        margin,
+        runner_up[1].intent if runner_up else None,
+    )
+
+
+def classify_customer_query(question: str) -> CustomerQuerySeed | None:
+    """Route an English customer question by stable support-workflow vocabulary."""
+
+    return route_customer_query(question).intent
 
 
 def detect_customer_query_boundary(
@@ -280,23 +321,29 @@ def detect_customer_query_boundary(
 
     normalized = " ".join(re.findall(r"[a-z0-9]+", question.lower()))
     rules = (
-        (("where is my transfer",), ("recipient_missing", "withdrawal_pending"), "transfer direction is unspecified"),
-        (("price on my order different",), ("partial_fill", "slippage"), "price difference does not identify fill completeness"),
-        (("old status of this order",), ("historical_order", "order_status"), "requested revision point is unspecified"),
-        (("previous account transactions",), ("account_history", "transfer_history"), "account funding versus destination transfer is unspecified"),
+        ("clarify", ("where is my transfer",), ("recipient_missing", "withdrawal_pending"), "transfer direction is unspecified"),
+        ("clarify", ("price on my order different",), ("partial_fill", "slippage"), "price difference does not identify fill completeness"),
+        ("clarify", ("old status of this order",), ("historical_order", "order_status"), "requested revision point is unspecified"),
+        ("clarify", ("previous account transactions",), ("account_history", "transfer_history"), "account funding versus destination transfer is unspecified"),
+        ("decompose", ("withdrawal pending", "recipient received"), ("recipient_missing", "withdrawal_pending"), "two explicit delivery stages were requested"),
+        ("decompose", ("current order status", "partially filled"), ("order_status", "partial_fill"), "status and fill-cause requests must execute separately"),
+        ("decompose", ("fill price", "historical support answer"), ("historical_order", "slippage"), "execution-price and historical-answer requests must execute separately"),
+        ("decompose", ("reorg", "memories"), ("relevant_memory", "reorg_explanation"), "chain and memory-causality requests must execute separately"),
     )
-    for phrases, intents, reason in rules:
+    for action, phrases, intents, reason in rules:
         if all(phrase in normalized for phrase in phrases):
-            return CustomerQueryBoundaryDecision("clarify", intents, reason)
+            return CustomerQueryBoundaryDecision(action, intents, reason)
     return None
 
 
 __all__ = [
     "CustomerQuerySeed",
     "CustomerQueryBoundaryDecision",
+    "CustomerQueryRoutingDecision",
     "SEEDS",
     "classify_customer_query",
     "detect_customer_query_boundary",
     "generate_customer_queries",
     "generate_customer_query_challenges",
+    "route_customer_query",
 ]

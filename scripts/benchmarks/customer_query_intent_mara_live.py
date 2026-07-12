@@ -141,13 +141,16 @@ async def run(args: argparse.Namespace) -> dict:
             "action_accuracy": sum(row["action_ok"] for row in group_rows) / len(group_rows),
             "intent_accuracy": sum(row["intents_ok"] for row in group_rows) / len(group_rows),
         }
-    passed = (
-        all(row["valid_ontology"] for row in rows)
-        and by_group["evaluation"]["intent_accuracy"] >= 0.90
-        and by_group["held_out"]["intent_accuracy"] >= 0.90
-        and by_group["ambiguous"]["action_accuracy"] >= 0.90
-        and by_group["multi_intent"]["action_accuracy"] >= 0.80
-        and by_group["out_of_scope"]["action_accuracy"] >= 0.90
+    thresholds = {
+        "evaluation": ("intent_accuracy", 0.90),
+        "held_out": ("intent_accuracy", 0.90),
+        "ambiguous": ("action_accuracy", 0.90),
+        "multi_intent": ("action_accuracy", 0.80),
+        "out_of_scope": ("action_accuracy", 0.90),
+    }
+    passed = all(row["valid_ontology"] for row in rows) and all(
+        group not in by_group or by_group[group][metric] >= minimum
+        for group, (metric, minimum) in thresholds.items()
     )
     return {
         "schema_version": "seocho.customer-query-intent-mara-live.v1",

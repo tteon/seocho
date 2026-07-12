@@ -170,6 +170,8 @@ METRIC_SPECS: dict[str, MetricSpec] = {
         _spec("seocho.evaluation.answer.leakage", "counter", "{case}", ("cohort",), "Answer evaluation leakage cases."),
         _spec("seocho.evaluation.customer.outcome_ratio", "gauge", "1", ("outcome",), "Latest customer-query outcome ratio."),
         _spec("seocho.evaluation.customer.evidence_coverage", "gauge", "1", ("query.class",), "Latest evidence coverage by customer query class."),
+        _spec("seocho.evaluation.dataset.ratio", "gauge", "1", ("cohort", "dimension"), "Dataset quality ratio."),
+        _spec("seocho.evaluation.intent.accuracy", "gauge", "1", ("cohort", "group", "dimension"), "Intent routing and boundary accuracy."),
     )
 }
 

@@ -35,12 +35,19 @@ See `FILES_AND_ARTIFACTS.md` if you want the full map and inspection commands.
 
 ## 1. Pick an Ingestion Path
 
+Start by choosing the smallest path that matches your data.
+
 | Method | Use it when | Output to inspect |
 |---|---|---|
 | `add(...)` | one short note or memory-style developer path | `memory_id` |
 | `raw_ingest(...)` | records, batches, files, or ETL output | status and processed count |
 | `add_graph(...)` | you already have ontology-shaped nodes and relationships | graph summary and validation metadata |
 | qualification store | you need reviewable deduplication or canonical projection | curation cases and projection stats |
+
+Most teams should start with `raw_ingest(...)`. Use the other paths only when
+your input shape already makes them a better fit.
+
+### 1.1 One Short Note
 
 Use `add(...)` when you have one small piece of text and want the memory-style
 developer path.
@@ -58,6 +65,8 @@ memory = client.add(
 print(memory.memory_id)
 ```
 
+### 1.2 Records, Files, Or ETL Output
+
 Use `raw_ingest(...)` when you already have records, batches, files, or ETL
 output and want a repeatable dataset load.
 
@@ -73,6 +82,8 @@ result = client.raw_ingest(
 print(result.status)
 print(result.records_processed)
 ```
+
+### 1.3 Already-Shaped Graph Payloads
 
 Use `add_graph(...)` when you are working in the local SDK, already have
 ontology-shaped `nodes` / `relationships`, and want SEOCHO to keep SHACL
@@ -93,6 +104,8 @@ memory = client.add_graph(
 print(memory.memory_id)
 print(memory.metadata["layered_graph_summary"]["section_count"])
 ```
+
+### 1.4 Reviewable Entity Curation
 
 When you also want a curation workflow for duplicate entities, configure a
 local qualification store up front. SEOCHO records the observed graph there

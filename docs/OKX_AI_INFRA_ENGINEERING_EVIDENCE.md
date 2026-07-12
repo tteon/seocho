@@ -281,6 +281,39 @@ capability. Q4 and Q8 remain the principal utility gaps.
 Only rows marked `pass` are suitable as live CV claims. Partial, unexecuted,
 and capability-gated rows remain engineering work, not inferred evidence.
 
+### E-013 — S8 reorg and S10 TLS capability
+
+`tags: [live, reorg, rollback, rebuild, tls, enterprise, capability-gate]`
+
+- S8 live result: PostgreSQL retained confirmed, orphaned compensation, and
+  replacement revisions. The historical answer remained block-a/sequence 1;
+  the current answer became block-b/sequence 3. A destructive DozerDB rebuild
+  from PostgreSQL reproduced 3 revisions and exactly 1 canonical revision.
+- S8 artifact SHA-256: `665c6aa12bae2c1a1b28f33e05ad225569f042dcb4e784a747e7362ae446f878`.
+- S10 implementation: an isolated Neo4j Enterprise 2026.06 TLS profile,
+  non-production certificate generator, encrypted-handshake/reload probe, and
+  fail-closed capability result. Current DozerDB reported no dynamic reload
+  capability and an unencrypted Bolt scheme, so it remains `capability_gated`.
+- S10 capability artifact SHA-256: `671576183424f08ef67209809f5ecbe93ccac2f5378595635eb11ae3ff6e672a`.
+- Neo4j Enterprise is never started implicitly: a licensed operator must
+  explicitly accept the license and provide the TLS profile password.
+
+### E-014 — English customer-query corpus
+
+`tags: [dataset, customer-query, english, market, counterparty, personal-history]`
+
+- Generated 10,000 deterministic English questions across 10 customer intents
+  and five relationships: user-to-self, user-to-market, user-to-network,
+  user-to-counterparty, and self-to-prior-self.
+- Each row carries required evidence slots, live and memory sources, maximum
+  graph hops, and denied inferences. Counterparty questions forbid real-identity
+  and wallet-ownership inference.
+- Seed workflows are grounded in official OKX and Coinbase help topics for
+  order status/fills/slippage, withdrawal confirmation, send/receive delivery,
+  funding history, and historical statements. The generated frequency is an
+  evaluation hypothesis, not measured support-ticket frequency.
+- Artifact SHA-256: `a44121da173fe5d50ab731d2e0157ed3cfd5b8385483a4726d345deb6bd888e1`.
+
 ## Current engineering decisions
 
 1. PostgreSQL remains authoritative; DozerDB is disposable and replayable.

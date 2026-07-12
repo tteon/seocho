@@ -1,0 +1,28 @@
+services:
+  neo4j-tls-enterprise:
+    image: ${NEO4J_ENTERPRISE_IMAGE:-neo4j:2026.06.0-enterprise}
+    container_name: seocho-neo4j-tls-enterprise
+    profiles: ["tls-enterprise"]
+    environment:
+      NEO4J_ACCEPT_LICENSE_AGREEMENT: ${NEO4J_ACCEPT_LICENSE_AGREEMENT:?Set to yes only when you are licensed to run Neo4j Enterprise}
+      NEO4J_AUTH: neo4j/${NEO4J_TLS_PASSWORD:?Set NEO4J_TLS_PASSWORD}
+      NEO4J_TLS_PASSWORD: ${NEO4J_TLS_PASSWORD:?Set NEO4J_TLS_PASSWORD}
+      NEO4J_server_bolt_tls__level: REQUIRED
+      NEO4J_dbms_ssl_policy_bolt_enabled: "true"
+      NEO4J_dbms_ssl_policy_bolt_base__directory: /ssl/bolt
+      NEO4J_dbms_security_tls__reload__enabled: "true"
+    volumes:
+      - ./data/neo4j-tls/certificates:/ssl:ro
+      - neo4j-tls-data:/data
+    ports:
+      - "${SEOCHO_BIND_HOST:-127.0.0.1}:${NEO4J_TLS_BOLT_PORT:-57677}:7687"
+      - "${SEOCHO_BIND_HOST:-127.0.0.1}:${NEO4J_TLS_HTTPS_PORT:-57473}:7473"
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -a bolt+ssc://127.0.0.1:7687 -u neo4j -p $$NEO4J_TLS_PASSWORD 'RETURN 1' || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+volumes:
+  neo4j-tls-data:

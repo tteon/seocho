@@ -214,6 +214,7 @@ class LLMBackend(ABC):
         task_hint: Optional[str] = None,
         mode: Optional[str] = None,
         model: Optional[str] = None,
+        provider_options: Optional[Dict[str, Any]] = None,
     ) -> LLMResponse:
         """Synchronous completion.
 
@@ -238,6 +239,8 @@ class LLMBackend(ABC):
         reasoning_mode: Optional[bool] = None,
         task_hint: Optional[str] = None,
         mode: Optional[str] = None,
+        model: Optional[str] = None,
+        provider_options: Optional[Dict[str, Any]] = None,
     ) -> LLMResponse:
         """Async completion. See :meth:`complete` for the ``mode`` contract."""
 
@@ -330,6 +333,7 @@ def complete_with_task_hints(
     task_hint: Optional[str] = None,
     mode: Optional[str] = None,
     model: Optional[str] = None,
+    provider_options: Optional[Dict[str, Any]] = None,
 ) -> Any:
     """Call ``llm.complete`` while remaining compatible with older test doubles.
 
@@ -360,6 +364,8 @@ def complete_with_task_hints(
         model = _env_routed_model(llm, task_hint)
     if model is not None:
         kwargs["model"] = model
+    if provider_options:
+        kwargs["provider_options"] = provider_options
     try:
         return llm.complete(**kwargs)
     except TypeError as exc:
@@ -371,6 +377,7 @@ def complete_with_task_hints(
         kwargs.pop("task_hint", None)
         kwargs.pop("mode", None)
         kwargs.pop("model", None)
+        kwargs.pop("provider_options", None)
         return llm.complete(**kwargs)
 
 
@@ -542,6 +549,7 @@ class OpenAICompatibleBackend(LLMBackend):
         task_hint: Optional[str],
         mode: Optional[str] = None,
         model: Optional[str] = None,
+        provider_options: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         kwargs: Dict[str, Any] = {
             "model": model or self.model,
@@ -592,6 +600,16 @@ class OpenAICompatibleBackend(LLMBackend):
                 reasoning_overrides.pop("extra_body"),
             )
         kwargs.update(reasoning_overrides)
+        if provider_options:
+            allowed = {"prompt_cache_key", "cache_salt", "thinking"}
+            unknown = sorted(set(provider_options) - allowed)
+            if unknown:
+                raise ValueError(
+                    "Unsupported provider options: " + ", ".join(unknown)
+                )
+            kwargs["extra_body"] = self._merge_extra_body(
+                kwargs.get("extra_body"), provider_options
+            )
         return kwargs
 
     @staticmethod
@@ -682,6 +700,7 @@ class OpenAICompatibleBackend(LLMBackend):
         task_hint: Optional[str] = None,
         mode: Optional[str] = None,
         model: Optional[str] = None,
+        provider_options: Optional[Dict[str, Any]] = None,
     ) -> LLMResponse:
         messages = [
             {"role": "system", "content": system},
@@ -696,6 +715,7 @@ class OpenAICompatibleBackend(LLMBackend):
             task_hint=task_hint,
             mode=mode,
             model=model,
+            provider_options=provider_options,
         )
         trace_input, trace_metadata = self._completion_trace_payload(
             system=system,
@@ -705,6 +725,17 @@ class OpenAICompatibleBackend(LLMBackend):
             mode=mode,
             model=model,
         )
+        if provider_options:
+            trace_metadata["seocho.prompt.provider_option_keys"] = sorted(provider_options)
+            cache_identity = str(
+                provider_options.get("prompt_cache_key")
+                or provider_options.get("cache_salt")
+                or ""
+            )
+            if cache_identity:
+                trace_metadata["seocho.prompt.cache_identity_hash"] = hashlib.sha256(
+                    cache_identity.encode("utf-8")
+                ).hexdigest()[:16]
         metric_started = time.perf_counter()
         metrics = get_metrics()
         resolved_model = model or self.model
@@ -726,6 +757,7 @@ class OpenAICompatibleBackend(LLMBackend):
                             "gen_ai.usage.input_tokens": result.usage.get("prompt_tokens", 0),
                             "gen_ai.usage.output_tokens": result.usage.get("completion_tokens", 0),
                             "gen_ai.usage.total_tokens": result.usage.get("total_tokens", 0),
+                            "gen_ai.usage.cached_input_tokens": result.usage.get("cached_tokens", 0),
                             "seocho.llm.attempt_count": attempt,
                         }
                     )
@@ -744,6 +776,7 @@ class OpenAICompatibleBackend(LLMBackend):
                     for token_type, usage_key in (
                         ("input", "prompt_tokens"),
                         ("output", "completion_tokens"),
+                        ("cached_input", "cached_tokens"),
                     ):
                         usage = int(result.usage.get(usage_key, 0) or 0)
                         if usage:
@@ -752,6 +785,15 @@ class OpenAICompatibleBackend(LLMBackend):
                                 usage,
                                 {**metric_labels, "gen_ai.token.type": token_type},
                             )
+                    metrics.add(
+                        "seocho.gen_ai.prompt_cache.request.count",
+                        attributes={
+                            **metric_labels,
+                            "outcome": (
+                                "hit" if result.usage.get("cached_tokens", 0) else "miss_or_unreported"
+                            ),
+                        },
+                    )
                     return result
                 except Exception as exc:
                     last_exc = exc
@@ -789,6 +831,7 @@ class OpenAICompatibleBackend(LLMBackend):
         task_hint: Optional[str] = None,
         mode: Optional[str] = None,
         model: Optional[str] = None,
+        provider_options: Optional[Dict[str, Any]] = None,
     ) -> LLMResponse:
         messages = [
             {"role": "system", "content": system},
@@ -803,6 +846,7 @@ class OpenAICompatibleBackend(LLMBackend):
             task_hint=task_hint,
             mode=mode,
             model=model,
+            provider_options=provider_options,
         )
         trace_input, trace_metadata = self._completion_trace_payload(
             system=system,
@@ -812,6 +856,17 @@ class OpenAICompatibleBackend(LLMBackend):
             mode=mode,
             model=model,
         )
+        if provider_options:
+            trace_metadata["seocho.prompt.provider_option_keys"] = sorted(provider_options)
+            cache_identity = str(
+                provider_options.get("prompt_cache_key")
+                or provider_options.get("cache_salt")
+                or ""
+            )
+            if cache_identity:
+                trace_metadata["seocho.prompt.cache_identity_hash"] = hashlib.sha256(
+                    cache_identity.encode("utf-8")
+                ).hexdigest()[:16]
         metric_started = time.perf_counter()
         metrics = get_metrics()
         resolved_model = model or self.model
@@ -833,6 +888,7 @@ class OpenAICompatibleBackend(LLMBackend):
                             "gen_ai.usage.input_tokens": result.usage.get("prompt_tokens", 0),
                             "gen_ai.usage.output_tokens": result.usage.get("completion_tokens", 0),
                             "gen_ai.usage.total_tokens": result.usage.get("total_tokens", 0),
+                            "gen_ai.usage.cached_input_tokens": result.usage.get("cached_tokens", 0),
                             "seocho.llm.attempt_count": attempt,
                         }
                     )
@@ -851,6 +907,7 @@ class OpenAICompatibleBackend(LLMBackend):
                     for token_type, usage_key in (
                         ("input", "prompt_tokens"),
                         ("output", "completion_tokens"),
+                        ("cached_input", "cached_tokens"),
                     ):
                         usage = int(result.usage.get(usage_key, 0) or 0)
                         if usage:
@@ -859,6 +916,15 @@ class OpenAICompatibleBackend(LLMBackend):
                                 usage,
                                 {**metric_labels, "gen_ai.token.type": token_type},
                             )
+                    metrics.add(
+                        "seocho.gen_ai.prompt_cache.request.count",
+                        attributes={
+                            **metric_labels,
+                            "outcome": (
+                                "hit" if result.usage.get("cached_tokens", 0) else "miss_or_unreported"
+                            ),
+                        },
+                    )
                     return result
                 except Exception as exc:
                     last_exc = exc
@@ -968,10 +1034,18 @@ class OpenAICompatibleBackend(LLMBackend):
         choice = resp.choices[0]
         usage = {}
         if getattr(resp, "usage", None):
+            details = getattr(resp.usage, "prompt_tokens_details", None)
+            cached_tokens = getattr(resp.usage, "cached_tokens", None)
+            if cached_tokens is None and details is not None:
+                if isinstance(details, dict):
+                    cached_tokens = details.get("cached_tokens")
+                else:
+                    cached_tokens = getattr(details, "cached_tokens", None)
             usage = {
                 "prompt_tokens": int(getattr(resp.usage, "prompt_tokens", 0) or 0),
                 "completion_tokens": int(getattr(resp.usage, "completion_tokens", 0) or 0),
                 "total_tokens": int(getattr(resp.usage, "total_tokens", 0) or 0),
+                "cached_tokens": int(cached_tokens or 0),
             }
         # Reasoning models (e.g. Kimi K2.5) may return the answer in
         # ``reasoning_content`` when ``content`` is empty — typically

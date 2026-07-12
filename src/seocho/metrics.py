@@ -137,6 +137,7 @@ METRIC_SPECS: dict[str, MetricSpec] = {
         _spec("gen_ai.client.operation.duration", "histogram", "s", ("gen_ai.provider.name", "gen_ai.request.model", "gen_ai.operation.name", "error.type"), "GenAI client operation duration."),
         _spec("gen_ai.client.token.usage", "histogram", "{token}", ("gen_ai.provider.name", "gen_ai.request.model", "gen_ai.token.type"), "Provider-reported token usage."),
         _spec("seocho.gen_ai.time_to_first_token", "histogram", "s", ("gen_ai.provider.name", "gen_ai.request.model"), "Streaming time to first token."),
+        _spec("seocho.gen_ai.prompt_cache.request.count", "counter", "{request}", ("gen_ai.provider.name", "gen_ai.request.model", "outcome"), "Provider-reported prompt-cache request outcomes."),
         _spec("seocho.gen_ai.retry.count", "counter", "{retry}", ("gen_ai.provider.name", "gen_ai.request.model", "reason"), "GenAI retries."),
         _spec("seocho.gen_ai.structured_output_repair.count", "counter", "{repair}", ("gen_ai.provider.name", "gen_ai.request.model", "reason"), "Structured-output repairs."),
         _spec("seocho.governance.disclosure_violation.count", "counter", "{violation}", ("stage", "policy.disposition"), "Disclosure violations."),

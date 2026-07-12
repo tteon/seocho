@@ -402,6 +402,39 @@ class StagePromptSpec:
         # SEOCHO fields through strict provider APIs would otherwise fail.
         return {"request": payload, "receipt": receipt}
 
+    def render_llm_call(
+        self,
+        *,
+        backend: str = "generic",
+        cache_salt: str = "",
+        cache_key: str = "",
+        capabilities: Optional[PromptBackendCapabilities] = None,
+    ) -> Dict[str, Any]:
+        """Return arguments accepted by ``LLMBackend.complete/acomplete``."""
+        package = self.render_package(
+            backend=backend,
+            cache_salt=cache_salt,
+            cache_key=cache_key,
+            capabilities=capabilities,
+        )
+        request = package["request"]
+        messages = request.get("messages", [])
+        if len(messages) != 2 or messages[0].get("role") != "system":
+            raise ValueError("LLMBackend rendering requires system and user messages")
+        provider_options = {
+            key: request[key]
+            for key in ("prompt_cache_key", "cache_salt", "thinking")
+            if key in request
+        }
+        return {
+            "completion_args": {
+                "system": str(messages[0].get("content", "")),
+                "user": str(messages[1].get("content", "")),
+                "provider_options": provider_options,
+            },
+            "prompt_receipt": package["receipt"],
+        }
+
     def stable_prefix_hash(self) -> str:
         return _fingerprint(self.stable_prefix_text())
 

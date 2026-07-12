@@ -58,6 +58,14 @@ prefill latency when available, end-to-end latency, input/output tokens, cost,
 and answer-quality gates. Prefix caching is accepted only when quality and
 governance results are unchanged and warm TTFT or input cost improves.
 
+The production LLM seam accepts only the allowlisted provider options
+`prompt_cache_key`, `cache_salt`, and `thinking`. It records their keys and a
+cache-identity hash, never the raw identity. Provider-reported cached input
+tokens flow to `gen_ai.usage.cached_input_tokens`, the standard token-usage
+histogram with token type `cached_input`, and
+`seocho.gen_ai.prompt_cache.request.count`. A missing cached-token field is
+reported as `miss_or_unreported`, not inferred as a confirmed miss.
+
 Do not infer hits from latency alone. API providers may not expose a reliable
 hit field, and prefix caching accelerates prefill rather than output decoding.
 The initial implementation defines and validates the format; live
@@ -70,4 +78,3 @@ through a capability profile instead of forking prompt composition. Stable
 prefix changes are auditable by hash and ontology version. The extra section
 metadata and adapter tests are intentional; a cross-provider lowest-common-
 denominator prompt is rejected because it hides material runtime differences.
-

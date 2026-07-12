@@ -67,6 +67,13 @@ def test_capability_profile_supports_xai_and_unknown_openai_compatible_gateways(
     assert custom["receipt"]["backend"] == "customer-qwen-proxy"
     assert kimi["request"]["prompt_cache_key"] == "session-7"
 
+    sdk_call = spec.render_llm_call(backend="kimi", cache_key="session-7")
+    assert sdk_call["completion_args"]["provider_options"] == {
+        "prompt_cache_key": "session-7"
+    }
+    assert sdk_call["completion_args"]["system"].startswith("Ontology")
+    assert sdk_call["prompt_receipt"]["stable_prefix_hash"]
+
 
 def test_cache_layout_rejects_sensitive_workspace_shared_prefix() -> None:
     spec = _cache_aware_spec()

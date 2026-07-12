@@ -29,7 +29,7 @@ it. Product documentation belongs in `README.md`, `docs/`, or `website/`.
 | `.github/workflows/ci-basic.yml` | `bash scripts/ci/run_basic_ci.sh` | Required SDK/runtime quality gate. |
 | `.github/workflows/docs-consistency.yml` | `bash scripts/ci/check-doc-contracts.sh` | Checks repo-side docs contracts. |
 | `.github/workflows/docs-site-quality.yml` | `cd website && npm run build` plus site checks | Validates the tracked docs site. |
-| `.github/workflows/discord-updates.yml` | n/a | Posts curated updates to Discord after `Basic CI` succeeds on `main`, when a release is published, or when manually dispatched. |
+| `.github/workflows/discord-updates.yml` | n/a | Posts curated updates to Discord only when a release is published or when manually dispatched. |
 | `.github/workflows/triage-metadata.yml` | `python scripts/ci/triage_metadata.py --event <event.json>` | Syncs labels and applies `area-*`, `kind-*`, and `status-*` labels to new or updated issues/PRs. |
 
 If a PR fails here, prefer fixing the source code, docs, or reusable scripts
@@ -62,7 +62,8 @@ SEOCHO also has narrow maintainer-only automation:
   write-or-higher permission
 - docs deployment runs through GitHub Pages when Pages is enabled
 - Discord update notifications require the `DISCORD_WEBHOOK_URL` repository
-  secret and post only curated project updates, not every individual check event
+  secret and post only releases or manually curated project updates, not
+  individual commits or every successful check event
 - release and Discord community operating rules live in
   `docs/RELEASE_AND_COMMUNITY_OPERATIONS.md`
 

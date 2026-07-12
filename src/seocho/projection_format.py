@@ -102,6 +102,21 @@ def table_from_ipc(payload: bytes) -> Any:
         return reader.read_all()
 
 
+def table_to_arrow_file(table: Any) -> bytes:
+    """Encode Arrow file framing for ``apoc.load.arrow(file)``."""
+    pa, _ = _arrow()
+    sink = pa.BufferOutputStream()
+    with pa.ipc.new_file(sink, table.schema) as writer:
+        writer.write_table(table)
+    return sink.getvalue().to_pybytes()
+
+
+def table_from_arrow_file(payload: bytes) -> Any:
+    pa, _ = _arrow()
+    with pa.ipc.open_file(pa.py_buffer(payload)) as reader:
+        return reader.read_all()
+
+
 def write_parquet_artifact(
     table: Any,
     path: Path,
@@ -145,6 +160,8 @@ __all__ = [
     "read_parquet_artifact",
     "rows_to_table",
     "table_from_ipc",
+    "table_from_arrow_file",
     "table_to_ipc",
+    "table_to_arrow_file",
     "write_parquet_artifact",
 ]

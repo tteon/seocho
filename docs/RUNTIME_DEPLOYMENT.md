@@ -356,6 +356,10 @@ needs a live DozerDB to collect real `db_hits` per candidate plan.
 
 ```bash
 docker compose up -d neo4j
+
+# APOC Extended Arrow/Parquet support is installed idempotently before Neo4j.
+# To prefetch or refresh the pinned local plugin artifacts explicitly:
+make apoc-extended
 # wait a few seconds for the bolt port to come up
 ```
 

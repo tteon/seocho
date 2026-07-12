@@ -10,7 +10,7 @@ DOCKER_COMPOSE_OPIK = docker compose -f docker-compose.opik.yml --profile opik
 SHARED_PROJECT = seocho
 SEOCHO_CLI = python3 -m seocho.cli
 
-.PHONY: up up-build up-live down restart logs clean bootstrap shell test test-integration e2e-smoke lint format help observability-up observability-down observability-logs opik-up opik-down opik-logs demo-raw demo-meta demo-neo4j demo-graphrag-opik demo-all setup-env tutorials-up tutorials-down tutorials-logs tutorials-shell tutorials-build tutorials-smoke tutorials-test tutorials-pytest tutorials-gds
+.PHONY: up up-build up-live down restart logs clean bootstrap shell test test-integration e2e-smoke lint format help apoc-extended observability-up observability-down observability-logs opik-up opik-down opik-logs demo-raw demo-meta demo-neo4j demo-graphrag-opik demo-all setup-env tutorials-up tutorials-down tutorials-logs tutorials-shell tutorials-build tutorials-smoke tutorials-test tutorials-pytest tutorials-gds
 
 ##@ Development
 
@@ -30,6 +30,10 @@ bootstrap: ## Bootstrap the development environment
 
 setup-env: ## Interactive .env setup (OpenAI key, Opik, ports)
 	@bash scripts/setup/init-env.sh
+
+apoc-extended: ## Install pinned APOC Extended + Arrow/Parquet dependencies
+	@bash scripts/setup/install-apoc-extended.sh
+	@echo "Restart Neo4j with: docker compose up -d --force-recreate neo4j"
 
 up: ## Start core local stack; or an isolated app tier with INSTANCE=<id>
 ifeq ($(strip $(INSTANCE)),)

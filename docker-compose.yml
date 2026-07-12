@@ -1,5 +1,17 @@
 services:
   # --- Core Local Stack: graph DB + runtime API + thin UI proxy ---
+  apoc-extended-init:
+    image: curlimages/curl:8.10.1
+    user: "${UID:-1000}:${GID:-1000}"
+    environment:
+      APOC_EXTENDED_VERSION: ${APOC_EXTENDED_VERSION:-5.26.4}
+      SEOCHO_NEO4J_PLUGIN_DIR: /plugins
+    entrypoint: ["/bin/sh", "/setup/install-apoc-extended.sh"]
+    volumes:
+      - ./scripts/setup:/setup:ro
+      - ./data/neo4j/plugins:/plugins
+    restart: "no"
+
   neo4j:
     image: graphstack/dozerdb:5.26.3.0
     container_name: graphrag-neo4j
@@ -32,6 +44,9 @@ services:
       start_period: 20s
     networks:
       - graphrag-net
+    depends_on:
+      apoc-extended-init:
+        condition: service_completed_successfully
 
 
   # --- Application Services ---

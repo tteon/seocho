@@ -10,7 +10,9 @@ from seocho.projection_format import (
     PROJECTION_SCHEMA_VERSION,
     read_parquet_artifact,
     rows_to_table,
+    table_from_arrow_file,
     table_from_ipc,
+    table_to_arrow_file,
     table_to_ipc,
     write_parquet_artifact,
 )
@@ -89,6 +91,11 @@ def test_arrow_ipc_is_deterministic_and_sequence_sorted() -> None:
     assert replay.schema.metadata[b"seocho.schema_version"].decode() == PROJECTION_SCHEMA_VERSION
     assert replay.column("sequence").to_pylist() == [1, 2]
     assert table_to_ipc(rows_to_table(reversed(_rows()))) == encoded
+
+    file_encoded = table_to_arrow_file(table)
+    assert file_encoded.startswith(b"ARROW1")
+    assert table_from_arrow_file(file_encoded).equals(table)
+    assert file_encoded != encoded
 
 
 @pytest.mark.skipif(not PYARROW_AVAILABLE, reason="pyarrow optional extra not installed")

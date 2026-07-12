@@ -42,6 +42,8 @@ GitHub issue templates collect the minimum information maintainers need:
 - bug reports: area, reproduction, expected behavior, actual behavior, environment
 - feature requests: problem, proposed shape, acceptance criteria, contribution size
 - docs/examples: confusing surface, suggested improvement, validation command
+- release checklists: version, release type, validation gates, release notes,
+  and `#seocho` Discord announcement draft
 
 The pull request template mirrors the repository PR contract: `Feature`, `Why`,
 `Design`, `Validation`, `Risks / Gaps`, and `Docs`. Maintainers should ask for
@@ -61,6 +63,8 @@ SEOCHO also has narrow maintainer-only automation:
 - docs deployment runs through GitHub Pages when Pages is enabled
 - Discord update notifications require the `DISCORD_WEBHOOK_URL` repository
   secret and post only curated project updates, not every individual check event
+- release and Discord community operating rules live in
+  `docs/RELEASE_AND_COMMUNITY_OPERATIONS.md`
 
 Detailed schedules, required secrets, PR body contracts, and merge safeguards
 are documented in `docs/WORKFLOW.md`.

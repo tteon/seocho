@@ -11,6 +11,8 @@ policy, examples, and docs aligned around that contract.
 3. Read `docs/MODULE_OWNERSHIP_MAP.md` before changing SDK/runtime behavior.
 4. For larger changes, check `docs/WORKFLOW.md` and the relevant ADRs under
    `docs/decisions/`.
+5. For release or public community work, read
+   `docs/RELEASE_AND_COMMUNITY_OPERATIONS.md`.
 
 Coding agents should also follow `AGENTS.md`.
 
@@ -104,6 +106,9 @@ reviewable slices or start with an issue/ADR that explains the rollout plan.
 
 Maintainers make final merge decisions. Automated checks and coding-agent
 reviews are supporting signals, not a replacement for human review.
+
+Release work should use the GitHub `Release checklist` issue template and keep
+`CHANGELOG.md`, release notes, and the `#seocho` Discord announcement aligned.
 
 ## Issues And Labels
 

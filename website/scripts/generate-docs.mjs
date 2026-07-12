@@ -32,7 +32,7 @@ const fileMappings = [
       '---\n\n' +
       '> *Source mirrored from `seocho/docs/WHY_SEOCHO.md`*\n\n',
   },
-    {
+  {
     src: 'docs/README.md',
     dest: 'index.md',
     frontmatter:
@@ -260,6 +260,7 @@ const routeReplacements = new Map([
   ['(BEADS_OPERATING_MODEL.md)', `(${SOURCE_BLOB_BASE}docs/BEADS_OPERATING_MODEL.md)`],
   ['(decisions/DECISION_LOG.md)', `(${SOURCE_BLOB_BASE}docs/decisions/DECISION_LOG.md)`],
   ['(../CONTRIBUTING.md)', `(${SOURCE_BLOB_BASE}CONTRIBUTING.md)`],
+  ['(../website/public/images/docs-core-loop.svg)', '(/images/docs-core-loop.svg)'],
   ['(../examples/agent_designs/)', `(${SOURCE_TREE_BASE}examples/agent_designs)`],
   ['(../examples/indexing_designs/)', `(${SOURCE_TREE_BASE}examples/indexing_designs)`],
   ['(../examples/agent_designs/planning_multi_agent_finance.yaml)', `(${SOURCE_BLOB_BASE}examples/agent_designs/planning_multi_agent_finance.yaml)`],

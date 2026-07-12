@@ -1,77 +1,105 @@
 # SEOCHO Documentation
 
-SEOCHO is ontology-aligned middleware for agents that need graph memory they can
-inspect, govern, and reuse. Read this page as the project map: it explains the
-core loop first, then points you to the smallest useful next document.
+SEOCHO helps agents use graph memory with an explicit ontology contract.
 
-If you are reading on `seocho.blog`, the fastest one-page map is the
-[Concept Guide](https://seocho.blog/learn/).
+This page is the front door. It explains what SEOCHO does, which document to
+read first, and which words matter before you go deeper.
 
-## What SEOCHO Is
+## Start Here
 
-SEOCHO keeps one ontology contract aligned across ingestion, graph writes,
-retrieval, answer synthesis, and runtime APIs.
+| Goal | Read | You are done when |
+|---|---|---|
+| Understand the idea | [Why SEOCHO](WHY_SEOCHO.md) | you can explain ontology-aligned graph memory in one paragraph |
+| Run the smallest example | [Quickstart](../QUICKSTART.md) | you can define one ontology, add text, and ask one question |
+| Use Python directly | [Python SDK](PYTHON_INTERFACE_QUICKSTART.md) | you know when to use local, remote, or explicit backend mode |
+| Bring your own files | [Bring Your Data](APPLY_YOUR_DATA.md) | you know how your records enter the graph |
+| Run a service | [Runtime Deployment](RUNTIME_DEPLOYMENT.md) | you can start the API, UI, and graph services |
+| Contribute | [Open Source Playbook](OPEN_SOURCE_PLAYBOOK.md) | you know how to open a scoped issue or PR |
 
-| Piece | Plain meaning |
-|---|---|
-| Ontology | the allowed entities, relationships, and properties |
-| Indexing | turns raw text or records into graph-shaped facts |
-| Graph memory | stores facts, provenance, constraints, and query evidence |
-| Semantic query | resolves intent against the ontology before generating graph queries |
-| Runtime | exposes the same graph contract over HTTP for agents and apps |
-
-The fastest first run is `Seocho.local(...)`. It does not require Neo4j,
-DozerDB, or a web server. Use the runtime only when another process needs a
-shared API, UI, or deployment boundary.
+If you only have ten minutes, read [Why SEOCHO](WHY_SEOCHO.md), then run the
+[Quickstart](../QUICKSTART.md).
 
 ## The Core Loop
 
-```text
-ontology
-  -> ingest records or documents
-  -> extract graph facts that fit the ontology
-  -> write graph state with provenance
-  -> ask ontology-aware questions
-  -> inspect traces, artifacts, and evidence
+SEOCHO keeps the same ontology contract across ingestion, graph writes,
+retrieval, answer synthesis, and runtime APIs.
+
+![SEOCHO core loop](../website/public/images/docs-core-loop.svg)
+
+In plain terms:
+
+| Step | What happens | What you can inspect |
+|---|---|---|
+| Define ontology | Name the allowed entities, relationships, and properties. | ontology file or Python object |
+| Ingest data | Load text, records, or files. | input files and run config |
+| Shape graph facts | Extract entities and relationships that fit the ontology. | graph payloads and validation notes |
+| Query graph memory | Ask questions with schema-aware retrieval. | Cypher, evidence, and traces |
+| Improve the contract | Review failures, add rules, and rerun. | artifacts, reports, and PRs |
+
+Everything else in the repository exists to make this loop repeatable,
+observable, or deployable.
+
+## Quick Vocabulary
+
+| Term | Meaning here | Simple example |
+|---|---|---|
+| Ontology | The schema the agent must respect. | `Person WORKS_AT Company` |
+| Graph memory | Stored facts plus provenance and constraints. | who said a fact, where it came from, and how it links |
+| Indexing | Turning documents into graph-shaped facts. | extracting companies, incidents, controls, and relationships |
+| Semantic query | Resolving intent before generating a graph query. | mapping "risk owner" to the right node and relation |
+| Runtime | The HTTP service for shared usage. | an app or agent calls SEOCHO instead of local Python |
+| Artifact | A generated file you can review. | trace, rule profile, report, or graph export |
+
+## Choose A Path
+
+| Reader | Best first path |
+|---|---|
+| New user | [Quickstart](../QUICKSTART.md) -> [Python SDK](PYTHON_INTERFACE_QUICKSTART.md) |
+| Data or RAG builder | [Bring Your Data](APPLY_YOUR_DATA.md) -> [Run Specs](RUN_SPECS.md) |
+| Agent developer | [Python SDK](PYTHON_INTERFACE_QUICKSTART.md) -> [Files and Artifacts](FILES_AND_ARTIFACTS.md) |
+| Operator | [Runtime Deployment](RUNTIME_DEPLOYMENT.md) -> [Workflow](WORKFLOW.md) |
+| Contributor | [Open Source Playbook](OPEN_SOURCE_PLAYBOOK.md) -> [Issue Task System](ISSUE_TASK_SYSTEM.md) |
+| Maintainer | [Release And Community Operations](RELEASE_AND_COMMUNITY_OPERATIONS.md) -> [Decision Log](decisions/DECISION_LOG.md) |
+
+## First Local Success
+
+The fastest path is local. It does not require Neo4j, DozerDB, Docker, or a
+web server.
+
+```bash
+uv pip install "seocho[local]"
 ```
 
-That loop is the product. Everything else in the repository exists to make the
-loop more repeatable, observable, or deployable.
+Then run the quickstart from a checkout:
 
-## Choose Your Path
+```bash
+export MARA_API_KEY=...
+uv run python examples/finance-compliance/quickstart.py --llm mara/MiniMax-M2.5
+```
 
-| If you want to... | Start here | Stop when you can... |
+Use the runtime later, when another process needs the same graph contract over
+HTTP.
+
+## Document Map
+
+| Area | Documents |
+|---|---|
+| Product idea | [Why SEOCHO](WHY_SEOCHO.md), [Philosophy](PHILOSOPHY.md), [Architecture](ARCHITECTURE.md) |
+| Getting started | [Quickstart](../QUICKSTART.md), [Python SDK](PYTHON_INTERFACE_QUICKSTART.md), [Bring Your Data](APPLY_YOUR_DATA.md) |
+| Repeatable runs | [Run Specs](RUN_SPECS.md), [Tutorial First Run](TUTORIAL_FIRST_RUN.md), [Files and Artifacts](FILES_AND_ARTIFACTS.md) |
+| Operations | [Runtime Deployment](RUNTIME_DEPLOYMENT.md), [Workflow](WORKFLOW.md), [Release And Community Operations](RELEASE_AND_COMMUNITY_OPERATIONS.md) |
+| Open source work | [Open Source Playbook](OPEN_SOURCE_PLAYBOOK.md), [Issue Task System](ISSUE_TASK_SYSTEM.md), [Contributing](../CONTRIBUTING.md) |
+
+## Common Questions
+
+| Question | Short answer | Read next |
 |---|---|---|
-| understand why SEOCHO exists | [Why SEOCHO](WHY_SEOCHO.md) | explain ontology-first graph memory in one paragraph |
-| get a first local success | [Quickstart](../QUICKSTART.md) | define one ontology, add text, ask one question |
-| use the Python SDK | [Python SDK](PYTHON_INTERFACE_QUICKSTART.md) | choose local, remote, or explicit backend mode |
-| load your own records or files | [Bring Your Data](APPLY_YOUR_DATA.md) | pick an ingest path and target graph |
-| run the platform stack | [Runtime Deployment](RUNTIME_DEPLOYMENT.md) | start UI, API, and graph services locally |
-| describe repeatable runs in YAML | [Run Specs](RUN_SPECS.md) | declare ontology, documents, questions, and sweeps |
-| contribute publicly | [Open Source Playbook](OPEN_SOURCE_PLAYBOOK.md) | open a scoped issue or PR with validation evidence |
-
-## Read In Order
-
-New users should not read the repository tree top to bottom. Use this sequence:
-
-1. [Why SEOCHO](WHY_SEOCHO.md)
-2. [Quickstart](../QUICKSTART.md)
-3. [Python SDK](PYTHON_INTERFACE_QUICKSTART.md)
-4. [Bring Your Data](APPLY_YOUR_DATA.md)
-5. [Files and Artifacts](FILES_AND_ARTIFACTS.md)
-6. [Architecture](ARCHITECTURE.md)
-
-## Concept Map
-
-| Concept | What to remember | Read next |
-|---|---|---|
-| Ontology contract | one schema-like object should guide extraction and querying | [Why SEOCHO](WHY_SEOCHO.md) |
-| Embedded local path | use `Seocho.local(...)` for first success and experiments | [Quickstart](../QUICKSTART.md) |
-| Explicit graph backend | use Neo4j or DozerDB when graph state must be shared or inspected externally | [Python SDK](PYTHON_INTERFACE_QUICKSTART.md) |
-| Runtime shell | HTTP boundary for UI, policy, traces, and multi-agent consumers | [Runtime Deployment](RUNTIME_DEPLOYMENT.md) |
-| Run spec | YAML declaration for repeatable ontology, document, model, and question runs | [Run Specs](RUN_SPECS.md) |
-| Evidence and traces | generated files should make graph behavior auditable | [Files and Artifacts](FILES_AND_ARTIFACTS.md) |
-| Debate mode | advanced comparison mode, not the default retrieval path | [Python SDK](PYTHON_INTERFACE_QUICKSTART.md) |
+| Do I need a graph database for hello world? | No. Start with the embedded local path. | [Quickstart](../QUICKSTART.md) |
+| When should I use the runtime? | When another app or agent needs a shared HTTP boundary. | [Runtime Deployment](RUNTIME_DEPLOYMENT.md) |
+| What does the ontology control? | It guides extraction, validation, graph writes, retrieval, and answers. | [Why SEOCHO](WHY_SEOCHO.md) |
+| Where do generated files go? | SEOCHO writes reviewable artifacts such as traces, reports, and profiles. | [Files and Artifacts](FILES_AND_ARTIFACTS.md) |
+| Is debate mode the default? | No. Start with semantic graph QA. Use debate for explicit comparison. | [Python SDK](PYTHON_INTERFACE_QUICKSTART.md) |
+| How do GitHub, Ghost, and Discord fit together? | GitHub is source of truth, Ghost is the public archive, Discord is real-time discussion. | [Release And Community Operations](RELEASE_AND_COMMUNITY_OPERATIONS.md) |
 
 ## System Surfaces
 
@@ -85,56 +113,17 @@ New users should not read the repository tree top to bottom. Use this sequence:
 | Examples | `examples/` | what should a real user copy first? |
 | Docs and governance | `docs/` | what contract should future contributors preserve? |
 
-## Common Questions
+## Deeper References
 
-| Question | Short answer | Read next |
-|---|---|---|
-| Do I need Neo4j or DozerDB for hello world? | No. `Seocho.local(...)` uses the embedded local path by default. | [Quickstart](../QUICKSTART.md) |
-| When should I use the runtime? | When another process or agent needs the same graph contract over HTTP. | [Runtime Deployment](RUNTIME_DEPLOYMENT.md) |
-| Where do generated artifacts go? | Local graph data, semantic artifacts, rule profiles, and traces are filesystem-visible. | [Files and Artifacts](FILES_AND_ARTIFACTS.md) |
-| Is debate the default mode? | No. Start with semantic graph QA and use debate only for explicit comparison work. | [Python SDK](PYTHON_INTERFACE_QUICKSTART.md) |
-| Where are release and community rules? | GitHub is the source of truth, Ghost is the public archive/editorial surface, and Discord is for real-time community discussion. | [Release And Community Operations](RELEASE_AND_COMMUNITY_OPERATIONS.md) |
+Use these after the first local success:
 
-## Builder References
-
-- [Run Specs](RUN_SPECS.md): declare ontology, documents, questions, and sweeps in YAML.
-- [Tutorial First Run](TUTORIAL_FIRST_RUN.md): end-to-end local runtime tutorial.
-- [Agent Design Specs](AGENT_DESIGN_SPECS.md): YAML-backed agent patterns with ontology bindings.
-- [Indexing Design Specs](INDEXING_DESIGN_SPECS.md): graph-model-aware indexing variants.
-- [Benchmarks](BENCHMARKS.md): FinDER and GraphRAG benchmark tracks.
-
-## Architecture And Operations
-
-- [Architecture](ARCHITECTURE.md): system architecture and module map.
-- [Workflow](WORKFLOW.md): canonical development and operations workflow.
-- [Graph-RAG Agent Handoff Spec](GRAPH_RAG_AGENT_HANDOFF_SPEC.md): intent-first graph answer contract.
-- [Repository Layout](REPOSITORY_LAYOUT.md): root directory intent and canonical edit surfaces.
-- [GitHub Automation](GITHUB_AUTOMATION.md): CI, docs deploy, labels, Discord, and maintainer automation.
-- [Release And Community Operations](RELEASE_AND_COMMUNITY_OPERATIONS.md): release gates and the GitHub/Ghost/Discord community operating model.
-
-## Contributor References
-
-- [Open Source Playbook](OPEN_SOURCE_PLAYBOOK.md): contributor onboarding.
-- [Issue Task System](ISSUE_TASK_SYSTEM.md): public issue and task metadata.
-- [Decision Log](decisions/DECISION_LOG.md): architecture decision history.
-- [Contributing](../CONTRIBUTING.md): PR and contribution flow.
-
-## Internal And Maintainer Docs
-
-These are useful after you know the product path. They are not part of the
-first-read sequence.
-
-- [Architecture Health](ARCHITECTURE_HEALTH.md)
-- [Internal Class Design](INTERNAL_CLASS_DESIGN.md)
-- [Runtime Package Migration](RUNTIME_PACKAGE_MIGRATION.md)
-- [Repository Hierarchy Review](REPOSITORY_HIERARCHY_REVIEW.md)
-- [Philosophy Feasibility Review](PHILOSOPHY_FEASIBILITY_REVIEW.md)
-
-Historical plans, resolved risk registers, and discussion memos live in
-[Archive](archive/README.md). Advanced design references live in
-[Reference Docs](reference/README.md). Maintainer-only guidance lives in
-[Maintainer Docs](maintainers/README.md). Experiment-specific material lives
-under `docs/experiments/`.
+| Topic | Reference |
+|---|---|
+| Architecture details | [Architecture](ARCHITECTURE.md), [Graph-RAG Agent Handoff Spec](GRAPH_RAG_AGENT_HANDOFF_SPEC.md) |
+| Repository shape | [Repository Layout](REPOSITORY_LAYOUT.md), [Workflow](WORKFLOW.md) |
+| Automation | [GitHub Automation](GITHUB_AUTOMATION.md), [Release And Community Operations](RELEASE_AND_COMMUNITY_OPERATIONS.md) |
+| Design history | [Decision Log](decisions/DECISION_LOG.md), [Reference Docs](reference/README.md) |
+| Historical material | [Archive](archive/README.md), [Maintainer Docs](maintainers/README.md) |
 
 ## Docs Site Integration
 
@@ -142,13 +131,9 @@ under `docs/experiments/`.
 - `docs/*` is the source of truth for long-form product, operator, and system
   contracts.
 - `website/` is the tracked Astro/Starlight source app in this repository.
-- Current live deployment for `https://seocho.blog` is still owned by
-  `tteon/tteon.github.io` GitHub Pages until Pages is enabled on `tteon/seocho`.
 - `website/scripts/generate-docs.mjs` materializes selected `/docs/*` and
   `/blog/*` pages from repo-root source docs for the in-repo site app.
-- the `scripts/sync.mjs` helper in `tteon/tteon.github.io` mirrors selected
-  source docs into the live GitHub Pages repository.
 - Generated mirror files under `website/src/content/docs/docs/` are derived
-  site artifacts and should stay reproducible from repo-root docs. Do not edit
-  them by hand; regenerate them when source docs change.
-- Validate the site with `cd website && npm ci && npm run check:docs && npm run build && bash scripts/check-built-links.sh`.
+  site artifacts. Do not edit them by hand; regenerate them when source docs
+  change.
+- Validate the site with `cd website && npm run check:docs && npm run build`.

@@ -28,7 +28,8 @@ it. Product documentation belongs in `README.md`, `docs/`, or `website/`.
 |---|---|---|
 | `.github/workflows/ci-basic.yml` | `bash scripts/ci/run_basic_ci.sh` | Required SDK/runtime quality gate. |
 | `.github/workflows/docs-consistency.yml` | `bash scripts/ci/check-doc-contracts.sh` | Checks repo-side docs contracts. |
-| `.github/workflows/docs-site-quality.yml` | `cd website && npm run build` plus site checks | Validates the tracked docs site. |
+| `.github/workflows/docs-site-quality.yml` | `cd website && npm run build` plus site checks | Validates the tracked docs site and the live `seocho.blog` mirror contract. |
+| `.github/workflows/docs-website-sync-dispatch.yml` | n/a | Dispatches the `tteon/tteon.github.io` mirror sync after docs changes land on `main` when `SEOCHO_BLOG_SYNC_TOKEN` is configured. |
 | `.github/workflows/discord-updates.yml` | n/a | Posts curated updates to Discord only when a release is published or when manually dispatched. |
 | `.github/workflows/triage-metadata.yml` | `python scripts/ci/triage_metadata.py --event <event.json>` | Syncs labels and applies `area-*`, `kind-*`, and `status-*` labels to new or updated issues/PRs. |
 
@@ -61,6 +62,9 @@ SEOCHO also has narrow maintainer-only automation:
 - comment-based merge accepts only the exact `/go` command from maintainers with
   write-or-higher permission
 - docs deployment runs through GitHub Pages when Pages is enabled
+- live `seocho.blog` mirror sync is owned by `tteon/tteon.github.io`; this
+  repository only preflights the presentation contract and dispatches sync
+  after source docs land
 - Discord update notifications require the `DISCORD_WEBHOOK_URL` repository
   secret and post only releases or manually curated project updates, not
   individual commits or every successful check event

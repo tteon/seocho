@@ -46,3 +46,53 @@ jobs:
       - name: Check built internal links
         working-directory: website
         run: bash scripts/check-built-links.sh
+
+  seocho-blog-contract:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout seocho source
+        uses: actions/checkout@v4
+        with:
+          path: seocho
+
+      - name: Checkout seocho.blog site
+        uses: actions/checkout@v4
+        with:
+          repository: tteon/tteon.github.io
+          path: seocho-blog
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: seocho-blog/package-lock.json
+
+      - name: Install seocho.blog dependencies
+        working-directory: seocho-blog
+        run: npm ci
+
+      - name: Render seocho.blog mirrors from this PR
+        working-directory: seocho-blog
+        env:
+          SEOCHO_SOURCE_REPO: ${{ github.workspace }}/seocho
+        run: node scripts/sync.mjs
+
+      - name: Check mirrored docs contract
+        working-directory: seocho-blog
+        env:
+          SEOCHO_SOURCE_REPO: ${{ github.workspace }}/seocho
+        run: npm run check:sync
+
+      - name: Run seocho.blog docs checks
+        working-directory: seocho-blog
+        run: npm run check:docs
+
+      - name: Build seocho.blog
+        working-directory: seocho-blog
+        run: npm run build:ci
+
+      - name: Check seocho.blog built internal links
+        working-directory: seocho-blog
+        run: bash scripts/check-built-links.sh

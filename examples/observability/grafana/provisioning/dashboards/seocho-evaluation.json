@@ -119,7 +119,7 @@
       "gridPos": {"h": 6, "w": 6, "x": 0, "y": 24},
       "id": 11,
       "options": {"colorMode": "background", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
-      "targets": [{"expr": "seocho_evaluation_query_accuracy_ratio", "legendFormat": "{{cohort}}", "refId": "A"}],
+      "targets": [{"expr": "max by (cohort) (last_over_time(seocho_evaluation_query_accuracy_ratio[24h]))", "legendFormat": "{{cohort}}", "refId": "A"}],
       "title": "Customer query routing accuracy",
       "type": "stat"
     },
@@ -129,7 +129,7 @@
       "gridPos": {"h": 6, "w": 6, "x": 6, "y": 24},
       "id": 12,
       "options": {"colorMode": "background", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
-      "targets": [{"expr": "seocho_evaluation_context_reduction_ratio", "legendFormat": "{{strategy}}", "refId": "A"}],
+      "targets": [{"expr": "max by (strategy) (last_over_time(seocho_evaluation_context_reduction_ratio[24h]))", "legendFormat": "{{strategy}}", "refId": "A"}],
       "title": "Context input reduction",
       "type": "stat"
     },
@@ -139,7 +139,7 @@
       "gridPos": {"h": 6, "w": 6, "x": 12, "y": 24},
       "id": 13,
       "options": {"cellHeight": "sm", "showHeader": true},
-      "targets": [{"expr": "seocho_evaluation_scenario_status_ratio", "format": "table", "instant": true, "legendFormat": "", "refId": "A"}],
+      "targets": [{"expr": "max by (scenario_id, status) (last_over_time(seocho_evaluation_scenario_status_ratio[24h]))", "format": "table", "instant": true, "legendFormat": "", "refId": "A"}],
       "title": "S2-S10 evaluation status",
       "type": "table"
     },
@@ -149,7 +149,7 @@
       "gridPos": {"h": 6, "w": 6, "x": 18, "y": 24},
       "id": 14,
       "options": {"cellHeight": "sm", "showHeader": true},
-      "targets": [{"expr": "seocho_evaluation_capability_status_ratio", "format": "table", "instant": true, "legendFormat": "", "refId": "A"}],
+      "targets": [{"expr": "max by (capability, status) (last_over_time(seocho_evaluation_capability_status_ratio[24h]))", "format": "table", "instant": true, "legendFormat": "", "refId": "A"}],
       "title": "Capability gates",
       "type": "table"
     },
@@ -218,7 +218,7 @@
   "schemaVersion": 41,
   "tags": ["seocho", "agent-memory", "governance", "okx"],
   "templating": {"list": []},
-  "time": {"from": "now-15m", "to": "now"},
+  "time": {"from": "now-24h", "to": "now"},
   "timepicker": {},
   "timezone": "browser",
   "title": "SEOCHO Evaluation",

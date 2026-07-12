@@ -358,7 +358,7 @@ and capability-gated rows remain engineering work, not inferred evidence.
 - Live Tempo verification: one `evaluation.run` root and seven child
   `evaluation.scenario` spans were retained under service `seocho-evaluation`;
   the separate live execution trace is recorded in E-008.
-- Grafana Evaluation dashboard version 9 contains twenty panels, including
+- Grafana Evaluation dashboard version 10 contains twenty panels, including
   customer routing accuracy, context input reduction, S2-S10 status, and
   capability gates, diverse-dataset quality, hybrid intent accuracy, and an
   embedded Tempo live-run table. Remote path:
@@ -367,6 +367,14 @@ and capability-gated rows remain engineering work, not inferred evidence.
   instance that mounted only its datasource, not repository dashboards. The
   updated dashboard was therefore safely overwritten through the authenticated
   local Grafana API; repository Compose remains the reproducible source.
+- A second runtime-drift audit found that the manually created datasources had
+  generated UIDs while repository dashboards reference canonical UIDs
+  `prometheus` and `tempo`. This made every panel appear empty despite healthy
+  backends. Canonical-UID datasources were added, both health checks returned
+  `OK`, and a Grafana `/api/ds/query` request returned the expected v4 values.
+  Dashboard version 10 also uses 24-hour `last_over_time` for one-shot
+  evaluation snapshots, preventing them from disappearing after Prometheus's
+  short instant-query lookback.
 
 ### E-016 — Customer-query bulk and answer execution
 

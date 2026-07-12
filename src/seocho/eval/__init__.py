@@ -28,7 +28,14 @@ from .benchmark import (
     compute_run_summary,
     load_jsonl_spans,
 )
-from .plan_audit import PlanAudit, PlanComparison, PlanOperator, audit_profile, compare_plans
+from .plan_audit import (
+    PlanAudit,
+    PlanComparison,
+    PlanOperator,
+    audit_profile,
+    compare_plans,
+    emit_plan_comparison_metrics,
+)
 
 __all__ = [
     "BenchmarkCorpus",
@@ -43,4 +50,5 @@ __all__ = [
     "PlanOperator",
     "audit_profile",
     "compare_plans",
+    "emit_plan_comparison_metrics",
 ]

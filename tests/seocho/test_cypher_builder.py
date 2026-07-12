@@ -181,6 +181,24 @@ def test_builder_derives_schema_hints_from_question_and_namespace() -> None:
     assert "Allowed typed expansions" in rendered
 
 
+def test_path_template_preserves_typed_optimization_hints() -> None:
+    builder = CypherBuilder(_finance_ontology())
+    cypher, params = builder.build(
+        intent="path",
+        anchor_entity="CBOE",
+        anchor_label="Company",
+        target_entity="Revenue",
+        target_label="FinancialMetric",
+        relationship_type="REPORTED",
+        workspace_id="finance",
+    )
+    assert "(a:`Company`)" in cypher
+    assert "[:`REPORTED`*..4]" in cypher
+    assert "(b:`FinancialMetric`)" in cypher
+    assert "all(n IN nodes(path)" in cypher
+    assert params["workspace_id"] == "finance"
+
+
 def test_builder_uses_schema_hints_when_labels_and_relationship_are_missing() -> None:
     builder = CypherBuilder(_finance_ontology())
 

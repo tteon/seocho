@@ -164,10 +164,41 @@ def compare_plans(
     )
 
 
+def emit_plan_comparison_metrics(
+    comparison: PlanComparison,
+    *,
+    cohort: str,
+) -> None:
+    """Emit only bounded aggregate dimensions; detailed plans belong in traces."""
+
+    from ..metrics import get_metrics
+
+    metrics = get_metrics()
+    if comparison.semantic_parity:
+        metrics.record(
+            "seocho.query.plan.speedup", comparison.speedup, {"cohort": cohort}
+        )
+        metrics.record(
+            "seocho.query.plan.db_hits_reduction",
+            max(0.0, comparison.db_hits_reduction),
+            {"cohort": cohort},
+        )
+    for variant, audit in (
+        ("baseline", comparison.baseline),
+        ("candidate", comparison.candidate),
+    ):
+        for finding in audit.findings:
+            metrics.add(
+                "seocho.query.plan.finding.count",
+                attributes={"variant": variant, "finding": finding},
+            )
+
+
 __all__ = [
     "PlanAudit",
     "PlanComparison",
     "PlanOperator",
     "audit_profile",
     "compare_plans",
+    "emit_plan_comparison_metrics",
 ]

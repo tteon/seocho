@@ -568,12 +568,28 @@ class CypherBuilder:
             },
         )
 
-    def _path(self, from_entity: str, to_entity: str, workspace_id: str, limit: int) -> Tuple[str, Dict[str, Any]]:
+    def _path(
+        self,
+        from_entity: str,
+        to_entity: str,
+        workspace_id: str,
+        limit: int,
+        *,
+        anchor_label: str = "",
+        target_label: str = "",
+        relationship_type: str = "",
+        max_hops: int = 4,
+    ) -> Tuple[str, Dict[str, Any]]:
+        a_label = f":{quote_identifier(anchor_label)}" if anchor_label else ""
+        b_label = f":{quote_identifier(target_label)}" if target_label else ""
+        rel_name = self._rel_name(relationship_type) if relationship_type else ""
+        rel_clause = f":{quote_identifier(rel_name)}" if rel_name else ""
+        bounded_hops = max(1, min(int(max_hops), 4))
         return (
-            "MATCH path = shortestPath((a)-[*..5]-(b))\n"
+            f"MATCH path = shortestPath((a{a_label})-[{rel_clause}*..{bounded_hops}]-(b{b_label}))\n"
             "WHERE toLower(coalesce(a.name, a.uri, '')) CONTAINS toLower($from_e)\n"
             "  AND toLower(coalesce(b.name, b.uri, '')) CONTAINS toLower($to_e)\n"
-            "  AND ($workspace_id = '' OR (coalesce(a._workspace_id, '') = $workspace_id AND coalesce(b._workspace_id, '') = $workspace_id))\n"
+            "  AND ($workspace_id = '' OR all(n IN nodes(path) WHERE coalesce(n._workspace_id, '') = $workspace_id))\n"
             "RETURN [n IN nodes(path) | coalesce(n.name, n.uri)] AS nodes,\n"
             "       [r IN relationships(path) | type(r)] AS relationships\n"
             "LIMIT $limit",

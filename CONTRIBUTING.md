@@ -14,13 +14,34 @@ policy, examples, and docs aligned around that contract.
 
 Coding agents should also follow `AGENTS.md`.
 
+## First PR In 10 Minutes
+
+If you are new, start with a small docs, example, test, or error-message PR.
+The fastest low-risk loop is:
+
+```bash
+uv sync --extra ci
+uv run pytest tests/seocho/test_run_spec.py -q
+bash scripts/ci/run_basic_ci.sh
+```
+
+Good first contributions usually live in:
+
+- `README.md`, `QUICKSTART.md`, or focused `docs/*` wording
+- `examples/run/` run specs and small example datasets
+- narrow tests under `tests/seocho/`
+- clear error messages, validation messages, or onboarding fixes
+
+Avoid starting with broad runtime/query refactors unless there is already an
+issue or maintainer discussion that names the acceptance criteria.
+
 ## Local Setup
 
 ```bash
 git clone git@github.com:tteon/seocho.git
 cd seocho
-pip install -e ".[dev]"
-python -m pytest tests/seocho/ -q
+uv sync --extra dev
+uv run pytest tests/seocho/ -q
 ```
 
 The canonical CI command is:
@@ -70,8 +91,33 @@ home for new product behavior.
 6. Use a conventional commit prefix such as `feat:`, `fix:`, `docs:`,
    `refactor:`, `test:`, or `chore:`.
 
+PRs should usually fit one of these review lanes:
+
+| Lane | Best for | Expected validation |
+|---|---|---|
+| `docs/example` | docs wording, quickstarts, examples, run specs | docs contract or example-specific command |
+| `behavior` | SDK/runtime behavior, public models, query/indexing logic | focused tests plus relevant CI gate |
+| `architecture` | new public surface, package boundary, runtime contract, ADR-backed work | ADR or decision note plus broad validation |
+
+Prefer PRs around a few hundred changed lines. Larger work should be split into
+reviewable slices or start with an issue/ADR that explains the rollout plan.
+
 Maintainers make final merge decisions. Automated checks and coding-agent
 reviews are supporting signals, not a replacement for human review.
+
+## Issues And Labels
+
+Use the GitHub issue templates for bug reports, feature requests, and
+docs/examples. Maintainers should label public work with the issue metadata
+already used by SEOCHO:
+
+- `area-*`: `sdk`, `runtime`, `query`, `indexing`, `ontology`, `docs`, `examples`, `ci`
+- `kind-*`: `bug`, `feature`, `docs`, `refactor`, `test`, `ci`
+- `urgency-*`: `now`, `this_sprint`, `next_sprint`, `later`
+- `impact-*` and `sev-*`: `critical`, `high`, `medium`, `low`
+
+Use `good first issue` only for items that can be solved without understanding
+the runtime migration, semantic query internals, or private benchmark data.
 
 ## Automation And AI-Assisted Work
 

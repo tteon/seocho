@@ -11,8 +11,6 @@ RUN uv pip install --system --no-cache -r /tmp/extraction-requirements.txt
 COPY extraction/ /app/
 COPY runtime/ /app/runtime/
 COPY src/seocho/ /app/seocho/
-COPY examples/labs/legacy/ /app/notebooks/
-COPY examples/demos/ /app/demos/
 
 RUN chmod +x /app/entrypoint.sh
 

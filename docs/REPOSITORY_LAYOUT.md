@@ -62,10 +62,8 @@ and must not be tracked as part of the public GitHub surface.
 | Path | Status | Notes |
 |---|---|---|
 | `tutorials/` | Curated learning track | Self-contained, infrastructure-free guided notebooks (one capability each), with cached artifacts for reproducibility. Narrower and more opinionated than `examples/`. |
-| `examples/` | Canonical hub | Preferred home for runnable notebooks, datasets, demos, and example configs. |
+| `examples/` | Canonical hub | Preferred home for runnable notebooks, run specs, datasets, and focused example configs. |
 | `examples/datasets/` | Active reference | Small tracked datasets used by tutorials, smoke tests, and documented benchmark samples. |
-| `examples/demos/` | Active reference | Demo scripts and tracing examples; useful for targeted walkthroughs, not the primary docs path. |
-| `examples/labs/legacy/` | Legacy | Older exploratory notebooks retained for reference; do not add new onboarding notebooks here. |
 | `examples/teaching/` | Active reference | Longer-form teaching/course material. |
 | `docs/assets/` | Active reference | README/docs images and other public documentation assets. |
 | `docs/ontology/` | Active reference | Ontology guidance documents that are not executable examples. |
@@ -107,11 +105,13 @@ layout.
 
 - Put distributable SDK code under `src/seocho/`; do not reintroduce a root
   `seocho/` package.
-- Put new runnable notebooks, datasets, demos, and sample configs under `examples/`.
+- Put new runnable notebooks, run specs, datasets, and focused sample configs
+  under `examples/`.
 - Put documentation images under `docs/assets/`, not root `images/`.
 - Put ontology guidance under `docs/ontology/`, not root `ontology/`.
-- Keep exploratory or deprecated notebook material under `examples/labs/legacy/`,
-  not as new repo-root directories.
+- Do not track exploratory or deprecated notebook material. Keep scratch work in
+  ignored local artifact paths, or promote it to `examples/` with a clear README
+  and validation path.
 - Put shared contributor automation under `scripts/`.
 - Put GitHub-hosted workflows and Codex workflow prompts under `.github/`; put
   reusable workflow helper scripts under `scripts/`.

@@ -154,6 +154,32 @@ with their provenance, limitation, and reproducible artifact.
 - Privacy: prompt/evidence bodies are disabled by default; telemetry carries
   bounded hashes, versions, counts, and outcomes.
 
+### E-009 — Strict public-chain-to-answer release gate
+
+`tags: [live-api, bitcoin-mainnet, ofac, long-term-memory, query-compiler, guardrail, mara, model-fallback]`
+
+- Source: live OFAC SDN XML (518 XBT labels) and Blockstream Bitcoin mainnet;
+  the bounded run fetched two confirmed transactions and derived 102 events
+  across two blocks. Reports retain only an opaque wallet hash.
+- Memory/query result: 102 events and outbox entries, two replayed blocks were
+  idempotent no-ops, projection was current, and six queries compiled through
+  the approved bounded recipe. No raw address entered the LLM cases.
+- Primary model finding: MiniMax-M2.7 at concurrency 3 produced valid answers
+  for 3/6 cases and repeated `StructuredOutputError` for the same three cases
+  after one retry. The new strict gate correctly failed instead of returning a
+  misleading successful process status.
+- Fallback result: MARA `gpt-oss-120b` passed 6/6 without retry; disposition
+  accuracy and provenance coverage were 100%, disclosure leakage was zero, and
+  LLM p95 was 4,183.5 ms.
+- Engineering benefit: provider/model portability is now an availability
+  mechanism with an explicit quality gate, not an assumption that every
+  OpenAI-compatible model implements structured output identically.
+- Passing artifact SHA-256: `179368b3d5b6c46bc1ad2f3757791311ee6d16870e296d30cc834fc3e40c2dca`.
+- Failed-primary artifact SHA-256: `a971768cd6b03e127fd241a7cbe82934922fc363b7fa1d8ec91e7c25296fccc3`.
+- Limitation: this public labelled seed has only two transactions; sustained
+  scale is established separately by synthetic blockchain-shaped workloads
+  and must not be presented as public-chain volume.
+
 ## Current engineering decisions
 
 1. PostgreSQL remains authoritative; DozerDB is disposable and replayable.

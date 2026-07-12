@@ -131,11 +131,12 @@ async def run_async(
     concurrency: int,
     rounds: int,
     output: Path | None,
+    max_attempts: int = 2,
 ) -> dict[str, Any]:
     """Run repeated cases with bounded async concurrency against Mara."""
 
-    if concurrency < 1 or rounds < 1:
-        raise ValueError("concurrency and rounds must be positive")
+    if concurrency < 1 or rounds < 1 or max_attempts < 1:
+        raise ValueError("concurrency, rounds, and max_attempts must be positive")
     cases = _load(dataset)[:limit] * rounds
     if not os.environ.get("MARA_API_KEY"):
         report = {
@@ -156,43 +157,50 @@ async def run_async(
     async def one(case: dict[str, Any]) -> dict[str, Any]:
         async with semaphore:
             started = time.perf_counter()
-            try:
-                response = await backend.acomplete(
-                    system=TRANSACTION_RISK_PREFLIGHT.prompt.template,
-                    user=_prompt(case),
-                    temperature=0.0,
-                    max_tokens=500,
-                    response_format={"type": "json_object"},
-                    task_hint="risk_preflight_explanation",
-                    mode="pipeline",
-                    model=model,
-                )
-                parsed = _object_payload(response.json())
-                parse_error = ""
-                text = json.dumps(parsed, ensure_ascii=False)
-                leakage = tuple(
-                    field for field in case["expected"]["must_not_reveal"] if field in text
-                )
-                provenance = parsed.get("provenance_ids") or []
-                if isinstance(provenance, str):
-                    provenance = [provenance]
-                provenance_ok = case["expected"]["required_provenance"] in provenance
-                return {
-                    "id": case["id"],
-                    "disposition_ok": parsed.get("disposition")
-                    == case["expected"]["disposition"],
-                    "provenance_ok": provenance_ok,
-                    "leaked_fields": leakage,
-                    "parse_error": parse_error,
-                    "completion_hash": hashlib.sha256(response.text.encode()).hexdigest()[:16],
-                    "latency_ms": round((time.perf_counter() - started) * 1000, 2),
-                }
-            except Exception as exc:
-                return {
-                    "id": case["id"],
-                    "error": type(exc).__name__,
-                    "latency_ms": round((time.perf_counter() - started) * 1000, 2),
-                }
+            errors = []
+            for attempt in range(1, max_attempts + 1):
+                try:
+                    response = await backend.acomplete(
+                        system=TRANSACTION_RISK_PREFLIGHT.prompt.template,
+                        user=_prompt(case),
+                        temperature=0.0,
+                        max_tokens=500,
+                        response_format={"type": "json_object"},
+                        task_hint="risk_preflight_explanation",
+                        mode="pipeline",
+                        model=model,
+                    )
+                    parsed = _object_payload(response.json())
+                    text = json.dumps(parsed, ensure_ascii=False)
+                    leakage = tuple(
+                        field
+                        for field in case["expected"]["must_not_reveal"]
+                        if field in text
+                    )
+                    provenance = parsed.get("provenance_ids") or []
+                    if isinstance(provenance, str):
+                        provenance = [provenance]
+                    return {
+                        "id": case["id"],
+                        "disposition_ok": parsed.get("disposition")
+                        == case["expected"]["disposition"],
+                        "provenance_ok": case["expected"]["required_provenance"]
+                        in provenance,
+                        "leaked_fields": leakage,
+                        "parse_error": "",
+                        "completion_hash": hashlib.sha256(response.text.encode()).hexdigest()[:16],
+                        "attempts": attempt,
+                        "latency_ms": round((time.perf_counter() - started) * 1000, 2),
+                    }
+                except Exception as exc:  # provider reliability is part of the result
+                    errors.append(type(exc).__name__)
+            return {
+                "id": case["id"],
+                "error": errors[-1],
+                "attempt_errors": errors,
+                "attempts": max_attempts,
+                "latency_ms": round((time.perf_counter() - started) * 1000, 2),
+            }
 
     rows = list(await asyncio.gather(*(one(case) for case in cases)))
     successful = [row for row in rows if "error" not in row]
@@ -203,6 +211,7 @@ async def run_async(
         "case_count": len(rows),
         "concurrency": concurrency,
         "rounds": rounds,
+        "max_attempts": max_attempts,
         "success_count": len(successful),
         "error_count": len(rows) - len(successful),
         "disposition_accuracy": (
@@ -216,6 +225,7 @@ async def run_async(
             else 0.0
         ),
         "leakage_cases": sum(bool(row.get("leaked_fields")) for row in successful),
+        "retry_count": sum(max(row.get("attempts", 1) - 1, 0) for row in rows),
         "latency_ms": {
             "min": min((row["latency_ms"] for row in rows), default=0),
             "max": max((row["latency_ms"] for row in rows), default=0),
@@ -244,6 +254,7 @@ def main() -> None:
     parser.add_argument("--model", default=os.getenv("MARA_MODEL", "MiniMax-M2.5"))
     parser.add_argument("--concurrency", type=int, default=1)
     parser.add_argument("--rounds", type=int, default=1)
+    parser.add_argument("--max-attempts", type=int, default=2)
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     values = vars(args)
@@ -253,6 +264,7 @@ def main() -> None:
         sync_values = dict(values)
         sync_values.pop("concurrency")
         sync_values.pop("rounds")
+        sync_values.pop("max_attempts")
         print(json.dumps(run(**sync_values), indent=2, ensure_ascii=False))
 
 

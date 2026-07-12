@@ -212,6 +212,8 @@ The tracked site source lives in `website/`, and generated mirror files under
 
 Use this as the maintainer TODO list for the next operational improvements:
 
+- backfill existing unlabeled issues and PRs with the new label vocabulary before
+  relying on dashboard or roadmap views
 - add CODEOWNERS after stable maintainer ownership is clear
 - add release-note drafting once merged PR volume is large enough to need it
 - add a weekly stale-review report before enabling any stale-closing bot

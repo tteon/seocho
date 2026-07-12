@@ -90,6 +90,11 @@ Active work items must include collaboration labels:
 
 - `sev-*`, `impact-*`, `urgency-*`, `sprint-*`, `roadmap-*`, `area-*`, `kind-*`
 
+The repository syncs its public label vocabulary from `.github/labels.json`.
+The `Triage Metadata` workflow applies first-pass labels from issue form fields,
+PR titles, and PR changed-file paths. Maintainers still own final severity,
+priority, roadmap, and sprint decisions.
+
 Use `good first issue` only when the change can be completed without deep
 runtime/query migration context. Good candidates are docs wording, run-spec
 examples, small tests, validation messages, and onboarding inconsistencies.
@@ -202,3 +207,15 @@ Docs sync critical set for seocho.blog:
 
 The tracked site source lives in `website/`, and generated mirror files under
 `website/src/content/docs/docs/` are derived from the repo-root docs.
+
+## 10. Open Source Workflow Backlog
+
+Use this as the maintainer TODO list for the next operational improvements:
+
+- add CODEOWNERS after stable maintainer ownership is clear
+- add release-note drafting once merged PR volume is large enough to need it
+- add a weekly stale-review report before enabling any stale-closing bot
+- add contributor welcome/comment automation only after the label workflow has
+  enough signal to avoid noisy or misleading comments
+- add a security workflow review after `SECURITY.md` claims are reconciled with
+  the workflows that actually exist

@@ -59,7 +59,9 @@ python3 -m py_compile \
   src/seocho/run_template.py \
   src/seocho/run_preflight.py \
   src/seocho/e2e.py \
-  src/seocho/cli.py
+  src/seocho/cli.py \
+  scripts/ci/sync_github_labels.py \
+  scripts/ci/triage_metadata.py
 
 uv run pytest \
   extraction/tests/test_runtime_package_aliases.py \
@@ -125,6 +127,7 @@ uv run pytest \
   tests/seocho/test_run_template.py \
   tests/seocho/test_sweep.py \
   tests/seocho/test_entity_identity.py \
+  tests/seocho/test_triage_metadata.py \
   -q
 
 git diff --check

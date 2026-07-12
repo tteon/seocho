@@ -400,7 +400,10 @@ class OTLPBackend(TracingBackend):
         self._meter_provider = None
         self._counters: Dict[str, Any] = {}
         try:
-            resource = Resource.create({"service.name": self._service_name})
+            resource_attributes = {"service.name": self._service_name}
+            if instance_id := os.getenv("OTEL_SERVICE_INSTANCE_ID"):
+                resource_attributes["service.instance.id"] = instance_id
+            resource = Resource.create(resource_attributes)
             provider = TracerProvider(resource=resource)
             exporter = OTLPSpanExporter(
                 endpoint=self._endpoint,

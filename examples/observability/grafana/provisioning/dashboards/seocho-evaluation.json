@@ -7,7 +7,7 @@
     {
       "title": "Open recent SEOCHO traces",
       "type": "link",
-      "url": "/explore?schemaVersion=1&panes=%7B%22trace%22:%7B%22datasource%22:%22tempo%22,%22queries%22:%5B%7B%22queryType%22:%22traceqlSearch%22,%22query%22:%22%7B.resource.service.name%3D%5C%22seocho-agent-memory%5C%22%7D%22%7D%5D%7D%7D"
+      "url": "/explore?schemaVersion=1&panes=%7B%22trace%22:%7B%22datasource%22:%22tempo%22,%22queries%22:%5B%7B%22queryType%22:%22traceqlSearch%22,%22query%22:%22%7B.resource.service.name%20%3D~%20%5C%22seocho-(evaluation%7Cokx-live)%5C%22%7D%22%7D%5D%7D%7D"
     }
   ],
   "panels": [
@@ -159,7 +159,7 @@
       "gridPos": {"h": 7, "w": 8, "x": 0, "y": 30},
       "id": 15,
       "options": {"legend": {"displayMode": "table", "placement": "bottom", "showLegend": true}},
-      "targets": [{"expr": "last_over_time(seocho_evaluation_customer_outcome_ratio[24h])", "legendFormat": "{{outcome}}", "refId": "A"}],
+      "targets": [{"expr": "max by (outcome) (last_over_time(seocho_evaluation_customer_outcome_ratio[24h]))", "legendFormat": "{{outcome}}", "refId": "A"}],
       "title": "Customer query outcome ratio",
       "type": "timeseries"
     },
@@ -169,7 +169,7 @@
       "gridPos": {"h": 7, "w": 8, "x": 8, "y": 30},
       "id": 16,
       "options": {"legend": {"displayMode": "table", "placement": "bottom", "showLegend": true}},
-      "targets": [{"expr": "last_over_time(seocho_evaluation_customer_evidence_coverage_ratio[24h])", "legendFormat": "{{query_class}}", "refId": "A"}],
+      "targets": [{"expr": "max by (query_class) (last_over_time(seocho_evaluation_customer_evidence_coverage_ratio[24h]))", "legendFormat": "{{query_class}}", "refId": "A"}],
       "title": "Evidence coverage by intent",
       "type": "timeseries"
     },
@@ -179,9 +179,19 @@
       "gridPos": {"h": 7, "w": 8, "x": 16, "y": 30},
       "id": 17,
       "options": {"legend": {"displayMode": "table", "placement": "bottom", "showLegend": true}},
-      "targets": [{"expr": "last_over_time(seocho_evaluation_answer_accuracy_ratio[24h])", "legendFormat": "{{dimension}}", "refId": "A"}],
+      "targets": [{"expr": "max by (dimension) (last_over_time(seocho_evaluation_answer_accuracy_ratio[24h]))", "legendFormat": "{{dimension}}", "refId": "A"}],
       "title": "MARA answer contract accuracy",
       "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "tempo", "uid": "tempo"},
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 10, "w": 24, "x": 0, "y": 37},
+      "id": 18,
+      "options": {"showHeader": true},
+      "targets": [{"datasource": {"type": "tempo", "uid": "tempo"}, "queryType": "traceqlSearch", "query": "{ resource.service.name =~ \"seocho-(evaluation|okx-live)\" }", "refId": "A", "tableType": "traces"}],
+      "title": "Live E2E run traces — click a row for stage waterfall",
+      "type": "table"
     }
   ],
   "refresh": "5s",

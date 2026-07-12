@@ -41,13 +41,17 @@ with their provenance, limitation, and reproducible artifact.
 
 ## OKX requirement mapping
 
-| Requirement | SEOCHO implementation | Evidence state |
-|---|---|---|
-| auditable, versioned, rollback-capable long-term memory | PostgreSQL revisions, causal sequence, idempotency, outbox, Parquet receipt, replay parity | measured |
-| end-to-end GraphRAG | PostgreSQL → Arrow/Parquet → DozerDB → bounded retrieval → MARA | measured |
-| scalable context management | ontology/context graph, Prompt Package, cache-stable prefix, request evidence suffix | measured |
-| research to production | query-first hops, GOpt-style plan audit, Graph-CoT seam, APOC transport A/B/C | measured/in progress |
-| reliability, observability, governance | etcd leases/fencing, disclosure guardrail, OTel metrics/traces, critical gates | measured |
+| JD requirement | SEOCHO implementation | Live acceptance evidence | Current verdict |
+|---|---|---|---|
+| auditable, versioned, rollback-capable long-term memory | PostgreSQL revisions, causal sequence, idempotency, outbox, Parquet receipt, replay parity | S2 writer conflict, S3 historical snapshot isolation, S8 append-only reorg compensation and idempotent graph rebuild | passed |
+| end-to-end GraphRAG | PostgreSQL → Arrow/Parquet → DozerDB → bounded retrieval → validated Text2Cypher → MARA | 20K Arrow/Parquet projection parity; live Text2Cypher `EXPLAIN`, one attempt, ten rows; MARA evidence contract | passed |
+| scalable context management | ontology/context graph, Prompt Package, cache-stable prefix, request evidence suffix | 84,944-revision source workspace; 83.33% context-token reduction with answer parity; 10K English intent/source-routing cohort | passed at tested scale |
+| research to production | query-first hops, GOpt-style plan audit, Graph-CoT seam, provider fallback, APOC transport A/B/C | measured baseline/candidate plans, protocol capability gates, strict structured-output failure and fallback | passed; continuous optimization remains operational work |
+| reliability, observability, governance | etcd leases/fencing, partial federation, disclosure guardrail, OTel metrics/traces, SLO burn alerts | S6 target loss, S7 policy pointer change, process-kill fencing, live 17-span E2E waterfall, zero leakage; TLS reload is explicitly capability-gated without Enterprise | passed except environment-gated S10 |
+
+The acceptance rule is evidence-first: a unit test proves a contract, a live
+artifact proves the tested runtime, and neither is promoted to a distributed or
+Enterprise claim beyond the environment that produced it.
 
 ## Evidence registry
 
@@ -148,11 +152,28 @@ with their provenance, limitation, and reproducible artifact.
 
 `tags: [live, opentelemetry, tempo, prometheus, grafana, privacy]`
 
-- Result: live `db.query` and `gen_ai.chat` traces were retrieved from Tempo.
+- Result: Grafana Evaluation dashboard version 7 exposes eighteen panels,
+  including a Tempo table that opens a stage waterfall in the same interface.
+  Live trace `5e6ee42972187b01a09c8eba575ea3fd` contains seventeen spans under
+  `okx.e2e.run`: PostgreSQL concurrency/history, federation/etcd governance,
+  reorg compensation/rebuild, validated Text2Cypher, MARA answer generation,
+  one Text2Cypher `gen_ai.chat`, and ten answer-contract `gen_ai.chat` spans.
+- Measured stage time: PostgreSQL concurrency/history 70.677 ms,
+  federation/etcd 15.722 ms, reorg/rebuild 105.403 ms, Text2Cypher 4,594.751 ms,
+  and MARA answer contract 6,396.433 ms. This makes the model boundary, rather
+  than the databases, the dominant latency in this run.
 - Dashboard: critical gates, projection lag, cache-hit ratio, cached-input
-  ratio, and estimated input-cost reduction.
+  ratio, estimated input-cost reduction, query outcomes, evidence coverage,
+  answer accuracy, and live run traces.
 - Privacy: prompt/evidence bodies are disabled by default; telemetry carries
   bounded hashes, versions, counts, and outcomes.
+- Live run artifact SHA-256:
+  `6aed7b517d415cc05c174532c43cdb1f6cdcb52a8170e82da4d75f7a39c23b7c`.
+- Reproduce with `scripts/benchmarks/okx_e2e_trace_live.py`; supply the
+  PostgreSQL DSN and graph password through `SEOCHO_E2E_DSN` and
+  `NEO4J_PASSWORD`, plus `--dataset`, `--bulk-report`, `--output`, and the OTLP
+  endpoint. Credentials and prompt/evidence bodies are never written to the
+  report or span attributes.
 
 ### E-009 — Strict public-chain-to-answer release gate
 
@@ -325,11 +346,13 @@ and capability-gated rows remain engineering work, not inferred evidence.
 - Live Prometheus verification: template-controlled 10K routing accuracy 1.0,
   causal context reduction 0.8333, S2/S3/S5/S6/S7/S8 status `passed`, and S10
   `capability_gated` with TLS reload capability value 0.
-- Live Tempo verification: seven `evaluation.scenario` traces were retained for
-  the exported scenarios under service `seocho-evaluation`.
-- Grafana Evaluation dashboard version 5 contains seventeen panels, including
+- Live Tempo verification: one `evaluation.run` root and seven child
+  `evaluation.scenario` spans were retained under service `seocho-evaluation`;
+  the separate live execution trace is recorded in E-008.
+- Grafana Evaluation dashboard version 7 contains eighteen panels, including
   customer routing accuracy, context input reduction, S2-S10 status, and
-  capability gates. Remote path: `/d/seocho-critical-agent-memory/seocho-evaluation`.
+  capability gates plus an embedded Tempo live-run table. Remote path:
+  `/d/seocho-critical-agent-memory/seocho-evaluation`.
 - Runtime finding: the active Grafana container was an older manually managed
   instance that mounted only its datasource, not repository dashboards. The
   updated dashboard was therefore safely overwritten through the authenticated
@@ -342,17 +365,17 @@ and capability-gated rows remain engineering work, not inferred evidence.
 - All 10,000 English questions executed through intent routing, source planning,
   freshness policy, and evidence coverage. Coinbase supplied a live BTC spot
   snapshot after the OKX public endpoint returned an HTTP error; Blockstream
-  supplied live tip height 957,657. PostgreSQL and DozerDB were live.
+  supplied live tip height 957,660. PostgreSQL and DozerDB were live.
 - Result: 5,000 supported and 5,000 explicit partial answers, zero unsupported,
   mean evidence coverage 0.8333. Partial outcomes are expected because private
   order, withdrawal, and transfer credentials were not configured; no private
   result was fabricated.
 - A bounded MARA `gpt-oss-120b` cohort covered all 10 intents: support-status
-  accuracy 100%, missing-source accuracy 100%, leakage zero, p95 2,275.2 ms.
+  accuracy 100%, missing-source accuracy 100%, leakage zero, p95 3,722.8 ms.
   The first prompt version failed at 50% status accuracy; moving the deterministic
   support status outside model judgment fixed the causal issue.
-- Bulk artifact SHA-256: `19916deff326798fe3711973af3c63a695fbf9cfcb8f53352b0b1a02d8fba3c5`.
-- MARA artifact SHA-256: `22d903b32d1709449b78be49520faa6a035d67b12350ba54545dbac97d1140dc`.
+- Bulk artifact SHA-256: `60fc4c6cbb8baf88fa5af8912d1d7a65c09a6e9bebe7fac94bcded8cea955a68`.
+- MARA artifact SHA-256: `878ee8702772c665b9ea47ffd068c1a835aa033784481a3d5df36606bb686b2f`.
 
 #### SRE metric decision
 
@@ -367,11 +390,10 @@ and capability-gated rows remain engineering work, not inferred evidence.
   reduction, Text2Cypher repair, model tokens/cache, agent handoff depth.
 - Metric labels remain bounded. Query text, prompt content, wallet, user,
   workspace, transaction, trace, and model output never become metric labels.
-- Runtime drift finding: the active manually managed Prometheus mounts only a
-  scrape config and does not load repository recording/alert rules. Metrics and
-  dashboards are live, but the new burn alert is source-validated rather than
-  active. Recreating the stack from repository Compose is required to activate
-  rules without pretending the current container has them.
+- Runtime drift was repaired without deleting the existing TSDB: the active
+  Prometheus config now loads the repository rule file and exposes fifteen
+  active recording/alert rules. Customer fast-burn paging filters
+  `traffic_type="production"`, so this evaluation run cannot page an operator.
 
 ## Current engineering decisions
 

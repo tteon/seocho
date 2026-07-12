@@ -278,7 +278,10 @@ def enable_metrics(*, backend: str | None = None, endpoint: str | None = None) -
             raise ImportError("OTLP metrics require the seocho[otel] extra") from exc
         exporter = OTLPMetricExporter(endpoint=target, insecure=target.startswith("http://"))
         reader = PeriodicExportingMetricReader(exporter, export_interval_millis=5000)
-        resource = Resource.create({"service.name": os.getenv("OTEL_SERVICE_NAME", "seocho")})
+        resource_attributes = {"service.name": os.getenv("OTEL_SERVICE_NAME", "seocho")}
+        if instance_id := os.getenv("OTEL_SERVICE_INSTANCE_ID"):
+            resource_attributes["service.instance.id"] = instance_id
+        resource = Resource.create(resource_attributes)
         views = (
             View(
                 instrument_name="*.duration",

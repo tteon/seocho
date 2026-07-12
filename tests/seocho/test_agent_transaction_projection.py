@@ -8,12 +8,16 @@ class FakeRepository:
     def __init__(self, entries):
         self.entries = tuple(entries)
         self.acks = []
+        self.fence_checks = []
 
     def read_outbox_batch(self, **_):
         return self.entries
 
     def acknowledge_projection(self, **kwargs):
         self.acks.append(kwargs)
+
+    def assert_projection_fence(self, **kwargs):
+        self.fence_checks.append(kwargs)
 
 
 class FakeGraphStore:
@@ -61,9 +65,27 @@ def test_projector_builds_agent_order_fill_settlement_memory_graph() -> None:
     assert {"Fill", "Settlement", "MemoryRevision"} <= labels
     assert {"ACTED_ON", "HANDED_OFF_TO", "MATERIALIZED_AS"} <= rel_types
     assert {"HAS_FILL", "SETTLED_BY", "RECORDED_AS"} <= rel_types
+    assert all(relationship["source_label"] for relationship in relationships)
+    assert all(relationship["target_label"] for relationship in relationships)
     assert kwargs["workspace_id"] == "okx-agent-exchange-eval"
     assert result.applied_sequence == 8
     assert repository.acks[0]["applied_sequence"] == 8
+
+
+def test_projector_forwards_control_plane_fencing_token() -> None:
+    repository = FakeRepository(_entries())
+    projector = AgentTransactionProjector(
+        graph_store=FakeGraphStore(), repository=repository
+    )
+
+    projector.project_pending(
+        workspace_id="okx-agent-exchange-eval",
+        database="agent-transactions",
+        fencing_token=12,
+    )
+
+    assert repository.acks[0]["fencing_token"] == 12
+    assert repository.fence_checks[0]["fencing_token"] == 12
 
 
 def test_projector_does_not_ack_when_graph_write_fails() -> None:
@@ -76,5 +98,28 @@ def test_projector_does_not_ack_when_graph_write_fails() -> None:
         projector.project_pending(
             workspace_id="okx-agent-exchange-eval", database="agent-transactions"
         )
+
+
+def test_stale_projector_is_rejected_before_graph_write() -> None:
+    repository = FakeRepository(_entries())
+    graph = FakeGraphStore()
+
+    def reject(**_kwargs):
+        from seocho.memory import ProjectionFencingError
+
+        raise ProjectionFencingError("stale projector")
+
+    repository.assert_projection_fence = reject
+    projector = AgentTransactionProjector(graph_store=graph, repository=repository)
+
+    with pytest.raises(RuntimeError, match="stale projector"):
+        projector.project_pending(
+            workspace_id="okx-agent-exchange-eval",
+            database="agent-transactions",
+            fencing_token=1,
+        )
+
+    assert graph.calls == []
+    assert repository.acks == []
 
     assert repository.acks == []

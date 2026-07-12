@@ -16,12 +16,17 @@ def test_rules_cover_slo_freshness_governance_and_projection() -> None:
         "seocho:agent_error_ratio:5m",
         "seocho:projection_lag_events",
         "seocho:projection_stalled",
+        "seocho:customer_query_bad_ratio:5m",
+        "seocho:customer_query_bad_ratio:1h",
     } <= records
     assert {
         "SeochoSilentStaleAnswer",
         "SeochoDisclosureViolation",
         "SeochoProjectionStalled",
         "SeochoAgentErrorBudgetBurn",
+        "SeochoPostgreSQLDown",
+        "SeochoEtcdNoLeader",
+        "SeochoCustomerQueryFastBurn",
     } <= alerts
 
 
@@ -29,3 +34,4 @@ def test_production_alerts_do_not_page_on_evaluation_scenarios() -> None:
     rendered = RULES.read_text(encoding="utf-8")
     assert "seocho_critical_" not in rendered
     assert "workspace_id" not in rendered
+    assert 'traffic_type="production"' in rendered

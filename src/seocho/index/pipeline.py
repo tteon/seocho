@@ -324,7 +324,14 @@ class IndexingPipeline:
                 {"id": ent_id, "label": "Entity", "properties": {"name": name}}
             )
             relationships.append(
-                {"source": doc_id, "target": ent_id, "type": "MENTIONS", "properties": {}}
+                {
+                    "source": doc_id,
+                    "target": ent_id,
+                    "type": "MENTIONS",
+                    "source_label": "Document",
+                    "target_label": "Entity",
+                    "properties": {},
+                }
             )
 
         return {"nodes": nodes, "relationships": relationships}

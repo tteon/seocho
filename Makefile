@@ -3,13 +3,14 @@
 DOCKER_COMPOSE = docker compose
 DOCKER_COMPOSE_LIVE = docker compose -f docker-compose.yml -f docker-compose.dev.yml
 DOCKER_COMPOSE_TUTORIALS = docker compose -f docker-compose.tutorials.yml
+DOCKER_COMPOSE_OPIK = docker compose -f docker-compose.opik.yml --profile opik
 
 # Shared stack project name (fixed so per-instance app tiers can target its
 # neo4j for ephemeral-database admin — see src/seocho/local.py).
 SHARED_PROJECT = seocho
 SEOCHO_CLI = python3 -m seocho.cli
 
-.PHONY: up up-live down restart logs clean bootstrap shell test test-integration e2e-smoke lint format help opik-up opik-down opik-logs demo-raw demo-meta demo-neo4j demo-graphrag-opik demo-all setup-env tutorials-up tutorials-down tutorials-logs tutorials-shell tutorials-build tutorials-smoke tutorials-test tutorials-pytest tutorials-gds
+.PHONY: up up-build up-live down restart logs clean bootstrap shell test test-integration e2e-smoke okx-release-gate lint format help apoc-extended observability-up observability-down observability-logs opik-up opik-down opik-logs demo-raw demo-meta demo-neo4j demo-graphrag-opik demo-all setup-env tutorials-up tutorials-down tutorials-logs tutorials-shell tutorials-build tutorials-smoke tutorials-test tutorials-pytest tutorials-gds
 
 ##@ Development
 
@@ -30,10 +31,14 @@ bootstrap: ## Bootstrap the development environment
 setup-env: ## Interactive .env setup (OpenAI key, Opik, ports)
 	@bash scripts/setup/init-env.sh
 
+apoc-extended: ## Install pinned APOC Extended + Arrow/Parquet dependencies
+	@bash scripts/setup/install-apoc-extended.sh
+	@echo "Restart Neo4j with: docker compose up -d --force-recreate neo4j"
+
 up: ## Start core local stack; or an isolated app tier with INSTANCE=<id>
 ifeq ($(strip $(INSTANCE)),)
 	@echo "🐳 Starting Seocho core local stack from an image-backed source snapshot..."
-	@COMPOSE_PROJECT_NAME=$(SHARED_PROJECT) docker compose up -d --build
+	@COMPOSE_PROJECT_NAME=$(SHARED_PROJECT) docker compose up -d --wait --remove-orphans
 	@echo "✅ Services started!"
 	@echo "🖥️  Platform UI: http://localhost:$${CHAT_INTERFACE_PORT:-8501}"
 	@echo "🧠 Backend API Docs: http://localhost:$${EXTRACTION_API_PORT:-8001}/docs"
@@ -45,6 +50,9 @@ else
 	@echo "ℹ️  Requires the shared stack to be running first: make up"
 	@$(SEOCHO_CLI) serve --instance $(INSTANCE) --build
 endif
+
+up-build: ## Rebuild changed application images and start the core stack
+	@COMPOSE_PROJECT_NAME=$(SHARED_PROJECT) docker compose up -d --build --wait --remove-orphans
 
 up-live: ## Start core local stack with live bind mounts for extraction/runtime/src/seocho
 	@echo "🐳 Starting Seocho core local stack with live source mounts..."
@@ -83,6 +91,10 @@ test-integration: ## Run integration-focused extraction tests
 e2e-smoke: ## Run dockerized runtime smoke checks (ingest + semantic + debate)
 	@echo "🧪 Running e2e smoke checks..."
 	@bash scripts/integration/e2e_runtime_smoke.sh
+
+okx-release-gate: ## Run live blockchain, failover, LLM, and observability gates
+	@uv run python scripts/benchmarks/okx_release_gate.py \
+		--output-dir "$${OUTPUT_DIR:-outputs/evaluation/okx-release}"
 
 bench-finder-synergy: ## FinDER synergy headline: signal-routed cost vs all-frontier (add LIVE=N for MARA support parity)
 	@echo "📊 FinDER synergy benchmark (ontology-governed answering + signal-routed model)..."
@@ -128,18 +140,35 @@ clean: ## Clean up containers and volumes
 
 ##@ Opik Observability
 
+observability-up: ## Start the lightweight OTel + Tempo + Prometheus + Grafana stack
+	@COMPOSE_PROJECT_NAME=seocho-observability docker compose \
+		-f examples/observability/docker-compose.observability.yml \
+		--profile observability up -d --wait --remove-orphans
+	@echo "📊 Grafana: http://$${SEOCHO_BIND_HOST:-127.0.0.1}:$${GRAFANA_PORT:-3000}"
+
+observability-down: ## Stop the lightweight observability stack
+	@COMPOSE_PROJECT_NAME=seocho-observability docker compose \
+		-f examples/observability/docker-compose.observability.yml \
+		--profile observability down
+
+observability-logs: ## Tail Collector, Tempo, Prometheus, and Grafana logs
+	@COMPOSE_PROJECT_NAME=seocho-observability docker compose \
+		-f examples/observability/docker-compose.observability.yml \
+		--profile observability logs -f --tail=100
+
 opik-up: ## Start core + Opik services
 	@echo "🔭 Starting Seocho with Opik observability..."
-	@docker compose --profile opik up -d
+	@$(MAKE) up
+	@COMPOSE_PROJECT_NAME=seocho-opik $(DOCKER_COMPOSE_OPIK) up -d --wait --remove-orphans
 	@echo "✅ Services started with Opik!"
 	@echo "🔭 Access Opik UI: http://localhost:5173"
 
 opik-down: ## Stop all services including Opik
 	@echo "🛑 Stopping services (including Opik)..."
-	@docker compose --profile opik down
+	@COMPOSE_PROJECT_NAME=seocho-opik $(DOCKER_COMPOSE_OPIK) down
 
 opik-logs: ## View Opik service logs
-	@docker compose --profile opik logs -f --tail=100 opik-backend opik-python-backend opik-frontend
+	@COMPOSE_PROJECT_NAME=seocho-opik $(DOCKER_COMPOSE_OPIK) logs -f --tail=100 opik-backend opik-python-backend opik-frontend
 
 ##@ FinDER Tutorials
 

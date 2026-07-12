@@ -27,6 +27,7 @@ from .agent_projection import (
     AgentProjectionResult,
     AgentTransactionProjector,
 )
+from .projection_format import REQUIRED_PROJECTION_PROPERTIES, validate_projection_format
 from .postgres_schema import (
     POSTGRES_MEMORY_SCHEMA_SQL,
     POSTGRES_MEMORY_SCHEMA_VERSION,
@@ -35,6 +36,7 @@ from .postgres_schema import (
 from .postgres_repository import (
     MemoryCommitResult,
     PostgreSQLMemoryRepository,
+    ProjectionFencingError,
     StaleAuthoritativeMemoryError,
 )
 
@@ -57,8 +59,10 @@ __all__ = [
     "POSTGRES_MEMORY_SCHEMA_SQL",
     "POSTGRES_MEMORY_SCHEMA_VERSION",
     "PostgreSQLMemoryRepository",
+    "ProjectionFencingError",
     "ProjectionOutboxEntry",
     "ProjectionStatus",
+    "REQUIRED_PROJECTION_PROPERTIES",
     "RiskAggregate",
     "StaleAuthoritativeMemoryError",
     "TransactionEvent",
@@ -67,4 +71,5 @@ __all__ = [
     "opaque_ref",
     "postgres_memory_schema_statements",
     "workspace_token",
+    "validate_projection_format",
 ]

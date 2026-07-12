@@ -854,3 +854,14 @@ Use this block for new entries:
   - key decision 2
   - risk/tradeoff note
 ```
+## 2026-07-12
+
+- [Proposed] ADR-0149 Arrow and Parquet projection contract
+  - Arrow IPC for deterministic projection batches and Parquet for replay/audit
+  - capability-gated APOC Extended acceleration with typed Bolt fallback
+  - never advance projection watermarks on artifact creation alone
+
+- [Proposed] ADR-0148 cache-aware SEOCHO Prompt Package
+  - define stability and tenant cache scope per prompt section
+  - render by endpoint capabilities for hosted APIs, gateways, vLLM, and SGLang
+  - keep prompt bodies out of receipts and require measured cold/warm validation

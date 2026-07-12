@@ -34,6 +34,8 @@ class Meter:
 def test_catalog_covers_every_production_plane() -> None:
     prefixes = {name.split(".")[1] for name in METRIC_SPECS if name.startswith("seocho.")}
     assert {"agent", "answer", "memory", "projection", "retrieval", "context", "gen_ai", "governance"} <= prefixes
+    assert "seocho.retrieval.inflight" in METRIC_SPECS
+    assert "seocho.retrieval.admission_rejection.count" in METRIC_SPECS
 
 
 def test_records_only_declared_bounded_attributes() -> None:

@@ -15,7 +15,12 @@ class _FakeChatCompletions:
         return SimpleNamespace(
             choices=[SimpleNamespace(message=SimpleNamespace(content="ok"))],
             model=kwargs["model"],
-            usage=SimpleNamespace(prompt_tokens=1, completion_tokens=2, total_tokens=3),
+            usage=SimpleNamespace(
+                prompt_tokens=10,
+                completion_tokens=2,
+                total_tokens=12,
+                cached_tokens=8,
+            ),
         )
 
 
@@ -75,7 +80,8 @@ def test_mara_completion_span_is_content_free_by_default(
     span = next(item for item in recorder.spans if item["name"] == "gen_ai.chat")
     rendered = repr(span)
     assert span["metadata"]["gen_ai.provider.name"] == "mara"
-    assert span["output"]["gen_ai.usage.total_tokens"] == 3
+    assert span["output"]["gen_ai.usage.total_tokens"] == 12
+    assert span["output"]["gen_ai.usage.cached_input_tokens"] == 8
     assert span["output"]["seocho.llm.attempt_count"] == 1
     assert "0xsecret" not in rendered
     assert "Alice" not in rendered

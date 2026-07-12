@@ -99,6 +99,30 @@ def test_relationship_write_is_lww_guarded():
     assert params["rows"][0]["props"]["_writer_ts"] is not None
 
 
+def test_relationship_write_uses_typed_endpoints_when_declared():
+    store = _store_with_fake()
+    store.write(
+        [
+            {"id": "a", "label": "Company", "properties": {}},
+            {"id": "b", "label": "Metric", "properties": {}},
+        ],
+        [
+            {
+                "source": "a",
+                "source_label": "Company",
+                "target": "b",
+                "target_label": "Metric",
+                "type": "REPORTED",
+                "properties": {},
+            }
+        ],
+        database="testdb",
+        source_id="src1",
+    )
+    rel_calls = [c for c in store._driver.rec.calls if "MERGE (a)-[r:" in c[0]]
+    assert "MATCH (a:Company {id: row.src}), (b:Metric {id: row.tgt})" in rel_calls[0][0]
+
+
 # --------------------------------------------------------------------------- #
 # Live (DozerDB) — stale write is ignored
 # --------------------------------------------------------------------------- #

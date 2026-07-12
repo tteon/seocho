@@ -34,12 +34,11 @@ const fileMappings = [
   },
   {
     src: 'docs/README.md',
-    dest: 'index.md',
+    dest: '../docs.md',
     frontmatter:
       '---\n' +
       'title: Docs Home\n' +
       'description: Central Documentation Index for SEOCHO\n' +
-      'slug: docs\n' +
       '---\n\n' +
       '> *Source mirrored from `seocho/docs/README.md`*\n\n',
   },
@@ -301,6 +300,7 @@ function renderMirroredContent(mapping) {
 
 function cleanGeneratedOutputs() {
   fs.rmSync(TARGET_DOCS_DIR, { recursive: true, force: true });
+  fs.rmSync(path.join(SITE_DIR, 'src', 'content', 'docs', 'docs.md'), { force: true });
   fs.rmSync(path.join(TARGET_BLOG_DIR, 'philosophy.md'), { force: true });
   fs.rmSync(path.join(TARGET_BLOG_DIR, 'feasibility-review-framework.md'), { force: true });
   fs.mkdirSync(TARGET_DOCS_DIR, { recursive: true });

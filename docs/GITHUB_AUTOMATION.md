@@ -28,6 +28,7 @@ it. Product documentation belongs in `README.md`, `docs/`, or `website/`.
 | `.github/workflows/ci-basic.yml` | `bash scripts/ci/run_basic_ci.sh` | Required SDK/runtime quality gate. |
 | `.github/workflows/docs-consistency.yml` | `bash scripts/ci/check-doc-contracts.sh` | Checks repo-side docs contracts. |
 | `.github/workflows/docs-site-quality.yml` | `cd website && npm run build` plus site checks | Validates the tracked docs site. |
+| `.github/workflows/discord-updates.yml` | n/a | Posts curated updates to Discord after `Basic CI` succeeds on `main`, when a release is published, or when manually dispatched. |
 
 If a PR fails here, prefer fixing the source code, docs, or reusable scripts
 that the workflow calls before patching workflow YAML.
@@ -52,6 +53,8 @@ SEOCHO also has narrow maintainer-only automation:
 - comment-based merge accepts only the exact `/go` command from maintainers with
   write-or-higher permission
 - docs deployment runs through GitHub Pages when Pages is enabled
+- Discord update notifications require the `DISCORD_WEBHOOK_URL` repository
+  secret and post only curated project updates, not every individual check event
 
 Detailed schedules, required secrets, PR body contracts, and merge safeguards
 are documented in `docs/WORKFLOW.md`.

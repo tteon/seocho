@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="520" viewBox="0 0 1200 520" role="img" aria-labelledby="title desc">
+  <title id="title">SEOCHO core loop</title>
+  <desc id="desc">Ontology, ingest, graph facts, query, and review form a repeatable graph memory loop.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#d4d4d8"/>
+    </marker>
+    <linearGradient id="panel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#18181b"/>
+      <stop offset="1" stop-color="#09090b"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="1" y="1" width="1198" height="518" rx="8" fill="url(#panel)" stroke="#3f3f46" stroke-width="2"/>
+  <text x="72" y="74" fill="#ffffff" font-family="Inter, Arial, sans-serif" font-size="34" font-weight="700">SEOCHO core loop</text>
+  <text x="72" y="113" fill="#a1a1aa" font-family="Inter, Arial, sans-serif" font-size="19">One ontology contract stays aligned from ingestion to answers.</text>
+
+  <g font-family="Inter, Arial, sans-serif">
+    <rect x="72" y="180" width="180" height="118" rx="8" fill="#0f172a" stroke="#38bdf8" stroke-width="2"/>
+    <text x="100" y="222" fill="#e0f2fe" font-size="22" font-weight="700">1. Ontology</text>
+    <text x="100" y="257" fill="#bae6fd" font-size="15">allowed entities</text>
+    <text x="100" y="279" fill="#bae6fd" font-size="15">relations and fields</text>
+
+    <rect x="306" y="180" width="180" height="118" rx="8" fill="#111827" stroke="#34d399" stroke-width="2"/>
+    <text x="334" y="222" fill="#d1fae5" font-size="22" font-weight="700">2. Ingest</text>
+    <text x="334" y="257" fill="#bbf7d0" font-size="15">documents</text>
+    <text x="334" y="279" fill="#bbf7d0" font-size="15">records and text</text>
+
+    <rect x="540" y="180" width="180" height="118" rx="8" fill="#1c1917" stroke="#fbbf24" stroke-width="2"/>
+    <text x="568" y="222" fill="#fef3c7" font-size="22" font-weight="700">3. Graph Facts</text>
+    <text x="568" y="257" fill="#fde68a" font-size="15">typed nodes</text>
+    <text x="568" y="279" fill="#fde68a" font-size="15">links and evidence</text>
+
+    <rect x="774" y="180" width="180" height="118" rx="8" fill="#111827" stroke="#a78bfa" stroke-width="2"/>
+    <text x="802" y="222" fill="#ede9fe" font-size="22" font-weight="700">4. Query</text>
+    <text x="802" y="257" fill="#ddd6fe" font-size="15">schema-aware</text>
+    <text x="802" y="279" fill="#ddd6fe" font-size="15">retrieval</text>
+
+    <rect x="1008" y="180" width="120" height="118" rx="8" fill="#1f2937" stroke="#fb7185" stroke-width="2"/>
+    <text x="1031" y="222" fill="#ffe4e6" font-size="22" font-weight="700">5. Review</text>
+    <text x="1031" y="257" fill="#fecdd3" font-size="15">traces</text>
+    <text x="1031" y="279" fill="#fecdd3" font-size="15">artifacts</text>
+  </g>
+
+  <g stroke="#d4d4d8" stroke-width="3" marker-end="url(#arrow)" fill="none">
+    <path d="M 252 239 H 296"/>
+    <path d="M 486 239 H 530"/>
+    <path d="M 720 239 H 764"/>
+    <path d="M 954 239 H 998"/>
+    <path d="M 1068 298 C 1068 408 166 408 166 302"/>
+  </g>
+
+  <g font-family="Inter, Arial, sans-serif">
+    <rect x="360" y="362" width="480" height="64" rx="8" fill="#0b1120" stroke="#334155" stroke-width="1"/>
+    <text x="390" y="390" fill="#f4f4f5" font-size="18" font-weight="700">The product promise</text>
+    <text x="390" y="416" fill="#cbd5e1" font-size="16">Every answer should be traceable back to a schema, a source, and a graph path.</text>
+  </g>
+</svg>

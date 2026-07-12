@@ -31,7 +31,7 @@ def test_critical_dashboard_covers_governance_and_memory_signals() -> None:
     dashboard = json.loads(DASHBOARD.read_text(encoding="utf-8"))
     assert dashboard["uid"] == "seocho-critical-agent-memory"
     expressions = "\n".join(
-        target["expr"]
+        target.get("expr", "")
         for panel in dashboard["panels"]
         for target in panel.get("targets", ())
     )
@@ -42,6 +42,18 @@ def test_critical_dashboard_covers_governance_and_memory_signals() -> None:
     assert "seocho_critical_latency_milliseconds_bucket" in expressions
     assert "seocho_critical_memory_sequence" in expressions
     assert "seocho_critical_projection_watermark" in expressions
+    assert "seocho_evaluation_query_accuracy_ratio" in expressions
+    assert "seocho_evaluation_context_reduction_ratio" in expressions
+    assert "seocho_evaluation_scenario_status_ratio" in expressions
+    assert "seocho_evaluation_capability_status_ratio" in expressions
+    assert "seocho_evaluation_dataset_ratio" in expressions
+    assert "seocho_evaluation_intent_accuracy_ratio" in expressions
+    trace_panels = [
+        panel for panel in dashboard["panels"]
+        if panel.get("datasource", {}).get("type") == "tempo"
+    ]
+    assert len(trace_panels) == 1
+    assert "seocho-(evaluation|okx-live|customer-.*-eval)" in trace_panels[0]["targets"][0]["query"]
 
 
 def test_dashboard_labels_do_not_capture_sensitive_content() -> None:

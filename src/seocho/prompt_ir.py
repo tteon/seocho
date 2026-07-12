@@ -1,8 +1,9 @@
-"""Preparatory typed prompt IR for stage-aware prompt assembly.
+"""Typed, cache-aware prompt IR for stage-aware prompt assembly.
 
-This module is an internal scaffold for future prompt-composer work. It
-captures prompt stages, section sources, and structured assembly receipts
-without changing current runtime behavior.
+The IR is the provider-neutral SEOCHO Prompt Package.  It keeps stable
+instructions ahead of request data, records content-free assembly receipts,
+and lets adapters express backend cache controls without coupling prompt
+composition to a particular inference server.
 """
 
 from __future__ import annotations
@@ -59,6 +60,62 @@ class PromptSource(str, Enum):
     OUTPUT_CONTRACT = "output_contract"
 
 
+class PromptStability(str, Enum):
+    """Expected lifetime of a section's exact rendered bytes."""
+
+    IMMUTABLE = "immutable"
+    WORKSPACE = "workspace"
+    SESSION = "session"
+    REQUEST = "request"
+
+
+class PromptCacheScope(str, Enum):
+    """Trust boundary within which a prefix may be reused."""
+
+    NONE = "none"
+    WORKSPACE = "workspace"
+    SESSION = "session"
+
+
+@dataclass(frozen=True, slots=True)
+class PromptBackendCapabilities:
+    """Endpoint capabilities; model aliases are resolved outside the IR."""
+
+    protocol: str = "openai_chat"
+    cache_mode: str = "automatic"  # automatic | explicit | none
+    cache_key_field: str = ""
+    cache_salt_field: str = ""
+    supports_system_role: bool = True
+    supports_structured_output: bool = False
+    reports_cached_tokens: bool = False
+
+
+BUILTIN_PROMPT_BACKENDS: Dict[str, PromptBackendCapabilities] = {
+    "generic": PromptBackendCapabilities(cache_mode="none"),
+    "openai": PromptBackendCapabilities(
+        supports_structured_output=True, reports_cached_tokens=True
+    ),
+    "xai": PromptBackendCapabilities(
+        cache_key_field="prompt_cache_key", reports_cached_tokens=True
+    ),
+    "kimi": PromptBackendCapabilities(
+        cache_key_field="prompt_cache_key", reports_cached_tokens=True
+    ),
+    "qwen": PromptBackendCapabilities(reports_cached_tokens=True),
+    "mara": PromptBackendCapabilities(),
+    "vllm": PromptBackendCapabilities(
+        cache_salt_field="cache_salt", reports_cached_tokens=True
+    ),
+    "sglang": PromptBackendCapabilities(reports_cached_tokens=True),
+    "anthropic": PromptBackendCapabilities(
+        protocol="anthropic_messages", cache_mode="explicit", reports_cached_tokens=True
+    ),
+    # Muse/Spark endpoints may be hosted through different gateways.  Keep the
+    # conservative OpenAI-compatible baseline and allow deployment overrides.
+    "meta_muse": PromptBackendCapabilities(),
+}
+
+
 SEMANTIC_PROMPT_PRECEDENCE: tuple[PromptSource, ...] = (
     PromptSource.GRAPH_TARGET_METADATA,
     PromptSource.APPROVED_ARTIFACTS,
@@ -89,6 +146,8 @@ class PromptSection:
     content: str
     cacheable: bool = True
     sensitive: bool = False
+    stability: PromptStability = PromptStability.WORKSPACE
+    cache_scope: PromptCacheScope = PromptCacheScope.WORKSPACE
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -100,6 +159,9 @@ class PromptSection:
             "content": self.content,
             "cacheable": self.cacheable,
             "sensitive": self.sensitive,
+            "stability": self.stability.value,
+            "cache_scope": self.cache_scope.value,
+            "content_hash": _fingerprint(_render_section(self)),
             "metadata": dict(self.metadata),
         }
 
@@ -115,6 +177,8 @@ class PromptAssemblyReceipt:
     precedence_sources: List[str] = field(default_factory=list)
     response_format: Dict[str, Any] = field(default_factory=dict)
     stable_prefix_hash: str = ""
+    cache_scope: str = PromptCacheScope.NONE.value
+    cache_salt_hash: str = ""
     adapter_hint_keys: List[str] = field(default_factory=list)
     optimization: "PromptOptimizationReceipt" = field(
         default_factory=lambda: PromptOptimizationReceipt()
@@ -131,6 +195,8 @@ class PromptAssemblyReceipt:
             "precedence_sources": list(self.precedence_sources),
             "response_format": dict(self.response_format),
             "stable_prefix_hash": self.stable_prefix_hash,
+            "cache_scope": self.cache_scope,
+            "cache_salt_hash": self.cache_salt_hash,
             "adapter_hint_keys": list(self.adapter_hint_keys),
             "optimization": self.optimization.to_dict(),
         }
@@ -149,6 +215,8 @@ class PromptAssemblyReceipt:
             "seocho.prompt.provider": self.provider,
             "seocho.prompt.query_mode": self.query_mode,
             "seocho.prompt.stable_prefix_hash": self.stable_prefix_hash[:16],
+            "seocho.prompt.cache_scope": self.cache_scope,
+            "seocho.prompt.cache_salt_hash": self.cache_salt_hash[:16],
             "seocho.prompt.candidate_sections": optimization.candidate_section_count,
             "seocho.prompt.selected_sections": optimization.selected_section_count,
             "seocho.prompt.omitted_sections": optimization.omitted_section_count,
@@ -208,6 +276,39 @@ class StagePromptSpec:
     response_format: Optional[Dict[str, Any]] = None
     adapter_hints: Dict[str, Any] = field(default_factory=dict)
 
+    def validate_cache_layout(self) -> None:
+        """Reject layouts that make prefix reuse unsafe or ineffective."""
+        seen: set[str] = set()
+        volatile_seen = False
+        for section in [*self.system_sections, *self.user_sections]:
+            if not section.section_id or section.section_id in seen:
+                raise ValueError("Prompt section IDs must be non-empty and unique")
+            seen.add(section.section_id)
+            cacheable = (
+                section.cacheable
+                and section.kind is not PromptSectionKind.USER_INPUT
+                and section.source is not PromptSource.USER_INPUT
+                and section.cache_scope is not PromptCacheScope.NONE
+            )
+            if not cacheable or section.stability is PromptStability.REQUEST:
+                volatile_seen = True
+            elif volatile_seen:
+                raise ValueError("Cacheable prompt sections must precede volatile sections")
+            if section.sensitive and section.cache_scope is PromptCacheScope.WORKSPACE:
+                raise ValueError("Sensitive prompt sections cannot use workspace cache scope")
+
+    def effective_cache_scope(self) -> PromptCacheScope:
+        scopes = {
+            section.cache_scope
+            for section in self.system_sections
+            if section.cacheable and section.cache_scope is not PromptCacheScope.NONE
+        }
+        if PromptCacheScope.SESSION in scopes:
+            return PromptCacheScope.SESSION
+        if PromptCacheScope.WORKSPACE in scopes:
+            return PromptCacheScope.WORKSPACE
+        return PromptCacheScope.NONE
+
     def selected_section_ids(self) -> List[str]:
         return [section.section_id for section in [*self.system_sections, *self.user_sections]]
 
@@ -229,6 +330,110 @@ class StagePromptSpec:
             if checks:
                 blocks.append(f"Verification\n{checks}")
         return "\n\n".join(blocks).strip()
+
+    def render_package(
+        self,
+        *,
+        backend: str = "generic",
+        cache_salt: str = "",
+        cache_key: str = "",
+        capabilities: Optional[PromptBackendCapabilities] = None,
+    ) -> Dict[str, Any]:
+        """Render a deterministic provider request plus private cache metadata.
+
+        vLLM and SGLang reuse identical leading tokens automatically.  vLLM's
+        optional ``cache_salt`` is emitted for tenant isolation.  Anthropic
+        receives an explicit ephemeral breakpoint on the stable system block.
+        Other OpenAI-compatible APIs receive ordinary ordered messages.
+        """
+        self.validate_cache_layout()
+        stable = self.stable_prefix_text()
+        volatile_system = [
+            _render_section(section)
+            for section in self.system_sections
+            if (
+                not section.cacheable
+                or section.stability is PromptStability.REQUEST
+                or section.cache_scope is PromptCacheScope.NONE
+            )
+            and _render_section(section)
+        ]
+        user = "\n\n".join(
+            rendered
+            for section in self.user_sections
+            if (rendered := _render_section(section))
+        )
+        system = "\n\n".join(part for part in [stable, *volatile_system] if part)
+        normalized = backend.strip().lower()
+        profile = capabilities or BUILTIN_PROMPT_BACKENDS.get(
+            normalized, BUILTIN_PROMPT_BACKENDS["generic"]
+        )
+        payload: Dict[str, Any]
+        if profile.protocol == "anthropic_messages":
+            system_blocks: List[Dict[str, Any]] = []
+            if stable:
+                system_blocks.append(
+                    {"type": "text", "text": stable, "cache_control": {"type": "ephemeral"}}
+                )
+            if volatile_system:
+                system_blocks.append({"type": "text", "text": "\n\n".join(volatile_system)})
+            payload = {"system": system_blocks, "messages": [{"role": "user", "content": user}]}
+        else:
+            payload = {"messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}
+            if profile.cache_salt_field and cache_salt:
+                payload[profile.cache_salt_field] = cache_salt
+            if profile.cache_key_field and cache_key:
+                payload[profile.cache_key_field] = cache_key
+        receipt = {
+            "schema_version": "seocho.prompt.v1",
+            "stage": self.stage.value,
+            "stable_prefix_hash": self.stable_prefix_hash(),
+            "cache_scope": self.effective_cache_scope().value,
+            "cache_salt_hash": _fingerprint(cache_salt) if cache_salt else "",
+            "cache_key_hash": _fingerprint(cache_key) if cache_key else "",
+            "backend": normalized,
+            "cache_mode": profile.cache_mode,
+            "section_hashes": {
+                section.section_id: _fingerprint(_render_section(section))
+                for section in [*self.system_sections, *self.user_sections]
+            },
+        }
+        # Keep audit metadata outside the transport request. Passing unknown
+        # SEOCHO fields through strict provider APIs would otherwise fail.
+        return {"request": payload, "receipt": receipt}
+
+    def render_llm_call(
+        self,
+        *,
+        backend: str = "generic",
+        cache_salt: str = "",
+        cache_key: str = "",
+        capabilities: Optional[PromptBackendCapabilities] = None,
+    ) -> Dict[str, Any]:
+        """Return arguments accepted by ``LLMBackend.complete/acomplete``."""
+        package = self.render_package(
+            backend=backend,
+            cache_salt=cache_salt,
+            cache_key=cache_key,
+            capabilities=capabilities,
+        )
+        request = package["request"]
+        messages = request.get("messages", [])
+        if len(messages) != 2 or messages[0].get("role") != "system":
+            raise ValueError("LLMBackend rendering requires system and user messages")
+        provider_options = {
+            key: request[key]
+            for key in ("prompt_cache_key", "cache_salt", "thinking")
+            if key in request
+        }
+        return {
+            "completion_args": {
+                "system": str(messages[0].get("content", "")),
+                "user": str(messages[1].get("content", "")),
+                "provider_options": provider_options,
+            },
+            "prompt_receipt": package["receipt"],
+        }
 
     def stable_prefix_hash(self) -> str:
         return _fingerprint(self.stable_prefix_text())
@@ -289,6 +494,7 @@ class StagePromptSpec:
             precedence_sources=self.semantic_precedence_sources(),
             response_format=dict(self.response_format or {}),
             stable_prefix_hash=self.stable_prefix_hash(),
+            cache_scope=self.effective_cache_scope().value,
             adapter_hint_keys=sorted(self.adapter_hints.keys()),
             optimization=optimization,
         )
@@ -337,9 +543,13 @@ class StagePromptSpec:
 
 __all__ = [
     "PromptAssemblyReceipt",
+    "PromptBackendCapabilities",
+    "BUILTIN_PROMPT_BACKENDS",
     "PromptOptimizationReceipt",
     "PromptSection",
     "PromptSectionKind",
+    "PromptStability",
+    "PromptCacheScope",
     "PromptSource",
     "PromptStage",
     "SEMANTIC_PROMPT_PRECEDENCE",

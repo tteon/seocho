@@ -52,6 +52,7 @@ coverage.xml
 
 # Environment variables
 .env
+examples/observability/secrets/
 .env.local
 .env.production
 .env.staging

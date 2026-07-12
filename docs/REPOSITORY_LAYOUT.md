@@ -29,7 +29,7 @@ metadata, and one-command local stack entry points.
 | `README.md`, `QUICKSTART.md`, `CONTRIBUTING.md`, `SECURITY.md`, `CHANGELOG.md`, `LICENSE` | yes | Standard public project entry points |
 | `AGENTS.md`, `CLAUDE.md` | yes | Coding-agent orientation and SEOCHO-specific guardrails |
 | `pyproject.toml`, `Makefile`, `.env.example`, `.gitignore`, `.dockerignore` | yes | Python packaging, common commands, and repo/tool defaults |
-| `docker-compose.yml`, `docker-compose.dev.yml`, `docker-compose.tutorials.yml` | yes | Local stack entry points; kept at root for familiar `docker compose -f ...` usage |
+| `docker-compose.yml`, `docker-compose.dev.yml`, `docker-compose.opik.yml`, `docker-compose.tutorials.yml` | yes | Core, development overlay, optional legacy Opik, and tutorial entry points |
 | `.gitattributes` | only with active rules | Do not keep an empty placeholder |
 | `setup_*.sh` | no | Put setup helpers under `scripts/setup/` |
 | generated data, logs, exports, scratch PR bodies | no | Keep ignored and outside the public repository surface |
@@ -100,6 +100,7 @@ Only two compose files are part of the tracked repo contract:
 |---|---|
 | `docker-compose.yml` | Default image-backed local stack |
 | `docker-compose.dev.yml` | Live-mount overlay used with `make up-live` / `make dev-up` |
+| `docker-compose.opik.yml` | Optional legacy Opik services used by `make opik-up`; excluded from the default stack |
 
 There is no tracked `docker-compose.prod.yml` in this repository. Production
 overrides should be deployment-specific instead of implied by the default repo

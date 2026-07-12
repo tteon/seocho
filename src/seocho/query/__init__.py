@@ -92,6 +92,7 @@ from .workload_compiler import (
     compile_workload_query,
     fallback_policy_for,
     validate_workload_query,
+    validate_text2cypher_fallback,
 )
 
 __all__ = [
@@ -152,7 +153,10 @@ __all__ = [
     "PRESET_PROMPTS",
     "ExtractionStrategy",
     "QueryStrategy",
+    "RDFQueryStrategy",
+    "CATEGORY_PROMPT_MAP",
     "LinkingStrategy",
+    "CypherBuilder",
     "PromptIdentity",
     "EvidenceRequirement",
     "QuerySafetyPolicy",
@@ -166,4 +170,5 @@ __all__ = [
     "compile_workload_query",
     "fallback_policy_for",
     "validate_workload_query",
+    "validate_text2cypher_fallback",
 ]

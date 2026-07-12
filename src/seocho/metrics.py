@@ -37,6 +37,42 @@ _FORBIDDEN_ATTRIBUTE_FRAGMENTS = (
     "payload",
 )
 
+# Default OTel histogram boundaries are far too coarse for graph retrieval and
+# agent hot paths (sub-second observations collapse into the first bucket and
+# produce misleading multi-second p95 values in Prometheus).  Keep boundaries
+# explicit and low-cardinality so dashboards reflect the latency actually seen
+# by callers.
+_DURATION_SECONDS_BUCKETS = (
+    0.001,
+    0.0025,
+    0.005,
+    0.01,
+    0.025,
+    0.05,
+    0.1,
+    0.25,
+    0.5,
+    1.0,
+    2.5,
+    5.0,
+    10.0,
+    30.0,
+)
+_LATENCY_MILLISECONDS_BUCKETS = (
+    1.0,
+    2.5,
+    5.0,
+    10.0,
+    25.0,
+    50.0,
+    100.0,
+    250.0,
+    500.0,
+    1000.0,
+    2500.0,
+    5000.0,
+)
+
 
 @dataclass(frozen=True, slots=True)
 class MetricSpec:
@@ -80,6 +116,8 @@ METRIC_SPECS: dict[str, MetricSpec] = {
         _spec("seocho.projection.replay.count", "counter", "{entry}", ("projection", "outcome"), "Projection replay results."),
         _spec("seocho.projection.fencing_rejection.count", "counter", "{rejection}", ("projection",), "Rejected stale projector owners."),
         _spec("seocho.retrieval.duration", "histogram", "s", ("source", "outcome"), "Retrieval operation duration."),
+        _spec("seocho.retrieval.inflight", "up_down_counter", "{query}", ("source",), "In-flight retrieval queries."),
+        _spec("seocho.retrieval.admission_rejection.count", "counter", "{rejection}", ("source", "reason"), "Retrieval queries rejected before backend execution."),
         _spec("seocho.retrieval.candidate_count", "histogram", "{item}", ("source",), "Retrieval candidates."),
         _spec("seocho.retrieval.selected_count", "histogram", "{item}", ("source",), "Selected retrieval results."),
         _spec("seocho.federation.target.duration", "histogram", "s", ("target", "outcome"), "Federated target duration."),
@@ -87,6 +125,9 @@ METRIC_SPECS: dict[str, MetricSpec] = {
         _spec("seocho.text2cypher.duration", "histogram", "s", ("stage", "outcome"), "Text2Cypher stage duration."),
         _spec("seocho.text2cypher.validation_failure.count", "counter", "{failure}", ("reason",), "Rejected generated Cypher."),
         _spec("seocho.text2cypher.execution_failure.count", "counter", "{failure}", ("error.type",), "Cypher execution failures."),
+        _spec("seocho.query.plan.speedup", "histogram", "1", ("cohort",), "Baseline-to-candidate query-plan speedup after semantic parity."),
+        _spec("seocho.query.plan.db_hits_reduction", "histogram", "1", ("cohort",), "Fractional DB-hit reduction for a semantically equivalent query plan."),
+        _spec("seocho.query.plan.finding.count", "counter", "{finding}", ("variant", "finding"), "Execution-plan findings attributed by the GOpt-inspired audit."),
         _spec("seocho.context.assembly.duration", "histogram", "s", ("strategy", "outcome"), "Context assembly duration."),
         _spec("seocho.context.candidate_token_count", "histogram", "{token}", ("strategy",), "Candidate context tokens."),
         _spec("seocho.context.selected_token_count", "histogram", "{token}", ("strategy",), "Selected context tokens."),
@@ -96,6 +137,7 @@ METRIC_SPECS: dict[str, MetricSpec] = {
         _spec("gen_ai.client.operation.duration", "histogram", "s", ("gen_ai.provider.name", "gen_ai.request.model", "gen_ai.operation.name", "error.type"), "GenAI client operation duration."),
         _spec("gen_ai.client.token.usage", "histogram", "{token}", ("gen_ai.provider.name", "gen_ai.request.model", "gen_ai.token.type"), "Provider-reported token usage."),
         _spec("seocho.gen_ai.time_to_first_token", "histogram", "s", ("gen_ai.provider.name", "gen_ai.request.model"), "Streaming time to first token."),
+        _spec("seocho.gen_ai.prompt_cache.request.count", "counter", "{request}", ("gen_ai.provider.name", "gen_ai.request.model", "outcome"), "Provider-reported prompt-cache request outcomes."),
         _spec("seocho.gen_ai.retry.count", "counter", "{retry}", ("gen_ai.provider.name", "gen_ai.request.model", "reason"), "GenAI retries."),
         _spec("seocho.gen_ai.structured_output_repair.count", "counter", "{repair}", ("gen_ai.provider.name", "gen_ai.request.model", "reason"), "Structured-output repairs."),
         _spec("seocho.governance.disclosure_violation.count", "counter", "{violation}", ("stage", "policy.disposition"), "Disclosure violations."),
@@ -112,6 +154,27 @@ METRIC_SPECS: dict[str, MetricSpec] = {
         _spec("seocho.critical.projection_lag", "gauge", "{event}", ("scenario_id",), "Evaluation projection lag."),
         _spec("seocho.critical.scenario.info", "gauge", "1", ("scenario_id", "support_status"), "Evaluation scenario support state."),
         _spec("seocho.critical.latency", "histogram", "ms", ("scenario_id", "stage"), "Evaluation stage latency."),
+        _spec("seocho.evaluation.scenario.status", "gauge", "1", ("scenario_id", "status"), "Latest scenario evaluation status."),
+        _spec("seocho.evaluation.query.count", "counter", "{query}", ("cohort", "outcome"), "Evaluated customer queries."),
+        _spec("seocho.evaluation.query.accuracy", "gauge", "1", ("cohort",), "Latest customer-query accuracy."),
+        _spec("seocho.evaluation.context.reduction", "gauge", "1", ("strategy",), "Input-context reduction ratio."),
+        _spec("seocho.evaluation.text2cypher.attempts", "histogram", "{attempt}", ("outcome",), "Validated Text2Cypher attempts."),
+        _spec("seocho.evaluation.capability.status", "gauge", "1", ("capability", "status"), "Capability-gated evaluation status."),
+        _spec("seocho.customer.query.count", "counter", "{query}", ("query.class", "outcome", "traffic.type"), "Customer query outcomes."),
+        _spec("seocho.customer.query.duration", "histogram", "s", ("query.class", "outcome", "traffic.type"), "Customer query pipeline duration."),
+        _spec("seocho.customer.evidence.coverage", "histogram", "1", ("query.class",), "Required source evidence coverage."),
+        _spec("seocho.customer.source.freshness", "histogram", "s", ("source",), "Age of live source snapshot."),
+        _spec("seocho.customer.source.failure.count", "counter", "{failure}", ("source", "reason"), "Customer evidence source failures."),
+        _spec("seocho.evaluation.answer.accuracy", "gauge", "1", ("cohort", "dimension"), "Latest answer evaluation accuracy."),
+        _spec("seocho.evaluation.answer.latency", "histogram", "ms", ("cohort",), "Answer evaluation latency."),
+        _spec("seocho.evaluation.answer.leakage", "counter", "{case}", ("cohort",), "Answer evaluation leakage cases."),
+        _spec("seocho.evaluation.customer.outcome_ratio", "gauge", "1", ("outcome",), "Latest customer-query outcome ratio."),
+        _spec("seocho.evaluation.customer.evidence_coverage", "gauge", "1", ("query.class",), "Latest evidence coverage by customer query class."),
+        _spec("seocho.evaluation.dataset.ratio", "gauge", "1", ("cohort", "dimension"), "Dataset quality ratio."),
+        _spec("seocho.evaluation.intent.accuracy", "gauge", "1", ("cohort", "group", "dimension"), "Intent routing and boundary accuracy."),
+        _spec("seocho.evaluation.answer.progress", "gauge", "1", ("cohort",), "Long-running answer evaluation completion ratio."),
+        _spec("seocho.evaluation.answer.completed", "gauge", "{query}", ("cohort",), "Durably checkpointed answer evaluations."),
+        _spec("seocho.evaluation.answer.failures", "gauge", "{case}", ("cohort",), "Checkpointed answer contract failures."),
     )
 }
 
@@ -211,13 +274,40 @@ def enable_metrics(*, backend: str | None = None, endpoint: str | None = None) -
             from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
             from opentelemetry.sdk.metrics import MeterProvider
             from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+            from opentelemetry.sdk.metrics.view import (
+                ExplicitBucketHistogramAggregation,
+                View,
+            )
             from opentelemetry.sdk.resources import Resource
         except ImportError as exc:
             raise ImportError("OTLP metrics require the seocho[otel] extra") from exc
         exporter = OTLPMetricExporter(endpoint=target, insecure=target.startswith("http://"))
         reader = PeriodicExportingMetricReader(exporter, export_interval_millis=5000)
-        resource = Resource.create({"service.name": os.getenv("OTEL_SERVICE_NAME", "seocho")})
-        _provider = MeterProvider(resource=resource, metric_readers=(reader,))
+        resource_attributes = {"service.name": os.getenv("OTEL_SERVICE_NAME", "seocho")}
+        if instance_id := os.getenv("OTEL_SERVICE_INSTANCE_ID"):
+            resource_attributes["service.instance.id"] = instance_id
+        resource = Resource.create(resource_attributes)
+        views = (
+            View(
+                instrument_name="*.duration",
+                instrument_unit="s",
+                aggregation=ExplicitBucketHistogramAggregation(
+                    _DURATION_SECONDS_BUCKETS
+                ),
+            ),
+            View(
+                instrument_name="*.latency",
+                instrument_unit="ms",
+                aggregation=ExplicitBucketHistogramAggregation(
+                    _LATENCY_MILLISECONDS_BUCKETS
+                ),
+            ),
+        )
+        _provider = MeterProvider(
+            resource=resource,
+            metric_readers=(reader,),
+            views=views,
+        )
         _metrics = ProductionMetrics(_provider.get_meter("seocho", "1"))
         return _metrics
 

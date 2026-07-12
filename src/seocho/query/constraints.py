@@ -372,6 +372,8 @@ class SemanticConstraintSliceBuilder:
             "allowed_labels": allowed_labels,
             "allowed_relationship_types": allowed_relationship_types,
             "allowed_properties": sorted(allowed_properties),
+            "max_graph_hops": 4,
+            "max_result_rows": 50,
             "relation_aliases": self._build_relation_aliases(ontology_candidate),
             "label_aliases": self._build_label_aliases(ontology_candidate, vocabulary_candidate),
             "json_ld_context": self._build_json_ld_context(

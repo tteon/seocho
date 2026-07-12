@@ -417,6 +417,38 @@ def test_mara_provider_seocho_local_style_resolves(
     assert backend.model == "MiniMax-M2.5"
 
 
+def test_kimi_cache_key_flows_through_restricted_provider_options(
+    fake_openai: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("MOONSHOT_API_KEY", "kimi-secret")
+    backend = create_llm_backend(provider="kimi", model="kimi-k2.6")
+
+    backend.complete(
+        system="stable ontology prefix",
+        user="variable question",
+        provider_options={"prompt_cache_key": "workspace-session-7"},
+    )
+
+    call = backend._client.chat.completions.calls[0]
+    assert call["extra_body"] == {"prompt_cache_key": "workspace-session-7"}
+
+
+def test_provider_options_reject_unknown_transport_fields(
+    fake_openai: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("MARA_API_KEY", "mara-secret")
+    backend = create_llm_backend(provider="mara")
+
+    with pytest.raises(ValueError, match="Unsupported provider options"):
+        backend.complete(
+            system="system",
+            user="user",
+            provider_options={"unsafe_arbitrary_field": "value"},
+        )
+
+
 def test_vllm_provider_preset_resolves_localhost_default(
     fake_openai: None,
     monkeypatch: pytest.MonkeyPatch,

@@ -37,6 +37,10 @@ class StaleAuthoritativeMemoryError(RuntimeError):
     """Raised when a caller requires a sequence not committed in PostgreSQL."""
 
 
+class ProjectionFencingError(RuntimeError):
+    """Raised when a stale projector attempts to acknowledge graph writes."""
+
+
 def _canonical_json(payload: Mapping[str, Any]) -> str:
     return json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
 
@@ -348,11 +352,14 @@ class PostgreSQLMemoryRepository:
         projection: str,
         applied_sequence: int,
         entries: tuple[Any, ...],
+        fencing_token: int = 0,
     ) -> None:
         """Atomically mark exactly one batch and advance a monotonic watermark."""
 
         if applied_sequence < 1 or not entries:
             raise ValueError("a non-empty applied projection batch is required")
+        if fencing_token < 0:
+            raise ValueError("fencing_token cannot be negative")
         with self._connection_factory() as connection:
             with connection.cursor() as cursor:
                 for entry in entries:
@@ -365,14 +372,41 @@ class PostgreSQLMemoryRepository:
                 cursor.execute(
                     """INSERT INTO agent_projection_watermarks
                        (workspace_id, projection, applied_sequence, fencing_token)
-                       VALUES (%s, %s, %s, 0)
+                       VALUES (%s, %s, %s, %s)
                        ON CONFLICT (workspace_id, projection) DO UPDATE
                        SET applied_sequence = GREATEST(
                                agent_projection_watermarks.applied_sequence,
                                EXCLUDED.applied_sequence),
-                           updated_at = now()""",
-                    (workspace_id, projection, applied_sequence),
+                           fencing_token = EXCLUDED.fencing_token,
+                           updated_at = now()
+                       WHERE agent_projection_watermarks.fencing_token
+                             <= EXCLUDED.fencing_token
+                       RETURNING fencing_token""",
+                    (workspace_id, projection, applied_sequence, fencing_token),
                 )
+                if cursor.fetchone() is None:
+                    raise ProjectionFencingError(
+                        "stale projector fencing token was rejected"
+                    )
+
+    def assert_projection_fence(
+        self, *, workspace_id: str, projection: str, fencing_token: int
+    ) -> None:
+        """Reject a known-stale worker before it mutates the graph."""
+        if fencing_token < 0:
+            raise ValueError("fencing_token cannot be negative")
+        with self._connection_factory() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """SELECT fencing_token FROM agent_projection_watermarks
+                       WHERE workspace_id = %s AND projection = %s""",
+                    (workspace_id, projection),
+                )
+                row = cursor.fetchone()
+                if row is not None and int(row[0]) > fencing_token:
+                    raise ProjectionFencingError(
+                        "stale projector fencing token was rejected before graph write"
+                    )
 
     @staticmethod
     def _revision_from_read_row(

@@ -271,7 +271,7 @@ def _factory_neighbors(
     intent_id="relationship_lookup",
     cypher_shape="path",
     required_labels=("Entity",),
-    cost_hints={"unbounded_path": True, "index_miss_property_type": "string"},
+    cost_hints={"plan_depth": 4, "index_miss_property_type": "string"},
     # F1: shortest_path is the general fallback for relationship_lookup
     # questions where the caller didn't pin a specific relationship
     # type. Much more expensive (plan_depth=5 + cartesian_risk=1) so
@@ -285,11 +285,23 @@ def _factory_path(
     *,
     anchor_entity: str = "",
     target_entity: str = "",
+    anchor_label: str = "",
+    target_label: str = "",
+    relationship_type: str = "",
     workspace_id: str = "",
     limit: int = 20,
     **_: Any,
 ) -> Tuple[str, Dict[str, Any]]:
-    return builder._path(anchor_entity, target_entity, workspace_id, limit)
+    return builder._path(
+        anchor_entity,
+        target_entity,
+        workspace_id,
+        limit,
+        anchor_label=anchor_label,
+        target_label=target_label,
+        relationship_type=relationship_type,
+        max_hops=4,
+    )
 
 
 @register_pattern(

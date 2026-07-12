@@ -8,6 +8,8 @@ from typing import Any, Mapping, Sequence
 
 from ..tracing import start_span
 from ..metrics import get_metrics
+from .projection_format import validate_projection_format
+from .postgres_repository import ProjectionFencingError
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,7 +37,8 @@ class AgentTransactionProjector:
         self._repository = repository
 
     def project_pending(
-        self, *, workspace_id: str, database: str, limit: int = 100
+        self, *, workspace_id: str, database: str, limit: int = 100,
+        fencing_token: int = 0,
     ) -> AgentProjectionResult:
         started = time.perf_counter()
         metrics = get_metrics()
@@ -48,8 +51,16 @@ class AgentTransactionProjector:
             )
             return AgentProjectionResult(0, 0, 0, 0)
         nodes, relationships = self._build_graph(entries)
+        validate_projection_format(nodes, relationships)
         max_sequence = max(entry.sequence for entry in entries)
         try:
+            assert_fence = getattr(self._repository, "assert_projection_fence", None)
+            if assert_fence is not None:
+                assert_fence(
+                    workspace_id=workspace_id,
+                    projection=database,
+                    fencing_token=fencing_token,
+                )
             with start_span(
                 "projection.batch",
                 metadata={
@@ -70,8 +81,14 @@ class AgentTransactionProjector:
                     projection=database,
                     applied_sequence=max_sequence,
                     entries=entries,
+                    fencing_token=fencing_token,
                 )
-        except Exception:
+        except Exception as exc:
+            if isinstance(exc, ProjectionFencingError):
+                metrics.add(
+                    "seocho.projection.fencing_rejection.count",
+                    attributes={"projection": database},
+                )
             metrics.record(
                 "seocho.projection.batch.duration",
                 time.perf_counter() - started,
@@ -127,6 +144,8 @@ class AgentTransactionProjector:
                 "source": source,
                 "target": target,
                 "type": rel_type,
+                "source_label": str(nodes.get(source, {}).get("label", "")),
+                "target_label": str(nodes.get(target, {}).get("label", "")),
                 "properties": dict(properties),
             }
 

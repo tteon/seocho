@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 import importlib.util
+import asyncio
+import json
 from pathlib import Path
+
+from seocho.store.llm import LLMResponse
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -60,3 +64,46 @@ def test_async_runner_skips_without_key(tmp_path, monkeypatch) -> None:
     )
     assert report["status"] == "skipped"
     assert report["case_count"] == 4
+
+
+def test_async_runner_retries_structured_output_failure(monkeypatch) -> None:
+    case = MODULE._load(ROOT / "examples/okx-risk-preflight/llm_e2e_dataset.jsonl")[0]
+
+    class FlakyBackend:
+        calls = 0
+
+        def __init__(self, *, model: str) -> None:
+            self.model = model
+
+        async def acomplete(self, **kwargs):
+            self.calls += 1
+            if self.calls == 1:
+                raise ValueError("malformed structured output")
+            return LLMResponse(
+                text=json.dumps(
+                    {
+                        "disposition": case["expected"]["disposition"],
+                        "explanation": "bounded evidence",
+                        "provenance_ids": [case["expected"]["required_provenance"]],
+                        "missing_information": [],
+                    }
+                ),
+                model=self.model,
+            )
+
+    monkeypatch.setenv("MARA_API_KEY", "test-only")
+    monkeypatch.setattr(MODULE, "MaraBackend", FlakyBackend)
+    report = asyncio.run(
+        MODULE.run_async(
+            dataset=ROOT / "examples/okx-risk-preflight/llm_e2e_dataset.jsonl",
+            limit=1,
+            model="test-model",
+            concurrency=1,
+            rounds=1,
+            output=None,
+            max_attempts=2,
+        )
+    )
+    assert report["error_count"] == 0
+    assert report["retry_count"] == 1
+    assert report["rows"][0]["attempts"] == 2

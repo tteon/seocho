@@ -33,6 +33,31 @@ class CypherQueryValidator:
         for token in FORBIDDEN_CYPHER_TOKENS:
             if token in normalized_query:
                 violations.append(f"forbidden_token:{token.strip().lower().replace(' ', '_')}")
+        if re.search(r"\[[^\]]*\*\s*(?:\]|\.\.\s*\])", plan.query):
+            violations.append("unbounded_graph_path")
+        max_graph_hops = int(constraint_slice.get("max_graph_hops", 0) or 0)
+        if max_graph_hops:
+            for _lower, upper in re.findall(r"\*(\d+)\.\.(\d+)", plan.query):
+                if int(upper) > max_graph_hops:
+                    violations.append("graph_hop_limit_exceeded")
+                    break
+        max_result_rows = int(constraint_slice.get("max_result_rows", 0) or 0)
+        if max_result_rows:
+            limit_match = re.search(r"\bLIMIT\s+(\$[A-Za-z_][A-Za-z0-9_]*|\d+)", plan.query, re.IGNORECASE)
+            if limit_match is None:
+                violations.append("missing_result_limit")
+            else:
+                limit_token = limit_match.group(1)
+                if limit_token.startswith("$"):
+                    limit_value = plan.params.get(limit_token[1:])
+                else:
+                    limit_value = limit_token
+                try:
+                    parsed_limit = int(limit_value)
+                except (TypeError, ValueError):
+                    parsed_limit = 0
+                if parsed_limit < 1 or parsed_limit > max_result_rows:
+                    violations.append("result_limit_exceeded")
 
         labels = {
             match

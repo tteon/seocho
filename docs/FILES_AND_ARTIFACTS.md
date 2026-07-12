@@ -3,6 +3,21 @@
 This page answers the practical question: after I run SEOCHO, where do the
 important files live, and how do I inspect them directly?
 
+## Artifact Map
+
+| Artifact | Typical path or URL | Why you open it |
+|---|---|---|
+| ontology contract | `schema.jsonld` | confirm the schema used by indexing and query |
+| local graph data | `data/neo4j/` or `bolt://localhost:7687` | inspect graph state and schema |
+| semantic artifacts | `outputs/semantic_artifacts/` | review approved/draft ontology and shape candidates |
+| rule profiles | `outputs/rule_profiles/rule_profiles.db` | inspect inferred rules and readiness state |
+| semantic run metadata | `outputs/semantic_metadata/` | debug routing, support, and answer strategy |
+| traces | `traces/seocho-runtime.jsonl` or `SEOCHO_TRACE_JSONL_PATH` | inspect execution evidence |
+| example data | `examples/` | copy a small supported starting point |
+
+Use this page when a result surprises you. The fastest debugging loop is:
+find the ontology, inspect the graph, then inspect the trace or semantic run.
+
 ## 1. Ontology Files
 
 Typical paths:

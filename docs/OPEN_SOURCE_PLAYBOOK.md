@@ -3,6 +3,19 @@
 This playbook defines a structured onboarding plan for open-source contributors,
 with explicit licensing, documentation, and delivery gates.
 
+## Use This Page When
+
+| Situation | Section |
+|---|---|
+| you are joining as a contributor | [14-Day Onboarding Plan](#2-14-day-onboarding-plan) |
+| you need one reproducible first contribution | [Minimum Reproducible Workflow](#7-minimum-reproducible-workflow) |
+| you are preparing a PR | [Quality Gates Before PR](#8-quality-gates-before-pr) |
+| you are unsure what is public API | [Runtime and Architecture Guardrails](#6-runtime-and-architecture-guardrails) |
+| you are updating docs | [Documentation Contract](#9-documentation-contract) |
+
+The contribution path is: run locally, reproduce one data flow, make one
+scoped change, then document the exact validation.
+
 ## 1. Onboarding Outcomes
 
 By the end of onboarding, a contributor should be able to:

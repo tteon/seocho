@@ -15,6 +15,24 @@ If your first question is how to load your own records safely, read
 If your first question is how to measure quality or latency, read
 `BENCHMARKS.md` instead of treating this guide as the benchmark contract.
 
+## How To Read This Page
+
+Do not read this page top to bottom on your first visit. Pick the path that
+matches the code you are trying to write.
+
+| If you want to... | Start with | Stop when you can... |
+|---|---|---|
+| install and make one local call | [Install](#1-install) -> [Configure](#2-configure) | create a `Seocho.local(...)` or runtime client |
+| put text or records into SEOCHO | [Put Your Data In](#3-put-your-data-in) | choose `add(...)`, `add_with_details(...)`, or `raw_ingest(...)` |
+| ask graph-grounded questions | [Ask the Simple Way](#4-ask-the-simple-way) -> [Use `ask()`](#5-use-ask-as-the-primary-query-surface) | decide when to use `ask_response(...)` and `reasoning_mode=True` |
+| build an app-facing SDK flow | [Use the Builder Surface](#7-use-the-builder-surface) | express one query plan in readable chained calls |
+| inspect runtime evidence | [Inspect Semantic Run History](#14-inspect-semantic-run-history) -> [Where Files Live](#20-where-ontology-and-runtime-files-live) | find runs, traces, artifacts, and ontology files |
+| use advanced agent modes | [Agent-Level Sessions](#18-agent-level-sessions) | explain when pipeline, agent, or supervisor mode is appropriate |
+
+The default recommendation is simple: start with `Seocho.local(...)`, then
+move to `Seocho.remote(...)` or `Seocho(base_url=...)` when another process
+needs the same graph contract over HTTP.
+
 ## 1. Install
 
 Pick the mode first:
@@ -70,7 +88,9 @@ Recommendation:
 
 - keep a stable `package_id` on the ontology and bump `version` semantically
 - treat `seocho ontology diff` as the first migration warning gate before runtime rollout
-- use `seocho ontology report` before rollout when you want one bundle with `context_hash`, semantic artifact draft, SHACL export, and synthetic sample-data validation
+- use `seocho ontology report` before rollout when you want one bundle with
+  `context_hash`, semantic artifact draft, SHACL export, and synthetic
+  sample-data validation
 
 ## 2. Configure
 
@@ -606,7 +626,7 @@ These metrics are intentionally narrow:
 - `required_answer_slot_coverage_manual`
 - `preferred_evidence_hit_rate`
 
-## 14. CLI Equivalents
+## 16. CLI Equivalents
 
 ```bash
 seocho serve
@@ -617,7 +637,7 @@ seocho graphs
 seocho stop
 ```
 
-## 15. Mental Model
+## 17. Mental Model
 
 Use this decision rule:
 
@@ -627,7 +647,7 @@ Use this decision rule:
 4. Use `semantic(...)` only when you explicitly need the advanced graph-QA surface.
 5. Use `advanced()` only when you explicitly want multi-agent comparison.
 
-## 16. Agent-Level Sessions
+## 18. Agent-Level Sessions
 
 Sessions maintain context across indexing and querying operations.
 Three execution modes are available via ``AgentConfig``:
@@ -794,7 +814,7 @@ directory for starter designs covering:
 - RDF + deductive expansion
 - hybrid + inquiry-cycle repair
 
-## 17. Ontology Merge
+## 19. Ontology Merge
 
 Combine two ontologies when integrating new domains:
 
@@ -814,7 +834,7 @@ combined.to_jsonld("combined.jsonld")
 
 Strategies: ``union`` (default), ``left_wins``, ``right_wins``, ``strict``.
 
-## 18. Where Ontology And Runtime Files Live
+## 20. Where Ontology And Runtime Files Live
 
 Common locations:
 
@@ -843,7 +863,7 @@ The practical ontology file flow is:
 3. derive SHACL with `seocho ontology export --schema schema.jsonld --format shacl --output shacl.json`
 4. use the same ontology to build runtime artifacts with `approved_artifacts_from_ontology()`
 
-## 19. Read Next
+## 21. Read Next
 
 - `APPLY_YOUR_DATA.md`
 - `../QUICKSTART.md`

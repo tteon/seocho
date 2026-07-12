@@ -14,6 +14,7 @@ tags:
   - distributed-systems
   - postgresql
   - etcd
+  - chaos-engineering
   - dozerdb
   - arrow
   - parquet
@@ -120,12 +121,16 @@ with their provenance, limitation, and reproducible artifact.
 
 ### E-007 — Distributed projector failover and fencing
 
-`tags: [live, etcd, postgresql, lease, fencing, split-brain]`
+`tags: [live, etcd, postgresql, dozerdb, lease, fencing, process-kill, split-brain]`
 
-- etcd result: projector A acquired token 1; B failed while A's lease was
-  alive; after the three-second TTL B acquired token 2.
-- PostgreSQL result: token 2 advanced the durable watermark; stale token 1 was
-  rejected and the watermark remained at sequence 1/token 2.
+- Workload: 300 revisions continuously committed to live PostgreSQL while an
+  actual projector process held the etcd owner lease (2,746.7 ms ingestion).
+- Fault: projector A was terminated with SIGTERM (`exitcode=-15`). Projector B
+  was blocked while A was alive, then acquired ownership 3,299.7 ms after the
+  kill under a three-second lease TTL. Its token advanced from 29 to 31.
+- Result: 300 revisions = 300 acknowledged outbox records = 300 live DozerDB
+  nodes; pending outbox 0; durable watermark 300/token 31. Stale token 29 was
+  rejected before graph mutation.
 - Write ordering: the repository checks the durable fence before graph mutation
   and checks it again atomically while acknowledging outbox rows and watermark.
   A known-stale worker therefore cannot pollute the graph before being rejected.
@@ -133,7 +138,11 @@ with their provenance, limitation, and reproducible artifact.
   paused/stale worker from acknowledging a graph write after lease loss.
 - Governance: current etcd data contains only active policy and watermark
   pointers; no customer or transaction payloads.
-- Limitation: run repeated process-kill tests under sustained projector load.
+- Artifact: `/tmp/seocho-agent-memory-experiments/docs/projector-failover-chaos-live-2026-07-12.json`.
+- Artifact SHA-256: `a8a9e976fef33c427e6b5d10faaaf4d59010343edb73b37717bd37b9e768a573`.
+- Limitation: this proves the causal path on one etcd member and one DozerDB
+  instance; repeated kills and multi-member quorum behavior remain capacity
+  and availability gates.
 
 ### E-008 — Observability
 
@@ -158,7 +167,7 @@ with their provenance, limitation, and reproducible artifact.
 
 ## Next gates
 
-- repeated projector process-kill/failover under ingestion load;
+- repeated process-kill/failover cycles and recovery-time distribution;
 - point-in-time Parquet rollback followed by graph/cardinality/query parity;
 - Arrow/Parquet performance across batch-size and concurrency sweeps;
 - long-session context selection with superseded-memory exclusion;

@@ -17,21 +17,21 @@ If your first question is how to measure quality or latency, read
 
 ## How To Read This Page
 
-Do not read this page top to bottom on your first visit. Pick the path that
-matches the code you are trying to write.
+Do not read this page top to bottom on your first visit. Most users only need
+sections 1-6.
 
-| If you want to... | Start with | Stop when you can... |
+| Goal | Read | Stop when... |
 |---|---|---|
-| install and make one local call | [Install](#1-install) -> [Configure](#2-configure) | create a `Seocho.local(...)` or runtime client |
-| put text or records into SEOCHO | [Put Your Data In](#3-put-your-data-in) | choose `add(...)`, `add_with_details(...)`, or `raw_ingest(...)` |
-| ask graph-grounded questions | [Ask the Simple Way](#4-ask-the-simple-way) -> [Use `ask()`](#5-use-ask-as-the-primary-query-surface) | decide when to use `ask_response(...)` and `reasoning_mode=True` |
-| build an app-facing SDK flow | [Use the Builder Surface](#7-use-the-builder-surface) | express one query plan in readable chained calls |
-| inspect runtime evidence | [Inspect Semantic Run History](#14-inspect-semantic-run-history) -> [Where Files Live](#20-where-ontology-and-runtime-files-live) | find runs, traces, artifacts, and ontology files |
-| use advanced agent modes | [Agent-Level Sessions](#18-agent-level-sessions) | explain when pipeline, agent, or supervisor mode is appropriate |
+| make one local call | [Install](#1-install) -> [Configure](#2-configure) | you have a `Seocho.local(...)` or runtime client |
+| load records | [Put Your Data In](#3-put-your-data-in) | you know which ingest method to use |
+| ask graph-grounded questions | [Ask](#4-ask-the-simple-way) -> [`ask()`](#5-use-ask-as-the-primary-query-surface) | answer metadata returns |
+| build an app flow | [Builder Surface](#7-use-the-builder-surface) | one readable query plan runs |
+| inspect evidence | [Run History](#14-inspect-semantic-run-history) -> [Files Live](#20-where-ontology-and-runtime-files-live) | traces and artifacts are visible |
+| use agent modes | [Agent-Level Sessions](#18-agent-level-sessions) | you know why pipeline, agent, or supervisor mode is needed |
 
-The default recommendation is simple: start with `Seocho.local(...)`, then
-move to `Seocho.remote(...)` or `Seocho(base_url=...)` when another process
-needs the same graph contract over HTTP.
+Default path: start with `Seocho.local(...)`. Move to `Seocho.remote(...)` or
+`Seocho(base_url=...)` only when another process needs the same graph contract
+over HTTP.
 
 ## 1. Install
 

@@ -1,0 +1,83 @@
+name: Triage Metadata
+
+on:
+  issues:
+    types:
+      - opened
+      - edited
+      - reopened
+  pull_request_target:
+    types:
+      - opened
+      - edited
+      - reopened
+      - synchronize
+      - ready_for_review
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+jobs:
+  labels:
+    name: Sync labels and triage metadata
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out trusted base repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Sync label taxonomy
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/ci/sync_github_labels.py --repo "$GITHUB_REPOSITORY"
+
+      - name: Collect PR changed files
+        if: github.event_name == 'pull_request_target'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          gh api \
+            "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files" \
+            --paginate \
+            --jq '.[].filename' > changed-files.txt
+
+      - name: Infer labels
+        id: infer
+        run: |
+          labels="$(python scripts/ci/triage_metadata.py \
+            --event "$GITHUB_EVENT_PATH" \
+            --files changed-files.txt \
+            --format csv)"
+          echo "labels=$labels" >> "$GITHUB_OUTPUT"
+
+      - name: Apply labels
+        if: steps.infer.outputs.labels != '' && github.event_name != 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LABELS: ${{ steps.infer.outputs.labels }}
+        run: |
+          number="$(python - <<'PY'
+          import json
+          import os
+
+          with open(os.environ["GITHUB_EVENT_PATH"], encoding="utf-8") as handle:
+              event = json.load(handle)
+          item = event.get("issue") or event.get("pull_request") or {}
+          print(item.get("number", ""))
+          PY
+          )"
+          if [ -z "$number" ]; then
+            echo "No issue or pull request number in event; nothing to label."
+            exit 0
+          fi
+
+          IFS=',' read -r -a labels <<< "$LABELS"
+          for label in "${labels[@]}"; do
+            [ -n "$label" ] || continue
+            gh issue edit "$number" --repo "$GITHUB_REPOSITORY" --add-label "$label"
+          done

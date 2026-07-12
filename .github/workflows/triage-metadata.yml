@@ -79,5 +79,5 @@ jobs:
           IFS=',' read -r -a labels <<< "$LABELS"
           for label in "${labels[@]}"; do
             [ -n "$label" ] || continue
-            gh issue edit "$number" --repo "$GITHUB_REPOSITORY" --add-label "$label"
+            gh issue edit "$number" --repo "$GITHUB_REPOSITORY" --add-label "$label" || gh pr edit "$number" --repo "$GITHUB_REPOSITORY" --add-label "$label"
           done

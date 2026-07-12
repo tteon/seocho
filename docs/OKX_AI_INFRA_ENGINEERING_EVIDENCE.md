@@ -252,6 +252,35 @@ with their provenance, limitation, and reproducible artifact.
 This matrix prevents a gold-query declaration from being presented as a live
 capability. Q4 and Q8 remain the principal utility gaps.
 
+### E-012 — Real-world incident scenario rerun
+
+`tags: [live, incident, causal-read, projector-replay, scenario-scorecard]`
+
+- Fresh S1 result: ten transaction lifecycles produced 65 memory revisions;
+  the deliberately stale graph caused one authoritative PostgreSQL fallback,
+  silent stale answers were zero, and projection caught up to watermark 65.
+- Fresh S4 result: five already-applied outbox entries were replayed after an
+  injected acknowledgement loss. Graph cardinality remained 49 nodes and 88
+  relationships before and after, pending outbox returned to zero, and the
+  watermark remained monotonic.
+- Artifact SHA-256: `61419ae171da7b60b98b769b6749be0e6ca2917f623d3bc423e6cf63e788e98f`.
+
+| Scenario | Current evidence | Verdict |
+|---|---|---|
+| S1 stale read after commit | fresh live PostgreSQL/DozerDB/etcd/Tempo fault injection | pass |
+| S2 conflicting agent decisions | live cancel/fill lifecycle; same-intent concurrent-writer injection pending | partial |
+| S3 disputed historical fill | live ordered revision chain; historical answer isolation pending | partial |
+| S4 crash before acknowledgement | fresh live idempotent graph replay | pass |
+| S5 long-horizon context | live 60-vs-10 event A/B; million-event quality gate pending | partial/pass at tested scale |
+| S6 partial federation | application contract only; physical target timeout run pending | not executed |
+| S7 policy/ontology drift | calibrated policy-drift data only | not executed |
+| S8 chain reorganization | deterministic memory contract only; live PostgreSQL projection replay pending | not executed live |
+| S9 model degradation | live MiniMax failure and strict gpt-oss fallback | pass at tested cases |
+| S10 TLS rotation | unsupported by current DozerDB image | blocked/capability-gated |
+
+Only rows marked `pass` are suitable as live CV claims. Partial, unexecuted,
+and capability-gated rows remain engineering work, not inferred evidence.
+
 ## Current engineering decisions
 
 1. PostgreSQL remains authoritative; DozerDB is disposable and replayable.

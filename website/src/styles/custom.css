@@ -116,6 +116,28 @@ starlight-theme-select {
     line-height: 1.02;
 }
 
+.sl-markdown-content p,
+.sl-markdown-content li {
+    line-height: 1.75;
+}
+
+.sl-markdown-content table {
+    font-size: 0.95rem;
+}
+
+.sl-markdown-content th,
+.sl-markdown-content td {
+    vertical-align: top;
+}
+
+.sl-markdown-content img[src$="docs-core-loop.svg"] {
+    width: 100%;
+    margin: 1.25rem 0 1.75rem;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    background: #09090b;
+}
+
 /* Subtle styling for the restored Search Bar to match Glassmorphic theme */
 site-search button {
     background-color: rgba(255, 255, 255, 0.05) !important;

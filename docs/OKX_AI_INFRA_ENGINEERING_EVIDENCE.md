@@ -179,6 +179,31 @@ with their provenance, limitation, and reproducible artifact.
 - Limitation: this public labelled seed has only two transactions; sustained
   scale is established separately by synthetic blockchain-shaped workloads
   and must not be presented as public-chain volume.
+- Non-blocking TODO: characterize MARA MiniMax-M2.7 structured-output
+  compatibility separately. It does not block SEOCHO while the strict gate and
+  a validated provider/model fallback remain enabled.
+
+### E-010 — One-command live release verdict
+
+`tags: [live, release-gate, bitcoin-mainnet, mara, postgresql, etcd, dozerdb, prometheus, tempo, grafana]`
+
+- Command surface: `make okx-release-gate`, with PostgreSQL DSN and graph
+  password supplied through environment variables rather than committed files.
+- Verdict: all five gates passed in the same run: public-chain memory,
+  query/guardrail, answer generation, distributed failover, and observability
+  backend readiness.
+- Public lane: 102 events from two current Bitcoin transactions; 6/6 MARA
+  `gpt-oss-120b` answers succeeded, accuracy and provenance coverage were 100%,
+  leakage was zero, retry count was zero, and LLM p95 was 3,189.5 ms.
+- Distributed lane: 300/300 PostgreSQL revisions were acknowledged and present
+  in DozerDB, pending outbox was zero, stale token 33 was rejected, and token 35
+  took ownership in 3,057.4 ms after the active process was terminated.
+- Observability lane: Prometheus, Tempo, and Grafana readiness endpoints were
+  healthy. This is backend availability; retained trace-content evidence
+  remains the separate E-008 assertion.
+- Verdict artifact SHA-256: `83c4102b491af1e24a95c7414655c477e1be6c686ed56a4d9917a4a7d66f0c2c`.
+- Public-lane artifact SHA-256: `e309596e6958b2af26ae0563767f98372abe4b729b6fd167c8c271936670d3ba`.
+- Failover-lane artifact SHA-256: `0f0e7254befded7fa99580979ae1da546899f52c53a21e24089f1b673d736e6e`.
 
 ## Current engineering decisions
 

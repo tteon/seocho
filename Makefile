@@ -10,7 +10,7 @@ DOCKER_COMPOSE_OPIK = docker compose -f docker-compose.opik.yml --profile opik
 SHARED_PROJECT = seocho
 SEOCHO_CLI = python3 -m seocho.cli
 
-.PHONY: up up-build up-live down restart logs clean bootstrap shell test test-integration e2e-smoke lint format help apoc-extended observability-up observability-down observability-logs opik-up opik-down opik-logs demo-raw demo-meta demo-neo4j demo-graphrag-opik demo-all setup-env tutorials-up tutorials-down tutorials-logs tutorials-shell tutorials-build tutorials-smoke tutorials-test tutorials-pytest tutorials-gds
+.PHONY: up up-build up-live down restart logs clean bootstrap shell test test-integration e2e-smoke okx-release-gate lint format help apoc-extended observability-up observability-down observability-logs opik-up opik-down opik-logs demo-raw demo-meta demo-neo4j demo-graphrag-opik demo-all setup-env tutorials-up tutorials-down tutorials-logs tutorials-shell tutorials-build tutorials-smoke tutorials-test tutorials-pytest tutorials-gds
 
 ##@ Development
 
@@ -91,6 +91,10 @@ test-integration: ## Run integration-focused extraction tests
 e2e-smoke: ## Run dockerized runtime smoke checks (ingest + semantic + debate)
 	@echo "🧪 Running e2e smoke checks..."
 	@bash scripts/integration/e2e_runtime_smoke.sh
+
+okx-release-gate: ## Run live blockchain, failover, LLM, and observability gates
+	@uv run python scripts/benchmarks/okx_release_gate.py \
+		--output-dir "$${OUTPUT_DIR:-outputs/evaluation/okx-release}"
 
 bench-finder-synergy: ## FinDER synergy headline: signal-routed cost vs all-frontier (add LIVE=N for MARA support parity)
 	@echo "📊 FinDER synergy benchmark (ontology-governed answering + signal-routed model)..."

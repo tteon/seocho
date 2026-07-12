@@ -12,17 +12,25 @@ const paths = [
     eyebrow: 'SDK',
     title: 'Build Locally',
     description:
-      'Author one ontology, connect Neo4j or DozerDB, and index/query directly through the Python SDK.',
-    href: '/sdk/getting-started/',
+      'Use Seocho.local(...) for the first run, then add files, graph stores, and runtime artifacts when needed.',
+    href: '/docs/python_sdk/',
     cta: 'Start with the SDK',
   },
   {
     eyebrow: 'Runtime',
-    title: 'Use An Existing Runtime',
+    title: 'Run The Platform',
     description:
-      'Consume a running SEOCHO deployment over HTTP when another team already owns the graph and runtime.',
-    href: '/docs/quickstart/',
-    cta: 'Follow quickstart',
+      'Start the local UI, API, and DozerDB stack when other agents or services need an HTTP contract.',
+    href: '/docs/runtime_deployment/',
+    cta: 'Run the runtime',
+  },
+  {
+    eyebrow: 'Open Source',
+    title: 'Contribute',
+    description:
+      'Use the public issue, PR, release, and community rules when you want to help shape the project.',
+    href: '/docs/open_source_playbook/',
+    cta: 'Read the playbook',
   },
 ];
 ---
@@ -37,9 +45,9 @@ const paths = [
     </p>
   </div>
 
-  <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+  <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
     {paths.map((path) => (
-      <a href={path.href} class="group relative overflow-hidden rounded-[1.75rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02))] p-7 transition-all hover:-translate-y-1 hover:border-white/20 hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.09),rgba(255,255,255,0.03))]">
+      <a href={path.href} class="group relative overflow-hidden rounded-lg border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02))] p-7 transition-all hover:-translate-y-1 hover:border-white/20 hover:bg-[linear-gradient(180deg,rgba(255,255,255,0.09),rgba(255,255,255,0.03))]">
         <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.14),transparent_48%),radial-gradient(circle_at_bottom_right,rgba(245,158,11,0.12),transparent_46%)] opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
         <div class="relative z-10">
           <p class="uppercase tracking-[0.22em] text-[0.72rem] text-zinc-500 mb-4 font-medium">{path.eyebrow}</p>

@@ -28,64 +28,55 @@ import LatestBlog from '../components/LatestBlog.astro';
       <Pathways />
     </div>
 
-    <!-- Quickstart Section (Glass Panel) -->
+    <!-- Quickstart Section -->
     <section class="max-w-4xl mx-auto px-6 py-16 w-full animate-fade-up delay-100 z-10">
       <div class="mb-10 text-center md:text-left">
-        <p class="uppercase tracking-[0.28em] text-[0.72rem] text-amber-300/75 mb-3 font-medium">Runtime Walkthrough</p>
-        <h2 class="seocho-display text-3xl md:text-5xl text-white mb-2">Quickstart</h2>
-        <p class="text-zinc-400 text-lg font-light">Stand up the runtime, ingest data, and ask ontology-aware questions without starting from the full architecture first.</p>
+        <p class="uppercase tracking-[0.28em] text-[0.72rem] text-amber-300/75 mb-3 font-medium">First Local Run</p>
+        <h2 class="seocho-display text-3xl md:text-5xl text-white mb-2">Start without a server.</h2>
+        <p class="text-zinc-400 text-lg font-light">Install the local SDK, define one tiny ontology, add text, and ask an ontology-grounded question before you touch the runtime stack.</p>
       </div>
 
-      <div class="bg-[#040404] border border-white/10 rounded-2xl overflow-hidden p-8 md:p-10 shadow-2xl relative group transition-colors">
+      <div class="bg-[#040404] border border-white/10 rounded-lg overflow-hidden p-8 md:p-10 shadow-2xl relative group transition-colors">
         <div class="absolute inset-0 bg-gradient-to-br from-white/[0.02] to-transparent pointer-events-none"></div>
         <div class="space-y-8 relative z-10">
           <div>
-            <h3 class="text-zinc-100 font-semibold mb-3 flex items-center"><span class="flex items-center justify-center w-6 h-6 rounded-md bg-white/10 text-white text-xs mr-3 border border-white/10">1</span> Start Services</h3>
+            <h3 class="text-zinc-100 font-semibold mb-3 flex items-center"><span class="flex items-center justify-center w-6 h-6 rounded-md bg-white/10 text-white text-xs mr-3 border border-white/10">1</span> Install</h3>
             <div class="bg-white/5 border border-white/5 rounded-lg p-4 text-sm font-mono text-zinc-300 shadow-inner">
-              git clone https://github.com/tteon/seocho.git
-              <br />
-              cd seocho && make setup-env && make up
+              uv pip install &quot;seocho[local]&quot;
             </div>
           </div>
           <div>
-            <h3 class="text-zinc-100 font-semibold mb-3 flex items-center"><span class="flex items-center justify-center w-6 h-6 rounded-md bg-white/10 text-white text-xs mr-3 border border-white/10">2</span> Ingest Your Data</h3>
+            <h3 class="text-zinc-100 font-semibold mb-3 flex items-center"><span class="flex items-center justify-center w-6 h-6 rounded-md bg-white/10 text-white text-xs mr-3 border border-white/10">2</span> Run the smallest graph memory</h3>
             <div class="bg-white/5 border border-white/5 rounded-lg p-4 text-sm font-mono text-zinc-300 shadow-inner whitespace-pre overflow-x-auto">
-{`from seocho import Seocho
+{`from seocho import Seocho, Ontology, NodeDef, RelDef, Property
 
-client = Seocho(base_url="http://localhost:8001", workspace_id="default")
-
-client.raw_ingest(
-    [
-        {"id": "r1", "content": "ACME acquired Beta in 2024."},
-        {"id": "r2", "content": "Beta provides risk analytics to ACME."},
-    ],
-    target_database="kgruntime",
-)`}
-            </div>
-          </div>
-          <div>
-            <h3 class="text-zinc-100 font-semibold mb-3 flex items-center"><span class="flex items-center justify-center w-6 h-6 rounded-md bg-white/10 text-white text-xs mr-3 border border-white/10">3</span> Query Through the Semantic Layer</h3>
-            <div class="bg-white/5 border border-white/5 rounded-lg p-4 text-sm font-mono text-zinc-300 shadow-inner whitespace-pre overflow-x-auto">
-{`from seocho import Seocho
-
-client = Seocho(base_url="http://localhost:8001", workspace_id="default")
-
-semantic = client.semantic(
-    "What is ACME related to?",
-    databases=["kgruntime"],
-    reasoning_mode=True,
-    repair_budget=2,
+ontology = Ontology(
+    name="work",
+    nodes={
+        "Person": NodeDef(properties={"name": Property(str, unique=True)}),
+        "Company": NodeDef(properties={"name": Property(str, unique=True)}),
+    },
+    relationships={
+        "WORKS_AT": RelDef(source="Person", target="Company"),
+    },
 )
 
-print(semantic.response)`}
+client = Seocho.local(ontology, llm="mara/MiniMax-M2.5")
+client.add("Marie Curie worked at the University of Paris.")
+
+print(client.ask("Where did Marie Curie work?"))`}
             </div>
+          </div>
+          <div>
+            <h3 class="text-zinc-100 font-semibold mb-3 flex items-center"><span class="flex items-center justify-center w-6 h-6 rounded-md bg-white/10 text-white text-xs mr-3 border border-white/10">3</span> Move to the runtime when you need an API</h3>
+            <p class="text-zinc-400 text-sm leading-relaxed">Use the Docker runtime when teammates, scheduled agents, or external clients need to consume the same graph contract over HTTP.</p>
           </div>
         </div>
       </div>
       <div class="mt-6 flex gap-4 justify-center md:justify-start">
-        <a href="/docs/apply_your_data/" class="inline-flex items-center px-5 py-2.5 rounded-lg bg-white/10 border border-white/10 text-white text-sm font-medium hover:bg-white/15 transition-colors">Bring Your Data</a>
+        <a href="/docs/quickstart/" class="inline-flex items-center px-5 py-2.5 rounded-lg bg-white/10 border border-white/10 text-white text-sm font-medium hover:bg-white/15 transition-colors">Quickstart</a>
         <a href="/docs/python_sdk/" class="inline-flex items-center px-5 py-2.5 rounded-lg border border-white/5 text-zinc-300 text-sm font-medium hover:text-zinc-100 transition-colors">Python SDK</a>
-        <a href="/docs/quickstart/" class="inline-flex items-center px-5 py-2.5 rounded-lg border border-white/5 text-zinc-400 text-sm font-medium hover:text-zinc-200 transition-colors">Runtime Quickstart</a>
+        <a href="/docs/runtime_deployment/" class="inline-flex items-center px-5 py-2.5 rounded-lg border border-white/5 text-zinc-400 text-sm font-medium hover:text-zinc-200 transition-colors">Runtime</a>
       </div>
     </section>
 
@@ -177,7 +168,7 @@ graph TD
         <div>
           <p class="uppercase tracking-[0.28em] text-[0.72rem] text-cyan-300/75 mb-3 font-medium">Repository Signal</p>
           <h2 class="seocho-display text-2xl md:text-4xl text-white mb-2">Latest Updates</h2>
-          <p class="text-zinc-500 text-sm font-light">Continuously integrated signals from GitHub Releases.</p>
+          <p class="text-zinc-500 text-sm font-light">Release-linked project updates from the public GitHub trail.</p>
         </div>
         <a href="https://github.com/TTEON/seocho/commits/main/" target="_blank" class="text-sm font-medium text-zinc-300 hover:text-white transition-colors flex items-center">View Commits <span aria-hidden="true" class="ml-1 text-lg leading-none">→</span></a>
       </div>

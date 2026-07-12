@@ -18,55 +18,47 @@ SEOCHO is strongest when you need more than generic memory:
 ## Install
 
 ```bash
-pip install seocho
+uv pip install seocho
 ```
 
 That thin install is for HTTP client mode.
 
-For local engine mode with your own ontology and Bolt-backed graph store:
+For the local engine and embedded first-run path:
 
 ```bash
-pip install "seocho[local]"
+uv pip install "seocho[local]"
 ```
 
 For repository development:
 
 ```bash
-pip install -e ".[dev]"
+uv sync --extra dev
 ```
 
 ## Quick Example
 
 ```python
-from seocho import Seocho, Ontology, NodeDef, RelDef, P
-from seocho.store import Neo4jGraphStore, OpenAIBackend
+from seocho import Seocho, Ontology, NodeDef, RelDef, Property
 
-# 1. Define your schema
 ontology = Ontology(
-    name="my_domain",
+    name="work",
     nodes={
-        "Person":  NodeDef(properties={"name": P(str, unique=True)}),
-        "Company": NodeDef(properties={"name": P(str, unique=True)}),
+        "Person": NodeDef(properties={"name": Property(str, unique=True)}),
+        "Company": NodeDef(properties={"name": Property(str, unique=True)}),
     },
     relationships={
         "WORKS_AT": RelDef(source="Person", target="Company"),
     },
 )
 
-# 2. Connect
-s = Seocho(
-    ontology=ontology,
-    graph_store=Neo4jGraphStore("bolt://localhost:7687", "neo4j", "pass"),
-    llm=OpenAIBackend(model="gpt-4o"),
-)
+client = Seocho.local(ontology, llm="mara/MiniMax-M2.5")
+client.add("Marie Curie worked at the University of Paris.")
 
-# 3. Index your data
-s.add("Marie Curie worked at the University of Paris.")
-s.index_directory("./my_data/")
-
-# 4. Query
-print(s.ask("Where did Marie Curie work?"))
+print(client.ask("Where did Marie Curie work?"))
 ```
+
+`Seocho.local(...)` is the lightest useful path. Pass a Bolt graph store later
+when you want the production Neo4j or DozerDB backend.
 
 If you want the product rationale first, read [/docs/why_seocho/](/docs/why_seocho/).
 

@@ -152,6 +152,8 @@ Operational notes:
   - `docs/PYTHON_INTERFACE_QUICKSTART.md`
   - `docs/TUTORIAL_FIRST_RUN.md`
   - `docs/OPEN_SOURCE_PLAYBOOK.md`
+  - `docs/RUN_SPECS.md`
+  - `docs/RELEASE_AND_COMMUNITY_OPERATIONS.md`
   - `docs/ARCHITECTURE.md`
   - `docs/WORKFLOW.md`
 - repo-side source-doc contract is checked by `.github/workflows/docs-consistency.yml`

@@ -43,7 +43,7 @@ GitHub issue templates collect the minimum information maintainers need:
 - feature requests: problem, proposed shape, acceptance criteria, contribution size
 - docs/examples: confusing surface, suggested improvement, validation command
 - release checklists: version, release type, validation gates, release notes,
-  and `#seocho` Discord announcement draft
+  and `#seocho-updates` Discord announcement draft
 
 The pull request template mirrors the repository PR contract: `Feature`, `Why`,
 `Design`, `Validation`, `Risks / Gaps`, and `Docs`. Maintainers should ask for
@@ -64,6 +64,15 @@ SEOCHO also has narrow maintainer-only automation:
 - Discord update notifications require the `DISCORD_WEBHOOK_URL` repository
   secret and post only releases or manually curated project updates, not
   individual commits or every successful check event
+- GraphUserGroup / Ghost and Knowledge OS should own higher-context community
+  drafts such as weekly trends, product reviews, job-board opportunities,
+  newsletter posts, and digest candidates; the SEOCHO repository workflow
+  remains the low-noise release/manual announcement path
+- Ghost Admin API automation must stay server-side. Store Ghost Admin API keys,
+  Discord webhook URLs, and relay secrets only in GitHub Actions secrets or a
+  dedicated server-side secret store.
+- Ghost CLI is for self-hosted Ghost install, backup, update, log, and health
+  operations. Do not use it as the public content automation path.
 - release and Discord community operating rules live in
   `docs/RELEASE_AND_COMMUNITY_OPERATIONS.md`
 

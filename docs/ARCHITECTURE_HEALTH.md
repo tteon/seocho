@@ -1,6 +1,7 @@
 # Architecture Health Scorecard
 
-Per-domain quality grade with gaps tracked over time. Unlike `KNOWN_ISSUE.md`
+Per-domain quality grade with gaps tracked over time. Unlike
+`docs/archive/KNOWN_ISSUE.md`
 (a risk register of specific defects), this grades each ownership domain from
 `docs/MODULE_OWNERSHIP_MAP.md` on maturity + test/benchmark coverage, names the
 open gaps, and records when each row was last reviewed. Re-grade on material
@@ -34,4 +35,4 @@ qualifies within a band.
 
 - `docs/MODULE_OWNERSHIP_MAP.md` — the domain definitions graded here
 - `docs/ARCHITECTURE.md` — the system design these domains implement
-- `KNOWN_ISSUE.md` — specific-defect risk register (complementary)
+- `docs/archive/KNOWN_ISSUE.md` — specific-defect risk register (complementary)

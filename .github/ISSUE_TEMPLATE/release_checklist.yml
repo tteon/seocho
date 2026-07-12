@@ -88,7 +88,7 @@ body:
     id: discord
     attributes:
       label: Discord announcement
-      description: Draft the short #seocho announcement.
+      description: Draft the short #seocho-updates announcement.
       placeholder: |
         **SEOCHO release v...**
 

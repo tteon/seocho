@@ -46,9 +46,11 @@ durable agent rules go in `AGENTS.md`; ExecPlan format/decision-style goes in
 | `scripts/` | CI, setup, benchmark, and maintenance helpers |
 | `website/` | Tracked Astro/Starlight docs site |
 
-Local-only directories such as `.agents/`, `.beads/`, `.claude/`, `.githooks/`,
-`.jules/`, `.serena/`, `.seocho/`, `data/`, `logs/`, and `outputs/` must stay
-out of Git.
+Local-only directories such as `.agents/`, `.beads/`, `.githooks/`, `.jules/`,
+`.serena/`, `.seocho/`, `data/`, `logs/`, and `outputs/` must stay out of Git.
+The only `.claude/` exception is `.claude/skills/`: shared, reviewable project
+skills may be tracked there so Claude Code and Codex-adjacent users can run
+SEOCHO workflows without hand-building local setup.
 
 ## Module Playbook
 

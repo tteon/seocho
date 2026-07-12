@@ -52,7 +52,7 @@ and must not be tracked as part of the public GitHub surface.
 |---|---|
 | `.agents/` | Local agent skills, coordination state, or seam reservations |
 | `.beads/` | Local Beads task/status database and runtime state |
-| `.claude/` | Local Claude settings, hooks, and skills |
+| `.claude/` | Local Claude settings and hooks; only `.claude/skills/` may be tracked as shared project skills |
 | `.githooks/` | Local Git hook experiments |
 | `.jules/` | Jules local configuration/prompts |
 | `.serena/` | Serena local configuration/cache |
@@ -67,6 +67,10 @@ and must not be tracked as part of the public GitHub surface.
 | `examples/teaching/` | Active reference | Longer-form teaching/course material. |
 | `docs/assets/` | Active reference | README/docs images and other public documentation assets. |
 | `docs/ontology/` | Active reference | Ontology guidance documents that are not executable examples. |
+| `docs/reference/` | Advanced reference | Deep design references that are useful after the first user path is clear. |
+| `docs/maintainers/` | Maintainer reference | Active maintainer-only guidance that should not be first-read user documentation. |
+| `docs/experiments/` | Evidence / experiments | Live-evidence reports, experiment notes, and case-specific validation artifacts. |
+| `docs/decisions/*.json` | ADR evidence | Measured evidence attached to ADRs; preserve unless the ADR no longer references it. |
 | `docs/archive/` | Historical | Kept for reference only, not current contract. |
 
 ## Secondary Or Compatibility Surfaces
@@ -117,7 +121,9 @@ layout.
   reusable workflow helper scripts under `scripts/`.
 - Keep generated local state under ignored artifact paths such as `data/`,
   `logs/`, `outputs/`, `.seocho/`, and `extraction/output/`.
-- Keep local AI/tool overlays such as `.agents/`, `.beads/`, `.claude/`,
-  `.githooks/`, `.jules/`, and `.serena/` out of Git tracking.
+- Keep local AI/tool overlays such as `.agents/`, `.beads/`, `.githooks/`,
+  `.jules/`, and `.serena/` out of Git tracking. The only `.claude/`
+  exception is `.claude/skills/`, which may contain shared project skills for
+  user onboarding.
 - If you add a new top-level directory, update this document and the relevant
   README entry point in the same change.

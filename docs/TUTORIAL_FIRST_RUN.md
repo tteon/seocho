@@ -5,6 +5,20 @@ Use this document after [../QUICKSTART.md](../QUICKSTART.md) succeeds.
 This tutorial is not the minimal onboarding path.
 It is the manual verification path for developers who want to understand the runtime surfaces.
 
+## Runbook Map
+
+| Step | What you verify | Main command surface |
+|---|---|---|
+| 1 | services are reachable | `docker compose ps`, `/health/*` |
+| 2 | public graph-memory API works | `/api/memories`, `/api/chat` |
+| 3 | internal runtime path works | `/platform/ingest/raw`, `/run_agent_semantic` |
+| 4 | governance APIs work | `/rules/*`, `/semantic/artifacts/*` |
+| 5 | scripted demos still run | `examples/*` |
+| 6 | traces can be exported | Opik or JSONL tracing |
+
+Stop after section 2 if you only need product smoke evidence. Continue into
+sections 3-4 when you are debugging runtime internals or governance behavior.
+
 ## 1. Confirm Baseline Services
 
 ```bash

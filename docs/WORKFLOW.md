@@ -2,6 +2,19 @@
 
 This document is the canonical workflow reference for SEOCHO operations.
 
+Use this page as an operator checklist. It is not the first-run tutorial; for
+that, start with `QUICKSTART.md` or `docs/RUNTIME_DEPLOYMENT.md`.
+
+## Workflow Map
+
+| Area | What it answers | Read when |
+|---|---|---|
+| [Stack Baseline](#stack-baseline) | which runtime, graph, and tracing assumptions are current | starting any repo work |
+| [Operating Planes](#operating-planes) | which module owns control-plane vs data-plane behavior | choosing where to edit |
+| [End-to-End Workflow](#end-to-end-workflow) | how work moves from issue to landing | preparing a PR |
+| [Docs Website](#docs-website) | how source docs reach `seocho.blog` | changing public docs |
+| [Basic CI](#basic-ci) | which local and CI gates matter | before pushing |
+
 ## Stack Baseline
 
 - Agent runtime: OpenAI Agents SDK
@@ -11,9 +24,9 @@ This document is the canonical workflow reference for SEOCHO operations.
 - Graph backend: DozerDB
 - MVP tenancy: single-tenant with `workspace_id` propagated end-to-end
 
-## Planes
+## Operating Planes
 
-## Control Plane
+### Control Plane
 
 Responsibilities:
 
@@ -40,7 +53,7 @@ Long-term target:
   `public_memory_api`, `runtime_ingest`, and `policy` now live under
   `runtime/` with flat `extraction/*` compatibility aliases
 
-## Data Plane
+### Data Plane
 
 Responsibilities:
 
@@ -61,7 +74,15 @@ Primary surfaces:
 
 ## End-to-End Workflow
 
-1. Intake
+| Stage | Goal | Main evidence |
+|---|---|---|
+| Intake | make the scope reviewable before coding | issue, acceptance criteria, relevant docs |
+| Ingestion and graph build | turn records into graph facts and governance artifacts | graph payloads, rule profiles, semantic artifacts |
+| Agent execution | query graph memory through the intended runtime path | traces, route metadata, answer support |
+| Validation and landing | prove the change and publish it safely | CI output, PR notes, release/community updates |
+
+### 1. Intake
+
 - define issue scope and acceptance criteria
 - assign `workspace_id`
 - fill or update the relevant `docs/*` sections using the `DEV-*` prefixes defined in `docs/DEVELOPER_INPUT_CONVENTIONS.md`
@@ -76,7 +97,8 @@ Primary surfaces:
 - for architecture-significant work, run a panel feasibility review using `docs/PHILOSOPHY_FEASIBILITY_REVIEW.md`
 - before coding, have the agent restate the active `DEV-DECISION`, `DEV-CONSTRAINT`, `DEV-API-CONTRACT`, and `DEV-ACCEPTANCE` lines it will implement
 
-2. Ingestion and graph build
+### 2. Ingestion And Graph Build
+
 - run extraction pipeline
 - for interactive runtime onboarding, ingest raw text via `/platform/ingest/raw`
 - parse heterogeneous sources (`text`/`csv`/`pdf`) to normalized text before extraction
@@ -90,7 +112,8 @@ Primary surfaces:
 - export governance artifacts (`/rules/export/cypher`, `/rules/export/shacl`)
 - load graph into DozerDB
 
-3. Agent execution
+### 3. Agent Execution
+
 - run `/run_agent` or `/run_debate`
 - for query-time entity disambiguation, run `/run_agent_semantic`
 - for custom interactive UX, run `/platform/chat/send`
@@ -99,7 +122,7 @@ Primary surfaces:
 - capture traces through the configured observability backend
 - prefer `jsonl` as the portable artifact and Opik as the optional team exporter
 
-Semantic path summary:
+### Semantic Path Summary
 
 - semantic layer extracts entities from question
 - ensure fulltext index exists (`/indexes/fulltext/ensure`) for target DBs
@@ -109,7 +132,8 @@ Semantic path summary:
 - router dispatches to LPG or RDF specialist agent
 - answer generation agent synthesizes final response
 
-4. Validation and landing
+### 4. Validation And Landing
+
 - run code and ops gates
 - run runtime flow smoke gate (`make e2e-smoke`) when API/UI/data-plane contracts change
 - run quickstart reproducibility check (raw ingest -> semantic/debate chat) before release notes
@@ -127,17 +151,17 @@ Semantic path summary:
   `CHANGELOG.md`, and draft the `#seocho-updates` Discord announcement before
   publishing
 
-Operational notes:
+### Operational Notes
 
 - local tracker linting may be used in maintainer workspaces, but it is not a
   public repository contract
-- current dev quality gates in `Makefile` run against `extraction-service`.
+- current dev quality gates in `Makefile` run against `extraction-service`
 - default `make up` now rebuilds an image-backed `extraction-service` so the
-  running runtime matches a known source snapshot.
+  running runtime matches a known source snapshot
 - use `make up-live` or `make dev-up` only when you explicitly want bind-mounted
-  edits from `extraction/`, `runtime/`, and `seocho/` reflected immediately.
-- keep graph procedure privileges scoped (`apoc.*,n10s.*`) in `docker-compose.yml`.
-- default local compose stack is `neo4j + extraction-service + evaluation-interface`.
+  edits from `extraction/`, `runtime/`, and `seocho/` reflected immediately
+- keep graph procedure privileges scoped (`apoc.*,n10s.*`) in `docker-compose.yml`
+- default local compose stack is `neo4j + extraction-service + evaluation-interface`
 - when decomposing large files, prefer the internal seam classes documented in
   `docs/INTERNAL_CLASS_DESIGN.md` before introducing new top-level services
 - local SDK orchestration extracted from `src/seocho/client.py` should land in
@@ -180,7 +204,7 @@ Operational notes:
 - for live docs changes today, also run the Pages repository's sync drift,
   docs quality, static build, and built-link gates before pushing it
 
-5. Basic CI
+## Basic CI
 
 - workflow: `.github/workflows/ci-basic.yml`
 - canonical local command: `bash scripts/ci/run_basic_ci.sh`
@@ -195,7 +219,7 @@ Operational notes:
 Runtime migration slices should follow `docs/RUNTIME_PACKAGE_MIGRATION.md` and
 the runtime shell validation contract in `scripts/ci/check-runtime-shell-contract.sh`.
 
-6. Daily Codex Maintenance Automation
+## Daily Codex Maintenance Automation
 
 - workflow: `.github/workflows/daily-codex-maintenance.yml`
 - cadence: daily at `00:15 UTC` (`09:15 Asia/Seoul`) plus `workflow_dispatch`
@@ -214,7 +238,7 @@ the runtime shell validation contract in `scripts/ci/check-runtime-shell-contrac
     `Impact Results`, `Validation`, and `Risks`
   - no direct push to `main`
 
-7. Periodic Codex Review Automation
+## Periodic Codex Review Automation
 
 - workflow: `.github/workflows/periodic-codex-review.yml`
 - cadence: weekly on Monday at `00:45 UTC` (`09:45 Asia/Seoul`) plus
@@ -234,7 +258,7 @@ the runtime shell validation contract in `scripts/ci/check-runtime-shell-contrac
     `Impact Results`, `Validation`, and `Risks`
   - no direct push to `main`
 
-8. Comment-Based Merge Automation
+## Comment-Based Merge Automation
 
 - workflow: `.github/workflows/pr-comment-merge.yml`
 - trigger: `issue_comment` on PRs with command exactly `/go`
@@ -246,7 +270,7 @@ the runtime shell validation contract in `scripts/ci/check-runtime-shell-contrac
   - merge method is `squash` with branch deletion
   - maintainers should mark automation PRs ready for review before `/go`
 
-9. Governance loop
+## Governance Loop
 - log architecture decisions as ADRs
 - track context graph events and quality metrics
 - schedule follow-up issues for unresolved risks

@@ -1,0 +1,55 @@
+#!/usr/bin/env python3
+"""Export persisted SEOCHO evaluation artifacts to OTLP metrics and traces."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+from pathlib import Path
+
+from seocho.eval.evaluation_telemetry import emit_query_evaluation, emit_scenario_status
+from seocho.metrics import enable_metrics, shutdown_metrics
+from seocho.tracing import disable_tracing, enable_tracing, flush_tracing
+
+
+def _load(path: Path) -> dict:
+    return json.loads(path.read_text())
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--artifacts", type=Path, required=True)
+    parser.add_argument("--otlp-grpc", default="http://127.0.0.1:54317")
+    args = parser.parse_args()
+    os.environ["SEOCHO_TRACE_OTLP_ENDPOINT"] = args.otlp_grpc
+    os.environ["OTEL_SERVICE_NAME"] = "seocho-evaluation"
+    metrics = enable_metrics(backend="otlp", endpoint=args.otlp_grpc)
+    enable_tracing(backend="otlp")
+    root = args.artifacts
+    s23 = _load(root / "okx-s2-s3-live-2026-07-12.json")
+    s67 = _load(root / "okx-s6-s7-live-2026-07-12.json")
+    s8 = _load(root / "okx-s8-reorg-live-2026-07-12.json")
+    tls = _load(root / "dozerdb-tls-capability-2026-07-12.json")
+    utility = _load(root / "okx-memory-utility-live-2026-07-12.json")
+    text2cypher = _load(root / "okx-text2cypher-live-2026-07-12.json")
+    routing = _load(root / "customer-query-routing-10k-2026-07-12.json")
+    for scenario_id, passed in (
+        ("S2", s23["s2"]["passed"]), ("S3", s23["s3"]["passed"]),
+        ("S5", utility["passed"]), ("S6", s67["s6"]["passed"]),
+        ("S7", s67["s7"]["passed"]), ("S8", s8["passed"]),
+    ):
+        emit_scenario_status(scenario_id, status="passed" if passed else "failed", metrics=metrics)
+    emit_scenario_status("S10", status=tls["status"], metrics=metrics)
+    metrics.set("seocho.evaluation.capability.status", int(tls["passed"]), {"capability": "tls_reload", "status": tls["status"]})
+    metrics.set("seocho.evaluation.context.reduction", utility["context_ab"]["estimated_token_reduction"], {"strategy": "causal"})
+    metrics.record("seocho.evaluation.text2cypher.attempts", text2cypher["attempts"], {"outcome": "passed" if text2cypher["passed"] else "failed"})
+    emit_query_evaluation(cohort="customer-template-10k", total=routing["queries"], correct=routing["queries"] - routing["errors"], metrics=metrics)
+    flush_tracing()
+    disable_tracing()
+    shutdown_metrics()
+    print(json.dumps({"exported": True, "scenarios": 7, "queries": routing["queries"]}))
+
+
+if __name__ == "__main__":
+    main()

@@ -154,6 +154,12 @@ METRIC_SPECS: dict[str, MetricSpec] = {
         _spec("seocho.critical.projection_lag", "gauge", "{event}", ("scenario_id",), "Evaluation projection lag."),
         _spec("seocho.critical.scenario.info", "gauge", "1", ("scenario_id", "support_status"), "Evaluation scenario support state."),
         _spec("seocho.critical.latency", "histogram", "ms", ("scenario_id", "stage"), "Evaluation stage latency."),
+        _spec("seocho.evaluation.scenario.status", "gauge", "1", ("scenario_id", "status"), "Latest scenario evaluation status."),
+        _spec("seocho.evaluation.query.count", "counter", "{query}", ("cohort", "outcome"), "Evaluated customer queries."),
+        _spec("seocho.evaluation.query.accuracy", "gauge", "1", ("cohort",), "Latest customer-query accuracy."),
+        _spec("seocho.evaluation.context.reduction", "gauge", "1", ("strategy",), "Input-context reduction ratio."),
+        _spec("seocho.evaluation.text2cypher.attempts", "histogram", "{attempt}", ("outcome",), "Validated Text2Cypher attempts."),
+        _spec("seocho.evaluation.capability.status", "gauge", "1", ("capability", "status"), "Capability-gated evaluation status."),
     )
 }
 

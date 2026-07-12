@@ -314,6 +314,27 @@ and capability-gated rows remain engineering work, not inferred evidence.
   evaluation hypothesis, not measured support-ticket frequency.
 - Artifact SHA-256: `a44121da173fe5d50ab731d2e0157ed3cfd5b8385483a4726d345deb6bd888e1`.
 
+### E-015 — Unified evaluation observability
+
+`tags: [live, opentelemetry, prometheus, tempo, grafana, evaluation]`
+
+- A bounded evaluation telemetry contract now exports scenario status,
+  customer-query counts/accuracy, context reduction, Text2Cypher attempts, and
+  capability gates without workspace, user, transaction, query, or prompt
+  content in metric labels.
+- Live Prometheus verification: template-controlled 10K routing accuracy 1.0,
+  causal context reduction 0.8333, S2/S3/S5/S6/S7/S8 status `passed`, and S10
+  `capability_gated` with TLS reload capability value 0.
+- Live Tempo verification: seven `evaluation.scenario` traces were retained for
+  the exported scenarios under service `seocho-evaluation`.
+- Grafana Evaluation dashboard version 3 contains fourteen panels, including
+  customer routing accuracy, context input reduction, S2-S10 status, and
+  capability gates. Remote path: `/d/seocho-critical-agent-memory/seocho-evaluation`.
+- Runtime finding: the active Grafana container was an older manually managed
+  instance that mounted only its datasource, not repository dashboards. The
+  updated dashboard was therefore safely overwritten through the authenticated
+  local Grafana API; repository Compose remains the reproducible source.
+
 ## Current engineering decisions
 
 1. PostgreSQL remains authoritative; DozerDB is disposable and replayable.

@@ -69,6 +69,10 @@ check_present "Source mirrored from" \
   "src/content/docs/docs/apply_your_data.md" \
   "src/content/docs/docs/python_sdk.md" \
   "src/content/docs/docs/run_specs.md" \
+  "src/content/docs/docs/architecture.md" \
+  "src/content/docs/docs/runtime_architecture.md" \
+  "src/content/docs/docs/query_architecture.md" \
+  "src/content/docs/docs/maintainer_architecture_notes.md" \
   "src/content/docs/docs/tutorial.md" \
   "src/content/docs/docs/open_source_playbook.md" \
   "src/content/docs/docs/release_and_community_operations.md"

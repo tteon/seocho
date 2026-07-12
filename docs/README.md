@@ -115,20 +115,20 @@ or links that another person can inspect.
 
 | Area | Documents |
 |---|---|
-| Product idea | [Why SEOCHO](WHY_SEOCHO.md), [Philosophy](PHILOSOPHY.md), [Architecture](ARCHITECTURE.md) |
+| Product idea | [Why SEOCHO](WHY_SEOCHO.md), [Philosophy](PHILOSOPHY.md), [Architecture Overview](ARCHITECTURE.md) |
 | Getting started | [Quickstart](../QUICKSTART.md), [Python SDK](PYTHON_INTERFACE_QUICKSTART.md), [Bring Your Data](APPLY_YOUR_DATA.md) |
 | Repeatable runs | [Run Specs](RUN_SPECS.md), [Tutorial First Run](TUTORIAL_FIRST_RUN.md), [Files and Artifacts](FILES_AND_ARTIFACTS.md) |
-| Operations | [Runtime Deployment](RUNTIME_DEPLOYMENT.md), [Workflow](WORKFLOW.md), [Release And Community Operations](RELEASE_AND_COMMUNITY_OPERATIONS.md) |
+| Operations | [Runtime Deployment](RUNTIME_DEPLOYMENT.md), [Runtime Architecture](RUNTIME_ARCHITECTURE.md), [Workflow](WORKFLOW.md), [Release And Community Operations](RELEASE_AND_COMMUNITY_OPERATIONS.md) |
 | Open source work | [Open Source Playbook](OPEN_SOURCE_PLAYBOOK.md), [Issue Task System](ISSUE_TASK_SYSTEM.md), [Contributing](../CONTRIBUTING.md) |
 
 The map follows this structure:
 
 | Docs pattern | Purpose | SEOCHO examples |
 |---|---|---|
-| Concepts | explain why the system exists and which words matter | [Why SEOCHO](WHY_SEOCHO.md), [Architecture](ARCHITECTURE.md) |
+| Concepts | explain why the system exists and which words matter | [Why SEOCHO](WHY_SEOCHO.md), [Architecture Overview](ARCHITECTURE.md) |
 | Tutorials | guide a first successful run | [Quickstart](../QUICKSTART.md), [Tutorial First Run](TUTORIAL_FIRST_RUN.md) |
 | How-to guides | solve a concrete task | [Bring Your Data](APPLY_YOUR_DATA.md), [Run Specs](RUN_SPECS.md) |
-| Reference | preserve contracts, surfaces, and decisions | [Files and Artifacts](FILES_AND_ARTIFACTS.md), [Decision Log](decisions/DECISION_LOG.md) |
+| Reference | preserve contracts, surfaces, and decisions | [Files and Artifacts](FILES_AND_ARTIFACTS.md), [Query Architecture](QUERY_ARCHITECTURE.md), [Decision Log](decisions/DECISION_LOG.md) |
 
 ## Common Questions
 
@@ -159,7 +159,7 @@ Use these after the first local success:
 
 | Topic | Reference |
 |---|---|
-| Architecture details | [Architecture](ARCHITECTURE.md), [Internal Class Design](INTERNAL_CLASS_DESIGN.md), [Graph-RAG Agent Handoff Spec](GRAPH_RAG_AGENT_HANDOFF_SPEC.md) |
+| Architecture details | [Architecture Overview](ARCHITECTURE.md), [Runtime Architecture](RUNTIME_ARCHITECTURE.md), [Query Architecture](QUERY_ARCHITECTURE.md), [Maintainer Architecture Notes](MAINTAINER_ARCHITECTURE_NOTES.md) |
 | Repository shape | [Repository Layout](REPOSITORY_LAYOUT.md), [Workflow](WORKFLOW.md) |
 | Automation | [GitHub Automation](GITHUB_AUTOMATION.md), [Release And Community Operations](RELEASE_AND_COMMUNITY_OPERATIONS.md) |
 | Design history | [Decision Log](decisions/DECISION_LOG.md), [Reference Docs](reference/README.md) |

@@ -107,10 +107,40 @@ const fileMappings = [
     dest: 'architecture.md',
     frontmatter:
       '---\n' +
-      'title: Architecture\n' +
-      'description: System Architecture and Module Map.\n' +
+      'title: Architecture Overview\n' +
+      'description: Public architecture overview for SEOCHO runtime, query, and evidence boundaries.\n' +
       '---\n\n' +
       '> *Source mirrored from `seocho/docs/ARCHITECTURE.md`*\n\n',
+  },
+  {
+    src: 'docs/RUNTIME_ARCHITECTURE.md',
+    dest: 'runtime_architecture.md',
+    frontmatter:
+      '---\n' +
+      'title: Runtime Architecture\n' +
+      'description: Runtime shell, service composition, local stack, and API boundary.\n' +
+      '---\n\n' +
+      '> *Source mirrored from `seocho/docs/RUNTIME_ARCHITECTURE.md`*\n\n',
+  },
+  {
+    src: 'docs/QUERY_ARCHITECTURE.md',
+    dest: 'query_architecture.md',
+    frontmatter:
+      '---\n' +
+      'title: Query Architecture\n' +
+      'description: How SEOCHO turns user questions into graph evidence and supported answers.\n' +
+      '---\n\n' +
+      '> *Source mirrored from `seocho/docs/QUERY_ARCHITECTURE.md`*\n\n',
+  },
+  {
+    src: 'docs/MAINTAINER_ARCHITECTURE_NOTES.md',
+    dest: 'maintainer_architecture_notes.md',
+    frontmatter:
+      '---\n' +
+      'title: Maintainer Architecture Notes\n' +
+      'description: Migration notes, ownership boundaries, and maintainer validation guidance.\n' +
+      '---\n\n' +
+      '> *Source mirrored from `seocho/docs/MAINTAINER_ARCHITECTURE_NOTES.md`*\n\n',
   },
   {
     src: 'docs/WORKFLOW.md',
@@ -203,6 +233,9 @@ const routeReplacements = new Map([
   ['`docs/FILES_AND_ARTIFACTS.md`', '[`/docs/files_and_artifacts/`](/docs/files_and_artifacts/)'],
   ['`docs/RUN_SPECS.md`', '[`/docs/run_specs/`](/docs/run_specs/)'],
   ['`docs/ARCHITECTURE.md`', '[`/docs/architecture/`](/docs/architecture/)'],
+  ['`docs/RUNTIME_ARCHITECTURE.md`', '[`/docs/runtime_architecture/`](/docs/runtime_architecture/)'],
+  ['`docs/QUERY_ARCHITECTURE.md`', '[`/docs/query_architecture/`](/docs/query_architecture/)'],
+  ['`docs/MAINTAINER_ARCHITECTURE_NOTES.md`', '[`/docs/maintainer_architecture_notes/`](/docs/maintainer_architecture_notes/)'],
   ['`docs/WORKFLOW.md`', '[`/docs/workflow/`](/docs/workflow/)'],
   ['`docs/TUTORIAL_FIRST_RUN.md`', '[`/docs/tutorial/`](/docs/tutorial/)'],
   ['`docs/OPEN_SOURCE_PLAYBOOK.md`', '[`/docs/open_source_playbook/`](/docs/open_source_playbook/)'],
@@ -229,6 +262,9 @@ const routeReplacements = new Map([
   ['(APPLY_YOUR_DATA.md)', '(/docs/apply_your_data/)'],
   ['(FILES_AND_ARTIFACTS.md)', '(/docs/files_and_artifacts/)'],
   ['(ARCHITECTURE.md)', '(/docs/architecture/)'],
+  ['(RUNTIME_ARCHITECTURE.md)', '(/docs/runtime_architecture/)'],
+  ['(QUERY_ARCHITECTURE.md)', '(/docs/query_architecture/)'],
+  ['(MAINTAINER_ARCHITECTURE_NOTES.md)', '(/docs/maintainer_architecture_notes/)'],
   ['(WORKFLOW.md)', '(/docs/workflow/)'],
   ['(TUTORIAL_FIRST_RUN.md)', '(/docs/tutorial/)'],
   ['(OPEN_SOURCE_PLAYBOOK.md)', '(/docs/open_source_playbook/)'],

@@ -8,6 +8,7 @@ node_modules/
 
 # generated mirrored docs
 src/content/docs/docs/
+src/content/docs/docs.md
 src/content/docs/blog/philosophy.md
 src/content/docs/blog/feasibility-review-framework.md
 

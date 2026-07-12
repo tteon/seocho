@@ -93,7 +93,7 @@ New users should not read the repository tree top to bottom. Use this sequence:
 | When should I use the runtime? | When another process or agent needs the same graph contract over HTTP. | [Runtime Deployment](RUNTIME_DEPLOYMENT.md) |
 | Where do generated artifacts go? | Local graph data, semantic artifacts, rule profiles, and traces are filesystem-visible. | [Files and Artifacts](FILES_AND_ARTIFACTS.md) |
 | Is debate the default mode? | No. Start with semantic graph QA and use debate only for explicit comparison work. | [Python SDK](PYTHON_INTERFACE_QUICKSTART.md) |
-| Where are release and Discord rules? | GitHub releases and docs are canonical; Discord is for curated community updates. | [Release And Community Operations](RELEASE_AND_COMMUNITY_OPERATIONS.md) |
+| Where are release and community rules? | GitHub is the source of truth, Ghost is the public archive/editorial surface, and Discord is for real-time community discussion. | [Release And Community Operations](RELEASE_AND_COMMUNITY_OPERATIONS.md) |
 
 ## Builder References
 
@@ -110,7 +110,7 @@ New users should not read the repository tree top to bottom. Use this sequence:
 - [Graph-RAG Agent Handoff Spec](GRAPH_RAG_AGENT_HANDOFF_SPEC.md): intent-first graph answer contract.
 - [Repository Layout](REPOSITORY_LAYOUT.md): root directory intent and canonical edit surfaces.
 - [GitHub Automation](GITHUB_AUTOMATION.md): CI, docs deploy, labels, Discord, and maintainer automation.
-- [Release And Community Operations](RELEASE_AND_COMMUNITY_OPERATIONS.md): release gates and `#seocho` community rules.
+- [Release And Community Operations](RELEASE_AND_COMMUNITY_OPERATIONS.md): release gates and the GitHub/Ghost/Discord community operating model.
 
 ## Contributor References
 
@@ -129,7 +129,12 @@ first-read sequence.
 - [Runtime Package Migration](RUNTIME_PACKAGE_MIGRATION.md)
 - [Repository Hierarchy Review](REPOSITORY_HIERARCHY_REVIEW.md)
 - [Philosophy Feasibility Review](PHILOSOPHY_FEASIBILITY_REVIEW.md)
-- [Known Issue](KNOWN_ISSUE.md)
+
+Historical plans, resolved risk registers, and discussion memos live in
+[Archive](archive/README.md). Advanced design references live in
+[Reference Docs](reference/README.md). Maintainer-only guidance lives in
+[Maintainer Docs](maintainers/README.md). Experiment-specific material lives
+under `docs/experiments/`.
 
 ## Docs Site Integration
 
@@ -144,5 +149,6 @@ first-read sequence.
 - the `scripts/sync.mjs` helper in `tteon/tteon.github.io` mirrors selected
   source docs into the live GitHub Pages repository.
 - Generated mirror files under `website/src/content/docs/docs/` are derived
-  artifacts; edit the repo-root source docs instead.
+  site artifacts and should stay reproducible from repo-root docs. Do not edit
+  them by hand; regenerate them when source docs change.
 - Validate the site with `cd website && npm ci && npm run check:docs && npm run build && bash scripts/check-built-links.sh`.

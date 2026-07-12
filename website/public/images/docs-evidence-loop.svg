@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="540" viewBox="0 0 1200 540" role="img" aria-labelledby="title desc">
+  <title id="title">SEOCHO evidence and artifact loop</title>
+  <desc id="desc">Run specs, graph payloads, traces, reports, issues, and pull requests create an evidence loop for SEOCHO development.</desc>
+  <defs>
+    <marker id="arrow-evidence" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#d4d4d8"/>
+    </marker>
+    <linearGradient id="evidence-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1120"/>
+      <stop offset="1" stop-color="#09090b"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="1" y="1" width="1198" height="538" rx="8" fill="url(#evidence-bg)" stroke="#334155" stroke-width="2"/>
+  <text x="62" y="66" fill="#ffffff" font-family="Inter, Arial, sans-serif" font-size="34" font-weight="700">Evidence-first documentation loop</text>
+  <text x="62" y="104" fill="#a1a1aa" font-family="Inter, Arial, sans-serif" font-size="18">A graph answer should leave enough artifacts for another person to inspect the claim.</text>
+
+  <g font-family="Inter, Arial, sans-serif">
+    <rect x="72" y="172" width="180" height="110" rx="8" fill="#0f172a" stroke="#38bdf8" stroke-width="2"/>
+    <text x="101" y="211" fill="#e0f2fe" font-size="21" font-weight="700">Inputs</text>
+    <text x="101" y="246" fill="#bae6fd" font-size="15">ontology</text>
+    <text x="101" y="268" fill="#bae6fd" font-size="15">documents, questions</text>
+
+    <rect x="324" y="172" width="180" height="110" rx="8" fill="#052e16" stroke="#34d399" stroke-width="2"/>
+    <text x="352" y="211" fill="#d1fae5" font-size="21" font-weight="700">Run</text>
+    <text x="352" y="246" fill="#bbf7d0" font-size="15">indexing</text>
+    <text x="352" y="268" fill="#bbf7d0" font-size="15">query and answer</text>
+
+    <rect x="576" y="172" width="180" height="110" rx="8" fill="#1c1917" stroke="#fbbf24" stroke-width="2"/>
+    <text x="604" y="211" fill="#fef3c7" font-size="21" font-weight="700">Artifacts</text>
+    <text x="604" y="246" fill="#fde68a" font-size="15">payloads, traces</text>
+    <text x="604" y="268" fill="#fde68a" font-size="15">reports, costs</text>
+
+    <rect x="828" y="172" width="180" height="110" rx="8" fill="#28142f" stroke="#c084fc" stroke-width="2"/>
+    <text x="856" y="211" fill="#f3e8ff" font-size="21" font-weight="700">Review</text>
+    <text x="856" y="246" fill="#e9d5ff" font-size="15">inspect evidence</text>
+    <text x="856" y="268" fill="#e9d5ff" font-size="15">find gaps</text>
+  </g>
+
+  <g stroke="#d4d4d8" stroke-width="3" fill="none" marker-end="url(#arrow-evidence)">
+    <path d="M 252 227 H 314"/>
+    <path d="M 504 227 H 566"/>
+    <path d="M 756 227 H 818"/>
+    <path d="M 918 282 C 918 393 158 393 158 286"/>
+  </g>
+
+  <g font-family="Inter, Arial, sans-serif">
+    <rect x="183" y="350" width="834" height="110" rx="8" fill="#111827" stroke="#475569"/>
+    <text x="222" y="388" fill="#ffffff" font-size="22" font-weight="700">What reviewers should be able to ask</text>
+    <text x="222" y="424" fill="#cbd5e1" font-size="16">Which ontology contract was active? Which graph path supports the answer?</text>
+    <text x="222" y="450" fill="#cbd5e1" font-size="16">Which run changed the result? Which issue or PR records the fix?</text>
+  </g>
+
+  <g font-family="Inter, Arial, sans-serif">
+    <rect x="1038" y="181" width="92" height="92" rx="46" fill="#022c22" stroke="#34d399" stroke-width="2"/>
+    <text x="1064" y="218" fill="#d1fae5" font-size="16" font-weight="700">Update</text>
+    <text x="1052" y="242" fill="#bbf7d0" font-size="13">ontology</text>
+    <text x="1058" y="260" fill="#bbf7d0" font-size="13">rules</text>
+  </g>
+
+  <path d="M 1008 227 H 1030" stroke="#d4d4d8" stroke-width="3" fill="none" marker-end="url(#arrow-evidence)"/>
+</svg>

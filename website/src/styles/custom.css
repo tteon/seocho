@@ -130,12 +130,26 @@ starlight-theme-select {
     vertical-align: top;
 }
 
-.sl-markdown-content img[src$="docs-core-loop.svg"] {
+.sl-markdown-content .docs-figure {
+    margin: 1.5rem 0 2rem;
+}
+
+.sl-markdown-content .docs-figure img,
+.sl-markdown-content img[src$="docs-core-loop.svg"],
+.sl-markdown-content img[src$="docs-reader-map.svg"],
+.sl-markdown-content img[src$="docs-evidence-loop.svg"] {
     width: 100%;
-    margin: 1.25rem 0 1.75rem;
+    margin: 0;
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 8px;
     background: #09090b;
+}
+
+.sl-markdown-content .docs-figure figcaption {
+    margin-top: 0.65rem;
+    color: var(--sl-color-gray-3);
+    font-size: 0.9rem;
+    line-height: 1.55;
 }
 
 /* Subtle styling for the restored Search Bar to match Glassmorphic theme */

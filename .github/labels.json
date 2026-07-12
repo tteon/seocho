@@ -1,0 +1,217 @@
+[
+  {
+    "name": "area-sdk",
+    "color": "1d76db",
+    "description": "Public Python SDK, client facade, session API, or typed models."
+  },
+  {
+    "name": "area-runtime",
+    "color": "1d76db",
+    "description": "Runtime API, policy, memory service, auth, or deployment shell."
+  },
+  {
+    "name": "area-query",
+    "color": "1d76db",
+    "description": "Query planning, retrieval, Cypher, routing, or answer synthesis."
+  },
+  {
+    "name": "area-indexing",
+    "color": "1d76db",
+    "description": "Indexing, extraction, graph shaping, linking, or ingestion."
+  },
+  {
+    "name": "area-ontology",
+    "color": "1d76db",
+    "description": "Ontology model, FIBO, governance, reasoning, or validation."
+  },
+  {
+    "name": "area-docs",
+    "color": "0075ca",
+    "description": "README, QUICKSTART, docs, tutorials, or contributor guidance."
+  },
+  {
+    "name": "area-examples",
+    "color": "0075ca",
+    "description": "Examples, sample data, run specs, or public tutorials."
+  },
+  {
+    "name": "area-ci",
+    "color": "5319e7",
+    "description": "GitHub Actions, CI scripts, release automation, or repo ops."
+  },
+  {
+    "name": "area-connector",
+    "color": "1d76db",
+    "description": "External connectors such as Slack, Notion, Obsidian, or data APIs."
+  },
+  {
+    "name": "area-observability",
+    "color": "1d76db",
+    "description": "Tracing, Opik, OpenTelemetry, metrics, or evaluation telemetry."
+  },
+  {
+    "name": "area-website",
+    "color": "0075ca",
+    "description": "Docs website, blog, Starlight, or Pages deployment."
+  },
+  {
+    "name": "area-security",
+    "color": "b60205",
+    "description": "Security-sensitive behavior, vulnerability policy, or disclosure path."
+  },
+  {
+    "name": "kind-bug",
+    "color": "d73a4a",
+    "description": "A reproducible defect or regression."
+  },
+  {
+    "name": "kind-feature",
+    "color": "a2eeef",
+    "description": "A new user-facing capability or supported workflow."
+  },
+  {
+    "name": "kind-docs",
+    "color": "0075ca",
+    "description": "Documentation, examples, quickstarts, or onboarding copy."
+  },
+  {
+    "name": "kind-test",
+    "color": "c2e0c6",
+    "description": "Test coverage, fixtures, or validation-only changes."
+  },
+  {
+    "name": "kind-ci",
+    "color": "5319e7",
+    "description": "CI, repository automation, release automation, or labels."
+  },
+  {
+    "name": "kind-refactor",
+    "color": "c5def5",
+    "description": "Internal restructuring without intended behavior change."
+  },
+  {
+    "name": "kind-perf",
+    "color": "fbca04",
+    "description": "Performance, memory, throughput, or latency work."
+  },
+  {
+    "name": "kind-maintenance",
+    "color": "cfd3d7",
+    "description": "Maintenance, chores, dependency hygiene, or repo cleanup."
+  },
+  {
+    "name": "status-needs-triage",
+    "color": "ededed",
+    "description": "Needs maintainer triage before work starts or merges."
+  },
+  {
+    "name": "status-needs-repro",
+    "color": "e99695",
+    "description": "Bug report needs a smaller reproduction or failing command."
+  },
+  {
+    "name": "status-needs-design",
+    "color": "fbca04",
+    "description": "Needs design discussion, ADR, or acceptance criteria."
+  },
+  {
+    "name": "urgency-now",
+    "color": "b60205",
+    "description": "Needs immediate maintainer attention."
+  },
+  {
+    "name": "urgency-this-sprint",
+    "color": "d93f0b",
+    "description": "Candidate for the current sprint."
+  },
+  {
+    "name": "urgency-next-sprint",
+    "color": "fbca04",
+    "description": "Candidate for the next sprint."
+  },
+  {
+    "name": "urgency-later",
+    "color": "cfd3d7",
+    "description": "Backlog item without near-term urgency."
+  },
+  {
+    "name": "sprint-current",
+    "color": "0e8a16",
+    "description": "Committed or strongly targeted for the current sprint."
+  },
+  {
+    "name": "sprint-next",
+    "color": "c2e0c6",
+    "description": "Candidate for the next sprint."
+  },
+  {
+    "name": "sprint-backlog",
+    "color": "cfd3d7",
+    "description": "Tracked backlog item with no active sprint commitment."
+  },
+  {
+    "name": "roadmap-enterprise-context",
+    "color": "5319e7",
+    "description": "Enterprise context graph, connector, or organizational memory roadmap."
+  },
+  {
+    "name": "roadmap-obsidian-kg",
+    "color": "5319e7",
+    "description": "Obsidian, local knowledge graph, skill, or plugin workflow roadmap."
+  },
+  {
+    "name": "roadmap-agent-runtime",
+    "color": "5319e7",
+    "description": "Agent runtime, distributed agents, orchestration, or LiteLLM roadmap."
+  },
+  {
+    "name": "roadmap-scalability",
+    "color": "5319e7",
+    "description": "Scalability, distributed systems, benchmarks, or production hardening."
+  },
+  {
+    "name": "roadmap-docs",
+    "color": "5319e7",
+    "description": "Public docs, onboarding, examples, and open-source contributor roadmap."
+  },
+  {
+    "name": "impact-critical",
+    "color": "b60205",
+    "description": "Critical user, security, or production impact."
+  },
+  {
+    "name": "impact-high",
+    "color": "d93f0b",
+    "description": "High product, user, or maintainer impact."
+  },
+  {
+    "name": "impact-medium",
+    "color": "fbca04",
+    "description": "Medium impact."
+  },
+  {
+    "name": "impact-low",
+    "color": "cfd3d7",
+    "description": "Low impact or cosmetic improvement."
+  },
+  {
+    "name": "sev-critical",
+    "color": "b60205",
+    "description": "Critical severity defect."
+  },
+  {
+    "name": "sev-high",
+    "color": "d93f0b",
+    "description": "High severity defect."
+  },
+  {
+    "name": "sev-medium",
+    "color": "fbca04",
+    "description": "Medium severity defect."
+  },
+  {
+    "name": "sev-low",
+    "color": "cfd3d7",
+    "description": "Low severity defect."
+  }
+]

@@ -17,6 +17,7 @@ product-first root `README.md`.
 | `.github/codex/prompts/` | Prompt contracts used by scheduled Codex maintenance workflows. |
 | `.github/ISSUE_TEMPLATE/` | Public bug, feature, and docs/example intake forms. |
 | `.github/PULL_REQUEST_TEMPLATE.md` | PR review envelope matching SEOCHO's public PR contract. |
+| `.github/labels.json` | Public issue/PR label taxonomy synced by triage automation. |
 
 Reusable shell or Python logic belongs in `scripts/`, then workflows can call
 it. Product documentation belongs in `README.md`, `docs/`, or `website/`.
@@ -29,6 +30,7 @@ it. Product documentation belongs in `README.md`, `docs/`, or `website/`.
 | `.github/workflows/docs-consistency.yml` | `bash scripts/ci/check-doc-contracts.sh` | Checks repo-side docs contracts. |
 | `.github/workflows/docs-site-quality.yml` | `cd website && npm run build` plus site checks | Validates the tracked docs site. |
 | `.github/workflows/discord-updates.yml` | n/a | Posts curated updates to Discord after `Basic CI` succeeds on `main`, when a release is published, or when manually dispatched. |
+| `.github/workflows/triage-metadata.yml` | `python scripts/ci/triage_metadata.py --event <event.json>` | Syncs labels and applies `area-*`, `kind-*`, and `status-*` labels to new or updated issues/PRs. |
 
 If a PR fails here, prefer fixing the source code, docs, or reusable scripts
 that the workflow calls before patching workflow YAML.
@@ -44,6 +46,10 @@ GitHub issue templates collect the minimum information maintainers need:
 The pull request template mirrors the repository PR contract: `Feature`, `Why`,
 `Design`, `Validation`, `Risks / Gaps`, and `Docs`. Maintainers should ask for
 exact validation commands before reviewing behavior-changing PRs.
+
+The triage workflow checks out only the trusted base branch, even for fork PRs.
+It never runs contributor-submitted code; it reads issue form fields, PR titles,
+and PR changed-file names through the GitHub API before applying labels.
 
 ## Maintainer Automation
 
@@ -65,6 +71,7 @@ are documented in `docs/WORKFLOW.md`.
 - Add Codex prompt contracts under `.github/codex/prompts/`.
 - Add or update issue templates under `.github/ISSUE_TEMPLATE/`.
 - Keep the pull request template at `.github/PULL_REQUEST_TEMPLATE.md`.
+- Update `.github/labels.json` when adding public label vocabulary.
 - Put reusable automation helpers under `scripts/ci/` or another appropriate
   `scripts/` subdirectory.
 - Do not store generated output, credentials, local state, or personal tool

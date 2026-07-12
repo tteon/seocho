@@ -12,10 +12,17 @@ fi
 targets_file="$(mktemp)"
 trap 'rm -f "$targets_file"' EXIT
 
-find dist -type f \( -name '*.html' -o -name '*.xml' \) -print0 |
-  xargs -0 rg -o '((href|src)="/[^"#?]+")' |
-  sed -E 's/.*="([^"]+)"/\1/' |
-  sort -u > "$targets_file"
+if command -v rg >/dev/null 2>&1; then
+  find dist -type f \( -name '*.html' -o -name '*.xml' \) -print0 |
+    xargs -0 rg -o '((href|src)="/[^"#?]+")' |
+    sed -E 's/.*="([^"]+)"/\1/' |
+    sort -u > "$targets_file"
+else
+  find dist -type f \( -name '*.html' -o -name '*.xml' \) -print0 |
+    xargs -0 grep -Eho '((href|src)="/[^"#?]+")' |
+    sed -E 's/.*="([^"]+)"/\1/' |
+    sort -u > "$targets_file"
+fi
 
 missing=()
 

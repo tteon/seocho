@@ -1,6 +1,6 @@
 # Example Datasets
 
-Sample data for SEOCHO E2E testing and evaluation.
+Small sample data for SEOCHO onboarding, smoke checks, and documented examples.
 
 ## Files
 
@@ -23,27 +23,21 @@ Sample data for SEOCHO E2E testing and evaluation.
 
 Categories: Financials, Company Overview, Governance, Legal, Risk, Shareholder Return, Accounting
 
-## Running E2E Evaluation
+## Running The Quickstart Flow
 
 ```bash
-python examples/e2e_evaluation.py
+uv run seocho run examples/run/quickstart.yaml
 ```
 
 This will:
-1. Load the sample dataset
-2. Index into separate LPG (`seochoe2elpg`) and RDF (`seochoe2erdf`) databases
-3. Query both and compare answers
-4. Save results to `outputs/evaluation/e2e/`
-5. Log all traces to Opik (if configured)
 
-## Neo4j Database Naming
+1. Load the quickstart schema and documents from `examples/run/`
+2. Index them with the embedded graph backend
+3. Ask the bundled questions
+4. Write a run report under the generated `runs/` directory
 
-Neo4j requires: lowercase, no hyphens, no underscores, start with letter.
-
-| Purpose | Database Name |
-|---------|--------------|
-| LPG evaluation | `seochoe2elpg` |
-| RDF evaluation | `seochoe2erdf` |
+For config-driven variants, see `docs/RUN_SPECS.md` and
+`examples/run/sweep-enforcement/`.
 
 ## Boundary
 

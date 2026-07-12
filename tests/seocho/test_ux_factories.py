@@ -66,7 +66,7 @@ class TestSeochoLocal:
 
             mock_lbug.assert_called_once_with(".seocho/local.lbug")
             mock_llm.assert_called_once_with(
-                provider="openai", model="gpt-4o", api_key=None
+                provider="mara", model="MiniMax-M2.5", api_key=None
             )
             assert s._local_mode is True
             assert s.ontology is simple_ontology

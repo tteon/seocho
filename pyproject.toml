@@ -144,7 +144,7 @@ line_length = 88
 
 [tool.flake8]
 max-line-length = 88
-exclude = ["__pycache__", "*.pyc", ".git", "examples/demos", "examples/labs/legacy"]
+exclude = ["__pycache__", "*.pyc", ".git"]
 
 # Dead-code detection (Track A quick-win — surface metric only, not yet a CI gate).
 # Run: `ruff check src/seocho/ extraction/ runtime/ --statistics`
@@ -162,8 +162,6 @@ extend-exclude = [
     "experiments",
     ".tmp-land-ontology-cli",
     ".experiment_runs",
-    "examples/demos",
-    "examples/labs/legacy",
     "tteon.github.io",
 ]
 

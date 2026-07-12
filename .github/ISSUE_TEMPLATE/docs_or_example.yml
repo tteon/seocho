@@ -1,0 +1,41 @@
+name: Docs or example
+description: Improve docs, quickstarts, examples, tutorials, or onboarding.
+title: "docs: "
+body:
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Surface
+      options:
+        - README
+        - QUICKSTART
+        - docs
+        - examples
+        - tutorials
+        - website
+        - contributor docs
+    validations:
+      required: true
+  - type: textarea
+    id: gap
+    attributes:
+      label: What is confusing or missing?
+      description: Point to the page, section, example, command, or expected user path.
+    validations:
+      required: true
+  - type: textarea
+    id: improvement
+    attributes:
+      label: Suggested improvement
+      description: A short proposed wording, example, or command is enough.
+    validations:
+      required: false
+  - type: textarea
+    id: validation
+    attributes:
+      label: How should this be checked?
+      placeholder: |
+        bash scripts/ci/check-doc-contracts.sh
+        cd website && npm run build
+    validations:
+      required: false

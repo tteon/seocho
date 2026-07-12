@@ -1,9 +1,22 @@
 # Examples
 
-Hands-on Jupyter notebooks for learning SEOCHO by climbing one layer at a time.
-This is the canonical home for runnable notebooks and example assets.
-Legacy exploratory notebooks now live under `examples/labs/legacy/` and should
-not receive new onboarding or public example content.
+Hands-on notebooks, run specs, and small sample assets for learning SEOCHO by
+climbing one layer at a time. This is the canonical home for runnable public
+examples; scratch experiments and deprecated notebooks should stay out of the
+tracked repository until they are promoted into one of the current paths below.
+
+## Current map
+
+| Path | Use it for |
+|------|------------|
+| [`run/`](run/) | Config-driven `seocho run` and `seocho sweep` examples. Start here for a CLI-first end-to-end flow. |
+| [`finance-compliance/`](finance-compliance/) | A compact domain example with ontology code, sample documents, and a runnable quickstart. |
+| [`quickstart.ipynb`](quickstart.ipynb) | The notebook "run everything once" tour: ontology, indexing/agent design YAML, provider comparison, observability. |
+| [`bring_your_data.ipynb`](bring_your_data.ipynb) | Plug in your own text files, CSV, or JSON. |
+| [`finder/`](finder/) | Advanced FinDER/FIBO tutorial bundle with helper modules and Docker environment. |
+| [`observability/`](observability/) | Local telemetry stack examples for traces and metrics. |
+| [`mdm/`](mdm/) | Specialized master-data-management walkthroughs. |
+| [`teaching/`](teaching/) | Longer-form teaching curriculum, chapter notes, and slide decks. |
 
 ## The teaching arc
 
@@ -25,8 +38,9 @@ Companion entry points:
 
 Supporting subtrees:
 
-- `demos/` — demo scripts and tracing-focused examples.
-- `labs/legacy/` — older exploratory notebooks preserved for reference.
+- `finance-compliance/` — compact business-domain quickstart.
+- `mdm/` — advanced master-data-management workflow.
+- `observability/` — local OpenTelemetry/Prometheus/Tempo support files.
 - `teaching/` — longer-form teaching curriculum, slide decks, and chapter notes.
 
 ## What each tutorial actually teaches

@@ -187,4 +187,3 @@ networks:
   graphrag-net:
     name: seocho-net
     external: true
-

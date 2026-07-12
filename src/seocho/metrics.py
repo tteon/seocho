@@ -116,6 +116,8 @@ METRIC_SPECS: dict[str, MetricSpec] = {
         _spec("seocho.projection.replay.count", "counter", "{entry}", ("projection", "outcome"), "Projection replay results."),
         _spec("seocho.projection.fencing_rejection.count", "counter", "{rejection}", ("projection",), "Rejected stale projector owners."),
         _spec("seocho.retrieval.duration", "histogram", "s", ("source", "outcome"), "Retrieval operation duration."),
+        _spec("seocho.retrieval.inflight", "up_down_counter", "{query}", ("source",), "In-flight retrieval queries."),
+        _spec("seocho.retrieval.admission_rejection.count", "counter", "{rejection}", ("source", "reason"), "Retrieval queries rejected before backend execution."),
         _spec("seocho.retrieval.candidate_count", "histogram", "{item}", ("source",), "Retrieval candidates."),
         _spec("seocho.retrieval.selected_count", "histogram", "{item}", ("source",), "Selected retrieval results."),
         _spec("seocho.federation.target.duration", "histogram", "s", ("target", "outcome"), "Federated target duration."),

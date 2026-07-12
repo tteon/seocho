@@ -81,3 +81,10 @@ groups:
           severity: ticket
         annotations:
           summary: SEOCHO telemetry export failures are sustained
+      - alert: SeochoGraphQueryCapacitySaturated
+        expr: sum(rate(seocho_retrieval_admission_rejection_count_total[5m])) > 0
+        for: 10m
+        labels:
+          severity: ticket
+        annotations:
+          summary: SEOCHO graph query admission rejections are sustained

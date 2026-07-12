@@ -61,6 +61,8 @@ def test_projector_builds_agent_order_fill_settlement_memory_graph() -> None:
     assert {"Fill", "Settlement", "MemoryRevision"} <= labels
     assert {"ACTED_ON", "HANDED_OFF_TO", "MATERIALIZED_AS"} <= rel_types
     assert {"HAS_FILL", "SETTLED_BY", "RECORDED_AS"} <= rel_types
+    assert all(relationship["source_label"] for relationship in relationships)
+    assert all(relationship["target_label"] for relationship in relationships)
     assert kwargs["workspace_id"] == "okx-agent-exchange-eval"
     assert result.applied_sequence == 8
     assert repository.acks[0]["applied_sequence"] == 8

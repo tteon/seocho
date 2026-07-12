@@ -400,6 +400,38 @@ live runner filters out fixtures 05/06 (`finance_metric_lookup`,
 the constraint forbids loading. Mock-oracle Layer-1
 (`uv run pytest tests/seocho/test_gopts_ranking.py`) still covers them.
 
+### GOpt-inspired slow-query audit loop
+
+SEOCHO does not claim to embed the GOpt optimizer. It adopts the measurable
+operational loop described by the Neo4j/GOpt integration work:
+
+1. run a semantics-preserving baseline and record p50/p95 plus result hashes;
+2. capture `PROFILE` and normalize operators with
+   `seocho.eval.plan_audit.audit_profile`;
+3. attribute delay to scans, variable expansion, eager aggregation, sorting,
+   DB hits, or estimated/actual cardinality divergence;
+4. propose a schema-derived candidate using labelled indexed anchors, typed
+   relationship triplets, early workspace filters, and bounded hop/row budgets;
+5. rerun on the same frozen records and use `compare_plans`;
+6. promote only when result hashes match and latency improves. A faster query
+   with different results is never promotable.
+
+Text2Cypher receives the same constraints as `optimization_hints`: preferred
+label/index access, allowed `(source)-[:TYPE]->(target)` triplets, maximum four
+hops, maximum 50 rows, and forbidden global-scan/unbounded/cartesian shapes.
+`validate_cypher` remains the enforcement boundary; prompt hints are not a
+security control by themselves.
+
+### PostgreSQL to graph projection format
+
+The authoritative outbox projection validates its payload before graph I/O.
+Every node contains `id`, `label`, and properties `workspace_id`,
+`memory_sequence`, and `schema_version`. Every relationship contains `source`,
+`target`, `type`, `source_label`, `target_label`, and the same authoritative
+properties. Endpoint labels must match their nodes. This lets DozerDB/Neo4j use
+label-specific index seeks and keeps replay, provenance, and schema drift
+auditable. See `seocho.memory.validate_projection_format`.
+
 ## 15. Read Next
 
 - `docs/PYTHON_INTERFACE_QUICKSTART.md`

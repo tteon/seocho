@@ -8,6 +8,7 @@ from typing import Any, Mapping, Sequence
 
 from ..tracing import start_span
 from ..metrics import get_metrics
+from .projection_format import validate_projection_format
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,6 +49,7 @@ class AgentTransactionProjector:
             )
             return AgentProjectionResult(0, 0, 0, 0)
         nodes, relationships = self._build_graph(entries)
+        validate_projection_format(nodes, relationships)
         max_sequence = max(entry.sequence for entry in entries)
         try:
             with start_span(
@@ -127,6 +129,8 @@ class AgentTransactionProjector:
                 "source": source,
                 "target": target,
                 "type": rel_type,
+                "source_label": str(nodes.get(source, {}).get("label", "")),
+                "target_label": str(nodes.get(target, {}).get("label", "")),
                 "properties": dict(properties),
             }
 

@@ -164,6 +164,21 @@ def test_builder_derives_schema_hints_from_question_and_namespace() -> None:
     assert hints["anchor_label"] == "Company"
     assert hints["target_label"] == "FinancialMetric"
     assert "reported" in hints["relationship_candidates"]
+    optimization = hints["optimization_hints"]
+    assert optimization["anchor_access"] == "label_plus_indexed_key"
+    assert optimization["max_graph_hops"] == 4
+    assert optimization["max_result_rows"] == 50
+    assert "AllNodesScan" in optimization["avoid"]
+    assert {
+        "source_label": "Company",
+        "relationship_type": "reported",
+        "target_label": "FinancialMetric",
+    } in optimization["relationship_triplets"]
+
+    rendered = builder.render_schema_hints(hints)
+    assert "labelled node using an indexed key" in rendered
+    assert "max_graph_hops=4" in rendered
+    assert "Allowed typed expansions" in rendered
 
 
 def test_builder_uses_schema_hints_when_labels_and_relationship_are_missing() -> None:

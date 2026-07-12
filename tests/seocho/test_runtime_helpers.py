@@ -51,6 +51,8 @@ def test_ensure_memory_graph_adds_document_scope_and_mentions_edges():
     mention_edges = [rel for rel in result["relationships"] if rel["type"] == "MENTIONS"]
     assert len(mention_edges) == 2
     assert all(rel["source"] == "rec-1_doc" for rel in mention_edges)
+    assert all(rel["source_label"] == "Document" for rel in mention_edges)
+    assert {rel["target_label"] for rel in mention_edges} == {"Company", "Person"}
 
 
 def test_ensure_memory_graph_preview_preserves_tutorial_support_sentence():

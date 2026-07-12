@@ -395,6 +395,27 @@ class CypherBuilder:
             "anchor_label": anchor_label,
             "target_label": target_label,
             "relationship_type": relationship_type,
+            "optimization_hints": {
+                "anchor_access": "label_plus_indexed_key",
+                "require_workspace_filter_pushdown": True,
+                "max_graph_hops": 4,
+                "max_result_rows": 50,
+                "relationship_triplets": [
+                    {
+                        "source_label": rel_def.source,
+                        "relationship_type": rel_name,
+                        "target_label": rel_def.target,
+                    }
+                    for rel_name, rel_def in self.ontology.relationships.items()
+                    if not relationship_candidates or rel_name in relationship_candidates[:6]
+                ],
+                "avoid": [
+                    "AllNodesScan",
+                    "unbounded_variable_length_expand",
+                    "late_workspace_filter",
+                    "cartesian_product",
+                ],
+            },
         }
 
     def render_schema_hints(self, schema_hints: Optional[Dict[str, Any]]) -> str:
@@ -428,6 +449,28 @@ class CypherBuilder:
             lines.append(f"- Preferred target label: {target_label}")
         if relationship_type:
             lines.append(f"- Preferred relationship: {relationship_type}")
+        optimization = hints.get("optimization_hints", {})
+        if isinstance(optimization, dict) and optimization:
+            lines.append(
+                "- Query optimization contract: start from a labelled node using an indexed key; "
+                "push the workspace predicate into the first match."
+            )
+            lines.append(
+                f"- Hard budgets: max_graph_hops={int(optimization.get('max_graph_hops', 4))}, "
+                f"max_result_rows={int(optimization.get('max_result_rows', 50))}."
+            )
+            triplets = optimization.get("relationship_triplets", [])
+            if isinstance(triplets, list) and triplets:
+                rendered = [
+                    f"({item.get('source_label', '')})-[:{item.get('relationship_type', '')}]->({item.get('target_label', '')})"
+                    for item in triplets
+                    if isinstance(item, dict)
+                ]
+                if rendered:
+                    lines.append("- Allowed typed expansions: " + ", ".join(rendered))
+            avoid = optimization.get("avoid", [])
+            if isinstance(avoid, list) and avoid:
+                lines.append("- Avoid plan shapes: " + ", ".join(str(item) for item in avoid))
         return "\n".join(lines)
 
     def _entity_lookup(self, entity: str, label: str, workspace_id: str, limit: int) -> Tuple[str, Dict[str, Any]]:

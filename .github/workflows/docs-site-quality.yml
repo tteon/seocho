@@ -3,18 +3,8 @@ name: docs-site-quality
 on:
   push:
     branches: ["main"]
-    paths:
-      - "website/**"
-      - "docs/**"
-      - "README.md"
-      - ".github/workflows/docs-site-quality.yml"
   pull_request:
     branches: ["main"]
-    paths:
-      - "website/**"
-      - "docs/**"
-      - "README.md"
-      - ".github/workflows/docs-site-quality.yml"
 
 jobs:
   docs-site-quality:

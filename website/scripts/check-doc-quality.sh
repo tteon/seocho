@@ -67,6 +67,7 @@ check_present "Source mirrored from" \
   "src/content/docs/docs/quickstart.md" \
   "src/content/docs/docs/runtime_deployment.md" \
   "src/content/docs/docs/apply_your_data.md" \
+  "src/content/docs/docs/connectors.md" \
   "src/content/docs/docs/python_sdk.md" \
   "src/content/docs/docs/run_specs.md" \
   "src/content/docs/docs/architecture.md" \

@@ -3,6 +3,17 @@
 This file is the lightweight index of architecture/product decisions.
 Each entry must link to a full ADR when impact is non-trivial.
 
+## 2026-07-13
+
+- [Accepted] `ADR-0150-connector-materialization-layer.md`
+  - add a read-only connector materialization layer that writes
+    `seocho.connector_record.v1` JSONL for the existing index -> query ->
+    report path
+  - ship first adapters for Notion, Slack, DataHub, PostgreSQL, Neo4j/DozerDB,
+    plus LangChain/LlamaIndex document converters without framework dependencies
+  - keep API credentials out of run specs and require live service runs before
+    claiming external compatibility, latency, or throughput
+
 ## 2026-07-12
 
 - [Status note] `ADR-0089-in-repo-docs-site-and-pages-deploy.md`

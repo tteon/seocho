@@ -174,6 +174,7 @@ Primary surfaces:
   - `docs/README.md`
   - `docs/RUNTIME_DEPLOYMENT.md`
   - `docs/APPLY_YOUR_DATA.md`
+  - `docs/CONNECTORS.md`
   - `docs/PYTHON_INTERFACE_QUICKSTART.md`
   - `docs/TUTORIAL_FIRST_RUN.md`
   - `docs/OPEN_SOURCE_PLAYBOOK.md`

@@ -73,6 +73,16 @@ const fileMappings = [
       '> *Source mirrored from `seocho/docs/APPLY_YOUR_DATA.md`*\n\n',
   },
   {
+    src: 'docs/CONNECTORS.md',
+    dest: 'connectors.md',
+    frontmatter:
+      '---\n' +
+      'title: Connectors\n' +
+      'description: Materialize Notion, Slack, DataHub, PostgreSQL, Neo4j, LangChain, and LlamaIndex data into SEOCHO runs.\n' +
+      '---\n\n' +
+      '> *Source mirrored from `seocho/docs/CONNECTORS.md`*\n\n',
+  },
+  {
     src: 'docs/PYTHON_INTERFACE_QUICKSTART.md',
     dest: 'python_sdk.md',
     frontmatter:
@@ -229,6 +239,7 @@ const routeReplacements = new Map([
   ['`QUICKSTART.md`', '[`/docs/quickstart/`](/docs/quickstart/)'],
   ['`docs/RUNTIME_DEPLOYMENT.md`', '[`/docs/runtime_deployment/`](/docs/runtime_deployment/)'],
   ['`docs/APPLY_YOUR_DATA.md`', '[`/docs/apply_your_data/`](/docs/apply_your_data/)'],
+  ['`docs/CONNECTORS.md`', '[`/docs/connectors/`](/docs/connectors/)'],
   ['`docs/PYTHON_INTERFACE_QUICKSTART.md`', '[`/docs/python_sdk/`](/docs/python_sdk/)'],
   ['`docs/FILES_AND_ARTIFACTS.md`', '[`/docs/files_and_artifacts/`](/docs/files_and_artifacts/)'],
   ['`docs/RUN_SPECS.md`', '[`/docs/run_specs/`](/docs/run_specs/)'],
@@ -254,12 +265,14 @@ const routeReplacements = new Map([
   ['(docs/RUNTIME_DEPLOYMENT.md)', '(/docs/runtime_deployment/)'],
   ['(RUNTIME_DEPLOYMENT.md)', '(/docs/runtime_deployment/)'],
   ['(docs/APPLY_YOUR_DATA.md)', '(/docs/apply_your_data/)'],
+  ['(docs/CONNECTORS.md)', '(/docs/connectors/)'],
   ['(docs/PYTHON_INTERFACE_QUICKSTART.md)', '(/docs/python_sdk/)'],
   ['(docs/FILES_AND_ARTIFACTS.md)', '(/docs/files_and_artifacts/)'],
   ['(docs/RUN_SPECS.md)', '(/docs/run_specs/)'],
   ['(docs/RELEASE_AND_COMMUNITY_OPERATIONS.md)', '(/docs/release_and_community_operations/)'],
   ['(PYTHON_INTERFACE_QUICKSTART.md)', '(/docs/python_sdk/)'],
   ['(APPLY_YOUR_DATA.md)', '(/docs/apply_your_data/)'],
+  ['(CONNECTORS.md)', '(/docs/connectors/)'],
   ['(FILES_AND_ARTIFACTS.md)', '(/docs/files_and_artifacts/)'],
   ['(ARCHITECTURE.md)', '(/docs/architecture/)'],
   ['(RUNTIME_ARCHITECTURE.md)', '(/docs/runtime_architecture/)'],

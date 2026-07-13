@@ -12,7 +12,7 @@ read first, and which words matter before you go deeper.
 | Understand the idea | [Why SEOCHO](WHY_SEOCHO.md) | you can explain ontology-aligned graph memory in one paragraph |
 | Run the smallest example | [Quickstart](../QUICKSTART.md) | you can define one ontology, add text, and ask one question |
 | Use Python directly | [Python SDK](PYTHON_INTERFACE_QUICKSTART.md) | you know when to use local, remote, or explicit backend mode |
-| Bring your own files | [Bring Your Data](APPLY_YOUR_DATA.md) | you know how your records enter the graph |
+| Bring files and connectors | [Bring Your Data](APPLY_YOUR_DATA.md) -> [Connectors](https://github.com/tteon/seocho/blob/main/docs/CONNECTORS.md) | you know how records from your tools enter the graph |
 | Run a service | [Runtime Deployment](RUNTIME_DEPLOYMENT.md) | you can start the API, UI, and graph services |
 | Contribute | [Open Source Playbook](OPEN_SOURCE_PLAYBOOK.md) | you know how to open a scoped issue or PR |
 
@@ -68,7 +68,7 @@ observable, or deployable.
 | Reader | Best first path |
 |---|---|
 | New user | [Quickstart](../QUICKSTART.md) -> [Python SDK](PYTHON_INTERFACE_QUICKSTART.md) |
-| Data or RAG builder | [Bring Your Data](APPLY_YOUR_DATA.md) -> [Run Specs](RUN_SPECS.md) |
+| Data or RAG builder | [Bring Your Data](APPLY_YOUR_DATA.md) -> [Connectors](https://github.com/tteon/seocho/blob/main/docs/CONNECTORS.md) -> [Run Specs](RUN_SPECS.md) |
 | Agent developer | [Python SDK](PYTHON_INTERFACE_QUICKSTART.md) -> [Files and Artifacts](FILES_AND_ARTIFACTS.md) |
 | Operator | [Runtime Deployment](RUNTIME_DEPLOYMENT.md) -> [Workflow](WORKFLOW.md) |
 | Contributor | [Open Source Playbook](OPEN_SOURCE_PLAYBOOK.md) -> [Issue Task System](ISSUE_TASK_SYSTEM.md) |
@@ -116,7 +116,7 @@ or links that another person can inspect.
 | Area | Documents |
 |---|---|
 | Product idea | [Why SEOCHO](WHY_SEOCHO.md), [Philosophy](PHILOSOPHY.md), [Architecture Overview](ARCHITECTURE.md) |
-| Getting started | [Quickstart](../QUICKSTART.md), [Python SDK](PYTHON_INTERFACE_QUICKSTART.md), [Bring Your Data](APPLY_YOUR_DATA.md) |
+| Getting started | [Quickstart](../QUICKSTART.md), [Python SDK](PYTHON_INTERFACE_QUICKSTART.md), [Bring Your Data](APPLY_YOUR_DATA.md), [Connectors](https://github.com/tteon/seocho/blob/main/docs/CONNECTORS.md) |
 | Repeatable runs | [Run Specs](RUN_SPECS.md), [Tutorial First Run](TUTORIAL_FIRST_RUN.md), [Files and Artifacts](FILES_AND_ARTIFACTS.md) |
 | Operations | [Runtime Deployment](RUNTIME_DEPLOYMENT.md), [Runtime Architecture](RUNTIME_ARCHITECTURE.md), [Workflow](WORKFLOW.md), [Release And Community Operations](RELEASE_AND_COMMUNITY_OPERATIONS.md) |
 | Open source work | [Open Source Playbook](OPEN_SOURCE_PLAYBOOK.md), [Issue Task System](ISSUE_TASK_SYSTEM.md), [Contributing](../CONTRIBUTING.md) |
@@ -127,7 +127,7 @@ The map follows this structure:
 |---|---|---|
 | Concepts | explain why the system exists and which words matter | [Why SEOCHO](WHY_SEOCHO.md), [Architecture Overview](ARCHITECTURE.md) |
 | Tutorials | guide a first successful run | [Quickstart](../QUICKSTART.md), [Tutorial First Run](TUTORIAL_FIRST_RUN.md) |
-| How-to guides | solve a concrete task | [Bring Your Data](APPLY_YOUR_DATA.md), [Run Specs](RUN_SPECS.md) |
+| How-to guides | solve a concrete task | [Bring Your Data](APPLY_YOUR_DATA.md), [Connectors](https://github.com/tteon/seocho/blob/main/docs/CONNECTORS.md), [Run Specs](RUN_SPECS.md) |
 | Reference | preserve contracts, surfaces, and decisions | [Files and Artifacts](FILES_AND_ARTIFACTS.md), [Query Architecture](QUERY_ARCHITECTURE.md), [Decision Log](decisions/DECISION_LOG.md) |
 
 ## System Deep-Dive Map
@@ -141,7 +141,7 @@ contract. Use this table to move from a system area to the maintained guide.
 | Product overview | why SEOCHO exists and where it fits | [Why SEOCHO](WHY_SEOCHO.md), [Architecture Overview](ARCHITECTURE.md) |
 | SDK and client interface | how users call SEOCHO from Python | [Python SDK](PYTHON_INTERFACE_QUICKSTART.md), [Quickstart](../QUICKSTART.md) |
 | Ontology system | how schema, context, drift checks, and governance shape behavior | [Why SEOCHO](WHY_SEOCHO.md), [SDK Ontology Guide](https://seocho.blog/sdk/ontology-guide/), [Maintainer Architecture Notes](MAINTAINER_ARCHITECTURE_NOTES.md) |
-| Indexing and ingestion | how documents become graph facts | [Bring Your Data](APPLY_YOUR_DATA.md), [Run Specs](RUN_SPECS.md), [Files and Artifacts](FILES_AND_ARTIFACTS.md) |
+| Indexing and ingestion | how documents become graph facts | [Bring Your Data](APPLY_YOUR_DATA.md), [Connectors](https://github.com/tteon/seocho/blob/main/docs/CONNECTORS.md), [Run Specs](RUN_SPECS.md), [Files and Artifacts](FILES_AND_ARTIFACTS.md) |
 | Query and agent orchestration | how questions become evidence-backed answers | [Query Architecture](QUERY_ARCHITECTURE.md), [Graph-RAG Agent Handoff Spec](GRAPH_RAG_AGENT_HANDOFF_SPEC.md) |
 | Runtime and HTTP API | how the shared service is composed and operated | [Runtime Deployment](RUNTIME_DEPLOYMENT.md), [Runtime Architecture](RUNTIME_ARCHITECTURE.md) |
 | Storage and graph backends | where graph state, generated files, and backend assumptions live | [Files and Artifacts](FILES_AND_ARTIFACTS.md), [Runtime Architecture](RUNTIME_ARCHITECTURE.md) |

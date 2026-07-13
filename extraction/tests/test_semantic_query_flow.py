@@ -5,7 +5,11 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from semantic_query_flow import QueryRouterAgent, SemanticAgentFlow, SemanticEntityResolver
+from semantic_query_flow import (
+    QueryRouterAgent,
+    SemanticAgentFlow,
+    SemanticEntityResolver,
+)
 from semantic_artifact_store import approve_semantic_artifact, save_semantic_artifact
 from semantic_run_store import get_semantic_run, list_semantic_runs
 
@@ -99,7 +103,11 @@ class FakeConnector:
                         "target_entity": "Neo4j",
                         "properties": {"name": "Neo4j", "category": "Database"},
                         "neighbors": [
-                            {"relation": "USES", "target": "Cypher", "target_labels": ["Language"]}
+                            {
+                                "relation": "USES",
+                                "target": "Cypher",
+                                "target_labels": ["Language"],
+                            }
                         ],
                         "supporting_fact": "Neo4j is a graph database.",
                     }
@@ -124,7 +132,9 @@ class FailingRelationshipConnector(FakeConnector):
 
 def test_extract_question_entities():
     resolver = SemanticEntityResolver(FakeConnector())
-    entities = resolver.extract_question_entities('What is "Neo4j" relation to GraphRAG?')
+    entities = resolver.extract_question_entities(
+        'What is "Neo4j" relation to GraphRAG?'
+    )
     assert "Neo4j" in entities
     assert "GraphRAG" in entities
 
@@ -155,7 +165,9 @@ def test_resolve_entities_prefers_fulltext_then_fallback():
 
 def test_resolve_entities_uses_explicit_property_contains_lookup():
     resolver = SemanticEntityResolver(FakeConnector())
-    result = resolver.resolve("What drove NVIDIA's gross margin expansion?", ["kgnormal"])
+    result = resolver.resolve(
+        "What drove NVIDIA's gross margin expansion?", ["kgnormal"]
+    )
 
     assert result["matches"]["NVIDIA"][0]["source"] == "contains"
     assert result["matches"]["NVIDIA"][0]["display_name"] == "NVIDIA Corporation"
@@ -175,30 +187,52 @@ def test_semantic_agent_flow_lpg_path():
     assert result["route"] == "lpg"
     assert result["semantic_context"]["entities"]
     assert result["semantic_context"]["intent"]["intent_id"] == "relationship_lookup"
-    assert result["semantic_context"]["evidence_bundle_preview"]["slot_fills"]["relation_paths"] == ["USES"]
+    assert result["semantic_context"]["evidence_bundle_preview"]["slot_fills"][
+        "relation_paths"
+    ] == ["USES"]
     assert result["lpg_result"] is not None
     assert result["lpg_result"]["records"]
+    receipt = result["semantic_context"]["sdcr_receipt"]
+    assert receipt["workspace_id"] == "default"
+    assert receipt["selected_views"] == ["kgnormal"]
+    assert receipt["authorization_passed"] is True
+    semantic_step = next(
+        step for step in result["trace_steps"] if step["agent"] == "SemanticLayer"
+    )
+    assert semantic_step["metadata"]["sdcr_receipt"] == receipt
     assert "Route selected: LPG." in result["response"]
     assert result["response"].startswith("Neo4j uses Cypher.")
     assert "Intent: relationship_lookup." in result["response"]
     assert "Evidence: Neo4j uses Cypher." in result["response"]
-    specialist_step = next(step for step in result["trace_steps"] if step["agent"] == "LPGAgent")
+    specialist_step = next(
+        step for step in result["trace_steps"] if step["agent"] == "LPGAgent"
+    )
     assert specialist_step["metadata"]["tool_calls"]
 
 
 def test_semantic_agent_flow_uses_canonical_phase_a_query_primitives():
     flow = SemanticAgentFlow(FakeConnector())
 
-    assert flow.lpg_agent.validator.__class__.__module__ == "seocho.query.cypher_validator"
-    assert flow.lpg_agent.classifier.__class__.__module__ == "seocho.query.insufficiency"
-    assert flow.lpg_agent.support_validator.__class__.__module__ == "seocho.query.strategy_chooser"
+    assert (
+        flow.lpg_agent.validator.__class__.__module__ == "seocho.query.cypher_validator"
+    )
+    assert (
+        flow.lpg_agent.classifier.__class__.__module__ == "seocho.query.insufficiency"
+    )
+    assert (
+        flow.lpg_agent.support_validator.__class__.__module__
+        == "seocho.query.strategy_chooser"
+    )
     assert flow.strategy_chooser.__class__.__module__ == "seocho.query.strategy_chooser"
 
 
 def test_semantic_agent_flow_uses_canonical_phase_b_support_classes():
     flow = SemanticAgentFlow(FakeConnector())
 
-    assert flow.lpg_agent.constraint_builder.__class__.__module__ == "seocho.query.constraints"
+    assert (
+        flow.lpg_agent.constraint_builder.__class__.__module__
+        == "seocho.query.constraints"
+    )
     assert flow.constraint_builder.__class__.__module__ == "seocho.query.constraints"
     assert flow.run_registry.__class__.__module__ == "seocho.query.run_registry"
 
@@ -238,7 +272,9 @@ def test_semantic_agent_flow_reasoning_mode_repairs_initially_insufficient_query
     assert result["lpg_result"]["records"]
 
 
-def test_semantic_agent_flow_emits_support_strategy_and_run_metadata(tmp_path, monkeypatch):
+def test_semantic_agent_flow_emits_support_strategy_and_run_metadata(
+    tmp_path, monkeypatch
+):
     registry_path = tmp_path / "semantic_runs.db"
     monkeypatch.setenv("SEOCHO_SEMANTIC_METADATA_DB", str(registry_path))
     flow = SemanticAgentFlow(FakeConnector())
@@ -254,7 +290,9 @@ def test_semantic_agent_flow_emits_support_strategy_and_run_metadata(tmp_path, m
 
     rows = list_semantic_runs("default", base_dir=str(registry_path))
     assert len(rows) == 1
-    record = get_semantic_run("default", result["run_metadata"]["run_id"], base_dir=str(registry_path))
+    record = get_semantic_run(
+        "default", result["run_metadata"]["run_id"], base_dir=str(registry_path)
+    )
     assert rows[0]["run_id"] == result["run_metadata"]["run_id"]
     assert record["route"] == "lpg"
     assert record["intent_id"] == "relationship_lookup"
@@ -265,7 +303,9 @@ def test_semantic_agent_flow_recommends_advanced_for_multi_graph_insufficient_re
 
     result = flow.run("What is Neo4j related to GraphRAG?", ["kgnormal", "kgfibo"])
 
-    assert result["lpg_result"]["summary"].startswith("No grounded LPG result satisfied")
+    assert result["lpg_result"]["summary"].startswith(
+        "No grounded LPG result satisfied"
+    )
     assert result["strategy_decision"]["advanced_debate_recommended"] is True
     assert result["strategy_decision"]["next_mode_hint"] == "advanced"
 
@@ -284,8 +324,14 @@ def test_semantic_agent_flow_emits_deterministic_profile_metadata():
 
     result = flow.run("Who manages Seoul retail?", ["kgnormal"])
 
-    assert result["evidence_bundle"]["deterministic_profile"]["profile_id"] == "baseline.responsibility.v1"
-    assert result["evidence_bundle"]["reasoning"]["profile_id"] == "baseline.responsibility.v1"
+    assert (
+        result["evidence_bundle"]["deterministic_profile"]["profile_id"]
+        == "baseline.responsibility.v1"
+    )
+    assert (
+        result["evidence_bundle"]["reasoning"]["profile_id"]
+        == "baseline.responsibility.v1"
+    )
 
 
 def test_resolve_applies_ontology_alias_hint(tmp_path, monkeypatch):
@@ -376,7 +422,9 @@ def test_resolve_prefers_workspace_vocabulary_over_global(tmp_path, monkeypatch)
     )
 
     resolver = SemanticEntityResolver(FakeConnector())
-    result = resolver.resolve("Tell me about Neo4j", ["kgnormal"], workspace_id="default")
+    result = resolver.resolve(
+        "Tell me about Neo4j", ["kgnormal"], workspace_id="default"
+    )
 
     assert result["vocabulary_resolved"]["Neo4j"] == "Neo4j Enterprise"
     assert result["alias_resolved"]["Neo4j"] == "Neo4j Enterprise"
@@ -387,11 +435,18 @@ def test_resolve_prefers_workspace_vocabulary_over_global(tmp_path, monkeypatch)
 def test_semantic_agent_flow_surfaces_query_contract_failures_in_reasoning_trace():
     flow = SemanticAgentFlow(FailingRelationshipConnector())
 
-    result = flow.run("What is Neo4j connected to?", ["kgnormal"], reasoning_mode=True, repair_budget=1)
+    result = flow.run(
+        "What is Neo4j connected to?",
+        ["kgnormal"],
+        reasoning_mode=True,
+        repair_budget=1,
+    )
 
     diagnostics = result["query_diagnostics"]
     assert diagnostics
-    assert diagnostics[0]["diagnosis_code"] == "query_execution_failed_or_contract_error"
+    assert (
+        diagnostics[0]["diagnosis_code"] == "query_execution_failed_or_contract_error"
+    )
     assert result["lpg_result"]["reasoning"]["query_failure_count"] >= 1
     assert any(
         step.get("status") == "query_failed"

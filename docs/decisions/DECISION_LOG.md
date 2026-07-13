@@ -860,6 +860,13 @@ Each entry must link to a full ADR when impact is non-trivial.
   - document SEOCHO as an ontology-aligned modular monolith with data, control,
     ontology, runtime, and compatibility planes
 
+## 2026-07-13
+
+- [Accepted] ADR-20260713-sdcr-product-boundary
+  - isolate graph views and route by required answer slots
+  - add protected evidence filtering, conflict verification, and decision receipts
+  - keep GNN, full OWL hot-path reasoning, and LLM-judge replacement out of the first product slice
+
 ## Template
 
 Use this block for new entries:

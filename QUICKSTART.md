@@ -126,6 +126,7 @@ Then open:
 |---|---|
 | Understand the project | [README.md](README.md) |
 | Use your own ontology and files | [docs/APPLY_YOUR_DATA.md](docs/APPLY_YOUR_DATA.md) |
+| Connect Notion, Slack, DataHub, Postgres, Neo4j/DozerDB, LangChain, or LlamaIndex | [docs/CONNECTORS.md](https://github.com/tteon/seocho/blob/main/docs/CONNECTORS.md) |
 | Learn the Python SDK | [docs/PYTHON_INTERFACE_QUICKSTART.md](docs/PYTHON_INTERFACE_QUICKSTART.md) |
 | Run the full platform | [docs/RUNTIME_DEPLOYMENT.md](docs/RUNTIME_DEPLOYMENT.md) |
 | See generated files and traces | [docs/FILES_AND_ARTIFACTS.md](docs/FILES_AND_ARTIFACTS.md) |

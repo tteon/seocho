@@ -574,6 +574,230 @@ retained as a provider/prompt scorer improvement item rather than cited as a
 successful E2E result. Artifact SHA-256:
 `cbc03265b75dca6ca746c4c79ee1ed4692361ab5c3c6176e870ec785c04704f0`.
 
+#### Memory-framework comparison (live PostgreSQL and Cognee/MARA)
+
+The framework comparison uses one deterministic synthetic blockchain
+transaction-lifecycle corpus. Synthetic labels are explicit; the runs are real
+executions against the named services rather than in-memory or mocked latency
+claims.
+
+- SEOCHO and LangGraph shared one live PostgreSQL 18 instance and the same 30
+  ordered events. SEOCHO applied 30/30 events at 107.64 events/s and answered
+  29/29 supported current and point-in-time cases correctly. LangGraph Store
+  applied 30/30 at 717.62 events/s and answered its 10/10 supported current
+  cases correctly; 19 point-in-time cases were explicitly unsupported and were
+  not converted into false failures. Duplicate replay was rejected by both,
+  natively by SEOCHO and through an adapter receipt in the LangGraph run.
+- The same contract was then expanded to 10,000 events and 500 sampled logical
+  memories. SEOCHO applied 10,000/10,000 at 99.03 events/s, scored 1,499/1,499
+  current, point-in-time, and pre-creation reads correctly, and recorded
+  retrieval p50/p95 of 7.41/8.14 ms. LangGraph applied 10,000/10,000 at 397.07
+  events/s and scored its 500/500 supported current reads correctly; the other
+  999 temporal cases remained unsupported. SEOCHO therefore paid roughly a
+  four-times write-throughput cost in this single-client run for the stronger
+  revision/outbox/idempotency and temporal-read contract.
+- This is a capability/semantic comparison, not a claim that the systems do
+  equal work. SEOCHO's lower write throughput includes append-only revisions,
+  atomic idempotency and outbox state, provenance, and rollback/rebuild
+  contracts. The LangGraph baseline overwrites current values and does not
+  expose point-in-time revision reads in this adapter.
+- Cognee 1.3.0 was run through its real temporal ingestion and recall path with
+  MARA MiniMax-M2.7, local FastEmbed (`all-MiniLM-L6-v2`, 384 dimensions), and
+  an isolated Neo4j-compatible graph with APOC. A three-event smoke returned
+  2/2 correct current/historical answers with zero disclosure leakage. At 30
+  events across ten logical memories, the sampled result was 3/6 (50%): two
+  latest-state answers selected superseded states and one historical request
+  refused despite the ingested event. Ingestion was 0.452 events/s and recall
+  p50/p95 were 10.88/20.00 seconds.
+- The Cognee result is not a broad leaderboard. It is a small domain-specific
+  qualification showing that successful graph construction and a passing tiny
+  smoke do not guarantee temporal correctness as histories become denser. It
+  motivates using generative graph memory for semantic discovery while keeping
+  transaction state, revision order, idempotency, and point-in-time truth in a
+  deterministic authoritative layer.
+
+The 30-event PostgreSQL comparison was rerun after fixing the scorer for reads
+before a memory's creation: absence is the correct historical result only when
+the requested sequence precedes the first revision. Provider metadata also
+records that MARA's chat model endpoint was used for Cognee extraction/answering
+while embeddings remained local; the probed MARA MiniMax endpoint returned an
+unsupported-embeddings response.
+
+Local evidence artifact SHA-256 values:
+
+- 30-event SEOCHO/LangGraph:
+  `1ac8df776f387b61e5e481e10635d620f2f6a79483caedcaa96470e3e87958b6`
+- 10K-event SEOCHO/LangGraph:
+  `12d602a38931779aecb540c96c33f0ebfee62c92c7f00fc14aba0e1df15e9d7c`
+- 30-event Cognee:
+  `d50b9be1134c7aab6d733f9565915cf3a1fe471308418c380c40ac5106865be8`
+- 3-event Cognee/Neo4j-compatible smoke:
+  `1888bceb3ea2bffeb131da70e2a895b5c637af73d18b7ce9629eee3e9d5810d9`
+
+Reproduce the structured comparison after `make memory-up`:
+
+```bash
+uv run --extra postgres --extra memory-bench \
+  python scripts/benchmarks/memory_framework_compare_live.py \
+  --dsn "$SEOCHO_POSTGRES_DSN" --events 10000 --sample-memories 500 \
+  --frameworks seocho,langgraph --output /tmp/memory-framework-10000.json
+```
+
+Cognee is intentionally isolated from SEOCHO's product dependencies. Run its
+published package in a disposable environment, point `LLM_API_KEY` at a MARA
+key, and use `scripts/benchmarks/cognee_blockchain_memory_live.py`; do not add
+Cognee, its graph backend, or its vector stack to the default SDK installation.
+
+### Cross-functional lessons learned
+
+`tags: [resume, sre, data-engineering, distributed-systems, ai-engineering, ontology]`
+
+This section translates the implementation and live results into the four
+engineering perspectives expected from a production AI-infrastructure role.
+Each lesson separates a measured result from a proposed next improvement.
+
+#### SRE — observe causal stages, not only end-to-end latency
+
+An agent answer crosses intent routing, authoritative memory, graph freshness,
+Text2Cypher, retrieval, context assembly, and model generation. A single total
+latency cannot identify which consistency or dependency boundary failed.
+
+The Grafana/Prometheus/Tempo surface is therefore organized into:
+
+- user SLIs: supported/partial/unsupported outcomes, E2E p50/p95/p99, stale
+  answer count, disclosure violations, and time to first/final token;
+- memory SLIs: current/PIT read latency, atomic commit latency, duplicate and
+  invalid-transition outcomes, causal-read failures, and revision/idempotency/
+  outbox cardinality parity;
+- projection SLIs: authoritative sequence minus serving watermark, oldest
+  outbox age, projection batch duration, fencing rejections, replay count, and
+  rebuild/recovery RTO;
+- GraphRAG diagnostics: hop count, rows, DB hits, scan/Cartesian/variable-expand
+  operators, candidate-to-selected evidence ratio, and Cypher repair count;
+- model diagnostics: provider/model latency, timeout/rate-limit/retry, input/
+  output/cache tokens, cache-hit ratio, and structured-output failures;
+- governance diagnostics: ontology/policy/prompt version, missing evidence,
+  redaction count, and current-memory leakage into historical answers.
+
+The 64-worker spike demonstrates why this decomposition matters: current and
+PIT p95 remained approximately 54 and 52 ms, while atomic-write p95 increased
+to 1.49 seconds. The traceable cause is the workspace-scoped monotonic sequence
+head locked with `FOR UPDATE`, not the model or graph database. Follow-up design
+options are leased sequence ranges or partitioned causal domains. Paging must
+use production event counters; evaluation snapshots and high-cardinality user,
+wallet, prompt, or trace identifiers remain diagnostic-only and never metric
+labels.
+
+#### Data engineering — authority and serving projection are different planes
+
+Blockchain and agent transactions evolve through pending, confirmed, replaced,
+failed, and reversed states. Overwriting the latest row destroys reorg and
+historical-answer evidence. PostgreSQL therefore commits a memory revision,
+idempotency receipt, projection outbox entry, and causal sequence atomically.
+The 999,999-event run verified exact parity across all four counts and 2,000 of
+2,000 correct current/PIT checks at concurrency 32.
+
+The graph is a rebuildable serving projection, not a second source of truth.
+The transport roles are deliberately distinct:
+
+- Arrow IPC is the typed in-memory/streaming projection batch;
+- Parquet is the compressed checkpoint, audit, replay, and rebuild artifact;
+- Protobuf/OTLP transports telemetry and small control messages rather than
+  being the primary bulk property-graph format;
+- bounded Bolt writes remain the capability-gated fallback.
+
+Every projection row needs more than business properties: `workspace_id`,
+`memory_id`, `memory_sequence`, `revision`, `schema_version`, ontology/policy
+version, provenance, payload hash, canonical state, event/ingest time, and typed
+relationship endpoints. A watermark advances only after graph commit and parity
+validation. The first mixed runner exposed why: `DISTINCT ON ... LIMIT` could
+select sparse memories and incorrectly skip intermediate sequences. The final
+consumer rebuilds a parity baseline and then consumes contiguous sequence
+batches.
+
+The 1M load also produced PostgreSQL warnings that checkpoints occurred every
+5-13 seconds. This is recorded as a capacity finding, not a solved claim. The
+next measured sweep should cover WAL/checkpoint sizing, COPY replay versus live
+single-event commit, outbox batch size, time/workspace partitioning, index write
+amplification, and projector backpressure.
+
+#### Distributed systems — ontology metadata is versioned control-plane state
+
+Moving nodes and relationships from an RDBMS to a GDBMS is insufficient when
+their meaning, visibility, and query constraints vary by ontology and policy.
+SEOCHO separates the planes:
+
+```text
+PostgreSQL authority -> Arrow/Parquet outbox -> DozerDB/Neo4j projection
+                              ^
+                              |
+etcd: active ontology/policy/prompt pointers, owner lease, fencing token,
+      projection watermark pointer
+```
+
+etcd never stores transaction bodies, prompts, wallet addresses, or evidence.
+It stores small coordination records such as active ontology/policy versions,
+projector ownership, fencing tokens, and watermark pointers. A projector checks
+these records before writing and must acknowledge with the current fencing
+token, preventing a stale worker from overwriting a newer projection.
+
+Graph records carry `_workspace_id`, `_memory_sequence`, `_schema_version`,
+`_ontology_context_hash`, provenance references, validity bounds, canonical
+status, and disclosure class. Retrieval combines the PostgreSQL causal token,
+graph watermark, and active ontology hash in one Context Envelope. A graph that
+is behind the required token yields `partial` or `stale`, not an apparently
+complete answer. In the final mixed run, seven remaining projection events were
+drained in one batch and 271 ms. The lesson is bounded staleness: operators and
+agents must know how far the projection is behind and whether it is safe to
+answer, rather than relying on an undefined promise of eventual consistency.
+
+#### AI engineering — prompt optimization is structural context stability
+
+Repeated system instructions, ontology definitions, tools, Text2Cypher rules,
+answer schema, and disclosure rules form a byte-stable prefix. The user request,
+selected revisions, graph evidence, freshness, and missing slots form a variable
+suffix. Prefix identity uses prompt, ontology, tool-schema, and policy hashes;
+timestamps, request IDs, user metadata, and random ordering stay out of it.
+
+The relevant measurements are stable/variable token counts, cache-read/write
+tokens, exact-prefix reuse, cold/warm latency, input-cost reduction, context
+compression, answer parity, and provider-specific structured-output success.
+Compacting the same 100 memories from 300 raw revisions reduced serialized
+context from 179,790 to 59,560 bytes (66.87%) while preserving latest-state
+answer parity.
+
+Load balancing should also be prompt- and workload-aware: group requests sharing
+a cache domain, route structured Text2Cypher to models with measured schema
+adherence, bound long generations with semaphores, and keep deterministic
+support/disclosure decisions outside the model. The 10K MARA run had no
+transport errors but p95 latency of 29.218 seconds and missed the strict answer
+quality gate. Provider availability is therefore not equivalent to production
+answer correctness.
+
+#### Ontology/model choice changes graph topology and RAG behavior
+
+The same source can become a shallow `Agent -> SENT -> Bitcoin` graph or an
+event/revision graph connecting intent, execution agent, blockchain transaction,
+block, and counterparty. The first favors cheap shallow lookup; the second
+supports state transition, provenance, reorg, and temporal reasoning at higher
+ingestion and traversal cost. An overly strict ontology can reduce extraction
+recall, while a permissive ontology increases ambiguity and Text2Cypher search
+space.
+
+The fair ablation holds source corpus, gold facts, query set, answer model, and
+context budget constant while varying extraction model, ontology profile, and
+graph representation. It reports entity/relation precision and recall,
+ontology-invalid edges, duplicates/orphans, density, required hops, retrieval
+recall/evidence precision, temporal leakage, Cypher repair, groundedness,
+abstention, tokens, latency, and cost. Graph construction quality must be scored
+before answer generation so a strong model cannot hide a weak graph and a weak
+model cannot obscure good retrieval.
+
+The combined lesson is that production agent memory is not “send more history
+to an LLM.” It is the joint design of authoritative temporal history,
+rebuildable serving graphs, versioned ontology control state, cache-aware
+context assembly, and causal observability.
+
 #### SRE metric decision
 
 - Paging SLIs use production event counters, never sampled traces or one-shot

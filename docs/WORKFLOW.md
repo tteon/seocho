@@ -201,6 +201,8 @@ Primary surfaces:
   - `cd website && npm run check:docs`
   - `cd website && npm run build`
   - `cd website && bash scripts/check-built-links.sh`
+- this workflow runs on every PR so it can be required by branch protection
+  without path-filter skip deadlocks
 - the same workflow also checks the live `seocho.blog` presentation contract by
   checking out `tteon/tteon.github.io`, rendering its mirrors with
   `SEOCHO_SOURCE_REPO=$GITHUB_WORKSPACE/seocho`, and running:

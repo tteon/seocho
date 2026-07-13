@@ -35,6 +35,7 @@ export default defineConfig({
                         { label: 'Why SEOCHO', link: '/docs/why_seocho/' },
                         { label: 'Quickstart', link: '/docs/quickstart/' },
                         { label: 'Bring Your Data', link: '/docs/apply_your_data/' },
+                        { label: 'Connectors', link: '/docs/connectors/' },
                     ]
                 },
                 {

@@ -1,0 +1,51 @@
+name: connector_starter
+description: Minimal ontology for connector starter records.
+nodes:
+  Connector:
+    description: A data connector or connector family.
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+  Team:
+    description: A team that owns a decision, source, or system.
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+  Decision:
+    description: A technical or product decision.
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+  Ticket:
+    description: A user request or support ticket.
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+  DataAsset:
+    description: A schema, table, dataset, or catalog asset.
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+relationships:
+  OWNS:
+    source: Team
+    target: Connector
+    description: Team owns or operates a connector.
+  REQUESTS:
+    source: Ticket
+    target: Connector
+    description: Ticket requests a connector or connector capability.
+  DESCRIBES:
+    source: DataAsset
+    target: Connector
+    description: Data asset describes evidence needed by a connector.
+  ACCEPTS:
+    source: Team
+    target: Decision
+    description: Team accepts a decision.
+

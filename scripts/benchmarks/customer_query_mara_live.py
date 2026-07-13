@@ -17,7 +17,11 @@ from seocho.tracing import disable_tracing, enable_tracing, flush_tracing, start
 
 
 async def run(args: argparse.Namespace) -> dict:
-    rows = [json.loads(line) for line in args.dataset.read_text().splitlines() if line]
+    rows = []
+    with open(args.dataset, encoding="utf-8") as f:
+        for line in f:
+            if line.strip():
+                rows.append(json.loads(line))
     bulk = json.loads(args.bulk_report.read_text())
     available = {
         source: bool(detail.get("available"))
@@ -45,15 +49,16 @@ async def run(args: argparse.Namespace) -> dict:
     checkpoint: Path | None = getattr(args, "checkpoint", None)
     completed: dict[str, dict] = {}
     if checkpoint and checkpoint.exists():
-        for line in checkpoint.read_text().splitlines():
-            if not line:
-                continue
-            try:
-                item = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            if query_id := item.get("query_id"):
-                completed[query_id] = item
+        with open(checkpoint, encoding="utf-8") as f:
+            for line in f:
+                if not line:
+                    continue
+                try:
+                    item = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if query_id := item.get("query_id"):
+                    completed[query_id] = item
         if getattr(args, "retry_failures", False):
             completed = {
                 query_id: item

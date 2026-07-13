@@ -153,12 +153,13 @@ def _is_true(value: Any) -> bool:
 def _read_redirect_from_config(config_path: Path) -> str:
     if not config_path.exists():
         return ""
-    for raw in config_path.read_text().splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#"):
-            continue
-        if line.startswith("redirect:"):
-            return line.split(":", 1)[1].strip().strip("'\"")
+    with open(config_path) as f:
+        for raw in f:
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            if line.startswith("redirect:"):
+                return line.split(":", 1)[1].strip().strip("'\"")
     return ""
 
 
@@ -228,21 +229,22 @@ def _load_issues_from_jsonl(issues_file: Path) -> tuple[list[dict[str, Any]], in
 
     rows: list[dict[str, Any]] = []
     invalid_lines = 0
-    for line_no, raw in enumerate(issues_file.read_text().splitlines(), start=1):
-        line = raw.strip()
-        if not line:
-            continue
-        try:
-            parsed = json.loads(line)
-        except json.JSONDecodeError:
-            invalid_lines += 1
-            continue
-        if not isinstance(parsed, dict):
-            invalid_lines += 1
-            continue
-        row = dict(parsed)
-        row["_doctor_line_no"] = line_no
-        rows.append(row)
+    with open(issues_file) as f:
+        for line_no, raw in enumerate(f, start=1):
+            line = raw.strip()
+            if not line:
+                continue
+            try:
+                parsed = json.loads(line)
+            except json.JSONDecodeError:
+                invalid_lines += 1
+                continue
+            if not isinstance(parsed, dict):
+                invalid_lines += 1
+                continue
+            row = dict(parsed)
+            row["_doctor_line_no"] = line_no
+            rows.append(row)
     return rows, invalid_lines, ""
 
 

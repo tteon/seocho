@@ -1,0 +1,42 @@
+[
+  {
+    "id": "decision-001",
+    "kind": "custom_decision",
+    "category": "connector_starter",
+    "title": "Connector materialization layer",
+    "status": "accepted",
+    "owner": "agent-platform",
+    "labels": ["connector", "graph-rag", "evidence"],
+    "url": "https://example.invalid/decisions/decision-001",
+    "created_at": "2026-07-13T09:00:00Z",
+    "updated_at": "2026-07-13T09:30:00Z",
+    "content": "Decision: Ship a read-only connector materialization layer before adding a heavy connector runtime. Owner: Agent Platform. Evidence: connector records should flow through the same SEOCHO index, ontology validation, graph shaping, and report path as normal documents."
+  },
+  {
+    "id": "ticket-1042",
+    "kind": "custom_ticket",
+    "category": "connector_starter",
+    "title": "User asks for Notion and Slack evidence",
+    "status": "open",
+    "owner": "customer-success",
+    "labels": ["notion", "slack", "quickstart"],
+    "url": "https://example.invalid/tickets/1042",
+    "created_at": "2026-07-13T10:00:00Z",
+    "updated_at": "2026-07-13T10:20:00Z",
+    "content": "Support ticket: A production user wants Notion product decisions and Slack incident threads connected to graph answers. The user needs cited evidence, source URLs, and a quickstart that works before reading a long connector guide."
+  },
+  {
+    "id": "schema-warehouse-orders",
+    "kind": "custom_schema_asset",
+    "category": "connector_starter",
+    "title": "Warehouse orders schema",
+    "status": "active",
+    "owner": "data-platform",
+    "labels": ["warehouse", "schema", "lineage"],
+    "url": "https://example.invalid/catalog/orders",
+    "created_at": "2026-07-13T11:00:00Z",
+    "updated_at": "2026-07-13T11:10:00Z",
+    "content": "Catalog asset: The orders table contains order_id, customer_id, status, total_amount, and created_at. It is owned by Data Platform and feeds support analytics. A future warehouse connector should preserve schema fields, owners, tags, and lineage as graph evidence."
+  }
+]
+

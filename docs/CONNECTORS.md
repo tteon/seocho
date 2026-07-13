@@ -101,6 +101,22 @@ documents:
 fingerprints. It is content-free and exists so future incremental connectors
 can add provider cursors without changing the record format.
 
+## Starting Point Example
+
+Open [examples/connectors/](../examples/connectors/) when you want a concrete
+starting point instead of a reference page.
+
+It includes:
+
+- a no-service `custom_loader.py` that turns a local fixture into
+  `seocho.connector_record.v1` JSONL
+- a tracked sample JSONL file and `run.yaml` for rendered run-spec inspection,
+  plus full `seocho run --dry-run` once local graph and model preflight inputs
+  are configured
+- `seocho.connectors.example.yaml`, a copyable live-source config
+- a recommended next-connector roadmap for GitHub, Google Drive/Docs,
+  Confluence/Jira, Linear, object stores, warehouses, support systems, and chat
+
 ## Provider Boundaries
 
 Connectors bring source data into SEOCHO. Model providers stay in run specs and
@@ -194,6 +210,28 @@ Neo4j / DozerDB:
 - materializes node labels, relationship types, and observed properties
 - defaults to metadata only, not raw graph export
 - reads `NEO4J_URI`, `NEO4J_USER`, and `NEO4J_PASSWORD` by env-var name
+
+## Recommended Next Connectors
+
+SEOCHO should prioritize connectors where graph-shaped evidence is more useful
+than another pile of text chunks:
+
+| Connector family | Why it should be near the top |
+|---|---|
+| GitHub | Public repos make it easy for contributors to test issues, PRs, reviews, commits, and discussions without private credentials. |
+| Google Drive / Docs | Many teams keep policies, proposals, meeting notes, and operating docs there. |
+| Confluence / Jira | Enterprise knowledge and work tracking are usually linked, so page + issue evidence can ground answers well. |
+| Linear | Product teams can materialize issues, projects, comments, and decisions with a compact API surface. |
+| S3 / GCS / Azure Blob | Object stores are the common bridge for exported PDFs, logs, JSONL, and document corpora. |
+| Snowflake / BigQuery / dbt | Warehouse schema, ownership, tags, and lineage make SEOCHO clearly different from plain LangChain/LlamaIndex loaders. |
+| Zendesk / Intercom | Support tickets expose user language, pain, and unresolved risks that should become cited graph evidence. |
+| Microsoft Teams / Discord | The Slack message/thread model can extend to the chat systems many teams already use. |
+| Webhook / Kafka | Event streams are the path to fresh operational memory once batch connectors are stable. |
+
+For each new provider, keep the public contract small: check credentials,
+discover source kinds, read records, and write content-free state. This mirrors
+the useful parts of Airbyte, Singer, and dlt without forcing SEOCHO to become
+a general ETL runtime.
 
 ## Live Evidence
 

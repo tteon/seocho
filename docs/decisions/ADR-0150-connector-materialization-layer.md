@@ -25,11 +25,16 @@ Add a built-in connector materialization layer:
 - each item is normalized into `seocho.connector_record.v1`
 - records are written as JSONL
 - existing `seocho run` / `documents.path` consumes the JSONL
+- repeatable multi-source imports use `seocho.connectors.yaml`
+- successful config runs write a content-free state artifact for source names,
+  output files, record IDs, and content fingerprints
 
 The first public CLI is:
 
 ```bash
 seocho connect <notion|slack|datahub|postgres|neo4j> --output .seocho/connectors/source.jsonl
+seocho connect init
+seocho connect run seocho.connectors.yaml
 ```
 
 `seocho connectors` is an alias. LangChain and LlamaIndex integrations are
@@ -48,13 +53,15 @@ surface in `seocho.__init__` remains unchanged.
 - Connector tests can be mostly offline and deterministic.
 - Live compatibility, performance, and rate-limit claims still require real
   runs against each named service.
+- The state artifact establishes the place for future provider cursors without
+  pretending the first adapters are incremental.
 - Stateful sync configs, checkpoints, OAuth rotation, and direct graph-payload
   connectors can land later without disturbing the core indexing pipeline.
 
 ## Follow-Ups
 
-- Add `seocho.connectors.yaml` for multi-source stateful sync once the JSONL
-  materialization path proves ergonomic.
+- Add provider-specific incremental cursors once live gates prove each source's
+  pagination and timestamp semantics.
 - Add optional live gates for Notion, Slack, DataHub, PostgreSQL, and
   Neo4j/DozerDB behind env vars.
 - Add Neo4j offline import artifact export only after the normalized record

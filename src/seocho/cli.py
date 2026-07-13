@@ -179,6 +179,26 @@ def build_parser() -> argparse.ArgumentParser:
     )
     connect_subparsers = connect_parser.add_subparsers(dest="connect_command", required=True)
 
+    connect_init_parser = connect_subparsers.add_parser("init", help="Write a starter seocho.connectors.yaml")
+    connect_init_parser.add_argument(
+        "path",
+        nargs="?",
+        default="seocho.connectors.yaml",
+        help="Config path to create",
+    )
+    connect_init_parser.add_argument("--force", action="store_true", help="Overwrite an existing config")
+
+    connect_run_parser = connect_subparsers.add_parser("run", help="Materialize all sources in a connector config")
+    connect_run_parser.add_argument(
+        "config",
+        nargs="?",
+        default="seocho.connectors.yaml",
+        help="Connector config path",
+    )
+    connect_run_parser.add_argument("--output-dir", default=None, help="Override config output_dir")
+    connect_run_parser.add_argument("--dry-run", action="store_true", help="Fetch and summarize without writing JSONL")
+    connect_run_parser.add_argument("--json", dest="output_json", action="store_true", help="Emit JSON")
+
     notion_parser = connect_subparsers.add_parser("notion", help="Export Notion pages or data-source rows")
     notion_parser.add_argument("--data-source-id", action="append", default=[], help="Notion data source id")
     notion_parser.add_argument("--page-id", action="append", default=[], help="Notion page id")
@@ -1169,11 +1189,71 @@ def _print_connect_result(
         print("  seocho run")
 
 
+def _print_connect_plan_result(
+    *,
+    results: Sequence[Any],
+    output_dir: str,
+    state_path: str,
+    dry_run: bool,
+    output_json: bool,
+) -> None:
+    payload = {
+        "dry_run": dry_run,
+        "output_dir": output_dir,
+        "state_path": state_path,
+        "records": sum(int(getattr(result, "records", 0)) for result in results),
+        "sources": [result.to_dict() for result in results],
+    }
+    if output_json:
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        return
+    action = "would write" if dry_run else "wrote"
+    print(f"{action} {payload['records']} connector record(s) from {len(results)} source(s)")
+    for result in results:
+        print(f"  - {result.name}: {result.records} {result.provider} record(s) -> {result.output}")
+    if not dry_run:
+        print(f"state: {state_path}")
+        print()
+        print("Next:")
+        print(f"  set documents.path in seocho.run.yaml to: {output_dir}")
+        print("  seocho run --dry-run")
+        print("  seocho run")
+
+
 def _cmd_connect(args: argparse.Namespace) -> int:
     """Materialize external ecosystem data as SEOCHO JSONL records."""
-    from .connectors import write_records_jsonl
 
     provider = args.connect_command
+    if provider == "init":
+        from .connectors.config import write_sample_config
+
+        path = write_sample_config(args.path, force=args.force)
+        print(f"Created connector config at {path}")
+        print()
+        print("Next:")
+        print(f"  edit {path}")
+        print(f"  seocho connect run {path} --dry-run")
+        print(f"  seocho connect run {path}")
+        return 0
+
+    if provider == "run":
+        from .connectors.config import load_connector_config, run_connector_plan
+
+        plan = load_connector_config(args.config)
+        if args.output_dir:
+            plan.output_dir = args.output_dir
+        results = run_connector_plan(plan, dry_run=args.dry_run)
+        _print_connect_plan_result(
+            results=results,
+            output_dir=plan.output_dir,
+            state_path=plan.state_path,
+            dry_run=args.dry_run,
+            output_json=args.output_json,
+        )
+        return 0
+
+    from .connectors import write_records_jsonl
+
     records: list[Any]
     if provider == "notion":
         if not args.data_source_id and not args.page_id:

@@ -1,0 +1,54 @@
+# Copy this file to ./seocho.connectors.yaml and keep only the sources you use.
+#
+# Dry-run first:
+#
+#   uv run seocho connect run seocho.connectors.yaml --dry-run
+#
+version: 1
+output_dir: .seocho/connectors
+state_path: .seocho/connectors/state.json
+
+sources:
+  - name: notion_product_wiki
+    provider: notion
+    data_source_ids: ["replace-with-notion-data-source-id"]
+    token_env: NOTION_TOKEN
+    category: product_knowledge
+    output: notion_product_wiki.jsonl
+
+  - name: slack_incidents
+    provider: slack
+    channels: ["replace-with-slack-channel-id"]
+    token_env: SLACK_BOT_TOKEN
+    team_id: "${SLACK_TEAM_ID:-}"
+    limit: 15
+    threads: true
+    category: team_discussion
+    output: slack_incidents.jsonl
+
+  - name: datahub_catalog
+    provider: datahub
+    server: "${DATAHUB_SERVER:-http://localhost:9002}"
+    token_env: DATAHUB_TOKEN
+    query: "*"
+    limit: 100
+    category: data_catalog
+    output: datahub_catalog.jsonl
+
+  - name: postgres_public_schema
+    provider: postgres
+    dsn_env: DATABASE_URL
+    schemas: [public]
+    database_name: app
+    category: relational_schema
+    output: postgres_public_schema.jsonl
+
+  - name: dozerdb_graph_schema
+    provider: neo4j
+    uri_env: NEO4J_URI
+    user_env: NEO4J_USER
+    password_env: NEO4J_PASSWORD
+    database: neo4j
+    category: graph_schema
+    output: dozerdb_graph_schema.jsonl
+

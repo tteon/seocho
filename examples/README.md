@@ -10,6 +10,7 @@ tracked repository until they are promoted into one of the current paths below.
 | Path | Use it for |
 |------|------------|
 | [`run/`](run/) | Config-driven `seocho run` and `seocho sweep` examples. Start here for a CLI-first end-to-end flow. |
+| [`connectors/`](connectors/) | Starting point for external-source materialization, custom connector records, and recommended next connectors. |
 | [`finance-compliance/`](finance-compliance/) | A compact domain example with ontology code, sample documents, and a runnable quickstart. |
 | [`quickstart.ipynb`](quickstart.ipynb) | The notebook "run everything once" tour: ontology, indexing/agent design YAML, provider comparison, observability. |
 | [`bring_your_data.ipynb`](bring_your_data.ipynb) | Plug in your own text files, CSV, or JSON. |
@@ -38,6 +39,7 @@ Companion entry points:
 
 Supporting subtrees:
 
+- `connectors/` — copyable connector config, no-service custom loader, and recommended connector roadmap.
 - `finance-compliance/` — compact business-domain quickstart.
 - `mdm/` — advanced master-data-management workflow.
 - `observability/` — local OpenTelemetry/Prometheus/Tempo support files.

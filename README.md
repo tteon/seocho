@@ -171,7 +171,8 @@ seocho connect neo4j --database neo4j \
 Then set `documents.path` to that JSONL in `seocho.run.yaml`. LangChain and
 LlamaIndex users can convert their existing `Document` objects with
 `seocho.connectors` without adding a framework dependency to SEOCHO itself.
-See [docs/CONNECTORS.md](docs/CONNECTORS.md).
+See [docs/CONNECTORS.md](docs/CONNECTORS.md) and the copyable
+[connector starting point](examples/connectors/).
 
 ## How SEOCHO Works
 
@@ -277,7 +278,7 @@ Same order as the [docs onboarding path](docs/README.md), top to bottom:
 | Beginner walkthrough | [docs/BEGINNER_GUIDE.md](docs/BEGINNER_GUIDE.md) |
 | Python SDK details | [docs/PYTHON_INTERFACE_QUICKSTART.md](docs/PYTHON_INTERFACE_QUICKSTART.md) |
 | Bring your own data | [docs/APPLY_YOUR_DATA.md](docs/APPLY_YOUR_DATA.md) |
-| Connect Notion, Slack, DataHub, Postgres, Neo4j/DozerDB, LangChain, or LlamaIndex | [docs/CONNECTORS.md](docs/CONNECTORS.md) |
+| Connect Notion, Slack, DataHub, Postgres, Neo4j/DozerDB, LangChain, or LlamaIndex | [docs/CONNECTORS.md](docs/CONNECTORS.md), [examples/connectors/](examples/connectors/) |
 | File/artifact locations | [docs/FILES_AND_ARTIFACTS.md](docs/FILES_AND_ARTIFACTS.md) |
 | Architecture overview | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | Runtime internals | [docs/RUNTIME_ARCHITECTURE.md](docs/RUNTIME_ARCHITECTURE.md) |

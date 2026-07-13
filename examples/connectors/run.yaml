@@ -1,0 +1,26 @@
+# Connector starter run spec.
+#
+# Inspect the rendered run spec from the repository root:
+#
+#   uv run seocho run examples/connectors/run.yaml --show-rendered
+#
+# Full dry-run preflight also checks your model key and local graph package:
+#
+#   export MARA_API_KEY=...
+#   uv run seocho run examples/connectors/run.yaml --dry-run
+#
+# To create fresh JSONL from the custom loader:
+#
+#   uv run python examples/connectors/custom_loader.py \
+#     --input examples/connectors/fixtures/custom_saas_events.json \
+#     --output .seocho/connectors/custom_saas.jsonl
+#
+name: connector-starter
+
+ontology: ./schema.yaml
+documents: ./fixtures/sample_connector_records.jsonl
+
+questions:
+  - Which team owns the connector materialization decision?
+  - Which connectors did the support ticket ask for?
+  - What fields are listed for the warehouse orders asset?

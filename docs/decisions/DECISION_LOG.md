@@ -3,6 +3,15 @@
 This file is the lightweight index of architecture/product decisions.
 Each entry must link to a full ADR when impact is non-trivial.
 
+## 2026-07-13
+
+- [Proposed] `ADR-0150-versioned-causal-frontiers-and-sequence-leasing.md`
+  - keep the gapless scalar v1 workspace order as the compatible default
+  - add opt-in fenced leases, deterministic shards, and multi-position causal
+    frontiers without treating reserved gaps as committed events
+  - qualify Rust only against equal revision/idempotency/outbox semantics and
+    expose bounded commit-phase latency in Grafana
+
 ## 2026-07-12
 
 - [Status note] `ADR-0089-in-repo-docs-site-and-pages-deploy.md`

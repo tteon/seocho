@@ -47,6 +47,17 @@ class FakeConnection:
         self.exit_exception = exc_type
 
 
+class RecordingObserver:
+    def __init__(self, *, fail: bool = False) -> None:
+        self.fail = fail
+        self.records: list[tuple[str, float, str]] = []
+
+    def record(self, phase: str, elapsed_ms: float, outcome: str) -> None:
+        self.records.append((phase, elapsed_ms, outcome))
+        if self.fail:
+            raise RuntimeError("telemetry unavailable")
+
+
 def test_commit_is_one_transaction_for_revision_outbox_and_idempotency() -> None:
     cursor = FakeCursor([None, (1,), None])
     connection = FakeConnection(cursor)
@@ -67,10 +78,110 @@ def test_commit_is_one_transaction_for_revision_outbox_and_idempotency() -> None
     assert result.causal_token.sequence == 1
     statements = "\n".join(query for query, _ in cursor.executed)
     assert "pg_advisory_xact_lock" in statements
+    assert "UPDATE agent_memory_heads" in statements
+    assert "FOR UPDATE" not in statements
     assert "INSERT INTO agent_memory_revisions" in statements
     assert "INSERT INTO agent_memory_outbox" in statements
     assert "INSERT INTO agent_memory_idempotency" in statements
     assert connection.exit_exception is None
+
+
+def test_first_writer_initializes_strict_sequence_without_select_for_update() -> None:
+    cursor = FakeCursor([None, None, (1,), None])
+    repository = PostgreSQLMemoryRepository(lambda: FakeConnection(cursor))
+
+    result = repository.commit_revision(
+        workspace_id="new-ws",
+        memory_id="transaction-1",
+        event_type="transaction.pending",
+        occurred_at="2026-07-13T00:00:00+00:00",
+        provenance_id="source-1",
+        payload={"state": "pending"},
+        idempotency_key="delivery-1",
+    )
+
+    statements = "\n".join(query for query, _ in cursor.executed)
+    assert result.causal_token.sequence == 1
+    assert "INSERT INTO agent_memory_heads" in statements
+    assert "FOR UPDATE" not in statements
+
+
+def test_sequence_initialization_race_retries_atomic_update() -> None:
+    cursor = FakeCursor([None, None, None, (2,), None])
+    repository = PostgreSQLMemoryRepository(lambda: FakeConnection(cursor))
+
+    result = repository.commit_revision(
+        workspace_id="raced-ws",
+        memory_id="transaction-2",
+        event_type="transaction.pending",
+        occurred_at="2026-07-13T00:00:00+00:00",
+        provenance_id="source-2",
+        payload={"state": "pending"},
+        idempotency_key="delivery-2",
+    )
+
+    head_updates = [
+        query for query, _ in cursor.executed if "UPDATE agent_memory_heads" in query
+    ]
+    assert len(head_updates) == 2
+    assert result.causal_token.sequence == 2
+
+
+def test_commit_observer_records_bounded_phases() -> None:
+    cursor = FakeCursor([None, (1,), None])
+    observer = RecordingObserver()
+    repository = PostgreSQLMemoryRepository(
+        lambda: FakeConnection(cursor), phase_observer=observer
+    )
+
+    repository.commit_revision(
+        workspace_id="ws-1",
+        memory_id="transaction-1",
+        event_type="transaction.pending",
+        occurred_at="2026-07-13T00:00:00+00:00",
+        provenance_id="source-1",
+        payload={"state": "pending"},
+        idempotency_key="delivery-1",
+    )
+
+    phases = {phase for phase, _, outcome in observer.records if outcome == "ok"}
+    assert phases == {
+        "connection_scope",
+        "idempotency_lookup",
+        "aggregate_lock",
+        "sequence_allocate",
+        "revision_lookup",
+        "memory_writes",
+    }
+    assert all(elapsed_ms >= 0 for _, elapsed_ms, _ in observer.records)
+
+
+def test_observer_failure_never_changes_authoritative_commit() -> None:
+    cursor = FakeCursor([None, (1,), None])
+    observer = RecordingObserver(fail=True)
+    repository = PostgreSQLMemoryRepository(
+        lambda: FakeConnection(cursor), phase_observer=observer
+    )
+
+    result = repository.commit_revision(
+        workspace_id="ws-1",
+        memory_id="transaction-1",
+        event_type="transaction.pending",
+        occurred_at="2026-07-13T00:00:00+00:00",
+        provenance_id="source-1",
+        payload={"state": "pending"},
+        idempotency_key="delivery-1",
+    )
+
+    assert result.applied is True
+    assert observer.records
+
+
+def test_pool_configuration_is_validated_before_optional_import() -> None:
+    with pytest.raises(ValueError, match="pool sizes"):
+        PostgreSQLMemoryRepository.connect_pool(
+            "postgresql://example", min_size=5, max_size=4
+        )
 
 
 def test_idempotency_key_reuse_with_different_payload_rolls_back() -> None:

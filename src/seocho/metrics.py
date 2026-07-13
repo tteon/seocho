@@ -104,6 +104,7 @@ METRIC_SPECS: dict[str, MetricSpec] = {
         _spec("seocho.answer.freshness_violation.count", "counter", "{answer}", ("query.class",), "Answers blocked for freshness violations."),
         _spec("seocho.answer.provenance.coverage", "histogram", "1", ("query.class",), "Fraction of answer claims with provenance."),
         _spec("seocho.memory.commit.duration", "histogram", "s", ("outcome", "error.type"), "Authoritative memory commit duration."),
+        _spec("seocho.memory.commit.phase.duration", "histogram", "ms", ("phase", "outcome"), "Bounded authoritative commit phase duration."),
         _spec("seocho.memory.commit.count", "counter", "{commit}", ("outcome",), "Authoritative memory commits."),
         _spec("seocho.memory.sequence", "gauge", "{event}", (), "Latest authoritative memory sequence."),
         _spec("seocho.memory.idempotency_replay.count", "counter", "{event}", ("outcome",), "Idempotent memory replays."),

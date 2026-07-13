@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import time
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Callable, Mapping, Protocol
+from typing import Any, Callable, Iterator, Mapping, Protocol
 
 from .contracts import MemoryRevision
 from .models import CausalToken
@@ -24,6 +26,12 @@ class Connection(Protocol):
     def cursor(self) -> Cursor: ...
     def __enter__(self) -> "Connection": ...
     def __exit__(self, *args: object) -> None: ...
+
+
+class CommitPhaseObserver(Protocol):
+    """Receive bounded commit-phase timings without customer identifiers."""
+
+    def record(self, phase: str, elapsed_ms: float, outcome: str) -> None: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,11 +56,24 @@ def _canonical_json(payload: Mapping[str, Any]) -> str:
 class PostgreSQLMemoryRepository:
     """Commit revision, idempotency receipt, and projection outbox atomically."""
 
-    def __init__(self, connection_factory: Callable[[], Connection]) -> None:
+    def __init__(
+        self,
+        connection_factory: Callable[[], Connection],
+        *,
+        phase_observer: CommitPhaseObserver | None = None,
+        close_callback: Callable[[], None] | None = None,
+    ) -> None:
         self._connection_factory = connection_factory
+        self._phase_observer = phase_observer
+        self._close_callback = close_callback
 
     @classmethod
-    def connect(cls, dsn: str) -> "PostgreSQLMemoryRepository":
+    def connect(
+        cls,
+        dsn: str,
+        *,
+        phase_observer: CommitPhaseObserver | None = None,
+    ) -> "PostgreSQLMemoryRepository":
         if not dsn.strip():
             raise ValueError("PostgreSQL DSN is required")
         try:
@@ -61,7 +82,105 @@ class PostgreSQLMemoryRepository:
             raise ImportError(
                 "PostgreSQL memory requires the optional psycopg dependency"
             ) from exc
-        return cls(lambda: psycopg.connect(dsn))
+        return cls(lambda: psycopg.connect(dsn), phase_observer=phase_observer)
+
+    @classmethod
+    def connect_pool(
+        cls,
+        dsn: str,
+        *,
+        min_size: int = 4,
+        max_size: int = 16,
+        timeout: float = 30.0,
+        phase_observer: CommitPhaseObserver | None = None,
+    ) -> "PostgreSQLMemoryRepository":
+        """Create a repository backed by a bounded Psycopg connection pool."""
+
+        if not dsn.strip():
+            raise ValueError("PostgreSQL DSN is required")
+        if min_size < 0 or max_size < 1 or min_size > max_size:
+            raise ValueError("pool sizes must satisfy 0 <= min_size <= max_size")
+        try:
+            from psycopg_pool import ConnectionPool
+        except ImportError as exc:
+            raise ImportError(
+                "PostgreSQL pooling requires the psycopg pool extra"
+            ) from exc
+        pool = ConnectionPool(
+            dsn,
+            min_size=min_size,
+            max_size=max_size,
+            timeout=timeout,
+            open=True,
+        )
+        return cls(
+            pool.connection,
+            phase_observer=phase_observer,
+            close_callback=pool.close,
+        )
+
+    def close(self) -> None:
+        """Release repository-owned resources; unpooled repositories are no-ops."""
+
+        if self._close_callback is not None:
+            callback, self._close_callback = self._close_callback, None
+            callback()
+
+    @contextmanager
+    def _phase(self, phase: str) -> Iterator[None]:
+        started = time.perf_counter()
+        outcome = "ok"
+        try:
+            yield
+        except Exception:
+            outcome = "error"
+            raise
+        finally:
+            observer = self._phase_observer
+            if observer is not None:
+                elapsed_ms = (time.perf_counter() - started) * 1000
+                try:
+                    observer.record(phase, elapsed_ms, outcome)
+                except Exception:
+                    # Observability must never change authoritative semantics.
+                    pass
+
+    def _allocate_strict_sequence(self, cursor: Cursor, workspace_id: str) -> int:
+        """Allocate the v1 gapless workspace sequence with one steady-path write."""
+
+        cursor.execute(
+            """UPDATE agent_memory_heads
+               SET next_sequence = next_sequence + 1
+               WHERE workspace_id = %s
+               RETURNING next_sequence - 1""",
+            (workspace_id,),
+        )
+        head = cursor.fetchone()
+        if head is not None:
+            return int(head[0])
+
+        cursor.execute(
+            """INSERT INTO agent_memory_heads (workspace_id, next_sequence)
+               VALUES (%s, 2) ON CONFLICT (workspace_id) DO NOTHING
+               RETURNING next_sequence - 1""",
+            (workspace_id,),
+        )
+        head = cursor.fetchone()
+        if head is not None:
+            return int(head[0])
+
+        # Another writer initialized the workspace after our first UPDATE.
+        cursor.execute(
+            """UPDATE agent_memory_heads
+               SET next_sequence = next_sequence + 1
+               WHERE workspace_id = %s
+               RETURNING next_sequence - 1""",
+            (workspace_id,),
+        )
+        head = cursor.fetchone()
+        if head is None:
+            raise RuntimeError("memory sequence head was not created")
+        return int(head[0])
 
     def commit_revision(
         self,
@@ -92,15 +211,16 @@ class PostgreSQLMemoryRepository:
         payload_hash = hashlib.sha256(payload_json.encode()).hexdigest()
         ingested_at = datetime.now(timezone.utc).isoformat()
 
-        with self._connection_factory() as connection:
+        with self._phase("connection_scope"), self._connection_factory() as connection:
             with connection.cursor() as cursor:
-                cursor.execute(
-                    """SELECT memory_id, revision, sequence, payload_hash
-                       FROM agent_memory_idempotency
-                       WHERE workspace_id = %s AND idempotency_key = %s""",
-                    (workspace_id, idempotency_key),
-                )
-                receipt = cursor.fetchone()
+                with self._phase("idempotency_lookup"):
+                    cursor.execute(
+                        """SELECT memory_id, revision, sequence, payload_hash
+                           FROM agent_memory_idempotency
+                           WHERE workspace_id = %s AND idempotency_key = %s""",
+                        (workspace_id, idempotency_key),
+                    )
+                    receipt = cursor.fetchone()
                 if receipt is not None:
                     prior_memory_id, revision, sequence, prior_hash = receipt
                     if prior_memory_id != memory_id or prior_hash != payload_hash:
@@ -120,41 +240,26 @@ class PostgreSQLMemoryRepository:
 
                 # Serialize writers for one logical memory while allowing
                 # unrelated memories to progress concurrently.
-                cursor.execute(
-                    "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
-                    (f"{len(workspace_id)}:{workspace_id}{memory_id}",),
-                )
-                cursor.execute(
-                    """INSERT INTO agent_memory_heads (workspace_id, next_sequence)
-                       VALUES (%s, 1) ON CONFLICT (workspace_id) DO NOTHING""",
-                    (workspace_id,),
-                )
-                cursor.execute(
-                    "SELECT next_sequence FROM agent_memory_heads WHERE workspace_id = %s FOR UPDATE",
-                    (workspace_id,),
-                )
-                head = cursor.fetchone()
-                if head is None:
-                    raise RuntimeError("memory sequence head was not created")
-                sequence = int(head[0])
-                cursor.execute(
-                    "UPDATE agent_memory_heads SET next_sequence = %s WHERE workspace_id = %s",
-                    (sequence + 1, workspace_id),
-                )
-                cursor.execute(
-                    """SELECT revision, event_type FROM agent_memory_revisions
-                       WHERE workspace_id = %s AND memory_id = %s
-                       ORDER BY revision DESC LIMIT 1""",
-                    (workspace_id, memory_id),
-                )
-                row = cursor.fetchone()
+                with self._phase("aggregate_lock"):
+                    cursor.execute(
+                        "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))",
+                        (f"{len(workspace_id)}:{workspace_id}{memory_id}",),
+                    )
+                with self._phase("sequence_allocate"):
+                    sequence = self._allocate_strict_sequence(cursor, workspace_id)
+                with self._phase("revision_lookup"):
+                    cursor.execute(
+                        """SELECT revision, event_type FROM agent_memory_revisions
+                           WHERE workspace_id = %s AND memory_id = %s
+                           ORDER BY revision DESC LIMIT 1""",
+                        (workspace_id, memory_id),
+                    )
+                    row = cursor.fetchone()
                 previous_revision = int(row[0] if row else 0)
                 previous_event_type = str(row[1]) if row and len(row) > 1 else ""
                 if allowed_previous_event_types is not None:
                     allowed = set(allowed_previous_event_types)
-                    valid = (
-                        previous_revision == 0 and "__initial__" in allowed
-                    ) or (
+                    valid = (previous_revision == 0 and "__initial__" in allowed) or (
                         previous_revision > 0 and previous_event_type in allowed
                     )
                     if not valid:
@@ -164,54 +269,55 @@ class PostgreSQLMemoryRepository:
                         )
                 revision = previous_revision + 1
                 supersedes = previous_revision or None
-                if canonical and previous_revision:
+                with self._phase("memory_writes"):
+                    if canonical and previous_revision:
+                        cursor.execute(
+                            """UPDATE agent_memory_revisions SET canonical = false
+                               WHERE workspace_id = %s AND memory_id = %s AND canonical""",
+                            (workspace_id, memory_id),
+                        )
                     cursor.execute(
-                        """UPDATE agent_memory_revisions SET canonical = false
-                           WHERE workspace_id = %s AND memory_id = %s AND canonical""",
-                        (workspace_id, memory_id),
-                    )
-                cursor.execute(
-                    """INSERT INTO agent_memory_revisions
+                        """INSERT INTO agent_memory_revisions
                        (workspace_id, memory_id, revision, sequence, event_type,
                         occurred_at, ingested_at, provenance_id, payload, payload_hash,
                         supersedes_revision, canonical, schema_version)
                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, %s)""",
-                    (
-                        workspace_id,
-                        memory_id,
-                        revision,
-                        sequence,
-                        event_type,
-                        occurred_at,
-                        ingested_at,
-                        provenance_id,
-                        payload_json,
-                        payload_hash,
-                        supersedes,
-                        canonical,
-                        schema_version,
-                    ),
-                )
-                cursor.execute(
-                    """INSERT INTO agent_memory_outbox
+                        (
+                            workspace_id,
+                            memory_id,
+                            revision,
+                            sequence,
+                            event_type,
+                            occurred_at,
+                            ingested_at,
+                            provenance_id,
+                            payload_json,
+                            payload_hash,
+                            supersedes,
+                            canonical,
+                            schema_version,
+                        ),
+                    )
+                    cursor.execute(
+                        """INSERT INTO agent_memory_outbox
                        (workspace_id, sequence, ordinal, operation, aggregate_type,
                         aggregate_id, payload) VALUES (%s, %s, 0, 'upsert',
                         'memory_revision', %s, %s::jsonb)""",
-                    (workspace_id, sequence, memory_id, payload_json),
-                )
-                cursor.execute(
-                    """INSERT INTO agent_memory_idempotency
+                        (workspace_id, sequence, memory_id, payload_json),
+                    )
+                    cursor.execute(
+                        """INSERT INTO agent_memory_idempotency
                        (workspace_id, idempotency_key, memory_id, revision, sequence,
                         payload_hash) VALUES (%s, %s, %s, %s, %s, %s)""",
-                    (
-                        workspace_id,
-                        idempotency_key,
-                        memory_id,
-                        revision,
-                        sequence,
-                        payload_hash,
-                    ),
-                )
+                        (
+                            workspace_id,
+                            idempotency_key,
+                            memory_id,
+                            revision,
+                            sequence,
+                            payload_hash,
+                        ),
+                    )
                 stored = MemoryRevision(
                     workspace_id=workspace_id,
                     memory_id=memory_id,
@@ -464,6 +570,7 @@ class PostgreSQLMemoryRepository:
 
 
 __all__ = [
+    "CommitPhaseObserver",
     "MemoryCommitResult",
     "PostgreSQLMemoryRepository",
     "StaleAuthoritativeMemoryError",

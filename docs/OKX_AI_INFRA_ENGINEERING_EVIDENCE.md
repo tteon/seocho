@@ -546,6 +546,128 @@ Mixed workload artifact SHA-256:
    cardinality, head/max-sequence parity, zero unexpected errors, and zero final
    projection lag.
 
+#### Sequence scalability follow-up: pool, causal frontiers, and Rust
+
+The original diagnosis was converted into code and rerun against live
+PostgreSQL 18.4 with `fsync=on`, `synchronous_commit=on`, and
+`full_page_writes=on`. No timing below is mocked. Full memory commits and
+allocator-only measurements are intentionally separated.
+
+The compatible v1 path first received two changes that do not weaken its
+contract: a bounded Psycopg connection pool and one steady-state
+`UPDATE agent_memory_heads ... RETURNING` instead of insert, `SELECT FOR
+UPDATE`, then update. At 500 events and concurrency 16, the unpooled full-commit
+path measured 275.91 events/s with p95 129.79 ms. The pooled path measured
+669.17 events/s with p95 62.59 ms. Both produced exactly 500 revisions,
+idempotency receipts, outbox entries, and head sequence.
+
+The larger 10,000-event uniform-wallet run at concurrency 64 measured:
+
+| Full v1 commit client | Throughput | p50 | p95 | p99 | Integrity |
+|---|---:|---:|---:|---:|---|
+| Python + Psycopg pool | 684.51 events/s | 67.26 ms | 267.71 ms | 414.21 ms | 10,000/10,000 revision, receipt, outbox, head |
+| Rust + Tokio/SQLx pool | 875.11 events/s | 53.55 ms | 202.96 ms | 322.45 ms | 10,000/10,000 revision, receipt, outbox, head |
+
+Rust improved throughput by 27.84% and reduced p95 by 24.19% in this host-local
+run. It did not remove the database serialization point: Python phase metrics
+showed sequence allocation p95 261.37 ms while idempotency lookup, revision
+lookup, and memory writes were 0.32, 0.26, and 0.80 ms. Rust is therefore useful
+for bounded async scheduling, pool use, payload hashing/serialization, and
+projector transports, but a language rewrite is not a substitute for changing
+the causal-order design.
+
+Key skew produced a different result. With 5,000 commits targeting one logical
+wallet at concurrency 64, Python measured 631.91 events/s and p95 123.05 ms;
+Rust measured 806.46 events/s and p95 91.13 ms. The Python aggregate advisory
+lock was p95 117.80 ms while sequence allocation was only 0.29 ms. This is the
+required per-aggregate ordering boundary: revisions of one wallet cannot be
+made concurrent merely by adding sequence shards. A distributed design scales
+independent accounts/agents/domains and applies explicit cross-domain causality;
+it does not promise parallel mutation of one ordered aggregate.
+
+A deterministic Zipf-1.2 run provided the middle workload. At 5,000 commits and
+concurrency 64 it measured 642.56 events/s and p95 199.53 ms. Aggregate-lock
+p95 was 188.78 ms while sequence allocation was 3.82 ms. This distribution was
+dominated by a small set of wallets, so aggregate-local contention—not the
+workspace head—became the capacity boundary. Shard count must therefore be
+chosen from observed active-key cardinality and skew, not only total users.
+
+SEOCHO now models that distinction with an opt-in `memory.v2` contract:
+
+```text
+workspace
+  +-- domain=transaction, shard=02 -> sequence 14
+  +-- domain=transaction, shard=11 -> sequence 91
+  +-- domain=policy,      shard=00 -> sequence 7
+                   |
+                   v
+CausalFrontier{(transaction,02):14,
+               (transaction,11):91,
+               (policy,00):7}
+                   |
+       answer/project only when every shard watermark satisfies it
+```
+
+Writers reserve fenced sequence ranges per `(workspace, domain, shard)` and
+allocate locally. Lease rows retain owner, fencing token, range start/end, and
+acquisition time. A failed writer may leave unused positions; those gaps are
+observable and are never interpreted as committed revisions. Projection
+watermarks are also per shard, preventing a numerically high position in one
+partition from certifying another partition as current.
+
+Allocator-only runs demonstrate the removed allocation RTT but are not
+end-to-end write claims. At 10,000 uniform allocations/concurrency 64, one
+128-position leased domain measured 23,433 allocations/s and left 112 reserved
+positions unused. Sixteen shards with 16-position leases measured 17,794/s and
+left 144 unused; 64 shards measured 19,758/s and left 512 unused. In the earlier
+500-event run, 64 shards with 128-position leases left 7,180 unused positions.
+The engineering conclusion is that lease and shard counts must follow observed
+key distribution, acceptable gap budget, restart rate, and projection fan-out;
+larger values are not automatically better.
+
+The repository emits bounded phase histograms for `connection_scope`,
+`idempotency_lookup`, `aggregate_lock`, `sequence_allocate`,
+`revision_lookup`, and `memory_writes`. Live OTLP export was verified in
+Prometheus under `seocho_memory_commit_phase_duration_milliseconds_*`, and the
+Grafana `SEOCHO Memory Consistency` dashboard exposes phase p95. No workspace,
+wallet, transaction, prompt, or trace identifier is a metric label.
+
+The optimized repository was also rerun through the existing 7,000-operation
+mixed workload on the 1,002,884-revision workspace. At concurrency 16 it
+measured 1,265.08 ops/s with current/PIT/write p95 of 8.01/8.09/59.18 ms. At
+concurrency 64 it measured 1,214.97 ops/s with current/PIT/write p95 of
+44.15/42.46/910.47 ms. Recovery returned to 1,377.03 ops/s; five projection
+events drained in one batch and 369 ms. Across the run 382 duplicate deliveries
+were idempotently replayed, 217 invalid transitions were rejected, 711 new
+revisions were committed, and final revision/idempotency/outbox/head/watermark
+all equaled 1,003,595. Compared with the prior unpooled run, spike throughput
+rose from 711.87 to 1,214.97 ops/s and write p95 fell from 1,493.11 to 910.47
+ms. This is a same-host before/after, not a hardware-normalized capacity claim.
+
+Raw artifact hashes:
+
+- 500-event pool/strict/allocator smoke:
+  `44e2a402c6577f8d7fdf7c51afab2a6d688e03860d1311314929d3adbeebfe05`;
+- 10K uniform Python/allocator:
+  `8e607d89915672158c575fd406408cc5074110ae4144e5c60af64dadeed8db36`;
+- 10K uniform Rust:
+  `5dd1b3eff92fc4c40853c34ac3dec0ae1904d74c0e053a261d61f97378a25639`;
+- 5K hot-wallet Python/allocator:
+  `0c6bf829e95f65f1971902e49fe8ea37a0041402fb3c3dabe14b7914dccde122`;
+- 5K hot-wallet Rust:
+  `4cb0eabf80bd4bbe593a95ba85bb2088f30f97d7049bbf08d28c77a2824f0b13`;
+- OTLP phase export qualification:
+  `5b0359eddc4cd899e71736a19984506d07af7d74a1eb7444efdf71d5844dd896`;
+- Zipf-1.2 Python/allocator:
+  `fd5dd7980d401acb52c0ccca859c2361de1aefd145e8bba0d4945350a724bdfc`;
+- optimized 7K mixed workload:
+  `9de5f0d7153ec413d7b9038ceeea7dd51a08282276531474398c05f2ea961b40`.
+
+The production default remains strict v1. V2 is an explicit alpha contract
+until full revision/outbox integration, writer-kill recovery, leased-gap audit,
+Zipf skew, shard-aware projector claiming, and reorg rebuild parity pass live
+qualification. This limitation is part of the result, not hidden backlog.
+
 #### Resume-ready bullets
 
 - Architected and live-tested append-only agent long-term memory on PostgreSQL
@@ -561,6 +683,14 @@ Mixed workload artifact SHA-256:
   atomic-write p95 increased from 49 ms at concurrency 16 to 1.49 s at
   concurrency 64, motivating leased/partitioned sequence allocation rather than
   presenting an unqualified scalability claim.
+- Improved equal-semantics strict memory throughput from 275.91 to 669.17
+  events/s with connection pooling and atomic head allocation, then built a
+  Tokio/SQLx parity probe that reached 875.11 events/s at 10K/64 writers while
+  preserving exact revision, idempotency, outbox, and causal-head cardinality.
+- Designed versioned causal frontiers, deterministic shard routing, fenced
+  sequence leases, and shard-local projection watermarks; quantified the
+  throughput-versus-unused-range trade-off and kept the scalable policy opt-in
+  until crash/recovery and full-write qualification complete.
 - Reduced same-memory long-history context serialization by 66.87% while
   preserving latest-state answer parity, and connected memory/projection SLIs
   to the existing OpenTelemetry, Prometheus, Tempo, and Grafana evidence plane.

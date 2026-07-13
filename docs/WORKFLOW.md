@@ -209,8 +209,9 @@ Primary surfaces:
   - `npm run build:ci`
   - `bash scripts/check-built-links.sh`
 - the in-repo deployment workflow is `.github/workflows/docs-site-deploy.yml`,
-  but it performs a Pages preflight and skips deployment while Pages is not
-  enabled on `tteon/seocho`
+  but it performs a Pages preflight, reruns `npm run check:docs`, rebuilds the
+  site, checks built links, and skips deployment while Pages is not enabled on
+  `tteon/seocho`
 - `.github/workflows/docs-website-sync-dispatch.yml` dispatches the
   `tteon/tteon.github.io` auto-sync workflow after docs changes land on main
   when `SEOCHO_BLOG_SYNC_TOKEN` is configured; the scheduled site-side sync is
@@ -223,8 +224,10 @@ Primary surfaces:
 
 - workflow: `.github/workflows/ci-basic.yml`
 - canonical local command: `bash scripts/ci/run_basic_ci.sh`
+- GitHub runs this gate on Python 3.10, 3.11, and 3.12
 - current scope:
-  - semantic/runtime/SDK `py_compile`
+  - tracked runtime/extraction/SDK/CI Python files via `py_compile`
+  - focused Ruff lint for CI scripts and run-spec/onboarding surfaces
   - focused semantic/runtime/SDK pytest
   - `git diff --check`
   - `bash scripts/ci/check-runtime-shell-contract.sh`

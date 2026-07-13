@@ -133,13 +133,9 @@ check_absent '`extraction/runtime_ingest.py`' \
   docs/maintainers/AGENT_DEVELOPMENT.md
 
 echo "Checking basic CI coverage..."
-check_present "runtime/memory_service.py" \
+check_present "'runtime/**/*.py'" \
   scripts/ci/run_basic_ci.sh
-check_present "runtime/runtime_ingest.py" \
-  scripts/ci/run_basic_ci.sh
-check_present "extraction/memory_service.py" \
-  scripts/ci/run_basic_ci.sh
-check_present "extraction/runtime_ingest.py" \
+check_present "'extraction/**/*.py'" \
   scripts/ci/run_basic_ci.sh
 check_present "extraction/tests/test_memory_service.py" \
   scripts/ci/run_basic_ci.sh

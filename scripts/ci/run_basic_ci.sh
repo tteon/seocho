@@ -21,9 +21,12 @@ python3 -m py_compile $py_compile_files
 uv run ruff check \
   scripts/ci \
   src/seocho/cli.py \
+  src/seocho/connectors \
   src/seocho/e2e.py \
+  src/seocho/index/file_reader.py \
   src/seocho/run_spec.py \
   src/seocho/scaffold.py \
+  tests/seocho/test_connectors.py \
   tests/seocho/test_e2e_runner.py \
   tests/seocho/test_run_spec.py \
   tests/seocho/test_scaffold.py \
@@ -55,6 +58,7 @@ uv run pytest \
   tests/seocho/test_session_agent.py \
   tests/seocho/test_response_cache_wiring.py \
   tests/seocho/test_user_facing_edge_cases.py \
+  tests/seocho/test_connectors.py \
   tests/seocho/test_semantic_query_phase_a.py \
   extraction/tests/test_sdk_evaluation.py \
   tests/seocho/test_agent_design.py \

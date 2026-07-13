@@ -30,13 +30,12 @@ Supported formats:
 from __future__ import annotations
 
 import csv
-import hashlib
 import json
 import logging
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Sequence, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 from .pipeline import IndexingPipeline, IndexingResult
 
@@ -211,6 +210,18 @@ def read_csv_file(path: Path) -> List[Dict[str, Any]]:
     return records
 
 
+def _record_metadata(item: Dict[str, Any], *, fallback: Dict[str, Any]) -> Dict[str, Any]:
+    """Merge top-level record fields with an optional nested ``metadata`` map."""
+
+    nested = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+    meta = dict(nested)
+    for key, value in item.items():
+        if key not in {"content", "metadata"}:
+            meta[key] = value
+    meta.update(fallback)
+    return meta
+
+
 def read_json_file(path: Path) -> List[Dict[str, Any]]:
     """Read a .json file — expects an array of objects with 'content' field."""
     with open(path, "r", encoding="utf-8") as f:
@@ -220,13 +231,17 @@ def read_json_file(path: Path) -> List[Dict[str, Any]]:
         for i, item in enumerate(data):
             if isinstance(item, dict):
                 content = item.get("content", json.dumps(item))
-                meta = {k: v for k, v in item.items() if k != "content"}
-                meta["source_file"] = str(path)
-                meta["item_index"] = i
+                meta = _record_metadata(
+                    item,
+                    fallback={"source_file": str(path), "item_index": i},
+                )
                 records.append({"content": content, "metadata": meta})
         return records
     elif isinstance(data, dict) and "content" in data:
-        return [{"content": data["content"], "metadata": {"source_file": str(path)}}]
+        return [{
+            "content": data["content"],
+            "metadata": _record_metadata(data, fallback={"source_file": str(path)}),
+        }]
     else:
         return [{"content": json.dumps(data), "metadata": {"source_file": str(path)}}]
 
@@ -243,9 +258,10 @@ def read_jsonl_file(path: Path) -> List[Dict[str, Any]]:
                 item = json.loads(line)
                 if isinstance(item, dict):
                     content = item.get("content", json.dumps(item))
-                    meta = {k: v for k, v in item.items() if k != "content"}
-                    meta["source_file"] = str(path)
-                    meta["line_index"] = i
+                    meta = _record_metadata(
+                        item,
+                        fallback={"source_file": str(path), "line_index": i},
+                    )
                     records.append({"content": content, "metadata": meta})
             except json.JSONDecodeError:
                 logger.warning("Skipping malformed JSON at %s line %d", path, i)

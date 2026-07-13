@@ -14,12 +14,26 @@ from .records import (
     summarize_records,
     write_records_jsonl,
 )
+from .config import (
+    ConnectorRunPlan,
+    ConnectorRunResult,
+    ConnectorSourceSpec,
+    load_connector_config,
+    run_connector_plan,
+    write_sample_config,
+)
 
 __all__ = [
     "ConnectorRecord",
+    "ConnectorRunPlan",
+    "ConnectorRunResult",
+    "ConnectorSourceSpec",
+    "load_connector_config",
     "read_records_jsonl",
     "records_from_langchain_documents",
     "records_from_llamaindex_documents",
+    "run_connector_plan",
     "summarize_records",
+    "write_sample_config",
     "write_records_jsonl",
 ]

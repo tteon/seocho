@@ -73,9 +73,17 @@ jobs:
         working-directory: website
         run: npm ci
 
+      - name: Run website docs checks
+        working-directory: website
+        run: npm run check:docs
+
       - name: Build Astro site
         working-directory: website
         run: npm run build
+
+      - name: Check built internal links
+        working-directory: website
+        run: bash scripts/check-built-links.sh
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

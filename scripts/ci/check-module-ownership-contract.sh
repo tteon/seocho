@@ -106,11 +106,7 @@ check_present "test_client_bundle_helper_rehydrates_from_bundle" \
   tests/seocho/test_client_boundaries.py
 
 echo "Checking basic CI coverage..."
-check_present "extraction/rule_constraints.py" \
-  scripts/ci/run_basic_ci.sh
-check_present "extraction/vector_store.py" \
-  scripts/ci/run_basic_ci.sh
-check_present "extraction/collector.py" \
+check_present "'extraction/**/*.py'" \
   scripts/ci/run_basic_ci.sh
 check_present "extraction/tests/test_rule_constraints.py" \
   scripts/ci/run_basic_ci.sh
@@ -120,21 +116,9 @@ check_present "extraction/tests/test_vector_store_shim.py" \
   scripts/ci/run_basic_ci.sh
 check_present "extraction/tests/test_pipeline_canonical_engine.py" \
   scripts/ci/run_basic_ci.sh
-check_present "runtime/agent_state.py" \
+check_present "'runtime/**/*.py'" \
   scripts/ci/run_basic_ci.sh
-check_present "src/seocho/events.py" \
-  scripts/ci/run_basic_ci.sh
-check_present "src/seocho/client_bundle.py" \
-  scripts/ci/run_basic_ci.sh
-check_present "src/seocho/client_remote.py" \
-  scripts/ci/run_basic_ci.sh
-check_present "src/seocho/local_engine.py" \
-  scripts/ci/run_basic_ci.sh
-check_present "src/seocho/index/ingestion_facade.py" \
-  scripts/ci/run_basic_ci.sh
-check_present "src/seocho/query/query_proxy.py" \
-  scripts/ci/run_basic_ci.sh
-check_present "src/seocho/query/agent_factory.py" \
+check_present "'src/seocho/**/*.py'" \
   scripts/ci/run_basic_ci.sh
 check_present "tests/seocho/test_client_boundaries.py" \
   scripts/ci/run_basic_ci.sh

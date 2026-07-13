@@ -23,7 +23,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 from seocho.semantic_layer.identity import normalize_name  # noqa: E402
 
-UA = {"User-Agent": "seocho-ingest hardy.jeong@xcena.com"}
+UA = {"User-Agent": "seocho-ingest hardy@example.com"}
 OUT = ROOT / "src" / "seocho" / "semantic_layer" / "cik_table.json"
 
 

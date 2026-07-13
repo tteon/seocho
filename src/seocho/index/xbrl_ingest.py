@@ -26,7 +26,7 @@ from typing import Any, Dict, List, Tuple
 from ..semantic_layer import Period, observation_key
 from ..semantic_layer.concepts import ConceptRegistry
 
-USER_AGENT = "seocho-ingest hardy.jeong@xcena.com"
+USER_AGENT = "seocho-ingest hardy@example.com"
 # Duration (income-statement) full-year frame: CY2024.
 _DURATION_FRAME_RE = re.compile(r"^CY(\d{4})$")
 # Instant (balance-sheet) fiscal-year-end frame: CY2024Q3I (Apple, Sept FYE),

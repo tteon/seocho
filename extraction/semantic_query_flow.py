@@ -35,6 +35,8 @@ from seocho.query.semantic_agents import (
     SemanticEntityResolver,
 )
 from seocho.query.semantic_flow import SemanticAgentFlow
+from seocho.query.otel_observability import OTelBridge
+from seocho.query.sdcr import Capability, CapabilityRegistry, SDCRRouter
 from seocho.query.strategy_chooser import (
     ExecutionStrategyChooser,
     IntentSupportValidator,
@@ -56,6 +58,10 @@ __all__ = [
     "SemanticAgentFlow",
     "SemanticConstraintSliceBuilder",
     "SemanticEntityResolver",
+    "Capability",
+    "CapabilityRegistry",
+    "OTelBridge",
+    "SDCRRouter",
     "build_evidence_bundle",
     "infer_question_intent",
 ]

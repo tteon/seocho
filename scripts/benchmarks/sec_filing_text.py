@@ -21,7 +21,7 @@ import warnings
 from dataclasses import dataclass
 from typing import Any, List, Optional
 
-USER_AGENT = "seocho-benchmark hardy.jeong@xcena.com"
+USER_AGENT = "seocho-benchmark hardy@example.com"
 
 # "Item 7. Management's Discussion" — apostrophe may be straight or curly; the
 # section header recurs once in the table of contents and once as the body.

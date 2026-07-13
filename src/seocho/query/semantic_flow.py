@@ -8,6 +8,7 @@ from ..runtime_contract import DEFAULT_QUERY_MODE, normalize_query_mode
 from .answering import build_evidence_bundle
 from .constraints import SemanticConstraintSliceBuilder
 from .graph_cot_flow import GraphCoTQueryOrchestrator
+from .otel_observability import OTelBridge
 from .run_registry import RunMetadataRegistry
 from .semantic_agents import (
     AnswerGenerationAgent,
@@ -16,6 +17,7 @@ from .semantic_agents import (
     RDFAgent,
     SemanticEntityResolver,
 )
+from .sdcr import Capability, CapabilityRegistry, SDCRRouter
 from .strategy_chooser import ExecutionStrategyChooser
 
 
@@ -27,6 +29,7 @@ class SemanticAgentFlow:
         connector: Any,
         *,
         graph_targets: Optional[Sequence[Any]] = None,
+        otel_bridge: Optional[OTelBridge] = None,
     ):
         self.resolver = SemanticEntityResolver(connector)
         self.router = QueryRouterAgent()
@@ -38,9 +41,13 @@ class SemanticAgentFlow:
             rdf_agent=self.rdf_agent,
             answer_agent=self.answer_agent,
         )
-        self.constraint_builder = SemanticConstraintSliceBuilder(graph_targets=graph_targets)
+        self.constraint_builder = SemanticConstraintSliceBuilder(
+            graph_targets=graph_targets
+        )
         self.strategy_chooser = ExecutionStrategyChooser()
         self.run_registry = RunMetadataRegistry()
+        self.otel_bridge = otel_bridge or OTelBridge()
+        self.capability_registry = CapabilityRegistry()
 
     def run(
         self,
@@ -65,11 +72,15 @@ class SemanticAgentFlow:
         timer = StageTimer()
 
         with timer.stage("semantic_resolve"):
-            semantic_context = self.resolver.resolve(question, databases, workspace_id=workspace_id)
+            semantic_context = self.resolver.resolve(
+                question, databases, workspace_id=workspace_id
+            )
         semantic_context.setdefault("query_diagnostics", [])
         semantic_context["reasoning_cycle_config"] = dict(reasoning_cycle or {})
         semantic_context["query_mode"] = query_mode
-        semantic_context["ontology_context_mismatch"] = dict(ontology_context_mismatch or {})
+        semantic_context["ontology_context_mismatch"] = dict(
+            ontology_context_mismatch or {}
+        )
         with timer.stage("constraint_context"):
             constraint_slices = self.constraint_builder.build_for_databases(
                 databases,
@@ -83,7 +94,64 @@ class SemanticAgentFlow:
         }
         self._apply_entity_overrides(semantic_context, entity_overrides or {})
         with timer.stage("support_preview"):
-            support_ranked_matches = self.lpg_agent.preview_support(semantic_context, constraint_slices)
+            support_ranked_matches = self.lpg_agent.preview_support(
+                semantic_context, constraint_slices
+            )
+        support_assessment = semantic_context.get("preflight_support_assessment", {})
+        assessed_slots = list(support_assessment.get("focus_slots", []))
+        if not assessed_slots:
+            assessed_slots = (
+                list(support_assessment.get("filled_slots", []))
+                + list(support_assessment.get("grounded_slots", []))
+                + list(support_assessment.get("missing_slots", []))
+            )
+        required_slots = tuple(
+            dict.fromkeys(str(slot) for slot in assessed_slots if str(slot).strip())
+        )
+        capability_slots: Dict[str, set[str]] = {}
+        capability_priorities: Dict[str, int] = {}
+        for item in support_ranked_matches:
+            view_id = str(item.get("database", "")).strip()
+            if not view_id:
+                continue
+            support = item.get("support_assessment", {})
+            if not isinstance(support, dict):
+                support = {}
+            grounded_slots = list(support.get("filled_slots", [])) + list(
+                support.get("grounded_slots", [])
+            )
+            capability_slots.setdefault(view_id, set()).update(
+                str(slot) for slot in grounded_slots if str(slot).strip()
+            )
+            confidence = max(
+                float(support.get("confidence", 0.0) or 0.0),
+                float(support.get("coverage", 0.0) or 0.0),
+            )
+            capability_priorities[view_id] = max(
+                capability_priorities.get(view_id, 0), int(confidence * 1000)
+            )
+        capabilities = [
+            Capability(
+                view_id=view_id,
+                slots=frozenset(slots),
+                authorized=True,
+                priority=capability_priorities[view_id],
+            )
+            for view_id, slots in sorted(capability_slots.items())
+        ]
+        self.capability_registry = CapabilityRegistry(capabilities)
+        receipt = SDCRRouter().route(
+            workspace_id=workspace_id,
+            required_slots=required_slots,
+            capabilities=self.capability_registry.authorized(workspace_id),
+            conflicts=semantic_context.get("cross_graph_analysis", {}).get(
+                "conflicts", []
+            ),
+        )
+        semantic_context["sdcr_receipt"] = receipt.as_dict()
+        self.otel_bridge.record_route(receipt.reason, len(receipt.selected_views))
+        for view_id in receipt.selected_views:
+            self.otel_bridge.record_agent_call(view_id)
         trace_steps.append(
             {
                 "id": "0",
@@ -92,14 +160,19 @@ class SemanticAgentFlow:
                 "content": "Entity extraction and disambiguation completed.",
                 "metadata": {
                     "entities": semantic_context.get("entities", []),
-                    "unresolved_entities": semantic_context.get("unresolved_entities", []),
+                    "unresolved_entities": semantic_context.get(
+                        "unresolved_entities", []
+                    ),
                     "overrides_applied": sorted(
                         list(semantic_context.get("overrides_applied", {}).keys())
                     ),
                     "query_mode": query_mode,
                     "reasoning_mode": effective_reasoning_mode,
                     "repair_budget": effective_repair_budget,
-                    "support_status": semantic_context.get("preflight_support_assessment", {}).get("status"),
+                    "support_status": semantic_context.get(
+                        "preflight_support_assessment", {}
+                    ).get("status"),
+                    "sdcr_receipt": receipt.as_dict(),
                 },
             }
         )
@@ -123,7 +196,9 @@ class SemanticAgentFlow:
                 "content": f"Question routed to {route}.",
                 "metadata": {
                     "route": route,
-                    "initial_mode": semantic_context["strategy_decision"].get("initial_mode"),
+                    "initial_mode": semantic_context["strategy_decision"].get(
+                        "initial_mode"
+                    ),
                 },
             }
         )
@@ -166,13 +241,19 @@ class SemanticAgentFlow:
                         ranked_matches=support_ranked_matches,
                     )
                 if isinstance(lpg_result.get("evidence_bundle"), dict):
-                    semantic_context["evidence_bundle_preview"] = lpg_result["evidence_bundle"]
+                    semantic_context["evidence_bundle_preview"] = lpg_result[
+                        "evidence_bundle"
+                    ]
                 if isinstance(lpg_result.get("reasoning"), dict):
                     semantic_context["reasoning"] = lpg_result["reasoning"]
                 if isinstance(lpg_result.get("support_assessment"), dict):
-                    semantic_context["support_assessment"] = lpg_result["support_assessment"]
+                    semantic_context["support_assessment"] = lpg_result[
+                        "support_assessment"
+                    ]
                 if isinstance(lpg_result.get("query_diagnostics"), list):
-                    semantic_context["query_diagnostics"] = list(lpg_result["query_diagnostics"])
+                    semantic_context["query_diagnostics"] = list(
+                        lpg_result["query_diagnostics"]
+                    )
                 trace_steps.append(
                     {
                         "id": "3",
@@ -184,16 +265,24 @@ class SemanticAgentFlow:
                             "reasoning_attempts": int(
                                 lpg_result.get("reasoning", {}).get("attempt_count", 0)
                             ),
-                            "terminal_reason": lpg_result.get("reasoning", {}).get("terminal_reason"),
-                            "support_status": lpg_result.get("support_assessment", {}).get("status"),
-                            "tool_calls": lpg_result.get("reasoning", {}).get("repair_trace", []),
+                            "terminal_reason": lpg_result.get("reasoning", {}).get(
+                                "terminal_reason"
+                            ),
+                            "support_status": lpg_result.get(
+                                "support_assessment", {}
+                            ).get("status"),
+                            "tool_calls": lpg_result.get("reasoning", {}).get(
+                                "repair_trace", []
+                            ),
                         },
                     }
                 )
 
             if route in {"rdf", "hybrid"}:
                 with timer.stage("rdf_retrieval"):
-                    rdf_result = self.rdf_agent.run(question, databases, semantic_context)
+                    rdf_result = self.rdf_agent.run(
+                        question, databases, semantic_context
+                    )
                 trace_steps.append(
                     {
                         "id": "4",
@@ -270,10 +359,18 @@ class SemanticAgentFlow:
         }
         if isinstance(semantic_context.get("graph_cot"), dict):
             answer_envelope["graph_cot"] = {
-                "status": semantic_context["graph_cot"].get("final_answer", {}).get("status", ""),
-                "revision_count": int(semantic_context["graph_cot"].get("revision_count", 0) or 0),
-                "guardrail_verdict": semantic_context["graph_cot"].get("guardrail_verdict", {}),
-                "supervisor_directive": semantic_context["graph_cot"].get("supervisor_directive", {}),
+                "status": semantic_context["graph_cot"]
+                .get("final_answer", {})
+                .get("status", ""),
+                "revision_count": int(
+                    semantic_context["graph_cot"].get("revision_count", 0) or 0
+                ),
+                "guardrail_verdict": semantic_context["graph_cot"].get(
+                    "guardrail_verdict", {}
+                ),
+                "supervisor_directive": semantic_context["graph_cot"].get(
+                    "supervisor_directive", {}
+                ),
             }
         semantic_context["latency_breakdown_ms"] = latency_breakdown_ms
         semantic_context["agent_pattern"] = agent_pattern
@@ -285,8 +382,12 @@ class SemanticAgentFlow:
                 "agent": "AnswerGenerationAgent",
                 "content": response,
                 "metadata": {
-                    "support_status": semantic_context.get("support_assessment", {}).get("status"),
-                    "next_mode_hint": semantic_context.get("strategy_decision", {}).get("next_mode_hint"),
+                    "support_status": semantic_context.get(
+                        "support_assessment", {}
+                    ).get("status"),
+                    "next_mode_hint": semantic_context.get("strategy_decision", {}).get(
+                        "next_mode_hint"
+                    ),
                     "usage_estimate": usage_estimate,
                     "latency_breakdown_ms": latency_breakdown_ms,
                     "agent_pattern": agent_pattern,
@@ -329,12 +430,16 @@ class SemanticAgentFlow:
         timer: StageTimer,
     ) -> tuple[str, Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
         with timer.stage("graph_cot_supervision"):
-            question_frame = self.graph_cot_orchestrator.supervisor.build_question_frame(
-                question=question,
-                workspace_id=workspace_id,
-                databases=databases,
-                semantic_context=semantic_context,
-                ontology_context_mismatch=semantic_context.get("ontology_context_mismatch", {}),
+            question_frame = (
+                self.graph_cot_orchestrator.supervisor.build_question_frame(
+                    question=question,
+                    workspace_id=workspace_id,
+                    databases=databases,
+                    semantic_context=semantic_context,
+                    ontology_context_mismatch=semantic_context.get(
+                        "ontology_context_mismatch", {}
+                    ),
+                )
             )
             directive = self.graph_cot_orchestrator.supervisor.plan(
                 question_frame=question_frame,
@@ -393,7 +498,9 @@ class SemanticAgentFlow:
 
         packet = retrieval.packet
         semantic_context.setdefault("reasoning", {})
-        if isinstance(lpg_result, dict) and isinstance(lpg_result.get("reasoning"), dict):
+        if isinstance(lpg_result, dict) and isinstance(
+            lpg_result.get("reasoning"), dict
+        ):
             semantic_context["reasoning"] = lpg_result["reasoning"]
         else:
             semantic_context["reasoning"] = {
@@ -406,7 +513,9 @@ class SemanticAgentFlow:
                 "query_failure_count": len(packet.query_diagnostics),
             }
 
-        if isinstance(lpg_result, dict) and isinstance(lpg_result.get("evidence_bundle"), dict):
+        if isinstance(lpg_result, dict) and isinstance(
+            lpg_result.get("evidence_bundle"), dict
+        ):
             semantic_context["evidence_bundle_preview"] = lpg_result["evidence_bundle"]
         else:
             semantic_context["evidence_bundle_preview"] = {
@@ -418,9 +527,11 @@ class SemanticAgentFlow:
             }
         base_support_assessment = (
             lpg_result.get("support_assessment", {})
-            if isinstance(lpg_result, dict) and isinstance(lpg_result.get("support_assessment"), dict)
+            if isinstance(lpg_result, dict)
+            and isinstance(lpg_result.get("support_assessment"), dict)
             else rdf_result.get("support_assessment", {})
-            if isinstance(rdf_result, dict) and isinstance(rdf_result.get("support_assessment"), dict)
+            if isinstance(rdf_result, dict)
+            and isinstance(rdf_result.get("support_assessment"), dict)
             else semantic_context.get("support_assessment", {})
         )
         semantic_context["support_assessment"] = {
@@ -431,7 +542,9 @@ class SemanticAgentFlow:
             "missing_slots": list(packet.missing_slots),
             "supported": packet.support_status == "supported",
         }
-        semantic_context["query_diagnostics"] = [dict(item) for item in packet.query_diagnostics]
+        semantic_context["query_diagnostics"] = [
+            dict(item) for item in packet.query_diagnostics
+        ]
 
         trace_steps.append(
             {
@@ -593,8 +706,12 @@ class SemanticAgentFlow:
 
             existing = matches.get(question_entity, [])
             matches[question_entity] = [candidate] + [
-                row for row in existing
-                if not (row.get("database") == candidate["database"] and row.get("node_id") == candidate["node_id"])
+                row
+                for row in existing
+                if not (
+                    row.get("database") == candidate["database"]
+                    and row.get("node_id") == candidate["node_id"]
+                )
             ]
             unresolved.discard(question_entity)
             applied[question_entity] = {
@@ -651,7 +768,9 @@ class SemanticAgentFlow:
             sum(float(payload.get(key, 0.0) or 0.0) for key in retrieval_keys),
             2,
         )
-        payload["guardrail_ms"] = round(float(payload.get("guardrail_ms", 0.0) or 0.0), 2)
+        payload["guardrail_ms"] = round(
+            float(payload.get("guardrail_ms", 0.0) or 0.0), 2
+        )
         payload["generation_ms"] = round(
             float(payload.get("generation_ms", 0.0) or 0.0)
             + float(payload.get("guardrail_ms", 0.0) or 0.0),
@@ -675,7 +794,9 @@ class SemanticAgentFlow:
         support = semantic_context.get("support_assessment", {})
         if not isinstance(support, dict):
             support = {}
-        executed_mode = str(strategy.get("executed_mode") or strategy.get("initial_mode") or "").strip()
+        executed_mode = str(
+            strategy.get("executed_mode") or strategy.get("initial_mode") or ""
+        ).strip()
         support_status = str(support.get("status", "") or "").strip()
         if executed_mode in {"debate", "planning_multi_agent"}:
             pattern = "planning_multi_agent"
@@ -696,7 +817,9 @@ class SemanticAgentFlow:
             "executed_mode": executed_mode or "semantic_direct",
             "turn_count": len(trace_steps) + 1,
             "tool_like_steps": sum(
-                1 for step in trace_steps if step.get("type") in {"SPECIALIST", "STRATEGY", "SEMANTIC"}
+                1
+                for step in trace_steps
+                if step.get("type") in {"SPECIALIST", "STRATEGY", "SEMANTIC"}
             ),
             "repair_budget": max(0, int(repair_budget or 0)),
             "support_status": support_status,

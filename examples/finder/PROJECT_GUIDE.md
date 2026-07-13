@@ -38,7 +38,7 @@ OPENAI_API_KEY=sk-...
 SEOCHO_AUTHOR_NAME=Hardy Jeong
 SEOCHO_AUTHOR_EMAIL=hardy.jeong@example.com
 SEOCHO_AUTHOR_GITHUB=tteon                 # GitHub username (no @, no URL)
-SEOCHO_AUTHOR_AFFILIATION=Xcena            # company / lab / personal
+SEOCHO_AUTHOR_AFFILIATION=Personal         # company / lab / personal
 
 # === Optional run metadata ===
 SEOCHO_RUN_NOTES=baseline run on FinDER subset, no prompt tweaks

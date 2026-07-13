@@ -4,9 +4,9 @@ This is the shortest path to a working ontology-aligned graph memory.
 
 You will:
 
-1. define a tiny ontology
-2. add one sentence
-3. ask a question against the graph memory
+1. create a tiny runnable SEOCHO project
+2. run offline preflight
+3. index documents, ask questions, and open the report
 
 ## 1. Install
 
@@ -27,7 +27,33 @@ export MARA_API_KEY=...
 Prefer OpenAI/DeepSeek/Kimi? Export that provider's key and swap the `llm=`
 string below (`"openai/gpt-4o"`, `"deepseek/deepseek-chat"`, `"kimi/kimi-k2.5"`).
 
-## 2. Run The Smallest Example
+## 2. Create And Run A Project
+
+```bash
+seocho new hello-seocho
+cd hello-seocho
+seocho run --dry-run
+seocho run
+```
+
+From a cloned repository, prefix CLI commands with `uv run`:
+
+```bash
+uv run seocho new hello-seocho
+cd hello-seocho
+uv run seocho run --dry-run
+uv run seocho run
+```
+
+What happened:
+
+- `schema.yaml` declared the allowed graph shape
+- `docs/` provided source notes to index
+- `seocho.run.yaml` declared the questions
+- `report.md` and `report.json` captured answers, support status, missing
+  slots, and selected graph evidence
+
+## 3. The Smallest SDK Example
 
 ```python
 from seocho import Seocho, Ontology, NodeDef, RelDef, Property
@@ -55,13 +81,13 @@ What happened:
 - `add()` extracted graph facts that fit that shape
 - `ask()` queried the graph memory and produced an ontology-grounded answer
 
-## 3. Run A Real Example
+## 4. Run A Domain Example
 
 The finance-compliance example is the fastest complete project-shaped path:
 
 ```bash
 export MARA_API_KEY=...
-uv run python examples/finance-compliance/quickstart.py --llm mara/MiniMax-M2.5
+uv run python examples/finance-compliance/quickstart.py
 ```
 
 It ships:
@@ -70,7 +96,7 @@ It ships:
 - six short mock compliance documents
 - a script that ingests them and asks cross-document questions
 
-## 4. Connect To A Runtime
+## 5. Connect To A Runtime
 
 If a SEOCHO runtime is already running:
 

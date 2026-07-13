@@ -305,6 +305,132 @@ def _emit(quiet: bool, message: str = "") -> None:
         print(message)
 
 
+def _to_plain_dict(value: Any) -> Dict[str, Any]:
+    if value is None:
+        return {}
+    if isinstance(value, dict):
+        return dict(value)
+    if hasattr(value, "to_dict"):
+        payload = value.to_dict()
+        return dict(payload) if isinstance(payload, dict) else {}
+    if dataclasses.is_dataclass(value):
+        payload = dataclasses.asdict(value)
+        return dict(payload) if isinstance(payload, dict) else {}
+    return {}
+
+
+def _first_mapping(*values: Any) -> Dict[str, Any]:
+    for value in values:
+        payload = _to_plain_dict(value)
+        if payload and _mapping_has_signal(payload):
+            return payload
+    return {}
+
+
+def _mapping_has_signal(payload: Dict[str, Any]) -> bool:
+    for value in payload.values():
+        if isinstance(value, str) and value.strip():
+            return True
+        if isinstance(value, bool) and value:
+            return True
+        if isinstance(value, (int, float)) and value:
+            return True
+        if isinstance(value, (list, tuple, set)) and value:
+            return True
+        if isinstance(value, dict) and _mapping_has_signal(value):
+            return True
+    return False
+
+
+def _string_list(value: Any) -> List[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item) for item in value if str(item).strip()]
+
+
+def _populate_query_record(record: Dict[str, Any], response: Any) -> str:
+    """Store the answer plus evidence-bearing response metadata when present."""
+    answer = str(getattr(response, "response", response) or "")
+    record["answer"] = answer
+
+    runtime_mode = str(getattr(response, "runtime_mode", "") or "").strip()
+    if runtime_mode:
+        record["runtime_mode"] = runtime_mode
+
+    envelope = _to_plain_dict(getattr(response, "answer_envelope", {}))
+    if envelope:
+        record["answer_envelope"] = envelope
+
+    support = _first_mapping(
+        getattr(response, "support", None),
+        envelope.get("support_assessment") if envelope else {},
+    )
+    if support:
+        record["support_assessment"] = support
+
+    evidence = _first_mapping(
+        getattr(response, "evidence", None),
+        envelope.get("evidence_bundle") if envelope else {},
+    )
+    if evidence:
+        record["evidence_bundle"] = evidence
+
+    strategy = _first_mapping(
+        getattr(response, "strategy", None),
+        envelope.get("strategy_decision") if envelope else {},
+    )
+    if strategy:
+        record["strategy_decision"] = strategy
+
+    agent_pattern = _to_plain_dict(getattr(response, "agent_pattern", {}))
+    if agent_pattern:
+        record["agent_pattern"] = agent_pattern
+
+    graph_cot = _to_plain_dict(getattr(response, "graph_cot", {}))
+    if graph_cot:
+        record["graph_cot"] = graph_cot
+
+    question_frame = _to_plain_dict(getattr(response, "question_frame", {}))
+    if question_frame:
+        record["question_frame"] = question_frame
+
+    routing_decision = _to_plain_dict(getattr(response, "routing_decision", {}))
+    if routing_decision:
+        record["routing_decision"] = routing_decision
+
+    rewrite_trace = getattr(response, "rewrite_trace", None)
+    if isinstance(rewrite_trace, list) and rewrite_trace:
+        record["rewrite_trace"] = list(rewrite_trace)
+
+    selected_triples = evidence.get("selected_triples", []) if evidence else []
+    missing_slots = _string_list(
+        evidence.get("missing_slots", []) if evidence else support.get("missing_slots", [])
+    )
+    support_status = (
+        str(support.get("status", "") or "").strip()
+        or str(strategy.get("support_status", "") or "").strip()
+        or str(agent_pattern.get("support_status", "") or "").strip()
+    )
+    coverage = evidence.get("coverage") if evidence and "coverage" in evidence else support.get("coverage")
+    intent_id = (
+        str(evidence.get("intent_id", "") or "").strip()
+        or str(support.get("intent_id", "") or "").strip()
+    )
+
+    if support_status:
+        record["support_status"] = support_status
+    if coverage is not None:
+        record["coverage"] = coverage
+    if intent_id:
+        record["intent_id"] = intent_id
+    if missing_slots:
+        record["missing_slots"] = missing_slots
+    if isinstance(selected_triples, list):
+        record["selected_triple_count"] = len(selected_triples)
+
+    return answer
+
+
 def _run_index_phase(
     ctx: RunContext, *, force: bool, quiet: bool, track: bool = True
 ) -> Dict[str, Any]:
@@ -382,13 +508,19 @@ def _run_query_phase(ctx: RunContext, *, quiet: bool) -> List[Dict[str, Any]]:
             record["expect"] = question.expect
         started = time.monotonic()
         try:
-            answer = ctx.query_client.ask(
-                question.question,
-                database=ctx.database,
-                reasoning_mode=bool(spec.query.get("reasoning_mode", True)),
-                repair_budget=int(spec.query.get("repair_budget", 1)),
-                limit=int(spec.query.get("limit", 5)),
-            )
+            call_kwargs = {
+                "database": ctx.database,
+                "reasoning_mode": bool(spec.query.get("reasoning_mode", True)),
+                "repair_budget": int(spec.query.get("repair_budget", 1)),
+                "limit": int(spec.query.get("limit", 5)),
+            }
+            ask_response = getattr(ctx.query_client, "ask_response", None)
+            if callable(ask_response):
+                response = ask_response(question.question, **call_kwargs)
+                answer = _populate_query_record(record, response)
+            else:
+                answer = ctx.query_client.ask(question.question, **call_kwargs)
+                record["answer"] = answer
         except Exception as exc:
             record["answer"] = ""
             record["error"] = str(exc)
@@ -396,7 +528,6 @@ def _run_query_phase(ctx: RunContext, *, quiet: bool) -> List[Dict[str, Any]]:
             records.append(record)
             _emit(quiet, f"        -> ERROR: {exc}")
             continue
-        record["answer"] = answer
         record["empty"] = not str(answer or "").strip()
         record["latency_s"] = round(time.monotonic() - started, 2)
         records.append(record)
@@ -405,6 +536,27 @@ def _run_query_phase(ctx: RunContext, *, quiet: bool) -> List[Dict[str, Any]]:
             preview = preview[:100] + "..."
         _emit(quiet, f"        -> {preview or '(empty)'}   ({record['latency_s']}s)")
     return records
+
+
+def _md_cell(value: Any) -> str:
+    return str(value if value is not None else "").replace("\n", " ").replace("|", "\\|")
+
+
+def _short(value: Any, *, limit: int = 60) -> str:
+    text = str(value if value is not None else "")
+    return text if len(text) <= limit else text[:limit] + "..."
+
+
+def _join_or_dash(values: Any) -> str:
+    items = _string_list(values)
+    return ", ".join(items) if items else "-"
+
+
+def _format_triple(triple: Dict[str, Any]) -> str:
+    source = str(triple.get("source", "") or "").strip() or "?"
+    relation = str(triple.get("relation", "") or "").strip() or "RELATED_TO"
+    target = str(triple.get("target", "") or "").strip() or "?"
+    return f"`{source}` -[{relation}]-> `{target}`"
 
 
 def _render_report_md(payload: Dict[str, Any]) -> str:
@@ -431,7 +583,12 @@ def _render_report_md(payload: Dict[str, Any]) -> str:
         "",
     ]
     if queries:
-        lines += ["## Queries", "", "| # | question | answered | latency |", "|---|---|---|---|"]
+        lines += [
+            "## Queries",
+            "",
+            "| # | question | answered | support | missing | evidence | latency |",
+            "|---|---|---|---|---|---|---|",
+        ]
         for item in queries:
             if item.get("error"):
                 answered = "error"
@@ -439,11 +596,14 @@ def _render_report_md(payload: Dict[str, Any]) -> str:
                 answered = "empty"
             else:
                 answered = "yes"
-            question_text = str(item.get("question", ""))
-            if len(question_text) > 60:
-                question_text = question_text[:60] + "..."
+            question_text = _short(item.get("question", ""))
+            support = item.get("support_status", "-")
+            missing = _join_or_dash(item.get("missing_slots", []))
+            evidence = item.get("selected_triple_count", "-")
             lines.append(
-                f"| {item.get('id', '')} | {question_text} | {answered} | {item.get('latency_s', '')}s |"
+                f"| {_md_cell(item.get('id', ''))} | {_md_cell(question_text)} | {answered} | "
+                f"{_md_cell(support)} | {_md_cell(missing)} | {_md_cell(evidence)} | "
+                f"{_md_cell(item.get('latency_s', ''))}s |"
             )
         lines.append("")
         for item in queries:
@@ -454,6 +614,26 @@ def _render_report_md(payload: Dict[str, Any]) -> str:
                 lines += [f"**Error:** {item['error']}", ""]
             else:
                 lines += [str(item.get("answer", "")) or "_(empty answer)_", ""]
+                evidence = item.get("evidence_bundle") or {}
+                if evidence or item.get("support_assessment"):
+                    coverage = item.get("coverage", "-")
+                    lines += [
+                        f"**Evidence:** intent={item.get('intent_id', '-')}, "
+                        f"support={item.get('support_status', '-')}, coverage={coverage}",
+                        "",
+                    ]
+                if item.get("missing_slots"):
+                    lines += [f"**Missing slots:** {_join_or_dash(item.get('missing_slots'))}", ""]
+                triples = evidence.get("selected_triples", []) if isinstance(evidence, dict) else []
+                if triples:
+                    lines.append("**Selected triples:**")
+                    lines.append("")
+                    for triple in triples[:5]:
+                        if isinstance(triple, dict):
+                            lines.append(f"- {_format_triple(triple)}")
+                    if len(triples) > 5:
+                        lines.append(f"- ... {len(triples) - 5} more")
+                    lines.append("")
     else:
         lines += ["## Queries", "", "Index-only run (no questions declared).", ""]
     return "\n".join(lines)
@@ -603,14 +783,16 @@ def run_from_config(
         if is_template_path(str(config_path)):
             spec, rendered_text = load_templated_run_spec(config_path, cli_vars)
         else:
-            if cli_vars or show_rendered:
+            if cli_vars:
                 raise RunSpecError(
                     [
-                        "--var/--vars/--show-rendered require a Jinja2 template; "
+                        "--var/--vars require a Jinja2 template; "
                         f"{config_path} is not a .j2 file. Rename it to "
                         "<name>.yaml.j2 to opt into templating."
                     ]
                 )
+            if show_rendered:
+                rendered_text = Path(config_path).read_text(encoding="utf-8")
             spec = load_run_spec(config_path)
     except RunSpecError as exc:
         _print_config_errors(config_path, exc.errors)

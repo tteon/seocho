@@ -3,9 +3,9 @@ ask questions that cross entity boundaries.
 
 Run from the repository root:
 
-    OPENAI_API_KEY=... python examples/finance-compliance/quickstart.py
+    MARA_API_KEY=... python examples/finance-compliance/quickstart.py
 
-Swap to another provider with --llm (e.g. deepseek/deepseek-chat).
+Swap to another provider with --llm (e.g. openai/gpt-4o).
 """
 
 from __future__ import annotations
@@ -30,10 +30,19 @@ QUESTIONS = [
     "Which policies govern trade surveillance at Acme Financial Services?",
 ]
 
+PROVIDER_KEY_HINTS = {
+    "mara": "MARA_API_KEY",
+    "openai": "OPENAI_API_KEY",
+    "deepseek": "DEEPSEEK_API_KEY",
+    "kimi": "MOONSHOT_API_KEY",
+    "grok": "XAI_API_KEY",
+    "qwen": "DASHSCOPE_API_KEY",
+}
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--llm", default="openai/gpt-4o", help="Provider/model string.")
+    parser.add_argument("--llm", default="mara/MiniMax-M2.5", help="Provider/model string.")
     parser.add_argument(
         "--skip-query",
         action="store_true",
@@ -41,10 +50,12 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    if args.llm.startswith("openai/") and not os.getenv("OPENAI_API_KEY"):
+    provider = args.llm.split("/", 1)[0].lower()
+    key_name = PROVIDER_KEY_HINTS.get(provider)
+    if key_name and not os.getenv(key_name):
         print(
-            "OPENAI_API_KEY not set. Export the key or pass "
-            "--llm deepseek/deepseek-chat (requires DEEPSEEK_API_KEY) etc.",
+            f"{key_name} not set. Export it or pass --llm for a provider "
+            "whose key is already configured.",
             file=sys.stderr,
         )
         return 2

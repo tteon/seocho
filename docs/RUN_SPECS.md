@@ -49,12 +49,19 @@ the bare `seocho` form for brevity; prepend `uv run` when working from a clone.
 ## Quickstart
 
 ```bash
-uv run seocho run --init    # writes a commented seocho.run.yaml template
-# edit ontology/documents/questions, then:
-uv run seocho run           # or: uv run seocho run path/to/config.yaml
+uv run seocho new hello-seocho
+cd hello-seocho
+export MARA_API_KEY=...
+uv run seocho run --dry-run
+uv run seocho run
 ```
 
-A working example ships in the repo:
+`seocho new` writes a runnable sample: `schema.yaml`, `docs/`,
+`seocho.run.yaml`, and a local README. Use `seocho run --init` when you want
+only a commented run-spec template and plan to supply your own ontology and
+documents.
+
+A working repo example is also available:
 
 ```bash
 export MARA_API_KEY=...
@@ -275,13 +282,15 @@ seocho run [CONFIG] [options]
   --only index|query  Run a single phase (query reuses the existing graph)
   --var KEY=VALUE   Template variable (*.j2 only; repeatable, dotted keys)
   --vars FILE       YAML file of template variables (repeatable)
-  --show-rendered   Print the rendered YAML (pre-${ENV}) and exit
+  --show-rendered   Print rendered template YAML, or the plain YAML spec
   -o, --output DIR  Report directory (default: runs/<name>-<timestamp>/)
   --force           Re-index files even if unchanged
   --output-json     Machine-readable output
 
 Exit codes: 0 ok · 1 runtime/preflight failure · 2 invalid config
 ```
+
+Related first-run command: `seocho new DIR` creates a runnable sample project.
 
 Every run starts with a preflight that reports **all** failing checks
 (ontology loads, documents found, API key present, graph reachable) before
@@ -291,7 +300,8 @@ connection attempt.
 ## Report
 
 Each run writes `report.json` (machine-readable: run metadata, per-file
-indexing stats, per-question records with latency and errors) and
+indexing stats, per-question records with latency, errors, support assessment,
+missing slots, and selected evidence triples when available) and
 `report.md` (human summary) under `output.dir/<name>-<timestamp>/`. Empty
 answers and per-question errors are surfaced in the summary table; a
 question error marks the run as failed (exit 1) without aborting remaining

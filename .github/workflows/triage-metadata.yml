@@ -18,7 +18,7 @@ on:
 permissions:
   contents: read
   issues: write
-  pull-requests: read
+  pull-requests: write
 
 jobs:
   labels:
@@ -79,5 +79,7 @@ jobs:
           IFS=',' read -r -a labels <<< "$LABELS"
           for label in "${labels[@]}"; do
             [ -n "$label" ] || continue
-            gh issue edit "$number" --repo "$GITHUB_REPOSITORY" --add-label "$label"
+            if ! gh issue edit "$number" --repo "$GITHUB_REPOSITORY" --add-label "$label"; then
+              echo "::warning::Could not apply label '$label' to #$number. Token may lack permission for this event."
+            fi
           done

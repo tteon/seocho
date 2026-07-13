@@ -26,15 +26,16 @@ it end-to-end in a few minutes, then swap in your own ontology and docs.
 ## Run it
 
 ```bash
-pip install "seocho[local]"
-export OPENAI_API_KEY=...
+uv pip install "seocho[local]"
+export MARA_API_KEY=...
 python examples/finance-compliance/quickstart.py
 ```
 
 Swap to another provider:
 
 ```bash
-python examples/finance-compliance/quickstart.py --llm deepseek/deepseek-chat
+export OPENAI_API_KEY=...
+python examples/finance-compliance/quickstart.py --llm openai/gpt-4o
 ```
 
 Only ingest (skip Q&A, useful for inspecting the resulting graph):

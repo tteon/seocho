@@ -91,14 +91,27 @@ def prepare(dsn: str, workspace: str) -> tuple[int, list[tuple[str, int]]]:
 
 class Runner:
     def __init__(
-        self, dsn: str, workspace: str, samples: list[tuple[str, int]], seed: int
+        self,
+        dsn: str,
+        workspace: str,
+        samples: list[tuple[str, int]],
+        seed: int,
+        repository_pool_size: int,
     ):
         self.dsn = dsn
         self.workspace = workspace
         self.samples = samples
         self.seed = seed
         self.run_token = uuid.uuid4().hex[:12]
-        self.repository = PostgreSQLMemoryRepository.connect(dsn)
+        self.repository = (
+            PostgreSQLMemoryRepository.connect_pool(
+                dsn,
+                min_size=min(4, repository_pool_size),
+                max_size=repository_pool_size,
+            )
+            if repository_pool_size > 0
+            else PostgreSQLMemoryRepository.connect(dsn)
+        )
         self.lock = threading.Lock()
         self.replayable: list[dict] = []
         self.ordinal = 0
@@ -368,10 +381,24 @@ def main() -> None:
     parser.add_argument("--steady-concurrency", type=int, default=16)
     parser.add_argument("--spike-concurrency", type=int, default=64)
     parser.add_argument("--seed", type=int, default=20260712)
+    parser.add_argument(
+        "--repository-pool-size",
+        type=int,
+        default=64,
+        help="Bounded authoritative repository pool; 0 retains unpooled behavior",
+    )
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     initial_sequence, samples = prepare(args.dsn, args.workspace)
-    runner = Runner(args.dsn, args.workspace, samples, args.seed)
+    if args.repository_pool_size < 0:
+        raise SystemExit("repository-pool-size cannot be negative")
+    runner = Runner(
+        args.dsn,
+        args.workspace,
+        samples,
+        args.seed,
+        args.repository_pool_size,
+    )
     before = snapshot(args.dsn, args.workspace)
     steady = run_phase(
         runner, "steady", args.steady_operations, args.steady_concurrency, 0
@@ -406,6 +433,7 @@ def main() -> None:
         "final_lag_events": pre_drain["projection_lag_events"],
     }
     after = pre_drain
+    runner.repository.close()
     report = {
         "schema_version": "seocho.long-term-memory-mixed-live.v1",
         "run_id": str(uuid.uuid4()),
@@ -413,6 +441,7 @@ def main() -> None:
         "workspace": args.workspace,
         "initial_sequence": initial_sequence,
         "workload_mix_percent": MIX,
+        "repository_pool_size": args.repository_pool_size,
         "phases": [steady, spike, recovery],
         "before": before,
         "after": after,

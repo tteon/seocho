@@ -29,7 +29,7 @@ metadata, and one-command local stack entry points.
 | `README.md`, `QUICKSTART.md`, `CONTRIBUTING.md`, `SECURITY.md`, `CHANGELOG.md`, `LICENSE` | yes | Standard public project entry points |
 | `AGENTS.md`, `CLAUDE.md` | yes | Coding-agent orientation and SEOCHO-specific guardrails |
 | `pyproject.toml`, `Makefile`, `.env.example`, `.gitignore`, `.dockerignore` | yes | Python packaging, common commands, and repo/tool defaults |
-| `docker-compose.yml`, `docker-compose.dev.yml`, `docker-compose.opik.yml`, `docker-compose.tutorials.yml` | yes | Core, development overlay, optional legacy Opik, and tutorial entry points |
+| `docker-compose.yml`, `docker-compose.dev.yml`, `docker-compose.memory.yml`, `docker-compose.opik.yml`, `docker-compose.tutorials.yml` | yes | Core, development overlay, optional authoritative memory, legacy Opik, and tutorial entry points |
 | `.gitattributes` | only with active rules | Do not keep an empty placeholder |
 | `setup_*.sh` | no | Put setup helpers under `scripts/setup/` |
 | generated data, logs, exports, scratch PR bodies | no | Keep ignored and outside the public repository surface |

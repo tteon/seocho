@@ -8,6 +8,7 @@ import pytest
 
 from seocho import NodeDef, Ontology, P, RelDef
 from seocho import e2e
+from seocho.models import AskResponse
 from seocho.run_spec import parse_run_spec
 
 
@@ -186,6 +187,43 @@ class _FakeClient:
             raise answer
         return answer
 
+    def ask_response(self, question: str, **kwargs: Any) -> AskResponse:
+        self.ask_calls.append({"question": question, **kwargs})
+        answer = self.answers[question]
+        if isinstance(answer, Exception):
+            raise answer
+        if isinstance(answer, AskResponse):
+            return answer
+        envelope: Dict[str, Any] = {
+            "schema_version": "answer_envelope.v1",
+            "answer": str(answer),
+            "support_assessment": {},
+            "evidence_bundle": {},
+            "strategy_decision": {},
+        }
+        if answer:
+            envelope["support_assessment"] = {
+                "intent_id": "company_ceo",
+                "status": "supported",
+                "supported": True,
+                "coverage": 1.0,
+                "missing_slots": [],
+            }
+            envelope["evidence_bundle"] = {
+                "intent_id": "company_ceo",
+                "coverage": 1.0,
+                "missing_slots": [],
+                "selected_triples": [
+                    {"source": "Jane Park", "relation": "CEO_OF", "target": "Acme Corp"}
+                ],
+            }
+            envelope["strategy_decision"] = {"support_status": "supported"}
+        return AskResponse(
+            response=str(answer),
+            runtime_mode="semantic",
+            answer_envelope=envelope,
+        )
+
     def close(self) -> None:
         pass
 
@@ -224,8 +262,15 @@ def test_run_produces_report_and_continues_on_question_error(tmp_path) -> None:
     queries = payload["queries"]
     assert len(queries) == 3
     assert queries[0]["answer"] == "Jane Park"
+    assert queries[0]["runtime_mode"] == "semantic"
+    assert queries[0]["support_status"] == "supported"
+    assert queries[0]["selected_triple_count"] == 1
+    assert queries[0]["evidence_bundle"]["selected_triples"][0]["relation"] == "CEO_OF"
     assert "backend down" in queries[1]["error"]
     assert queries[2]["empty"] is True
+    report_md = report.report_md.read_text(encoding="utf-8")
+    assert "| # | question | answered | support | missing | evidence | latency |" in report_md
+    assert "`Jane Park` -[CEO_OF]-> `Acme Corp`" in report_md
     # a question error means the run is reported as failed
     assert report.ok is False
     # strict_validation passthrough reaches the indexing call

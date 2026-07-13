@@ -189,6 +189,7 @@ def test_load_run_spec_from_file(tmp_path) -> None:
 def test_load_run_spec_missing_file() -> None:
     with pytest.raises(RunSpecError) as excinfo:
         load_run_spec("/nonexistent/run.yaml")
+    assert "seocho new hello-seocho" in str(excinfo.value)
     assert "seocho run --init" in str(excinfo.value)
 
 

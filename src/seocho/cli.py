@@ -59,11 +59,11 @@ def build_parser() -> argparse.ArgumentParser:
     ask_parser.add_argument("--neo4j-password", default="password", help="Neo4j password (local mode)")
     ask_parser.add_argument(
         "--provider",
-        choices=["openai", "deepseek", "kimi", "grok", "qwen"],
-        default="openai",
+        choices=["mara", "openai", "deepseek", "kimi", "grok", "qwen"],
+        default="mara",
         help="OpenAI-compatible LLM provider preset (local mode)",
     )
-    ask_parser.add_argument("--model", default="gpt-4o", help="LLM model (local mode)")
+    ask_parser.add_argument("--model", default="MiniMax-M2.5", help="LLM model (local mode)")
     ask_parser.add_argument("--llm-base-url", default=None, help="Override the provider base URL (local mode)")
     ask_parser.add_argument("--reasoning", action="store_true", help="Enable reasoning mode (local mode)")
     ask_parser.add_argument("--repair-budget", type=int, default=2, help="Max repair attempts (local mode)")
@@ -172,6 +172,25 @@ def build_parser() -> argparse.ArgumentParser:
 
     # --- Local-mode commands (no server needed) ---
 
+    new_parser = subparsers.add_parser("new", help="Create a runnable SEOCHO sample project")
+    new_parser.add_argument(
+        "path",
+        nargs="?",
+        default="hello-seocho",
+        help="Target directory (default: ./hello-seocho)",
+    )
+    new_parser.add_argument(
+        "--sample",
+        choices=["company"],
+        default="company",
+        help="Sample project to create",
+    )
+    new_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite scaffold-owned files in the target directory",
+    )
+
     init_parser = subparsers.add_parser("init", help="Create a new ontology interactively")
     init_parser.add_argument("--output", default="schema.jsonld", help="Output file (default: schema.jsonld)")
     init_parser.add_argument("--format", choices=["jsonld", "yaml"], default="jsonld", help="Output format")
@@ -185,11 +204,11 @@ def build_parser() -> argparse.ArgumentParser:
     index_parser.add_argument("--neo4j-password", default="password", help="Neo4j password")
     index_parser.add_argument(
         "--provider",
-        choices=["openai", "deepseek", "kimi", "grok", "qwen"],
-        default="openai",
+        choices=["mara", "openai", "deepseek", "kimi", "grok", "qwen"],
+        default="mara",
         help="OpenAI-compatible LLM provider preset",
     )
-    index_parser.add_argument("--model", default="gpt-4o", help="LLM model for extraction")
+    index_parser.add_argument("--model", default="MiniMax-M2.5", help="LLM model for extraction")
     index_parser.add_argument("--llm-base-url", default=None, help="Override the provider base URL")
     index_parser.add_argument("--force", action="store_true", help="Re-index even if unchanged")
     index_parser.add_argument("--recursive", action="store_true", default=True, help="Scan subdirectories")
@@ -205,11 +224,11 @@ def build_parser() -> argparse.ArgumentParser:
     local_ask_parser.add_argument("--neo4j-password", default="password", help="Neo4j password")
     local_ask_parser.add_argument(
         "--provider",
-        choices=["openai", "deepseek", "kimi", "grok", "qwen"],
-        default="openai",
+        choices=["mara", "openai", "deepseek", "kimi", "grok", "qwen"],
+        default="mara",
         help="OpenAI-compatible LLM provider preset",
     )
-    local_ask_parser.add_argument("--model", default="gpt-4o", help="LLM model")
+    local_ask_parser.add_argument("--model", default="MiniMax-M2.5", help="LLM model")
     local_ask_parser.add_argument("--llm-base-url", default=None, help="Override the provider base URL")
     local_ask_parser.add_argument("--reasoning", action="store_true", help="Enable reasoning mode (auto-retry)")
     local_ask_parser.add_argument("--repair-budget", type=int, default=2, help="Max repair attempts")
@@ -222,11 +241,11 @@ def build_parser() -> argparse.ArgumentParser:
     status_parser.add_argument("--neo4j-password", default="password", help="Neo4j password")
     status_parser.add_argument(
         "--provider",
-        choices=["openai", "deepseek", "kimi", "grok", "qwen"],
-        default="openai",
+        choices=["mara", "openai", "deepseek", "kimi", "grok", "qwen"],
+        default="mara",
         help="OpenAI-compatible LLM provider preset",
     )
-    status_parser.add_argument("--model", default="gpt-4o", help="LLM model used for local queries")
+    status_parser.add_argument("--model", default="MiniMax-M2.5", help="LLM model used for local queries")
     status_parser.add_argument("--llm-base-url", default=None, help="Override the provider base URL")
     status_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
 
@@ -263,11 +282,11 @@ def build_parser() -> argparse.ArgumentParser:
     bundle_export_parser.add_argument("--neo4j-password", default="password", help="Neo4j password")
     bundle_export_parser.add_argument(
         "--provider",
-        choices=["openai", "deepseek", "kimi", "grok", "qwen"],
-        default="openai",
+        choices=["mara", "openai", "deepseek", "kimi", "grok", "qwen"],
+        default="mara",
         help="OpenAI-compatible LLM provider preset",
     )
-    bundle_export_parser.add_argument("--model", default="gpt-4o", help="OpenAI model")
+    bundle_export_parser.add_argument("--model", default="MiniMax-M2.5", help="LLM model")
     bundle_export_parser.add_argument("--llm-base-url", default=None, help="Override the provider base URL")
     bundle_export_parser.add_argument(
         "--prompt-preset",
@@ -438,7 +457,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     run_parser.add_argument(
         "--show-rendered", action="store_true",
-        help="Print the rendered YAML (pre-${ENV}) to stdout and exit",
+        help="Print rendered template YAML, or the plain YAML spec, and exit",
     )
     run_parser.add_argument("--output-json", action="store_true", help="Emit JSON")
 
@@ -523,7 +542,21 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-LOCAL_COMMANDS = {"init", "index", "local-ask", "status", "compare", "experiment", "bundle", "ontology", "serve-http", "traces", "run", "sweep"}
+LOCAL_COMMANDS = {
+    "new",
+    "init",
+    "index",
+    "local-ask",
+    "status",
+    "compare",
+    "experiment",
+    "bundle",
+    "ontology",
+    "serve-http",
+    "traces",
+    "run",
+    "sweep",
+}
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
@@ -942,6 +975,8 @@ def _serialize(value: Any) -> Any:
 
 
 def _dispatch_local(args: argparse.Namespace) -> int:
+    if args.command == "new":
+        return _cmd_new(args)
     if args.command == "init":
         return _cmd_init(args)
     if args.command == "index":
@@ -967,6 +1002,27 @@ def _dispatch_local(args: argparse.Namespace) -> int:
     if args.command == "sweep":
         return _cmd_sweep(args)
     raise SeochoError(f"Unknown local command: {args.command}")
+
+
+def _cmd_new(args: argparse.Namespace) -> int:
+    """Create a runnable first-run project."""
+    from .scaffold import create_sample_project
+
+    result = create_sample_project(args.path, sample=args.sample, force=args.force)
+    print(f"Created SEOCHO {result.sample!r} sample at {result.path}")
+    print()
+    print("Files:")
+    for path in result.files:
+        print(f"  {path.relative_to(result.path)}")
+    print()
+    print("Next:")
+    print(f"  cd {result.path}")
+    print("  export MARA_API_KEY=...")
+    print("  seocho run --dry-run")
+    print("  seocho run")
+    print()
+    print("From a repository checkout, prefix commands with: uv run")
+    return 0
 
 
 def _cmd_traces(args: argparse.Namespace) -> int:
@@ -1119,8 +1175,8 @@ def _build_local_client(args: argparse.Namespace) -> Seocho:
     neo4j_uri = getattr(args, "neo4j_uri", None) or get_default(cfg, "neo4j", "uri", "bolt://localhost:7687")
     neo4j_user = getattr(args, "neo4j_user", None) or get_default(cfg, "neo4j", "user", "neo4j")
     neo4j_password = getattr(args, "neo4j_password", None) or get_default(cfg, "neo4j", "password", "password")
-    provider = getattr(args, "provider", None) or get_default(cfg, "llm", "provider", "openai")
-    model = getattr(args, "model", None) or get_default(cfg, "llm", "model", "gpt-4o")
+    provider = getattr(args, "provider", None) or get_default(cfg, "llm", "provider", "mara")
+    model = getattr(args, "model", None) or get_default(cfg, "llm", "model", "MiniMax-M2.5")
     llm_base_url = getattr(args, "llm_base_url", None) or get_default(cfg, "llm", "base_url", None)
 
     ontology = _load_local_ontology(schema)
@@ -1190,6 +1246,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         target.write_text(RUN_SPEC_TEMPLATE, encoding="utf-8")
         print(f"Run spec template written to {target}")
         print("Edit the ontology/documents/questions, then: seocho run")
+        print("Need a runnable sample instead? Try: seocho new hello-seocho")
         return 0
 
     from .e2e import run_from_config

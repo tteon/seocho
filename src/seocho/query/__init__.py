@@ -61,6 +61,8 @@ from .evidence_swarm import (
     EvidenceSwarmCoordinator,
     EvidenceSwarmRequest,
     EvidenceSwarmResult,
+    IterativeEvidenceResult,
+    RetrievalBudget,
     SpecialistRun,
     SwarmEvidenceBundle,
 )
@@ -145,6 +147,8 @@ __all__ = [
     "EvidenceSwarmCoordinator",
     "EvidenceSwarmRequest",
     "EvidenceSwarmResult",
+    "IterativeEvidenceResult",
+    "RetrievalBudget",
     "SpecialistRun",
     "SwarmEvidenceBundle",
     "QueryAnswerSynthesizer",

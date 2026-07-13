@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from seocho.query.evidence_swarm import (
     EvidenceSwarmCoordinator,
     EvidenceSwarmRequest,
+    RetrievalBudget,
 )
 from seocho.query.sdcr import Capability, Evidence
 
@@ -148,6 +149,33 @@ def test_unauthorized_specialist_is_not_executed() -> None:
     assert result.receipt.selected_views == ()
     assert result.bundle.missing_slots == ("state",)
     assert denied.seen_workspace == ""
+
+
+def test_iterative_retrieval_falls_back_to_alternative_view() -> None:
+    empty_primary = Specialist(
+        Capability("primary-view", frozenset({"state"}), priority=10),
+    )
+    fallback = Specialist(
+        Capability("fallback-view", frozenset({"state"}), priority=1),
+        (Evidence("r2", "fallback-view", "state", "confirmed"),),
+    )
+    result = EvidenceSwarmCoordinator([empty_primary, fallback]).run_iterative(
+        _request("state"), budget=RetrievalBudget(max_attempts=2)
+    )
+    assert result.status == "complete"
+    assert len(result.attempts) == 2
+    assert result.attempts[0].bundle.missing_slots == ("state",)
+    assert result.final.receipt.selected_views == ("fallback-view",)
+
+
+def test_iterative_retrieval_returns_structured_unknown_when_exhausted() -> None:
+    empty = Specialist(Capability("empty", frozenset({"state"})))
+    result = EvidenceSwarmCoordinator([empty]).run_iterative(
+        _request("state"), budget=RetrievalBudget(max_attempts=3)
+    )
+    assert result.status == "unknown"
+    assert result.exhausted_reason == "no_eligible_source"
+    assert result.final.bundle.missing_slots == ("state",)
 
 
 def test_timeout_is_reported_without_blocking_for_slow_specialist() -> None:

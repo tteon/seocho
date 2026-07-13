@@ -872,6 +872,20 @@ Each entry must link to a full ADR when impact is non-trivial.
   - add protected evidence filtering, conflict verification, and decision receipts
   - keep GNN, full OWL hot-path reasoning, and LLM-judge replacement out of the first product slice
 
+## 2026-07-14
+
+- [Accepted] ADR-0153 production-agent-harness-and-postgres-resilience
+  - add scoped agent principals, bounded delegation, tool-boundary guardrails,
+    and versioned harness/rubric promotion gates
+  - add bounded iterative retrieval with structured unknown on budget
+    exhaustion
+  - add PostgreSQL workload isolation, single-flight cache, freshness-aware
+    routing contracts, retry budget, query-digest blocking, and schema-change
+    guardrails
+  - qualify only the controls exercised by the live single-primary benchmark;
+    physical replica/failover/PgBouncer/cascading replication remain separate
+    deployment tests
+
 ## Template
 
 Use this block for new entries:

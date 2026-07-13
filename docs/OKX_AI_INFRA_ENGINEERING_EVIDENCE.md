@@ -1290,6 +1290,75 @@ temporal-memory integrity, filtered 596 protected payloads, recovered projection
 lag in 353 ms, generated three grounded MARA answers, and unified 2,139 OTel
 spans under one auditable Tempo trace.
 
+### E-020 - Production agent harness and PostgreSQL resilience controls
+
+`tags: [live, postgresql, agent-identity, retrieval-loop, single-flight, workload-isolation, grafana, otel, governance]`
+
+The OpenAI PostgreSQL scaling lessons were translated into SEOCHO controls that
+fit the current blockchain-memory architecture: reduce pressure on the
+authoritative primary, isolate critical reads from background work, coalesce
+cache-miss storms, shed known expensive query shapes, guard online schema
+changes, and keep replica/failover claims separate from code-only routing
+contracts.
+
+The product changes are:
+
+1. Agent principals with scoped resources, actions, expiry, delegation, and
+   authorization receipts.
+2. Tool-boundary guardrails that authorize tool inputs and filter protected
+   evidence outputs before synthesis.
+3. Versioned harness manifests and rubric promotion gates for prompt, model,
+   ontology, policy, and retrieval-profile changes.
+4. Bounded retrieval-as-a-subagent in the SDCR evidence swarm. Missing slots can
+   retry alternative authorized views, but budget exhaustion returns structured
+   unknown rather than fabricated context.
+5. PostgreSQL resilience primitives: workload-tier admission, single-flight
+   cache fill, freshness-aware read-router contract, retry budget, query digest
+   blocking, and schema-change inspection.
+
+The live benchmark `seocho.okx-postgres-resilience-live.v1` ran against the
+existing PostgreSQL 18.4 agent-memory authority store, not an in-memory mock.
+The dataset contained 1,244,329 memory revisions across 34 workspaces. With a
+64-way cache miss against the same key, only one database loader call executed;
+63 waiters coalesced behind it. The coalescing ratio was 98.44%, and all callers
+received the same value. This demonstrates the cache-locking pattern needed to
+avoid duplicate primary reads during cache miss storms.
+
+The same run tested workload isolation. In the shared-pool baseline, 32
+background holds occupied the pool and critical read p95 was 400.68 ms. With
+separate critical/background pools and tier admission, all 32 critical reads
+completed with p95 6.40 ms, while the background tier admitted two jobs and
+rejected thirty. This is a 62.63x p95 ratio in this closed workload. The result
+does not claim OpenAI-scale QPS; it proves the control-plane behavior needed to
+keep high-priority memory reads available when background work spikes.
+
+Grafana and Prometheus now expose low-cardinality PostgreSQL resilience signals:
+`seocho_postgres_admission_count_total`,
+`seocho_postgres_admission_wait_seconds_bucket`,
+`seocho_postgres_cache_request_count_total`, and
+`seocho_postgres_route_count_total`. The memory-consistency dashboard includes
+panels for workload admission, admission wait p95, single-flight outcomes, and
+freshness-aware routes. Tempo stored trace
+`685a16cf2e2c8c9ee6d61a373f688dec` for root
+`okx.postgres_resilience.run`.
+
+The read-router contract selected a fresh remote replica when the local replica
+was stale. Physical replication status is explicitly `not-qualified` because
+the current local service is a single primary. PgBouncer, streaming-replica
+failover, and cascading replication remain deployment-profile tests, not claims
+from this artifact.
+
+Raw artifact SHA-256:
+`cb4cd376b1f24e79c2e281e0c46bd05a63a94b3e091417dd3a8b8f2baf8e7d60`.
+
+Resume-ready result: implemented and live-tested production agent-harness
+controls for SEOCHO's blockchain long-term-memory path: scoped agent identity,
+tool-boundary policy, versioned rubric gates, bounded iterative retrieval, and
+PostgreSQL overload protection. On a 1.244M-revision live PostgreSQL store, a
+64-way cache-miss storm produced one database load, and workload-tier isolation
+reduced critical read p95 from 400.68 ms to 6.40 ms while exporting Grafana and
+Tempo evidence.
+
 ## Current engineering decisions
 
 1. PostgreSQL remains authoritative; DozerDB is disposable and replayable.

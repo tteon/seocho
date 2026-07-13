@@ -132,6 +132,35 @@ class EvidenceSwarmResult:
 EvidenceSynthesizer = Callable[[EvidenceSwarmRequest, SwarmEvidenceBundle], str]
 
 
+@dataclass(frozen=True, slots=True)
+class RetrievalBudget:
+    """Hard limits for iterative retrieval-as-a-subagent execution."""
+
+    max_attempts: int = 3
+    max_specialist_calls: int = 8
+
+    def __post_init__(self) -> None:
+        if self.max_attempts < 1 or self.max_specialist_calls < 1:
+            raise ValueError("retrieval limits must be positive")
+
+
+@dataclass(frozen=True, slots=True)
+class IterativeEvidenceResult:
+    status: str
+    attempts: tuple[EvidenceSwarmResult, ...]
+    final: EvidenceSwarmResult
+    exhausted_reason: str = ""
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "status": self.status,
+            "attempt_count": len(self.attempts),
+            "exhausted_reason": self.exhausted_reason,
+            "attempts": [item.as_dict() for item in self.attempts],
+            "final": self.final.as_dict(),
+        }
+
+
 class EvidenceSwarmCoordinator:
     """Route and execute the smallest authorized evidence coalition."""
 
@@ -162,6 +191,7 @@ class EvidenceSwarmCoordinator:
         *,
         synthesizer: EvidenceSynthesizer | None = None,
         conflicts: Sequence[str] = (),
+        excluded_views: Sequence[str] = (),
     ) -> EvidenceSwarmResult:
         started = time.perf_counter()
         operation = "sdcr_evidence_swarm"
@@ -184,6 +214,7 @@ class EvidenceSwarmCoordinator:
                     capabilities=(
                         specialist.capability
                         for specialist in self._specialists.values()
+                        if specialist.capability.view_id not in set(excluded_views)
                     ),
                     conflicts=conflicts,
                 )
@@ -253,6 +284,57 @@ class EvidenceSwarmCoordinator:
                         "error.type": error_type,
                     },
                 )
+
+    def run_iterative(
+        self,
+        request: EvidenceSwarmRequest,
+        *,
+        budget: RetrievalBudget = RetrievalBudget(),
+        synthesizer: EvidenceSynthesizer | None = None,
+        conflicts: Sequence[str] = (),
+    ) -> IterativeEvidenceResult:
+        """Try alternative views for missing slots, then return structured unknown."""
+
+        attempts: list[EvidenceSwarmResult] = []
+        excluded: set[str] = set()
+        specialist_calls = 0
+        exhausted_reason = "attempt_budget"
+        for _ in range(budget.max_attempts):
+            result = self.run(
+                request,
+                synthesizer=synthesizer,
+                conflicts=conflicts,
+                excluded_views=tuple(excluded),
+            )
+            attempts.append(result)
+            specialist_calls += len(result.receipt.selected_views)
+            if result.status == "complete":
+                self._metrics.record(
+                    "seocho.agent.retrieval.attempts",
+                    len(attempts),
+                    {"outcome": "complete"},
+                )
+                return IterativeEvidenceResult("complete", tuple(attempts), result)
+            excluded.update(result.receipt.selected_views)
+            if specialist_calls >= budget.max_specialist_calls:
+                exhausted_reason = "specialist_call_budget"
+                break
+            if not result.receipt.selected_views:
+                exhausted_reason = "no_eligible_source"
+                break
+        final = attempts[-1]
+        iterative = IterativeEvidenceResult(
+            status="unknown",
+            attempts=tuple(attempts),
+            final=final,
+            exhausted_reason=exhausted_reason,
+        )
+        self._metrics.record(
+            "seocho.agent.retrieval.attempts",
+            len(attempts),
+            {"outcome": iterative.status},
+        )
+        return iterative
 
     def _execute_selected(
         self, request: EvidenceSwarmRequest, selected_views: Sequence[str]

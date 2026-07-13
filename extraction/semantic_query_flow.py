@@ -71,6 +71,8 @@ from seocho.query.strategy_chooser import (
     ExecutionStrategyChooser as CanonicalExecutionStrategyChooser,
     IntentSupportValidator as CanonicalIntentSupportValidator,
 )
+from seocho.query.sdcr import Capability, CapabilityRegistry, SDCRRouter
+from seocho.query.otel_observability import OTelBridge
 
 logger = logging.getLogger(__name__)
 
@@ -2398,7 +2400,7 @@ AnswerGenerationAgent = CanonicalAnswerGenerationAgent
 class SemanticAgentFlow:
     """Orchestrate semantic layer + router + specialist agents + answer agent."""
 
-    def __init__(self, connector: Any):
+    def __init__(self, connector: Any, *, otel_bridge: Optional[OTelBridge] = None):
         self.resolver = SemanticEntityResolver(connector)
         self.router = QueryRouterAgent()
         self.lpg_agent = LPGAgent(connector, graph_targets=graph_registry.list_graphs())
@@ -2409,6 +2411,8 @@ class SemanticAgentFlow:
         )
         self.strategy_chooser = ExecutionStrategyChooser()
         self.run_registry = RunMetadataRegistry()
+        self.otel_bridge = otel_bridge or OTelBridge()
+        self.capability_registry = CapabilityRegistry()
 
     def run(
         self,
@@ -2434,6 +2438,38 @@ class SemanticAgentFlow:
         }
         self._apply_entity_overrides(semantic_context, entity_overrides or {})
         support_ranked_matches = self.lpg_agent.preview_support(semantic_context, constraint_slices)
+        support_assessment = semantic_context.get("preflight_support_assessment", {})
+        required_slots = tuple(
+            dict.fromkeys(
+                str(slot)
+                for slot in (
+                    list(support_assessment.get("filled_slots", []))
+                    + list(support_assessment.get("missing_slots", []))
+                )
+                if str(slot).strip()
+            )
+        )
+        capabilities = [
+            Capability(
+                view_id=str(item.get("database", "")),
+                slots=frozenset(str(slot) for slot in item.get("filled_slots", [])),
+                authorized=True,
+                priority=int(float(item.get("confidence", 0.0) or 0.0) * 1000),
+            )
+            for item in support_ranked_matches
+            if str(item.get("database", "")).strip()
+        ]
+        self.capability_registry = CapabilityRegistry(capabilities)
+        receipt = SDCRRouter().route(
+            workspace_id=workspace_id,
+            required_slots=required_slots,
+            capabilities=self.capability_registry.authorized(workspace_id),
+            conflicts=semantic_context.get("cross_graph_analysis", {}).get("conflicts", []),
+        )
+        semantic_context["sdcr_receipt"] = receipt.as_dict()
+        self.otel_bridge.record_route(receipt.reason, len(receipt.selected_views))
+        for view_id in receipt.selected_views:
+            self.otel_bridge.record_agent_call(view_id)
         trace_steps.append(
             {
                 "id": "0",
@@ -2449,6 +2485,7 @@ class SemanticAgentFlow:
                     "reasoning_mode": reasoning_mode,
                     "repair_budget": max(0, int(repair_budget or 0)),
                     "support_status": semantic_context.get("preflight_support_assessment", {}).get("status"),
+                    "sdcr_receipt": receipt.as_dict(),
                 },
             }
         )

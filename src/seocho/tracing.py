@@ -948,7 +948,15 @@ def start_span(
     # actually stores, rather than SEOCHO's fallback correlation UUID.
     if parent_span_id is None and opened:
         try:
-            native_context = opened[0][1].get_span_context()
+            native_handle = opened[0][1]
+            native_span = (
+                native_handle[0]
+                if isinstance(native_handle, tuple)
+                and native_handle
+                and hasattr(native_handle[0], "get_span_context")
+                else native_handle
+            )
+            native_context = native_span.get_span_context()
             native_trace_id = f"{native_context.trace_id:032x}"
             if native_trace_id != "0" * 32:
                 trace_id = native_trace_id

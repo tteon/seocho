@@ -11,7 +11,11 @@ If you want to improve Cypher generation or answer quality, start here.
 """
 
 from .agent_factory import AgentConfig, AgentFactory
-from .answering import QueryAnswerSynthesizer, build_evidence_bundle, infer_question_intent
+from .answering import (
+    QueryAnswerSynthesizer,
+    build_evidence_bundle,
+    infer_question_intent,
+)
 from .constraints import SemanticConstraintSliceBuilder
 from .contracts import (
     CypherPlan,
@@ -52,6 +56,14 @@ from .graph_cot_flow import (
 from .cypher_validator import CypherQueryValidator
 from .cypher_builder import CypherBuilder
 from .executor import GraphQueryExecutor
+from .evidence_swarm import (
+    EvidenceSpecialist,
+    EvidenceSwarmCoordinator,
+    EvidenceSwarmRequest,
+    EvidenceSwarmResult,
+    SpecialistRun,
+    SwarmEvidenceBundle,
+)
 from .insufficiency import QueryInsufficiencyClassifier
 from .intent import INTENT_CATALOG
 from .planner import DeterministicQueryPlanner
@@ -129,6 +141,12 @@ __all__ = [
     "GraphCoTQueryOrchestrator",
     "DeterministicQueryPlanner",
     "GraphQueryExecutor",
+    "EvidenceSpecialist",
+    "EvidenceSwarmCoordinator",
+    "EvidenceSwarmRequest",
+    "EvidenceSwarmResult",
+    "SpecialistRun",
+    "SwarmEvidenceBundle",
     "QueryAnswerSynthesizer",
     "build_evidence_bundle",
     "infer_question_intent",

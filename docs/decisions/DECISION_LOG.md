@@ -5,6 +5,11 @@ Each entry must link to a full ADR when impact is non-trivial.
 
 ## 2026-07-13
 
+- [Accepted] `ADR-0152-sdcr-evidence-swarm-coordinator.md`
+  - execute the smallest authorized SDCR coalition with bounded parallelism
+  - assemble one protected/conflict-aware typed evidence bundle for synthesis
+  - separate deterministic retrieval load from bounded live MARA answering
+
 - [Accepted] `ADR-0150-connector-materialization-layer.md`
   - add a read-only connector materialization layer that writes
     `seocho.connector_record.v1` JSONL for the existing index -> query ->

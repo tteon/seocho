@@ -1184,6 +1184,112 @@ context assembly, and causal observability.
   active recording/alert rules. Customer fast-burn paging filters
   `traffic_type="production"`, so this evaluation run cannot page an operator.
 
+### E-019 — SDCR multi-agent blockchain-memory evidence swarm
+
+`tags: [live, postgresql, multi-agent, sdcr, evidence-swarm, mara, otel, tempo, governance]`
+
+The SDCR router was connected to a bounded evidence-swarm coordinator and run
+against the populated `ltm-scale-1m-20260712` PostgreSQL 18.4 workspace. This
+is a real execution of the production repository path, not a mock throughput
+result. The workspace contained 1,003,769 revisions and 337,103 logical
+memories before the final run. Agent queries sampled 10,000 memories having at
+least two revisions, so every historical comparison had a real predecessor.
+
+```text
+English transaction question + required slots
+                    |
+           SDCR authorization/router
+                    |
+       smallest slot-covering coalition
+       /          |          |          \
+ authority    historical  projection  provenance
+       \          |          |          /
+        declared-slot + protected-data validation
+                    |
+       conflict check + missing-slot receipt
+                    |
+       deterministic answer / sampled MARA answer
+```
+
+The workload combined existing memory operations (70% weight) with current
+state plus provenance, current-versus-history, and authority-versus-projection
+queries. At concurrency 32 it executed 2,000 operations in 2.240 seconds, or
+892.67 ops/s, with zero unexpected errors. Of those, 596 were multi-agent
+queries: 257 used two specialists and 339 used three. All 596 completed with
+zero missing slots and zero conflicts. The tool-output guardrail removed 596
+protected raw payloads before synthesis and retained 2,385 safe evidence items.
+
+Query p95 was 53.41 ms for current/provenance, 75.27 ms for historical
+comparison, and 74.35 ms for projection consistency. Specialist p95 ranged
+from 17.19 ms for projection to 32.93 ms for historical memory. Coalition
+latency includes bounded parallel fan-out and evidence assembly; no LLM sits on
+the high-concurrency path.
+
+The same coordinator then generated three live answers with MARA
+`gpt-oss-120b`. All returned non-empty grounded answers with complete slot
+coverage. Provider latency was 3,473, 1,052, and 2,067 ms; total token use was
+965, 1,157, and 1,495. This is why retrieval and policy stay outside the model
+and provider latency is not reported as coordinator latency.
+
+During the run, 141 revisions were committed. Final revision, idempotency,
+outbox, max-sequence, and head-sequence cardinality all equaled 1,003,910. Ten
+lagging projection events drained in one batch and 353 ms; final lag was zero.
+
+OTel verification found one Tempo root named `okx.multi_agent_memory.run` with
+2,139 spans under trace `9cad771d4c6b3d4c949dae8de231dc34`. Descendants were
+`query.evidence_swarm` and `query.evidence_swarm.specialist`, proving that
+thread-pool context remained in one waterfall. Prometheus recorded 599 complete
+`sdcr_evidence_swarm` requests (596 load plus three MARA samples) for instance
+`cbe2aa76b562`; cumulative request-histogram p95 was 87.86 ms. A rate query is
+appropriate while a service is active; a selected finite batch uses its
+cumulative histogram after the process exits.
+
+The first trace qualification exposed two instrumentation bugs: Python thread
+pools did not inherit the root trace context, and the tracing bridge read the
+native trace ID from an OTel tuple handle incorrectly. Both were fixed and
+covered by focused tests before the final run.
+
+Raw artifact SHA-256:
+`7c75339a6f99a5478b2d5da7f68dbecde6aa5b88af8876c16e826fb92d3ca880`.
+
+#### Production-harness lessons and next boundaries
+
+The five-layer production-agent harness maps to SEOCHO without cloning a vendor
+platform:
+
+1. The inference layer is the provider-neutral MARA/OpenAI-compatible model
+   interface and prompt-package contract. Models remain replaceable.
+2. The runtime layer is OpenAI Agents SDK plus deterministic SDCR routing and
+   the evidence-swarm coordinator. Database lookup, policy, and slot validation
+   remain ordinary code.
+3. Observability/governance is OTel, Prometheus, Tempo, Grafana, decision
+   receipts, and versioned ontology/policy state.
+4. The context layer is PostgreSQL temporal authority, rebuildable graph
+   projection, etcd pointers, bounded context composition, and typed evidence.
+5. Agent identity is the largest gap. `workspace_id` and an authorization
+   boolean are not an enterprise principal with delegated scopes, role
+   assignments, expiry, and a durable action audit trail.
+
+The next context improvement is bounded retrieval-as-a-subagent: plan required
+slots, run a coalition, inspect missing slots/conflicts, refine the query or
+select another authorized source, and return a structured unknown when the
+retry/cost budget is exhausted. Tool-boundary policy must inspect inputs before
+execution, not only filter outputs afterward.
+
+Continuous evaluation should score live samples against use-case rubrics such
+as slot clarification, projection freshness, provenance coverage, structured
+unknown, disclosure safety, and action authorization. Prompt/model/ontology/
+retrieval changes may generate candidates, but automatic improvement remains
+candidate-only: promotion requires rubric gates, canary evidence, versioned
+receipts, and rollback.
+
+Resume-ready result: designed and live-tested a provider-neutral multi-agent
+evidence swarm that routed 596 blockchain-memory queries to two- and
+three-specialist coalitions at 32-way mixed concurrency, preserved 1.004M-row
+temporal-memory integrity, filtered 596 protected payloads, recovered projection
+lag in 353 ms, generated three grounded MARA answers, and unified 2,139 OTel
+spans under one auditable Tempo trace.
+
 ## Current engineering decisions
 
 1. PostgreSQL remains authoritative; DozerDB is disposable and replayable.

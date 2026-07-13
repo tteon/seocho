@@ -16,6 +16,8 @@ format that SEOCHO already knows how to index.
 
 ## CLI
 
+Use one-off commands when you are trying one source:
+
 ```bash
 seocho connect notion --data-source-id "$NOTION_DATA_SOURCE_ID" \
   --token-env NOTION_TOKEN \
@@ -54,6 +56,50 @@ questions:
 From a repo checkout, prefix commands with `uv run`.
 
 `seocho connectors ...` is accepted as an alias for `seocho connect ...`.
+
+## Connector Config
+
+Use a config file when you want a repeatable multi-source import:
+
+```bash
+seocho connect init
+seocho connect run seocho.connectors.yaml --dry-run
+seocho connect run seocho.connectors.yaml
+```
+
+The generated `seocho.connectors.yaml` follows the useful parts of common
+connector systems: explicit source config, read-only materialization, JSONL
+records, and a state artifact.
+
+```yaml
+version: 1
+output_dir: .seocho/connectors
+state_path: .seocho/connectors/state.json
+
+sources:
+  - name: notion_wiki
+    provider: notion
+    data_source_ids: ["..."]
+    token_env: NOTION_TOKEN
+    output: notion.jsonl
+
+  - name: graph_schema
+    provider: neo4j
+    database: neo4j
+    output: neo4j.jsonl
+```
+
+After a successful config run, point `documents.path` at the output directory
+to index all generated JSONL files:
+
+```yaml
+documents:
+  path: ./.seocho/connectors
+```
+
+`state_path` records source names, outputs, record IDs, and content
+fingerprints. It is content-free and exists so future incremental connectors
+can add provider cursors without changing the record format.
 
 ## Provider Boundaries
 

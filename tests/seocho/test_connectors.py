@@ -4,11 +4,16 @@ import json
 from dataclasses import dataclass
 
 from seocho.connectors import (
+    ConnectorRecord,
+    load_connector_config,
     read_records_jsonl,
     records_from_langchain_documents,
     records_from_llamaindex_documents,
+    run_connector_plan,
+    write_sample_config,
     write_records_jsonl,
 )
+from seocho.connectors.config import ConnectorConfigError
 from seocho.connectors.datahub import dataset_entity_to_record
 from seocho.connectors.notion import blocks_to_markdown, page_to_record
 from seocho.connectors.neo4j import records_from_schema_rows as records_from_neo4j_schema_rows
@@ -245,3 +250,117 @@ def test_connectors_cli_alias_parses() -> None:
     assert args.dsn_env == "TEST_DATABASE_URL"
     assert args.schemas == ["public"]
     assert args.dry_run is True
+
+
+def test_connectors_cli_config_commands_parse() -> None:
+    init_args = build_parser().parse_args(["connect", "init", "seocho.connectors.yaml", "--force"])
+    assert init_args.command == "connect"
+    assert init_args.connect_command == "init"
+    assert init_args.path == "seocho.connectors.yaml"
+    assert init_args.force is True
+
+    run_args = build_parser().parse_args([
+        "connect",
+        "run",
+        "seocho.connectors.yaml",
+        "--output-dir",
+        ".seocho/connectors",
+        "--dry-run",
+        "--json",
+    ])
+    assert run_args.connect_command == "run"
+    assert run_args.output_dir == ".seocho/connectors"
+    assert run_args.dry_run is True
+    assert run_args.output_json is True
+
+
+def test_write_sample_connector_config_refuses_overwrite(tmp_path) -> None:
+    path = tmp_path / "seocho.connectors.yaml"
+    write_sample_config(path)
+
+    try:
+        write_sample_config(path)
+    except ConnectorConfigError as exc:
+        assert "already exists" in str(exc)
+    else:  # pragma: no cover - defensive assertion
+        raise AssertionError("expected ConnectorConfigError")
+
+    write_sample_config(path, force=True)
+    assert "sources:" in path.read_text(encoding="utf-8")
+
+
+def test_connector_config_run_writes_jsonl_and_state(tmp_path) -> None:
+    config_path = tmp_path / "seocho.connectors.yaml"
+    output_dir = tmp_path / "connectors"
+    state_path = output_dir / "state.json"
+    config_path.write_text(
+        f"""
+version: 1
+output_dir: {output_dir}
+state_path: {state_path}
+sources:
+  - name: pg
+    provider: postgres
+    dsn_env: TEST_DATABASE_URL
+    schemas: [public]
+    output: pg.jsonl
+""".strip(),
+        encoding="utf-8",
+    )
+
+    plan = load_connector_config(config_path)
+
+    def fake_fetch(source) -> list[ConnectorRecord]:
+        return [
+            ConnectorRecord(
+                id=f"{source.provider}:schema",
+                content="PostgreSQL table app.public.orders",
+                provider=source.provider,
+                source_kind="postgres_table_schema",
+                category=source.category,
+            )
+        ]
+
+    results = run_connector_plan(plan, fetcher=fake_fetch)
+
+    assert results[0].records == 1
+    assert (output_dir / "pg.jsonl").exists()
+    assert state_path.exists()
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    assert state["sources"]["pg"]["records"] == 1
+    assert state["sources"]["pg"]["record_ids"] == ["postgres:schema"]
+
+
+def test_connector_config_dry_run_does_not_write_files(tmp_path) -> None:
+    config_path = tmp_path / "seocho.connectors.yaml"
+    output_dir = tmp_path / "connectors"
+    config_path.write_text(
+        f"""
+version: 1
+output_dir: {output_dir}
+sources:
+  - name: graph
+    provider: neo4j
+    output: graph.jsonl
+""".strip(),
+        encoding="utf-8",
+    )
+
+    plan = load_connector_config(config_path)
+    results = run_connector_plan(
+        plan,
+        dry_run=True,
+        fetcher=lambda source: [
+            ConnectorRecord(
+                id="neo4j:schema",
+                content="Neo4j schema",
+                provider=source.provider,
+                source_kind="neo4j_schema",
+                category=source.category,
+            )
+        ],
+    )
+
+    assert results[0].records == 1
+    assert not (output_dir / "graph.jsonl").exists()
+    assert not (output_dir / "state.json").exists()

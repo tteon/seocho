@@ -11,6 +11,8 @@ Each entry must link to a full ADR when impact is non-trivial.
     report path
   - ship first adapters for Notion, Slack, DataHub, PostgreSQL, Neo4j/DozerDB,
     plus LangChain/LlamaIndex document converters without framework dependencies
+  - add `seocho.connectors.yaml` and a content-free state artifact for
+    repeatable multi-source materialization
   - keep API credentials out of run specs and require live service runs before
     claiming external compatibility, latency, or throughput
 

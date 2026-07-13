@@ -616,6 +616,244 @@ claims.
   transaction state, revision order, idempotency, and point-in-time truth in a
   deterministic authoritative layer.
 
+##### Deep interpretation: what was actually compared
+
+The experiment did not ask which framework wins a generic memory leaderboard.
+It asked which guarantees are appropriate for three different responsibilities
+inside a production transaction agent:
+
+1. **Authoritative state memory:** can the system reproduce what was believed
+   at a specific causal point, reject duplicate delivery, retain corrections,
+   and rebuild a serving projection without inventing history?
+2. **Application state memory:** can the system store and retrieve the latest
+   value cheaply when the application does not need an immutable revision
+   history?
+3. **Generative semantic memory:** can the system infer entities and
+   relationships from text and retrieve useful context without rereading the
+   complete source history?
+
+These are related but not equivalent workloads. A current-value store performs
+less work than an append-only transaction ledger, and an LLM-created knowledge
+graph performs more probabilistic work than either structured store. Raw
+throughput therefore cannot be interpreted without the capability matrix.
+
+| Decision criterion | SEOCHO/PostgreSQL | LangGraph Store adapter | Cognee temporal graph |
+|---|---|---|---|
+| Latest structured state | native | native | generated answer |
+| Point-in-time state | native | unsupported | probabilistic |
+| Pre-creation absence | deterministic | unsupported | not qualified |
+| Immutable revisions | native | current value only in this adapter | graph-derived memory |
+| Duplicate delivery | atomic receipt | two-write adapter receipt | not qualified as a transaction guarantee |
+| Projection outbox | same transaction as revision | absent | internal pipeline behavior |
+| Provenance | required revision field | copied application field | extracted graph/source metadata |
+| Rollback/rebuild basis | ordered authoritative log | unsupported in adapter | regenerate/re-ingest |
+| Semantic association | graph projection/adapter | unsupported in baseline | core strength |
+| Best-fit role | transaction truth | lightweight current state | semantic discovery/context |
+
+##### Why SEOCHO was slower, and why that is not automatically bad
+
+In the 10K single-client run, LangGraph Store wrote approximately 397 events/s
+while SEOCHO wrote approximately 99 events/s. This is a real cost and must not
+be hidden. However, the write paths did not provide the same guarantee:
+
+```text
+LangGraph baseline write
+  current value -> application receipt implemented by the benchmark adapter
+
+SEOCHO authoritative write
+  lock causal head
+    -> append immutable revision
+    -> insert idempotency receipt
+    -> insert projection outbox event
+    -> advance causal sequence
+    -> commit all-or-nothing
+```
+
+SEOCHO's approximately four-times lower throughput bought atomic coordination
+between four pieces of state that otherwise fail independently. If a process
+dies after a current-value write but before an idempotency receipt, a replay can
+be applied twice. If it dies after the receipt but before the graph projection
+event, the serving graph can remain silently stale. The transactional outbox
+removes this dual-write gap. For an exchange, custody, compliance, or settlement
+workflow, this correctness cost can be justified; for a disposable chat
+preference, it usually cannot.
+
+The result therefore supports a tiered memory policy rather than putting every
+memory into the expensive path:
+
+- transaction lifecycle, authorization decision, policy version, and answer
+  provenance use authoritative revisions;
+- ephemeral agent scratch state and replaceable UI/session state may use a
+  current-value store;
+- documents, conversations, and weak semantic associations may use generative
+  graph memory, but cannot override authoritative transaction fields.
+
+##### What the temporal accuracy result means
+
+SEOCHO answered all 1,499 supported cases in the 10K qualification. The cases
+included latest state, a prior revision, and a sequence before the memory
+existed. The last case is operationally important: returning the first known
+state for a time before creation is a form of future-information leakage.
+
+LangGraph's reported accuracy was also 100%, but only over 500 supported
+current-value cases. It would be misleading to write `SEOCHO 100% versus
+LangGraph 33%`; unsupported point-in-time operations were deliberately excluded
+from LangGraph's denominator. The correct interpretation is:
+
+- both systems were correct for their shared current-state capability;
+- SEOCHO additionally passed 999 temporal cases that the baseline adapter could
+  not express;
+- LangGraph delivered higher throughput and lower current-read latency because
+  it retained a narrower state contract.
+
+This capability-adjusted scoring is essential for honest infrastructure
+evaluation. Missing functionality is a product-fit limitation, not a fabricated
+wrong answer, while a supported operation returning the wrong revision is a
+correctness failure.
+
+##### What the Cognee failures reveal
+
+Cognee successfully transformed the corpus into a temporal knowledge graph and
+answered both questions in the three-event smoke. That establishes real
+provider, embedding, extraction, graph-write, retrieval, and answer-generation
+connectivity. It does not establish scale or temporal reliability.
+
+At 30 events, two latest-state questions returned superseded states and one
+historical question refused despite the event being present in the ingested
+corpus. These are qualitatively different failure modes:
+
+- **revision selection error:** relevant facts exist, but the retrieval or
+  reasoning stage does not enforce the maximum valid revision;
+- **temporal retrieval miss:** a historical fact exists, but timestamp/entity
+  alignment does not surface it to the answerer;
+- **unsupported-evidence response:** the model generates an inability statement
+  instead of grounding itself in the stored graph;
+- **latency amplification:** extraction, graph retrieval, and LLM synthesis
+  produced an approximately 20-second p95 in the sampled run.
+
+The outcome does not mean Cognee is generally poor. It means a generated memory
+graph optimizes a different objective: discovering and prioritizing semantically
+related context. Blockchain state transitions require a total or explicitly
+partitioned causal order, validity bounds, canonical/reorg status, and exact
+revision selection. Those constraints should be applied before generative
+answering, not inferred anew by the model for every question.
+
+A safe integration would therefore use Cognee-like memory only as a candidate
+context source:
+
+```text
+semantic memory candidates
+        +
+authoritative PostgreSQL revision at required causal token
+        +
+DozerDB path evidence at a sufficient projection watermark
+        |
+        v
+ontology/policy filtering -> bounded prompt -> answer + provenance
+```
+
+If semantic memory disagrees with the authoritative revision, the deterministic
+revision wins and the disagreement becomes an observability/evaluation event.
+
+##### Scalability result and current bottleneck
+
+The 10K comparison measured a single-client structured baseline, so it is not a
+concurrent production capacity claim. The separate mixed workload exposed the
+more important concurrency boundary: at concurrency 16, atomic-write p95 was
+approximately 49 ms; at concurrency 64 it increased to approximately 1.49
+seconds, while current and point-in-time read p95 remained near 52-54 ms.
+
+This isolates the bottleneck to the workspace-scoped causal head locked with
+`FOR UPDATE`, rather than graph traversal or LLM generation. The design provides
+simple total ordering but creates a hot row under many writers. Possible
+improvements must preserve a clear causal contract and be measured rather than
+assumed:
+
+- lease ranges of sequences to writers, accepting bounded gaps;
+- partition causal domains by account, agent, transaction, or chain;
+- batch ordered event commits where the producer already establishes order;
+- separate bulk historical import from latency-sensitive online commits;
+- apply backpressure when outbox age or graph projection lag exceeds its SLO.
+
+The correct production statement is therefore that SEOCHO demonstrated
+accurate temporal reads and recoverable state at the measured loads, while the
+64-writer experiment identified a real sequencing bottleneck. It is not yet a
+claim of horizontally scalable multi-writer PostgreSQL authority.
+
+##### Architecture decision derived from the evidence
+
+No evaluated framework should own every memory responsibility. The evidence
+supports the following separation:
+
+```text
+PostgreSQL / SEOCHO authority
+  revisions, idempotency, causal order, policy decision, audit, rollback
+                   |
+                   | transactional outbox + watermark
+                   v
+DozerDB graph serving projection
+  bounded multi-hop paths, agent-agent relations, GraphRAG evidence
+                   |
+                   | selected and freshness-checked evidence
+                   v
+Generative semantic memory
+  conversation/document association, summarization, context candidates
+                   |
+                   | ontology and disclosure guardrail
+                   v
+MARA answer generation
+  answer, insufficiency status, provenance references
+```
+
+This separation makes the graph disposable and replayable, keeps etcd limited
+to small control-plane pointers and fencing, and prevents an LLM-generated
+memory from silently rewriting transaction truth. It also allows cost-sensitive
+customers to disable semantic memory or choose a cheaper provider without
+changing authoritative semantics.
+
+##### Production selection guidance
+
+- Choose the SEOCHO authoritative path when a wrong revision, duplicate action,
+  missing audit trail, or unrecoverable reorg is more expensive than lower write
+  throughput.
+- Choose a LangGraph-style current store when only the latest replaceable state
+  is required and the application owns any additional durability contract.
+- Choose a Cognee-style semantic layer when entity discovery, cross-document
+  association, and context reduction matter, while keeping deterministic fields
+  outside its authority.
+- Combine the layers when an agent must answer natural-language questions about
+  auditable transactions: deterministic state first, graph paths second,
+  semantic expansion third, and answer generation last.
+
+For OKX-like workloads, this maps to a practical rule: balances, transaction
+status, authorization, policy, and compliance evidence are authoritative;
+wallet relationships and bounded paths are graph projections; conversational
+preferences and document associations are semantic memory. An answer is safe
+only when its causal token, graph watermark, ontology/policy version, and source
+references are visible in one trace.
+
+##### Limits of the conclusion
+
+- The structured 10K corpus was deterministic and synthetic, although all
+  writes and reads executed against live PostgreSQL. It supplements rather than
+  replaces replay of a larger real chain/account history.
+- LangGraph was evaluated through a deliberately small structured adapter, not
+  every LangGraph persistence or checkpoint pattern.
+- Cognee's 30-event result is too small for a global quality or cost ranking and
+  includes MARA provider latency. It is evidence of a domain-specific temporal
+  failure mode, not a universal framework verdict.
+- The runs did not normalize every internal write, model token, hardware limit,
+  or cache state, so cross-framework latency is diagnostic rather than a formal
+  price/performance benchmark.
+- Multi-node PostgreSQL, graph cluster failover, and repeated process-kill RTO
+  distributions remain future gates.
+
+The defensible conclusion is consequently narrow but valuable: SEOCHO's
+deterministic revision layer provides the temporal and recovery semantics that
+the lighter current-value and generative-memory baselines did not provide in
+this qualification, at a measured throughput and concurrency cost that is now
+visible and actionable.
+
 The 30-event PostgreSQL comparison was rerun after fixing the scorer for reads
 before a memory's creation: absence is the correct historical result only when
 the requested sequence precedes the first revision. Provider metadata also

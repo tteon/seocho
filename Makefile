@@ -4,13 +4,14 @@ DOCKER_COMPOSE = docker compose
 DOCKER_COMPOSE_LIVE = docker compose -f docker-compose.yml -f docker-compose.dev.yml
 DOCKER_COMPOSE_TUTORIALS = docker compose -f docker-compose.tutorials.yml
 DOCKER_COMPOSE_OPIK = docker compose -f docker-compose.opik.yml --profile opik
+DOCKER_COMPOSE_MEMORY = docker compose -f docker-compose.memory.yml
 
 # Shared stack project name (fixed so per-instance app tiers can target its
 # neo4j for ephemeral-database admin — see src/seocho/local.py).
 SHARED_PROJECT = seocho
 SEOCHO_CLI = python3 -m seocho.cli
 
-.PHONY: up up-build up-live down restart logs clean bootstrap shell test test-integration e2e-smoke okx-release-gate lint format help apoc-extended observability-up observability-down observability-logs opik-up opik-down opik-logs demo-raw demo-meta demo-neo4j demo-graphrag-opik demo-all setup-env tutorials-up tutorials-down tutorials-logs tutorials-shell tutorials-build tutorials-smoke tutorials-test tutorials-pytest tutorials-gds
+.PHONY: up up-build up-live down restart logs clean bootstrap shell test test-integration e2e-smoke okx-release-gate lint format help apoc-extended memory-up memory-migrate memory-status memory-smoke memory-logs memory-down observability-up observability-down observability-logs opik-up opik-down opik-logs demo-raw demo-meta demo-neo4j demo-graphrag-opik demo-all setup-env tutorials-up tutorials-down tutorials-logs tutorials-shell tutorials-build tutorials-smoke tutorials-test tutorials-pytest tutorials-gds
 
 ##@ Development
 
@@ -137,6 +138,31 @@ clean: ## Clean up containers and volumes
 	@echo "🧹 Cleaning up..."
 	@docker compose down -v --remove-orphans
 	@docker system prune -f
+
+##@ Authoritative Memory
+
+memory-up: ## Start PostgreSQL 18 authoritative memory and apply schema
+	@COMPOSE_PROJECT_NAME=seocho-memory $(DOCKER_COMPOSE_MEMORY) up -d --wait --remove-orphans
+	@$(MAKE) memory-migrate
+	@echo "🧠 PostgreSQL memory: $${SEOCHO_BIND_HOST:-127.0.0.1}:$${POSTGRES_PORT:-55432}/$${POSTGRES_DB:-seocho_memory}"
+
+memory-migrate: ## Apply the idempotent agent-memory schema
+	@SEOCHO_POSTGRES_DSN="$${SEOCHO_POSTGRES_DSN:-postgresql://$${POSTGRES_USER:-seocho}:$${POSTGRES_PASSWORD}@127.0.0.1:$${POSTGRES_PORT:-55432}/$${POSTGRES_DB:-seocho_memory}}" \
+		uv run --extra postgres python scripts/setup/agent-memory-postgres.py migrate
+
+memory-status: ## Report schema version and authoritative memory row counts
+	@SEOCHO_POSTGRES_DSN="$${SEOCHO_POSTGRES_DSN:-postgresql://$${POSTGRES_USER:-seocho}:$${POSTGRES_PASSWORD}@127.0.0.1:$${POSTGRES_PORT:-55432}/$${POSTGRES_DB:-seocho_memory}}" \
+		uv run --extra postgres python scripts/setup/agent-memory-postgres.py status
+
+memory-smoke: ## Verify atomic commit, idempotent replay, PIT read, and cleanup
+	@SEOCHO_POSTGRES_DSN="$${SEOCHO_POSTGRES_DSN:-postgresql://$${POSTGRES_USER:-seocho}:$${POSTGRES_PASSWORD}@127.0.0.1:$${POSTGRES_PORT:-55432}/$${POSTGRES_DB:-seocho_memory}}" \
+		uv run --extra postgres python scripts/setup/agent-memory-postgres.py smoke
+
+memory-logs: ## Tail authoritative PostgreSQL logs
+	@COMPOSE_PROJECT_NAME=seocho-memory $(DOCKER_COMPOSE_MEMORY) logs -f --tail=100 postgres-memory
+
+memory-down: ## Stop PostgreSQL memory without deleting its volume
+	@COMPOSE_PROJECT_NAME=seocho-memory $(DOCKER_COMPOSE_MEMORY) down
 
 ##@ Opik Observability
 

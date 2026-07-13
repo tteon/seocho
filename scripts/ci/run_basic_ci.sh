@@ -1,67 +1,33 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-python3 -m py_compile \
-  runtime/__init__.py \
-  runtime/policy.py \
-  runtime/identity.py \
-  runtime/audit.py \
-  runtime/agent_readiness.py \
-  runtime/middleware.py \
-  runtime/memory_service.py \
-  runtime/public_memory_api.py \
-  runtime/server_runtime.py \
-  runtime/runtime_ingest.py \
-  runtime/agent_server.py \
-  extraction/_runtime_alias.py \
-  extraction/agent_readiness.py \
-  extraction/middleware.py \
-  extraction/memory_service.py \
-  extraction/policy.py \
-  extraction/public_memory_api.py \
-  extraction/runtime_ingest.py \
-  extraction/server_runtime.py \
-  extraction/semantic_query_flow.py \
-  extraction/semantic_run_store.py \
-  extraction/semantic_profile_packages.py \
-  extraction/agent_server.py \
-  extraction/collector.py \
-  extraction/rule_constraints.py \
-  extraction/vector_store.py \
-  runtime/agent_state.py \
-  src/seocho/models.py \
-  src/seocho/client.py \
-  src/seocho/client_bundle.py \
-  src/seocho/client_remote.py \
-  src/seocho/local_engine.py \
-  src/seocho/events.py \
-  src/seocho/ontology_context.py \
-  src/seocho/api.py \
-  src/seocho/session.py \
-  src/seocho/__init__.py \
-  src/seocho/evaluation.py \
-  src/seocho/index/ingestion_facade.py \
-  src/seocho/routing/model_router.py \
-  src/seocho/agent/reflection.py \
-  src/seocho/agent/matchmaker.py \
-  src/seocho/ontology_context_map.py \
-  src/seocho/query/query_proxy.py \
-  src/seocho/query/agent_factory.py \
-  src/seocho/tracing.py \
-  src/seocho/store/graph.py \
-  src/seocho/query/cypher_builder.py \
-  src/seocho/index/extraction_engine.py \
-  src/seocho/index/file_reader.py \
-  src/seocho/index/enforcement.py \
-  src/seocho/index/identity.py \
-  src/seocho/index/pipeline.py \
-  src/seocho/run_spec.py \
-  src/seocho/run_template.py \
-  src/seocho/run_preflight.py \
-  src/seocho/e2e.py \
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+cd "$ROOT_DIR"
+
+py_compile_files="$(
+  git ls-files \
+    'runtime/**/*.py' \
+    'runtime/*.py' \
+    'extraction/**/*.py' \
+    'extraction/*.py' \
+    'src/seocho/**/*.py' \
+    'src/seocho/*.py' \
+    'scripts/ci/*.py'
+)"
+
+# shellcheck disable=SC2086 # tracked repo paths here are whitespace-free.
+python3 -m py_compile $py_compile_files
+
+uv run ruff check \
+  scripts/ci \
   src/seocho/cli.py \
-  scripts/ci/sync_github_labels.py \
-  scripts/ci/triage_metadata.py
+  src/seocho/e2e.py \
+  src/seocho/run_spec.py \
+  src/seocho/scaffold.py \
+  tests/seocho/test_e2e_runner.py \
+  tests/seocho/test_run_spec.py \
+  tests/seocho/test_scaffold.py \
+  tests/seocho/test_sweep.py
 
 uv run pytest \
   extraction/tests/test_runtime_package_aliases.py \
@@ -123,6 +89,7 @@ uv run pytest \
   tests/seocho/test_ontology_iso704_cq.py \
   tests/seocho/test_run_spec.py \
   tests/seocho/test_e2e_runner.py \
+  tests/seocho/test_scaffold.py \
   tests/seocho/test_ontology_enforcement.py \
   tests/seocho/test_run_template.py \
   tests/seocho/test_sweep.py \

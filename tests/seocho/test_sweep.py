@@ -323,7 +323,7 @@ def test_file_indexer_track_false_leaves_no_state(tmp_path) -> None:
     assert second.files_indexed == 1  # no "unchanged" skips
     assert second.files_unchanged == 0
 
-    tracked = indexer.index_directory(docs)  # default behavior unchanged
+    indexer.index_directory(docs)  # default behavior unchanged
     assert (docs / ".seocho_index").exists()
     again = indexer.index_directory(docs)
     assert again.files_unchanged == 1

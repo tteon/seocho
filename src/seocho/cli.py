@@ -1139,14 +1139,14 @@ def _cmd_init(args: argparse.Namespace) -> int:
     config_path = Path(".seocho.toml")
     if not config_path.exists():
         write_config(config_path, schema=output, database=name)
-        print(f"Project config saved to .seocho.toml")
+        print("Project config saved to .seocho.toml")
 
     print(f"Ontology saved to {output}")
     print(f"  {len(nodes)} entity types, {len(relationships)} relationships")
     print()
     print("Next steps:")
-    print(f"  seocho index ./your_data/")
-    print(f"  seocho ask --local 'your question here'")
+    print("  seocho index ./your_data/")
+    print("  seocho ask --local 'your question here'")
     return 0
 
 
@@ -1763,7 +1763,7 @@ def _cmd_ontology(args: argparse.Namespace) -> int:
             print(json.dumps(rec.to_dict(), indent=2, ensure_ascii=False))
         else:
             print(f"chosen: {rec.chosen}  (domain={rec.domain_kind}, numeric_intensity={rec.numeric_intensity})")
-            print(f"  coverage: " + ", ".join(f"{n}={s['corpus_coverage']}" for n, s in rec.candidate_scores.items()))
+            print("  coverage: " + ", ".join(f"{n}={s['corpus_coverage']}" for n, s in rec.candidate_scores.items()))
             print(f"  {rec.rationale}")
             for a in rec.advisories:
                 print(f"  · {a}")

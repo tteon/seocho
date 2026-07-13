@@ -59,6 +59,7 @@ ci = [
     "pytest>=7.0",
     "pytest-asyncio>=0.21.0",
     "pyyaml",
+    "ruff",
     "httpx>=0.25.0",
     "tenacity>=8.2.0",
     "uvicorn",
@@ -82,6 +83,7 @@ dev = [
     "flake8",
     "black",
     "isort",
+    "ruff",
     "neo4j-rust-ext",  # Rust PackStream codec, ADR-0111: W2 3.6x, parity-gated; pulls matching neo4j
     "numpy",
     "openai",

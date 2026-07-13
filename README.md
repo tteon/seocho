@@ -26,7 +26,9 @@ routing, text-to-Cypher, reasoning, or answer synthesis.
 
 ```mermaid
 flowchart LR
-    D["Documents"] --> I["SEOCHO index"]
+    T["Notion / Slack / DataHub / Postgres / Neo4j / LangChain"] --> C["seocho connect"]
+    C --> D["Documents / JSONL"]
+    D --> I["SEOCHO index"]
     O["Ontology: your schema"] --> I
     O --> Q["SEOCHO query"]
     I --> G[("Graph store")]
@@ -94,19 +96,38 @@ Install the local SDK path:
 uv pip install "seocho[local]"
 ```
 
-Run a complete example:
+Create and run a complete sample project:
 
 ```bash
+seocho new hello-seocho
+cd hello-seocho
 export MARA_API_KEY=...
-uv run python examples/finance-compliance/quickstart.py --llm mara/MiniMax-M2.5
+seocho run --dry-run
+seocho run
 ```
 
-The finance-compliance example ingests six short mock filings into an embedded
-local graph, then asks cross-document questions such as:
+`seocho new` writes a tiny ontology, documents, questions, and a runnable
+`seocho.run.yaml`. `seocho run` indexes the documents into the embedded
+LadybugDB graph, asks the questions, and writes `runs/<name>-<timestamp>/`
+with both `report.md` and `report.json`.
+
+From a repo checkout, prefix the CLI with `uv run` — uv resolves the project
+environment and syncs dependencies for you, so there is no venv to activate.
+If you installed SEOCHO into your own environment instead (`uv pip install
+seocho`), drop the prefix and call `seocho …` directly.
+
+Want a domain-shaped example? The finance-compliance example ingests six short
+mock filings into an embedded local graph, then asks cross-document questions
+such as:
 
 - Which regulations is Acme Financial Services subject to?
 - What incidents have been reported?
 - Which control evidence mitigates the incident?
+
+```bash
+export MARA_API_KEY=...
+uv run python examples/finance-compliance/quickstart.py
+```
 
 Open [examples/finance-compliance/](examples/finance-compliance/) to inspect
 the ontology, sample documents, and script.
@@ -127,16 +148,30 @@ export MARA_API_KEY=...
 uv run seocho run examples/run/quickstart.yaml
 ```
 
-From a repo checkout, prefix the CLI with `uv run` — uv resolves the project
-environment and syncs dependencies for you, so there is no venv to activate.
-If you installed SEOCHO into your own environment instead (`uv pip install
-seocho`), drop the prefix and call `seocho run …` directly.
-
-`uv run seocho run --init` writes a commented template. To compare N
+`uv run seocho new hello-seocho` writes a runnable project. `uv run seocho run
+--init` writes only a commented template for custom projects. To compare N
 configurations (models, enforcement modes, agent patterns) in one table,
 declare them as variants of a Jinja2 template and run `uv run seocho sweep` —
 see [docs/RUN_SPECS.md](docs/RUN_SPECS.md) for templates, sweeps, per-phase
 models, and ontology enforcement modes.
+
+### Bring data from the tools you already use
+
+Materialize external sources into SEOCHO's normal indexing path:
+
+```bash
+seocho connect notion --data-source-id "$NOTION_DATA_SOURCE_ID" \
+  --output .seocho/connectors/notion.jsonl
+seocho connect slack --channel "$SLACK_CHANNEL_ID" \
+  --output .seocho/connectors/slack.jsonl
+seocho connect neo4j --database neo4j \
+  --output .seocho/connectors/neo4j.jsonl
+```
+
+Then set `documents.path` to that JSONL in `seocho.run.yaml`. LangChain and
+LlamaIndex users can convert their existing `Document` objects with
+`seocho.connectors` without adding a framework dependency to SEOCHO itself.
+See [docs/CONNECTORS.md](docs/CONNECTORS.md).
 
 ## How SEOCHO Works
 
@@ -242,6 +277,7 @@ Same order as the [docs onboarding path](docs/README.md), top to bottom:
 | Beginner walkthrough | [docs/BEGINNER_GUIDE.md](docs/BEGINNER_GUIDE.md) |
 | Python SDK details | [docs/PYTHON_INTERFACE_QUICKSTART.md](docs/PYTHON_INTERFACE_QUICKSTART.md) |
 | Bring your own data | [docs/APPLY_YOUR_DATA.md](docs/APPLY_YOUR_DATA.md) |
+| Connect Notion, Slack, DataHub, Postgres, Neo4j/DozerDB, LangChain, or LlamaIndex | [docs/CONNECTORS.md](docs/CONNECTORS.md) |
 | File/artifact locations | [docs/FILES_AND_ARTIFACTS.md](docs/FILES_AND_ARTIFACTS.md) |
 | Architecture overview | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | Runtime internals | [docs/RUNTIME_ARCHITECTURE.md](docs/RUNTIME_ARCHITECTURE.md) |

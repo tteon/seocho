@@ -1,4 +1,4 @@
-# ADR-0150: Versioned Causal Frontiers and Sequence Leasing
+# ADR-0151: Versioned Causal Frontiers and Sequence Leasing
 
 Date: 2026-07-13
 Status: Proposed

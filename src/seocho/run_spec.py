@@ -511,7 +511,8 @@ def load_run_spec(path: "str | Path") -> RunSpec:
         raise RunSpecError(
             [
                 f"run spec not found: {spec_path}. "
-                "Create one with: seocho run --init"
+                "Create a runnable sample with: seocho new hello-seocho "
+                "(or a blank template with: seocho run --init)."
             ]
         )
     with spec_path.open("r", encoding="utf-8") as handle:

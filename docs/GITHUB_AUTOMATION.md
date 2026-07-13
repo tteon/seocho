@@ -26,15 +26,30 @@ it. Product documentation belongs in `README.md`, `docs/`, or `website/`.
 
 | Workflow | Local equivalent | Purpose |
 |---|---|---|
-| `.github/workflows/ci-basic.yml` | `bash scripts/ci/run_basic_ci.sh` | Required SDK/runtime quality gate. |
+| `.github/workflows/ci-basic.yml` | `bash scripts/ci/run_basic_ci.sh` | Required SDK/runtime quality gate across Python 3.10, 3.11, and 3.12. |
 | `.github/workflows/docs-consistency.yml` | `bash scripts/ci/check-doc-contracts.sh` | Checks repo-side docs contracts. |
-| `.github/workflows/docs-site-quality.yml` | `cd website && npm run build` plus site checks | Validates the tracked docs site and the live `seocho.blog` mirror contract. |
+| `.github/workflows/docs-site-quality.yml` | `cd website && npm run build` plus site checks | Required docs/site quality gate for the tracked docs site and the live `seocho.blog` mirror contract. |
 | `.github/workflows/docs-website-sync-dispatch.yml` | n/a | Dispatches the `tteon/tteon.github.io` mirror sync after docs changes land on `main` when `SEOCHO_BLOG_SYNC_TOKEN` is configured. |
 | `.github/workflows/discord-updates.yml` | n/a | Posts curated updates to Discord only when a release is published or when manually dispatched. |
 | `.github/workflows/triage-metadata.yml` | `python scripts/ci/triage_metadata.py --event <event.json>` | Syncs labels and applies `area-*`, `kind-*`, and `status-*` labels to new or updated issues/PRs. |
 
 If a PR fails here, prefer fixing the source code, docs, or reusable scripts
 that the workflow calls before patching workflow YAML.
+
+`run_basic_ci.sh` compiles tracked Python source files dynamically, runs a
+focused Ruff lint gate on the actively maintained CI/run-spec/onboarding
+surfaces, then runs the curated SDK/runtime pytest set and repository contract
+checks. New tests that cover the curated surface should be added to that script
+in the same PR as the behavior change; legacy/live-service tests stay outside
+Basic CI until their service dependencies and skip contracts are clean.
+
+Docs deployment repeats the in-repo docs quality checks before uploading a
+Pages artifact, so a docs source change cannot publish solely because the
+Astro build succeeds.
+
+`docs-site-quality.yml` intentionally runs for every PR instead of using path
+filters. Required GitHub checks must always be created, otherwise unrelated PRs
+can be blocked by a required-but-skipped workflow.
 
 ## Contributor Intake
 

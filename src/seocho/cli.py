@@ -59,11 +59,11 @@ def build_parser() -> argparse.ArgumentParser:
     ask_parser.add_argument("--neo4j-password", default="password", help="Neo4j password (local mode)")
     ask_parser.add_argument(
         "--provider",
-        choices=["openai", "deepseek", "kimi", "grok", "qwen"],
-        default="openai",
+        choices=["mara", "openai", "deepseek", "kimi", "grok", "qwen"],
+        default="mara",
         help="OpenAI-compatible LLM provider preset (local mode)",
     )
-    ask_parser.add_argument("--model", default="gpt-4o", help="LLM model (local mode)")
+    ask_parser.add_argument("--model", default="MiniMax-M2.5", help="LLM model (local mode)")
     ask_parser.add_argument("--llm-base-url", default=None, help="Override the provider base URL (local mode)")
     ask_parser.add_argument("--reasoning", action="store_true", help="Enable reasoning mode (local mode)")
     ask_parser.add_argument("--repair-budget", type=int, default=2, help="Max repair attempts (local mode)")
@@ -172,6 +172,91 @@ def build_parser() -> argparse.ArgumentParser:
 
     # --- Local-mode commands (no server needed) ---
 
+    connect_parser = subparsers.add_parser(
+        "connect",
+        aliases=["connectors"],
+        help="Materialize external sources as SEOCHO JSONL records",
+    )
+    connect_subparsers = connect_parser.add_subparsers(dest="connect_command", required=True)
+
+    notion_parser = connect_subparsers.add_parser("notion", help="Export Notion pages or data-source rows")
+    notion_parser.add_argument("--data-source-id", action="append", default=[], help="Notion data source id")
+    notion_parser.add_argument("--page-id", action="append", default=[], help="Notion page id")
+    notion_parser.add_argument("--token-env", default="NOTION_TOKEN", help="Env var containing the Notion token")
+    notion_parser.add_argument("--notion-version", default="2026-03-11", help="Notion-Version header")
+    notion_parser.add_argument("--category", default="notion", help="SEOCHO document category")
+    notion_parser.add_argument("--max-pages", type=int, default=None, help="Max Notion API pages per data source")
+    notion_parser.add_argument("--no-blocks", action="store_true", help="Export page properties only")
+    notion_parser.add_argument("--output", default=".seocho/connectors/notion.jsonl", help="Output JSONL path")
+    notion_parser.add_argument("--dry-run", action="store_true", help="Fetch and summarize without writing JSONL")
+    notion_parser.add_argument("--json", dest="output_json", action="store_true", help="Emit JSON")
+
+    slack_parser = connect_subparsers.add_parser("slack", help="Export Slack channel messages")
+    slack_parser.add_argument("--channel", action="append", dest="channels", default=[], help="Slack channel id")
+    slack_parser.add_argument("--token-env", default="SLACK_BOT_TOKEN", help="Env var containing the Slack token")
+    slack_parser.add_argument("--team-id", default="", help="Slack team/workspace id for stable provenance")
+    slack_parser.add_argument("--channel-name", default="", help="Optional channel display name")
+    slack_parser.add_argument("--category", default="slack", help="SEOCHO document category")
+    slack_parser.add_argument(
+        "--limit",
+        type=int,
+        default=15,
+        help="Messages per Slack page; 15 is safe for new non-Marketplace apps, use 200 for Tier 3 apps",
+    )
+    slack_parser.add_argument("--max-pages", type=int, default=None, help="Max Slack pages per channel")
+    slack_parser.add_argument("--threads", action="store_true", help="Group replied messages as thread records")
+    slack_parser.add_argument("--output", default=".seocho/connectors/slack.jsonl", help="Output JSONL path")
+    slack_parser.add_argument("--dry-run", action="store_true", help="Fetch and summarize without writing JSONL")
+    slack_parser.add_argument("--json", dest="output_json", action="store_true", help="Emit JSON")
+
+    datahub_parser = connect_subparsers.add_parser("datahub", help="Export DataHub dataset metadata")
+    datahub_parser.add_argument("--server", required=True, help="DataHub frontend/GMS URL")
+    datahub_parser.add_argument("--token-env", default="DATAHUB_TOKEN", help="Env var containing a DataHub token")
+    datahub_parser.add_argument("--query", default="*", help="DataHub search query")
+    datahub_parser.add_argument("--limit", type=int, default=100, help="Max datasets to export")
+    datahub_parser.add_argument("--category", default="datahub", help="SEOCHO document category")
+    datahub_parser.add_argument("--output", default=".seocho/connectors/datahub.jsonl", help="Output JSONL path")
+    datahub_parser.add_argument("--dry-run", action="store_true", help="Fetch and summarize without writing JSONL")
+    datahub_parser.add_argument("--json", dest="output_json", action="store_true", help="Emit JSON")
+
+    postgres_parser = connect_subparsers.add_parser("postgres", help="Export PostgreSQL schema metadata")
+    postgres_parser.add_argument("--dsn-env", default="DATABASE_URL", help="Env var containing the PostgreSQL DSN")
+    postgres_parser.add_argument("--schema", action="append", dest="schemas", default=[], help="Schema to include")
+    postgres_parser.add_argument("--database-name", default="", help="Logical database name for provenance")
+    postgres_parser.add_argument("--category", default="postgres", help="SEOCHO document category")
+    postgres_parser.add_argument("--output", default=".seocho/connectors/postgres.jsonl", help="Output JSONL path")
+    postgres_parser.add_argument("--dry-run", action="store_true", help="Fetch and summarize without writing JSONL")
+    postgres_parser.add_argument("--json", dest="output_json", action="store_true", help="Emit JSON")
+
+    neo4j_parser = connect_subparsers.add_parser("neo4j", help="Export Neo4j/DozerDB schema metadata")
+    neo4j_parser.add_argument("--uri-env", default="NEO4J_URI", help="Env var containing the Bolt URI")
+    neo4j_parser.add_argument("--user-env", default="NEO4J_USER", help="Env var containing the graph user")
+    neo4j_parser.add_argument("--password-env", default="NEO4J_PASSWORD", help="Env var containing the graph password")
+    neo4j_parser.add_argument("--database", default="", help="Neo4j/DozerDB database name")
+    neo4j_parser.add_argument("--category", default="neo4j", help="SEOCHO document category")
+    neo4j_parser.add_argument("--output", default=".seocho/connectors/neo4j.jsonl", help="Output JSONL path")
+    neo4j_parser.add_argument("--dry-run", action="store_true", help="Fetch and summarize without writing JSONL")
+    neo4j_parser.add_argument("--json", dest="output_json", action="store_true", help="Emit JSON")
+
+    new_parser = subparsers.add_parser("new", help="Create a runnable SEOCHO sample project")
+    new_parser.add_argument(
+        "path",
+        nargs="?",
+        default="hello-seocho",
+        help="Target directory (default: ./hello-seocho)",
+    )
+    new_parser.add_argument(
+        "--sample",
+        choices=["company"],
+        default="company",
+        help="Sample project to create",
+    )
+    new_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite scaffold-owned files in the target directory",
+    )
+
     init_parser = subparsers.add_parser("init", help="Create a new ontology interactively")
     init_parser.add_argument("--output", default="schema.jsonld", help="Output file (default: schema.jsonld)")
     init_parser.add_argument("--format", choices=["jsonld", "yaml"], default="jsonld", help="Output format")
@@ -185,11 +270,11 @@ def build_parser() -> argparse.ArgumentParser:
     index_parser.add_argument("--neo4j-password", default="password", help="Neo4j password")
     index_parser.add_argument(
         "--provider",
-        choices=["openai", "deepseek", "kimi", "grok", "qwen"],
-        default="openai",
+        choices=["mara", "openai", "deepseek", "kimi", "grok", "qwen"],
+        default="mara",
         help="OpenAI-compatible LLM provider preset",
     )
-    index_parser.add_argument("--model", default="gpt-4o", help="LLM model for extraction")
+    index_parser.add_argument("--model", default="MiniMax-M2.5", help="LLM model for extraction")
     index_parser.add_argument("--llm-base-url", default=None, help="Override the provider base URL")
     index_parser.add_argument("--force", action="store_true", help="Re-index even if unchanged")
     index_parser.add_argument("--recursive", action="store_true", default=True, help="Scan subdirectories")
@@ -205,11 +290,11 @@ def build_parser() -> argparse.ArgumentParser:
     local_ask_parser.add_argument("--neo4j-password", default="password", help="Neo4j password")
     local_ask_parser.add_argument(
         "--provider",
-        choices=["openai", "deepseek", "kimi", "grok", "qwen"],
-        default="openai",
+        choices=["mara", "openai", "deepseek", "kimi", "grok", "qwen"],
+        default="mara",
         help="OpenAI-compatible LLM provider preset",
     )
-    local_ask_parser.add_argument("--model", default="gpt-4o", help="LLM model")
+    local_ask_parser.add_argument("--model", default="MiniMax-M2.5", help="LLM model")
     local_ask_parser.add_argument("--llm-base-url", default=None, help="Override the provider base URL")
     local_ask_parser.add_argument("--reasoning", action="store_true", help="Enable reasoning mode (auto-retry)")
     local_ask_parser.add_argument("--repair-budget", type=int, default=2, help="Max repair attempts")
@@ -222,11 +307,11 @@ def build_parser() -> argparse.ArgumentParser:
     status_parser.add_argument("--neo4j-password", default="password", help="Neo4j password")
     status_parser.add_argument(
         "--provider",
-        choices=["openai", "deepseek", "kimi", "grok", "qwen"],
-        default="openai",
+        choices=["mara", "openai", "deepseek", "kimi", "grok", "qwen"],
+        default="mara",
         help="OpenAI-compatible LLM provider preset",
     )
-    status_parser.add_argument("--model", default="gpt-4o", help="LLM model used for local queries")
+    status_parser.add_argument("--model", default="MiniMax-M2.5", help="LLM model used for local queries")
     status_parser.add_argument("--llm-base-url", default=None, help="Override the provider base URL")
     status_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
 
@@ -263,11 +348,11 @@ def build_parser() -> argparse.ArgumentParser:
     bundle_export_parser.add_argument("--neo4j-password", default="password", help="Neo4j password")
     bundle_export_parser.add_argument(
         "--provider",
-        choices=["openai", "deepseek", "kimi", "grok", "qwen"],
-        default="openai",
+        choices=["mara", "openai", "deepseek", "kimi", "grok", "qwen"],
+        default="mara",
         help="OpenAI-compatible LLM provider preset",
     )
-    bundle_export_parser.add_argument("--model", default="gpt-4o", help="OpenAI model")
+    bundle_export_parser.add_argument("--model", default="MiniMax-M2.5", help="LLM model")
     bundle_export_parser.add_argument("--llm-base-url", default=None, help="Override the provider base URL")
     bundle_export_parser.add_argument(
         "--prompt-preset",
@@ -438,7 +523,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     run_parser.add_argument(
         "--show-rendered", action="store_true",
-        help="Print the rendered YAML (pre-${ENV}) to stdout and exit",
+        help="Print rendered template YAML, or the plain YAML spec, and exit",
     )
     run_parser.add_argument("--output-json", action="store_true", help="Emit JSON")
 
@@ -523,7 +608,23 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-LOCAL_COMMANDS = {"init", "index", "local-ask", "status", "compare", "experiment", "bundle", "ontology", "serve-http", "traces", "run", "sweep"}
+LOCAL_COMMANDS = {
+    "new",
+    "init",
+    "index",
+    "local-ask",
+    "status",
+    "compare",
+    "experiment",
+    "bundle",
+    "ontology",
+    "serve-http",
+    "traces",
+    "run",
+    "sweep",
+    "connect",
+    "connectors",
+}
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
@@ -942,6 +1043,8 @@ def _serialize(value: Any) -> Any:
 
 
 def _dispatch_local(args: argparse.Namespace) -> int:
+    if args.command == "new":
+        return _cmd_new(args)
     if args.command == "init":
         return _cmd_init(args)
     if args.command == "index":
@@ -966,7 +1069,30 @@ def _dispatch_local(args: argparse.Namespace) -> int:
         return _cmd_run(args)
     if args.command == "sweep":
         return _cmd_sweep(args)
+    if args.command in {"connect", "connectors"}:
+        return _cmd_connect(args)
     raise SeochoError(f"Unknown local command: {args.command}")
+
+
+def _cmd_new(args: argparse.Namespace) -> int:
+    """Create a runnable first-run project."""
+    from .scaffold import create_sample_project
+
+    result = create_sample_project(args.path, sample=args.sample, force=args.force)
+    print(f"Created SEOCHO {result.sample!r} sample at {result.path}")
+    print()
+    print("Files:")
+    for path in result.files:
+        print(f"  {path.relative_to(result.path)}")
+    print()
+    print("Next:")
+    print(f"  cd {result.path}")
+    print("  export MARA_API_KEY=...")
+    print("  seocho run --dry-run")
+    print("  seocho run")
+    print()
+    print("From a repository checkout, prefix commands with: uv run")
+    return 0
 
 
 def _cmd_traces(args: argparse.Namespace) -> int:
@@ -1010,6 +1136,128 @@ def _cmd_traces(args: argparse.Namespace) -> int:
         tags = ",".join(record.get("tags") or [])
         print(f"{record.get('timestamp', '')}  {latency_str:>8}  {record.get('name', '')}  [{tags}]")
     print(f"\n{len(spans)} span(s).")
+    return 0
+
+
+def _print_connect_result(
+    *,
+    provider: str,
+    records: Sequence[Any],
+    output: str,
+    dry_run: bool,
+    output_json: bool,
+) -> None:
+    from .connectors import summarize_records
+
+    summary = summarize_records(records)
+    payload = {
+        "provider": provider,
+        "output": output,
+        "dry_run": dry_run,
+        **summary,
+    }
+    if output_json:
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        return
+    action = "would write" if dry_run else "wrote"
+    print(f"{action} {summary['records']} {provider} record(s) to {output}")
+    if not dry_run:
+        print()
+        print("Next:")
+        print(f"  set documents.path in seocho.run.yaml to: {output}")
+        print("  seocho run --dry-run")
+        print("  seocho run")
+
+
+def _cmd_connect(args: argparse.Namespace) -> int:
+    """Materialize external ecosystem data as SEOCHO JSONL records."""
+    from .connectors import write_records_jsonl
+
+    provider = args.connect_command
+    records: list[Any]
+    if provider == "notion":
+        if not args.data_source_id and not args.page_id:
+            raise SeochoError("connect notion requires --data-source-id or --page-id.")
+        from .connectors.notion import fetch_data_source_records, fetch_page_records
+
+        records = []
+        if args.page_id:
+            records.extend(
+                fetch_page_records(
+                    args.page_id,
+                    token_env=args.token_env,
+                    notion_version=args.notion_version,
+                    category=args.category,
+                    include_blocks=not args.no_blocks,
+                )
+            )
+        for data_source_id in args.data_source_id:
+            records.extend(
+                fetch_data_source_records(
+                    data_source_id,
+                    token_env=args.token_env,
+                    notion_version=args.notion_version,
+                    category=args.category,
+                    max_pages=args.max_pages,
+                    include_blocks=not args.no_blocks,
+                )
+            )
+    elif provider == "slack":
+        if not args.channels:
+            raise SeochoError("connect slack requires at least one --channel.")
+        from .connectors.slack import fetch_channel_records
+
+        records = fetch_channel_records(
+            args.channels,
+            token_env=args.token_env,
+            team_id=args.team_id,
+            channel_name=args.channel_name,
+            category=args.category,
+            limit=args.limit,
+            max_pages=args.max_pages,
+            include_threads=args.threads,
+        )
+    elif provider == "datahub":
+        from .connectors.datahub import fetch_dataset_records
+
+        records = fetch_dataset_records(
+            server=args.server,
+            token_env=args.token_env,
+            query_text=args.query,
+            limit=args.limit,
+            category=args.category,
+        )
+    elif provider == "postgres":
+        from .connectors.postgres import fetch_schema_records
+
+        records = fetch_schema_records(
+            dsn_env=args.dsn_env,
+            schemas=args.schemas or None,
+            database=args.database_name,
+            category=args.category,
+        )
+    elif provider == "neo4j":
+        from .connectors.neo4j import fetch_schema_records
+
+        records = fetch_schema_records(
+            uri_env=args.uri_env,
+            user_env=args.user_env,
+            password_env=args.password_env,
+            database=args.database,
+            category=args.category,
+        )
+    else:
+        raise SeochoError(f"Unknown connector provider: {provider}")
+
+    if not args.dry_run:
+        write_records_jsonl(records, args.output)
+    _print_connect_result(
+        provider=provider,
+        records=records,
+        output=args.output,
+        dry_run=args.dry_run,
+        output_json=args.output_json,
+    )
     return 0
 
 
@@ -1083,14 +1331,14 @@ def _cmd_init(args: argparse.Namespace) -> int:
     config_path = Path(".seocho.toml")
     if not config_path.exists():
         write_config(config_path, schema=output, database=name)
-        print(f"Project config saved to .seocho.toml")
+        print("Project config saved to .seocho.toml")
 
     print(f"Ontology saved to {output}")
     print(f"  {len(nodes)} entity types, {len(relationships)} relationships")
     print()
     print("Next steps:")
-    print(f"  seocho index ./your_data/")
-    print(f"  seocho ask --local 'your question here'")
+    print("  seocho index ./your_data/")
+    print("  seocho ask --local 'your question here'")
     return 0
 
 
@@ -1119,8 +1367,8 @@ def _build_local_client(args: argparse.Namespace) -> Seocho:
     neo4j_uri = getattr(args, "neo4j_uri", None) or get_default(cfg, "neo4j", "uri", "bolt://localhost:7687")
     neo4j_user = getattr(args, "neo4j_user", None) or get_default(cfg, "neo4j", "user", "neo4j")
     neo4j_password = getattr(args, "neo4j_password", None) or get_default(cfg, "neo4j", "password", "password")
-    provider = getattr(args, "provider", None) or get_default(cfg, "llm", "provider", "openai")
-    model = getattr(args, "model", None) or get_default(cfg, "llm", "model", "gpt-4o")
+    provider = getattr(args, "provider", None) or get_default(cfg, "llm", "provider", "mara")
+    model = getattr(args, "model", None) or get_default(cfg, "llm", "model", "MiniMax-M2.5")
     llm_base_url = getattr(args, "llm_base_url", None) or get_default(cfg, "llm", "base_url", None)
 
     ontology = _load_local_ontology(schema)
@@ -1190,6 +1438,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         target.write_text(RUN_SPEC_TEMPLATE, encoding="utf-8")
         print(f"Run spec template written to {target}")
         print("Edit the ontology/documents/questions, then: seocho run")
+        print("Need a runnable sample instead? Try: seocho new hello-seocho")
         return 0
 
     from .e2e import run_from_config
@@ -1706,7 +1955,7 @@ def _cmd_ontology(args: argparse.Namespace) -> int:
             print(json.dumps(rec.to_dict(), indent=2, ensure_ascii=False))
         else:
             print(f"chosen: {rec.chosen}  (domain={rec.domain_kind}, numeric_intensity={rec.numeric_intensity})")
-            print(f"  coverage: " + ", ".join(f"{n}={s['corpus_coverage']}" for n, s in rec.candidate_scores.items()))
+            print("  coverage: " + ", ".join(f"{n}={s['corpus_coverage']}" for n, s in rec.candidate_scores.items()))
             print(f"  {rec.rationale}")
             for a in rec.advisories:
                 print(f"  · {a}")

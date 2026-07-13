@@ -290,6 +290,16 @@ def test_run_from_config_show_rendered(tmp_path, capsys) -> None:
     assert "mara/MiniMax-M2" in out
 
 
+def test_run_from_config_show_rendered_plain_yaml(tmp_path, capsys) -> None:
+    config = tmp_path / "run.yaml"
+    config.write_text("ontology: s.yaml\ndocuments: docs\n", encoding="utf-8")
+
+    code = e2e.run_from_config(config, show_rendered=True)
+
+    assert code == 0
+    assert "ontology: s.yaml" in capsys.readouterr().out
+
+
 def test_file_indexer_track_false_leaves_no_state(tmp_path) -> None:
     from seocho.index.file_reader import FileIndexer
     from seocho.index.pipeline import IndexingResult
@@ -313,7 +323,7 @@ def test_file_indexer_track_false_leaves_no_state(tmp_path) -> None:
     assert second.files_indexed == 1  # no "unchanged" skips
     assert second.files_unchanged == 0
 
-    tracked = indexer.index_directory(docs)  # default behavior unchanged
+    indexer.index_directory(docs)  # default behavior unchanged
     assert (docs / ".seocho_index").exists()
     again = indexer.index_directory(docs)
     assert again.files_unchanged == 1

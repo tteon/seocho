@@ -5,7 +5,16 @@ Each entry must link to a full ADR when impact is non-trivial.
 
 ## 2026-07-13
 
-- [Proposed] `ADR-0150-versioned-causal-frontiers-and-sequence-leasing.md`
+- [Accepted] `ADR-0150-connector-materialization-layer.md`
+  - add a read-only connector materialization layer that writes
+    `seocho.connector_record.v1` JSONL for the existing index -> query ->
+    report path
+  - ship first adapters for Notion, Slack, DataHub, PostgreSQL, Neo4j/DozerDB,
+    plus LangChain/LlamaIndex document converters without framework dependencies
+  - keep API credentials out of run specs and require live service runs before
+    claiming external compatibility, latency, or throughput
+
+- [Proposed] `ADR-0151-versioned-causal-frontiers-and-sequence-leasing.md`
   - keep the gapless scalar v1 workspace order as the compatible default
   - add opt-in fenced leases, deterministic shards, and multi-position causal
     frontiers without treating reserved gaps as committed events

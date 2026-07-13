@@ -97,6 +97,8 @@ the named feature owns it. `Evaluation` never pages production operators.
 | `seocho.agent.request.inflight` | up/down counter | `operation` | Required |
 | `seocho.agent.timeout.count` | counter | `operation`, `stage` | Required |
 | `seocho.agent.partial.count` | counter | `operation`, `reason` | Required |
+| `seocho.agent.authorization.count` | counter | `action`, `outcome`, `reason` | Required with agent principals |
+| `seocho.agent.retrieval.attempts` | histogram `{attempt}` | `outcome` | Required with iterative retrieval |
 | `seocho.answer.freshness_violation.count` | counter | `query.class` | Required |
 | `seocho.answer.provenance.coverage` | histogram `1` | `query.class` | Required |
 | `seocho.answer.required_slot.missing.count` | counter | `query.class`, `slot` | Required; slots are a bounded enum |
@@ -244,6 +246,19 @@ and connection-pool signals. A PostgreSQL exporter owns server metrics:
 
 Do not export SQL text. Use `db.query.summary` from a reviewed bounded set.
 
+SEOCHO authority-path controls additionally emit:
+
+| Instrument | Type | Required attributes | Level |
+|---|---|---|---|
+| `seocho.postgres.admission.count` | counter | `tier`, `outcome` | Required with workload isolation |
+| `seocho.postgres.admission.wait` | histogram `s` | `tier`, `outcome` | Required with workload isolation |
+| `seocho.postgres.cache.request.count` | counter | `outcome` | Required with single-flight cache |
+| `seocho.postgres.route.count` | counter | `role`, `reason` | Required with read routing |
+
+The route metric reports logical routing decisions only. Physical replica lag
+and failover remain exporter/deployment metrics and are emitted only when a
+replication profile is actually deployed.
+
 ### 5.2 DozerDB / Neo4j-compatible graph serving
 
 When exposed by the deployed edition/profile, collect:
@@ -350,7 +365,8 @@ SEOCHO provisions seven dashboards:
 
 1. **Service Overview** — rate, outcome, p50/p95/p99, inflight, SLO burn.
 2. **Memory Consistency** — commits, conflicts, outbox depth/age, watermark,
-   replay, rollback/reorg and stale fallback.
+   replay, rollback/reorg, workload admission, single-flight cache, read routes
+   and stale fallback.
 3. **GraphRAG and Context** — retrieval/federation/Text2Cypher latency and
    errors, candidates, selected evidence, token compression and budget.
 4. **LLM and Agent Exchange** — duration, TTFT, usage, cost, retry/repair,
@@ -392,4 +408,3 @@ is still a supported SEOCHO surface.
 - [Neo4j metrics reference](https://neo4j.com/docs/operations-manual/current/monitoring/metrics/reference/)
 - [Neo4j cluster status endpoints](https://neo4j.com/docs/operations-manual/current/clustering/monitoring/endpoints/)
 - [etcd metrics](https://etcd.io/docs/v3.6/metrics/)
-

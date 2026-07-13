@@ -117,6 +117,18 @@ The answer guardrail may use ontology checks and model suspicion to revise or
 refuse, but that suspicion must stay evidence-negative only: it can flag a leap
 or ask for abstention, never invent a missing fact.
 
+### 3c. Multi-Agent Swarms Assemble Evidence, Not Prose
+
+When several specialists are required, route by required answer slots and run
+the smallest authorized coalition. Every specialist must declare the slots it
+can fill and return typed evidence with provenance. Filter protected evidence,
+surface conflicts, and preserve specialist failures before synthesis.
+
+The swarm output is one evidence bundle. Independent answer debate is a
+separate mode and must not be used merely to increase agent count. A partial
+coalition result must retain `missing_slots` and may not be rewritten as a
+complete answer.
+
 ### 4. Quality Signals Must Change Evidence Selection
 
 Keep quality-aware logic only when it changes one of:

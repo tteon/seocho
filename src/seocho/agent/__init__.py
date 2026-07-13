@@ -16,6 +16,9 @@ from .factory import (
 from .graph_loop import GraphAgenticLoop, LoopIteration, LoopResult
 from .runtime_factory import RuntimeBackedAgentFactory
 from .exchange import AgentExchange
+from .harness import HarnessManifest, HarnessPromotionGate, PromotionDecision, RubricScore
+from .identity import AgentPrincipal, AuthorizationDecision
+from .tool_boundary import ToolBoundaryGuard, ToolBoundaryReceipt
 
 __all__ = [
     "AGENT_EXECUTION_MODES",
@@ -34,4 +37,12 @@ __all__ = [
     "query_system_prompt",
     "supervisor_system_prompt",
     "AgentExchange",
+    "AgentPrincipal",
+    "AuthorizationDecision",
+    "HarnessManifest",
+    "HarnessPromotionGate",
+    "PromotionDecision",
+    "RubricScore",
+    "ToolBoundaryGuard",
+    "ToolBoundaryReceipt",
 ]

@@ -5,6 +5,11 @@ Each entry must link to a full ADR when impact is non-trivial.
 
 ## 2026-07-13
 
+- [Accepted] `ADR-0152-sdcr-evidence-swarm-coordinator.md`
+  - execute the smallest authorized SDCR coalition with bounded parallelism
+  - assemble one protected/conflict-aware typed evidence bundle for synthesis
+  - separate deterministic retrieval load from bounded live MARA answering
+
 - [Accepted] `ADR-0150-connector-materialization-layer.md`
   - add a read-only connector materialization layer that writes
     `seocho.connector_record.v1` JSONL for the existing index -> query ->
@@ -15,6 +20,13 @@ Each entry must link to a full ADR when impact is non-trivial.
     repeatable multi-source materialization
   - keep API credentials out of run specs and require live service runs before
     claiming external compatibility, latency, or throughput
+
+- [Proposed] `ADR-0151-versioned-causal-frontiers-and-sequence-leasing.md`
+  - keep the gapless scalar v1 workspace order as the compatible default
+  - add opt-in fenced leases, deterministic shards, and multi-position causal
+    frontiers without treating reserved gaps as committed events
+  - qualify Rust only against equal revision/idempotency/outbox semantics and
+    expose bounded commit-phase latency in Grafana
 
 ## 2026-07-12
 
@@ -854,6 +866,27 @@ Each entry must link to a full ADR when impact is non-trivial.
     `diagnosis_counts` in FinDER summaries
   - document SEOCHO as an ontology-aligned modular monolith with data, control,
     ontology, runtime, and compatibility planes
+
+## 2026-07-13
+
+- [Accepted] ADR-20260713-sdcr-product-boundary
+  - isolate graph views and route by required answer slots
+  - add protected evidence filtering, conflict verification, and decision receipts
+  - keep GNN, full OWL hot-path reasoning, and LLM-judge replacement out of the first product slice
+
+## 2026-07-14
+
+- [Accepted] ADR-0153 production-agent-harness-and-postgres-resilience
+  - add scoped agent principals, bounded delegation, tool-boundary guardrails,
+    and versioned harness/rubric promotion gates
+  - add bounded iterative retrieval with structured unknown on budget
+    exhaustion
+  - add PostgreSQL workload isolation, single-flight cache, freshness-aware
+    routing contracts, retry budget, query-digest blocking, and schema-change
+    guardrails
+  - qualify only the controls exercised by the live single-primary benchmark;
+    physical replica/failover/PgBouncer/cascading replication remain separate
+    deployment tests
 
 ## Template
 

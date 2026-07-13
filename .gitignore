@@ -101,6 +101,7 @@ neo4j/logs/
 *.db
 neostore*
 *.lock
+!scripts/profiling/agent_memory_rust/Cargo.lock
 
 # Docker volumes and mounts
 workspace/

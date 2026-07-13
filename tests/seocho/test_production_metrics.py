@@ -55,6 +55,21 @@ def test_records_only_declared_bounded_attributes() -> None:
         )
 
 
+def test_memory_commit_phase_metric_has_only_bounded_operational_labels() -> None:
+    meter = Meter()
+    metrics = ProductionMetrics(meter)
+
+    metrics.record(
+        "seocho.memory.commit.phase.duration",
+        12.5,
+        {"phase": "sequence_allocate", "outcome": "ok"},
+    )
+
+    assert meter.instruments["seocho.memory.commit.phase.duration"].calls == [
+        ("record", 12.5, {"phase": "sequence_allocate", "outcome": "ok"})
+    ]
+
+
 def test_rejects_wrong_instrument_operation_and_unbounded_values() -> None:
     metrics = ProductionMetrics(Meter())
     with pytest.raises(TypeError, match="not a histogram"):

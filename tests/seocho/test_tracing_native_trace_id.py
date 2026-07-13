@@ -15,10 +15,11 @@ class _NativeBackend(tracing.TracingBackend):
         return None
 
     def open_span(self, name, attributes=None):
-        return _NativeSpan()
+        # OTLPBackend returns its span and context token as one opaque handle.
+        return (_NativeSpan(), object())
 
     def close_span(self, span, **kwargs):
-        return None
+        assert isinstance(span, tuple)
 
 
 def test_root_handle_uses_native_otel_trace_id() -> None:

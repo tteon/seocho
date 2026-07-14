@@ -187,6 +187,23 @@ def test_node_write_accumulates_sources_outside_lww_guard():
     assert "n._sources + row.props._source_id" in query
 
 
+def test_node_write_stamps_source_and_workspace_for_neo4j_contract():
+    store = _store_with_fake()
+    store.write(
+        [{"id": "c1", "label": "Company", "properties": {"name": "ACME"}}],
+        [],
+        database="testdb",
+        workspace_id="ws-1",
+        source_id="doc-a",
+    )
+    node_calls = [c for c in store._driver.rec.calls if "MERGE (n:" in c[0]]
+    _query, params = node_calls[0]
+    props = params["rows"][0]["props"]
+    assert props["_source_id"] == "doc-a"
+    assert props["_workspace_id"] == "ws-1"
+    assert props["id"] == "c1"
+
+
 def test_rel_write_accumulates_sources():
     store = _store_with_fake()
     store.write(
@@ -199,6 +216,23 @@ def test_rel_write_accumulates_sources():
     rel_calls = [c for c in store._driver.rec.calls if "MERGE (a)-[r:" in c[0]]
     query, _params = rel_calls[0]
     assert "SET r._sources = CASE WHEN r._sources IS NULL" in query
+
+
+def test_rel_write_stamps_source_and_workspace_for_neo4j_contract():
+    store = _store_with_fake()
+    store.write(
+        [{"id": "a", "label": "Company", "properties": {}},
+         {"id": "b", "label": "Company", "properties": {}}],
+        [{"source": "a", "target": "b", "type": "REPORTED", "properties": {}}],
+        database="testdb",
+        workspace_id="ws-1",
+        source_id="doc-a",
+    )
+    rel_calls = [c for c in store._driver.rec.calls if "MERGE (a)-[r:" in c[0]]
+    _query, params = rel_calls[0]
+    props = params["rows"][0]["props"]
+    assert props["_source_id"] == "doc-a"
+    assert props["_workspace_id"] == "ws-1"
 
 
 def test_delete_by_source_retires_before_deleting():

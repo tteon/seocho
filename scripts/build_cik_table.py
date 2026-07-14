@@ -19,11 +19,13 @@ import sys
 import urllib.request
 from pathlib import Path
 
+import os
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 from seocho.semantic_layer.identity import normalize_name  # noqa: E402
 
-UA = {"User-Agent": "seocho-ingest hardy.jeong@xcena.com"}
+UA = {"User-Agent": os.environ.get("SEC_USER_AGENT", "seocho-ingest support@seocho.io")}
 OUT = ROOT / "src" / "seocho" / "semantic_layer" / "cik_table.json"
 
 

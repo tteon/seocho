@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 import time
@@ -44,7 +45,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
 # EDGAR asks every programmatic client to identify itself with a contact.
-USER_AGENT = "seocho-benchmark hardy.jeong@xcena.com"
+USER_AGENT = os.environ.get("SEC_USER_AGENT", "seocho-benchmark support@seocho.io")
 
 # A full-year duration frame, e.g. "CY2024" — NOT "CY2024Q3" (quarter) or
 # "CY2024Q4I" (instant). These canonical annual records dedup the comparatives

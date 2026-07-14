@@ -288,6 +288,7 @@ class RunReport:
     payload: Dict[str, Any] = field(default_factory=dict)
     report_json: Optional[Path] = None
     report_md: Optional[Path] = None
+    report_log: Optional[Path] = None
 
     @property
     def ok(self) -> bool:
@@ -639,6 +640,70 @@ def _render_report_md(payload: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _render_run_log(payload: Dict[str, Any]) -> str:
+    """Human-readable phase log for terminal users and support handoff."""
+    run = payload.get("run", {})
+    indexing = payload.get("indexing") or {}
+    queries = payload.get("queries")
+    lines = [
+        f"SEOCHO run: {run.get('name', '')}",
+        f"started_at={run.get('started_at', '')}",
+        f"finished_at={run.get('finished_at', '')}",
+        f"workspace_id={run.get('workspace_id', '')}",
+        f"database={run.get('database', '')}",
+        f"models.indexing={run.get('models', {}).get('indexing', '')}",
+        f"models.query={run.get('models', {}).get('query', '')}",
+        f"enforcement={run.get('enforcement', '')}",
+        "",
+        "[indexing]",
+    ]
+    if indexing:
+        lines.extend(
+            [
+                f"directory={indexing.get('directory', '')}",
+                f"files_found={indexing.get('files_found', 0)}",
+                f"files_indexed={indexing.get('files_indexed', 0)}",
+                f"files_failed={indexing.get('files_failed', 0)}",
+                f"files_unchanged={indexing.get('files_unchanged', 0)}",
+                f"total_nodes={indexing.get('total_nodes', 0)}",
+                f"total_relationships={indexing.get('total_relationships', 0)}",
+                f"validation_errors_count={indexing.get('validation_errors_count', 0)}",
+            ]
+        )
+        for item in indexing.get("results", []) or []:
+            lines.append(
+                "file="
+                f"{item.get('path', '')} status={item.get('status', '')} "
+                f"error={item.get('error', '')}"
+            )
+            details = item.get("indexing") or {}
+            for error in details.get("validation_errors", []) or []:
+                lines.append(f"  validation_error={error}")
+            for error in details.get("write_errors", []) or []:
+                lines.append(f"  write_error={error}")
+    else:
+        lines.append("skipped=true")
+
+    lines.extend(["", "[query]"])
+    if queries is None:
+        lines.append("skipped=true")
+    else:
+        for item in queries:
+            status = "error" if item.get("error") else ("empty" if item.get("empty") else "answered")
+            lines.append(
+                f"question_id={item.get('id', '')} status={status} "
+                f"latency_s={item.get('latency_s', '')} question={item.get('question', '')}"
+            )
+            if item.get("error"):
+                lines.append(f"  error={item['error']}")
+            else:
+                preview = str(item.get("answer", "")).replace("\n", " ").strip()
+                if len(preview) > 300:
+                    preview = preview[:300] + "..."
+                lines.append(f"  answer_preview={preview}")
+    return "\n".join(lines) + "\n"
+
+
 def run(
     ctx: RunContext,
     *,
@@ -692,15 +757,23 @@ def run(
     ctx.output_dir.mkdir(parents=True, exist_ok=True)
     report_json = ctx.output_dir / "report.json"
     report_md = ctx.output_dir / "report.md"
+    report_log = ctx.output_dir / "run.log"
     report_json.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
     report_md.write_text(_render_report_md(payload), encoding="utf-8")
+    report_log.write_text(_render_run_log(payload), encoding="utf-8")
 
     if not quiet:
         _print_summary(payload)
         print(f"Report: {report_md}")
         print(f"        {report_json}")
+        print(f"        {report_log}")
 
-    return RunReport(payload=payload, report_json=report_json, report_md=report_md)
+    return RunReport(
+        payload=payload,
+        report_json=report_json,
+        report_md=report_md,
+        report_log=report_log,
+    )
 
 
 def _print_summary(payload: Dict[str, Any]) -> None:

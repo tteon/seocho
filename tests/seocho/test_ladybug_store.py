@@ -665,6 +665,83 @@ class TestCrossDocumentEntityMerge:
         finally:
             store.close()
 
+    def test_existing_node_table_is_lazy_migrated_for_run_spec_columns(self, tmp_path):
+        """A warmed .lbug file from an older SEOCHO version should not make
+        `seocho run` fail when the writer starts stamping provenance/query
+        compatibility columns such as _source_id, source_id, and uri."""
+        path = str(tmp_path / "old_schema.lbug")
+        store = LadybugGraphStore(path)
+        try:
+            store._locked_execute(
+                "CREATE NODE TABLE IF NOT EXISTS `Company` "
+                "(`name` STRING, `id` STRING, PRIMARY KEY (`name`))"
+            )
+            store._declared_node_tables.add("Company")
+            store._node_table_pk["Company"] = "name"
+
+            result = store.write(
+                nodes=[
+                    {
+                        "id": "company_1",
+                        "label": "Company",
+                        "properties": {"name": "Acme Corp"},
+                    }
+                ],
+                relationships=[],
+                source_id="doc-old",
+            )
+
+            assert result["errors"] == []
+            rows = store.query(
+                "MATCH (n:Company) "
+                "RETURN n.name AS name, n._source_id AS source_id, n.uri AS uri"
+            )
+            assert rows == [{"name": "Acme Corp", "source_id": "doc-old", "uri": None}]
+        finally:
+            store.close()
+
+    def test_existing_rel_table_is_lazy_migrated_for_run_spec_columns(self, tmp_path):
+        path = str(tmp_path / "old_rel_schema.lbug")
+        store = LadybugGraphStore(path)
+        try:
+            store._locked_execute(
+                "CREATE NODE TABLE IF NOT EXISTS `Person` "
+                "(`name` STRING, `id` STRING, PRIMARY KEY (`name`))"
+            )
+            store._locked_execute(
+                "CREATE NODE TABLE IF NOT EXISTS `Company` "
+                "(`name` STRING, `id` STRING, PRIMARY KEY (`name`))"
+            )
+            store._locked_execute(
+                "CREATE REL TABLE IF NOT EXISTS `WORKS_AT`"
+                "(FROM `Person` TO `Company`, `type` STRING)"
+            )
+            store._declared_node_tables.update({"Person", "Company"})
+            store._node_table_pk.update({"Person": "name", "Company": "name"})
+            store._declared_rel_tables.add("WORKS_AT")
+            store._semantic_rel_types.add("WORKS_AT")
+            store._rel_signature_to_table[("WORKS_AT", "Person", "Company")] = "WORKS_AT"
+
+            result = store.write(
+                nodes=[
+                    {"id": "person_1", "label": "Person", "properties": {"name": "Jane"}},
+                    {"id": "company_1", "label": "Company", "properties": {"name": "Acme"}},
+                ],
+                relationships=[
+                    {"source": "person_1", "target": "company_1", "type": "WORKS_AT", "properties": {}}
+                ],
+                source_id="doc-old-rel",
+            )
+
+            assert result["errors"] == []
+            rows = store.query(
+                "MATCH (:Person)-[r:WORKS_AT]->(:Company) "
+                "RETURN r._source_id AS source_id, r.source_id AS public_source_id"
+            )
+            assert rows == [{"source_id": "doc-old-rel", "public_source_id": None}]
+        finally:
+            store.close()
+
     # -- issue #183: multi-document provenance ------------------------------
 
     def test_shared_node_survives_deleting_one_source(self, store):

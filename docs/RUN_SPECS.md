@@ -316,11 +316,12 @@ connection attempt.
 
 Each run writes `report.json` (machine-readable: run metadata, per-file
 indexing stats, per-question records with latency, errors, support assessment,
-missing slots, and selected evidence triples when available) and
-`report.md` (human summary) under `output.dir/<name>-<timestamp>/`. Empty
-answers and per-question errors are surfaced in the summary table; a
-question error marks the run as failed (exit 1) without aborting remaining
-questions.
+missing slots, and selected evidence triples when available), `report.md`
+(human summary), and `run.log` (plain-text phase log with indexing/query
+status, write errors, validation errors, and answer previews) under
+`output.dir/<name>-<timestamp>/`. Empty answers and per-question errors are
+surfaced in the summary table; a question error marks the run as failed
+(exit 1) without aborting remaining questions.
 
 ## Templates and sweeps
 

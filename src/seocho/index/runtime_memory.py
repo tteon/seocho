@@ -12,6 +12,14 @@ import json
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, Optional, Set, Tuple
 
+from seocho.index.metadata import (
+    EntityField,
+    MentionsField,
+    RelatedToField,
+    RunContext,
+    provenance_stamp,
+)
+
 
 CONTENT_PREVIEW_CHAR_LIMIT = 1200
 # Labels that legitimately need a document-level preview embedded on the node.
@@ -19,6 +27,10 @@ CONTENT_PREVIEW_CHAR_LIMIT = 1200
 # — must NOT carry the document's evidence text on their properties, or the
 # graph abstraction collapses to a vector chunk per node (T2.2).
 _LABELS_KEEPING_DOC_PREVIEW = frozenset({"Document"})
+_STRUCTURAL_LABELS = frozenset({"Document", "DocumentVersion", "Section", "Chunk"})
+_STRUCTURAL_RELATIONSHIPS = frozenset(
+    {"HAS_VERSION", "CURRENT_VERSION", "HAS_SECTION", "HAS_CHUNK", "NEXT", "PART_OF"}
+)
 ROOT_SECTION_PATH = "Document"
 
 
@@ -75,6 +87,10 @@ def ensure_memory_graph(
         or record_metadata.get("created_at")
         or _utc_now_iso()
     )
+    run_context = _run_context_from_metadata(
+        source_id=source_id,
+        record_metadata=record_metadata,
+    )
     node_map: Dict[str, Dict[str, Any]] = {}
     normalized_relationships: list[Dict[str, Any]] = []
     relationship_seen: Set[Tuple[str, str, str]] = set()
@@ -95,6 +111,7 @@ def ensure_memory_graph(
         properties.setdefault("category", category)
         properties.setdefault("source_type", source_type)
         properties.setdefault("updated_at", timestamp)
+        properties.setdefault("created_at", timestamp)
         if label == "Document":
             properties.setdefault("name", preview[:80] or source_id)
             properties.setdefault("title", preview[:120] or source_id)
@@ -106,6 +123,14 @@ def ensure_memory_graph(
         elif label in _LABELS_KEEPING_DOC_PREVIEW:
             # Reserved for future doc-like labels (none right now besides Document).
             properties.setdefault("content_preview", preview)
+        elif label not in _STRUCTURAL_LABELS:
+            _shape_entity_properties(
+                properties,
+                node_id=node_id,
+                label=label,
+                timestamp=timestamp,
+            )
+            copy_scope_properties(properties, record_metadata)
         # Domain nodes (BusinessSegment, FinancialMetric, etc.) intentionally
         # do NOT receive the document-wide content_preview — see T2.2.
         # Chunk nodes get their own short content_preview via _attach_chunk_layer.
@@ -146,6 +171,11 @@ def ensure_memory_graph(
         properties.setdefault("source_id", source_id)
         properties.setdefault("memory_id", source_id)
         properties.setdefault("workspace_id", workspace_id)
+        _shape_relationship_properties(
+            properties,
+            rel_type=rel_type,
+            run_context=run_context,
+        )
         key = (source, target, rel_type)
         if key in relationship_seen:
             continue
@@ -175,11 +205,15 @@ def ensure_memory_graph(
                 "type": "MENTIONS",
                 "source_label": "Document",
                 "target_label": str(node_map.get(node_id, {}).get("label", "")),
-                "properties": {
-                    "source_id": source_id,
-                    "memory_id": source_id,
-                    "workspace_id": workspace_id,
-                },
+                "properties": _shape_relationship_properties(
+                    {
+                        "source_id": source_id,
+                        "memory_id": source_id,
+                        "workspace_id": workspace_id,
+                    },
+                    rel_type="MENTIONS",
+                    run_context=run_context,
+                ),
             }
         )
 
@@ -196,6 +230,14 @@ def ensure_memory_graph(
         source_type=source_type,
         record_metadata=record_metadata,
         metadata_json=metadata_json,
+        timestamp=timestamp,
+        run_context=run_context,
+    )
+
+    _attach_relation_evidence_chunks(normalized_relationships)
+    _refresh_entity_mention_counts(
+        node_map,
+        normalized_relationships,
         timestamp=timestamp,
     )
 
@@ -253,6 +295,7 @@ def _attach_chunk_layer(
     record_metadata: Dict[str, Any],
     metadata_json: str,
     timestamp: str,
+    run_context: RunContext,
 ) -> Dict[str, Any]:
     records = [dict(item) for item in (chunk_records or []) if isinstance(item, dict)]
     if not records:
@@ -478,6 +521,15 @@ def _attach_chunk_layer(
                 value = record.get(key)
                 if value not in (None, ""):
                     mention_props[key] = value
+            _shape_relationship_properties(
+                mention_props,
+                rel_type="MENTIONS",
+                run_context=run_context,
+                evidence_span=chunk_text,
+                char_start=record.get("char_start"),
+                char_end=record.get("char_end"),
+                role="chunk_evidence",
+            )
             _add_relationship(
                 relationships,
                 relationship_seen,
@@ -521,6 +573,151 @@ def _add_relationship(
             "properties": properties,
         }
     )
+
+
+def _run_context_from_metadata(*, source_id: str, record_metadata: Dict[str, Any]) -> RunContext:
+    extraction_run_id = str(
+        record_metadata.get("extraction_run_id")
+        or record_metadata.get("run_id")
+        or _short_metadata_hash(source_id, record_metadata)
+    )
+    return RunContext(
+        extraction_run_id=extraction_run_id,
+        extracted_by=str(
+            record_metadata.get("extracted_by")
+            or record_metadata.get("model")
+            or "seocho.index"
+        ),
+        prompt_version=str(record_metadata.get("prompt_version") or "runtime-memory-v1"),
+        ontology_slice_hash=str(record_metadata.get("ontology_slice_hash") or ""),
+        workspace_id=str(record_metadata.get("workspace_id") or "") or None,
+    )
+
+
+def _short_metadata_hash(source_id: str, record_metadata: Dict[str, Any]) -> str:
+    version_id = str(record_metadata.get("version_id") or "")
+    checksum = str(record_metadata.get("checksum") or "")
+    payload = "|".join([source_id, version_id, checksum])
+    return f"run-{hashlib.sha256(payload.encode('utf-8')).hexdigest()[:12]}"
+
+
+def _shape_entity_properties(
+    properties: Dict[str, Any],
+    *,
+    node_id: str,
+    label: str,
+    timestamp: str,
+) -> None:
+    properties.setdefault(EntityField.ID, node_id)
+    properties.setdefault(EntityField.CLASS, label)
+    properties.setdefault(EntityField.NAME, properties.get("name") or node_id)
+    properties.setdefault(EntityField.FIRST_SEEN_AT, timestamp)
+    properties.setdefault(EntityField.LAST_SEEN_AT, timestamp)
+    properties.setdefault(EntityField.MENTION_COUNT, 0)
+
+
+def _shape_relationship_properties(
+    properties: Dict[str, Any],
+    *,
+    rel_type: str,
+    run_context: RunContext,
+    evidence_span: Optional[str] = None,
+    char_start: Any = None,
+    char_end: Any = None,
+    role: Optional[str] = None,
+) -> Dict[str, Any]:
+    if rel_type in _STRUCTURAL_RELATIONSHIPS:
+        return properties
+
+    stamp = provenance_stamp(
+        run_context,
+        confidence=_optional_float(properties.get("confidence")),
+        evidence_span=evidence_span or properties.get(MentionsField.EVIDENCE_SPAN),
+        char_start=_optional_int(char_start if char_start not in (None, "") else properties.get("char_start")),
+        char_end=_optional_int(char_end if char_end not in (None, "") else properties.get("char_end")),
+        role=role or properties.get(MentionsField.ROLE),
+    )
+    for key, value in stamp.items():
+        properties.setdefault(key, value)
+    if rel_type != "MENTIONS":
+        properties.setdefault(RelatedToField.WEIGHT, properties.get("confidence", 1.0))
+    return properties
+
+
+def _attach_relation_evidence_chunks(relationships: list[Dict[str, Any]]) -> None:
+    mentions_by_entity: Dict[str, list[str]] = {}
+    for rel in relationships:
+        if rel.get("type") != "MENTIONS":
+            continue
+        source = str(rel.get("source") or "")
+        target = str(rel.get("target") or "")
+        if "_chunk_" not in source or not target:
+            continue
+        mentions_by_entity.setdefault(target, []).append(source)
+
+    for rel in relationships:
+        rel_type = str(rel.get("type") or "")
+        if rel_type in _STRUCTURAL_RELATIONSHIPS or rel_type == "MENTIONS":
+            continue
+        source = str(rel.get("source") or "")
+        target = str(rel.get("target") or "")
+        source_chunks = set(mentions_by_entity.get(source, []))
+        target_chunks = set(mentions_by_entity.get(target, []))
+        evidence_chunks = sorted(source_chunks & target_chunks or source_chunks | target_chunks)
+        if not evidence_chunks:
+            continue
+        props = rel.setdefault("properties", {})
+        props.setdefault(RelatedToField.EVIDENCE_CHUNKS, evidence_chunks)
+        props.setdefault("evidence_chunk_count", len(evidence_chunks))
+
+
+def _refresh_entity_mention_counts(
+    node_map: Dict[str, Dict[str, Any]],
+    relationships: list[Dict[str, Any]],
+    *,
+    timestamp: str,
+) -> None:
+    chunk_counts: Dict[str, int] = {}
+    fallback_counts: Dict[str, int] = {}
+    for rel in relationships:
+        if rel.get("type") != "MENTIONS":
+            continue
+        source = str(rel.get("source") or "")
+        target = str(rel.get("target") or "")
+        if not target:
+            continue
+        if "_chunk_" in source:
+            chunk_counts[target] = chunk_counts.get(target, 0) + 1
+        else:
+            fallback_counts[target] = fallback_counts.get(target, 0) + 1
+
+    for node_id, node in node_map.items():
+        label = str(node.get("label") or "")
+        if label in _STRUCTURAL_LABELS:
+            continue
+        properties = node.setdefault("properties", {})
+        counts = chunk_counts if node_id in chunk_counts else fallback_counts
+        if node_id in counts:
+            properties[EntityField.MENTION_COUNT] = counts[node_id]
+            properties[EntityField.LAST_SEEN_AT] = timestamp
+
+
+def _optional_int(value: Any) -> Optional[int]:
+    if value in (None, ""):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _optional_float(value: Any) -> Optional[float]:
+    if value in (None, ""):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _content_checksum(text: str) -> str:

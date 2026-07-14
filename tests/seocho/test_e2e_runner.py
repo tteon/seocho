@@ -254,8 +254,8 @@ def test_run_produces_report_and_continues_on_question_error(tmp_path) -> None:
 
     assert report.report_json is not None and report.report_json.exists()
     assert report.report_md is not None and report.report_md.exists()
-    with open(report.report_json, "r", encoding="utf-8") as f:
-        payload = json.load(f)
+    assert report.report_log is not None and report.report_log.exists()
+    payload = json.loads(report.report_json.read_text(encoding="utf-8"))
     assert payload["indexing"]["total_nodes"] == 4
     assert payload["indexing"]["total_relationships"] == 2
     assert payload["indexing"]["validation_errors_count"] == 1
@@ -275,6 +275,13 @@ def test_run_produces_report_and_continues_on_question_error(tmp_path) -> None:
     assert report.ok is False
     # strict_validation passthrough reaches the indexing call
     assert client.index_calls[0]["strict_validation"] is False
+    log_text = report.report_log.read_text(encoding="utf-8")
+    assert "[indexing]" in log_text
+    assert "files_indexed=2" in log_text
+    assert "validation_error=warn" in log_text
+    assert "[query]" in log_text
+    assert "question_id=2 status=error" in log_text
+    assert "error=backend down" in log_text
 
 
 def test_run_strict_enforcement_passes_strict_validation(tmp_path) -> None:

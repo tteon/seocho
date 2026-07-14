@@ -113,13 +113,12 @@ are private workspace aids only.
 - Use type hints for new or modified Python functions.
 - Keep changes scoped and testable.
 - Use logging, not `print`, outside CLI/demo code.
-- Do not hardcode secrets, keys, tokens, or local absolute paths.
-- Prefer centralized config (`extraction/config.py`) where the existing code
-  already uses it.
+- Do not hardcode secrets, keys, tokens, personal/corporate emails, or local absolute paths. Always utilize environment variables (e.g., `os.environ.get`) with clean defaults (e.g., `support@seocho.io`).
 - Keep public API changes deliberate. If a public SDK name, return model, or
   runtime response changes, update docs and tests in the same slice.
 - Preserve `workspace_id` and runtime policy checks for new endpoints/actions.
 - Keep heavy ontology reasoning out of request-time code.
+- Design AI collaboration around incremental vertical slices, planning architecture first (using ADRs), and maintaining automated CI checks against data leaks.
 - Do not reintroduce root `seocho/`, root `dataset/`, root `images/`, root
   `ontology/`, root `experiments/retrieval_comparison/`, or tracked local tool
   state directories.

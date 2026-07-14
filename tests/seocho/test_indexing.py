@@ -230,11 +230,23 @@ class TestExtractionNormalization:
         # T2.2: domain nodes (Company) no longer carry the document-level
         # content_preview — graph nodes must abstract, not duplicate evidence.
         assert "content_preview" not in company["properties"]
+        assert company["properties"]["entity_id"] == "cboe_global_markets_inc"
+        assert company["properties"]["class"] == "Company"
+        assert company["properties"]["mention_count"] == 1
         assert document["properties"]["content_preview"] == "Cboe data"
         assert document_version["properties"]["chunk_count"] == 1
         assert chunk["properties"]["chunk_id"].endswith("_chunk_0000")
         # Chunk nodes still carry their own short preview (chunk-local, not doc-level)
         assert "content_preview" in chunk["properties"]
+        chunk_mention = next(
+            rel
+            for rel in store.last_relationships
+            if rel["type"] == "MENTIONS" and rel["source"] == chunk["id"]
+        )
+        assert chunk_mention["properties"]["evidence_span"] == "Cboe data"
+        assert chunk_mention["properties"]["extraction_run_id"].startswith("run-")
+        assert chunk_mention["properties"]["prompt_version"] == "runtime-memory-v1"
+        assert chunk_mention["properties"]["role"] == "chunk_evidence"
         assert any(rel["type"] == "MENTIONS" for rel in store.last_relationships)
         assert any(rel["type"] == "HAS_CHUNK" for rel in store.last_relationships)
 

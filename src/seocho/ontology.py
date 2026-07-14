@@ -287,6 +287,7 @@ class Ontology:
         - ``.jsonld`` / ``.json`` → :meth:`from_jsonld`
         - ``.yaml`` / ``.yml`` → :meth:`from_yaml`
         - ``.ttl`` → :meth:`from_ttl`
+        - ``.owl`` → :meth:`from_owl`
         """
         suffix = Path(path).suffix.lower()
         if suffix in {".yaml", ".yml"}:
@@ -295,8 +296,10 @@ class Ontology:
             return cls.from_jsonld(path)
         if suffix == ".ttl":
             return cls.from_ttl(path)
+        if suffix == ".owl":
+            return cls.from_owl(path)
         raise ValueError(
-            "Unsupported ontology file extension. Use .jsonld/.json, .yaml/.yml, or .ttl "
+            "Unsupported ontology file extension. Use .jsonld/.json, .yaml/.yml, .ttl, or .owl "
             "or call the explicit loader directly."
         )
 
@@ -539,6 +542,35 @@ class Ontology:
         from .ontology_serialization import ontology_from_jsonld_dict
 
         return ontology_from_jsonld_dict(cls, data)
+    @classmethod
+    def from_owl(cls, path: Union[str, Path]) -> "Ontology":
+        """Load an OWL/RDF ontology file.
+
+        SEOCHO materialises the same structural subset as :meth:`from_ttl`:
+        classes, object properties with domain/range, datatype properties, and
+        common labels/descriptions/aliases. RDF/XML is the common ``.owl``
+        serialization, but rdflib may also infer other RDF serializations from
+        the file content.
+
+        Requires :mod:`rdflib` (``pip install rdflib``).
+        """
+        try:
+            import rdflib
+        except ImportError as exc:
+            raise ImportError(
+                "Ontology.from_owl requires rdflib. Install it via "
+                "`pip install rdflib`."
+            ) from exc
+
+        import tempfile
+
+        graph = rdflib.Graph()
+        graph.parse(str(path))
+        with tempfile.NamedTemporaryFile("w", suffix=".ttl", encoding="utf-8") as fh:
+            fh.write(graph.serialize(format="turtle"))
+            fh.flush()
+            return cls.from_ttl(fh.name)
+
     @classmethod
     def from_ttl(cls, path: Union[str, Path]) -> "Ontology":
         """Load an ontology from an OWL/SKOS Turtle (.ttl) file.

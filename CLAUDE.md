@@ -70,8 +70,9 @@ root compatibility surfaces just because imports currently allow it.
 ## Agent Behavior
 
 - Start from the user request and repo contracts, not from speculative cleanup.
-- Keep one cohesive change per PR/commit unless the user explicitly asks for a
-  broader sweep.
+- Keep one cohesive change per PR/commit unless the user explicitly asks for a broader sweep.
+- Do not hardcode secrets, private tokens, personal/corporate emails, or absolute paths; use environment overrides with safe defaults.
+- Design AI collaboration around vertical slices, planning architecture first (ADRs), and automated CI check screens.
 - Surface tradeoffs when changing public SDK/runtime behavior.
 - For docs-only changes, avoid pretending runtime behavior changed.
 - For architecture changes, update docs and ADRs in the same change.

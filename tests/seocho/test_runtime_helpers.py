@@ -46,6 +46,11 @@ def test_ensure_memory_graph_adds_document_scope_and_mentions_edges():
 
     entity_nodes = [node for node in result["nodes"] if node["label"] != "Document"]
     assert all(node["properties"]["workspace_id"] == "default" for node in entity_nodes)
+    company = next(node for node in entity_nodes if node["label"] == "Company")
+    assert company["properties"]["entity_id"] == "company-1"
+    assert company["properties"]["class"] == "Company"
+    assert company["properties"]["mention_count"] == 1
+    assert company["properties"]["user_id"] == "u-1"
     assert result["_semantic"]["record_context"]["source_id"] == "rec-1"
 
     mention_edges = [rel for rel in result["relationships"] if rel["type"] == "MENTIONS"]
@@ -53,6 +58,8 @@ def test_ensure_memory_graph_adds_document_scope_and_mentions_edges():
     assert all(rel["source"] == "rec-1_doc" for rel in mention_edges)
     assert all(rel["source_label"] == "Document" for rel in mention_edges)
     assert {rel["target_label"] for rel in mention_edges} == {"Company", "Person"}
+    assert all(rel["properties"]["extraction_run_id"].startswith("run-") for rel in mention_edges)
+    assert all(rel["properties"]["prompt_version"] == "runtime-memory-v1" for rel in mention_edges)
 
 
 def test_ensure_memory_graph_preview_preserves_tutorial_support_sentence():
@@ -143,6 +150,69 @@ def test_ensure_memory_graph_adds_document_version_and_chunk_layer():
     assert len(part_of) == 1
     assert len(next_edges) == 1
     assert len(chunk_mentions) == 2
+
+
+def test_ensure_memory_graph_shapes_practical_relation_evidence_properties():
+    result = ensure_memory_graph(
+        graph_data={
+            "nodes": [
+                {"id": "company-1", "label": "Company", "properties": {"name": "ACME"}},
+                {"id": "region-1", "label": "Region", "properties": {"name": "Asia"}},
+            ],
+            "relationships": [
+                {
+                    "source": "company-1",
+                    "target": "region-1",
+                    "type": "OPERATES_IN",
+                    "properties": {"confidence": 0.82},
+                }
+            ],
+        },
+        source_id="rec-3",
+        workspace_id="default",
+        text="ACME expanded operations in Asia.",
+        category="general",
+        source_type="text",
+        record_metadata={
+            "source_id": "rec-3",
+            "version_id": "rec-3_ver_hash",
+            "checksum": "def456",
+            "extracted_by": "unit-test-extractor",
+            "prompt_version": "prompt-v7",
+            "ontology_slice_hash": "ontology-abc",
+        },
+        chunk_records=[
+            {
+                "chunk_id": "rec-3_chunk_0000",
+                "version_id": "rec-3_ver_hash",
+                "ordinal": 0,
+                "text": "ACME expanded operations in Asia.",
+                "entity_ids": ["company-1", "region-1"],
+                "char_start": 0,
+                "char_end": 34,
+            },
+        ],
+    )
+
+    operates_in = next(rel for rel in result["relationships"] if rel["type"] == "OPERATES_IN")
+    assert operates_in["properties"]["confidence"] == 0.82
+    assert operates_in["properties"]["weight"] == 0.82
+    assert operates_in["properties"]["evidence_chunks"] == ["rec-3_chunk_0000"]
+    assert operates_in["properties"]["evidence_chunk_count"] == 1
+    assert operates_in["properties"]["extracted_by"] == "unit-test-extractor"
+    assert operates_in["properties"]["prompt_version"] == "prompt-v7"
+    assert operates_in["properties"]["ontology_slice_hash"] == "ontology-abc"
+
+    chunk_mentions = [
+        rel
+        for rel in result["relationships"]
+        if rel["type"] == "MENTIONS" and rel["source"] == "rec-3_chunk_0000"
+    ]
+    assert len(chunk_mentions) == 2
+    assert all(rel["properties"]["role"] == "chunk_evidence" for rel in chunk_mentions)
+    assert all(rel["properties"]["evidence_span"] == "ACME expanded operations in Asia." for rel in chunk_mentions)
+    assert all(rel["properties"]["char_start"] == 0 for rel in chunk_mentions)
+    assert all(rel["properties"]["char_end"] == 34 for rel in chunk_mentions)
 
 
 def test_runtime_artifact_helpers_merge_candidates_and_build_vocabulary():

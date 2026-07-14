@@ -61,6 +61,19 @@ Each entry must link to a full ADR when impact is non-trivial.
   - default to content-free, privacy-safe prompt and graph-query telemetry
   - make `withdrawal_explanation.v1` the first bounded OKX-style workload;
     defer FoundationDB, etcd, and LiteLLM deployment until effects are measurable
+## 2026-06-14
+
+- [Proposed] ADR-0116 llm-wiki-vs-seocho-positioning
+  - positioning note vs. Karpathy's LLM Wiki pattern: both take text → KG, but
+    LLM Wiki treats the graph as a **recompilable cache** (markdown + context
+    window as engine, emergent schema) while SEOCHO treats it as the
+    **authoritative state of record** (declared TBox, property-graph DB,
+    validated Cypher, composite identity keys, LWW/provenance, governance)
+  - borrow LLM Wiki's "knowledge that compounds" narrative; pitch SEOCHO as the
+    governed graph backend an LLM Wiki needs to become multi-tenant + auditable
+  - non-claim: not a retrieval-quality win (ties under strong grounding per
+    ADR-0112); edge is deterministic, model-independent governance. Docs-only,
+    no runtime change
 
 ## 2026-06-17
 

@@ -106,3 +106,16 @@ scripts/ci/check-runtime-shell-contract.sh
 bash scripts/ci/check-module-ownership-contract.sh
 scripts/ci/check-root-hierarchy-contract.sh
 scripts/pm/lint-agent-docs.sh
+
+# Ensure no sensitive emails are committed in the codebase
+echo "🔍 Checking for sensitive email leaks..."
+if git grep -q -i "hardy.jeong@xcena.com" -- 'src/' 'scripts/' 'tests/' 'runtime/' 'extraction/' ':!scripts/ci/run_basic_ci.sh'; then
+  echo "❌ Error: Found sensitive email 'hardy.jeong@xcena.com' in the codebase!"
+  git grep -n -i "hardy.jeong@xcena.com" -- 'src/' 'scripts/' 'tests/' 'runtime/' 'extraction/' ':!scripts/ci/run_basic_ci.sh'
+  exit 1
+fi
+echo "✅ No sensitive email leaks found."
+
+
+
+

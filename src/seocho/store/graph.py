@@ -1592,6 +1592,12 @@ class LadybugGraphStore(GraphStore):
         self._node_table_pk: Dict[str, str] = {}
         # issue #183: node tables verified to carry the _sources column.
         self._sources_column_ready: set = set()
+        # Existing embedded databases may have been created before the run
+        # spec writer started stamping the full provenance/query compatibility
+        # column set. Track lazy ALTER attempts so a warmed database migrates
+        # once instead of failing every write with Binder exceptions.
+        self._node_columns_ready: set[tuple[str, str]] = set()
+        self._rel_columns_ready: set[tuple[str, str]] = set()
         self._load_existing_schema()
 
     def _locked_execute(self, *args, **kwargs):
@@ -1743,6 +1749,43 @@ class LadybugGraphStore(GraphStore):
             pass
         self._sources_column_ready.add(label)
 
+    def _ensure_node_columns(self, label: str, props: Dict[str, Any]) -> None:
+        """Add write/query compatibility columns to an existing node table.
+
+        ``CREATE NODE TABLE IF NOT EXISTS`` does not upgrade tables that already
+        exist. That matters for the public zero-config path because users often
+        re-run ``seocho run`` against ``.seocho/local.lbug`` across versions.
+        """
+        for name in (*_LADYBUG_COMMON_NODE_STRING_COLUMNS, "_sources", *props.keys()):
+            if not _LABEL_RE.match(str(name)):
+                continue
+            key = (label, str(name))
+            if key in self._node_columns_ready:
+                continue
+            value = props.get(str(name), "")
+            try:
+                self._locked_execute(f"ALTER TABLE `{label}` ADD `{name}` {_lbug_type(value)}")
+            except Exception:
+                # Column already exists, or the engine rejected an incompatible
+                # duplicate ALTER. Either way, do not block the actual write.
+                pass
+            self._node_columns_ready.add(key)
+
+    def _ensure_rel_columns(self, physical_rtype: str, props: Dict[str, Any]) -> None:
+        """Add write/query compatibility columns to an existing rel table."""
+        for name in (*_LADYBUG_COMMON_REL_STRING_COLUMNS, "_sources", *props.keys()):
+            if not _LABEL_RE.match(str(name)):
+                continue
+            key = (physical_rtype, str(name))
+            if key in self._rel_columns_ready:
+                continue
+            value = props.get(str(name), "")
+            try:
+                self._locked_execute(f"ALTER TABLE `{physical_rtype}` ADD `{name}` {_lbug_type(value)}")
+            except Exception:
+                pass
+            self._rel_columns_ready.add(key)
+
     def _accumulated_sources_json(
         self, label: str, merge_col: str, merge_value: Any, source_id: str
     ) -> str:
@@ -1857,6 +1900,7 @@ class LadybugGraphStore(GraphStore):
             props["_source_id"] = source_id
 
             self._ensure_node_table(label, props)
+            self._ensure_node_columns(label, props)
             node_label_by_id[node_id] = label
 
             # seocho-8ct: MERGE on the table's declared PRIMARY KEY. When the
@@ -1931,6 +1975,7 @@ class LadybugGraphStore(GraphStore):
                     f"Rel {src_id}-[{rtype}]->{tgt_id}: unable to declare rel table"
                 )
                 continue
+            self._ensure_rel_columns(physical_rtype, rprops)
 
             prop_keys = [k for k in rprops if _LABEL_RE.match(k)]
             set_clause = (

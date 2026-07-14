@@ -1,0 +1,1 @@
+- Refactored multiple occurrences of `json.loads(path.read_text())` and `.read_text().splitlines()` in `scripts/benchmarks/` to use `with open(...)` and `json.load()` / line-by-line streaming. This avoids loading entire files into memory just to parse JSON, improving overhead during local evaluation loops and CI.

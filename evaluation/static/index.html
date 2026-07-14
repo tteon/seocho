@@ -80,7 +80,7 @@
       <section class="content">
         <!-- Left: Chat & Reasoning Pane -->
         <div class="chat-pane">
-          <div class="chat-log" id="chatLog" aria-live="polite">
+          <div class="chat-log" id="chatLog" aria-live="polite" tabindex="0">
             <div style="font-family:var(--font-mono); font-size:0.7rem; color:var(--text-muted); text-align:center;">//
               System Authenticated. Trace visualization ready.</div>
           </div>
@@ -92,7 +92,7 @@
         </div>
 
         <!-- Right: AIP Workflow DAG Canvas -->
-        <div class="canvas-pane" id="dagCanvas">
+        <div class="canvas-pane" id="dagCanvas" tabindex="0">
           <div class="canvas-header">Workflow Builder Live Trace Graph</div>
           <div class="canvas-empty" id="canvasEmptyState">
             [ NO ACTIVE RUN ]<br /><br />
@@ -122,7 +122,7 @@
         <span class="node-agent-name"></span>
         <span class="node-type"></span>
       </div>
-      <div class="node-content font-mono"></div>
+      <div class="node-content font-mono" tabindex="0"></div>
     </div>
   </template>
 

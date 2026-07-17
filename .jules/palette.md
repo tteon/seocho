@@ -1,0 +1,1 @@
+- Fixed WCAG 2 AA contrast for buttons with Palantir AIP theme colors (--accent-green, --accent-blue) by changing text color from #fff to #0d1117.

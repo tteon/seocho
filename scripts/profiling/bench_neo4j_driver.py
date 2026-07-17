@@ -230,7 +230,8 @@ def run_worker(arm: str, workload: str) -> dict:
     r = subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=1800)
     if r.returncode != 0:
         raise SystemExit(f"worker failed ({arm}/{workload}):\n{r.stdout}\n{r.stderr}")
-    return json.loads(out.read_text())
+    with open(out, 'r') as f:
+        return json.load(f)
 
 
 def main() -> int:

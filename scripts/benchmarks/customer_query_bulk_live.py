@@ -83,7 +83,11 @@ def main() -> None:
     for source in ("order_history", "fill_history", "withdrawal_history", "counterparty_history", "funding_history", "answer_receipt", "context_graph"):
         sources[source] = sources["postgresql_revision"]
 
-    rows = [json.loads(line) for line in args.dataset.read_text().splitlines() if line]
+    rows = []
+    with open(args.dataset, 'r') as f:
+        for line in f:
+            if line.strip():
+                rows.append(json.loads(line))
     outcomes: Counter[str] = Counter()
     by_intent: dict[str, Counter[str]] = defaultdict(Counter)
     durations = []

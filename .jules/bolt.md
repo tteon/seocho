@@ -1,0 +1,1 @@
+- Found avoidable file I/O overhead with `read_text().splitlines()` and `json.loads(path.read_text())` loading entire files into memory instead of streaming or iterating directly, particularly in benchmark scripts (e.g., `scripts/benchmarks/customer_query_bulk_live.py`).

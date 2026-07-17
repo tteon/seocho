@@ -17,7 +17,8 @@ from seocho.tracing import disable_tracing, enable_tracing, flush_tracing, start
 
 
 def _load(path: Path) -> dict:
-    return json.loads(path.read_text())
+    with open(path, 'r') as f:
+        return json.load(f)
 
 
 def _require_otlp(endpoint: str) -> None:

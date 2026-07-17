@@ -31,8 +31,16 @@ _INTENT_DEFINITIONS = {
 
 
 async def run(args: argparse.Namespace) -> dict:
-    clear_rows = [json.loads(line) for line in args.dataset.read_text().splitlines() if line]
-    challenge_rows = [json.loads(line) for line in args.challenges.read_text().splitlines() if line]
+    clear_rows = []
+    with open(args.dataset, 'r') as f:
+        for line in f:
+            if line.strip():
+                clear_rows.append(json.loads(line))
+    challenge_rows = []
+    with open(args.challenges, 'r') as f:
+        for line in f:
+            if line.strip():
+                challenge_rows.append(json.loads(line))
     selected = []
     counts: dict[tuple[str, str], int] = defaultdict(int)
     for row in clear_rows:

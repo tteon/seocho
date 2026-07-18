@@ -14,7 +14,11 @@ def main() -> None:
     parser.add_argument("--dataset", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    rows = [json.loads(line) for line in args.dataset.read_text().splitlines() if line]
+    rows = []
+    with open(args.dataset, encoding="utf-8") as f:
+        for line in f:
+            if line.strip():
+                rows.append(json.loads(line))
     outcomes = []
     for row in rows:
         routed = classify_customer_query(row["question"])

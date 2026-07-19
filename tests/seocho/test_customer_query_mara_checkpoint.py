@@ -74,7 +74,8 @@ def test_checkpoint_is_durable_and_resumable(tmp_path, monkeypatch) -> None:
     assert first["queries"] == 10
     assert first["executed_queries"] == 10
     assert first["resumed_queries"] == 0
-    assert len(args.checkpoint.read_text().splitlines()) == 10
+    with args.checkpoint.open(encoding="utf-8") as f:
+        assert sum(1 for _ in f) == 10
 
     class _MustNotRun(_Backend):
         async def acomplete(self, **kwargs):

@@ -20,11 +20,13 @@ def main() -> None:
     args = parser.parse_args()
     rows = []
     if args.checkpoint.exists():
-        for line in args.checkpoint.read_text().splitlines():
-            try:
-                rows.append(json.loads(line))
-            except json.JSONDecodeError:
-                continue
+        with args.checkpoint.open(encoding="utf-8") as f:
+            for line in f:
+                line = line.rstrip("\n")
+                try:
+                    rows.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
     latest = {row["query_id"]: row for row in rows if row.get("query_id")}
     completed = len(latest)
     failures = sum(

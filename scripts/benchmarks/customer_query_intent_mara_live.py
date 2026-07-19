@@ -31,8 +31,18 @@ _INTENT_DEFINITIONS = {
 
 
 async def run(args: argparse.Namespace) -> dict:
-    clear_rows = [json.loads(line) for line in args.dataset.read_text().splitlines() if line]
-    challenge_rows = [json.loads(line) for line in args.challenges.read_text().splitlines() if line]
+    clear_rows = []
+    with args.dataset.open(encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                clear_rows.append(json.loads(line))
+    challenge_rows = []
+    with args.challenges.open(encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                challenge_rows.append(json.loads(line))
     selected = []
     counts: dict[tuple[str, str], int] = defaultdict(int)
     for row in clear_rows:
@@ -64,7 +74,8 @@ async def run(args: argparse.Namespace) -> dict:
         expected_action = row["gold"]["expected_action"] if is_challenge else "route"
         expected_intents = (
             sorted(row["gold"]["acceptable_intents"])
-            if is_challenge else [row["gold"]["intent"]]
+            if is_challenge
+            else [row["gold"]["intent"]]
         )
         boundary = detect_customer_query_boundary(row["question"])
         if boundary is not None:
@@ -94,7 +105,10 @@ async def run(args: argparse.Namespace) -> dict:
                             "Ignore contextual details that do not change the requested operation. Do not answer."
                         ),
                         user=json.dumps(
-                            {"question": row["question"], "intent_ontology": intent_ontology},
+                            {
+                                "question": row["question"],
+                                "intent_ontology": intent_ontology,
+                            },
                             sort_keys=True,
                         ),
                         temperature=0.0,
@@ -108,7 +122,9 @@ async def run(args: argparse.Namespace) -> dict:
                 except Exception as exc:
                     errors.append(type(exc).__name__)
             observed_action = payload.get("action") if payload else None
-            observed_intents = sorted(set(payload.get("intents") or [])) if payload else []
+            observed_intents = (
+                sorted(set(payload.get("intents") or [])) if payload else []
+            )
             valid_ontology = all(intent in intents for intent in observed_intents)
             action_ok = observed_action == expected_action
             intents_ok = observed_intents == expected_intents
@@ -131,15 +147,20 @@ async def run(args: argparse.Namespace) -> dict:
     rows = await asyncio.gather(*(one(row) for row in selected))
     latencies = sorted(row["latency_ms"] for row in rows)
     by_group = {}
-    for group in sorted({row["kind"] if row["split"] == "challenge" else row["split"] for row in rows}):
+    for group in sorted(
+        {row["kind"] if row["split"] == "challenge" else row["split"] for row in rows}
+    ):
         group_rows = [
-            row for row in rows
+            row
+            for row in rows
             if (row["kind"] if row["split"] == "challenge" else row["split"]) == group
         ]
         by_group[group] = {
             "queries": len(group_rows),
-            "action_accuracy": sum(row["action_ok"] for row in group_rows) / len(group_rows),
-            "intent_accuracy": sum(row["intents_ok"] for row in group_rows) / len(group_rows),
+            "action_accuracy": sum(row["action_ok"] for row in group_rows)
+            / len(group_rows),
+            "intent_accuracy": sum(row["intents_ok"] for row in group_rows)
+            / len(group_rows),
         }
     thresholds = {
         "evaluation": ("intent_accuracy", 0.90),
@@ -186,11 +207,19 @@ def main() -> None:
         os.environ["OTEL_SERVICE_INSTANCE_ID"] = "customer-intent-eval"
         enable_tracing(backend="otlp")
     try:
-        with start_span("customer_query.intent.run", metadata={"traffic.type": "evaluation"}):
+        with start_span(
+            "customer_query.intent.run", metadata={"traffic.type": "evaluation"}
+        ):
             report = asyncio.run(run(args))
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
-        print(json.dumps({key: value for key, value in report.items() if key != "rows"}, indent=2, sort_keys=True))
+        print(
+            json.dumps(
+                {key: value for key, value in report.items() if key != "rows"},
+                indent=2,
+                sort_keys=True,
+            )
+        )
     finally:
         if tracing_enabled:
             flush_tracing()

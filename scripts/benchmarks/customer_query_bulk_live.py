@@ -54,7 +54,9 @@ def main() -> None:
             if available:
                 sources["market_api"] = True
                 source_details["market_api"] = {
-                    "instrument": "BTC spot", "provider": provider, "available": True
+                    "instrument": "BTC spot",
+                    "provider": provider,
+                    "available": True,
                 }
                 break
         except Exception as exc:
@@ -67,23 +69,53 @@ def main() -> None:
         source_details["blockchain_api"] = {"tip_height": height, "available": True}
     except Exception as exc:
         sources["blockchain_api"] = False
-        source_details["blockchain_api"] = {"available": False, "error": type(exc).__name__}
+        source_details["blockchain_api"] = {
+            "available": False,
+            "error": type(exc).__name__,
+        }
     with psycopg.connect(args.dsn) as connection:
-        sources["postgresql_revision"] = connection.execute("SELECT 1").fetchone()[0] == 1
+        sources["postgresql_revision"] = (
+            connection.execute("SELECT 1").fetchone()[0] == 1
+        )
     driver = GraphDatabase.driver(args.bolt_uri, auth=("neo4j", args.graph_password))
     try:
-        sources["graph_projection"] = driver.execute_query("RETURN 1 AS ok").records[0]["ok"] == 1
+        sources["graph_projection"] = (
+            driver.execute_query("RETURN 1 AS ok").records[0]["ok"] == 1
+        )
     finally:
         driver.close()
     for source in (
-        "order_api", "withdrawal_api", "transfer_api",
+        "order_api",
+        "withdrawal_api",
+        "transfer_api",
     ):
         sources[source] = False
-        source_details[source] = {"available": False, "reason": "private_credentials_not_configured"}
-    for source in ("order_history", "fill_history", "withdrawal_history", "counterparty_history", "funding_history", "answer_receipt", "context_graph"):
+        source_details[source] = {
+            "available": False,
+            "reason": "private_credentials_not_configured",
+        }
+    for source in (
+        "order_history",
+        "fill_history",
+        "withdrawal_history",
+        "counterparty_history",
+        "funding_history",
+        "answer_receipt",
+        "context_graph",
+    ):
         sources[source] = sources["postgresql_revision"]
 
-    rows = [json.loads(line) for line in args.dataset.read_text().splitlines() if line]
+    rows = []
+
+    with args.dataset.open(encoding="utf-8") as f:
+
+        for line in f:
+
+            line = line.strip()
+
+            if line:
+
+                rows.append(json.loads(line))
     outcomes: Counter[str] = Counter()
     by_intent: dict[str, Counter[str]] = defaultdict(Counter)
     durations = []
@@ -96,22 +128,37 @@ def main() -> None:
         available = sum(bool(sources.get(source)) for source in required_sources)
         coverage = available / len(required_sources) if required_sources else 1.0
         routing_ok = routed is not None and routed.intent == gold["intent"]
-        outcome = "supported" if routing_ok and coverage == 1 else "partial" if routing_ok and coverage > 0 else "unsupported"
+        outcome = (
+            "supported"
+            if routing_ok and coverage == 1
+            else "partial" if routing_ok and coverage > 0 else "unsupported"
+        )
         elapsed = time.perf_counter() - started
         outcomes[outcome] += 1
         by_intent[gold["intent"]][outcome] += 1
         durations.append(elapsed)
         coverage_values.append(coverage)
-        labels = {"query.class": gold["intent"], "outcome": outcome, "traffic.type": "evaluation"}
+        labels = {
+            "query.class": gold["intent"],
+            "outcome": outcome,
+            "traffic.type": "evaluation",
+        }
         metrics.add("seocho.customer.query.count", attributes=labels)
         metrics.record("seocho.customer.query.duration", elapsed, labels)
-        metrics.record("seocho.customer.evidence.coverage", coverage, {"query.class": gold["intent"]})
+        metrics.record(
+            "seocho.customer.evidence.coverage",
+            coverage,
+            {"query.class": gold["intent"]},
+        )
     age = max(time.time() - snapshot_at, 0)
     for source in ("market_api", "blockchain_api"):
         if sources[source]:
             metrics.record("seocho.customer.source.freshness", age, {"source": source})
         else:
-            metrics.add("seocho.customer.source.failure.count", attributes={"source": source, "reason": "unavailable"})
+            metrics.add(
+                "seocho.customer.source.failure.count",
+                attributes={"source": source, "reason": "unavailable"},
+            )
     shutdown_metrics()
     report = {
         "schema_version": "seocho.customer-query-bulk-live.v1",
@@ -119,7 +166,10 @@ def main() -> None:
         "outcomes": dict(outcomes),
         "by_intent": {key: dict(value) for key, value in sorted(by_intent.items())},
         "mean_evidence_coverage": sum(coverage_values) / len(coverage_values),
-        "duration_ms": {"mean": sum(durations) * 1000 / len(durations), "max": max(durations) * 1000},
+        "duration_ms": {
+            "mean": sum(durations) * 1000 / len(durations),
+            "max": max(durations) * 1000,
+        },
         "source_details": source_details,
         "private_sources_configured": False,
         "passed": len(rows) == sum(outcomes.values())

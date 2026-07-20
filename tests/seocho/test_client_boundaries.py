@@ -179,3 +179,39 @@ def test_client_bundle_helper_rehydrates_from_bundle(monkeypatch) -> None:
     assert client is expected
     assert calls["bundle_source"] == "portable.bundle.json"
     assert calls["workspace_id"] == "tenant-a"
+
+
+def test_local_ask_passes_query_context_to_engine() -> None:
+    class _FakeEngine:
+        def __init__(self) -> None:
+            self.query_context = None
+            self._last_query_metadata = {}
+
+        def ask(self, message: str, **kwargs: Any) -> str:
+            self.message = message
+            self.query_context = kwargs.get("query_context")
+            return "contextual answer"
+
+    engine = _FakeEngine()
+    client = Seocho.__new__(Seocho)
+    client._local_mode = True
+    client._engine = engine
+    client.default_database = "neo4j"
+    client._ontology_registry = {}
+    query_context = {"role": "finance analyst", "focus": ["metrics"]}
+
+    answer = client.ask("What changed?", query_context=query_context)
+
+    assert answer == "contextual answer"
+    assert engine.message == "What changed?"
+    assert engine.query_context == query_context
+
+
+def test_remote_ask_rejects_query_context_until_runtime_contract_exists() -> None:
+    client = Seocho(base_url="http://localhost:8001", session=_FakeSession([]))
+
+    try:
+        client.ask("What changed?", query_context={"role": "finance analyst"})
+        raise AssertionError("Expected query_context to require local engine mode")
+    except ValueError as exc:
+        assert "local engine mode" in str(exc)

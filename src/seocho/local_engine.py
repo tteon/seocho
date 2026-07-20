@@ -515,6 +515,7 @@ class _LocalEngine:
         repair_budget: Optional[int] = None,
         query_mode: str = DEFAULT_QUERY_MODE,
         ontology_override: Optional[Any] = None,
+        query_context: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Ontology-aware query: generate Cypher -> execute -> synthesize answer."""
         query_mode = normalize_query_mode(query_mode)
@@ -604,6 +605,7 @@ class _LocalEngine:
                 query_mode=query_mode,
                 active_ontology=active_ontology,
                 ontology_context=ontology_context,
+                query_context=query_context,
             )
 
     @contextmanager
@@ -681,6 +683,7 @@ class _LocalEngine:
         query_mode: str,
         active_ontology: Any,
         ontology_context: Any,
+        query_context: Optional[Dict[str, Any]],
     ) -> str:
         """Retrieval pipeline body for ask(), wrapped by the rag.ask span."""
         timer = StageTimer()
@@ -886,7 +889,7 @@ class _LocalEngine:
                 intent_data,
                 answer_synthesizer=answer_synthesizer,
             )
-        if deterministic_answer:
+        if deterministic_answer and not query_context:
             timer.mark_total()
             self._last_query_metadata = build_local_query_metadata(
                 workspace_id=self.workspace_id,
@@ -967,6 +970,7 @@ class _LocalEngine:
                     reasoning_trace=reasoning_trace,
                     vector_context=vector_context,
                     answer_shape=answer_shape,
+                    query_context=query_context,
                 )
                 self._annotate_synthesis_span(
                     syn_span, answer_synthesizer, ontology_context

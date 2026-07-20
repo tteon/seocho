@@ -1,0 +1,1 @@
+Learned: When Palantir AIP theme colors (--accent-green #3fb950 and --accent-blue #2f81f7) are used as background with #fff foreground, they do not provide sufficient contrast. The foreground color must be darker (e.g., #0d1117 / var(--bg-app)) to meet WCAG 2 AA contrast guidelines.

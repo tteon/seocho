@@ -241,7 +241,7 @@ body {
 
 #ingestBtn {
   background: var(--accent-green);
-  color: #fff;
+  color: var(--bg-app);
   border: none;
   border-radius: 4px;
   padding: 0.4rem 0.75rem;
@@ -257,7 +257,7 @@ body {
 
 #oneClickDemoBtn {
   background: var(--accent-blue);
-  color: #fff;
+  color: var(--bg-app);
   border: none;
   border-radius: 4px;
   padding: 0.4rem 0.75rem;
@@ -321,7 +321,7 @@ body {
 .bubble.user .text {
   background: var(--accent-blue-ghost);
   border-color: rgba(47, 129, 247, 0.3);
-  color: #fff;
+  color: var(--text-main);
 }
 
 .bubble.assistant .text {
@@ -353,7 +353,7 @@ body {
 .composer button {
   align-self: flex-end;
   background: var(--accent-blue);
-  color: #fff;
+  color: var(--bg-app);
   border: none;
   padding: 0.5rem 1rem;
   border-radius: 4px;
@@ -603,7 +603,7 @@ textarea:focus {
 
 #resetSessionBtn:hover,
 #resetSessionBtn:focus-visible {
-  color: #fff;
+  color: var(--text-main);
 }
 
 

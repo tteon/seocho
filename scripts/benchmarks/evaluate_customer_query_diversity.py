@@ -22,8 +22,18 @@ def main() -> None:
     parser.add_argument("--challenges", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    rows = [json.loads(line) for line in args.dataset.read_text().splitlines() if line]
-    challenges = [json.loads(line) for line in args.challenges.read_text().splitlines() if line]
+    rows = []
+    with args.dataset.open(encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                rows.append(json.loads(line))
+    challenges = []
+    with args.challenges.open(encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                challenges.append(json.loads(line))
     correct = Counter()
     totals = Counter()
     confusion = Counter()
@@ -61,7 +71,10 @@ def main() -> None:
         "normalized_unique_questions": normalized_unique,
         "exact_duplicate_rate": 1 - unique / len(rows),
         "template_families": len(family_counts),
-        "family_size": {"min": min(family_counts.values()), "max": max(family_counts.values())},
+        "family_size": {
+            "min": min(family_counts.values()),
+            "max": max(family_counts.values()),
+        },
         "routing_accuracy": {
             "evaluation": evaluation_accuracy,
             "held_out_family": held_out_accuracy,

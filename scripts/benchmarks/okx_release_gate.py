@@ -90,8 +90,14 @@ def main() -> None:
             "--output", str(chaos_path),
         ]
     )
-    vertical = json.loads(vertical_path.read_text()) if vertical_path.exists() else {}
-    chaos = json.loads(chaos_path.read_text()) if chaos_path.exists() else {}
+    vertical = {}
+    if vertical_path.exists():
+        with vertical_path.open() as f:
+            vertical = json.load(f)
+    chaos = {}
+    if chaos_path.exists():
+        with chaos_path.open() as f:
+            chaos = json.load(f)
     telemetry = {
         "prometheus": _healthy(args.prometheus + "/-/ready"),
         "tempo": _healthy(args.tempo + "/ready"),

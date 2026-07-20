@@ -23,7 +23,8 @@ async def run(args: argparse.Namespace) -> dict:
             line = line.strip()
             if line:
                 rows.append(json.loads(line))
-    bulk = json.loads(args.bulk_report.read_text())
+    with args.bulk_report.open() as f:
+        bulk = json.load(f)
     available = {
         source: bool(detail.get("available"))
         for source, detail in bulk["source_details"].items()

@@ -1,1 +1,2 @@
 - Optimized memory usage for large JSONL files by replacing Path.read_text().splitlines() with lazy, line-by-line iteration using a context manager (with open(...) as f: for line in f:).
+- When applying automated patch scripts that modify pure Python files (especially involving indentation or loop structures), explicitly verify the syntax using `python -m py_compile <file>` to catch `SyntaxError`s early. Do not run `py_compile` directly on shell scripts (`.sh`) that embed Python code, as the surrounding bash syntax will cause false syntax errors.

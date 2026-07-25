@@ -82,11 +82,13 @@ def make_graph_probe(graph_store: Any, database: str = "neo4j",
             rows = graph_store.query(
                 "MATCH (c:Company {cik: $cik})-[:HAS_OBSERVATION]->"
                 "(o:Observation {concept_id: $concept_id}) "
-                "WHERE ($ws = '' OR o.workspace_id = $ws) "
+                "WHERE ($ws = '' OR o.workspace_id = $ws) AND o._workspace_id = $workspace_id AND c._workspace_id = $workspace_id "
                 "RETURN collect(DISTINCT o.period_key) AS periods",
                 params={"cik": slots.entity_cik, "concept_id": slots.concept_id,
-                        "ws": workspace_id},
+                        "ws": workspace_id, "workspace_id": workspace_id},
                 database=database,
+                workspace_id=workspace_id,
+                enforce_workspace_filter=True,
             )
         except Exception:
             return GraphProbe(entity_has_concept=False)

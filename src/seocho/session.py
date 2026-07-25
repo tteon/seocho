@@ -731,9 +731,12 @@ class Session:
             try:
                 sid = memory.memory_id
                 rows = self.graph_store.query(
-                    "MATCH (n) WHERE n._source_id = $sid "
+                    "MATCH (n) WHERE n._source_id = $sid AND n._workspace_id = $workspace_id "
                     "RETURN labels(n)[0] AS label, n.name AS name, properties(n) AS props",
-                    params={"sid": sid}, database=database,
+                    params={"sid": sid, "workspace_id": self.workspace_id},
+                    database=database,
+                    workspace_id=self.workspace_id,
+                    enforce_workspace_filter=True,
                 )
                 for row in rows:
                     extracted_nodes.append({

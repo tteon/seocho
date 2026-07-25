@@ -1457,7 +1457,13 @@ class Seocho:
         """
         if not self._local_mode:
             raise RuntimeError("query() requires local engine mode (ontology + graph_store + llm)")
-        return self.graph_store.query(cypher, params=params, database=database)
+        return self.graph_store.query(
+            cypher,
+            params=params,
+            database=database,
+            workspace_id=self.workspace_id,
+            enforce_workspace_filter=True,
+        )
 
     # ------------------------------------------------------------------
     # Agent-level session API

@@ -696,7 +696,7 @@ class _LocalEngine:
             llm=self.llm,
             workspace_id=self.workspace_id,
         )
-        executor = GraphQueryExecutor(graph_store=self.graph_store, database=database)
+        executor = GraphQueryExecutor(graph_store=self.graph_store, database=database, workspace_id=self.workspace_id)
         answer_synthesizer = QueryAnswerSynthesizer(
             query_strategy=self._query,
             llm=self.llm,
@@ -1099,6 +1099,7 @@ class _LocalEngine:
         active_executor = executor or GraphQueryExecutor(
             graph_store=self.graph_store,
             database=database,
+            workspace_id=self.workspace_id,
         )
         execution = active_executor.execute(QueryPlan(question="", cypher=cypher, params=params))
         return execution.records, execution.error
@@ -1339,6 +1340,8 @@ class _LocalEngine:
                 "LIMIT $k",
                 params={"workspace_id": self.workspace_id, "kws": kws, "k": 3},
                 database=database,
+                workspace_id=self.workspace_id,
+                enforce_workspace_filter=True,
             )
         except Exception:
             return ""

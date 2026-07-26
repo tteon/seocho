@@ -2460,10 +2460,14 @@ class SemanticAgentFlow:
             if str(item.get("database", "")).strip()
         ]
         self.capability_registry = CapabilityRegistry(capabilities)
-        receipt = SDCRRouter().route(
+        # Pass every offered capability, not the pre-filtered authorized subset, so
+        # the receipt can distinguish "no view holds this fact" from "the caller may
+        # not read the view that does". The fallback size is stated here rather than
+        # inherited, because it changes what evidence a routing miss serves.
+        receipt = SDCRRouter(fallback_team_size=2).route(
             workspace_id=workspace_id,
             required_slots=required_slots,
-            capabilities=self.capability_registry.authorized(workspace_id),
+            capabilities=capabilities,
             conflicts=semantic_context.get("cross_graph_analysis", {}).get("conflicts", []),
         )
         semantic_context["sdcr_receipt"] = receipt.as_dict()

@@ -1,0 +1,62 @@
+\section{Reproducibility Protocol}
+This appendix specifies the parts of the evaluation that are most vulnerable to hidden supervision or accidental leakage. All procedures write case-level receipts and can be resumed without changing completed calls.
+
+\subsection{FinDER-to-graph construction}
+FinDER is a question-and-answer collection rather than a graph dataset. Each record retains a case identifier, financial question, category, issuer or ticker when available, gold answer, and source references. Four generation models read the same source material and emit entity mentions, typed relations, financial values, periods, units, and source links. A provider--case workspace isolates one model's output from another's output.
+
+The extraction pipeline (i) normalizes text while retaining the surface form, (ii) converts model outputs into typed nodes and relations, (iii) normalizes period, unit, and accounting basis while retaining raw values, (iv) keeps duplicate observations until the survivorship policy resolves them, and (v) creates read-only category projections. Every projected fact retains provider, case, category, and source identifiers. The duplicate-aware snapshot contains 22,812 provider--case workspaces, 523,092 nodes, and 1,211,526 relations. Within-category normalization yields 187,601 semantic nodes and 166,147 typed edges; the qualified answer projection contains 8,313 nodes and 20,011 relations.
+
+\begin{table}[h]
+\centering
+\caption{Complete duplicate-aware category projections.}
+\small
+\begin{tabular}{lrrrrrrr}
+\toprule
+View & Nodes & Edges & Degree & LCC & Recip. & Trans. & PR entropy\\
+\midrule
+Accounting & 17,374 & 13,138 & 1.512 & .501 & .010 & .008 & .991\\
+Company overview & 23,399 & 20,326 & 1.737 & .586 & .010 & .009 & .993\\
+Financials & 42,978 & 49,758 & 2.316 & .549 & .003 & .009 & .998\\
+Footnotes & 58,772 & 37,814 & 1.287 & .438 & .002 & .005 & .998\\
+Governance & 12,480 & 11,318 & 1.814 & .503 & .067 & .017 & .982\\
+Legal & 14,943 & 12,963 & 1.735 & .553 & .007 & .034 & .993\\
+Risk & 7,760 & 10,949 & 2.822 & .673 & .048 & .031 & .973\\
+Shareholder return & 9,895 & 6,786 & 1.372 & .434 & .003 & .008 & .996\\
+\bottomrule
+\end{tabular}
+\end{table}
+Mean degree measures local connectivity, LCC is the largest-component fraction, reciprocity measures mirrored directed relations, transitivity measures triangle closure, and normalized PageRank entropy measures whether centrality is diffuse. These values describe observation regimes, not category quality. Risk is hub-concentrated despite high connectivity; Footnotes is large but sparse; Governance and Risk have higher reciprocity; Legal has the highest transitivity.
+
+\subsection{Revised-query construction and validation}
+Candidate pairs are drawn from the full 5,703-case FinDER pool using issuer, category, and predeclared financial decision axes. Selection does not inspect graphs, retrieval results, answers, or scores. The revision prompt receives only the issuer, two source questions, their gold answers, and the decision axis. It asks for one atomic slot from each view, a conservative cross-view reconciliation, and JSON-only output; unsupported causal claims and simple concatenation are rejected. The initial 28-item construction is retained only as a failed exploratory audit.
+
+Five blinded role/model personas independently validate each revision: financial reporting, audit, equity/benchmark statistics, graph and multi-agent necessity, and governance. An item passes only with at least three of five accepts, valid atomic slots, and a supported cross-view conclusion; the gate issues $28\times5=140$ reviews and retains 13 of 28 items. This five-role revision gate is distinct from the four-persona AGY panel of Appendix~A.4, which examined only the nine disputed or audit-sampled items of the earlier construction. Persona reviews are correlated model simulations and are therefore reported as a robustness audit, not as independent human annotation.
+
+\subsection{Routing and evidence serialization}
+Category capability descriptors are deterministic TF--IDF sums over all FinDER questions except component cases in the evaluation item. For token $t$ and $N$ training questions,
+\[
+ \operatorname{idf}(t)=\log\frac{1+N}{1+\operatorname{df}(t)}+1.
+\]
+The router selects the smallest authorized coalition satisfying slot coverage. For completeness, the feasible set is
+\[
+\mathcal{F}(q)=\{C\subseteq A(q):\sum_{i\in C}{\bf 1}[p_{is}\geq\tau_s]\geq r_s(q),\ \forall s\in R(q)\},
+\]
+where $r_s(q)=2$ only for an explicitly verified or conflicting slot. Personalized PageRank divergence only breaks ties among minimum-cost feasible coalitions; the no-network ablation uses the same candidate set. The revised slot router receives the question and category names, never gold answers or expected categories, and must return a single JSON object. Serialization failures and uncovered required views receive zero in intention-to-treat analysis.
+
+Evidence is compact sorted-key JSON with stable identifiers. Units are appended in retrieval order until the next complete unit would exceed the exact token cap. We use the frozen 
+\texttt{cl100k\_base} tokenizer for reproducibility and report sensitivity at 512, 1,024, 2,048, and 4,096 tokens; this does not assert that MARA uses the same tokenizer.
+
+\subsection{Output-blind review and adversarial controls}
+The first MARA review is followed by four independent AGY persona critiques and a Codex chair synthesis over the nine disputed or audit-sampled items ($9\times4=36$ reviews per stage). Reviewers do not see author decisions, retrieval outputs, or answer scores. The chair stage is a sensitivity analysis and does not increase the effective reviewer sample size.
+
+For adversarial tests, the query is constructed directly from a matched fact tuple (entity, metric, period, basis, and unit). A poisoned single view receives a 10\% numeric mutation; a verification coalition receives both values and must report a conflict without selecting either. Protected-field tests compare unsafe serialization with SDCR field removal. These 31 answer-blind tests measure contract enforcement under controlled conditions and are not presented as natural-query accuracy.
+
+\subsection{Capability fallback and the corrected candidate pool}
+Two artifacts were produced after the main evaluation and are released with it.
+
+The fallback measurement is a replay: the served evidence for each case is assembled from the already-frozen per-case arm rows --- routed evidence where the router covered every required view, the frozen TF--IDF top-2 evidence otherwise --- so retrieval, budget, tokenizer, and provenance are shared exactly with the reported arms and nothing is re-retrieved. The policy was fixed before scores were read. The retrieval half costs nothing and reproduces byte-identically; the answer half re-uses the prompt, schema, and scoring functions of the main harness verbatim, changing only which evidence arm is served, and persists every completion so an interrupted run never repeats a paid call.
+
+The corrected candidate pool re-derives issuer labels with a validated extractor rather than the trailing-acronym heuristic: a token qualifies only as an accepted \texttt{ticker:*} in the frozen identity registry, and a question naming more than one accepted ticker is treated as a cannot-link and dropped. This reuses the identifier-first policy of Section~\ref{sec:observation} instead of introducing a new ticker list. It is released together with a core-disjoint expansion manifest, both marked \texttt{pending\_construct\_validation}; neither contributes to a reported number, because re-deriving the evaluated chain requires re-running the paid five-role gate.
+
+\subsection{Orthogonal mediation gate}
+The full corpus has two joint observation profiles and cannot identify prompt and ontology effects separately. We therefore use a mechanistic $2\times2\times4\times16$ calibration: two prompts, two ontologies, four graph-generation models, and 16 FinDER cases. Each cell is read-only, retrieves with the frozen PPR implementation, and is answered by the fixed DeepSeek model. A case-blocked standardized serial path estimates prompt or ontology treatment through graph size and retrieval recall to answer F1. The resulting indirect estimates are reported as calibration evidence, not as full-corpus causal effects.

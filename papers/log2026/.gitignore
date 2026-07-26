@@ -1,0 +1,33 @@
+# Overleaf submission snapshots. Build outputs, regenerated on demand from
+# paper.tex + appendix.tex + references.bib; ~2 MB of binaries otherwise.
+*.zip
+
+# Figures replaced during the failure-analysis rewrite. Retained locally for
+# provenance but not tracked: sdcr_quality_cost was drawn from the 28-case
+# construction that the blinded audit invalidated, so it must never reach a
+# submission bundle.
+superseded/
+
+# LaTeX build artifacts.
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.synctex.gz
+*.toc
+
+# Internal working notes and a superseded draft. CLAUDE.md 17 keeps design
+# thinking, failure analysis, and editing records in the Obsidian vault rather
+# than the repository; STYLE_REVIEW and PERSONA_AUDIT both declare themselves
+# outside the submission package, and MANUSCRIPT.md is the pre-rewrite draft
+# that paper.tex replaces (a second competing paper document is exactly the
+# drift PAPER.md is generated to prevent).
+MANUSCRIPT.md
+APPENDIX_METHODS.md
+PERSONA_AUDIT.md
+RESEARCH_REASSESSMENT.md
+STYLE_REVIEW.md
+SUBMISSION_CHECKLIST.md

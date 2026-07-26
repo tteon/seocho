@@ -1,0 +1,449 @@
+% ===============================================================
+% The LaTeX style file for LoG 2026
+%   https://logconference.org/
+% ===============================================================
+%
+% Revision history:
+%
+%  - Version 1.0.2 (November 24, 2022)
+%     * Add the correct PMLR volume number
+%     * Add an article number for better page numbering
+%     in the proceedings
+%
+%  - Version 1.0.1 (August 1, 2022)
+%    Fixed conflict with the physics package
+%
+%  - Version 1.0.0 (July 21, 2022)
+%    Initial version
+%
+% By Yanqiao Zhu (yzhu@cs.ucla.edu)
+% ---------------------------------------------------------------
+%
+% Acknowledgements:
+% This LaTeX template is heavily borrowed from NeurIPS 2022.
+%
+% Its original authors are:
+% Roman Garnett (garnett@wustl.edu) and the many authors of
+% nips15submit_e.sty, including MK and drstrip@sandia
+% ===============================================================
+
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{log_2026}[2022/11/24 LoG style file (v1.0.2)]
+
+\RequirePackage{xspace}
+\RequirePackage{amsmath}        % AMS mathematical facilities
+\RequirePackage[utf8]{inputenc} % allow utf-8 input
+\RequirePackage[T1]{fontenc}    % use 8-bit T1 fonts
+\RequirePackage{url}            % simple URL typesetting
+
+% declare review option, which creates an anonymized version
+\newif\if@logreview\@logreviewfalse
+\DeclareOption{review}{
+  \@logreviewtrue
+}
+
+% declare preprint option, which creates a preprint version ready for
+% upload to, e.g., arXiv
+\newif\if@preprint\@preprintfalse
+\DeclareOption{preprint}{
+  \@preprinttrue
+}
+
+% declare eabstract option, which is for the extended abstract track
+\newif\if@logeabstract\@logeabstractfalse
+\DeclareOption{eabstract}{
+  \@logeabstracttrue
+}
+
+\ProcessOptions\relax
+
+% determine whether this is an anonymized submission
+\newif\if@submission\@submissionfalse
+\if@logreview\@submissiontrue\fi
+\if@preprint\@submissionfalse\fi
+
+% fonts
+\RequirePackage{microtype}
+\renewcommand{\rmdefault}{ptm}
+\renewcommand{\sfdefault}{phv}
+
+\RequirePackage{etoolbox}
+\RequirePackage[svgnames]{xcolor}
+
+% hyperref setups
+% caveat: under most circumstances hyperref should be loaded last
+\AtEndPreamble{
+  \@ifpackageloaded{biblatex}{%
+    % customize backref style
+    \RequirePackage{hyperref}
+    \DefineBibliographyStrings{english}{%
+      backrefpage = {},
+      backrefpages = {},
+    }
+    \RequirePackage{xpatch}
+    \DeclareFieldFormat{backrefparens}{\addperiod#1}
+    \xpatchbibmacro{pageref}{parens}{backrefparens}{}{}
+    \renewcommand*{\finentrypunct}{}
+  }{%
+    \RequirePackage[backref=page]{hyperref}
+  }
+  \hypersetup{
+    pdftitle={\@title},
+    pdfauthor={\shortauthor},
+    pdfcreator={LaTeX with log\_2026.sty},
+    bookmarksnumbered,
+    bookmarksdepth=subsubsection,
+    pdfdisplaydoctitle,
+    colorlinks=true,
+    breaklinks=true,
+    citecolor=NavyBlue,
+    linkcolor=NavyBlue,
+    urlcolor=NavyBlue
+  }
+  \if@submission{\hypersetup{pdfauthor={Anonymous Author(s)}}}\fi
+}
+
+% change this every year for notice string at bottom
+\newcommand{\@logordinal}{Fifth}
+\newcommand{\logyear}{2026}
+\newcommand{\@loglocation}{TBD}
+\newcommand{\@logdates}{TBD}
+
+% TODO update
+\newcommand{\@pmlrvolume}{TBD}
+%%%%%
+
+% set page margins
+\RequirePackage[
+  textheight=9in,
+  textwidth=5.5in,
+  top=1in,
+  headheight=12pt,
+  headsep=20pt,
+  footskip=30pt,
+  verbose,
+  letterpaper]{geometry}
+
+\widowpenalty=10000
+\clubpenalty=10000
+\flushbottom
+\sloppy
+
+% font sizes with reduced leading
+\renewcommand{\normalsize}{%
+  \@setfontsize\normalsize\@xpt\@xipt
+  \abovedisplayskip      7\p@ \@plus 2\p@ \@minus 5\p@
+  \abovedisplayshortskip \z@ \@plus 3\p@
+  \belowdisplayskip      \abovedisplayskip
+  \belowdisplayshortskip 4\p@ \@plus 3\p@ \@minus 3\p@
+}
+\normalsize
+\renewcommand{\small}{%
+  \@setfontsize\small\@ixpt\@xpt
+  \abovedisplayskip      6\p@ \@plus 1.5\p@ \@minus 4\p@
+  \abovedisplayshortskip \z@  \@plus 2\p@
+  \belowdisplayskip      \abovedisplayskip
+  \belowdisplayshortskip 3\p@ \@plus 2\p@   \@minus 2\p@
+}
+\renewcommand{\footnotesize}{\@setfontsize\footnotesize\@ixpt\@xpt}
+\renewcommand{\scriptsize}{\@setfontsize\scriptsize\@viipt\@viiipt}
+\renewcommand{\tiny}{\@setfontsize\tiny\@vipt\@viipt}
+\renewcommand{\large}{\@setfontsize\large\@xiipt{14}}
+\renewcommand{\Large}{\@setfontsize\Large\@xivpt{16}}
+\renewcommand{\LARGE}{\@setfontsize\LARGE\@xviipt{20}}
+\renewcommand{\huge}{\@setfontsize\huge\@xxpt{23}}
+\renewcommand{\Huge}{\@setfontsize\Huge\@xxvpt{28}}
+
+% sections with less space
+\providecommand{\section}{}
+\renewcommand{\section}{%
+  \@startsection{section}{1}{\z@}%
+                {12pt \@plus 2pt \@minus 2pt}%
+                {2pt  \@plus 1pt \@minus 1pt}%
+                {\large\bfseries\raggedright}%
+}
+\providecommand{\subsection}{}
+\renewcommand{\subsection}{%
+  \@startsection{subsection}{2}{\z@}%
+                {8pt \@plus 2pt \@minus 2pt}%
+                {2pt \@plus 0.5pt}%
+                {\normalsize\bfseries\raggedright}%
+}
+\providecommand{\subsubsection}{}
+\renewcommand{\subsubsection}{%
+  \@startsection{subsubsection}{3}{\z@}%
+                {6pt \@plus 2pt \@minus 2pt}%
+                {2pt \@plus 0.5pt}%
+                {\normalsize\bfseries\raggedright}%
+}
+
+\def\@adddotafter#1{#1\@addpunct{.}}
+\providecommand{\paragraph}{}
+\renewcommand{\paragraph}{%
+  \@startsection{paragraph}{4}{\z@}%
+                {6pt \@plus 2pt \@minus 1pt}%
+                {-1em}%
+                {\normalsize\bfseries\@adddotafter}%
+}
+
+% float placement
+\renewcommand{\topfraction      }{0.85}
+\renewcommand{\bottomfraction   }{0.4}
+\renewcommand{\textfraction     }{0.1}
+\renewcommand{\floatpagefraction}{0.7}
+
+% table/figure formatting
+\RequirePackage{caption}
+\captionsetup{labelfont=bf}
+
+\newlength{\@logabovecaptionskip}\setlength{\@logabovecaptionskip}{6\p@}
+\newlength{\@logbelowcaptionskip}\setlength{\@logbelowcaptionskip}{3\p@}
+\setlength{\abovecaptionskip}{\@logabovecaptionskip}
+\setlength{\belowcaptionskip}{\@logbelowcaptionskip}
+
+% swap above/belowcaptionskip lengths for tables
+\renewenvironment{table}
+  {\setlength{\abovecaptionskip}{\@logbelowcaptionskip}%
+   \setlength{\belowcaptionskip}{\@logabovecaptionskip}%
+   \@float{table}}
+  {\end@float}
+
+% footnote formatting
+\setlength{\footnotesep }{6.65\p@}
+\setlength{\skip\footins}{9\p@ \@plus 4\p@ \@minus 2\p@}
+\renewcommand{\footnoterule}{\kern-3\p@ \hrule width 12pc \kern 2.6\p@}
+\setcounter{footnote}{0}
+
+% paragraph formatting
+\setlength{\parindent}{\z@}
+\setlength{\parskip  }{5.5\p@}
+
+% list formatting
+\setlength{\topsep       }{2\p@ \@plus 1\p@   \@minus 2\p@}
+\setlength{\partopsep    }{1\p@ \@plus 0.5\p@ \@minus 0.5\p@}
+\setlength{\itemsep      }{2\p@ \@plus 1\p@   \@minus 0.5\p@}
+\setlength{\parsep       }{2\p@ \@plus 1\p@   \@minus 0.5\p@}
+\setlength{\leftmargin   }{2em}
+\setlength{\leftmargini  }{\leftmargin}
+\setlength{\leftmarginii }{2em}
+\setlength{\leftmarginiii}{1.5em}
+\setlength{\leftmarginiv }{1.0em}
+\setlength{\leftmarginv  }{0.5em}
+\def\@listi  {\leftmargin\leftmargini}
+\def\@listii {\leftmargin\leftmarginii
+              \labelwidth\leftmarginii
+              \advance\labelwidth-\labelsep
+              \topsep  2\p@ \@plus 1\p@    \@minus 0.5\p@
+              \parsep  1\p@ \@plus 0.5\p@ \@minus 0.5\p@
+              \itemsep \parsep}
+\def\@listiii{\leftmargin\leftmarginiii
+              \labelwidth\leftmarginiii
+              \advance\labelwidth-\labelsep
+              \topsep    1\p@ \@plus 0.5\p@ \@minus 0.5\p@
+              \parsep    \z@
+              \partopsep 0.5\p@ \@plus 0\p@ \@minus 0.5\p@
+              \itemsep \topsep}
+\def\@listiv {\leftmargin\leftmarginiv
+              \labelwidth\leftmarginiv
+              \advance\labelwidth-\labelsep}
+\def\@listv  {\leftmargin\leftmarginv
+              \labelwidth\leftmarginv
+              \advance\labelwidth-\labelsep}
+\def\@listvi {\leftmargin\leftmarginvi
+              \labelwidth\leftmarginvi
+              \advance\labelwidth-\labelsep}
+
+\newcommand{\email}[1]{\texttt{#1}}
+\renewcommand*{\author}[2][]{\gdef\shortauthor{#1}\gdef\@author{#2}}
+\newcommand{\articleno}[1]{\def\@articleno{#1}}
+
+% headnotes and footnotes
+\RequirePackage{fancyhdr}
+\fancyhf{}
+\fancyhead[C]{\let\\=\relax%
+\small\shorttitle}
+\fancyfoot[C]{\small\thepage}
+\AtBeginDocument{\pagestyle{fancy}}
+
+% create title
+\def\title{\@dblarg\title@}
+\def\title@[#1]#2{%
+  \gdef\shorttitle{#1}\gdef\@title{#2}%
+}
+
+\providecommand{\maketitle}{}
+\renewcommand{\maketitle}{%
+  \par
+  \begingroup
+    \renewcommand{\thefootnote}{\fnsymbol{footnote}}
+    % for perfect author name centering
+    \renewcommand{\@makefnmark}{\hbox to \z@{$^{\@thefnmark}$\hss}}
+    % The footnote-mark was overlapping the footnote-text,
+    % added the following to fix this problem               (MK)
+    \long\def\@makefntext##1{%
+      \parindent 1em\noindent
+      \hbox to 1.8em{\hss $\m@th ^{\@thefnmark}$}##1
+    }
+    \thispagestyle{empty}
+    \@maketitle
+    \@thanks
+    \@notice
+  \endgroup
+  \let\maketitle\relax
+  \let\thanks\relax
+
+  \newbox\titrun
+  \global\setbox\titrun=\hbox{\small\rm\ignorespaces\shorttitle}
+  % running title too long
+  \ifdim\wd\titrun>\textwidth%
+    \fancyhead[C]{\small Title Suppressed Due to Excessive Length}%
+  \fi
+}
+
+% rules for title box at top of first page
+\newcommand{\@toptitlebar}{
+  \hrule height 1\p@
+  \vskip 0.25in
+%  \vskip -\parskip%
+}
+\newcommand{\@bottomtitlebar}{
+  \vskip 0.25in
+  \vskip -\parskip
+  \hrule height 1\p@
+%  \vskip 0.09in%
+}
+
+% create title (includes both anonymized and non-anonymized versions)
+\providecommand{\@maketitle}{}
+\renewcommand{\@maketitle}{%
+  \vbox{%
+    \hsize\textwidth
+    \linewidth\hsize
+%    \vskip 0.1in
+    \@toptitlebar
+    \centering
+    \begin{log@title}\@title\end{log@title}
+    \@bottomtitlebar
+    \if@submission
+      \vskip0.5em
+      \if@logeabstract
+      \normalsize\emph{Extended Abstract Track Submissions}\\
+      \else
+      \normalsize\emph{Proceedings Track Submission}\\
+      \fi
+      \small
+      \begin{tabular}[t]{c}\rule{\z@}{24\p@}
+        \normalsize\textbf{Anonymous Author(s)} \\
+        Anonymous Affiliation \\
+        \email{Anonymous Email} \\
+      \end{tabular}%
+    \else
+      \def\and{\unskip\enspace{\rm and}\enspace}
+      \def\And{%
+        \end{tabular}\hfil\linebreak[0]\hfil%
+        \small\begin{tabular}[t]{c}\bfseries\normalsize\rule{\z@}{24\p@}\ignorespaces%
+      }
+      \def\AND{%
+        \end{tabular}\hfil\linebreak[4]\hfil%
+        \small\begin{tabular}[t]{c}\bfseries\normalsize\rule{\z@}{24\p@}\ignorespaces%
+      }
+      \small\begin{tabular}[t]{c}\bfseries\normalsize\rule{\z@}{24\p@}\@author\end{tabular}%
+    \fi
+    \vskip 0.2in \@minus 0.1in
+  }
+}
+
+% add conference reference to bottom of first page
+\newcommand{\ftype@noticebox}{8}
+\newcommand{\@notice}{%
+  % give a bit of extra room back to authors on first page
+  \enlargethispage{2\baselineskip}%
+  \@float{noticebox}[b]%
+    \footnotesize\@noticestring%
+  \end@float%
+}
+
+\newenvironment{log@title}%
+  {\Large\bfseries\list{}{\leftmargin=0.5em\rightmargin=0.5em}\item[]\centering\setlength{\baselineskip}{1.25em}}%
+  {\endlist}
+
+\newenvironment{log@abstract}%
+  {\list{}{\topsep=0.2em\rightmargin=4em\leftmargin=4em}%
+  \item\relax}
+  {\endlist}
+
+% abstract styling
+\renewenvironment{abstract}%
+{%
+  \centering%
+  {\large\bfseries Abstract}%
+  \begin{log@abstract}%
+}
+{
+  \par%
+  \vskip 0.5em
+  \end{log@abstract}%
+  \vskip 0.5em
+}
+
+% handle tweaks for camera-ready copy vs. submission copy
+\if@preprint
+  \newcommand{\@noticestring}{%
+    Preprint. Preliminary work.%
+  }
+\else
+  \if@logreview
+    \if@logeabstract
+      \newcommand{\@noticestring}{%
+        Submitted to the \@logordinal\/ Learning on Graphs Conference (LoG \logyear, Extended Abstract Track). Do not distribute.%
+      }
+    \else
+      \newcommand{\@noticestring}{%
+        Submitted to the \@logordinal\/ Learning on Graphs Conference (LoG \logyear, Proceedings Track). Do not distribute.%
+      }
+    \fi
+
+    % line numbers for submission
+    \RequirePackage{lineno}
+    \renewcommand\linenumberfont{\color{gray}\normalfont\tiny\sffamily}
+    \linenumbers
+
+    % fix incompatibilities between lineno and amsmath, if required, by
+    % transparently wrapping linenomath environments around amsmath
+    % environments
+    \AtBeginDocument{%
+      \@ifpackageloaded{amsmath}{%
+        \newcommand*\patchAmsMathEnvironmentForLineno[1]{%
+          \expandafter\let\csname old#1\expandafter\endcsname\csname #1\endcsname
+          \expandafter\let\csname oldend#1\expandafter\endcsname\csname end#1\endcsname
+          \renewenvironment{#1}%
+                          {\linenomath\csname old#1\endcsname}%
+                          {\csname oldend#1\endcsname\endlinenomath}%
+        }%
+        \newcommand*\patchBothAmsMathEnvironmentsForLineno[1]{%
+          \patchAmsMathEnvironmentForLineno{#1}%
+          \patchAmsMathEnvironmentForLineno{#1*}%
+        }%
+        \patchBothAmsMathEnvironmentsForLineno{equation}%
+        \patchBothAmsMathEnvironmentsForLineno{align}%
+        \patchBothAmsMathEnvironmentsForLineno{flalign}%
+        \patchBothAmsMathEnvironmentsForLineno{alignat}%
+        \patchBothAmsMathEnvironmentsForLineno{gather}%
+        \patchBothAmsMathEnvironmentsForLineno{multline}%
+      }
+      {}
+    }
+  \else
+    \if@logeabstract
+      \newcommand{\@noticestring}{%
+      \def\\{\unskip{} \ignorespaces}\shortauthor, \@title\xspace (Extended Abstract). Presented at the \@logordinal\/ Learning on Graphs Conference (LoG \logyear), \@loglocation, \@logdates, \logyear.%
+      }
+    \else
+      \newcommand{\@noticestring}{%
+      \def\\{\unskip{} \ignorespaces}\shortauthor, \@title. \textit{Proceedings of the \@logordinal\/ Learning on Graphs Conference (LoG \logyear)}, PMLR \@pmlrvolume, \@loglocation, \@logdates, \logyear.%
+      }
+    \fi
+  \fi
+\fi
+
+\endinput

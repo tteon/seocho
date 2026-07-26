@@ -1,0 +1,275 @@
+\documentclass{article}
+\usepackage{log_2026}						% for camera-ready version
+% \usepackage[review]{log_2026}				% for anonymous submission to proceedings track
+% \usepackage[review,eabstract]{log_2026}	% for anonymous submission to extended abstract track
+% \usepackage[preprint]{log_2026}			% for preprint version
+% \usepackage[eabstract]{log_2026}			% for accepted extended abstract papers
+
+\usepackage{booktabs}						% professional-quality tables
+\usepackage{multirow}						% tabular cells spanning multiple rows
+\usepackage{amsfonts}						% blackboard math symbols
+\usepackage{graphicx}						% figures
+\usepackage{duckuments}						% sample images
+
+% If you want to use natbib:
+\usepackage[numbers,compress,sort]{natbib}	% for numerical citations
+% \usepackage[sort,round]{natbib}			% for textual citations
+
+% If you want to use bibLaTeX, uncomment below:
+% \usepackage[
+%      backend=biber,
+%      style=numeric-comp,
+%      backref=true,
+%      natbib=true]{biblatex}
+% \addbibresource{reference.bib}
+
+\title[Submission Guidelines and Formatting Instructions for LoG Conference \logyear]{Submission Guidelines and Formatting Instructions for Learning on Graphs Conference (LoG) \logyear}
+
+\author[Prefect et al.]{%
+Ford Prefect\thanks{Equal contribution.}\\
+University of Nowhere \\
+\email{prefect@nowehere.com}\And
+Tricia McMillan\footnotemark[1]\\
+Galactic University\\
+\email{trillian@galactic.edu}\And
+Arthur Dent\\
+Terra University\\
+\email{dent@terra.edu}
+}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This document provides an example usage of \verb+log_+\logyear\verb+.sty+, which describes submission guidelines and formatting instructions for the Learning on Graphs (LoG) Conference \logyear{}.
+Abstracts should be a single paragraph, ideally between 4--6 sentences long.
+\end{abstract}
+
+\section{Submission Guidelines}
+
+LoG \logyear{} solicits papers from areas broadly related to \textbf{machine learning on graphs and geometry}.
+Detailed information about the reviewing process is available on the conference website at:
+\begin{center}
+	\url{https://logconference.org/}
+\end{center}
+Please follow the guidelines to prepare your submissions to LoG \logyear{}. All updates to the guidelines will be promptly published at the LoG website.
+
+\subsection{Double-Blind Reviewing}
+Submissions will be double-blind: reviewers cannot see author names when conducting reviews and authors cannot see reviewer names.
+We use \href{https://openreview.net/group?id=logconference.io/LOG/\logyear/Conference}{OpenReview} to host papers and allow for public discussions that can be seen by all; comments that are posted by reviewers will remain anonymous.
+
+\section{Formatting Instructions}
+
+All submissions must adhere to the following formatting specifications.
+
+\subsection{Style Files}
+
+The only supported style file for LoG \logyear{} is \verb+log_+\logyear\verb+.sty+ with \LaTeX.
+The initial submission and the camera ready versions have to be submitted as \texttt{.pdf} files.
+
+By default, the style file creates camera ready versions for accepted proceedings track papers, where the footnote in the first page gives the full reference of the paper.
+The style file contains three additional options:
+\begin{itemize}
+	\item \verb+[review]+ anonymizes the manuscript for double-blind review. It also adds line numbers to help reviewers navigate to particular lines.
+	\item \verb+[preprint]+ creates non-anonymous versions for preprint platforms (e.g., arXiv), with the text ``Preprint. Preliminary work.'' in the footnote.
+	\item \verb+[eabstract]+ creates camera ready versions for accepted extended abstracts with the footnote containing pertinent paper information.
+\end{itemize}
+
+\subsection{Layout}
+Manuscripts must be set in one-column US letter papers.
+All text should be confined within a rectangle 5.5-inch wide and 9-inch long.
+The left and right margins are both 1.5 inches.
+All pages should start at 1 inch from the top of the page.
+
+\subsection{Font}
+All text (except listings, non-Latin scripts, and mathematical formulas) should use the \textbf{Times New Roman} typeface.
+\textbf{Computer Modern} fonts are preferred for mathematical symbols and formulas.
+Furthermore, please make sure your PDF file only contains Type-1 fonts.
+
+\subsection{Title}
+
+The paper title should be 14-point bold type and centered between two horizontal rules that are both 1-point thick.
+There is a 1/4-inch space above and below the title to rules.
+Make sure that the title is in Initial Caps --- The First Letter of Content Words Should be Made Capital Letters.
+
+Besides, the title will display as the running head on each page except the first one.
+The running title consists of a single line in 9-point font, centered above a horizontal rule, that is 1/2-point thick and 20-point above the main text.
+The original title is automatically set as the running head.
+In case that the original title exceeds one line, a shorter form can be specified by using \verb+\title[A Shorter Title]{A Long Title}+.
+
+\subsection{Author Information}
+The author information appears immediately after the title, with a 24-point space in between.
+Submissions to LoG \logyear{} should be properly anonymized.
+Once the \verb+[review]+ option is passed, the author information will not be printed.
+
+For the final version, author names are set in 10-point bold type, institution names and addresses are in 9-font, and email addresses are in 9-point typewriter font.
+Each name should be centered above the corresponding institution and email address.
+Authors can use \verb+\institute+ and \verb+\email+ to specify affiliations and email addresses respectively.
+
+To ensure that the reference information in the bottom of the first page is rendered appropriately and concisely, please specify an abbreviated author list in the form of the first author's initials and last name followed by ``et al.'': \verb+\author[Y. Zhu et al.]{Yanqiao Zhu \and Yuanqi Du}+.
+
+With the provided style file, the author information can be set in various styles.
+If all authors are from the same institution, authors can use:
+\begin{quote}
+	\begin{verbatim}
+		\author[F. Last et al.]
+		 {First Last 1, First Last 2, ... \and First Last n \\
+		  Institute \\
+		  Address line \\
+		  \email{first.last@example.com}}
+	\end{verbatim}
+\end{quote}
+For authors from different institutions, please use the \verb+\And+ command:
+\begin{quote}
+	\begin{verbatim}
+		\author[F. Last et al.]
+		 {First Last 1 \\
+		  Institute 1 \\
+		  Address line \\
+		  \email{first.last.1@example.com}\And
+		  First Last 2 \\
+		  Institute 2 \\
+		  Address line \\
+		  \email{first.last.2@example.com}}
+	\end{verbatim}
+\end{quote}
+If author names do not fit in one line, use the \verb+\AND+ command to start a separate row of authors:
+\begin{quote}
+	\begin{verbatim}
+		\author[F. Last et al.]
+		 {First Last 1, ..., \and First Last n \\
+		  Institute 1 \\
+		  Address line \\
+		  \email{first.last.1@example.com}\AND
+		  First Last n+1 \\
+		  Institute 2 \\
+		  Address line \\
+		  \email{first.last.n.1@example.com}}
+	\end{verbatim}
+\end{quote}
+
+\subsection{Abstract}
+
+The paper abstract should be placed 0.2 inches below the final address.
+The heading word ``Abstract'' should be centered, bold, and in 12-point type.
+The abstract body should use 10-point type with a vertical spacing of 11 points and be indented 0.5 inches on both the left- and right-hand margins.
+
+\subsection{Headings and Sections}
+
+All section headings should be numbered, flush left, and bold with content words capitalized.
+\begin{itemize}
+	\item First-level headings should be in 12-point type. Leave a 12-point space before and a 2-point space after the heading.
+	\item Second-level headings should be in 10-point type. Leave a 8-point space before the heading and a 2-point space afterward.
+	\item Third-level headings should be in 10-point type. Leave a 6-point space before and a 2-point space after the heading.
+\end{itemize}
+Please use no more than three levels of headings.
+
+\paragraph{Paragraphs}
+There is also a \verb+\paragraph+ command available, which sets the heading in bold, flush left, and inline with the text.
+Leave a 6-point vertical space before the heading and 1em of horizontal space following the heading.
+
+\paragraph{Footnotes}
+Use footnotes to provide readers with additional information about a topic without interrupting the flow of the paper.
+Footnotes should be numbered sequentially and placed in 9-point type at the bottom of the page on which they appear.
+Precede the footnotes with a horizontal rule of 2 inches.
+Note that footnotes should be properly typeset \emph{after} punctuation marks.\footnote{This is an example footnote.}
+
+\subsection{Figures}
+
+\begin{figure}
+	\centering
+	\includegraphics[width=0.5\linewidth]{example-image-duck}
+	\caption{A sample figure.}
+	\label{fig:sample}
+\end{figure}
+
+All included artwork must be neat, legible, and separated from the text.
+The figure number and caption always appear below the figure.
+The figure label should be in boldface and numbered consecutively.
+The caption should be set in 9-point type, in sentence case, and centered unless it runs more than one lines, in which case it should be flush left.
+See Figure~\ref{fig:sample} for an example.
+
+\subsection{Tables}
+
+\begin{table}
+	\centering
+	\caption{A sample table.}
+	\label{tab:sample}
+	\begin{tabular}{ccccc}
+		\toprule
+		\multirow{2.5}{*}{Method} & \multicolumn{2}{c}{Data 1} & \multicolumn{2}{c}{Data 2}  \\
+		\cmidrule(lr){2-3} \cmidrule(lr){4-5}
+		& \(\mathbf{X}\) & \(\mathbf{Y}\) & \(\mathbf{X}\) & \(\mathbf{Y}\) \\
+		\midrule
+		A & 0.8817  & 0.9572 & 0.1893 & 0.1725 \\
+		B & 0.7126  & 0.2615 & 0.9173 & 0.1286 \\
+		C & 0.2716  & 0.1826 & 0.2836 & 0.1836 \\
+		\bottomrule
+	\end{tabular}
+\end{table}
+
+Like figures, tables should be legible and numbered consecutively.
+However, the table number and caption should always appear above the table.
+See Table~\ref{tab:sample} for an example.
+
+Note that publication-quality tables \emph{do not contain vertical rules and double rules}.
+We strongly suggest the use of the \texttt{booktabs} package which provides the commands \verb+\toprule+, \verb+\midrule+, and \verb+\bottomrule+ to enhance the quality of tables.
+
+\subsection{Paragraphs}
+
+Paragraphs are separated by 1/2 line space (5.5 points).
+Do not indent the first line of a given paragraph.
+
+\subsection{Equations}
+
+The provided style file loads the \verb+amsmath+ package automatically.
+Unnumbered single-lined equations should be displayed using \verb+\[+ and \verb+\]+. For example:
+\[
+	\mathbf{X}' = \sigma(\widetilde{\mathbf{D}}^{-\frac{1}{2}}\widetilde{\mathbf{A}}\widetilde{\mathbf{D}}^{-\frac{1}{2}} \mathbf{XW}).
+\]
+Numbered single-line equations should be displayed using the \verb+equation+ environment. For example:
+\begin{equation}
+	\mathbf{X}' = \sigma(\widetilde{\mathbf{D}}^{-1}\widetilde{\mathbf{A}}\mathbf{XW}).
+\end{equation}
+
+\subsection{Bibliographies}
+
+Use an unnumbered first-level heading for the references.
+For a citation, use \verb+\cite+, e.g.,~\cite{Kipf:2017tc}.
+For a textual citation, use \verb+\citet+, e.g.,~\citet{Velickovic:2018we}.
+\emph{Any choice} of citation style is allowed as long as it is used consistently throughout the whole paper.
+Additionally, both \verb+natbib+ and \verb+bibLaTeX+ packages are supported.
+It is also possible to reduce the font size to \verb+\small+ (9-point font) when listing the references.
+
+In the submission version, authors should refer to their own work in the third person for blind review.
+In particular, avoid phrases that may reveal personal identities (e.g., ``in our earlier work~\cite{Hamilton:2017tp}, we have shown ...'').
+
+\section*{Author Contributions}
+Authors of accepted papers are \emph{encouraged} to include a statement that declares the individual contribution of every author, especially when there are co-authors that made equal contributions to the research.
+You may adopt the \href{https://credit.niso.org/}{Contributor Roles Taxonomy (CRediT)} methodology for attributing contributions.
+Do not include this section in the version for blind review.
+This section does not count towards the page limit.
+
+\section*{Acknowledgements}
+
+The \LaTeX{} template of LoG \logyear{} is heavily borrowed from the NeurIPS template.
+
+Do not include acknowledgements in the version for blind review.
+If a paper is accepted, please place such acknowledgements in an unnumbered section at the end of the paper, immediately before the references.
+The acknowledgements do not count towards the page limit.
+
+% For natbib users:
+\bibliographystyle{unsrtnat}
+\bibliography{reference}
+% For bibLaTeX users:
+% \printbibliography
+
+\appendix
+\section{Appendix}
+Any possible appendices should be placed after bibliographies.
+If your paper has appendices, please submit the appendices together with the main body of the paper.
+There will be no separate supplementary material submission.
+The main text should be self-contained; reviewers are not obliged to look at the appendices when writing their review comments.
+
+\end{document}

@@ -19,6 +19,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 TEX = HERE / "paper.tex"
+APPENDIX = HERE / "appendix.tex"
 BIB = HERE / "references.bib"
 OUT = HERE / "PAPER.md"
 
@@ -90,47 +91,14 @@ def convert_table(body: str, cites: dict[str, int], labels: dict[str, str]) -> l
     return out
 
 
-def main() -> int:
-    tex = TEX.read_text()
-    keys = bib_order()
-    cites = {k: i + 1 for i, k in enumerate(keys)}
+def render(body: str, cites: dict[str, int], labels: dict[str, str],
+           heading_shift: bool = False) -> list[str]:
+    """Walk one LaTeX body and emit Markdown lines.
 
-    body = tex.split("\\begin{document}", 1)[1].split("\\bibliographystyle", 1)[0]
-    # Drop LaTeX-only commands that carry no prose.
-    body = re.sub(r"\\maketitle|\\centering|\\small|\\itemsep\s*\S+", "", body)
-    body = re.sub(r"\\label\{[^}]*\}", "", body)
-
-    # Number sections, figures, and tables so cross-references resolve. Labels
-    # map to bare numbers because the prose already writes "Figure~\ref{...}".
-    labels: dict[str, str] = {}
-    fig_n = tab_n = sec_n = sub_n = 0
-    token = re.compile(
-        r"\\(section|subsection)\{|\\begin\{(figure|table)\}|\\label\{([^}]*)\}")
-    pending = None
-    for m in token.finditer(tex):
-        if m.group(1) == "section":
-            sec_n, sub_n, pending = sec_n + 1, 0, str(sec_n + 1)
-        elif m.group(1) == "subsection":
-            sub_n += 1
-            pending = f"{sec_n}.{sub_n}"
-        elif m.group(2) == "figure":
-            fig_n += 1
-            pending = str(fig_n)
-        elif m.group(2) == "table":
-            tab_n += 1
-            pending = str(tab_n)
-        elif m.group(3) and pending is not None:
-            labels[m.group(3)] = pending
-
+    heading_shift demotes appendix headings one level so they nest under the
+    single appendix heading rather than competing with the paper's sections.
+    """
     lines: list[str] = []
-    title = re.search(r"\\title(?:\[[^\]]*\])?\{(.+?)\}\s*\n", tex, re.S)
-    if title:
-        parts = [p.strip() for p in title.group(1).split("\\\\")]
-        lines.append(f"# {inline(parts[0], cites, labels)}")
-        for p in parts[1:]:
-            lines.append(f"\n## {inline(p, cites, labels)}")
-        lines.append("")
-
     i = 0
     while i < len(body):
         # Abstract.
@@ -183,6 +151,8 @@ def main() -> int:
         m = re.compile(r"\\(section|subsection|paragraph)\{((?:[^{}]|\{[^{}]*\})*)\}").match(body, i)
         if m:
             depth = {"section": "##", "subsection": "###", "paragraph": "####"}[m.group(1)]
+            if heading_shift:
+                depth += "#"
             lines += ["", f"{depth} {inline(m.group(2), cites, labels)}", ""]
             i = m.end()
             continue
@@ -200,6 +170,79 @@ def main() -> int:
                 if para.strip():
                     lines += [" ".join(para.split()), ""]
         i = end
+
+    return lines
+
+
+def main() -> int:
+    tex = TEX.read_text()
+    keys = bib_order()
+    cites = {k: i + 1 for i, k in enumerate(keys)}
+
+    body = tex.split("\\begin{document}", 1)[1].split("\\bibliographystyle", 1)[0]
+    # Drop LaTeX-only commands that carry no prose.
+    body = re.sub(r"\\maketitle|\\centering|\\small|\\itemsep\s*\S+", "", body)
+    body = re.sub(r"\\label\{[^}]*\}", "", body)
+
+    # Number sections, figures, and tables so cross-references resolve. Labels
+    # map to bare numbers because the prose already writes "Figure~\ref{...}".
+    labels: dict[str, str] = {}
+    fig_n = tab_n = sec_n = sub_n = 0
+    token = re.compile(
+        r"\\(section|subsection)\{|\\begin\{(figure|table)\}|\\label\{([^}]*)\}")
+    pending = None
+    for m in token.finditer(tex):
+        if m.group(1) == "section":
+            sec_n, sub_n, pending = sec_n + 1, 0, str(sec_n + 1)
+        elif m.group(1) == "subsection":
+            sub_n += 1
+            pending = f"{sec_n}.{sub_n}"
+        elif m.group(2) == "figure":
+            fig_n += 1
+            pending = str(fig_n)
+        elif m.group(2) == "table":
+            tab_n += 1
+            pending = str(tab_n)
+        elif m.group(3) and pending is not None:
+            labels[m.group(3)] = pending
+
+    # The appendix is a separate file but shares the float counters and is
+    # numbered A.1, A.2, ... Without this pass, "Appendix~\ref{app:data}" in the
+    # body would render with no number at all.
+    app_n = 0
+    pending = None
+    for m in token.finditer(APPENDIX.read_text()):
+        if m.group(1) == "subsection":
+            app_n += 1
+            pending = f"A.{app_n}"
+        elif m.group(2) == "figure":
+            fig_n += 1
+            pending = str(fig_n)
+        elif m.group(2) == "table":
+            tab_n += 1
+            pending = str(tab_n)
+        elif m.group(3) and pending is not None:
+            labels[m.group(3)] = pending
+
+    lines: list[str] = []
+    title = re.search(r"\\title(?:\[[^\]]*\])?\{(.+?)\}\s*\n", tex, re.S)
+    if title:
+        parts = [p.strip() for p in title.group(1).split("\\\\")]
+        lines.append(f"# {inline(parts[0], cites, labels)}")
+        for p in parts[1:]:
+            lines.append(f"\n## {inline(p, cites, labels)}")
+        lines.append("")
+
+    lines += render(body, cites, labels)
+
+    # The appendix carries substantive content (the fallback table and the
+    # lineage/category figures), so a mirror that omitted it would be materially
+    # incomplete for anyone reading without a LaTeX toolchain.
+    appendix = re.sub(r"\\label\{[^}]*\}", "",
+                      re.sub(r"\\centering|\\small", "", APPENDIX.read_text()))
+    lines += ["", "## Appendix A. Reproducibility Protocol", ""]
+    lines += render(re.sub(r"^\\section\{[^}]*\}", "", appendix.strip()), cites, labels,
+                    heading_shift=True)
 
     # Reference list, numbered exactly as natbib would.
     entries = {}

@@ -2,9 +2,10 @@
 This appendix specifies the parts of the evaluation that are most vulnerable to hidden supervision or accidental leakage. All procedures write case-level receipts and can be resumed without changing completed calls.
 
 \subsection{FinDER-to-graph construction}
+\label{app:data}
 FinDER is a question-and-answer collection rather than a graph dataset. Each record retains a case identifier, financial question, category, issuer or ticker when available, gold answer, and source references. Four generation models read the same source material and emit entity mentions, typed relations, financial values, periods, units, and source links. A provider--case workspace isolates one model's output from another's output.
 
-The extraction pipeline (i) normalizes text while retaining the surface form, (ii) converts model outputs into typed nodes and relations, (iii) normalizes period, unit, and accounting basis while retaining raw values, (iv) keeps duplicate observations until the survivorship policy resolves them, and (v) creates read-only category projections. Every projected fact retains provider, case, category, and source identifiers. The duplicate-aware snapshot contains 22,812 provider--case workspaces, 523,092 nodes, and 1,211,526 relations. Within-category normalization yields 187,601 semantic nodes and 166,147 typed edges; the qualified answer projection contains 8,313 nodes and 20,011 relations.
+The extraction pipeline (i) normalizes text while retaining the surface form, (ii) converts model outputs into typed nodes and relations, (iii) normalizes period, unit, and accounting basis while retaining raw values, (iv) keeps duplicate observations until the survivorship policy resolves them, and (v) creates read-only category projections. Every projected fact retains provider, case, category, and source identifiers. The duplicate-aware snapshot contains 22,812 provider--case workspaces, 523,092 nodes, and 1,211,526 relations. Within-category normalization yields 187,601 semantic nodes and 166,147 typed edges; the qualified answer projection contains 8,313 nodes and 20,011 relations. Figure~\ref{fig:lineage} shows the count at each layer and Figure~\ref{fig:category} the two orderings the category views admit.
 
 \begin{figure}[t]
 \centering
@@ -42,11 +43,13 @@ Shareholder return & 9,895 & 6,786 & 1.372 & .434 & .003 & .008 & .996\\
 Mean degree measures local connectivity, LCC is the largest-component fraction, reciprocity measures mirrored directed relations, transitivity measures triangle closure, and normalized PageRank entropy measures whether centrality is diffuse. These values describe observation regimes, not category quality. Risk is hub-concentrated despite high connectivity; Footnotes is large but sparse; Governance and Risk have higher reciprocity; Legal has the highest transitivity.
 
 \subsection{Revised-query construction and validation}
+\label{app:queries}
 Candidate pairs are drawn from the full 5,703-case FinDER pool using issuer, category, and predeclared financial decision axes. Selection does not inspect graphs, retrieval results, answers, or scores. The revision prompt receives only the issuer, two source questions, their gold answers, and the decision axis. It asks for one atomic slot from each view, a conservative cross-view reconciliation, and JSON-only output; unsupported causal claims and simple concatenation are rejected. The initial 28-item construction is retained only as a failed exploratory audit.
 
-Five blinded role/model personas independently validate each revision: financial reporting, audit, equity/benchmark statistics, graph and multi-agent necessity, and governance. An item passes only with at least three of five accepts, valid atomic slots, and a supported cross-view conclusion; the gate issues $28\times5=140$ reviews and retains 13 of 28 items. This five-role revision gate is distinct from the four-persona AGY panel of Appendix~A.4, which examined only the nine disputed or audit-sampled items of the earlier construction. Persona reviews are correlated model simulations and are therefore reported as a robustness audit, not as independent human annotation.
+Five blinded role/model personas independently validate each revision: financial reporting, audit, equity/benchmark statistics, graph and multi-agent necessity, and governance. An item passes only with at least three of five accepts, valid atomic slots, and a supported cross-view conclusion; the gate issues $28\times5=140$ reviews and retains 13 of 28 items. This five-role revision gate is distinct from the four-persona AGY panel of Appendix~\ref{app:review}, which examined only the nine disputed or audit-sampled items of the earlier construction. Persona reviews are correlated model simulations and are therefore reported as a robustness audit, not as independent human annotation.
 
 \subsection{Routing and evidence serialization}
+\label{app:routing}
 Category capability descriptors are deterministic TF--IDF sums over all FinDER questions except component cases in the evaluation item. For token $t$ and $N$ training questions,
 \[
  \operatorname{idf}(t)=\log\frac{1+N}{1+\operatorname{df}(t)}+1.
@@ -65,21 +68,20 @@ Evidence is compact sorted-key JSON with stable identifiers. Units are appended 
 \texttt{cl100k\_base} tokenizer for reproducibility and report sensitivity at 512, 1,024, 2,048, and 4,096 tokens; this does not assert that MARA uses the same tokenizer.
 
 \subsection{Output-blind review and adversarial controls}
+\label{app:review}
 The first MARA review is followed by four independent AGY persona critiques and a Codex chair synthesis over the nine disputed or audit-sampled items ($9\times4=36$ reviews per stage). Reviewers do not see author decisions, retrieval outputs, or answer scores. The chair stage is a sensitivity analysis and does not increase the effective reviewer sample size.
 
 For adversarial tests, the query is constructed directly from a matched fact tuple (entity, metric, period, basis, and unit). A poisoned single view receives a 10\% numeric mutation; a verification coalition receives both values and must report a conflict without selecting either. Protected-field tests compare unsafe serialization with SDCR field removal. These 31 answer-blind tests measure contract enforcement under controlled conditions and are not presented as natural-query accuracy.
 
 \subsection{Capability fallback and the corrected candidate pool}
+\label{app:fallback}
 Two artifacts were produced after the main evaluation and are released with it.
 
-The fallback measurement is a replay: the served evidence for each case is assembled from the already-frozen per-case arm rows --- routed evidence where the router covered every required view, the frozen TF--IDF top-2 evidence otherwise --- so retrieval, budget, tokenizer, and provenance are shared exactly with the reported arms and nothing is re-retrieved. The policy was fixed before scores were read. The retrieval half costs nothing and reproduces byte-identically; the answer half re-uses the prompt, schema, and scoring functions of the main harness verbatim, changing only which evidence arm is served, and persists every completion so an interrupted run never repeats a paid call.
+The fallback measurement is a replay: the served evidence for each case is assembled from the already-frozen per-case arm rows --- routed evidence where the router covered every required view, the frozen TF--IDF top-2 evidence otherwise --- so retrieval, budget, tokenizer, and provenance are shared exactly with the reported arms and nothing is re-retrieved. The policy was fixed before scores were read, and Table~\ref{tab:fallback} reports the retrieval outcome. The retrieval half costs nothing and reproduces byte-identically; the answer half re-uses the prompt, schema, and scoring functions of the main harness verbatim, changing only which evidence arm is served, and persists every completion so an interrupted run never repeats a paid call.
 
 Fifteen issuer labels in the frozen pool are not accepted tickers, but that is partly registry coverage rather than mislabelling: several (\texttt{BMY}, \texttt{FDX}, \texttt{KLA}) are genuine tickers absent from a registry built from repeated entities. Three candidates provably pair two companies, all labelled \texttt{EPS} --- Cintas with United Airlines, Cisco with United Airlines, and Cisco with Cintas. Two further candidates labelled \texttt{IP} pair Synopsys with Keysight by manual reading, which the registry cannot adjudicate because neither ticker is in its accepted set. Re-deriving changes 33 of 240 candidates and shifts the split from 51/189 to 57/183; twelve of the 13 evaluated cases survive, the exception being \texttt{TT}, which drops only because Trane Technologies is absent from the registry rather than because the label is wrong.
 
 The corrected candidate pool re-derives issuer labels with a validated extractor rather than the trailing-acronym heuristic: a token qualifies only as an accepted \texttt{ticker:*} in the frozen identity registry, and a question naming more than one accepted ticker is treated as a cannot-link and dropped. This reuses the identifier-first policy of Section~\ref{sec:observation} instead of introducing a new ticker list. It is released together with a core-disjoint expansion manifest, both marked \texttt{pending\_construct\_validation}; neither contributes to a reported number, because re-deriving the evaluated chain requires re-running the paid five-role gate.
-
-\subsection{Orthogonal mediation gate}
-The full corpus has two joint observation profiles and cannot identify prompt and ontology effects separately. We therefore use a mechanistic $2\times2\times4\times16$ calibration: two prompts, two ontologies, four graph-generation models, and 16 FinDER cases. Each cell is read-only, retrieves with the frozen PPR implementation, and is answered by the fixed DeepSeek model. A case-blocked standardized serial path estimates prompt or ontology treatment through graph size and retrieval recall to answer F1. The resulting indirect estimates are reported as calibration evidence, not as full-corpus causal effects.
 
 \begin{table}[t]
 \centering
@@ -97,5 +99,10 @@ SDCR $+$ capability fallback & \textbf{.152} & \textbf{.068} & 1{,}979\\
 \end{tabular}
 \end{table}
 
-\subsection{Orthogonal mediation gate detail}
-Not measurably. A 16-case, 256-cell contrast crossing two prompts, two ontologies, and four graph-generation models reaches mean retrieval token recall .352 and numeric recall .886, with the fixed DeepSeek answerer at token F1 .286 and no schema failures. A case-blocked standardized serial path (treatment $\rightarrow$ nodes-plus-relations $\rightarrow$ retrieval recall $\rightarrow$ answer F1) gives an indirect estimate of $.00006$ for prompt (95\% CI $[-.00046,.00251]$) and $-.00001$ for ontology ($[-.00099,.00196]$). This is a mechanistic negative result over two cases per category, not full-corpus invariance.
+\subsection{Orthogonal mediation gate}
+\label{app:mediation}
+The full corpus has two joint observation profiles and cannot identify prompt and ontology effects separately. We therefore use a mechanistic $2\times2\times4\times16$ calibration: two prompts, two ontologies, four graph-generation models, and 16 FinDER cases. Each cell is read-only, retrieves with the frozen PPR implementation, and is answered by the fixed DeepSeek model. A case-blocked standardized serial path estimates prompt or ontology treatment through graph size and retrieval recall to answer F1. The resulting indirect estimates are reported as calibration evidence, not as full-corpus causal effects.
+
+
+
+A 16-case, 256-cell contrast crossing two prompts, two ontologies, and four graph-generation models reaches mean retrieval token recall .352 and numeric recall .886, with the fixed DeepSeek answerer at token F1 .286 and no schema failures. A case-blocked standardized serial path (treatment $\rightarrow$ nodes-plus-relations $\rightarrow$ retrieval recall $\rightarrow$ answer F1) gives an indirect estimate of $.00006$ for prompt (95\% CI $[-.00046,.00251]$) and $-.00001$ for ontology ($[-.00099,.00196]$). This is a mechanistic negative result over two cases per category, not full-corpus invariance.

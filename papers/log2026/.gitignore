@@ -31,3 +31,7 @@ PERSONA_AUDIT.md
 RESEARCH_REASSESSMENT.md
 STYLE_REVIEW.md
 SUBMISSION_CHECKLIST.md
+
+# Compiled output — regenerate with latexmk -pdf paper.tex
+paper.pdf
+*.brf

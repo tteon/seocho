@@ -42,6 +42,10 @@ Shareholder return & 9,895 & 6,786 & 1.372 & .434 & .003 & .008 & .996\\
 \end{table}
 Mean degree measures local connectivity, LCC is the largest-component fraction, reciprocity measures mirrored directed relations, transitivity measures triangle closure, and normalized PageRank entropy measures whether centrality is diffuse. These values describe observation regimes, not category quality. Risk is hub-concentrated despite high connectivity; Footnotes is large but sparse; Governance and Risk have higher reciprocity; Legal has the highest transitivity.
 
+Fifty output-blind resolved issuers give mean PPR@20 divergence .986 (median 1.000), which is the descriptive statistic behind the saturation reported in the body.
+
+The offline governance arm uses Owlready2 to compile type-compatibility and disjointness rules. It quarantines five aliases co-typed as companies and regulators; Nasdaq is replaced by Ford among the top 50, and Moody's and S\&P Global are among the quarantined aliases, showing that such rules propagate upstream type noise and must support review rather than silently assert truth. The schema currently carries ticker but neither CIK nor a canonical identifier property, which we record as a governance gap rather than impute.
+
 \subsection{Revised-query construction and validation}
 \label{app:queries}
 Candidate pairs are drawn from the full 5,703-case FinDER pool using issuer, category, and predeclared financial decision axes. Selection does not inspect graphs, retrieval results, answers, or scores. The revision prompt receives only the issuer, two source questions, their gold answers, and the decision axis. It asks for one atomic slot from each view, a conservative cross-view reconciliation, and JSON-only output; unsupported causal claims and simple concatenation are rejected. The initial 28-item construction is retained only as a failed exploratory audit.
@@ -64,6 +68,8 @@ subject to access, provenance, and evidence-budget constraints. The router selec
 \]
 where $r_s(q)=2$ only for an explicitly verified or conflicting slot. Personalized PageRank divergence only breaks ties among minimum-cost feasible coalitions; the no-network ablation uses the same candidate set. The revised slot router receives the question and category names, never gold answers or expected categories, and must return a single JSON object. Serialization failures and uncovered required views receive zero in intention-to-treat analysis.
 
+Entity resolution is identifier-first: a ticker--name link needs support from at least two providers or two categories, conflicting tickers create a cannot-link and quarantine the alias, and filing placeholders stay out of the primary estimate while every decision is retained in an identity receipt. Resolution precedes centrality, so degree never decides whether an entity exists and only ranks resolved entities. Each selected view then applies question-personalized PageRank with damping .85 and typed local expansion, recording a deterministic lexical fallback when the selected subgraph has no relation. A single-view arm receives up to 20 nodes and a two-view coalition ten per view, so both cap at 20.
+
 Evidence is compact sorted-key JSON with stable identifiers. Units are appended in retrieval order until the next complete unit would exceed the exact token cap. We use the frozen 
 \texttt{cl100k\_base} tokenizer for reproducibility and report sensitivity at 512, 1,024, 2,048, and 4,096 tokens; this does not assert that MARA uses the same tokenizer.
 
@@ -82,6 +88,8 @@ The fallback measurement is a replay: the served evidence for each case is assem
 Fifteen issuer labels in the frozen pool are not accepted tickers, but that is partly registry coverage rather than mislabelling: several (\texttt{BMY}, \texttt{FDX}, \texttt{KLA}) are genuine tickers absent from a registry built from repeated entities. Three candidates provably pair two companies, all labelled \texttt{EPS} --- Cintas with United Airlines, Cisco with United Airlines, and Cisco with Cintas. Two further candidates labelled \texttt{IP} pair Synopsys with Keysight by manual reading, which the registry cannot adjudicate because neither ticker is in its accepted set. Re-deriving changes 33 of 240 candidates and shifts the split from 51/189 to 57/183; twelve of the 13 evaluated cases survive, the exception being \texttt{TT}, which drops only because Trane Technologies is absent from the registry rather than because the label is wrong.
 
 The corrected candidate pool re-derives issuer labels with a validated extractor rather than the trailing-acronym heuristic: a token qualifies only as an accepted \texttt{ticker:*} in the frozen identity registry, and a question naming more than one accepted ticker is treated as a cannot-link and dropped. This reuses the identifier-first policy of Section~\ref{sec:observation} instead of introducing a new ticker list. It is released together with a core-disjoint expansion manifest, both marked \texttt{pending\_construct\_validation}; neither contributes to a reported number, because re-deriving the evaluated chain requires re-running the paid five-role gate.
+
+The frozen 120-query expansion manifest is issuer-unique internally --- one query per issuer, 120 distinct issuers --- but it is not disjoint from the evaluated core: 10 of the 13 core candidate identifiers are members of the pool and all 13 core issuers appear in it. The v2 manifest removes those queries, leaving 107 queries over 107 distinct issuers. Any future comparison must use v2, or the core results would be scored again inside their own expansion set.
 
 \begin{table}[t]
 \centering

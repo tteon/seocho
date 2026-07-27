@@ -15,13 +15,15 @@ Network is confined to ``fetch_*`` / ``latest_10k``; the section-slicing logic
 from __future__ import annotations
 
 import json
+import os
 import re
 import urllib.request
 import warnings
 from dataclasses import dataclass
 from typing import Any, List, Optional
 
-USER_AGENT = "seocho-benchmark hardy.jeong@xcena.com"
+# EDGAR asks every programmatic client to identify itself with a contact.
+USER_AGENT = os.environ.get("SEC_USER_AGENT", "seocho-benchmark support@seocho.io")
 
 # "Item 7. Management's Discussion" — apostrophe may be straight or curly; the
 # section header recurs once in the table of contents and once as the body.

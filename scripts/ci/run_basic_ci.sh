@@ -106,3 +106,6 @@ scripts/ci/check-runtime-shell-contract.sh
 bash scripts/ci/check-module-ownership-contract.sh
 scripts/ci/check-root-hierarchy-contract.sh
 scripts/pm/lint-agent-docs.sh
+
+# Keep real-world identities out of tracked content and commit metadata.
+bash scripts/ci/check-identity-contract.sh

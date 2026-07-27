@@ -80,9 +80,14 @@ missing.
 
 ## Reproduce
 
+EDGAR asks programmatic clients to identify themselves with a real contact.
+Set `SEC_USER_AGENT` to your own address; the built-in default is the project
+contact, which SEC may rate-limit harder than a per-user one.
+
 ```bash
 # dataset (network: EDGAR)
-python scripts/benchmarks/sec_temporal_bench.py --years 3 --cutoff-year 2024 \
+SEC_USER_AGENT="seocho-benchmark you@example.org" \
+  python scripts/benchmarks/sec_temporal_bench.py --years 3 --cutoff-year 2024 \
   --out outputs/evaluation/sec_temporal/dataset.jsonl
 
 # run (network: EDGAR-free; needs DozerDB + MARA_API_KEY)

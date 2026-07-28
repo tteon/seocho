@@ -1,0 +1,2 @@
+# Palette UX/A11y Learnings
+The Palantir AIP theme colors (`--accent-green` `#3fb950` and `--accent-blue` `#2f81f7`) do not provide sufficient contrast when paired with a white foreground (`color: #fff`). To meet WCAG 2 AA contrast guidelines, text on backgrounds using these colors must use a darker shade (e.g., `#0d1117` or `#000000`). Also, for ghost backgrounds like `--accent-blue-ghost`, use `--text-main` instead of white.

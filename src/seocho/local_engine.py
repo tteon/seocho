@@ -696,7 +696,7 @@ class _LocalEngine:
             llm=self.llm,
             workspace_id=self.workspace_id,
         )
-        executor = GraphQueryExecutor(graph_store=self.graph_store, database=database)
+        executor = GraphQueryExecutor(graph_store=self.graph_store, database=database, workspace_id=self.workspace_id)
         answer_synthesizer = QueryAnswerSynthesizer(
             query_strategy=self._query,
             llm=self.llm,

@@ -11,9 +11,10 @@ logger = logging.getLogger(__name__)
 class GraphQueryExecutor:
     """Canonical graph query executor for local SDK and adapter runtimes."""
 
-    def __init__(self, *, graph_store: Any, database: str) -> None:
+    def __init__(self, *, graph_store: Any, database: str, workspace_id: str = "") -> None:
         self.graph_store = graph_store
         self.database = database
+        self.workspace_id = workspace_id
 
     def execute(self, plan: QueryPlan) -> QueryExecution:
         try:
@@ -21,6 +22,8 @@ class GraphQueryExecutor:
                 plan.cypher,
                 params=plan.params,
                 database=self.database,
+                workspace_id=self.workspace_id,
+                enforce_workspace_filter=bool(self.workspace_id),
             )
             return QueryExecution(
                 cypher=plan.cypher,

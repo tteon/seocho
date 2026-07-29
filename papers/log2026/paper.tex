@@ -21,25 +21,75 @@ The third premise fails. PageRank divergence cannot trigger collaboration, becau
 \end{abstract}
 
 \section{Introduction}
-The same financial filing can support several valid graphs. An accounting team may preserve reporting structure, a risk team may emphasize exposures, and a governance team may record control relationships. Their graphs can therefore disagree about which entity or relation exists even though they read the same document. Merging the views removes the ownership boundary that made each one trustworthy. Keeping them fully separate makes questions that span teams hard to answer.
+An organization that answers questions from its own documents rarely keeps one
+knowledge graph. Accounting, risk, and governance teams each build their own,
+because each owns its extraction rules, its provenance, and the authorization
+that decides who may read it. Those boundaries are the reason the graphs are
+trusted, so merging them is not a neutral optimization: it discards the
+ownership that made each view auditable, and it creates read paths that policy
+was written to prevent.
 
-Graph databases increasingly support multi-tenant and cross-database workloads~\citep{memgraph2026}, which solves the execution problem of letting an authorized application read more than one database. It does not solve the semantic one: which views a question actually needs, and how complementary or conflicting results should be combined. Querying every view wastes calls and context, and it can amplify irrelevant or poisoned evidence. Querying one fixed view fails whenever the required evidence is distributed.
+The cost of leaving them separate is concrete, and this paper measures it. A
+question whose evidence sits in two teams' graphs leaves a system two bad
+options. Ask every graph, and it pays one agent call per view, widens the
+policy surface, and amplifies whatever is wrong in any of them; in our
+controlled tests, unrestricted broadcast leaked a protected field in 26 of 31
+cases. Ask one fixed graph, and the required fact is simply absent. Neither is
+acceptable where answers must be attributable and access-controlled, which is
+exactly the setting these graphs exist to serve. Engines now let an authorized
+application read across databases~\citep{memgraph2026}, so what remains is not
+an execution problem but a semantic one: deciding which views a question needs.
 
-Given a question and several authorized category graphs, a system must therefore decide whether one graph suffices, whether another supplies a missing fact, or whether two graphs must be compared because their claims conflict. This is a decision problem before it is a generation problem, and the decision is where we found the difficulty.
+\paragraph{The problem, stated precisely.} Given a question and several
+authorized graphs, decide which of them the answer actually needs, before
+generating anything. A system must distinguish four cases: one graph suffices,
+a second supplies a missing fact, two must be compared because their claims
+conflict, or no authorized combination can answer and the system should decline.
+Success is not a better sentence; it is choosing the smallest authorized set
+that covers the question, and knowing when no set does.
 
-\paragraph{What we built.} Slot-and-Divergence Coalition Routing (SDCR) identifies the facts a question requires, selects the smallest authorized set of category agents that can supply them, and passes only typed evidence to a supervisor. Missing slot coverage and comparable-fact conflict are hard conditions. Graph-divergence statistics only rank candidates that already pass. Figure~\ref{fig:decision} states the whole rule.
+\paragraph{What we built.} Slot-and-Divergence Coalition Routing (SDCR)
+identifies the facts a question requires, selects the smallest authorized set of
+category agents that can supply them, and passes only typed evidence to a
+supervisor. Missing slot coverage and comparable-fact conflict are hard
+conditions. Graph-divergence statistics only rank candidates that already pass.
+Figure~\ref{fig:decision} states the whole rule.
 
-\paragraph{What we found.} The mechanism is sound and two of its three premises hold, but the component we assumed was easy turns out to be the one that fails. Deciding \emph{which} views a natural question needs fails hard enough to erase the coalition benefit downstream. We report this as the result rather than as future work, because the ablations locate it precisely:
+\paragraph{What happened.} Two of the design's three premises held and the third
+did not. Isolated views are genuinely different observations once identity is
+governed, and selective verification does keep conflicting or protected evidence
+out of answers. But graph divergence turned out to be unusable as a trigger, and
+the component we had assumed was easy is the one that failed: on blind-validated
+questions the router found both required views four times out of thirteen. At a
+fixed evidence budget it returned .045 slot recall where random selection at the
+same coverage already gives .134. Substituting three different answer models
+reproduced the deficit rather than removing it, which locates the failure in
+selection and not in generation.
 
-\begin{enumerate}\itemsep2pt
-\item \textbf{Observation diversity is real, and it is a measurement result, not an answer result.} Category views expose materially different neighborhoods for the same entity, but only after identifier-first resolution; a phrase-frequency control is contaminated by placeholders and understates the effect (AUROC .648 vs .746).
-\item \textbf{Diversity is not routing utility.} PPR divergence saturates in the matched null as well as across categories, so it cannot serve as a trigger, and as a tie-break its measured effect is one decision in eighty.
-\item \textbf{View selection, not answer synthesis, is the binding constraint.} The frozen router covers both required views on 4 of 13 revised questions and, at a fixed evidence budget, returns less than uniform random selection would at the same coverage. Substituting three different answer models reproduces the deficit.
-\item \textbf{The failure is a failure mode, not weak retrieval, and it is repairable up to a point.} The learned selection \emph{beats} a TF--IDF baseline where it succeeds and scores exactly .000 where it misses, because an uncovered selection serves no evidence. A capability fallback raises retrieval from .045 to .152 and raises answer slot F1 for all three models, but never overtakes centralization: the repair removes a defect rather than demonstrating a coalition benefit.
-\item \textbf{Verification and serialization already work} under controlled conflict and protected-field tests, which is what makes the routing gap worth closing rather than abandoning.
-\end{enumerate}
+\paragraph{The insight, and why it transfers.} Conditioning on the router's own
+outcome explains the shortfall and generalizes past this system. Where selection
+succeeded, the learned router beat a term-frequency baseline (.147 against
+.083); where it missed, it scored exactly .000, because an uncovered selection
+serves no evidence at all. When agents own disjoint slices of the corpus, a
+selection error does not degrade the evidence, it empties it. Expected quality is
+therefore governed by the miss rate and by what gets served on a miss, not by how
+good the hits are. Serving a capability-ranked team whenever coverage is
+incomplete raised retrieval from .045 to .152 and improved answers for every
+model we tried. The practical implication is uncomfortable but cheap: a router
+over partitioned stores should ship its fallback before it ships a better
+selector, and should be reported on coverage and on miss behavior rather than on
+average score alone.
 
-\paragraph{What we deliberately do not claim.} The revised answer set contains 13 model-constructed, model-validated questions with 4 routing successes. That is too small for a confirmatory answer comparison, and we do not offer one. We use the set to establish where the pipeline breaks, and we report the audit that invalidated our own earlier and more favorable construction. Section~\ref{sec:setup} states the sampling and screening defects we found in our own artifacts, including a heuristic issuer extractor that must be rebuilt before the candidate pool is reused.
+\paragraph{What we deliberately do not claim.} The revised answer set contains 13
+model-constructed, model-validated questions with 4 routing successes. That is
+too small for a confirmatory answer comparison, and we do not offer one. Even
+with the fallback, the coalition never overtakes simply centralizing retrieval;
+every interval against centralization contains zero. We use the set to establish
+where the pipeline breaks, and we report the audit that invalidated our own
+earlier and more favorable construction. Section~\ref{sec:setup} states the
+sampling and screening defects we found in our own artifacts, including a
+heuristic issuer extractor that must be rebuilt before the candidate pool is
+reused.
 
 \section{Related Work}
 Knowledge-graph QA combines retrieval and symbolic structure, including execution-guided reasoning, graph-pattern answering, and GNN--LLM collaboration~\citep{ren2021lego,cucumides2025unravl,liu2025dual}. GraphRAG systems increasingly use agent collaboration~\citep{capozzi2026agentic,xu2025openworld}, while language-agent systems can be represented as interaction graphs~\citep{zhuge2024gptswarm}. These methods typically assume a shared graph, or they focus on reasoning after retrieval. Our specialist's isolated ontology-specific graph is instead a private observation.
@@ -201,7 +251,7 @@ Model & Arm & Slot F1 & Numeric recall & Cross-view F1 & SF\\
 \end{tabular}
 \end{table}
 
-In Table~\ref{tab:answers} the broadcast-minus-centralized slot-F1 difference is not detected for any model: DeepSeek $.009$ (95\% CI $[-.061,.079]$), GPT-OSS $-.005$ ($[-.043,.031]$), MiniMax $-.007$ ($[-.036,.014]$). Routed SDCR is lower because only four queries receive both views; for GPT-OSS the ITT difference from centralized is $-.096$ ($[-.142,-.050]$). MiniMax violates the revised JSON contract on most cases, which prevents a meaningful quality comparison for that model and is reported rather than repaired. Three answer models therefore reproduce no general coalition advantage. What they reproduce is the routing bottleneck. An oracle-ceiling check agrees: broadcast-minus-centralized intervals contain zero for every model, so the present 13-case set cannot support an answer-improvement claim even with perfect routing, and the ceiling must be re-measured on independently human-labelled questions before the router is optimized against it.
+In Table~\ref{tab:answers} the broadcast-minus-centralized slot-F1 difference is not detected for any model: DeepSeek $.009$ (95\% CI $[-.061,.079]$), GPT-OSS $-.005$ ($[-.043,.031]$), MiniMax $-.007$ ($[-.036,.014]$). Routed SDCR is lower because only four queries receive both views; for GPT-OSS the ITT difference from centralized is $-.096$ ($[-.142,-.050]$). MiniMax violates the revised JSON contract on most cases, which prevents a meaningful quality comparison for that model and is reported rather than repaired. Three answer models therefore reproduce no general coalition advantage. What they reproduce is the routing bottleneck. An oracle-ceiling check agrees: broadcast-minus-centralized intervals contain zero for every model, so the present 13-case set cannot support an answer-improvement claim even with perfect routing, and the ceiling must be re-measured on independently human-labeled questions before the router is optimized against it.
 
 \paragraph{The repair reaches the answer, but stops at centralization.} Serving the fallback evidence to the same three models with the same harness (Table~\ref{tab:answers}) raises slot F1 for every model relative to routed SDCR, and the issuer-clustered interval excludes zero for GPT-OSS ($+.067$, $[.008,.124]$). For DeepSeek ($+.027$) and MiniMax ($+.011$) the lower bound pins at exactly $.000$ for a mechanical reason worth stating: the two arms serve identical evidence on the four cases the router covered, so those per-case deltas are exactly zero and a clustered resample can contain only such cases. Against centralized single and qualified-view broadcast, however, all six intervals contain zero. The largest point estimate in either direction is $-.028$. The fallback therefore recovers what the routing failure was destroying and no more. This is the answer-level claim the retrieval replay could not make, and it leaves the paper's central negative result intact: at $n=13$ there is still no measurable coalition advantage over simply centralizing.
 

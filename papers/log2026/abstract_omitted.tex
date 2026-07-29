@@ -1,0 +1,80 @@
+\section{Results omitted from the main text}
+The extended abstract carries only the routing bottleneck. The remaining
+measurements are reported here in full so the negative result can be checked
+against the evidence that surrounds it.
+
+\subsection{Query-adaptive routing on the synthetic suite}
+On an 80-query suite of 28 local, 28 complementary, eight conflict, eight
+protected-field, and eight authorization-denied queries, the router behaves well:
+it reaches .981 macro F1 at 1.32 mean agent calls. Slot multiplicity and conflict
+type supply the signal, since a divergence-only policy is indistinguishable from
+centralized routing. Removing the network tie-break changes one of 80 decisions,
+raising family accuracy by .0125 with a clustered 95\% interval of $[0,.041]$, so
+we claim no detectable network-routing improvement. When one selected specialist
+is removed, a capability-level alternative coalition exists in 61.8\% of 34
+coalition cases. The contrast with the revised natural questions is the point:
+choosing the right \emph{action} is close to solved, while choosing the right
+\emph{views} is not. Table~\ref{tab:routing-ea} gives the policy comparison.
+
+\begin{table}[t]
+\centering
+\caption{Mixed-query routing over 80 queries. Macro F1 and family accuracy measure whether the policy chose the correct action family (local, complementary, verification, or abstain); mean calls measures cost; missed coalition is the fraction of complementary and conflict cases served without the required team. The first three baselines are numerically identical, so they share a row. Every policy except broadcast abstains on all eight unanswerable queries; broadcast never abstains. Broadcast scores zero policy F1 because it has no selective action, even though it retrieves from every view.}
+\label{tab:routing-ea}
+\small
+\begin{tabular}{lrrrr}
+\toprule
+Policy & Macro F1 & Family acc. & Mean calls & Missed coalition\\
+\midrule
+Centralized, category-only, divergence-only & .556 & .550 & .90 & 1.000\\
+Broadcast & .000 & .000 & 7.90 & 1.000\\
+Slot-only & .896 & .863 & 1.21 & .306\\
+SDCR, no network & .972 & .963 & 1.31 & .083\\
+SDCR & \textbf{.981} & \textbf{.975} & 1.32 & \textbf{.056}\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Multi-model answers}
+Substituting the answerer reproduces the deficit instead of removing it. Schema
+failure rates are not comparable between the routed and fallback arms, because
+routing failures were booked separately from schema violations, so the routed arm
+attempted fewer completions. Table~\ref{tab:answers-ea} reports every arm.
+
+\begin{table}[t]
+\centering
+\caption{Revised 13-case answers under the same 2,048-token cap. Slot F1 measures required fact fields, cross-view F1 the joint reconciliation, and SF the fraction of outputs violating the answer schema. Routing and schema failures receive zero (ITT).}
+\label{tab:answers-ea}
+\small
+\begin{tabular}{llrrrr}
+\toprule
+Model & Arm & Slot F1 & Numeric recall & Cross-view F1 & SF\\
+\midrule
+\multirow{4}{*}{DeepSeek-V3.1} & Centralized & .062 & .154 & .123 & .000\\
+ & Broadcast & .072 & .108 & .108 & .000\\
+ & SDCR & .044 & .031 & .065 & .000\\
+ & SDCR $+$ fallback & .071 & .082 & .105 & .000\\
+\midrule
+\multirow{4}{*}{GPT-OSS-120B} & Centralized & .133 & .284 & .241 & .077\\
+ & Broadcast & .128 & .313 & .245 & .077\\
+ & SDCR & .038 & .031 & .063 & .000\\
+ & SDCR $+$ fallback & .105 & .123 & .207 & .154\\
+\midrule
+\multirow{4}{*}{MiniMax-M2.7} & Centralized & .012 & .000 & .019 & .923\\
+ & Broadcast & .005 & .077 & .013 & .923\\
+ & SDCR & .000 & .000 & .000 & .308\\
+ & SDCR $+$ fallback & .011 & .000 & .020 & .923\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Orthogonal mediation gate}
+A 16-case, 256-cell contrast crossing two prompts, two ontologies, and four
+graph-generation models reaches mean retrieval token recall .352 and numeric
+recall .886, with a fixed answerer at token overlap .286 and no schema failures.
+A case-blocked standardized serial path from treatment through graph size and
+retrieval recall to answer quality gives an indirect estimate of $.00006$ for
+prompt (95\% interval $[-.00046,.00251]$) and $-.00001$ for ontology
+($[-.00099,.00196]$). Graph-construction changes therefore do not measurably
+reach answer quality through retrieval in this calibration gate. This is a
+mechanistic negative result over two cases per category and not full-corpus
+invariance.

@@ -34,4 +34,5 @@ SUBMISSION_CHECKLIST.md
 
 # Compiled output — regenerate with latexmk -pdf paper.tex
 paper.pdf
+abstract.pdf
 *.brf

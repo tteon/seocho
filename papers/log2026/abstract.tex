@@ -1,0 +1,96 @@
+\documentclass{article}
+\usepackage[review]{log_2026}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{amsfonts}
+\usepackage{graphicx}
+\usepackage[numbers,compress,sort]{natbib}
+
+\title[Routing, Not Synthesis, Is the Bottleneck]{Routing, Not Synthesis, Is the Bottleneck:\\A Failure Analysis of Coalition Routing over Isolated Financial Graphs}
+\author[Anonymous Authors]{Anonymous Authors}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Teams reading the same filing under different ontologies and access rules build different graphs, so some questions stay inside one graph while others need several. We built a slot-conditioned router that calls the smallest authorized set of graph specialists able to fill or verify a question's answer slots, and we report what happened when we tried to measure its benefit. Two premises held: isolated category views are measurably different observations once identity is governed, and selective verification is safe under controlled conflict and protected-field stress. The premise that failed is the one we assumed was easy. On 13 blind-validated questions the router finds both required views only four times, and at a fixed 2{,}048-token budget it returns .045 slot recall where uniform random selection at the same coverage already gives .134. Conditioning on the router's own outcome shows why: it beats a term-frequency baseline where selection succeeds (.147 against .083) and scores exactly .000 where it misses, because an uncovered selection serves no evidence at all. A capability fallback repairs the failure at both retrieval and answer level, yet never overtakes simple centralization. We report this as a negative result with the ablations that locate it, because the component the field treats as plumbing is the one that decides whether coalitions of graph agents can work.
+\end{abstract}
+
+\section{Introduction}
+The same financial filing can support several valid graphs. An accounting team may preserve reporting structure, a risk team may emphasize exposures, and a governance team may record control relationships. Their graphs can disagree about which entity or relation exists even though they read the same document. Merging the views removes the ownership boundary that made each one trustworthy. Keeping them fully separate makes questions that span teams hard to answer.
+
+Graph databases increasingly support multi-tenant and cross-database workloads~\citep{memgraph2026}, which solves the execution problem of letting an authorized application read more than one database. It does not solve the semantic one: which views a question actually needs. Querying every view wastes calls and context, and it can amplify irrelevant or poisoned evidence. Querying one fixed view fails whenever the required evidence is distributed. This is a decision problem before it is a generation problem, and the decision is where we found the difficulty.
+
+Slot-and-Divergence Coalition Routing identifies the facts a question requires, selects the smallest authorized set of category agents that can supply them, and passes only typed evidence to a supervisor. Missing slot coverage and comparable-fact conflict are hard conditions. Graph-divergence statistics only rank candidates that already pass, and Figure~\ref{fig:decision} states the whole rule.
+
+We set out to measure the benefit of that design and found instead that its weakest component is view selection. This extended abstract reports the failure and the two measurements that localize it. Appendix~\ref{app:data} onward carries the full ablation set, the entity-governance and safety results, and the multi-model answer comparison.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{sdcr_decision.pdf}
+\caption{The routing rule. Two hard conditions, a required slot the best single view cannot fill or a comparable-fact conflict, are the only ways an additional agent is called. Divergence statistics rank candidates inside the minimum-cost feasible set and never open the gate. Three of the four actions reach the supervisor; abstention serves no evidence.}
+\label{fig:decision}
+\end{figure}
+
+\section{Setup}
+FinDER contains 5,703 financial questions across eight categories. Four generation models ground every case, yielding 22,812 provider--case workspaces and 523,092 nodes; category views after normalization hold 187,601 semantic nodes, and the qualified answer projection holds 8,313.
+
+Evaluation questions are built without reading any graph output or answer score. A deterministic cap produces 240 cross-view candidates, a provenance gate passes 35, and author screening accepts 28. We then audited that construction blind. Two reviewers from one model family agree on 88.6\% of the candidates but agree with the author on only 77.1\%, and a second panel rejected all nine disputed items because many prompts concatenated two topics without forcing a joint decision. We therefore keep the 28-case result only as a failed exploratory audit. The 28 pairs were rewritten as atomic integrative questions and a five-role blinded gate retained 13 (Appendix~\ref{app:queries}). Persona votes are correlated model simulations and are never labelled human annotation. Candidate-time issuer labels also come from a heuristic rather than a resolved identifier; three of 240 candidates provably pair two different companies, and Appendix~\ref{app:routing} reports the corrected pool.
+
+Retrieval uses compact sorted-key JSON with an exact 2{,}048-token cap under a fixed tokenizer, no truncation of any evidence unit, and the same budget for every arm. Routing and schema failures score zero under intention-to-treat.
+
+\section{The router, not the answerer, is the limiting component}
+On the 13 revised questions the frozen slot router selects both required category views in 4 of 13 cases, with mean required-view coverage .538 and 2.54 selected agents. The prompt was not tuned after these labels were seen.
+
+\begin{table}[t]
+\centering
+\caption{Exact-budget retrieval on the 13 revised cases. Every arm has the same 2,048-token cap and no evidence unit is truncated, so differences reflect view selection and not context size. Slot-only and category-only are, by construction, the frozen term-frequency top-2 and top-1 capability policies.}
+\label{tab:retrieval}
+\small
+\begin{tabular}{lrrr}
+\toprule
+Arm & Slot token recall & Cross-view recall & Mean tokens\\
+\midrule
+Qualified-view broadcast (oracle team) & \textbf{.197} & .078 & 1{,}970\\
+Centralized single & .184 & .067 & 1{,}974\\
+Slot-only $=$ capability top-2 & .132 & .066 & 1{,}985\\
+Category-only $=$ capability top-1 & .117 & .057 & 1{,}824\\
+Routed SDCR (intention-to-treat) & .045 & .021 & 607\\
+\midrule
+Uniform random, 2 views (reference) & .066 & .026 & 913\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:retrieval} and Figure~\ref{fig:bottleneck} make the failure quantitative. Coverage buys recall almost linearly across the random-selection arms, and the oracle team at full coverage reaches .197. The router sits at .538 coverage, above random three-view selection, yet returns .045. The random trend at the same coverage would already deliver .134, a threefold shortfall, and the router also loses outright to a frozen term-frequency capability policy that uses no learned routing at all.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{routing_bottleneck.pdf}
+\caption{Required-view coverage against slot token recall at an identical 2,048-token budget. The three uniform-random arms trace what coverage alone is worth. The learned router reaches .538 coverage but .045 recall, a threefold shortfall against the random-equivalent point, and falls below a frozen capability baseline. The gap to the oracle team is the headroom a correct router would recover.}
+\label{fig:bottleneck}
+\end{figure}
+
+\paragraph{The aggregate comparison hides the actual defect.} Conditioning on the router's own outcome separates two very different behaviors. On the four cases it covers, the routed arm reaches .147 slot recall against .083 for the capability team on those same cases, so where selection succeeds the learned router is the better retriever. On the nine it misses it scores exactly .000, because an uncovered selection serves no evidence, while the capability team reaches .154. The deficit is a failure mode and not weak retrieval.
+
+\paragraph{The repair works, and stops at centralization.} Serving the capability team whenever coverage is incomplete raises retrieval to .152, an increase of .106 with an issuer-clustered 95\% interval of [.052,.164], recovering 77\% of the oracle ceiling instead of 23\% (Appendix~\ref{app:fallback}). Re-answering from that evidence with three models raises slot F1 for all three, and the interval excludes zero for one of them (.067, [.008,.124]). Against centralized single and qualified-view broadcast, however, all six answer intervals contain zero. The repair removes a defect that was masking the comparison; it does not show that coalitions help.
+
+\section{What this does and does not establish}
+\label{sec:observation}
+Two premises of the design hold, with the supporting tables in Appendix~\ref{app:data} and Appendix~\ref{app:review}. Isolated category views are measurably different observations once identity is governed, separating cross-category from a matched cross-model null with .746 discrimination, and the improvement over a phrase-frequency control has an entity-clustered interval of [.045,.146] that excludes zero. Selective verification is safe under controlled stress: a verification coalition detects 31 of 31 injected conflicts, accepts none of the poisoned values, and filtering the protected field before serialization yields no marker disclosures against 26 of 31 under unsafe broadcast.
+
+A separate calibration gate (Appendix~\ref{app:mediation}) finds that graph-construction changes do not measurably reach answer quality through retrieval. Divergence, by contrast, cannot trigger collaboration. The matched null itself saturates at complete non-overlap, so every empirical upper-tail threshold equals 1.000 and no tested level selects a single cross-category pair. As a tie-break its measured effect is one decision in eighty.
+
+\paragraph{Limitations.} The revised set contains 13 model-constructed and model-validated queries and only four route successfully, so it cannot support a confirmatory answer comparison and we do not offer one. Token overlap remains a lexical measure. The adversarial tests are synthetic and intentionally easy to verify. The candidate-time issuer heuristic must be rebuilt before the wider pool is reused. FinDER categories proxy organizational teams rather than observed ownership and authorization.
+
+\paragraph{Why this is worth reporting.} The field's attention sits on graph construction and on answer synthesis. Our measurements say that with both held fixed, and with the evidence budget held exactly equal, a routing miss that serves nothing costs more than choosing views at random. That is a cheap defect to fix and an expensive one to leave in place, and it is invisible to any evaluation that reports only aggregate answer quality.
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\appendix
+\input{appendix}
+\input{abstract_omitted}
+
+\small
+\end{document}

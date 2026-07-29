@@ -2512,6 +2512,7 @@ class Ontology:
         graph_store: Any,
         *,
         database: str = "neo4j",
+        workspace_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Compute ontology coverage statistics against a live graph.
 
@@ -2547,7 +2548,10 @@ class Ontology:
                 for label in chunk
             ])
             try:
-                results = graph_store.query(query, database=database)
+                if workspace_id:
+                    results = graph_store.query(query, database=database, workspace_id=workspace_id, enforce_workspace_filter=True)
+                else:
+                    results = graph_store.query(query, database=database)
                 counts = {r["element"]: int(r["cnt"]) for r in results}
             except Exception:
                 counts = {}
@@ -2557,10 +2561,18 @@ class Ontology:
                     count = counts[label]
                 else:
                     try:
-                        result = graph_store.query(
-                            f"MATCH (n:`{label}`) RETURN count(n) AS cnt",
-                            database=database,
-                        )
+                        if workspace_id:
+                            result = graph_store.query(
+                                f"MATCH (n:`{label}`) RETURN count(n) AS cnt",
+                                database=database,
+                                workspace_id=workspace_id,
+                                enforce_workspace_filter=True,
+                            )
+                        else:
+                            result = graph_store.query(
+                                f"MATCH (n:`{label}`) RETURN count(n) AS cnt",
+                                database=database,
+                            )
                         count = int(result[0]["cnt"]) if result else 0
                     except Exception:
                         count = 0
@@ -2581,7 +2593,10 @@ class Ontology:
                 for rtype in chunk
             ])
             try:
-                results = graph_store.query(query, database=database)
+                if workspace_id:
+                    results = graph_store.query(query, database=database, workspace_id=workspace_id, enforce_workspace_filter=True)
+                else:
+                    results = graph_store.query(query, database=database)
                 counts = {r["element"]: int(r["cnt"]) for r in results}
             except Exception:
                 counts = {}
@@ -2591,10 +2606,18 @@ class Ontology:
                     count = counts[rtype]
                 else:
                     try:
-                        result = graph_store.query(
-                            f"MATCH ()-[r:`{rtype}`]->() RETURN count(r) AS cnt",
-                            database=database,
-                        )
+                        if workspace_id:
+                            result = graph_store.query(
+                                f"MATCH ()-[r:`{rtype}`]->() RETURN count(r) AS cnt",
+                                database=database,
+                                workspace_id=workspace_id,
+                                enforce_workspace_filter=True,
+                            )
+                        else:
+                            result = graph_store.query(
+                                f"MATCH ()-[r:`{rtype}`]->() RETURN count(r) AS cnt",
+                                database=database,
+                            )
                         count = int(result[0]["cnt"]) if result else 0
                     except Exception:
                         count = 0

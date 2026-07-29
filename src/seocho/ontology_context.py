@@ -640,6 +640,8 @@ def query_ontology_context_mismatch(
             build_ontology_context_summary_query(),
             params={"workspace_id": workspace_id},
             database=database,
+            workspace_id=workspace_id,
+            enforce_workspace_filter=True,
         )
     except Exception as exc:
         result = assess_ontology_context_mismatch(active_context, [])

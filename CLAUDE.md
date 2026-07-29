@@ -82,8 +82,9 @@ Tracking and notes split:
   blockers, and landing state
 - Gastown is the coordination plane for write-scope reservations only; it is
   not the planning source of truth
-- `/home/hadry/my_local_work/obsidian/seocho` is the default home for internal
-  design notes, failure analysis, experiment logs, and feature ideation
+- do NOT write to the Obsidian vault; the maintainer does not read it and it
+  only accumulates clutter. Keep durable reasoning where it is used: a script
+  docstring, an ADR under `docs/decisions/`, or the commit message
 - repo docs should stay reserved for contracts and instructions that must ship
   with the repository
 
@@ -95,8 +96,8 @@ Tracking and notes split:
 - preserve `workspace_id` in new runtime-facing contracts
 - add/adjust tests for modified behavior
 - update repo docs only for user-visible or operator-visible contract changes
-- prefer Obsidian notes over repo docs for working analysis and speculative
-  design thinking
+- keep working analysis and speculative design thinking in the conversation, or
+  in the commit message if it must persist; do not create note files for it
 
 ## 4.3 Before Landing
 
@@ -331,16 +332,15 @@ Do not treat repo docs as the default notebook for implementation thinking.
 |-------|----------|------|-----------|
 | `docs/` | in repo | **Contract** (what IS) | external users, contributors |
 | `.beads` | in repo | **Execution** (what/when) | task state, dependencies |
-| Obsidian | `/home/hadry/my_local_work/obsidian/seocho` | **Interpretation** (why/how) | design thinking, trade-offs, open questions |
+| commits + ADRs | `docs/decisions/`, git history | **Interpretation** (why/how) | design thinking, trade-offs, open questions |
 
 Rules:
-- Obsidian wiki (`wiki/topics/`) **interprets** `docs/` decisions — never duplicates them.
-  Link to ADRs by path; write only the reasoning, background, and open questions that `docs/` doesn't carry.
-- `.beads` is the source of truth for task progress — never track task status in Obsidian.
-- `docs/` is the source of truth for architecture and API contracts — never contradict it from Obsidian.
-- When finishing a work session, update relevant Obsidian `wiki/topics/*.md` pages
-  with new insights or state changes. Keep `[[wikilinks]]` between topics current.
-- See `vault-schema.md` in the Obsidian vault for full conventions.
+- `.beads` is the source of truth for task progress.
+- `docs/` is the source of truth for architecture and API contracts.
+- Record why a decision was made in the commit message, and add an ADR under
+  `docs/decisions/` when the decision is non-trivial. Do not create a parallel
+  notes tree.
+- The Obsidian vault is out of scope for agents (see the tracking split above).
 
 ## 18. Baseline Defaults (Robustness, Performance, Scalability, Prompts)
 

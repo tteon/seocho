@@ -48,7 +48,7 @@ The offline governance arm uses Owlready2 to compile type-compatibility and disj
 
 \begin{table}[t]
 \centering
-\caption{Entity-management ablation. AUROC separates cross-category pairs from the matched cross-model null; higher means the two groups are more distinguishable. The graph, PPR definition, category views, extraction profile, and answer labels are held fixed, and the treatment uses neither centrality nor outcomes.}
+\caption{Entity-management ablation. Area under the ROC curve (AUROC) separates cross-category pairs from the matched cross-model null; higher means the two groups are more distinguishable. The graph, PPR definition, category views, extraction profile, and answer labels are held fixed, and the treatment uses neither centrality nor outcomes.}
 \label{tab:entity-ablation}
 \small
 \begin{tabular}{lrrr}
@@ -154,4 +154,4 @@ The full corpus has two joint observation profiles and cannot identify prompt an
 
 
 
-A 16-case, 256-cell contrast crossing two prompts, two ontologies, and four graph-generation models reaches mean retrieval token recall .352 and numeric recall .886, with the fixed DeepSeek answerer at token F1 .286 and no schema failures. A case-blocked standardized serial path (treatment $\rightarrow$ nodes-plus-relations $\rightarrow$ retrieval recall $\rightarrow$ answer F1) gives an indirect estimate of $.00006$ for prompt (95\% CI $[-.00046,.00251]$) and $-.00001$ for ontology ($[-.00099,.00196]$). This is a mechanistic negative result over two cases per category, not full-corpus invariance.
+A 16-case, 256-cell contrast crossing two prompts, two ontologies, and four graph-generation models reaches mean retrieval token recall .352 and numeric recall .886, with the fixed DeepSeek answerer at token F1 .286 and no schema failures. A case-blocked standardized serial path (treatment $\rightarrow$ nodes-plus-relations $\rightarrow$ retrieval recall $\rightarrow$ answer F1) gives an indirect estimate of $.00006$ for prompt (95\% confidence interval (CI) $[-.00046,.00251]$) and $-.00001$ for ontology ($[-.00099,.00196]$). This is a mechanistic negative result over two cases per category, not full-corpus invariance.

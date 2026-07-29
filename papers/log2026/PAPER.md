@@ -2,9 +2,7 @@
      Source of truth: paper.tex (+ references.bib, appendix.tex).
      Regenerate with: python3 papers/log2026/build_mirror.py -->
 
-# Routing, Not Synthesis, Is the Bottleneck:
-
-## A Failure Analysis of Coalition Routing over Isolated Financial Graphs
+# View Selection Limits Multi-Agent Retrieval over Isolated Knowledge Graphs
 
 ## Abstract
 
@@ -239,7 +237,7 @@ Table 5 gives the three entity-management arms in full. Fifty output-blind resol
 
 The offline governance arm uses Owlready2 to compile type-compatibility and disjointness rules. It quarantines five aliases co-typed as companies and regulators; Nasdaq is replaced by Ford among the top 50, and Moody's and S&P Global are among the quarantined aliases, showing that such rules propagate upstream type noise and must support review rather than silently assert truth. The schema currently carries ticker but neither CIK nor a canonical identifier property, which we record as a governance gap rather than impute.
 
-*Entity-management ablation. AUROC separates cross-category pairs from the matched cross-model null; higher means the two groups are more distinguishable. The graph, PPR definition, category views, extraction profile, and answer labels are held fixed, and the treatment uses neither centrality nor outcomes.*
+*Entity-management ablation. Area under the ROC curve (AUROC) separates cross-category pairs from the matched cross-model null; higher means the two groups are more distinguishable. The graph, PPR definition, category views, extraction profile, and answer labels are held fixed, and the treatment uses neither centrality nor outcomes.*
 
 | Measurement-validity outcome | Phrase | Identifier | Ontology-governed |
 |---|---|---|---|
@@ -308,7 +306,7 @@ The frozen 120-query expansion manifest is issuer-unique internally — one quer
 
 The full corpus has two joint observation profiles and cannot identify prompt and ontology effects separately. We therefore use a mechanistic 2×2×4×16 calibration: two prompts, two ontologies, four graph-generation models, and 16 FinDER cases. Each cell is read-only, retrieves with the frozen PPR implementation, and is answered by the fixed DeepSeek model. A case-blocked standardized serial path estimates prompt or ontology treatment through graph size and retrieval recall to answer F1. The resulting indirect estimates are reported as calibration evidence, not as full-corpus causal effects.
 
-A 16-case, 256-cell contrast crossing two prompts, two ontologies, and four graph-generation models reaches mean retrieval token recall .352 and numeric recall .886, with the fixed DeepSeek answerer at token F1 .286 and no schema failures. A case-blocked standardized serial path (treatment → nodes-plus-relations → retrieval recall → answer F1) gives an indirect estimate of .00006 for prompt (95% CI [-.00046,.00251]) and -.00001 for ontology ([-.00099,.00196]). This is a mechanistic negative result over two cases per category, not full-corpus invariance.
+A 16-case, 256-cell contrast crossing two prompts, two ontologies, and four graph-generation models reaches mean retrieval token recall .352 and numeric recall .886, with the fixed DeepSeek answerer at token F1 .286 and no schema failures. A case-blocked standardized serial path (treatment → nodes-plus-relations → retrieval recall → answer F1) gives an indirect estimate of .00006 for prompt (95% confidence interval (CI) [-.00046,.00251]) and -.00001 for ontology ([-.00099,.00196]). This is a mechanistic negative result over two cases per category, not full-corpus invariance.
 
 ## References
 

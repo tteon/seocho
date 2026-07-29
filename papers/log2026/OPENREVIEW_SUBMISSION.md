@@ -18,7 +18,7 @@ added or replaced before the paper deadline.
 ## Title*
 
 ```
-Routing, Not Synthesis, Is the Bottleneck: A Failure Analysis of Coalition Routing over Isolated Financial Graphs
+View Selection Limits Multi-Agent Retrieval over Isolated Knowledge Graphs
 ```
 
 ## Authors*
@@ -30,13 +30,13 @@ The PDF itself stays anonymous (`Anonymous Authors`), which it already is.
 ## Keywords*
 
 ```
-knowledge graphs, graph retrieval-augmented generation, multi-agent systems, query routing, coalition formation, negative results, evaluation methodology, financial question answering
+knowledge graphs, graph retrieval-augmented generation, multi-agent systems, query routing, agent selection, negative results, evaluation methodology, financial question answering
 ```
 
 ## TL;DR
 
 ```
-On isolated organizational knowledge graphs, finding the right views rather than synthesizing the answer is the bottleneck: a routing miss that serves no evidence costs more than selecting views at random.
+Multi-agent retrieval over per-team knowledge graphs is limited by which graphs get asked, not by how the answer is written: picking the wrong graph returns nothing usable, so a learned router scored below random view selection until a fallback was added.
 ```
 
 ## Abstract*
@@ -51,9 +51,9 @@ so the plain-text form is safe either way.
 `\input` into `paper.tex`, so the build is a single merged file as the form
 requires. Body limit is 9 pages; references and appendix are unlimited.
 
-> **Open item:** the last measured build had the body running to 87% of page 10.
-> Roughly 0.8 of a page has since been moved into the appendix, but this has not
-> been recompiled and verified. Check where References begins before uploading.
+Verified with a local build: references begin on page 9, so the body fits. Run
+`python3 papers/log2026/check_submission.py` to re-verify the page budget,
+cross-references, grounding, abbreviations, anonymity, and style in one pass.
 
 ## Supplementary Materials
 

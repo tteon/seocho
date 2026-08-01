@@ -1,1 +1,3 @@
 - Optimized memory usage for large JSONL files by replacing Path.read_text().splitlines() with lazy, line-by-line iteration using a context manager (with open(...) as f: for line in f:).
+
+- When optimizing memory usage for large JSONL files (e.g., addressing 'avoidable file I/O or JSONL overhead'), replace `Path.read_text().splitlines()` with lazy, line-by-line iteration using a context manager (`with open(...) as f: for line in f:`). When doing this refactoring, ensure that you correctly handle string termination by applying `.rstrip("\n")` to match `.splitlines()` exact behavior without creating a giant intermediate list of strings.

@@ -10,9 +10,15 @@ One figure, two panels, because the result needs both to be honest.
 
 Design choices, and the reasons:
 
-- The pre-registered direction is drawn on the plot as an arrow, so a reader
-  sees immediately that the result runs against it rather than having to infer
-  that from the caption (CLAUDE.md 20.4).
+- The pre-registered shape is drawn on the plot, so a reader sees immediately
+  that the result runs against it (CLAUDE.md 20.4). The shape is an inverted U,
+  not a rising line: what was registered, in CLAUDE.md on 2026-05-31 and long
+  before this run, is the Goldilocks prediction that a middle-sized ontology
+  beats both no ontology and an over-large one. An earlier version of this
+  figure drew a rising arrow labelled pre-registered, which was not what had
+  been registered. Misstating the registration is worse than having none, so
+  the shape here is the registered one and the mapping onto these conditions is
+  stated in the caption rather than assumed.
 - Counts live on the right panel, not repeated on the left. A rate over 323
   keys and a rate over 1,334 are not the same evidence, so the counts have to
   appear somewhere; printing them twice only crowded the bars.
@@ -95,12 +101,14 @@ def main() -> int:
         left.text(p + width / 2, rate + 0.012, f"{rate:.3f}", ha="center",
                   fontsize=8, color=MUTED)
 
-    # The pre-registered expectation, drawn so the reader cannot miss that the
-    # measurement went the other way.
-    left.annotate("", xy=(3.15, 0.415), xytext=(-0.15, 0.415),
-                  arrowprops=dict(arrowstyle="->", color=ACCENT, lw=1.1,
-                                  linestyle=(0, (4, 2))))
-    left.text(1.5, 0.428, "pre-registered direction: more ontology, more agreement",
+    # The registered expectation: an inverted U peaking at the middle size.
+    # Drawn at an arbitrary height because only its shape was predicted, never
+    # a level, and drawing a level would invent a claim nobody made.
+    shape = [0.335, 0.415, 0.415, 0.360]
+    left.plot(list(positions), shape, color=ACCENT, lw=1.2,
+              linestyle=(0, (4, 2)), zorder=5)
+    left.scatter(list(positions), shape, color=ACCENT, s=14, zorder=6)
+    left.text(1.5, 0.432, "pre-registered shape: a middle-sized ontology wins",
               ha="center", fontsize=7.5, color=ACCENT, style="italic")
 
     left.set_xticks(list(positions))
@@ -140,9 +148,12 @@ def main() -> int:
     for side in ("top", "right"):
         right.spines[side].set_visible(False)
 
-    caption = ("16 cases x 3 extractor models (DeepSeek-V3.1, gpt-oss-120b, MiniMax-M2.7), "
-               "192/192 extractions scored, no case lost to fallback. Documents, prompt, "
-               "chunking and seed held fixed; only the ontology handed to the extractor moves.")
+    caption = (
+        "16 cases x 3 extractor models (DeepSeek-V3.1, gpt-oss-120b, MiniMax-M2.7), 192/192 extractions scored, "
+        "no case lost to fallback. Documents, prompt, chunking and seed held fixed; only the ontology moves. "
+        "The registered prediction (CLAUDE.md, 2026-05-31) is that a middle-sized ontology beats both no ontology "
+        "and an over-large one; B at 20 classes is the middle and C/D at 70 are the over-large end. Differences "
+        "against A are separated from zero by a case-resampled interval; B, C and D are not separated from each other.")
     fig.text(0.008, -0.045, caption, fontsize=7, color=MUTED, ha="left", va="top",
              wrap=True)
 

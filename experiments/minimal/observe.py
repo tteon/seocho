@@ -92,6 +92,8 @@ _MAX_INLINE = 4000  # payload characters kept verbatim in the trace
 # The driver switches quote style when the statement itself contains one, so
 # both have to be accepted; matching only the apostrophe form silently dropped
 # 24 of 26 statements in the first run.
+_MAX_PARAMS = 400   # characters of a statement's parameters kept verbatim
+
 _RUN_LINE = re.compile(r"C: RUN (?P<q>['\"])(?P<cypher>.*)(?P=q) (?P<rest>\{.*\})$")
 _TIMING_LINE = re.compile(r"S: SUCCESS (?P<meta>\{.*\})$")
 
@@ -106,8 +108,16 @@ class DriverLogHandler(logging.Handler):
     the round trip, which folds in client-side result materialisation.
 
     The driver's own docs say the log format is for human consumption and may
-    change, so parsing is best-effort: an unparsed line is still written
-    verbatim, and a missed timing leaves the field absent rather than zero.
+    change, so parsing is best-effort, and a missed timing leaves the field
+    absent rather than zero.
+
+    Only the structured records are kept: the statement, and the server summary
+    that answers it. The rest of the Bolt exchange — handshakes, PULL frames,
+    chunk boundaries, pool events — is counted by logger and discarded. Keeping
+    it verbatim produced 835 MB across the run directories against 7 MB for
+    every stage record combined, which put the evidence out of reach of version
+    control for no gain: nobody audits a handshake. The counts are reported in
+    the run summary so the discarding is visible rather than silent.
     """
 
     LOGGERS = ("neo4j", "neo4j.io", "neo4j.pool")
@@ -119,6 +129,7 @@ class DriverLogHandler(logging.Handler):
         self.queries: list[dict[str, Any]] = []
         self._pending: dict[str, dict[str, Any]] = {}
         self.counts: dict[str, int] = {}
+        self.discarded = 0
 
     def emit(self, record: logging.LogRecord) -> None:
         message = record.getMessage()
@@ -128,11 +139,19 @@ class DriverLogHandler(logging.Handler):
         # The driver prefixes every line with the connection id in brackets,
         # which is what lets a RUN be matched to the SUCCESS that answers it.
         conn = message[1:6] if message.startswith("[#") else ""
+        keep = False
         run = _RUN_LINE.search(message)
         if run:
+            keep = True
             entry["kind"] = "query"
             entry["cypher"] = run.group("cypher")
-            entry["params"] = run.group("rest")
+            # The parameter block of a MERGE carries the whole node, and the
+            # same statement runs tens of thousands of times. Keeping every
+            # payload verbatim is what made these files unversionable, and the
+            # head is enough to see what shape of value went in.
+            rest = run.group("rest")
+            entry["params"] = (rest if len(rest) <= _MAX_PARAMS else
+                               rest[:_MAX_PARAMS] + f"…[{len(rest)} chars]")
             self._pending[conn] = entry
             span = trace.get_current_span()
             span.set_attribute("db.system", "neo4j")
@@ -140,6 +159,7 @@ class DriverLogHandler(logging.Handler):
         else:
             timing = _TIMING_LINE.search(message)
             if timing and ("t_last" in message or "t_first" in message):
+                keep = True
                 meta = timing.group("meta")
                 entry["kind"] = "result"
                 for field in ("t_first", "t_last"):
@@ -153,6 +173,9 @@ class DriverLogHandler(logging.Handler):
                     self.queries.append({**waiting, "t_first_ms": entry.get("t_first"),
                                          "t_last_ms": entry.get("t_last")})
                     self._pending.pop(conn, None)
+        if not keep:
+            self.discarded += 1
+            return
         with self._path.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(entry, ensure_ascii=False, default=str) + "\n")
 
@@ -170,6 +193,7 @@ class DriverLogHandler(logging.Handler):
         served = [q for q in self.queries if q.get("t_last_ms") is not None]
         total = sum(q["t_last_ms"] for q in served)
         return {"records": sum(self.counts.values()), "by_logger": dict(self.counts),
+                "protocol_messages_not_retained": self.discarded,
                 "queries": len(self.queries),
                 "server_ms_total": total,
                 "server_ms_slowest": max((q["t_last_ms"] for q in served), default=0)}

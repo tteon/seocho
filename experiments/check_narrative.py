@@ -53,6 +53,9 @@ NARRATIVE = sorted(
     "papers/log2026/SPEC.md",
     "experiments/preregistration/2026-08-02-second-sweep.md",
     "experiments/preregistration/2026-08-02-scale-up.md",
+    "experiments/preregistration/2026-08-02-condition-c-scale.md",
+    "experiments/preregistration/2026-08-02-answering.md",
+    "papers/log2026/PREREGISTRATION.md",
 ]
 INDEX = ROOT / "experiments/results_index.json"
 

@@ -1,11 +1,14 @@
 ---
 draws_on:
+  - log2026.query_smoke.v1
   - log2026.schema_sources.v1
   - log2026.schema_legibility.v1
   - log2026.category_load.v1
 ---
 
 # 2.2  Providing the ontology is not the same as the agent using it
+
+> **Deferred with section 2.1, tracked as an issue. The design and the smoke test are complete; the comparison is not run. The two observations worth keeping wherever this lands are recorded in the issue.**
 
 ## The distinction the experiment turns on
 
@@ -46,6 +49,55 @@ traces are mechanical to check — no judge, no interpretation.
 
 Each is a property of the query text or its parse, so utilisation is a count and
 not an opinion.
+
+## Noise that is not the description's, and has to be removed before measuring
+
+A smoke test of the mechanism — five questions, two descriptions, one model —
+connected and then broke in the middle. Generation succeeded every time.
+Grounding succeeded every time: not one invented label or property, which is
+worth noting because section 2.1 worries about introspection supplying invented
+structure and at this scale the model stayed inside whatever it was handed.
+Execution succeeded three times in six.
+
+Every failure was the same thing: `exists(n.prop)`, a form removed in Neo4j 5.
+The model writes Cypher from an older version of the language.
+
+That is not a schema-description failure and no description repairs it. Left
+alone it would have been attributed to whichever description happened to draw
+it, and with three failures in six, half the comparison would have been
+measuring which version of Cypher a model learned.
+
+So two things sit between the model and the store, and their design is what
+makes them noise removal rather than a treatment:
+
+- **A deterministic rewrite** of deprecated forms — `exists(n.prop)` to
+  `IS NOT NULL`, `id()` to `elementId()`, `size((pattern))` to a `COUNT`
+  subquery. Each preserves meaning; none corrects intent.
+- **One retry**, handing the store's own error back. Exactly one: a loop would
+  let a weak description be rescued by persistence, which is what the
+  comparison exists to detect.
+
+Both are applied **identically to every condition**, which is the property that
+matters — a repair that fired more often for one description would be an
+intervention wearing the clothes of a control. And every firing is **counted**,
+so how much repair was needed is reported rather than absorbed.
+
+With them in place: generated 10 of 10, grounded 10 of 10, executed 10 of 10,
+rows returned 8 of 10, retries needed 0 of 10. **Six of the ten queries needed
+the rewrite**, all for the same deprecated form.
+
+That six-in-ten is a result and not only a fix. Work comparing schema
+representations for text2cypher may be measuring, in part, how often a model
+writes syntax from the wrong language version — a cause no schema description
+touches. A comparison run without a repair layer cannot tell the two apart, and
+we could not have either.
+
+Two further things the smoke settled. What comes back attaches cleanly: rows
+averaged 53.1 characters with no bookkeeping keys, because the model projected the
+fields it wanted rather than returning whole nodes. And every query compared
+with `value_numeric` and none with the text `value` — a loading decision
+changing the agent's behaviour where a prompt could not, since none of the 760
+stored values was a number before that column existed.
 
 ## The control that detects the null
 

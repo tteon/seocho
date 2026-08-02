@@ -100,19 +100,65 @@ REPAIRS: list[tuple[str, str, str]] = [
      "exists(n.prop) was removed in Neo4j 5; IS NOT NULL replaces it"),
     (r"\bid\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)", r"elementId(\1)",
      "id() is deprecated and elementId() is the supported form"),
-    (r"\bsize\s*\(\s*\(", "COUNT { (",
-     "size() over a pattern was replaced by a COUNT subquery"),
 ]
+
+SIZE_PATTERN = re.compile(r"\bsize\s*(?=\()")
+
+
+def rewrite_size_pattern(cypher: str) -> tuple[str, bool]:
+    """size((pattern)) becomes COUNT { pattern }, matching the parentheses.
+
+    Written as a scan rather than a substitution because a regex cannot close
+    what it opens. Two earlier attempts got this wrong in ways worth recording:
+    the first replaced `size((` with `COUNT { (` and left size's own bracket
+    dangling; the second balanced parentheses but stopped at the first inner
+    group, turning `size((n)-[:HAS]->())` into `COUNT { (n) })`. The scan has to
+    find size's *own* closing bracket, which means counting from its opening one
+    until the depth returns to zero.
+
+    Neither version ever fired in a real query, so the smoke test never caught
+    either. A rule that corrupts a query the first time it is needed is worse
+    than no rule, which is why this one has a test beside it.
+    """
+    fired = False
+    while True:
+        match = SIZE_PATTERN.search(cypher)
+        if not match:
+            return cypher, fired
+        start, index = match.start(), match.end()
+        depth = 0
+        while index < len(cypher):
+            if cypher[index] == "(":
+                depth += 1
+            elif cypher[index] == ")":
+                depth -= 1
+                if depth == 0:
+                    break
+            index += 1
+        else:
+            return cypher, fired          # unbalanced; leave it alone
+        pattern = cypher[match.end() + 1:index].strip()
+        cypher = f"{cypher[:start]}COUNT {{ {pattern} }}{cypher[index + 1:]}"
+        fired = True
 
 
 def repair(cypher: str) -> tuple[str, list[str]]:
-    """Rewrite deprecated syntax, and say what was rewritten."""
+    """Rewrite deprecated syntax, and say what was rewritten.
+
+    Every rule preserves meaning; none corrects intent. The repair is a constant
+    across conditions, so it cannot flatter one description over another, and
+    each firing is recorded so how often it was needed is reported rather than
+    absorbed.
+    """
     fired = []
     for pattern, replacement, why in REPAIRS:
         repaired, count = re.subn(pattern, replacement, cypher)
         if count:
             fired.append(why)
             cypher = repaired
+    cypher, size_fired = rewrite_size_pattern(cypher)
+    if size_fired:
+        fired.append("size() over a pattern was replaced by a COUNT subquery")
     return cypher, fired
 
 
@@ -166,6 +212,24 @@ def check_query(cypher: str, labels: set[str], keys: set[str]) -> dict[str, Any]
             "invented_properties": invented_props,
             "grounded": not invented_labels and not invented_props,
             "compares_text_as_number": text_comparison}
+
+
+def _row_shape(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """How big a returned row is and how much of it is bookkeeping.
+
+    The answering model reads these, so their size and their signal-to-noise is
+    part of whether the retrieval is usable at all.
+    """
+    returning = [r for r in rows if r.get("returned_keys")]
+    if not returning:
+        return {"rows_inspected": 0}
+    keys = sum(r["returned_keys"] for r in returning)
+    book = sum(r["bookkeeping_keys_returned"] for r in returning)
+    chars = sum(r["row_characters"] for r in returning)
+    return {"rows_inspected": len(returning), "keys_total": keys,
+            "bookkeeping_keys": book,
+            "bookkeeping_share": round(book / keys, 4) if keys else 0.0,
+            "mean_characters": round(chars / len(returning), 1)}
 
 
 def main() -> int:
@@ -308,6 +372,10 @@ def main() -> int:
             lambda r: r.get("compares_text_as_number")),
         "needed_syntax_repair": share(lambda r: r.get("repairs_applied")),
         "needed_a_retry": share(lambda r: r.get("retried")),
+        # Aggregates as well as per-row values. Five times now the grounding
+        # check has caught prose quoting a mean the artifact held only the
+        # terms of.
+        "returned_row": _row_shape(rows),
         "results": rows,
     }
     (run.dir / "query_smoke.json").write_text(
@@ -335,14 +403,13 @@ def main() -> int:
     for why, count in sorted(reasons.items(), key=lambda kv: -kv[1]):
         print(f"  {count:3d}  {why}")
 
-    returning = [r for r in rows if r.get("returned_keys")]
-    if returning:
-        book = sum(r["bookkeeping_keys_returned"] for r in returning)
-        total = sum(r["returned_keys"] for r in returning)
-        chars = sum(r["row_characters"] for r in returning) / len(returning)
-        print(f"\nwhat comes back: {total} keys across {len(returning)} rows, "
-              f"{book} of them bookkeeping, {chars:.0f} characters a row")
-        print("  " + returning[0]["sample_row"][:220])
+    shape = payload["returned_row"]
+    if shape["rows_inspected"]:
+        print(f"\nwhat comes back: {shape['keys_total']} keys across "
+              f"{shape['rows_inspected']} rows, {shape['bookkeeping_keys']} of "
+              f"them bookkeeping, {shape['mean_characters']} characters a row")
+        first = next(r for r in rows if r.get("sample_row"))
+        print("  " + first["sample_row"][:220])
     for record in rows:
         if record.get("error"):
             print(f"\n  {record['description']} / {record['question'][:38]}")

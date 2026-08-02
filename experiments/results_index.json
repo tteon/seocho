@@ -1,7 +1,7 @@
 {
-  "generated_utc": "2026-08-02T07:47:19+00:00",
-  "contracts": 90,
-  "artifacts": 120,
+  "generated_utc": "2026-08-02T09:31:37+00:00",
+  "contracts": 91,
+  "artifacts": 123,
   "results": [
     {
       "contract": "seocho.retrace_run.v1",
@@ -1002,6 +1002,57 @@
       "traced": true,
       "has_decisive": true,
       "fingerprint": "9a626bec634eead3",
+      "missing": []
+    },
+    {
+      "contract": "log2026.query_smoke.v1",
+      "path": "outputs/minimal/20260802T093113Z-query-smoke/query_smoke.json",
+      "run_dir": "outputs/minimal/20260802T093113Z-query-smoke",
+      "modified": "2026-08-02 09:31",
+      "question": "Does a model given a schema description write Cypher this store will run, and is what comes back usable?",
+      "claim_boundary": "A smoke test. It says whether each stage happens at all, not how often it succeeds — the sample cannot support a rate and none is reported.",
+      "supersedes": "",
+      "method": "5 questions x 2 descriptions on gpt-oss-120b against the Financials database; each query checked for grounding before execution and then executed",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": true,
+      "has_decisive": true,
+      "fingerprint": "e1be2b6b0c98afdc",
+      "missing": []
+    },
+    {
+      "contract": "log2026.query_smoke.v1",
+      "path": "outputs/minimal/20260802T092405Z-query-smoke/query_smoke.json",
+      "run_dir": "outputs/minimal/20260802T092405Z-query-smoke",
+      "modified": "2026-08-02 09:24",
+      "question": "Does a model given a schema description write Cypher this store will run, and is what comes back usable?",
+      "claim_boundary": "A smoke test. It says whether each stage happens at all, not how often it succeeds — the sample cannot support a rate and none is reported.",
+      "supersedes": "",
+      "method": "5 questions x 2 descriptions on gpt-oss-120b against the Financials database; each query checked for grounding before execution and then executed",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": true,
+      "has_decisive": true,
+      "fingerprint": "e1be2b6b0c98afdc",
+      "missing": []
+    },
+    {
+      "contract": "log2026.query_smoke.v1",
+      "path": "outputs/minimal/20260802T091938Z-query-smoke/query_smoke.json",
+      "run_dir": "outputs/minimal/20260802T091938Z-query-smoke",
+      "modified": "2026-08-02 09:19",
+      "question": "Does a model given a schema description write Cypher this store will run, and is what comes back usable?",
+      "claim_boundary": "A smoke test. It says whether each stage happens at all, not how often it succeeds — the sample cannot support a rate and none is reported.",
+      "supersedes": "",
+      "method": "3 questions x 2 descriptions on gpt-oss-120b against the Financials database; each query checked for grounding before execution and then executed",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": true,
+      "has_decisive": true,
+      "fingerprint": "8c73b754cd93341c",
       "missing": []
     },
     {

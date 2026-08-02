@@ -10,6 +10,8 @@ draws_on:
 
 # 2.1  The schema an agent queries with should come from the ontology, and usually does not
 
+> **Deferred to a later venue (NODES 2026), tracked as an issue. The static comparison below is complete and its numbers hold; the agent half is not run. It is here because the argument belongs with the rest of the ontology line, not because this paper will carry it.**
+
 ## The step everyone skips
 
 A text2cypher system needs to tell the model what is in the graph. Standard

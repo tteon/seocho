@@ -72,6 +72,8 @@ class Finding:
     numbers: Callable[[dict[str, Any]], list[tuple[str, Any]]] | None = None
     charts: list[str] = field(default_factory=list)
     depends_on: list[str] = field(default_factory=list)
+    prereg: str | None = None          # file under experiments/preregistration
+    verdict_history: list[str] = field(default_factory=list)
 
 
 def n(payload: dict[str, Any], *path: str, default: Any = "—") -> Any:
@@ -387,6 +389,27 @@ FINDING_LIST: list[Finding] = [
 ]
 
 
+def prereg_status(name: str) -> str:
+    """When the hypothesis was committed, so 'before the run' is checkable.
+
+    A hypothesis is only pre-registered if its commit predates the run it
+    predicts. The commit date is read from git rather than from the file, since
+    a file's mtime says nothing about when its contents were fixed.
+    """
+    import subprocess
+
+    path = ROOT / "experiments/preregistration" / name
+    if not path.is_file():
+        return "**file missing**"
+    try:
+        stamp = subprocess.run(
+            ["git", "log", "-1", "--format=%cs", "--", str(path)],
+            cwd=ROOT, capture_output=True, text=True, check=True).stdout.strip()
+    except Exception:  # noqa: BLE001
+        return "committed date unavailable"
+    return f"committed {stamp}" if stamp else "**not committed yet**"
+
+
 def load_artifact(contract: str) -> dict[str, Any] | None:
     if not INDEX.is_file():
         return None
@@ -403,11 +426,43 @@ def load_artifact(contract: str) -> dict[str, Any] | None:
         return None
 
 
-def render(finding: Finding, payload: dict[str, Any] | None) -> str:
+AUTHORED_START = "<!-- authored: kept across regeneration -->"
+AUTHORED_END = "<!-- /authored -->"
+
+
+def keep_authored(path: Path) -> str:
+    """Carry hand-written text through a regeneration.
+
+    The generated sections are rebuilt from the artifacts every time, which is
+    the point of generating them. Everything between the two markers is not:
+    it is where paper drafting happens, and losing it to a rebuild would make
+    this directory unusable for the thing it exists for.
+    """
+    if not path.is_file():
+        return ""
+    text = path.read_text()
+    if AUTHORED_START not in text or AUTHORED_END not in text:
+        return ""
+    return text.split(AUTHORED_START, 1)[1].split(AUTHORED_END, 1)[0]
+
+
+def render(finding: Finding, payload: dict[str, Any] | None,
+           authored: str = "") -> str:
     lines = [f"# {finding.section}  {finding.title}", "",
-             f"**{BADGE[finding.verdict]}**", "",
+             f"**{BADGE[finding.verdict]}**", ""]
+    if finding.prereg:
+        registered = prereg_status(finding.prereg)
+        lines += [f"Hypothesis registered in "
+                  f"[`{finding.prereg}`](../../experiments/preregistration/"
+                  f"{finding.prereg}) — {registered}", ""]
+    else:
+        lines += ["> No pre-registration file. The hypothesis below was written "
+                  "up alongside the analysis rather than committed before the "
+                  "run, and should be read as a statement of intent recovered "
+                  "after the fact.", ""]
+    lines += [
              "## Question", "", finding.question, "",
-             "## Hypothesis, written before the run", "", finding.hypothesis, "",
+             "## Hypothesis", "", finding.hypothesis, "",
              "## Method", "", finding.method, ""]
 
     lines += ["## Measured", ""]
@@ -422,6 +477,10 @@ def render(finding: Finding, payload: dict[str, Any] | None) -> str:
         lines += [f"Artifact: `{payload.get('_path', '')}`",
                   f"Trace: `{payload.get('_run_dir', '')}/trace.jsonl`", ""]
 
+    if finding.verdict_history:
+        lines += ["## How this verdict changed", ""]
+        lines += [f"- {entry}" for entry in finding.verdict_history]
+        lines.append("")
     lines += ["## Reading", "",
               "_Interpretation, separate from the measurement above._", "",
               finding.reading, ""]
@@ -432,6 +491,11 @@ def render(finding: Finding, payload: dict[str, Any] | None) -> str:
         lines += [f"- {item}" for item in finding.depends_on]
         lines.append("")
     lines += ["## Reproduce", "", "```bash", finding.reproduce, "```", ""]
+    lines += ["---", "", "## Draft notes", "",
+              AUTHORED_START,
+              authored.strip() or "_Nothing yet. Text written between the two "
+                                  "markers survives `findings.py --write`._",
+              AUTHORED_END, ""]
     return "\n".join(lines)
 
 
@@ -506,7 +570,9 @@ def main() -> int:
             finding = row["finding"]
             directory = FINDINGS / finding.slug
             directory.mkdir(exist_ok=True)
-            (directory / "FINDING.md").write_text(render(finding, row["payload"]))
+            target = directory / "FINDING.md"
+            authored = keep_authored(target)
+            target.write_text(render(finding, row["payload"], authored))
             (directory / "meta.json").write_text(json.dumps({
                 "section": finding.section, "title": finding.title,
                 "question": finding.question, "hypothesis": finding.hypothesis,
@@ -514,6 +580,8 @@ def main() -> int:
                 "artifact": (row["payload"] or {}).get("_path", ""),
                 "run_dir": (row["payload"] or {}).get("_run_dir", ""),
                 "reproduce": finding.reproduce,
+                "preregistration": finding.prereg,
+                "verdict_history": finding.verdict_history,
                 "still_needed": finding.depends_on,
             }, indent=2, ensure_ascii=False) + "\n")
             for chart in finding.charts:

@@ -8,10 +8,11 @@ version: bump the version when a rerun changes what the number means,
 and set `supersedes` on the replacement so the withdrawn measurement
 stays visible.
 
-89 contracts, 118 artifacts, 23 with a full trace.
+90 contracts, 120 artifacts, 24 with a full trace.
 
 | Contract | Question | Headline | Traced | Artifact |
 |---|---|---|---|---|
+| `log2026.question_axes.v1` | Which questions need a vocabulary, which need a figure compared, and which need parts joined? | — | yes | `outputs/minimal/20260802T074439Z-question-axes/question_axes.json` |
 | `log2026.schema_sources.v1` | How far apart are the schema an agent is usually given and the ontology the graph was built f… | — | yes | `outputs/minimal/20260802T070908Z-schema-sources/schema_sources.json` |
 | `log2026.category_load.v1` | Are the extracted graphs loaded and queryable, isolated by category, with provenance attached? | — | yes | `outputs/minimal/20260802T070900Z-load-categories/category_load.json` |
 | `log2026.schema_legibility.v1` | Which of the obstacles to an agent querying this graph can a prompt remove, and which are sha… | — | yes | `outputs/minimal/20260802T070005Z-schema-legibility/schema_legibility.json` |
@@ -103,6 +104,8 @@ stays visible.
 | `log2026.full_multiagent_network.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-multiagent-network-v1/analysis.json` |
 
 ## What each result does not support
+
+**`log2026.question_axes.v1`** — The terminology axis detects a lexical bridge, not that answering requires crossing it — a question can use a synonym the filing does not while the answer sits elsewhere. Numeric and structural are only annotated in Financials and Company overview, so their absence elsewhere means unannotated rather than absent, and no rate should be read across all eight categories.
 
 **`log2026.schema_sources.v1`** — A static comparison of descriptions. It establishes that the two sources differ and by how much; it does not show that the difference changes what an agent can query, which needs the agent to be run.
 
@@ -258,6 +261,7 @@ Expected when a script is rerun on the same inputs. A problem when the inputs ch
 - `log2026.cross_view_evidence_audit.v1` — 2 runs, newest 2026-08-02 03:37
 - `log2026.extraction_arms.v1` — 4 runs, newest 2026-08-02 00:26
 - `log2026.fact_anchors_summary.v1` — 2 runs, newest 2026-08-02 06:47
+- `log2026.question_axes.v1` — 2 runs, newest 2026-08-02 07:47
 - `log2026.reextract.v2` — 2 runs, newest 2026-08-02 04:41
 - `log2026.schema_legibility.v1` — 3 runs, newest 2026-08-02 07:00
 - `log2026.schema_sources.v1` — 2 runs, newest 2026-08-02 07:09

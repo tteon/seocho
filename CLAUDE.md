@@ -509,11 +509,28 @@ S1–S5 are graph-favorable hypotheses; **S6 is the vector-baseline control**.
 The experiment is meaningful only if S6 behaves as a control (no graph edge) —
 treat a graph "win" on S6 as a red flag to investigate, not a result to report.
 
-### Label caveat (carry forward)
+### Label caveat (carry forward, corrected 2026-08-02)
 
-`reasoning` and `type` are only meaningfully populated in **Financials** and
-**Company overview**; Footnotes/baseline have them mostly null. Do not filter or
-interpret these labels naively across categories. (See memory: FinDER label bias.)
+`reasoning` and `type` have **no nulls** — both are populated on all 5,703 rows.
+The earlier wording, "only meaningfully populated in Financials and Company
+overview; Footnotes/baseline have them mostly null", reads as a coverage gap and
+there is not one. Measured from the parquet:
+
+- `reasoning` is a boolean. 1,085 True, and every one is in Financials (595) or
+  Company overview (490). The other six categories are `False` on every row.
+- `type` is the arithmetic a question needs: None 4,820, Compositional 440,
+  Division 128, Multiplication 121, Subtract 111, Addition 75, Subtraction 8.
+  Non-`None` values occur only in those same two categories.
+
+The trap is therefore not missing data. It is that `reasoning=False` in Risk
+means **this category was not annotated**, not "this question needs no
+reasoning". Treating False as a measurement across all eight categories is the
+naive interpretation this note exists to prevent. Stratify within Financials and
+Company overview; treat the other six as unannotated.
+
+Useful consequence: `type` states, in advance and without our choosing it, which
+questions need a numeric comparison. A Division or Subtract question cannot be
+answered while a figure is stored as text.
 
 ### Infrastructure (verified 2026-05-30)
 

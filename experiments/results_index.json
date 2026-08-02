@@ -1,7 +1,7 @@
 {
-  "generated_utc": "2026-08-02T07:10:07+00:00",
-  "contracts": 89,
-  "artifacts": 118,
+  "generated_utc": "2026-08-02T07:47:19+00:00",
+  "contracts": 90,
+  "artifacts": 120,
   "results": [
     {
       "contract": "seocho.retrace_run.v1",
@@ -968,6 +968,40 @@
       "traced": true,
       "has_decisive": true,
       "fingerprint": "d37f94f616876647",
+      "missing": []
+    },
+    {
+      "contract": "log2026.question_axes.v1",
+      "path": "outputs/minimal/20260802T074439Z-question-axes/question_axes.json",
+      "run_dir": "outputs/minimal/20260802T074439Z-question-axes",
+      "modified": "2026-08-02 07:47",
+      "question": "Which questions need a vocabulary, which need a figure compared, and which need parts joined?",
+      "claim_boundary": "The terminology axis detects a lexical bridge, not that answering requires crossing it — a question can use a synonym the filing does not while the answer sits elsewhere. Numeric and structural are only annotated in Financials and Company overview, so their absence elsewhere means unannotated rather than absent, and no rate should be read across all eight categories.",
+      "supersedes": "",
+      "method": "numeric and structural taken from the dataset's own `type` column and reference count; terminology derived from FIBO alias pairs that bridge a question's wording and the filing's, using only pairs whose counts can be trusted",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": true,
+      "has_decisive": true,
+      "fingerprint": "9a626bec634eead3",
+      "missing": []
+    },
+    {
+      "contract": "log2026.question_axes.v1",
+      "path": "outputs/minimal/20260802T073852Z-question-axes/question_axes.json",
+      "run_dir": "outputs/minimal/20260802T073852Z-question-axes",
+      "modified": "2026-08-02 07:41",
+      "question": "Which questions need a vocabulary, which need a figure compared, and which need parts joined?",
+      "claim_boundary": "The terminology axis detects a lexical bridge, not that answering requires crossing it — a question can use a synonym the filing does not while the answer sits elsewhere. Numeric and structural are only annotated in Financials and Company overview, so their absence elsewhere means unannotated rather than absent, and no rate should be read across all eight categories.",
+      "supersedes": "",
+      "method": "numeric and structural taken from the dataset's own `type` column and reference count; terminology derived from FIBO alias pairs that bridge a question's wording and the filing's, using only pairs whose counts can be trusted",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": true,
+      "has_decisive": true,
+      "fingerprint": "9a626bec634eead3",
       "missing": []
     },
     {

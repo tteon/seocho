@@ -1,0 +1,1531 @@
+{
+  "generated_utc": "2026-08-02T02:24:02+00:00",
+  "contracts": 70,
+  "artifacts": 76,
+  "results": [
+    {
+      "contract": "seocho.database_audit.v1",
+      "path": "outputs/minimal/database_audit.json",
+      "run_dir": "outputs/minimal",
+      "modified": "2026-08-02 00:48",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "counts={\"dead\": 6, \"keep\": 84, \"protected\": 2, \"stale\": 7}",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.validated_issuer_pool.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-validated-issuer-pool-v1/validated_issuer_pool.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-validated-issuer-pool-v1",
+      "modified": "2026-07-26 00:22",
+      "question": "",
+      "claim_boundary": "Diagnostic only. The reported 13-case chain is NOT replaced: re-deriving it needs the paid five-role persona gate. This quantifies the defect and provides the corrected pool for that future run.",
+      "supersedes": "",
+      "method": "deterministic replay; no LLM, embedding, or database calls",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question"
+      ]
+    },
+    {
+      "contract": "log2026.sparql_bench.v1",
+      "path": "outputs/minimal/20260802T015507Z-sparql-bench/sparql_bench.json",
+      "run_dir": "outputs/minimal/20260802T015507Z-sparql-bench",
+      "modified": "2026-08-02 01:55",
+      "question": "For running competency questions as SPARQL, is the Rust store worth adopting over the rdflib already present?",
+      "claim_boundary": "One ontology, one machine, single run, no warm cache control. Enough to tell an order of magnitude from a wash, not to rank engines.",
+      "supersedes": "",
+      "method": "whole path per engine: parse the FIBO turtle, then run the four query shapes a competency-question suite uses; the reported total is load plus all queries (CLAUDE.md 21.1)",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "suite_seconds={\"rdflib\": 2.7021, \"oxigraph\": 0.2379}",
+      "traced": true,
+      "has_decisive": true,
+      "fingerprint": "245dc9002d88d8e8",
+      "missing": []
+    },
+    {
+      "contract": "log2026.selector_robustness.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-selector-robustness-v1/analysis.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-selector-robustness-v1",
+      "modified": "2026-07-13 11:52",
+      "question": "",
+      "claim_boundary": "Routing-level replay only. A reformed coalition is not counted as answer success without evidence evaluation.",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question"
+      ]
+    },
+    {
+      "contract": "log2026.sdcr_zero_cost_replay.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-sdcr-zero-cost-replay-v1/replay.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-sdcr-zero-cost-replay-v1",
+      "modified": "2026-07-11 06:49",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.sdcr_verification_set.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-sdcr-verification-v1/verification.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-sdcr-verification-v1",
+      "modified": "2026-07-11 06:54",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.sdcr_selector_evaluation.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-sdcr-selector-eval-v1/evaluation.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-sdcr-selector-eval-v1",
+      "modified": "2026-07-12 02:05",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.sdcr_query_suite.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-sdcr-query-suite-v1/query_frames.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-sdcr-query-suite-v1",
+      "modified": "2026-07-11 06:38",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "counts={\"governance\": 40, \"natural_local\": 40, \"verification_conflict\": 40}",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.sdcr_paired_analysis.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/development_analysis.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1",
+      "modified": "2026-07-11 14:18",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.sdcr_paired_analysis.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/heldout_exploratory_analysis.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1",
+      "modified": "2026-07-11 14:18",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.sdcr_matched_null.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-sdcr-null-v1/analysis.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-sdcr-null-v1",
+      "modified": "2026-07-11 06:38",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.sdcr_exemplar_replay.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-sdcr-exemplars-v1/replay.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-sdcr-exemplars-v1",
+      "modified": "2026-07-11 06:46",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.sdcr_evidence.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-sdcr-evidence-v1/evidence_bundles.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-sdcr-evidence-v1",
+      "modified": "2026-07-11 07:03",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.sdcr_equal_budget_retrieval.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/heldout_exploratory_retrieval.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1",
+      "modified": "2026-07-11 14:07",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.sdcr_development_retrieval.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/development_retrieval.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1",
+      "modified": "2026-07-11 07:52",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.sdcr_development_answers.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/development_answers.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1",
+      "modified": "2026-07-11 13:57",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.sdcr_answers.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/heldout_exploratory_answers.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1",
+      "modified": "2026-07-11 14:17",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.sdcr_answer_smoke.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-sdcr-answer-smoke-conflict-retry-v1/smoke.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-sdcr-answer-smoke-conflict-retry-v1",
+      "modified": "2026-07-11 06:57",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.sdcr_answer_smoke.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-sdcr-answer-smoke-v1/smoke.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-sdcr-answer-smoke-v1",
+      "modified": "2026-07-11 06:54",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.safe_category_projection.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/projection.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1",
+      "modified": "2026-07-11 07:42",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.revised_sdcr_routing.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/revised_sdcr_routing.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1",
+      "modified": "2026-07-12 02:52",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.revised_multi_model_answers.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/revised_answers.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1",
+      "modified": "2026-07-12 03:16",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.revised_integrative_candidates.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/revised_integrative_candidates.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1",
+      "modified": "2026-07-12 02:38",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.revised_exact_retrieval.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/revised_exact_retrieval.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1",
+      "modified": "2026-07-12 03:01",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.revised_blind_validation.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/revised_blind_validation.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1",
+      "modified": "2026-07-13 12:04",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.revised_answer_analysis.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/revised_answer_analysis.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1",
+      "modified": "2026-07-12 03:16",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.reextract.v1",
+      "path": "outputs/minimal/20260802T005544Z-reextract/reextract.json",
+      "run_dir": "outputs/minimal/20260802T005544Z-reextract",
+      "modified": "2026-08-02 02:12",
+      "question": "Does the ontology handed to the extractor change what the graph contains, and does it make two models name the same fact the same way?",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [
+        "cases",
+        "reference text",
+        "prompt template",
+        "chunking",
+        "graph store",
+        "seed"
+      ],
+      "moving": "the ontology only",
+      "headline": "by_arm={\"A\": {\"ontology\": \"none\", \"ontology_hash\": \"86bb2258a8cfe653\", \"attempted\": 48, \"scored\": 48, \"nodes\": 2464, ",
+      "traced": true,
+      "has_decisive": true,
+      "fingerprint": "31f84a956efa9b56",
+      "missing": [
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.reasoner_pretest.v2",
+      "path": "outputs/minimal/20260802T013239Z-reasoner-pretest/reasoner_pretest.json",
+      "run_dir": "outputs/minimal/20260802T013239Z-reasoner-pretest",
+      "modified": "2026-08-02 01:39",
+      "question": "Does entailment derive structure FIBO does not state, for the classes arm C ships?",
+      "claim_boundary": "OWL 2 RL, not DL. RL does not derive subsumption from complex class expressions, so every count here is a lower bound on what HermiT or Pellet would find. Counts what entailment adds to the schema; it says nothing about whether a richer schema improves extraction, which only the paid arm can answer.",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "verdict=arm E is justified: entailment adds structure the flat class list does not have",
+      "traced": true,
+      "has_decisive": true,
+      "fingerprint": "d37f94f616876647",
+      "missing": []
+    },
+    {
+      "contract": "log2026.oracle_routing_ceiling.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/oracle_routing_ceiling.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1",
+      "modified": "2026-07-13 11:29",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.ontology_task_fit.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-ontology-task-fit-v1/ontology_task_fit.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-ontology-task-fit-v1",
+      "modified": "2026-08-01 09:29",
+      "question": "Does the FIBO vocabulary cover what each FinDER category asks about?",
+      "claim_boundary": "A lower bound. A concept present under a name the question does not use counts as uncovered, so this indicates direction and gaps, not a coverage score.",
+      "supersedes": "",
+      "method": "term overlap between question text and class labels, aliases, and property names from the local FIBO modules",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": []
+    },
+    {
+      "contract": "log2026.ontology_entity_governance_ablation.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-ontology-governance-ablation-v1/analysis.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-ontology-governance-ablation-v1",
+      "modified": "2026-07-12 01:59",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.ontology_counterfactual.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-ontology-counterfactual-v1/ontology_counterfactual.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-ontology-counterfactual-v1",
+      "modified": "2026-08-01 09:36",
+      "question": "Holding documents, models, and prompt fixed, does the ontology change how often two independent extractions name the same fact?",
+      "claim_boundary": "Comparability only. This says nothing about answer quality, and nothing about whether either extraction is correct.",
+      "supersedes": "",
+      "method": "read-only census over the frozen prompt x ontology grid; no model calls",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": []
+    },
+    {
+      "contract": "log2026.natural_conflict_census.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-natural-conflict-v1/natural_conflict_census.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-natural-conflict-v1",
+      "modified": "2026-07-29 15:17",
+      "question": "",
+      "claim_boundary": "The comparable-key rate bounds what any cross-view verifier can see, independently of routing. The disagreement rate is measured only on comparable pairs.",
+      "supersedes": "",
+      "method": "full-corpus census over four independent provider extractions; no conflict injection, no LLM or embedding calls, read-only",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question"
+      ]
+    },
+    {
+      "contract": "log2026.mixed_routing_suite.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-mixed-routing-suite-v1/suite.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-mixed-routing-suite-v1",
+      "modified": "2026-07-12 02:02",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "counts={\"complementary\": 28, \"conflict\": 8, \"local\": 28, \"protected\": 8, \"unanswerable\": 8}",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.merge_key_reality.v1",
+      "path": "outputs/minimal/merge_key_reality.json",
+      "run_dir": "outputs/minimal",
+      "modified": "2026-08-02 00:41",
+      "question": "Is the graph merge key derivable from the entity name, or is it model-invented?",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.key_rule_pretest.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-key-rule-pretest-v1/key_rule_pretest.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-key-rule-pretest-v1",
+      "modified": "2026-08-01 09:20",
+      "question": "Does keying facts on the ontology's declared identity properties make independent extractions more comparable than the slug the extractor invented?",
+      "claim_boundary": "A rule that raises the rate while collapsing the eligible set has not improved federation. Absolute comparable keys decide, and both are reported.",
+      "supersedes": "",
+      "method": "re-key the frozen graphs; read-only; no model calls",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": []
+    },
+    {
+      "contract": "log2026.heldout_adjudication.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/heldout_adjudication/annotations.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/heldout_adjudication",
+      "modified": "2026-07-11 13:59",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.full_multiagent_network.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-full-multiagent-network-v1/analysis.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-full-multiagent-network-v1",
+      "modified": "2026-07-11 06:21",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.full_finder_verification_set.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-full-finder-verification-v1/verification.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-full-finder-verification-v1",
+      "modified": "2026-07-13 11:38",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.full_finder_cross_view_pool.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/candidates.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1",
+      "modified": "2026-07-11 07:17",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.finder_cross_view_candidates.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-finder-cross-view-v1/candidates.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-finder-cross-view-v1",
+      "modified": "2026-07-11 04:14",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.fallback_answers.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-capability-fallback-v1/fallback_answers.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-capability-fallback-v1",
+      "modified": "2026-07-26 01:18",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.factorial_retrieval_mediation.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-factorial-mediation-v1/retrieval.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-factorial-mediation-v1",
+      "modified": "2026-07-12 03:34",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.factorial_mediation.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-factorial-mediation-v1/mediation.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-factorial-mediation-v1",
+      "modified": "2026-07-12 03:52",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.factorial_fixed_answers.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-factorial-mediation-v1/answers.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-factorial-mediation-v1",
+      "modified": "2026-07-12 03:51",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.factorial_effect_separation.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-factorial-effects-v1/analysis.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-factorial-effects-v1",
+      "modified": "2026-07-13 11:54",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.extraction_arms.v1",
+      "path": "outputs/minimal/20260802T002631Z-arms/arms.json",
+      "run_dir": "outputs/minimal/20260802T002631Z-arms",
+      "modified": "2026-08-02 00:26",
+      "question": "Does a real ontology, and separately its synonym layer, make two independent extractions describe the same fact with the same name?",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [
+        "documents",
+        "extractor model",
+        "chunking",
+        "prompt template",
+        "seed",
+        "node property set"
+      ],
+      "moving": "the class and relation vocabulary handed to the extractor",
+      "headline": "",
+      "traced": true,
+      "has_decisive": true,
+      "fingerprint": "24dd9f21b842d4e5",
+      "missing": [
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.extraction_arms.v1",
+      "path": "outputs/minimal/20260802T002457Z-arms/arms.json",
+      "run_dir": "outputs/minimal/20260802T002457Z-arms",
+      "modified": "2026-08-02 00:25",
+      "question": "Does a real ontology, and separately its synonym layer, make two independent extractions describe the same fact with the same name?",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [
+        "documents",
+        "extractor model",
+        "chunking",
+        "prompt template",
+        "seed",
+        "node property set"
+      ],
+      "moving": "the class and relation vocabulary handed to the extractor",
+      "headline": "",
+      "traced": true,
+      "has_decisive": true,
+      "fingerprint": "24dd9f21b842d4e5",
+      "missing": [
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.extraction_arms.v1",
+      "path": "outputs/minimal/20260802T002359Z-arms/arms.json",
+      "run_dir": "outputs/minimal/20260802T002359Z-arms",
+      "modified": "2026-08-02 00:24",
+      "question": "Does a real ontology, and separately its synonym layer, make two independent extractions describe the same fact with the same name?",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [
+        "documents",
+        "extractor model",
+        "chunking",
+        "prompt template",
+        "seed",
+        "node property set"
+      ],
+      "moving": "the class and relation vocabulary handed to the extractor",
+      "headline": "",
+      "traced": true,
+      "has_decisive": true,
+      "fingerprint": "f8aa0c58b3a14e7a",
+      "missing": [
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.extraction_arms.v1",
+      "path": "outputs/minimal/20260802T002119Z-arms/arms.json",
+      "run_dir": "outputs/minimal/20260802T002119Z-arms",
+      "modified": "2026-08-02 00:21",
+      "question": "Does a real ontology, and separately its synonym layer, make two independent extractions describe the same fact with the same name?",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [
+        "documents",
+        "extractor model",
+        "chunking",
+        "prompt template",
+        "seed",
+        "node property set"
+      ],
+      "moving": "the class and relation vocabulary handed to the extractor",
+      "headline": "",
+      "traced": true,
+      "has_decisive": true,
+      "fingerprint": "f726bd2b0d6fab41",
+      "missing": [
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.expanded_query_manifest.v2",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-validated-issuer-pool-v1/expanded_query_manifest_v2.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-validated-issuer-pool-v1",
+      "modified": "2026-07-26 00:22",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.expanded_query_manifest.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/expanded_query_manifest_v1.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1",
+      "modified": "2026-07-13 12:20",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.exact_token_retrieval.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/exact_token_retrieval.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1",
+      "modified": "2026-07-12 02:08",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.entity_overlap_census.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-entity-overlap-v1/entity_overlap_census.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-entity-overlap-v1",
+      "modified": "2026-07-29 15:27",
+      "question": "",
+      "claim_boundary": "Overlap is name-identity within the collapsed graph, a lower bound: an alias the identifier policy would merge counts as two entities here. It measures whether views can be joined at all, not whether the join is correct.",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question"
+      ]
+    },
+    {
+      "contract": "log2026.entity_cleaning_ablation.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-entity-cleaning-ablation-v1/analysis.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-entity-cleaning-ablation-v1",
+      "modified": "2026-07-12 01:31",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.cross_view_provenance_gate.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/provenance_gate.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1",
+      "modified": "2026-07-11 07:22",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "deterministic gold-to-reference support and opposite-view leakage; no model outputs",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.cross_view_frozen.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-finder-cross-view-v1/frozen_candidates.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-finder-cross-view-v1",
+      "modified": "2026-07-11 07:08",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.cross_view_evidence_audit.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/evidence_audit_log26.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1",
+      "modified": "2026-07-11 07:50",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.cross_view_evidence_audit.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/evidence_audit.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1",
+      "modified": "2026-07-11 07:25",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.cross_view_adjudication.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-finder-cross-view-v1/annotations.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-finder-cross-view-v1",
+      "modified": "2026-07-11 04:14",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.cq_similarity.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-cq-similarity-v1/cq_similarity.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-cq-similarity-v1",
+      "modified": "2026-08-01 09:38",
+      "question": "Are FIBO's competency questions the same kind of question FinDER asks?",
+      "claim_boundary": "Similarity of phrasing and topic, not of answerability. A high score means FIBO asks this kind of question, not that the graph can answer it.",
+      "supersedes": "",
+      "method": "competency questions generated mechanically from FIBO classes, properties and relationships; local BAAI/bge-small-en-v1.5 embeddings; cosine similarity; no API calls",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": []
+    },
+    {
+      "contract": "log2026.codex_panel_synthesis.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/codex_panel_synthesis.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1",
+      "modified": "2026-07-12 02:34",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.clean_financial_entity_network.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-clean-entity-network-v1/analysis.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-clean-entity-network-v1",
+      "modified": "2026-07-12 01:28",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.category_context.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-category-context-v1/context_divergence.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-category-context-v1",
+      "modified": "2026-07-11 04:10",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.capability_routing_baselines.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/capability_routing_baselines.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1",
+      "modified": "2026-07-13 11:50",
+      "question": "",
+      "claim_boundary": "The 13 cases are persona-screened rather than independently human-labeled. These results characterize routing coverage and retrieval only.",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question"
+      ]
+    },
+    {
+      "contract": "log2026.capability_fallback_replay.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-capability-fallback-v1/fallback_replay.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-capability-fallback-v1",
+      "modified": "2026-07-26 00:24",
+      "question": "",
+      "claim_boundary": "Retrieval-level replay on 13 persona-screened cases. It shows what a fallback recovers in evidence coverage, not that answers improve; the answer arms would need a paid re-run.",
+      "supersedes": "",
+      "method": "replay of frozen per-case arm rows; no LLM, embedding, or database calls",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question"
+      ]
+    },
+    {
+      "contract": "log2026.blind_llm_review.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/blind_llm_review.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1",
+      "modified": "2026-07-12 02:16",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.author_adjudicated_heldout.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/heldout_author_adjudication.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1",
+      "modified": "2026-07-11 14:07",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.arm_results.v1",
+      "path": "outputs/minimal/20260802T021249Z-arm-results/arm_results.json",
+      "run_dir": "outputs/minimal/20260802T021249Z-arm-results",
+      "modified": "2026-08-02 02:12",
+      "question": "Does the ontology handed to the extractor change whether two models describe the same fact the same way?",
+      "claim_boundary": "16 cases, 3 models, one run. Cases where extraction fell back to the heuristic are excluded and counted separately; every rate is conditioned on the scored cases, not the attempted ones.",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [
+        "cases",
+        "reference text",
+        "prompt",
+        "chunking",
+        "seed"
+      ],
+      "moving": "the ontology only",
+      "headline": "by_arm={\"A\": {\"cases_total\": 16, \"cases_contaminated\": 0, \"cases_scored\": 16, \"contaminated_cases\": [], \"nodes\": 2054",
+      "traced": true,
+      "has_decisive": true,
+      "fingerprint": "21ba102446e0df4c",
+      "missing": []
+    },
+    {
+      "contract": "log2026.answer_grounding_evaluation.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/heldout_grounding_evaluation.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1",
+      "modified": "2026-07-12 02:06",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.alias_register.v2",
+      "path": "outputs/minimal/20260802T003407Z-alias-register/alias_register.json",
+      "run_dir": "outputs/minimal/20260802T003407Z-alias-register",
+      "modified": "2026-08-02 00:34",
+      "question": "Do the filings name FIBO concepts by FIBO's preferred label, or by a synonym FIBO itself declares?",
+      "claim_boundary": "Only abbreviations and multi-word aliases are counted toward the conclusion. Single-word aliases such as cash, capital and average absorb compounds with different meanings and are reported separately as excluded.",
+      "supersedes": "log2026.alias_pretest.v1, whose counts conflated word senses and overstated the gap",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "annotation_coverage=0.1743",
+      "traced": true,
+      "has_decisive": true,
+      "fingerprint": "0219c334049efccd",
+      "missing": []
+    },
+    {
+      "contract": "log2026.alias_pretest.v1",
+      "path": "outputs/minimal/alias_pretest.json",
+      "run_dir": "outputs/minimal",
+      "modified": "2026-08-02 00:25",
+      "question": "Do the filings name FIBO concepts by their synonym rather than by FIBO's label?",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.agy_persona_panel.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/agy_persona_panel.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1",
+      "modified": "2026-07-12 02:31",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.adversarial_answer.v3",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-adversarial-answer-v3/results.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-adversarial-answer-v3",
+      "modified": "2026-07-13 11:48",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.adversarial_answer.v2",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-adversarial-answer-v2/results.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-adversarial-answer-v2",
+      "modified": "2026-07-12 03:00",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.adversarial_answer.v1",
+      "path": "outputs/evaluation/mdm_fedcat/log2026-adversarial-answer-v1/results.json",
+      "run_dir": "outputs/evaluation/mdm_fedcat/log2026-adversarial-answer-v1",
+      "modified": "2026-07-12 02:58",
+      "question": "",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": [
+        "question",
+        "claim_boundary"
+      ]
+    }
+  ]
+}

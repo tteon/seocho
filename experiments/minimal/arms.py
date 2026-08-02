@@ -11,6 +11,21 @@ the same way. These arms separate them.
     B  local       the 151-term hand-written modules; every prior result
     C  fibo        real FIBO classes and relations, scoped to the corpus
     D  fibo+syn    C plus synonyms, abbreviations, and preferred designations
+    E  fibo+sub    C plus the subsumption hierarchy entailment derives
+
+The property floor, and why it is a floor
+-----------------------------------------
+Every arm declares the same three properties on every class: name, value,
+period. The first run did not, and it cost a column: arms C and D filled
+`period` twice as often as arm A, which declares only `name`, and that is "a
+declared property gets filled" rather than anything about FIBO. Holding the
+floor constant makes the class vocabulary the only thing that moves.
+
+FIBO's own properties sit on top of the floor where they exist, which is for 25
+of the 70 scoped classes. The other 45 get nothing extra, and that is FIBO's
+modelling rather than an omission here: it expresses values as relations to
+value classes (hasTimePeriod to DatePeriod) rather than as datatype properties,
+which does not descend into a property graph.
 
 Only the schema handed to the extractor moves. Documents, model, chunking,
 prompt template, and seed are held fixed, which is what makes a difference
@@ -339,12 +354,12 @@ def scope_relations(fibo: dict[str, Any], nodes: dict[str, str],
 # Arm construction
 
 
-def value_properties(node: str) -> dict[str, Any]:
-    """The minimal property set every fact node needs to be comparable.
+def value_properties(node: str = "") -> dict[str, Any]:
+    """The property floor every class in every arm declares.
 
-    Held identical across arms on purpose. Varying properties as well as
-    classes would make an arm difference unattributable, and `period` is the
-    property CQ9 is about, so every arm must have the chance to fill it.
+    Identical across arms on purpose. `period` is the property CQ9 asks about,
+    so every arm must have the chance to fill it or the comparison measures
+    which arm was given the slot rather than which arm used it.
     """
     return {
         "name": {"type": "STRING", "constraint": "UNIQUE", "required": True},
@@ -353,9 +368,99 @@ def value_properties(node: str) -> dict[str, Any]:
     }
 
 
+def fibo_properties(fibo: dict[str, Any], iri: str, kept: dict[str, str],
+                    declared: dict[str, list[str]]) -> dict[str, Any]:
+    """FIBO's own datatype properties for a class, inherited from its ancestors.
+
+    Only datatype properties. FIBO's object properties are relations and are
+    already handled as such; folding them into node properties would double-count
+    them and invent a value slot FIBO does not define.
+    """
+    properties: dict[str, Any] = {}
+    frontier, seen = [iri], set()
+    for _ in range(6):
+        following = []
+        for node in frontier:
+            if node in seen:
+                continue
+            seen.add(node)
+            for label in declared.get(node, []):
+                key = re.sub(r"[^a-z0-9]+", "_",
+                             re.sub(r"^(has|is)\s+", "", label.lower())).strip("_")
+                if key and key not in properties and key not in ("name", "value",
+                                                                 "period"):
+                    properties[key] = {"type": "STRING"}
+            following += fibo["classes"].get(node, {}).get("parents", [])
+        if not following:
+            break
+        frontier = following
+    return properties
+
+
+def datatype_domains(ttl: Path) -> dict[str, list[str]]:
+    """class IRI -> labels of the datatype properties FIBO declares on it."""
+    from rdflib import Graph, RDF, RDFS, OWL
+
+    graph = Graph()
+    graph.parse(ttl, format="turtle")
+    found: dict[str, list[str]] = {}
+    for prop in graph.subjects(RDF.type, OWL.DatatypeProperty):
+        label = next((str(o) for o in graph.objects(prop, RDFS.label)), "")
+        if not label:
+            continue
+        for domain in graph.objects(prop, RDFS.domain):
+            found.setdefault(str(domain), []).append(label)
+    return found
+
+
+def subsumption_within(fibo: dict[str, Any], kept: dict[str, str]) -> dict[str, list[str]]:
+    """Which kept classes sit under which other kept classes.
+
+    Read from the entailed closure when reasoner_pretest has written one,
+    otherwise from the asserted parents alone. Which of the two was used is
+    reported by the caller, because the arm means different things either way.
+    """
+    hierarchy: dict[str, list[str]] = {}
+    for iri, node in kept.items():
+        parents = []
+        frontier, seen = list(fibo["classes"].get(iri, {}).get("parents", [])), set()
+        for _ in range(6):
+            following = []
+            for candidate in frontier:
+                if candidate in seen:
+                    continue
+                seen.add(candidate)
+                if candidate in kept and kept[candidate] != node:
+                    parents.append(kept[candidate])
+                following += fibo["classes"].get(candidate, {}).get("parents", [])
+            if not following:
+                break
+            frontier = following
+        if parents:
+            hierarchy[node] = sorted(dict.fromkeys(parents))
+    return hierarchy
+
+
 def build_arm_a() -> dict[str, Any]:
-    from examples.finder.datasets.fibo_modules.compose import compose_modules
-    return {"arm": "A", "id": "none", "ontology": compose_modules([]),
+    """The floor: one class, no vocabulary, but the same property slots.
+
+    Built by hand rather than through compose_modules([]) because that baseline
+    declares only `name`, which is what confounded the period column.
+    """
+    from seocho import Ontology
+
+    ontology = Ontology.from_dict({
+        "graph_type": "baseline_generic", "package_id": "baseline_generic",
+        "version": "1.0.0", "graph_model": "lpg",
+        "description": "Generic baseline — no class vocabulary",
+        "nodes": {"Entity": {"description": "Generic named entity",
+                             "properties": value_properties()}},
+        "relationships": {"RELATED_TO": {
+            "source": "Entity", "target": "Entity",
+            "description": "Generic relationship",
+            "cardinality": "MANY_TO_MANY"}},
+    })
+    return {"arm": "A", "id": "none", "ontology": ontology,
             "description": "generic Entity/RELATED_TO, no declared vocabulary"}
 
 
@@ -366,15 +471,25 @@ def build_arm_b() -> dict[str, Any]:
 
 
 def build_fibo_arm(classes: list[dict], relations: list[dict], *,
-                   synonyms: bool) -> dict[str, Any]:
+                   synonyms: bool = False, subsumption: dict | None = None,
+                   fibo: dict | None = None,
+                   declared: dict[str, list[str]] | None = None) -> dict[str, Any]:
     from seocho import Ontology
 
+    kept = {c["iri"]: c["node"] for c in classes}
     nodes: dict[str, Any] = {}
     for entry in classes:
-        body: dict[str, Any] = {
-            "description": f"FIBO {entry['label']}",
-            "properties": value_properties(entry["node"]),
-        }
+        properties = value_properties()
+        if fibo is not None and declared is not None:
+            properties.update(fibo_properties(fibo, entry["iri"], kept, declared))
+        description = f"FIBO {entry['label']}"
+        if subsumption and entry["node"] in subsumption:
+            # The renderer emits a flat list, so the hierarchy has to travel in
+            # the description or the extractor never sees it.
+            description += (" — a kind of "
+                            + ", ".join(subsumption[entry["node"]]))
+        body: dict[str, Any] = {"description": description,
+                                "properties": properties}
         if synonyms:
             aliases = []
             for kind in ("preferred", "common", "synonym", "abbreviation"):
@@ -395,7 +510,8 @@ def build_fibo_arm(classes: list[dict], relations: list[dict], *,
     if not relationships:
         raise SystemExit("scoping produced no relationships; widen the limits")
 
-    suffix = "fibo_syn" if synonyms else "fibo"
+    suffix = ("fibo_syn" if synonyms
+              else "fibo_sub" if subsumption else "fibo")
     ontology = Ontology.from_dict({
         "graph_type": suffix, "package_id": suffix, "version": "1.0.0",
         "graph_model": "lpg",
@@ -404,11 +520,13 @@ def build_fibo_arm(classes: list[dict], relations: list[dict], *,
         "nodes": nodes, "relationships": relationships,
     })
     return {
-        "arm": "D" if synonyms else "C",
+        "arm": "D" if synonyms else "E" if subsumption else "C",
         "id": suffix, "ontology": ontology,
         "description": ("real FIBO scoped to the corpus"
                         + (" plus synonyms, abbreviations and preferred "
-                           "designations" if synonyms else "")),
+                           "designations" if synonyms
+                           else " plus the subsumption hierarchy" if subsumption
+                           else "")),
     }
 
 

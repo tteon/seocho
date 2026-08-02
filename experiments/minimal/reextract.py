@@ -81,7 +81,7 @@ for _key, _value in dotenv_values(ROOT / ".env").items():
 import arms  # noqa: E402
 
 OUT_ROOT = ROOT / "outputs/minimal"
-PARTIAL_ROOT = ROOT / "outputs/evaluation/mdm_fedcat/log2026-reextract-v1"
+PARTIAL_ROOT_BASE = ROOT / "outputs/evaluation/mdm_fedcat"
 URI = "bolt://localhost:7687"
 
 MODELS = {
@@ -101,12 +101,15 @@ def auth() -> tuple[str, str]:
             os.environ.get("NEO4J_PASSWORD", ""))
 
 
-def database_for(arm: str, model_key: str) -> str:
-    return f"arm{arm.lower()}{model_key}"
+def database_for(arm: str, model_key: str, tag: str) -> str:
+    return f"arm{tag}{arm.lower()}{model_key}"
 
 
-def workspace_for(arm: str, model_key: str, case_id: str) -> str:
-    return f"arm{arm.lower()}-{model_key}-{case_id}"
+def workspace_for(arm: str, model_key: str, case_id: str, tag: str) -> str:
+    # The tag is in the workspace id as well as the database name. Without it a
+    # rerun under a changed ontology merges into the previous run's nodes, since
+    # the merge key is (id, _workspace_id) and neither would have moved.
+    return f"arm{tag}-{arm.lower()}-{model_key}-{case_id}"
 
 
 def select_cases(limit: int) -> list[dict]:
@@ -206,10 +209,18 @@ def build_arms(class_limit: int) -> dict[str, dict[str, Any]]:
         {arms.normalize(b["label"]) for b in fibo["object_properties"].values()
          if arms.normalize(b["label"])})
     relations = arms.scope_relations(fibo, by_iri, frequency, 40)
+    declared = arms.datatype_domains(arms.TTL)
+    hierarchy = arms.subsumption_within(fibo, by_iri)
 
-    built = [arms.build_arm_a(), arms.build_arm_b(),
-             arms.build_fibo_arm(classes, relations, synonyms=False),
-             arms.build_fibo_arm(classes, relations, synonyms=True)]
+    built = [
+        arms.build_arm_a(),
+        arms.build_arm_b(),
+        arms.build_fibo_arm(classes, relations, fibo=fibo, declared=declared),
+        arms.build_fibo_arm(classes, relations, synonyms=True, fibo=fibo,
+                            declared=declared),
+        arms.build_fibo_arm(classes, relations, subsumption=hierarchy, fibo=fibo,
+                            declared=declared),
+    ]
     return {a["arm"]: {**a, "context": arms.context_of(a)} for a in built}
 
 
@@ -283,13 +294,14 @@ class TracedLLM:
 
 
 def index_one(run, arm: dict[str, Any], model_key: str, model: str,
-              case: dict, extraction_tmpl, database: str) -> dict[str, Any]:
+              case: dict, extraction_tmpl, database: str,
+              tag: str) -> dict[str, Any]:
     """Extract one case's reference text into this arm's store."""
     from seocho import Seocho
     from seocho.store.graph import Neo4jGraphStore
     from seocho.store.llm import create_llm_backend
 
-    workspace = workspace_for(arm["arm"], model_key, case["case_id"])
+    workspace = workspace_for(arm["arm"], model_key, case["case_id"], tag)
     record: dict[str, Any] = {
         "arm": arm["arm"], "ontology": arm["id"], "model_key": model_key,
         "model": model, "case_id": case["case_id"], "category": case["category"],
@@ -366,17 +378,21 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--cases", type=int, default=16)
-    ap.add_argument("--arms", default="A,B,C,D")
+    ap.add_argument("--arms", default="A,B,C,D,E")
     ap.add_argument("--models", default="deepseek,gptoss,minimax27")
     ap.add_argument("--class-limit", type=int, default=70)
     ap.add_argument("--workers", type=int, default=6,
                     help="(arm, model) pairs run concurrently; each is serial")
+    ap.add_argument("--tag", default="v2",
+                    help="separates this run's databases, workspaces and "
+                         "partials from every earlier one")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--no-resume", dest="resume", action="store_false")
     args = ap.parse_args()
 
     import observe
 
+    partial_root = PARTIAL_ROOT_BASE / f"log2026-reextract-{args.tag}"
     wanted_arms = [a.strip().upper() for a in args.arms.split(",") if a.strip()]
     wanted_models = [m.strip() for m in args.models.split(",") if m.strip()]
 
@@ -402,7 +418,7 @@ def main() -> int:
         "prompt_id": prompt_id, "prompt_hash": prompt_hash,
         "class_limit": args.class_limit, "seed": 42,
     }, "runtime": {"uri": URI, "resume": args.resume,
-                   "partials": str(PARTIAL_ROOT)}})
+                   "partials": str(partial_root), "tag": args.tag}})
 
     total = len(wanted_arms) * len(wanted_models) * len(cases)
     references = sum(len(c["references"]) for c in cases)
@@ -424,7 +440,7 @@ def main() -> int:
         run.finish({"planned": total, "dry_run": True})
         return 0
 
-    PARTIAL_ROOT.mkdir(parents=True, exist_ok=True)
+    partial_root.mkdir(parents=True, exist_ok=True)
     ensured: set[str] = set()
     ensure_lock = threading.Lock()
     records: list[dict[str, Any]] = []
@@ -434,14 +450,14 @@ def main() -> int:
     def run_pair(arm_key: str, model_key: str) -> None:
         arm = built[arm_key]
         model = MODELS[model_key]
-        database = database_for(arm_key, model_key)
+        database = database_for(arm_key, model_key, args.tag)
         with ensure_lock:
             if database not in ensured:
                 with run.stage("db.ensure", database=database) as out:
                     out.update(ensure_database(database))
                 ensured.add(database)
         for case in cases:
-            partial = (PARTIAL_ROOT /
+            partial = (partial_root /
                        f"{arm_key}_{model_key}_{case['case_id']}.json")
             if args.resume and partial.is_file():
                 prior = json.loads(partial.read_text())
@@ -459,7 +475,7 @@ def main() -> int:
                          "references": len(case["references"]),
                          "database": database})
             record = index_one(run, arm, model_key, model, case,
-                               extraction_tmpl, database)
+                               extraction_tmpl, database, args.tag)
             record["prompt_hash"] = prompt_hash
             partial.write_text(json.dumps(record, indent=2,
                                           ensure_ascii=False) + "\n")
@@ -525,6 +541,7 @@ def main() -> int:
                        "graph store", "seed"],
         "moving": "the ontology only",
         "prompt": {"id": prompt_id, "hash": prompt_hash},
+        "tag": args.tag,
         "cases": [c["case_id"] for c in cases],
         "single_reference_categories": single_reference_categories,
         "sampling": (f"{SAMPLE_PER_CATEGORY} per category, preferring "

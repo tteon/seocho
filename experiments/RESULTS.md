@@ -8,92 +8,127 @@ version: bump the version when a rerun changes what the number means,
 and set `supersedes` on the replacement so the withdrawn measurement
 stays visible.
 
-76 contracts, 85 artifacts, 10 with a full trace.
+81 contracts, 96 artifacts, 16 with a full trace.
 
 | Contract | Question | Headline | Traced | Artifact |
 |---|---|---|---|---|
+| `log2026.fact_anchors_summary.v1` | Can a figure a model extracted be attributed to the place in the source it came from, after t… | — | yes | `outputs/minimal/20260802T053932Z-materialize-anchors/anchors_summary.json` |
+| `log2026.provenance_keying.v1` | Does matching facts by where they came from in the source find more comparable pairs, and mor… | — | yes | `outputs/minimal/20260802T053531Z-provenance-keying/provenance_keying.json` |
+| `log2026.verification_value.v1` | When independently built views disagree about a figure, does refusing to serve it avoid an er… | — | yes | `outputs/minimal/20260802T051054Z-verification-value/verification_value.json` |
+| `log2026.routing_ceiling.v1` | Given what the graphs contain, what is the most any router could gain, and at what cost? | — | yes | `outputs/minimal/20260802T044303Z-routing-ceiling/routing_ceiling.json` |
+| `log2026.reextract.v2` | Does the ontology handed to the extractor change what the graph contains, and does it make tw… | by_arm={"A": {"ontology": "none", "ontology_hash": "a643d7a7 | yes | `outputs/minimal/20260802T022713Z-reextract/reextract.json` |
+| `log2026.validity.v1` | Was the schema actually delivered to the extractor, and are the differences between condition… | — | yes | `outputs/minimal/20260802T042811Z-validity/validity.json` |
+| `log2026.arm_results.v2` | Does the ontology handed to the extractor change whether two models describe the same fact th… | by_arm={"A": {"cases_total": 16, "cases_contaminated": 0, "c | yes | `outputs/minimal/20260802T042750Z-arm-results/arm_results.json` |
+| `seocho.retrace_run.v1` | Can every pre-harness result be re-produced with a record of the run behind it? | — | no | `outputs/minimal/retrace_run.json` |
+| `log2026.selector_robustness.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-selector-robustness-v1/analysis.json` |
+| `log2026.sdcr_zero_cost_replay.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-sdcr-zero-cost-replay-v1/replay.json` |
+| `log2026.sdcr_verification_set.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-sdcr-verification-v1/verification.json` |
+| `log2026.sdcr_selector_evaluation.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-sdcr-selector-eval-v1/evaluation.json` |
+| `log2026.sdcr_query_suite.v1` | — | counts={"governance": 40, "natural_local": 40, "verification | no | `outputs/evaluation/mdm_fedcat/log2026-sdcr-query-suite-v1/query_frames.json` |
+| `log2026.sdcr_paired_analysis.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/development_analysis.json` |
+| `log2026.sdcr_matched_null.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-sdcr-null-v1/analysis.json` |
+| `log2026.sdcr_exemplar_replay.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-sdcr-exemplars-v1/replay.json` |
+| `log2026.sdcr_evidence.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-sdcr-evidence-v1/evidence_bundles.json` |
+| `log2026.sdcr_equal_budget_retrieval.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/development_retrieval.json` |
+| `log2026.sdcr_answers.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/development_answers.json` |
+| `log2026.sdcr_answer_smoke.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-sdcr-answer-smoke-v1/smoke.json` |
+| `log2026.safe_category_projection.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/projection.json` |
+| `log2026.revised_sdcr_routing.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/revised_sdcr_routing.json` |
+| `log2026.revised_multi_model_answers.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/revised_answers.json` |
+| `log2026.revised_integrative_candidates.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/revised_integrative_candidates.json` |
+| `log2026.revised_exact_retrieval.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/revised_exact_retrieval.json` |
+| `log2026.revised_blind_validation.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/revised_blind_validation.json` |
+| `log2026.revised_answer_analysis.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/revised_answer_analysis.json` |
+| `log2026.oracle_routing_ceiling.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/oracle_routing_ceiling.json` |
+| `log2026.ontology_entity_governance_ablation.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-ontology-governance-ablation-v1/analysis.json` |
+| `log2026.natural_conflict_census.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-natural-conflict-v1/natural_conflict_census.json` |
+| `log2026.mixed_routing_suite.v1` | — | counts={"complementary": 28, "conflict": 8, "local": 28, "pr | no | `outputs/evaluation/mdm_fedcat/log2026-mixed-routing-suite-v1/suite.json` |
+| `log2026.key_rule_pretest.v1` | Does keying facts on the ontology's declared identity properties make independent extractions… | — | no | `outputs/evaluation/mdm_fedcat/log2026-key-rule-pretest-v1/key_rule_pretest.json` |
+| `log2026.heldout_adjudication.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/heldout_adjudication/annotations.json` |
+| `log2026.full_finder_cross_view_pool.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/candidates.json` |
+| `log2026.fallback_answers.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-capability-fallback-v1/fallback_answers.json` |
+| `log2026.factorial_mediation.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-factorial-mediation-v1/mediation.json` |
+| `log2026.factorial_fixed_answers.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-factorial-mediation-v1/answers.json` |
+| `log2026.factorial_effect_separation.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-factorial-effects-v1/analysis.json` |
+| `log2026.validated_issuer_pool.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-validated-issuer-pool-v1/validated_issuer_pool.json` |
+| `log2026.finder_cross_view_candidates.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-finder-cross-view-v1/candidates.json` |
+| `log2026.expanded_query_manifest.v2` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-validated-issuer-pool-v1/expanded_query_manifest_v2.json` |
+| `log2026.exact_token_retrieval.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/exact_token_retrieval.json` |
+| `log2026.entity_overlap_census.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-entity-overlap-v1/entity_overlap_census.json` |
+| `log2026.entity_cleaning_ablation.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-entity-cleaning-ablation-v1/analysis.json` |
+| `log2026.cross_view_provenance_gate.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/provenance_gate.json` |
+| `log2026.cross_view_frozen.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-finder-cross-view-v1/frozen_candidates.json` |
+| `log2026.cross_view_evidence_audit.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/evidence_audit.json` |
+| `log2026.cross_view_adjudication.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-finder-cross-view-v1/annotations.json` |
+| `log2026.codex_panel_synthesis.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/codex_panel_synthesis.json` |
+| `log2026.clean_financial_entity_network.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-clean-entity-network-v1/analysis.json` |
+| `log2026.category_context.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-category-context-v1/context_divergence.json` |
+| `log2026.capability_routing_baselines.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/capability_routing_baselines.json` |
+| `log2026.capability_fallback_replay.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-capability-fallback-v1/fallback_replay.json` |
+| `log2026.blind_llm_review.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/blind_llm_review.json` |
+| `log2026.author_adjudicated_heldout.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/heldout_author_adjudication.json` |
+| `log2026.answer_grounding_evaluation.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/heldout_grounding_evaluation.json` |
+| `log2026.alias_register.v2` | Do the filings name FIBO concepts by FIBO's preferred label, or by a synonym FIBO itself decl… | annotation_coverage=0.1743 | yes | `outputs/minimal/20260802T033132Z-alias-register/alias_register.json` |
+| `log2026.adversarial_answer.v3` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-adversarial-answer-v2/results.json` |
+| `seocho.retrace_plan.v1` | How can every published result be given a trace, and what does each one cost? | counts={"retired": 6, "free": 60, "traced": 10} | no | `outputs/minimal/retrace_plan.json` |
 | `seocho.observability_audit.v1` | Does every run leave a record a reviewer could read without us present? | — | no | `outputs/minimal/observability_audit.json` |
-| `log2026.validity.v1` | Was the schema actually delivered to the extractor, and are the differences between condition… | — | yes | `outputs/minimal/20260802T031440Z-validity/validity.json` |
 | `log2026.correctness.v1` | Does the extracted graph contain the dataset's gold answer, and do two models capture the sam… | — | yes | `outputs/minimal/20260802T030034Z-correctness/correctness.json` |
 | `log2026.mechanism.v1` | Does declaring a type change how findable a thing is across views, and do declared synonyms c… | — | yes | `outputs/minimal/20260802T025850Z-mechanism/mechanism.json` |
 | `log2026.arm_results.v1` | Does the ontology handed to the extractor change whether two models describe the same fact th… | by_arm={"A": {"cases_total": 16, "cases_contaminated": 0, "c | yes | `outputs/minimal/20260802T025158Z-arm-results/arm_results.json` |
 | `log2026.category_contamination.v1` | If the categories shared one graph, would name collisions merge things that mean different th… | — | yes | `outputs/minimal/20260802T024329Z-category-contamination/category_contamination.json` |
-| `log2026.reextract.v1` | Does the ontology handed to the extractor change what the graph contains, and does it make tw… | by_arm={"A": {"ontology": "none", "ontology_hash": "a643d7a7 | yes | `outputs/minimal/20260802T022713Z-reextract/reextract.json` |
 | `seocho.claim_audit.v1` | Does every claim have code, data and a trace behind it? | — | no | `outputs/minimal/claim_audit.json` |
+| `log2026.reextract.v1` | Does the ontology handed to the extractor change what the graph contains, and does it make tw… | by_arm={"A": {"ontology": "none", "ontology_hash": "86bb2258 | yes | `outputs/minimal/20260802T005544Z-reextract/reextract.json` |
 | `log2026.sparql_bench.v1` | For running competency questions as SPARQL, is the Rust store worth adopting over the rdflib … | suite_seconds={"rdflib": 2.7021, "oxigraph": 0.2379} | yes | `outputs/minimal/20260802T015507Z-sparql-bench/sparql_bench.json` |
 | `log2026.reasoner_pretest.v2` | Does entailment derive structure FIBO does not state, for the classes arm C ships? | verdict=arm E is justified: entailment adds structure the fl | yes | `outputs/minimal/20260802T013239Z-reasoner-pretest/reasoner_pretest.json` |
 | `seocho.database_audit.v1` | — | counts={"dead": 6, "keep": 84, "protected": 2, "stale": 7} | no | `outputs/minimal/database_audit.json` |
 | `log2026.merge_key_reality.v1` | Is the graph merge key derivable from the entity name, or is it model-invented? | — | no | `outputs/minimal/merge_key_reality.json` |
-| `log2026.alias_register.v2` | Do the filings name FIBO concepts by FIBO's preferred label, or by a synonym FIBO itself decl… | annotation_coverage=0.1743 | yes | `outputs/minimal/20260802T003407Z-alias-register/alias_register.json` |
 | `log2026.extraction_arms.v1` | Does a real ontology, and separately its synonym layer, make two independent extractions desc… | — | yes | `outputs/minimal/20260802T002631Z-arms/arms.json` |
 | `log2026.alias_pretest.v1` | Do the filings name FIBO concepts by their synonym rather than by FIBO's label? | — | no | `outputs/minimal/alias_pretest.json` |
 | `log2026.cq_similarity.v1` | Are FIBO's competency questions the same kind of question FinDER asks? | — | no | `outputs/evaluation/mdm_fedcat/log2026-cq-similarity-v1/cq_similarity.json` |
 | `log2026.ontology_counterfactual.v1` | Holding documents, models, and prompt fixed, does the ontology change how often two independe… | — | no | `outputs/evaluation/mdm_fedcat/log2026-ontology-counterfactual-v1/ontology_counterfactual.json` |
 | `log2026.ontology_task_fit.v1` | Does the FIBO vocabulary cover what each FinDER category asks about? | — | no | `outputs/evaluation/mdm_fedcat/log2026-ontology-task-fit-v1/ontology_task_fit.json` |
-| `log2026.key_rule_pretest.v1` | Does keying facts on the ontology's declared identity properties make independent extractions… | — | no | `outputs/evaluation/mdm_fedcat/log2026-key-rule-pretest-v1/key_rule_pretest.json` |
-| `log2026.entity_overlap_census.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-entity-overlap-v1/entity_overlap_census.json` |
-| `log2026.natural_conflict_census.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-natural-conflict-v1/natural_conflict_census.json` |
-| `log2026.fallback_answers.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-capability-fallback-v1/fallback_answers.json` |
-| `log2026.capability_fallback_replay.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-capability-fallback-v1/fallback_replay.json` |
-| `log2026.validated_issuer_pool.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-validated-issuer-pool-v1/validated_issuer_pool.json` |
-| `log2026.expanded_query_manifest.v2` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-validated-issuer-pool-v1/expanded_query_manifest_v2.json` |
 | `log2026.expanded_query_manifest.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/expanded_query_manifest_v1.json` |
-| `log2026.revised_blind_validation.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/revised_blind_validation.json` |
-| `log2026.factorial_effect_separation.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-factorial-effects-v1/analysis.json` |
-| `log2026.selector_robustness.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-selector-robustness-v1/analysis.json` |
-| `log2026.capability_routing_baselines.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/capability_routing_baselines.json` |
-| `log2026.adversarial_answer.v3` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-adversarial-answer-v3/results.json` |
 | `log2026.full_finder_verification_set.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-finder-verification-v1/verification.json` |
-| `log2026.oracle_routing_ceiling.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/oracle_routing_ceiling.json` |
-| `log2026.factorial_mediation.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-factorial-mediation-v1/mediation.json` |
-| `log2026.factorial_fixed_answers.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-factorial-mediation-v1/answers.json` |
 | `log2026.factorial_retrieval_mediation.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-factorial-mediation-v1/retrieval.json` |
-| `log2026.revised_multi_model_answers.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/revised_answers.json` |
-| `log2026.revised_answer_analysis.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/revised_answer_analysis.json` |
-| `log2026.revised_exact_retrieval.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/revised_exact_retrieval.json` |
-| `log2026.adversarial_answer.v2` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-adversarial-answer-v2/results.json` |
 | `log2026.adversarial_answer.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-adversarial-answer-v1/results.json` |
-| `log2026.revised_sdcr_routing.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/revised_sdcr_routing.json` |
-| `log2026.revised_integrative_candidates.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/revised_integrative_candidates.json` |
-| `log2026.codex_panel_synthesis.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/codex_panel_synthesis.json` |
 | `log2026.agy_persona_panel.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/agy_persona_panel.json` |
-| `log2026.blind_llm_review.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/blind_llm_review.json` |
-| `log2026.exact_token_retrieval.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/exact_token_retrieval.json` |
-| `log2026.answer_grounding_evaluation.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/heldout_grounding_evaluation.json` |
-| `log2026.sdcr_selector_evaluation.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-sdcr-selector-eval-v1/evaluation.json` |
-| `log2026.mixed_routing_suite.v1` | — | counts={"complementary": 28, "conflict": 8, "local": 28, "pr | no | `outputs/evaluation/mdm_fedcat/log2026-mixed-routing-suite-v1/suite.json` |
-| `log2026.ontology_entity_governance_ablation.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-ontology-governance-ablation-v1/analysis.json` |
-| `log2026.entity_cleaning_ablation.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-entity-cleaning-ablation-v1/analysis.json` |
-| `log2026.clean_financial_entity_network.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-clean-entity-network-v1/analysis.json` |
-| `log2026.sdcr_paired_analysis.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/development_analysis.json` |
-| `log2026.sdcr_answers.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/heldout_exploratory_answers.json` |
-| `log2026.sdcr_equal_budget_retrieval.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/heldout_exploratory_retrieval.json` |
-| `log2026.author_adjudicated_heldout.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/heldout_author_adjudication.json` |
-| `log2026.heldout_adjudication.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/heldout_adjudication/annotations.json` |
-| `log2026.sdcr_development_answers.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/development_answers.json` |
-| `log2026.sdcr_development_retrieval.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/development_retrieval.json` |
-| `log2026.cross_view_evidence_audit.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/evidence_audit_log26.json` |
-| `log2026.safe_category_projection.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/projection.json` |
-| `log2026.cross_view_provenance_gate.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/provenance_gate.json` |
-| `log2026.full_finder_cross_view_pool.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/candidates.json` |
-| `log2026.cross_view_frozen.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-finder-cross-view-v1/frozen_candidates.json` |
-| `log2026.sdcr_evidence.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-sdcr-evidence-v1/evidence_bundles.json` |
-| `log2026.sdcr_answer_smoke.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-sdcr-answer-smoke-conflict-retry-v1/smoke.json` |
-| `log2026.sdcr_verification_set.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-sdcr-verification-v1/verification.json` |
-| `log2026.sdcr_zero_cost_replay.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-sdcr-zero-cost-replay-v1/replay.json` |
-| `log2026.sdcr_exemplar_replay.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-sdcr-exemplars-v1/replay.json` |
-| `log2026.sdcr_query_suite.v1` | — | counts={"governance": 40, "natural_local": 40, "verification | no | `outputs/evaluation/mdm_fedcat/log2026-sdcr-query-suite-v1/query_frames.json` |
-| `log2026.sdcr_matched_null.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-sdcr-null-v1/analysis.json` |
 | `log2026.full_multiagent_network.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-multiagent-network-v1/analysis.json` |
-| `log2026.finder_cross_view_candidates.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-finder-cross-view-v1/candidates.json` |
-| `log2026.cross_view_adjudication.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-finder-cross-view-v1/annotations.json` |
-| `log2026.category_context.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-category-context-v1/context_divergence.json` |
 
 ## What each result does not support
 
-**`seocho.observability_audit.v1`** — Checks presence and well-formedness of the record, not the correctness of what it records.
+**`log2026.fact_anchors_summary.v1`** — An anchor is a unique numeric coincidence, not a provenance record written during extraction. Two unrelated facts sharing one figure would be attributed to the same token if only one occurrence exists. Only figures can be anchored at all, so facts without one are outside this entirely.
+
+**`log2026.provenance_keying.v1`** — Only facts carrying a figure can be anchored, so this says nothing about the rest. An anchor is a numeric token, not a verified provenance record — two facts can share a token by coincidence, which is why ambiguous matches are dropped and why the anchor rate is reported beside every result.
+
+**`log2026.verification_value.v1`** — Correctness is whether a figure appears in the gold answer, not whether it answers the question; a view holding the right number against the wrong entity counts as correct. Scored per fact rather than per answer, so this bounds what a serving policy could do rather than measuring one. Restricted to facts where a right answer existed, because scoring every extracted figure against the answer makes 95% of them 'wrong' when they are merely irrelevant.
+
+**`log2026.routing_ceiling.v1`** — An upper bound on routing, not a measurement of any router. The oracle sees the gold answer, so no implementable method reaches it. Coverage means the figure is somewhere in the consulted graphs; it does not mean a query would retrieve it or an answer would use it.
 
 **`log2026.validity.v1`** — The interval covers sampling variability across these 16 cases only. It does not cover variation between models, between runs of one model, or the choice of matching rule.
+
+**`log2026.arm_results.v2`** — 16 cases, 3 models, one run. Cases where extraction fell back to the heuristic are excluded and counted separately; every rate is conditioned on the scored cases, not the attempted ones.
+
+**`seocho.retrace_run.v1`** — A script-level trace, not a stage-level one. It records that the script ran and what it touched; it does not record the inputs and outputs of each step inside it, because the script has no steps to report. Marked trace_depth=script in every run.
+
+**`log2026.selector_robustness.v1`** — Routing-level replay only. A reformed coalition is not counted as answer success without evidence evaluation.
+
+**`log2026.natural_conflict_census.v1`** — The comparable-key rate bounds what any cross-view verifier can see, independently of routing. The disagreement rate is measured only on comparable pairs.
+
+**`log2026.key_rule_pretest.v1`** — A rule that raises the rate while collapsing the eligible set has not improved federation. Absolute comparable keys decide, and both are reported.
+
+**`log2026.validated_issuer_pool.v1`** — Diagnostic only. The reported 13-case chain is NOT replaced: re-deriving it needs the paid five-role persona gate. This quantifies the defect and provides the corrected pool for that future run.
+
+**`log2026.entity_overlap_census.v1`** — Overlap is name-identity within the collapsed graph, a lower bound: an alias the identifier policy would merge counts as two entities here. It measures whether views can be joined at all, not whether the join is correct.
+
+**`log2026.capability_routing_baselines.v1`** — The 13 cases are persona-screened rather than independently human-labeled. These results characterize routing coverage and retrieval only.
+
+**`log2026.capability_fallback_replay.v1`** — Retrieval-level replay on 13 persona-screened cases. It shows what a fallback recovers in evidence coverage, not that answers improve; the answer arms would need a paid re-run.
+
+**`log2026.alias_register.v2`** — Only abbreviations and multi-word aliases are counted toward the conclusion. Single-word aliases such as cash, capital and average absorb compounds with different meanings and are reported separately as excluded.
+
+**`seocho.retrace_plan.v1`** — Classification is from static reading of the script. A script with no paid marker could still reach a paid service indirectly.
+
+**`seocho.observability_audit.v1`** — Checks presence and well-formedness of the record, not the correctness of what it records.
 
 **`log2026.correctness.v1`** — Numeric recall asks whether the figure is present somewhere in the graph, not whether it is attached to the right entity or retrievable by a query. A graph can score well here and still be unusable. Semantic similarity is a proxy for sameness, not a judgement of correctness.
 
@@ -109,109 +144,97 @@ stays visible.
 
 **`log2026.reasoner_pretest.v2`** — OWL 2 RL, not DL. RL does not derive subsumption from complex class expressions, so every count here is a lower bound on what HermiT or Pellet would find. Counts what entailment adds to the schema; it says nothing about whether a richer schema improves extraction, which only the paid arm can answer.
 
-**`log2026.alias_register.v2`** — Only abbreviations and multi-word aliases are counted toward the conclusion. Single-word aliases such as cash, capital and average absorb compounds with different meanings and are reported separately as excluded.
-
 **`log2026.cq_similarity.v1`** — Similarity of phrasing and topic, not of answerability. A high score means FIBO asks this kind of question, not that the graph can answer it.
 
 **`log2026.ontology_counterfactual.v1`** — Comparability only. This says nothing about answer quality, and nothing about whether either extraction is correct.
 
 **`log2026.ontology_task_fit.v1`** — A lower bound. A concept present under a name the question does not use counts as uncovered, so this indicates direction and gaps, not a coverage score.
 
-**`log2026.key_rule_pretest.v1`** — A rule that raises the rate while collapsing the eligible set has not improved federation. Absolute comparable keys decide, and both are reported.
-
-**`log2026.entity_overlap_census.v1`** — Overlap is name-identity within the collapsed graph, a lower bound: an alias the identifier policy would merge counts as two entities here. It measures whether views can be joined at all, not whether the join is correct.
-
-**`log2026.natural_conflict_census.v1`** — The comparable-key rate bounds what any cross-view verifier can see, independently of routing. The disagreement rate is measured only on comparable pairs.
-
-**`log2026.capability_fallback_replay.v1`** — Retrieval-level replay on 13 persona-screened cases. It shows what a fallback recovers in evidence coverage, not that answers improve; the answer arms would need a paid re-run.
-
-**`log2026.validated_issuer_pool.v1`** — Diagnostic only. The reported 13-case chain is NOT replaced: re-deriving it needs the paid five-role persona gate. This quantifies the defect and provides the corrected pool for that future run.
-
-**`log2026.selector_robustness.v1`** — Routing-level replay only. A reformed coalition is not counted as answer success without evidence evaluation.
-
-**`log2026.capability_routing_baselines.v1`** — The 13 cases are persona-screened rather than independently human-labeled. These results characterize routing coverage and retrieval only.
-
 ## Withdrawn and replaced
 
-- `log2026.mechanism.v1` supersedes the withdrawn within-graph comparison of typed against untyped entities, which contrasted coarse entities with fine ones rather than schemas with each other
+- `log2026.verification_value.v1` supersedes the first version of this measurement, whose refusal precision of 0.95 sat exactly on a base error rate of 0.95 because both were counting irrelevance as error
 - `log2026.alias_register.v2` supersedes log2026.alias_pretest.v1, whose counts conflated word senses and overstated the gap
+- `log2026.mechanism.v1` supersedes the withdrawn within-graph comparison of typed against untyped entities, which contrasted coarse entities with fine ones rather than schemas with each other
 
 ## Artifacts not following the convention
 
 Each is missing a field the catalogue needs. Fix the script that writes it, not this file.
 
-- `log2026.reextract.v1` missing claim_boundary — `outputs/minimal/20260802T022713Z-reextract/reextract.json`
+- `log2026.reextract.v2` missing claim_boundary — `outputs/minimal/20260802T022713Z-reextract/reextract.json`
+- `log2026.selector_robustness.v1` missing question — `outputs/evaluation/mdm_fedcat/log2026-selector-robustness-v1/analysis.json`
+- `log2026.sdcr_zero_cost_replay.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-sdcr-zero-cost-replay-v1/replay.json`
+- `log2026.sdcr_verification_set.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-sdcr-verification-v1/verification.json`
+- `log2026.sdcr_selector_evaluation.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-sdcr-selector-eval-v1/evaluation.json`
+- `log2026.sdcr_query_suite.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-sdcr-query-suite-v1/query_frames.json`
+- `log2026.sdcr_paired_analysis.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/development_analysis.json`
+- `log2026.sdcr_matched_null.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-sdcr-null-v1/analysis.json`
+- `log2026.sdcr_exemplar_replay.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-sdcr-exemplars-v1/replay.json`
+- `log2026.sdcr_evidence.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-sdcr-evidence-v1/evidence_bundles.json`
+- `log2026.sdcr_equal_budget_retrieval.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/development_retrieval.json`
+- `log2026.sdcr_answers.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/development_answers.json`
+- `log2026.sdcr_answer_smoke.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-sdcr-answer-smoke-v1/smoke.json`
+- `log2026.safe_category_projection.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/projection.json`
+- `log2026.revised_sdcr_routing.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/revised_sdcr_routing.json`
+- `log2026.revised_multi_model_answers.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/revised_answers.json`
+- `log2026.revised_integrative_candidates.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/revised_integrative_candidates.json`
+- `log2026.revised_exact_retrieval.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/revised_exact_retrieval.json`
+- `log2026.revised_blind_validation.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/revised_blind_validation.json`
+- `log2026.revised_answer_analysis.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/revised_answer_analysis.json`
+- `log2026.oracle_routing_ceiling.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/oracle_routing_ceiling.json`
+- `log2026.ontology_entity_governance_ablation.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-ontology-governance-ablation-v1/analysis.json`
+- `log2026.natural_conflict_census.v1` missing question — `outputs/evaluation/mdm_fedcat/log2026-natural-conflict-v1/natural_conflict_census.json`
+- `log2026.mixed_routing_suite.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-mixed-routing-suite-v1/suite.json`
+- `log2026.heldout_adjudication.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/heldout_adjudication/annotations.json`
+- `log2026.full_finder_cross_view_pool.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/candidates.json`
+- `log2026.fallback_answers.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-capability-fallback-v1/fallback_answers.json`
+- `log2026.factorial_mediation.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-factorial-mediation-v1/mediation.json`
+- `log2026.factorial_fixed_answers.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-factorial-mediation-v1/answers.json`
+- `log2026.factorial_effect_separation.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-factorial-effects-v1/analysis.json`
+- `log2026.validated_issuer_pool.v1` missing question — `outputs/evaluation/mdm_fedcat/log2026-validated-issuer-pool-v1/validated_issuer_pool.json`
+- `log2026.finder_cross_view_candidates.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-finder-cross-view-v1/candidates.json`
+- `log2026.expanded_query_manifest.v2` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-validated-issuer-pool-v1/expanded_query_manifest_v2.json`
+- `log2026.exact_token_retrieval.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/exact_token_retrieval.json`
+- `log2026.entity_overlap_census.v1` missing question — `outputs/evaluation/mdm_fedcat/log2026-entity-overlap-v1/entity_overlap_census.json`
+- `log2026.entity_cleaning_ablation.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-entity-cleaning-ablation-v1/analysis.json`
+- `log2026.cross_view_provenance_gate.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/provenance_gate.json`
+- `log2026.cross_view_frozen.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-finder-cross-view-v1/frozen_candidates.json`
+- `log2026.cross_view_evidence_audit.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/evidence_audit.json`
+- `log2026.cross_view_adjudication.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-finder-cross-view-v1/annotations.json`
+- `log2026.codex_panel_synthesis.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/codex_panel_synthesis.json`
+- `log2026.clean_financial_entity_network.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-clean-entity-network-v1/analysis.json`
+- `log2026.category_context.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-category-context-v1/context_divergence.json`
+- `log2026.capability_routing_baselines.v1` missing question — `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/capability_routing_baselines.json`
+- `log2026.capability_fallback_replay.v1` missing question — `outputs/evaluation/mdm_fedcat/log2026-capability-fallback-v1/fallback_replay.json`
+- `log2026.blind_llm_review.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/blind_llm_review.json`
+- `log2026.author_adjudicated_heldout.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/heldout_author_adjudication.json`
+- `log2026.answer_grounding_evaluation.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/heldout_grounding_evaluation.json`
+- `log2026.adversarial_answer.v3` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-adversarial-answer-v2/results.json`
+- `log2026.reextract.v1` missing claim_boundary — `outputs/minimal/20260802T005544Z-reextract/reextract.json`
 - `seocho.database_audit.v1` missing question, claim_boundary — `outputs/minimal/database_audit.json`
 - `log2026.merge_key_reality.v1` missing claim_boundary — `outputs/minimal/merge_key_reality.json`
 - `log2026.extraction_arms.v1` missing claim_boundary — `outputs/minimal/20260802T002631Z-arms/arms.json`
 - `log2026.alias_pretest.v1` missing claim_boundary — `outputs/minimal/alias_pretest.json`
-- `log2026.entity_overlap_census.v1` missing question — `outputs/evaluation/mdm_fedcat/log2026-entity-overlap-v1/entity_overlap_census.json`
-- `log2026.natural_conflict_census.v1` missing question — `outputs/evaluation/mdm_fedcat/log2026-natural-conflict-v1/natural_conflict_census.json`
-- `log2026.fallback_answers.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-capability-fallback-v1/fallback_answers.json`
-- `log2026.capability_fallback_replay.v1` missing question — `outputs/evaluation/mdm_fedcat/log2026-capability-fallback-v1/fallback_replay.json`
-- `log2026.validated_issuer_pool.v1` missing question — `outputs/evaluation/mdm_fedcat/log2026-validated-issuer-pool-v1/validated_issuer_pool.json`
-- `log2026.expanded_query_manifest.v2` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-validated-issuer-pool-v1/expanded_query_manifest_v2.json`
 - `log2026.expanded_query_manifest.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/expanded_query_manifest_v1.json`
-- `log2026.revised_blind_validation.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/revised_blind_validation.json`
-- `log2026.factorial_effect_separation.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-factorial-effects-v1/analysis.json`
-- `log2026.selector_robustness.v1` missing question — `outputs/evaluation/mdm_fedcat/log2026-selector-robustness-v1/analysis.json`
-- `log2026.capability_routing_baselines.v1` missing question — `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/capability_routing_baselines.json`
-- `log2026.adversarial_answer.v3` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-adversarial-answer-v3/results.json`
 - `log2026.full_finder_verification_set.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-full-finder-verification-v1/verification.json`
-- `log2026.oracle_routing_ceiling.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/oracle_routing_ceiling.json`
-- `log2026.factorial_mediation.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-factorial-mediation-v1/mediation.json`
-- `log2026.factorial_fixed_answers.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-factorial-mediation-v1/answers.json`
 - `log2026.factorial_retrieval_mediation.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-factorial-mediation-v1/retrieval.json`
-- `log2026.revised_multi_model_answers.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/revised_answers.json`
-- `log2026.revised_answer_analysis.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/revised_answer_analysis.json`
-- `log2026.revised_exact_retrieval.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/revised_exact_retrieval.json`
-- `log2026.adversarial_answer.v2` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-adversarial-answer-v2/results.json`
 - `log2026.adversarial_answer.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-adversarial-answer-v1/results.json`
-- `log2026.revised_sdcr_routing.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/revised_sdcr_routing.json`
-- `log2026.revised_integrative_candidates.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/revised_integrative_candidates.json`
-- `log2026.codex_panel_synthesis.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/codex_panel_synthesis.json`
 - `log2026.agy_persona_panel.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/agy_persona_panel.json`
-- `log2026.blind_llm_review.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/blind_llm_review.json`
-- `log2026.exact_token_retrieval.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/exact_token_retrieval.json`
-- `log2026.answer_grounding_evaluation.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/heldout_grounding_evaluation.json`
-- `log2026.sdcr_selector_evaluation.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-sdcr-selector-eval-v1/evaluation.json`
-- `log2026.mixed_routing_suite.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-mixed-routing-suite-v1/suite.json`
-- `log2026.ontology_entity_governance_ablation.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-ontology-governance-ablation-v1/analysis.json`
-- `log2026.entity_cleaning_ablation.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-entity-cleaning-ablation-v1/analysis.json`
-- `log2026.clean_financial_entity_network.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-clean-entity-network-v1/analysis.json`
-- `log2026.sdcr_paired_analysis.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/development_analysis.json`
-- `log2026.sdcr_answers.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/heldout_exploratory_answers.json`
-- `log2026.sdcr_equal_budget_retrieval.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/heldout_exploratory_retrieval.json`
-- `log2026.author_adjudicated_heldout.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/heldout_author_adjudication.json`
-- `log2026.heldout_adjudication.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/heldout_adjudication/annotations.json`
-- `log2026.sdcr_development_answers.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/development_answers.json`
-- `log2026.sdcr_development_retrieval.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/development_retrieval.json`
-- `log2026.cross_view_evidence_audit.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/evidence_audit_log26.json`
-- `log2026.safe_category_projection.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/projection.json`
-- `log2026.cross_view_provenance_gate.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/provenance_gate.json`
-- `log2026.full_finder_cross_view_pool.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/candidates.json`
-- `log2026.cross_view_frozen.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-finder-cross-view-v1/frozen_candidates.json`
-- `log2026.sdcr_evidence.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-sdcr-evidence-v1/evidence_bundles.json`
-- `log2026.sdcr_answer_smoke.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-sdcr-answer-smoke-conflict-retry-v1/smoke.json`
-- `log2026.sdcr_verification_set.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-sdcr-verification-v1/verification.json`
-- `log2026.sdcr_zero_cost_replay.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-sdcr-zero-cost-replay-v1/replay.json`
-- `log2026.sdcr_exemplar_replay.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-sdcr-exemplars-v1/replay.json`
-- `log2026.sdcr_query_suite.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-sdcr-query-suite-v1/query_frames.json`
-- `log2026.sdcr_matched_null.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-sdcr-null-v1/analysis.json`
 - `log2026.full_multiagent_network.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-full-multiagent-network-v1/analysis.json`
-- `log2026.finder_cross_view_candidates.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-finder-cross-view-v1/candidates.json`
-- `log2026.cross_view_adjudication.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-finder-cross-view-v1/annotations.json`
-- `log2026.category_context.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-category-context-v1/context_divergence.json`
 
 ## Contracts with more than one run
 
 Expected when a script is rerun on the same inputs. A problem when the inputs changed and the version did not.
 
+- `log2026.adversarial_answer.v3` — 2 runs, newest 2026-08-02 03:31
+- `log2026.alias_register.v2` — 2 runs, newest 2026-08-02 03:31
 - `log2026.arm_results.v1` — 2 runs, newest 2026-08-02 02:52
-- `log2026.cross_view_evidence_audit.v1` — 2 runs, newest 2026-07-11 07:50
+- `log2026.cross_view_evidence_audit.v1` — 2 runs, newest 2026-08-02 03:37
 - `log2026.extraction_arms.v1` — 4 runs, newest 2026-08-02 00:26
-- `log2026.reextract.v1` — 2 runs, newest 2026-08-02 02:41
-- `log2026.sdcr_answer_smoke.v1` — 2 runs, newest 2026-07-11 06:57
-- `log2026.sdcr_paired_analysis.v1` — 2 runs, newest 2026-07-11 14:18
-- `log2026.validity.v1` — 2 runs, newest 2026-08-02 03:14
+- `log2026.reextract.v2` — 2 runs, newest 2026-08-02 04:41
+- `log2026.sdcr_answer_smoke.v1` — 2 runs, newest 2026-08-02 04:04
+- `log2026.sdcr_answers.v1` — 2 runs, newest 2026-08-02 04:04
+- `log2026.sdcr_equal_budget_retrieval.v1` — 2 runs, newest 2026-08-02 04:04
+- `log2026.sdcr_paired_analysis.v1` — 2 runs, newest 2026-08-02 04:05
+- `log2026.validity.v1` — 3 runs, newest 2026-08-02 04:28
+- `log2026.verification_value.v1` — 2 runs, newest 2026-08-02 05:10
 

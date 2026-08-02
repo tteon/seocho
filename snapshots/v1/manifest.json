@@ -1,0 +1,1495 @@
+{
+  "contract": "log2026.graph_snapshots.v1",
+  "question": "Can the analysis be reproduced without the database that produced these graphs?",
+  "method": "every node and relationship of every workspace written to JSONL, one file per condition, model and case, each with a SHA-256; properties exported whole rather than filtered to what today's analysis reads",
+  "claim_boundary": "This makes the ANALYSIS reproducible, not the extraction. The graphs were produced by hosted models that are not versioned artifacts and can be withdrawn; nobody, including us, can generate them again. These files are the primary record.",
+  "tag": "",
+  "arms": [
+    "A",
+    "B",
+    "C",
+    "D"
+  ],
+  "models": [
+    "deepseek",
+    "gptoss",
+    "minimax27"
+  ],
+  "cases": [
+    "058f8cb2",
+    "074679b1",
+    "114ff9bf",
+    "312a9d8d",
+    "33519081",
+    "3772d674",
+    "38444072",
+    "4bcc8fd5",
+    "51cd1ae0",
+    "6c8c2275",
+    "7dc64b77",
+    "99d237ff",
+    "abc8d47f",
+    "aea9d9e5",
+    "b79eb272",
+    "c2373adb"
+  ],
+  "totals": {
+    "files": 192,
+    "nodes": 9369,
+    "relationships": 22506
+  },
+  "pairs": [
+    {
+      "arm": "A",
+      "model": "deepseek",
+      "database": "armadeepseek",
+      "files": [
+        {
+          "file": "A_deepseek_058f8cb2.jsonl",
+          "case": "058f8cb2",
+          "nodes": 22,
+          "relationships": 54,
+          "sha256": "3601ed2d5e48f72a5263ce40ed5f1c42"
+        },
+        {
+          "file": "A_deepseek_074679b1.jsonl",
+          "case": "074679b1",
+          "nodes": 139,
+          "relationships": 364,
+          "sha256": "495e09e0c34068cbeb380ea84227ad98"
+        },
+        {
+          "file": "A_deepseek_114ff9bf.jsonl",
+          "case": "114ff9bf",
+          "nodes": 38,
+          "relationships": 97,
+          "sha256": "75267ba0aa6ace1694dc0e85666ddd62"
+        },
+        {
+          "file": "A_deepseek_312a9d8d.jsonl",
+          "case": "312a9d8d",
+          "nodes": 59,
+          "relationships": 144,
+          "sha256": "0e3b15c44b64f58b8ca6759b889032f6"
+        },
+        {
+          "file": "A_deepseek_33519081.jsonl",
+          "case": "33519081",
+          "nodes": 28,
+          "relationships": 49,
+          "sha256": "4969192388682a9fea7c0b35d4765f69"
+        },
+        {
+          "file": "A_deepseek_3772d674.jsonl",
+          "case": "3772d674",
+          "nodes": 55,
+          "relationships": 104,
+          "sha256": "6067381476cbb92cd92a32365c362e09"
+        },
+        {
+          "file": "A_deepseek_38444072.jsonl",
+          "case": "38444072",
+          "nodes": 26,
+          "relationships": 45,
+          "sha256": "809704b6647df30de22ae67f1013dcc1"
+        },
+        {
+          "file": "A_deepseek_4bcc8fd5.jsonl",
+          "case": "4bcc8fd5",
+          "nodes": 55,
+          "relationships": 146,
+          "sha256": "c40b5a6cec9bb3db3376fb25c0ec0f6f"
+        },
+        {
+          "file": "A_deepseek_51cd1ae0.jsonl",
+          "case": "51cd1ae0",
+          "nodes": 33,
+          "relationships": 90,
+          "sha256": "21607d9a38457dde9e3b9282bdc2c52c"
+        },
+        {
+          "file": "A_deepseek_6c8c2275.jsonl",
+          "case": "6c8c2275",
+          "nodes": 25,
+          "relationships": 99,
+          "sha256": "ed675a0bde0832c0aade14a68ecf2b56"
+        },
+        {
+          "file": "A_deepseek_7dc64b77.jsonl",
+          "case": "7dc64b77",
+          "nodes": 158,
+          "relationships": 441,
+          "sha256": "60291674e923cc8f2c566690cb53ba45"
+        },
+        {
+          "file": "A_deepseek_99d237ff.jsonl",
+          "case": "99d237ff",
+          "nodes": 33,
+          "relationships": 81,
+          "sha256": "f09e161fe3195ce5c53ab39de99b6d68"
+        },
+        {
+          "file": "A_deepseek_abc8d47f.jsonl",
+          "case": "abc8d47f",
+          "nodes": 32,
+          "relationships": 80,
+          "sha256": "4162f5360562715a2c6d0e017e0c5f52"
+        },
+        {
+          "file": "A_deepseek_aea9d9e5.jsonl",
+          "case": "aea9d9e5",
+          "nodes": 32,
+          "relationships": 78,
+          "sha256": "236c2136eea95e7321c4aa299a41c975"
+        },
+        {
+          "file": "A_deepseek_b79eb272.jsonl",
+          "case": "b79eb272",
+          "nodes": 56,
+          "relationships": 126,
+          "sha256": "4977bc4ae369329e08ba7658c3305d7d"
+        },
+        {
+          "file": "A_deepseek_c2373adb.jsonl",
+          "case": "c2373adb",
+          "nodes": 13,
+          "relationships": 23,
+          "sha256": "cc3f78379ce9c85a045d66e7491ec43b"
+        }
+      ],
+      "nodes": 804,
+      "relationships": 2021
+    },
+    {
+      "arm": "A",
+      "model": "gptoss",
+      "database": "armagptoss",
+      "files": [
+        {
+          "file": "A_gptoss_058f8cb2.jsonl",
+          "case": "058f8cb2",
+          "nodes": 35,
+          "relationships": 87,
+          "sha256": "41080d5ea5c887512a2821c14e249766"
+        },
+        {
+          "file": "A_gptoss_074679b1.jsonl",
+          "case": "074679b1",
+          "nodes": 86,
+          "relationships": 361,
+          "sha256": "6cdd0e76ab74b9360e3efb0932a6df75"
+        },
+        {
+          "file": "A_gptoss_114ff9bf.jsonl",
+          "case": "114ff9bf",
+          "nodes": 32,
+          "relationships": 84,
+          "sha256": "8485cd60825184562bbe6eb752f42425"
+        },
+        {
+          "file": "A_gptoss_312a9d8d.jsonl",
+          "case": "312a9d8d",
+          "nodes": 63,
+          "relationships": 176,
+          "sha256": "b106baf26893e903253f0614e7422631"
+        },
+        {
+          "file": "A_gptoss_33519081.jsonl",
+          "case": "33519081",
+          "nodes": 28,
+          "relationships": 55,
+          "sha256": "9151b6a4dff177011c5a59c1387ebce7"
+        },
+        {
+          "file": "A_gptoss_3772d674.jsonl",
+          "case": "3772d674",
+          "nodes": 70,
+          "relationships": 133,
+          "sha256": "3925109fdfe52b4430716ba79fc56ec2"
+        },
+        {
+          "file": "A_gptoss_38444072.jsonl",
+          "case": "38444072",
+          "nodes": 80,
+          "relationships": 211,
+          "sha256": "ade85d24683d1a508aba0bc26432ca47"
+        },
+        {
+          "file": "A_gptoss_4bcc8fd5.jsonl",
+          "case": "4bcc8fd5",
+          "nodes": 64,
+          "relationships": 180,
+          "sha256": "f518000af35580f465cb45c5a1266d73"
+        },
+        {
+          "file": "A_gptoss_51cd1ae0.jsonl",
+          "case": "51cd1ae0",
+          "nodes": 26,
+          "relationships": 72,
+          "sha256": "835a976ccb0b99a62cdb0b1c9ac5f93f"
+        },
+        {
+          "file": "A_gptoss_6c8c2275.jsonl",
+          "case": "6c8c2275",
+          "nodes": 29,
+          "relationships": 84,
+          "sha256": "91983d4e2d5c9c9d64e02cd4138ce560"
+        },
+        {
+          "file": "A_gptoss_7dc64b77.jsonl",
+          "case": "7dc64b77",
+          "nodes": 97,
+          "relationships": 382,
+          "sha256": "1646435371894f11ef60f54fed3e886d"
+        },
+        {
+          "file": "A_gptoss_99d237ff.jsonl",
+          "case": "99d237ff",
+          "nodes": 17,
+          "relationships": 30,
+          "sha256": "71c3bf9e8a4b29f10a23f3ec70008993"
+        },
+        {
+          "file": "A_gptoss_abc8d47f.jsonl",
+          "case": "abc8d47f",
+          "nodes": 27,
+          "relationships": 101,
+          "sha256": "1aca273bf4dc83049bb9d71bd7ccb8c2"
+        },
+        {
+          "file": "A_gptoss_aea9d9e5.jsonl",
+          "case": "aea9d9e5",
+          "nodes": 36,
+          "relationships": 92,
+          "sha256": "26cde481d7e15eb35308771dcd11df76"
+        },
+        {
+          "file": "A_gptoss_b79eb272.jsonl",
+          "case": "b79eb272",
+          "nodes": 52,
+          "relationships": 129,
+          "sha256": "dc86621cde84deb6aa6c4986789c9bab"
+        },
+        {
+          "file": "A_gptoss_c2373adb.jsonl",
+          "case": "c2373adb",
+          "nodes": 16,
+          "relationships": 31,
+          "sha256": "c925ca2b87bb39516b0c4dd76beb421a"
+        }
+      ],
+      "nodes": 758,
+      "relationships": 2208
+    },
+    {
+      "arm": "A",
+      "model": "minimax27",
+      "database": "armaminimax27",
+      "files": [
+        {
+          "file": "A_minimax27_058f8cb2.jsonl",
+          "case": "058f8cb2",
+          "nodes": 42,
+          "relationships": 148,
+          "sha256": "a77b984f4c948f6f5605dae855cb0f6a"
+        },
+        {
+          "file": "A_minimax27_074679b1.jsonl",
+          "case": "074679b1",
+          "nodes": 137,
+          "relationships": 412,
+          "sha256": "28e2a6362760fdf16dadf25fc02407a4"
+        },
+        {
+          "file": "A_minimax27_114ff9bf.jsonl",
+          "case": "114ff9bf",
+          "nodes": 42,
+          "relationships": 110,
+          "sha256": "386ca1e609e45175fa8d740629736e3d"
+        },
+        {
+          "file": "A_minimax27_312a9d8d.jsonl",
+          "case": "312a9d8d",
+          "nodes": 61,
+          "relationships": 196,
+          "sha256": "a16876c1f3c83bc4d6510ed0bacfbdd1"
+        },
+        {
+          "file": "A_minimax27_33519081.jsonl",
+          "case": "33519081",
+          "nodes": 39,
+          "relationships": 101,
+          "sha256": "5a9dbea4783a445a04d15dcc082550fd"
+        },
+        {
+          "file": "A_minimax27_3772d674.jsonl",
+          "case": "3772d674",
+          "nodes": 56,
+          "relationships": 171,
+          "sha256": "62d7aa8e4fbdebb8598855dd02284c33"
+        },
+        {
+          "file": "A_minimax27_38444072.jsonl",
+          "case": "38444072",
+          "nodes": 61,
+          "relationships": 142,
+          "sha256": "efb888c301029eb24379a7da7a0ca043"
+        },
+        {
+          "file": "A_minimax27_4bcc8fd5.jsonl",
+          "case": "4bcc8fd5",
+          "nodes": 65,
+          "relationships": 176,
+          "sha256": "ab36220b33a50fdee602e2d726fa28be"
+        },
+        {
+          "file": "A_minimax27_51cd1ae0.jsonl",
+          "case": "51cd1ae0",
+          "nodes": 41,
+          "relationships": 120,
+          "sha256": "19004c071ad4d98eb0249f2ab390d552"
+        },
+        {
+          "file": "A_minimax27_6c8c2275.jsonl",
+          "case": "6c8c2275",
+          "nodes": 28,
+          "relationships": 101,
+          "sha256": "c7097b32babf8a9cb68e54f6c62ceafd"
+        },
+        {
+          "file": "A_minimax27_7dc64b77.jsonl",
+          "case": "7dc64b77",
+          "nodes": 165,
+          "relationships": 526,
+          "sha256": "d24b11d6240240c4d22b0cee900a1ea9"
+        },
+        {
+          "file": "A_minimax27_99d237ff.jsonl",
+          "case": "99d237ff",
+          "nodes": 25,
+          "relationships": 71,
+          "sha256": "c2de657dabace2d63ebab9cb8c859e99"
+        },
+        {
+          "file": "A_minimax27_abc8d47f.jsonl",
+          "case": "abc8d47f",
+          "nodes": 31,
+          "relationships": 84,
+          "sha256": "e1f86ae00f90d28c04f5658f9d0e9b28"
+        },
+        {
+          "file": "A_minimax27_aea9d9e5.jsonl",
+          "case": "aea9d9e5",
+          "nodes": 36,
+          "relationships": 92,
+          "sha256": "4aa154d7d662cd591d63f3841b0de717"
+        },
+        {
+          "file": "A_minimax27_b79eb272.jsonl",
+          "case": "b79eb272",
+          "nodes": 60,
+          "relationships": 146,
+          "sha256": "7df21db6be39a3a2327027e4f1d6e684"
+        },
+        {
+          "file": "A_minimax27_c2373adb.jsonl",
+          "case": "c2373adb",
+          "nodes": 13,
+          "relationships": 20,
+          "sha256": "cefd0d9fa289a110da850987418dc5f3"
+        }
+      ],
+      "nodes": 902,
+      "relationships": 2616
+    },
+    {
+      "arm": "B",
+      "model": "deepseek",
+      "database": "armbdeepseek",
+      "files": [
+        {
+          "file": "B_deepseek_058f8cb2.jsonl",
+          "case": "058f8cb2",
+          "nodes": 20,
+          "relationships": 45,
+          "sha256": "1f1dedcc5cd222763b4a0da8054d553a"
+        },
+        {
+          "file": "B_deepseek_074679b1.jsonl",
+          "case": "074679b1",
+          "nodes": 72,
+          "relationships": 158,
+          "sha256": "28869a587bfc15b2d2474c2f7fc48b8b"
+        },
+        {
+          "file": "B_deepseek_114ff9bf.jsonl",
+          "case": "114ff9bf",
+          "nodes": 28,
+          "relationships": 62,
+          "sha256": "3d11c14e728bd35efc000792b0e5cef8"
+        },
+        {
+          "file": "B_deepseek_312a9d8d.jsonl",
+          "case": "312a9d8d",
+          "nodes": 18,
+          "relationships": 41,
+          "sha256": "53225ceac306b910e88e75da73da8a24"
+        },
+        {
+          "file": "B_deepseek_33519081.jsonl",
+          "case": "33519081",
+          "nodes": 28,
+          "relationships": 49,
+          "sha256": "e3d425bde376d5a8fa06766ae64d1d09"
+        },
+        {
+          "file": "B_deepseek_3772d674.jsonl",
+          "case": "3772d674",
+          "nodes": 60,
+          "relationships": 114,
+          "sha256": "8c773efa3ac5731b754eeb25ade0d871"
+        },
+        {
+          "file": "B_deepseek_38444072.jsonl",
+          "case": "38444072",
+          "nodes": 34,
+          "relationships": 60,
+          "sha256": "e6351da91e359c49f7e3a85402d35c2d"
+        },
+        {
+          "file": "B_deepseek_4bcc8fd5.jsonl",
+          "case": "4bcc8fd5",
+          "nodes": 36,
+          "relationships": 78,
+          "sha256": "d56e413cd814c39802c7b3dfadac0108"
+        },
+        {
+          "file": "B_deepseek_51cd1ae0.jsonl",
+          "case": "51cd1ae0",
+          "nodes": 7,
+          "relationships": 11,
+          "sha256": "10f2b000cf9a6b106556749248ba4a4b"
+        },
+        {
+          "file": "B_deepseek_6c8c2275.jsonl",
+          "case": "6c8c2275",
+          "nodes": 11,
+          "relationships": 17,
+          "sha256": "449aaa2a1fc66b7a41e0e9c2d36eb64d"
+        },
+        {
+          "file": "B_deepseek_7dc64b77.jsonl",
+          "case": "7dc64b77",
+          "nodes": 88,
+          "relationships": 230,
+          "sha256": "59da8a76829af4770d39b584d3aab4b9"
+        },
+        {
+          "file": "B_deepseek_99d237ff.jsonl",
+          "case": "99d237ff",
+          "nodes": 18,
+          "relationships": 47,
+          "sha256": "a59044d677ff2e2e63d10a4fb89c1cb8"
+        },
+        {
+          "file": "B_deepseek_abc8d47f.jsonl",
+          "case": "abc8d47f",
+          "nodes": 24,
+          "relationships": 57,
+          "sha256": "7dfc152fd803c6f030cabd17d3e041c3"
+        },
+        {
+          "file": "B_deepseek_aea9d9e5.jsonl",
+          "case": "aea9d9e5",
+          "nodes": 27,
+          "relationships": 64,
+          "sha256": "ce8ebbe3ec879711e5ca4f6340b582b4"
+        },
+        {
+          "file": "B_deepseek_b79eb272.jsonl",
+          "case": "b79eb272",
+          "nodes": 32,
+          "relationships": 58,
+          "sha256": "759c1b34572a27a66cb0798f3df3eedf"
+        },
+        {
+          "file": "B_deepseek_c2373adb.jsonl",
+          "case": "c2373adb",
+          "nodes": 14,
+          "relationships": 22,
+          "sha256": "9c81890565806bb5abfb4f3418ebde7a"
+        }
+      ],
+      "nodes": 517,
+      "relationships": 1113
+    },
+    {
+      "arm": "B",
+      "model": "gptoss",
+      "database": "armbgptoss",
+      "files": [
+        {
+          "file": "B_gptoss_058f8cb2.jsonl",
+          "case": "058f8cb2",
+          "nodes": 18,
+          "relationships": 39,
+          "sha256": "5d6e80ec08ca0157797c6987c2a2b212"
+        },
+        {
+          "file": "B_gptoss_074679b1.jsonl",
+          "case": "074679b1",
+          "nodes": 39,
+          "relationships": 103,
+          "sha256": "4b82c3cc882ee218e93fc38aba832e46"
+        },
+        {
+          "file": "B_gptoss_114ff9bf.jsonl",
+          "case": "114ff9bf",
+          "nodes": 18,
+          "relationships": 41,
+          "sha256": "5b0f05bdc1bfa9c4758c0e0b978c39c8"
+        },
+        {
+          "file": "B_gptoss_312a9d8d.jsonl",
+          "case": "312a9d8d",
+          "nodes": 14,
+          "relationships": 23,
+          "sha256": "95d148c169fc1c0918944dc5695661c7"
+        },
+        {
+          "file": "B_gptoss_33519081.jsonl",
+          "case": "33519081",
+          "nodes": 25,
+          "relationships": 45,
+          "sha256": "23ee54cf862197f994f83e75e14ec883"
+        },
+        {
+          "file": "B_gptoss_3772d674.jsonl",
+          "case": "3772d674",
+          "nodes": 33,
+          "relationships": 59,
+          "sha256": "dabe90ea311019a71f1d99985362476c"
+        },
+        {
+          "file": "B_gptoss_38444072.jsonl",
+          "case": "38444072",
+          "nodes": 34,
+          "relationships": 60,
+          "sha256": "9b5f965621b688698e7087a9550da449"
+        },
+        {
+          "file": "B_gptoss_4bcc8fd5.jsonl",
+          "case": "4bcc8fd5",
+          "nodes": 20,
+          "relationships": 34,
+          "sha256": "38c067e0c842ec8e0cc804799aed6cdb"
+        },
+        {
+          "file": "B_gptoss_51cd1ae0.jsonl",
+          "case": "51cd1ae0",
+          "nodes": 7,
+          "relationships": 11,
+          "sha256": "7a4c4c13c22b9acdbed7a035bac8d83e"
+        },
+        {
+          "file": "B_gptoss_6c8c2275.jsonl",
+          "case": "6c8c2275",
+          "nodes": 10,
+          "relationships": 14,
+          "sha256": "4239fb9360f7920fdb52d288a13fd115"
+        },
+        {
+          "file": "B_gptoss_7dc64b77.jsonl",
+          "case": "7dc64b77",
+          "nodes": 69,
+          "relationships": 175,
+          "sha256": "2b5faacb0db161af3b722630cf14d4d6"
+        },
+        {
+          "file": "B_gptoss_99d237ff.jsonl",
+          "case": "99d237ff",
+          "nodes": 7,
+          "relationships": 13,
+          "sha256": "a948e0587a91520238e909fd7a0d4bc2"
+        },
+        {
+          "file": "B_gptoss_abc8d47f.jsonl",
+          "case": "abc8d47f",
+          "nodes": 22,
+          "relationships": 51,
+          "sha256": "a8145d5dafb72f20040c49eaa8142fad"
+        },
+        {
+          "file": "B_gptoss_aea9d9e5.jsonl",
+          "case": "aea9d9e5",
+          "nodes": 17,
+          "relationships": 30,
+          "sha256": "41de016d4773723e07824850862250a5"
+        },
+        {
+          "file": "B_gptoss_b79eb272.jsonl",
+          "case": "b79eb272",
+          "nodes": 34,
+          "relationships": 60,
+          "sha256": "b6c8c35602f0c4927459a4866a70b5a0"
+        },
+        {
+          "file": "B_gptoss_c2373adb.jsonl",
+          "case": "c2373adb",
+          "nodes": 12,
+          "relationships": 20,
+          "sha256": "6185fae6f1a0d8a8ecf050924f6ec6e1"
+        }
+      ],
+      "nodes": 379,
+      "relationships": 778
+    },
+    {
+      "arm": "B",
+      "model": "minimax27",
+      "database": "armbminimax27",
+      "files": [
+        {
+          "file": "B_minimax27_058f8cb2.jsonl",
+          "case": "058f8cb2",
+          "nodes": 22,
+          "relationships": 51,
+          "sha256": "9abda7d539043738415031b354048347"
+        },
+        {
+          "file": "B_minimax27_074679b1.jsonl",
+          "case": "074679b1",
+          "nodes": 139,
+          "relationships": 402,
+          "sha256": "558abba86ccd3736132d0f528750d435"
+        },
+        {
+          "file": "B_minimax27_114ff9bf.jsonl",
+          "case": "114ff9bf",
+          "nodes": 31,
+          "relationships": 77,
+          "sha256": "c7679e2fc6dede538e1b6ade3f77417a"
+        },
+        {
+          "file": "B_minimax27_312a9d8d.jsonl",
+          "case": "312a9d8d",
+          "nodes": 27,
+          "relationships": 68,
+          "sha256": "b17809201544a3f823226389449a4f00"
+        },
+        {
+          "file": "B_minimax27_33519081.jsonl",
+          "case": "33519081",
+          "nodes": 54,
+          "relationships": 110,
+          "sha256": "857f8dc86b222789daf841056a120db0"
+        },
+        {
+          "file": "B_minimax27_3772d674.jsonl",
+          "case": "3772d674",
+          "nodes": 96,
+          "relationships": 253,
+          "sha256": "f4c47ffb481d6237aaa03bd276695adb"
+        },
+        {
+          "file": "B_minimax27_38444072.jsonl",
+          "case": "38444072",
+          "nodes": 90,
+          "relationships": 199,
+          "sha256": "942b62fcddaf4aa9976f99709f34ea66"
+        },
+        {
+          "file": "B_minimax27_4bcc8fd5.jsonl",
+          "case": "4bcc8fd5",
+          "nodes": 45,
+          "relationships": 103,
+          "sha256": "245e94944eddd7b42f4a64eb57d805ea"
+        },
+        {
+          "file": "B_minimax27_51cd1ae0.jsonl",
+          "case": "51cd1ae0",
+          "nodes": 31,
+          "relationships": 85,
+          "sha256": "0e9f2c413231af0b32f00f795e29cc17"
+        },
+        {
+          "file": "B_minimax27_6c8c2275.jsonl",
+          "case": "6c8c2275",
+          "nodes": 13,
+          "relationships": 23,
+          "sha256": "124770f2859da338ea1c542b1c12ada1"
+        },
+        {
+          "file": "B_minimax27_7dc64b77.jsonl",
+          "case": "7dc64b77",
+          "nodes": 165,
+          "relationships": 448,
+          "sha256": "976fc6730b2fe021d93153317e15077e"
+        },
+        {
+          "file": "B_minimax27_99d237ff.jsonl",
+          "case": "99d237ff",
+          "nodes": 17,
+          "relationships": 40,
+          "sha256": "6d2d160586612484f2d6cf91dd8baac0"
+        },
+        {
+          "file": "B_minimax27_abc8d47f.jsonl",
+          "case": "abc8d47f",
+          "nodes": 38,
+          "relationships": 94,
+          "sha256": "c0ffea77bf238aa5892a438aa885eff8"
+        },
+        {
+          "file": "B_minimax27_aea9d9e5.jsonl",
+          "case": "aea9d9e5",
+          "nodes": 39,
+          "relationships": 102,
+          "sha256": "40d2ee3b313e64529c1799c75a8474e7"
+        },
+        {
+          "file": "B_minimax27_b79eb272.jsonl",
+          "case": "b79eb272",
+          "nodes": 58,
+          "relationships": 158,
+          "sha256": "28540cc5017a2d81b55eb9adb4e3f4bc"
+        },
+        {
+          "file": "B_minimax27_c2373adb.jsonl",
+          "case": "c2373adb",
+          "nodes": 19,
+          "relationships": 38,
+          "sha256": "e70d97d89cdb86a8fd5a6ac5666a2b3a"
+        }
+      ],
+      "nodes": 884,
+      "relationships": 2251
+    },
+    {
+      "arm": "C",
+      "model": "deepseek",
+      "database": "armcdeepseek",
+      "files": [
+        {
+          "file": "C_deepseek_058f8cb2.jsonl",
+          "case": "058f8cb2",
+          "nodes": 23,
+          "relationships": 58,
+          "sha256": "8bbff3fafe1056d748bed33aa0b4d43e"
+        },
+        {
+          "file": "C_deepseek_074679b1.jsonl",
+          "case": "074679b1",
+          "nodes": 112,
+          "relationships": 233,
+          "sha256": "31807b98aafd91d1ceff49948ae897ae"
+        },
+        {
+          "file": "C_deepseek_114ff9bf.jsonl",
+          "case": "114ff9bf",
+          "nodes": 31,
+          "relationships": 55,
+          "sha256": "49f8631172cdcfe8d7ad52d3bb39d5cf"
+        },
+        {
+          "file": "C_deepseek_312a9d8d.jsonl",
+          "case": "312a9d8d",
+          "nodes": 34,
+          "relationships": 71,
+          "sha256": "e0c142c7594a2df78ed0ed10ee06f941"
+        },
+        {
+          "file": "C_deepseek_33519081.jsonl",
+          "case": "33519081",
+          "nodes": 28,
+          "relationships": 58,
+          "sha256": "7a1f112892b7768065d18e9668f2c7f1"
+        },
+        {
+          "file": "C_deepseek_3772d674.jsonl",
+          "case": "3772d674",
+          "nodes": 34,
+          "relationships": 60,
+          "sha256": "24defa2b514f113ef33defbc8acca77b"
+        },
+        {
+          "file": "C_deepseek_38444072.jsonl",
+          "case": "38444072",
+          "nodes": 33,
+          "relationships": 59,
+          "sha256": "c34ca487ee86f920e672534372016525"
+        },
+        {
+          "file": "C_deepseek_4bcc8fd5.jsonl",
+          "case": "4bcc8fd5",
+          "nodes": 45,
+          "relationships": 94,
+          "sha256": "895e7bed67e758a971258af4fcbd14db"
+        },
+        {
+          "file": "C_deepseek_51cd1ae0.jsonl",
+          "case": "51cd1ae0",
+          "nodes": 31,
+          "relationships": 77,
+          "sha256": "5c9e241419c21be65f0309dce6e0b33c"
+        },
+        {
+          "file": "C_deepseek_6c8c2275.jsonl",
+          "case": "6c8c2275",
+          "nodes": 28,
+          "relationships": 61,
+          "sha256": "13cf973912b44a7a02f3017d00901791"
+        },
+        {
+          "file": "C_deepseek_7dc64b77.jsonl",
+          "case": "7dc64b77",
+          "nodes": 137,
+          "relationships": 331,
+          "sha256": "4baf0e8ee7d27436c06b7ba80366ecbc"
+        },
+        {
+          "file": "C_deepseek_99d237ff.jsonl",
+          "case": "99d237ff",
+          "nodes": 29,
+          "relationships": 77,
+          "sha256": "dce0dd6da8def039588e344ea2e56364"
+        },
+        {
+          "file": "C_deepseek_abc8d47f.jsonl",
+          "case": "abc8d47f",
+          "nodes": 30,
+          "relationships": 60,
+          "sha256": "c8b7c34c4b5c916e1d5c58fad2a40b97"
+        },
+        {
+          "file": "C_deepseek_aea9d9e5.jsonl",
+          "case": "aea9d9e5",
+          "nodes": 36,
+          "relationships": 76,
+          "sha256": "acd9df7f758e3953030a2717df8b70e2"
+        },
+        {
+          "file": "C_deepseek_b79eb272.jsonl",
+          "case": "b79eb272",
+          "nodes": 37,
+          "relationships": 68,
+          "sha256": "648aeab88d8d356dd489081713e762a4"
+        },
+        {
+          "file": "C_deepseek_c2373adb.jsonl",
+          "case": "c2373adb",
+          "nodes": 13,
+          "relationships": 21,
+          "sha256": "e86c86838a82e224d17d06b9a14ee503"
+        }
+      ],
+      "nodes": 681,
+      "relationships": 1459
+    },
+    {
+      "arm": "C",
+      "model": "gptoss",
+      "database": "armcgptoss",
+      "files": [
+        {
+          "file": "C_gptoss_058f8cb2.jsonl",
+          "case": "058f8cb2",
+          "nodes": 17,
+          "relationships": 34,
+          "sha256": "17fcea0218400ae387d7682cacb51682"
+        },
+        {
+          "file": "C_gptoss_074679b1.jsonl",
+          "case": "074679b1",
+          "nodes": 114,
+          "relationships": 265,
+          "sha256": "440283a9447594af1484ca1a07eac428"
+        },
+        {
+          "file": "C_gptoss_114ff9bf.jsonl",
+          "case": "114ff9bf",
+          "nodes": 20,
+          "relationships": 35,
+          "sha256": "d241efee39aa53614217d7af9d426260"
+        },
+        {
+          "file": "C_gptoss_312a9d8d.jsonl",
+          "case": "312a9d8d",
+          "nodes": 29,
+          "relationships": 54,
+          "sha256": "5d1fe21ae50904cb90bfd1a1e38413a6"
+        },
+        {
+          "file": "C_gptoss_33519081.jsonl",
+          "case": "33519081",
+          "nodes": 32,
+          "relationships": 58,
+          "sha256": "402cb850a01ff4e5cced7056c0ae4c55"
+        },
+        {
+          "file": "C_gptoss_3772d674.jsonl",
+          "case": "3772d674",
+          "nodes": 87,
+          "relationships": 167,
+          "sha256": "a90b5ad1ccd29b970d8d4bba98962462"
+        },
+        {
+          "file": "C_gptoss_38444072.jsonl",
+          "case": "38444072",
+          "nodes": 132,
+          "relationships": 258,
+          "sha256": "7b3af667d46f4157120e2ff0e6243759"
+        },
+        {
+          "file": "C_gptoss_4bcc8fd5.jsonl",
+          "case": "4bcc8fd5",
+          "nodes": 49,
+          "relationships": 92,
+          "sha256": "fd4e6753dee3bf2fef51bfa25069bb80"
+        },
+        {
+          "file": "C_gptoss_51cd1ae0.jsonl",
+          "case": "51cd1ae0",
+          "nodes": 29,
+          "relationships": 60,
+          "sha256": "fd38d6171c26db688df532ffa76b4a20"
+        },
+        {
+          "file": "C_gptoss_6c8c2275.jsonl",
+          "case": "6c8c2275",
+          "nodes": 19,
+          "relationships": 34,
+          "sha256": "0569e5d4c9de2abe4638b843c756aecf"
+        },
+        {
+          "file": "C_gptoss_7dc64b77.jsonl",
+          "case": "7dc64b77",
+          "nodes": 124,
+          "relationships": 283,
+          "sha256": "e3e81813478852b7ef50c8b4278acfc4"
+        },
+        {
+          "file": "C_gptoss_99d237ff.jsonl",
+          "case": "99d237ff",
+          "nodes": 14,
+          "relationships": 31,
+          "sha256": "9a4c48ddb228b7614787e0b6f35f2175"
+        },
+        {
+          "file": "C_gptoss_abc8d47f.jsonl",
+          "case": "abc8d47f",
+          "nodes": 26,
+          "relationships": 46,
+          "sha256": "f65f0a70f00e6bb5d37f2e6fa069da18"
+        },
+        {
+          "file": "C_gptoss_aea9d9e5.jsonl",
+          "case": "aea9d9e5",
+          "nodes": 39,
+          "relationships": 71,
+          "sha256": "ab56a62c20e45f5e552188dd3a699fad"
+        },
+        {
+          "file": "C_gptoss_b79eb272.jsonl",
+          "case": "b79eb272",
+          "nodes": 29,
+          "relationships": 51,
+          "sha256": "eabc6b19b311918fccdb1b1a61ab75e7"
+        },
+        {
+          "file": "C_gptoss_c2373adb.jsonl",
+          "case": "c2373adb",
+          "nodes": 13,
+          "relationships": 20,
+          "sha256": "d476bb294636a70876bba2d0e5215c5b"
+        }
+      ],
+      "nodes": 773,
+      "relationships": 1559
+    },
+    {
+      "arm": "C",
+      "model": "minimax27",
+      "database": "armcminimax27",
+      "files": [
+        {
+          "file": "C_minimax27_058f8cb2.jsonl",
+          "case": "058f8cb2",
+          "nodes": 45,
+          "relationships": 104,
+          "sha256": "3d767ec9ff31069c5269a496a770bb69"
+        },
+        {
+          "file": "C_minimax27_074679b1.jsonl",
+          "case": "074679b1",
+          "nodes": 198,
+          "relationships": 525,
+          "sha256": "73155994c33ebbcfb3c56633282ec27d"
+        },
+        {
+          "file": "C_minimax27_114ff9bf.jsonl",
+          "case": "114ff9bf",
+          "nodes": 41,
+          "relationships": 85,
+          "sha256": "a16a30ef58d678c3f10d21fece67476c"
+        },
+        {
+          "file": "C_minimax27_312a9d8d.jsonl",
+          "case": "312a9d8d",
+          "nodes": 71,
+          "relationships": 191,
+          "sha256": "0c24792f90801967bc381301e015e72f"
+        },
+        {
+          "file": "C_minimax27_33519081.jsonl",
+          "case": "33519081",
+          "nodes": 95,
+          "relationships": 214,
+          "sha256": "7a72f004336b816f941379d361de73c3"
+        },
+        {
+          "file": "C_minimax27_3772d674.jsonl",
+          "case": "3772d674",
+          "nodes": 61,
+          "relationships": 184,
+          "sha256": "970670b86bd4448af71252fa870f7f04"
+        },
+        {
+          "file": "C_minimax27_38444072.jsonl",
+          "case": "38444072",
+          "nodes": 65,
+          "relationships": 126,
+          "sha256": "24c595248c83a93d7da5f046ff98de0e"
+        },
+        {
+          "file": "C_minimax27_4bcc8fd5.jsonl",
+          "case": "4bcc8fd5",
+          "nodes": 58,
+          "relationships": 150,
+          "sha256": "818e252873259283f560f395073e32b7"
+        },
+        {
+          "file": "C_minimax27_51cd1ae0.jsonl",
+          "case": "51cd1ae0",
+          "nodes": 29,
+          "relationships": 78,
+          "sha256": "030209db13e9097cf0a64cf4efb32728"
+        },
+        {
+          "file": "C_minimax27_6c8c2275.jsonl",
+          "case": "6c8c2275",
+          "nodes": 23,
+          "relationships": 52,
+          "sha256": "29258ee866fd0f7dfab9061fef9ab059"
+        },
+        {
+          "file": "C_minimax27_7dc64b77.jsonl",
+          "case": "7dc64b77",
+          "nodes": 253,
+          "relationships": 655,
+          "sha256": "936fceae1db73f52dac4d269b19268ba"
+        },
+        {
+          "file": "C_minimax27_99d237ff.jsonl",
+          "case": "99d237ff",
+          "nodes": 17,
+          "relationships": 30,
+          "sha256": "4cb72688ad7c247347342f1efa26594d"
+        },
+        {
+          "file": "C_minimax27_abc8d47f.jsonl",
+          "case": "abc8d47f",
+          "nodes": 34,
+          "relationships": 75,
+          "sha256": "90f24d05ec45748fe7e8737a386f1180"
+        },
+        {
+          "file": "C_minimax27_aea9d9e5.jsonl",
+          "case": "aea9d9e5",
+          "nodes": 47,
+          "relationships": 111,
+          "sha256": "beb4afd223ab49976def82d3cef95f54"
+        },
+        {
+          "file": "C_minimax27_b79eb272.jsonl",
+          "case": "b79eb272",
+          "nodes": 33,
+          "relationships": 72,
+          "sha256": "c5ca3d7085ea9280870831cfff4c609f"
+        },
+        {
+          "file": "C_minimax27_c2373adb.jsonl",
+          "case": "c2373adb",
+          "nodes": 13,
+          "relationships": 23,
+          "sha256": "ab76344bb9ac91f2cdfebf9280808f9c"
+        }
+      ],
+      "nodes": 1083,
+      "relationships": 2675
+    },
+    {
+      "arm": "D",
+      "model": "deepseek",
+      "database": "armddeepseek",
+      "files": [
+        {
+          "file": "D_deepseek_058f8cb2.jsonl",
+          "case": "058f8cb2",
+          "nodes": 25,
+          "relationships": 79,
+          "sha256": "7da763d9e3a8d13825ce94b81674da62"
+        },
+        {
+          "file": "D_deepseek_074679b1.jsonl",
+          "case": "074679b1",
+          "nodes": 82,
+          "relationships": 185,
+          "sha256": "7ae5d6eced548f768e54dbc475b3ebd6"
+        },
+        {
+          "file": "D_deepseek_114ff9bf.jsonl",
+          "case": "114ff9bf",
+          "nodes": 30,
+          "relationships": 54,
+          "sha256": "fe084c812adadddd352e41297a64257b"
+        },
+        {
+          "file": "D_deepseek_312a9d8d.jsonl",
+          "case": "312a9d8d",
+          "nodes": 36,
+          "relationships": 86,
+          "sha256": "782090081a12cc57dc23207f889b2518"
+        },
+        {
+          "file": "D_deepseek_33519081.jsonl",
+          "case": "33519081",
+          "nodes": 33,
+          "relationships": 67,
+          "sha256": "736b91211ce5c3260d2c24d43dc44cbb"
+        },
+        {
+          "file": "D_deepseek_3772d674.jsonl",
+          "case": "3772d674",
+          "nodes": 33,
+          "relationships": 59,
+          "sha256": "aec9b3d4228c3757ec64962ba932bf92"
+        },
+        {
+          "file": "D_deepseek_38444072.jsonl",
+          "case": "38444072",
+          "nodes": 33,
+          "relationships": 59,
+          "sha256": "df780aeaa20c509414aeca0c1d4af9fa"
+        },
+        {
+          "file": "D_deepseek_4bcc8fd5.jsonl",
+          "case": "4bcc8fd5",
+          "nodes": 32,
+          "relationships": 66,
+          "sha256": "737b8f27136e7d85df9e63c30695fb81"
+        },
+        {
+          "file": "D_deepseek_51cd1ae0.jsonl",
+          "case": "51cd1ae0",
+          "nodes": 23,
+          "relationships": 55,
+          "sha256": "e86aefe39fe85b52ec900cbb50a5573b"
+        },
+        {
+          "file": "D_deepseek_6c8c2275.jsonl",
+          "case": "6c8c2275",
+          "nodes": 31,
+          "relationships": 58,
+          "sha256": "e3317e61d33dca82a35ac73a012dffff"
+        },
+        {
+          "file": "D_deepseek_7dc64b77.jsonl",
+          "case": "7dc64b77",
+          "nodes": 148,
+          "relationships": 331,
+          "sha256": "d57edd9c396f1c5c0d1c3edc27449b2d"
+        },
+        {
+          "file": "D_deepseek_99d237ff.jsonl",
+          "case": "99d237ff",
+          "nodes": 25,
+          "relationships": 66,
+          "sha256": "0c9d8910d4b5f16cdf9b8fad799f0956"
+        },
+        {
+          "file": "D_deepseek_abc8d47f.jsonl",
+          "case": "abc8d47f",
+          "nodes": 29,
+          "relationships": 60,
+          "sha256": "122d34c60f263c72b55d5e9c0eb225e3"
+        },
+        {
+          "file": "D_deepseek_aea9d9e5.jsonl",
+          "case": "aea9d9e5",
+          "nodes": 34,
+          "relationships": 72,
+          "sha256": "507baacd7e1ec2fdb77efedec4ea523b"
+        },
+        {
+          "file": "D_deepseek_b79eb272.jsonl",
+          "case": "b79eb272",
+          "nodes": 38,
+          "relationships": 69,
+          "sha256": "be7c76dcbd141ae95d5e19ec26c4442b"
+        },
+        {
+          "file": "D_deepseek_c2373adb.jsonl",
+          "case": "c2373adb",
+          "nodes": 12,
+          "relationships": 19,
+          "sha256": "ea3d97d9522486ff0f45c38df440f822"
+        }
+      ],
+      "nodes": 644,
+      "relationships": 1385
+    },
+    {
+      "arm": "D",
+      "model": "gptoss",
+      "database": "armdgptoss",
+      "files": [
+        {
+          "file": "D_gptoss_058f8cb2.jsonl",
+          "case": "058f8cb2",
+          "nodes": 28,
+          "relationships": 54,
+          "sha256": "9934677a829dac2a88c4aa2d0c6e3e9d"
+        },
+        {
+          "file": "D_gptoss_074679b1.jsonl",
+          "case": "074679b1",
+          "nodes": 136,
+          "relationships": 300,
+          "sha256": "9ad5c7b77fdc3b2be6c9a86a6570a070"
+        },
+        {
+          "file": "D_gptoss_114ff9bf.jsonl",
+          "case": "114ff9bf",
+          "nodes": 25,
+          "relationships": 49,
+          "sha256": "355d4e7f01d752af7696c1fb242f79cc"
+        },
+        {
+          "file": "D_gptoss_312a9d8d.jsonl",
+          "case": "312a9d8d",
+          "nodes": 30,
+          "relationships": 57,
+          "sha256": "110d0fb245b881e2794a3a6588d837be"
+        },
+        {
+          "file": "D_gptoss_33519081.jsonl",
+          "case": "33519081",
+          "nodes": 64,
+          "relationships": 122,
+          "sha256": "e6fc142fe4a592f003e07ece3b526bee"
+        },
+        {
+          "file": "D_gptoss_3772d674.jsonl",
+          "case": "3772d674",
+          "nodes": 89,
+          "relationships": 171,
+          "sha256": "7ca5aac42314722fe4c5a600ae499109"
+        },
+        {
+          "file": "D_gptoss_38444072.jsonl",
+          "case": "38444072",
+          "nodes": 126,
+          "relationships": 246,
+          "sha256": "83f13023d442b5b01db2e7cc3bdb40cd"
+        },
+        {
+          "file": "D_gptoss_4bcc8fd5.jsonl",
+          "case": "4bcc8fd5",
+          "nodes": 44,
+          "relationships": 82,
+          "sha256": "f294e33be0401321fda1cd9317a7526f"
+        },
+        {
+          "file": "D_gptoss_51cd1ae0.jsonl",
+          "case": "51cd1ae0",
+          "nodes": 24,
+          "relationships": 45,
+          "sha256": "4583f2629ca6124114473dc74650158a"
+        },
+        {
+          "file": "D_gptoss_6c8c2275.jsonl",
+          "case": "6c8c2275",
+          "nodes": 11,
+          "relationships": 16,
+          "sha256": "834e16624575864c5d703e44842bec01"
+        },
+        {
+          "file": "D_gptoss_7dc64b77.jsonl",
+          "case": "7dc64b77",
+          "nodes": 131,
+          "relationships": 285,
+          "sha256": "04f910a8c2161f7a85799f359cf9544a"
+        },
+        {
+          "file": "D_gptoss_99d237ff.jsonl",
+          "case": "99d237ff",
+          "nodes": 15,
+          "relationships": 27,
+          "sha256": "4d5b3c9478289393d4d915e02f9f4299"
+        },
+        {
+          "file": "D_gptoss_abc8d47f.jsonl",
+          "case": "abc8d47f",
+          "nodes": 22,
+          "relationships": 44,
+          "sha256": "bd3c0181df97de577633629f10ef708c"
+        },
+        {
+          "file": "D_gptoss_aea9d9e5.jsonl",
+          "case": "aea9d9e5",
+          "nodes": 30,
+          "relationships": 53,
+          "sha256": "376d607253d4341845590a4b1297f13b"
+        },
+        {
+          "file": "D_gptoss_b79eb272.jsonl",
+          "case": "b79eb272",
+          "nodes": 47,
+          "relationships": 90,
+          "sha256": "071584ad5826187785f3dd41a5cf60a7"
+        },
+        {
+          "file": "D_gptoss_c2373adb.jsonl",
+          "case": "c2373adb",
+          "nodes": 12,
+          "relationships": 18,
+          "sha256": "b60d894c3ed8e72fc48c8646eae1e913"
+        }
+      ],
+      "nodes": 834,
+      "relationships": 1659
+    },
+    {
+      "arm": "D",
+      "model": "minimax27",
+      "database": "armdminimax27",
+      "files": [
+        {
+          "file": "D_minimax27_058f8cb2.jsonl",
+          "case": "058f8cb2",
+          "nodes": 47,
+          "relationships": 122,
+          "sha256": "674ea9c6dbdb9bb73011f62797df5e9b"
+        },
+        {
+          "file": "D_minimax27_074679b1.jsonl",
+          "case": "074679b1",
+          "nodes": 154,
+          "relationships": 386,
+          "sha256": "fc3b54c5a5da5a8bd36e5678097db19e"
+        },
+        {
+          "file": "D_minimax27_114ff9bf.jsonl",
+          "case": "114ff9bf",
+          "nodes": 38,
+          "relationships": 101,
+          "sha256": "15340d6f4520a1e9248082dc85163e78"
+        },
+        {
+          "file": "D_minimax27_312a9d8d.jsonl",
+          "case": "312a9d8d",
+          "nodes": 55,
+          "relationships": 138,
+          "sha256": "9aef5c81a9523637ac2c446d1a3d46dd"
+        },
+        {
+          "file": "D_minimax27_33519081.jsonl",
+          "case": "33519081",
+          "nodes": 54,
+          "relationships": 128,
+          "sha256": "14356300a89b2fc5b860aa3c30e39afa"
+        },
+        {
+          "file": "D_minimax27_3772d674.jsonl",
+          "case": "3772d674",
+          "nodes": 61,
+          "relationships": 137,
+          "sha256": "de85ae375148fcfb0c9d31b13776865c"
+        },
+        {
+          "file": "D_minimax27_38444072.jsonl",
+          "case": "38444072",
+          "nodes": 107,
+          "relationships": 208,
+          "sha256": "32e80c403a146e4065704b284f0e32d6"
+        },
+        {
+          "file": "D_minimax27_4bcc8fd5.jsonl",
+          "case": "4bcc8fd5",
+          "nodes": 70,
+          "relationships": 134,
+          "sha256": "69e1b9eabe369a4fc4125912ba8fa57a"
+        },
+        {
+          "file": "D_minimax27_51cd1ae0.jsonl",
+          "case": "51cd1ae0",
+          "nodes": 39,
+          "relationships": 105,
+          "sha256": "a9a7cb2fab9ee5805055d31b9faec172"
+        },
+        {
+          "file": "D_minimax27_6c8c2275.jsonl",
+          "case": "6c8c2275",
+          "nodes": 22,
+          "relationships": 40,
+          "sha256": "43dab291f7440c4b448396d3c61cd02e"
+        },
+        {
+          "file": "D_minimax27_7dc64b77.jsonl",
+          "case": "7dc64b77",
+          "nodes": 237,
+          "relationships": 667,
+          "sha256": "23741af894015ddbd7038b3b9e2b9f44"
+        },
+        {
+          "file": "D_minimax27_99d237ff.jsonl",
+          "case": "99d237ff",
+          "nodes": 65,
+          "relationships": 216,
+          "sha256": "06684a766c5100cff0081b92be4d10f8"
+        },
+        {
+          "file": "D_minimax27_abc8d47f.jsonl",
+          "case": "abc8d47f",
+          "nodes": 37,
+          "relationships": 92,
+          "sha256": "01a6fb3dcd80859a6033e7cdab06f703"
+        },
+        {
+          "file": "D_minimax27_aea9d9e5.jsonl",
+          "case": "aea9d9e5",
+          "nodes": 42,
+          "relationships": 114,
+          "sha256": "fdcaffccf6303cd68805b76fe981bc45"
+        },
+        {
+          "file": "D_minimax27_b79eb272.jsonl",
+          "case": "b79eb272",
+          "nodes": 60,
+          "relationships": 157,
+          "sha256": "77fad849de6bd99a54f3d40e51379a5c"
+        },
+        {
+          "file": "D_minimax27_c2373adb.jsonl",
+          "case": "c2373adb",
+          "nodes": 22,
+          "relationships": 37,
+          "sha256": "c9ff546d7374a5c8b6e503510ffef152"
+        }
+      ],
+      "nodes": 1110,
+      "relationships": 2782
+    }
+  ]
+}

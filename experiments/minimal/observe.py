@@ -69,6 +69,23 @@ class JsonlSpanExporter(SpanExporter):
     def shutdown(self) -> None:
         return None
 
+def _code_version() -> dict[str, Any]:
+    """The commit the run executed at, and whether the tree had edits."""
+    import subprocess
+
+    root = Path(__file__).resolve().parents[2]
+    try:
+        commit = subprocess.run(["git", "rev-parse", "--short", "HEAD"],
+                                cwd=root, capture_output=True, text=True,
+                                check=True).stdout.strip()
+        dirty = bool(subprocess.run(["git", "status", "--porcelain"],
+                                    cwd=root, capture_output=True, text=True,
+                                    check=True).stdout.strip())
+        return {"commit": commit, "uncommitted_changes": dirty}
+    except Exception:  # noqa: BLE001 — absence is recorded, not fatal
+        return {"commit": "", "uncommitted_changes": None}
+
+
 _LOG = logging.getLogger("minimal")
 _MAX_INLINE = 4000  # payload characters kept verbatim in the trace
 
@@ -188,6 +205,13 @@ class Run:
         self.fingerprint = hashlib.sha256(
             json.dumps(decisive, sort_keys=True, default=str).encode()
         ).hexdigest()[:16]
+        # The fingerprint covers declared configuration and nothing else, so two
+        # runs can share one while the code between them changed. The audit
+        # found exactly that: a scoping rule was rewritten and both runs kept
+        # the same fingerprint with different numbers. Recording the commit and
+        # whether the tree was dirty does not make the fingerprint complete, but
+        # it makes the gap visible instead of silent.
+        self.code_version = _code_version()
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         self.dir = Path(root) / f"{stamp}-{name}"
         self.dir.mkdir(parents=True, exist_ok=True)
@@ -198,7 +222,8 @@ class Run:
         self._t0 = time.perf_counter()
 
         (self.dir / "config.resolved.json").write_text(
-            json.dumps({"fingerprint": self.fingerprint, **config},
+            json.dumps({"fingerprint": self.fingerprint,
+                        "code_version": self.code_version, **config},
                        indent=2, ensure_ascii=False, default=str) + "\n")
         (self.dir / "decisive.json").write_text(
             json.dumps(decisive, indent=2, sort_keys=True,
@@ -243,6 +268,9 @@ class Run:
 
         self.log(f"run directory: {self.dir}")
         self.log(f"decisive fingerprint: {self.fingerprint}")
+        self.log(f"code: {self.code_version.get('commit') or 'unknown'}"
+                 + (" (uncommitted changes present)"
+                    if self.code_version.get("uncommitted_changes") else ""))
         for key, value in sorted(decisive.items()):
             self.log(f"  decisive.{key} = {json.dumps(value, default=str)[:200]}")
 
@@ -330,7 +358,8 @@ class Run:
         total = time.perf_counter() - self._t0
         driver = self.driver_log.summary()
         self.driver_log.detach()
-        payload = {"fingerprint": self.fingerprint, "stages": self.stages,
+        payload = {"fingerprint": self.fingerprint,
+                   "code_version": self.code_version, "stages": self.stages,
                    "seconds": round(total, 3), "driver": driver, **result}
         (self.dir / "result.json").write_text(
             json.dumps(payload, indent=2, ensure_ascii=False, default=str) + "\n")

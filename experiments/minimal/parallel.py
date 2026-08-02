@@ -23,6 +23,8 @@ import os
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from typing import Any, Callable, Iterable, Sequence, TypeVar
 
+from opentelemetry import context as otel_context
+
 T = TypeVar("T")
 R = TypeVar("R")
 
@@ -46,8 +48,22 @@ def io_map(fn: Callable[[T], R], items: Sequence[T], *,
         return []
     count = workers or min(len(items), cpu_workers() * 2)
     results: list[R | None] = [None] * len(items)
+    # A worker thread starts with an empty OpenTelemetry context, so anything it
+    # records — a database statement, a model call — lands on no span at all.
+    # The audit caught this: 768 statements in one run with none reflected on a
+    # span. Attaching the parent context makes the worker's work belong to the
+    # stage that spawned it.
+    parent = otel_context.get_current()
+
+    def run(item: T) -> R:
+        token = otel_context.attach(parent)
+        try:
+            return fn(item)
+        finally:
+            otel_context.detach(token)
+
     with ThreadPoolExecutor(max_workers=count) as pool:
-        futures = {pool.submit(fn, item): i for i, item in enumerate(items)}
+        futures = {pool.submit(run, item): i for i, item in enumerate(items)}
         for future in as_completed(futures):
             index = futures[future]
             try:

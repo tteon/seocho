@@ -57,6 +57,12 @@ decisive:
 
   seed: 42
 
+  # How many cases run. This lived outside `decisive` and it should not have:
+  # two runs over three cases and over sixteen produce different numbers under
+  # one fingerprint, which is exactly the collision the fingerprint exists to
+  # prevent. Found by experiments/audit_observability.py.
+  case_limit: 3
+
 runtime:
   uri: bolt://localhost:7687
   module_dir: examples/finder/datasets/fibo_modules
@@ -67,7 +73,6 @@ runtime:
 
 # Which source cases to run. Empty means "discover from the first view".
 cases: []
-case_limit: 3
 
 hydra:
   run:

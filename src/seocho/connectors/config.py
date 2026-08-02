@@ -218,7 +218,8 @@ def load_connector_config(path: "str | Path" = DEFAULT_CONNECTORS_CONFIG_FILENAM
     config_path = Path(path)
     errors: list[str] = []
     try:
-        payload = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+        with config_path.open("r", encoding="utf-8") as f:
+            payload = yaml.safe_load(f)
     except FileNotFoundError as exc:
         raise ConnectorConfigError([f"{config_path} not found. Run: seocho connect init"]) from exc
     except yaml.YAMLError as exc:

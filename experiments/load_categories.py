@@ -19,6 +19,22 @@ Two levels of isolation, because the questions need both:
                              The merge key already includes the workspace, so
                              two views cannot fuse even where they agree
 
+Figures are stored twice, and this is not redundancy. `value` keeps what the
+model wrote — "$5.2 billion", the string a reader should see — and
+`value_numeric` holds the same figure parsed, with scale words applied, so a
+query can compare it. A schema audit of the first load found 760 values present
+and none of them a number: an agent writing `WHERE n.value > 1000000` got an
+empty result rather than an error, and read that as "no such fact". No prompt
+repairs that, because there is no operator that compares a number to
+"$5.2 billion".
+
+What `value_numeric` inherits is the model's reading, not the truth. A model
+that applied a table's "in thousands" header and one that did not produce
+different numerics from one printed figure, and the parse cannot adjudicate
+between them — it faithfully records each model's interpretation. Which is why
+`_anchor_scale_ratio` sits beside it: that is the signal that a reading is
+disputed.
+
 The anchor layer travels with the nodes. A figure that could be located in its
 source carries `_anchor_passage`, `_anchor_offset`, `_anchor_literal`,
 `_anchor_exact`, `_anchor_scale_ratio` and the surrounding text — so a served
@@ -58,6 +74,7 @@ for _key, _value in dotenv_values(ROOT / ".env").items():
         os.environ.setdefault(_key, _value)
 
 import parallel  # noqa: E402
+import provenance  # noqa: E402
 
 URI = os.environ.get("SEOCHO_NEO4J_URI", "bolt://localhost:7687")
 SNAPSHOTS = ROOT / "snapshots"
@@ -156,7 +173,7 @@ def ensure_database(driver, name: str) -> bool:
 def load_category(driver, database: str, tag: str, category: str,
                   files: list[tuple[Path, str, str, str]],
                   anchors: dict[str, dict[str, Any]]) -> dict[str, Any]:
-    nodes_written = edges_written = anchored = 0
+    nodes_written = edges_written = anchored = numeric = dated = 0
     skipped: set[str] = set()
     with driver.session(database=database) as session:
         for path, arm, model, case in files:
@@ -177,6 +194,27 @@ def load_category(driver, database: str, tag: str, category: str,
                 props["_model"] = model
                 props["_case"] = case
                 props["_condition"] = arm
+
+                # A figure a query can compare, beside the text a reader should
+                # see. parse_amount applies scale words and accounting
+                # parentheses, so "$(5.2) million" becomes -5200000.0.
+                raw = props.get("value") or props.get("amount")
+                if raw is not None and not isinstance(raw, (int, float)):
+                    parsed = provenance.parse_amount(raw)
+                    if parsed is not None:
+                        props["value_numeric"] = parsed
+                        numeric += 1
+                elif isinstance(raw, (int, float)):
+                    props["value_numeric"] = float(raw)
+                    numeric += 1
+                # A year a query can range over. The period is written freely
+                # ("FY2024", "as of December 31, 2023") and only the year is
+                # recoverable without guessing at fiscal calendars.
+                year = re.search(r"\b(19|20)\d{2}\b",
+                                 str(props.get("period", "") or ""))
+                if year:
+                    props["period_year"] = int(year.group(0))
+                    dated += 1
                 anchor = anchors.get(node["eid"])
                 if anchor:
                     props["_anchor_passage"] = anchor["passage"]
@@ -211,6 +249,7 @@ def load_category(driver, database: str, tag: str, category: str,
     return {"database": database, "category": category,
             "workspaces": len(files), "nodes": nodes_written,
             "relationships": edges_written, "anchored_nodes": anchored,
+            "numeric_values": numeric, "dated_nodes": dated,
             "labels_skipped_as_unsafe": sorted(skipped)}
 
 
@@ -307,6 +346,8 @@ def main() -> int:
             out["nodes"] = sum(r["nodes"] for r in loaded)
             out["relationships"] = sum(r["relationships"] for r in loaded)
             out["anchored_nodes"] = sum(r["anchored_nodes"] for r in loaded)
+            out["numeric_values"] = sum(r["numeric_values"] for r in loaded)
+            out["dated_nodes"] = sum(r["dated_nodes"] for r in loaded)
 
         with run.stage("verify") as out:
             problems = check(driver, args.tag, grouped, cases)
@@ -334,6 +375,8 @@ def main() -> int:
         "nodes": sum(r["nodes"] for r in loaded),
         "relationships": sum(r["relationships"] for r in loaded),
         "anchored_nodes": sum(r["anchored_nodes"] for r in loaded),
+        "numeric_values": sum(r["numeric_values"] for r in loaded),
+        "dated_nodes": sum(r["dated_nodes"] for r in loaded),
         "anchor_coverage": (round(sum(r["anchored_nodes"] for r in loaded)
                                   / sum(r["nodes"] for r in loaded), 4)
                             if sum(r["nodes"] for r in loaded) else 0.0),
@@ -345,14 +388,17 @@ def main() -> int:
 
     print()
     print(f"{'database':26s} {'category':20s} {'ws':>4s} {'nodes':>7s} "
-          f"{'edges':>7s} {'anchored':>9s}")
+          f"{'edges':>7s} {'anchored':>9s} {'numeric':>8s} {'dated':>6s}")
     for row in loaded:
         print(f"{row['database']:26s} {row['category']:20s} "
               f"{row['workspaces']:4d} {row['nodes']:7d} "
-              f"{row['relationships']:7d} {row['anchored_nodes']:9d}")
+              f"{row['relationships']:7d} {row['anchored_nodes']:9d} "
+              f"{row['numeric_values']:8d} {row['dated_nodes']:6d}")
     print(f"\n{payload['nodes']:,} nodes, {payload['relationships']:,} "
           f"relationships, {payload['anchored_nodes']:,} carrying provenance "
           f"({payload['anchor_coverage']:.1%})")
+    print(f"{payload['numeric_values']:,} figures a query can compare, "
+          f"{payload['dated_nodes']:,} carrying a year")
     print(f"{len(problems)} problems")
     for problem in problems:
         print(f"  {problem}")

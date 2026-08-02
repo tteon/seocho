@@ -8,16 +8,16 @@ version: bump the version when a rerun changes what the number means,
 and set `supersedes` on the replacement so the withdrawn measurement
 stays visible.
 
-86 contracts, 105 artifacts, 20 with a full trace.
+86 contracts, 107 artifacts, 20 with a full trace.
 
 | Contract | Question | Headline | Traced | Artifact |
 |---|---|---|---|---|
-| `log2026.shacl_check.v1` | How much does a real constraint checker see that the membership test in the pipeline does not? | — | yes | `outputs/minimal/20260802T062309Z-shacl-check/shacl_check.json` |
+| `log2026.shacl_check.v1` | How much does a real constraint checker see that the membership test in the pipeline does not? | — | yes | `outputs/minimal/20260802T064926Z-shacl-check/shacl_check.json` |
+| `log2026.fact_anchors_summary.v1` | Can a figure a model extracted be attributed to the place in the source it came from, after t… | — | yes | `outputs/minimal/20260802T064750Z-materialize-anchors/anchors_summary.json` |
+| `seocho.narrative_grounding.v1` | Does every number in the hand-written prose still match an artifact? | — | no | `outputs/minimal/narrative_grounding.json` |
 | `log2026.cq_suite.v1` | Do the competency questions pass when written as queries and run against the ontology and the… | — | yes | `outputs/minimal/20260802T062024Z-cq-suite/cq_suite.json` |
 | `log2026.composability.v1` | Does answering a synthesized pair require both of its component questions, decided without a … | — | yes | `outputs/minimal/20260802T061105Z-composability/composability.json` |
-| `seocho.narrative_grounding.v1` | Does every number in the hand-written prose still match an artifact? | — | no | `outputs/minimal/narrative_grounding.json` |
 | `log2026.synthesis_validation.v1` | Do the synthesized cross-category pairs actually concern one company, checked against a ticke… | — | yes | `outputs/minimal/20260802T060032Z-validate-synthesis/synthesis_validation.json` |
-| `log2026.fact_anchors_summary.v1` | Can a figure a model extracted be attributed to the place in the source it came from, after t… | — | yes | `outputs/minimal/20260802T053932Z-materialize-anchors/anchors_summary.json` |
 | `log2026.provenance_keying.v1` | Does matching facts by where they came from in the source find more comparable pairs, and mor… | — | yes | `outputs/minimal/20260802T053531Z-provenance-keying/provenance_keying.json` |
 | `log2026.verification_value.v1` | When independently built views disagree about a figure, does refusing to serve it avoid an er… | — | yes | `outputs/minimal/20260802T051054Z-verification-value/verification_value.json` |
 | `log2026.routing_ceiling.v1` | Given what the graphs contain, what is the most any router could gain, and at what cost? | — | yes | `outputs/minimal/20260802T044303Z-routing-ceiling/routing_ceiling.json` |
@@ -103,15 +103,15 @@ stays visible.
 
 **`log2026.shacl_check.v1`** — The shapes cover three constraint kinds, not everything an ontology can express; cardinality beyond minCount, datatypes and disjointness are not modelled. A relationship type the ontology never declared has no shape and so cannot be objected to, which is why the SHACL and membership totals are reported side by side rather than as a ratio — neither bounds the other. Violations are counted on data already written, since validation is off by default in the pipeline; this measures the gap rather than closing it.
 
+**`log2026.fact_anchors_summary.v1`** — An anchor is a unique numeric coincidence, not a provenance record written during extraction. Two unrelated facts sharing one figure would be attributed to the same token if only one occurrence exists. Only figures can be anchored at all, so facts without one are outside this entirely.
+
+**`seocho.narrative_grounding.v1`** — Catches drift, not misreading. A number can be present in some artifact and still be quoted about the wrong condition.
+
 **`log2026.cq_suite.v1`** — The snapshots are mapped to triples thinly and nothing is inferred on the way in, so these ask what was extracted rather than what could be derived from it. An expectation is a threshold chosen by us; passing means the capability exists at that scale, not that it is sufficient.
 
 **`log2026.composability.v1`** — Decides whether the two components contribute different facts. It does not decide whether anyone would ask the pair as one question, which needs a judgement and is left to a panel reported as model-judged. Gold answers are prose of uneven length, so the content reading favours longer answers and is the weakest of the three.
 
-**`seocho.narrative_grounding.v1`** — Catches drift, not misreading. A number can be present in some artifact and still be quoted about the wrong condition.
-
 **`log2026.synthesis_validation.v1`** — Validates that a pair concerns one company. It does not establish that the pair forms a question anyone would ask, which is what the human adjudication packet is for, and it cannot make a synthesized question native — FinDER contains none.
-
-**`log2026.fact_anchors_summary.v1`** — An anchor is a unique numeric coincidence, not a provenance record written during extraction. Two unrelated facts sharing one figure would be attributed to the same token if only one occurrence exists. Only figures can be anchored at all, so facts without one are outside this entirely.
 
 **`log2026.provenance_keying.v1`** — Only facts carrying a figure can be anchored, so this says nothing about the rest. An anchor is a numeric token, not a verified provenance record — two facts can share a token by coincidence, which is why ambiguous matches are dropped and why the anchor rate is reported beside every result.
 
@@ -247,12 +247,13 @@ Expected when a script is rerun on the same inputs. A problem when the inputs ch
 - `log2026.cq_suite.v1` — 2 runs, newest 2026-08-02 06:20
 - `log2026.cross_view_evidence_audit.v1` — 2 runs, newest 2026-08-02 03:37
 - `log2026.extraction_arms.v1` — 4 runs, newest 2026-08-02 00:26
+- `log2026.fact_anchors_summary.v1` — 2 runs, newest 2026-08-02 06:47
 - `log2026.reextract.v2` — 2 runs, newest 2026-08-02 04:41
 - `log2026.sdcr_answer_smoke.v1` — 2 runs, newest 2026-08-02 04:04
 - `log2026.sdcr_answers.v1` — 2 runs, newest 2026-08-02 04:04
 - `log2026.sdcr_equal_budget_retrieval.v1` — 2 runs, newest 2026-08-02 04:04
 - `log2026.sdcr_paired_analysis.v1` — 2 runs, newest 2026-08-02 04:05
-- `log2026.shacl_check.v1` — 2 runs, newest 2026-08-02 06:23
+- `log2026.shacl_check.v1` — 3 runs, newest 2026-08-02 06:49
 - `log2026.synthesis_validation.v1` — 2 runs, newest 2026-08-02 06:00
 - `log2026.validity.v1` — 3 runs, newest 2026-08-02 04:28
 - `log2026.verification_value.v1` — 2 runs, newest 2026-08-02 05:10

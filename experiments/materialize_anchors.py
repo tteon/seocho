@@ -185,6 +185,13 @@ def main() -> int:
         "anchored": written, "unanchored": unanchored,
         "anchor_rate": (round(written / (written + unanchored), 4)
                         if (written + unanchored) else 0.0),
+        # The total and share as well as the per-ratio breakdown. Prose quotes
+        # "a quarter of anchored figures" and an artifact should hold the number
+        # the paper says rather than the pieces it was computed from.
+        "rescaled_total": sum(per_condition[a]["rescaled"] for a in per_condition),
+        "rescaled_share": (round(
+            sum(per_condition[a]["rescaled"] for a in per_condition) / written, 4)
+            if written else 0.0),
         "by_condition": {k: dict(v) for k, v in sorted(per_condition.items())},
         "scale_ratios_other_than_one": dict(sorted(
             off_scale.items(), key=lambda kv: -kv[1])[:12]),

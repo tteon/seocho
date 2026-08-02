@@ -139,10 +139,14 @@ def string_check(ontology, triples: list[str]) -> dict[str, int]:
             rtype = line.split(f"{NS}r/", 1)[-1].split(">", 1)[0]
             if rtype not in declared_rels:
                 bad_rels[rtype] += 1
+    # The total as well as its parts. Three times now the grounding check has
+    # caught prose quoting a sum an artifact did not hold, so the artifact holds
+    # what the paper says.
     return {"undeclared_label_uses": sum(bad_labels.values()),
             "undeclared_labels": len(bad_labels),
             "undeclared_relationship_uses": sum(bad_rels.values()),
-            "undeclared_relationship_types": len(bad_rels)}
+            "undeclared_relationship_types": len(bad_rels),
+            "undeclared_total": sum(bad_labels.values()) + sum(bad_rels.values())}
 
 
 def main() -> int:
@@ -232,7 +236,11 @@ def main() -> int:
             if error:
                 out["error"] = error
 
+            structural = sum(count for kind, count in kinds.items()
+                             if kind in ("ClassConstraintComponent",
+                                         "MinCountConstraintComponent"))
             results[arm] = {
+                "structural_violations": structural,
                 "declared_classes": len(ontology.nodes),
                 "declared_relationships": len(ontology.relationships),
                 "triples": len(triples), "conforms": conforms,

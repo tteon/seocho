@@ -1,7 +1,7 @@
 {
-  "generated_utc": "2026-08-02T06:31:57+00:00",
+  "generated_utc": "2026-08-02T06:49:44+00:00",
   "contracts": 86,
-  "artifacts": 105,
+  "artifacts": 107,
   "results": [
     {
       "contract": "seocho.retrace_run.v1",
@@ -58,7 +58,7 @@
       "contract": "seocho.narrative_grounding.v1",
       "path": "outputs/minimal/narrative_grounding.json",
       "run_dir": "outputs/minimal",
-      "modified": "2026-08-02 06:01",
+      "modified": "2026-08-02 06:36",
       "question": "Does every number in the hand-written prose still match an artifact?",
       "claim_boundary": "Catches drift, not misreading. A number can be present in some artifact and still be quoted about the wrong condition.",
       "supersedes": "",
@@ -261,6 +261,23 @@
       "traced": true,
       "has_decisive": true,
       "fingerprint": "245dc9002d88d8e8",
+      "missing": []
+    },
+    {
+      "contract": "log2026.shacl_check.v1",
+      "path": "outputs/minimal/20260802T064926Z-shacl-check/shacl_check.json",
+      "run_dir": "outputs/minimal/20260802T064926Z-shacl-check",
+      "modified": "2026-08-02 06:49",
+      "question": "How much does a real constraint checker see that the membership test in the pipeline does not?",
+      "claim_boundary": "The shapes cover three constraint kinds, not everything an ontology can express; cardinality beyond minCount, datatypes and disjointness are not modelled. A relationship type the ontology never declared has no shape and so cannot be objected to, which is why the SHACL and membership totals are reported side by side rather than as a ratio — neither bounds the other. Violations are counted on data already written, since validation is off by default in the pipeline; this measures the gap rather than closing it.",
+      "supersedes": "",
+      "method": "SHACL shapes generated from each condition's own ontology — required properties, the declared class set, and relationship endpoint classes — run by pySHACL over the committed snapshots, against a reimplementation of the pipeline's label-and-type membership test on the same triples",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": true,
+      "has_decisive": true,
+      "fingerprint": "eb3c84b04ee44128",
       "missing": []
     },
     {
@@ -1250,6 +1267,23 @@
         "question",
         "claim_boundary"
       ]
+    },
+    {
+      "contract": "log2026.fact_anchors_summary.v1",
+      "path": "outputs/minimal/20260802T064750Z-materialize-anchors/anchors_summary.json",
+      "run_dir": "outputs/minimal/20260802T064750Z-materialize-anchors",
+      "modified": "2026-08-02 06:47",
+      "question": "Can a figure a model extracted be attributed to the place in the source it came from, after the fact?",
+      "claim_boundary": "An anchor is a unique numeric coincidence, not a provenance record written during extraction. Two unrelated facts sharing one figure would be attributed to the same token if only one occurrence exists. Only figures can be anchored at all, so facts without one are outside this entirely.",
+      "supersedes": "",
+      "method": "each extracted figure located against the numeric tokens of its case's reference passages, searching the value as parsed and at every scale; exact matches preferred, ambiguous figures left unanchored",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": true,
+      "has_decisive": true,
+      "fingerprint": "450011fc5dd4c699",
+      "missing": []
     },
     {
       "contract": "log2026.fact_anchors_summary.v1",

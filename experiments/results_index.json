@@ -1,8 +1,25 @@
 {
-  "generated_utc": "2026-08-02T02:52:06+00:00",
-  "contracts": 72,
-  "artifacts": 80,
+  "generated_utc": "2026-08-02T03:29:22+00:00",
+  "contracts": 76,
+  "artifacts": 85,
   "results": [
+    {
+      "contract": "seocho.observability_audit.v1",
+      "path": "outputs/minimal/observability_audit.json",
+      "run_dir": "outputs/minimal",
+      "modified": "2026-08-02 03:15",
+      "question": "Does every run leave a record a reviewer could read without us present?",
+      "claim_boundary": "Checks presence and well-formedness of the record, not the correctness of what it records.",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": []
+    },
     {
       "contract": "seocho.database_audit.v1",
       "path": "outputs/minimal/database_audit.json",
@@ -38,6 +55,40 @@
       "traced": false,
       "has_decisive": false,
       "fingerprint": "",
+      "missing": []
+    },
+    {
+      "contract": "log2026.validity.v1",
+      "path": "outputs/minimal/20260802T031440Z-validity/validity.json",
+      "run_dir": "outputs/minimal/20260802T031440Z-validity",
+      "modified": "2026-08-02 03:14",
+      "question": "Was the schema actually delivered to the extractor, and are the differences between conditions larger than sampling noise?",
+      "claim_boundary": "The interval covers sampling variability across these 16 cases only. It does not cover variation between models, between runs of one model, or the choice of matching rule.",
+      "supersedes": "",
+      "method": "Manipulation check from the run traces and the labels that came back; percentile bootstrap over cases with 5000 draws, resampling cases rather than facts because facts inside one case are not independent",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": true,
+      "has_decisive": true,
+      "fingerprint": "67fa626c5c2042ef",
+      "missing": []
+    },
+    {
+      "contract": "log2026.validity.v1",
+      "path": "outputs/minimal/20260802T025730Z-validity/validity.json",
+      "run_dir": "outputs/minimal/20260802T025730Z-validity",
+      "modified": "2026-08-02 02:57",
+      "question": "Was the schema actually delivered to the extractor, and are the differences between conditions larger than sampling noise?",
+      "claim_boundary": "The interval covers sampling variability across these 16 cases only. It does not cover variation between models, between runs of one model, or the choice of matching rule.",
+      "supersedes": "",
+      "method": "Manipulation check from the run traces and the labels that came back; percentile bootstrap over cases with 5000 draws, resampling cases rather than facts because facts inside one case are not independent",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": true,
+      "has_decisive": true,
+      "fingerprint": "67fa626c5c2042ef",
       "missing": []
     },
     {
@@ -737,6 +788,23 @@
       ]
     },
     {
+      "contract": "log2026.mechanism.v1",
+      "path": "outputs/minimal/20260802T025850Z-mechanism/mechanism.json",
+      "run_dir": "outputs/minimal/20260802T025850Z-mechanism",
+      "modified": "2026-08-02 02:58",
+      "question": "Does declaring a type change how findable a thing is across views, and do declared synonyms collapse two spellings onto one node?",
+      "claim_boundary": "Findability is name recurrence across models, not retrieval success. Alias collapse can only be seen for pairs whose spellings the corpus actually uses, so a low count means the test is weak there rather than that the mechanism failed.",
+      "supersedes": "the withdrawn within-graph comparison of typed against untyped entities, which contrasted coarse entities with fine ones rather than schemas with each other",
+      "method": "Findability is the share of entity names that at least two of three models produced, computed per case and paired across conditions so the same document is compared with and without a schema. Alias collapse counts, for every alias pair FIBO declares on a shipped class, whether both spellings appear as separate nodes.",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": true,
+      "has_decisive": true,
+      "fingerprint": "f0fa9504691e2f9a",
+      "missing": []
+    },
+    {
       "contract": "log2026.key_rule_pretest.v1",
       "path": "outputs/evaluation/mdm_fedcat/log2026-key-rule-pretest-v1/key_rule_pretest.json",
       "run_dir": "outputs/evaluation/mdm_fedcat/log2026-key-rule-pretest-v1",
@@ -1271,6 +1339,23 @@
       "traced": false,
       "has_decisive": false,
       "fingerprint": "",
+      "missing": []
+    },
+    {
+      "contract": "log2026.correctness.v1",
+      "path": "outputs/minimal/20260802T030034Z-correctness/correctness.json",
+      "run_dir": "outputs/minimal/20260802T030034Z-correctness",
+      "modified": "2026-08-02 03:06",
+      "question": "Does the extracted graph contain the dataset's gold answer, and do two models capture the same content regardless of what they called it?",
+      "claim_boundary": "Numeric recall asks whether the figure is present somewhere in the graph, not whether it is attached to the right entity or retrievable by a query. A graph can score well here and still be unusable. Semantic similarity is a proxy for sameness, not a judgement of correctness.",
+      "supersedes": "",
+      "method": "Numeric recall is the share of figures in the gold answer that appear anywhere in the graph, matched within 1% and with scale words applied. Semantic best is the highest cosine similarity between the gold answer and any single serialized node, local BAAI/bge-small-en-v1.5. Content agreement is reported twice: numeric overlap of extracted values, which never looks at names, and the share of nodes whose best semantic match in the other model's graph exceeds 0.9.",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": true,
+      "has_decisive": true,
+      "fingerprint": "3c0f0aae6157cfb0",
       "missing": []
     },
     {

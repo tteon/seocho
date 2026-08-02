@@ -8,10 +8,14 @@ version: bump the version when a rerun changes what the number means,
 and set `supersedes` on the replacement so the withdrawn measurement
 stays visible.
 
-72 contracts, 80 artifacts, 7 with a full trace.
+76 contracts, 85 artifacts, 10 with a full trace.
 
 | Contract | Question | Headline | Traced | Artifact |
 |---|---|---|---|---|
+| `seocho.observability_audit.v1` | Does every run leave a record a reviewer could read without us present? | — | no | `outputs/minimal/observability_audit.json` |
+| `log2026.validity.v1` | Was the schema actually delivered to the extractor, and are the differences between condition… | — | yes | `outputs/minimal/20260802T031440Z-validity/validity.json` |
+| `log2026.correctness.v1` | Does the extracted graph contain the dataset's gold answer, and do two models capture the sam… | — | yes | `outputs/minimal/20260802T030034Z-correctness/correctness.json` |
+| `log2026.mechanism.v1` | Does declaring a type change how findable a thing is across views, and do declared synonyms c… | — | yes | `outputs/minimal/20260802T025850Z-mechanism/mechanism.json` |
 | `log2026.arm_results.v1` | Does the ontology handed to the extractor change whether two models describe the same fact th… | by_arm={"A": {"cases_total": 16, "cases_contaminated": 0, "c | yes | `outputs/minimal/20260802T025158Z-arm-results/arm_results.json` |
 | `log2026.category_contamination.v1` | If the categories shared one graph, would name collisions merge things that mean different th… | — | yes | `outputs/minimal/20260802T024329Z-category-contamination/category_contamination.json` |
 | `log2026.reextract.v1` | Does the ontology handed to the extractor change what the graph contains, and does it make tw… | by_arm={"A": {"ontology": "none", "ontology_hash": "a643d7a7 | yes | `outputs/minimal/20260802T022713Z-reextract/reextract.json` |
@@ -87,6 +91,14 @@ stays visible.
 
 ## What each result does not support
 
+**`seocho.observability_audit.v1`** — Checks presence and well-formedness of the record, not the correctness of what it records.
+
+**`log2026.validity.v1`** — The interval covers sampling variability across these 16 cases only. It does not cover variation between models, between runs of one model, or the choice of matching rule.
+
+**`log2026.correctness.v1`** — Numeric recall asks whether the figure is present somewhere in the graph, not whether it is attached to the right entity or retrievable by a query. A graph can score well here and still be unusable. Semantic similarity is a proxy for sameness, not a judgement of correctness.
+
+**`log2026.mechanism.v1`** — Findability is name recurrence across models, not retrieval success. Alias collapse can only be seen for pairs whose spellings the corpus actually uses, so a low count means the test is weak there rather than that the mechanism failed.
+
 **`log2026.arm_results.v1`** — 16 cases, 3 models, one run. Cases where extraction fell back to the heuristic are excluded and counted separately; every rate is conditioned on the scored cases, not the attempted ones.
 
 **`log2026.category_contamination.v1`** — Context similarity is a proxy for meaning, computed from the extracted graph rather than the source text. It shows that colliding names sit in different surroundings; it does not prove a specific merge would produce a specific wrong answer.
@@ -121,6 +133,7 @@ stays visible.
 
 ## Withdrawn and replaced
 
+- `log2026.mechanism.v1` supersedes the withdrawn within-graph comparison of typed against untyped entities, which contrasted coarse entities with fine ones rather than schemas with each other
 - `log2026.alias_register.v2` supersedes log2026.alias_pretest.v1, whose counts conflated word senses and overstated the gap
 
 ## Artifacts not following the convention
@@ -200,4 +213,5 @@ Expected when a script is rerun on the same inputs. A problem when the inputs ch
 - `log2026.reextract.v1` — 2 runs, newest 2026-08-02 02:41
 - `log2026.sdcr_answer_smoke.v1` — 2 runs, newest 2026-07-11 06:57
 - `log2026.sdcr_paired_analysis.v1` — 2 runs, newest 2026-07-11 14:18
+- `log2026.validity.v1` — 2 runs, newest 2026-08-02 03:14
 

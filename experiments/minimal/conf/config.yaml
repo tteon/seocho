@@ -1,0 +1,79 @@
+# Minimal harness configuration.
+#
+# The split below is the point of this file. Everything under `decisive` is
+# hashed into the run fingerprint, because it changes the numbers. Everything
+# under `runtime` describes where output goes and how loud the run is, and
+# changing it must never change a result. Two runs with the same fingerprint
+# that disagree are a defect, not a finding.
+
+defaults:
+  - _self_
+
+decisive:
+  # Which extraction snapshot each view reads. Different providers produced
+  # graphs of very different size, so this alone moves every count.
+  # Three extraction snapshots, one per model under study. MiniMax-M2.5 is
+  # being retired, so 2.7 is the only MiniMax view.
+  views:
+    deepseek: mdmdeepseek
+    gptoss: mdmgptoss
+    minimax27: mdmminimax27
+
+  # Which classes count as declared. Entities carrying a declared type were
+  # measured to overlap across views far less than untyped ones.
+  ontology:
+    name: fibo_finance_core
+    # Derived, not guessed: this is the minimal set of FIBO modules that
+    # declares every class observed in the frozen graphs. fnd is required
+    # (Lawsuit, LegalAgreement, Person come only from it) and dbt contributes
+    # no observed class. It is a lower bound on what the original run loaded,
+    # since a module whose classes were never instantiated leaves no trace.
+    modules: [acc, be, fbc, fnd, ind]
+
+  # When two views are talking about the same fact. Exact slug matching is
+  # conservative and yields a lower bound on comparability.
+  key_rule: exact_slug
+
+  # When two values count as the same claim. Scale words are applied to the
+  # number rather than dropped, which is what separates "$59.4" from
+  # "$59.4 million".
+  value_rule:
+    scale_words: true
+    numeric_tolerance: 1.0e-6
+
+  # Evidence handed to the answering step.
+  evidence:
+    budget_chars: 6000
+    protected_slots: []
+
+  # Answering. offline=true issues no model call, so a full run costs nothing.
+  agent:
+    offline: true
+    # One of DeepSeek-V3.1, gpt-oss-120b, MiniMax-M2.7. Sweep with
+    #   run.py -m decisive.agent.model=DeepSeek-V3.1,gpt-oss-120b,MiniMax-M2.7
+    model: DeepSeek-V3.1
+    max_tokens: 700
+    base_url: https://api.cloud.mara.com/v1
+
+  seed: 42
+
+runtime:
+  uri: bolt://localhost:7687
+  module_dir: examples/finder/datasets/fibo_modules
+  output_root: outputs/minimal
+  console_spans: false
+  entity_limit: 200
+  neighborhood_limit: 20
+
+# Which source cases to run. Empty means "discover from the first view".
+cases: []
+case_limit: 3
+
+hydra:
+  run:
+    dir: .
+  output_subdir: null
+  job_logging:
+    version: 1
+    root:
+      handlers: []

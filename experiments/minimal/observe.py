@@ -18,6 +18,7 @@ import json
 import os
 import logging
 import re
+import threading
 import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -193,6 +194,7 @@ class Run:
         self.trace_path = self.dir / "trace.jsonl"
         self.trace_path.write_text("")
         self.stages: list[str] = []
+        self._append_lock = threading.Lock()
         self._t0 = time.perf_counter()
 
         (self.dir / "config.resolved.json").write_text(
@@ -248,7 +250,11 @@ class Run:
         _LOG.info(message)
 
     def _append(self, record: dict[str, Any]) -> None:
-        with self.trace_path.open("a", encoding="utf-8") as fh:
+        # Workers append concurrently once a run is parallel; without the lock
+        # two records interleave mid-line and the trace stops being parseable,
+        # which would be a silent loss of exactly the evidence this file exists
+        # to hold.
+        with self._append_lock, self.trace_path.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps({"fingerprint": self.fingerprint, **record},
                                 ensure_ascii=False, default=str) + "\n")
 

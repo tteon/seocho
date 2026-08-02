@@ -14,8 +14,9 @@ Two levels of isolation, because the questions need both:
                              each, which is what DozerDB's multi-database
                              support is for and why no second container is
                              involved
-    workspace per view       within a category, `<tag>-<category>-<model>-<case>`
-                             keeps each model's reading of each case separate.
+    workspace per view       `<tag>-<category>-<condition>-<model>-<case>`
+                             keeps each model's reading of each case under each
+                             ontology separate.
                              The merge key already includes the workspace, so
                              two views cannot fuse even where they agree
 
@@ -97,8 +98,18 @@ def database_for(tag: str, category: str) -> str:
     return name
 
 
-def workspace_for(tag: str, category: str, model: str, case: str) -> str:
-    return f"{tag}-{re.sub(r'[^a-z0-9]', '', category.lower())}-{model}-{case}"
+def workspace_for(tag: str, category: str, model: str, case: str,
+                  condition: str) -> str:
+    """The condition belongs in the key.
+
+    Without it, loading a second condition into the same category database
+    silently replaced the first: the loader clears a workspace before rewriting
+    it, and two conditions of one case under one model resolved to the same
+    workspace. Found by trying to compare the declared schema of a condition
+    that had been overwritten by another.
+    """
+    return (f"{tag}-{re.sub(r'[^a-z0-9]', '', category.lower())}"
+            f"-{condition.lower()}-{model}-{case}")
 
 
 def load_cases() -> dict[str, dict[str, Any]]:
@@ -177,7 +188,7 @@ def load_category(driver, database: str, tag: str, category: str,
     skipped: set[str] = set()
     with driver.session(database=database) as session:
         for path, arm, model, case in files:
-            workspace = workspace_for(tag, category, model, case)
+            workspace = workspace_for(tag, category, model, case, arm)
             # Idempotent: a re-run replaces this workspace rather than doubling it.
             session.run("MATCH (n {_workspace_id:$w}) DETACH DELETE n",
                         w=workspace).consume()
@@ -253,7 +264,8 @@ def load_category(driver, database: str, tag: str, category: str,
             "labels_skipped_as_unsafe": sorted(skipped)}
 
 
-def check(driver, tag: str, grouped: dict[str, list], cases) -> list[str]:
+def check(driver, tag: str, grouped: dict[str, list], cases,
+          arms: list[str]) -> list[str]:
     problems = []
     for category, files in sorted(grouped.items()):
         database = database_for(tag, category)
@@ -262,8 +274,9 @@ def check(driver, tag: str, grouped: dict[str, list], cases) -> list[str]:
                 total = session.run(
                     "MATCH (n) RETURN count(n) AS c").single()["c"]
                 workspaces = session.run(
-                    "MATCH (n) RETURN count(DISTINCT n._workspace_id) AS c"
-                ).single()["c"]
+                    "MATCH (n) WHERE n._condition IN $arms "
+                    "RETURN count(DISTINCT n._workspace_id) AS c",
+                    arms=arms).single()["c"]
                 anchored = session.run(
                     "MATCH (n) WHERE n._anchor_offset IS NOT NULL "
                     "RETURN count(n) AS c").single()["c"]
@@ -315,7 +328,7 @@ def main() -> int:
     driver = GraphDatabase.driver(URI, auth=auth())
     try:
         if args.check:
-            problems = check(driver, args.tag, grouped, cases)
+            problems = check(driver, args.tag, grouped, cases, arms)
             for problem in problems:
                 print(f"  {problem}")
             print(f"\n{len(problems)} problems across {len(grouped)} databases")
@@ -350,7 +363,7 @@ def main() -> int:
             out["dated_nodes"] = sum(r["dated_nodes"] for r in loaded)
 
         with run.stage("verify") as out:
-            problems = check(driver, args.tag, grouped, cases)
+            problems = check(driver, args.tag, grouped, cases, arms)
             out["problems"] = problems
             out["clean"] = not problems
     finally:

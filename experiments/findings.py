@@ -352,6 +352,78 @@ FINDING_LIST: list[Finding] = [
                     "agreement on facts"],
     ),
     Finding(
+        slug="2.1-query-schema",
+        section="2.1",
+        title="The schema an agent queries with should come from the ontology",
+        question=("How far apart are the schema description a text2cypher "
+                  "system is usually given and the ontology the graph was built "
+                  "from, and does the difference change what an agent can ask?"),
+        hypothesis=("Standard practice builds the description by introspecting "
+                    "the store, which reports what an extractor produced rather "
+                    "than what was specified. Where a language model did the "
+                    "extracting the two diverge, and an agent told about "
+                    "structure the ontology forbids will write queries against "
+                    "it."),
+        method=("Four descriptions built by rule rather than by hand — "
+                "introspected, the ontology's own vocabulary, the ontology "
+                "restricted to what was extracted, and introspection with "
+                "comparable properties marked — compared on size and on what "
+                "each contains that the others do not. The agent half, where "
+                "each description is given to a query-writing model and its "
+                "failures are counted by kind, has not run."),
+        contract="log2026.schema_sources.v1",
+        verdict=UNDECIDED,
+        reading=(
+            "The two sources differ by more than enough to matter, and the "
+            "direction is the one that damages a query.\n\n"
+            "Under the real-FIBO condition the ontology declares 70 classes and "
+            "12 relationship types. Introspection reports 96 labels and 51 "
+            "relationship types. Thirty-two of those labels and thirty-nine of "
+            "those relationship types were never declared: an agent handed the "
+            "introspected description is told, as fact, about structure the "
+            "ontology forbids. They are plausible names — COGS, Dividend, EPS, "
+            "Committee, Court — which is what makes them dangerous rather than "
+            "obviously wrong.\n\n"
+            "The reverse gap is smaller but real. Six declared classes were "
+            "never extracted, so the ontology alone would send an agent looking "
+            "for things that are not there. That is why the third description "
+            "exists, and why a result showing the ontology sufficient on its "
+            "own would be surprising.\n\n"
+            "The description also shrinks, 267 approximate tokens to 102. That "
+            "is not the compression the literature discusses, which shortens "
+            "the same information. This removes information that is wrong.\n\n"
+            "None of this is yet a result about querying. It establishes that "
+            "there is something to test and how large it is. Whether an agent "
+            "given the declared description writes better queries is the "
+            "measurement, and it has not been made."),
+        limits=("A static comparison of descriptions. It says the two sources "
+                "differ; it does not say the difference changes what an agent "
+                "can retrieve. The gap is also measured on graphs a language "
+                "model built — a curated graph would show less of it, and "
+                "nothing here says how much of the effect survives when "
+                "extraction is reliable."),
+        reproduce=("python3 experiments/load_categories.py --tag v2 --arms C && "
+                   "python3 experiments/schema_sources.py --tag v2 --condition C"),
+        numbers=lambda p: [
+            ("declared", f"{n(p, 'declared', 'labels')} labels, "
+                         f"{n(p, 'declared', 'relationship_types')} relationships"),
+            ("introspected", f"{n(p, 'introspected', 'labels')} labels, "
+                             f"{n(p, 'introspected', 'relationship_types')} relationships"),
+            ("present but never declared",
+             f"{n(p, 'gap', 'labels_present_but_undeclared')} labels, "
+             f"{n(p, 'gap', 'relationship_types_present_but_undeclared')} relationships"),
+            ("declared but never extracted",
+             n(p, "gap", "labels_declared_but_never_extracted")),
+            ("bookkeeping keys introspection includes",
+             n(p, "gap", "bookkeeping_keys_in_introspection")),
+        ],
+        depends_on=["the agent half: each description given to a query-writing "
+                    "model, failures counted by kind",
+                    "a question set built from the graph in two halves, "
+                    "answerable and unanswerable, so an empty result can be "
+                    "read"],
+    ),
+    Finding(
         slug="1.5-mechanism",
         section="1.5",
         title="Why does more vocabulary lower agreement?",

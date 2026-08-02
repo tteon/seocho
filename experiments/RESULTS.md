@@ -8,13 +8,16 @@ version: bump the version when a rerun changes what the number means,
 and set `supersedes` on the replacement so the withdrawn measurement
 stays visible.
 
-86 contracts, 107 artifacts, 20 with a full trace.
+89 contracts, 118 artifacts, 23 with a full trace.
 
 | Contract | Question | Headline | Traced | Artifact |
 |---|---|---|---|---|
+| `log2026.schema_sources.v1` | How far apart are the schema an agent is usually given and the ontology the graph was built f… | — | yes | `outputs/minimal/20260802T070908Z-schema-sources/schema_sources.json` |
+| `log2026.category_load.v1` | Are the extracted graphs loaded and queryable, isolated by category, with provenance attached? | — | yes | `outputs/minimal/20260802T070900Z-load-categories/category_load.json` |
+| `log2026.schema_legibility.v1` | Which of the obstacles to an agent querying this graph can a prompt remove, and which are sha… | — | yes | `outputs/minimal/20260802T070005Z-schema-legibility/schema_legibility.json` |
+| `seocho.narrative_grounding.v1` | Does every number in the hand-written prose still match an artifact? | — | no | `outputs/minimal/narrative_grounding.json` |
 | `log2026.shacl_check.v1` | How much does a real constraint checker see that the membership test in the pipeline does not? | — | yes | `outputs/minimal/20260802T064926Z-shacl-check/shacl_check.json` |
 | `log2026.fact_anchors_summary.v1` | Can a figure a model extracted be attributed to the place in the source it came from, after t… | — | yes | `outputs/minimal/20260802T064750Z-materialize-anchors/anchors_summary.json` |
-| `seocho.narrative_grounding.v1` | Does every number in the hand-written prose still match an artifact? | — | no | `outputs/minimal/narrative_grounding.json` |
 | `log2026.cq_suite.v1` | Do the competency questions pass when written as queries and run against the ontology and the… | — | yes | `outputs/minimal/20260802T062024Z-cq-suite/cq_suite.json` |
 | `log2026.composability.v1` | Does answering a synthesized pair require both of its component questions, decided without a … | — | yes | `outputs/minimal/20260802T061105Z-composability/composability.json` |
 | `log2026.synthesis_validation.v1` | Do the synthesized cross-category pairs actually concern one company, checked against a ticke… | — | yes | `outputs/minimal/20260802T060032Z-validate-synthesis/synthesis_validation.json` |
@@ -101,11 +104,17 @@ stays visible.
 
 ## What each result does not support
 
+**`log2026.schema_sources.v1`** — A static comparison of descriptions. It establishes that the two sources differ and by how much; it does not show that the difference changes what an agent can query, which needs the agent to be run.
+
+**`log2026.category_load.v1`** — Loading, not evaluation. Isolation is enforced by the database and workspace boundaries and verified by counting nodes attributed to another category; it does not establish that the categories are semantically separable, which section 1.0 examines and does not settle.
+
+**`log2026.schema_legibility.v1`** — Static inspection of the schema. It predicts where a query-writing agent will fail; it does not measure how often one does, which needs the agent to be run and is Part 2's job.
+
+**`seocho.narrative_grounding.v1`** — Catches drift, not misreading. A number can be present in some artifact and still be quoted about the wrong condition.
+
 **`log2026.shacl_check.v1`** — The shapes cover three constraint kinds, not everything an ontology can express; cardinality beyond minCount, datatypes and disjointness are not modelled. A relationship type the ontology never declared has no shape and so cannot be objected to, which is why the SHACL and membership totals are reported side by side rather than as a ratio — neither bounds the other. Violations are counted on data already written, since validation is off by default in the pipeline; this measures the gap rather than closing it.
 
 **`log2026.fact_anchors_summary.v1`** — An anchor is a unique numeric coincidence, not a provenance record written during extraction. Two unrelated facts sharing one figure would be attributed to the same token if only one occurrence exists. Only figures can be anchored at all, so facts without one are outside this entirely.
-
-**`seocho.narrative_grounding.v1`** — Catches drift, not misreading. A number can be present in some artifact and still be quoted about the wrong condition.
 
 **`log2026.cq_suite.v1`** — The snapshots are mapped to triples thinly and nothing is inferred on the way in, so these ask what was extracted rather than what could be derived from it. An expectation is a threshold chosen by us; passing means the capability exists at that scale, not that it is sufficient.
 
@@ -243,12 +252,15 @@ Expected when a script is rerun on the same inputs. A problem when the inputs ch
 - `log2026.adversarial_answer.v3` — 2 runs, newest 2026-08-02 03:31
 - `log2026.alias_register.v2` — 2 runs, newest 2026-08-02 03:31
 - `log2026.arm_results.v1` — 2 runs, newest 2026-08-02 02:52
+- `log2026.category_load.v1` — 6 runs, newest 2026-08-02 07:09
 - `log2026.composability.v1` — 2 runs, newest 2026-08-02 06:11
 - `log2026.cq_suite.v1` — 2 runs, newest 2026-08-02 06:20
 - `log2026.cross_view_evidence_audit.v1` — 2 runs, newest 2026-08-02 03:37
 - `log2026.extraction_arms.v1` — 4 runs, newest 2026-08-02 00:26
 - `log2026.fact_anchors_summary.v1` — 2 runs, newest 2026-08-02 06:47
 - `log2026.reextract.v2` — 2 runs, newest 2026-08-02 04:41
+- `log2026.schema_legibility.v1` — 3 runs, newest 2026-08-02 07:00
+- `log2026.schema_sources.v1` — 2 runs, newest 2026-08-02 07:09
 - `log2026.sdcr_answer_smoke.v1` — 2 runs, newest 2026-08-02 04:04
 - `log2026.sdcr_answers.v1` — 2 runs, newest 2026-08-02 04:04
 - `log2026.sdcr_equal_budget_retrieval.v1` — 2 runs, newest 2026-08-02 04:04

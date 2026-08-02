@@ -1,0 +1,12 @@
+{
+  "section": "1.0",
+  "title": "Was separating the categories necessary?",
+  "question": "If every category shared one graph, would merging on name fuse things that are not the same thing?",
+  "hypothesis": "Names collide across categories and mean different things, so a shared graph would silently fuse unrelated facts and the per-category databases are necessary rather than cautious.",
+  "verdict": "undecided",
+  "contract": "log2026.category_contamination.v1",
+  "artifact": "outputs/minimal/20260802T024329Z-category-contamination/category_contamination.json",
+  "run_dir": "outputs/minimal/20260802T024329Z-category-contamination",
+  "reproduce": "python3 experiments/minimal/category_contamination.py",
+  "still_needed": []
+}

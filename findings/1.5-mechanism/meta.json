@@ -1,0 +1,16 @@
+{
+  "section": "1.5",
+  "title": "Why does more vocabulary lower agreement?",
+  "question": "Is the fragmentation caused by the number of classes, by FIBO's particular classes, or by declaring types at all?",
+  "hypothesis": "Declaring a type pushes the extractor toward specific, idiosyncratic instance names, so typed entities are less findable across views than untyped ones.",
+  "verdict": "pending",
+  "contract": null,
+  "artifact": "",
+  "run_dir": "",
+  "reproduce": "not yet implemented",
+  "still_needed": [
+    "type findability, no-ontology against FIBO, paired by case",
+    "alias collapse, FIBO against FIBO-plus-synonyms",
+    "a control condition with seventy non-FIBO classes"
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "section": "1.3",
+  "title": "Does reasoning add structure the class list does not have?",
+  "question": "The extraction prompt receives a flat list of class names. Would entailment give it more?",
+  "hypothesis": "FIBO carries restrictions, unions and equivalences, so a reasoner should place classes under one another and resolve relation endpoints that the asserted axioms leave open.",
+  "verdict": "supported",
+  "contract": "log2026.reasoner_pretest.v2",
+  "artifact": "outputs/minimal/20260802T013239Z-reasoner-pretest/reasoner_pretest.json",
+  "run_dir": "outputs/minimal/20260802T013239Z-reasoner-pretest",
+  "reproduce": "python3 experiments/minimal/reasoner_pretest.py",
+  "still_needed": [
+    "a DL reasoner, to turn these floors into values"
+  ]
+}

@@ -19,6 +19,14 @@ services:
       - NEO4J_dbms_security_procedures_allowlist=apoc.*,n10s.*,semantics.*,gds.*
       - NEO4J_apoc_export_file_enabled=true
       - NEO4J_apoc_import_file_enabled=true
+      # DozerDB's multi-database support is what lets one instance host every
+      # experiment condition without a container per condition, and the default
+      # ceiling of 100 was reached mid-run: an ontology sweep needs one database
+      # per (condition, model) and a second sweep needs another set, while the
+      # earlier ones have to stay readable for the results to stay auditable.
+      # Raised rather than solved by deleting, because deleting a database is
+      # how a published number loses its evidence.
+      - NEO4J_dbms_max__databases=300
     volumes:
       - ./data/neo4j/data:/data
       - ./data/neo4j/logs:/logs

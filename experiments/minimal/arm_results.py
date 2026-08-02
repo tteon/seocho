@@ -47,6 +47,7 @@ for _key, _value in dotenv_values(ROOT / ".env").items():
         os.environ.setdefault(_key, _value)
 
 import arms as arms_mod  # noqa: E402
+import parallel  # noqa: E402
 
 URI = "bolt://localhost:7687"
 PARTIAL_ROOT = ROOT / "outputs/evaluation/mdm_fedcat/log2026-reextract-v1"
@@ -173,18 +174,35 @@ def main() -> int:
                 views: dict[str, dict[str, list[dict]]] = defaultdict(dict)
                 contaminated: set[str] = set()
                 missing: list[str] = []
-                for model in MODELS:
-                    database = f"arm{arm.lower()}{model}"
+
+                def read_model(model: str, _arm: str = arm) -> dict[str, Any]:
+                    """One connection per model, cases read down that connection.
+
+                    Threads, not processes: this waits on Bolt, and a driver
+                    session is not picklable anyway.
+                    """
+                    database = f"arm{_arm.lower()}{model}"
+                    found, empty, fallback = {}, [], set()
                     with driver.session(database=database) as session:
                         for case in cases:
-                            workspace = f"arm{arm.lower()}-{model}-{case}"
+                            workspace = f"arm{_arm.lower()}-{model}-{case}"
                             rows = fetch(session, workspace)
                             if not rows:
-                                missing.append(f"{model}/{case}")
+                                empty.append(f"{model}/{case}")
                                 continue
                             if fell_back(session, workspace):
-                                contaminated.add(case)
-                            views[case][model] = rows
+                                fallback.add(case)
+                            found[case] = rows
+                    return {"model": model, "rows": found, "empty": empty,
+                            "fallback": fallback}
+
+                for result in parallel.io_map(read_model, list(MODELS)):
+                    if result is None:
+                        continue
+                    for case, rows in result["rows"].items():
+                        views[case][result["model"]] = rows
+                    missing += result["empty"]
+                    contaminated |= result["fallback"]
                 out["cases_read"] = len(views)
                 out["workspaces_empty"] = len(missing)
                 out["cases_with_heuristic_fallback"] = len(contaminated)

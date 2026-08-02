@@ -1,7 +1,7 @@
 {
-  "generated_utc": "2026-08-02T02:24:02+00:00",
-  "contracts": 70,
-  "artifacts": 76,
+  "generated_utc": "2026-08-02T02:52:06+00:00",
+  "contracts": 72,
+  "artifacts": 80,
   "results": [
     {
       "contract": "seocho.database_audit.v1",
@@ -22,6 +22,23 @@
         "question",
         "claim_boundary"
       ]
+    },
+    {
+      "contract": "seocho.claim_audit.v1",
+      "path": "outputs/minimal/claim_audit.json",
+      "run_dir": "outputs/minimal",
+      "modified": "2026-08-02 02:36",
+      "question": "Does every claim have code, data and a trace behind it?",
+      "claim_boundary": "Checks existence, not correctness. A claim can have all three and still be wrong.",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": []
     },
     {
       "contract": "log2026.validated_issuer_pool.v1",
@@ -515,6 +532,32 @@
       "fingerprint": "",
       "missing": [
         "question",
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.reextract.v1",
+      "path": "outputs/minimal/20260802T022713Z-reextract/reextract.json",
+      "run_dir": "outputs/minimal/20260802T022713Z-reextract",
+      "modified": "2026-08-02 02:41",
+      "question": "Does the ontology handed to the extractor change what the graph contains, and does it make two models name the same fact the same way?",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [
+        "cases",
+        "reference text",
+        "prompt template",
+        "chunking",
+        "graph store",
+        "seed"
+      ],
+      "moving": "the ontology only",
+      "headline": "by_arm={\"A\": {\"ontology\": \"none\", \"ontology_hash\": \"a643d7a7e2e4bb48\", \"attempted\": 16, \"scored\": 16, \"nodes\": 629, \"",
+      "traced": true,
+      "has_decisive": true,
+      "fingerprint": "d505c30dd3bdd562",
+      "missing": [
         "claim_boundary"
       ]
     },
@@ -1291,6 +1334,23 @@
       ]
     },
     {
+      "contract": "log2026.category_contamination.v1",
+      "path": "outputs/minimal/20260802T024329Z-category-contamination/category_contamination.json",
+      "run_dir": "outputs/minimal/20260802T024329Z-category-contamination",
+      "modified": "2026-08-02 02:43",
+      "question": "If the categories shared one graph, would name collisions merge things that mean different things?",
+      "claim_boundary": "Context similarity is a proxy for meaning, computed from the extracted graph rather than the source text. It shows that colliding names sit in different surroundings; it does not prove a specific merge would produce a specific wrong answer.",
+      "supersedes": "",
+      "method": "distinct entity names and relationship types per category database; for names present in more than one category, cosine similarity between their graph contexts using local BAAI/bge-small-en-v1.5; control is the similarity of unrelated nodes inside a single category",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": true,
+      "has_decisive": true,
+      "fingerprint": "1da8a1a10240fb71",
+      "missing": []
+    },
+    {
       "contract": "log2026.capability_routing_baselines.v1",
       "path": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1/capability_routing_baselines.json",
       "run_dir": "outputs/evaluation/mdm_fedcat/log2026-full-finder-cross-view-v1",
@@ -1367,6 +1427,29 @@
         "question",
         "claim_boundary"
       ]
+    },
+    {
+      "contract": "log2026.arm_results.v1",
+      "path": "outputs/minimal/20260802T025158Z-arm-results/arm_results.json",
+      "run_dir": "outputs/minimal/20260802T025158Z-arm-results",
+      "modified": "2026-08-02 02:52",
+      "question": "Does the ontology handed to the extractor change whether two models describe the same fact the same way?",
+      "claim_boundary": "16 cases, 3 models, one run. Cases where extraction fell back to the heuristic are excluded and counted separately; every rate is conditioned on the scored cases, not the attempted ones.",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [
+        "cases",
+        "reference text",
+        "prompt",
+        "chunking",
+        "seed"
+      ],
+      "moving": "the ontology only",
+      "headline": "by_arm={\"A\": {\"cases_total\": 16, \"cases_contaminated\": 0, \"cases_scored\": 16, \"contaminated_cases\": [], \"nodes\": 2054",
+      "traced": true,
+      "has_decisive": true,
+      "fingerprint": "21ba102446e0df4c",
+      "missing": []
     },
     {
       "contract": "log2026.arm_results.v1",

@@ -8,12 +8,14 @@ version: bump the version when a rerun changes what the number means,
 and set `supersedes` on the replacement so the withdrawn measurement
 stays visible.
 
-70 contracts, 76 artifacts, 6 with a full trace.
+72 contracts, 80 artifacts, 7 with a full trace.
 
 | Contract | Question | Headline | Traced | Artifact |
 |---|---|---|---|---|
-| `log2026.reextract.v1` | Does the ontology handed to the extractor change what the graph contains, and does it make tw… | by_arm={"A": {"ontology": "none", "ontology_hash": "86bb2258 | yes | `outputs/minimal/20260802T005544Z-reextract/reextract.json` |
-| `log2026.arm_results.v1` | Does the ontology handed to the extractor change whether two models describe the same fact th… | by_arm={"A": {"cases_total": 16, "cases_contaminated": 0, "c | yes | `outputs/minimal/20260802T021249Z-arm-results/arm_results.json` |
+| `log2026.arm_results.v1` | Does the ontology handed to the extractor change whether two models describe the same fact th… | by_arm={"A": {"cases_total": 16, "cases_contaminated": 0, "c | yes | `outputs/minimal/20260802T025158Z-arm-results/arm_results.json` |
+| `log2026.category_contamination.v1` | If the categories shared one graph, would name collisions merge things that mean different th… | — | yes | `outputs/minimal/20260802T024329Z-category-contamination/category_contamination.json` |
+| `log2026.reextract.v1` | Does the ontology handed to the extractor change what the graph contains, and does it make tw… | by_arm={"A": {"ontology": "none", "ontology_hash": "a643d7a7 | yes | `outputs/minimal/20260802T022713Z-reextract/reextract.json` |
+| `seocho.claim_audit.v1` | Does every claim have code, data and a trace behind it? | — | no | `outputs/minimal/claim_audit.json` |
 | `log2026.sparql_bench.v1` | For running competency questions as SPARQL, is the Rust store worth adopting over the rdflib … | suite_seconds={"rdflib": 2.7021, "oxigraph": 0.2379} | yes | `outputs/minimal/20260802T015507Z-sparql-bench/sparql_bench.json` |
 | `log2026.reasoner_pretest.v2` | Does entailment derive structure FIBO does not state, for the classes arm C ships? | verdict=arm E is justified: entailment adds structure the fl | yes | `outputs/minimal/20260802T013239Z-reasoner-pretest/reasoner_pretest.json` |
 | `seocho.database_audit.v1` | — | counts={"dead": 6, "keep": 84, "protected": 2, "stale": 7} | no | `outputs/minimal/database_audit.json` |
@@ -87,6 +89,10 @@ stays visible.
 
 **`log2026.arm_results.v1`** — 16 cases, 3 models, one run. Cases where extraction fell back to the heuristic are excluded and counted separately; every rate is conditioned on the scored cases, not the attempted ones.
 
+**`log2026.category_contamination.v1`** — Context similarity is a proxy for meaning, computed from the extracted graph rather than the source text. It shows that colliding names sit in different surroundings; it does not prove a specific merge would produce a specific wrong answer.
+
+**`seocho.claim_audit.v1`** — Checks existence, not correctness. A claim can have all three and still be wrong.
+
 **`log2026.sparql_bench.v1`** — One ontology, one machine, single run, no warm cache control. Enough to tell an order of magnitude from a wash, not to rank engines.
 
 **`log2026.reasoner_pretest.v2`** — OWL 2 RL, not DL. RL does not derive subsumption from complex class expressions, so every count here is a lower bound on what HermiT or Pellet would find. Counts what entailment adds to the schema; it says nothing about whether a richer schema improves extraction, which only the paid arm can answer.
@@ -121,7 +127,7 @@ stays visible.
 
 Each is missing a field the catalogue needs. Fix the script that writes it, not this file.
 
-- `log2026.reextract.v1` missing claim_boundary — `outputs/minimal/20260802T005544Z-reextract/reextract.json`
+- `log2026.reextract.v1` missing claim_boundary — `outputs/minimal/20260802T022713Z-reextract/reextract.json`
 - `seocho.database_audit.v1` missing question, claim_boundary — `outputs/minimal/database_audit.json`
 - `log2026.merge_key_reality.v1` missing claim_boundary — `outputs/minimal/merge_key_reality.json`
 - `log2026.extraction_arms.v1` missing claim_boundary — `outputs/minimal/20260802T002631Z-arms/arms.json`
@@ -188,8 +194,10 @@ Each is missing a field the catalogue needs. Fix the script that writes it, not 
 
 Expected when a script is rerun on the same inputs. A problem when the inputs changed and the version did not.
 
+- `log2026.arm_results.v1` — 2 runs, newest 2026-08-02 02:52
 - `log2026.cross_view_evidence_audit.v1` — 2 runs, newest 2026-07-11 07:50
 - `log2026.extraction_arms.v1` — 4 runs, newest 2026-08-02 00:26
+- `log2026.reextract.v1` — 2 runs, newest 2026-08-02 02:41
 - `log2026.sdcr_answer_smoke.v1` — 2 runs, newest 2026-07-11 06:57
 - `log2026.sdcr_paired_analysis.v1` — 2 runs, newest 2026-07-11 14:18
 

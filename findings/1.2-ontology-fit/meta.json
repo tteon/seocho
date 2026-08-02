@@ -1,0 +1,12 @@
+{
+  "section": "1.2",
+  "title": "Is FIBO the right ontology for these questions?",
+  "question": "Before asking whether the ontology helped, does it even cover what the corpus asks about?",
+  "hypothesis": "FIBO is the industry reference model for exactly this domain, so its vocabulary should name what the questions are about and its own competency questions should be the same kind of question.",
+  "verdict": "supported",
+  "contract": "log2026.cq_similarity.v1",
+  "artifact": "outputs/evaluation/mdm_fedcat/log2026-cq-similarity-v1/cq_similarity.json",
+  "run_dir": "outputs/evaluation/mdm_fedcat/log2026-cq-similarity-v1",
+  "reproduce": "python3 experiments/minimal/cq_similarity.py && python3 experiments/minimal/ontology_task_fit.py && python3 experiments/minimal/alias_register.py",
+  "still_needed": []
+}

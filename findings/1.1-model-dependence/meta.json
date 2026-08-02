@@ -1,0 +1,14 @@
+{
+  "section": "1.1",
+  "title": "Without a schema, does the output depend on which model ran?",
+  "question": "Do three models given the same document produce graphs whose identifiers can be matched to each other?",
+  "hypothesis": "With no schema the extractor falls back on its own pre-training, so different models will key the same fact differently and the graphs will not join.",
+  "verdict": "supported",
+  "contract": "log2026.merge_key_reality.v1",
+  "artifact": "outputs/minimal/merge_key_reality.json",
+  "run_dir": "outputs/minimal",
+  "reproduce": "see outputs/minimal/merge_key_reality.json",
+  "still_needed": [
+    "a second run of one model, to separate between-model disagreement from within-model variance"
+  ]
+}

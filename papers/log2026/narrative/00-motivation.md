@@ -1,3 +1,17 @@
+---
+draws_on:
+  - log2026.fact_anchors_summary.v1
+  - log2026.provenance_keying.v1
+  - log2026.arm_results.v2
+  - log2026.synthesis_validation.v1
+cites_published:
+  - 43.88
+  - 0.2
+  - 0.5
+  - 2008
+  - 6611
+  - 2127
+---
 # Why this problem, before any of the machinery
 
 The study has been written from the inside out — measurements first, and the

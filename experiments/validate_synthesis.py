@@ -150,6 +150,11 @@ def main() -> int:
                            "question native — FinDER contains none."),
         "candidates": len(rows),
         "both_questions_resolvable": both,
+        # The rate as well as the count. The prose quotes a percentage, and the
+        # grounding check found it unsupported because the artifact stored only
+        # the numerator and denominator — an artifact should hold what the paper
+        # says, not the ingredients for it.
+        "both_resolvable_rate": round(both / len(rows), 4) if rows else 0.0,
         "regex_matches_registry": agree,
         "regex_accuracy": round(agree / len(rows), 4) if rows else 0.0,
         "same_validated_issuer": same,

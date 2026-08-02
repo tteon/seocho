@@ -1,3 +1,7 @@
+---
+draws_on:
+  []
+---
 # Part 2 — how the search results will be judged
 
 Part 1 asks whether an ontology helps *build* the graph. Part 2 asks whether it

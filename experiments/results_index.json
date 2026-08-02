@@ -1,7 +1,7 @@
 {
-  "generated_utc": "2026-08-02T05:40:02+00:00",
-  "contracts": 81,
-  "artifacts": 96,
+  "generated_utc": "2026-08-02T06:00:34+00:00",
+  "contracts": 83,
+  "artifacts": 99,
   "results": [
     {
       "contract": "seocho.retrace_run.v1",
@@ -44,6 +44,23 @@
       "modified": "2026-08-02 03:15",
       "question": "Does every run leave a record a reviewer could read without us present?",
       "claim_boundary": "Checks presence and well-formedness of the record, not the correctness of what it records.",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": false,
+      "has_decisive": false,
+      "fingerprint": "",
+      "missing": []
+    },
+    {
+      "contract": "seocho.narrative_grounding.v1",
+      "path": "outputs/minimal/narrative_grounding.json",
+      "run_dir": "outputs/minimal",
+      "modified": "2026-08-02 06:00",
+      "question": "Does every number in the hand-written prose still match an artifact?",
+      "claim_boundary": "Catches drift, not misreading. A number can be present in some artifact and still be quoted about the wrong condition.",
       "supersedes": "",
       "method": "",
       "held_fixed": [],
@@ -194,6 +211,40 @@
       "missing": [
         "question"
       ]
+    },
+    {
+      "contract": "log2026.synthesis_validation.v1",
+      "path": "outputs/minimal/20260802T060032Z-validate-synthesis/synthesis_validation.json",
+      "run_dir": "outputs/minimal/20260802T060032Z-validate-synthesis",
+      "modified": "2026-08-02 06:00",
+      "question": "Do the synthesized cross-category pairs actually concern one company, checked against a ticker registry rather than against the regex that built them?",
+      "claim_boundary": "Validates that a pair concerns one company. It does not establish that the pair forms a question anyone would ask, which is what the human adjudication packet is for, and it cannot make a synthesized question native — FinDER contains none.",
+      "supersedes": "",
+      "method": "each pair's two component questions resolved independently against 536 accepted tickers; a pair is usable only when both resolve and resolve to the same issuer",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": true,
+      "has_decisive": true,
+      "fingerprint": "b9c8f43d79a88e25",
+      "missing": []
+    },
+    {
+      "contract": "log2026.synthesis_validation.v1",
+      "path": "outputs/minimal/20260802T054551Z-validate-synthesis/synthesis_validation.json",
+      "run_dir": "outputs/minimal/20260802T054551Z-validate-synthesis",
+      "modified": "2026-08-02 05:45",
+      "question": "Do the synthesized cross-category pairs actually concern one company, checked against a ticker registry rather than against the regex that built them?",
+      "claim_boundary": "Validates that a pair concerns one company. It does not establish that the pair forms a question anyone would ask, which is what the human adjudication packet is for, and it cannot make a synthesized question native — FinDER contains none.",
+      "supersedes": "",
+      "method": "each pair's two component questions resolved independently against 536 accepted tickers; a pair is usable only when both resolve and resolve to the same issuer",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": true,
+      "has_decisive": true,
+      "fingerprint": "b9c8f43d79a88e25",
+      "missing": []
     },
     {
       "contract": "log2026.sparql_bench.v1",

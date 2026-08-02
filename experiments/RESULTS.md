@@ -8,10 +8,12 @@ version: bump the version when a rerun changes what the number means,
 and set `supersedes` on the replacement so the withdrawn measurement
 stays visible.
 
-81 contracts, 96 artifacts, 16 with a full trace.
+83 contracts, 99 artifacts, 17 with a full trace.
 
 | Contract | Question | Headline | Traced | Artifact |
 |---|---|---|---|---|
+| `seocho.narrative_grounding.v1` | Does every number in the hand-written prose still match an artifact? | — | no | `outputs/minimal/narrative_grounding.json` |
+| `log2026.synthesis_validation.v1` | Do the synthesized cross-category pairs actually concern one company, checked against a ticke… | — | yes | `outputs/minimal/20260802T060032Z-validate-synthesis/synthesis_validation.json` |
 | `log2026.fact_anchors_summary.v1` | Can a figure a model extracted be attributed to the place in the source it came from, after t… | — | yes | `outputs/minimal/20260802T053932Z-materialize-anchors/anchors_summary.json` |
 | `log2026.provenance_keying.v1` | Does matching facts by where they came from in the source find more comparable pairs, and mor… | — | yes | `outputs/minimal/20260802T053531Z-provenance-keying/provenance_keying.json` |
 | `log2026.verification_value.v1` | When independently built views disagree about a figure, does refusing to serve it avoid an er… | — | yes | `outputs/minimal/20260802T051054Z-verification-value/verification_value.json` |
@@ -95,6 +97,10 @@ stays visible.
 | `log2026.full_multiagent_network.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-multiagent-network-v1/analysis.json` |
 
 ## What each result does not support
+
+**`seocho.narrative_grounding.v1`** — Catches drift, not misreading. A number can be present in some artifact and still be quoted about the wrong condition.
+
+**`log2026.synthesis_validation.v1`** — Validates that a pair concerns one company. It does not establish that the pair forms a question anyone would ask, which is what the human adjudication packet is for, and it cannot make a synthesized question native — FinDER contains none.
 
 **`log2026.fact_anchors_summary.v1`** — An anchor is a unique numeric coincidence, not a provenance record written during extraction. Two unrelated facts sharing one figure would be attributed to the same token if only one occurrence exists. Only figures can be anchored at all, so facts without one are outside this entirely.
 
@@ -235,6 +241,7 @@ Expected when a script is rerun on the same inputs. A problem when the inputs ch
 - `log2026.sdcr_answers.v1` — 2 runs, newest 2026-08-02 04:04
 - `log2026.sdcr_equal_budget_retrieval.v1` — 2 runs, newest 2026-08-02 04:04
 - `log2026.sdcr_paired_analysis.v1` — 2 runs, newest 2026-08-02 04:05
+- `log2026.synthesis_validation.v1` — 2 runs, newest 2026-08-02 06:00
 - `log2026.validity.v1` — 3 runs, newest 2026-08-02 04:28
 - `log2026.verification_value.v1` — 2 runs, newest 2026-08-02 05:10
 

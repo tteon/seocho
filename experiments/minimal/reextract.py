@@ -92,7 +92,7 @@ MODELS = {
 # Categories are uneven in the source pool, so the sample is drawn per category
 # and the per-category quota is fixed here rather than derived from the sample,
 # which would let the sample size change what "balanced" means.
-SAMPLE_PER_CATEGORY = 2
+SAMPLE_PER_CATEGORY = 2   # overridden by --per-category
 MIN_REFERENCES = 2
 
 
@@ -112,7 +112,7 @@ def workspace_for(arm: str, model_key: str, case_id: str, tag: str) -> str:
     return f"arm{tag}-{arm.lower()}-{model_key}-{case_id}"
 
 
-def select_cases(limit: int) -> list[dict]:
+def select_cases(limit: int, per_category: int = SAMPLE_PER_CATEGORY) -> list[dict]:
     """A fixed, category-balanced sample, identical for every arm and model.
 
     Two rules, both fixed before any arm was run. Balance across the eight
@@ -153,14 +153,14 @@ def select_cases(limit: int) -> list[dict]:
         pool = sorted(by_category[category], key=lambda c: c["case_id"])
         rich = [c for c in pool if len(c["references"]) >= MIN_REFERENCES]
         picker = random.Random(f"42-{category}")
-        if len(rich) >= SAMPLE_PER_CATEGORY:
-            chosen += picker.sample(rich, SAMPLE_PER_CATEGORY)
+        if len(rich) >= per_category:
+            chosen += picker.sample(rich, per_category)
         else:
             fell_back.append(category)
             chosen += rich
             remaining = [c for c in pool if c not in rich]
             chosen += picker.sample(
-                remaining, min(SAMPLE_PER_CATEGORY - len(rich), len(remaining)))
+                remaining, min(per_category - len(rich), len(remaining)))
     chosen.sort(key=lambda c: c["case_id"])
     for case in chosen:
         case["single_reference_fallback"] = case["category"] in fell_back
@@ -378,6 +378,8 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--cases", type=int, default=16)
+    ap.add_argument("--per-category", type=int, default=SAMPLE_PER_CATEGORY,
+                    help="cases drawn per category before the overall limit")
     ap.add_argument("--arms", default="A,B,C,D,E")
     ap.add_argument("--models", default="deepseek,gptoss,minimax27")
     ap.add_argument("--class-limit", type=int, default=70)
@@ -397,7 +399,7 @@ def main() -> int:
     wanted_models = [m.strip() for m in args.models.split(",") if m.strip()]
 
     built = build_arms(args.class_limit)
-    cases, single_reference_categories = select_cases(args.cases)
+    cases, single_reference_categories = select_cases(args.cases, args.per_category)
 
     from examples.finder.lib import bench_common as bc
     from seocho.query.strategy import PromptTemplate
@@ -533,7 +535,12 @@ def main() -> int:
         }
 
     payload = {
-        "contract": "log2026.reextract.v1",
+        # Versioned by the sweep tag. Both sweeps previously wrote
+        # log2026.reextract.v1, so the registry saw one contract with two
+        # different meanings and the pruner treated the first sweep's run as
+        # superseded — which would have deleted the evidence behind a table the
+        # paper still reports.
+        "contract": f"log2026.reextract.{args.tag or 'v1'}",
         "question": ("Does the ontology handed to the extractor change what the "
                      "graph contains, and does it make two models name the same "
                      "fact the same way?"),

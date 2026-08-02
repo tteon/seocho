@@ -50,10 +50,10 @@ import arms as arms_mod  # noqa: E402
 import parallel  # noqa: E402
 
 URI = "bolt://localhost:7687"
-PARTIAL_ROOT = ROOT / "outputs/evaluation/mdm_fedcat/log2026-reextract-v1"
+PARTIAL_ROOT_BASE = ROOT / "outputs/evaluation/mdm_fedcat"
 OUT_ROOT = ROOT / "outputs/minimal"
 MODELS = ("deepseek", "gptoss", "minimax27")
-ARMS = ("A", "B", "C", "D")
+ARMS_DEFAULT = ("A", "B", "C", "D")
 
 INFRA = {"Document", "Chunk", "Version", "DocumentVersion", "Section",
          "__Memory__", "Memory"}
@@ -133,13 +133,18 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--class-limit", type=int, default=70)
+    ap.add_argument("--tag", default="", help="'' for the first sweep, 'v2' for the second")
+    ap.add_argument("--arms", default=",".join(ARMS_DEFAULT))
     args = ap.parse_args()
+
+    ARMS = tuple(a.strip().upper() for a in args.arms.split(",") if a.strip())
+    partial_root = PARTIAL_ROOT_BASE / f"log2026-reextract-{args.tag or 'v1'}"
 
     import observe
     from neo4j import GraphDatabase
 
     run = observe.Run(OUT_ROOT, "arm-results", {"decisive": {
-        "arms": list(ARMS), "models": list(MODELS),
+        "arms": list(ARMS), "models": list(MODELS), "tag": args.tag or "v1",
         "key_rules": ["name", "slug"], "class_limit": args.class_limit,
         "seed": 42}})
 
@@ -155,14 +160,21 @@ def main() -> int:
              for b in fibo["object_properties"].values()
              if arms_mod.normalize(b["label"])})
         relations = arms_mod.scope_relations(fibo, by_iri, frequency, 40)
+        declared = arms_mod.datatype_domains(arms_mod.TTL)
+        hierarchy = arms_mod.subsumption_within(fibo, by_iri)
         for arm in (arms_mod.build_arm_a(), arms_mod.build_arm_b(),
-                    arms_mod.build_fibo_arm(scoped, relations, synonyms=False),
-                    arms_mod.build_fibo_arm(scoped, relations, synonyms=True)):
+                    arms_mod.build_fibo_arm(scoped, relations, fibo=fibo,
+                                            declared=declared),
+                    arms_mod.build_fibo_arm(scoped, relations, synonyms=True,
+                                            fibo=fibo, declared=declared),
+                    arms_mod.build_fibo_arm(scoped, relations,
+                                            subsumption=hierarchy, fibo=fibo,
+                                            declared=declared)):
             built[arm["arm"]] = set(arm["ontology"].nodes)
         out["declared"] = {a: len(n) for a, n in built.items()}
 
     cases = sorted({json.loads(p.read_text())["case_id"]
-                    for p in PARTIAL_ROOT.glob("*.json")})
+                    for p in partial_root.glob("*.json")})
     run.log(f"{len(cases)} cases, {len(ARMS)} arms, {len(MODELS)} models")
 
     driver = GraphDatabase.driver(URI, auth=auth())
@@ -181,11 +193,14 @@ def main() -> int:
                     Threads, not processes: this waits on Bolt, and a driver
                     session is not picklable anyway.
                     """
-                    database = f"arm{_arm.lower()}{model}"
+                    tag = args.tag
+                    database = (f"arm{tag}{_arm.lower()}{model}" if tag
+                                else f"arm{_arm.lower()}{model}")
                     found, empty, fallback = {}, [], set()
                     with driver.session(database=database) as session:
                         for case in cases:
-                            workspace = f"arm{_arm.lower()}-{model}-{case}"
+                            workspace = (f"arm{tag}-{_arm.lower()}-{model}-{case}"
+                                         if tag else f"arm{_arm.lower()}-{model}-{case}")
                             rows = fetch(session, workspace)
                             if not rows:
                                 empty.append(f"{model}/{case}")
@@ -284,7 +299,7 @@ def main() -> int:
         driver.close()
 
     payload = {
-        "contract": "log2026.arm_results.v1",
+        "contract": "log2026.arm_results.v2" if args.tag else "log2026.arm_results.v1",
         "question": ("Does the ontology handed to the extractor change whether "
                      "two models describe the same fact the same way?"),
         "held_fixed": ["cases", "reference text", "prompt", "chunking", "seed"],

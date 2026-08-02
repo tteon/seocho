@@ -79,10 +79,11 @@ CITED = {
     "2127": "FIBO annotation count",
 }
 
-# Section numbers, years, list indices, versions. Matching these against
-# artifacts would produce noise, not signal.
+# Section numbers, years, list indices, versions, and the confidence level of an
+# interval — 95 is a convention, not a measurement, and matching it against
+# artifacts would produce noise rather than signal.
 STRUCTURAL = re.compile(
-    r"^(?:[0-9]|1[0-9]|20[0-9]{2}|v[0-9]+|[0-9]\.[0-9])$")
+    r"^-?(?:[0-9]|1[0-9]|20[0-9]{2}|v[0-9]+|[0-9]\.[0-9]|9[059]|99)$")
 
 
 def front_matter(text: str) -> tuple[dict[str, list[str]], str]:
@@ -158,9 +159,14 @@ def tokens_in(text: str) -> set[str]:
     text = re.sub(r"```.*?```", " ", text, flags=re.S)
     text = re.sub(r"`[^`]*`", " ", text)
     text = re.sub(r"\[[^\]]*\]\([^)]*\)", " ", text)   # links carry URLs, not results
-    normalized = re.sub(r"(?<=\d),(?=\d{3}(?!\d))", "", text)
-    found = set(re.findall(r"(?<![\w.\-/])\.?\d+(?:\.\d+)?%?", normalized))
-    return {t.rstrip("%") for t in found}
+    # Prose writes a negative with U+2212, not a hyphen, so an interval bound of
+    # -0.0442 was tokenised as 0.0442 and failed to match the artifact holding
+    # it. The sign is marked rather than converted to a hyphen: allowing a bare
+    # hyphen back into the pattern let "gpt-oss-120b" contribute a 120.
+    normalized = re.sub(r"[\u2212\u2013](?=[\d.])", "\u0000", text)
+    normalized = re.sub(r"(?<=\d),(?=\d{3}(?!\d))", "", normalized)
+    found = set(re.findall(r"(?<![\w./\-])\x00?\.?\d+(?:\.\d+)?%?", normalized))
+    return {t.rstrip("%").replace("\x00", "-") for t in found}
 
 
 def numbers_of(blob: str) -> set[float]:

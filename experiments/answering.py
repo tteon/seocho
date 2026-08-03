@@ -80,8 +80,9 @@ MODELS = {
 CONDITIONS = ("closed_book", "passages", "graph_a", "graph_c",
               "graph_c_anchors")
 
-# Which sweep each graph condition reads. Frozen: graph A from s1, graph C
-# from s2 — the registration's "graph C's content was fixed by s2".
+# Which sweep each graph condition reads. an1 (frozen): graph A from s1,
+# graph C from s2. The arithmetic supplement (an2) serves both from s3 via
+# --graph-a-tag/--graph-c-tag; the condition letters never change.
 GRAPH_SOURCE = {"graph_a": ("s1", "A"), "graph_c": ("s2", "C"),
                 "graph_c_anchors": ("s2", "C")}
 
@@ -382,6 +383,14 @@ def main() -> None:
     parser.add_argument("--models", default=",".join(MODELS))
     parser.add_argument("--limit", type=int, default=0,
                         help="first N cases only, for a smoke run")
+    parser.add_argument("--judge-subsample", type=int, default=JUDGE_SUBSAMPLE,
+                        help="size of the seed-42 judge draw (an1: 60, "
+                             "an2: 30 per its registration)")
+    parser.add_argument("--graph-a-tag", default="s1",
+                        help="sweep tag serving graph_a (an2 uses s3)")
+    parser.add_argument("--graph-c-tag", default="s2",
+                        help="sweep tag serving graph_c and its anchors "
+                             "(an2 uses s3)")
     parser.add_argument("--dry-run", action="store_true",
                         help="assemble and validate every prompt, call nothing")
     parser.add_argument("--workers", type=int, default=6)
@@ -395,15 +404,15 @@ def main() -> None:
     assert set(wanted_models) <= set(MODELS)
 
     cases = load_cases()
-    s1_views = sweep_case_ids("s1", "A")
-    s2_views = sweep_case_ids("s2", "C")
+    s1_views = sweep_case_ids(args.graph_a_tag, "A")
+    s2_views = sweep_case_ids(args.graph_c_tag, "C")
     case_ids = sorted(s1_views)
     assert case_ids, "no s1 snapshots — run export_snapshots --tag s1 first"
     if args.limit:
         case_ids = case_ids[:args.limit]
 
-    judge_draw = sorted(random.Random(42).sample(sorted(s1_views),
-                                                 JUDGE_SUBSAMPLE))
+    judge_draw = sorted(random.Random(42).sample(
+        sorted(s1_views), min(args.judge_subsample, len(s1_views))))
 
     config = {
         "contract": f"log2026.answering.{args.tag}",
@@ -422,7 +431,7 @@ def main() -> None:
                            "system_prompt_hash", "temperature", "seed", "tag")}
     run = observe.Run(OUT_ROOT, "answering", config)
 
-    anchor_index = load_anchor_index("s2")
+    anchor_index = load_anchor_index(args.graph_c_tag)
 
     # Assemble evidence once per (condition, case); shared across models.
     graph_cache: dict[tuple[str, str], str | None] = {}

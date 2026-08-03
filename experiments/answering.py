@@ -383,6 +383,11 @@ def main() -> None:
     parser.add_argument("--models", default=",".join(MODELS))
     parser.add_argument("--limit", type=int, default=0,
                         help="first N cases only, for a smoke run")
+    parser.add_argument("--case-file", default="",
+                        help="newline-separated case ids; replaces the "
+                             "snapshot-derived case set so evidence-free "
+                             "conditions can run before a sweep's snapshots "
+                             "are exported")
     parser.add_argument("--judge-subsample", type=int, default=JUDGE_SUBSAMPLE,
                         help="size of the seed-42 judge draw (an1: 60, "
                              "an2: 30 per its registration)")
@@ -406,13 +411,20 @@ def main() -> None:
     cases = load_cases()
     s1_views = sweep_case_ids(args.graph_a_tag, "A")
     s2_views = sweep_case_ids(args.graph_c_tag, "C")
-    case_ids = sorted(s1_views)
-    assert case_ids, "no s1 snapshots — run export_snapshots --tag s1 first"
+    if args.case_file:
+        case_ids = sorted(line.strip() for line in
+                          Path(args.case_file).read_text().splitlines()
+                          if line.strip())
+        unknown_ids = [c for c in case_ids if c not in cases]
+        assert not unknown_ids, f"ids not in the corpus: {unknown_ids[:5]}"
+    else:
+        case_ids = sorted(s1_views)
+    assert case_ids, "no case set — export snapshots or pass --case-file"
     if args.limit:
         case_ids = case_ids[:args.limit]
 
     judge_draw = sorted(random.Random(42).sample(
-        sorted(s1_views), min(args.judge_subsample, len(s1_views))))
+        case_ids, min(args.judge_subsample, len(case_ids))))
 
     config = {
         "contract": f"log2026.answering.{args.tag}",

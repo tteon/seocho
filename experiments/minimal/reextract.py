@@ -388,6 +388,11 @@ def main() -> int:
     ap.add_argument("--tag", default="v2",
                     help="separates this run's databases, workspaces and "
                          "partials from every earlier one")
+    ap.add_argument("--case-file", default="",
+                    help="path to a newline-separated list of case ids; "
+                         "replaces the category-balanced draw so a "
+                         "registered stratum (e.g. arithmetic type!=None) "
+                         "can be extracted under its own tag")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--no-resume", dest="resume", action="store_false")
     args = ap.parse_args()
@@ -399,7 +404,26 @@ def main() -> int:
     wanted_models = [m.strip() for m in args.models.split(",") if m.strip()]
 
     built = build_arms(args.class_limit)
-    cases, single_reference_categories = select_cases(args.cases, args.per_category)
+    if args.case_file:
+        wanted_ids = {line.strip() for line in
+                      Path(args.case_file).read_text().splitlines()
+                      if line.strip()}
+        import importlib.util as _ilu
+        _spec = _ilu.spec_from_file_location(
+            "finder_index", ROOT / "examples/mdm/11_index_providers.py")
+        assert _spec and _spec.loader
+        _module = _ilu.module_from_spec(_spec)
+        _spec.loader.exec_module(_module)
+        cases = [c for c in _module.load_cases_full(seed=42)
+                 if c["case_id"] in wanted_ids and c["references"]]
+        missing = wanted_ids - {c["case_id"] for c in cases}
+        assert not missing, f"case ids not in the corpus: {sorted(missing)[:5]}"
+        single_reference_categories = sorted(
+            {c["category"] for c in cases
+             if len(c["references"]) < MIN_REFERENCES})
+    else:
+        cases, single_reference_categories = select_cases(
+            args.cases, args.per_category)
 
     from examples.finder.lib import bench_common as bc
     from seocho.query.strategy import PromptTemplate

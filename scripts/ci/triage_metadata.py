@@ -94,7 +94,8 @@ FILE_KIND_RULES = [
 def load_allowed_labels(path: Path = DEFAULT_LABELS_PATH) -> set[str]:
     if not path.exists():
         return set(ALWAYS_ALLOWED)
-    raw = json.loads(path.read_text(encoding="utf-8"))
+    with path.open("r", encoding="utf-8") as f:
+        raw = json.load(f)
     return {str(item["name"]) for item in raw} | set(ALWAYS_ALLOWED)
 
 
@@ -224,7 +225,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--format", choices=("lines", "csv", "json"), default="lines")
     args = parser.parse_args(argv)
 
-    event = json.loads(args.event.read_text(encoding="utf-8"))
+    with args.event.open("r", encoding="utf-8") as f:
+        event = json.load(f)
     allowed = load_allowed_labels(args.labels)
     inferred = infer_labels(event, read_changed_files(args.files))
     labels = [label for label in inferred if label in allowed]

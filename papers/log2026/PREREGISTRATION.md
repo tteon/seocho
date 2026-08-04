@@ -68,26 +68,102 @@ registration. Its tests that can still fail are registered as **SC-H4** (does
 the advantage survive 280 cases on condition A?) and **S2-H1** (does it
 survive 280 cases on condition C, where it was found?).
 
-## Scale-up (s1) — in flight, unread
+## Scale-up (s1) — scored
 
-Condition A, 280 cases, three models. Hypotheses **SC-H1** (the verifiable-fact
-shortage is a sample-size problem), **SC-H2** (agreement-gated serving beats
-serve-always on precision), **SC-H3** (the single-view ceiling does not move),
-**SC-H4** (the shortage was a keying problem) — all **registered**, none
-scored. SC-H1, SC-H3 and SC-H4 pull in different directions on purpose; the
-registration says which outcome kills which paper.
+Condition A, 280 cases, three models, 840/840 extractions, zero failures.
+Artifacts: `log2026.verification_value.s1`, `log2026.routing_ceiling.s1`,
+`log2026.provenance_keying.s1`, `log2026.arm_results.s1`, `log2026.validity.s1`.
 
-## Condition-C scale (s2) — registered before launch
+- **SC-H1** · the verifiable-fact shortage is a sample-size problem —
+  **registered, held.** Answer-relevant verifiable facts went 6 → 123 while
+  cases went 16 → 280 (12 scored → 280): a 20.5× count on a 17.5× sample,
+  at or above linear. SC-H2 became answerable, which is what SC-H1 gated.
+- **SC-H2** · agreement-gated serving beats serve-always — **registered,
+  disconfirmed** on its own criterion. Gating removed all six wrong figures
+  (precision 0.951 → 1.000) but withheld 29 facts of which 23 were right
+  (recall 0.951 → 0.764). The registered clause — recall falling more than
+  precision rises — triggers on every weighting tried, including
+  precision-weighted F0.5 (0.802 vs 0.951). Four right answers lost per wrong
+  answer prevented.
+- **SC-H3** · the single-view ceiling does not move — **registered, held.**
+  The share of facts held by exactly one view *rose* with scale, 77.1%
+  (309/401) → 87.1% (6,246/7,171). More cases do not make views land on the
+  same facts; the ceiling is structural. (The registration's "around 95%"
+  described condition C at n=16; on A the baseline was 77%.)
+- **SC-H4** · the shortage was a keying problem — **registered, held.** At the
+  same 280 cases, anchor keying yields 1,656 comparable pairs to name keying's
+  992 (1.67×, up from 1.29× at n=16) and 606 disagreements to 324, of which
+  485 are invisible to any name key (26 at n=16 — 18.7× growth on a 17.5×
+  sample). The advantage did not shrink with scale.
 
-See its file. **S2-H1** through **S2-H4** cover the alignment key's
-replication on the condition it was found in, and the first A-versus-C
-comparison at a sample size with intervals worth reporting.
+SC-H1 and SC-H4 were framed as competitors and both held: the counts do grow
+with data, *and* the anchor key multiplies them at any fixed sample. Together
+with SC-H3 they say the method paper needs the anchor key first and more data
+second — name keying leaves most of what scale buys on the table, and no key
+reaches the 87% of facts only one view holds.
 
-## Answering (Part 2) — registered before launch
+## Condition-C scale (s2) — scored
 
-See its file, which supersedes the condition table sketched in
-`narrative/07-part2-search.md` and keeps its gating ladder. **AN-H1** through
-**AN-H4**. The registered direction is *against* the graph: the graph is a
+840/840 extractions, zero failures. Artifacts: `log2026.arm_results.s2`,
+`log2026.provenance_keying.s2`, `log2026.validity.s2`, plus the paired
+A-versus-C computation over the same 280 cases.
+
+- **S2-H1** · the alignment key replicates on its discovery condition —
+  **registered, held.** At 280 cases anchor keying yields 1,983 comparable
+  pairs to name keying's 717 (2.8×; comparable rate 0.445 vs 0.079, 5.6×) and
+  874 disagreements to 246, of which 734 are invisible to any name key. One
+  honest caveat: the n=16 raw multipliers (6.1× pairs, 43× disagreements) were
+  inflated by tiny denominators and do not carry to scale; the rate ratio does.
+- **S2-H2** · the name-agreement gap persists as a paired comparison —
+  **registered, held.** A − C on per-case name comparable rate:
+  +0.069 [+0.046, +0.091], zero excluded. Part 1's headline stands at scale.
+- **S2-H3** · the scale-error rate is stable — **registered, held.** 26.7% of
+  anchored figures (1,872/7,019) matched their source only after rescaling,
+  against "roughly a quarter" registered from v2.
+- **S2-H4** · FIBO's content advantage survives scale — **registered,
+  DISCONFIRMED, direction reversed.** C − A on per-case gold-figure coverage:
+  −0.036 [−0.067, −0.008] — A captures *more* of the gold figures at 280,
+  with zero excluded on the wrong side. The v2 reading (C 0.292 vs A 0.253)
+  was a small-sample artefact. As the registration itself states, this
+  removes the "ontology buys content at the price of names" reading and
+  leaves the ontology with **no measured extraction benefit at all** on this
+  corpus: fewer agreed names (S2-H2) and less of the answer's content, at
+  once. The ontology's remaining measured contribution is detectability
+  (SHACL violations, schema legibility), not extraction quality.
+
+## Answering (Part 2, an1) — scored on all three models
+
+4,200 calls (280 cases × 5 conditions × 3 models), zero failures. Artifacts:
+`log2026.answering.an1` run directories and partials; paired bootstrap over
+cases, 5,000 draws, per model.
+
+- **AN-H1** · the models cannot already answer — **registered, held 3/3.**
+  Passages − closed book: gptoss +0.092 [+0.006,+0.173], minimax +0.299
+  [+0.232,+0.366], deepseek +0.238 [+0.195,+0.281]. The gate is open, though
+  gptoss's closed book of 0.306 keeps contamination on the record.
+- **AN-H2** · the graph does not beat the text it was built from —
+  **registered, held.** No graph condition beats passages anywhere: deepseek
+  separates in passages' favour on both graphs (+0.075, +0.062), gptoss on
+  graph_a (+0.043), minimax ties both. The registered direction survives its
+  third corpus.
+- **AN-H3** · the passages−graph gap is a model property — **registered,
+  held on one of three pairs.** Case-paired difference-of-gaps: deepseek −
+  minimax +0.081 [+0.019,+0.144] separated; the other two pairs cross zero.
+  One separated pair is enough for what the hypothesis protects: averaging
+  models would erase a real difference (minimax ties passages with a graph
+  the other two models lose with).
+- **AN-H4** · anchors change attribution, not accuracy — **registered,
+  DISCONFIRMED on two of three models.** With a pointer-only payload
+  (never window text), accuracy *rose* under anchors on minimax +0.055
+  [+0.012,+0.097] and deepseek +0.050 [+0.022,+0.080]; gptoss unchanged.
+  The registered reading of that outcome ("the anchor text carries answer
+  content") cannot apply — no text was carried. Post-hoc, clearly labelled:
+  the pointer decorates only figures that anchored, so it acts as a trust
+  signal steering the model toward source-verified figures — consistent with
+  the evidence-grounding rate being highest under anchors (73%/70%) and with
+  citation verification landing at 42–58%.
+
+The registered direction was *against* the graph: the graph is a
 lossy compression of the same passages, and this repository has measured
 vector ≈ hybrid ≫ graph three times on other corpora. A graph win would be the
 surprising result.
@@ -116,3 +192,16 @@ Differences there separated by bootstrap interval are claims; everything else
 is "not separated at this size", never "no effect". The 280-case sweeps exist
 to move the claims that matter off that footing, and the ledger will record
 which ones survive.
+
+## Arithmetic supplement (s3/an2) — gate scored, rest in flight
+
+Registration `experiments/preregistration/2026-08-03-arithmetic-supplement.md`
+(commit 6280e9f, before any s3 extraction). Extraction: gptoss and minimax
+560/560, deepseek in flight. Gate:
+
+- **AR-H1** · passages beat closed book on arithmetic questions —
+  **registered, held emphatically** on both models run: gptoss +0.411
+  [+0.349,+0.472], minimax +0.410 [+0.355,+0.464], n=140 each. Closed book
+  collapses to 0.12–0.14 on this stratum — computed figures cannot be
+  recalled, which is exactly why this sample can test what the 280-case
+  sample could not. AR-H2 through AR-H4 await the graph conditions.

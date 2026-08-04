@@ -125,3 +125,78 @@ real-world financial answer quality.
 - JETTS (ICML 2025): <https://proceedings.mlr.press/v267/zhou25af.html>
 - Prometheus 2: <https://aclanthology.org/2024.emnlp-main.248/>
 - LLM-as-a-judge survey: <https://aclanthology.org/2025.emnlp-main.138/>
+
+---
+
+# Addendum (2026-08-05) — answer-grading panel for the an1/an2 experiments
+
+The protocol above governs mixed-query annotation. This addendum governs the
+registered secondary metric of the answering experiments: grading candidate
+answers against FinDER gold answers. It follows the practices the
+LLM-as-judge literature has converged on — reference-based pointwise grading
+with the rubric in the prompt (Prometheus), structured reasoning before the
+verdict (G-Eval), small discrete verdict scale, explicit verbosity-bias
+control, and calibration of the judge itself before trusting it
+(JUDGE-BENCH/JETTS) — and it fixes one defect found before any judgment ran.
+
+## Panel composition — fixed before the panel runs
+
+The registration said "three MARA-hosted judges". MARA hosts only the three
+answerer models (plus a same-family DeepSeek-V3.2), so that panel would have
+graded its own answers — self-enhancement bias by construction. Fixed by
+cross-judging: each answer is graded by the two MARA models that did not
+write it, plus Kimi (Moonshot; `KIMI_API_KEY`), which contributed no
+extraction and no answer anywhere in this study. Within one answerer's lane
+the judge mix is constant, so the registered within-model condition
+contrasts are unconfounded. Ties across the three judges are reported as
+`unresolved`, never folded into a verdict.
+
+## What the judge sees, and does not
+
+Sees: the question, the gold answer, one candidate answer. Does not see:
+condition label, model name, tag, or any other candidate. Citation markers
+(`[p0@656]`) are stripped from candidates before grading — they would leak
+the condition.
+
+## Grading prompt (frozen; hash recorded in the run config)
+
+    You grade one candidate answer against a gold answer for a question
+    about SEC filings. The gold answer is authoritative: do not overrule
+    it with your own financial knowledge, even if you believe it is wrong.
+
+    Follow these steps in order:
+    1. From the gold answer, list the facts the question requires.
+    2. For each required fact, check the candidate: match, missing, or
+       wrong. Figures match when equal within 1% after converting units
+       and scale words ($1.9 billion = $1,906,715 thousand = matching).
+    3. Only then choose the verdict, by this rubric:
+       - correct: every required fact matches
+       - partially_correct: at least one required fact matches and at
+         least one is missing or wrong
+       - incorrect: the candidate contradicts the gold answer, or no
+         required fact matches
+       - abstained: the candidate declines to answer
+    Length is not quality. Extra detail the question did not ask for
+    neither helps nor hurts, unless it contradicts the gold answer.
+
+    Return JSON only:
+    {"required_facts": [{"fact": "...", "in_candidate": "match|missing|wrong"}],
+     "verdict": "correct|partially_correct|incorrect|abstained",
+     "rationale": "one sentence naming the decisive match or mismatch"}
+
+## Calibration before any real grading — a judge must earn its votes
+
+Four control groups, verdicts known by construction; a judge failing any
+control is excluded and the exclusion reported:
+
+    gold answer submitted as the candidate        -> correct
+    another case's answer swapped in              -> incorrect
+    gold with every figure corrupted x1000        -> incorrect or partial
+    "cannot determine"                            -> abstained
+
+## Reporting
+
+Per condition and model: verdict distribution with `unresolved` separate;
+pairwise judge agreement (Cohen's kappa) and whether Kimi is an outlier;
+leave-one-judge-out majority stability; calibration results. Temperature 0
+everywhere; every judgment persisted per (case, condition, model, judge).

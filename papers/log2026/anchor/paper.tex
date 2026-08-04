@@ -1,0 +1,344 @@
+\documentclass{article}
+\usepackage[review]{log_2026}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{amsfonts}
+\usepackage{graphicx}
+\usepackage[numbers,compress,sort]{natbib}
+\usepackage{xcolor}
+
+% Placeholders for results still landing; every \pending must be resolved
+% before the PDF builds for submission (check_submission greps for it).
+\newcommand{\pending}[1]{\textcolor{red}{[PENDING: #1]}}
+
+\title{Anchor, Don't Name: What Ontology Guidance Actually Buys in LLM-Built Knowledge Graphs}
+
+\author{Anonymous Authors}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Practitioners give LLM extractors an ontology expecting better knowledge
+graphs. In a pre-registered study on financial filings (FinDER; five
+extraction schemas from schema-free to full FIBO; three LLMs; 420 cases), we
+measure what the ontology actually buys. (1)~It does not improve extraction:
+schema guidance \emph{reduces} cross-model agreement on entity names and does
+not increase coverage of answer-bearing facts; its measurable contribution is
+\emph{detectability} --- schema violations become checkable. (2)~The standard
+alignment primitive is at fault: matching facts by entity name misses most
+cross-model disagreements. Anchoring each extracted figure to its unique
+source token yields 1.7--2.8$\times$ more comparable facts and reveals that a
+quarter of extracted values are unit-scale misreadings invisible to name
+matching. (3)~Downstream, naive QA scoring says text evidence beats
+serialized graphs. An \emph{evidence-conditional} evaluation --- separating
+memorization, honest abstention, and grounded answers --- reverses this on
+two of three models, and attributes the residual gap to model-specific
+over-refusal. Attaching provenance pointers alone improves accuracy. All
+hypotheses were registered with disconfirming outcomes before each run; the
+negative results are reported as findings, not filtered.
+\end{abstract}
+
+\section{Introduction}\label{sec:intro}
+
+% From narrative/00-motivation + 01-problem, decision-B framing:
+% industry -> domain -> ontology -> graph, then the diagnosis.
+
+Enterprises that build knowledge graphs from documents with LLMs face a
+design decision early: whether to guide extraction with a domain ontology.
+The folk answer is yes --- a schema should make extraction more consistent,
+more complete, and easier to query. Financial services is the domain where
+this belief is most institutionalized: FIBO~\citep{fibo}, an OWL ontology of
+financial concepts maintained by the EDM Council, exists precisely to
+standardize how institutions name and relate the entities in their filings.
+
+This paper measures that belief end to end on FinDER~\citep{finder}, a
+financial question-answering dataset built from SEC filings, and reports
+three findings that reorder it.
+
+\textbf{First, ontology guidance does not improve extraction --- it makes bad
+extraction detectable.} Across a five-level schema spectrum (from a
+schema-free single-class floor to full FIBO with synonyms and subsumption),
+every ontology-guided condition agrees \emph{less} across extractor models on
+entity names than the schema-free floor, and the full-FIBO condition covers
+\emph{fewer} of the figures that gold answers require ($-0.036$, 95\% CI
+$[-0.067, -0.008]$, paired over 280 cases). What the ontology measurably adds
+is a contract to violate: 529--1,038 schema violations per condition become
+mechanically checkable, where the schema-free graph has almost nothing to
+check.
+
+\textbf{Second, the field's alignment primitive --- the entity name --- hides
+the disagreements that matter.} Whether two extractors captured ``the same
+fact'' is decided, in GraphRAG pipelines and their evaluations, by matching
+names. Names are the least stable thing an LLM produces. Anchoring each
+extracted figure to the unique numeric token it came from in the source
+document multiplies comparable cross-model facts by 1.7--2.8$\times$ at the
+same sample, and exposes that 26.7\% of anchored figures differ from their
+source by a factor of $10^3$ or $10^6$ --- unit-scale misreadings
+(``\$1,906,715'' extracted from a table headed ``in thousands'') that no
+name-based comparison can see, because the two views also named the fact
+differently. We call this \emph{provenance-anchored alignment} and replicate
+its advantage on two extraction conditions at 280 cases each, pre-registered.
+
+\textbf{Third, downstream evaluation inherits the same blindness.} Under
+standard reference-based scoring, handing a model the source passages beats
+handing it the serialized graph built from those passages --- the familiar
+``RAG beats GraphRAG'' reading~\citep{ragvsgraphrag}. But public filings are
+in every model's training data, so a correct answer is not evidence the
+evidence was used. Conditioning each verdict on whether the served evidence
+could support the answer separates grounded correctness from memorization
+and honest abstention from failure. Under that decomposition the graph
+conditions yield \emph{as many or more} genuinely grounded correct answers
+than gold passages on two of three models, the text condition carries
+2--4$\times$ the memorization, and the third model's graph deficit is
+over-refusal --- it declines even when the graph contains the answer.
+
+The through-line is one sentence: \emph{the value of structure is not a
+better answer but a verifiable one, and verification needs provenance, not
+names}. Every claim above was pre-registered with its disconfirming outcome
+before the run that tested it (Section~\ref{sec:design}); two registered
+hypotheses were disconfirmed and are reported as such.
+
+\section{Related work}\label{sec:related}
+
+% Ontology-guided extraction; GraphRAG evaluations; entity resolution;
+% contamination-aware evaluation; LLM-as-judge practice; finance QA metrics.
+\pending{related work — full pass after skeleton merge}
+
+\section{Study design}\label{sec:design}
+
+\subsection{Dataset and sampling}
+
+FinDER pairs terse analyst questions with gold answers and the filing
+passages that support them (5{,}703 cases, eight categories). Its own
+annotations partition the corpus into three strata: \emph{simple} questions
+(neither annotation), \emph{arithmetic} questions (an operation label such
+as Division), and \emph{reasoning} questions (flagged as requiring
+composition, no arithmetic). We run three samples that together cover the
+grid: a category-balanced 280-case sample (35 per category, seed 42,
+multi-reference preferred), a 140-case arithmetic-stratum sample
+(type-proportional), and \pending{a 204-case census of the reasoning
+stratum (an3)}. The balanced sample contains zero arithmetic cases --- the
+multi-reference preference excluded them, since 881 of 883 arithmetic
+questions carry one reference --- which is itself a finding about sample
+design and the reason the supplement exists.
+
+\subsection{The schema spectrum}
+
+Five extraction conditions differ only in the schema handed to the
+extractor: \textbf{A} a schema-free floor (one class, one relation);
+\textbf{B} a hand-written 20-class schema; \textbf{C} 70 classes derived
+from FIBO, corpus-scoped; \textbf{D} = C plus FIBO synonyms and
+abbreviations; \textbf{E} = C plus the subsumption hierarchy. Everything
+else --- documents, chunking, extractor models (DeepSeek-V3.1, gpt-oss-120b,
+MiniMax-M2.7), prompts, property floor, graph store --- is held fixed, so
+schema is the only moving part. Conditions A and C are re-run at 280 cases;
+each case's graph is extracted independently per model, giving three
+\emph{views} per case and condition.
+
+\subsection{Pre-registration}
+
+Each run is governed by a registration committed before it starts, stating
+direction and the outcome that would disconfirm it; exploratory findings are
+labelled and their registered replications named. The hypothesis ledger and
+all registrations ship in the supplementary material. We report every
+registered hypothesis, including the two that failed.
+
+\section{Part 1: what the ontology changes in the graph}\label{sec:part1}
+
+\subsection{Name agreement falls as the schema grows}
+
+% SW-H4, S2-H2 — numbers final
+Cross-model agreement on entity names is highest under the schema-free
+floor and falls under every ontology condition (paired A$-$C difference in
+per-case comparable-name rate: $+0.069$, 95\% CI $[+0.046, +0.091]$, 280
+cases). The mechanism is structural: one declared class gives two extractors
+nothing to disagree about; seventy classes are seventy naming choices.
+
+\subsection{Content coverage does not rise}
+
+% S2-H4 reversal — numbers final
+The registered hypothesis that FIBO buys content at the price of names ---
+supported at 16 cases --- \emph{reversed} at 280: condition C covers fewer
+gold-answer figures than A ($-0.036$ $[-0.067, -0.008]$). The ontology has
+no measured extraction benefit on this corpus.
+
+\subsection{What survives: detectability}
+
+Schema violations (missing required properties, undeclared labels, datatype
+breaks) number 529--1,038 per ontology condition and are mechanically
+checkable against the declared schema; the schema-free floor offers almost
+nothing to check. The ontology's contribution relocates from generation
+quality to \emph{verification surface} --- consistent with keeping heavy
+ontology reasoning out of the extraction path and using it as an offline
+validator.
+
+\subsection{Why the synonym condition could not matter}
+
+Only 30 of 5{,}703 questions (0.5\%) require vocabulary mapping at all, and
+the abbreviations questions actually use (\texttt{rev}, \texttt{mgmt}) are
+analyst shorthand, not FIBO designations. Condition D was measuring a need
+the corpus does not have --- a caution for scoping ontology vocabulary work
+by measured query demand rather than by ontology completeness.
+
+\section{Provenance-anchored alignment}\label{sec:anchor}
+
+% The paper's center. SC-H4, S2-H1 — numbers final.
+Two views of the same case hold ``the same fact'' if we can align their
+facts. The standard key is the entity name. We instead locate each extracted
+figure at the unique numeric token it came from in the source passage
+(searching all unit scales, so a mis-scaled extraction still anchors), and
+align facts that anchor to the same token.
+
+At 280 cases on the schema-free condition, name keys yield 992 comparable
+fact pairs with 324 disagreements; anchor keys yield 1{,}656 pairs with 606
+disagreements, of which \textbf{485 are invisible to any name key} --- the
+views named the fact differently \emph{and} disagreed on its value. On the
+FIBO condition the multiplier is larger (717 vs.\ 1{,}983 pairs; 246 vs.\
+874 disagreements; 734 name-blind). Both replications were registered in
+advance. The disagreements the anchor exposes are dominated by unit-scale
+misreadings: 26.7\% of anchored figures match their source only after
+rescaling by $10^3$ or $10^6$.
+
+Two consequences follow. For pipeline builders: entity resolution keyed on
+names silently discards most of the verification signal that running a
+second extractor was supposed to buy. For evaluators: cross-model
+verification has a hard ceiling regardless of key --- 87\% of facts are held
+by exactly one view, a share that \emph{rises} with sample size (77.1\% at
+16 cases) --- and agreement-gating trades four correct answers for every
+wrong answer it blocks (precision $0.951 \to 1.000$, recall $0.951 \to
+0.764$; the registered hypothesis that gating helps was disconfirmed on its
+own criterion).
+
+\section{Part 2: does the graph help answer?}\label{sec:part2}
+
+\subsection{Design}
+
+Each question is answered under five evidence conditions --- closed book,
+gold passages, serialized schema-free graph, serialized FIBO graph, and the
+FIBO graph with provenance pointers --- by the same three models at
+temperature 0. The serializer is one code path; document-hierarchy nodes are
+excluded because they carry the passages verbatim. Passages are the
+\emph{ceiling} of retrieval (the gold evidence in full), and the graph
+conditions serve the union of all three extractor views, the ceiling of what
+extraction captured. Primary metric: scale-normalized overlap between the
+gold answer's figures and the produced answer's (the finance-QA standard
+family~\citep{finqa,tatqa}); a three-judge cross-judging panel (no judge
+grades its own model's answers) covers what number matching cannot.
+
+\subsection{The gate: contamination is real and stratified}
+
+Closed-book performance spans $0.058$ (DeepSeek) to $0.306$ (gpt-oss) on the
+balanced sample --- public filings are memorized to very different degrees
+--- yet passages beat closed book for every model (paired differences
+$+0.092$ to $+0.299$, all separated). On the arithmetic stratum the gate
+blows open ($+0.41$ both models run): \emph{computed} figures cannot be
+recalled, making arithmetic questions the contamination-resistant stratum
+for evaluating retrieval on public corpora.
+
+\subsection{Naive scoring: text wins or ties; format effects are model
+properties}
+
+Under naive overlap no graph condition beats passages anywhere; DeepSeek
+loses with graphs on both ($+0.075$, $+0.062$ toward passages), gpt-oss on
+the schema-free graph, MiniMax ties. The passages$-$graph gap itself differs
+across models beyond resampling (DeepSeek vs.\ MiniMax: $+0.081$ $[+0.019,
++0.144]$) --- averaging models erases a real interaction, which is one
+reason published RAG-vs-GraphRAG aggregates disagree.
+
+\subsection{Evidence-conditional evaluation reverses the reading}
+
+Scoring against the gold answer alone cannot distinguish a model that used
+the evidence from one that remembered the filing. Because we can check
+mechanically whether the served evidence contains the gold figures, every
+verdict decomposes into: grounded-correct, utilization failure,
+over-refusal, honest abstention, contaminated-correct, and hallucination.
+
+\begin{table}[t]
+\centering\small
+\caption{Grounded-correct counts (evidence contains the answer and the model
+answered it) on the balanced sample, 199 numeric-gold cases.}
+\label{tab:ec}
+\begin{tabular}{lcccc}
+\toprule
+ & passages & graph (schema-free) & graph (FIBO) & FIBO+pointers \\
+\midrule
+gpt-oss-120b & 107 & 111 & 105 & 112 \\
+MiniMax-M2.7 & 124 & 138 & 127 & \textbf{146} \\
+DeepSeek-V3.1 & 98 & 83 & 82 & 104 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Three facts move (Table~\ref{tab:ec}). The graphs' grounded yield matches or
+beats passages on two of three models. Passages carry 2--4$\times$ the
+contamination (20--22 vs.\ 5--10 answers scored correct on figures absent
+from the evidence). And DeepSeek's graph deficit is over-refusal --- 55
+declines where the graph \emph{contains} the answer, vs.\ 31 with passages
+--- a legibility failure of the serialization for that model, not a failure
+of the graph's content. \pending{registered replication on the arithmetic
+stratum: AR-EC1--3, an2}
+
+\subsection{Provenance pointers raise accuracy without carrying content}
+
+Attaching each anchored figure's source pointer (passage index and character
+offset --- never the source text) was registered to change attribution, not
+accuracy. The registration was disconfirmed in the interesting direction:
+accuracy \emph{rose} on MiniMax ($+0.055$ $[+0.012, +0.097]$) and DeepSeek
+($+0.050$ $[+0.022, +0.080]$). Since no answer content was attached, the
+pointer acts as a trust signal --- it marks exactly the figures that
+anchored to source --- and the pointer condition shows the highest evidence
+grounding rate (73\%/70\% of answered figures present in the served
+evidence). Mechanical citation checking lands at 42--58\% verified, so
+pointer-following is far from solved; but provenance decoration is a
+zero-content prompt intervention that buys accuracy.
+
+\subsection{The arithmetic stratum: the original hypothesis meets its test}
+
+\pending{AR-H2/H3/H4 + AR-EC1--3 verdicts, an2 — lands before the PDF
+deadline}
+
+\section{Discussion: from verdicts to design rules}\label{sec:discussion}
+
+% The verdict -> cause -> prevention table, each row a measured count.
+Owning the full chain --- source token, extracted node, served evidence,
+answer, verdict --- lets each failure class be traced to its cause and
+converted to a rule. Unit-scale misreads (26.7\%) argue for anchor-verifying
+values at write time. Name fragmentation growing with schema size argues for
+provenance keys in entity resolution and for deploying ontologies as
+validators rather than extraction guides. The 87\% single-view ceiling caps
+what multi-extractor redundancy can verify --- the budget belongs in
+provenance. Model-specific over-refusal on serialized graphs makes
+serialization a per-model design surface. And contamination that survives
+inside evidence conditions makes evidence-conditional evaluation, not
+closed-book gates alone, the honest default for public-corpus benchmarks.
+
+\section{Limitations}\label{sec:limitations}
+
+Single corpus and domain; three extractor models; passages are a retrieval
+ceiling, not a retriever; the graph conditions test the graph as serialized
+context, not as a queryable store (deferred, with the token-budget/cache
+tension, to future work); ``evidence contains the answer'' is a numeric-token
+approximation; per-type strata below $n=20$ are reported but underpowered.
+\pending{judge panel results and inter-judge agreement}
+
+\section{Conclusion}\label{sec:conclusion}
+
+Ontology guidance, measured end to end, buys detectability rather than
+extraction quality; the alignment primitive that decides what ``the same
+fact'' means should be provenance, not names; and evaluation that cannot see
+evidence cannot see what structure is for. The graph's contribution to
+answering is not more correct answers --- it is answers that are grounded,
+attributable, and honest about what the evidence cannot support.
+
+\bibliographystyle{unsrtnat}
+\bibliography{references}
+
+\appendix
+\section{Registrations and verdicts}
+\pending{ledger table: every registered hypothesis, verdict, artifact}
+
+\section{Scoring-metric sensitivity}
+\pending{token-F1 table + the two tokenizer defects the smoke caught}
+
+\end{document}

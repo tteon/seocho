@@ -93,3 +93,36 @@ Primary outcome: AR-H2's paired passages-versus-graph differences per model.
 Secondary: AR-H3's grounding ordering, AR-H4's replication, and per-type
 means for Compositional/Division/Multiplication/Subtract(+Subtraction),
 reported with their n.
+
+---
+
+## Addendum (2026-08-05) — evidence-conditional grading, registered for an2
+## before any an2 graph condition has run
+
+Exploratory analysis of an1 (after its results) decomposed each answer by
+whether the served evidence contained the gold figures: grounded-correct /
+utilization-failure / over-refusal / honest-abstention / contaminated /
+hallucination. On an1 it reversed the naive reading: stripped of
+contamination, graph_a's grounded-correct count beat passages on gptoss
+(111 v 107) and minimax (138 v 124), passages carried 2-4x the
+contamination of graphs, and deepseek's graph deficit was over-refusal
+(55 v 31), not misunderstanding. Found in the data, so on an1 it is
+exploratory and is labelled as such wherever reported.
+
+The an2 graph conditions have not run (s3 deepseek extraction in flight at
+the time of this commit), so the following are registered predictions:
+
+- **AR-EC1** · grounded-correct under at least one graph condition >=
+  passages, on at least two of three models.
+- **AR-EC2** · contaminated count: passages > each graph condition, per
+  model. (On the arithmetic stratum contamination should be rarer overall —
+  closed book collapsed to 0.12-0.14 — so this may be a near-zero
+  comparison; if both sides are ~0 it is reported as uninformative, not as
+  a win.)
+- **AR-EC3** · deepseek's over-refusal on graph conditions exceeds its
+  over-refusal on passages, reproducing the mechanism behind AN-H3.
+
+Boundary, stated now: "evidence contains the answer" is a numeric-token
+set approximation; whether a contained figure is attached to the right
+entity is the judge panel's question, not this decomposition's. The
+grounded boundary is overlap > 0, so partial answers count as grounded.

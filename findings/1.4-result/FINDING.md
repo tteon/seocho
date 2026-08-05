@@ -2,11 +2,13 @@
 
 **✘ rejected**
 
+> No pre-registration file. The hypothesis below was written up alongside the analysis rather than committed before the run, and should be read as a statement of intent recovered after the fact.
+
 ## Question
 
 Holding documents, prompt, chunking and seed fixed, does the schema handed to the extractor change how often two models describe the same fact under the same name?
 
-## Hypothesis, written before the run
+## Hypothesis
 
 Pre-registered: agreement rises from no ontology, through the hand-written schema, to real FIBO, and highest with the synonym layer. More shared vocabulary, more shared naming.
 
@@ -53,3 +55,11 @@ Sixteen cases, three models, one run, no confidence interval. Measures whether t
 ```bash
 scripts/ops/run_reextract.sh --cases 16 && python3 experiments/minimal/arm_results.py && python3 experiments/minimal/plot_arms.py
 ```
+
+---
+
+## Draft notes
+
+<!-- authored: kept across regeneration -->
+_Nothing yet. Text written between the two markers survives `findings.py --write`._
+<!-- /authored -->

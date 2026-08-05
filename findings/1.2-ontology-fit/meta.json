@@ -8,5 +8,7 @@
   "artifact": "outputs/evaluation/mdm_fedcat/log2026-cq-similarity-v1/cq_similarity.json",
   "run_dir": "outputs/evaluation/mdm_fedcat/log2026-cq-similarity-v1",
   "reproduce": "python3 experiments/minimal/cq_similarity.py && python3 experiments/minimal/ontology_task_fit.py && python3 experiments/minimal/alias_register.py",
+  "preregistration": null,
+  "verdict_history": [],
   "still_needed": []
 }

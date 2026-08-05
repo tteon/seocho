@@ -301,7 +301,7 @@ def main() -> int:
             out.update({k: v for k, v in results[arm].items() if k != "examples"})
 
     payload = {
-        "contract": "log2026.provenance_keying.v1",
+        "contract": f"log2026.provenance_keying.{args.tag or 'v1'}",
         "question": ("Does matching facts by where they came from in the source "
                      "find more comparable pairs, and more disagreements, than "
                      "matching them by name?"),

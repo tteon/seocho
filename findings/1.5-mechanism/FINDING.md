@@ -2,11 +2,13 @@
 
 **· not yet run**
 
+> No pre-registration file. The hypothesis below was written up alongside the analysis rather than committed before the run, and should be read as a statement of intent recovered after the fact.
+
 ## Question
 
 Is the fragmentation caused by the number of classes, by FIBO's particular classes, or by declaring types at all?
 
-## Hypothesis, written before the run
+## Hypothesis
 
 Declaring a type pushes the extractor toward specific, idiosyncratic instance names, so typed entities are less findable across views than untyped ones.
 
@@ -39,3 +41,11 @@ The control that separates 'more classes' from 'FIBO's classes' does not exist y
 ```bash
 not yet implemented
 ```
+
+---
+
+## Draft notes
+
+<!-- authored: kept across regeneration -->
+_Nothing yet. Text written between the two markers survives `findings.py --write`._
+<!-- /authored -->

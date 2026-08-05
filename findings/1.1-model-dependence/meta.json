@@ -8,6 +8,8 @@
   "artifact": "outputs/minimal/merge_key_reality.json",
   "run_dir": "outputs/minimal",
   "reproduce": "see outputs/minimal/merge_key_reality.json",
+  "preregistration": null,
+  "verdict_history": [],
   "still_needed": [
     "a second run of one model, to separate between-model disagreement from within-model variance"
   ]

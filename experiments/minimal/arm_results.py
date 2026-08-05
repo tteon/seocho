@@ -299,7 +299,7 @@ def main() -> int:
         driver.close()
 
     payload = {
-        "contract": "log2026.arm_results.v2" if args.tag else "log2026.arm_results.v1",
+        "contract": ("log2026.arm_results.v2" if args.tag == "v2" else f"log2026.arm_results.{args.tag or 'v1'}"),
         "question": ("Does the ontology handed to the extractor change whether "
                      "two models describe the same fact the same way?"),
         "held_fixed": ["cases", "reference text", "prompt", "chunking", "seed"],

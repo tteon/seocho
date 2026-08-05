@@ -8,5 +8,7 @@
   "artifact": "outputs/minimal/20260802T024329Z-category-contamination/category_contamination.json",
   "run_dir": "outputs/minimal/20260802T024329Z-category-contamination",
   "reproduce": "python3 experiments/minimal/category_contamination.py",
+  "preregistration": null,
+  "verdict_history": [],
   "still_needed": []
 }

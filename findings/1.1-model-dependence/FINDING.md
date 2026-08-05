@@ -2,11 +2,13 @@
 
 **✔ supported**
 
+> No pre-registration file. The hypothesis below was written up alongside the analysis rather than committed before the run, and should be read as a statement of intent recovered after the fact.
+
 ## Question
 
 Do three models given the same document produce graphs whose identifiers can be matched to each other?
 
-## Hypothesis, written before the run
+## Hypothesis
 
 With no schema the extractor falls back on its own pre-training, so different models will key the same fact differently and the graphs will not join.
 
@@ -48,3 +50,11 @@ Measures naming, not content. Two graphs could disagree on every identifier and 
 ```bash
 see outputs/minimal/merge_key_reality.json
 ```
+
+---
+
+## Draft notes
+
+<!-- authored: kept across regeneration -->
+_Nothing yet. Text written between the two markers survives `findings.py --write`._
+<!-- /authored -->

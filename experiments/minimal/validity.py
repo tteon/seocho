@@ -322,7 +322,7 @@ def main() -> int:
         driver.close()
 
     payload = {
-        "contract": "log2026.validity.v1",
+        "contract": f"log2026.validity.{args.tag or 'v1'}",
         "question": ("Was the schema actually delivered to the extractor, and "
                      "are the differences between conditions larger than "
                      "sampling noise?"),

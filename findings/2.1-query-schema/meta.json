@@ -1,0 +1,17 @@
+{
+  "section": "2.1",
+  "title": "The schema an agent queries with should come from the ontology",
+  "question": "How far apart are the schema description a text2cypher system is usually given and the ontology the graph was built from, and does the difference change what an agent can ask?",
+  "hypothesis": "Standard practice builds the description by introspecting the store, which reports what an extractor produced rather than what was specified. Where a language model did the extracting the two diverge, and an agent told about structure the ontology forbids will write queries against it.",
+  "verdict": "undecided",
+  "contract": "log2026.schema_sources.v1",
+  "artifact": "outputs/minimal/20260802T070908Z-schema-sources/schema_sources.json",
+  "run_dir": "outputs/minimal/20260802T070908Z-schema-sources",
+  "reproduce": "python3 experiments/load_categories.py --tag v2 --arms C && python3 experiments/schema_sources.py --tag v2 --condition C",
+  "preregistration": null,
+  "verdict_history": [],
+  "still_needed": [
+    "the agent half: each description given to a query-writing model, failures counted by kind",
+    "a question set built from the graph in two halves, answerable and unanswerable, so an empty result can be read"
+  ]
+}

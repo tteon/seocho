@@ -203,7 +203,7 @@ def main() -> int:
                 out[name] = f"{cell['coverage']:.3f} ({cell['share_of_union']:.0%})"
 
     payload = {
-        "contract": "log2026.routing_ceiling.v1",
+        "contract": f"log2026.routing_ceiling.{args.tag or 'v1'}",
         "question": ("Given what the graphs contain, what is the most any "
                      "router could gain, and at what cost?"),
         "method": ("four strategies over the committed snapshots: one fixed "

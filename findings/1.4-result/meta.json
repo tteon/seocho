@@ -8,6 +8,8 @@
   "artifact": "outputs/minimal/20260802T025158Z-arm-results/arm_results.json",
   "run_dir": "outputs/minimal/20260802T025158Z-arm-results",
   "reproduce": "scripts/ops/run_reextract.sh --cases 16 && python3 experiments/minimal/arm_results.py && python3 experiments/minimal/plot_arms.py",
+  "preregistration": null,
+  "verdict_history": [],
   "still_needed": [
     "a confidence interval, before any difference is stated as a result",
     "a correctness measure, since a schema could lower agreement and raise accuracy",

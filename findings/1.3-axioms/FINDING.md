@@ -2,11 +2,13 @@
 
 **✔ supported**
 
+> No pre-registration file. The hypothesis below was written up alongside the analysis rather than committed before the run, and should be read as a statement of intent recovered after the fact.
+
 ## Question
 
 The extraction prompt receives a flat list of class names. Would entailment give it more?
 
-## Hypothesis, written before the run
+## Hypothesis
 
 FIBO carries restrictions, unions and equivalences, so a reasoner should place classes under one another and resolve relation endpoints that the asserted axioms leave open.
 
@@ -50,3 +52,11 @@ OWL 2 RL, not DL. Counts what entailment adds to the schema; says nothing about 
 ```bash
 python3 experiments/minimal/reasoner_pretest.py
 ```
+
+---
+
+## Draft notes
+
+<!-- authored: kept across regeneration -->
+_Nothing yet. Text written between the two markers survives `findings.py --write`._
+<!-- /authored -->

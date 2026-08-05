@@ -8,10 +8,30 @@ version: bump the version when a rerun changes what the number means,
 and set `supersedes` on the replacement so the withdrawn measurement
 stays visible.
 
-91 contracts, 123 artifacts, 25 with a full trace.
+111 contracts, 148 artifacts, 45 with a full trace.
 
 | Contract | Question | Headline | Traced | Artifact |
 |---|---|---|---|---|
+| `log2026.answering_analysis.an1` | Under five evidence conditions, which differences in answer quality are real, and which answe… | — | yes | `outputs/minimal/20260805T131234Z-answering-analysis/answering_analysis.json` |
+| `log2026.verification_value.s2` | When independently built views disagree about a figure, does refusing to serve it avoid an er… | — | yes | `outputs/minimal/20260803T120203Z-verification-value/verification_value.json` |
+| `log2026.verification_value.s1` | When independently built views disagree about a figure, does refusing to serve it avoid an er… | — | yes | `outputs/minimal/20260802T131448Z-verification-value/verification_value.json` |
+| `log2026.validity.s2` | Was the schema actually delivered to the extractor, and are the differences between condition… | — | yes | `outputs/minimal/20260803T120151Z-validity/validity.json` |
+| `log2026.validity.s1` | Was the schema actually delivered to the extractor, and are the differences between condition… | — | yes | `outputs/minimal/20260802T131421Z-validity/validity.json` |
+| `log2026.routing_ceiling.s2` | Given what the graphs contain, what is the most any router could gain, and at what cost? | — | yes | `outputs/minimal/20260803T120204Z-routing-ceiling/routing_ceiling.json` |
+| `log2026.routing_ceiling.s1` | Given what the graphs contain, what is the most any router could gain, and at what cost? | — | yes | `outputs/minimal/20260802T131454Z-routing-ceiling/routing_ceiling.json` |
+| `log2026.provenance_keying.s2` | Does matching facts by where they came from in the source find more comparable pairs, and mor… | — | yes | `outputs/minimal/20260803T120140Z-provenance-keying/provenance_keying.json` |
+| `log2026.provenance_keying.s1` | Does matching facts by where they came from in the source find more comparable pairs, and mor… | — | yes | `outputs/minimal/20260802T131412Z-provenance-keying/provenance_keying.json` |
+| `log2026.fact_anchors_summary.s3` | Can a figure a model extracted be attributed to the place in the source it came from, after t… | — | yes | `outputs/minimal/20260804T223322Z-materialize-anchors/anchors_summary.json` |
+| `log2026.fact_anchors_summary.s2` | Can a figure a model extracted be attributed to the place in the source it came from, after t… | — | yes | `outputs/minimal/20260803T120117Z-materialize-anchors/anchors_summary.json` |
+| `log2026.fact_anchors_summary.s1` | Can a figure a model extracted be attributed to the place in the source it came from, after t… | — | yes | `outputs/minimal/20260802T131109Z-materialize-anchors/anchors_summary.json` |
+| `log2026.category_load.s2` | Are the extracted graphs loaded and queryable, isolated by category, with provenance attached? | — | yes | `outputs/minimal/20260803T120402Z-load-categories/category_load.json` |
+| `log2026.category_load.s1` | Are the extracted graphs loaded and queryable, isolated by category, with provenance attached? | — | yes | `outputs/minimal/20260802T131134Z-load-categories/category_load.json` |
+| `log2026.arm_results.s2` | Does the ontology handed to the extractor change whether two models describe the same fact th… | by_arm={"C": {"cases_total": 280, "cases_contaminated": 0, " | yes | `outputs/minimal/20260803T120128Z-arm-results/arm_results.json` |
+| `log2026.arm_results.s1` | Does the ontology handed to the extractor change whether two models describe the same fact th… | by_arm={"A": {"cases_total": 280, "cases_contaminated": 0, " | yes | `outputs/minimal/20260802T131352Z-arm-results/arm_results.json` |
+| `log2026.reextract.s4` | Does the ontology handed to the extractor change what the graph contains, and does it make tw… | by_arm={"A": {"ontology": "none", "ontology_hash": "a643d7a7 | yes | `outputs/minimal/20260804T223226Z-reextract/reextract.json` |
+| `log2026.reextract.s3` | Does the ontology handed to the extractor change what the graph contains, and does it make tw… | by_arm={"A": {"ontology": "none", "ontology_hash": "a643d7a7 | yes | `outputs/minimal/20260804T205104Z-reextract/reextract.json` |
+| `log2026.reextract.s2` | Does the ontology handed to the extractor change what the graph contains, and does it make tw… | by_arm={"C": {"ontology": "fibo", "ontology_hash": "16fbb246 | yes | `outputs/minimal/20260802T211620Z-reextract/reextract.json` |
+| `log2026.reextract.s1` | Does the ontology handed to the extractor change what the graph contains, and does it make tw… | by_arm={"A": {"ontology": "none", "ontology_hash": "a643d7a7 | yes | `outputs/minimal/20260802T053227Z-reextract/reextract.json` |
 | `log2026.query_smoke.v1` | Does a model given a schema description write Cypher this store will run, and is what comes b… | — | yes | `outputs/minimal/20260802T093113Z-query-smoke/query_smoke.json` |
 | `log2026.question_axes.v1` | Which questions need a vocabulary, which need a figure compared, and which need parts joined? | — | yes | `outputs/minimal/20260802T074439Z-question-axes/question_axes.json` |
 | `log2026.schema_sources.v1` | How far apart are the schema an agent is usually given and the ontology the graph was built f… | — | yes | `outputs/minimal/20260802T070908Z-schema-sources/schema_sources.json` |
@@ -106,6 +126,38 @@ stays visible.
 
 ## What each result does not support
 
+**`log2026.answering_analysis.an1`** — Paired bootstrap over cases (5,000 draws, seed 42), per model — never across models. 'Evidence contains the answer' is a numeric-token approximation; grounded means overlap > 0, so partial answers count. Gold answers without figures are excluded from the primary metric, not zeroed.
+
+**`log2026.verification_value.s2`** — Correctness is whether a figure appears in the gold answer, not whether it answers the question; a view holding the right number against the wrong entity counts as correct. Scored per fact rather than per answer, so this bounds what a serving policy could do rather than measuring one. Restricted to facts where a right answer existed, because scoring every extracted figure against the answer makes 95% of them 'wrong' when they are merely irrelevant.
+
+**`log2026.verification_value.s1`** — Correctness is whether a figure appears in the gold answer, not whether it answers the question; a view holding the right number against the wrong entity counts as correct. Scored per fact rather than per answer, so this bounds what a serving policy could do rather than measuring one. Restricted to facts where a right answer existed, because scoring every extracted figure against the answer makes 95% of them 'wrong' when they are merely irrelevant.
+
+**`log2026.validity.s2`** — The interval covers sampling variability across these 16 cases only. It does not cover variation between models, between runs of one model, or the choice of matching rule.
+
+**`log2026.validity.s1`** — The interval covers sampling variability across these 16 cases only. It does not cover variation between models, between runs of one model, or the choice of matching rule.
+
+**`log2026.routing_ceiling.s2`** — An upper bound on routing, not a measurement of any router. The oracle sees the gold answer, so no implementable method reaches it. Coverage means the figure is somewhere in the consulted graphs; it does not mean a query would retrieve it or an answer would use it.
+
+**`log2026.routing_ceiling.s1`** — An upper bound on routing, not a measurement of any router. The oracle sees the gold answer, so no implementable method reaches it. Coverage means the figure is somewhere in the consulted graphs; it does not mean a query would retrieve it or an answer would use it.
+
+**`log2026.provenance_keying.s2`** — Only facts carrying a figure can be anchored, so this says nothing about the rest. An anchor is a numeric token, not a verified provenance record — two facts can share a token by coincidence, which is why ambiguous matches are dropped and why the anchor rate is reported beside every result.
+
+**`log2026.provenance_keying.s1`** — Only facts carrying a figure can be anchored, so this says nothing about the rest. An anchor is a numeric token, not a verified provenance record — two facts can share a token by coincidence, which is why ambiguous matches are dropped and why the anchor rate is reported beside every result.
+
+**`log2026.fact_anchors_summary.s3`** — An anchor is a unique numeric coincidence, not a provenance record written during extraction. Two unrelated facts sharing one figure would be attributed to the same token if only one occurrence exists. Only figures can be anchored at all, so facts without one are outside this entirely.
+
+**`log2026.fact_anchors_summary.s2`** — An anchor is a unique numeric coincidence, not a provenance record written during extraction. Two unrelated facts sharing one figure would be attributed to the same token if only one occurrence exists. Only figures can be anchored at all, so facts without one are outside this entirely.
+
+**`log2026.fact_anchors_summary.s1`** — An anchor is a unique numeric coincidence, not a provenance record written during extraction. Two unrelated facts sharing one figure would be attributed to the same token if only one occurrence exists. Only figures can be anchored at all, so facts without one are outside this entirely.
+
+**`log2026.category_load.s2`** — Loading, not evaluation. Isolation is enforced by the database and workspace boundaries and verified by counting nodes attributed to another category; it does not establish that the categories are semantically separable, which section 1.0 examines and does not settle.
+
+**`log2026.category_load.s1`** — Loading, not evaluation. Isolation is enforced by the database and workspace boundaries and verified by counting nodes attributed to another category; it does not establish that the categories are semantically separable, which section 1.0 examines and does not settle.
+
+**`log2026.arm_results.s2`** — 16 cases, 3 models, one run. Cases where extraction fell back to the heuristic are excluded and counted separately; every rate is conditioned on the scored cases, not the attempted ones.
+
+**`log2026.arm_results.s1`** — 16 cases, 3 models, one run. Cases where extraction fell back to the heuristic are excluded and counted separately; every rate is conditioned on the scored cases, not the attempted ones.
+
 **`log2026.query_smoke.v1`** — A smoke test. It says whether each stage happens at all, not how often it succeeds — the sample cannot support a rate and none is reported.
 
 **`log2026.question_axes.v1`** — The terminology axis detects a lexical bridge, not that answering requires crossing it — a question can use a synonym the filing does not while the answer sits elsewhere. Numeric and structural are only annotated in Financials and Company overview, so their absence elsewhere means unannotated rather than absent, and no rate should be read across all eight categories.
@@ -182,6 +234,8 @@ stays visible.
 
 ## Withdrawn and replaced
 
+- `log2026.verification_value.s2` supersedes the first version of this measurement, whose refusal precision of 0.95 sat exactly on a base error rate of 0.95 because both were counting irrelevance as error
+- `log2026.verification_value.s1` supersedes the first version of this measurement, whose refusal precision of 0.95 sat exactly on a base error rate of 0.95 because both were counting irrelevance as error
 - `log2026.verification_value.v1` supersedes the first version of this measurement, whose refusal precision of 0.95 sat exactly on a base error rate of 0.95 because both were counting irrelevance as error
 - `log2026.alias_register.v2` supersedes log2026.alias_pretest.v1, whose counts conflated word senses and overstated the gap
 - `log2026.mechanism.v1` supersedes the withdrawn within-graph comparison of typed against untyped entities, which contrasted coarse entities with fine ones rather than schemas with each other
@@ -190,6 +244,10 @@ stays visible.
 
 Each is missing a field the catalogue needs. Fix the script that writes it, not this file.
 
+- `log2026.reextract.s4` missing claim_boundary — `outputs/minimal/20260804T223226Z-reextract/reextract.json`
+- `log2026.reextract.s3` missing claim_boundary — `outputs/minimal/20260804T205104Z-reextract/reextract.json`
+- `log2026.reextract.s2` missing claim_boundary — `outputs/minimal/20260802T211620Z-reextract/reextract.json`
+- `log2026.reextract.s1` missing claim_boundary — `outputs/minimal/20260802T053227Z-reextract/reextract.json`
 - `log2026.reextract.v2` missing claim_boundary — `outputs/minimal/20260802T022713Z-reextract/reextract.json`
 - `log2026.selector_robustness.v1` missing question — `outputs/evaluation/mdm_fedcat/log2026-selector-robustness-v1/analysis.json`
 - `log2026.sdcr_zero_cost_replay.v1` missing question, claim_boundary — `outputs/evaluation/mdm_fedcat/log2026-sdcr-zero-cost-replay-v1/replay.json`
@@ -258,14 +316,18 @@ Expected when a script is rerun on the same inputs. A problem when the inputs ch
 - `log2026.adversarial_answer.v3` — 2 runs, newest 2026-08-02 03:31
 - `log2026.alias_register.v2` — 2 runs, newest 2026-08-02 03:31
 - `log2026.arm_results.v1` — 2 runs, newest 2026-08-02 02:52
+- `log2026.category_load.s2` — 2 runs, newest 2026-08-05 13:11
 - `log2026.category_load.v1` — 6 runs, newest 2026-08-02 07:09
 - `log2026.composability.v1` — 2 runs, newest 2026-08-02 06:11
 - `log2026.cq_suite.v1` — 2 runs, newest 2026-08-02 06:20
 - `log2026.cross_view_evidence_audit.v1` — 2 runs, newest 2026-08-02 03:37
 - `log2026.extraction_arms.v1` — 4 runs, newest 2026-08-02 00:26
+- `log2026.fact_anchors_summary.s1` — 2 runs, newest 2026-08-05 13:11
 - `log2026.fact_anchors_summary.v1` — 2 runs, newest 2026-08-02 06:47
 - `log2026.query_smoke.v1` — 3 runs, newest 2026-08-02 09:31
 - `log2026.question_axes.v1` — 2 runs, newest 2026-08-02 07:47
+- `log2026.reextract.s2` — 3 runs, newest 2026-08-03 01:19
+- `log2026.reextract.s3` — 2 runs, newest 2026-08-04 22:25
 - `log2026.reextract.v2` — 2 runs, newest 2026-08-02 04:41
 - `log2026.schema_legibility.v1` — 3 runs, newest 2026-08-02 07:00
 - `log2026.schema_sources.v1` — 2 runs, newest 2026-08-02 07:09

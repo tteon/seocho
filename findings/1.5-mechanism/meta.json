@@ -8,6 +8,8 @@
   "artifact": "",
   "run_dir": "",
   "reproduce": "not yet implemented",
+  "preregistration": null,
+  "verdict_history": [],
   "still_needed": [
     "type findability, no-ontology against FIBO, paired by case",
     "alias collapse, FIBO against FIBO-plus-synonyms",

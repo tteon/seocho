@@ -1,0 +1,18 @@
+{
+  "section": "2.2",
+  "title": "Providing the ontology is not the same as the agent using it",
+  "question": "When an agent writes a query badly, was the information it was given wrong, or did it not use the information?",
+  "hypothesis": "End accuracy cannot separate those two, and they have opposite remedies. Whether supplied information shaped a query leaves a mechanical trace in the query itself, so utilisation can be counted rather than inferred from the score.",
+  "verdict": "pending",
+  "contract": null,
+  "artifact": "",
+  "run_dir": "",
+  "reproduce": "not yet implemented",
+  "preregistration": null,
+  "verdict_history": [],
+  "still_needed": [
+    "a question set built from the graph, answerable and unanswerable, so an empty result can be read",
+    "the query-writing agent itself, run under each description",
+    "the utilisation traces, one per supplied element"
+  ]
+}

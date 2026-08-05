@@ -2,11 +2,13 @@
 
 **~ undecided**
 
+> No pre-registration file. The hypothesis below was written up alongside the analysis rather than committed before the run, and should be read as a statement of intent recovered after the fact.
+
 ## Question
 
 If every category shared one graph, would merging on name fuse things that are not the same thing?
 
-## Hypothesis, written before the run
+## Hypothesis
 
 Names collide across categories and mean different things, so a shared graph would silently fuse unrelated facts and the per-category databases are necessary rather than cautious.
 
@@ -49,3 +51,11 @@ Context similarity is a proxy for meaning computed from the extracted graph, not
 ```bash
 python3 experiments/minimal/category_contamination.py
 ```
+
+---
+
+## Draft notes
+
+<!-- authored: kept across regeneration -->
+_Nothing yet. Text written between the two markers survives `findings.py --write`._
+<!-- /authored -->

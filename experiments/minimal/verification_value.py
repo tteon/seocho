@@ -268,7 +268,7 @@ def main() -> int:
             out.update(summary)
 
     payload = {
-        "contract": "log2026.verification_value.v1",
+        "contract": f"log2026.verification_value.{args.tag or 'v1'}",
         "question": ("When independently built views disagree about a figure, "
                      "does refusing to serve it avoid an error?"),
         "method": ("facts matched across views by normalized name; figures "

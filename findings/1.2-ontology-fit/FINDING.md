@@ -2,11 +2,13 @@
 
 **✔ supported**
 
+> No pre-registration file. The hypothesis below was written up alongside the analysis rather than committed before the run, and should be read as a statement of intent recovered after the fact.
+
 ## Question
 
 Before asking whether the ontology helped, does it even cover what the corpus asks about?
 
-## Hypothesis, written before the run
+## Hypothesis
 
 FIBO is the industry reference model for exactly this domain, so its vocabulary should name what the questions are about and its own competency questions should be the same kind of question.
 
@@ -49,3 +51,11 @@ Similarity of phrasing and topic, not of answerability. A high score means FIBO 
 ```bash
 python3 experiments/minimal/cq_similarity.py && python3 experiments/minimal/ontology_task_fit.py && python3 experiments/minimal/alias_register.py
 ```
+
+---
+
+## Draft notes
+
+<!-- authored: kept across regeneration -->
+_Nothing yet. Text written between the two markers survives `findings.py --write`._
+<!-- /authored -->

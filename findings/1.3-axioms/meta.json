@@ -8,6 +8,8 @@
   "artifact": "outputs/minimal/20260802T013239Z-reasoner-pretest/reasoner_pretest.json",
   "run_dir": "outputs/minimal/20260802T013239Z-reasoner-pretest",
   "reproduce": "python3 experiments/minimal/reasoner_pretest.py",
+  "preregistration": null,
+  "verdict_history": [],
   "still_needed": [
     "a DL reasoner, to turn these floors into values"
   ]

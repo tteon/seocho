@@ -491,7 +491,27 @@ MA-H1/H3 & provenance beats deliberation / beats pick-only rule & \textbf{void}:
 \end{tabular}
 \end{table}
 
-\section{Scoring-metric sensitivity}
-\pending{token-F1 table + the two tokenizer defects the smoke caught}
+\section{Scoring-metric sensitivity}\label{app:metrics}
+
+The conclusions do not depend on the primary metric's choice, and the one
+place they would have is itself informative. Rescoring every an1 answer
+with token-level F1 (the TAT-QA-style metric) preserves the gate on both
+models tested (passages $-$ closed book $+0.071$ and $+0.082$, both
+separated) but flips two comparisons in directions the metric's own biases
+predict: passages separates above graphs everywhere (gold answers are
+written from the passages, so surface overlap is a gift to the passages
+condition), and the pointer condition scores \emph{below} plain graph on
+gpt-oss ($-0.016$, separated) --- because citation markers are tokens the
+gold answer does not contain, i.e., token F1 penalizes the act of citing.
+A metric that rewards passage-copying and punishes attribution cannot be
+primary in a study about verifiability; it is reported here so the reader
+can see exactly what it would have changed.
+
+Two tokenizer defects were caught by a four-call smoke test before any
+scored run, and fixed symmetrically for gold and produced text: a hyphen
+after an alphanumeric read as a minus sign (``SP 800-171'' yielding
+$-171$), and parenthesized enumeration markers ``(1)...(6)'' counted as
+figures. The scoring tokenizer is separate from the anchoring tokenizer,
+which is left untouched because the anchors were located with it.
 
 \end{document}

@@ -433,8 +433,63 @@ attributable, and honest about what the evidence cannot support.
 \bibliography{references}
 
 \appendix
-\section{Registrations and verdicts}
-\pending{ledger table: every registered hypothesis, verdict, artifact}
+\section{Registrations and verdicts}\label{app:ledger}
+
+Every hypothesis this study registered, its verdict, and where the
+registration lives. Registrations are dated files committed before the runs
+they govern; the full ledger and every artifact ship in the supplementary
+material. Exploratory findings are absent from this table by construction
+--- they are labelled in the text and their registered replications appear
+here.
+
+\begin{table}[h]
+\centering\small
+\begin{tabular}{llll}
+\toprule
+Family & Hypothesis (compressed) & Verdict \\
+\midrule
+\multicolumn{3}{l}{\emph{Second sweep (16 cases, five conditions)}} \\
+SW-H1 & equal property floor removes period effect, not agreement & held \\
+SW-H2 & hierarchy (E) raises agreement over plain FIBO & not separated \\
+SW-H3 & FIBO content advantage survives equal slots & held at 16; see S2-H4 \\
+SW-H4 & no ontology condition escapes name fragmentation & held \\
+\midrule
+\multicolumn{3}{l}{\emph{Scale-up, schema-free (280 cases)}} \\
+SC-H1 & verifiable-fact shortage is sample-size-bound & held (6$\to$123) \\
+SC-H2 & agreement-gated serving beats serve-always & \textbf{disconfirmed} \\
+SC-H3 & single-view ceiling does not move & held (rose to 87\%) \\
+SC-H4 & anchor advantage survives scale (condition A) & held \\
+\midrule
+\multicolumn{3}{l}{\emph{FIBO at scale (280 cases)}} \\
+S2-H1 & anchor advantage replicates on condition C & held \\
+S2-H2 & name-agreement gap persists, paired & held \\
+S2-H3 & scale-error rate stable ($\approx$ a quarter) & held (26.7\%) \\
+S2-H4 & FIBO content advantage survives scale & \textbf{disconfirmed, reversed} \\
+\midrule
+\multicolumn{3}{l}{\emph{Answering, balanced sample}} \\
+AN-H1 & models cannot already answer (gate) & held 3/3 \\
+AN-H2 & graph does not beat its source text & held \\
+AN-H3 & passages$-$graph gap is a model property & held (1 of 3 pairs separated) \\
+AN-H4 & anchors change attribution, not accuracy & \textbf{disconfirmed} on 2/3 \\
+\midrule
+\multicolumn{3}{l}{\emph{Arithmetic supplement}} \\
+AR-H1 & gate holds on arithmetic & held ($+0.41$) \\
+AR-H2 & a graph condition beats passages (the original claim) & \textbf{disconfirmed} \\
+AR-H4 & anchor effect reproduces on MiniMax & \textbf{disconfirmed}; moved to DeepSeek \\
+AR-EC1 & grounded-correct reversal replicates & \textbf{disconfirmed} (stratum-dependent) \\
+AR-EC2 & contamination asymmetry & uninformative (pre-declared) \\
+AR-EC3 & over-refusal concentrates on graphs (DeepSeek) & held \\
+\midrule
+\multicolumn{3}{l}{\emph{Representativeness (natural mix, graphless)}} \\
+RP-H1 & gate replicates per model & partial: MiniMax yes, gpt-oss \textbf{no} \\
+RP-H2 & balanced design did not distort gate size & held (intervals overlap) \\
+\midrule
+\multicolumn{3}{l}{\emph{Multi-agent adjudication}} \\
+MA-H1/H3 & provenance beats deliberation / beats pick-only rule & \textbf{void}: ground truth defective \\
+ & \multicolumn{2}{l}{--- all 1,482 disagreements are unit-scale splits; audited before scoring} \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \section{Scoring-metric sensitivity}
 \pending{token-F1 table + the two tokenizer defects the smoke caught}

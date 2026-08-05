@@ -109,9 +109,45 @@ findings are labelled and replicated under fresh registration.
 
 \section{Related work}\label{sec:related}
 
-% Ontology-guided extraction; GraphRAG evaluations; entity resolution;
-% contamination-aware evaluation; LLM-as-judge practice; finance QA metrics.
-\pending{related work — full pass after skeleton merge}
+\textbf{LLM knowledge-graph construction and schema guidance.} Pipelines
+from GraphRAG~\citep{graphrag} to LightRAG~\citep{lightrag} and
+HippoRAG~\citep{hipporag} extract entities and relations with an LLM and
+retrieve over the result; most accept a schema or entity-type list as
+guidance, and domain deployments reach for standards such as
+FIBO~\citep{fibo}. What that guidance buys has mostly been assumed rather
+than isolated: comparisons vary schema together with prompts, models, or
+chunking. We hold everything but the schema fixed, at two sample scales,
+and measure agreement, coverage, and violation detectability separately ---
+which is what lets the benefit relocate from generation to validation.
+
+\textbf{Evaluating graph-augmented retrieval.} Head-to-head evaluations
+report win-rates by LLM judge~\citep{graphrag} or accuracy on multi-hop
+suites~\citep{ragvsgraphrag}, and disagree with each other by corpus and
+setup. Two blind spots recur: node identity across systems is resolved by
+name, and correctness is scored against gold answers that public-corpus
+models partly memorize. Both blind spots are our objects of study rather
+than our instruments --- alignment is keyed on source provenance, and every
+verdict is conditioned on what the served evidence could support.
+
+\textbf{Contamination-aware evaluation.} That benchmark answers leak
+through pretraining is well documented~\citep{contamination}, and
+closed-book baselines are the standard control. Our closed-book gates span
+$0.06$--$0.31$ across models on the same questions, and the
+representativeness check shows a gate that passes on a balanced sample can
+fail on the corpus's natural mix --- so we treat contamination not as a
+dataset property but as a per-model, per-stratum quantity, and score
+answers by evidence-conditional decomposition rather than by gold match
+alone.
+
+\textbf{Judging and finance-QA metrics.} Finance QA scores what matters in
+this domain --- the figures --- with execution accuracy under
+tolerance~\citep{finqa,tatqa}; general RAG evaluation leans on LLM judges
+and semantic similarity~\citep{geval,prometheus2,ragas}, whose position,
+verbosity, and self-preference biases are documented~\citep{judgebench,
+llmjudge}. Our primary metric is the finance-QA family adapted to prose
+gold answers; the judge panel is reference-anchored, cross-judging (no
+model grades its own answers), and calibrated on must-fail controls before
+its verdicts count.
 
 \section{Study design}\label{sec:design}
 
@@ -303,8 +339,36 @@ zero-content prompt intervention that buys accuracy.
 
 \subsection{The arithmetic stratum: the original hypothesis meets its test}
 
-\pending{AR-H2/H3/H4 + AR-EC1--3 verdicts, an2 — lands before the PDF
-deadline}
+The graph-favorable hypothesis this study inherited --- that structured
+extraction wins precisely on multi-step, compositional questions --- was
+registered verbatim for the arithmetic supplement, with the honest prior
+against it. It failed decisively: gold passages beat every graph condition
+on every model, all intervals separated ($+0.079$ to $+0.184$). More
+telling, the evidence-conditional reversal of Section~6.4 does \emph{not}
+replicate here: passages' grounded-correct count beats every graph on all
+three models (109/121/96 vs.\ 80--106). On questions that require computing
+a figure from several printed ones, the serialized graph genuinely
+under-serves even after memorization is stripped --- plausibly because the
+computation needs co-located operands that extraction fragments across
+nodes. Contamination itself nearly vanishes on this stratum (3--11 answers
+per cell against 20--22 on the balanced sample), confirming arithmetic
+questions as the contamination-resistant slice: closed book collapses to
+0.05--0.14 while the gate opens four times wider ($+0.41$).
+
+Two effects did carry over. The over-refusal mechanism reproduces
+(DeepSeek declines 50/41 graph-condition cases it could have answered,
+vs.\ 24 with passages), and the provenance-pointer repair concentrates
+exactly there: pointers cut its over-refusals to 26 and raise its grounded
+count from 64 to 82 ($+0.045$ $[+0.013, +0.078]$). The pointer effect that
+an1 located on MiniMax did not reproduce on MiniMax here --- the anchors
+hypothesis, as registered, is disconfirmed in its model-specific form, and
+what survives is weaker and more honest: pointer-only provenance helps,
+but which model it helps depends on the stratum.
+
+Together the two strata answer the deployment question differently, which
+is the finding: \emph{whether a graph is worth serving is a property of the
+question stratum and the model, not of the representation alone} --- and it
+is measurable in advance, which is what Section~7's profile is for.
 
 \section{Discussion: from verdicts to design rules}\label{sec:discussion}
 

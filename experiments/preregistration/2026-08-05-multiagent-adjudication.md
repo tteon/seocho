@@ -59,3 +59,35 @@ external document (news, later-quarter filing) gives cross-source
 verification with the same mechanics as cross-model. Deferred past the LoG
 deadline because external documents for FinDER's filing vintage need
 collection and have no gold; recorded here so the design predates any data.
+
+---
+
+## Addendum (2026-08-06) — the ground truth was the discovery
+
+Scoring M1 against the registered ground truth produced 0.005 accuracy, an
+implausible number that triggered an audit BEFORE any verdict was recorded.
+The audit found the registration's ground-truth definition defective and the
+defect more informative than the experiment:
+
+1. **Every one of the 1,482 anchored cross-view disagreements is a unit-scale
+   split** (candidates differing by exactly 10^3/10^6/10^9within 1%); zero
+   are genuine digit disagreements. Independent extractors never disagree
+   about the printed digits — only about whether the table header's scale
+   applies.
+2. The registered ground truth (the source token's value) inherits the same
+   ambiguity: the scale word usually lives in the table header, outside the
+   tokenizer's 24-char trailing window, so `source_value` is the RAW printed
+   number. M0's "perfect" score was circular and raw-biased; M1's 0.005
+   means Kimi systematically applies domain priors and picks the scaled
+   candidate — which the registered truth cannot arbitrate.
+3. Consequently **MA-H1 and MA-H3 are VOID as registered** (not
+   disconfirmed): the mechanical token truth cannot decide scale. What
+   remains scoreable, registered now before scoring: the subset of
+   disagreements whose case's GOLD ANSWER states the disputed figure — the
+   answer's form arbitrates the scale. Arms are re-scored on that subset
+   only, with its size reported. MA-H2 (schema arm ≈ blind arm) remains
+   scoreable as a same-truth comparison since both arms face the same truth
+   definition.
+4. The G2 guardrail (explicit unit-scale slot) is hereby promoted: if 100%
+   of cross-extractor value conflict is scale, the scale slot is not one
+   guardrail among three — it is the whole ballgame for value agreement.

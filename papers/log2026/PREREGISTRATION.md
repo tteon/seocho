@@ -205,3 +205,41 @@ Registration `experiments/preregistration/2026-08-03-arithmetic-supplement.md`
   collapses to 0.12–0.14 on this stratum — computed figures cannot be
   recalled, which is exactly why this sample can test what the 280-case
   sample could not. AR-H2 through AR-H4 await the graph conditions.
+
+## Arithmetic supplement (s3/an2) — fully scored
+
+2,100/2,100 answering calls (429-contention failures re-attempted once,
+documented, final failures zero). Artifact: `log2026.answering_analysis.an2`.
+
+- **AR-H1** · gate — **held** (+0.41 both models first run; deepseek +0.254,
+  separated).
+- **AR-H2** · the original §19 claim: a graph condition beats passages on
+  arithmetic — **registered, DISCONFIRMED decisively.** Passages beat every
+  graph condition on every model, all intervals separated (+0.079 to
+  +0.184). The original motivation's question closes in the negative on its
+  own chosen ground.
+- **AR-H4** · anchors ≥ graph_c where an1 separated (minimax) —
+  **disconfirmed as registered**: minimax's an1 separation did not reproduce
+  (−0.004, tie). The effect appeared on deepseek instead (+0.045, separated)
+  — anchors cut deepseek's graph over-refusal 41→26 and raised its grounded
+  count 64→82. The anchor trust signal is real but model-and-stratum
+  dependent, which is itself the AN-H3 lesson repeated.
+- **AR-EC1** · grounded-correct reversal replicates — **registered,
+  DISCONFIRMED.** On arithmetic, passages' grounded-correct beats every
+  graph on all three models (109/121/96 vs 80–106). The an1 reversal is
+  stratum-dependent: where answers must be computed from several figures,
+  the serialized graph genuinely under-serves even after stripping
+  memorization.
+- **AR-EC2** · contamination asymmetry — **uninformative as pre-declared**:
+  counts are small on this stratum (3–11 per cell) because computed figures
+  cannot be memorized; direction weakly consistent.
+- **AR-EC3** · deepseek over-refusal concentrated on graphs — **held**
+  (50/41 vs 24 on passages; anchors repair it to 26).
+
+Reading, labelled interpretation: the two strata answer the user-facing
+question differently — on prose/lookup questions the graph's grounded yield
+matches text once contamination is separated (an1); on computation questions
+the graph loses outright (an2), plausibly because arithmetic needs several
+co-located figures and extraction fragments them. "When is ontology/graph
+guidance appropriate" is therefore a per-stratum, per-model question — the
+discriminator the profile work (PR-) exists to answer.

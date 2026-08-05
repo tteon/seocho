@@ -87,3 +87,20 @@ design-conditional. No per-category claims from RP below n=20.
     answering --tag an3 --case-file dataset/reasoning_census_cases.txt
     answering --tag an4 --case-file dataset/representative_sample_cases.txt
     paired bootstrap over cases, 5,000 draws, per model — the an1 code path
+
+---
+
+## Addendum (2026-08-06, before any an3 call) — the PR-H1 prediction resolved
+## to a direction by measurement
+
+Measured on s4 snapshots only, before an3 exists (contract
+log2026.fact_anchors_summary.s4): V(census, A) = 0.796 and V(census, C) =
+0.724, against V(balanced, A) = 0.440. The registration's conditional
+monotone link therefore commits to: **each model's graph-vs-passages
+grounded-correct lift on an3 will exceed that model's an1 lift** (an1
+lifts: gpt-oss +4, MiniMax +14, DeepSeek −15, of 199). The prediction we
+drafted informally ("census V will fall below") was wrong — single-reference
+cases concentrate all three extractors on the same few tokens — and is
+recorded as wrong here; what was registered was the link, and the link now
+predicts upward. *Disconfirmed if* any model's an3 lift falls at or below
+its an1 lift.

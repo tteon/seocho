@@ -25,27 +25,31 @@ Giving an LLM extractor an ontology does not improve the graph it builds — it 
 ## Abstract*
 
 ```
-Practitioners hand LLM extractors an ontology expecting better knowledge
-graphs. We measure what the ontology actually buys in a pre-registered study
-on financial filings (FinDER): five extraction schemas from schema-free to
-full FIBO compared head-to-head, with the two decisive conditions replicated
-at scale across three extractor LLMs and three stratified samples.
-(1) Ontology guidance does not improve extraction: it reduces cross-model
-agreement on entity names and does not raise coverage of answer-bearing
-facts; its measurable contribution is detectability — schema violations
-become checkable. (2) The standard alignment primitive is at fault: matching
-facts by entity name hides most cross-model disagreements. Anchoring each
-extracted figure to its unique source token yields 1.7–2.8x as many
-comparable facts, and a quarter of anchored values turn out to be unit-scale
-misreadings invisible to name matching. (3) Downstream, naive QA scoring
-says gold passages beat serialized graphs. An evidence-conditional
-evaluation — separating memorization, honest abstention, and grounded
-answers — reverses that reading on two of three models, attributes the
-residual gap to model-specific over-refusal, and shows that attaching
-provenance pointers, which carry no content, raises accuracy on the same two
-models. Every registered hypothesis carried its disconfirming outcome in
-advance; two failed and are reported as findings. Exploratory results are
-labelled as such and replicated under fresh registration.
+Do large language models build better knowledge graphs when they are given a
+domain ontology? We test this on financial filings (FinDER) with a
+pre-registered design: the same documents are extracted into graphs under
+five schema conditions — from no schema at all to the full FIBO financial
+ontology — by three LLMs, with the two decisive conditions replicated on 420
+stratified cases, so the schema is the only thing that changes. The ontology
+does not improve extraction. It lowers agreement between models on entity
+names, and it does not increase how many answer-relevant facts the graph
+captures. Its measurable benefit is validation: schema violations become
+detectable. We then ask why models disagree. Comparing facts by entity name,
+the standard practice, misses most of the disagreements. Instead, we anchor
+extracted values to the exact position of their source numbers in the
+document. This provenance-based alignment finds 1.7-2.8 times as many
+comparable facts, and shows that a quarter of anchored values carry
+unit-scale errors (e.g., a figure reported in thousands recorded as ones)
+that name matching cannot see. Finally, we use the graphs to answer
+questions. Under standard scoring, giving the model the source text wins or
+ties against giving it the graph. But standard scoring cannot tell whether
+the model used the evidence or its memory of these public filings.
+Separating memorized answers, honest refusals, and answers grounded in the
+served evidence reverses the picture: the graph matches or beats the text on
+two of three models, and adding provenance pointers — position references
+only, no text — raises accuracy on the same two models. Three pre-registered
+hypotheses failed and are reported as findings; exploratory results are
+labelled and replicated under fresh registration.
 ```
 
 ## Submission Type*

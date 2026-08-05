@@ -61,7 +61,22 @@ standardize how institutions name and relate the entities in their filings.
 
 This paper measures that belief end to end on FinDER~\citep{finder}, a
 financial question-answering dataset built from SEC filings, and reports
-three findings that reorder it.
+three findings that reorder it. One number previews all three: when three
+LLMs extract the same filings independently, they produce 1,482
+cross-model disagreements about anchored numeric facts --- and
+\textbf{1,482 of 1,482 are unit-scale splits}. The extractors never
+disagree about the printed digits, only about whether a table header's
+``in thousands'' applies; entity names hide these conflicts, provenance
+exposes them, and no ontology in the prompt touches them.
+
+The subject sits upstream of graph machine learning rather than inside
+it: every method that learns on an LLM-built graph --- GNN, retrieval,
+agent --- inherits the graph's reliability, and this paper measures where
+that reliability actually comes from. The structural-divergence gate of
+Section~\ref{sec:discussion} states the dependency concretely: on this
+corpus, cross-view structural methods have usable signal only under the
+schema-free condition, and the measurement that tells you so costs one
+pilot extraction.
 
 \textbf{First, ontology guidance does not improve extraction --- it makes bad
 extraction detectable.} Across a five-level schema spectrum (from a

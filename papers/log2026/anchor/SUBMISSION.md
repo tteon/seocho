@@ -25,24 +25,27 @@ Giving an LLM extractor an ontology does not improve the graph it builds — it 
 ## Abstract*
 
 ```
-Practitioners give LLM extractors an ontology expecting better knowledge
-graphs. In a pre-registered study on financial filings (FinDER; five
-extraction schemas from schema-free to full FIBO; three LLMs; 420 cases), we
-measure what the ontology actually buys. (1) It does not improve extraction:
-schema guidance reduces cross-model agreement on entity names and does not
-increase coverage of answer-bearing facts; its measurable contribution is
-detectability — schema violations become checkable. (2) The standard
-alignment primitive is at fault: matching facts by entity name misses most
-cross-model disagreements. Anchoring each extracted figure to its unique
-source token yields 1.7–2.8x more comparable facts and reveals that a
-quarter of extracted values are unit-scale misreadings invisible to name
-matching. (3) Downstream, naive QA scoring says text evidence beats
-serialized graphs. An evidence-conditional evaluation — separating
-memorization, honest abstention, and grounded answers — reverses this on two
-of three models, and attributes the residual gap to model-specific
-over-refusal. Attaching provenance pointers alone improves accuracy. All
-hypotheses were registered with disconfirming outcomes before each run; the
-negative results are reported as findings, not filtered.
+Practitioners hand LLM extractors an ontology expecting better knowledge
+graphs. We measure what the ontology actually buys in a pre-registered study
+on financial filings (FinDER): five extraction schemas from schema-free to
+full FIBO compared head-to-head, with the two decisive conditions replicated
+at scale across three extractor LLMs and three stratified samples.
+(1) Ontology guidance does not improve extraction: it reduces cross-model
+agreement on entity names and does not raise coverage of answer-bearing
+facts; its measurable contribution is detectability — schema violations
+become checkable. (2) The standard alignment primitive is at fault: matching
+facts by entity name hides most cross-model disagreements. Anchoring each
+extracted figure to its unique source token yields 1.7–2.8x as many
+comparable facts, and a quarter of anchored values turn out to be unit-scale
+misreadings invisible to name matching. (3) Downstream, naive QA scoring
+says gold passages beat serialized graphs. An evidence-conditional
+evaluation — separating memorization, honest abstention, and grounded
+answers — reverses that reading on two of three models, attributes the
+residual gap to model-specific over-refusal, and shows that attaching
+provenance pointers, which carry no content, raises accuracy on the same two
+models. Every registered hypothesis carried its disconfirming outcome in
+advance; two failed and are reported as findings. Exploratory results are
+labelled as such and replicated under fresh registration.
 ```
 
 ## Submission Type*

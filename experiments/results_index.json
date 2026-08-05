@@ -1,7 +1,7 @@
 {
-  "generated_utc": "2026-08-05T13:12:45+00:00",
-  "contracts": 111,
-  "artifacts": 148,
+  "generated_utc": "2026-08-05T13:19:21+00:00",
+  "contracts": 114,
+  "artifacts": 151,
   "results": [
     {
       "contract": "seocho.retrace_run.v1",
@@ -312,6 +312,23 @@
       "traced": true,
       "has_decisive": true,
       "fingerprint": "b9c8f43d79a88e25",
+      "missing": []
+    },
+    {
+      "contract": "log2026.structural_divergence.v1",
+      "path": "outputs/minimal/20260805T131917Z-structural-divergence/structural_divergence.json",
+      "run_dir": "outputs/minimal/20260805T131917Z-structural-divergence",
+      "modified": "2026-08-05 13:19",
+      "question": "Do independently extracted views embed the same source fact in similar graph structure — is there signal for structural cross-view methods at all?",
+      "claim_boundary": "Node identity across views comes from provenance anchors, so only anchored entities are measured. The reportable quantity is the ratio of same-anchor neighborhood similarity to a matched null; raw similarity alone is uninterpretable (SDCR's PageRank trigger died of a saturated null). Views are extracted under per-case, per-model isolation, and the measure never reads gold answers, so it is contamination-free by construction.",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": true,
+      "has_decisive": true,
+      "fingerprint": "0210d62eee611b84",
       "missing": []
     },
     {
@@ -2684,6 +2701,40 @@
       "traced": true,
       "has_decisive": true,
       "fingerprint": "571ee1dfea804943",
+      "missing": []
+    },
+    {
+      "contract": "log2026.answering_analysis.an4",
+      "path": "outputs/minimal/20260805T131722Z-answering-analysis/answering_analysis.json",
+      "run_dir": "outputs/minimal/20260805T131722Z-answering-analysis",
+      "modified": "2026-08-05 13:17",
+      "question": "Under five evidence conditions, which differences in answer quality are real, and which answers actually used the evidence they were served?",
+      "claim_boundary": "Paired bootstrap over cases (5,000 draws, seed 42), per model — never across models. 'Evidence contains the answer' is a numeric-token approximation; grounded means overlap > 0, so partial answers count. Gold answers without figures are excluded from the primary metric, not zeroed.",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": true,
+      "has_decisive": true,
+      "fingerprint": "3d5820c2d6949b6c",
+      "missing": []
+    },
+    {
+      "contract": "log2026.answering_analysis.an2",
+      "path": "outputs/minimal/20260805T131711Z-answering-analysis/answering_analysis.json",
+      "run_dir": "outputs/minimal/20260805T131711Z-answering-analysis",
+      "modified": "2026-08-05 13:17",
+      "question": "Under five evidence conditions, which differences in answer quality are real, and which answers actually used the evidence they were served?",
+      "claim_boundary": "Paired bootstrap over cases (5,000 draws, seed 42), per model — never across models. 'Evidence contains the answer' is a numeric-token approximation; grounded means overlap > 0, so partial answers count. Gold answers without figures are excluded from the primary metric, not zeroed.",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": true,
+      "has_decisive": true,
+      "fingerprint": "5554f58a5f63d79a",
       "missing": []
     },
     {

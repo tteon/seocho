@@ -8,10 +8,13 @@ version: bump the version when a rerun changes what the number means,
 and set `supersedes` on the replacement so the withdrawn measurement
 stays visible.
 
-111 contracts, 148 artifacts, 45 with a full trace.
+114 contracts, 151 artifacts, 48 with a full trace.
 
 | Contract | Question | Headline | Traced | Artifact |
 |---|---|---|---|---|
+| `log2026.structural_divergence.v1` | Do independently extracted views embed the same source fact in similar graph structure — is t… | — | yes | `outputs/minimal/20260805T131917Z-structural-divergence/structural_divergence.json` |
+| `log2026.answering_analysis.an4` | Under five evidence conditions, which differences in answer quality are real, and which answe… | — | yes | `outputs/minimal/20260805T131722Z-answering-analysis/answering_analysis.json` |
+| `log2026.answering_analysis.an2` | Under five evidence conditions, which differences in answer quality are real, and which answe… | — | yes | `outputs/minimal/20260805T131711Z-answering-analysis/answering_analysis.json` |
 | `log2026.answering_analysis.an1` | Under five evidence conditions, which differences in answer quality are real, and which answe… | — | yes | `outputs/minimal/20260805T131234Z-answering-analysis/answering_analysis.json` |
 | `log2026.verification_value.s2` | When independently built views disagree about a figure, does refusing to serve it avoid an er… | — | yes | `outputs/minimal/20260803T120203Z-verification-value/verification_value.json` |
 | `log2026.verification_value.s1` | When independently built views disagree about a figure, does refusing to serve it avoid an er… | — | yes | `outputs/minimal/20260802T131448Z-verification-value/verification_value.json` |
@@ -125,6 +128,12 @@ stays visible.
 | `log2026.full_multiagent_network.v1` | — | — | no | `outputs/evaluation/mdm_fedcat/log2026-full-multiagent-network-v1/analysis.json` |
 
 ## What each result does not support
+
+**`log2026.structural_divergence.v1`** — Node identity across views comes from provenance anchors, so only anchored entities are measured. The reportable quantity is the ratio of same-anchor neighborhood similarity to a matched null; raw similarity alone is uninterpretable (SDCR's PageRank trigger died of a saturated null). Views are extracted under per-case, per-model isolation, and the measure never reads gold answers, so it is contamination-free by construction.
+
+**`log2026.answering_analysis.an4`** — Paired bootstrap over cases (5,000 draws, seed 42), per model — never across models. 'Evidence contains the answer' is a numeric-token approximation; grounded means overlap > 0, so partial answers count. Gold answers without figures are excluded from the primary metric, not zeroed.
+
+**`log2026.answering_analysis.an2`** — Paired bootstrap over cases (5,000 draws, seed 42), per model — never across models. 'Evidence contains the answer' is a numeric-token approximation; grounded means overlap > 0, so partial answers count. Gold answers without figures are excluded from the primary metric, not zeroed.
 
 **`log2026.answering_analysis.an1`** — Paired bootstrap over cases (5,000 draws, seed 42), per model — never across models. 'Evidence contains the answer' is a numeric-token approximation; grounded means overlap > 0, so partial answers count. Gold answers without figures are excluded from the primary metric, not zeroed.
 

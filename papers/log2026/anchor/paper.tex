@@ -73,56 +73,152 @@ The subject sits upstream of graph machine learning rather than inside
 it: every method that learns on an LLM-built graph --- GNN, retrieval,
 agent --- inherits the graph's reliability, and this paper measures where
 that reliability actually comes from. The structural-divergence gate of
-Section~\ref{sec:discussion} states the dependency concretely: on this
+Section~\ref{sec:profile} states the dependency concretely: on this
 corpus, cross-view structural methods have usable signal only under the
 schema-free condition, and the measurement that tells you so costs one
 pilot extraction.
 
-\textbf{First, ontology guidance does not improve extraction --- it makes bad
-extraction detectable.} Across a five-level schema spectrum (from a
-schema-free single-class floor to full FIBO with synonyms and subsumption),
-every ontology-guided condition agrees \emph{less} across extractor models on
-entity names than the schema-free floor, and the full-FIBO condition covers
-\emph{fewer} of the figures that gold answers require ($-0.036$, 95\% CI
-$[-0.067, -0.008]$, paired over 280 cases). What the ontology measurably adds
-is a contract to violate: 529--1,038 schema violations per condition become
-mechanically checkable, where the schema-free graph has almost nothing to
-check.
-
-\textbf{Second, the field's alignment primitive --- the entity name --- hides
-the disagreements that matter.} Whether two extractors captured ``the same
-fact'' is decided, in GraphRAG pipelines and their evaluations, by matching
-names. Names are the least stable thing an LLM produces. Anchoring each
-extracted figure to the unique numeric token it came from in the source
-document multiplies comparable cross-model facts by 1.7--2.8$\times$ at the
-same sample, and exposes that 26.7\% of anchored figures differ from their
-source by a factor of $10^3$ or $10^6$ --- unit-scale misreadings
-(``\$1,906,715'' extracted from a table headed ``in thousands'') that no
-name-based comparison can see, because the two views also named the fact
-differently. We call this \emph{provenance-anchored alignment} and replicate
-its advantage on two extraction conditions at 280 cases each, pre-registered.
-
-\textbf{Third, downstream evaluation inherits the same blindness.} Under
-standard reference-based scoring, handing a model the source passages beats
-handing it the serialized graph built from those passages --- the familiar
-``RAG beats GraphRAG'' reading~\citep{ragvsgraphrag}. But public filings are
-in every model's training data, so a correct answer is not evidence the
-evidence was used. Conditioning each verdict on whether the served evidence
-could support the answer separates grounded correctness from memorization
-and honest abstention from failure. Under that decomposition the graph
-conditions yield \emph{as many or more} genuinely grounded correct answers
-than gold passages on two of three models, the text condition carries
-2--4$\times$ the memorization, and the third model's graph deficit is
-over-refusal --- it declines even when the graph contains the answer.
+Three findings reorder the folk belief, each stated with its
+paired interval in Section~\ref{sec:findings}: the ontology does not
+improve extraction --- it lowers cross-model name agreement and covers
+fewer answer-bearing figures, and what survives is a validation surface;
+the field's alignment primitive, the entity name, hides the disagreements
+that matter, all of which turn out to be unit-scale conflicts that
+provenance exposes; and downstream, once memorization and honest
+abstention are separated from grounded correctness, whether the graph
+helps answering becomes a measurable property of the question stratum and
+the model rather than of the representation.
 
 The through-line is one sentence: \emph{the value of structure is not a
 better answer but a verifiable one, and verification needs provenance, not
 names}. Every registered claim above carried its disconfirming outcome
-before the run that tested it (Section~\ref{sec:design}); three registered
+before the run that tested it (Section~\ref{sec:stack}); three registered
 hypotheses were disconfirmed and are reported as such, and exploratory
 findings are labelled and replicated under fresh registration.
 
-\section{Related work}\label{sec:related}
+
+\section{The measurement stack}\label{sec:stack}
+
+Three samples cover FinDER's own annotation grid (balanced 280; arithmetic
+140; a 204-case census of the reasoning stratum), extracted under five
+schema conditions --- schema-free floor, hand-written 20 classes,
+corpus-scoped FIBO (70 classes), FIBO+synonyms, FIBO+hierarchy --- by three
+LLMs, with everything except the schema byte-fixed and hashed. Two
+instruments do the work the field usually delegates to names and gold
+answers. \textbf{Provenance-anchored alignment}: every extracted figure is
+located at the unique numeric token it came from in the source, so facts
+align across extractors by source position, not by what each model chose
+to call them. \textbf{Evidence-conditional evaluation}: every answer
+verdict is conditioned on whether the served evidence contains the gold
+figures, mechanically separating grounded correctness from memorization
+and honest abstention from failure. Both are deterministic; an
+LLM-judge panel is secondary only, cross-judging (no model grades its own
+answers) and admitted only after passing must-fail calibration controls.
+Full design, prompts, and protocol: Appendix~\ref{app:design}.
+
+\section{Findings}\label{sec:findings}
+
+\subsection{The ontology buys detectability, not extraction}
+
+With everything but the schema fixed, ontology guidance \emph{lowers}
+cross-model agreement on entity names (schema-free minus FIBO: $+0.069$,
+95\% CI $[+0.046,+0.091]$, paired over 280 cases) and covers \emph{fewer}
+answer-bearing figures ($-0.036$ $[-0.067,-0.008]$) --- the registered
+content-advantage hypothesis reversed at scale. What survives is a
+validation surface: 529--1{,}038 schema violations per condition become
+mechanically checkable where the schema-free graph offers almost nothing to
+check. The synonym condition never mattered because it could not: only
+0.5\% of the corpus's questions need vocabulary mapping, and the
+abbreviations they use are analyst shorthand, not FIBO's
+(Appendix~\ref{app:part1}).
+
+\subsection{Extractors never disagree about digits --- only about scale}
+
+Aligning facts by anchor instead of name yields 1.7--2.8$\times$ as many
+comparable cross-model facts, and 80--84\% of the disagreements it exposes
+are invisible to any name key (registered replications on both conditions
+at 280 cases). Auditing those disagreements produced this study's sharpest
+fact: all 1,482 of them are unit-scale splits. 26.7\% of anchored values
+match their source only after rescaling by $10^3$ or $10^6$. Two deployment
+consequences follow: name-keyed entity resolution silently discards the
+verification signal a second extractor was supposed to buy, and cross-view
+verification has a hard ceiling regardless of key --- 87\% of facts are
+held by one view only, a share that \emph{rises} with scale, and
+agreement-gating trades four right answers per wrong answer blocked
+(registered, disconfirmed; Appendix~\ref{app:anchor}).
+
+\subsection{Downstream, the graph's value is a property of the stratum and
+the model}
+
+Standard scoring says gold passages beat the serialized graph. But
+closed-book performance spans $0.06$--$0.31$ across models on the same
+public filings, so a correct answer is weak evidence the evidence was used.
+Decomposing every verdict by whether the served evidence could support it
+(Table~\ref{tab:ec}) reverses the reading on the prose stratum --- the
+graphs' grounded-correct yield matches or beats passages on two of three
+models, passages carry 2--4$\times$ the memorization, and the third model's
+deficit is over-refusal, not misunderstanding. On the arithmetic stratum
+the reversal does \emph{not} replicate: computing a figure needs co-located
+operands that extraction fragments, and the original graph-favorable
+hypothesis closed negative on its own chosen ground. Attaching provenance
+pointers --- position references only, no text --- raised accuracy on two
+of three models and repaired the over-refusing model's deficit
+(Appendix~\ref{app:part2}).
+
+\begin{table}[t]
+\centering\small
+\caption{Grounded-correct counts (evidence contains the answer and the
+model answered it), balanced sample, 199 numeric-gold cases.}
+\label{tab:ec}
+\begin{tabular}{lcccc}
+\toprule
+ & passages & graph (schema-free) & graph (FIBO) & FIBO+pointers \\
+\midrule
+gpt-oss-120b & 107 & 111 & 105 & 112 \\
+MiniMax-M2.7 & 124 & 138 & 127 & \textbf{146} \\
+DeepSeek-V3.1 & 98 & 83 & 82 & 104 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{A pre-flight profile, and what this enables}\label{sec:profile}
+
+Each design decision this study evaluates pays off only under measurable
+preconditions, all computable from one pilot extraction: the verifiable
+share (13\% here), the name-blind disagreement rate (80--84\%), the
+scale-fragility rate (26.7\%), the guardrail surface, per-model legibility,
+and an anchored structural-divergence ratio against a matched null
+(4.7$\times$ schema-free, 2.3$\times$ FIBO --- structural cross-view
+methods have signal on one condition and not the other). Exploratorily,
+per-category verifiable share tracks the graph's grounded-correct lift
+(Spearman $\rho = +0.76$, $n=8$ categories); a prospective test of that
+link was registered before the reasoning-stratum experiment ran
+(Appendix~\ref{app:profile}). Every hypothesis in this paper carried its
+disconfirming outcome before its run; the ledger, registrations, and all
+artifacts ship in the supplementary material.
+\section{Limitations}\label{sec:limitations}
+
+Single corpus and domain; three extractor models; passages are a retrieval
+ceiling, not a retriever; the graph conditions test the graph as serialized
+context, not as a queryable store (deferred, with the token-budget/cache
+tension, to future work); ``evidence contains the answer'' is a numeric-token
+approximation; per-type strata below $n=20$ are reported but underpowered.
+\pending{judge panel results and inter-judge agreement}
+
+\section{Conclusion}\label{sec:conclusion}
+
+Ontology guidance, measured end to end, buys detectability rather than
+extraction quality; the alignment primitive that decides what ``the same
+fact'' means should be provenance, not names; and evaluation that cannot see
+evidence cannot see what structure is for. The graph's contribution to
+answering is not more correct answers --- it is answers that are grounded,
+attributable, and honest about what the evidence cannot support.
+
+\bibliographystyle{unsrtnat}
+\bibliography{references}
+
+\appendix
+\section{Full related work}\label{app:related}
 
 \textbf{LLM knowledge-graph construction and schema guidance.} Pipelines
 from GraphRAG~\citep{graphrag} to LightRAG~\citep{lightrag} and
@@ -164,7 +260,7 @@ gold answers; the judge panel is reference-anchored, cross-judging (no
 model grades its own answers), and calibrated on must-fail controls before
 its verdicts count.
 
-\section{Study design}\label{sec:design}
+\section{Study design in full}\label{app:design}
 
 \subsection{Dataset and sampling}
 
@@ -203,7 +299,7 @@ labelled and their registered replications named. The hypothesis ledger and
 all registrations ship in the supplementary material. We report every
 registered hypothesis, including the two that failed.
 
-\section{Part 1: what the ontology changes in the graph}\label{sec:part1}
+\section{Part 1 in full: the schema spectrum}\label{app:part1}
 
 \subsection{Name agreement falls as the schema grows}
 
@@ -240,7 +336,7 @@ analyst shorthand, not FIBO designations. Condition D was measuring a need
 the corpus does not have --- a caution for scoping ontology vocabulary work
 by measured query demand rather than by ontology completeness.
 
-\section{Provenance-anchored alignment}\label{sec:anchor}
+\section{Provenance-anchored alignment in full}\label{app:anchor}
 
 % The paper's center. SC-H4, S2-H1 — numbers final.
 Two views of the same case hold ``the same fact'' if we can align their
@@ -269,7 +365,7 @@ wrong answer it blocks (precision $0.951 \to 1.000$, recall $0.951 \to
 0.764$; the registered hypothesis that gating helps was disconfirmed on its
 own criterion).
 
-\section{Part 2: does the graph help answer?}\label{sec:part2}
+\section{Part 2 in full: answering under five evidence conditions}\label{app:part2}
 
 \subsection{Design}
 
@@ -317,7 +413,7 @@ over-refusal, honest abstention, contaminated-correct, and hallucination.
 \centering\small
 \caption{Grounded-correct counts (evidence contains the answer and the model
 answered it) on the balanced sample, 199 numeric-gold cases.}
-\label{tab:ec}
+\label{tab:ec-app}
 \begin{tabular}{lcccc}
 \toprule
  & passages & graph (schema-free) & graph (FIBO) & FIBO+pointers \\
@@ -329,7 +425,7 @@ DeepSeek-V3.1 & 98 & 83 & 82 & 104 \\
 \end{tabular}
 \end{table}
 
-Three facts move (Table~\ref{tab:ec}). The graphs' grounded yield matches or
+Three facts move (Table~\ref{tab:ec-app}). The graphs' grounded yield matches or
 beats passages on two of three models. Passages carry 2--4$\times$ the
 contamination (20--22 vs.\ 5--10 answers scored correct on figures absent
 from the evidence). And DeepSeek's graph deficit is over-refusal --- 55
@@ -385,7 +481,7 @@ is the finding: \emph{whether a graph is worth serving is a property of the
 question stratum and the model, not of the representation alone} --- and it
 is measurable in advance, which is what Section~7's profile is for.
 
-\section{Discussion: from verdicts to design rules}\label{sec:discussion}
+\section{The verifiability profile and design rules}\label{app:profile}
 
 % The verdict -> cause -> prevention table, each row a measured count.
 Owning the full chain --- source token, extracted node, served evidence,
@@ -426,28 +522,6 @@ this ratio clears its null, which makes the ratio a go/no-go gate rather
 than a score. Validating the full profile as a predictor of downstream
 grounded-correct lift is deferred to follow-up work.
 
-\section{Limitations}\label{sec:limitations}
-
-Single corpus and domain; three extractor models; passages are a retrieval
-ceiling, not a retriever; the graph conditions test the graph as serialized
-context, not as a queryable store (deferred, with the token-budget/cache
-tension, to future work); ``evidence contains the answer'' is a numeric-token
-approximation; per-type strata below $n=20$ are reported but underpowered.
-\pending{judge panel results and inter-judge agreement}
-
-\section{Conclusion}\label{sec:conclusion}
-
-Ontology guidance, measured end to end, buys detectability rather than
-extraction quality; the alignment primitive that decides what ``the same
-fact'' means should be provenance, not names; and evaluation that cannot see
-evidence cannot see what structure is for. The graph's contribution to
-answering is not more correct answers --- it is answers that are grounded,
-attributable, and honest about what the evidence cannot support.
-
-\bibliographystyle{unsrtnat}
-\bibliography{references}
-
-\appendix
 \section{Registrations and verdicts}\label{app:ledger}
 
 Every hypothesis this study registered, its verdict, and where the

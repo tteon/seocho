@@ -54,7 +54,13 @@ pre-registered hypotheses failed and are reported as findings.
 
 ## Submission Type*
 
-**Proceedings** (9 pages, PMLR archival).
+**Extended Abstract** (4 pages + unlimited references/appendix, non-archival).
+
+Chosen 2026-08-06: the track's own call describes this paper — insightful
+negative results, new ways of thinking, novel resources (the registration
+ledger and artifacts). Non-archival means the full version remains free for
+a better-fit venue. If the abstract was registered with Proceedings
+selected, edit the Submission Type dropdown before the PDF deadline.
 
 ## Subject areas
 

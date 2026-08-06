@@ -243,3 +243,28 @@ the graph loses outright (an2), plausibly because arithmetic needs several
 co-located figures and extraction fragments them. "When is ontology/graph
 guidance appropriate" is therefore a per-stratum, per-model question — the
 discriminator the profile work (PR-) exists to answer.
+
+## Schema dose-response at scale (s5) — scored
+
+1,680/1,680 extractions, zero failures. Artifacts: `log2026.arm_results.s5`,
+`log2026.validity.s5`. The five-point curve on the same 280 cases (name
+comparable rate, case bootstrap):
+
+    A 0.293 [0.269,0.319] > C 0.211 [0.191,0.232] > D 0.140 [0.120,0.163]
+    ~ E 0.126 [0.106,0.146] ~ B 0.118 [0.097,0.142]
+
+- **S5-H1** · agreement monotone in declared-class count (A > B > C/D/E) —
+  **registered, DISCONFIRMED.** B's twenty hand-written classes fragment
+  naming below full FIBO's seventy; the curve is not a function of size.
+- **S5-H2** · synonyms do not separate from C — **registered, DISCONFIRMED
+  in the unexpected direction**: D separates BELOW C. At 16 cases the two
+  were indistinguishable; at 280 the synonym lists actively fragment naming.
+- **S5-H3** · hierarchy does not separate from C — **registered,
+  DISCONFIRMED, same direction** (E below C).
+
+Post-hoc, labelled: what predicts fragmentation is not how many classes are
+declared but how much non-canonical lexical material the prompt carries —
+bespoke class names (B), synonym lists (D), and hierarchy text (E) all
+fragment naming below the bare, standard FIBO list (C), which itself sits
+below the one-class floor (A). The schema's dose is measured in competing
+vocabulary, not in classes.

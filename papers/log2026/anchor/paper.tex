@@ -291,6 +291,38 @@ schema is the only moving part. Conditions A and C are re-run at 280 cases;
 each case's graph is extracted independently per model, giving three
 \emph{views} per case and condition.
 
+Each condition exists to isolate one belief (Table~\ref{tab:conditions}).
+Condition C's classes are not hand-picked: every FIBO class is ranked by
+how many corpus documents mention its label (word-boundary matching,
+alias-aware so that abbreviation-only classes are not silently discarded),
+and the top 70 across five FIBO domains are kept --- the ontology as the
+corpus actually uses it, not as its authors organized it. The conditions
+nest ($C \subset D$, $C \subset E$) so each contrast is attributable to one
+addition, and the manipulation is verified from the recorded prompts
+themselves: base system-prompt sizes measure 4.6K (A), 15.4K (B), 19.8K
+(C), 20.5K (D), 20.5K (E) characters --- D's synonyms add only 724
+characters to C, which sharpens the dose--response reading: a very small
+amount of non-canonical vocabulary produces a large fragmentation effect.
+
+\begin{table}[h]
+\centering\small
+\caption{The schema spectrum: what each condition supplies and what belief
+it isolates.}
+\label{tab:conditions}
+\begin{tabular}{llp{6.2cm}}
+\toprule
+ & The extractor receives & The belief it tests \\
+\midrule
+A & one class, one relation & floor: what agreement costs nothing \\
+B & 20 hand-written financial classes & a small bespoke schema suffices \\
+C & 70 corpus-scoped FIBO classes & the standard ontology, as used \\
+D & C + FIBO synonyms/abbreviations & richer vocabulary converges naming \\
+E & C + the subsumption hierarchy & structural context improves typing \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
 \subsection{Pre-registration}
 
 Each run is governed by a registration committed before it starts, stating

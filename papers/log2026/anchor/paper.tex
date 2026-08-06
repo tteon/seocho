@@ -594,6 +594,26 @@ this ratio clears its null, which makes the ratio a go/no-go gate rather
 than a score. Validating the full profile as a predictor of downstream
 grounded-correct lift is deferred to follow-up work.
 
+\subsection*{Model heterogeneity as a routing argument}
+
+Every component above varies across models given identical documents,
+schema, and prompts, and the variation is large enough to route on. The
+three extractors' facts overlap on only 13\% of anchored figures, so
+per-case extractor selection has measured headroom: an oracle choosing one
+model per case covers $0.458$ of gold-answer figures against $0.389$ for
+the best fixed model (the oracle's picks split 103/49/47 across the three).
+Downstream, which evidence \emph{format} a model can use is equally
+model-specific --- the passages-minus-graph gap differs across models
+beyond resampling, one model over-refuses serialized graphs (55 vs.\ 24
+declines) while another almost never does (2--5), and pointer decoration
+helps two models and not the third. A multi-agent system serving one
+representation to all models is therefore leaving measured accuracy on the
+table. The cautionary half of the argument is measured elsewhere: a
+learned router over partitioned stores can score below random selection
+when a miss serves no evidence at all, so the headroom quantified here
+should be harvested behind a fallback, not instead of one.
+
+
 \section{Registrations and verdicts}\label{app:ledger}
 
 Every hypothesis this study registered, in plain language, with its

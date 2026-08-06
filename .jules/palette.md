@@ -1,0 +1,1 @@
+Palantir AIP theme colors (`--accent-green` `#3fb950` and `--accent-blue` `#2f81f7`) require a dark text color (e.g., `#0d1117` or `#000000`) for WCAG 2 AA compliance; avoid using `#fff` foregrounds with these background colors.

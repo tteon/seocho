@@ -219,7 +219,13 @@ ceiling, not a retriever; the graph conditions test the graph as serialized
 context, not as a queryable store (deferred, with the token-budget/cache
 tension, to future work); ``evidence contains the answer'' is a numeric-token
 approximation; per-type strata below $n=20$ are reported but underpowered.
-\pending{judge panel results and inter-judge agreement}
+The registered secondary judge panel is calibrated but not load-bearing:
+both admitted judges pass all four must-fail controls (identity, swap,
+scale corruption, refusal) only after two prompt repairs that the controls
+themselves forced, and no claim in this abstract rests on a judge verdict
+--- the primary metric and the evidence-conditional decomposition are
+deterministic. Panel verdicts and inter-judge agreement ship with the
+supplementary material.
 
 \section{Conclusion}\label{sec:conclusion}
 
@@ -288,8 +294,8 @@ as Division), and \emph{reasoning} questions (flagged as requiring
 composition, no arithmetic). We run three samples that together cover the
 grid: a category-balanced 280-case sample (35 per category, seed 42,
 multi-reference preferred), a 140-case arithmetic-stratum sample
-(type-proportional), and \pending{a 204-case census of the reasoning
-stratum (an3)}. The balanced sample contains zero arithmetic cases --- the
+(type-proportional), and a 204-case census of the reasoning stratum ---
+a census rather than a sample, so there is no draw to dispute. The balanced sample contains zero arithmetic cases --- the
 multi-reference preference excluded them, since 881 of 883 arithmetic
 questions carry one reference --- which is itself a finding about sample
 design and the reason the supplement exists.
@@ -503,8 +509,14 @@ contamination (20--22 vs.\ 5--10 answers scored correct on figures absent
 from the evidence). And DeepSeek's graph deficit is over-refusal --- 55
 declines where the graph \emph{contains} the answer, vs.\ 31 with passages
 --- a legibility failure of the serialization for that model, not a failure
-of the graph's content. \pending{registered replication on the arithmetic
-stratum: AR-EC1--3, an2}
+of the graph's content. The registered replication on the arithmetic
+stratum did NOT reproduce the reversal: passages' grounded-correct count
+beats every graph condition on all three models there (109/121/96 vs.\
+80--106), the over-refusal mechanism does reproduce (50/41 graph declines
+vs.\ 24 with passages, repaired to 26 by pointers), and contamination is
+too rare on computed figures to compare (3--11 per cell, pre-declared
+uninformative). The decomposition's reading is therefore stratum-dependent,
+which Section~3.3 of the main text carries as a finding.
 
 \subsection{Provenance pointers raise accuracy without carrying content}
 

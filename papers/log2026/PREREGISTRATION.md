@@ -268,3 +268,29 @@ bespoke class names (B), synonym lists (D), and hierarchy text (E) all
 fragment naming below the bare, standard FIBO list (C), which itself sits
 below the one-class floor (A). The schema's dose is measured in competing
 vocabulary, not in classes.
+
+## Reasoning census (s4/an3) — scored on the two MARA models
+## (deepseek graph lanes complete on its quota day)
+
+2,448/2,448 answering calls, zero failures after refills. Artifact:
+`log2026.answering_analysis.an3`.
+
+- Gate — **held emphatically**: passages − closed book +0.512/+0.691/+0.441,
+  all separated; closed book collapses to 0.07–0.15 and contamination to
+  0–3 answers per cell. The reasoning stratum is barely memorized.
+- "Passages ≥ both graphs" (the thrice-measured prior, registered) —
+  **DISCONFIRMED in the direction its registration called the result most
+  worth having.** Each MARA model has at least one graph condition
+  separated ABOVE passages (gptoss: FIBO graph −0.060 [−0.117,−0.004];
+  minimax: schema-free graph −0.055 [−0.110,−0.002]) — the first graph win
+  on the naive metric anywhere in this study, on the stratum the profile
+  flagged in advance.
+- **The prospective profile prediction — DISCONFIRMED as registered.** The
+  addendum committed "each model's grounded-correct lift exceeds its an1
+  lift". gptoss: +4 → +10, hit. minimax: +14 → +6, miss — the registered
+  disconfirm clause fires. Post-hoc, labelled: at V = 0.796 minimax grounds
+  148/169 from passages alone, so the lift is ceiling-compressed — a
+  mechanism the registered monotone link did not anticipate. Verdict as it
+  will appear in the paper: the profile's directional signal coincided with
+  the first naive-metric reversal, but its registered predictive form
+  failed its first prospective test (one hit, one miss, one pending).

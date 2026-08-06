@@ -223,13 +223,18 @@ ceiling, not a retriever; the graph conditions test the graph as serialized
 context, not as a queryable store (deferred, with the token-budget/cache
 tension, to future work); ``evidence contains the answer'' is a numeric-token
 approximation; per-type strata below $n=20$ are reported but underpowered.
-The registered secondary judge panel is calibrated but not load-bearing:
-both admitted judges pass all four must-fail controls (identity, swap,
-scale corruption, refusal) only after two prompt repairs that the controls
-themselves forced, and no claim in this abstract rests on a judge verdict
---- the primary metric and the evidence-conditional decomposition are
-deterministic. Panel verdicts and inter-judge agreement ship with the
-supplementary material.
+The registered secondary judge panel is calibrated and corroborating but
+not load-bearing: all three judges pass the four must-fail controls
+(identity, swap, scale corruption, refusal) only after two prompt repairs
+the controls themselves forced; each answer is then graded by the two
+judges that did not write it. Two-judge agreement reaches 0.79 (pairwise
+0.76--0.80), ties stay unresolved, and 86 of 1,800 gradings failed at the
+API and are counted rather than imputed. The panel's pattern matches the
+primary metric's --- graph-condition answers are rarely judged flat-wrong
+(4--10 per condition against 37 closed-book) and abstain more often ---
+but no claim in this abstract rests on a judge verdict; the primary metric
+and the evidence-conditional decomposition are deterministic. Full verdict
+tables ship with the supplementary material.
 
 \section{Conclusion}\label{sec:conclusion}
 
@@ -238,7 +243,10 @@ extraction quality; the alignment primitive that decides what ``the same
 fact'' means should be provenance, not names; and evaluation that cannot see
 evidence cannot see what structure is for. The graph's contribution to
 answering is not more correct answers --- it is answers that are grounded,
-attributable, and honest about what the evidence cannot support.
+attributable, and honest about what the evidence cannot support. The value
+of LLM extraction, measured end to end, is not the quality of its triples
+but their auditability --- and auditability comes from provenance, not
+from the ontology.
 
 \bibliographystyle{unsrtnat}
 \bibliography{references}

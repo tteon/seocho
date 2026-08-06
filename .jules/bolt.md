@@ -1,1 +1,2 @@
 - Optimized memory usage for large JSONL files by replacing Path.read_text().splitlines() with lazy, line-by-line iteration using a context manager (with open(...) as f: for line in f:).
+- Optimized memory usage for repeated YAML parsing and JSON parsing by converting inline full-file string reads into streaming context managers (with open(...) as f: yaml.safe_load(f)).

@@ -267,7 +267,8 @@ def _load_curated_yaml(yaml_dir: Path) -> dict[str, Any]:
     if not yaml_dir.exists():
         return payload
     for path in sorted(yaml_dir.glob("*.yaml")):
-        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        with path.open("r", encoding="utf-8") as _f:
+            data = yaml.safe_load(_f) or {}
         code = path.stem.upper()
         labels: set[str] = set()
         same_as: dict[str, str] = {}

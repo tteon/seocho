@@ -294,3 +294,20 @@ vocabulary, not in classes.
   will appear in the paper: the profile's directional signal coincided with
   the first naive-metric reversal, but its registered predictive form
   failed its first prospective test (one hit, one miss, one pending).
+
+### Reasoning census — deepseek graph lanes landed (3-model final)
+
+All three models now measured; artifact refrozen. deepseek: passages 0.467
+vs graph_a 0.548 (−0.085 [−0.153,−0.016]) and graph_c 0.574 (−0.131
+[−0.195,−0.068]) — both graph conditions separated ABOVE passages, on the
+model that lost with graphs on every other stratum. Final stratum verdict:
+3/3 models have at least one graph condition separated above passages;
+deepseek has both, plus its best condition is pointers (0.634; grounded
+127 vs 106; over-refusals 21 vs 27).
+
+Prospective profile prediction, final tally: grounded-correct lifts
+an1 → an3 were gpt-oss +4 → +10 (hit), MiniMax +14 → +6 (miss,
+ceiling-compressed at 148/169), DeepSeek −15 → +2 (hit). Two of three in
+the predicted direction; the registered all-models clause still fires on
+MiniMax, so the hypothesis stays DISCONFIRMED as registered and is
+reported as two hits, one ceiling-compressed miss.

@@ -336,6 +336,30 @@ analyst shorthand, not FIBO designations. Condition D was measuring a need
 the corpus does not have --- a caution for scoping ontology vocabulary work
 by measured query demand rather than by ontology completeness.
 
+
+\subsection*{The five-point dose--response at scale}
+
+The full schema spectrum at 280 cases (name comparable rate, case
+bootstrap, same cases and models throughout):
+
+\begin{center}\small
+\begin{tabular}{lccccc}
+\toprule
+ & A (schema-free) & C (FIBO 70) & D (+synonyms) & E (+hierarchy) & B (hand-written 20) \\
+\midrule
+rate & .293 & .211 & .140 & .126 & .118 \\
+95\% CI & [.269,.319] & [.191,.232] & [.120,.163] & [.106,.146] & [.097,.142] \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+All three registered directions for this curve failed: agreement is not
+monotone in class count (B's twenty bespoke classes fragment naming below
+FIBO's seventy), and both synonym lists and hierarchy text separate
+\emph{below} plain FIBO at scale after being indistinguishable at 16 cases.
+What predicts fragmentation is not how many classes are declared but how
+much non-canonical lexical material the prompt carries.
+
 \section{Provenance-anchored alignment in full}\label{app:anchor}
 
 % The paper's center. SC-H4, S2-H1 — numbers final.

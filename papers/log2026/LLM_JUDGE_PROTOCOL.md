@@ -200,3 +200,15 @@ Per condition and model: verdict distribution with `unresolved` separate;
 pairwise judge agreement (Cohen's kappa) and whether Kimi is an outlier;
 leave-one-judge-out majority stability; calibration results. Temperature 0
 everywhere; every judgment persisted per (case, condition, model, judge).
+
+### Panel composition amendment (2026-08-06, before any panel verdict)
+
+Kimi's quota did not recover within a 13-hour probe window (exhausted by the
+MA adjudication run), so the third seat is unavailable before the deadline.
+The panel proceeds as MARA-only cross-judging: every answer is graded by the
+two MARA models that did not write it, both of which passed all four
+calibration controls (40/40 under prompt v2 with figure-dense controls);
+DeepSeek's seat is admitted only if it passes the same calibration on its
+quota day. Two-judge ties are reported as `unresolved`, never resolved by
+fiat. If Kimi's quota returns before the build, its calibrated seat is added
+and reported as the third vote.

@@ -1,0 +1,9 @@
+categories:
+  accounting: {category: Accounting, uri: bolt://localhost:7687, database: log26cataccounting}
+  company_overview: {category: Company overview, uri: bolt://localhost:7687, database: log26catcompany}
+  financials: {category: Financials, uri: bolt://localhost:7687, database: log26catfinancials}
+  footnotes: {category: Footnotes, uri: bolt://localhost:7687, database: log26catfootnotes}
+  governance: {category: Governance, uri: bolt://localhost:7687, database: log26catgovernance}
+  legal: {category: Legal, uri: bolt://localhost:7687, database: log26catlegal}
+  risk: {category: Risk, uri: bolt://localhost:7687, database: log26catrisk}
+  shareholder_return: {category: Shareholder return, uri: bolt://localhost:7687, database: log26catshareholder}

@@ -1,0 +1,14 @@
+# Scrapes the benchmark process running on the host. 5s keeps per-stage
+# latency visible at case granularity without bloating the TSDB.
+global:
+  scrape_interval: 5s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: seocho-benchmark
+    honor_labels: true
+    static_configs:
+      - targets:
+          - host.docker.internal:9464
+        labels:
+          component: benchmark

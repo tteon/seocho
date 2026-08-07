@@ -1,0 +1,27 @@
+# Optional LiteLLM Proxy configuration for the hq-42k/LoG multi-agent runs.
+# The Python-SDK transport does not require a proxy. This file is provided for
+# centrally enforced model aliases, budgets, rate limits, and spend tracking.
+# Never place the MARA key in this file; LiteLLM resolves it from the process
+# environment.
+model_list:
+  - model_name: mara-deepseek-v31
+    litellm_params:
+      model: openai/DeepSeek-V3.1
+      api_base: https://api.cloud.mara.com/v1
+      api_key: os.environ/MARA_API_KEY
+  - model_name: mara-gptoss-120b
+    litellm_params:
+      model: openai/gpt-oss-120b
+      api_base: https://api.cloud.mara.com/v1
+      api_key: os.environ/MARA_API_KEY
+  - model_name: mara-minimax-m25
+    litellm_params:
+      model: openai/MiniMax-M2.5
+      api_base: https://api.cloud.mara.com/v1
+      api_key: os.environ/MARA_API_KEY
+  - model_name: mara-minimax-m27
+    litellm_params:
+      model: openai/MiniMax-M2.7
+      api_base: https://api.cloud.mara.com/v1
+      api_key: os.environ/MARA_API_KEY
+

@@ -1,0 +1,7 @@
+Eng platform canary thread
+
+Channel: eng-platform
+Bot: deploy-bot
+When: 2026-03-04 14:12 UTC
+
+deploy-bot started a canary for the compat normalizer hotfix after schema validation errors were reported.

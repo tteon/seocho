@@ -125,6 +125,31 @@ python examples/mdm/99_teardown.py
 
 Unit tests (no DB, no API): `python -m pytest examples/mdm/tests/ -q`
 
+### Unified MARA calls with LiteLLM
+
+The hq-42k/LoG controlled multi-agent runs can route every specialist and
+supervisor call through LiteLLM's Python SDK while preserving the historical
+OpenAI-SDK transport as the default:
+
+```bash
+export SEOCHO_BENCH_LLM_TRANSPORT=litellm
+export SEOCHO_BENCH_LLM_RECEIPT_PATH=outputs/evaluation/mdm_fedcat/llm_calls.jsonl
+uv run python examples/mdm/12_federation_agents.py --dry-run
+```
+
+MARA models are sent as `openai/<model>` to
+`https://api.cloud.mara.com/v1`, using `MARA_API_KEY` from the environment.
+The harness disables LiteLLM's internal retry so the same experiment-owned
+retry policy applies to both transports. Each successful call can emit a JSONL
+receipt with transport, provider, model, agent label, latency, token usage, and
+reported cost.
+
+For an optional central proxy, use the secret-free model aliases in
+`config/litellm.mara.yaml`. Primary paper comparisons must disable cross-model
+fallbacks because a fallback changes agent identity. If LiteLLM cannot price a
+custom MARA model, retain token usage and apply a versioned MARA price snapshot
+during analysis rather than silently treating missing cost as zero.
+
 ## Multi-instance federation (medallion architecture) — phase 2
 
 DozerDB 5.26 has no composite databases, but the thing composite databases
@@ -244,3 +269,38 @@ process/actor parallelism per shard, not a Rust driver.**
 - at least one quarantine case is *expected* and shown as the escalation
   queue working — an empty steward queue would be a red flag, not a success
 - department DBs are verified unmutated (node counts before/after pipeline)
+
+## LoG observation-policy experiment
+
+`25_observation_policy_experiment.py` freezes the mechanism study connecting
+ontology/prompt choices to generated graph structure, entity-seeded PPR
+retrieval, evidence slots, and downstream graph-agent answers. It makes no LLM
+calls. The generated manifest has two parts:
+
+- a completed full-factorial inventory with `4 prompts x 5 ontologies x 4
+  models x 16 cases = 1,280` extraction records;
+- a conservative `2 x 2 x 4 x 16 = 256` contrast fully contained in that
+  existing matrix, requiring no new paid extraction.
+
+Run the zero-cost freeze step with:
+
+```bash
+python3 examples/mdm/25_observation_policy_experiment.py
+```
+
+Cases were selected using category and case identifier only. Graph counts,
+retrieval scores, model answers, and evaluation outcomes did not affect the
+selection. Graph-construction results are available; retrieval and answer
+cells remain `TBD` until their downstream joins are complete.
+
+`26_full_finder_observation_analysis.py` analyzes the two complete 5,703-case
+profiles and the 1,280-cell factorial matrix without making service calls. It
+uses the FinDER case as the bootstrap unit and writes the proceedings-ready
+paired graph-construction table.
+
+`27_full_finder_multiagent_network.py` reconstructs category-scoped graph-agent
+observations from all 5,703 duplicate-aware FinDER cases, computes category
+topology, output-blind repeated-entity PPR@20 and typed 2/3-hop divergence, and
+renders paper-ready SVG figures. Use `--skip-gnn` for the primary network-only
+analysis; GNN is an optional offline robustness check and does not belong in the
+online routing path.

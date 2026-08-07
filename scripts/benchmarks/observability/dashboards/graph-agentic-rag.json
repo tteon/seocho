@@ -1,0 +1,163 @@
+{
+  "uid": "seocho-graph-agentic-rag",
+  "title": "Graph Agentic RAG — pipeline bottlenecks",
+  "tags": ["seocho", "benchmark"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "10s",
+  "time": {"from": "now-6h", "to": "now"},
+  "templating": {
+    "list": [
+      {
+        "name": "arm",
+        "label": "Ontology arm",
+        "type": "query",
+        "datasource": {"type": "prometheus", "uid": "prometheus"},
+        "query": "label_values(seocho_stage_duration_ms_milliseconds_count, arm)",
+        "includeAll": true,
+        "multi": true,
+        "current": {"text": "All", "value": "$__all"}
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "piechart",
+      "title": "Where the wall-clock goes (total ms by stage)",
+      "description": "The bottleneck view. Sums measured duration per pipeline stage. extract.ref is nested inside extract, so read extract as the parent total.",
+      "gridPos": {"h": 9, "w": 8, "x": 0, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "options": {"legend": {"displayMode": "table", "placement": "right", "values": ["value", "percent"]}},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (stage) (seocho_stage_duration_ms_milliseconds_sum{arm=~\"$arm\", stage!=\"extract.ref\"})",
+          "legendFormat": "{{stage}}",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "barchart",
+      "title": "p95 stage latency by ontology arm",
+      "description": "Does a larger ontology make a stage slower? This is the cost side of the Goldilocks question.",
+      "gridPos": {"h": 9, "w": 16, "x": 8, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "ms"}},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le, stage, arm) (seocho_stage_duration_ms_milliseconds_bucket{arm=~\"$arm\", stage!=\"extract.ref\"}))",
+          "legendFormat": "{{stage}} / {{arm}}",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Stage latency over the run (p50)",
+      "description": "Drift or degradation during a long sweep — rate limiting, DB slowdown, cache warming.",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 9},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "ms"}},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.5, sum by (le, stage) (rate(seocho_stage_duration_ms_milliseconds_bucket{arm=~\"$arm\", stage!=\"extract.ref\"}[5m])))",
+          "legendFormat": "{{stage}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "barchart",
+      "title": "LLM tokens by stage and arm",
+      "description": "Token spend attributed to the stage that spent it. Separates extraction cost from answering cost per ontology arm.",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 9},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (stage, arm, kind) (seocho_llm_tokens_total{arm=~\"$arm\"})",
+          "legendFormat": "{{stage}} / {{arm}} / {{kind}}",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "barchart",
+      "title": "Graph elements written per case (mean)",
+      "description": "Does more ontology produce a richer graph? Pairs with the answer-score panel to test whether richer means better.",
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 17},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (arm, kind) (seocho_graph_elements_sum{arm=~\"$arm\"}) / clamp_min(sum by (arm, kind) (seocho_graph_elements_count{arm=~\"$arm\"}), 1)",
+          "legendFormat": "{{arm}} / {{kind}}",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "barchart",
+      "title": "Answer score by arm (mean number overlap)",
+      "description": "The pre-registered Goldilocks curve: non-ontology -> small -> medium -> large. Live view only; the reported figure comes from the run artifact.",
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 17},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"min": 0, "max": 1}},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (arm) (seocho_answer_score_sum{arm=~\"$arm\"}) / clamp_min(sum by (arm) (seocho_answer_score_count{arm=~\"$arm\"}), 1)",
+          "legendFormat": "{{arm}}",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "Stage failures",
+      "description": "A stage that throws still records its duration, so a crash-heavy arm cannot look fast by vanishing from the histogram.",
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 17},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "options": {"colorMode": "background", "graphMode": "none"},
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {"mode": "absolute", "steps": [
+            {"color": "green", "value": null}, {"color": "red", "value": 1}
+          ]}
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (stage, arm) (seocho_stage_total{outcome=\"error\", arm=~\"$arm\"})",
+          "legendFormat": "{{stage}} / {{arm}}",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Completed cases per arm",
+      "description": "Sweep progress. A flat line means the run stalled.",
+      "gridPos": {"h": 7, "w": 24, "x": 0, "y": 25},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (arm) (seocho_stage_total{stage=\"score\", arm=~\"$arm\"})",
+          "legendFormat": "{{arm}}"
+        }
+      ]
+    }
+  ]
+}

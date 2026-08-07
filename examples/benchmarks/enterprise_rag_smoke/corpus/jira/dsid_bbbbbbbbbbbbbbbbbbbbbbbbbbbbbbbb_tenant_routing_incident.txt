@@ -1,0 +1,9 @@
+Tenant routing support incident
+
+Ticket: CS-1942
+Status: In Progress
+Priority: P1 Sev1
+Assignee: Maya Chen
+SLA due: 2026-03-11
+
+The customer reported mixed model replies after deferred prewarm crossed tenant routing boundaries in prod-us-east.

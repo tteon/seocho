@@ -1,0 +1,8 @@
+Multipart upload guardrail PR
+
+Author: Priya Nair
+Reviewer: Ethan Park
+Merged: 2026-03-03
+
+The multipart upload change added server-side validation for max_file_size and max_total_request_size.
+For rejected oversized files, the pull request added the metric upload.rejected_oversized_file so SRE can alert on upload clients that exceed limits.

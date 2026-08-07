@@ -13,10 +13,13 @@ import json
 import os
 import random
 import re
+import threading
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Callable, Iterable
 
+_RECEIPT_LOCK = threading.Lock()
 
 # ---------------------------------------------------------------------------
 # Retry decorator
@@ -114,6 +117,103 @@ class LLMSpec:
         return f"{self.provider}/{self.model}"
 
 
+@dataclass(frozen=True)
+class LLMCallReceipt:
+    """Portable usage receipt emitted by either supported benchmark transport."""
+
+    transport: str
+    provider: str
+    model: str
+    label: str
+    latency_ms: float
+    prompt_tokens: int
+    completion_tokens: int
+    total_tokens: int
+    response_cost: float | None
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "transport": self.transport,
+            "provider": self.provider,
+            "model": self.model,
+            "label": self.label,
+            "latency_ms": self.latency_ms,
+            "prompt_tokens": self.prompt_tokens,
+            "completion_tokens": self.completion_tokens,
+            "total_tokens": self.total_tokens,
+            "response_cost": self.response_cost,
+        }
+
+
+class _LiteLLMCompletions:
+    def __init__(
+        self,
+        *,
+        spec: LLMSpec,
+        timeout_s: float,
+        completion_fn: Callable[..., Any] | None = None,
+    ) -> None:
+        self._spec = spec
+        self._timeout_s = timeout_s
+        self._completion_fn = completion_fn
+
+    def create(self, **kwargs: Any) -> Any:
+        completion_fn = self._completion_fn
+        if completion_fn is None:
+            try:
+                from litellm import completion as completion_fn  # type: ignore
+            except ImportError as exc:
+                raise RuntimeError(
+                    "LiteLLM transport requested but litellm is not installed; "
+                    "install the development dependencies or `uv add litellm`"
+                ) from exc
+
+        api_key = os.environ.get(self._spec.api_key_env)
+        if not api_key:
+            raise RuntimeError(
+                f"{self._spec.api_key_env} not set for provider {self._spec.provider}"
+            )
+        model = str(kwargs.pop("model"))
+        request: dict[str, Any] = {
+            **kwargs,
+            "model": f"openai/{model}",
+            "api_key": api_key,
+            "timeout": self._timeout_s,
+            # Retry remains owned by with_retry so every transport uses the
+            # same experiment policy and attempt accounting.
+            "max_retries": 0,
+        }
+        if self._spec.base_url:
+            request["api_base"] = self._spec.base_url
+        return completion_fn(**request)
+
+
+class _LiteLLMChat:
+    def __init__(self, completions: _LiteLLMCompletions) -> None:
+        self.completions = completions
+
+
+class LiteLLMChatClient:
+    """OpenAI-client-shaped adapter backed by LiteLLM's Python SDK."""
+
+    transport = "litellm"
+
+    def __init__(
+        self,
+        *,
+        spec: LLMSpec,
+        timeout_s: float,
+        completion_fn: Callable[..., Any] | None = None,
+    ) -> None:
+        self.chat = _LiteLLMChat(
+            _LiteLLMCompletions(
+                spec=spec,
+                timeout_s=timeout_s,
+                completion_fn=completion_fn,
+            )
+        )
+
+
 # OpenAI-compatible providers, all use the openai SDK with a base_url override.
 _PROVIDER_PRESETS: dict[str, dict] = {
     "kimi": {
@@ -187,11 +287,31 @@ def known_providers() -> list[str]:
     return sorted(_PROVIDER_PRESETS)
 
 
-def make_chat_client(spec: LLMSpec, *, connect_s: float = 10.0, read_s: float = 120.0, total_s: float = 300.0):
-    """Build an OpenAI SDK client targeting the spec's provider.
+def make_chat_client(
+    spec: LLMSpec,
+    *,
+    connect_s: float = 10.0,
+    read_s: float = 120.0,
+    total_s: float = 300.0,
+    transport: str | None = None,
+):
+    """Build a chat client targeting the spec's provider.
 
-    Uses an httpx.Timeout if installed (it is, as a dep of openai sdk).
+    ``transport`` is ``openai`` or ``litellm``. When omitted, the
+    ``SEOCHO_BENCH_LLM_TRANSPORT`` environment variable is consulted and then
+    falls back to ``openai`` for historical benchmark reproducibility.
     """
+    selected_transport = (
+        transport or os.environ.get("SEOCHO_BENCH_LLM_TRANSPORT") or "openai"
+    ).strip().lower()
+    if selected_transport == "litellm":
+        return LiteLLMChatClient(spec=spec, timeout_s=total_s)
+    if selected_transport != "openai":
+        raise ValueError(
+            f"unknown LLM transport: {selected_transport!r} "
+            "(known: ['litellm', 'openai'])"
+        )
+
     from openai import OpenAI  # type: ignore
     import httpx  # type: ignore
 
@@ -205,6 +325,54 @@ def make_chat_client(spec: LLMSpec, *, connect_s: float = 10.0, read_s: float = 
     if spec.base_url:
         kwargs["base_url"] = spec.base_url
     return OpenAI(**kwargs)
+
+
+def _value(source: Any, name: str, default: Any = None) -> Any:
+    if isinstance(source, dict):
+        return source.get(name, default)
+    return getattr(source, name, default)
+
+
+def _receipt_from_response(
+    response: Any,
+    *,
+    client: Any,
+    spec: LLMSpec | None,
+    model: str,
+    label: str,
+    latency_ms: float,
+) -> LLMCallReceipt:
+    usage = _value(response, "usage", {}) or {}
+    hidden = _value(response, "_hidden_params", {}) or {}
+    raw_cost = _value(hidden, "response_cost")
+    return LLMCallReceipt(
+        transport=str(getattr(client, "transport", "openai")),
+        provider=spec.provider if spec else "unknown",
+        model=model,
+        label=label,
+        latency_ms=round(latency_ms, 3),
+        prompt_tokens=int(_value(usage, "prompt_tokens", 0) or 0),
+        completion_tokens=int(_value(usage, "completion_tokens", 0) or 0),
+        total_tokens=int(_value(usage, "total_tokens", 0) or 0),
+        response_cost=float(raw_cost) if raw_cost is not None else None,
+    )
+
+
+def _emit_receipt(
+    receipt: LLMCallReceipt,
+    receipt_sink: Callable[[LLMCallReceipt], None] | None,
+) -> None:
+    if receipt_sink is not None:
+        receipt_sink(receipt)
+    receipt_path = os.environ.get("SEOCHO_BENCH_LLM_RECEIPT_PATH", "").strip()
+    if not receipt_path:
+        return
+    path = Path(receipt_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = json.dumps(receipt.as_dict(), sort_keys=True) + "\n"
+    with _RECEIPT_LOCK:
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(payload)
 
 
 # ---------------------------------------------------------------------------
@@ -224,6 +392,7 @@ def chat_complete(
     max_attempts: int = 3,
     verbose: bool = False,
     spec: LLMSpec | None = None,
+    receipt_sink: Callable[[LLMCallReceipt], None] | None = None,
 ) -> str:
     # Provider-specific safety: Kimi enforces temperature=1; drop response_format
     # for providers that don't officially support it (to avoid 400s).
@@ -251,7 +420,19 @@ def chat_complete(
             kwargs["max_tokens"] = max_tokens
         if response_format is not None:
             kwargs["response_format"] = response_format
+        started = time.perf_counter()
         resp = client.chat.completions.create(**kwargs)
+        _emit_receipt(
+            _receipt_from_response(
+                resp,
+                client=client,
+                spec=spec,
+                model=model,
+                label=label,
+                latency_ms=(time.perf_counter() - started) * 1000,
+            ),
+            receipt_sink,
+        )
         return resp.choices[0].message.content or ""
 
     def _call_without_rf():
@@ -265,7 +446,19 @@ def chat_complete(
         }
         if max_tokens is not None:
             kwargs["max_tokens"] = max_tokens
+        started = time.perf_counter()
         resp = client.chat.completions.create(**kwargs)
+        _emit_receipt(
+            _receipt_from_response(
+                resp,
+                client=client,
+                spec=spec,
+                model=model,
+                label=f"{label}-fallback",
+                latency_ms=(time.perf_counter() - started) * 1000,
+            ),
+            receipt_sink,
+        )
         return resp.choices[0].message.content or ""
 
     try:

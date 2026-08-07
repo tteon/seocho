@@ -1,0 +1,10 @@
+apiVersion: 1
+providers:
+  - name: seocho-local
+    orgId: 1
+    folder: SEOCHO
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 15
+    options:
+      path: /var/lib/grafana/dashboards

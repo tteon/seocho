@@ -270,10 +270,32 @@ def _grok_answer(llm, query: str, context: str) -> str:
     return _answer_with_usage(llm, query, context)[0]
 
 
+class _NullSpan:
+    def set_attribute(self, *_a, **_k) -> None:
+        return None
+
+
+class _NullTelemetry:
+    """No-op sink so the runner behaves identically when telemetry is off."""
+
+    from contextlib import contextmanager as _cm
+
+    @_cm
+    def stage(self, *_a, **_k):
+        yield _NullSpan()
+
+    def record_tokens(self, **_k) -> None:
+        return None
+
+    def record_value(self, *_a, **_k) -> None:
+        return None
+
+
 def run_one(*, case: dict, arm: str, modules: list[str], llm_spec: str,
             extraction_tmpl: PromptTemplate, prompt_hash: str, prompt_id: str,
             run_prefix: str,
-            database: str, oai_client, out_partial_dir: Path) -> list[dict]:
+            database: str, oai_client, out_partial_dir: Path,
+            tel=None) -> list[dict]:
     from seocho import Seocho
     from seocho.store.graph import Neo4jGraphStore
     from seocho.store.llm import create_llm_backend
@@ -281,7 +303,24 @@ def run_one(*, case: dict, arm: str, modules: list[str], llm_spec: str,
     sys.path.insert(0, str(ROOT))
     from examples.finder.datasets.fibo_modules.compose import compose_modules
 
-    ontology = compose_modules(modules)
+    tel = tel or _NullTelemetry()
+    with tel.stage("ontology.compose", arm=arm, slice=case["slice"]):
+        ontology = compose_modules(modules)
+    # The ontology reaches extraction as a schema block inside the prompt, so
+    # its rendered size is the prompt budget it consumes. Deterministic and
+    # free to measure, and it is the cost axis of the Goldilocks question:
+    # a larger arm must earn its extra prompt tokens.
+    try:
+        _octx = ontology.to_extraction_context()
+        _oblock = (f'Ontology "{_octx.get("ontology_name", "")}":\n\n'
+                   f'ENTITY TYPES:\n{_octx.get("entity_types", "")}\n\n'
+                   f'RELATIONSHIP TYPES:\n{_octx.get("relationship_types", "")}\n\n'
+                   f'CONSTRAINTS:\n{_octx.get("constraints_summary", "")}')
+        tel.record_value("ontology_prompt_chars", len(_oblock), arm=arm, kind="schema_block")
+        tel.record_value("graph_elements", len(ontology.nodes), arm=arm, kind="schema_nodes")
+        tel.record_value("graph_elements", len(ontology.relationships), arm=arm, kind="schema_rels")
+    except Exception:
+        pass
     workspace_id = f"{run_prefix}-{arm}-{case['case_id']}"
     trace_name = f"{case['slice']}/{case['case_id']}/{arm}"
     modules_label = "+".join(modules) or "baseline"
@@ -299,14 +338,15 @@ def run_one(*, case: dict, arm: str, modules: list[str], llm_spec: str,
     llm = None
     client = None
     try:
-        graph_store = Neo4jGraphStore(
-            os.environ["NEO4J_URI"],
-            os.environ.get("NEO4J_USER", "neo4j"),
-            os.environ.get("NEO4J_PASSWORD", ""),
-        )
-        llm = create_llm_backend(provider=provider.strip(), model=model.strip())
-        client = Seocho(ontology=ontology, graph_store=graph_store, llm=llm,
-                        workspace_id=workspace_id, extraction_prompt=extraction_tmpl)
+        with tel.stage("graph.connect", arm=arm, slice=case["slice"], case_id=case["case_id"]):
+            graph_store = Neo4jGraphStore(
+                os.environ["NEO4J_URI"],
+                os.environ.get("NEO4J_USER", "neo4j"),
+                os.environ.get("NEO4J_PASSWORD", ""),
+            )
+            llm = create_llm_backend(provider=provider.strip(), model=model.strip())
+            client = Seocho(ontology=ontology, graph_store=graph_store, llm=llm,
+                            workspace_id=workspace_id, extraction_prompt=extraction_tmpl)
         # ONE fixed experiment DB (Opik-style name); per-(case×arm) isolated by
         # _workspace_id. DB created+onlined once in main().
         client.default_database = database
@@ -317,12 +357,18 @@ def run_one(*, case: dict, arm: str, modules: list[str], llm_spec: str,
 
         # Extract the gold references into the graph (ontology-guided).
         t0 = time.perf_counter()
-        for i, ref in enumerate(case["references"], 1):
-            print(f"    {trace_name}: add ref {i}/{len(case['references'])} ({len(ref)} chars)", flush=True)
-            client.add(ref, user_id=workspace_id)
+        with tel.stage("extract", arm=arm, slice=case["slice"], case_id=case["case_id"],
+                       model=llm_spec) as _sp:
+            _sp.set_attribute("seocho.n_refs", str(len(case["references"])))
+            for i, ref in enumerate(case["references"], 1):
+                print(f"    {trace_name}: add ref {i}/{len(case['references'])} ({len(ref)} chars)", flush=True)
+                with tel.stage("extract.ref", arm=arm, slice=case["slice"]) as _rs:
+                    _rs.set_attribute("seocho.ref_chars", str(len(ref)))
+                    client.add(ref, user_id=workspace_id)
         add_ms = round((time.perf_counter() - t0) * 1000, 2)
 
         try:
+          with tel.stage("graph.count", arm=arm, slice=case["slice"]):
             n = graph_store.query("MATCH (n {_workspace_id:$w}) RETURN count(n) AS c",
                                   params={"w": workspace_id}, database=database)
             r = graph_store.query("MATCH (a {_workspace_id:$w})-[x]->() RETURN count(x) AS c",
@@ -331,8 +377,12 @@ def run_one(*, case: dict, arm: str, modules: list[str], llm_spec: str,
             rels_created = int(r[0]["c"]) if r else 0
         except Exception:
             pass
+        tel.record_value("graph_elements", nodes_created, arm=arm, kind="nodes")
+        tel.record_value("graph_elements", rels_created, arm=arm, kind="rels")
 
-        graph_ctx = _graph_context(graph_store, workspace_id, database)
+        with tel.stage("retrieve.graph", arm=arm, slice=case["slice"], case_id=case["case_id"]):
+            graph_ctx = _graph_context(graph_store, workspace_id, database)
+        tel.record_value("context_chars", len(graph_ctx), arm=arm, kind="graph")
     except Exception as exc:
         error = f"{type(exc).__name__}: {exc}"
         traceback.print_exc()
@@ -349,7 +399,9 @@ def run_one(*, case: dict, arm: str, modules: list[str], llm_spec: str,
     # the failure, don't let it masquerade as a graph-extraction error.)
     vec_error = ""
     try:
-        vec_ctx = _vector_context(case["references"], case["query"], oai_client)
+        with tel.stage("retrieve.vector", arm=arm, slice=case["slice"], case_id=case["case_id"]):
+            vec_ctx = _vector_context(case["references"], case["query"], oai_client)
+        tel.record_value("context_chars", len(vec_ctx), arm=arm, kind="vector")
     except Exception as exc:
         vec_error = f"{type(exc).__name__}: {exc}"
         vec_ctx = ""
@@ -421,11 +473,18 @@ def run_one(*, case: dict, arm: str, modules: list[str], llm_spec: str,
         try:
             if llm is None:
                 raise RuntimeError("LLM backend unavailable")
-            answer = bc.run_under_opik_track(name=tname, tags=tags, metadata=metadata, work_fn=_work)
+            with tel.stage("answer", arm=arm, slice=case["slice"], case_id=case["case_id"],
+                           model=llm_spec, kind=mode_name):
+                answer = bc.run_under_opik_track(name=tname, tags=tags, metadata=metadata, work_fn=_work)
         except Exception as exc:
             answer, ans_err = "", f"{type(exc).__name__}: {exc}"
         ask_ms = round((time.perf_counter() - t1) * 1000, 2)
-        metrics = evaluate_answer(case["expected_answer"], answer)
+        if answer_usage:
+            tel.record_tokens(stage="answer", arm=arm, model=llm_spec, usage=answer_usage)
+        with tel.stage("score", arm=arm, slice=case["slice"]):
+            metrics = evaluate_answer(case["expected_answer"], answer)
+        tel.record_value("score", float(metrics.get("number_overlap_ratio") or 0.0),
+                         arm=arm, kind="number_overlap")
         result = {
             "case_id": case["case_id"], "slice": case["slice"], "category": case["category"],
             "type": case["type"], "n_refs": case["n_refs"], "arm": arm, "mode": mode_name,
@@ -502,6 +561,9 @@ def main() -> int:
     ap.add_argument("--no-resume", dest="resume", action="store_false",
                     help="Recompute even if matching partials exist (default: resume/skip).")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--prom-port", type=int,
+                    default=int(os.environ.get("SEOCHO_PROM_PORT", "0")) or None,
+                    help="Serve Prometheus metrics on this port (0/unset = JSONL only).")
     ap.add_argument("--run-prefix",
                     default=f"4arm-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}")
     args = ap.parse_args()
@@ -577,6 +639,13 @@ def main() -> int:
 
     out_dir = ROOT / "outputs" / "evaluation" / "finder_4arm_sample" / args.run_prefix
     out_partial = out_dir / "partial"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    sys.path.insert(0, str(ROOT / "scripts" / "benchmarks"))
+    from lib.telemetry import build as _build_telemetry
+    telemetry = _build_telemetry(args.run_prefix, out_dir, prometheus_port=args.prom_port)
+    if telemetry.prometheus_endpoint:
+        print(f"[telemetry] metrics: {telemetry.prometheus_endpoint}", flush=True)
+    print(f"[telemetry] spans:   {telemetry.jsonl_path}", flush=True)
     out_partial.mkdir(parents=True, exist_ok=True)
 
     # Per-arm ontology hashes for the resume guard (match against cached partials).
@@ -619,7 +688,8 @@ def main() -> int:
                                    extraction_tmpl=extraction_tmpl, prompt_hash=prompt_hash,
                                    prompt_id=prompt_id,
                                    run_prefix=args.run_prefix, database=database,
-                                   oai_client=oai_client, out_partial_dir=out_partial)
+                                   oai_client=oai_client, out_partial_dir=out_partial,
+                                   tel=telemetry)
             for res in mode_results:
                 ev = res["evaluation"]
                 mark = "OK" if not res["error"] else "ERR"

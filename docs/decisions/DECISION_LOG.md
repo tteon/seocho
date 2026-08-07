@@ -876,6 +876,11 @@ Each entry must link to a full ADR when impact is non-trivial.
 
 ## 2026-07-14
 
+- [Accepted] ADR-0154 provenance-first extraction and evidence-conditional evaluation
+  - anchor extracted figures to source tokens at write time; align facts by provenance, not names
+  - ontology_role defaults to validator (SHACL/rules post-hoc + serving-time type labels), not extraction guide
+  - evaluation reports grounded/contaminated/honest-abstention, never gold overlap alone
+
 - [Accepted] ADR-0153 production-agent-harness-and-postgres-resilience
   - add scoped agent principals, bounded delegation, tool-boundary guardrails,
     and versioned harness/rubric promotion gates

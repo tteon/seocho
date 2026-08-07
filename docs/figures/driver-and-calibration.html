@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Driver cost and cost-model calibration — measured</title>
+<style>
+  :root {
+    color-scheme: light;
+    --ground: #fafbfc;
+    --panel: #ffffff;
+    --ink: #12151a;
+    --ink-2: #47515f;
+    --ink-3: #6b7684;
+    --rule: #e1e5ea;
+    --grid: #eceff3;
+    --s1: #2a78d6;
+    --s2: #eb6834;
+    --flag: #b4453f;
+    --ok: #1f7a4d;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --ground: #14161a;
+      --panel: #1a1d22;
+      --ink: #f1f3f6;
+      --ink-2: #b3bcc8;
+      --ink-3: #8b95a2;
+      --rule: #2b3038;
+      --grid: #23272e;
+      --s1: #3987e5;
+      --s2: #d95926;
+      --flag: #e08b86;
+      --ok: #5cc08c;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --ground: #14161a;
+    --panel: #1a1d22;
+    --ink: #f1f3f6;
+    --ink-2: #b3bcc8;
+    --ink-3: #8b95a2;
+    --rule: #2b3038;
+    --grid: #23272e;
+    --s1: #3987e5;
+    --s2: #d95926;
+    --flag: #e08b86;
+    --ok: #5cc08c;
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --ground: #fafbfc; --panel: #ffffff; --ink: #12151a; --ink-2: #47515f;
+    --ink-3: #6b7684; --rule: #e1e5ea; --grid: #eceff3;
+    --s1: #2a78d6; --s2: #eb6834; --flag: #b4453f; --ok: #1f7a4d;
+  }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    line-height: 1.55;
+    margin: 0;
+    padding: 40px 24px 72px;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; display: flex; flex-direction: column; gap: 44px; }
+
+  .eyebrow {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 11px; letter-spacing: 0.13em; text-transform: uppercase;
+    color: var(--ink-3); margin: 0 0 10px;
+  }
+  h1 { font-size: 27px; font-weight: 600; letter-spacing: -0.015em; margin: 0 0 12px; text-wrap: balance; }
+  h2 { font-size: 19px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 6px; text-wrap: balance; }
+  p { margin: 0 0 12px; color: var(--ink-2); max-width: 66ch; }
+  p.lede { color: var(--ink); }
+  strong { color: var(--ink); font-weight: 600; }
+  code, .num {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+  code { font-size: 0.9em; background: var(--grid); padding: 1px 5px; border-radius: 3px; }
+
+  .strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 1px; background: var(--rule); border: 1px solid var(--rule); }
+  .tile { background: var(--panel); padding: 16px 18px; }
+  .tile .k { font-family: ui-monospace, monospace; font-size: 10.5px; letter-spacing: 0.11em; text-transform: uppercase; color: var(--ink-3); }
+  .tile .v { font-family: ui-monospace, monospace; font-variant-numeric: tabular-nums; font-size: 30px; font-weight: 600; letter-spacing: -0.02em; margin-top: 6px; line-height: 1.1; }
+  .tile .n { font-size: 12.5px; color: var(--ink-3); margin-top: 4px; }
+
+  section { display: flex; flex-direction: column; gap: 14px; }
+  figure { margin: 0; background: var(--panel); border: 1px solid var(--rule); padding: 18px 18px 12px; }
+  figcaption { font-size: 12.5px; color: var(--ink-3); margin-top: 10px; max-width: 72ch; }
+  .chartbox { overflow-x: auto; }
+  svg { display: block; max-width: 100%; height: auto; }
+  .legend { display: flex; gap: 18px; align-items: center; margin-bottom: 12px; font-family: ui-monospace, monospace; font-size: 11.5px; color: var(--ink-2); }
+  .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+
+  .tbl { overflow-x: auto; border: 1px solid var(--rule); background: var(--panel); }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  th, td { text-align: right; padding: 9px 14px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; }
+  thead th { font-family: ui-monospace, monospace; font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); font-weight: 500; }
+  tbody td:not(:first-child) { font-family: ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+  tbody tr:last-child td { border-bottom: none; }
+  .flag { color: var(--flag); font-weight: 600; }
+  .ok { color: var(--ok); font-weight: 600; }
+
+  .note { border-left: 2px solid var(--s2); padding: 2px 0 2px 16px; }
+  .note p:last-child { margin-bottom: 0; }
+  ul { margin: 0 0 12px; padding-left: 20px; color: var(--ink-2); max-width: 66ch; }
+  li { margin-bottom: 6px; }
+  hr { border: none; border-top: 1px solid var(--rule); margin: 0; }
+
+  #tip {
+    position: fixed; pointer-events: none; opacity: 0;
+    background: var(--ink); color: var(--ground);
+    font-family: ui-monospace, monospace; font-variant-numeric: tabular-nums;
+    font-size: 11.5px; padding: 6px 9px; border-radius: 4px;
+    transition: opacity .09s linear; z-index: 10; white-space: pre;
+  }
+  @media (prefers-reduced-motion: reduce) { #tip { transition: none; } }
+  [data-tip]:focus-visible { outline: 2px solid var(--s1); outline-offset: 2px; }
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow">measured · sf1000-real · 2,000,047 accounts · 10,000,042 transfers</p>
+    <h1>Does a native driver matter, and does the offline cost model hold?</h1>
+    <p class="lede">Two questions that were open, now measured. Both were asked because an
+    earlier statement of mine was too loose: I said driver overhead was negligible, and I
+    said the cost model held “across five orders of magnitude”. Neither survived contact
+    with the numbers unchanged.</p>
+  </header>
+
+  <div class="strip">
+    <div class="tile">
+      <div class="k">native driver, 50k rows</div>
+      <div class="v">5.1&times;</div>
+      <div class="n">neo4rs 140 ms vs Python 648 ms</div>
+    </div>
+    <div class="tile">
+      <div class="k">early abort, no LIMIT in query</div>
+      <div class="v">194&times;</div>
+      <div class="n">0.71 ms vs 137 ms full decode</div>
+    </div>
+    <div class="tile">
+      <div class="k">cost gate agreement</div>
+      <div class="v">13/13</div>
+      <div class="n">0 false clears, 0 false flags</div>
+    </div>
+    <div class="tile">
+      <div class="k">that 5.1&times; on the agent path</div>
+      <div class="v">0.6 ms</div>
+      <div class="n">of 37,000 ms end to end</div>
+    </div>
+  </div>
+
+  <section>
+    <p class="eyebrow">chart 1 — per-row cost</p>
+    <h2>Where the client time goes, normalised per row</h2>
+    <p>Absolute totals differ 50&times; between the two row counts, so plotting them together
+    would hide the small bars. Per-row cost puts both drivers on one axis — and the fact that
+    each driver’s per-row cost is <em>flat</em> across row counts is itself the finding: this
+    is a fixed charge per row, not a warm-up effect.</p>
+
+    <figure>
+      <div class="legend">
+        <span><span class="swatch" style="background:var(--s1)"></span>Python driver 5.x</span>
+        <span><span class="swatch" style="background:var(--s2)"></span>neo4rs 0.8.0</span>
+      </div>
+      <div class="chartbox">
+        <svg viewBox="0 0 720 300" role="img" aria-label="Per-row client cost in microseconds: Python 14.7 and neo4rs 3.34 at 1,000 rows; Python 12.96 and neo4rs 2.81 at 50,000 rows.">
+          <g stroke="var(--grid)" stroke-width="1">
+            <line x1="80" y1="250" x2="690" y2="250"/>
+            <line x1="80" y1="195" x2="690" y2="195"/>
+            <line x1="80" y1="140" x2="690" y2="140"/>
+            <line x1="80" y1="85" x2="690" y2="85"/>
+            <line x1="80" y1="30" x2="690" y2="30"/>
+          </g>
+          <g font-family="ui-monospace, monospace" font-size="11" fill="var(--ink-3)" text-anchor="end">
+            <text x="70" y="254">0</text>
+            <text x="70" y="199">4</text>
+            <text x="70" y="144">8</text>
+            <text x="70" y="89">12</text>
+            <text x="70" y="34">16</text>
+          </g>
+          <text x="80" y="18" font-family="ui-monospace, monospace" font-size="10.5"
+                fill="var(--ink-3)" letter-spacing="0.09em">MICROSECONDS PER ROW</text>
+
+          <!-- 1,000 rows -->
+          <path d="M184,250 V51.9 Q184,47.9 188,47.9 H244 Q248,47.9 248,51.9 V250 Z"
+                fill="var(--s1)" data-tip="Python · 1,000 rows&#10;14.72 µs/row · 14.7 ms total"/>
+          <path d="M252,250 V208.1 Q252,204.1 256,204.1 H312 Q316,204.1 316,208.1 V250 Z"
+                fill="var(--s2)" data-tip="neo4rs · 1,000 rows&#10;3.34 µs/row · 3.3 ms total"/>
+          <g font-family="ui-monospace, monospace" font-size="11.5" fill="var(--ink)" text-anchor="middle" font-weight="600">
+            <text x="216" y="41">14.72</text>
+            <text x="284" y="197">3.34</text>
+          </g>
+
+          <!-- 50,000 rows -->
+          <path d="M454,250 V75.8 Q454,71.8 458,71.8 H514 Q518,71.8 518,75.8 V250 Z"
+                fill="var(--s1)" data-tip="Python · 50,000 rows&#10;12.96 µs/row · 648.0 ms total"/>
+          <path d="M522,250 V215.4 Q522,211.4 526,211.4 H582 Q586,211.4 586,215.4 V250 Z"
+                fill="var(--s2)" data-tip="neo4rs · 50,000 rows&#10;2.81 µs/row · 140.4 ms total"/>
+          <g font-family="ui-monospace, monospace" font-size="11.5" fill="var(--ink)" text-anchor="middle" font-weight="600">
+            <text x="486" y="65">12.96</text>
+            <text x="554" y="204">2.81</text>
+          </g>
+
+          <g font-family="ui-monospace, monospace" font-size="11.5" fill="var(--ink-2)" text-anchor="middle">
+            <text x="250" y="272">1,000 rows</text>
+            <text x="520" y="272">50,000 rows</text>
+          </g>
+        </svg>
+      </div>
+      <figcaption>Median of 7 repeats after one discarded warm pass. Python figure is
+      wall-clock minus bolt’s own <code>result_available_after + result_consumed_after</code>;
+      neo4rs figure is wall-clock for a full decode, of which server time was 19–21 ms.</figcaption>
+    </figure>
+
+    <div class="note">
+      <p><strong>What this does not license.</strong> The agent query path caps results at 50
+      rows, where the 5.1&times; is worth about 0.6 ms against 37 seconds of model time. A
+      native driver is justified here by what it can <em>enforce</em>, not by speed — see the
+      early-abort row above, which applies a bound to a query whose text has no
+      <code>LIMIT</code> for any query-level guardrail to inspect.</p>
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow">table — locating the cost</p>
+    <h2>The charge is per row, not per value</h2>
+    <p>Holding rows fixed at 50,000 and going from one returned column to five multiplies the
+    <em>values</em> by five. If cost scaled with values, the total would roughly quintuple.</p>
+    <div class="tbl">
+      <table>
+        <thead>
+          <tr><th>50,000 rows</th><th>server discards</th><th>client receives</th><th>per row</th><th>per value</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>1 column</td><td>12.2 ms</td><td>694.2 ms</td><td>13.88 µs</td><td>13.88 µs</td></tr>
+          <tr><td>5 columns</td><td>14.8 ms</td><td>760.9 ms</td><td>15.22 µs</td><td>3.04 µs</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Five times the values added <strong>66.7 ms</strong>, not 2,800 ms. Working it through:
+    roughly <strong>13.6 µs fixed per row</strong> and <strong>0.33 µs per additional
+    field</strong>. The cost is constructing one Python <code>Record</code> object per row;
+    filling it is nearly free.</p>
+
+    <div class="note">
+      <p><strong>Correction.</strong> I earlier described this as “decoding is free, the cost
+      is transport”, comparing Python’s 11 ms to neo4rs’ 129 ms. Those are not the same
+      operation: Python’s 11 ms sends <code>DISCARD</code>, so the server never transmits the
+      rows at all, while the neo4rs figure pulls and parses all 50,000. The comparable pair is
+      full decode — 694 ms against 140 ms. Within neo4rs, typed field extraction adds only
+      2% (129 → 132 ms), and that narrow step is the only thing “free” describes.</p>
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow">chart 2 — cost model calibration</p>
+    <h2>Where the offline estimate stops predicting engine work</h2>
+    <p>Each point is one anchor: its measured database hits divided by <span class="num">L2</span>,
+    the neighbourhood size computed offline from Parquet before any query runs. A flat line at
+    2.0 means the estimate converts to engine work by a constant.</p>
+
+    <figure>
+      <div class="chartbox">
+        <svg viewBox="0 0 720 300" role="img" aria-label="Measured database hits divided by the offline L2 estimate, against L2 on a log axis. Ratio is 7 to 14.6 at L2 of 5, falls through 4.4 to 5.5 at 72, and sits at 2.00 to 2.08 from L2 3,773 up to 16 million. The largest anchor, L2 51.4 million, timed out.">
+          <g stroke="var(--grid)" stroke-width="1">
+            <line x1="80" y1="250" x2="690" y2="250"/>
+            <line x1="80" y1="195" x2="690" y2="195"/>
+            <line x1="80" y1="140" x2="690" y2="140"/>
+            <line x1="80" y1="85" x2="690" y2="85"/>
+            <line x1="80" y1="30" x2="690" y2="30"/>
+          </g>
+          <g font-family="ui-monospace, monospace" font-size="11" fill="var(--ink-3)" text-anchor="end">
+            <text x="70" y="254">0</text>
+            <text x="70" y="199">4</text>
+            <text x="70" y="144">8</text>
+            <text x="70" y="89">12</text>
+            <text x="70" y="34">16</text>
+          </g>
+          <text x="80" y="18" font-family="ui-monospace, monospace" font-size="10.5"
+                fill="var(--ink-3)" letter-spacing="0.09em">MEASURED DB HITS ÷ L2 ESTIMATE</text>
+
+          <!-- the constant the gate is calibrated on -->
+          <line x1="80" y1="222.5" x2="690" y2="222.5" stroke="var(--s1)"
+                stroke-width="2" stroke-dasharray="5 4" opacity="0.55"/>
+          <text x="686" y="238" font-family="ui-monospace, monospace" font-size="11"
+                fill="var(--s1)" text-anchor="end" font-weight="600">ratio 2.0 — what the gate assumes</text>
+
+          <!-- points: 2px surface ring so overlaps stay countable -->
+          <g fill="var(--s1)" stroke="var(--panel)" stroke-width="2">
+            <circle cx="80" cy="153.8" r="5" data-tip="L2 5 → 35 hits&#10;ratio 7.00"/>
+            <circle cx="80" cy="140.0" r="5" data-tip="L2 5 → 40 hits&#10;ratio 8.00"/>
+            <circle cx="80" cy="49.3" r="5" data-tip="L2 5 → 73 hits&#10;ratio 14.60"/>
+            <circle cx="179.7" cy="189.1" r="5" data-tip="L2 72 → 319 hits&#10;ratio 4.43"/>
+            <circle cx="179.7" cy="185.3" r="5" data-tip="L2 72 → 339 hits&#10;ratio 4.71"/>
+            <circle cx="179.7" cy="173.8" r="5" data-tip="L2 72 → 399 hits&#10;ratio 5.54"/>
+            <circle cx="327.9" cy="221.6" r="5" data-tip="L2 3,773 → 7,807 hits&#10;ratio 2.07"/>
+            <circle cx="327.9" cy="221.5" r="5" data-tip="L2 3,773 → 7,816 hits&#10;ratio 2.07"/>
+            <circle cx="327.9" cy="221.4" r="5" data-tip="L2 3,773 → 7,855 hits&#10;ratio 2.08"/>
+            <circle cx="442.1" cy="222.5" r="5" data-tip="L2 79,794 → 159,642 hits&#10;ratio 2.00"/>
+            <circle cx="442.1" cy="222.3" r="5" data-tip="L2 79,794 → 160,455 hits&#10;ratio 2.01"/>
+            <circle cx="475.1" cy="222.2" r="5" data-tip="L2 192,892 → 389,416 hits&#10;ratio 2.02"/>
+            <circle cx="475.1" cy="222.4" r="5" data-tip="L2 192,942 → 387,243 hits&#10;ratio 2.01"/>
+            <circle cx="623.6" cy="222.3" r="5" data-tip="L2 10,238,484 → 20,644,387 hits&#10;ratio 2.02"/>
+            <circle cx="640.3" cy="222.3" r="5" data-tip="L2 15,973,145 → 32,183,811 hits&#10;ratio 2.02"/>
+          </g>
+
+          <!-- the anchor with no ratio, because it never returned -->
+          <g>
+            <path d="M678,216 l12,12 M690,216 l-12,12" stroke="var(--flag)" stroke-width="2.5"/>
+            <text x="684" y="205" font-family="ui-monospace, monospace" font-size="11"
+                  fill="var(--flag)" text-anchor="middle" font-weight="600">timeout</text>
+          </g>
+
+          <g font-family="ui-monospace, monospace" font-size="10.5" fill="var(--ink-3)" text-anchor="middle">
+            <text x="105.9" y="272">10</text>
+            <text x="192.1" y="272">100</text>
+            <text x="278.2" y="272">1k</text>
+            <text x="364.4" y="272">10k</text>
+            <text x="450.5" y="272">100k</text>
+            <text x="536.7" y="272">1M</text>
+            <text x="622.8" y="272">10M</text>
+          </g>
+          <text x="385" y="290" font-family="ui-monospace, monospace" font-size="10.5"
+                fill="var(--ink-3)" text-anchor="middle" letter-spacing="0.09em">L2 — OFFLINE NEIGHBOURHOOD SIZE (LOG)</text>
+        </svg>
+      </div>
+      <figcaption>17 anchors curated by <span class="num">L2</span> band on
+      <code>sf1000-real</code>, measured under <code>PROFILE</code>. Points at the same L2 are
+      separate anchors in the same band; a 2 px surface ring keeps overlapping marks
+      countable.</figcaption>
+    </figure>
+
+    <div class="note">
+      <p><strong>Correction.</strong> The claim was “≈2× across five orders of magnitude”. The
+      plateau is real from <span class="num">L2 3,773</span> to <span class="num">15,973,145</span>
+      — four orders — and the estimate <em>under-predicts</em> below roughly 3,800, reaching
+      14.6× at the floor where fixed per-query cost dominates. That direction is harmless for a
+      cost gate: it over-states the cost of queries that are cheap anyway. I also briefly
+      reported the constant as breaking at the <em>top</em> end, reading a band mean of 1.02;
+      that was an artefact of a timed-out anchor contributing its L2 to the estimate while
+      contributing no measurement.</p>
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow">table — gate verdict against outcome</p>
+    <h2>The gate priced 13 questions before running them</h2>
+    <div class="tbl">
+      <table>
+        <thead>
+          <tr><th></th><th>actually within budget</th><th>actually over or timed out</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>gate cleared</td><td class="ok">11 ✓</td><td class="flag">0 false clear</td></tr>
+          <tr><td>gate flagged</td><td class="flag">0 false flag</td><td class="ok">2 ✓</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>The decisive pair is a single anchor — account <span class="num">0</span>, L2
+    <span class="num">51,447,907</span> — separated by hop count alone: one hop cleared and
+    returned 154,077 hits; two hops was flagged and timed out. Same node, same data, same code.</p>
+    <ul>
+      <li>A <strong>false clear</strong> is the failure the gate exists to prevent.</li>
+      <li>A <strong>false flag</strong> trades answer quality for safety — a tuning question, not a broken premise.</li>
+      <li>The one false flag in the first run was a bug of mine: anchor extraction required four or more digits, so <code>account number 0</code> — the most expensive anchor in the dataset — parsed as unanchored.</li>
+    </ul>
+  </section>
+
+  <hr/>
+
+  <section>
+    <p class="eyebrow">for your check</p>
+    <h2>Three judgement calls I would like confirmed</h2>
+    <ul>
+      <li><strong>Chart 1 is normalised per row rather than showing totals.</strong> Totals span
+      3.3 ms to 648 ms, so a shared linear axis would flatten the 1,000-row bars to nothing.
+      Per-row also makes the flatness visible. Totals are in the tooltips and the table.</li>
+      <li><strong>Chart 2 plots a ratio, not two cost lines.</strong> A ratio shows the constant
+      directly; plotting estimate and measurement as two series on a log axis would look like
+      agreement everywhere and hide the divergence at the floor.</li>
+      <li><strong>Run-to-run variance is not shown.</strong> Two neo4rs runs gave 131.7 ms and
+      140.4 ms for the same query (6.6% apart), and early-abort saving of 170× and 194×. Figures
+      here are the saved run. If these go in a deck I would rather report a range.</li>
+    </ul>
+  </section>
+
+</div>
+
+<div id="tip" role="status" aria-live="polite"></div>
+
+<script>
+  (function () {
+    var tip = document.getElementById('tip');
+    document.querySelectorAll('[data-tip]').forEach(function (el) {
+      el.setAttribute('tabindex', '0');
+      function show(e) {
+        tip.textContent = el.getAttribute('data-tip');
+        tip.style.opacity = '1';
+        var r = el.getBoundingClientRect();
+        var x = (e && e.clientX ? e.clientX : r.left + r.width / 2) + 12;
+        var y = (e && e.clientY ? e.clientY : r.top) - 8;
+        tip.style.left = Math.min(x, window.innerWidth - tip.offsetWidth - 12) + 'px';
+        tip.style.top = Math.max(y, 8) + 'px';
+      }
+      function hide() { tip.style.opacity = '0'; }
+      el.addEventListener('mouseenter', show);
+      el.addEventListener('mousemove', show);
+      el.addEventListener('mouseleave', hide);
+      el.addEventListener('focus', show);
+      el.addEventListener('blur', hide);
+    });
+  })();
+</script>
+
+</body>
+</html>

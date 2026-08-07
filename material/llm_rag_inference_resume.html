@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>LLM RAG Inference Resume</title>
+  <style>
+    @page { size: A4; margin: 14mm; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: #111827;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 10.5px;
+      line-height: 1.38;
+      background: #ffffff;
+    }
+    h1, h2, h3, p { margin: 0; }
+    h1 {
+      font-size: 24px;
+      letter-spacing: 0;
+      line-height: 1.05;
+      margin-bottom: 4px;
+    }
+    .role {
+      font-size: 13px;
+      font-weight: 700;
+      color: #1f2937;
+      margin-bottom: 5px;
+    }
+    .contact {
+      color: #374151;
+      font-size: 10px;
+      margin-bottom: 12px;
+    }
+    a { color: #0f766e; text-decoration: none; }
+    h2 {
+      font-size: 12px;
+      color: #0f172a;
+      text-transform: uppercase;
+      border-bottom: 1px solid #d1d5db;
+      padding-bottom: 3px;
+      margin-top: 12px;
+      margin-bottom: 6px;
+      letter-spacing: 0.4px;
+    }
+    h3 {
+      font-size: 12px;
+      margin-top: 8px;
+      margin-bottom: 2px;
+    }
+    .meta {
+      color: #4b5563;
+      font-size: 10px;
+      margin-bottom: 4px;
+    }
+    ul {
+      margin: 4px 0 0 16px;
+      padding: 0;
+    }
+    li {
+      margin: 2px 0;
+      padding-left: 1px;
+    }
+    .skills {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px 16px;
+      margin-top: 2px;
+    }
+    .skill-line { margin: 0; }
+    .impact li { margin-bottom: 3px; }
+    .compact li { margin-bottom: 1px; }
+    .note {
+      color: #374151;
+      font-size: 10px;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Yitae Jeong</h1>
+  <div class="role">LLM / RAG / Inference Engineer</div>
+  <div class="contact">
+    jeongiitae6@gmail.com
+  </div>
+
+  <h2>Technical Profile</h2>
+  <p>
+    LLM engineer focused on both on-prem LLM inference and API-based Graph-RAG
+    systems. Designed and benchmarked SEOCHO, an open source
+    Graph-RAG runtime that combines document ingestion, semantic extraction,
+    vector/graph retrieval, evidence contracts, answer synthesis, and tracing.
+    Comfortable moving from idea to experiment to product feature: define the
+    failure mode, measure it, then turn the result into a runtime contract or
+    guardrail.
+    Recent infrastructure work includes vLLM + LMCache, Blackwell Pro-class server
+    setup, RDMA/NIXL/UCX/RoCEv2 networking, KV-cache offloading, and TTFT-focused
+    workload analysis.
+  </p>
+
+  <h2>Selected Engineering Results</h2>
+  <h3>On-Prem Inference / Multi-Node Serving</h3>
+  <ul class="impact">
+    <li>
+      Built an on-prem LLM serving foundation around Blackwell Pro-class hardware,
+      vLLM, LMCache, and KV-cache workload analysis, with focus on TTFT,
+      throughput, prefill/decode balance, and cache-tier design.
+    </li>
+    <li>
+      Worked on multi-node serving prerequisites: RDMA setup, NIXL, UCX, RoCEv2,
+      and NIC-engine tuning for high-throughput KV movement and cache offloading.
+    </li>
+    <li>
+      Problem: long-context inference wastes TTFT on repeated prefill. Worked on
+      vLLM + LMCache KV offloading and reuse-vs-recompute decisions to reduce
+      recomputation pressure and improve first-token latency.
+    </li>
+    <li>
+      Prepared KCC2026 tutorial material on inference workloads, KV-cache
+      footprint, vLLM internals, LMCache data paths, scheduler-side decisions,
+      and worker-side KV movement.
+    </li>
+  </ul>
+
+  <h3>API-Based Graph-RAG / Product Runtime</h3>
+  <ul class="impact">
+    <li>
+      Problem: graph retrieval was assumed to help financial QA. Built a
+      FinDER-style study on <strong>910 financial QA rows</strong> across six
+      slices to compare vector, graph, and vector+graph modes with ontology size
+      as a controlled variable.
+    </li>
+    <li>
+      Problem: decision-thread QA looked graph-friendly. Ran <strong>135 cases x
+      5 lanes = 675 comparison runs</strong> on BC3 and found vector/hybrid
+      remained stronger than graph-only, changing the product direction from
+      "graph always wins" to route-by-query and evidence-first answering.
+    </li>
+    <li>
+      Problem: graph context can be larger and expensive. Measured KV-cache cost
+      behavior on BC3: graph context reached a
+      <strong>59% cached-token hit ratio</strong> vs vector <strong>0%</strong>,
+      with lower amortized billable prompt tokens despite <strong>2.2x</strong>
+      larger raw context.
+    </li>
+    <li>
+      Problem: final answers could hide missing graph evidence. Added route and
+      evidence contracts so required slots, missing slots, provenance, route
+      profile, and answer shape remain visible before answer synthesis.
+    </li>
+    <li>
+      Converted API-model limitations into product design: ontology guardrails,
+      context graph, route profiles, and evidence bundles compensate for not
+      owning the foundation model while keeping outputs auditable.
+    </li>
+    <li>
+      Profiled DozerDB/Neo4j graph hydration and adopted a Rust PackStream codec:
+      <strong>1.62x</strong> faster real 3-shard federation read and
+      <strong>3.57x</strong> faster 130k-row bulk hydration with hash-parity checks.
+    </li>
+  </ul>
+
+  <h2>Engineering Projects</h2>
+  <h3>SEOCHO: Ontology-Grounded Graph-RAG and Agent Runtime</h3>
+  <div class="meta">
+    Open source, 2026-present | GitHub: <a href="https://github.com/tteon/seocho">github.com/tteon/seocho</a> |
+    DeepWiki: <a href="https://deepwiki.com/tteon/seocho">deepwiki.com/tteon/seocho</a>
+  </div>
+  <ul>
+    <li>
+      Implemented the API-side ingestion-to-answer path: raw records, chunking,
+      entity extraction, graph writes, semantic retrieval, and answer synthesis.
+    </li>
+    <li>
+      Benchmarked vector, graph, and hybrid retrieval lanes with fixed answerer
+      controls, paired comparisons, and persisted JSONL/Opik traces.
+    </li>
+    <li>
+      Converted experiment findings into product contracts: ontology profile
+      selection, evidence bundles, route profiles, answer-shape metadata, and
+      missing-slot guardrails.
+    </li>
+    <li>
+      Prepared KGC2026 material using SEOCHO to explain graph-agentic RAG across
+      RDF/LPG specialist agents, ontology guardrails, and evidence-grounded answers.
+    </li>
+    <li>
+      Used ontology guardrails and context-graph design to improve reliability
+      when the system depends on external foundation-model APIs instead of owning
+      the model weights.
+    </li>
+    <li>
+      Implemented layered memory graph contracts such as Document -> DocumentVersion
+      -> Section -> Chunk -> Entity, with vector metadata joinable to graph provenance.
+    </li>
+    <li>
+      Built semantic routing across LPG/RDF graph-specialist paths, answer
+      generation, and graph reasoning guardrails.
+    </li>
+    <li>
+      Added evidence-bundle fields for slot fills, missing slots, provenance,
+      route profile, answer shape, and conservative abstention.
+    </li>
+  </ul>
+
+  <h3>On-Prem LLM Inference Infrastructure: vLLM, LMCache, RDMA/NIXL</h3>
+  <div class="meta">Current work, 2026-present | Multi-node serving infrastructure and workload analysis</div>
+  <ul>
+    <li>
+      Set up server infrastructure for LLM inference workloads, including
+      Blackwell Pro-class hardware preparation and software stack bring-up.
+    </li>
+    <li>
+      Built a vLLM + LMCache serving stack to study KV-cache reuse, prefix caching,
+      chunked prefill, scheduler behavior, and cache-tier design.
+    </li>
+    <li>
+      Worked on multi-node serving requirements including RDMA setup, NIXL, UCX,
+      RoCEv2, and NIC-engine tuning for KV movement and cache offload paths.
+    </li>
+    <li>
+      Analyzed workload dimensions including ISL, OSL, prefill/decode ratio, TTFT,
+      ITL/TPOT, E2E latency, throughput, cache hit ratio, and GPU memory pressure.
+    </li>
+    <li>
+      Evaluated KV offloading and reuse-vs-recompute tradeoffs using KV size,
+      transfer bandwidth, cache-tier latency, prompt length, and workload locality.
+    </li>
+    <li>
+      Prepared KCC2026 tutorial material on inference workload, KV-cache behavior,
+      vLLM internals, and LMCache integration.
+    </li>
+    <li>
+      Used workload analysis to reason about multi-GPU serving design, especially
+      GPU memory pressure, KV locality, tiered cache sizing, and prefill-heavy
+      workload optimization.
+    </li>
+  </ul>
+
+  <h2>Technical Skills</h2>
+  <div class="skills">
+    <p class="skill-line"><strong>LLM/RAG:</strong> Graph-RAG, vector retrieval, hybrid retrieval, grounded prompting, tool calling</p>
+    <p class="skill-line"><strong>Agents:</strong> semantic routing, graph-specialist agents, evidence contracts, answer guardrails</p>
+    <p class="skill-line"><strong>Evaluation:</strong> LLM-as-judge, fixed-answerer comparisons, paired tests, benchmark design</p>
+    <p class="skill-line"><strong>Inference:</strong> vLLM, LMCache, KV offload, prefill/decode, TTFT, ITL/TPOT, throughput</p>
+    <p class="skill-line"><strong>Infrastructure:</strong> RDMA, NIXL, UCX, RoCEv2, GPU server setup, cache tiering, observability</p>
+    <p class="skill-line"><strong>Stack:</strong> Python, FastAPI, OpenAI Agents SDK, DozerDB/Neo4j, Opik, JSONL tracing</p>
+  </div>
+
+  <h2>Selected Links</h2>
+  <p>
+    SEOCHO GitHub: <a href="https://github.com/tteon/seocho">https://github.com/tteon/seocho</a><br>
+    SEOCHO DeepWiki: <a href="https://deepwiki.com/tteon/seocho">https://deepwiki.com/tteon/seocho</a>
+  </p>
+</body>
+</html>

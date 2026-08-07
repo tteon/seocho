@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Yitae Jeong Agent Platform Resume</title>
+  <style>
+    @page { size: A4; margin: 14mm; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: #111827;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 10.5px;
+      line-height: 1.38;
+      background: #ffffff;
+    }
+    h1, h2, h3, p { margin: 0; }
+    h1 { font-size: 24px; line-height: 1.05; margin-bottom: 4px; }
+    .role { font-size: 13px; font-weight: 700; color: #1f2937; margin-bottom: 5px; }
+    .contact { color: #374151; font-size: 10px; margin-bottom: 12px; }
+    a { color: #0f766e; text-decoration: none; }
+    h2 {
+      font-size: 12px;
+      color: #0f172a;
+      text-transform: uppercase;
+      border-bottom: 1px solid #d1d5db;
+      padding-bottom: 3px;
+      margin-top: 12px;
+      margin-bottom: 6px;
+      letter-spacing: 0.4px;
+    }
+    h3 { font-size: 12px; margin-top: 8px; margin-bottom: 2px; }
+    .meta { color: #4b5563; font-size: 10px; margin-bottom: 4px; }
+    ul { margin: 4px 0 0 16px; padding: 0; }
+    li { margin: 2px 0; padding-left: 1px; }
+    .skills {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px 16px;
+      margin-top: 2px;
+    }
+    .skill-line { margin: 0; }
+    .results li { margin-bottom: 3px; }
+  </style>
+</head>
+<body>
+  <h1>Yitae Jeong</h1>
+  <div class="role">AI Agent Platform / LLM Infrastructure Engineer</div>
+  <div class="contact">jeongiitae6@gmail.com</div>
+
+  <h2>Technical Profile</h2>
+  <p>
+    Builder-oriented LLM engineer focused on agent platform infrastructure,
+    Graph-RAG runtimes, evaluation loops, and on-prem inference systems. Designed
+    and benchmarked SEOCHO, an open source agentic Graph-RAG runtime that turns
+    documents into graph-backed evidence, routes queries through specialist
+    agents, and exposes traceable answer contracts. Comfortable working from
+    frontier idea to production-shaped implementation: define the failure mode,
+    instrument it, benchmark alternatives, then turn the result into a reusable
+    runtime contract, provider gateway configuration, CLI/workflow, guardrail, or
+    platform capability. Heavy user of Codex and Claude Code, with AI-assisted
+    development kept disciplined through `.beads`, GitHub Actions, CI gates, and
+    reviewable automation.
+  </p>
+
+  <h2>Why This Fits Agent Fleet Infrastructure</h2>
+  <ul class="results">
+    <li>
+      <strong>Skill-style platform thinking:</strong> built modular agent/runtime
+      contracts around ontology profiles, evidence bundles, route profiles,
+      answer-shape metadata, and graph-specialist paths; directly transferable to
+      OpenClaw-style reusable skill units and registries.
+    </li>
+    <li>
+      <strong>Harness and lifecycle engineering:</strong> worked on semantic
+      routing, agent readiness, tool-budgeted execution, graph target selection,
+      evidence assembly, conservative abstention, and traceable answer synthesis.
+    </li>
+    <li>
+      <strong>Telemetry-driven optimization:</strong> used JSONL and Opik-style
+      traces, fixed-answerer comparisons, paired tests, latency/cost metadata,
+      and failure-mode inspection to convert logs into platform decisions.
+    </li>
+    <li>
+      <strong>AI-native developer workflow:</strong> ran SEOCHO development with
+      Codex, Claude Code, `.beads` task tracking, repo-local scripts, GitHub Actions,
+      scheduled automation prompts, and reviewable PR gates.
+    </li>
+    <li>
+      <strong>LLM infrastructure depth:</strong> recent work includes vLLM,
+      LMCache, Blackwell Pro-class setup, KV-cache offloading, RDMA/NIXL/UCX/RoCEv2,
+      NIC tuning, and TTFT-focused workload analysis.
+    </li>
+    <li>
+      <strong>Multi-provider orchestration:</strong> built OpenAI-compatible
+      provider abstractions across OpenAI, DeepSeek, Kimi/Moonshot, Grok, Qwen,
+      and MARA Cloud, including provider capability specs, base URLs, env-key
+      resolution, timeout/retry policy, and usage/latency metadata.
+    </li>
+    <li>
+      <strong>Security and reliability instinct:</strong> used ontology guardrails,
+      context graphs, provenance, missing-slot visibility, policy-aware runtime
+      contracts, and no-silent-fallback rules to reduce unsupported answers and
+      API-model risk.
+    </li>
+  </ul>
+
+  <h2>Selected Engineering Results</h2>
+  <h3>Agent Operations / Developer Workflow</h3>
+  <ul class="results">
+    <li>
+      Operated `.beads` as the execution source of truth for tasks, dependencies,
+      status, and landing discipline, similar to an internal agent-ops control plane.
+    </li>
+    <li>
+      Built GitHub/Codex automation surfaces for scheduled maintenance, periodic
+      review, CI validation, docs checks, and draft PR workflows.
+    </li>
+    <li>
+      Maintained `seocho.blog` as an in-repo Astro/Starlight docs and blog site,
+      generated from canonical repo docs and deployed through GitHub Pages.
+    </li>
+    <li>
+      Added developer-facing CLI/workflow surfaces for provider selection,
+      graph routing hints, local query/index paths, tracing, and runtime inspection.
+    </li>
+  </ul>
+
+  <h3>Agent Platform / Graph-RAG Runtime</h3>
+  <ul class="results">
+    <li>
+      Built SEOCHO as an API-based agentic Graph-RAG runtime: ingestion, chunking,
+      entity extraction, graph writes, semantic routing, evidence assembly,
+      answer synthesis, and tracing.
+    </li>
+    <li>
+      Ran a FinDER-style retrieval study on <strong>910 financial QA rows</strong>
+      across six slices, comparing vector, graph, and vector+graph retrieval with
+      ontology size as a controlled variable.
+    </li>
+    <li>
+      Ran BC3 decision-QA experiments across <strong>135 cases x 5 lanes = 675
+      comparison runs</strong>; results changed the product direction from
+      "graph always wins" to route-by-query and evidence-first answering.
+    </li>
+    <li>
+      Added route/evidence contracts so required slots, missing slots, provenance,
+      route profile, and answer shape remain visible before answer synthesis.
+    </li>
+    <li>
+      Implemented vendor-neutral observability with JSONL as the portable trace
+      artifact and Opik as the optional team dashboard/exporter.
+    </li>
+    <li>
+      Prepared KGC2026 material using SEOCHO to explain graph-agentic RAG across
+      RDF/LPG specialist agents, ontology guardrails, and evidence-grounded answers.
+    </li>
+  </ul>
+
+  <h3>Inference / Cost / Throughput</h3>
+  <ul class="results">
+    <li>
+      Orchestrated MARA Cloud as an OpenAI-compatible multi-model gateway for
+      DeepSeek-V3.1, MiniMax-M2.5, and gpt-oss-120b, using it for generator and
+      LLM-as-judge workloads in benchmark pipelines.
+    </li>
+    <li>
+      Measured KV-cache cost behavior on BC3: graph context reached a
+      <strong>59% cached-token hit ratio</strong> vs vector <strong>0%</strong>,
+      with lower amortized billable prompt tokens despite <strong>2.2x</strong>
+      larger raw context.
+    </li>
+    <li>
+      Worked on vLLM + LMCache KV offloading and reuse-vs-recompute decisions to
+      reduce recomputation pressure and improve first-token latency.
+    </li>
+    <li>
+      Worked on multi-node serving prerequisites: RDMA setup, NIXL, UCX, RoCEv2,
+      and NIC-engine tuning for high-throughput KV movement and cache offload paths.
+    </li>
+    <li>
+      Profiled DozerDB/Neo4j graph hydration and adopted a Rust PackStream codec:
+      <strong>1.62x</strong> faster real 3-shard federation read and
+      <strong>3.57x</strong> faster 130k-row bulk hydration with hash-parity checks.
+    </li>
+    <li>
+      Prepared KCC2026 tutorial material on inference workloads, KV-cache
+      footprint, vLLM internals, LMCache data paths, scheduler-side decisions,
+      and worker-side KV movement.
+    </li>
+  </ul>
+
+  <h2>Engineering Projects</h2>
+  <h3>SEOCHO: Agentic Graph-RAG Runtime and Evaluation Platform</h3>
+  <div class="meta">
+    Open source, 2026-present | GitHub: <a href="https://github.com/tteon/seocho">github.com/tteon/seocho</a> |
+    DeepWiki: <a href="https://deepwiki.com/tteon/seocho">deepwiki.com/tteon/seocho</a>
+  </div>
+  <ul>
+    <li>
+      Implemented API-side ingestion-to-answer flows with graph-backed memory,
+      ontology context, evidence bundles, and answer guardrails.
+    </li>
+    <li>
+      Built semantic routing across LPG/RDF graph-specialist paths, answer
+      generation, graph reasoning guardrails, and inspectable evidence contracts.
+    </li>
+    <li>
+      Converted experiment findings into product contracts: ontology profile
+      selection, route profiles, answer-shape metadata, missing-slot guardrails,
+      and stable trace payloads.
+    </li>
+    <li>
+      Built and maintained developer workflows around `.beads`, repo-local scripts,
+      GitHub Actions, Codex automation prompts, and CI quality gates.
+    </li>
+    <li>
+      Used external foundation-model APIs with context-graph and ontology
+      guardrails, reflecting how to build reliable agent systems without owning
+      the base model.
+    </li>
+    <li>
+      Added spec-driven LLM backend configuration for OpenAI-compatible providers,
+      including MARA Cloud gateway support, model capability resolution, provider
+      request quirks, and explicit retry/timeout control.
+    </li>
+    <li>
+      Benchmarked vector, graph, and hybrid retrieval lanes with fixed answerer
+      controls, paired comparisons, persisted traces, and failure-state inspection.
+    </li>
+    <li>
+      Owned the public documentation surface through `seocho.blog`, an Astro/Starlight
+      site generated from repository docs and deployed via GitHub Pages.
+    </li>
+  </ul>
+
+  <h3>On-Prem LLM Inference Infrastructure</h3>
+  <div class="meta">Current work, 2026-present | Multi-node serving infrastructure and workload analysis</div>
+  <ul>
+    <li>
+      Set up server infrastructure for LLM inference workloads, including
+      Blackwell Pro-class hardware preparation and software stack bring-up.
+    </li>
+    <li>
+      Built a vLLM + LMCache serving stack to study KV-cache reuse, prefix caching,
+      chunked prefill, scheduler behavior, and tiered cache design.
+    </li>
+    <li>
+      Analyzed ISL, OSL, prefill/decode ratio, TTFT, ITL/TPOT, E2E latency,
+      throughput, cache hit ratio, GPU memory pressure, and network transfer costs.
+    </li>
+    <li>
+      Evaluated KV offloading and reuse-vs-recompute tradeoffs using KV size,
+      transfer bandwidth, cache-tier latency, prompt length, and workload locality.
+    </li>
+  </ul>
+
+  <h2>Technical Skills</h2>
+  <div class="skills">
+    <p class="skill-line"><strong>Agent Platform:</strong> skill-style contracts, tool execution, semantic routing, evidence bundles, guardrails</p>
+    <p class="skill-line"><strong>LLM Infra:</strong> vLLM, LMCache, KV offload, token budgeting, context management, TTFT/ITL analysis</p>
+    <p class="skill-line"><strong>Provider Routing:</strong> MARA Cloud, OpenAI-compatible gateways, multi-provider configs, retry/timeout policy</p>
+    <p class="skill-line"><strong>Observability:</strong> JSONL traces, Opik, OTel-style trace contracts, paired tests, latency/cost metadata</p>
+    <p class="skill-line"><strong>AI-Native Workflow:</strong> Codex, Claude Code, .beads, GitHub Actions, CI gates, PR automation</p>
+    <p class="skill-line"><strong>Serving Infra:</strong> RDMA, NIXL, UCX, RoCEv2, NIC tuning, GPU server setup, cache tiering</p>
+    <p class="skill-line"><strong>RAG/Agents:</strong> Graph-RAG, RDF/LPG agents, vector/hybrid retrieval, grounded answers, tool calling</p>
+    <p class="skill-line"><strong>Stack:</strong> Python, FastAPI, OpenAI Agents SDK, DozerDB/Neo4j, Astro/Starlight, CLI/dev workflows</p>
+  </div>
+
+  <h2>Selected Links</h2>
+  <p>
+    SEOCHO GitHub: <a href="https://github.com/tteon/seocho">https://github.com/tteon/seocho</a><br>
+    SEOCHO DeepWiki: <a href="https://deepwiki.com/tteon/seocho">https://deepwiki.com/tteon/seocho</a>
+  </p>
+</body>
+</html>

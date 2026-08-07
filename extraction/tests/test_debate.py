@@ -192,6 +192,18 @@ async def test_debate_orchestrator_uses_semantic_preflight_when_supported(monkey
     result = await orchestrator.run_debate("What was PTC revenue growth?", context=context)
 
     assert result["debate_results"][0]["response"] == "Deterministic graph answer."
+    assert result["debate_results"][0]["semantic_reused"] is True
+    assert result["debate_results"][0]["support_assessment"] == {
+        "status": "supported",
+        "supported": True,
+    }
+    assert result["debate_results"][0]["evidence_bundle"]["intent_id"] == (
+        "financial_metric_lookup"
+    )
+    assert result["debate_results"][0]["evidence_bundle"]["slot_fills"] == {
+        "target_entity": "Revenue",
+        "supporting_fact": "PTC revenue grew 10%.",
+    }
     assert result["response"] == "Deterministic graph answer."
     assert calls == []
     assert any(step["type"] == "DETERMINISTIC_PREFLIGHT" for step in result["trace_steps"])

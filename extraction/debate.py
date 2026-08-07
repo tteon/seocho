@@ -129,6 +129,11 @@ class DebateOrchestrator:
                         "graph": r.graph_id,
                         "db": r.db_name,
                         "response": r.response,
+                        "semantic_reused": r.semantic_reused,
+                        "semantic_route": r.semantic_route,
+                        "support_assessment": r.support_assessment,
+                        "evidence_bundle": r.evidence_bundle,
+                        "strategy_decision": r.strategy_decision,
                     }
                     for r in debate_results
                 ],
@@ -154,6 +159,11 @@ class DebateOrchestrator:
                     "graph": r.graph_id,
                     "db": r.db_name,
                     "response": r.response,
+                    "semantic_reused": r.semantic_reused,
+                    "semantic_route": r.semantic_route,
+                    "support_assessment": r.support_assessment,
+                    "evidence_bundle": r.evidence_bundle,
+                    "strategy_decision": r.strategy_decision,
                 }
                 for r in debate_results
             ],

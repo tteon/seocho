@@ -139,7 +139,12 @@ class DebateResponse(BaseModel):
 
     response: str = Field(description="Supervisor-synthesized final answer.")
     trace_steps: List[Dict[str, Any]] = Field(description="Per-agent trace steps for DAG rendering.")
-    debate_results: List[Dict[str, Any]] = Field(description="Individual agent answers before synthesis.")
+    debate_results: List[Dict[str, Any]] = Field(
+        description=(
+            "Individual graph-agent messages before synthesis, including graph scope, "
+            "support state, and typed evidence when available."
+        )
+    )
     agent_statuses: List[Dict[str, str]] = Field(default_factory=list, description="Per-agent readiness status (ready/degraded/blocked).")
     debate_state: Literal["ready", "degraded", "blocked"] = Field(default="ready", description="Overall debate readiness state.")
     degraded: bool = Field(default=False, description="True if one or more agents were unavailable.")

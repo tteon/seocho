@@ -1,7 +1,7 @@
 {
-  "generated_utc": "2026-08-05T13:19:21+00:00",
-  "contracts": 114,
-  "artifacts": 151,
+  "generated_utc": "2026-08-06T21:24:28+00:00",
+  "contracts": 120,
+  "artifacts": 161,
   "results": [
     {
       "contract": "seocho.retrace_run.v1",
@@ -225,6 +225,23 @@
       "traced": true,
       "has_decisive": true,
       "fingerprint": "67fa626c5c2042ef",
+      "missing": []
+    },
+    {
+      "contract": "log2026.validity.s5",
+      "path": "outputs/minimal/20260806T132255Z-validity/validity.json",
+      "run_dir": "outputs/minimal/20260806T132255Z-validity",
+      "modified": "2026-08-06 13:23",
+      "question": "Was the schema actually delivered to the extractor, and are the differences between conditions larger than sampling noise?",
+      "claim_boundary": "The interval covers sampling variability across these 16 cases only. It does not cover variation between models, between runs of one model, or the choice of matching rule.",
+      "supersedes": "",
+      "method": "Manipulation check from the run traces and the labels that came back; percentile bootstrap over cases with 5000 draws, resampling cases rather than facts because facts inside one case are not independent",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": true,
+      "has_decisive": true,
+      "fingerprint": "4b0a4322d62f06bf",
       "missing": []
     },
     {
@@ -1073,6 +1090,58 @@
       ]
     },
     {
+      "contract": "log2026.reextract.s5",
+      "path": "outputs/minimal/20260805T131731Z-reextract/reextract.json",
+      "run_dir": "outputs/minimal/20260805T131731Z-reextract",
+      "modified": "2026-08-05 23:38",
+      "question": "Does the ontology handed to the extractor change what the graph contains, and does it make two models name the same fact the same way?",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [
+        "cases",
+        "reference text",
+        "prompt template",
+        "chunking",
+        "graph store",
+        "seed"
+      ],
+      "moving": "the ontology only",
+      "headline": "by_arm={\"B\": {\"ontology\": \"local\", \"ontology_hash\": \"8f27a09351dec196\", \"attempted\": 560, \"scored\": 560, \"nodes\": 186",
+      "traced": true,
+      "has_decisive": true,
+      "fingerprint": "1c06b37da65d1a08",
+      "missing": [
+        "claim_boundary"
+      ]
+    },
+    {
+      "contract": "log2026.reextract.s4",
+      "path": "outputs/minimal/20260805T153525Z-reextract/reextract.json",
+      "run_dir": "outputs/minimal/20260805T153525Z-reextract",
+      "modified": "2026-08-05 16:13",
+      "question": "Does the ontology handed to the extractor change what the graph contains, and does it make two models name the same fact the same way?",
+      "claim_boundary": "",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [
+        "cases",
+        "reference text",
+        "prompt template",
+        "chunking",
+        "graph store",
+        "seed"
+      ],
+      "moving": "the ontology only",
+      "headline": "by_arm={\"A\": {\"ontology\": \"none\", \"ontology_hash\": \"a643d7a7e2e4bb48\", \"attempted\": 204, \"scored\": 204, \"nodes\": 2295",
+      "traced": true,
+      "has_decisive": true,
+      "fingerprint": "a91663f3f6f37354",
+      "missing": [
+        "claim_boundary"
+      ]
+    },
+    {
       "contract": "log2026.reextract.s4",
       "path": "outputs/minimal/20260804T223226Z-reextract/reextract.json",
       "run_dir": "outputs/minimal/20260804T223226Z-reextract",
@@ -1557,6 +1626,40 @@
       "missing": []
     },
     {
+      "contract": "log2026.ma_adjudication.v1",
+      "path": "outputs/minimal/20260805T135219Z-ma-adjudication/ma_adjudication.json",
+      "run_dir": "outputs/minimal/20260805T135219Z-ma-adjudication",
+      "modified": "2026-08-05 20:13",
+      "question": "When two extractors disagree on an anchored figure, what resolves it: deliberation, provenance, schema, or a rule with no LLM at all?",
+      "claim_boundary": "Ground truth is the source token's value, so accuracy is mechanical; where every view mis-stated the value and the window is ambiguous, abstention is correct behavior, so accuracy is reported with coverage, never alone. One adjudicator model (Kimi K2.5); arm prompts share one scaffold and differ only in evidence.",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": true,
+      "has_decisive": true,
+      "fingerprint": "f55d0b53ee99b02c",
+      "missing": []
+    },
+    {
+      "contract": "log2026.ma_adjudication.v1",
+      "path": "outputs/minimal/20260805T132421Z-ma-adjudication/ma_adjudication.json",
+      "run_dir": "outputs/minimal/20260805T132421Z-ma-adjudication",
+      "modified": "2026-08-05 13:24",
+      "question": "When two extractors disagree on an anchored figure, what resolves it: deliberation, provenance, schema, or a rule with no LLM at all?",
+      "claim_boundary": "Ground truth is the source token's value, so accuracy is mechanical; where every view mis-stated the value and the window is ambiguous, abstention is correct behavior, so accuracy is reported with coverage, never alone. One adjudicator model (Kimi K2.5); arm prompts share one scaffold and differ only in evidence.",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": true,
+      "has_decisive": true,
+      "fingerprint": "072a56cd38f46c45",
+      "missing": []
+    },
+    {
       "contract": "log2026.key_rule_pretest.v1",
       "path": "outputs/evaluation/mdm_fedcat/log2026-key-rule-pretest-v1/key_rule_pretest.json",
       "run_dir": "outputs/evaluation/mdm_fedcat/log2026-key-rule-pretest-v1",
@@ -1571,6 +1674,23 @@
       "traced": false,
       "has_decisive": false,
       "fingerprint": "",
+      "missing": []
+    },
+    {
+      "contract": "log2026.judge_panel_summary.an1",
+      "path": "outputs/minimal/20260806T210649Z-judge-panel/judge_panel_summary.json",
+      "run_dir": "outputs/minimal/20260806T210649Z-judge-panel",
+      "modified": "2026-08-06 21:17",
+      "question": "Do calibrated cross-judging panels corroborate the primary metric's condition ordering on prose quality?",
+      "claim_boundary": "Secondary metric only; two non-author MARA judges per answer (Kimi seat unavailable, recorded in the protocol amendment); ties are unresolved, never resolved by fiat; judges admitted only after 40/40 must-fail calibration; 86/1800 gradings failed at the API and are counted, not imputed.",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": true,
+      "has_decisive": true,
+      "fingerprint": "495aab077de51301",
       "missing": []
     },
     {
@@ -1772,6 +1892,23 @@
         "question",
         "claim_boundary"
       ]
+    },
+    {
+      "contract": "log2026.fact_anchors_summary.v1",
+      "path": "outputs/minimal/20260805T203107Z-materialize-anchors/anchors_summary.json",
+      "run_dir": "outputs/minimal/20260805T203107Z-materialize-anchors",
+      "modified": "2026-08-05 20:31",
+      "question": "Can a figure a model extracted be attributed to the place in the source it came from, after the fact?",
+      "claim_boundary": "An anchor is a unique numeric coincidence, not a provenance record written during extraction. Two unrelated facts sharing one figure would be attributed to the same token if only one occurrence exists. Only figures can be anchored at all, so facts without one are outside this entirely.",
+      "supersedes": "",
+      "method": "each extracted figure located against the numeric tokens of its case's reference passages, searching the value as parsed and at every scale; exact matches preferred, ambiguous figures left unanchored",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": true,
+      "has_decisive": true,
+      "fingerprint": "4c02d688c604e205",
+      "missing": []
     },
     {
       "contract": "log2026.fact_anchors_summary.v1",
@@ -2658,6 +2795,29 @@
       "missing": []
     },
     {
+      "contract": "log2026.arm_results.s5",
+      "path": "outputs/minimal/20260806T132157Z-arm-results/arm_results.json",
+      "run_dir": "outputs/minimal/20260806T132157Z-arm-results",
+      "modified": "2026-08-06 13:22",
+      "question": "Does the ontology handed to the extractor change whether two models describe the same fact the same way?",
+      "claim_boundary": "16 cases, 3 models, one run. Cases where extraction fell back to the heuristic are excluded and counted separately; every rate is conditioned on the scored cases, not the attempted ones.",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [
+        "cases",
+        "reference text",
+        "prompt",
+        "chunking",
+        "seed"
+      ],
+      "moving": "the ontology only",
+      "headline": "by_arm={\"B\": {\"cases_total\": 280, \"cases_contaminated\": 0, \"cases_scored\": 280, \"contaminated_cases\": [], \"nodes\": 14",
+      "traced": true,
+      "has_decisive": true,
+      "fingerprint": "d3935a9d5a34dc6d",
+      "missing": []
+    },
+    {
       "contract": "log2026.arm_results.s2",
       "path": "outputs/minimal/20260803T120128Z-arm-results/arm_results.json",
       "run_dir": "outputs/minimal/20260803T120128Z-arm-results",
@@ -2718,6 +2878,40 @@
       "traced": true,
       "has_decisive": true,
       "fingerprint": "3d5820c2d6949b6c",
+      "missing": []
+    },
+    {
+      "contract": "log2026.answering_analysis.an3",
+      "path": "outputs/minimal/20260806T204007Z-answering-analysis/answering_analysis.json",
+      "run_dir": "outputs/minimal/20260806T204007Z-answering-analysis",
+      "modified": "2026-08-06 20:40",
+      "question": "Under five evidence conditions, which differences in answer quality are real, and which answers actually used the evidence they were served?",
+      "claim_boundary": "Paired bootstrap over cases (5,000 draws, seed 42), per model — never across models. 'Evidence contains the answer' is a numeric-token approximation; grounded means overlap > 0, so partial answers count. Gold answers without figures are excluded from the primary metric, not zeroed.",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": true,
+      "has_decisive": true,
+      "fingerprint": "362e920703aaf011",
+      "missing": []
+    },
+    {
+      "contract": "log2026.answering_analysis.an3",
+      "path": "outputs/minimal/20260806T143654Z-answering-analysis/answering_analysis.json",
+      "run_dir": "outputs/minimal/20260806T143654Z-answering-analysis",
+      "modified": "2026-08-06 14:36",
+      "question": "Under five evidence conditions, which differences in answer quality are real, and which answers actually used the evidence they were served?",
+      "claim_boundary": "Paired bootstrap over cases (5,000 draws, seed 42), per model — never across models. 'Evidence contains the answer' is a numeric-token approximation; grounded means overlap > 0, so partial answers count. Gold answers without figures are excluded from the primary metric, not zeroed.",
+      "supersedes": "",
+      "method": "",
+      "held_fixed": [],
+      "moving": "",
+      "headline": "",
+      "traced": true,
+      "has_decisive": true,
+      "fingerprint": "362e920703aaf011",
       "missing": []
     },
     {

@@ -30,6 +30,12 @@ The following are deliberately deferred: GNN routing, PageRank-only routing,
 full OWL entailment in the hot path, and automatic replacement of human labels
 with LLM judgments.
 
+The production harness primitives live in `seocho.query.agent_harness`:
+agent identity, bounded retrieval retry, tool-boundary evidence authorization,
+structured insufficient-evidence abstention, and rubric metrics. Automatic
+prompt rewriting, self-improving routing, model replacement, and live policy
+updates remain deferred and require offline evaluation plus human approval.
+
 The first policy slice is implemented in `seocho.query.sdcr`. It is pure and
 deterministic: database adapters and model calls provide capabilities and
 evidence, while the policy module owns coalition selection, protected-field

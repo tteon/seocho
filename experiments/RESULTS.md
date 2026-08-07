@@ -8,10 +8,18 @@ version: bump the version when a rerun changes what the number means,
 and set `supersedes` on the replacement so the withdrawn measurement
 stays visible.
 
-114 contracts, 151 artifacts, 48 with a full trace.
+120 contracts, 161 artifacts, 54 with a full trace.
 
 | Contract | Question | Headline | Traced | Artifact |
 |---|---|---|---|---|
+| `log2026.judge_panel_summary.an1` | Do calibrated cross-judging panels corroborate the primary metric's condition ordering on pro… | — | yes | `outputs/minimal/20260806T210649Z-judge-panel/judge_panel_summary.json` |
+| `log2026.answering_analysis.an3` | Under five evidence conditions, which differences in answer quality are real, and which answe… | — | yes | `outputs/minimal/20260806T204007Z-answering-analysis/answering_analysis.json` |
+| `log2026.validity.s5` | Was the schema actually delivered to the extractor, and are the differences between condition… | — | yes | `outputs/minimal/20260806T132255Z-validity/validity.json` |
+| `log2026.arm_results.s5` | Does the ontology handed to the extractor change whether two models describe the same fact th… | by_arm={"B": {"cases_total": 280, "cases_contaminated": 0, " | yes | `outputs/minimal/20260806T132157Z-arm-results/arm_results.json` |
+| `log2026.reextract.s5` | Does the ontology handed to the extractor change what the graph contains, and does it make tw… | by_arm={"B": {"ontology": "local", "ontology_hash": "8f27a09 | yes | `outputs/minimal/20260805T131731Z-reextract/reextract.json` |
+| `log2026.fact_anchors_summary.v1` | Can a figure a model extracted be attributed to the place in the source it came from, after t… | — | yes | `outputs/minimal/20260805T203107Z-materialize-anchors/anchors_summary.json` |
+| `log2026.ma_adjudication.v1` | When two extractors disagree on an anchored figure, what resolves it: deliberation, provenanc… | — | yes | `outputs/minimal/20260805T135219Z-ma-adjudication/ma_adjudication.json` |
+| `log2026.reextract.s4` | Does the ontology handed to the extractor change what the graph contains, and does it make tw… | by_arm={"A": {"ontology": "none", "ontology_hash": "a643d7a7 | yes | `outputs/minimal/20260805T153525Z-reextract/reextract.json` |
 | `log2026.structural_divergence.v1` | Do independently extracted views embed the same source fact in similar graph structure — is t… | — | yes | `outputs/minimal/20260805T131917Z-structural-divergence/structural_divergence.json` |
 | `log2026.answering_analysis.an4` | Under five evidence conditions, which differences in answer quality are real, and which answe… | — | yes | `outputs/minimal/20260805T131722Z-answering-analysis/answering_analysis.json` |
 | `log2026.answering_analysis.an2` | Under five evidence conditions, which differences in answer quality are real, and which answe… | — | yes | `outputs/minimal/20260805T131711Z-answering-analysis/answering_analysis.json` |
@@ -31,7 +39,6 @@ stays visible.
 | `log2026.category_load.s1` | Are the extracted graphs loaded and queryable, isolated by category, with provenance attached? | — | yes | `outputs/minimal/20260802T131134Z-load-categories/category_load.json` |
 | `log2026.arm_results.s2` | Does the ontology handed to the extractor change whether two models describe the same fact th… | by_arm={"C": {"cases_total": 280, "cases_contaminated": 0, " | yes | `outputs/minimal/20260803T120128Z-arm-results/arm_results.json` |
 | `log2026.arm_results.s1` | Does the ontology handed to the extractor change whether two models describe the same fact th… | by_arm={"A": {"cases_total": 280, "cases_contaminated": 0, " | yes | `outputs/minimal/20260802T131352Z-arm-results/arm_results.json` |
-| `log2026.reextract.s4` | Does the ontology handed to the extractor change what the graph contains, and does it make tw… | by_arm={"A": {"ontology": "none", "ontology_hash": "a643d7a7 | yes | `outputs/minimal/20260804T223226Z-reextract/reextract.json` |
 | `log2026.reextract.s3` | Does the ontology handed to the extractor change what the graph contains, and does it make tw… | by_arm={"A": {"ontology": "none", "ontology_hash": "a643d7a7 | yes | `outputs/minimal/20260804T205104Z-reextract/reextract.json` |
 | `log2026.reextract.s2` | Does the ontology handed to the extractor change what the graph contains, and does it make tw… | by_arm={"C": {"ontology": "fibo", "ontology_hash": "16fbb246 | yes | `outputs/minimal/20260802T211620Z-reextract/reextract.json` |
 | `log2026.reextract.s1` | Does the ontology handed to the extractor change what the graph contains, and does it make tw… | by_arm={"A": {"ontology": "none", "ontology_hash": "a643d7a7 | yes | `outputs/minimal/20260802T053227Z-reextract/reextract.json` |
@@ -42,7 +49,6 @@ stays visible.
 | `log2026.schema_legibility.v1` | Which of the obstacles to an agent querying this graph can a prompt remove, and which are sha… | — | yes | `outputs/minimal/20260802T070005Z-schema-legibility/schema_legibility.json` |
 | `seocho.narrative_grounding.v1` | Does every number in the hand-written prose still match an artifact? | — | no | `outputs/minimal/narrative_grounding.json` |
 | `log2026.shacl_check.v1` | How much does a real constraint checker see that the membership test in the pipeline does not? | — | yes | `outputs/minimal/20260802T064926Z-shacl-check/shacl_check.json` |
-| `log2026.fact_anchors_summary.v1` | Can a figure a model extracted be attributed to the place in the source it came from, after t… | — | yes | `outputs/minimal/20260802T064750Z-materialize-anchors/anchors_summary.json` |
 | `log2026.cq_suite.v1` | Do the competency questions pass when written as queries and run against the ontology and the… | — | yes | `outputs/minimal/20260802T062024Z-cq-suite/cq_suite.json` |
 | `log2026.composability.v1` | Does answering a synthesized pair require both of its component questions, decided without a … | — | yes | `outputs/minimal/20260802T061105Z-composability/composability.json` |
 | `log2026.synthesis_validation.v1` | Do the synthesized cross-category pairs actually concern one company, checked against a ticke… | — | yes | `outputs/minimal/20260802T060032Z-validate-synthesis/synthesis_validation.json` |
@@ -129,6 +135,18 @@ stays visible.
 
 ## What each result does not support
 
+**`log2026.judge_panel_summary.an1`** — Secondary metric only; two non-author MARA judges per answer (Kimi seat unavailable, recorded in the protocol amendment); ties are unresolved, never resolved by fiat; judges admitted only after 40/40 must-fail calibration; 86/1800 gradings failed at the API and are counted, not imputed.
+
+**`log2026.answering_analysis.an3`** — Paired bootstrap over cases (5,000 draws, seed 42), per model — never across models. 'Evidence contains the answer' is a numeric-token approximation; grounded means overlap > 0, so partial answers count. Gold answers without figures are excluded from the primary metric, not zeroed.
+
+**`log2026.validity.s5`** — The interval covers sampling variability across these 16 cases only. It does not cover variation between models, between runs of one model, or the choice of matching rule.
+
+**`log2026.arm_results.s5`** — 16 cases, 3 models, one run. Cases where extraction fell back to the heuristic are excluded and counted separately; every rate is conditioned on the scored cases, not the attempted ones.
+
+**`log2026.fact_anchors_summary.v1`** — An anchor is a unique numeric coincidence, not a provenance record written during extraction. Two unrelated facts sharing one figure would be attributed to the same token if only one occurrence exists. Only figures can be anchored at all, so facts without one are outside this entirely.
+
+**`log2026.ma_adjudication.v1`** — Ground truth is the source token's value, so accuracy is mechanical; where every view mis-stated the value and the window is ambiguous, abstention is correct behavior, so accuracy is reported with coverage, never alone. One adjudicator model (Kimi K2.5); arm prompts share one scaffold and differ only in evidence.
+
 **`log2026.structural_divergence.v1`** — Node identity across views comes from provenance anchors, so only anchored entities are measured. The reportable quantity is the ratio of same-anchor neighborhood similarity to a matched null; raw similarity alone is uninterpretable (SDCR's PageRank trigger died of a saturated null). Views are extracted under per-case, per-model isolation, and the measure never reads gold answers, so it is contamination-free by construction.
 
 **`log2026.answering_analysis.an4`** — Paired bootstrap over cases (5,000 draws, seed 42), per model — never across models. 'Evidence contains the answer' is a numeric-token approximation; grounded means overlap > 0, so partial answers count. Gold answers without figures are excluded from the primary metric, not zeroed.
@@ -180,8 +198,6 @@ stays visible.
 **`seocho.narrative_grounding.v1`** — Catches drift, not misreading. A number can be present in some artifact and still be quoted about the wrong condition.
 
 **`log2026.shacl_check.v1`** — The shapes cover three constraint kinds, not everything an ontology can express; cardinality beyond minCount, datatypes and disjointness are not modelled. A relationship type the ontology never declared has no shape and so cannot be objected to, which is why the SHACL and membership totals are reported side by side rather than as a ratio — neither bounds the other. Violations are counted on data already written, since validation is off by default in the pipeline; this measures the gap rather than closing it.
-
-**`log2026.fact_anchors_summary.v1`** — An anchor is a unique numeric coincidence, not a provenance record written during extraction. Two unrelated facts sharing one figure would be attributed to the same token if only one occurrence exists. Only figures can be anchored at all, so facts without one are outside this entirely.
 
 **`log2026.cq_suite.v1`** — The snapshots are mapped to triples thinly and nothing is inferred on the way in, so these ask what was extracted rather than what could be derived from it. An expectation is a threshold chosen by us; passing means the capability exists at that scale, not that it is sufficient.
 
@@ -253,7 +269,8 @@ stays visible.
 
 Each is missing a field the catalogue needs. Fix the script that writes it, not this file.
 
-- `log2026.reextract.s4` missing claim_boundary — `outputs/minimal/20260804T223226Z-reextract/reextract.json`
+- `log2026.reextract.s5` missing claim_boundary — `outputs/minimal/20260805T131731Z-reextract/reextract.json`
+- `log2026.reextract.s4` missing claim_boundary — `outputs/minimal/20260805T153525Z-reextract/reextract.json`
 - `log2026.reextract.s3` missing claim_boundary — `outputs/minimal/20260804T205104Z-reextract/reextract.json`
 - `log2026.reextract.s2` missing claim_boundary — `outputs/minimal/20260802T211620Z-reextract/reextract.json`
 - `log2026.reextract.s1` missing claim_boundary — `outputs/minimal/20260802T053227Z-reextract/reextract.json`
@@ -324,6 +341,7 @@ Expected when a script is rerun on the same inputs. A problem when the inputs ch
 
 - `log2026.adversarial_answer.v3` — 2 runs, newest 2026-08-02 03:31
 - `log2026.alias_register.v2` — 2 runs, newest 2026-08-02 03:31
+- `log2026.answering_analysis.an3` — 2 runs, newest 2026-08-06 20:40
 - `log2026.arm_results.v1` — 2 runs, newest 2026-08-02 02:52
 - `log2026.category_load.s2` — 2 runs, newest 2026-08-05 13:11
 - `log2026.category_load.v1` — 6 runs, newest 2026-08-02 07:09
@@ -332,11 +350,13 @@ Expected when a script is rerun on the same inputs. A problem when the inputs ch
 - `log2026.cross_view_evidence_audit.v1` — 2 runs, newest 2026-08-02 03:37
 - `log2026.extraction_arms.v1` — 4 runs, newest 2026-08-02 00:26
 - `log2026.fact_anchors_summary.s1` — 2 runs, newest 2026-08-05 13:11
-- `log2026.fact_anchors_summary.v1` — 2 runs, newest 2026-08-02 06:47
+- `log2026.fact_anchors_summary.v1` — 3 runs, newest 2026-08-05 20:31
+- `log2026.ma_adjudication.v1` — 2 runs, newest 2026-08-05 20:13
 - `log2026.query_smoke.v1` — 3 runs, newest 2026-08-02 09:31
 - `log2026.question_axes.v1` — 2 runs, newest 2026-08-02 07:47
 - `log2026.reextract.s2` — 3 runs, newest 2026-08-03 01:19
 - `log2026.reextract.s3` — 2 runs, newest 2026-08-04 22:25
+- `log2026.reextract.s4` — 2 runs, newest 2026-08-05 16:13
 - `log2026.reextract.v2` — 2 runs, newest 2026-08-02 04:41
 - `log2026.schema_legibility.v1` — 3 runs, newest 2026-08-02 07:00
 - `log2026.schema_sources.v1` — 2 runs, newest 2026-08-02 07:09

@@ -156,6 +156,103 @@ Use GraphRAG-Bench for:
 This is the query/reasoning benchmark track. It should not be used as the only
 measure of ingestion quality.
 
+### Track 3: EnterpriseRAG-Bench Federation
+
+Use EnterpriseRAG-Bench for source-federated enterprise retrieval:
+
+- context graph + database federation across GitHub, Jira, Slack, Gmail,
+  Confluence, Google Drive, Fireflies, HubSpot, and Linear-style sources
+- source routing quality and source-scoped database selection
+- document recall using EnterpriseRAG-Bench `expected_doc_ids`
+- absent-information and metadata-dependent query behavior
+- ontology guardrail value for preserving who/when/where/how process context
+
+The first SEOCHO harness is retrieval-first and keeps answer generation
+separate. This avoids overstating quality before MARA answer synthesis and the
+EnterpriseRAG-Bench judge are run.
+
+Smoke commands:
+
+```bash
+uv run python scripts/benchmarks/enterprise_rag_federation.py inspect \
+  --questions examples/benchmarks/enterprise_rag_smoke/questions.jsonl \
+  --corpus-root examples/benchmarks/enterprise_rag_smoke/corpus
+
+uv run python scripts/benchmarks/enterprise_rag_federation.py plan \
+  --questions examples/benchmarks/enterprise_rag_smoke/questions.jsonl \
+  --corpus-root examples/benchmarks/enterprise_rag_smoke/corpus \
+  --out outputs/evaluation/enterprise_rag_contextgraph/smoke_plan.json
+
+uv run python scripts/benchmarks/enterprise_rag_federation.py run \
+  --questions examples/benchmarks/enterprise_rag_smoke/questions.jsonl \
+  --corpus-root examples/benchmarks/enterprise_rag_smoke/corpus \
+  --top-k 2 \
+  --answers-out outputs/evaluation/enterprise_rag_contextgraph/smoke_answers.jsonl \
+  --out outputs/evaluation/enterprise_rag_contextgraph/smoke_run.json
+```
+
+Real dataset commands use the same CLI after downloading EnterpriseRAG-Bench
+release files:
+
+```bash
+uv run python scripts/benchmarks/enterprise_rag_federation.py inspect \
+  --questions dataset/enterprise_rag_bench/questions.jsonl \
+  --corpus-root dataset/enterprise_rag_bench/all_documents
+
+uv run python scripts/benchmarks/enterprise_rag_federation.py run \
+  --questions dataset/enterprise_rag_bench/questions.jsonl \
+  --corpus-root dataset/enterprise_rag_bench/all_documents \
+  --limit 50 \
+  --top-k 10 \
+  --answers-out outputs/evaluation/enterprise_rag_contextgraph/erb50_answers.jsonl \
+  --out outputs/evaluation/enterprise_rag_contextgraph/erb50_run.json
+```
+
+Default output is `retrieval_only`: the answer field is empty and `document_ids`
+are scored first. Use `--answer-mode extractive` only for local smoke
+inspection, and reserve `--answer-mode oracle_gold` for pipeline plumbing checks,
+not reported quality.
+
+Federation dimensions to report separately:
+
+- `source_type database`: primary fair split, because EnterpriseRAG-Bench ships
+  source labels and source-sliced documents
+- `source-native subgroup`: second-stage split such as Slack channel, Gmail
+  sender domain/thread, Jira project key, Confluence space, Drive owner/folder,
+  Fireflies meeting owner, and HubSpot owner/account stage
+- `question_type route profile`: basic, semantic, intra-document, project,
+  constrained, conflicting, completeness, high-level, and info-not-found
+- `process_context overlay`: who, when, where, how, owner, assignee, reviewer,
+  due date, status, approval, action item, and evidence links
+
+Prompt and provider profiles are benchmark variables, not hidden implementation
+details. The ERB harness records the selected profile in each artifact:
+
+- `retrieval_router_v1`: source/subgroup routing and missing-evidence intent
+- `context_graph_extractor_v1`: process-aware context graph extraction
+- `grounded_answer_v1`: evidence-bundle answer synthesis
+- `arbiter_judge_v1`: correctness, completeness, support, and abstention judge
+- provider profiles: `local_bge`, `mara_minimax_m27`,
+  `mara_deepseek_v31`, and `mara_gpt_oss_120b`
+
+The harness also emits vendor-neutral observability:
+
+```bash
+uv run python scripts/benchmarks/enterprise_rag_federation.py run \
+  --questions dataset/enterprise_rag_bench/questions.jsonl \
+  --corpus-root dataset/enterprise_rag_bench/sources \
+  --limit 50 \
+  --top-k 10 \
+  --reranker bge_hybrid \
+  --bge-device cuda \
+  --trace-out outputs/evaluation/enterprise_rag_contextgraph/erb50_bge_hybrid_trace.jsonl \
+  --out outputs/evaluation/enterprise_rag_contextgraph/erb50_bge_hybrid_run.json
+```
+
+The run JSON contains `observability.stage_timings_ms`; the trace JSONL contains
+one `enterprise_rag_trace_record.v1` per question with route/rank, rerank, and
+answer-generation timings.
+
 ## Peer Systems
 
 The current peer baseline set is:

@@ -104,3 +104,39 @@ retrieval at its best, which strengthens rather than weakens that finding.
 Nothing here measures multi-agent orchestration; that line is deferred. And
 nothing here re-opens the ontology-for-extraction question — graph C's
 content was fixed by s2 before this experiment reads it.
+
+---
+
+## Addendum — decisions fixed at harness build, before the first an1 call
+
+Recorded when the runner was built and smoke-tested (4 paid calls under tag
+`smoke`), before any call under `an1` was scored.
+
+- **Which view a graph condition serves:** the union of the three extractor
+  views, each fact tagged with its view, disagreements left in. Passages are
+  retrieval at its best, so the graph gets extraction at its best (union
+  coverage 0.476 vs 0.389 for the best single view). Any dedup rule would
+  import Part 1's alignment machinery into Part 2's evidence.
+- **Serializer exclusions:** Document, Chunk, DocumentVersion, Section nodes
+  are dropped — Document and Chunk carry the reference passages verbatim, and
+  serializing them would hand the graph conditions the passages condition's
+  evidence. Applied identically to graph A and graph C.
+- **Scoring tokenizer fixes, from the smoke:** "SP 800-171" read −171 as a
+  negative figure (the hyphen-adjacency defect check_narrative had), and
+  "(1)…(6)" enumeration markers counted as figures. Both fixed in the
+  answering scorer only — provenance.tokenize is untouched because the
+  anchors were located with it — and both rules apply to gold and produced
+  text symmetrically.
+- **Prompt freeze:** system prompts frozen at hash d8a368a27144407e after the
+  smoke showed the first draft's refusal bar made the model ask for
+  clarification instead of answering terse FinDER queries. Softened once,
+  before any an1 call; identical across conditions except the evidence block
+  and the anchors condition's citation instruction.
+- **Empty arithmetic stratum, discovered at first scoring:** the 280-case
+  sample contains zero type≠None cases — the sweep's own preference for
+  multi-reference cases excluded them, since arithmetic questions almost
+  always carry one reference. The type-column stratum split is therefore
+  degenerate on this sample; the primary metric stands on the 199 cases whose
+  gold answers carry figures, and nothing here can speak to arithmetic-type
+  questions. This is a sample property fixed by s1/s2, not a choice made
+  after results.

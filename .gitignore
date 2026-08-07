@@ -90,6 +90,7 @@ outputs/
 # Data & Database
 data/
 dataset/robustness/
+dataset/enterprise_rag_bench/
 neo4j/data/
 !website/src/data/
 !website/src/data/**

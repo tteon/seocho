@@ -67,6 +67,8 @@ selected, edit the Submission Type dropdown before the PDF deadline.
 - Knowledge Graphs and LLMs
 - Graph ML Platforms and Systems
 - Trustworthy Graph ML (evaluation methodology)
+- Graphs, Agents and Multi-Agent Systems (cross-extractor views, adjudication, routing headroom)
+- Graph/Geometric ML Infrastructures (registrations, artifacts, stratified benchmark design)
 
 ## Remaining form fields
 

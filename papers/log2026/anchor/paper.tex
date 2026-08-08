@@ -114,7 +114,9 @@ content coverage, and schema violations are measured here
 models answer the case's question at temperature zero under five evidence
 conditions --- nothing, the gold passages, or one of three serialized
 graphs (schema-free, FIBO, FIBO with each anchored value's source pointer
-attached) --- with prompts identical except for the evidence block.
+attached), each serving the union of all three extractors' graphs for
+that case --- extraction at its best, as passages are retrieval at its
+best --- with prompts identical except for the evidence block.
 \textbf{Scoring:} each answer is scored against the gold answer's
 numbers, and every verdict is additionally conditioned on whether that
 answer's own evidence contained those numbers, which mechanically

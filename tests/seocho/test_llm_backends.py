@@ -906,3 +906,33 @@ def test_vllm_to_agents_sdk_model_binding(
     assert sdk_provider.kwargs["base_url"] == "http://localhost:8000/v1"
     assert sdk_provider.kwargs["use_responses"] is False
     assert run_config.model.model == "Qwen2.5-7B-Instruct"
+
+
+def test_build_response_falls_back_to_provider_reasoning_fields():
+    """seocho-ub5: MARA MiniMax-M2.7 emits `reasoning` (not
+    `reasoning_content`) and may leave `content` empty; empty content must
+    not reach json.loads as ''."""
+    from types import SimpleNamespace
+
+    from seocho.store.llm import OpenAICompatibleBackend
+
+    def _resp(message):
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=message)], usage=None, model="m"
+        )
+
+    # kimi-style reasoning_content still works
+    kimi = SimpleNamespace(content="", reasoning_content='{"a": 1}')
+    assert OpenAICompatibleBackend._build_response(_resp(kimi)).json() == {"a": 1}
+
+    # mara/M2.7-style `reasoning` attribute
+    mara = SimpleNamespace(content="", reasoning='{"b": 2}')
+    assert OpenAICompatibleBackend._build_response(_resp(mara)).json() == {"b": 2}
+
+    # SDK models park unknown fields in model_extra
+    extra = SimpleNamespace(content="", model_extra={"reasoning": '{"c": 3}'})
+    assert OpenAICompatibleBackend._build_response(_resp(extra)).json() == {"c": 3}
+
+    # content wins when present
+    both = SimpleNamespace(content='{"d": 4}', reasoning='{"ignored": 0}')
+    assert OpenAICompatibleBackend._build_response(_resp(both)).json() == {"d": 4}

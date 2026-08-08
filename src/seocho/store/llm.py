@@ -1047,12 +1047,22 @@ class OpenAICompatibleBackend(LLMBackend):
                 "total_tokens": int(getattr(resp.usage, "total_tokens", 0) or 0),
                 "cached_tokens": int(cached_tokens or 0),
             }
-        # Reasoning models (e.g. Kimi K2.5) may return the answer in
-        # ``reasoning_content`` when ``content`` is empty — typically
-        # when the generation was cut short by max_tokens.
+        # Reasoning models may return the answer in a reasoning field when
+        # ``content`` is empty — typically when generation was cut short by
+        # max_tokens. Field name varies by provider: ``reasoning_content``
+        # (Kimi K2.5) vs ``reasoning`` (MARA MiniMax-M2.7). Unknown fields
+        # land in the SDK model's ``model_extra``, so check both surfaces.
         text = getattr(choice.message, "content", "") or ""
         if not text:
-            text = getattr(choice.message, "reasoning_content", "") or ""
+            extra = getattr(choice.message, "model_extra", None) or {}
+            for field_name in ("reasoning_content", "reasoning"):
+                text = (
+                    getattr(choice.message, field_name, "")
+                    or extra.get(field_name)
+                    or ""
+                )
+                if text:
+                    break
         return LLMResponse(
             text=text,
             model=getattr(resp, "model", "") or "",

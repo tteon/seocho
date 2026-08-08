@@ -132,8 +132,9 @@ validation surface: 529--1{,}038 schema violations per condition become
 mechanically checkable where the schema-free graph offers almost nothing to
 check. The synonym condition never mattered because it could not: only
 0.5\% of the corpus's questions need vocabulary mapping, and the
-abbreviations they use are analyst shorthand, not FIBO's
-(Appendix~\ref{app:part1}).
+abbreviations they use are analyst shorthand, not FIBO's. The full
+five-condition dose--response, with intervals, is
+Table~\ref{tab:dose} in Appendix~\ref{app:part1}.
 
 \subsection{Extractors never disagree about digits --- only about scale}
 
@@ -429,7 +430,7 @@ nothing to disagree about; seventy classes are seventy naming choices.
 
 % S2-H4 reversal — numbers final
 The registered hypothesis that FIBO buys content at the price of names ---
-supported at 16 cases --- \emph{reversed} at 280: condition C covers fewer
+supported at 16 cases --- \emph{reversed} at 280: the FIBO condition covers fewer
 gold-answer figures than A ($-0.036$ $[-0.067, -0.008]$). The ontology has
 no measured extraction benefit on this corpus.
 
@@ -457,16 +458,23 @@ by measured query demand rather than by ontology completeness.
 The full schema spectrum at 280 cases (name comparable rate, case
 bootstrap, same cases and models throughout):
 
-\begin{center}\small
+\begin{table}[h]
+\centering\small
+\caption{The five-condition dose--response at 280 cases: cross-model
+name-agreement rate (comparable-key rate) with case-bootstrap 95\%
+intervals. Agreement is not monotone in class count --- the hand-written
+20-class schema sits below full FIBO --- and both synonym and hierarchy
+additions separate below plain FIBO.}
+\label{tab:dose}
 \begin{tabular}{lccccc}
 \toprule
- & A (schema-free) & C (FIBO 70) & D (+synonyms) & E (+hierarchy) & B (hand-written 20) \\
+ & no schema & FIBO (70) & FIBO+synonyms & FIBO+hierarchy & hand-written (20) \\
 \midrule
 rate & .293 & .211 & .140 & .126 & .118 \\
 95\% CI & [.269,.319] & [.191,.232] & [.120,.163] & [.106,.146] & [.097,.142] \\
 \bottomrule
 \end{tabular}
-\end{center}
+\end{table}
 
 All three registered directions for this curve failed: agreement is not
 monotone in class count (B's twenty bespoke classes fragment naming below
@@ -548,18 +556,31 @@ mechanically whether the served evidence contains the gold figures, every
 verdict decomposes into: grounded-correct, utilization failure,
 over-refusal, honest abstention, contaminated-correct, and hallucination.
 
-\begin{table}[t]
+\begin{table}[h]
 \centering\small
-\caption{Grounded-correct counts (evidence contains the answer and the model
-answered it) on the balanced sample, 199 numeric-gold cases.}
+\caption{The full evidence-conditional decomposition on the balanced
+sample (199 numeric-gold cases): every answer classified by whether the
+served evidence contained the gold figures and what the model did.
+``Grounded'' and ``over-refusal'' condition on evidence that contains the
+answer; ``honest abstention,'' ``contaminated,'' and ``hallucination'' on
+evidence that does not.}
 \label{tab:ec-app}
-\begin{tabular}{lcccc}
+\begin{tabular}{llcccccc}
 \toprule
- & passages & graph (schema-free) & graph (FIBO) & FIBO+pointers \\
+Model & Condition & grounded & util.\ fail & over-refusal & honest abst. & contam. & halluc. \\
 \midrule
-gpt-oss-120b & 107 & 111 & 105 & 112 \\
-MiniMax-M2.7 & 124 & 138 & 127 & \textbf{146} \\
-DeepSeek-V3.1 & 98 & 83 & 82 & 104 \\
+gpt-oss & passages & 107 & 17 & 31 & 9 & 22 & 12 \\
+gpt-oss & graph (no schema) & 111 & 9 & 35 & 25 & 7 & 11 \\
+gpt-oss & graph (FIBO) & 105 & 9 & 32 & 19 & 15 & 18 \\
+gpt-oss & graph (FIBO+ptr) & 112 & 10 & 36 & 15 & 10 & 15 \\
+MiniMax & passages & 124 & 10 & 21 & 15 & 22 & 6 \\
+MiniMax & graph (no schema) & 138 & 6 & 11 & 26 & 10 & 7 \\
+MiniMax & graph (FIBO) & 127 & 5 & 14 & 27 & 18 & 7 \\
+MiniMax & graph (FIBO+ptr) & 146 & 3 & 9 & 17 & 11 & 12 \\
+DeepSeek & passages & 98 & 26 & 31 & 11 & 20 & 12 \\
+DeepSeek & graph (no schema) & 83 & 17 & 55 & 22 & 5 & 16 \\
+DeepSeek & graph (FIBO) & 82 & 11 & 53 & 24 & 13 & 15 \\
+DeepSeek & graph (FIBO+ptr) & 104 & 22 & 32 & 14 & 10 & 16 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -577,7 +598,7 @@ beats every graph condition on all three models there (109/121/96 vs.\
 vs.\ 24 with passages, repaired to 26 by pointers), and contamination is
 too rare on computed figures to compare (3--11 per cell, pre-declared
 uninformative). The decomposition's reading is therefore stratum-dependent,
-which Section~3.3 of the main text carries as a finding.
+which the main text carries as a finding (Section~\ref{sec:findings}).
 
 \subsection{Provenance pointers raise accuracy without carrying content}
 
@@ -616,7 +637,7 @@ Two effects did carry over. The over-refusal mechanism reproduces
 vs.\ 24 with passages), and the provenance-pointer repair concentrates
 exactly there: pointers cut its over-refusals to 26 and raise its grounded
 count from 64 to 82 ($+0.045$ $[+0.013, +0.078]$). The pointer effect that
-an1 located on MiniMax did not reproduce on MiniMax here --- the anchors
+the balanced sample located on MiniMax did not reproduce on MiniMax here --- the anchors
 hypothesis, as registered, is disconfirmed in its model-specific form, and
 what survives is weaker and more honest: pointer-only provenance helps,
 but which model it helps depends on the stratum.
@@ -712,10 +733,10 @@ SW-H4 & no ontology condition escapes name fragmentation & held \\
 SC-H1 & verifiable-fact shortage is sample-size-bound & held (6$\to$123) \\
 SC-H2 & agreement-gated serving beats serve-always & \textbf{disconfirmed} \\
 SC-H3 & single-view ceiling does not move & held (rose to 87\%) \\
-SC-H4 & anchor advantage survives scale (condition A) & held \\
+SC-H4 & anchor advantage survives scale (schema-free condition) & held \\
 \midrule
 \multicolumn{3}{l}{\emph{FIBO at scale (280 cases)}} \\
-S2-H1 & anchor advantage replicates on condition C & held \\
+S2-H1 & anchor advantage replicates on the FIBO condition & held \\
 S2-H2 & name-agreement gap persists, paired & held \\
 S2-H3 & scale-error rate stable ($\approx$ a quarter) & held (26.7\%) \\
 S2-H4 & FIBO content advantage survives scale & \textbf{disconfirmed, reversed} \\
@@ -748,7 +769,7 @@ MA-H1/H3 & provenance beats deliberation / beats pick-only rule & \textbf{void}:
 \section{Scoring-metric sensitivity}\label{app:metrics}
 
 The conclusions do not depend on the primary metric's choice, and the one
-place they would have is itself informative. Rescoring every an1 answer
+place they would have is itself informative. Rescoring every balanced-sample answer
 with token-level F1 (the TAT-QA-style metric) preserves the gate on both
 models tested (passages $-$ closed book $+0.071$ and $+0.082$, both
 separated) but flips two comparisons in directions the metric's own biases

@@ -120,7 +120,7 @@ only after passing four calibration controls with known outcomes.
 \centering
 \begin{tikzpicture}[font=\footnotesize,
   box/.style={draw=black!70, rounded corners=1pt, align=center,
-    minimum height=9mm, inner sep=3pt},
+    minimum height=8mm, inner sep=2.5pt},
   meas/.style={align=center, text=black!60, font=\scriptsize},
   arr/.style={-{Stealth[length=2mm]}, thick, black!70}]
 \node[box, fill=black!4] (case) {FinDER case\\ \scriptsize question · gold · passages};
@@ -136,15 +136,16 @@ only after passing four calibration controls with known outcomes.
 \draw[arr] (ext) -- (align);
 \draw[arr] (align) -- (ans);
 \draw[arr] (ans) -- (score);
-\node[meas, below=1.5mm of ext] {prompt hash-fixed\\ per-case isolation};
-\node[meas, below=1.5mm of align] {agreement · coverage\\ violations (\S\ref{sec:findings}.1--2)};
-\node[meas, below=1.5mm of ans] {union of 3 graphs\\ T$=$0, same prompt};
-\node[meas, below=1.5mm of score] {grounded vs.\ memorized\\ (\S\ref{sec:findings}.3)};
+\node[meas, below=1mm of ext] {prompt hash-fixed\\ per-case isolation};
+\node[meas, below=1mm of align] {agreement · coverage\\ violations (\S\ref{sec:findings}.1--2)};
+\node[meas, below=1mm of ans] {union of 3 graphs\\ T$=$0, same prompt};
+\node[meas, below=1mm of score] {grounded vs.\ memorized\\ (\S\ref{sec:findings}.3)};
 \end{tikzpicture}
-\caption{The experimental pipeline. Every case flows through all four
-stages; the schema condition varies only the class list inside the
-extraction prompt, and each stage's measurement is named beneath it.}
+\vspace{-1mm}
+\caption{The pipeline. The schema condition varies only the extraction
+prompt's class list; each stage's measurement is named beneath it.}
 \label{fig:pipeline}
+\vspace{-3mm}
 \end{figure}
 
 Three samples cover FinDER's annotation grid --- balanced 280, arithmetic
@@ -190,8 +191,7 @@ Table~\ref{tab:dose} in Appendix~\ref{app:part1}.
 
 Aligning facts by anchor instead of name yields 1.7--2.8$\times$ as many
 comparable cross-model facts, and 80--84\% of the disagreements it exposes
-are invisible to any name key (registered replications on both conditions
-at 280 cases). Auditing those disagreements produced this study's sharpest fact: all
+are invisible to any name key (registered replications at 280 cases). Auditing those disagreements produced this study's sharpest fact: all
 1,482 of them are unit-scale splits. A representative case, verbatim from
 the artifacts: at one source token, one extractor stored the fact
 \emph{``revenue software licenses'' $= 945{,}797$} while another stored
@@ -254,7 +254,7 @@ reversal on all three models; its registered predictive form did not
 survive its first prospective test.
 
 \begin{table}[t]
-\centering\footnotesize
+\centering\scriptsize
 \caption{Primary metric (share of the gold answer's numbers the answer
 states) by question stratum; ``+ptr'' adds provenance pointers to the
 FIBO graph. Bold marks graph conditions that beat passages with a 95\%
@@ -282,7 +282,7 @@ Stratum & Model & closed book & passages & graph (no schema) & graph (FIBO) & gr
 \end{table}
 
 \begin{table}[t]
-\centering\small
+\centering\footnotesize
 \caption{Grounded-correct counts on the balanced sample (199
 numeric-gold cases): answers that were correct \emph{and} whose serving
 evidence contained the gold numbers. Bold marks the best condition per
@@ -304,9 +304,9 @@ DeepSeek-V3.1 & 98 & 83 & 82 & 104 \\
 The opening problem was that answers drawn from LLM-built graphs must be
 verifiable, not merely plausible. The findings convert into three
 deployment rules that serve exactly that requirement. First, align and
-deduplicate extracted facts by their position in the source document, not
-by entity name: every value conflict that name matching hid in this study
-was a unit-scale error that would otherwise reach an answer unexplained.
+deduplicate extracted facts by source position, not by entity name: every
+conflict that name matching hid here was a unit-scale error headed for an
+answer unexplained.
 Second, apply the ontology after extraction rather than inside the
 prompt: as guidance it made extractors disagree more, while as a
 validator it turned hundreds of silent defects per condition into
@@ -338,11 +338,10 @@ judging; its operational record is in Appendix~\ref{app:part2}.
 Ontology guidance, measured end to end, provides detectability rather
 than extraction quality; the alignment primitive that decides what ``the
 same fact'' means should be provenance, not names; and evaluation that
-cannot see evidence cannot see what structure is for. The value of LLM
-extraction is not the quality of its triples but their auditability ---
-and auditability comes from provenance, not from the ontology.
-Registered follow-ups --- alignment-contract extraction slots, an
-annotated-passages control, diagnostic validation --- remain unrun.
+cannot see evidence cannot see what structure is for. The value of LLM extraction is not the quality of its triples but their
+auditability, which comes from provenance, not from the ontology.
+Registered follow-ups (alignment-contract extraction slots, an
+annotated-passages control, diagnostic validation) remain unrun.
 
 \bibliographystyle{unsrtnat}
 \bibliography{references}

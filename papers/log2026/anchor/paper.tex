@@ -128,7 +128,8 @@ obtained by nonparametric bootstrap over \emph{cases} (5{,}000 resamples,
 fixed seed), and every comparison between conditions is computed as a
 paired within-case difference before resampling, so per-case difficulty
 cancels; we call a difference \emph{separated} when its interval excludes
-zero. Hypotheses were registered with their disconfirming outcomes before
+zero. In the appendix we abbreviate a difference and its interval as
+$d$ $[a,b]$; the main text spells every interval out. Hypotheses were registered with their disconfirming outcomes before
 each run, and the registrations are committed files in the supplementary
 material.
 Full design, prompts, and protocol: Appendix~\ref{app:design}.
@@ -141,10 +142,11 @@ We measure agreement as the share of a case's facts for which at least
 two extractors produce the same normalized entity name, and content as
 the share of the gold answer's numbers present in the graph. With
 everything but the schema fixed, ontology guidance \emph{lowers}
-agreement (schema-free minus FIBO: $+0.069$, 95\% CI $[+0.046,+0.091]$,
-paired over 280 cases) and \emph{reduces} content coverage ($-0.036$
-$[-0.067,-0.008]$) --- the registered content-advantage hypothesis
-reversed at scale. What survives is a validation surface: across the 280
+agreement: the schema-free condition exceeds FIBO by $0.069$, with a
+95\% confidence interval of $0.046$ to $0.091$ over the same 280 cases.
+It also \emph{reduces} content coverage: the FIBO graph holds $0.036$
+less of the gold answers' numbers (interval $0.008$ to $0.067$) --- the
+registered content-advantage hypothesis, reversed at scale. What survives is a validation surface: across the 280
 cases, 529--1{,}038 schema violations per ontology condition become
 mechanically checkable where the schema-free graph offers almost nothing to
 check. The synonym condition never mattered because it could not: only
@@ -203,12 +205,12 @@ annotates as requiring reasoning --- a stratum the models barely memorize
 (closed book $0.07$--$0.15$) and where a pilot measurement showed the
 highest share of cross-extractor-verifiable facts ($0.80$ vs.\ $0.44$ on
 the balanced sample) --- at least one serialized-graph condition beats gold
-passages with separated intervals on every model (FIBO graph $-0.060$
-$[-0.117,-0.004]$ on gpt-oss; schema-free graph $-0.055$
-$[-0.110,-0.002]$ on MiniMax). On DeepSeek --- the model that loses with
-graphs on every other stratum --- \emph{both} graph conditions separate
-above passages ($-0.085$ and $-0.131$), and provenance pointers are its
-best condition. A
+passages with a separated interval on every model: the FIBO graph wins by
+$0.060$ on gpt-oss, the schema-free graph by $0.055$ on MiniMax, and on
+DeepSeek --- the model that loses with graphs on every other stratum ---
+\emph{both} graph conditions win, by $0.085$ and $0.131$, with provenance
+pointers its best condition (all intervals exclude zero;
+Table~\ref{tab:strata}). A
 prospective prediction registered before this experiment ran --- that each
 model's grounded-correct lift (the number of grounded-correct answers
 gained over passages, of 169 numeric-gold cases) would exceed its

@@ -7,7 +7,7 @@ this is a separate submission, not a revision of the SDCR paper.
 ## Title*
 
 ```
-Anchor, Don't Name: What Ontology Guidance Actually Buys in LLM-Built Knowledge Graphs
+Anchor, Don't Name: What an Ontology Actually Contributes to LLM-Built Knowledge Graphs
 ```
 
 ## Keywords*

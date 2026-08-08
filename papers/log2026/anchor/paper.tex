@@ -11,7 +11,7 @@
 % before the PDF builds for submission (check_submission greps for it).
 \newcommand{\pending}[1]{\textcolor{red}{[PENDING: #1]}}
 
-\title{Anchor, Don't Name: What Ontology Guidance Actually Buys in LLM-Built Knowledge Graphs}
+\title{Anchor, Don't Name: What an Ontology Actually Contributes to LLM-Built Knowledge Graphs}
 
 \author{Anonymous Authors}
 
@@ -150,8 +150,8 @@ held by one view only, a share that \emph{rises} with scale, and
 agreement-gating trades four right answers per wrong answer blocked
 (registered, disconfirmed; Appendix~\ref{app:anchor}).
 
-\subsection{Downstream, the graph's value is a property of the stratum and
-the model}
+\subsection{Whether the graph helps answering depends on the question
+stratum and the model}
 
 Standard scoring says gold passages beat the serialized graph. But
 closed-book performance spans $0.06$--$0.31$ across models on the same
@@ -191,13 +191,13 @@ not survive its first prospective test.
 \begin{table}[t]
 \centering\small
 \caption{Primary metric (share of the gold answer's figures the answer
-states) by question stratum. Bold marks graph conditions separated
-\emph{above} passages by paired bootstrap; the reasoning stratum is the
-only one where that happens, on every model.}
+states) by question stratum. Bold marks graph conditions that beat passages with a 95\% paired
+bootstrap interval excluding zero; the reasoning stratum is the only one
+where that happens, and there it happens on every model.}
 \label{tab:strata}
 \begin{tabular}{llccccc}
 \toprule
-Stratum & Model & closed book & passages & graph (free) & graph (FIBO) & +pointers \\
+Stratum & Model & closed book & passages & graph (no schema) & graph (FIBO) & graph (FIBO+pointers) \\
 \midrule
 \multirow{3}{*}{balanced}   & gpt-oss  & .306 & .398 & .355 & .384 & .364 \\
                             & MiniMax  & .185 & .484 & .490 & .447 & .502 \\
@@ -230,7 +230,7 @@ DeepSeek-V3.1 & 98 & 83 & 82 & 104 \\
 \end{tabular}
 \end{table}
 
-\section{A pre-deployment diagnostic, and what it enables}\label{sec:profile}
+\section{A pre-deployment verifiability profile}\label{sec:profile}
 
 Each design decision this study evaluates pays off only under measurable
 preconditions, all computable from one pilot extraction: the verifiable
@@ -301,7 +301,7 @@ preparation. We take responsibility for the final content of this work,
 including text, claims, and artifacts produced with the aid of generative
 AI.
 
-\section{Full related work}\label{app:related}
+\section{Related work (extended)}\label{app:related}
 
 \textbf{LLM knowledge-graph construction and schema guidance.} Pipelines
 from GraphRAG~\citep{graphrag} to LightRAG~\citep{lightrag} and
@@ -343,7 +343,7 @@ gold answers; the judge panel is reference-anchored, cross-judging (no
 model grades its own answers), and calibrated on must-fail controls before
 its verdicts count.
 
-\section{Study design in full}\label{app:design}
+\section{Study design: full detail}\label{app:design}
 
 \subsection{Dataset and sampling}
 
@@ -414,7 +414,7 @@ labelled and their registered replications named. The hypothesis ledger and
 all registrations ship in the supplementary material. We report every
 registered hypothesis, including the two that failed.
 
-\section{Part 1 in full: the schema spectrum}\label{app:part1}
+\section{The schema spectrum: full results}\label{app:part1}
 
 \subsection{Name agreement falls as the schema grows}
 
@@ -475,7 +475,7 @@ FIBO's seventy), and both synonym lists and hierarchy text separate
 What predicts fragmentation is not how many classes are declared but how
 much non-canonical lexical material the prompt carries.
 
-\section{Provenance-anchored alignment in full}\label{app:anchor}
+\section{Provenance-anchored alignment: full results}\label{app:anchor}
 
 % The paper's center. SC-H4, S2-H1 — numbers final.
 Two views of the same case hold ``the same fact'' if we can align their
@@ -504,7 +504,7 @@ wrong answer it blocks (precision $0.951 \to 1.000$, recall $0.951 \to
 0.764$; the registered hypothesis that gating helps was disconfirmed on its
 own criterion).
 
-\section{Part 2 in full: answering under five evidence conditions}\label{app:part2}
+\section{Answering under five evidence conditions: full results}\label{app:part2}
 
 \subsection{Design}
 

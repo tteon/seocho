@@ -2,9 +2,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from statistics import mean
-from typing import Any, Dict, List, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
 
 from .models import DebateRunResponse, SearchResponse, SemanticRunResponse
+
+if TYPE_CHECKING:
+    from .ontology import Ontology
 
 
 @dataclass(slots=True)
@@ -365,7 +368,6 @@ def load_answer_cases(path: str) -> List[AnswerCase]:
     ``question`` and ``gold_answer``; ``context``/``category``/``case_id`` are
     optional and default to empty. Pure/offline — no backend involved."""
     import json
-    from pathlib import Path
 
     with open(path, "r", encoding="utf-8") as f:
         data = json.load(f)
@@ -451,7 +453,7 @@ def evaluate_answer_accuracy(
 
     Concurrency is bounded by ``workers`` with 429-retry (MARA rate-limits at high
     concurrency — see ADR-0122)."""
-    from .llm_structured import StructuredOutputError, structured_complete
+    from .llm_structured import structured_complete
 
     judge = judge_backend or backend
     mdl = model or getattr(backend, "model", "")

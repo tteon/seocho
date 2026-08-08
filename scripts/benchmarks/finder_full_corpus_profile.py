@@ -77,7 +77,7 @@ def open_extract_all(jsonl_path, *, model, workers, max_chars, resume):
             ex = _retry(lambda: structured_complete(be, system=_OPEN_SYS, user=_OPEN_USER.format(doc=doc["text"]),
                         model=model, task_hint="json_extraction"))
             labels = [str(n.get("label", "")).strip() for n in ex.get("nodes", []) if isinstance(n, dict)]
-        except Exception as e:
+        except Exception:
             labels = []
         rec = {"id": doc["id"], "category": doc["category"], "labels": [l for l in labels if l]}
         with lock:
@@ -126,7 +126,7 @@ def main():
 
     # score candidates against the full-corpus profile
     from seocho.fibo_catalog import (load_catalog, fibo_guardrail_candidates, bridge_to_corpus,
-                                     semantic_bridge, derive_fibo_roots_stable, catalog_provenance)
+                                     semantic_bridge, derive_fibo_roots_stable)
     from seocho.guardrail_selector import select_guardrail, numeric_intensity
     from seocho.ontology_scorecard import CorpusProfile, score_ontology
     from seocho.ontology import Ontology
@@ -136,7 +136,6 @@ def main():
                        doc_count=ndoc, source="FinDER full open-extraction")
     cat_path = "outputs/semantic_artifacts/fibo/latest/catalog.json"
     cands = {"curated_plus": Ontology.load("examples/datasets/fibo_plus.jsonld")}
-    stable_cov = {}
     if Path(cat_path).exists():
         cat = load_catalog(cat_path)
         gterms = sorted(cp.label_frequencies, key=lambda k: -cp.label_frequencies[k])[:20]

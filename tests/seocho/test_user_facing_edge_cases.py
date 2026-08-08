@@ -20,7 +20,6 @@ no live LLM, no live Opik. They use in-tree fakes + monkeypatched runtimes.
 from __future__ import annotations
 
 import json
-import os
 import sys
 import threading
 from pathlib import Path
@@ -31,7 +30,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from seocho.models import Memory
-from seocho.ontology import Ontology, NodeDef, RelDef, P
+from seocho.ontology import Ontology, NodeDef, P
 from seocho.session import Session
 
 
@@ -279,10 +278,9 @@ class TestArtifactApprovalRace:
         final_path = tmp_path / "ws-race" / f"{artifact_id}.json"
         on_disk_text = final_path.read_text(encoding="utf-8")
         try:
-            on_disk = json.loads(on_disk_text)
+            json.loads(on_disk_text)
             corrupted_on_disk = False
         except json.JSONDecodeError:
-            on_disk = None
             corrupted_on_disk = True
 
         mid_read_crash = any(

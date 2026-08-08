@@ -35,7 +35,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 # Channels a laundering ring prefers: low traceability, high reach. Same list the generator
 # uses when it closes a cycle, so the planted and the incidental rings are drawn from one

@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import time
 
-import pytest
 
 
 def _make_context():

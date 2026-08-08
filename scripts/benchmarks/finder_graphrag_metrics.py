@@ -185,7 +185,7 @@ def main() -> int:
         "summary": summary, "records": records,
     })
     print(f"\n== wrote {out_path.relative_to(ROOT)} ==")
-    print(f"\n(arm vs vector win-rate; >0.5 = arm's answers richer than vector)")
+    print("\n(arm vs vector win-rate; >0.5 = arm's answers richer than vector)")
     print(f"{'arm':<14}{'mode':<14}{'dimension':<18} win/tie/loss  win_rate")
     print("-" * 74)
     for row in summary.values():

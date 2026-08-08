@@ -191,9 +191,6 @@ def make_write_to_graph_tool(
 def make_link_entities_tool(ontology: Any, llm: Any):
     """Create a link_entities (dedup) tool bound to this ontology + LLM."""
     from agents import function_tool
-    from .query.strategy import LinkingStrategy
-
-    linking = LinkingStrategy(ontology)
 
     @function_tool
     def link_entities(extraction_json: str) -> str:

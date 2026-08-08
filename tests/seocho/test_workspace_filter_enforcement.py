@@ -28,12 +28,9 @@ def _build_ladybug_store(tmp_path):
 
 def test_workspace_id_kwarg_auto_injected_into_params(tmp_path) -> None:
     """workspace_id is auto-added to params so cypher can use $workspace_id."""
-    from seocho.store.graph import LadybugGraphStore
     store = _build_ladybug_store(tmp_path)
 
     captured = {}
-
-    original_execute = store._conn.execute
 
     def _capture(cypher, params=None):
         captured["cypher"] = cypher

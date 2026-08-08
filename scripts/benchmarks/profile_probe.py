@@ -23,7 +23,7 @@ import json
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import List
 
 sys.path.insert(0, str(Path(__file__).parent))
 import sec_temporal_bench as bench

@@ -7,7 +7,7 @@ This module intentionally avoids owlready2 dependency so it can be unit tested.
 from __future__ import annotations
 
 import re
-from typing import Dict, Iterable, List, Sequence, Set
+from typing import Dict, Sequence, Set
 
 
 def normalize_text(value: str) -> str:

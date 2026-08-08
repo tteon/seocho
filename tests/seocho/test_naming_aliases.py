@@ -1,7 +1,6 @@
 """Tests that naming aliases (Property/P, NodeDefinition/NodeDef,
 RelationshipDefinition/RelDef) are fully interchangeable."""
 
-import pytest
 
 
 class TestPropertyAlias:

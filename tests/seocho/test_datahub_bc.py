@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 
 from seocho.datahub_export import (
     ambiguity_clusters_to_glossary_proposals,

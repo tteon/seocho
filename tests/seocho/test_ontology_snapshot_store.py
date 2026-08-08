@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from seocho.ontology import NodeDef, Ontology, P, RelDef
+from seocho.ontology import NodeDef, Ontology, P
 from seocho.ontology_scorecard import build_corpus_profile, score_ontology
 from seocho.ontology_snapshot_store import (
     OntologySnapshotStore,

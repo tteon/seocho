@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 
-import pytest
 
 
 def test_cache_key_shape() -> None:

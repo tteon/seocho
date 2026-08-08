@@ -41,7 +41,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Set, Tuple
+from typing import Any, Callable, Dict, Set
 
 LAUNDERING_CHANNELS = ("WIRE_CROSSBORDER", "VIRTUAL_ASSET", "MVTS_HAWALA", "ATM_CD")
 CTR_THRESHOLD = 10_000_000

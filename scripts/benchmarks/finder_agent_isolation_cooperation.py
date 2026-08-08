@@ -218,7 +218,6 @@ def run_condition(drv, cases: List[Case], shared: bool) -> Dict[str, float]:
 def isolation_probe(drv, cases: List[Case]) -> float:
     """Direct cross-TENANT probe: can tenant A's DB see any tenant B company?
     (the hard isolation boundary, independent of agent behavior)."""
-    tenant_of = {tk: t for t, tks in TENANTS.items() for tk in tks}
     resolver = EntityResolver.from_frozen()
     leaks = 0
     for t in TENANTS:
@@ -245,7 +244,7 @@ def main() -> int:
     try:
         print("=" * 86)
         print("FinDER agent isolation & cooperation — LIVE DozerDB (2 tenants, 3 category agents)")
-        print(f"  tenants: " + " | ".join(f"{t}={tks}" for t, tks in TENANTS.items()))
+        print("  tenants: " + " | ".join(f"{t}={tks}" for t, tks in TENANTS.items()))
         print("=" * 86)
         rows = {}
         for shared in (False, True):

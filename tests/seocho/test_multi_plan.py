@@ -67,7 +67,6 @@ def test_fuses_records_across_shapes() -> None:
 
 
 def test_one_plan_is_passthrough() -> None:
-    rows = {"relationship_lookup": [{"id": "x"}], "neighbors": [], "entity_lookup": []}
     res = execute_multi_plan(
         builder=_FakeBuilder(), executor=_FakeExecutor({"relationship_lookup": [{"id": "x"}], "neighbors": [], "entity_lookup": []}),
         question="q", intent_data={},

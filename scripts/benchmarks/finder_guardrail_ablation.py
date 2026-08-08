@@ -238,7 +238,7 @@ def main() -> None:
     print(f"\n[written] {args.out}")
     if "delta_B_minus_A" in summary:
         a, b, d = summary["A_sparse_fibo_minus"], summary["B_rich_fibo_plus"], summary["delta_B_minus_A"]
-        print(f"\nCROSS-MODEL MEANS:")
+        print("\nCROSS-MODEL MEANS:")
         print(f"  A (sparse): nodes={a['mean_nodes']} conf={a['mean_label_conformance']} score={a['mean_extraction_score']} entropy={a['label_entropy_bits']} distinct={a['distinct_labels']}")
         print(f"  B (rich)  : nodes={b['mean_nodes']} conf={b['mean_label_conformance']} score={b['mean_extraction_score']} entropy={b['label_entropy_bits']} distinct={b['distinct_labels']}")
         print(f"  Δ(B-A)    : nodes={d['mean_nodes']:+} conf={d['mean_label_conformance']:+} score={d['mean_extraction_score']:+} entropy={d['label_entropy_bits']:+}")

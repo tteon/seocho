@@ -11,7 +11,7 @@ without needing a live Neo4j connection.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import List
 
 import pytest
 

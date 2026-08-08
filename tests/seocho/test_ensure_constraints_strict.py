@@ -9,7 +9,6 @@ any errors, preserving back-compat for callers that pass nothing.
 
 from __future__ import annotations
 
-import tempfile
 
 import pytest
 

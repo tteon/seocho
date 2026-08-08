@@ -32,7 +32,6 @@ import argparse
 import json
 import re
 import statistics
-from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 

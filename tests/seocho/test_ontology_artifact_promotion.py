@@ -2,7 +2,6 @@
 
 from typing import Any, Dict, List, Optional
 
-import pytest
 
 from seocho.ontology import NodeDef, Ontology, P, PropertyType, RelDef
 

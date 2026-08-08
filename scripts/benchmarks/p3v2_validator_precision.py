@@ -26,7 +26,7 @@ from pathlib import Path
 from threading import Lock
 
 from seocho.ontology import NodeDef, Ontology, P, RelDef
-from seocho.llm_structured import StructuredOutputError, structured_complete
+from seocho.llm_structured import structured_complete
 from seocho.numeric_validation import validate_numeric_facts
 from seocho.store.llm import create_llm_backend
 

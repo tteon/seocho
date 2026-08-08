@@ -89,7 +89,7 @@ def _splice(text: str, rtype: str, hint: Dict[str, Any]) -> str:
     should not delete the documentation around it.
     """
     lines = text.splitlines()
-    body = [f"    degreeHint:"] + [
+    body = ["    degreeHint:"] + [
         f"      {k}: {json.dumps(v) if isinstance(v, str) else repr(v).lower() if isinstance(v, bool) else v}"
         for k, v in hint.items()
     ]

@@ -31,7 +31,7 @@ piecemeal (e.g. a notebook computing token-F1 alone).
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 # Reuse the canonical normalization + tokenization from the finance

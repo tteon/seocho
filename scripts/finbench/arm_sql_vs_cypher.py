@@ -184,7 +184,7 @@ def _run_sql_arm(case: dict, con: duckdb.DuckDBPyConnection, schema: Dict[str, L
 def _run_cypher_arm(case: dict, ontology: Any, driver: Any, database: str,
                     llm: Any, workspace_id: str) -> dict:
     """The graph arm through the routing policy, scored on returned rows."""
-    from seocho.query.hybrid_planner import HybridQueryPlanner, build_explain_callback
+    from seocho.query.hybrid_planner import HybridQueryPlanner
 
     planner = HybridQueryPlanner(
         ontology=ontology, llm=llm, workspace_id=workspace_id,

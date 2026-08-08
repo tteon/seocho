@@ -8,8 +8,7 @@ Tested with a fake graph_store (no DB), bypassing __init__ via object.__new__.
 
 from __future__ import annotations
 
-import os
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 from seocho.local_engine import _LocalEngine as LocalEngine
 

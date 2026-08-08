@@ -32,7 +32,7 @@ import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Dict, List
+from typing import Callable, List
 
 from neo4j import GraphDatabase
 
@@ -151,7 +151,7 @@ def main() -> int:
         print("=" * 86)
         for _ in range(ITERS):
             timed(stats["intent"], lambda: route(question))
-            m = timed(stats["arbiter"], lambda: select_ontology("revenue growth", manifests))
+            timed(stats["arbiter"], lambda: select_ontology("revenue growth", manifests))
 
             def _retrieve():
                 with drv.session(database=DB) as s:

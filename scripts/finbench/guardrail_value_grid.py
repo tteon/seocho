@@ -73,7 +73,6 @@ def _fmt(v, pct=True) -> str:
 
 
 def _markdown(report: dict) -> str:
-    scales = [c["scale_factor"] for c in report["cells"]]
     lines = [
         "# Does the ontology matter more as scale and complexity grow?", "",
         f"model `{report['model']}` · arms differ only in the schema handed to the agent", "",

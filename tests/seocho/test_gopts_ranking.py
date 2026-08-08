@@ -16,10 +16,8 @@ are not exercised here.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, Tuple
 
 from seocho.eval import gopts_ranking
-from seocho.query.contracts import PatternSpec
 
 
 # --- metric primitives -------------------------------------------------------

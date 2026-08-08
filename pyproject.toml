@@ -152,10 +152,10 @@ line_length = 88
 max-line-length = 88
 exclude = ["__pycache__", "*.pyc", ".git"]
 
-# Dead-code detection (Track A quick-win — surface metric only, not yet a CI gate).
-# Run: `ruff check src/seocho/ extraction/ runtime/ --statistics`
-# When ready to enforce, add a CI step; until then this just makes the metric easy
-# to inspect locally without contradicting the existing flake8/black/isort setup.
+# Lint gate: `ruff check` runs repo-wide in scripts/ci/run_basic_ci.sh.
+# Rule set is pyflakes (F) only — real-error class, no formatting-style rules —
+# so external PRs are gated on correctness, not style debates. `ruff format`
+# adoption and flake8/black/isort removal are tracked separately (seocho beads).
 [tool.ruff]
 line-length = 88
 target-version = "py311"
@@ -173,10 +173,7 @@ extend-exclude = [
 
 [tool.ruff.lint]
 select = [
-    "F401",  # unused imports
-    "F811",  # redefined while unused
-    "F841",  # unused local variables
-    "F541",  # f-string without placeholders
+    "F",  # all pyflakes rules (unused imports/vars, undefined names, ...)
 ]
 
 [tool.setuptools]

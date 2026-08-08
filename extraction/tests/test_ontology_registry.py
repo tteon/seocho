@@ -12,7 +12,6 @@ machine; that composition is exercised in test_agent_readiness.
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
 import pytest

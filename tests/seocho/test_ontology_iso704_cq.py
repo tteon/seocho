@@ -40,7 +40,7 @@ def test_definition_surfaces_in_vocabulary_candidate():
 
 
 def test_definition_round_trips_as_skos_definition(tmp_path):
-    rdflib = pytest.importorskip("rdflib")
+    pytest.importorskip("rdflib")
     ttl = tmp_path / "fin.ttl"
     _onto().to_ttl(ttl)
     text = ttl.read_text()

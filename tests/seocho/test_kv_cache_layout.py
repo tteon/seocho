@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 
 
 def _make_ontology(*, name: str = "kv_test", version: str = "1.0.0"):

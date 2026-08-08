@@ -13,7 +13,7 @@ vector / property) is out of scope for this slice.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Sequence
 
 
 SEMANTIC_ROLE_ENUM: frozenset[str] = frozenset(

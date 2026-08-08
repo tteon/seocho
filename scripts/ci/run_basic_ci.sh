@@ -19,18 +19,11 @@ py_compile_files="$(
 python3 -m py_compile $py_compile_files
 
 uv run ruff check \
-  scripts/ci \
-  src/seocho/cli.py \
-  src/seocho/connectors \
-  src/seocho/e2e.py \
-  src/seocho/index/file_reader.py \
-  src/seocho/run_spec.py \
-  src/seocho/scaffold.py \
-  tests/seocho/test_connectors.py \
-  tests/seocho/test_e2e_runner.py \
-  tests/seocho/test_run_spec.py \
-  tests/seocho/test_scaffold.py \
-  tests/seocho/test_sweep.py
+  src/seocho \
+  extraction \
+  runtime \
+  scripts \
+  tests
 
 uv run pytest \
   extraction/tests/test_runtime_package_aliases.py \
@@ -99,6 +92,7 @@ uv run pytest \
   tests/seocho/test_sweep.py \
   tests/seocho/test_entity_identity.py \
   tests/seocho/test_triage_metadata.py \
+  tests/seocho/test_execution_result_models.py \
   -q
 
 git diff --check

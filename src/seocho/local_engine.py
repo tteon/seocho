@@ -7,7 +7,7 @@ import re
 from contextlib import contextmanager
 from typing import Any, Dict, Iterator, List, Optional, Sequence
 
-from .curation_design import CurationDesignSpec, load_curation_design_spec
+from .curation_design import load_curation_design_spec
 from .graph_projector import GraphProjector
 from .models import Memory
 from .observability import StageTimer

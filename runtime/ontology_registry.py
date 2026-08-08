@@ -38,7 +38,7 @@ import logging
 import os
 import threading
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Dict, Optional
 
 from seocho.ontology import Ontology
 from seocho.ontology_context import CompiledOntologyContext, compile_ontology_context

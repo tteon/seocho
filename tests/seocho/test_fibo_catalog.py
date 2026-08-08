@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 
 import pytest
 
@@ -200,7 +199,7 @@ def test_derive_fibo_roots_with_fake_backend_and_validation():
 def test_derive_fibo_roots_multi_unions_models():
     import json as _json
     from seocho.ontology import NodeDef, Ontology
-    from seocho.fibo_catalog import derive_fibo_roots_multi, derive_fibo_roots_stable
+    from seocho.fibo_catalog import derive_fibo_roots_multi
 
     onto = Ontology("m", nodes={
         "LegalEntity": NodeDef(description="org"), "Security": NodeDef(description="sec"),

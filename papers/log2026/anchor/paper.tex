@@ -72,15 +72,6 @@ such as ``in thousands'' applies. Matching facts by entity name hides
 every one of these conflicts; matching them by source position exposes
 them; and no ontology in the prompt prevents them.
 
-This subject lies upstream of graph machine learning rather than within
-it: every method that learns on an LLM-built graph --- GNN, retrieval,
-agent --- inherits the graph's reliability, and this paper measures where
-that reliability actually comes from. The structural-divergence measurement of
-Section~\ref{sec:profile} makes that dependency concrete: on this
-corpus, cross-view structural methods have usable signal only under the
-schema-free condition, and the measurement that tells you so costs one
-pilot extraction.
-
 Each finding is stated with its paired confidence interval in
 Section~\ref{sec:findings}. First, the ontology does not improve
 extraction: it lowers cross-model agreement on entity names, covers fewer
@@ -94,7 +85,9 @@ stratum and the model, not of the representation alone.
 
 Our central claim is a single sentence: \emph{the value of structure is not a
 better answer but a verifiable one, and verification needs provenance, not
-names}. Every registered claim above carried its disconfirming outcome
+names}. The subject lies upstream of graph machine learning: every method
+that learns on an LLM-built graph inherits that graph's reliability, and
+this paper measures where the reliability actually comes from. Every registered claim above carried its disconfirming outcome
 before the run that tested it (Section~\ref{sec:stack}); three registered
 hypotheses were disconfirmed and are reported as such, and exploratory
 findings are labelled and replicated under fresh registration.

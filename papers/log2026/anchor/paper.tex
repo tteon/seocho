@@ -1,5 +1,5 @@
 \documentclass{article}
-\usepackage[review]{log_2026}
+\usepackage[review,eabstract]{log_2026}
 \usepackage{booktabs}
 \usepackage{multirow}
 \usepackage{amsfonts}
@@ -64,8 +64,8 @@ This paper measures that belief end to end on FinDER~\citep{finder}, a
 financial question-answering dataset built from SEC filings, and reports
 three findings that revise it. One number previews all three. We ran
 three LLM extractors over the same filings and compared the numeric facts
-they produced whenever two extractors drew a figure from the same position
-in the source document. They disagreed about a figure's value 1,482 times
+they produced whenever two extractors drew a number from the same position
+in the source document. Their extracted values disagreed 1,482 times
 --- and \textbf{in all 1,482 cases the disagreement is the same kind}: the
 digits match, and the extractors differ only on whether a table header
 such as ``in thousands'' applies. Matching facts by entity name hides
@@ -75,7 +75,7 @@ them; and no ontology in the prompt prevents them.
 Each finding is stated with its paired confidence interval in
 Section~\ref{sec:findings}. First, the ontology does not improve
 extraction: it lowers cross-model agreement on entity names, covers fewer
-answer-bearing figures, and what survives is a validation surface. Second,
+of the numbers the gold answers require, and what survives is a validation surface. Second,
 the field's standard alignment key --- the entity name --- hides the
 disagreements that matter, and every disagreement it hides turns out to be
 a unit-scale conflict that provenance exposes. Third, once memorization
@@ -106,12 +106,12 @@ schema conditions --- schema-free floor, hand-written 20 classes,
 corpus-scoped FIBO (70 classes), FIBO+synonyms, FIBO+hierarchy --- by three
 LLMs, with everything except the schema byte-fixed and hashed. Two
 instruments do the work the field usually delegates to names and gold
-answers. \textbf{Provenance-anchored alignment}: every extracted figure is
+answers. \textbf{Provenance-anchored alignment}: every extracted value is
 located at the unique numeric token it came from in the source, so facts
 align across extractors by source position, not by what each model chose
 to call them. \textbf{Evidence-conditional evaluation}: every answer
 verdict is conditioned on whether the served evidence contains the gold
-figures, mechanically separating grounded correctness from memorization
+numbers, mechanically separating grounded correctness from memorization
 and honest abstention from failure. Both are deterministic; an
 LLM-judge panel is secondary only, cross-judging (no model grades its own
 answers) and admitted only after passing must-fail calibration controls.
@@ -124,7 +124,7 @@ Full design, prompts, and protocol: Appendix~\ref{app:design}.
 With everything but the schema fixed, ontology guidance \emph{lowers}
 cross-model agreement on entity names (schema-free minus FIBO: $+0.069$,
 95\% CI $[+0.046,+0.091]$, paired over 280 cases) and covers \emph{fewer}
-answer-bearing figures ($-0.036$ $[-0.067,-0.008]$) --- the registered
+answer-bearing numbers ($-0.036$ $[-0.067,-0.008]$) --- the registered
 content-advantage hypothesis reversed at scale. What survives is a
 validation surface: 529--1{,}038 schema violations per condition become
 mechanically checkable where the schema-free graph offers almost nothing to
@@ -160,7 +160,7 @@ Decomposing every verdict by whether the served evidence could support it
 graphs' grounded-correct yield matches or beats passages on two of three
 models, passages carry 2--4$\times$ the memorization, and the third model's
 deficit is over-refusal, not misunderstanding. On the arithmetic stratum
-the reversal does \emph{not} replicate: computing a figure needs co-located
+the reversal does \emph{not} replicate: computing a value needs co-located
 operands that extraction fragments, and the original graph-favorable
 hypothesis closed negative on its own chosen ground. Attaching provenance
 pointers --- position references only, no text --- raised accuracy on two
@@ -189,7 +189,7 @@ not survive its first prospective test.
 
 \begin{table}[t]
 \centering\small
-\caption{Primary metric (share of the gold answer's figures the answer
+\caption{Primary metric (share of the gold answer's numbers the answer
 states) by question stratum. Bold marks graph conditions that beat passages with a 95\% paired
 bootstrap interval excluding zero; the reasoning stratum is the only one
 where that happens, and there it happens on every model.}
@@ -333,7 +333,7 @@ answers by evidence-conditional decomposition rather than by gold match
 alone.
 
 \textbf{Judging and finance-QA metrics.} Finance QA scores what matters in
-this domain --- the figures --- with execution accuracy under
+this domain --- the numbers --- with execution accuracy under
 tolerance~\citep{finqa,tatqa}; general RAG evaluation leans on LLM judges
 and semantic similarity~\citep{geval,prometheus2,ragas}, whose position,
 verbosity, and self-preference biases are documented~\citep{judgebench,
@@ -429,7 +429,7 @@ nothing to disagree about; seventy classes are seventy naming choices.
 % S2-H4 reversal — numbers final
 The registered hypothesis that FIBO buys content at the price of names ---
 supported at 16 cases --- \emph{reversed} at 280: the FIBO condition covers fewer
-gold-answer figures than A ($-0.036$ $[-0.067, -0.008]$). The ontology has
+gold-answer numbers than A ($-0.036$ $[-0.067, -0.008]$). The ontology has
 no measured extraction benefit on this corpus.
 
 \subsection{What survives: detectability}
@@ -486,7 +486,7 @@ much non-canonical lexical material the prompt carries.
 % The paper's center. SC-H4, S2-H1 — numbers final.
 Two views of the same case hold ``the same fact'' if we can align their
 facts. The standard key is the entity name. We instead locate each extracted
-figure at the unique numeric token it came from in the source passage
+value at the unique numeric token it came from in the source passage
 (searching all unit scales, so a mis-scaled extraction still anchors), and
 align facts that anchor to the same token.
 
@@ -497,7 +497,7 @@ views named the fact differently \emph{and} disagreed on its value. On the
 FIBO condition the multiplier is larger (717 vs.\ 1{,}983 pairs; 246 vs.\
 874 disagreements; 734 name-blind). Both replications were registered in
 advance. The disagreements the anchor exposes are dominated by unit-scale
-misreadings: 26.7\% of anchored figures match their source only after
+misreadings: 26.7\% of anchored values match their source only after
 rescaling by $10^3$ or $10^6$.
 
 Two consequences follow. For pipeline builders: entity resolution keyed on
@@ -522,7 +522,7 @@ excluded because they carry the passages verbatim. Passages are the
 \emph{ceiling} of retrieval (the gold evidence in full), and the graph
 conditions serve the union of all three extractor views, the ceiling of what
 extraction captured. Primary metric: scale-normalized overlap between the
-gold answer's figures and the produced answer's (the finance-QA standard
+gold answer's numbers and the produced answer's (the finance-QA standard
 family~\citep{finqa,tatqa}); a three-judge cross-judging panel (no judge
 grades its own model's answers) covers what number matching cannot.
 
@@ -532,7 +532,7 @@ Closed-book performance spans $0.058$ (DeepSeek) to $0.306$ (gpt-oss) on the
 balanced sample --- public filings are memorized to very different degrees
 --- yet passages beat closed book for every model (paired differences
 $+0.092$ to $+0.299$, all separated). On the arithmetic stratum the gate
-widens sharply ($+0.41$ on both models run): \emph{computed} figures cannot be
+widens sharply ($+0.41$ on both models run): \emph{computed} values cannot be
 recalled, making arithmetic questions the contamination-resistant stratum
 for evaluating retrieval on public corpora.
 
@@ -550,7 +550,7 @@ reason published RAG-vs-GraphRAG aggregates disagree.
 
 Scoring against the gold answer alone cannot distinguish a model that used
 the evidence from one that remembered the filing. Because we can check
-mechanically whether the served evidence contains the gold figures, every
+mechanically whether the served evidence contains the gold numbers, every
 verdict decomposes into: grounded-correct, utilization failure,
 over-refusal, honest abstention, contaminated-correct, and hallucination.
 
@@ -558,7 +558,7 @@ over-refusal, honest abstention, contaminated-correct, and hallucination.
 \centering\small
 \caption{The full evidence-conditional decomposition on the balanced
 sample (199 numeric-gold cases): every answer classified by whether the
-served evidence contained the gold figures and what the model did.
+served evidence contained the gold numbers and what the model did.
 ``Grounded'' and ``over-refusal'' condition on evidence that contains the
 answer; ``honest abstention,'' ``contaminated,'' and ``hallucination'' on
 evidence that does not.}
@@ -585,7 +585,7 @@ DeepSeek & graph (FIBO+ptr) & 104 & 22 & 32 & 14 & 10 & 16 \\
 
 Three facts move (Table~\ref{tab:ec-app}). The graphs' grounded yield matches or
 beats passages on two of three models. Passages carry 2--4$\times$ the
-contamination (20--22 vs.\ 5--10 answers scored correct on figures absent
+contamination (20--22 vs.\ 5--10 answers scored correct on numbers absent
 from the evidence). And DeepSeek's graph deficit is over-refusal --- 55
 declines where the graph \emph{contains} the answer, vs.\ 31 with passages
 --- a legibility failure of the serialization for that model, not a failure
@@ -594,20 +594,20 @@ stratum did NOT reproduce the reversal: passages' grounded-correct count
 beats every graph condition on all three models there (109/121/96 vs.\
 80--106), the over-refusal mechanism does reproduce (50/41 graph declines
 vs.\ 24 with passages, repaired to 26 by pointers), and contamination is
-too rare on computed figures to compare (3--11 per cell, pre-declared
+too rare on computed numbers to compare (3--11 per cell, pre-declared
 uninformative). The decomposition's reading is therefore stratum-dependent,
 which the main text carries as a finding (Section~\ref{sec:findings}).
 
 \subsection{Provenance pointers raise accuracy without carrying content}
 
-Attaching each anchored figure's source pointer (passage index and character
+Attaching each anchored value's source pointer (passage index and character
 offset --- never the source text) was registered to change attribution, not
 accuracy. The registration was disconfirmed in the interesting direction:
 accuracy \emph{rose} on MiniMax ($+0.055$ $[+0.012, +0.097]$) and DeepSeek
 ($+0.050$ $[+0.022, +0.080]$). Since no answer content was attached, the
-pointer acts as a trust signal --- it marks exactly the figures that
+pointer acts as a trust signal --- it marks exactly the numbers that
 anchored to source --- and the pointer condition shows the highest evidence
-grounding rate (73\%/70\% of answered figures present in the served
+grounding rate (73\%/70\% of answered numbers present in the served
 evidence). Mechanical citation checking lands at 42--58\% verified, so
 pointer-following is far from solved; but provenance decoration is a
 zero-content prompt intervention that buys accuracy.
@@ -622,7 +622,7 @@ on every model, all intervals separated ($+0.079$ to $+0.184$). More
 telling, the evidence-conditional reversal of Section~6.4 does \emph{not}
 replicate here: passages' grounded-correct count beats every graph on all
 three models (109/121/96 vs.\ 80--106). On questions that require computing
-a figure from several printed ones, the serialized graph genuinely
+a value from several printed ones, the serialized graph genuinely
 under-serves even after memorization is stripped --- plausibly because the
 computation needs co-located operands that extraction fragments across
 nodes. Contamination itself nearly vanishes on this stratum (3--11 answers
@@ -690,9 +690,9 @@ grounded-correct lift is deferred to follow-up work.
 
 Every component above varies across models given identical documents,
 schema, and prompts, and the variation is large enough to route on. The
-three extractors' facts overlap on only 13\% of anchored figures, so
+three extractors' facts overlap on only 13\% of anchored values, so
 per-case extractor selection has measured headroom: an oracle choosing one
-model per case covers $0.458$ of gold-answer figures against $0.389$ for
+model per case covers $0.458$ of gold-answer numbers against $0.389$ for
 the best fixed model (the oracle's picks split 103/49/47 across the three).
 Downstream, which evidence \emph{format} a model can use is equally
 model-specific --- the passages-minus-graph gap differs across models
@@ -784,7 +784,7 @@ Two tokenizer defects were caught by a four-call smoke test before any
 scored run, and fixed symmetrically for gold and produced text: a hyphen
 after an alphanumeric read as a minus sign (``SP 800-171'' yielding
 $-171$), and parenthesized enumeration markers ``(1)...(6)'' counted as
-figures. The scoring tokenizer is separate from the anchoring tokenizer,
+numbers. The scoring tokenizer is separate from the anchoring tokenizer,
 which is left untouched because the anchors were located with it.
 
 \end{document}

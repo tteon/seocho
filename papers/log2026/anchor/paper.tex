@@ -68,26 +68,21 @@ such as ``in thousands'' applies. Matching facts by entity name hides
 every one of these conflicts; matching them by source position exposes
 them; and no ontology in the prompt prevents them.
 
-Each finding is stated with its paired confidence interval in
-Section~\ref{sec:findings}. First, the ontology does not improve
-extraction: it lowers cross-model agreement on entity names, covers fewer
-of the numbers the gold answers require, and what survives is a validation surface. Second,
-the field's standard alignment key --- the entity name --- hides the
-disagreements that matter, and every disagreement it hides turns out to be
-a unit-scale conflict that provenance exposes. Third, once memorization
-and honest abstention are separated from grounded correctness, whether the
-graph helps answering becomes a measurable property of the question
-stratum and the model, not of the representation alone.
-
-The three findings compose into one conclusion. The first removes the
-assumed mechanism: the ontology does not standardize what extractors say.
-The second identifies the failure that actually needs catching --- scale
-conflicts --- and shows that the name-based alignment everyone builds on
-cannot see it, while source position can. The third shows the same
-blindness repeated at evaluation time: scoring that cannot see evidence
-cannot measure what structure contributes. One primitive survives scrutiny in all
-three findings: the position in the source document from which each value
-was extracted. We therefore conclude that \emph{the value of structure is
+Three findings, each stated with its paired confidence interval in
+Section~\ref{sec:findings}, compose into one conclusion. The first
+removes the assumed mechanism: the ontology does not standardize what
+extractors say --- it lowers cross-model agreement on entity names and
+covers fewer of the numbers the gold answers require, and what survives
+is a validation surface. The second identifies the failure that actually
+needs catching --- scale conflicts --- and shows that the name-based
+alignment the field builds on cannot see it, while source position can.
+The third shows the same blindness repeated at evaluation time: once
+memorization and honest abstention are separated from grounded
+correctness, whether the graph helps answering becomes a measurable
+property of the question stratum and the model, and scoring that cannot
+see evidence cannot measure what structure contributes. One primitive
+survives scrutiny in all three findings: the position in the source
+document from which each value was extracted. We therefore conclude that \emph{the value of structure is
 not that it yields better answers but that it yields verifiable ones ---
 and verification requires provenance, not names}. Every hypothesis above
 was pre-registered together with the outcome that would falsify it, before
@@ -233,6 +228,7 @@ FIBO graph. Bold marks graph conditions that beat passages with a 95\%
 paired bootstrap interval excluding zero; the reasoning stratum is the
 only one where that happens, and there it happens on every model.}
 \label{tab:strata}
+\setlength{\tabcolsep}{4.5pt}
 \begin{tabular}{llccccc}
 \toprule
 Stratum & Model & closed book & passages & graph (no schema) & graph (FIBO) & graph (FIBO+ptr) \\
@@ -758,7 +754,8 @@ Exploratory findings are absent from this table by construction --- they
 are labelled in the text and their registered replications appear here.
 
 \begin{table}[h]
-\centering\small
+\centering\footnotesize
+\setlength{\tabcolsep}{4pt}
 \begin{tabular}{llll}
 \toprule
 Family & Hypothesis (compressed) & Verdict \\
@@ -801,13 +798,13 @@ S5-H2 & synonyms do not separate from plain FIBO & \textbf{disconfirmed} (separa
 S5-H3 & hierarchy does not separate from plain FIBO & \textbf{disconfirmed} (separate below) \\
 \midrule
 \multicolumn{3}{l}{\emph{Arithmetic supplement, grounding}} \\
-AR-H3 & graphs ground more of their answers than passages & held (all models; e.g.\ .16 vs .48--.70) \\
+AR-H3 & graphs ground more answers than passages & held (all models; .16 vs .48--.70) \\
 \midrule
 \multicolumn{3}{l}{\emph{Reasoning census (204 cases)}} \\
 RS-H1 & gate holds on the reasoning stratum & held ($+0.44$ to $+0.69$) \\
-RS-H2 & passages $\geq$ both graph conditions & \textbf{disconfirmed} --- graphs win on all three models \\
-RS-EC1--3 & decomposition replicates (grounded, contamination, over-refusal) & held (contamination counts small: 3 vs 0--1) \\
-PR-H1 & pilot verifiable share predicts per-model grounded lift & \textbf{disconfirmed} (two of three models hit) \\
+RS-H2 & passages $\geq$ both graph conditions & \textbf{disconfirmed}: graphs win, 3/3 models \\
+RS-EC1--3 & decomposition replicates on this stratum & held (contam.\ counts small: 3 vs 0--1) \\
+PR-H1 & pilot verifiable share predicts grounded lift & \textbf{disconfirmed} (2 of 3 models hit) \\
 \midrule
 \multicolumn{3}{l}{\emph{Representativeness (natural mix, graphless)}} \\
 RP-H1 & gate replicates per model & partial: MiniMax yes, gpt-oss \textbf{no} \\
@@ -816,7 +813,7 @@ RP-H2 & balanced design did not distort gate size & held (intervals overlap) \\
 \multicolumn{3}{l}{\emph{Multi-agent adjudication over anchored disagreements}} \\
 MA-H1/H3 & provenance beats deliberation / beats pick-only rule & \textbf{void}: ground truth defective \\
  & \multicolumn{2}{l}{--- all 1,482 disagreements are unit-scale splits; audited before scoring} \\
-MA-H2 & schema information does not resolve value conflicts & not separated ($n{=}75$; schema arm abstains 71\%) \\
+MA-H2 & schema does not resolve value conflicts & not separated ($n{=}75$; 71\% abstain) \\
 \bottomrule
 \end{tabular}
 \end{table}

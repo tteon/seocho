@@ -755,7 +755,7 @@ are labelled in the text and their registered replications appear here.
 
 \begin{table}[h]
 \centering\footnotesize
-\setlength{\tabcolsep}{4pt}
+\setlength{\tabcolsep}{3pt}
 \begin{tabular}{llll}
 \toprule
 Family & Hypothesis (compressed) & Verdict \\
@@ -763,11 +763,11 @@ Family & Hypothesis (compressed) & Verdict \\
 \multicolumn{3}{l}{\emph{Second sweep (16 cases, five conditions)}} \\
 SW-H1 & equal property floor removes period effect, not agreement & held \\
 SW-H2 & hierarchy (E) raises agreement over plain FIBO & not separated \\
-SW-H3 & FIBO content advantage survives equal slots & held at 16; see S2-H4 \\
+SW-H3 & FIBO content advantage survives equal slots & held at 16 (see S2-H4) \\
 SW-H4 & no ontology condition escapes name fragmentation & held \\
 \midrule
 \multicolumn{3}{l}{\emph{Scale-up, schema-free (280 cases)}} \\
-SC-H1 & verifiable-fact shortage is sample-size-bound & held (6$\to$123) \\
+SC-H1 & verifiable-fact shortage is sample-bound & held (6$\to$123) \\
 SC-H2 & agreement-gated serving beats serve-always & \textbf{disconfirmed} \\
 SC-H3 & single-view ceiling does not move & held (rose to 87\%) \\
 SC-H4 & anchor advantage survives scale (schema-free condition) & held \\
@@ -781,19 +781,19 @@ S2-H4 & FIBO content advantage survives scale & \textbf{disconfirmed, reversed} 
 \multicolumn{3}{l}{\emph{Answering, balanced sample}} \\
 AN-H1 & models cannot already answer (gate) & held 3/3 \\
 AN-H2 & graph does not beat its source text & held \\
-AN-H3 & passages$-$graph gap is a model property & held (1 of 3 pairs separated) \\
+AN-H3 & passages$-$graph gap is a model property & held (1/3 pairs separated) \\
 AN-H4 & anchors change attribution, not accuracy & \textbf{disconfirmed} on 2/3 \\
 \midrule
 \multicolumn{3}{l}{\emph{Arithmetic supplement}} \\
 AR-H1 & gate holds on arithmetic & held ($+0.41$) \\
 AR-H2 & a graph condition beats passages (the original claim) & \textbf{disconfirmed} \\
-AR-H4 & anchor effect reproduces on MiniMax & \textbf{disconfirmed}; moved to DeepSeek \\
+AR-H4 & anchor effect reproduces on MiniMax & \textbf{disconfirmed}; moves to DeepSeek \\
 AR-EC1 & grounded-correct reversal replicates & \textbf{disconfirmed} (stratum-dependent) \\
 AR-EC2 & contamination asymmetry & uninformative (pre-declared) \\
 AR-EC3 & over-refusal concentrates on graphs (DeepSeek) & held \\
 \midrule
 \multicolumn{3}{l}{\emph{Schema dose--response at scale (280 cases)}} \\
-S5-H1 & name agreement is monotone in class count & \textbf{disconfirmed} (hand-written 20 lowest) \\
+S5-H1 & name agreement monotone in class count & \textbf{disconfirmed} (20-class lowest) \\
 S5-H2 & synonyms do not separate from plain FIBO & \textbf{disconfirmed} (separate below) \\
 S5-H3 & hierarchy does not separate from plain FIBO & \textbf{disconfirmed} (separate below) \\
 \midrule
@@ -803,7 +803,7 @@ AR-H3 & graphs ground more answers than passages & held (all models; .16 vs .48-
 \multicolumn{3}{l}{\emph{Reasoning census (204 cases)}} \\
 RS-H1 & gate holds on the reasoning stratum & held ($+0.44$ to $+0.69$) \\
 RS-H2 & passages $\geq$ both graph conditions & \textbf{disconfirmed}: graphs win, 3/3 models \\
-RS-EC1--3 & decomposition replicates on this stratum & held (contam.\ counts small: 3 vs 0--1) \\
+RS-EC1--3 & decomposition replicates on this stratum & held (contam.\ small: 3 vs 0--1) \\
 PR-H1 & pilot verifiable share predicts grounded lift & \textbf{disconfirmed} (2 of 3 models hit) \\
 \midrule
 \multicolumn{3}{l}{\emph{Representativeness (natural mix, graphless)}} \\
@@ -811,8 +811,8 @@ RP-H1 & gate replicates per model & partial: MiniMax yes, gpt-oss \textbf{no} \\
 RP-H2 & balanced design did not distort gate size & held (intervals overlap) \\
 \midrule
 \multicolumn{3}{l}{\emph{Multi-agent adjudication over anchored disagreements}} \\
-MA-H1/H3 & provenance beats deliberation / beats pick-only rule & \textbf{void}: ground truth defective \\
- & \multicolumn{2}{l}{--- all 1,482 disagreements are unit-scale splits; audited before scoring} \\
+MA-H1/H3 & provenance beats deliberation / pick-only rule & \textbf{void}: ground truth defective \\
+ & \multicolumn{2}{l}{--- all 1,482 disagreements are unit-scale splits (audited pre-scoring)} \\
 MA-H2 & schema does not resolve value conflicts & not separated ($n{=}75$; 71\% abstain) \\
 \bottomrule
 \end{tabular}

@@ -101,10 +101,17 @@ findings are labelled and replicated under fresh registration.
 \section{Study design}\label{sec:stack}
 
 Three samples cover FinDER's own annotation grid (balanced 280; arithmetic
-140; a 204-case census of the reasoning stratum), extracted under five
-schema conditions --- schema-free floor, hand-written 20 classes,
-corpus-scoped FIBO (70 classes), FIBO+synonyms, FIBO+hierarchy --- by three
-LLMs, with everything except the schema byte-fixed and hashed. Two
+140; a 204-case census of the reasoning stratum), extracted by three LLMs
+under five schema conditions, each chosen to isolate one belief about
+what guidance contributes: a schema-free floor (what agreement costs
+nothing), a hand-written 20-class schema (a small bespoke schema
+suffices), corpus-scoped FIBO --- the 70 classes ranked by how often the
+corpus itself mentions them (the standard ontology, as used) --- and FIBO
+plus synonyms and FIBO plus its class hierarchy (richer vocabulary,
+respectively structure, improves extraction). The conditions nest, so
+each contrast attributes to a single addition
+(Table~\ref{tab:conditions}), and everything except the schema is
+byte-fixed and hashed. Two
 instruments do the work the field usually delegates to names and gold
 answers. \textbf{Provenance-anchored alignment}: every extracted value is
 located at the unique numeric token it came from in the source, so facts

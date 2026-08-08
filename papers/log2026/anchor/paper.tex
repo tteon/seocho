@@ -122,6 +122,14 @@ numbers, mechanically separating grounded correctness from memorization
 and honest abstention from failure. Both are deterministic; an
 LLM-judge panel is secondary only, cross-judging (no model grades its own
 answers) and admitted only after passing must-fail calibration controls.
+Every uncertainty interval in this paper is a 95\% confidence interval
+obtained by nonparametric bootstrap over \emph{cases} (5{,}000 resamples,
+fixed seed), and every comparison between conditions is computed as a
+paired within-case difference before resampling, so per-case difficulty
+cancels; we call a difference \emph{separated} when its interval excludes
+zero. Hypotheses were registered with their disconfirming outcomes before
+each run, and the registrations are committed files in the supplementary
+material.
 Full design, prompts, and protocol: Appendix~\ref{app:design}.
 
 \section{Findings}\label{sec:findings}

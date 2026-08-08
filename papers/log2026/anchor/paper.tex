@@ -83,11 +83,16 @@ and honest abstention are separated from grounded correctness, whether the
 graph helps answering becomes a measurable property of the question
 stratum and the model, not of the representation alone.
 
-Our central claim is a single sentence: \emph{the value of structure is not a
-better answer but a verifiable one, and verification needs provenance, not
-names}. The subject lies upstream of graph machine learning: every method
-that learns on an LLM-built graph inherits that graph's reliability, and
-this paper measures where the reliability actually comes from. Every registered claim above carried its disconfirming outcome
+The three findings compose into one conclusion. The first removes the
+assumed mechanism: the ontology does not standardize what extractors say.
+The second identifies the failure that actually needs catching --- scale
+conflicts --- and shows that the name-based alignment everyone builds on
+cannot see it, while source position can. The third shows the same
+blindness repeated at evaluation time: scoring that cannot see evidence
+cannot price structure at all. What remains standing in all three is the
+same primitive. Our central claim is therefore a single sentence:
+\emph{the value of structure is not a better answer but a verifiable one,
+and verification needs provenance, not names}. Every registered claim above carried its disconfirming outcome
 before the run that tested it (Section~\ref{sec:stack}); three registered
 hypotheses were disconfirmed and are reported as such, and exploratory
 findings are labelled and replicated under fresh registration.

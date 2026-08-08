@@ -33,16 +33,17 @@ results follow. First, the ontology does not improve extraction: it lowers
 cross-model agreement on entity names and does not raise coverage of
 answer-bearing facts; its measurable benefit is that schema violations
 become detectable. Second, comparing facts by entity name --- standard
-alignment practice --- hides most cross-model disagreements: anchoring each
-extracted value to its source position instead finds 1.7--2.8$\times$ as many
+alignment practice --- hides most cross-model disagreements: aligning each
+extracted value by its exact position in the source document instead finds 1.7--2.8$\times$ as many
 comparable facts and exposes that a quarter of anchored values carry
 unit-scale errors. Third, standard QA scoring favors source text over the
-serialized graph, but cannot tell evidence use from memory: separating
+serialized graph, but cannot distinguish answers grounded in the supplied evidence from answers recalled from pretraining: separating
 memorized answers, honest refusals, and grounded answers reverses the
 comparison on two of three models, and adding provenance pointers alone
-raises accuracy. Alignment should key on provenance rather than names;
-ontologies earn their keep as validators, not extraction guides; and
-evaluations of retrieval structure must be evidence-conditional. Three
+raises accuracy. We conclude that facts should be aligned by provenance rather than by
+name, that ontologies are better deployed as validators than as
+extraction guides, and that evaluations of retrieval structure must
+condition each verdict on what the supplied evidence could support. Three
 pre-registered hypotheses failed and are reported as findings.
 \end{abstract}
 
@@ -61,7 +62,7 @@ standardize how institutions name and relate the entities in their filings.
 
 This paper measures that belief end to end on FinDER~\citep{finder}, a
 financial question-answering dataset built from SEC filings, and reports
-three findings that reorder it. One number previews all three. We ran
+three findings that revise it. One number previews all three. We ran
 three LLM extractors over the same filings and compared the numeric facts
 they produced whenever two extractors drew a figure from the same position
 in the source document. They disagreed about a figure's value 1,482 times
@@ -71,27 +72,27 @@ such as ``in thousands'' applies. Matching facts by entity name hides
 every one of these conflicts; matching them by source position exposes
 them; and no ontology in the prompt prevents them.
 
-The subject sits upstream of graph machine learning rather than inside
+This subject lies upstream of graph machine learning rather than within
 it: every method that learns on an LLM-built graph --- GNN, retrieval,
 agent --- inherits the graph's reliability, and this paper measures where
-that reliability actually comes from. The structural-divergence gate of
-Section~\ref{sec:profile} states the dependency concretely: on this
+that reliability actually comes from. The structural-divergence measurement of
+Section~\ref{sec:profile} makes that dependency concrete: on this
 corpus, cross-view structural methods have usable signal only under the
 schema-free condition, and the measurement that tells you so costs one
 pilot extraction.
 
-Three findings reorder that answer, each stated with its
-paired interval in Section~\ref{sec:findings}: the ontology does not
-improve extraction --- it lowers cross-model name agreement and covers
-fewer answer-bearing figures, and what survives is a validation surface;
-the field's alignment primitive, the entity name, hides the disagreements
-that matter, all of which turn out to be unit-scale conflicts that
-provenance exposes; and downstream, once memorization and honest
-abstention are separated from grounded correctness, whether the graph
-helps answering becomes a measurable property of the question stratum and
-the model rather than of the representation.
+Each finding is stated with its paired confidence interval in
+Section~\ref{sec:findings}. First, the ontology does not improve
+extraction: it lowers cross-model agreement on entity names, covers fewer
+answer-bearing figures, and what survives is a validation surface. Second,
+the field's standard alignment key --- the entity name --- hides the
+disagreements that matter, and every disagreement it hides turns out to be
+a unit-scale conflict that provenance exposes. Third, once memorization
+and honest abstention are separated from grounded correctness, whether the
+graph helps answering becomes a measurable property of the question
+stratum and the model, not of the representation alone.
 
-The through-line is one sentence: \emph{the value of structure is not a
+Our central claim is a single sentence: \emph{the value of structure is not a
 better answer but a verifiable one, and verification needs provenance, not
 names}. Every registered claim above carried its disconfirming outcome
 before the run that tested it (Section~\ref{sec:stack}); three registered
@@ -120,7 +121,7 @@ Full design, prompts, and protocol: Appendix~\ref{app:design}.
 
 \section{Findings}\label{sec:findings}
 
-\subsection{The ontology buys detectability, not extraction}
+\subsection{The ontology provides detectability, not better extraction}
 
 With everything but the schema fixed, ontology guidance \emph{lowers}
 cross-model agreement on entity names (schema-free minus FIBO: $+0.069$,
@@ -266,8 +267,8 @@ tables ship with the supplementary material.
 
 \section{Conclusion}\label{sec:conclusion}
 
-Ontology guidance, measured end to end, buys detectability rather than
-extraction quality; the alignment primitive that decides what ``the same
+Ontology guidance, measured end to end, provides detectability rather
+than extraction quality; the alignment primitive that decides what ``the same
 fact'' means should be provenance, not names; and evaluation that cannot see
 evidence cannot see what structure is for. The graph's contribution to
 answering is not more correct answers --- it is answers that are grounded,
@@ -525,7 +526,7 @@ Closed-book performance spans $0.058$ (DeepSeek) to $0.306$ (gpt-oss) on the
 balanced sample --- public filings are memorized to very different degrees
 --- yet passages beat closed book for every model (paired differences
 $+0.092$ to $+0.299$, all separated). On the arithmetic stratum the gate
-blows open ($+0.41$ both models run): \emph{computed} figures cannot be
+widens sharply ($+0.41$ on both models run): \emph{computed} figures cannot be
 recalled, making arithmetic questions the contamination-resistant stratum
 for evaluating retrieval on public corpora.
 

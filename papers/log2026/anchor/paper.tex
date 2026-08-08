@@ -98,46 +98,49 @@ rules; the appendix holds full results and every registration.
 
 \section{Study design}\label{sec:stack}
 
-Three samples cover FinDER's own annotation grid (balanced 280; arithmetic
-140; a 204-case census of the reasoning stratum), extracted by three LLMs
-under five schema conditions, each chosen to isolate one belief about
-what guidance contributes: a schema-free floor (how much agreement arises
-with no guidance at all), a hand-written 20-class schema (a small bespoke
-schema suffices), corpus-scoped FIBO --- the 70 classes ranked by how
-often the corpus itself mentions them (the standard ontology, as the
-corpus uses it) --- and FIBO plus synonyms, respectively FIBO plus its
-class hierarchy (does richer vocabulary, or hierarchical structure,
-improve extraction). The conditions nest, so each contrast is
-attributable to a single addition (Table~\ref{tab:conditions}), and
-everything except the schema is byte-identical and hash-recorded.
+Every experiment follows one pipeline, and each stage is where one of the
+paper's measurements lives. A FinDER case supplies a question, a gold
+answer, and the filing passages that support it. \textbf{Extraction:}
+three LLMs each read the same passages and emit a knowledge graph, under
+one of five schema conditions that differ only in the class list placed
+in an otherwise byte-identical, hash-recorded prompt; each case's graphs
+are stored in isolation. \textbf{Alignment:} every extracted numeric
+value is searched for in the case's own passages, and a unique matching
+token --- at any unit scale, so mis-scaled values still locate --- becomes
+that fact's \emph{anchor}; facts from different extractors are the same
+fact when they share an anchor, not when they share a name. Agreement,
+content coverage, and schema violations are measured here
+(Sections~\ref{sec:findings}.1--2). \textbf{Answering:} the same three
+models answer the case's question at temperature zero under five evidence
+conditions --- nothing, the gold passages, or one of three serialized
+graphs (schema-free, FIBO, FIBO with each anchored value's source pointer
+attached) --- with prompts identical except for the evidence block.
+\textbf{Scoring:} each answer is scored against the gold answer's
+numbers, and every verdict is additionally conditioned on whether that
+answer's own evidence contained those numbers, which mechanically
+separates grounded correctness from memorization and honest abstention
+from failure (Section~\ref{sec:findings}.3). An LLM-judge panel is a
+secondary check only: judges never grade their own model's answers and
+count only after passing four calibration controls with
+known-by-construction outcomes.
 
-Two
-instruments do the work the field usually delegates to names and gold
-answers. \textbf{Provenance-anchored alignment}: every extracted value is
-located at the unique numeric token it came from in the source, so facts
-align across extractors by source position, not by what each model chose
-to call them.
-
-\textbf{Evidence-conditional evaluation}: every answer
-verdict is conditioned on whether the served evidence contains the gold
-numbers, mechanically separating grounded correctness from memorization
-and honest abstention from failure.
-
-Both instruments are deterministic. An LLM-judge panel serves only as a
-secondary check: judges never grade their own model's answers, and a
-judge's verdicts count only after it passes four calibration controls
-whose correct outcomes are known by construction.
+Three samples cover FinDER's annotation grid --- balanced 280, arithmetic
+140, and a 204-case census of the reasoning stratum --- and the five
+schema conditions each isolate one belief about what guidance
+contributes, from a schema-free floor to corpus-scoped FIBO with synonyms
+or hierarchy added; the conditions nest, so each contrast is attributable
+to a single addition (Table~\ref{tab:conditions}).
 
 Every uncertainty interval in this paper is a 95\% confidence interval
 obtained by nonparametric bootstrap over \emph{cases} (5{,}000 resamples,
 fixed seed), and every comparison between conditions is computed as a
 paired within-case difference before resampling, so per-case difficulty
 cancels; we call a difference \emph{separated} when its interval excludes
-zero. In the appendix we abbreviate a difference and its interval as
-$d$ $[a,b]$; the main text spells every interval out. Hypotheses were registered with their disconfirming outcomes before
-each run, and the registrations are committed files in the supplementary
-material.
-Full design, prompts, and protocol: Appendix~\ref{app:design}.
+zero. In the appendix we abbreviate a difference and its interval as $d$
+$[a,b]$; the main text spells every interval out. Hypotheses were
+registered with their disconfirming outcomes before each run, and the
+registrations are committed files in the supplementary material. Full
+design, prompts, and protocol: Appendix~\ref{app:design}.
 
 \section{Findings}\label{sec:findings}
 

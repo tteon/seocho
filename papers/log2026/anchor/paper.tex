@@ -257,8 +257,10 @@ Stratum & Model & closed book & passages & graph (no schema) & graph (FIBO) & gr
 
 \begin{table}[t]
 \centering\small
-\caption{Grounded-correct counts (evidence contains the answer and the
-model answered it), balanced sample, 199 numeric-gold cases.}
+\caption{Grounded-correct counts on the balanced sample (199
+numeric-gold cases): answers that were correct \emph{and} whose serving
+evidence contained the gold numbers. Bold marks the best condition per
+model.}
 \label{tab:ec}
 \begin{tabular}{lcccc}
 \toprule
@@ -292,23 +294,18 @@ which is what the opening problem asked for.
 
 \section{Limitations}\label{sec:limitations}
 
-Single corpus and domain; three extractor models; passages are a retrieval
-ceiling, not a retriever; the graph conditions test the graph as serialized
-context, not as a queryable store (deferred, with the token-budget/cache
-tension, to future work); ``evidence contains the answer'' is a numeric-token
-approximation; per-type strata below $n=20$ are reported but underpowered.
-The registered secondary judge panel is calibrated and corroborating but
-not load-bearing: all three judges pass the four must-fail controls
-(identity, swap, scale corruption, refusal) only after two prompt repairs
-the controls themselves forced; each answer is then graded by the two
-judges that did not write it. Two-judge agreement reaches 0.79 (pairwise
-0.76--0.80), ties stay unresolved, and 86 of 1,800 gradings failed at the
-API and are counted rather than imputed. The panel's pattern matches the
-primary metric's --- graph-condition answers are rarely judged flat-wrong
-(4--10 per condition against 37 closed-book) and abstain more often ---
-but no claim in this abstract rests on a judge verdict; the primary metric
-and the evidence-conditional decomposition are deterministic. Full verdict
-tables ship with the supplementary material.
+Three families of limitation bound our claims. \emph{Scope}: one corpus
+and domain, three extractor models; passages are a retrieval ceiling, not
+a retriever; the graph is tested as serialized context, not as a queryable
+store. \emph{Mechanism}: all models are accessed through APIs, so
+internals such as attention are unobservable --- the model-dependent
+effects we report (over-refusal on serialized graphs, the pointer
+response) are characterized behaviorally, and their causes remain open.
+\emph{Instruments}: scoring is anchored to gold answers, ``evidence
+contains the answer'' is a numeric-token approximation, strata below
+$n{=}20$ are underpowered, and the LLM-judge panel --- calibrated,
+cross-judging, never load-bearing --- inherits the known limits of LLM
+judging; its operational record is in Appendix~\ref{app:part2}.
 
 \section{Conclusion}\label{sec:conclusion}
 
@@ -571,6 +568,17 @@ extraction captured. Primary metric: scale-normalized overlap between the
 gold answer's numbers and the produced answer's (the finance-QA standard
 family~\citep{finqa,tatqa}); a three-judge cross-judging panel (no judge
 grades its own model's answers) covers what number matching cannot.
+
+\paragraph{Judge panel, operational record.} All three judges pass the
+four must-fail calibration controls (identity, swap, scale corruption,
+refusal), and only after two prompt repairs the controls themselves
+forced; each answer is graded by the two judges that did not write it.
+Two-judge agreement reaches 0.79 (pairwise 0.76--0.80); ties stay
+unresolved; 86 of 1,800 gradings failed at the API and are counted rather
+than imputed. The panel's pattern matches the primary metric's ---
+graph-condition answers are rarely judged flat-wrong (4--10 per condition
+against 37 closed-book) and abstain more often. Full verdict tables ship
+with the supplementary material.
 
 \subsection{The gate: contamination is real and stratified}
 

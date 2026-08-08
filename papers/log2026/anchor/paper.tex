@@ -6,6 +6,8 @@
 \usepackage{graphicx}
 \usepackage[numbers,compress,sort]{natbib}
 \usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning}
 
 % Placeholders for results still landing; every \pending must be resolved
 % before the PDF builds for submission (check_submission greps for it).
@@ -98,33 +100,52 @@ rules; the appendix holds full results and every registration.
 
 \section{Study design}\label{sec:stack}
 
-Every experiment follows one pipeline, and each stage is where one of the
-paper's measurements lives. A FinDER case supplies a question, a gold
-answer, and the filing passages that support it. \textbf{Extraction:}
-three LLMs each read the same passages and emit a knowledge graph, under
-one of five schema conditions that differ only in the class list placed
-in an otherwise byte-identical, hash-recorded prompt; each case's graphs
-are stored in isolation. \textbf{Alignment:} every extracted numeric
-value is searched for in the case's own passages, and a unique matching
-token --- at any unit scale, so mis-scaled values still locate --- becomes
-that fact's \emph{anchor}; facts from different extractors are the same
-fact when they share an anchor, not when they share a name. Agreement,
-content coverage, and schema violations are measured here
-(Sections~\ref{sec:findings}.1--2). \textbf{Answering:} the same three
-models answer the case's question at temperature zero under five evidence
-conditions --- nothing, the gold passages, or one of three serialized
-graphs (schema-free, FIBO, FIBO with each anchored value's source pointer
-attached), each serving the union of all three extractors' graphs for
-that case --- extraction at its best, as passages are retrieval at its
-best --- with prompts identical except for the evidence block.
-\textbf{Scoring:} each answer is scored against the gold answer's
-numbers, and every verdict is additionally conditioned on whether that
-answer's own evidence contained those numbers, which mechanically
-separates grounded correctness from memorization and honest abstention
-from failure (Section~\ref{sec:findings}.3). An LLM-judge panel is a
-secondary check only: judges never grade their own model's answers and
-count only after passing four calibration controls with
-known-by-construction outcomes.
+Figure~\ref{fig:pipeline} shows the pipeline every experiment follows;
+each stage hosts one of the paper's measurements. A FinDER case supplies
+a question, a gold answer, and the supporting filing passages. In
+\textbf{alignment}, every extracted numeric value is searched for in the
+case's own passages, and a unique matching token --- at any unit scale,
+so mis-scaled values still locate --- becomes that fact's \emph{anchor};
+facts from different extractors are the same fact when they share an
+anchor, not a name. In \textbf{answering}, each serialized graph serves
+the union of all three extractors' graphs for the case (extraction at its
+best, as passages are retrieval at its best), at temperature zero, with
+prompts identical except for the evidence block. In \textbf{scoring},
+every verdict is additionally conditioned on whether that answer's own
+evidence contained the gold numbers, separating grounded correctness from
+memorization and honest abstention from failure. An LLM-judge panel is a secondary check only: cross-judging, and admitted
+only after passing four calibration controls with known outcomes.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[font=\footnotesize,
+  box/.style={draw=black!70, rounded corners=1pt, align=center,
+    minimum height=9mm, inner sep=3pt},
+  meas/.style={align=center, text=black!60, font=\scriptsize},
+  arr/.style={-{Stealth[length=2mm]}, thick, black!70}]
+\node[box, fill=black!4] (case) {FinDER case\\ \scriptsize question · gold · passages};
+\node[box, fill={rgb,255:red,86;green,180;blue,233}, fill opacity=.25,
+  text opacity=1, right=7mm of case] (ext) {Extraction\\ \scriptsize 3 LLMs $\times$ 5 schemas};
+\node[box, fill={rgb,255:red,230;green,159;blue,0}, fill opacity=.25,
+  text opacity=1, right=7mm of ext] (align) {Alignment\\ \scriptsize by source position};
+\node[box, fill={rgb,255:red,0;green,158;blue,115}, fill opacity=.25,
+  text opacity=1, right=7mm of align] (ans) {Answering\\ \scriptsize 5 evidence conditions};
+\node[box, fill={rgb,255:red,204;green,121;blue,167}, fill opacity=.25,
+  text opacity=1, right=7mm of ans] (score) {Scoring\\ \scriptsize gold + evidence-conditional};
+\draw[arr] (case) -- (ext);
+\draw[arr] (ext) -- (align);
+\draw[arr] (align) -- (ans);
+\draw[arr] (ans) -- (score);
+\node[meas, below=1.5mm of ext] {prompt hash-fixed\\ per-case isolation};
+\node[meas, below=1.5mm of align] {agreement · coverage\\ violations (\S\ref{sec:findings}.1--2)};
+\node[meas, below=1.5mm of ans] {union of 3 graphs\\ T$=$0, same prompt};
+\node[meas, below=1.5mm of score] {grounded vs.\ memorized\\ (\S\ref{sec:findings}.3)};
+\end{tikzpicture}
+\caption{The experimental pipeline. Every case flows through all four
+stages; the schema condition varies only the class list inside the
+extraction prompt, and each stage's measurement is named beneath it.}
+\label{fig:pipeline}
+\end{figure}
 
 Three samples cover FinDER's annotation grid --- balanced 280, arithmetic
 140, and a 204-case census of the reasoning stratum --- and the five

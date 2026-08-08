@@ -85,6 +85,11 @@ for tag, models in (("an1",("gptoss","minimax27","deepseek")),
             printed = f"{v:.3f}".lstrip("0")   # .306 형식
             checks.append((f"{tag} {cond}/{m} {printed}", printed, printed in TEX))
 
+
+# the verbatim scale-split example quoted in 3.2
+expect("example 945,797", "945{,}797")
+k = keying("s1","A")  # example drawn from the s1 keying run log
+
 bad = [(l,p) for l,p,ok in checks if not ok]
 for l,p,ok in checks:
     print(("OK " if ok else "FAIL ") + l)

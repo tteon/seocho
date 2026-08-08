@@ -154,9 +154,17 @@ Table~\ref{tab:dose} in Appendix~\ref{app:part1}.
 Aligning facts by anchor instead of name yields 1.7--2.8$\times$ as many
 comparable cross-model facts, and 80--84\% of the disagreements it exposes
 are invisible to any name key (registered replications on both conditions
-at 280 cases). Auditing those disagreements produced this study's sharpest
-fact: all 1,482 of them are unit-scale splits. 26.7\% of anchored values
-match their source only after rescaling by $10^3$ or $10^6$. Two deployment
+at 280 cases). Auditing those disagreements produced this study's sharpest fact: all
+1,482 of them are unit-scale splits. A representative case, verbatim from
+the artifacts: at one source token, one extractor stored the fact
+\emph{``revenue software licenses'' $= 945{,}797$} while another stored
+\emph{``software licenses revenue fy2021'' $= 945{,}797{,}000$} --- same
+digits, a $10^3$ split from a table's ``in thousands'' header, and two
+names no string matcher would pair, so the conflict is invisible to
+name-keyed pipelines and would surface only as an unexplained
+thousand-fold error in whichever answer it reaches. Overall, 26.7\% of
+anchored values match their source only after rescaling by $10^3$ or
+$10^6$. Two deployment
 consequences follow: name-keyed entity resolution silently discards the
 verification signal a second extractor was supposed to buy, and cross-view
 verification has a hard ceiling regardless of key --- 87\% of facts are

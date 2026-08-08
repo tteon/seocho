@@ -55,10 +55,9 @@ more complete, and easier to query. Financial services is the domain where
 this belief is most institutionalized: FIBO~\citep{fibo}, an OWL ontology of financial concepts, exists
 precisely to
 standardize how institutions name and relate the entities in their
-filings. Yet existing comparisons of guided and unguided extraction vary
-the schema together with prompts, models, or chunking~\citep{graphrag,
-lightrag, ragvsgraphrag}, so what the guidance itself contributes has not
-been isolated --- that isolation is this paper's starting point.
+filings. Yet existing comparisons vary the schema together with prompts,
+models, or chunking~\citep{graphrag, lightrag, ragvsgraphrag}, so the
+guidance's own contribution has not been isolated.
 
 This paper measures that belief end to end on FinDER~\citep{finder}, a
 financial question-answering dataset built from SEC filings, and reports
@@ -92,10 +91,9 @@ was pre-registered together with the outcome that would falsify it, before
 the corresponding experiment ran (Section~\ref{sec:stack}); eleven were
 falsified and are reported as findings, and exploratory results are
 labelled as such and replicated under new pre-registrations.
-Section~\ref{sec:stack} fixes the design, Section~\ref{sec:findings}
-states the findings, Section~\ref{sec:profile} converts them into
-deployment rules, and the appendix carries full results and every
-registration.
+Section~\ref{sec:stack} fixes the design; Section~\ref{sec:findings}
+states the findings; Section~\ref{sec:profile} turns them into deployment
+rules; the appendix holds full results and every registration.
 
 
 \section{Study design}\label{sec:stack}
@@ -287,13 +285,10 @@ validator it turned hundreds of silent defects per condition into
 checkable violations. Third, score any retrieval comparison
 evidence-conditionally: on public corpora, a scoring rule that cannot
 tell evidence use from memory rewarded the wrong condition on two of
-three models. Each rule's precondition can be measured from a single
-pilot extraction before any at-scale spend; Appendix~\ref{app:profile}
-consolidates those measurements into a pre-deployment diagnostic, whose
-first prospective test Section~\ref{sec:findings} reports honestly as
-failed. The graph earns its place in a regulated pipeline not by
-answering better but by making answers auditable --- which is what the
-opening problem asked for.
+three models. Each rule's precondition is measurable from one pilot extraction
+(Appendix~\ref{app:profile}). The graph earns its place in a regulated
+pipeline not by answering better but by making answers auditable ---
+which is what the opening problem asked for.
 
 \section{Limitations}\label{sec:limitations}
 
@@ -323,11 +318,9 @@ same fact'' means should be provenance, not names; and evaluation that
 cannot see evidence cannot see what structure is for. The value of LLM
 extraction is not the quality of its triples but their auditability ---
 and auditability comes from provenance, not from the ontology. Three
-follow-ups are registered and unrun: extraction-contract slots that make
-alignment a property of the output rather than a recovery step, an
-annotated-passages control that separates the pointer's trust signal from
-graph structure, and validation of the pre-deployment diagnostic as a
-predictor.
+registered follow-ups remain unrun: extraction-contract alignment slots,
+an annotated-passages control for the pointer effect, and predictor
+validation of the diagnostic.
 
 \bibliographystyle{unsrtnat}
 \bibliography{references}

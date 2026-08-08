@@ -52,9 +52,13 @@ Enterprises that build knowledge graphs from documents with LLMs face a
 design decision early: whether to guide extraction with a domain ontology.
 The conventional answer is yes --- a schema should make extraction more consistent,
 more complete, and easier to query. Financial services is the domain where
-this belief is most institutionalized: FIBO~\citep{fibo}, an OWL ontology of
-financial concepts maintained by the EDM Council, exists precisely to
-standardize how institutions name and relate the entities in their filings.
+this belief is most institutionalized: FIBO~\citep{fibo}, an OWL ontology of financial concepts, exists
+precisely to
+standardize how institutions name and relate the entities in their
+filings. Yet existing comparisons of guided and unguided extraction vary
+the schema together with prompts, models, or chunking~\citep{graphrag,
+lightrag, ragvsgraphrag}, so what the guidance itself contributes has not
+been isolated --- that isolation is this paper's starting point.
 
 This paper measures that belief end to end on FinDER~\citep{finder}, a
 financial question-answering dataset built from SEC filings, and reports
@@ -79,8 +83,7 @@ alignment the field builds on cannot see it, while source position can.
 The third shows the same blindness repeated at evaluation time: once
 memorization and honest abstention are separated from grounded
 correctness, whether the graph helps answering becomes a measurable
-property of the question stratum and the model, and scoring that cannot
-see evidence cannot measure what structure contributes. One primitive
+property of the question stratum and the model. One primitive
 survives scrutiny in all three findings: the position in the source
 document from which each value was extracted. We therefore conclude that \emph{the value of structure is
 not that it yields better answers but that it yields verifiable ones ---
@@ -89,6 +92,10 @@ was pre-registered together with the outcome that would falsify it, before
 the corresponding experiment ran (Section~\ref{sec:stack}); eleven were
 falsified and are reported as findings, and exploratory results are
 labelled as such and replicated under new pre-registrations.
+Section~\ref{sec:stack} fixes the design, Section~\ref{sec:findings}
+states the findings, Section~\ref{sec:profile} converts them into
+deployment rules, and the appendix carries full results and every
+registration.
 
 
 \section{Study design}\label{sec:stack}
@@ -166,9 +173,9 @@ the artifacts: at one source token, one extractor stored the fact
 \emph{``revenue software licenses'' $= 945{,}797$} while another stored
 \emph{``software licenses revenue fy2021'' $= 945{,}797{,}000$} --- same
 digits, a $10^3$ split from a table's ``in thousands'' header, and two
-names no string matcher would pair, so the conflict is invisible to
-name-keyed pipelines and would surface only as an unexplained
-thousand-fold error in whichever answer it reaches. Overall, 26.7\% of
+names no string matcher would pair --- invisible to name-keyed
+pipelines, surfacing only as an unexplained thousand-fold error
+downstream. Overall, 26.7\% of
 anchored values match their source only after rescaling by $10^3$ or
 $10^6$. Two deployment
 consequences follow: name-keyed entity resolution silently discards the
@@ -266,20 +273,27 @@ DeepSeek-V3.1 & 98 & 83 & 82 & 104 \\
 \end{tabular}
 \end{table}
 
-\section{A pre-deployment verifiability profile}\label{sec:profile}
+\section{Implications}\label{sec:profile}
 
-Each design decision this study evaluates pays off only under measurable
-preconditions, all computable from one pilot extraction: the verifiable
-share (13\% here), the name-blind disagreement rate (80--84\%), the
-scale-fragility rate (26.7\%), the guardrail surface, per-model legibility,
-and an anchored structural-divergence ratio against a matched null
-(4.7$\times$ schema-free, 2.3$\times$ FIBO --- structural cross-view
-methods have signal on one condition and not the other). Exploratorily,
-per-category verifiable share tracks the graph's grounded-correct lift
-(Spearman $\rho = +0.76$, $n=8$ categories); a prospective test of that
-link was registered before the reasoning-stratum experiment ran
-(Appendix~\ref{app:profile}). The hypothesis ledger, all registrations,
-and every artifact ship in the supplementary material.
+The opening problem was that answers drawn from LLM-built graphs must be
+verifiable, not merely plausible. The findings convert into three
+deployment rules that serve exactly that requirement. First, align and
+deduplicate extracted facts by their position in the source document, not
+by entity name: every value conflict that name matching hid in this study
+was a unit-scale error that would otherwise reach an answer unexplained.
+Second, apply the ontology after extraction rather than inside the
+prompt: as guidance it made extractors disagree more, while as a
+validator it turned hundreds of silent defects per condition into
+checkable violations. Third, score any retrieval comparison
+evidence-conditionally: on public corpora, a scoring rule that cannot
+tell evidence use from memory rewarded the wrong condition on two of
+three models. Each rule's precondition can be measured from a single
+pilot extraction before any at-scale spend; Appendix~\ref{app:profile}
+consolidates those measurements into a pre-deployment diagnostic, whose
+first prospective test Section~\ref{sec:findings} reports honestly as
+failed. The graph earns its place in a regulated pipeline not by
+answering better but by making answers auditable --- which is what the
+opening problem asked for.
 
 \section{Limitations}\label{sec:limitations}
 
@@ -304,14 +318,16 @@ tables ship with the supplementary material.
 \section{Conclusion}\label{sec:conclusion}
 
 Ontology guidance, measured end to end, provides detectability rather
-than extraction quality; the alignment primitive that decides what ``the same
-fact'' means should be provenance, not names; and evaluation that cannot see
-evidence cannot see what structure is for. The graph's contribution to
-answering is not more correct answers --- it is answers that are grounded,
-attributable, and honest about what the evidence cannot support. The value
-of LLM extraction, measured end to end, is not the quality of its triples
-but their auditability --- and auditability comes from provenance, not
-from the ontology.
+than extraction quality; the alignment primitive that decides what ``the
+same fact'' means should be provenance, not names; and evaluation that
+cannot see evidence cannot see what structure is for. The value of LLM
+extraction is not the quality of its triples but their auditability ---
+and auditability comes from provenance, not from the ontology. Three
+follow-ups are registered and unrun: extraction-contract slots that make
+alignment a property of the output rather than a recovery step, an
+annotated-passages control that separates the pointer's trust signal from
+graph structure, and validation of the pre-deployment diagnostic as a
+predictor.
 
 \bibliographystyle{unsrtnat}
 \bibliography{references}
@@ -680,8 +696,8 @@ but which model it helps depends on the stratum.
 Together the two strata answer the deployment question differently, which
 is the finding: \emph{whether a graph is worth serving is a property of the
 question stratum and the model, not of the representation alone} --- and it
-is measurable in advance, which is what the verifiability profile
-(Section~\ref{sec:profile}) is for.
+is measurable in advance, which is what the pre-deployment
+diagnostic below is for.
 
 \section{The verifiability profile and design rules}\label{app:profile}
 

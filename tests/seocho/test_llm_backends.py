@@ -936,3 +936,34 @@ def test_build_response_falls_back_to_provider_reasoning_fields():
     # content wins when present
     both = SimpleNamespace(content='{"d": 4}', reasoning='{"ignored": 0}')
     assert OpenAICompatibleBackend._build_response(_resp(both)).json() == {"d": 4}
+
+
+def test_task_hint_json_extraction_gets_default_max_tokens():
+    """seocho-ub5: structured-output task hints must carry an explicit
+    token budget so reasoning models don't truncate mid-thinking."""
+    from seocho.store.llm import complete_with_task_hints
+
+    captured = {}
+
+    class FakeLLM:
+        def complete(self, **kwargs):
+            captured.update(kwargs)
+            return object()
+
+    complete_with_task_hints(
+        FakeLLM(), system="s", user="u", task_hint="json_extraction"
+    )
+    assert captured["max_tokens"] == 8192
+
+    captured.clear()
+    complete_with_task_hints(
+        FakeLLM(), system="s", user="u",
+        task_hint="json_extraction", max_tokens=1234,
+    )
+    assert captured["max_tokens"] == 1234  # explicit caller value wins
+
+    captured.clear()
+    complete_with_task_hints(
+        FakeLLM(), system="s", user="u", task_hint="answer_synthesis"
+    )
+    assert "max_tokens" not in captured  # non-structured hints unchanged

@@ -348,6 +348,18 @@ def complete_with_task_hints(
         "user": user,
         "temperature": temperature,
     }
+    if max_tokens is None and _strip_text(task_hint).lower() in (
+        "json_extraction",
+        "json_extraction_retry",
+        "entity_linking",
+    ):
+        # Structured-output calls on reasoning models (MARA MiniMax-M2.7,
+        # DeepSeek) spend thousands of completion tokens thinking before the
+        # JSON payload. Leaving max_tokens to the server default truncates
+        # mid-reasoning — the response carries reasoning text and no JSON,
+        # or the provider 400s ("token limit reached before a complete JSON
+        # object"). Give these calls an explicit generous budget (seocho-ub5).
+        max_tokens = 8192
     if max_tokens is not None:
         kwargs["max_tokens"] = max_tokens
     if response_format is not None:

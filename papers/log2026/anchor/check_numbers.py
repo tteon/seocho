@@ -73,6 +73,18 @@ sd = artifact("log2026.structural_divergence.v1")
 checks.append(("Σ A 4.7x", "4.7", abs(sd["s1:A"]["signal_ratio"]-4.65)<0.01 and "4.7$\\times$" in TEX))
 checks.append(("Σ C 2.3x", "2.3", abs(sd["s2:C"]["signal_ratio"]-2.34)<0.01 and "2.3$\\times$" in TEX))
 
+
+# strata table (tab:strata): every cell against its answering_analysis artifact
+for tag, models in (("an1",("gptoss","minimax27","deepseek")),
+                    ("an2",("gptoss","minimax27","deepseek")),
+                    ("an3",("gptoss","minimax27","deepseek"))):
+    d = an(tag)
+    for m in models:
+        for cond in ("closed_book","passages","graph_a","graph_c","graph_c_anchors"):
+            v = d["conditions"][f"{cond}/{m}"]["number_overlap"]
+            printed = f"{v:.3f}".lstrip("0")   # .306 형식
+            checks.append((f"{tag} {cond}/{m} {printed}", printed, printed in TEX))
+
 bad = [(l,p) for l,p,ok in checks if not ok]
 for l,p,ok in checks:
     print(("OK " if ok else "FAIL ") + l)

@@ -53,7 +53,7 @@ pre-registered hypotheses failed and are reported as findings.
 
 Enterprises that build knowledge graphs from documents with LLMs face a
 design decision early: whether to guide extraction with a domain ontology.
-The folk answer is yes --- a schema should make extraction more consistent,
+The conventional answer is yes --- a schema should make extraction more consistent,
 more complete, and easier to query. Financial services is the domain where
 this belief is most institutionalized: FIBO~\citep{fibo}, an OWL ontology of
 financial concepts maintained by the EDM Council, exists precisely to
@@ -61,13 +61,15 @@ standardize how institutions name and relate the entities in their filings.
 
 This paper measures that belief end to end on FinDER~\citep{finder}, a
 financial question-answering dataset built from SEC filings, and reports
-three findings that reorder it. One number previews all three: when three
-LLMs extract the same filings independently, they produce 1,482
-cross-model disagreements about anchored numeric facts --- and
-\textbf{1,482 of 1,482 are unit-scale splits}. The extractors never
-disagree about the printed digits, only about whether a table header's
-``in thousands'' applies; entity names hide these conflicts, provenance
-exposes them, and no ontology in the prompt touches them.
+three findings that reorder it. One number previews all three. We ran
+three LLM extractors over the same filings and compared the numeric facts
+they produced whenever two extractors drew a figure from the same position
+in the source document. They disagreed about a figure's value 1,482 times
+--- and \textbf{in all 1,482 cases the disagreement is the same kind}: the
+digits match, and the extractors differ only on whether a table header
+such as ``in thousands'' applies. Matching facts by entity name hides
+every one of these conflicts; matching them by source position exposes
+them; and no ontology in the prompt prevents them.
 
 The subject sits upstream of graph machine learning rather than inside
 it: every method that learns on an LLM-built graph --- GNN, retrieval,
@@ -78,7 +80,7 @@ corpus, cross-view structural methods have usable signal only under the
 schema-free condition, and the measurement that tells you so costs one
 pilot extraction.
 
-Three findings reorder the folk belief, each stated with its
+Three findings reorder that answer, each stated with its
 paired interval in Section~\ref{sec:findings}: the ontology does not
 improve extraction --- it lowers cross-model name agreement and covers
 fewer answer-bearing figures, and what survives is a validation surface;
@@ -97,7 +99,7 @@ hypotheses were disconfirmed and are reported as such, and exploratory
 findings are labelled and replicated under fresh registration.
 
 
-\section{The measurement stack}\label{sec:stack}
+\section{Study design}\label{sec:stack}
 
 Three samples cover FinDER's own annotation grid (balanced 280; arithmetic
 140; a 204-case census of the reasoning stratum), extracted under five
@@ -187,6 +189,32 @@ not survive its first prospective test.
 
 \begin{table}[t]
 \centering\small
+\caption{Primary metric (share of the gold answer's figures the answer
+states) by question stratum. Bold marks graph conditions separated
+\emph{above} passages by paired bootstrap; the reasoning stratum is the
+only one where that happens, on every model.}
+\label{tab:strata}
+\begin{tabular}{llccccc}
+\toprule
+Stratum & Model & closed book & passages & graph (free) & graph (FIBO) & +pointers \\
+\midrule
+\multirow{3}{*}{balanced}   & gpt-oss  & .306 & .398 & .355 & .384 & .364 \\
+                            & MiniMax  & .185 & .484 & .490 & .447 & .502 \\
+                            & DeepSeek & .058 & .295 & .221 & .233 & .283 \\
+\midrule
+\multirow{3}{*}{arithmetic} & gpt-oss  & .119 & .530 & .346 & .374 & .367 \\
+                            & MiniMax  & .143 & .553 & .451 & .474 & .470 \\
+                            & DeepSeek & .054 & .309 & .182 & .226 & .271 \\
+\midrule
+\multirow{3}{*}{reasoning}  & gpt-oss  & .153 & .665 & .709 & \textbf{.725} & .707 \\
+                            & MiniMax  & .072 & .763 & \textbf{.819} & .817 & .852 \\
+                            & DeepSeek & .026 & .467 & \textbf{.548} & \textbf{.574} & .634 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[t]
+\centering\small
 \caption{Grounded-correct counts (evidence contains the answer and the
 model answered it), balanced sample, 199 numeric-gold cases.}
 \label{tab:ec}
@@ -201,7 +229,7 @@ DeepSeek-V3.1 & 98 & 83 & 82 & 104 \\
 \end{tabular}
 \end{table}
 
-\section{A pre-flight profile, and what this enables}\label{sec:profile}
+\section{A pre-deployment diagnostic, and what it enables}\label{sec:profile}
 
 Each design decision this study evaluates pays off only under measurable
 preconditions, all computable from one pilot extraction: the verifiable
@@ -612,7 +640,7 @@ serialization a per-model design surface. And contamination that survives
 inside evidence conditions makes evidence-conditional evaluation, not
 closed-book gates alone, the honest default for public-corpus benchmarks.
 
-\subsection{A verifiability profile as a pre-flight diagnostic}
+\subsection{A verifiability profile as a pre-deployment diagnostic}
 
 The design decisions this paper evaluates --- multi-extractor verification,
 ontology guardrails, structural alignment --- each pay off only under

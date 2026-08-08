@@ -101,8 +101,12 @@ every registration.
 \section{Study design}\label{sec:stack}
 
 Figure~\ref{fig:pipeline} shows the pipeline every experiment follows;
-each stage hosts one of the paper's measurements. A FinDER case supplies
+each stage carries one of the paper's measurements. A FinDER case supplies
 a question, a gold answer, and the supporting filing passages. In
+\textbf{extraction}, three LLMs each read those passages and emit a
+graph; the schema condition varies only the class list inside an
+otherwise hash-fixed prompt, and each case's graphs are stored in
+isolation. In
 \textbf{alignment}, every extracted numeric value is searched for in the
 case's own passages, and a unique matching token --- at any unit scale,
 so mis-scaled values still locate --- becomes that fact's \emph{anchor};
@@ -160,8 +164,7 @@ obtained by nonparametric bootstrap over \emph{cases} (5{,}000 resamples,
 fixed seed), and every comparison between conditions is computed as a
 paired within-case difference before resampling, so per-case difficulty
 cancels; we call a difference \emph{separated} when its interval excludes
-zero. (the appendix abbreviates a difference and its interval as $d$
-$[a,b]$). Hypotheses were
+zero; the appendix abbreviates a difference and its interval as $d$ $[a,b]$. Hypotheses were
 registered with their disconfirming outcomes before each run, and the
 registrations are committed files in the supplementary material. Full
 design, prompts, and protocol: Appendix~\ref{app:design}.

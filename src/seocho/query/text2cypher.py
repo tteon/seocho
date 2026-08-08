@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Mapping
 
@@ -55,7 +56,11 @@ async def generate_validated_cypher(
                 sort_keys=True,
             ),
             temperature=0.0,
-            max_tokens=700,
+            # 700 truncated the JSON mid-string on multi-clause queries, which
+            # surfaced as StructuredOutputError and rejected two otherwise valid
+            # generations in the SF1000 arm comparison. Reasoning-capable models also
+            # spend budget before emitting the object.
+            max_tokens=int(os.getenv("SEOCHO_TEXT2CYPHER_MAX_TOKENS", "2000")),
             response_format={"type": "json_object"},
             task_hint="text2cypher",
             mode="pipeline",

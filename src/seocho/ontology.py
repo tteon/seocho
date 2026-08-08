@@ -219,6 +219,42 @@ class RelDef:
     aliases: List[str] = field(default_factory=list)
     same_as: Optional[str] = None  # e.g. "schema:worksFor"
 
+    # Directional roles. ``source``/``target`` say which *types* an edge connects,
+    # which is enough to orient ``Account -> Channel`` but says nothing at all when
+    # both ends carry the same label. For ``TRANSFER: Account -> Account`` the
+    # endpoints are indistinguishable by type, so "which accounts did X send to" and
+    # "which accounts sent to X" are the same query as far as the schema is concerned —
+    # and query construction silently picked one. Measured on a power-law graph, that
+    # produced systematically direction-reversed answers (in-degree returned for every
+    # out-degree question) with the orientation guardrail reporting nothing to repair.
+    #
+    # Naming the roles makes the distinction expressible: the phrasing of a question
+    # can be matched against the role a node plays, rather than against its label.
+    source_role: str = ""       # e.g. "sender"
+    target_role: str = ""       # e.g. "beneficiary"
+    # Phrases that indicate the anchor is the *source* / *target* of the edge. Kept on
+    # the relationship rather than in a prompt because the prompt can only convey what
+    # the ontology holds, and because these are domain facts ("wired to", "credited by")
+    # that belong with the schema they describe.
+    source_phrases: List[str] = field(default_factory=list)
+    target_phrases: List[str] = field(default_factory=list)
+
+    # Measured degree facts for this relationship, e.g.
+    # ``{"median_out": 6, "p99_out": 73, "max_out": 158315, "heavy_tailed": true}``.
+    #
+    # The same argument that motivated roles applies here. A prompt can only convey what
+    # the schema holds, and nothing in a schema of labels, property names and endpoint
+    # types says that one account carries 158,315 transfer edges while the median carries
+    # six. So a model has no basis for preferring a bounded shape, and the measured
+    # consequence is not subtle: on a power-law graph an aggregate anchored on a hub does
+    # not return at all, while the same question on a median node costs 45 ms.
+    #
+    # Intended to be *derived from the data* rather than asserted — the values above come
+    # from ``scripts/finbench/graph_properties.py``, which is the same role FinBench's
+    # factor tables play. An ontology that states a distribution it did not measure is
+    # worse than one that stays silent.
+    degree_hint: Dict[str, Any] = field(default_factory=dict)
+
 
 # Explicit long-form aliases for users who prefer self-documenting names.
 # ``NodeDef`` / ``RelDef`` remain the canonical in-code names for brevity in
@@ -287,6 +323,7 @@ class Ontology:
         - ``.jsonld`` / ``.json`` → :meth:`from_jsonld`
         - ``.yaml`` / ``.yml`` → :meth:`from_yaml`
         - ``.ttl`` → :meth:`from_ttl`
+        - ``.owl`` → :meth:`from_owl`
         """
         suffix = Path(path).suffix.lower()
         if suffix in {".yaml", ".yml"}:
@@ -295,8 +332,10 @@ class Ontology:
             return cls.from_jsonld(path)
         if suffix == ".ttl":
             return cls.from_ttl(path)
+        if suffix == ".owl":
+            return cls.from_owl(path)
         raise ValueError(
-            "Unsupported ontology file extension. Use .jsonld/.json, .yaml/.yml, or .ttl "
+            "Unsupported ontology file extension. Use .jsonld/.json, .yaml/.yml, .ttl, or .owl "
             "or call the explicit loader directly."
         )
 
@@ -378,6 +417,14 @@ class Ontology:
                 properties=rprops,
                 aliases=rd.get("aliases", []),
                 same_as=rd.get("sameAs") or rd.get("same_as"),
+                source_role=rd.get("sourceRole") or rd.get("source_role") or "",
+                target_role=rd.get("targetRole") or rd.get("target_role") or "",
+                source_phrases=list(
+                    rd.get("sourcePhrases") or rd.get("source_phrases") or []),
+                target_phrases=list(
+                    rd.get("targetPhrases") or rd.get("target_phrases") or []),
+                degree_hint=dict(
+                    rd.get("degreeHint") or rd.get("degree_hint") or {}),
             )
 
         return cls(
@@ -436,6 +483,16 @@ class Ontology:
                 rel_entry["sameAs"] = rd.same_as
             if rd.aliases:
                 rel_entry["aliases"] = list(rd.aliases)
+            if rd.source_role:
+                rel_entry["sourceRole"] = rd.source_role
+            if rd.target_role:
+                rel_entry["targetRole"] = rd.target_role
+            if rd.source_phrases:
+                rel_entry["sourcePhrases"] = list(rd.source_phrases)
+            if rd.target_phrases:
+                rel_entry["targetPhrases"] = list(rd.target_phrases)
+            if rd.degree_hint:
+                rel_entry["degreeHint"] = dict(rd.degree_hint)
             if rd.properties:
                 rp: Dict[str, Any] = {}
                 for pname, p in rd.properties.items():
@@ -539,6 +596,35 @@ class Ontology:
         from .ontology_serialization import ontology_from_jsonld_dict
 
         return ontology_from_jsonld_dict(cls, data)
+    @classmethod
+    def from_owl(cls, path: Union[str, Path]) -> "Ontology":
+        """Load an OWL/RDF ontology file.
+
+        SEOCHO materialises the same structural subset as :meth:`from_ttl`:
+        classes, object properties with domain/range, datatype properties, and
+        common labels/descriptions/aliases. RDF/XML is the common ``.owl``
+        serialization, but rdflib may also infer other RDF serializations from
+        the file content.
+
+        Requires :mod:`rdflib` (``pip install rdflib``).
+        """
+        try:
+            import rdflib
+        except ImportError as exc:
+            raise ImportError(
+                "Ontology.from_owl requires rdflib. Install it via "
+                "`pip install rdflib`."
+            ) from exc
+
+        import tempfile
+
+        graph = rdflib.Graph()
+        graph.parse(str(path))
+        with tempfile.NamedTemporaryFile("w", suffix=".ttl", encoding="utf-8") as fh:
+            fh.write(graph.serialize(format="turtle"))
+            fh.flush()
+            return cls.from_ttl(fh.name)
+
     @classmethod
     def from_ttl(cls, path: Union[str, Path]) -> "Ontology":
         """Load an ontology from an OWL/SKOS Turtle (.ttl) file.

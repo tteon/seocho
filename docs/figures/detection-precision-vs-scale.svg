@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 420" width="720" height="420"
+     role="img" aria-labelledby="t d">
+  <title id="t">Detection precision collapses with scale while recall does not move</title>
+  <desc id="d">Candidate counts returned by six detection rules against scale factors 1, 10 and
+  100, on a log axis. Recall was 100% at all 36 measurements. The loan-integration rule returns
+  753 candidates at SF1 and 74,832 at SF100 on the uniform graph, and 1,163 rising to 112,470 on
+  the power-law graph — growth proportional to the graph, for one true positive throughout.
+  Nominee structuring holds one candidate until SF100 on the power-law graph, where it reaches
+  seven. Common control moves the other way, from four candidates down to one, because a
+  conjunction across three layers becomes more selective as the graph grows.</desc>
+
+  <style>
+    .surface { fill: #ffffff; }
+    .grid    { stroke: #eceff3; stroke-width: 1; }
+    .axis    { fill: #6b7684; }
+    .label   { fill: #47515f; }
+    .value   { fill: #12151a; }
+    .s1f { fill: #2a78d6; } .s1s { stroke: #2a78d6; }   /* loan integration, uniform */
+    .s2f { fill: #eb6834; } .s2s { stroke: #eb6834; }   /* loan integration, power-law */
+    .s3f { fill: #1baf7a; } .s3s { stroke: #1baf7a; }   /* nominee structuring */
+    .ring { stroke: #ffffff; }
+    text { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+           font-variant-numeric: tabular-nums; }
+    @media (prefers-color-scheme: dark) {
+      .surface { fill: #1a1d22; }
+      .grid    { stroke: #23272e; }
+      .axis    { fill: #8b95a2; }
+      .label   { fill: #b3bcc8; }
+      .value   { fill: #f1f3f6; }
+      .s1f { fill: #3987e5; } .s1s { stroke: #3987e5; }
+      .s2f { fill: #d95926; } .s2s { stroke: #d95926; }
+      .s3f { fill: #199e70; } .s3s { stroke: #199e70; }
+      .ring { stroke: #1a1d22; }
+    }
+  </style>
+
+  <rect class="surface" x="0" y="0" width="720" height="420"/>
+
+  <text class="value" x="24" y="26" font-size="13" font-weight="600">Candidates returned for one real case. Recall stayed at 100% everywhere.</text>
+  <text class="label" x="24" y="44" font-size="11">Six rules, nothing anchored — no account is named, the pattern has to be found.</text>
+
+  <!-- log y: 1 → 100,000, decades every 58px from y=330 -->
+  <g class="grid">
+    <line x1="96" y1="330" x2="676" y2="330"/>
+    <line x1="96" y1="272" x2="676" y2="272"/>
+    <line x1="96" y1="214" x2="676" y2="214"/>
+    <line x1="96" y1="156" x2="676" y2="156"/>
+    <line x1="96" y1="98"  x2="676" y2="98"/>
+    <line x1="96" y1="70"  x2="676" y2="70" stroke-dasharray="2 3"/>
+  </g>
+  <g class="axis" font-size="11" text-anchor="end">
+    <text x="86" y="334">1</text>
+    <text x="86" y="276">10</text>
+    <text x="86" y="218">100</text>
+    <text x="86" y="160">1k</text>
+    <text x="86" y="102">10k</text>
+    <text x="86" y="74">100k</text>
+  </g>
+  <text class="axis" x="96" y="62" font-size="10.5" letter-spacing="0.09em">CANDIDATES RETURNED (LOG)</text>
+
+  <g class="axis" font-size="11" text-anchor="middle">
+    <text x="96" y="352">SF 1</text>
+    <text x="386" y="352">SF 10</text>
+    <text x="676" y="352">SF 100</text>
+  </g>
+  <text class="axis" x="386" y="372" font-size="10.5" text-anchor="middle" letter-spacing="0.09em">SCALE FACTOR</text>
+
+  <!-- loan integration, power-law: 1163 → 11195 → 112470 -->
+  <polyline class="s2s" fill="none" stroke-width="2" points="96,151 386,93 676,36"/>
+  <g class="s2f">
+    <circle class="ring" cx="96"  cy="151" r="5" stroke-width="2" fill="#eb6834"/>
+    <circle class="ring" cx="386" cy="93"  r="5" stroke-width="2" fill="#eb6834"/>
+    <circle class="ring" cx="676" cy="36"  r="5" stroke-width="2" fill="#eb6834"/>
+  </g>
+  <text class="value" x="676" y="28" font-size="11" font-weight="600" text-anchor="end">112,470</text>
+
+  <!-- loan integration, uniform: 753 → 7541 → 74832 -->
+  <polyline class="s1s" fill="none" stroke-width="2" points="96,163 386,105 676,48"/>
+  <g class="s1f">
+    <circle class="ring" cx="96"  cy="163" r="5" stroke-width="2" fill="#2a78d6"/>
+    <circle class="ring" cx="386" cy="105" r="5" stroke-width="2" fill="#2a78d6"/>
+    <circle class="ring" cx="676" cy="48"  r="5" stroke-width="2" fill="#2a78d6"/>
+  </g>
+  <text class="value" x="96" y="178" font-size="11" font-weight="600">753</text>
+
+  <!-- nominee structuring, power-law: 1 → 1 → 7 -->
+  <polyline class="s3s" fill="none" stroke-width="2" points="96,330 386,330 676,281"/>
+  <g class="s3f">
+    <circle class="ring" cx="96"  cy="330" r="5" stroke-width="2" fill="#1baf7a"/>
+    <circle class="ring" cx="386" cy="330" r="5" stroke-width="2" fill="#1baf7a"/>
+    <circle class="ring" cx="676" cy="281" r="5" stroke-width="2" fill="#1baf7a"/>
+  </g>
+  <text class="value" x="676" y="273" font-size="11" font-weight="600" text-anchor="end">7</text>
+
+  <!-- the one true positive, for scale -->
+  <line class="axis" x1="96" y1="330" x2="676" y2="330" stroke="#c9ced6"
+        stroke-width="1.5" stroke-dasharray="4 4"/>
+  <text class="label" x="104" y="344" font-size="10.5">one true positive</text>
+
+  <!-- annotation: the rule that gets better -->
+  <text class="label" x="672" y="392" font-size="10.5" text-anchor="end">common control (3 layers) went the other way: 4 → 2 → 1 candidate</text>
+
+  <g font-size="11.5">
+    <rect class="s2f" x="24" y="400" width="10" height="10" rx="2"/>
+    <text class="label" x="40" y="409">loan integration · power-law</text>
+    <rect class="s1f" x="248" y="400" width="10" height="10" rx="2"/>
+    <text class="label" x="264" y="409">loan integration · uniform</text>
+    <rect class="s3f" x="462" y="400" width="10" height="10" rx="2"/>
+    <text class="label" x="478" y="409">nominee structuring · power-law</text>
+  </g>
+</svg>

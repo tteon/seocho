@@ -1,0 +1,141 @@
+name: finbench
+description: 'Synthetic LDBC-FinBench-style financial AML schema (Account / Person / Company / Loan +
+  transfer/own/deposit/repay). Declaring the schema lets the guardrail (allowed labels/relationship types,
+  hop/row bounds) constrain agent-generated Cypher at scale.
+
+  '
+nodes:
+  Account:
+    description: A financial account that sends and receives transfers
+    identity_keys:
+    - acct_no
+    - id
+    properties:
+      id:
+        type: STRING
+        constraint: UNIQUE
+      acct_no:
+        type: INTEGER
+        description: The account number used to refer to this account
+      iban:
+        type: STRING
+      flagged:
+        type: BOOLEAN
+      risk_tier:
+        type: INTEGER
+      acct_type:
+        type: INTEGER
+  Person:
+    description: An individual who may own accounts
+    properties:
+      id:
+        type: STRING
+        constraint: UNIQUE
+      name:
+        type: STRING
+      country:
+        type: STRING
+  Company:
+    description: A company or organization that may own accounts
+    properties:
+      id:
+        type: STRING
+        constraint: UNIQUE
+      name:
+        type: STRING
+      sector:
+        type: STRING
+  Loan:
+    description: A loan disbursed to and repaid from accounts
+    properties:
+      id:
+        type: STRING
+        constraint: UNIQUE
+      principal:
+        type: INTEGER
+  Channel:
+    description: 'The means by which money moved (전자금융거래법 §2 channel inventory plus FATF-recognized high-risk
+      rails). Channel choice carries most of the AML signal because channels differ in traceability, limits,
+      and supervision. Anchored on fibo:Payment; FIBO defines no PaymentMethod taxonomy upstream.
+
+      '
+    properties:
+      code:
+        type: STRING
+        constraint: UNIQUE
+        description: Channel code such as WIRE_CROSSBORDER, ATM_CD, OPEN_BANKING
+      label:
+        type: STRING
+        description: Human-readable channel name (Korean / English)
+      risk_weight:
+        type: INTEGER
+        description: Ordinal AML risk hint, 1 (low) to 5 (high)
+relationships:
+  TRANSFER:
+    source: Account
+    target: Account
+    description: 'A money transfer from one account to another. Properties: amount, ts, channel (channel
+      code), channel_risk (1-5), cross_border (boolean).
+
+      '
+    # Both endpoints are Accounts, so source/target alone cannot tell "sent to" from
+    # "received from" — and query construction defaulted to treating the anchor as the
+    # arrow's target, answering every outgoing question with an in-degree. Naming the
+    # roles is what makes the direction recoverable; the phrase lists below are only a
+    # deterministic fast path (they scored 0 of 6 on paraphrases on their own), and the
+    # general case is the model mapping arbitrary wording onto these role names.
+    sourceRole: sender
+    targetRole: beneficiary
+    sourcePhrases:
+    - transfer money to
+    - transferred money to
+    - transfer to
+    - transferred to
+    - sent to
+    - sent money to
+    - send to
+    - remitted to
+    - wired to
+    - paid to
+    - outgoing
+    - reachable within
+    - reachable from
+    - downstream of
+    targetPhrases:
+    - transfers into
+    - transferred into
+    - transfer from
+    - transferred from
+    - received from
+    - sent transfers into
+    - sent into
+    - credited by
+    - incoming
+    - upstream of
+    - paid by
+    # Measured, not asserted — written by scripts/finbench/annotate_ontology_degrees.py
+    # from the snapshot named in measured_from. A schema of labels and endpoint types
+    # cannot say that one account carries tens of thousands of edges while the median
+    # carries three, so a planner had no basis for preferring a bounded shape; an
+    # aggregate anchored on a hub does not return at all. Re-run the annotator when the
+    # snapshot changes: a hint carried over from a differently-shaped dataset is worse
+    # than none.
+  USES_CHANNEL:
+    source: Account
+    target: Channel
+    description: 'An account moved money over this channel (tx_count times). Makes the channel dimension
+      traversable structure rather than only an edge property.
+
+      '
+  OWN:
+    source: Any
+    target: Account
+    description: A person or company owns an account
+  DEPOSIT:
+    source: Loan
+    target: Account
+    description: A loan is disbursed into an account
+  REPAY:
+    source: Account
+    target: Loan
+    description: An account makes a repayment toward a loan

@@ -1,0 +1,212 @@
+{
+  "schema_version": "seocho.finbench.cases.hub.v1",
+  "note": "Anchored on curated anchors (by intermediate result size), not on planted typology ids. The planted set is unusable for this question because its anchors sit at reserved ids outside the random attachment range, so their degrees are 2-26 against a graph maximum of 158,315 \u2014 the case set cannot see the degree distribution at all. Gold is computed in DuckDB over the same Parquet the graph was loaded from.",
+  "cases": [
+    {
+      "id": "small_fan_out_count",
+      "category": "aggregation",
+      "reasoning_type": "one_hop_aggregate",
+      "question": "How many distinct accounts did the account with account number 41902 transfer money to?",
+      "gold": [
+        "10"
+      ],
+      "scenario": "hub-degree",
+      "tier": "small",
+      "band": "small",
+      "anchor_account": 41902,
+      "anchor_l1": 10,
+      "anchor_l2": 70
+    },
+    {
+      "id": "small_twohop_count",
+      "category": "aggregation",
+      "reasoning_type": "two_hop_aggregate",
+      "question": "How many distinct accounts are reachable within 2 transfer hops from the account with account number 41902?",
+      "gold": [
+        "80"
+      ],
+      "scenario": "hub-degree",
+      "tier": "small",
+      "band": "small",
+      "anchor_account": 41902,
+      "anchor_l1": 10,
+      "anchor_l2": 70
+    },
+    {
+      "id": "small_fan_out_list",
+      "category": "retrieval",
+      "reasoning_type": "one_hop_list",
+      "question": "List every account number that the account with account number 41902 transferred money to.",
+      "gold": [
+        "14009",
+        "61187",
+        "152987",
+        "585367",
+        "631243",
+        "662780",
+        "1232788",
+        "1398923",
+        "1902863",
+        "1908838"
+      ],
+      "scenario": "hub-degree",
+      "tier": "small",
+      "band": "small",
+      "anchor_account": 41902,
+      "anchor_l1": 10,
+      "anchor_l2": 70
+    },
+    {
+      "id": "medium_fan_out_count",
+      "category": "aggregation",
+      "reasoning_type": "one_hop_aggregate",
+      "question": "How many distinct accounts did the account with account number 36684 transfer money to?",
+      "gold": [
+        "21"
+      ],
+      "scenario": "hub-degree",
+      "tier": "medium",
+      "band": "medium",
+      "anchor_account": 36684,
+      "anchor_l1": 21,
+      "anchor_l2": 3545
+    },
+    {
+      "id": "medium_twohop_count",
+      "category": "aggregation",
+      "reasoning_type": "two_hop_aggregate",
+      "question": "How many distinct accounts are reachable within 2 transfer hops from the account with account number 36684?",
+      "gold": [
+        "3464"
+      ],
+      "scenario": "hub-degree",
+      "tier": "medium",
+      "band": "medium",
+      "anchor_account": 36684,
+      "anchor_l1": 21,
+      "anchor_l2": 3545
+    },
+    {
+      "id": "large_fan_out_count",
+      "category": "aggregation",
+      "reasoning_type": "one_hop_aggregate",
+      "question": "How many distinct accounts did the account with account number 58918 transfer money to?",
+      "gold": [
+        "18"
+      ],
+      "scenario": "hub-degree",
+      "tier": "large",
+      "band": "large",
+      "anchor_account": 58918,
+      "anchor_l1": 18,
+      "anchor_l2": 81455
+    },
+    {
+      "id": "large_twohop_count",
+      "category": "aggregation",
+      "reasoning_type": "two_hop_aggregate",
+      "question": "How many distinct accounts are reachable within 2 transfer hops from the account with account number 58918?",
+      "gold": [
+        "70813"
+      ],
+      "scenario": "hub-degree",
+      "tier": "large",
+      "band": "large",
+      "anchor_account": 58918,
+      "anchor_l1": 18,
+      "anchor_l2": 81455
+    },
+    {
+      "id": "huge_fan_out_count",
+      "category": "aggregation",
+      "reasoning_type": "one_hop_aggregate",
+      "question": "How many distinct accounts did the account with account number 6192 transfer money to?",
+      "gold": [
+        "86"
+      ],
+      "scenario": "hub-degree",
+      "tier": "huge",
+      "band": "huge",
+      "anchor_account": 6192,
+      "anchor_l1": 87,
+      "anchor_l2": 190731
+    },
+    {
+      "id": "huge_twohop_count",
+      "category": "aggregation",
+      "reasoning_type": "two_hop_aggregate",
+      "question": "How many distinct accounts are reachable within 2 transfer hops from the account with account number 6192?",
+      "gold": [
+        "94856"
+      ],
+      "scenario": "hub-degree",
+      "tier": "huge",
+      "band": "huge",
+      "anchor_account": 6192,
+      "anchor_l1": 87,
+      "anchor_l2": 190731
+    },
+    {
+      "id": "paraphrase_paid",
+      "category": "aggregation",
+      "reasoning_type": "one_hop_aggregate",
+      "question": "How many accounts did the account with account number 36684 pay?",
+      "gold": [
+        "21"
+      ],
+      "scenario": "hub-degree-paraphrase",
+      "tier": "medium",
+      "band": "medium",
+      "anchor_account": 36684,
+      "anchor_l1": 21,
+      "anchor_l2": 3545
+    },
+    {
+      "id": "paraphrase_beneficiaries",
+      "category": "aggregation",
+      "reasoning_type": "one_hop_aggregate",
+      "question": "How many beneficiaries did the account with account number 36684 send funds to?",
+      "gold": [
+        "21"
+      ],
+      "scenario": "hub-degree-paraphrase",
+      "tier": "medium",
+      "band": "medium",
+      "anchor_account": 36684,
+      "anchor_l1": 21,
+      "anchor_l2": 3545
+    },
+    {
+      "id": "paraphrase_pushed",
+      "category": "aggregation",
+      "reasoning_type": "one_hop_aggregate",
+      "question": "How many distinct accounts did the account with account number 36684 push funds toward?",
+      "gold": [
+        "21"
+      ],
+      "scenario": "hub-degree-paraphrase",
+      "tier": "medium",
+      "band": "medium",
+      "anchor_account": 36684,
+      "anchor_l1": 21,
+      "anchor_l2": 3545
+    }
+  ],
+  "skipped_list_cases": [
+    {
+      "band": "medium",
+      "fan_out": 21,
+      "reason": "fan-out exceeds the cap, so any correct answer is one of many valid subsets and ordering would decide the score"
+    },
+    {
+      "band": "large",
+      "fan_out": 18,
+      "reason": "fan-out exceeds the cap, so any correct answer is one of many valid subsets and ordering would decide the score"
+    },
+    {
+      "band": "huge",
+      "fan_out": 86,
+      "reason": "fan-out exceeds the cap, so any correct answer is one of many valid subsets and ordering would decide the score"
+    }
+  ]
+}

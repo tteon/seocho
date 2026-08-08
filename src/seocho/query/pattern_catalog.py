@@ -259,11 +259,17 @@ def _factory_neighbors(
     *,
     anchor_entity: str = "",
     anchor_label: str = "",
+    target_label: str = "",
+    relationship_type: str = "",
     workspace_id: str = "",
     limit: int = 20,
     **_: Any,
 ) -> Tuple[str, Dict[str, Any]]:
-    return builder._neighbors(anchor_entity, anchor_label, workspace_id, limit)
+    # Pass the resolved relationship/target through: a neighbour question that
+    # names them is a directed traversal, not a generic one-hop summary.
+    return builder._neighbors(anchor_entity, anchor_label, workspace_id, limit,
+                              target_label=target_label,
+                              relationship_type=relationship_type)
 
 
 @register_pattern(
@@ -314,10 +320,22 @@ def _factory_count(
     builder: Any,
     *,
     anchor_label: str = "",
+    anchor_entity: str = "",
+    target_label: str = "",
+    relationship_type: str = "",
     workspace_id: str = "",
     **_: Any,
 ) -> Tuple[str, Dict[str, Any]]:
-    return builder._count(anchor_label, workspace_id)
+    # A count question that names a relationship and an anchor entity ("how many
+    # accounts sent transfers into X") must aggregate over that relationship, not
+    # scan the whole label. Falls back to the label count when those slots are absent.
+    return builder._count(
+        anchor_label,
+        workspace_id,
+        anchor_entity=anchor_entity,
+        target_label=target_label,
+        relationship_type=relationship_type,
+    )
 
 
 @register_pattern(
@@ -330,8 +348,20 @@ def _factory_list_all(
     builder: Any,
     *,
     anchor_label: str = "",
+    anchor_entity: str = "",
+    target_label: str = "",
+    relationship_type: str = "",
     workspace_id: str = "",
     limit: int = 20,
     **_: Any,
 ) -> Tuple[str, Dict[str, Any]]:
-    return builder._list_all(anchor_label, workspace_id, limit)
+    # "List the <target> reached from <anchor> over <relationship>" must traverse;
+    # falls back to the plain label listing when those slots are absent.
+    return builder._list_all(
+        anchor_label,
+        workspace_id,
+        limit,
+        anchor_entity=anchor_entity,
+        target_label=target_label,
+        relationship_type=relationship_type,
+    )

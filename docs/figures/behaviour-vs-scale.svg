@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 380" width="720" height="380"
+     role="img" aria-labelledby="t d">
+  <title id="t">Retrieval cost against scale, at two degree distributions</title>
+  <desc id="d">Database hits per answer, for questions matched by L2 quantile band, plotted
+  against scale factor from 1 to 1000. On the uniform graph the cost is flat — 121, 142, 131,
+  147 — across a thousandfold increase in volume. On the power-law graph the same questions
+  cost 810, 2,982, 13,591 and 38,570, a 48-fold increase, and the gap between the two arms
+  widens from 6.7 times to 263 times. Both arms have identical edge counts at every scale, so
+  volume is held fixed and only the distribution differs. Accuracy was 100% at seven of the
+  eight points, so these are the costs of answers that were correct.</desc>
+
+  <style>
+    .surface { fill: #ffffff; }
+    .grid    { stroke: #eceff3; stroke-width: 1; }
+    .axis    { fill: #6b7684; }
+    .label   { fill: #47515f; }
+    .value   { fill: #12151a; }
+    .s1f     { fill: #2a78d6; }  /* uniform  */
+    .s1s     { stroke: #2a78d6; }
+    .s2f     { fill: #eb6834; }  /* power-law */
+    .s2s     { stroke: #eb6834; }
+    .ring    { stroke: #ffffff; }
+    text     { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+               font-variant-numeric: tabular-nums; }
+    @media (prefers-color-scheme: dark) {
+      .surface { fill: #1a1d22; }
+      .grid    { stroke: #23272e; }
+      .axis    { fill: #8b95a2; }
+      .label   { fill: #b3bcc8; }
+      .value   { fill: #f1f3f6; }
+      .s1f     { fill: #3987e5; }
+      .s1s     { stroke: #3987e5; }
+      .s2f     { fill: #d95926; }
+      .s2s     { stroke: #d95926; }
+      .ring    { stroke: #1a1d22; }
+    }
+  </style>
+
+  <rect class="surface" x="0" y="0" width="720" height="380"/>
+
+  <!-- log y from 100 to 100,000: decades at 100 / 1k / 10k / 100k -->
+  <g class="grid">
+    <line x1="92" y1="285" x2="672" y2="285"/>
+    <line x1="92" y1="217" x2="672" y2="217"/>
+    <line x1="92" y1="149" x2="672" y2="149"/>
+    <line x1="92" y1="81"  x2="672" y2="81"/>
+  </g>
+  <g class="axis" font-size="11" text-anchor="end">
+    <text x="82" y="289">100</text>
+    <text x="82" y="221">1k</text>
+    <text x="82" y="153">10k</text>
+    <text x="82" y="85">100k</text>
+  </g>
+  <text class="axis" x="92" y="34" font-size="10.5" letter-spacing="0.09em">DATABASE HITS PER ANSWER (LOG)</text>
+  <text class="label" x="92" y="52" font-size="11">same question difficulty band · identical edge counts in both arms</text>
+
+  <!-- x: SF 1, 10, 100, 1000 at 92, 285, 478, 672 -->
+  <g class="axis" font-size="11" text-anchor="middle">
+    <text x="92" y="311">SF 1</text>
+    <text x="285" y="311">SF 10</text>
+    <text x="478" y="311">SF 100</text>
+    <text x="672" y="311">SF 1000</text>
+  </g>
+  <text class="axis" x="382" y="332" font-size="10.5" text-anchor="middle" letter-spacing="0.09em">SCALE FACTOR — 1,000× VOLUME LEFT TO RIGHT</text>
+
+  <!-- power-law arm: 810 → 2,982 → 13,591 → 38,570 -->
+  <polyline class="s2s" fill="none" stroke-width="2"
+            points="92,223.2 285,184.7 478,139.9 672,109.1"/>
+  <g class="s2f">
+    <circle class="ring" cx="92"  cy="223.2" r="5" stroke-width="2" fill="#eb6834"/>
+    <circle class="ring" cx="285" cy="184.7" r="5" stroke-width="2" fill="#eb6834"/>
+    <circle class="ring" cx="478" cy="139.9" r="5" stroke-width="2" fill="#eb6834"/>
+    <circle class="ring" cx="672" cy="109.1" r="5" stroke-width="2" fill="#eb6834"/>
+  </g>
+  <g class="value" font-size="11" font-weight="600" text-anchor="middle">
+    <text x="92"  y="214">810</text>
+    <text x="285" y="176">2,982</text>
+    <text x="478" y="131">13,591</text>
+    <text x="672" y="100">38,570</text>
+  </g>
+
+  <!-- uniform arm: 121 → 142 → 131 → 147 -->
+  <polyline class="s1s" fill="none" stroke-width="2"
+            points="92,279.4 285,274.6 478,277.0 672,273.7"/>
+  <g class="s1f">
+    <circle class="ring" cx="92"  cy="279.4" r="5" stroke-width="2" fill="#2a78d6"/>
+    <circle class="ring" cx="285" cy="274.6" r="5" stroke-width="2" fill="#2a78d6"/>
+    <circle class="ring" cx="478" cy="277.0" r="5" stroke-width="2" fill="#2a78d6"/>
+    <circle class="ring" cx="672" cy="273.7" r="5" stroke-width="2" fill="#2a78d6"/>
+  </g>
+  <g class="value" font-size="11" font-weight="600" text-anchor="middle">
+    <text x="92"  y="299">121</text>
+    <text x="285" y="294">142</text>
+    <text x="478" y="297">131</text>
+    <text x="672" y="293">147</text>
+  </g>
+
+  <!-- the widening gap, annotated where it is largest -->
+  <line class="axis" x1="672" y1="115" x2="672" y2="268" stroke="#c9ced6"
+        stroke-width="1" stroke-dasharray="3 3"/>
+  <text class="label" x="664" y="196" font-size="11" text-anchor="end" font-weight="600">263×</text>
+  <text class="label" x="100" y="245" font-size="10.5">6.7×</text>
+
+  <!-- legend: two series, so identity never rests on colour alone -->
+  <g font-size="11.5">
+    <rect class="s2f" x="92" y="349" width="10" height="10" rx="2"/>
+    <text class="label" x="108" y="358">power-law + closure + cycles</text>
+    <rect class="s1f" x="330" y="349" width="10" height="10" rx="2"/>
+    <text class="label" x="346" y="358">uniform attachment</text>
+  </g>
+  <text class="axis" x="672" y="358" font-size="10" text-anchor="end">gpt-oss-120b · by_route · 6–9 realistic analyst questions per point · accuracy 100% at 7 of 8</text>
+</svg>

@@ -1,0 +1,138 @@
+{
+  "schema_version": "seocho.finbench.cases.ring.v1",
+  "curated_from": "outputs/finbench/sf1000-real",
+  "note": "The only unanchored question in the set, and therefore the only one where precision is not free. Gold is the account set of every 3-cycle whose hops all ride high-risk channels and which closes inside 24 hours: 9 rings out of 694,703 in the graph, so returning a superset costs real precision. Counts are a lower bound over nodes with out-degree <= 40, because the unbounded two-path join exhausts 10 GB on this graph.",
+  "selectivity_funnel": {
+    "all_3_cycles": 694703,
+    "high_risk_channels_only": 13619,
+    "and_within_window": 9
+  },
+  "distractors_per_true_positive": 77188,
+  "vacuous_predicate_note": "Requiring every amount below the CTR threshold was tested and left the count unchanged (13,619 -> 13,619): this generator's base amounts are always sub-threshold. Shipping it as a filter would claim a discrimination it does not perform.",
+  "rings": [
+    {
+      "accounts": [
+        14919,
+        1534902,
+        1799168
+      ],
+      "span_hours": 18.6
+    },
+    {
+      "accounts": [
+        24846,
+        30351,
+        121074
+      ],
+      "span_hours": 17.5
+    },
+    {
+      "accounts": [
+        27845,
+        38452,
+        1649260
+      ],
+      "span_hours": 21.2
+    },
+    {
+      "accounts": [
+        33405,
+        229975,
+        1459296
+      ],
+      "span_hours": 12.9
+    },
+    {
+      "accounts": [
+        82392,
+        932780,
+        1248270
+      ],
+      "span_hours": 9.1
+    },
+    {
+      "accounts": [
+        138034,
+        348866,
+        1049773
+      ],
+      "span_hours": 17.9
+    },
+    {
+      "accounts": [
+        160068,
+        263402,
+        1000899
+      ],
+      "span_hours": 23.9
+    },
+    {
+      "accounts": [
+        169451,
+        332583,
+        763133
+      ],
+      "span_hours": 18.2
+    },
+    {
+      "accounts": [
+        9000001,
+        9000002,
+        9000003
+      ],
+      "span_hours": 12.0
+    }
+  ],
+  "cases": [
+    {
+      "id": "unanchored_laundering_rings",
+      "category": "detection",
+      "reasoning_type": "unanchored_motif",
+      "question": "Compliance has asked for a proactive sweep \u2014 no specific account is under review. Which accounts are part of a three-account transfer cycle where every hop used a high-risk channel and the whole cycle closed within 24 hours? List the account numbers.",
+      "gold": [
+        "14919",
+        "24846",
+        "27845",
+        "30351",
+        "33405",
+        "38452",
+        "82392",
+        "121074",
+        "138034",
+        "160068",
+        "169451",
+        "229975",
+        "263402",
+        "332583",
+        "348866",
+        "763133",
+        "932780",
+        "1000899",
+        "1049773",
+        "1248270",
+        "1459296",
+        "1534902",
+        "1649260",
+        "1799168",
+        "9000001",
+        "9000002",
+        "9000003"
+      ],
+      "scenario": "unanchored ring detection against incidental cycles",
+      "typology": "Layering \u2014 rapid circular flow over low-traceability rails",
+      "source": "FATF layering typology (funds returning to origin have no economic purpose) combined with FATF Professional Money Laundering (2018) on MVTS/hawala and virtual-asset rails; FFIEC BSA/AML red flags on rapid movement",
+      "why_it_matters": "Every other question in this set names the account to investigate, which hands the agent its anchor and makes precision automatic. A proactive sweep does not: the answer has to be separated from 694,703 structurally identical cycles. This is the question a graph is supposed to be good at, and the first one here that can actually be scored on precision rather than recall.",
+      "difficulty": {
+        "cost_band": "unbounded",
+        "anchor_kind": "none",
+        "terminable": false,
+        "answer_size": 27,
+        "answer_fits_row_cap": true,
+        "distractor_density": "high",
+        "distractors_per_true_positive": 77188,
+        "direction_ambiguous": true,
+        "edge_types_traversed": 1
+      }
+    }
+  ]
+}

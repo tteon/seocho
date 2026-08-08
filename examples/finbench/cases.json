@@ -1,0 +1,131 @@
+{
+  "schema_version": "seocho.finbench.cases.v1",
+  "note": "Gold tokens come from the planted patterns in gen_duckdb.py (see gold.json). An answer is scored correct when it contains all gold tokens. Cases target two scale axes: data size (traversal cost) and schema cardinality (12 transaction channels), the latter being where a bare LLM must guess which relationship/channel to follow and the ontology-driven middleware does not. A gold token may list alternatives separated by '|' — a channel is equally correctly named by its code or its human label. Each case carries a complexity tier: 'core' needs only Account+TRANSFER, 'schema_rich' needs channel knowledge (Channel label, USES_CHANNEL, or a channel/amount predicate).",
+  "cases": [
+    {
+      "id": "fan_in_smurfing",
+      "scenario": "S5 fan-in / smurfing — graph traversal a vector RAG cannot do",
+      "question": "How many distinct accounts sent transfers into the account with account number 9000100?",
+      "gold": [
+        "25"
+      ],
+      "expect_slots": {
+        "anchor_label": "Account",
+        "target_label": "Account",
+        "relationship_type": "TRANSFER"
+      },
+      "tier": "core"
+    },
+    {
+      "id": "direct_transfer",
+      "scenario": "S1 one-hop — the flagged account's direct counterparties",
+      "question": "Which accounts did the account with account number 9000200 directly transfer money to? List the account numbers.",
+      "gold": [
+        "9000201",
+        "9000202"
+      ],
+      "expect_slots": {
+        "anchor_label": "Account",
+        "target_label": "Account",
+        "relationship_type": "TRANSFER"
+      },
+      "tier": "core"
+    },
+    {
+      "id": "nhop_neighborhood",
+      "scenario": "S1 bounded multi-hop — reachable set within 3 transfer hops (naive unbounded path explodes)",
+      "question": "List every account reachable within 3 transfer hops from the account with account number 9000200, by account number.",
+      "gold": [
+        "9000201",
+        "9000202",
+        "9000203",
+        "9000204"
+      ],
+      "expect_slots": {
+        "anchor_label": "Account",
+        "relationship_type": "TRANSFER"
+      },
+      "tier": "core"
+    },
+    {
+      "id": "laundering_cycle",
+      "scenario": "S5 laundering ring — cycle detection back to the start account",
+      "question": "Starting from the account with account number 9000001, is there a transfer cycle of length 3 that returns to it? Name the account numbers on the ring.",
+      "gold": [
+        "9000002",
+        "9000003"
+      ],
+      "expect_slots": {
+        "anchor_label": "Account",
+        "relationship_type": "TRANSFER"
+      },
+      "tier": "core"
+    },
+    {
+      "id": "flagged_lookup",
+      "scenario": "flagged-property lookup — grounded single-fact answer",
+      "question": "Is the account with account number 9000200 flagged, and what is its risk tier?",
+      "gold": [
+        "5"
+      ],
+      "tier": "core"
+    },
+    {
+      "id": "channel_of_transfer",
+      "scenario": "S6 schema cardinality — pick the right channel out of 12 for a specific edge",
+      "question": "Over which channel did the account with account number 9000200 transfer money to account number 9000201?",
+      "gold": [
+        "WIRE_CROSSBORDER|국외 송금|cross-border wire"
+      ],
+      "expect_slots": {
+        "anchor_label": "Account",
+        "relationship_type": "TRANSFER"
+      },
+      "tier": "schema_rich"
+    },
+    {
+      "id": "high_risk_channel_hops",
+      "scenario": "S6 channel-aware traversal — combine relationship choice with a risk predicate",
+      "question": "Which accounts received transfers from the account with account number 9000200 over a channel whose channel_risk is 5? List the account numbers.",
+      "gold": [
+        "9000201",
+        "9000202"
+      ],
+      "expect_slots": {
+        "anchor_label": "Account",
+        "relationship_type": "TRANSFER"
+      },
+      "tier": "schema_rich"
+    },
+    {
+      "id": "laundering_ring_channels",
+      "scenario": "S6 ring + channel — the laundering cycle rides low-traceability rails",
+      "question": "List the distinct channels used by transfers among accounts 9000001, 9000002 and 9000003.",
+      "gold": [
+        "WIRE_CROSSBORDER|국외 송금|cross-border wire",
+        "VIRTUAL_ASSET|가상자산|virtual-asset",
+        "MVTS_HAWALA|환치기|hawala"
+      ],
+      "expect_slots": {
+        "anchor_label": "Account",
+        "target_label": "Channel",
+        "relationship_type": "USES_CHANNEL"
+      },
+      "tier": "schema_rich"
+    },
+    {
+      "id": "structuring_under_ctr",
+      "scenario": "S6 structuring — CTR-threshold evasion detected via amount + channel",
+      "question": "How many transfers into the account with account number 9000100 have an amount below 10000000?",
+      "gold": [
+        "25"
+      ],
+      "expect_slots": {
+        "anchor_label": "Account",
+        "target_label": "Account",
+        "relationship_type": "TRANSFER"
+      },
+      "tier": "schema_rich"
+    }
+  ]
+}

@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 320" width="720" height="320"
+     role="img" aria-labelledby="t d">
+  <title id="t">Where the offline cost estimate stops predicting engine work</title>
+  <desc id="d">Measured database hits divided by L2, the neighbourhood size computed offline
+  before any query runs, plotted against L2 on a log axis. The ratio is 7.0 to 14.6 at L2 of 5
+  and 4.4 to 5.5 at L2 of 72, then settles at 2.00 to 2.08 from L2 3,773 all the way to
+  15,973,145. The largest anchor, L2 51,447,907, never returned. So the constant the cost gate
+  assumes holds over four orders of magnitude and over-states the cost of cheap queries below
+  roughly L2 3,800.</desc>
+
+  <style>
+    .surface { fill: #ffffff; }
+    .grid    { stroke: #eceff3; stroke-width: 1; }
+    .axis    { fill: #6b7684; }
+    .label   { fill: #47515f; }
+    .s1      { fill: #2a78d6; }
+    .s1line  { stroke: #2a78d6; }
+    .ring    { stroke: #ffffff; }
+    .flag    { fill: #b4453f; }
+    .flagline{ stroke: #b4453f; }
+    text     { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+               font-variant-numeric: tabular-nums; }
+    @media (prefers-color-scheme: dark) {
+      .surface { fill: #1a1d22; }
+      .grid    { stroke: #23272e; }
+      .axis    { fill: #8b95a2; }
+      .label   { fill: #b3bcc8; }
+      .s1      { fill: #3987e5; }
+      .s1line  { stroke: #3987e5; }
+      .ring    { stroke: #1a1d22; }
+      .flag    { fill: #e08b86; }
+      .flagline{ stroke: #e08b86; }
+    }
+  </style>
+
+  <rect class="surface" x="0" y="0" width="720" height="320"/>
+
+  <g class="grid">
+    <line x1="80" y1="250" x2="690" y2="250"/>
+    <line x1="80" y1="195" x2="690" y2="195"/>
+    <line x1="80" y1="140" x2="690" y2="140"/>
+    <line x1="80" y1="85"  x2="690" y2="85"/>
+    <line x1="80" y1="30"  x2="690" y2="30"/>
+  </g>
+
+  <g class="axis" font-size="11" text-anchor="end">
+    <text x="70" y="254">0</text>
+    <text x="70" y="199">4</text>
+    <text x="70" y="144">8</text>
+    <text x="70" y="89">12</text>
+    <text x="70" y="34">16</text>
+  </g>
+  <text class="axis" x="80" y="18" font-size="10.5" letter-spacing="0.09em">MEASURED DB HITS ÷ L2 ESTIMATE</text>
+
+  <!-- The constant the gate is calibrated on, drawn so the plateau is checkable by eye
+       rather than asserted in a caption. -->
+  <line class="s1line" x1="80" y1="222.5" x2="690" y2="222.5"
+        stroke-width="2" stroke-dasharray="5 4" opacity="0.55"/>
+  <text class="s1" x="686" y="240" font-size="11" text-anchor="end" font-weight="600">ratio 2.0 — what the gate assumes</text>
+
+  <!-- One mark per anchor. A 2px surface ring keeps co-located points countable: several
+       anchors share an L2 band by construction, so overlap is expected, not noise. -->
+  <g class="s1" stroke-width="2">
+    <circle class="ring" cx="80" cy="153.8" r="5" fill="#2a78d6"/>
+    <circle class="ring" cx="80" cy="140.0" r="5" fill="#2a78d6"/>
+    <circle class="ring" cx="80" cy="49.3"  r="5" fill="#2a78d6"/>
+    <circle class="ring" cx="179.7" cy="189.1" r="5" fill="#2a78d6"/>
+    <circle class="ring" cx="179.7" cy="185.3" r="5" fill="#2a78d6"/>
+    <circle class="ring" cx="179.7" cy="173.8" r="5" fill="#2a78d6"/>
+    <circle class="ring" cx="327.9" cy="221.6" r="5" fill="#2a78d6"/>
+    <circle class="ring" cx="327.9" cy="221.5" r="5" fill="#2a78d6"/>
+    <circle class="ring" cx="327.9" cy="221.4" r="5" fill="#2a78d6"/>
+    <circle class="ring" cx="442.1" cy="222.5" r="5" fill="#2a78d6"/>
+    <circle class="ring" cx="442.1" cy="222.3" r="5" fill="#2a78d6"/>
+    <circle class="ring" cx="475.1" cy="222.2" r="5" fill="#2a78d6"/>
+    <circle class="ring" cx="475.1" cy="222.4" r="5" fill="#2a78d6"/>
+    <circle class="ring" cx="623.6" cy="222.3" r="5" fill="#2a78d6"/>
+    <circle class="ring" cx="640.3" cy="222.3" r="5" fill="#2a78d6"/>
+  </g>
+
+  <!-- The anchor with no ratio, because it never returned. Drawn as a distinct glyph and
+       labelled: an absent measurement is not a zero, and must not read as one. -->
+  <g>
+    <path class="flagline" d="M678,216 l12,12 M690,216 l-12,12" stroke-width="2.5"/>
+    <text class="flag" x="684" y="206" font-size="11" text-anchor="middle" font-weight="600">timeout</text>
+  </g>
+
+  <!-- Annotation for the divergence, so the chart states its own boundary. -->
+  <line class="axis" x1="327.9" y1="30" x2="327.9" y2="250" stroke="#c9ced6"
+        stroke-width="1" stroke-dasharray="3 4"/>
+  <text class="label" x="322" y="42" font-size="10.5" text-anchor="end">← fixed per-query cost dominates</text>
+  <text class="label" x="334" y="42" font-size="10.5">constant holds →</text>
+
+  <g class="axis" font-size="10.5" text-anchor="middle">
+    <text x="105.9" y="272">10</text>
+    <text x="192.1" y="272">100</text>
+    <text x="278.2" y="272">1k</text>
+    <text x="364.4" y="272">10k</text>
+    <text x="450.5" y="272">100k</text>
+    <text x="536.7" y="272">1M</text>
+    <text x="622.8" y="272">10M</text>
+  </g>
+  <text class="axis" x="385" y="291" font-size="10.5" text-anchor="middle" letter-spacing="0.09em">L2 — OFFLINE NEIGHBOURHOOD SIZE (LOG)</text>
+  <text class="axis" x="80" y="310" font-size="10">17 anchors curated by L2 band · sf1000-real · measured under PROFILE</text>
+</svg>

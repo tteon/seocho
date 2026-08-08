@@ -1,0 +1,90 @@
+{
+  "schema_version": "seocho.finbench.cases.v2",
+  "note": "Analyst-grade AML questions. Each case names a published typology, states the detection logic a monitoring rule would encode, and cites its source. Questions are phrased the way an investigator asks them — with a window, a threshold, and more than one condition — rather than as single-fact lookups. Gold tokens come from the planted patterns in gen_duckdb.py (see gold.json 'typologies'); a token may offer '|'-separated alternatives because a channel is equally correctly named by its code or its label. `expect_slots` grades whether the agent resolved the right relationship, independent of whether the final answer happened to be right.",
+  "thresholds": {
+    "ctr_krw": 10000000,
+    "ctr_note": "고액 현금거래 보고 (CTR) threshold, KRW 10,000,000. Structuring shapes individual transactions to sit just below it."
+  },
+  "cases": [
+    {
+      "id": "structuring_ctr_evasion",
+      "typology": "Structuring / CTR evasion",
+      "source": "FinCEN: transactions 'on one or more days for the purpose of evading' the reporting threshold; FFIEC BSA/AML Appendix F red flags",
+      "detection_logic": "count(deposits) >= 3 AND every amount < CTR threshold AND sum(amount) > CTR threshold AND window <= 7 days",
+      "why_it_matters": "The individual transactions are each unreportable by design; only the aggregate over a window is suspicious. A rule that inspects transactions one at a time cannot see it.",
+      "question": "Account 9000100 may be receiving structured deposits. Over the 7 days from epoch 1700000000, how many distinct accounts transferred to it in amounts each below 10000000, and what is the total received?",
+      "gold": ["25", "249675000"],
+      "expect_slots": { "anchor_label": "Account", "target_label": "Account", "relationship_type": "TRANSFER" }
+    },
+    {
+      "id": "funnel_account_onward_wire",
+      "typology": "Funnel account",
+      "source": "FATF, Professional Money Laundering (2018) — small incoming transfers 'almost immediately wired to another city or country'",
+      "detection_logic": "many-to-one collection THEN a single outbound transfer within hours of the last deposit, over a cross-border rail",
+      "why_it_matters": "Collection alone is normal for a merchant account. Prompt onward movement of the collected total is what makes it a conduit.",
+      "question": "After the last incoming deposit to account 9000100, where did the funds go — which account received the onward transfer, over which channel, and how many hours after that last deposit?",
+      "gold": ["9000300", "WIRE_CROSSBORDER|국외 송금|cross-border wire", "4"],
+      "expect_slots": { "anchor_label": "Account", "target_label": "Account", "relationship_type": "TRANSFER" }
+    },
+    {
+      "id": "layering_cycle_return",
+      "typology": "Layering — circular flow",
+      "source": "FATF layering typology",
+      "detection_logic": "a directed transfer path returning to its origin within N hops, with each hop timestamped later than the previous one",
+      "why_it_matters": "Funds returning to origin have no economic purpose. Detecting it requires traversal, not aggregation — a relational scan of pairs cannot express the closure condition.",
+      "question": "Starting from account 9000001, is there a chain of transfers that returns to it within 3 hops? List the accounts on the ring in time order and the channel used at each hop.",
+      "gold": ["9000002", "9000003", "WIRE_CROSSBORDER|국외 송금", "VIRTUAL_ASSET|가상자산", "MVTS_HAWALA|환치기|hawala"],
+      "expect_slots": { "anchor_label": "Account", "relationship_type": "TRANSFER" }
+    },
+    {
+      "id": "rapid_passthrough_velocity",
+      "typology": "Pass-through / conduit account",
+      "source": "FFIEC BSA/AML red flags — funds moved out shortly after deposit, little or no balance retained",
+      "detection_logic": "inbound and outbound within a short window AND retained amount is a small fraction of the inbound",
+      "why_it_matters": "Balance-holding accounts and conduits look identical on volume. The distinguishing signal is elapsed time between the legs and how little stays behind.",
+      "question": "Account 9000402 is suspected of being a pass-through. How much did it receive, how much did it send onward, how many hours elapsed between the two transfers, and how much was retained?",
+      "gold": ["50000000", "49950000", "2", "50000"],
+      "expect_slots": { "anchor_label": "Account", "relationship_type": "TRANSFER" }
+    },
+    {
+      "id": "high_risk_channel_exposure",
+      "typology": "High-risk channel concentration",
+      "source": "FATF, ML using New Payment Methods (2010) — wider geographic reach implies higher ML/TF risk; 전자금융거래법 §2 channel inventory",
+      "detection_logic": "transfers whose channel risk weight is at the maximum, traced outward from a flagged account",
+      "why_it_matters": "Channel choice is a stronger signal than amount for cross-border layering, and it is the dimension a homogeneous transfer edge discards.",
+      "question": "Flagged account 9000200 sent transfers over maximum-risk channels. Which accounts received them and over which channel each?",
+      "gold": ["9000201", "9000202", "WIRE_CROSSBORDER|국외 송금", "VIRTUAL_ASSET|가상자산"],
+      "expect_slots": { "anchor_label": "Account", "target_label": "Account", "relationship_type": "TRANSFER" }
+    },
+    {
+      "id": "layered_chain_within_days",
+      "typology": "Layering — multi-hop dispersal with a time bound",
+      "source": "FATF layering; FFIEC red flags on rapid movement through multiple accounts",
+      "detection_logic": "reachability within N hops AND each hop later in time than the previous, so the chain is causally ordered rather than coincidental",
+      "why_it_matters": "Reachability alone over-reports on a dense graph. Requiring monotonically increasing timestamps is what turns a path into a plausible flow of funds — and it needs variable-length traversal, which a fixed one-hop template cannot express.",
+      "question": "Trace the funds from flagged account 9000200: which accounts are reachable within 3 transfer hops where each hop occurs later than the previous one?",
+      "gold": ["9000201", "9000202", "9000203", "9000204"],
+      "expect_slots": { "anchor_label": "Account", "relationship_type": "TRANSFER" }
+    },
+    {
+      "id": "smurf_network_shared_beneficiary",
+      "typology": "Smurf network — coordinated depositors",
+      "source": "FATF Professional Money Laundering — money mules acting in concert; FFIEC on multiple account holders working together",
+      "detection_logic": "a beneficiary with many distinct counterparties whose individual amounts cluster just below the threshold, across cash-like channels",
+      "why_it_matters": "The network shape, not any single account, is the evidence. This is a degree question over a filtered edge set.",
+      "question": "Which channels were used for the sub-10000000 deposits into account 9000100, and how many distinct depositors used each?",
+      "gold": ["ATM_CD|CD/ATM", "BRANCH_CASH|영업점", "PREPAID_GIFT|선불"],
+      "expect_slots": { "anchor_label": "Account", "target_label": "Channel", "relationship_type": "USES_CHANNEL" }
+    },
+    {
+      "id": "aggregate_exceeds_threshold_none_individually",
+      "typology": "Threshold-evasion check (the negative control)",
+      "source": "FinCEN aggregation rules for CTR",
+      "detection_logic": "assert that no single transaction into the beneficiary exceeded the threshold, while the aggregate did",
+      "why_it_matters": "A control question: if a system reports the aggregate as a single large transaction it has mis-modelled the typology. Confirming the maximum stayed below the threshold is what proves evasion rather than a large legitimate payment.",
+      "question": "For deposits into account 9000100 during the 7 days from epoch 1700000000, what was the largest single amount, and did any single deposit reach 10000000?",
+      "gold": ["9999000"],
+      "expect_slots": { "anchor_label": "Account", "relationship_type": "TRANSFER" }
+    }
+  ]
+}

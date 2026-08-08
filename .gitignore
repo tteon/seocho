@@ -152,3 +152,6 @@ dataset/
 
 # root ontology/ is a non-tracked public surface (CLAUDE.md Public Repo Hygiene)
 ontology/
+
+# Rust build output from the neo4rs driver probe
+scripts/finbench/neo4rs_probe/target/

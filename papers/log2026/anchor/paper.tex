@@ -138,8 +138,8 @@ Full design, prompts, and protocol: Appendix~\ref{app:design}.
 
 \subsection{The ontology provides detectability, not better extraction}
 
-We measure agreement as the share of a case's facts for which at least
-two extractors produce the same normalized entity name, and content as
+We measure agreement as the share of a case's facts for which two or
+more extractors produce the same normalized entity name, and content as
 the share of the gold answer's numbers present in the graph. With
 everything but the schema fixed, ontology guidance \emph{lowers}
 agreement: the schema-free condition exceeds FIBO by $0.069$, with a
@@ -215,12 +215,12 @@ prospective prediction registered before this experiment ran --- that each
 model's grounded-correct lift (the number of grounded-correct answers
 gained over passages, of 169 numeric-gold cases) would exceed its
 balanced-sample value ---
-landed two of three and is reported as failed under its own all-models
-clause: gpt-oss $+4 \to +10$ and DeepSeek $-15 \to +2$ hit, MiniMax
-$+14 \to +6$ missed, compressed against a ceiling (passages already
-grounding 148 of 169 cases). The diagnostic's directional signal (Section~\ref{sec:profile})
-coincided with the reversal on all three models; its registered
-predictive form did not survive its first prospective test.
+landed two of three --- gpt-oss and DeepSeek rose, MiniMax fell against a
+ceiling with passages already grounding 148 of 169 cases --- and is
+reported as failed under its own all-models clause. The diagnostic's
+directional signal (Section~\ref{sec:profile}) coincided with the
+reversal on all three models; its registered predictive form did not
+survive its first prospective test.
 
 \begin{table}[t]
 \centering\footnotesize

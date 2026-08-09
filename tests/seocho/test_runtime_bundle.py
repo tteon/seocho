@@ -126,7 +126,7 @@ class FakeBundleRuntimeClient:
         )
         return f"answer:{database}:{query}"
 
-    def query(self, cypher: str, *, params=None, database: str = "neo4j"):
+    def query(self, cypher: str, *, params=None, database: str = "neo4j", **kwargs):
         query_text = str((params or {}).get("query", ""))
         return [
             {

@@ -16,7 +16,7 @@ class FakeGraphStore:
         self.replies = replies or {}
 
     def query(self, cypher: str, params: Dict[str, Any] | None = None, *,
-              database: str | None = None) -> List[Dict[str, Any]]:
+              database: str | None = None, **kwargs) -> List[Dict[str, Any]]:
         self.calls.append((cypher, params or {}))
         for key, rows in self.replies.items():
             if key in cypher:

@@ -28,7 +28,7 @@ class _Graph:
         self._periods = periods
         self._value = value
 
-    def query(self, cypher, params=None, database="neo4j"):
+    def query(self, cypher, params=None, database="neo4j", **kwargs):
         if "collect(DISTINCT" in cypher:                 # arbiter probe
             return [{"periods": list(self._periods)}]
         if self._value is None:                          # lookup, no row

@@ -31,7 +31,7 @@ class _Recorder(TracingBackend):
 
 
 class _Store:
-    def query(self, cypher: str, *, params: dict, database: str) -> list[dict]:
+    def query(self, cypher: str, *, params: dict, database: str, **kwargs) -> list[dict]:
         return [{"status": "pending"}]
 
 

@@ -68,7 +68,7 @@ class FakeGraphStore:
         self.written_rels.extend(relationships)
         return {"nodes_created": len(nodes), "relationships_created": len(relationships), "errors": []}
 
-    def query(self, cypher, *, params=None, database="neo4j"):
+    def query(self, cypher, *, params=None, database="neo4j", **kwargs):
         return []
 
     def ensure_constraints(self, ontology, *, database="neo4j"):

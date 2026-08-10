@@ -66,7 +66,8 @@ def main() -> None:
 
     from seocho.ontology import Ontology
     full = Ontology.load(args.ontology)
-    cases = json.loads(args.cases.read_text())["cases"]
+    with args.cases.open('r', encoding='utf-8') as f:
+        cases = json.load(f)["cases"]
 
     arms = {"full": full, "minimal": minimal_ontology(full)}
     results = {}

@@ -244,14 +244,17 @@ def main() -> None:
     parser.add_argument("--out", type=Path)
     args = parser.parse_args()
 
-    gold = json.loads((args.src / "gold.json").read_text())
+    with (args.src / "gold.json").open('r', encoding='utf-8') as f:
+
+        gold = json.load(f)
     detection = gold.get("detection")
     if not detection:
         raise SystemExit(
             f"{args.src}/gold.json has no `detection` block — regenerate the snapshot with "
             "the current generator, which publishes the exact answer set and the population "
             "each pattern must be separated from")
-    manifest = json.loads((args.src / "manifest.json").read_text())
+    with (args.src / "manifest.json").open('r', encoding='utf-8') as f:
+        manifest = json.load(f)
 
     con = duckdb.connect()
     con.execute(f"SET memory_limit='{args.memory_limit}'")

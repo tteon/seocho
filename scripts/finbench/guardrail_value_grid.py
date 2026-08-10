@@ -138,7 +138,8 @@ def main() -> None:
 
     full = Ontology.load(args.ontology)
     minimal = ablation.minimal_ontology(full)
-    cases = json.loads(args.cases.read_text())["cases"]
+    with args.cases.open('r', encoding='utf-8') as f:
+        cases = json.load(f)["cases"]
     scales = [int(s) for s in args.scales.split(",") if s.strip()]
 
     driver = GraphDatabase.driver(args.uri, auth=(args.user, args.password))

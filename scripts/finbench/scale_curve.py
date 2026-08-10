@@ -107,7 +107,8 @@ def main() -> None:
             raise SystemExit("--models requires --ontology and --cases")
         from seocho.ontology import Ontology
         ontology = Ontology.load(args.ontology)
-        cases = json.loads(args.cases.read_text())["cases"]
+        with args.cases.open('r', encoding='utf-8') as f:
+            cases = json.load(f)["cases"]
 
     entries = []
     for sf in scales:

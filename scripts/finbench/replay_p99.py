@@ -147,7 +147,9 @@ def main() -> None:
     p.add_argument("--out", default="outputs/finbench/replay_p99.json")
     args = p.parse_args()
 
-    run = json.loads(Path(args.episodes).read_text())
+    with Path(args.episodes).open('r', encoding='utf-8') as f:
+
+        run = json.load(f)
     context = run.get("context", {})
 
     # One cell is one (scale, question, arm). Repeats of the same cell usually settle on the

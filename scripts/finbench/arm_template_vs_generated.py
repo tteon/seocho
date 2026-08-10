@@ -229,7 +229,8 @@ def main() -> None:
 
     from seocho.ontology import Ontology
     ontology = Ontology.load(args.ontology)
-    cases = json.loads(args.cases.read_text())["cases"]
+    with args.cases.open('r', encoding='utf-8') as f:
+        cases = json.load(f)["cases"]
     driver = GraphDatabase.driver(args.uri, auth=(args.user, args.password))
 
     rows = []

@@ -145,7 +145,9 @@ def main() -> None:
 
     from neo4j import GraphDatabase
 
-    curated = json.loads(args.params.read_text())
+    with args.params.open('r', encoding='utf-8') as f:
+
+        curated = json.load(f)
     wanted = [b.strip() for b in args.bands.split(",") if b.strip()]
     bands = [b for b in curated["bands"] if b["band"] in wanted]
     if not bands:

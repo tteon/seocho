@@ -77,7 +77,8 @@ def _interpolate(value: Any, *, errors: List[str], where: str = "") -> Any:
 
 
 def load_spec(path: Path) -> Dict[str, Any]:
-    payload = yaml.safe_load(path.read_text()) or {}
+    with path.open('r', encoding='utf-8') as f:
+        payload = yaml.safe_load(f) or {}
     errors: List[str] = []
     spec = _interpolate(payload, errors=errors, where="spec")
     if errors:
@@ -104,7 +105,8 @@ def stage_data(spec: Dict[str, Any]) -> Dict[str, Any]:
         snapshot = out_root / f"sf{sf}"
         exists = (snapshot / "manifest.json").exists()
         if exists and not cfg.get("regenerate"):
-            manifest = json.loads((snapshot / "manifest.json").read_text())
+            with (snapshot / "manifest.json").open('r', encoding='utf-8') as f:
+                manifest = json.load(f)
             results.append({"scale_factor": sf, "reused": True,
                             "counts": manifest.get("counts")})
             continue
@@ -115,7 +117,8 @@ def stage_data(spec: Dict[str, Any]) -> Dict[str, Any]:
         if proc.returncode != 0:
             results.append({"scale_factor": sf, "error": proc.stderr[-400:]})
             continue
-        manifest = json.loads((snapshot / "manifest.json").read_text())
+        with (snapshot / "manifest.json").open('r', encoding='utf-8') as f:
+            manifest = json.load(f)
         results.append({"scale_factor": sf, "reused": False,
                         "generate_seconds": round(time.perf_counter() - started, 2),
                         "counts": manifest.get("counts")})
@@ -201,7 +204,8 @@ def stage_agent_layer(spec: Dict[str, Any]) -> Dict[str, Any]:
     from seocho.ontology import Ontology
 
     ontology = Ontology.load(Path(cfg["ontology"]))
-    cases = json.loads(Path(cfg["cases"]).read_text())["cases"]
+    with Path(cfg["cases"]).open('r', encoding='utf-8') as f:
+        cases = json.load(f)["cases"]
     results = []
     for sf in (spec.get("data") or {}).get("scales", []):
         for model in cfg.get("models", []):

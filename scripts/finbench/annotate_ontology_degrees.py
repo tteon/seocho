@@ -158,7 +158,8 @@ def main() -> None:
     target = args.out or args.ontology
     target.write_text(text)
     # Re-parse so a malformed splice fails here rather than at query time.
-    reparsed = yaml.safe_load(target.read_text())
+    with target.open('r', encoding='utf-8') as f:
+        reparsed = yaml.safe_load(f)
     for rtype, hint in changed.items():
         got = (reparsed.get("relationships") or {}).get(rtype, {}).get("degreeHint")
         if got != hint:

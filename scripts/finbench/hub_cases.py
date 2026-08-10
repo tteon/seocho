@@ -206,7 +206,8 @@ def main() -> None:
     args = parser.parse_args()
 
     params = args.params or (args.src / "curated_parameters.json")
-    curated = json.loads(params.read_text())
+    with params.open('r', encoding='utf-8') as f:
+        curated = json.load(f)
     wanted = [b.strip() for b in args.bands.split(",") if b.strip()]
     by_band = {b["band"]: b for b in curated["bands"]}
 

@@ -212,7 +212,9 @@ def main() -> None:
                 if cases_path is None:
                     continue
 
-            cases = json.loads(cases_path.read_text())["cases"]
+            with cases_path.open('r', encoding='utf-8') as f:
+
+                cases = json.load(f)["cases"]
             out_json = src / f"grid_{args.model}.json"
             run = _run([args.python, str(_HERE / "mara_breakdown.py"),
                         "--ontology", str(args.ontology), "--cases", str(cases_path),
@@ -224,9 +226,12 @@ def main() -> None:
                       f"{run.stderr[-300:]}", flush=True)
                 continue
 
-            report = json.loads(out_json.read_text())
+            with out_json.open('r', encoding='utf-8') as f:
+
+                report = json.load(f)
             metrics = score(report, cases, args.row_cap)
-            manifest = json.loads((src / "manifest.json").read_text())
+            with (src / "manifest.json").open('r', encoding='utf-8') as f:
+                manifest = json.load(f)
             sp = manifest.get("structural_profile") or {}
             dp = manifest.get("degree_profile") or {}
             points.append({

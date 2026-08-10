@@ -202,7 +202,9 @@ def main() -> None:
 
     from neo4j import GraphDatabase
 
-    manifest = json.loads(args.manifest.read_text())
+    with args.manifest.open('r', encoding='utf-8') as f:
+
+        manifest = json.load(f)
     profile = manifest.get("degree_profile") or {}
     anchors = profile.get("curated_anchors") or []
     if not anchors:

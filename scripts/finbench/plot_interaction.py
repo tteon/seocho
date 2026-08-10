@@ -274,7 +274,9 @@ def main() -> None:
     p.add_argument("--figures", default="docs/figures")
     args = p.parse_args()
 
-    run = json.loads(Path(args.episodes).read_text())
+    with Path(args.episodes).open('r', encoding='utf-8') as f:
+
+        run = json.load(f)
     figures = Path(args.figures)
     figures.mkdir(parents=True, exist_ok=True)
 

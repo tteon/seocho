@@ -65,7 +65,8 @@ def _nid(label: str, raw: Any) -> str:
 def build_graph_payload(src: Path) -> tuple[list[dict], list[dict]]:
     """Pure mapping: snapshot dir -> (nodes, relationships) canonical payload."""
     con = duckdb.connect()
-    manifest = json.loads((src / "manifest.json").read_text())
+    with (src / "manifest.json").open('r', encoding='utf-8') as f:
+        manifest = json.load(f)
     persons = manifest["counts"]["person"]  # owner id < persons => Person, else Company
 
     nodes: list[dict] = []

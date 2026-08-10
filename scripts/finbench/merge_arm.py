@@ -31,8 +31,11 @@ def main() -> None:
     p.add_argument("--reason", default="")
     args = p.parse_args()
 
-    base = json.loads(Path(args.base).read_text())
-    repl = json.loads(Path(args.replacement).read_text())
+    with Path(args.base).open('r', encoding='utf-8') as f:
+
+        base = json.load(f)
+    with Path(args.replacement).open('r', encoding='utf-8') as f:
+        repl = json.load(f)
 
     superseded = [e for e in base["episodes"] if e["arm"] == args.arm]
     kept = [e for e in base["episodes"] if e["arm"] != args.arm]

@@ -88,7 +88,8 @@ def export(src: Path, out: Path, *, workspace_id: str = "default",
            source_id: str = "finbench") -> dict:
     con = duckdb.connect()
     out.mkdir(parents=True, exist_ok=True)
-    manifest = json.loads((src / "manifest.json").read_text())
+    with (src / "manifest.json").open('r', encoding='utf-8') as f:
+        manifest = json.load(f)
     persons = manifest["counts"]["person"]
 
     # ---- degree / hub tier, entirely in SQL ----

@@ -1418,7 +1418,7 @@ def _cmd_init(args: argparse.Namespace) -> int:
     print()
     print("Next steps:")
     print("  seocho index ./your_data/")
-    print("  seocho ask --local 'your question here'")
+    print("  seocho local-ask 'your question here'")
     return 0
 
 

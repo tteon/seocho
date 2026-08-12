@@ -33,7 +33,7 @@ jobs:
       - name: Sync label taxonomy
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python scripts/ci/sync_github_labels.py --repo "$GITHUB_REPOSITORY"
+        run: gh --version && python scripts/ci/sync_github_labels.py --repo "$GITHUB_REPOSITORY"
 
       - name: Collect PR changed files
         if: github.event_name == 'pull_request_target'

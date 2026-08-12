@@ -69,7 +69,13 @@ def existing_labels(repo: str) -> dict[str, dict[str, Any]]:
 
 
 def sync_labels(repo: str, labels: list[dict[str, str]], dry_run: bool = False) -> None:
-    existing = existing_labels(repo)
+    try:
+        existing = existing_labels(repo)
+    except subprocess.CalledProcessError as e:
+        print(f"Warning: Failed to fetch existing labels. gh returned exit status {e.returncode}.")
+        print(f"stderr: {e.stderr}")
+        return
+
     for label in labels:
         name = label["name"]
         current = existing.get(name)

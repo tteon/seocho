@@ -302,7 +302,7 @@ def build_parser() -> argparse.ArgumentParser:
     index_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
 
     local_ask_parser = subparsers.add_parser("local-ask", help="Ask a question against local graph (no server)")
-    local_ask_parser.add_argument("question", help="Question to ask")
+    local_ask_parser.add_argument("message", help="Message to ask")
     local_ask_parser.add_argument("--database", default="neo4j", help="Target database")
     local_ask_parser.add_argument("--schema", default="schema.jsonld", help="Ontology file")
     local_ask_parser.add_argument("--neo4j-uri", default="bolt://localhost:7687", help="Neo4j URI")
@@ -1576,7 +1576,7 @@ def _cmd_local_ask(args: argparse.Namespace) -> int:
 
     try:
         answer = client.ask(
-            args.question,
+            args.message,
             database=args.database,
             reasoning_mode=args.reasoning,
             repair_budget=args.repair_budget,

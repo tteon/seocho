@@ -88,7 +88,7 @@
       "gridPos": {"h": 7, "w": 8, "x": 0, "y": 17},
       "id": 8,
       "options": {"legend": {"displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
-      "targets": [{"expr": "sum by (gen_ai_provider_name, gen_ai_request_model) (rate(seocho_gen_ai_prompt_cache_request_total{outcome=\"hit\"}[$__rate_interval])) / clamp_min(sum by (gen_ai_provider_name, gen_ai_request_model) (rate(seocho_gen_ai_prompt_cache_request_total[$__rate_interval])), 0.000001)", "legendFormat": "{{gen_ai_provider_name}} / {{gen_ai_request_model}}", "refId": "A"}],
+      "targets": [{"expr": "sum by (gen_ai_provider_name, gen_ai_request_model) (rate(seocho_gen_ai_prompt_cache_request_count_total{outcome=\"hit\"}[$__rate_interval])) / clamp_min(sum by (gen_ai_provider_name, gen_ai_request_model) (rate(seocho_gen_ai_prompt_cache_request_count_total[$__rate_interval])), 0.000001)", "legendFormat": "{{gen_ai_provider_name}} / {{gen_ai_request_model}}", "refId": "A"}],
       "title": "Provider-reported prompt cache hit ratio",
       "type": "timeseries"
     },

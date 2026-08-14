@@ -26,8 +26,9 @@ from exceptions import (
     PipelineError,
     InvalidDatabaseNameError,
 )
-from runtime.middleware import RequestIDMiddleware
+from runtime.middleware import RequestIDMiddleware, RequestMetricsMiddleware
 from runtime.identity import PrincipalMiddleware
+from seocho.metrics import enable_metrics, get_metrics
 from tracing import configure_opik, track, update_current_span, update_current_trace
 from runtime.policy import require_runtime_permission
 from seocho.runtime_contract import (
@@ -150,6 +151,11 @@ memory_service = _LazyServiceProxy(get_memory_service)
 # Request ID middleware
 app.add_middleware(RequestIDMiddleware)
 
+# Golden-signal boundary metrics (count/duration/in-flight per route template).
+# Registered after RequestIDMiddleware and inside CORS, so preflight OPTIONS
+# short-circuited by CORSMiddleware never pollutes the traffic signal.
+app.add_middleware(RequestMetricsMiddleware)
+
 # Identity — resolves the per-request Principal (anonymous unless
 # SEOCHO_AUTH_MODE=token). Added before CORS so CORS stays outermost and handles
 # preflight OPTIONS without hitting auth.
@@ -211,10 +217,61 @@ async def seocho_error_handler(request: Request, exc: SeochoError):
     return JSONResponse(status_code=status_code, content=body.model_dump())
 
 
+def _customer_query_metric(query_class: str):
+    """Emit the user-facing SLI from the real serving path.
+
+    ``seocho.customer.query.count/.duration`` with ``traffic.type="production"``
+    drive the SeochoCustomerQueryFastBurn SLO; until now only a benchmark
+    script (traffic.type="evaluation") emitted them, so the pager could never
+    observe production. Outcome follows the intent-support vocabulary: the
+    response's ``support_status`` when it carries one, else "supported" on
+    success and "error" on failure — matching the SLO's ``outcome!="supported"``
+    bad-event definition.
+    """
+
+    def decorate(fn):
+        @functools.wraps(fn)
+        async def wrapper(*args, **kwargs):
+            import time as _time
+
+            started = _time.perf_counter()
+            outcome = "error"
+            try:
+                response = await fn(*args, **kwargs)
+                outcome = str(getattr(response, "support_status", "") or "supported")
+                return response
+            finally:
+                labels = {
+                    "query.class": query_class,
+                    "outcome": outcome,
+                    "traffic.type": "production",
+                }
+                metrics = get_metrics()
+                metrics.add("seocho.customer.query.count", attributes=labels)
+                metrics.record(
+                    "seocho.customer.query.duration",
+                    _time.perf_counter() - started,
+                    labels,
+                )
+
+        return wrapper
+
+    return decorate
+
+
 @app.on_event("startup")
 async def _startup():
     validate_config()
     configure_opik()
+    # ADR-0146 metrics registry. Env-gated: SEOCHO_METRICS_BACKEND=none (the
+    # default) yields no-op instruments, so boot never depends on a collector.
+    try:
+        enable_metrics()
+    except Exception:
+        logger.warning(
+            "Metrics backend initialisation failed; instruments stay no-op.",
+            exc_info=True,
+        )
     # Phase 1.5: populate the runtime ontology registry from
     # SEOCHO_RUNTIME_ONTOLOGIES if set. Empty/missing manifest leaves the
     # registry empty so Phases 1/2/3 stay inert (their backward-compatible
@@ -1165,6 +1222,7 @@ async def platform_ingest_raw(request: PlatformRawIngestRequest):
 
 @app.post(RuntimePath.RUN_AGENT, response_model=AgentResponse)
 @track("agent_server.run_agent")
+@_customer_query_metric("router")
 async def run_agent(request: QueryRequest):
     """Legacy single-router endpoint."""
     try:
@@ -1323,6 +1381,7 @@ async def run_agent(request: QueryRequest):
 
 @app.post(RuntimePath.RUN_AGENT_SEMANTIC, response_model=SemanticAgentResponse)
 @track("agent_server.run_agent_semantic")
+@_customer_query_metric("semantic")
 async def run_agent_semantic(request: SemanticQueryRequest):
     """Semantic entity-resolution route for graph QA."""
     try:

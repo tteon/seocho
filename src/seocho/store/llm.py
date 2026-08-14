@@ -194,7 +194,18 @@ class LLMResponse:
             # parser that examines every balanced object and selects the
             # largest valid one instead of failing on the first ``{...}``.
             from ..llm_structured import extract_json_object
+            from ..metrics import get_metrics
 
+            # Every trip through the salvage parser is a repair event: the
+            # SeochoLLMRepairRegression alert watches this rate as the early
+            # signal that a provider/model stopped honouring structured output.
+            get_metrics().add(
+                "seocho.gen_ai.structured_output_repair.count",
+                attributes={
+                    "gen_ai.request.model": self.model or "unknown",
+                    "reason": "non_json_text_salvage",
+                },
+            )
             return extract_json_object(text)
 
 

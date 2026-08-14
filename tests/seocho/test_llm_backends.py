@@ -967,3 +967,77 @@ def test_task_hint_json_extraction_gets_default_max_tokens():
         FakeLLM(), system="s", user="u", task_hint="answer_synthesis"
     )
     assert "max_tokens" not in captured  # non-structured hints unchanged
+
+
+def test_json_truncation_400_boosts_budget_before_stripping_response_format(monkeypatch):
+    """seocho-ub5: a provider 'JSON truncated by token limit' 400 must retry
+    the SAME shape with a doubled budget, not fall straight to the variant
+    that strips response_format (which yields runaway non-JSON prose)."""
+    from types import SimpleNamespace
+
+    from seocho.store.llm import OpenAICompatibleBackend
+
+    backend = OpenAICompatibleBackend(provider="mara", model="MiniMax-M2.7", api_key="k")
+
+    calls = []
+
+    def fake_create(**kwargs):
+        calls.append(kwargs)
+        if len(calls) == 1:
+            raise RuntimeError(
+                "Error code: 400 - Model did not output valid JSON. The output "
+                "was truncated before a complete JSON object could be generated"
+            )
+        msg = SimpleNamespace(content='{"nodes": []}')
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=msg, finish_reason="stop")],
+            usage=None, model="MiniMax-M2.7",
+        )
+
+    backend._client = SimpleNamespace(
+        chat=SimpleNamespace(completions=SimpleNamespace(create=fake_create))
+    )
+
+    result = backend.complete(
+        system="s", user="u",
+        max_tokens=8192,
+        response_format={"type": "json_object"},
+        task_hint="json_extraction",
+    )
+    assert result.json() == {"nodes": []}
+    assert len(calls) == 2
+    # retry keeps the JSON constraint and doubles the budget
+    assert calls[1]["response_format"] == {"type": "json_object"}
+    assert calls[1]["max_tokens"] == 16384
+
+
+def test_non_json_400_still_walks_strip_ladder():
+    """Payload-incompatibility errors keep the original strip behavior."""
+    from types import SimpleNamespace
+
+    from seocho.store.llm import OpenAICompatibleBackend
+
+    backend = OpenAICompatibleBackend(provider="mara", model="MiniMax-M2.7", api_key="k")
+
+    calls = []
+
+    def fake_create(**kwargs):
+        calls.append(kwargs)
+        if "response_format" in kwargs:
+            raise RuntimeError("Error code: 400 - response_format is not supported")
+        msg = SimpleNamespace(content='{"ok": true}')
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=msg, finish_reason="stop")],
+            usage=None, model="MiniMax-M2.7",
+        )
+
+    backend._client = SimpleNamespace(
+        chat=SimpleNamespace(completions=SimpleNamespace(create=fake_create))
+    )
+
+    result = backend.complete(
+        system="s", user="u",
+        response_format={"type": "json_object"},
+    )
+    assert result.json() == {"ok": True}
+    assert "response_format" not in calls[-1]

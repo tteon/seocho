@@ -641,6 +641,42 @@ class OpenAICompatibleBackend(LLMBackend):
         if "Return ONLY valid JSON." not in content:
             messages[0]["content"] = f"{content}\n\nReturn ONLY valid JSON."
 
+    # Provider error text signalling "payload fine, the model ran out of
+    # budget before completing the constrained JSON" (MARA wording).
+    _JSON_GENERATION_FAILURE_MARKERS = (
+        "did not output valid json",
+        "truncated before a complete json",
+    )
+
+    @classmethod
+    def _maybe_boost_json_budget(
+        cls,
+        *,
+        exc: Exception,
+        attempt_kwargs: Dict[str, Any],
+        variants: List[Dict[str, Any]],
+        position: int,
+    ) -> bool:
+        """Insert a same-shape, doubled-budget retry for JSON-truncation 400s.
+
+        These errors are generation failures, not payload rejections: falling
+        straight down the strip ladder removes ``response_format``, and the
+        unconstrained retry produces runaway thinking-in-content prose with no
+        JSON at all (observed 43k-char responses on MARA MiniMax-M2.7). Retry
+        the SAME request shape with more budget first; the strip ladder stays
+        as the final fallback. Returns True if a variant was inserted."""
+        if "response_format" not in attempt_kwargs:
+            return False
+        message = str(exc).lower()
+        if not any(m in message for m in cls._JSON_GENERATION_FAILURE_MARKERS):
+            return False
+        boosted = cls._clone_completion_request_kwargs(attempt_kwargs)
+        boosted["max_tokens"] = max(
+            int(attempt_kwargs.get("max_tokens") or 0) * 2, 16384
+        )
+        variants.insert(position, boosted)
+        return True
+
     def _completion_retry_variants(self, kwargs: Dict[str, Any]) -> List[Dict[str, Any]]:
         variants = [self._clone_completion_request_kwargs(kwargs)]
         has_provider_overrides = any(
@@ -759,6 +795,7 @@ class OpenAICompatibleBackend(LLMBackend):
             tags=["gen_ai", f"provider:{self.provider}"],
         ) as span:
             last_exc: Optional[Exception] = None
+            budget_boosted = False
             for attempt, attempt_kwargs in enumerate(variants, start=1):
                 try:
                     resp = self._client.chat.completions.create(**attempt_kwargs)
@@ -809,6 +846,16 @@ class OpenAICompatibleBackend(LLMBackend):
                     return result
                 except Exception as exc:
                     last_exc = exc
+                    if not budget_boosted:
+                        # list.insert during iteration is safe here: the
+                        # boosted variant lands at the position the loop
+                        # visits next.
+                        budget_boosted = self._maybe_boost_json_budget(
+                            exc=exc,
+                            attempt_kwargs=attempt_kwargs,
+                            variants=variants,
+                            position=attempt,
+                        )
                     if attempt < len(variants):
                         metrics.add(
                             "seocho.gen_ai.retry.count",
@@ -890,6 +937,7 @@ class OpenAICompatibleBackend(LLMBackend):
             tags=["gen_ai", f"provider:{self.provider}"],
         ) as span:
             last_exc: Optional[Exception] = None
+            budget_boosted = False
             for attempt, attempt_kwargs in enumerate(variants, start=1):
                 try:
                     resp = await self._async_client.chat.completions.create(**attempt_kwargs)
@@ -940,6 +988,16 @@ class OpenAICompatibleBackend(LLMBackend):
                     return result
                 except Exception as exc:
                     last_exc = exc
+                    if not budget_boosted:
+                        # list.insert during iteration is safe here: the
+                        # boosted variant lands at the position the loop
+                        # visits next.
+                        budget_boosted = self._maybe_boost_json_budget(
+                            exc=exc,
+                            attempt_kwargs=attempt_kwargs,
+                            variants=variants,
+                            position=attempt,
+                        )
                     if attempt < len(variants):
                         metrics.add(
                             "seocho.gen_ai.retry.count",

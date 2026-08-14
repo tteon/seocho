@@ -648,7 +648,34 @@ class Neo4jGraphStore(GraphStore):
                 if stmt:
                     attrs["db.statement"] = stmt
             span.set_metadata(attrs)
+            # Spans carry the per-query detail; the histogram is what a p95
+            # panel can aggregate. server_share preserves the ADR-0111
+            # server-vs-hydration split without a second histogram of the
+            # same wall time.
+            self._record_client_metrics("query", wall_ms, server_ms)
             return rows
+
+    @staticmethod
+    def _record_client_metrics(
+        operation: str, wall_ms: float, server_ms: Optional[float]
+    ) -> None:
+        try:
+            from seocho.metrics import get_metrics
+
+            metrics = get_metrics()
+            metrics.record(
+                "db.client.operation.duration",
+                wall_ms / 1000.0,
+                {"db.system": "neo4j", "operation": operation, "outcome": "ok"},
+            )
+            if server_ms is not None and wall_ms > 0:
+                metrics.record(
+                    "db.client.operation.server_share",
+                    max(0.0, min(1.0, server_ms / wall_ms)),
+                    {"db.system": "neo4j", "operation": operation},
+                )
+        except Exception:  # metrics must never fail a query
+            pass
 
     def execute_write(
         self,
@@ -671,9 +698,14 @@ class Neo4jGraphStore(GraphStore):
         ws = workspace_id or merged_params.get("workspace_id") or ""
 
         def _run() -> Any:
+            started = time.perf_counter()
             with self._driver.session(database=database) as session:
                 result = session.run(cypher, parameters=merged_params)
-                return result.consume().counters
+                counters = result.consume().counters
+            self._record_client_metrics(
+                "write", (time.perf_counter() - started) * 1000.0, None
+            )
+            return counters
 
         if is_tracing_enabled():
             with start_span(

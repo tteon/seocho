@@ -150,6 +150,8 @@ METRIC_SPECS: dict[str, MetricSpec] = {
         _spec("seocho.context.item_count", "histogram", "{item}", ("strategy", "state"), "Candidate or selected context items."),
         _spec("seocho.context.budget_exceeded.count", "counter", "{request}", ("strategy",), "Context budget exceedances."),
         _spec("seocho.context.policy_filtered.count", "counter", "{item}", ("reason",), "Context items removed by policy."),
+        _spec("db.client.operation.duration", "histogram", "s", ("db.system", "operation", "outcome"), "Graph client operation duration, wall time at the driver."),
+        _spec("db.client.operation.server_share", "histogram", "1", ("db.system", "operation"), "Server fraction of a graph operation; the remainder is client hydration (ADR-0111)."),
         _spec("gen_ai.client.operation.duration", "histogram", "s", ("gen_ai.provider.name", "gen_ai.request.model", "gen_ai.operation.name", "error.type"), "GenAI client operation duration."),
         _spec("gen_ai.client.token.usage", "histogram", "{token}", ("gen_ai.provider.name", "gen_ai.request.model", "gen_ai.token.type"), "Provider-reported token usage."),
         _spec("seocho.gen_ai.time_to_first_token", "histogram", "s", ("gen_ai.provider.name", "gen_ai.request.model"), "Streaming time to first token."),

@@ -31,6 +31,8 @@ Usage::
 
 from __future__ import annotations
 
+import csv
+import io
 import json
 import logging
 import os
@@ -38,6 +40,43 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Sequence
 
 logger = logging.getLogger(__name__)
+
+ROW_FORMATS = ("json", "csv")
+
+
+def encode_rows(rows: List[Dict[str, Any]], *, row_cap: int, truncated: bool,
+                row_format: str = "json") -> str:
+    """Serialize a bounded result for the model — same four fields in either encoding.
+
+    ``json`` is the historical payload: ``{rows, row_count, truncated, row_cap}``. ``csv``
+    carries identical information with the column names paid for once in a header line
+    instead of once per row, and the metadata on a trailing ``#`` comment line so it cannot
+    be mistaken for a row.
+
+    Why the option exists (measured on the AIsummit26 harness, gpt-oss-120b, 117 episodes
+    per encoding): a 200-row page of this shape is 9,017 o200k tokens as JSON and 5,211 as
+    CSV; at SF100 the median episode carried 11.0k input tokens as JSON and 3.7k as CSV;
+    accuracy was indistinguishable (35 vs 39 correct) and truncation disclosure went up
+    under CSV (23 vs 14), not down. The repeated keys JSON pays for are overhead, not
+    signal the model needs.
+    """
+    if row_format not in ROW_FORMATS:
+        raise ValueError(f"row_format must be one of {ROW_FORMATS}, got {row_format!r}")
+    if row_format == "json":
+        return json.dumps(
+            {"rows": rows, "row_count": len(rows), "truncated": truncated,
+             "row_cap": row_cap},
+            default=str,
+        )
+    buf = io.StringIO()
+    if rows:
+        writer = csv.DictWriter(buf, fieldnames=list(rows[0].keys()),
+                                extrasaction="ignore", restval="")
+        writer.writeheader()
+        writer.writerows(rows)
+    return (buf.getvalue()
+            + f"# row_count={len(rows)} row_cap={row_cap} "
+              f"truncated={'true' if truncated else 'false'}")
 
 # The SDK is an optional dependency: importing this module must not break a deployment that
 # does not use it, and the error when it is missing should name the fix.
@@ -154,23 +193,35 @@ def make_ontology_guardrail(ontology: Any, *, ledger: Optional[GuardrailLedger] 
 
 
 def make_graph_tool(graph_store: Any, *, database: str, row_cap: int = 50,
-                    query_timeout_s: float = 30.0):
+                    query_timeout_s: float = 30.0, row_format: str = "json"):
     """A read-only Cypher tool over the graph store.
 
     Two bounds are applied here rather than trusted to the model. The row cap is the same
     ``max_result_rows`` the deterministic path uses, and the timeout goes on the *transaction*
     — ``session.run(..., timeout=x)`` silently forwards the keyword into query parameters and
     bounds nothing, a mistake made twice in this project before it was written down.
+
+    ``row_format`` picks the encoding rows wear on their way into the model's context —
+    ``"json"`` (default, the historical payload) or ``"csv"`` (same fields, roughly half the
+    tokens on wide pages; see :func:`encode_rows` for the measurements). Errors are always
+    JSON: they are small, and their structure is what the model repairs from.
     """
     _require_sdk()
+    if row_format not in ROW_FORMATS:
+        raise ValueError(f"row_format must be one of {ROW_FORMATS}, got {row_format!r}")
+
+    row_shape = (
+        "rows as JSON" if row_format == "json" else
+        "rows as CSV: a header line, one line per row, and a final "
+        "`# row_count=<n> row_cap=<n> truncated=<true|false>` line")
 
     @function_tool(
         name_override="run_cypher",
         description_override=(
-            "Run one read-only Cypher query against the financial graph and return rows as "
-            "JSON. Use only labels and relationship types from the supplied schema. Pass "
-            "values as named Cypher parameters ($name) and supply them in params_json as a "
-            "JSON object, e.g. {\"acct\": 42}. Include a LIMIT."),
+            f"Run one read-only Cypher query against the financial graph and return "
+            f"{row_shape}. Use only labels and relationship types from the supplied schema. "
+            "Pass values as named Cypher parameters ($name) and supply them in params_json "
+            "as a JSON object, e.g. {\"acct\": 42}. Include a LIMIT."),
     )
     def run_cypher(cypher: str, params_json: str = "{}") -> str:
         # Parameters arrive as a JSON *string*, not a dict. The SDK builds a strict JSON
@@ -199,17 +250,12 @@ def make_graph_tool(graph_store: Any, *, database: str, row_cap: int = 50,
             except Neo4jError as exc:
                 tx.close()
                 return json.dumps({"error": exc.code, "message": str(exc)[:300]})
-        return json.dumps(
-            {
-                "rows": rows,
-                "row_count": len(rows),
-                # Stated explicitly because a bounded result presented as a complete one is
-                # the failure this experiment measured at 0 disclosures out of 20.
-                "truncated": truncated,
-                "row_cap": row_cap,
-            },
-            default=str,
-        )
+        # `truncated` stated explicitly in either encoding, because a bounded result
+        # presented as a complete one is the failure measured twice now: 0 disclosures out
+        # of 20 in the first harness, and 71-of-117 silent wrong answers when the AIsummit26
+        # control withheld exactly this field.
+        return encode_rows(rows, row_cap=row_cap, truncated=truncated,
+                           row_format=row_format)
 
     return run_cypher
 
@@ -237,7 +283,8 @@ def _mara_model(model: str) -> Any:
 
 def build_graph_agent(*, ontology: Any, graph_store: Any, database: str,
                       model: str = "gpt-oss-120b", name: str = "graph_analyst",
-                      row_cap: int = 50, extra_tools: Sequence[Any] = (),
+                      row_cap: int = 50, row_format: str = "json",
+                      extra_tools: Sequence[Any] = (),
                       ledger: Optional[GuardrailLedger] = None) -> "Agent":
     """A graph-querying agent whose tool is guarded by the ontology.
 
@@ -252,9 +299,16 @@ def build_graph_agent(*, ontology: Any, graph_store: Any, database: str,
     policy = policy_from_ontology(ontology)
     schema = schema_for_prompt(ontology, policy)
     guardrail = make_ontology_guardrail(ontology, ledger=ledger)
-    tool = make_graph_tool(graph_store, database=database, row_cap=row_cap)
+    tool = make_graph_tool(graph_store, database=database, row_cap=row_cap,
+                           row_format=row_format)
     tool.tool_input_guardrails = [guardrail]
 
+    truncation_rule = (
+        "- If the tool reports `truncated: true`, say so in your answer rather than "
+        "presenting a partial result as complete.\n"
+        if row_format == "json" else
+        "- If the tool's final `#` line reports `truncated=true`, say so in your answer "
+        "rather than presenting a partial result as complete.\n")
     instructions = (
         "You are a financial-crime analyst querying a graph database with Cypher.\n\n"
         "Schema (use only these labels, relationship types and parameters):\n"
@@ -263,8 +317,7 @@ def build_graph_agent(*, ontology: Any, graph_store: Any, database: str,
         "- Every matched node must carry the tenant scope shown in the schema.\n"
         "- Bind the account the question is about by its declared identity key.\n"
         "- Include a LIMIT; the tool caps rows regardless.\n"
-        "- If the tool reports `truncated: true`, say so in your answer rather than "
-        "presenting a partial result as complete.\n"
+        + truncation_rule +
         "- If the schema cannot express the question, say what is missing instead of "
         "inventing labels."
     )
@@ -296,8 +349,10 @@ def as_specialist_tool(agent: "Agent", *, tool_name: str, tool_description: str)
 
 __all__ = [
     "GuardrailLedger",
+    "ROW_FORMATS",
     "as_specialist_tool",
     "build_graph_agent",
+    "encode_rows",
     "make_graph_tool",
     "make_ontology_guardrail",
 ]

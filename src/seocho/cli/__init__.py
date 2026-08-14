@@ -8,12 +8,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, Optional, Sequence
 
-from .client import Seocho
-from .exceptions import SeochoError
-from .governance import ArtifactDiff, ArtifactValidationResult
-from .local import LocalRuntimeStatus, serve_local_runtime, stop_local_runtime
-from .semantic import SemanticArtifact, SemanticArtifactSummary
-from .models import ArchiveResult, ChatResponse, GraphTarget, Memory, MemoryCreateResult, SearchResult
+from ..client import Seocho
+from ..exceptions import SeochoError
+from ..governance import ArtifactDiff, ArtifactValidationResult
+from ..local import LocalRuntimeStatus, serve_local_runtime, stop_local_runtime
+from ..semantic import SemanticArtifact, SemanticArtifactSummary
+from ..models import ArchiveResult, ChatResponse, GraphTarget, Memory, MemoryCreateResult, SearchResult
 
 
 def _package_version() -> str:
@@ -433,116 +433,6 @@ def build_parser() -> argparse.ArgumentParser:
     bundle_show_parser.add_argument("bundle", help="Path to bundle JSON file")
     bundle_show_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
 
-    ontology_parser = subparsers.add_parser("ontology", help="Offline ontology governance helpers")
-    ontology_subparsers = ontology_parser.add_subparsers(dest="ontology_command", required=True)
-
-    ontology_check_parser = ontology_subparsers.add_parser("check", help="Validate one ontology definition")
-    ontology_check_parser.add_argument("--schema", required=True, help="Ontology file (JSON-LD, YAML, or TTL)")
-    ontology_check_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
-
-    ontology_export_parser = ontology_subparsers.add_parser("export", help="Export ontology-derived artifacts")
-    ontology_export_parser.add_argument("--schema", required=True, help="Ontology file (JSON-LD, YAML, or TTL)")
-    ontology_export_parser.add_argument(
-        "--format",
-        required=True,
-        choices=["jsonld", "yaml", "dict", "shacl"],
-        help="Output artifact format",
-    )
-    ontology_export_parser.add_argument("--output", default=None, help="Optional output file path")
-    ontology_export_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
-
-    ontology_diff_parser = ontology_subparsers.add_parser("diff", help="Diff two ontology definitions")
-    ontology_diff_parser.add_argument("--left", required=True, help="Left ontology file")
-    ontology_diff_parser.add_argument("--right", required=True, help="Right ontology file")
-    ontology_diff_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
-
-    ontology_report_parser = ontology_subparsers.add_parser(
-        "report",
-        help="Compile a promotion-oriented ontology governance report",
-    )
-    ontology_report_parser.add_argument("--schema", required=True, help="Ontology file (JSON-LD, YAML, or TTL)")
-    ontology_report_parser.add_argument("--artifact-name", default=None, help="Optional semantic artifact draft name")
-    ontology_report_parser.add_argument("--output", default=None, help="Optional output JSON file path")
-    ontology_report_parser.add_argument(
-        "--skip-owl-inspection",
-        action="store_true",
-        help="Skip optional Owlready2 offline inspection",
-    )
-    ontology_report_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
-
-    ontology_inspect_parser = ontology_subparsers.add_parser(
-        "inspect-owl",
-        help="Inspect an OWL ontology with Owlready2 (optional offline dependency)",
-    )
-    ontology_inspect_parser.add_argument("--source", required=True, help="OWL file path or URI")
-    ontology_inspect_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
-
-    ontology_review_parser = ontology_subparsers.add_parser(
-        "review",
-        help="Ambiguity review loop: quarantine OOV entities, cluster them, and map them back into the taxonomy",
-    )
-    ontology_review_parser.add_argument(
-        "review_action",
-        choices=["ingest", "clusters", "export-spec", "apply"],
-        help="ingest: detect+quarantine from an extracted-graph JSON; clusters: list ranked quarantine; "
-             "export-spec: write a starter mapping-spec YAML; apply: apply a mapping-spec to an ontology",
-    )
-    ontology_review_parser.add_argument("--quarantine", default=".seocho_quarantine.jsonl", help="Quarantine JSONL path")
-    ontology_review_parser.add_argument("--schema", default=None, help="Ontology file (for ingest/export-spec/apply)")
-    ontology_review_parser.add_argument("--graph", default=None, help="Extracted-graph JSON (for ingest)")
-    ontology_review_parser.add_argument("--spec", default=None, help="Mapping-spec YAML (for apply)")
-    ontology_review_parser.add_argument("--output", default=None, help="Output path (export-spec / apply)")
-    ontology_review_parser.add_argument("--workspace", default="", help="workspace_id to stamp on quarantined items")
-    ontology_review_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
-
-    ontology_datahub_parser = ontology_subparsers.add_parser(
-        "datahub",
-        help="Export an ontology to a DataHub Business Glossary (MCP payloads; optional live emit)",
-    )
-    ontology_datahub_parser.add_argument("--schema", required=True, help="Ontology file (JSON-LD, YAML, or TTL)")
-    ontology_datahub_parser.add_argument("--output", default=None, help="Write MCP JSON to this path (dry-run)")
-    ontology_datahub_parser.add_argument("--gms", default=None, help="DataHub GMS server URL (for live emit)")
-    ontology_datahub_parser.add_argument("--token", default=None, help="DataHub access token (for live emit)")
-    ontology_datahub_parser.add_argument("--emit", action="store_true", help="Actually emit to --gms (default: dry-run)")
-    ontology_datahub_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
-
-    ontology_select_parser = ontology_subparsers.add_parser(
-        "select-guardrail",
-        help="Domain-adaptively pick the best guardrail ontology for a corpus (ADR-0122)",
-    )
-    ontology_select_parser.add_argument(
-        "--candidates", required=True,
-        help="Comma-separated name=path pairs, e.g. lean=fibo_minus.jsonld,rich=fibo_plus.jsonld",
-    )
-    ontology_select_parser.add_argument(
-        "--corpus", required=True,
-        help="Corpus profile JSON (label->freq, a CorpusProfile dict, or an experiment record)",
-    )
-    ontology_select_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
-
-    ontology_dhapply_parser = ontology_subparsers.add_parser(
-        "datahub-apply",
-        help="Round-trip approved DataHub glossary terms back into the ontology (close the review loop)",
-    )
-    ontology_dhapply_parser.add_argument("--schema", required=True, help="Ontology file (JSON-LD, YAML, or TTL)")
-    ontology_dhapply_parser.add_argument("--terms", required=True, help="Reviewed glossary terms JSON (list of records)")
-    ontology_dhapply_parser.add_argument("--status", default="APPROVED", help="Only apply terms with this review status")
-    ontology_dhapply_parser.add_argument("--output", default=None, help="Write the new ontology JSON-LD here")
-    ontology_dhapply_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
-
-    ontology_eval_answers_parser = ontology_subparsers.add_parser(
-        "eval-answers",
-        help="Measure answer accuracy of an ontology guardrail over a gold QA set (ADR-0124/0125)",
-    )
-    ontology_eval_answers_parser.add_argument("--schema", required=True, help="Ontology file (JSON-LD, YAML, or TTL)")
-    ontology_eval_answers_parser.add_argument(
-        "--cases", required=True,
-        help="Gold QA cases JSON: list of {question, gold_answer, context, category, case_id}",
-    )
-    ontology_eval_answers_parser.add_argument("--provider", default="mara", help="LLM provider preset (default: mara)")
-    ontology_eval_answers_parser.add_argument("--model", default=None, help="Model override (default: provider default)")
-    ontology_eval_answers_parser.add_argument("--workers", type=int, default=6, help="Concurrent workers (default: 6)")
-    ontology_eval_answers_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
 
     serve_http_parser = subparsers.add_parser("serve-http", help="Serve a portable bundle behind a small FastAPI runtime")
     serve_http_parser.add_argument("--bundle", required=True, help="Path to portable bundle JSON file")
@@ -689,7 +579,6 @@ LOCAL_COMMANDS = {
     "compare",
     "experiment",
     "bundle",
-    "ontology",
     "serve-http",
     "traces",
     "run",
@@ -1147,8 +1036,6 @@ def _dispatch_local(args: argparse.Namespace) -> int:
         return _cmd_experiment(args)
     if args.command == "bundle":
         return _cmd_bundle(args)
-    if args.command == "ontology":
-        return _cmd_ontology(args)
     if args.command == "serve-http":
         return _cmd_serve_http(args)
     if args.command == "traces":
@@ -1164,7 +1051,7 @@ def _dispatch_local(args: argparse.Namespace) -> int:
 
 def _cmd_new(args: argparse.Namespace) -> int:
     """Create a runnable first-run project."""
-    from .scaffold import create_sample_project
+    from ..scaffold import create_sample_project
 
     result = create_sample_project(args.path, sample=args.sample, force=args.force)
     print(f"Created SEOCHO {result.sample!r} sample at {result.path}")
@@ -1185,7 +1072,7 @@ def _cmd_new(args: argparse.Namespace) -> int:
 
 def _cmd_traces(args: argparse.Namespace) -> int:
     """Query trace spans from a JSONL file (read side of the observe loop)."""
-    from .tracing import default_jsonl_path, read_jsonl
+    from ..tracing import default_jsonl_path, read_jsonl
 
     path = args.path or default_jsonl_path()
     try:
@@ -1235,7 +1122,7 @@ def _print_connect_result(
     dry_run: bool,
     output_json: bool,
 ) -> None:
-    from .connectors import summarize_records
+    from ..connectors import summarize_records
 
     summary = summarize_records(records)
     payload = {
@@ -1293,7 +1180,7 @@ def _cmd_connect(args: argparse.Namespace) -> int:
 
     provider = args.connect_command
     if provider == "init":
-        from .connectors.config import write_sample_config
+        from ..connectors.config import write_sample_config
 
         path = write_sample_config(args.path, force=args.force)
         print(f"Created connector config at {path}")
@@ -1305,7 +1192,7 @@ def _cmd_connect(args: argparse.Namespace) -> int:
         return 0
 
     if provider == "run":
-        from .connectors.config import load_connector_config, run_connector_plan
+        from ..connectors.config import load_connector_config, run_connector_plan
 
         plan = load_connector_config(args.config)
         if args.output_dir:
@@ -1320,13 +1207,13 @@ def _cmd_connect(args: argparse.Namespace) -> int:
         )
         return 0
 
-    from .connectors import write_records_jsonl
+    from ..connectors import write_records_jsonl
 
     records: list[Any]
     if provider == "notion":
         if not args.data_source_id and not args.page_id:
             raise SeochoError("connect notion requires --data-source-id or --page-id.")
-        from .connectors.notion import fetch_data_source_records, fetch_page_records
+        from ..connectors.notion import fetch_data_source_records, fetch_page_records
 
         records = []
         if args.page_id:
@@ -1353,7 +1240,7 @@ def _cmd_connect(args: argparse.Namespace) -> int:
     elif provider == "slack":
         if not args.channels:
             raise SeochoError("connect slack requires at least one --channel.")
-        from .connectors.slack import fetch_channel_records
+        from ..connectors.slack import fetch_channel_records
 
         records = fetch_channel_records(
             args.channels,
@@ -1366,7 +1253,7 @@ def _cmd_connect(args: argparse.Namespace) -> int:
             include_threads=args.threads,
         )
     elif provider == "datahub":
-        from .connectors.datahub import fetch_dataset_records
+        from ..connectors.datahub import fetch_dataset_records
 
         records = fetch_dataset_records(
             server=args.server,
@@ -1376,7 +1263,7 @@ def _cmd_connect(args: argparse.Namespace) -> int:
             category=args.category,
         )
     elif provider == "postgres":
-        from .connectors.postgres import fetch_schema_records
+        from ..connectors.postgres import fetch_schema_records
 
         records = fetch_schema_records(
             dsn_env=args.dsn_env,
@@ -1385,7 +1272,7 @@ def _cmd_connect(args: argparse.Namespace) -> int:
             category=args.category,
         )
     elif provider == "neo4j":
-        from .connectors.neo4j import fetch_schema_records
+        from ..connectors.neo4j import fetch_schema_records
 
         records = fetch_schema_records(
             uri_env=args.uri_env,
@@ -1411,7 +1298,7 @@ def _cmd_connect(args: argparse.Namespace) -> int:
 
 def _cmd_init(args: argparse.Namespace) -> int:
     """Interactive ontology creation."""
-    from .ontology import NodeDef, Ontology, P, RelDef
+    from ..ontology import NodeDef, Ontology, P, RelDef
 
     print("SEOCHO Ontology Setup")
     print("=" * 40)
@@ -1475,7 +1362,7 @@ def _cmd_init(args: argparse.Namespace) -> int:
         ontology.to_jsonld(output)
 
     # Save project config (.seocho.toml)
-    from .config_file import write_config
+    from ..config_file import write_config
     config_path = Path(".seocho.toml")
     if not config_path.exists():
         write_config(config_path, schema=output, database=name)
@@ -1492,7 +1379,7 @@ def _cmd_init(args: argparse.Namespace) -> int:
 
 def _load_local_ontology(schema_path: str) -> Any:
     """Load ontology from file."""
-    from .ontology import Ontology
+    from ..ontology import Ontology
 
     path = Path(schema_path)
     if not path.exists():
@@ -1504,10 +1391,10 @@ def _load_local_ontology(schema_path: str) -> Any:
 
 def _build_local_client(args: argparse.Namespace) -> Seocho:
     """Build a local-mode Seocho client from CLI args + .seocho.toml defaults."""
-    from .config_file import get_default, load_config
-    from .query.strategy import PRESET_PROMPTS
-    from .store.graph import Neo4jGraphStore
-    from .store.llm import create_llm_backend
+    from ..config_file import get_default, load_config
+    from ..query.strategy import PRESET_PROMPTS
+    from ..store.graph import Neo4jGraphStore
+    from ..store.llm import create_llm_backend
 
     cfg = load_config()
 
@@ -1577,7 +1464,7 @@ def _cmd_index(args: argparse.Namespace) -> int:
 def _cmd_run(args: argparse.Namespace) -> int:
     """Run a YAML-declared e2e flow (or write a template with --init)."""
     if args.init:
-        from .run_spec import RUN_SPEC_TEMPLATE
+        from ..run_spec import RUN_SPEC_TEMPLATE
 
         target = Path(args.config)
         if target.exists():
@@ -1589,7 +1476,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         print("Need a runnable sample instead? Try: seocho new hello-seocho")
         return 0
 
-    from .e2e import run_from_config
+    from ..e2e import run_from_config
 
     return run_from_config(
         args.config,
@@ -1607,7 +1494,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
 def _cmd_sweep(args: argparse.Namespace) -> int:
     """Run a sweep (or write the sweep + template pair with --init)."""
     if args.init:
-        from .run_template import RUN_J2_TEMPLATE, SWEEP_TEMPLATE
+        from ..run_template import RUN_J2_TEMPLATE, SWEEP_TEMPLATE
 
         sweep_target = Path(args.config)
         template_target = sweep_target.parent / "run.yaml.j2"
@@ -1622,7 +1509,7 @@ def _cmd_sweep(args: argparse.Namespace) -> int:
         print("Edit the variants and template, then: seocho sweep")
         return 0
 
-    from .e2e import run_sweep_from_config
+    from ..e2e import run_sweep_from_config
 
     return run_sweep_from_config(
         args.config,
@@ -1658,7 +1545,7 @@ def _cmd_local_ask(args: argparse.Namespace) -> int:
 
 def _cmd_status(args: argparse.Namespace) -> int:
     """Show graph database status."""
-    from .store.graph import Neo4jGraphStore
+    from ..store.graph import Neo4jGraphStore
 
     ontology = _load_local_ontology(args.schema)
     store = Neo4jGraphStore(args.neo4j_uri, args.neo4j_user, args.neo4j_password)
@@ -1703,8 +1590,8 @@ def _cmd_status(args: argparse.Namespace) -> int:
 
 def _cmd_compare(args: argparse.Namespace) -> int:
     """Compare two ontology/model configs on the same input."""
-    from .experiment import ExperimentRunner
-    from .store.llm import OpenAIBackend
+    from ..experiment import ExperimentRunner
+    from ..store.llm import OpenAIBackend
 
     # Read input
     input_text = args.input_text
@@ -1745,7 +1632,7 @@ def _cmd_compare(args: argparse.Namespace) -> int:
 
 def _cmd_experiment(args: argparse.Namespace) -> int:
     """Run multi-axis experiment exploration."""
-    from .experiment import Workbench
+    from ..experiment import Workbench
 
     # Resolve input
     input_arg = args.input
@@ -1829,7 +1716,7 @@ def _cmd_bundle_export(args: argparse.Namespace) -> int:
 
 
 def _cmd_bundle_show(args: argparse.Namespace) -> int:
-    from .runtime_bundle import RuntimeBundle
+    from ..runtime_bundle import RuntimeBundle
 
     bundle = RuntimeBundle.load(args.bundle)
     payload = bundle.to_dict()
@@ -1846,293 +1733,11 @@ def _cmd_bundle_show(args: argparse.Namespace) -> int:
     return 0
 
 
-def _cmd_ontology(args: argparse.Namespace) -> int:
-    from .ontology_governance import (
-        build_ontology_governance_report,
-        check_ontology,
-        diff_ontologies,
-        export_ontology_payload,
-        inspect_owl_ontology,
-        load_ontology_file,
-    )
-    import yaml
-
-    if args.ontology_command == "check":
-        ontology = load_ontology_file(args.schema)
-        result = check_ontology(ontology)
-        if getattr(args, "output_json", False):
-            print(json.dumps(result.to_dict(), indent=2))
-        else:
-            status = "ok" if result.ok else "invalid"
-            print(f"ontology {status}: {result.ontology_name}@{result.ontology_version}")
-            print(
-                f"  package_id={result.package_id} "
-                f"graph_model={result.stats['graph_model']} "
-                f"nodes={result.stats['node_count']} relationships={result.stats['relationship_count']}"
-            )
-            for item in result.errors:
-                print(f"error: {item}")
-            for item in result.warnings:
-                print(f"warning: {item}")
-        return 0 if result.ok else 1
-
-    if args.ontology_command == "export":
-        ontology = load_ontology_file(args.schema)
-        payload = export_ontology_payload(ontology, output_format=args.format)
-
-        if args.format == "yaml":
-            rendered = yaml.safe_dump(payload, sort_keys=False, allow_unicode=True)
-        else:
-            rendered = json.dumps(payload, indent=2, ensure_ascii=False)
-
-        if args.output:
-            Path(args.output).write_text(rendered + ("" if rendered.endswith("\n") else "\n"), encoding="utf-8")
-
-        if getattr(args, "output_json", False):
-            print(json.dumps({"format": args.format, "output": args.output, "payload": payload}, indent=2, ensure_ascii=False))
-        elif args.output:
-            print(f"exported {args.format} to {args.output}")
-        else:
-            print(rendered)
-        return 0
-
-    if args.ontology_command == "diff":
-        left = load_ontology_file(args.left)
-        right = load_ontology_file(args.right)
-        diff = diff_ontologies(left, right)
-        if getattr(args, "output_json", False):
-            print(json.dumps(diff.to_dict(), indent=2))
-        else:
-            print(f"diff {diff.left_name} -> {diff.right_name}")
-            print(
-                f"  package_id={diff.package_id} "
-                f"recommended_bump={diff.recommended_bump} "
-                f"requires_migration={'yes' if diff.requires_migration else 'no'}"
-            )
-            for section_name, section_changes in diff.changes.items():
-                for change_kind, values in section_changes.items():
-                    if values:
-                        print(f"{section_name} {change_kind}: {', '.join(values)}")
-            for warning in diff.migration_warnings:
-                print(f"warning: {warning}")
-        return 0
-
-    if args.ontology_command == "report":
-        report = build_ontology_governance_report(
-            args.schema,
-            artifact_name=args.artifact_name,
-            include_owl_inspection=not args.skip_owl_inspection,
-        )
-        payload = report.to_dict()
-        rendered = json.dumps(payload, indent=2, ensure_ascii=False)
-        if args.output:
-            Path(args.output).write_text(rendered + "\n", encoding="utf-8")
-        if getattr(args, "output_json", False):
-            print(rendered)
-        else:
-            descriptor = payload.get("context_descriptor", {})
-            print(f"ontology report: {payload['source']}")
-            print(
-                "  "
-                f"package_id={descriptor.get('ontology_id', '')} "
-                f"version={descriptor.get('ontology_version', '')} "
-                f"context_hash={descriptor.get('context_hash', '')}"
-            )
-            print(
-                "  "
-                f"shapes={payload['shacl_export']['stats'].get('node_shape_count', 0)} "
-                f"properties={payload['shacl_export']['stats'].get('property_shape_count', 0)} "
-                f"sample_data_ok={'yes' if payload['sample_data_validation'].get('ok') else 'no'}"
-            )
-            for note in payload.get("notes", []):
-                print(f"note: {note}")
-            if args.output:
-                print(f"written: {args.output}")
-        return 0 if report.ok else 1
-
-    if args.ontology_command == "inspect-owl":
-        inspection = inspect_owl_ontology(args.source)
-        if getattr(args, "output_json", False):
-            print(json.dumps(inspection.to_dict(), indent=2))
-        else:
-            if not inspection.available:
-                print(inspection.error or "owlready2 unavailable")
-                return 1
-            if inspection.error:
-                print(f"owlready2 inspection failed: {inspection.error}")
-                return 1
-            print(f"owlready2 source: {inspection.source}")
-            print(
-                "  "
-                f"classes={inspection.stats.get('class_count', 0)} "
-                f"properties={inspection.stats.get('property_count', 0)} "
-                f"individuals={inspection.stats.get('individual_count', 0)} "
-                f"imports={inspection.stats.get('import_count', 0)}"
-            )
-        return 0 if inspection.available and inspection.error is None else 1
-
-    if args.ontology_command == "review":
-        from .ontology import Ontology
-        from .ontology_ambiguity import (
-            AmbiguityQuarantine,
-            apply_mapping_spec,
-            detect_ambiguities,
-            load_mapping_spec,
-            starter_mapping_spec,
-        )
-
-        q = AmbiguityQuarantine(args.quarantine)
-
-        if args.review_action == "ingest":
-            if not args.schema or not args.graph:
-                raise SeochoError("review ingest requires --schema and --graph")
-            ontology = Ontology.load(args.schema)
-            with open(args.graph, "r", encoding="utf-8") as f:
-                graph = json.load(f)
-            found = detect_ambiguities(graph, ontology, source=args.graph, workspace_id=args.workspace)
-            n = q.add(found)
-            if getattr(args, "output_json", False):
-                print(json.dumps({"ingested": n, "items": [f.to_dict() for f in found]}, indent=2, ensure_ascii=False))
-            else:
-                print(f"quarantined {n} ambiguous mention(s) → {args.quarantine}")
-            return 0
-
-        if args.review_action == "clusters":
-            clusters = q.clusters()
-            if getattr(args, "output_json", False):
-                print(json.dumps(clusters, indent=2, ensure_ascii=False))
-            else:
-                if not clusters:
-                    print("quarantine empty")
-                for c in clusters:
-                    print(f"  {c['frequency']:4d}×  {c['surface']:30s} signals={c['signals']} "
-                          f"candidates={c['candidate_labels']}")
-            return 0
-
-        if args.review_action == "export-spec":
-            if not args.schema:
-                raise SeochoError("review export-spec requires --schema")
-            import yaml
-            ontology = Ontology.load(args.schema)
-            spec = starter_mapping_spec(q.clusters(), ontology)
-            text = yaml.safe_dump(spec, sort_keys=False, allow_unicode=True)
-            if args.output:
-                Path(args.output).write_text(text, encoding="utf-8")
-                print(f"wrote starter mapping-spec → {args.output} ({len(spec['mappings'])} mappings)")
-            else:
-                print(text)
-            return 0
-
-        if args.review_action == "apply":
-            if not args.schema or not args.spec:
-                raise SeochoError("review apply requires --schema and --spec")
-            ontology = Ontology.load(args.schema)
-            spec = load_mapping_spec(args.spec)
-            new_onto = apply_mapping_spec(ontology, spec)
-            payload = new_onto.to_jsonld()
-            if args.output:
-                Path(args.output).write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
-                print(f"applied {len(spec.get('mappings', []))} mapping(s): "
-                      f"{ontology.version} → {new_onto.version}, {len(ontology.nodes)} → {len(new_onto.nodes)} classes "
-                      f"→ {args.output}")
-            else:
-                print(json.dumps(payload, indent=2, ensure_ascii=False))
-            return 0
-
-        raise SeochoError(f"Unknown review action: {args.review_action}")
-
-    if args.ontology_command == "datahub":
-        from .ontology import Ontology
-        from .datahub_export import emit_to_datahub, glossary_mcps_to_json, ontology_to_glossary_mcps
-
-        ontology = Ontology.load(args.schema)
-        mcps = ontology_to_glossary_mcps(ontology)
-        if args.emit:
-            result = emit_to_datahub(mcps, gms_server=args.gms, token=args.token, dry_run=False)
-            if getattr(args, "output_json", False):
-                print(json.dumps({k: v for k, v in result.items() if k != "mcps"}, indent=2, ensure_ascii=False))
-            else:
-                print(f"datahub emit: mode={result['mode']} "
-                      + (f"sent={result.get('sent')}" if result.get("emitted") else f"({result.get('error','dry-run')})"))
-            return 0 if result.get("emitted") or result["mode"] == "dry_run" else 1
-        text = glossary_mcps_to_json(mcps)
-        if args.output:
-            Path(args.output).write_text(text + "\n", encoding="utf-8")
-            from .datahub_export import export_summary
-            s = export_summary(mcps)
-            print(f"wrote {s['mcp_count']} MCP(s) → {args.output} "
-                  f"({s['glossary_terms']} terms, {s['glossary_nodes']} nodes, {s['is_a_edges']} is-a edges)")
-        else:
-            print(text)
-        return 0
-
-    if args.ontology_command == "datahub-apply":
-        from .ontology import Ontology
-        from .datahub_export import datahub_glossary_to_mapping_spec
-        from .ontology_ambiguity import apply_mapping_spec
-
-        ontology = Ontology.load(args.schema)
-        with open(args.terms, "r", encoding="utf-8") as f:
-            term_records = json.load(f)
-        spec = datahub_glossary_to_mapping_spec(term_records, only_status=args.status, ontology_name=ontology.name)
-        new_onto = apply_mapping_spec(ontology, spec)
-        payload = new_onto.to_jsonld()
-        if args.output:
-            Path(args.output).write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
-            print(f"applied {len(spec['mappings'])} approved term(s): {ontology.version} → {new_onto.version}, "
-                  f"{len(ontology.nodes)} → {len(new_onto.nodes)} classes → {args.output}")
-        else:
-            print(json.dumps(payload, indent=2, ensure_ascii=False))
-        return 0
-
-    if args.ontology_command == "select-guardrail":
-        from .ontology import Ontology
-        from .guardrail_selector import load_corpus_profile, select_guardrail
-
-        candidates = {}
-        for pair in str(args.candidates).split(","):
-            pair = pair.strip()
-            if not pair:
-                continue
-            name, _, path = pair.partition("=")
-            if not path:
-                name, path = Path(name).stem, name
-            candidates[name.strip()] = Ontology.load(path.strip())
-        rec = select_guardrail(candidates, load_corpus_profile(args.corpus))
-        if getattr(args, "output_json", False):
-            print(json.dumps(rec.to_dict(), indent=2, ensure_ascii=False))
-        else:
-            print(f"chosen: {rec.chosen}  (domain={rec.domain_kind}, numeric_intensity={rec.numeric_intensity})")
-            print("  coverage: " + ", ".join(f"{n}={s['corpus_coverage']}" for n, s in rec.candidate_scores.items()))
-            print(f"  {rec.rationale}")
-            for a in rec.advisories:
-                print(f"  · {a}")
-        return 0
-
-    if args.ontology_command == "eval-answers":
-        from .ontology import Ontology
-        from .evaluation import evaluate_answer_accuracy, load_answer_cases
-        from .store.llm import create_llm_backend
-
-        ontology = Ontology.load(args.schema)
-        cases = load_answer_cases(args.cases)
-        backend = create_llm_backend(provider=args.provider, model=args.model)
-        report = evaluate_answer_accuracy(backend, ontology, cases, model=args.model, workers=args.workers)
-        if getattr(args, "output_json", False):
-            print(json.dumps(report.to_dict(), indent=2, ensure_ascii=False))
-        else:
-            print(f"answer accuracy: {report.accuracy}  (scored={report.n_scored}, errors={report.errors})")
-            for cat in sorted(report.by_category):
-                print(f"  {cat or '(uncategorized)'}: {report.by_category[cat]} "
-                      f"(n={report.by_category_n.get(cat, 0)})")
-        return 0
-
-    raise SeochoError(f"Unknown ontology command: {args.ontology_command}")
 
 
 def _cmd_serve_http(args: argparse.Namespace) -> int:
-    from .http_runtime import create_bundle_runtime_app
-    from .runtime_bundle import RuntimeBundle
+    from ..http_runtime import create_bundle_runtime_app
+    from ..runtime_bundle import RuntimeBundle
 
     try:
         import uvicorn
@@ -2146,6 +1751,22 @@ def _cmd_serve_http(args: argparse.Namespace) -> int:
     uvicorn.run(app, host=args.host, port=args.port, reload=args.reload)
     return 0
 
+
+
+# ----------------------------------------------------------------------
+# Migrated command groups. Each registers here and disappears from the
+# legacy dispatch above; the parser contract tests hold the tree steady
+# while the remaining groups follow (seocho-vh0).
+# ----------------------------------------------------------------------
+from . import ontology as _ontology_group  # noqa: E402
+
+register_group(
+    CommandGroup(
+        name="ontology",
+        register=_ontology_group.register,
+        handle=_ontology_group.handle,
+    )
+)
 
 if __name__ == "__main__":
     raise SystemExit(main())

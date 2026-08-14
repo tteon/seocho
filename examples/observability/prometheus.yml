@@ -10,3 +10,9 @@ scrape_configs:
   - job_name: seocho-otel-collector
     static_configs:
       - targets: ["otel-collector:8889"]
+  # The collector's own health: queue drops, exporter failures, memory-limiter
+  # refusals. A telemetry pipeline that cannot report on itself hides exactly
+  # the failures it exists to surface.
+  - job_name: seocho-otel-collector-self
+    static_configs:
+      - targets: ["otel-collector:8888"]

@@ -58,37 +58,64 @@ class _FlatBackend(TracingBackend):
         self.spans.append(name)
 
 
-def test_record_metric_routes_to_capable_backend() -> None:
-    rec = _Recorder()
-    try:
-        enable_tracing(backend=rec)
-        record_metric(
-            "seocho_validation_errors",
-            3,
-            attributes={"mode": "strict", "ontology": "finance"},
-        )
-        record_metric("seocho_arbiter_route", 1, attributes={"route": "NARRATIVE"})
-    finally:
-        disable_tracing()
+class _Instrument:
+    def __init__(self) -> None:
+        self.calls: List[Any] = []
 
-    assert rec.metrics == [
-        {
-            "name": "seocho_validation_errors",
-            "value": 3,
-            "attributes": {"mode": "strict", "ontology": "finance"},
-        },
-        {"name": "seocho_arbiter_route", "value": 1, "attributes": {"route": "NARRATIVE"}},
-    ]
+    def add(self, value, attributes=None):
+        self.calls.append((value, attributes))
+
+    record = add
+    set = add
 
 
-def test_record_metric_is_noop_on_flat_backend() -> None:
-    flat = _FlatBackend()
-    try:
-        enable_tracing(backend=flat)
-        record_metric("seocho_observations_reified", 5)  # must not raise
-    finally:
-        disable_tracing()
-    assert flat.spans == []
+class _Meter:
+    def __init__(self) -> None:
+        self.instruments: Dict[str, _Instrument] = {}
+
+    def _make(self, name, **kwargs):
+        self.instruments[name] = _Instrument()
+        return self.instruments[name]
+
+    create_counter = _make
+    create_up_down_counter = _make
+    create_gauge = _make
+    create_histogram = _make
+
+
+def test_record_metric_translates_legacy_names_into_the_registry(monkeypatch) -> None:
+    """record_metric is now a shim over the ADR-0146 registry: legacy
+    snake_case names map onto catalog specs, one pipeline for everything."""
+    import seocho.metrics as metrics_module
+
+    meter = _Meter()
+    monkeypatch.setattr(
+        metrics_module, "_metrics", metrics_module.ProductionMetrics(meter)
+    )
+    record_metric(
+        "seocho_validation_errors",
+        3,
+        attributes={"mode": "strict", "ontology": "finance"},
+    )
+    record_metric("seocho_arbiter_route", 1, attributes={"route": "NARRATIVE"})
+
+    validation = meter.instruments["seocho.index.validation_errors.count"].calls
+    route = meter.instruments["seocho.arbiter.route.count"].calls
+    assert validation == [(3, {"mode": "strict", "ontology": "finance"})]
+    assert route == [(1, {"route": "NARRATIVE"})]
+
+
+def test_record_metric_drops_uncataloged_names(monkeypatch) -> None:
+    """An arbitrary name would bypass the registry's label budget — the whole
+    reason the two pipelines were unified — so it is dropped, not emitted."""
+    import seocho.metrics as metrics_module
+
+    meter = _Meter()
+    monkeypatch.setattr(
+        metrics_module, "_metrics", metrics_module.ProductionMetrics(meter)
+    )
+    record_metric("seocho_totally_new_counter", 5)  # must not raise
+    assert all(not inst.calls for inst in meter.instruments.values())
 
 
 def _lean() -> Ontology:

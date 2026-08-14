@@ -378,19 +378,33 @@ def complete_with_task_hints(
         kwargs["model"] = model
     if provider_options:
         kwargs["provider_options"] = provider_options
-    try:
-        return llm.complete(**kwargs)
-    except TypeError as exc:
-        if "unexpected keyword argument" not in str(exc):
-            raise
-        # Older backends predate mode/reasoning_mode/task_hint/model — strip
-        # them and retry so this helper stays drop-in for legacy doubles.
-        kwargs.pop("reasoning_mode", None)
-        kwargs.pop("task_hint", None)
-        kwargs.pop("mode", None)
-        kwargs.pop("model", None)
-        kwargs.pop("provider_options", None)
-        return llm.complete(**kwargs)
+    # Older backends predate some optional kwargs (mode/reasoning_mode/
+    # task_hint/model/provider_options, and the task-hint max_tokens
+    # default). Strip ONLY the kwarg each TypeError names, so a double that
+    # accepts reasoning_mode but not max_tokens keeps every kwarg it
+    # understands.
+    import re as _re
+
+    optional_kwargs = (
+        "reasoning_mode", "task_hint", "mode", "model",
+        "provider_options", "max_tokens",
+    )
+    for _ in range(len(optional_kwargs) + 1):
+        try:
+            return llm.complete(**kwargs)
+        except TypeError as exc:
+            message = str(exc)
+            if "unexpected keyword argument" not in message:
+                raise
+            match = _re.search(r"unexpected keyword argument '([^']*)'", message)
+            offender = match.group(1) if match else None
+            if offender in optional_kwargs and offender in kwargs:
+                kwargs.pop(offender)
+                continue
+            # Unparseable message — legacy blanket strip as a last resort.
+            for key in optional_kwargs:
+                kwargs.pop(key, None)
+    return llm.complete(**kwargs)
 
 
 class EmbeddingBackend(ABC):

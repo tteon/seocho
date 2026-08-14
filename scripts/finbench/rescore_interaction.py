@@ -33,6 +33,12 @@ def main() -> None:
     p.add_argument("--gold", nargs="+", required=True,
                    help="question_id:sf:path — the path holds {'seconds': float, 'rows': [...]}")
     p.add_argument("--out", default=None, help="defaults to overwriting --episodes")
+    p.add_argument("--no-gold", nargs="*", default=[],
+                   help="question_id:sf pairs whose reference query does not complete. Their "
+                        "episodes are marked unscoreable instead of scored against an empty "
+                        "gold, which would mark an agent that returned nothing as correct.")
+    p.add_argument("--no-gold-reason", default="",
+                   help="what was tried and how long it ran, recorded on every marked episode")
     args = p.parse_args()
 
     run = json.loads(Path(args.episodes).read_text())
@@ -60,6 +66,26 @@ def main() -> None:
         e["gold_reference_seconds"] = payload["seconds"]
         e["gold_source"] = "recomputed with an extended timeout"
         patched += 1
+
+    unscoreable = 0
+    for spec in args.no_gold:
+        qid, sf = spec.split(":")
+        for e in run["episodes"]:
+            if e["question_id"] != qid or e["sf"] != int(sf):
+                continue
+            for k in [k for k in e if k.startswith("score_")]:
+                del e[k]
+            # Not False. There is no ground truth to be wrong against, and counting these as
+            # failures would attribute the database's limit to the agent.
+            e["score_correct"] = None
+            e["score_note"] = "no ground truth obtainable"
+            e["gold_unobtainable_reason"] = args.no_gold_reason
+            unscoreable += 1
+    if unscoreable:
+        print(f"marked {unscoreable} episodes unscoreable: {args.no_gold}")
+        run.setdefault("notes", []).append(
+            f"unscoreable (no ground truth obtainable): {args.no_gold}. "
+            f"{args.no_gold_reason}")
 
     run.setdefault("notes", []).append(
         "int_hard_1 gold at SF100 was recomputed outside the run: the reference query exceeds "

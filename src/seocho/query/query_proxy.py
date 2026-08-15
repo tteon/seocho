@@ -98,15 +98,34 @@ class QueryAdmissionController:
         self._semaphore = (
             threading.BoundedSemaphore(max_inflight) if max_inflight else None
         )
+        self._in_use = 0
+        self._in_use_lock = threading.Lock()
+
+    def _report_permits(self) -> None:
+        # Rejection counts show saturation only after load has been shed;
+        # the remaining-permit gauge is the signal *before* that point.
+        get_metrics().set(
+            "seocho.retrieval.admission.available_permits",
+            self.max_inflight - self._in_use,
+            {"source": "graph"},
+        )
 
     def acquire(self) -> bool:
         if self._semaphore is None:
             return True
-        return self._semaphore.acquire(timeout=self.wait_seconds)
+        acquired = self._semaphore.acquire(timeout=self.wait_seconds)
+        if acquired:
+            with self._in_use_lock:
+                self._in_use += 1
+            self._report_permits()
+        return acquired
 
     def release(self) -> None:
         if self._semaphore is not None:
             self._semaphore.release()
+            with self._in_use_lock:
+                self._in_use -= 1
+            self._report_permits()
 
 
 @dataclass(slots=True)

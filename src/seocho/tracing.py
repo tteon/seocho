@@ -396,9 +396,9 @@ class OTLPBackend(TracingBackend):
         self._Status = Status
         self._StatusCode = StatusCode
 
-        self._meter = None
-        self._meter_provider = None
-        self._counters: Dict[str, Any] = {}
+        # Counters that used to live on a private meter here now flow through
+        # the ADR-0146 registry (seocho.metrics) — one provider, one naming
+        # scheme, one env switch. This backend owns spans only.
         try:
             resource_attributes = {"service.name": self._service_name}
             if instance_id := os.getenv("OTEL_SERVICE_INSTANCE_ID"):
@@ -413,29 +413,6 @@ class OTLPBackend(TracingBackend):
             self._provider = provider
             self._tracer = provider.get_tracer("seocho.tracing")
             self._init_error: Optional[str] = None
-            # Metrics pipeline (ADR-0144 §6): isolated so a missing/old metrics
-            # SDK never disables tracing.
-            try:
-                from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import (
-                    OTLPMetricExporter,
-                )
-                from opentelemetry.sdk.metrics import MeterProvider
-                from opentelemetry.sdk.metrics.export import (
-                    PeriodicExportingMetricReader,
-                )
-
-                reader = PeriodicExportingMetricReader(
-                    OTLPMetricExporter(
-                        endpoint=self._endpoint,
-                        insecure=self._endpoint.startswith("http://"),
-                    )
-                )
-                self._meter_provider = MeterProvider(
-                    resource=resource, metric_readers=[reader]
-                )
-                self._meter = self._meter_provider.get_meter("seocho.tracing")
-            except Exception as exc:
-                logger.debug("OTLP meter init skipped: %s", exc)
         except Exception as exc:
             logger.warning("OTLP backend init failed: %s", exc)
             self._provider = None
@@ -523,36 +500,12 @@ class OTLPBackend(TracingBackend):
             except Exception:
                 pass
 
-    def record_metric(
-        self,
-        name: str,
-        value: float = 1,
-        *,
-        attributes: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        """Add to a monotonic counter (Prometheus appends ``_total``)."""
-        if self._meter is None:
-            return
-        try:
-            counter = self._counters.get(name)
-            if counter is None:
-                counter = self._meter.create_counter(name)
-                self._counters[name] = counter
-            counter.add(value, attributes or {})
-        except Exception as exc:
-            logger.debug("OTLP record_metric failed: %s", exc)
-
     def flush(self) -> None:
         if self._provider is not None:
             try:
                 self._provider.force_flush()
             except Exception:
                 self._count_export_failure("traces")
-        if self._meter_provider is not None:
-            try:
-                self._meter_provider.force_flush()
-            except Exception:
-                self._count_export_failure("metrics")
 
     @staticmethod
     def _count_export_failure(signal: str) -> None:
@@ -577,11 +530,6 @@ class OTLPBackend(TracingBackend):
         if self._provider is not None:
             try:
                 self._provider.shutdown()
-            except Exception:
-                pass
-        if self._meter_provider is not None:
-            try:
-                self._meter_provider.shutdown()
             except Exception:
                 pass
 
@@ -828,26 +776,47 @@ def log_span(
             pass
 
 
+# ADR-0144 §6 counters were emitted through this module's own OTel meter with
+# their own naming scheme, env switch, and no label validation — a second
+# metrics pipeline next to the ADR-0146 registry. The legacy names now map
+# onto catalog specs and everything funnels through seocho.metrics (one
+# provider, one naming convention, label budget enforced everywhere).
+_LEGACY_METRIC_MAP = {
+    "seocho_validation_errors": "seocho.index.validation_errors.count",
+    "seocho_observations_reified": "seocho.index.observations_reified.count",
+    "seocho_arbiter_route": "seocho.arbiter.route.count",
+    "seocho_query_plan": "seocho.query.plan.count",
+    "seocho_query_db_hits": "seocho.query.db_hits.count",
+    "seocho_query_scan": "seocho.query.scan.count",
+    "seocho_query_plan_route": "seocho.query.plan_route.count",
+    "seocho_query_generation_declined": "seocho.query.generation_declined.count",
+}
+
+
 def record_metric(
     name: str,
     value: float = 1,
     *,
     attributes: Optional[Dict[str, Any]] = None,
 ) -> None:
-    """Record a counter metric on backends that support metrics (OTLP → Prometheus).
+    """Legacy counter shim: delegate to the ADR-0146 metrics registry.
 
-    No-op on flat backends. Counter names are emitted as-is; the OTel→Prometheus
-    exporter appends ``_total`` (so ``seocho_validation_errors`` →
-    ``seocho_validation_errors_total``). ADR-0144 §6.
+    Accepts either a legacy ADR-0144 snake_case name or a catalog spec name.
+    Anything outside the catalog is dropped with a debug log — an arbitrary
+    name would bypass the registry's label budget, which is the whole reason
+    the two pipelines were unified. New code should call
+    :func:`seocho.metrics.get_metrics` directly.
     """
-    for b in _BACKENDS:
-        fn = getattr(b, "record_metric", None)
-        if fn is None:
-            continue
-        try:
-            fn(name, value, attributes=attributes)
-        except Exception:
-            pass
+    from .metrics import METRIC_SPECS, get_metrics
+
+    spec_name = _LEGACY_METRIC_MAP.get(name, name)
+    if spec_name not in METRIC_SPECS:
+        logger.debug("record_metric dropped uncataloged metric: %s", name)
+        return
+    try:
+        get_metrics().add(spec_name, value, attributes=attributes)
+    except Exception as exc:
+        logger.debug("record_metric failed for %s: %s", name, exc)
 
 
 # ---------------------------------------------------------------------------

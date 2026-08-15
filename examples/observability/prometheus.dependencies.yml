@@ -20,7 +20,16 @@ scrape_configs:
       # replace this with service discovery for every etcd member.
       - targets: ["host.docker.internal:52379"]
 
-  # DozerDB Community 5.26.3.0 exposes no supported native Prometheus or
-  # dynamic TLS-reload endpoint. SEOCHO still emits db.client operation
-  # metrics. Add the official server endpoint here only after the deployed
-  # edition exposes and authenticates one.
+  # DozerDB Community 5.26.3.0 exposes no native Prometheus endpoint and
+  # registers no org.neo4j MBeans (measured 2026-08-15). Server saturation
+  # comes from two proxies instead: the Bolt-polling exporter (JVM heap/GC,
+  # buffer pools, active transactions) and cadvisor's per-container block
+  # I/O, which is where page-cache misses become visible. Client-side
+  # latency is db.client.operation.duration, emitted by the SDK.
+  - job_name: seocho-dozerdb-bolt
+    static_configs:
+      - targets: ["dozerdb-bolt-exporter:9141"]
+
+  - job_name: seocho-cadvisor
+    static_configs:
+      - targets: ["cadvisor:8080"]

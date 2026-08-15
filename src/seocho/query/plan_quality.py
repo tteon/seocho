@@ -97,25 +97,27 @@ def record_metrics(summary: Dict[str, Any], *, route: Optional[str] = None,
     Label cardinality is kept bounded: booleans, a route name, and a coarse
     rejection reason rather than the message text.
     """
-    from ..tracing import record_metric
+    from ..metrics import get_metrics
+
+    metrics = get_metrics()
 
     if summary.get("available"):
-        record_metric(
-            "seocho_query_plan",
+        metrics.add(
+            "seocho.query.plan.count",
             1,
             attributes={"sargable": str(bool(summary.get("sargable"))).lower()},
         )
         # A counter carrying db hits lets a rate() show cost per query over time
         # without needing a histogram on every backend.
-        record_metric("seocho_query_db_hits", float(summary.get("db_hits") or 0))
+        metrics.add("seocho.query.db_hits.count", float(summary.get("db_hits") or 0))
         for operator in sorted(set(summary.get("scans") or []))[:3]:
-            record_metric("seocho_query_scan", 1, attributes={"operator": operator})
+            metrics.add("seocho.query.scan.count", 1, attributes={"operator": operator})
     if route:
-        record_metric("seocho_query_plan_route", 1, attributes={"route": route})
+        metrics.add("seocho.query.plan_route.count", 1, attributes={"route": route})
     if declined:
         # Only the exception class, so the label set stays small.
         reason = declined.split(":", 1)[0].strip()[:60] or "unknown"
-        record_metric("seocho_query_generation_declined", 1, attributes={"reason": reason})
+        metrics.add("seocho.query.generation_declined.count", 1, attributes={"reason": reason})
 
 
 def slot_attributes(intent_data: Optional[Dict[str, Any]]) -> Dict[str, Any]:

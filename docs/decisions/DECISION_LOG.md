@@ -987,6 +987,13 @@ Each entry must link to a full ADR when impact is non-trivial.
   - OS control plane is nearly FREE (composition-overhead check passes); data plane dominates but rust-ext codec (ADR-0111) already captured the lever
   - decision: bolt-rs = not-yet, needs its own A/B (ADR-0163 discipline held); completes Level-2 A1-A6
 
+## 2026-08-15 (ablation L1 integrated)
+
+- [Accepted] ADR-0167 ablation-l1-integrated (seocho-41a) — OS-vs-bare on one mixed 2-tenant concurrent load, live DozerDB
+  - cross-tenant leaks BARE 4800 / OS 0; truncation disclosure 0.0 / 1.0; max store concurrency 12 / 4 (admission-bounded)
+  - disclosed cost: OS p99 272 vs 155ms (concurrency-bound queueing tail; benefit shows at scale, ADR-0159 optimizes it)
+  - guarantees COMPOSE under load; completes ablation Level-1+Level-2; task-correctness parity (agent+judge) is the remaining axis
+
 ## 2026-08-15 (ablation A4+A5)
 
 - [Accepted] ADR-0165 ablation-a4-a5 (resources + execution honesty)

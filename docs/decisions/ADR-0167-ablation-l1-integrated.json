@@ -1,0 +1,32 @@
+{
+  "workers": 12,
+  "queries_each": 8,
+  "row_cap": 50,
+  "max_inflight_os": 4,
+  "bare": {
+    "arm": "bare",
+    "cross_tenant_leaks": 4800,
+    "over_cap_results": 96,
+    "truncation_disclosed": 0,
+    "disclosure_rate": 0.0,
+    "max_store_concurrency": 12,
+    "admission_rejected": 0,
+    "p50_ms": 103.44,
+    "p95_ms": 137.18,
+    "p99_ms": 154.97,
+    "served": 96
+  },
+  "os": {
+    "arm": "os",
+    "cross_tenant_leaks": 0,
+    "over_cap_results": 48,
+    "truncation_disclosed": 48,
+    "disclosure_rate": 1.0,
+    "max_store_concurrency": 4,
+    "admission_rejected": 0,
+    "p50_ms": 4.51,
+    "p95_ms": 157.25,
+    "p99_ms": 271.82,
+    "served": 96
+  }
+}

@@ -24,16 +24,28 @@ it is asserted mechanically rather than assumed.
   vector          the supporting passages, prose, relations implicit
   graph           the same facts as `(subject) -[RELATION]-> (object)`, deduplicated
   both            both forms, each at HALF the budget
-  vector_matched  passages trimmed to the graph arm's ACTUAL length
+  graph_unstructured
+                  the same triples with the relation markup stripped to a flat
+                  bag of terms — same facts, same order, near-identical length,
+                  no structure
 
-The fourth arm exists because the first run exposed the obvious trap: on the
-synthetic set the graph form used 79.5 chars against vector's 467.5 — six times
-smaller. Capped at the same budget is not the same as *using* the same budget,
-and a graph win against a six-times-longer vector context could simply be that
-short contexts distract less. `vector_matched` is the floor control: if graph
-beats `vector` but ties `vector_matched`, the mechanism is compactness, not
-structure. Without it the headline is unreadable — the same failure that
-retracted the routing experiment (seocho-02t), which had a ceiling and no floor.
+The fourth arm is the control that isolates structure, and it is the second
+design of it. The first was `vector_matched`: passages trimmed to the graph
+arm's actual character length. That arm was invalid and the first run proved it
+— the gold string was absent from 8 of 12 contexts, because prose stating a
+fact is inherently longer than the triple stating it, so trimming to the
+triple's length drops the fact. Its 1/12 measured information deprivation, not
+compactness, and could not tell "structure helped" from "less text helped"
+(seocho-alm).
+
+Length cannot be held constant while facts are, so length stops being a control
+and becomes an outcome — reported per arm, in tokens, by the runner.
+`graph_unstructured` varies only the thing under test: it carries exactly the
+same triples in exactly the same order, with `(A) -[REL]-> (B)` flattened to
+`A REL B`. Same facts, same units, same sequence, and within a few percent on
+length. If `graph` beats it, stated structure is doing the work; if they tie,
+the graph form's advantage is compression and deduplication, which the token
+counts already measure.
 
 The `both` arm is the other thing people get wrong. If it were graph + vector
 concatenated it would carry twice the tokens, and a `both` win would be budget,
@@ -58,7 +70,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 SCHEMA_VERSION = 1
-ARMS = ("vector", "graph", "both", "vector_matched")
+ARMS = ("vector", "graph", "both", "graph_unstructured")
 
 
 def _char_counter(text: str) -> int:
@@ -104,6 +116,24 @@ def render_graph(edges: List[List[str]]) -> List[str]:
     return _dedup(lines)
 
 
+def render_graph_unstructured(edges: List[List[str]]) -> List[str]:
+    """The same triples with the markup stripped: `(A) -[REL]-> (B)` -> `A REL B`.
+
+    Same facts, same order, same number of units — only the structural markers
+    are gone. This is the arm that isolates whether STATED structure helps, as
+    opposed to the compression and deduplication the graph form also brings.
+    Relation names keep their underscores rather than being re-spaced, so the
+    two arms differ in punctuation only and stay within a few percent on length.
+    """
+    lines = []
+    for edge in edges:
+        if len(edge) != 3:
+            continue
+        subject, relation, obj = (str(x).strip() for x in edge)
+        lines.append(f"{subject} {relation.upper().replace(' ', '_')} {obj}")
+    return _dedup(lines)
+
+
 def _fill(units: List[str], budget: int, count: Callable[[str], int],
           joiner: str = "\n") -> Tuple[str, int, int]:
     """Greedily take whole units until the next one would exceed the budget.
@@ -145,15 +175,18 @@ def build_arms(item: Dict[str, Any], budget: int,
     )
     both_text = "\n".join(t for t in (both_graph, both_vector) if t)
 
-    # Floor control: the same passages the vector arm gets, cut to the length the
-    # graph arm actually used. Separates "structure helped" from "less text helped".
-    matched_text, matched_used, matched_n = _fill(passages, max(graph_used, 1), count)
+    # Structure control: the same triples, same order, markup stripped. Facts and
+    # units are held constant and only stated structure varies, which the
+    # replaced `vector_matched` arm could not do — see the module docstring.
+    flat = render_graph_unstructured(item.get("gold_edges") or [])
+    flat_text, flat_used, flat_n = _fill(flat, budget, count)
 
     return {
         "schema_version": SCHEMA_VERSION,
         "id": item.get("id"),
         "question": item.get("question"),
         "answer": item.get("answer"),
+        "excluded": item.get("excluded") or [],
         "strata": item.get("strata", {}),
         "budget": budget,
         "budget_unit": unit,
@@ -165,8 +198,8 @@ def build_arms(item: Dict[str, Any], budget: int,
                 "used": both_graph_used + both_vector_used,
                 "units": both_graph_n + both_vector_n,
             },
-            "vector_matched": {
-                "context": matched_text, "used": matched_used, "units": matched_n
+            "graph_unstructured": {
+                "context": flat_text, "used": flat_used, "units": flat_n
             },
         },
         # Availability, not fairness: an item whose graph form is empty cannot
@@ -204,9 +237,10 @@ def main() -> None:
             print(f"  {arm:7s} mean_used={sum(used)/len(used):7.1f} {unit}  "
                   f"mean_units={sum(units)/len(units):4.1f}  max_used={max(used)}")
     print("\nEvery arm is capped at the same budget and `both` splits it rather than "
-          "doubling it.\nWatch the gap between `graph` and `vector` usage: where it is "
-          "large, read `graph`\nagainst `vector_matched`, not against `vector`, or the "
-          "result is a length effect.")
+          "doubling it.\n`graph` vs `graph_unstructured` is the structure test: same "
+          "facts, same order,\nsame count, markup only. `graph` vs `vector` is a "
+          "compression measurement, not\na fair accuracy contest — read the token "
+          "counts the runner prints alongside it.")
 
 
 if __name__ == "__main__":

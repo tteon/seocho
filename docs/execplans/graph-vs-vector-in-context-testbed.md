@@ -231,7 +231,106 @@ exist under `seocho-vdw.6` and must be reused, not rebuilt.
 4. **Synthesise the when.** Map each stratum to a recommendation with its
    mechanism, and state the strata where the honest answer is "no difference".
 
+## Second behaviour run — 2026-08-16, MiniMax-M2.7, 20 items, 10 strata
+
+The first run (below) was a ceiling, not a tie. This one discriminates, and the
+answer to *when graph, when vector, when both* falls out of it with mechanisms.
+
+| arm | correct | prompt tokens | TTFT median |
+| --- | --- | --- | --- |
+| `vector` | 20/20 | 435.4 | 116 ms |
+| `graph` | 16/20 | 102.5 | 114 ms |
+| `both` | 17/20 | 438.2 | 117 ms |
+| `graph_unstructured` | 16/20 | 86.9 | 112 ms |
+
+| stratum | n | vector | graph | both | graph_unstr |
+| --- | --- | --- | --- | --- | --- |
+| S1 extractive | 2 | 2 | 2 | 2 | 2 |
+| S2 joined (2 hop) | 2 | 2 | 2 | 2 | 2 |
+| S3 deep join (3 hop) | 3 | 3 | 3 | 3 | 3 |
+| S3b four hop | 3 | 3 | 3 | 3 | 3 |
+| S4 aggregation (fan-out 5) | 3 | 3 | 3 | 3 | 3 |
+| S5 absence | 1 | 1 | **0** | 1 | **0** |
+| S6 ambiguous entity | 1 | 1 | 1 | 1 | 1 |
+| S7 distractor | 1 | 1 | 1 | 1 | 1 |
+| S7b near-miss names | 1 | 1 | 1 | 1 | 1 |
+| S8 negation | 3 | 3 | **0** | 1 | **0** |
+
+### Stated structure is worth nothing
+
+`graph` and `graph_unstructured` score **16/20 each, identical in every
+stratum**. The two arms carry the same triples in the same order and differ
+only in whether the markup is present: `(A) -[REL]-> (B)` against `A REL B`.
+This is the control `vector_matched` failed to be, and it returns a clean null.
+
+So the graph form's value is **not** that relations are typographically stated.
+Strip the markup and nothing changes — except that the flat form costs 86.9
+prompt tokens against 102.5, i.e. **15% cheaper for identical answers**.
+
+### What the graph form does buy: 4x prefill
+
+435.4 prompt tokens for `vector` against 102.5 for `graph`, at parity on every
+positive-query stratum including four-hop joins and five-wide aggregation.
+That is a 4.25x reduction — prefill the engine never runs — and it is the one
+number in this run that belongs to the serve track rather than the retrieval argument.
+
+TTFT remains flat at 112-117 ms across all four arms. Over an API the 4x token
+difference is invisible; measuring the prefill saving needs KV-block counts on
+the H200 box.
+
+### Where the graph form is categorically wrong
+
+`graph` scores **0 of 4** across negation and absence, while `vector` scores
+4 of 4 and the model answers `NOT STATED` every time. This confirms
+`seocho-2gq`, which was a one-item hypothesis after the first run, and rules
+out the alternative explanation: the model can do these — it does them from
+prose — so this is the representation, not the task.
+
+The mechanism: a triple list asserts positives. "Which products are not sold in
+Norland" requires the complement, and relevance-filtered retrieval is precisely
+what discards it. Adding hops does not help — S8's join-and-negate item fails
+the same way as its one-hop sibling.
+
+`both` does not rescue it either (1 of 3), while costing 438.2 prompt tokens —
+the same as `vector` — and the most output tokens of any arm at 255.8. The
+naive hybrid is the worst cost profile in the set for a partial fix.
+
+### The guidance this produces
+
+1. **Route by question type, not by system.** Positive lookup, join to any
+   depth, aggregation, entity disambiguation: graph, at a quarter of the
+   prefill. Negation, absence, "which did not": vector, or the graph lane must
+   emit the complement rather than the matched edges.
+2. **Stop paying for serialization.** The markup is 16% of the graph arm's
+   tokens and buys nothing measurable.
+3. **`both` is not a safe default.** It costs like `vector` and does not fix
+   what `graph` gets wrong.
+
+### Three harness defects this run exposed, all in scoring
+
+Fixed before the numbers above were taken, and each pinned by a test:
+
+- The world was too small. Four suppliers over three plants put three arms at
+  the ceiling; scaled to 12 suppliers, 6 plants, 6 products, a material layer
+  for four-hop chains, and fan-out of 5 (`seocho-eer`).
+- The four-hop questions were **ambiguous by construction** in the first draft:
+  `Silica` reached both Sudmark and Norland, and a dict built from the pairs
+  silently kept the last supplier, producing an answer that looked right and
+  was unverifiable by hand. The generator now asserts chain convergence and
+  refuses to emit an ambiguous item.
+- Set answers cannot be scored by substring containment, and an LLM judge told
+  to reject extra items over-rejects instead. Containment marked all three
+  correct negation answers wrong because the model wrote "K2, M3 **and** R4";
+  the judge then marked the same answers wrong because they went on to say
+  where each product *is* sold. The generator now carries the complement, and
+  the check is an exact set test — every gold item present, no excluded item —
+  with no judge involved. Both failure directions are pinned.
+
 ## First behaviour run — 2026-08-15, MiniMax-M2.7, 12 synthetic items
+
+Superseded by the run above; kept because its nulls and its four retracted
+harness defects are why the second run is readable.
+
 
 Four arms, temperature 0, scored by token containment (short golds) with a
 `gpt-oss-120b` blind judge as the fallback. Reproduce with:
@@ -315,15 +414,46 @@ checks. All four are pinned by tests.
 
 ## Status
 
-Layer 3 is built and validated. Layer 1 now has its first four-arm run, above:
-a null on accuracy, a 1.9x prompt-token compression, a null on TTFT, and a
-negation hypothesis. Layer
-2 is designed (`seocho-ees`) and blocked on hardware.
+Layer 1 (behaviour) has now found the effect the other two layers exist to
+explain, so the gate is passed:
 
-Next: harder items (`seocho-eer`) and the structure-stripped control
-(`seocho-alm`) before any GraphRAG-Bench run — a bench pass over a set that
-cannot separate the arms would only buy a larger null. GraphRAG-Bench is also
-gated on data: only the Medical split is downloaded locally and its
-`evidence_relations` field is prose, not triples, so it yields no `gold_edges`
-and every item is non-comparable. The Novel split, which carries
-`evidence_triple`, has to be fetched first.
+- **stated structure is worth nothing** — `graph` and `graph_unstructured` tie
+  at 16/20, identical in every stratum
+- **the graph form buys 4.25x fewer prompt tokens** at parity on every positive
+  stratum, including four-hop joins and five-wide aggregation
+- **the graph form is categorically wrong on negation and absence** — 0 of 4
+  where vector is 4 of 4, and the model answers NOT STATED every time
+- **TTFT is flat** at 112-117 ms across all arms, so the prefill saving is
+  invisible over an API and has to be measured on the box
+
+Layer 3 (serving) is built and validated. Layer 2 (mechanism) is designed
+(`seocho-ees`) and blocked on hardware.
+
+## Next, on H200 x4 with MiniMax-M2.7
+
+The behaviour layer says *what* differs. The GPU work says *why*, and turns the
+routing rule above into engineering guidance:
+
+1. **Confirm the 4x in KV blocks, not tokens.** Prompt-token count is an API
+   proxy. Re-measure `graph` vs `vector` against `BlockStored` counts and
+   prefill time from the KV-event stream; the ratio that matters for capacity
+   is blocks, and `block_size` quantisation may eat part of a 4x.
+2. **Attention over the negation failures.** The graph arm answers NOT STATED on
+   all four negation/absence items. Look at where attention goes on those
+   prompts: if it concentrates on the matched triples and never spreads, the
+   complement really is absent rather than merely unattended — which decides
+   whether the fix is retrieval (emit the complement) or serialization.
+3. **Routed experts by context form** (`seocho-ees`). Both graph arms score
+   identically while differing in punctuation density, which is the cleanest
+   available test of whether the forms are *processed* differently or merely
+   read differently. Run it with the ceiling and floor controls that
+   `seocho-02t` lacked.
+4. **Prefix reuse across a graph agentic loop.** The agentic path re-issues a
+   stable system prefix per turn; measure what the 4x compression does to
+   cache-hit rate over a multi-turn session, where it compounds.
+
+GraphRAG-Bench remains the external-validity check and is gated on data: only
+the Medical split is local and its `evidence_relations` field is prose, not
+triples, so it yields no `gold_edges`. The Novel split, which carries
+`evidence_triple`, has to be fetched first (`seocho-9ea.1` tracks ERB as the
+second corpus).

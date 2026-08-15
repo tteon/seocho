@@ -63,10 +63,39 @@ def test_both_is_capped_even_when_the_budget_never_binds():
     assert out["arms"]["both"]["used"] < total, "both degenerated to concatenation"
 
 
-def test_vector_matched_is_capped_at_the_graph_arms_actual_length():
-    """The floor control: same passages, cut to what the graph form actually used."""
-    out = arms.build_arms(_item(), budget=500, count=_COUNT, unit="chars")
-    assert out["arms"]["vector_matched"]["used"] <= out["arms"]["graph"]["used"]
+def test_graph_unstructured_carries_the_same_facts_in_the_same_order():
+    """The structure control: only the markup may differ."""
+    item = _item()
+    out = arms.build_arms(item, budget=10_000, count=_COUNT, unit="chars")
+    structured = out["arms"]["graph"]["context"].splitlines()
+    flat = out["arms"]["graph_unstructured"]["context"].splitlines()
+    assert len(structured) == len(flat)
+    for s, f in zip(structured, flat):
+        assert s.replace("(", "").replace(")", "").replace("-[", "").replace("]->", "") \
+            .split() == f.split()
+
+
+def test_graph_unstructured_has_no_structural_markers():
+    out = arms.build_arms(_item(), budget=10_000, count=_COUNT, unit="chars")
+    context = out["arms"]["graph_unstructured"]["context"]
+    for marker in ("(", ")", "-[", "]->"):
+        assert marker not in context, f"{marker!r} survived the strip"
+
+
+def test_the_two_graph_arms_carry_the_same_number_of_units():
+    """Unit parity is the invariant; length parity is not achievable and not needed.
+
+    Stripping `(`, `)`, `-[` and `]->` removes a FIXED nine characters per
+    triple, so the length ratio is a function of how long the entity names are
+    — 0.69 on this two-word toy, 0.79 on the real 21-item set. Chasing a length
+    bound would mean padding, which reintroduces the artificiality the replaced
+    `vector_matched` arm suffered from. What must hold is that both arms state
+    the same facts the same number of times.
+    """
+    item = _item(gold_edges=[["A", "r", "B"], ["B", "r2", "C"], ["C", "r3", "D"]])
+    out = arms.build_arms(item, budget=10_000, count=_COUNT, unit="chars")
+    assert out["arms"]["graph"]["units"] == out["arms"]["graph_unstructured"]["units"]
+    assert out["arms"]["graph_unstructured"]["used"] <= out["arms"]["graph"]["used"]
 
 
 def test_units_are_never_truncated_mid_fact():
@@ -128,7 +157,7 @@ def test_strata_survive_into_the_arms_row():
     assert out["strata"]["stratum"] == "S2_joined"
 
 
-def test_length_matched_prose_cannot_also_be_fact_matched():
+def _retired_test_length_matched_prose_cannot_also_be_fact_matched():
     """Why `vector_matched` is a diagnostic, not a control.
 
     Prose stating a fact is inherently longer than the triple stating it, so an

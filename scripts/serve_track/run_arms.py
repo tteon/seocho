@@ -9,8 +9,8 @@ Relation to what already exists — this generalises, it does not duplicate.
 follows: two arms given the SAME facts in different form, so the measurement is
 about representation rather than information access. `port1_finbench.py` scaled
 it to FinBench planted gold. Both are hardcoded to two arms
-(`baseline` / `seocho`) and neither has a length control. This runs FOUR — the
-third form (`both`) and the floor control (`vector_matched`) — over an arbitrary
+(`baseline` / `seocho`) and neither has a structure control. This runs FOUR — the
+third form (`both`) and the structure control (`graph_unstructured`) — over an arbitrary
 arms file, and reuses their deterministic token checker rather than inventing a
 scorer.
 
@@ -64,7 +64,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 SCHEMA_VERSION = 1
-ARMS = ("vector", "graph", "both", "vector_matched")
+ARMS = ("vector", "graph", "both", "graph_unstructured")
 
 _ANSWER_SYSTEM = (
     "Answer the question using only the context provided. "
@@ -75,7 +75,10 @@ _ANSWER_SYSTEM = (
 _JUDGE_SYSTEM = (
     "You grade one answer against a reference. Reply with exactly one word: "
     "CORRECT if the answer conveys the reference, otherwise WRONG. "
-    "Ignore wording, formatting and extra detail; judge the substance. "
+    "Ignore wording, ordering and formatting; judge the substance. "
+    "When the reference is a LIST, the answer must name every item in it and "
+    "must not name any item that is not in it — an extra item is WRONG, not a "
+    "harmless detail. "
     "If the reference is 'none' or says information is absent, then a reply "
     "stating the information is not present is CORRECT."
 )
@@ -132,14 +135,48 @@ def check_deterministic(gold: str, candidate: str) -> Optional[bool]:
 
     Only used where the gold is short enough to be a fact rather than prose; a
     containment test over a paragraph would pass on coincidence.
+
+    A LIST gold defers to the judge, and that is not a convenience. The negation
+    stratum's golds are sets — "Model K2, Model M3, Model R4" — and containment
+    scored every correct answer wrong because the model wrote "K2, M3, and R4"
+    or listed them in a different order. Worse, containment cannot see the error
+    that matters: an answer naming the three gold items PLUS two that do not
+    belong is wrong, and a substring test calls it right. Set membership alone
+    does not fix that either, since the excluded universe is not in this file.
+    So list golds go to the judge, which is told the reference and can weigh
+    both omissions and additions.
     """
     gold = (gold or "").strip()
     if not gold or len(gold) > 60:
         return None
+    if "," in gold:
+        return None  # handled by check_set, which needs the complement
     hay = _normalise(candidate)
     if gold.lower() in ("none", "not stated", "no answer"):
         return "not stated" in hay or "not present" in hay or "none" in hay
     return _normalise(gold) in hay
+
+
+def check_set(gold: str, excluded: List[str], candidate: str) -> Optional[bool]:
+    """Score a list answer as a set: every gold item present, no excluded one.
+
+    Neither of the obvious alternatives works. Substring containment fails on
+    ordering and on the word "and" — it scored all three correct negation
+    answers wrong. An LLM judge told to reject extra items over-rejects instead,
+    marking "K2, M3 and R4 are not sold in Norland" wrong because the reply went
+    on to say where each IS sold; that is supporting detail, not a fourth item.
+
+    The complement comes from the generator, which knows the closed world, so
+    the check is exact in both directions: omitting a gold item fails, and
+    naming an item that does belong to Norland fails.
+    """
+    items = [g.strip() for g in (gold or "").split(",") if g.strip()]
+    if len(items) < 2 or not excluded:
+        return None
+    hay = _normalise(candidate)
+    if any(_normalise(item) not in hay for item in items):
+        return False
+    return not any(_normalise(bad) in hay for bad in excluded)
 
 
 def judge(client, model: str, question: str, gold: str, candidate: str) -> bool:
@@ -183,6 +220,7 @@ def main() -> None:
                 "id": item.get("id"),
                 "question": item["question"],
                 "gold": item["answer"],
+                "excluded": item.get("excluded") or [],
                 "strata": item.get("strata", {}),
                 "budget_unit": item.get("budget_unit"),
                 "arms": {},
@@ -192,6 +230,10 @@ def main() -> None:
                 try:
                     got = answer_arm(client, args.model, item["question"], context, args.max_tokens)
                     deterministic = check_deterministic(item["answer"], got["text"])
+                    if deterministic is None:
+                        deterministic = check_set(
+                            item["answer"], item.get("excluded") or [], got["text"]
+                        )
                     if deterministic is None:
                         correct = judge(client, args.judge_model, item["question"],
                                         item["answer"], got["text"])
@@ -247,8 +289,9 @@ def _report(results: List[Dict[str, Any]]) -> None:
 
     _report_cost(results)
 
-    print("\nRead `graph` against `vector_matched`, not against `vector`, wherever the")
-    print("two differ in length — otherwise a graph win may just be a shorter context.")
+    print("\n`graph` vs `graph_unstructured` is the structure test: identical facts in")
+    print("identical order, markup only. `graph` vs `vector` measures compression, not")
+    print("a fair accuracy contest — read it against the token table above.")
 
 
 def _median(values: List[float]) -> float:

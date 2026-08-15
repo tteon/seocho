@@ -46,3 +46,46 @@ def test_absence_gold_accepts_a_refusal():
 
 def test_empty_answer_is_not_silently_correct():
     assert runner.check_deterministic("Model K1", "") is False
+
+
+def test_a_list_gold_defers_to_the_judge():
+    """Containment cannot score a set, in either direction.
+
+    It marks a correct answer wrong when the order differs or an "and" appears,
+    and it marks a wrong answer right when the reply names every gold item plus
+    two that do not belong. Both happened on the negation stratum.
+    """
+    gold = "Model K2, Model M3, Model R4"
+    assert runner.check_deterministic(gold, "Model K2, Model M3, and Model R4") is None
+    assert runner.check_deterministic(gold, "anything at all") is None
+
+
+def test_a_single_value_gold_still_scores_deterministically():
+    assert runner.check_deterministic("Eastfield Plant", "Eastfield Plant") is True
+
+
+_NEG_GOLD = "Model K2, Model M3, Model R4"
+_NEG_EXCLUDED = ["Model K1", "Model L9", "Model P7"]
+
+
+def test_set_scoring_accepts_reordering_and_supporting_detail():
+    """The exact shape the model produced, which containment scored wrong."""
+    answer = ("Model K2, Model M3, and Model R4 are not sold in Norland.\n"
+              "- Model K2 is sold in Sudmark\n- Model M3 is sold in Verrat")
+    assert runner.check_set(_NEG_GOLD, _NEG_EXCLUDED, answer) is True
+
+
+def test_set_scoring_rejects_an_omission():
+    assert runner.check_set(_NEG_GOLD, _NEG_EXCLUDED, "Model K2 and Model M3") is False
+
+
+def test_set_scoring_rejects_an_item_that_does_not_belong():
+    """The error an LLM judge and a containment check both miss."""
+    answer = "Model K2, Model M3, Model R4, and Model K1"
+    assert runner.check_set(_NEG_GOLD, _NEG_EXCLUDED, answer) is False
+
+
+def test_set_scoring_declines_when_there_is_no_complement():
+    """Without the excluded set the check cannot see additions, so it must abstain."""
+    assert runner.check_set(_NEG_GOLD, [], "anything") is None
+    assert runner.check_set("single value", _NEG_EXCLUDED, "single value") is None

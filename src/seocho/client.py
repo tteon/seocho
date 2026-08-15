@@ -1569,8 +1569,13 @@ class Seocho:
         # operating-layer handles. Hand ``sess.sdk_session`` and
         # ``sess.hooks`` to openai-agents ``Runner.run``; the shared
         # admission gate and per-session budget ride the layer.
-        os_session = self._os().session(sess.session_id, priority=priority,
-                                        user_id=self.user_id)
+        os_layer = self._os()
+        os_session = os_layer.session(sess.session_id, priority=priority,
+                                      user_id=self.user_id)
+        # Attach the layer + this session's handle so the Session object itself
+        # is the whole OS surface: sess.query()/resolve()/agent() delegate here.
+        sess._os = os_layer
+        sess._os_session = os_session
         sess.priority = os_session.priority
         sess.sdk_session = os_session.sdk_session
         sess.hooks = os_session.hooks

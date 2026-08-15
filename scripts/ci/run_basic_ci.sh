@@ -101,6 +101,8 @@ uv run pytest \
   tests/seocho/test_ontology_subclass_ttl.py \
   tests/seocho/test_ontology_reasoner.py \
   tests/seocho/test_ontology_iso704_cq.py \
+  tests/seocho/test_relationship_direction.py \
+  tests/seocho/test_prompt_prefix_stability.py \
   tests/seocho/test_run_spec.py \
   tests/seocho/test_e2e_runner.py \
   tests/seocho/test_scaffold.py \

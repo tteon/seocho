@@ -939,6 +939,32 @@ Each entry must link to a full ADR when impact is non-trivial.
   - S2: work-conserving reserve keeps interactive protection while lifting normal throughput +56~59% vs the static reserve
   - defaults: single lane + fast-fail + borrowable reserve, all off-by-default on Seocho(...)
 
+## 2026-08-15 (interning)
+
+- [Accepted] ADR-0160 interning-measurement (identity table = memory allocator)
+  - exercises real compute_node_identity over FinBench Person/Company, SF1+SF10
+  - collision: name_only 100% (SF10 569/569 homonym pairs aliased) vs composite 0% — 2,845 Person addresses lost to wrongful merges at SF10 under name-only
+  - collapse: case/whitespace 100%; suffix recall 0% (honest ceiling → alias/same_as follow-up)
+  - scale-invariant; feeds the allocator/interning Tier-1 claim (seocho-gzo, seocho-5r2)
+
+## 2026-08-15 (subgraph retrieval)
+
+- [Accepted] ADR-0161 subgraph-retrieval (boundary-1 resolution, seocho-zfe)
+  - real compute_node_identity + bge over FinBench; ceiling+floor controls; scale-invariant Company SF1/SF10 + Person SF1
+  - CONFIRMED: naive vector_name 50% wrong-anchor on homonyms (silent wrong subgraph); intern 0% homonym error by construction (exact/auditable)
+  - REFUTED overclaim: vector_disamb ~0% everywhere on clean synthetic names — vector not structurally incapable; distinction is guaranteed-vs-empirical + cost/auditability, not capability
+  - HONEST weakness: intern 100% miss on suffix variants (normalizer recall ceiling, closeable by alias/same_as)
+  - design = intern-first + vector fallback (hybrid); stronger than 'we beat vector'
+
+## 2026-08-15 (real-data interning)
+
+- [Accepted] ADR-0162 interning-real-mdm (validation on live DozerDB golden master)
+  - real cross-model duplicates (DeepSeek/gpt-oss/MiniMax x categories), MDM GoldenEntity = ground truth; 114 SourceRefs / 48 golden clusters
+  - CONFIRMS synthetic: exact intern_name P=1.000 (never merges distinct golden entities) with recall ceiling 0.811; MDM's own business_key also ceilinged (0.764) -> production needed a fuzzy layer
+  - semantic fallback vector_bge R=0.896/F1=0.945 recovers the miss -> validates the hybrid (seocho-6l8) on real data
+  - NEW insight: name-only out-recalls name+label (0.811>0.755) because models disagree on labels -> don't over-specify identity_keys with model-contested fields
+  - real missed cases: Delta Air Lines/Delta, Pfizer Inc./Pfizer, Chipotle Mexican Grill Inc./CHIPOTLE, Enphase Energy Inc./ENPHASE
+
 ## Template
 
 Use this block for new entries:

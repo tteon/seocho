@@ -159,6 +159,45 @@ The trial-and-error this plan exists to accumulate, already paid for:
   `seocho-8hb`.
 - vLLM 0.27.1 needs Python 3.12; flashinfer subscripts `array.array` on 3.10.
 
+## Two corpora, and the question that needs both
+
+One benchmark answers "does the distinction show up here". Two answer "is the
+distinction useful", which is the one worth asking.
+
+| | GraphRAG-Bench | EnterpriseRAG-Bench |
+|---|---|---|
+| corpus | textbooks, novels, curated | 512k synthetic enterprise docs, 9 sources |
+| noise | none by design | misfiled ~8%, near-duplicates, conflicts, jargon |
+| supplies | **hop count** (Novel `evidence_triple`), dispersion, reasoning type | dispersion exactly (gold-set size), conflict, absence, completeness |
+| cannot supply | conflict, absence, aggregation, ambiguity | **hop count** — no gold triples |
+
+ERB is closer to real company data and the paper measures rather than asserts
+it: top-10 local cosine 0.83 for both ERB and a real Onyx corpus, against 0.69
+for open-web BrowseComp-Plus. Dense neighbourhoods mean abundant distractors.
+
+Its categories cover three strata the synthetic set had to invent — Conflicting
+Info, Info Not Found, Completeness — and its gold-set sizes give dispersion by
+construction (1 for Basic/Semantic/Intra-Doc/Misc, exactly 2 for Conflicting,
+mean 4.2 for Project Related, mean 6.5 for Completeness). It adds one axis we
+did not have: **Intra-Doc Reasoning**, dispersion *inside* one long document,
+which stresses chunking rather than retrieval.
+
+Neither corpus supplies everything, and they must not be pooled on the hop axis
+— only GraphRAG-Bench Novel has it, the same rule that separates Novel from
+Medical.
+
+**Both benchmarks already show the intuitive story failing.** On GraphRAG-Bench
+a *tree* (RAPTOR) beat every graph method and BM25/TF-IDF beat five of nine. On
+ERB, vector loses to BM25 on *Semantic* questions — 32.8 against 44.8
+correctness — the one category built to favour embeddings by suppressing keyword
+overlap. Both papers explain this narratively and leave it to future work. Two
+independent datasets, same shape of unexplained result: that is the gap.
+
+The comparison to run is therefore not the pooled score but the **stratum
+profile across corpora**. A distinction that survives only on clean textbook
+data is not useful. Tracked as `seocho-9ea.1`; the ERB slice and adapter already
+exist under `seocho-vdw.6` and must be reused, not rebuilt.
+
 ## Method rules, learned the expensive way
 
 1. **Two controls, never one.** A ceiling control (identical inputs → 1.000) and

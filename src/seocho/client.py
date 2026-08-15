@@ -2784,7 +2784,7 @@ class Seocho:
 
             self._operating_layer = SeochoOS(
                 ontology=self.ontology, graph_store=self.graph_store,
-                database=getattr(self, "database", None) or "neo4j",
+                database=self.default_database or "neo4j",
                 workspace_id=self.workspace_id or "default",
                 **self._os_config)
         return self._operating_layer

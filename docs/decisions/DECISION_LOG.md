@@ -895,6 +895,12 @@ Each entry must link to a full ADR when impact is non-trivial.
 
 ## 2026-08-15
 
+- [Proposed] ADR-0155 rust-dataplane-proxy-for-unified-cache-layer
+  - the cache-layer data plane (Bolt relay, KV reverse index, xlat table, Arrow projection) is a new Rust component from day one (docs.rs `neo4j` crate client leg, `neo4rs` fallback)
+  - the Python SDK Bolt path is NOT rewritten; gate = measured db.client server_share from PR #482
+  - Python touches the data plane only at control points; canonical SDK behavior stays in src/seocho/
+  - risk: second toolchain + Bolt relay protocol drift, bounded by DozerDB 5.26 LTS pin and a relay-overhead kill criterion
+
 - [Accepted] ADR-0144 amendment — single metrics pipeline
   - route the ADR-0144 §6 counters through the ADR-0146 registry (seocho.metrics), under catalog dotted names
   - remove the tracing module's private OTel meter; one provider, one env switch, label budget enforced everywhere

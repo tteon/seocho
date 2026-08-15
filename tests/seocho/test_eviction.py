@@ -61,3 +61,44 @@ def test_thread_safe_under_concurrent_access():
         t.join(timeout=10)
     s = c.stats()
     assert s["bytes"] <= 2000 and s["hits"] + s["misses"] == 8 * 200
+
+
+def test_get_measured_uses_computed_size_and_cost():
+    """get_measured admits with the size/cost the compute_fn measures, and
+    credits the stored cost on a hit."""
+    c = CostAwareEvictionCache(byte_budget=1000)
+    calls = {"n": 0}
+
+    def compute():
+        calls["n"] += 1
+        return ("built", 200, 42.0)   # value, size(bytes), recompute_cost(ms)
+
+    v1 = c.get_measured("k", tenant="t", compute_fn=compute)
+    v2 = c.get_measured("k", tenant="t", compute_fn=compute)   # hit — no recompute
+    assert v1 == v2 == "built"
+    assert calls["n"] == 1, "second call must be a cache hit"
+    s = c.stats()
+    assert s["hits"] == 1 and s["misses"] == 1
+    assert s["recompute_ms_avoided"] == 42.0   # stored measured cost credited
+    assert s["bytes"] == 200
+
+
+def test_ontology_context_cache_stable_key_and_fairness():
+    """The live cache (ADR-0172 wiring): a stable content key hits across
+    distinct ontology objects, and a churny workspace cannot evict another's."""
+    import glob
+    from seocho.ontology.core import Ontology
+    from seocho.ontology.context import OntologyContextCache
+
+    yamls = glob.glob("examples/**/schema.yaml", recursive=True) or \
+        glob.glob("examples/**/*.yaml", recursive=True)
+    onto_path = yamls[0]
+    o1 = Ontology.load(onto_path)
+    o2 = Ontology.load(onto_path)     # distinct object, identical content
+    assert o1 is not o2 and o1.schema_fingerprint() == o2.schema_fingerprint()
+
+    cache = OntologyContextCache(max_size=8)
+    a = cache.get(o1, workspace_id="acme")
+    b = cache.get(o2, workspace_id="acme")   # id()-keyed cache would MISS here
+    assert a is b, "stable content key must hit across distinct instances"
+    assert cache.stats()["hits"] >= 1

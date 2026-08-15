@@ -94,6 +94,39 @@ class CostAwareEvictionCache:
             self._evict_to_budget(protect_tenant=tenant)
             return value
 
+    def get_measured(self, key: Hashable, *, tenant: str,
+                     compute_fn: Callable[[], tuple]) -> object:
+        """Like :meth:`get`, but ``size`` and ``recompute_cost`` are *measured*.
+
+        For artifacts whose true size and rebuild cost are only known after
+        computing them (e.g. compiling an ontology context), ``compute_fn``
+        returns ``(value, size, recompute_cost)`` and the entry is admitted with
+        those measured values. On a hit the stored (measured) cost is credited
+        to ``recompute_ms_avoided`` — so the avoided-cost metric reflects the
+        real rebuild cost saved, not a caller estimate.
+        """
+        with self._lock:
+            e = self._entries.get(key)
+            if e is not None:
+                self.hits += 1
+                self.recompute_ms_avoided += e.recompute_cost
+                e.freq += 1
+                e.tenants.add(tenant)
+                e.value = self._priority(e)
+                return self._store[key]
+            self.misses += 1
+            value, size, recompute_cost = compute_fn()
+            self.recompute_ms_incurred += float(recompute_cost)
+            e = _Entry(key=key, size=max(int(size), 1),
+                       recompute_cost=float(recompute_cost),
+                       freq=1, tenants={tenant})
+            e.value = self._priority(e)
+            self._entries[key] = e
+            self._store[key] = value
+            self._bytes += e.size
+            self._evict_to_budget(protect_tenant=tenant)
+            return value
+
     def _evict_to_budget(self, *, protect_tenant: str) -> None:
         if self._bytes <= self.byte_budget:
             return
@@ -139,3 +172,15 @@ class CostAwareEvictionCache:
     def holds(self, key: Hashable) -> bool:
         with self._lock:
             return key in self._entries
+
+    def clear(self) -> None:
+        with self._lock:
+            self._entries.clear()
+            self._store.clear()
+            self._bytes = 0
+            self._age = 0.0
+            self.hits = 0
+            self.misses = 0
+            self.recompute_ms_incurred = 0.0
+            self.recompute_ms_avoided = 0.0
+            self.evictions = 0

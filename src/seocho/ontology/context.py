@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections import OrderedDict
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
@@ -337,14 +336,56 @@ def compile_ontology_context(
     )
 
 
-class OntologyContextCache:
-    """Small LRU cache for compiled ontology context artifacts."""
+# Typical compiled-context footprint (bytes) — used only to derive a default
+# byte budget from the legacy ``max_size`` entry count. Real per-entry size is
+# measured (``stable_prefix_bytes``) once compiled.
+_TYPICAL_CONTEXT_BYTES = 8_192
 
-    def __init__(self, *, max_size: int = 32) -> None:
+
+class OntologyContextCache:
+    """Cost-aware, fair, thread-safe cache for compiled ontology contexts.
+
+    The allocator's reclamation half (ADR-0172) applied to the hot context
+    cache. Replaces the previous naive fixed-size LRU keyed by ``id(ontology)``:
+
+    - **stable content key** — keyed by the ontology's ``schema_fingerprint``
+      (+ workspace + profile), not object identity, so the cache is shareable
+      across object instances and stable across a version's lifetime.
+    - **cost-aware eviction** — GreedyDual-Size-Frequency over the *measured*
+      compile cost and prefix size (``stable_prefix_bytes``); an expensive,
+      frequently-referenced context outranks cheap one-shots under pressure.
+    - **per-tenant fairness** — ``workspace_id`` is the tenant; a churny
+      workspace cannot evict another workspace's (or a hot shared) context.
+    - **byte budget + thread-safe** — evicts to a byte budget under one lock,
+      robust under the concurrent sessions the runtime already admits.
+
+    ``max_size`` (legacy entry count) is retained for backward-compatible
+    construction and used to derive a default ``byte_budget`` when none is given.
+    """
+
+    def __init__(self, *, max_size: int = 32, byte_budget: Optional[int] = None,
+                 tenant_floor: int = 1) -> None:
+        from ..eviction import CostAwareEvictionCache
+
         self.max_size = max(max_size, 1)
-        self._cache: OrderedDict[Tuple[int, str, str], CompiledOntologyContext] = OrderedDict()
-        self.hits = 0
-        self.misses = 0
+        budget = byte_budget if byte_budget is not None \
+            else self.max_size * _TYPICAL_CONTEXT_BYTES
+        self._cache = CostAwareEvictionCache(byte_budget=budget,
+                                             tenant_floor=tenant_floor)
+
+    @staticmethod
+    def _stable_key(ontology: Any, workspace_id: str, profile: str) -> Tuple[str, str, str]:
+        """A key that is stable across object instances of the same ontology.
+
+        Prefer the ontology's schema fingerprint (content hash); fall back to
+        object id only if the object does not expose one.
+        """
+        fp = getattr(ontology, "schema_fingerprint", None)
+        try:
+            ident = fp() if callable(fp) else (fp if fp is not None else id(ontology))
+        except Exception:
+            ident = id(ontology)
+        return (str(ident), workspace_id, profile)
 
     def get(
         self,
@@ -353,37 +394,44 @@ class OntologyContextCache:
         workspace_id: str = "default",
         profile: str = "default",
     ) -> CompiledOntologyContext:
-        key = (id(ontology), workspace_id, profile)
-        cached = self._cache.get(key)
-        if cached is not None:
-            self.hits += 1
-            self._cache.move_to_end(key)
-            return cached
+        key = self._stable_key(ontology, workspace_id, profile)
 
-        self.misses += 1
-        compiled = compile_ontology_context(
-            ontology,
-            workspace_id=workspace_id,
-            profile=profile,
-        )
-        self._cache[key] = compiled
-        self._cache.move_to_end(key)
-        while len(self._cache) > self.max_size:
-            self._cache.popitem(last=False)
-        return compiled
+        def _compute():
+            import time
+            t0 = time.perf_counter()
+            compiled = compile_ontology_context(
+                ontology,
+                workspace_id=workspace_id,
+                profile=profile,
+            )
+            cost_ms = (time.perf_counter() - t0) * 1000.0
+            # measured footprint: the stable (cacheable) prefix is the dominant,
+            # KV-relevant portion; fall back to a nominal size if unavailable.
+            try:
+                size = int(compiled.kv_cache_layout()["stable_prefix_bytes"])
+            except Exception:
+                size = _TYPICAL_CONTEXT_BYTES
+            return compiled, max(size, 1), max(cost_ms, 0.001)
+
+        return self._cache.get_measured(key, tenant=workspace_id, compute_fn=_compute)
 
     def stats(self) -> Dict[str, int]:
+        s = self._cache.stats()
+        # keep the legacy keys callers may read, plus the richer policy metrics
         return {
-            "size": len(self._cache),
+            "size": int(s["entries"]),
             "max_size": self.max_size,
-            "hits": self.hits,
-            "misses": self.misses,
+            "hits": int(s["hits"]),
+            "misses": int(s["misses"]),
+            "bytes": int(s["bytes"]),
+            "byte_budget": int(s["byte_budget"]),
+            "hit_rate": s["hit_rate"],
+            "recompute_ms_avoided": s["recompute_ms_avoided"],
+            "evictions": int(s["evictions"]),
         }
 
     def clear(self) -> None:
         self._cache.clear()
-        self.hits = 0
-        self.misses = 0
 
 
 def merge_ontology_context_metadata(

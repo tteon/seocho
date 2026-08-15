@@ -144,6 +144,19 @@ def register(subparsers) -> None:
         "--json", dest="output_json", action="store_true", help="JSON output")
 
 
+    ontology_subparsers.add_parser(
+        "templates", help="List curated starter ontologies for `ontology clone`")
+
+    ontology_clone_parser = ontology_subparsers.add_parser(
+        "clone", help="Copy a curated starter ontology as an editable draft — "
+                      "prints unless --output is given",
+    )
+    ontology_clone_parser.add_argument("template", help="Template name (see `ontology templates`)")
+    ontology_clone_parser.add_argument("--output", default=None, help="Write the draft YAML here")
+    ontology_clone_parser.add_argument(
+        "--json", dest="output_json", action="store_true", help="JSON output")
+
+
 def handle(args: argparse.Namespace) -> int:
     from ..ontology_governance import (
         build_ontology_governance_report,
@@ -452,5 +465,33 @@ def handle(args: argparse.Namespace) -> int:
                     print(rendered)
         # A draft with no document is an unusable import; say so in the exit code.
         return 0 if result.document is not None else 1
+
+    if args.ontology_command == "templates":
+        from ..ontology_templates import list_templates
+
+        for template in list_templates():
+            print(f"{template['name']:22s} {template['description']}")
+        return 0
+
+    if args.ontology_command == "clone":
+        import yaml
+
+        from ..ontology_templates import load_template
+
+        try:
+            document = load_template(args.template)
+        except KeyError as exc:
+            raise SeochoError(str(exc)) from exc
+        if getattr(args, "output_json", False):
+            print(json.dumps(document, indent=2, ensure_ascii=False))
+            return 0
+        rendered = yaml.safe_dump(document, sort_keys=False, allow_unicode=True)
+        if args.output:
+            Path(args.output).write_text(rendered, encoding="utf-8")
+            print(f"template {args.template!r} written to {args.output} — edit, "
+                  f"then validate with: seocho ontology check --schema {args.output}")
+        else:
+            print(rendered)
+        return 0
 
     raise SeochoError(f"Unknown ontology command: {args.ontology_command}")

@@ -78,6 +78,8 @@ uv run pytest \
   tests/seocho/test_graph_loop_model_routing.py \
   tests/seocho/test_tracing.py \
   tests/seocho/test_tracing_opik_regression.py \
+  tests/seocho/test_observability_contract.py \
+  tests/seocho/test_golden_signal_emitters.py \
   tests/seocho/test_cypher_builder.py \
   tests/seocho/test_cypher_builder_ontology_aware.py \
   tests/seocho/test_extraction_engine.py \

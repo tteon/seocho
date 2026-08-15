@@ -547,12 +547,31 @@ class OTLPBackend(TracingBackend):
             try:
                 self._provider.force_flush()
             except Exception:
-                pass
+                self._count_export_failure("traces")
         if self._meter_provider is not None:
             try:
                 self._meter_provider.force_flush()
             except Exception:
-                pass
+                self._count_export_failure("metrics")
+
+    @staticmethod
+    def _count_export_failure(signal: str) -> None:
+        """Count a telemetry export failure via the *other* pipeline.
+
+        Deliberately routed through the ADR-0146 registry, not this backend's
+        own meter: when this exporter is the thing failing, incrementing a
+        counter that exports through it would report nothing. Import is lazy
+        to keep tracing importable without the metrics module and vice versa.
+        """
+        try:
+            from .metrics import get_metrics
+
+            get_metrics().add(
+                "seocho.observability.export_failure.count",
+                attributes={"signal": signal, "exporter": "otlp"},
+            )
+        except Exception:  # pragma: no cover - last-resort guard
+            pass
 
     def close(self) -> None:
         if self._provider is not None:

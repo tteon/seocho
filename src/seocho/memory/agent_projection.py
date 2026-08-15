@@ -46,9 +46,7 @@ class AgentTransactionProjector:
             workspace_id=workspace_id, limit=limit
         )
         if not entries:
-            metrics.set(
-                "seocho.projection.outbox.pending", 0, {"projection": database}
-            )
+            self._report_backlog(metrics, database, workspace_id, default_pending=0)
             return AgentProjectionResult(0, 0, 0, 0)
         nodes, relationships = self._build_graph(entries)
         validate_projection_format(nodes, relationships)
@@ -110,6 +108,11 @@ class AgentTransactionProjector:
             max_sequence,
             {"projection": database},
         )
+        # Re-measure after acknowledging: what is *still* pending is the
+        # backlog the SeochoProjectionStalled alert reasons about. Previously
+        # the pending gauge was only ever set to 0 on the empty path, so a
+        # growing backlog was invisible by construction.
+        self._report_backlog(metrics, database, workspace_id)
         return AgentProjectionResult(
             applied_entries=len(entries),
             applied_sequence=max_sequence,
@@ -117,6 +120,30 @@ class AgentTransactionProjector:
             relationships_written=int(
                 summary.get("relationships_created", len(relationships)) or 0
             ),
+        )
+
+    def _report_backlog(
+        self, metrics: Any, database: str, workspace_id: str,
+        *, default_pending: int | None = None,
+    ) -> None:
+        """Feed the outbox pending/oldest-age gauges from the repository.
+
+        ``outbox_backlog`` is duck-typed: in-memory test repositories may not
+        implement it, in which case only the explicitly known value (the empty
+        batch's 0) is reported rather than a guess.
+        """
+        backlog = getattr(self._repository, "outbox_backlog", None)
+        if backlog is not None:
+            pending, oldest_age = backlog(workspace_id=workspace_id)
+        elif default_pending is not None:
+            pending, oldest_age = default_pending, 0.0
+        else:
+            return
+        metrics.set(
+            "seocho.projection.outbox.pending", pending, {"projection": database}
+        )
+        metrics.set(
+            "seocho.projection.outbox.oldest_age", oldest_age, {"projection": database}
         )
 
     @staticmethod

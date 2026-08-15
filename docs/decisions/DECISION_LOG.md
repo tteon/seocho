@@ -1063,3 +1063,7 @@ Use this block for new entries:
   modules (7,872 LOC) become `src/seocho/ontology/`; lazy `__init__` because the
   core/serialization cycles predate the move, `sys.modules` aliases so
   `monkeypatch` still reaches the canonical module; zero public API change
+- [Accepted] ADR-0174 client-namespaces (seocho-6yf) — `sc.index` / `sc.governance`
+  / `sc.platform` / `sc.sessions` group 54 of 80 facade methods; `AsyncSeocho`'s
+  25 missing methods are generated rather than hand-written; additive, nothing
+  deprecated yet

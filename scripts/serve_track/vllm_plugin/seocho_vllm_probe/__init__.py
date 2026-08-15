@@ -20,6 +20,19 @@ Stability caveat, quoted from `StatLoggerBase` itself rather than the docs:
 stable interfaces and may change in future versions." Pin the vLLM version this
 is run against; it is written for 0.27.1.
 
+Only the SERVER path loads this. `load_stat_logger_plugin_factories()` is called
+in exactly one place in vLLM 0.27.1 — `vllm/v1/engine/async_llm.py`, inside
+`AsyncLLM.__init__`. The offline `LLM(...)` batch API never calls it, so a probe
+run through `LLM.generate()` produces an empty output file and no error: the
+entry point resolves, the class is valid, and nothing is ever instantiated.
+Verified on an RTX 3070 against vLLM 0.27.1 — `LLM()` wrote zero records while
+`vllm serve` wrote the engine-initialized line plus one row per request.
+`scripts/serve_track/smoke_plugin.py` is the check; run it after any vLLM bump.
+
+Once it is loaded, `log_stats` turns itself on: AsyncLLM sets
+`self.log_stats = log_stats or has_custom_loggers`, so `--disable-log-stats`
+does not silence this plugin.
+
 Install into the *vLLM* environment (not the SDK's) and enable by name:
 
     VIRTUAL_ENV=~/.venvs/vllm-serve uv pip install -e scripts/serve_track/vllm_plugin

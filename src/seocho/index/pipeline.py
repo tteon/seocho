@@ -629,10 +629,10 @@ class IndexingPipeline:
                     all_nodes = list(all_nodes) + obs_nodes
                     all_rels = list(all_rels) + obs_rels
                     try:  # ADR-0144 §6: reification was previously silent
-                        from seocho.tracing import record_metric
+                        from seocho.metrics import get_metrics
 
-                        record_metric(
-                            "seocho_observations_reified",
+                        get_metrics().add(
+                            "seocho.index.observations_reified.count",
                             len(obs_nodes),
                             attributes={"ontology": self.ontology.name},
                         )
@@ -1052,11 +1052,11 @@ class IndexingPipeline:
 
         # --- Tracing (ADR-0144 §6: governance observability) ---
         try:
+            from seocho.metrics import get_metrics
             from seocho.tracing import (
                 capture_text,
                 is_tracing_enabled,
                 log_extraction,
-                record_metric,
             )
             if is_tracing_enabled():
                 _mode = self.enforcement_policy.mode
@@ -1082,8 +1082,8 @@ class IndexingPipeline:
                     elapsed_seconds=_pipeline_elapsed,
                     metadata=_meta,
                 )
-                record_metric(
-                    "seocho_validation_errors",
+                get_metrics().add(
+                    "seocho.index.validation_errors.count",
                     len(result.validation_errors),
                     attributes={"mode": _mode, "ontology": self.ontology.name},
                 )

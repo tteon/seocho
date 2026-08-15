@@ -53,6 +53,43 @@ def register_group(group: CommandGroup) -> None:
     COMMAND_GROUPS[group.name] = group
 
 
+def _package_version() -> str:
+    try:
+        from importlib.metadata import version
+
+        return version("seocho")
+    except Exception:
+        return "unknown"
+
+
+@dataclass(frozen=True)
+class CommandGroup:
+    """A pluggable top-level command group.
+
+    This is the extension seam new command families (``seocho ont``,
+    ``seocho policy``) attach to, instead of the four legacy edit sites
+    (build_parser, LOCAL_COMMANDS, _dispatch_local, a _cmd_* if-chain).
+    ``register`` receives the top-level subparsers object and builds the
+    group's parser tree; ``handle`` receives the parsed namespace and returns
+    an exit code. ``local`` marks groups that never need the HTTP client.
+    Existing commands stay on the legacy dispatch and migrate group by group.
+    """
+
+    name: str
+    register: Callable[[Any], None]
+    handle: Callable[[argparse.Namespace], int]
+    local: bool = True
+
+
+COMMAND_GROUPS: Dict[str, CommandGroup] = {}
+
+
+def register_group(group: CommandGroup) -> None:
+    if group.name in COMMAND_GROUPS:
+        raise ValueError(f"command group already registered: {group.name}")
+    COMMAND_GROUPS[group.name] = group
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="seocho", description="SEOCHO memory-first CLI")
     parser.add_argument(

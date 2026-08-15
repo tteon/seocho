@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Mapping
 
+from seocho.metrics import get_metrics
 from seocho.store.llm import LLMBackend
 
 from .workload_compiler import Text2CypherFallbackPolicy, validate_text2cypher_fallback
@@ -42,6 +44,16 @@ async def generate_validated_cypher(
         "It must include tenant scope, RETURN, and LIMIT $limit. Never insert literal IDs."
     )
     feedback: list[str] = []
+    metrics = get_metrics()
+    started = time.perf_counter()
+
+    def _finish(outcome: str) -> None:
+        metrics.record(
+            "seocho.text2cypher.duration",
+            time.perf_counter() - started,
+            {"stage": "generate_validated", "outcome": outcome},
+        )
+
     for attempt in range(1, policy.max_repair_attempts + 2):
         response = await backend.acomplete(
             system=system,
@@ -70,19 +82,32 @@ async def generate_validated_cypher(
         cypher = str(payload.get("cypher", "")).strip()
         violations = validate_text2cypher_fallback(cypher, params=params, policy=policy)
         if violations:
+            # Violations read "unknown_labels:Account,Foo" — only the code
+            # before the colon is bounded; the payload is data-dependent and
+            # belongs in traces, not metric labels.
+            metrics.add(
+                "seocho.text2cypher.validation_failure.count",
+                attributes={"reason": violations[0].split(":", 1)[0]},
+            )
             feedback = list(violations)
             continue
         try:
             await explain(cypher, params)
         except Exception as exc:
+            metrics.add(
+                "seocho.text2cypher.execution_failure.count",
+                attributes={"error.type": type(exc).__name__},
+            )
             feedback = [f"explain_failed:{type(exc).__name__}"]
             continue
+        _finish("ok")
         return Text2CypherResult(
             cypher=cypher,
             params=dict(params),
             attempts=attempt,
             explained=True,
         )
+    _finish("rejected")
     raise ValueError("text2cypher rejected: " + ",".join(feedback))
 
 

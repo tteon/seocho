@@ -907,6 +907,14 @@ Each entry must link to a full ADR when impact is non-trivial.
   - keep seocho.tracing.record_metric as a legacy-name shim; uncataloged names are dropped
   - risk: legacy snake_case series end at the rename — none were referenced by any dashboard or rule
 
+## 2026-08-15
+
+- [Accepted] ADR-0156 h0-gate-verdict-working-sets-diverge
+  - measured on SF1/SF10 FinBench replay: DB and KV working sets diverge with scale (top-decile Jaccard 0.226 -> 0.050); KV is an anchor-centric subset (containment 1.0)
+  - per the plan's own gate: joint budget (WP3) and cross-prefetch dropped; WP4 invalidation and WP2 KV-side optimization kept; ADR-0155 data plane narrowed to invalidation+observation
+  - H1 left open (share rising with scale); rerun at SF100 before pin/quantization verdict
+  - caveat: read set is variable-binding based (CE exposes no page identities) — biases overlap up, so FAIL is robust
+
 ## Template
 
 Use this block for new entries:

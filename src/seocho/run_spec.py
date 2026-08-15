@@ -12,8 +12,6 @@ documents instead of redefining their keys.
 
 from __future__ import annotations
 
-import difflib
-import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -22,6 +20,14 @@ from typing import Any, Dict, List, Mapping, Optional, Tuple
 import yaml
 
 DEFAULT_RUN_SPEC_FILENAME = "seocho.run.yaml"
+from .spec_loader import (
+    SpecError,
+    check_schema_version as _check_schema_version,
+    check_unknown_keys as _check_unknown_keys,
+    interpolate_env as _interpolate_env,
+    suggest as _suggest,  # noqa: F401  (kept for callers/tests referencing the old seam)
+)
+
 DEFAULT_MODEL = "mara/MiniMax-M2.5"
 
 _ALLOWED_ENFORCEMENT_MODES = {"strict", "guided", "open"}
@@ -33,6 +39,7 @@ _ALLOWED_VECTOR_KINDS = {"faiss", "lancedb"}
 _BOLT_SCHEMES = ("bolt://", "neo4j://", "neo4j+s://", "bolt+s://")
 
 _TOP_LEVEL_KEYS = {
+    "schema_version",
     "name",
     "description",
     "ontology",
@@ -62,69 +69,17 @@ _SECTION_KEYS: Dict[str, set] = {
     "output": {"dir"},
 }
 
-_ENV_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}")
-
-
-class RunSpecError(ValueError):
+class RunSpecError(SpecError):
     """Raised when a run spec fails to parse or validate.
 
     ``errors`` keeps the individual messages so callers (the CLI) can
-    print one error per line.
+    print one error per line. Subclasses the shared :class:`SpecError` so
+    generic spec tooling can catch either.
     """
-
-    def __init__(self, errors: List[str]) -> None:
-        self.errors = list(errors)
-        super().__init__("\n".join(self.errors))
-
-
-def _interpolate_env(value: Any, *, errors: List[str], where: str) -> Any:
-    """Resolve ``${VAR}`` / ``${VAR:-default}`` in string values, recursively."""
-    if isinstance(value, str):
-        def _resolve(match: "re.Match[str]") -> str:
-            name, default = match.group(1), match.group(2)
-            resolved = os.environ.get(name)
-            if resolved is not None:
-                return resolved
-            if default is not None:
-                return default
-            errors.append(
-                f"at {where}: environment variable {name} is not set. "
-                f"Export it or use ${{{name}:-fallback}}."
-            )
-            return ""
-        return _ENV_PATTERN.sub(_resolve, value)
-    if isinstance(value, dict):
-        return {
-            key: _interpolate_env(item, errors=errors, where=f"{where}.{key}" if where else str(key))
-            for key, item in value.items()
-        }
-    if isinstance(value, list):
-        return [
-            _interpolate_env(item, errors=errors, where=f"{where}[{idx}]")
-            for idx, item in enumerate(value)
-        ]
-    return value
 
 
 def _string(value: Any) -> str:
     return str(value).strip() if value is not None else ""
-
-
-def _suggest(key: str, allowed: set) -> str:
-    matches = difflib.get_close_matches(key, sorted(allowed), n=1)
-    return f" Did you mean '{matches[0]}'?" if matches else ""
-
-
-def _check_unknown_keys(
-    payload: Mapping[str, Any],
-    *,
-    allowed: set,
-    where: str,
-    errors: List[str],
-) -> None:
-    for key in payload:
-        if key not in allowed:
-            errors.append(f"at {where}: unknown key '{key}'.{_suggest(str(key), allowed)}")
 
 
 def _section(
@@ -325,6 +280,7 @@ def parse_run_spec(payload: Any, *, source_path: str = "") -> RunSpec:
         raise RunSpecError(["run spec must be a YAML mapping."])
 
     payload = _interpolate_env(dict(payload), errors=errors, where="")
+    _check_schema_version(payload, supported=(1,), where="top level", errors=errors)
     _check_unknown_keys(payload, allowed=_TOP_LEVEL_KEYS, where="top level", errors=errors)
 
     ontology = _path_or_mapping(payload, "ontology", errors=errors)

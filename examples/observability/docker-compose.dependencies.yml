@@ -12,6 +12,37 @@ services:
       - "host.docker.internal:host-gateway"
     networks: [seocho-net]
 
+  # DozerDB CE registers no org.neo4j MBeans and no metrics subsystem
+  # (measured 2026-08-15), so server saturation is polled over Bolt: JVM
+  # heap/GC, direct+mapped buffer pools (page-cache size proxy), active
+  # transactions. Page-cache *misses* have no server counter in CE — their
+  # observable shadow is device reads, which cadvisor reports below.
+  dozerdb-bolt-exporter:
+    image: python:3.12-slim
+    profiles: ["dependencies"]
+    command: >
+      sh -c "pip install --quiet neo4j-rust-ext==5.26.*
+      && python /exporter/dozerdb_bolt_exporter.py"
+    environment:
+      DOZERDB_BOLT_URI: "${DOZERDB_BOLT_URI:-bolt://host.docker.internal:7687}"
+      DOZERDB_USER: "${NEO4J_USER:-neo4j}"
+      DOZERDB_PASSWORD: "${NEO4J_PASSWORD:?Set NEO4J_PASSWORD for the bolt exporter}"
+    volumes:
+      - ./dozerdb_bolt_exporter.py:/exporter/dozerdb_bolt_exporter.py:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks: [seocho-net]
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.2
+    profiles: ["dependencies"]
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    networks: [seocho-net]
+
   prometheus:
     volumes:
       - ./prometheus.dependencies.yml:/etc/prometheus/prometheus.yml:ro

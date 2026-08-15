@@ -255,3 +255,41 @@ def test_vector_section_parse_and_defaults() -> None:
         parse_run_spec({**base, "vector": {"kind": "faiss", "dimension": "big"}})
     with pytest.raises(RunSpecError, match="unknown key"):
         parse_run_spec({**base, "vector": {"kind": "faiss", "embeding": "x"}})
+
+
+def test_schema_version_1_is_accepted(tmp_path, monkeypatch):
+    from seocho.run_spec import load_run_spec
+
+    spec_file = tmp_path / "seocho.run.yaml"
+    spec_file.write_text(
+        "schema_version: 1\n"
+        "ontology:\n  path: onto.yaml\n"
+        "documents:\n  path: docs/\n"
+    )
+    (tmp_path / "onto.yaml").write_text("name: t\nnodes: {}\n")
+    (tmp_path / "docs").mkdir()
+    spec = load_run_spec(spec_file)
+    assert spec.ontology_path.endswith("onto.yaml")
+
+
+def test_unsupported_schema_version_is_a_migration_signal(tmp_path):
+    from seocho.run_spec import RunSpecError, load_run_spec
+
+    spec_file = tmp_path / "seocho.run.yaml"
+    spec_file.write_text(
+        "schema_version: 99\n"
+        "ontology:\n  path: onto.yaml\n"
+        "documents:\n  path: docs/\n"
+    )
+    with pytest.raises(RunSpecError) as excinfo:
+        load_run_spec(spec_file)
+    assert any("schema_version 99 is not supported" in e for e in excinfo.value.errors)
+
+
+def test_run_spec_error_is_a_spec_error():
+    from seocho.run_spec import RunSpecError
+    from seocho.spec_loader import SpecError
+
+    assert issubclass(RunSpecError, SpecError)
+    err = RunSpecError(["a", "b"])
+    assert err.errors == ["a", "b"]

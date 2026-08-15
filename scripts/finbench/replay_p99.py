@@ -46,6 +46,16 @@ WS = "default"
 ROW_CAP = 50
 
 
+def scored(episodes):
+    """Episodes that can be scored at all.
+
+    An episode whose reference query never completed has `score_correct = None`. Counting it as
+    a failure would charge the agent for the database's limit, and counting it as a success
+    would be worse; it is excluded from the numerator and the denominator both, and the count
+    of exclusions is reported separately.
+    """
+    return [e for e in episodes if e.get("score_correct") is not None]
+
 def quantile(sorted_values: List[float], q: float) -> float:
     """Nearest-rank quantile.
 
@@ -167,7 +177,9 @@ def main() -> None:
             out.append({"sf": sf, "database": database, "question_id": qid, "arm": arm,
                         "ok": False, "error": "the agent never executed a query",
                         "variants": 0,
-                        "correct_rate": sum(e["score_correct"] for e in episodes) / len(episodes)})
+                        "correct_rate": (sum(e["score_correct"] for e in scored(episodes))
+                                          / len(scored(episodes))
+                                          if scored(episodes) else None)})
             print(f"  sf{sf:<4} {arm:9s} {qid:11s}  no query executed", flush=True)
             continue
         cypher = Counter(queries).most_common(1)[0][0]
@@ -183,7 +195,9 @@ def main() -> None:
             "sf": sf, "database": database, "question_id": qid, "arm": arm,
             "audience": episodes[0]["audience"], "difficulty": episodes[0]["difficulty"],
             "variants": variants,
-            "correct_rate": round(sum(e["score_correct"] for e in episodes) / len(episodes), 3),
+            "correct_rate": (round(sum(e["score_correct"] for e in scored(episodes))
+                                   / len(scored(episodes)), 3)
+                             if scored(episodes) else None),
             "round_trips_median": statistics.median(e["round_trips"] for e in episodes),
             "db_hits_median": statistics.median(e["db_hits"] for e in episodes),
             "cypher": cypher,

@@ -7,7 +7,7 @@ import re
 from contextlib import contextmanager
 from typing import Any, Dict, Iterator, List, Optional, Sequence
 
-from .curation_design import CurationDesignSpec, load_curation_design_spec
+from .curation_design import load_curation_design_spec
 from .graph_projector import GraphProjector
 from .models import Memory
 from .observability import StageTimer
@@ -1037,7 +1037,8 @@ class _LocalEngine:
     def _log_semantic_route(self, question: str, sr: Any) -> None:
         """Emit the arbiter route (ADR-0103 H3) as a tracing span for observability."""
         try:
-            from .tracing import is_tracing_enabled, log_span, record_metric
+            from .metrics import get_metrics
+            from .tracing import is_tracing_enabled, log_span
 
             if not is_tracing_enabled():
                 return
@@ -1049,7 +1050,7 @@ class _LocalEngine:
                 metadata=(hint.to_span() if hint is not None else {"arbiter.route": sr.route}),
                 tags=["semantic-layer", f"route:{sr.route}"],
             )
-            record_metric("seocho_arbiter_route", 1, attributes={"route": sr.route})
+            get_metrics().add("seocho.arbiter.route.count", attributes={"route": sr.route})
         except Exception:
             pass
 

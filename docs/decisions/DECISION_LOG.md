@@ -1019,6 +1019,13 @@ Each entry must link to a full ADR when impact is non-trivial.
   - guardrail bug surfaced: result_limit_exceeded fires on aggregates + unactionable rejection msg => 6-turn flail failure (seocho-6md)
   - explains scale-up: OS looked bad on MiniMax(4/8)/gemma(5/8) because = full/hard config, not governance cost
 
+## 2026-08-16 (OS examples validation)
+
+- [Accepted] ADR-0170 os-examples-validation (validates #524, seocho-41a/6md) — shipped worked examples kill the repair loop
+  - real Session.agent() on live finbenchl1, gpt-oss + gemma: OS(examples) 6/6 both, BARE 5/6 & 6/6; guardrail rejections = 0 (no repair loop)
+  - the earlier OS underperformance (scale-up MiniMax 4/8, gemma 5/8) was the missing-examples config, not a governance cost
+  - token residual is now purely the stable schema prefix (~756 tok, KV-cacheable seocho-40j); retry churn = 0
+
 ## Template
 
 Use this block for new entries:

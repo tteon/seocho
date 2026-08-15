@@ -89,3 +89,28 @@ def test_set_scoring_declines_when_there_is_no_complement():
     """Without the excluded set the check cannot see additions, so it must abstain."""
     assert runner.check_set(_NEG_GOLD, [], "anything") is None
     assert runner.check_set("single value", _NEG_EXCLUDED, "single value") is None
+
+
+def test_refusal_detection_covers_paraphrase_not_just_one_wording():
+    """The bug this replaced: a string list caught 'does not contain' and missed
+    'does not include', scoring four correct refusals as inventions."""
+    for reply in (
+        "The provided context does not include information about HTTP 409.",
+        "The provided context does not contain that detail.",
+        "Based on the provided context, I cannot answer this question.",
+        "This cannot be answered from the documents.",
+        "That value is not specified anywhere in the context.",
+        "NOT STATED",
+        "There is no information about the metering coefficients.",
+        "The answer is not fully answerable from the provided documents.",
+    ):
+        assert runner.check_refusal(reply) is True, reply
+
+
+def test_an_asserted_answer_is_not_a_refusal():
+    for reply in (
+        "The Slack channel is #obs-alerts.",
+        "The default limit is 10 MiB per file.",
+        "Northgate Plant assembles Model K1.",
+    ):
+        assert runner.check_refusal(reply) is False, reply

@@ -58,6 +58,7 @@ import argparse
 import collections
 import json
 import os
+import re
 import time
 import unicodedata
 from pathlib import Path
@@ -70,6 +71,18 @@ _ANSWER_SYSTEM = (
     "Answer the question using only the context provided. "
     "If the context does not contain the answer, reply exactly: NOT STATED. "
     "Be brief."
+)
+
+# The same instruction minus the refusal licence. Needed because the prompt
+# above ANSWERS the question ERB's `info_not_found` stratum asks: told to say
+# NOT STATED when the context falls short, every arm said it, 20/20, and the run
+# measured the instruction rather than the context form. Whether a form makes a
+# model invent an answer can only be seen when refusing has not been pre-
+# authorised. Constant across arms either way, so within a run the comparison
+# holds; across runs the condition must be stated, which is why it is a flag and
+# not a silent default.
+_ANSWER_SYSTEM_NO_HINT = (
+    "Answer the question using only the context provided. Be brief."
 )
 
 _JUDGE_SYSTEM = (
@@ -113,9 +126,10 @@ def _ask(client, model: str, system: str, user: str, max_tokens: int) -> Dict[st
     }
 
 
-def answer_arm(client, model: str, question: str, context: str, max_tokens: int) -> Dict[str, Any]:
+def answer_arm(client, model: str, question: str, context: str, max_tokens: int,
+               system: str = _ANSWER_SYSTEM) -> Dict[str, Any]:
     user = f"Context:\n{context}\n\nQuestion: {question}"
-    return _ask(client, model, _ANSWER_SYSTEM, user, max_tokens)
+    return _ask(client, model, system, user, max_tokens)
 
 
 def _normalise(text: str) -> str:
@@ -179,6 +193,54 @@ def check_set(gold: str, excluded: List[str], candidate: str) -> Optional[bool]:
     return not any(_normalise(bad) in hay for bad in excluded)
 
 
+# Refusal is detected by pattern family, not by a list of strings. The string
+# list this replaces missed "does not INCLUDE" while catching "does not
+# CONTAIN", and missed "cannot answer" while catching "cannot be answered" —
+# scoring four correct refusals as inventions and inverting the result. Any
+# enumeration of surface forms will keep losing to paraphrase; the productive
+# constructions are finite and are matched here instead.
+_REFUSAL_PATTERNS = tuple(re.compile(p) for p in (
+    r"\b(?:does|do|did|is|are|was|were)\s+not\s+"
+    r"(?:contain|include|mention|specify|provide|state|list|have|appear)",
+    # Contractions are a separate branch, not an afterthought: "I don't have
+    # information about X" was the last form the pattern set missed.
+    r"\b(?:don't|doesn't|didn't|isn't|aren't|wasn't|weren't)\s+"
+    r"(?:contain|include|mention|specify|provide|state|list|have|appear)",
+    r"\b(?:cannot|can\s*not|can't|could\s+not|couldn't|unable\s+to)\s+"
+    r"(?:answer|determine|find|identify|tell|be\s+answered|be\s+determined)",
+    r"\bnot\s+(?:stated|specified|mentioned|provided|available|present|"
+    r"included|listed|documented|found|given|answerable|fully\s+answerable)\b",
+    r"\bno\s+(?:information|details|specifics?|mention|record|data)\b",
+    r"\binsufficient\s+(?:information|context|detail)",
+    r"\bnot\s+in\s+the\s+(?:provided\s+)?(?:context|documents?)\b",
+))
+
+
+def check_refusal(candidate: str) -> bool:
+    """Did the answer decline, rather than invent one?
+
+    ERB's `info_not_found` gold is not a fact — it is a 469-character
+    instruction reading "the answer must state at some point that the query is
+    not fully answerable". Handing that to an LLM judge would put the one
+    measurement this run exists for behind the component that already
+    over-rejected three correct answers elsewhere. Declining is a surface
+    property of the reply, so it is matched directly.
+
+    Generous by design: a false CORRECT understates the invention rate, which is
+    the conservative direction for a claim that a context form makes models
+    invent answers.
+
+    Known recall limit, stated rather than tuned away. On ERB's 20 items every
+    arm scored 19 or 20, and reading each non-match showed all of them were
+    refusals in wording the patterns miss ("I cannot confirm whether ..."). The
+    residual one-item spread between arms is detector recall, not behaviour.
+    Widening the patterns until the arms separate would be manufacturing the
+    result, so the spread is reported as noise and the stratum as a null.
+    """
+    hay = _normalise(candidate)
+    return any(p.search(hay) for p in _REFUSAL_PATTERNS)
+
+
 def judge(client, model: str, question: str, gold: str, candidate: str) -> bool:
     """Blind: the judge is told the question, the reference and one answer. Never the arm."""
     if not candidate:
@@ -198,12 +260,19 @@ def main() -> None:
     parser.add_argument("--judge-model", default="gpt-oss-120b")
     parser.add_argument("--max-tokens", type=int, default=1200)
     parser.add_argument("--limit", type=int, default=0, help="0 = all comparable items")
+    parser.add_argument("--no-refusal-hint", action="store_true",
+                        help="drop 'reply NOT STATED if absent' from the prompt. Required "
+                             "for any hallucination measurement; see _ANSWER_SYSTEM_NO_HINT")
     args = parser.parse_args()
 
     key = os.environ.get("MARA_API_KEY", "").strip().strip('"').strip("'")
     if not key:
         raise SystemExit("MARA_API_KEY is not set")
     client = _client(args.base_url, key)
+
+    answer_system = _ANSWER_SYSTEM_NO_HINT if args.no_refusal_hint else _ANSWER_SYSTEM
+    if args.no_refusal_hint:
+        print("prompt condition: NO refusal hint (hallucination measurement)")
 
     rows = [json.loads(line) for line in args.arms.read_text(encoding="utf-8").splitlines() if line.strip()]
     items = [r for r in rows if r.get("comparable")]
@@ -222,14 +291,19 @@ def main() -> None:
                 "gold": item["answer"],
                 "excluded": item.get("excluded") or [],
                 "strata": item.get("strata", {}),
+                "prompt_condition": "no_refusal_hint" if args.no_refusal_hint else "default",
                 "budget_unit": item.get("budget_unit"),
                 "arms": {},
             }
             for arm in ARMS:
                 context = item["arms"][arm]["context"]
                 try:
-                    got = answer_arm(client, args.model, item["question"], context, args.max_tokens)
-                    deterministic = check_deterministic(item["answer"], got["text"])
+                    got = answer_arm(client, args.model, item["question"], context,
+                                     args.max_tokens, system=answer_system)
+                    if (item.get("strata") or {}).get("answer_type") == "info_not_found":
+                        deterministic = check_refusal(got["text"])
+                    else:
+                        deterministic = check_deterministic(item["answer"], got["text"])
                     if deterministic is None:
                         deterministic = check_set(
                             item["answer"], item.get("excluded") or [], got["text"]

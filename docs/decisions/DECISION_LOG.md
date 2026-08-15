@@ -1047,6 +1047,14 @@ Each entry must link to a full ADR when impact is non-trivial.
   - fix (wiring, no new mechanism): projector stamps ontology_context_graph_properties; local_engine + execute_cypher run enforce_drift_policy(policy=warn|raise|block); SEOCHO_ONTOLOGY_DRIFT_POLICY
   - ablation OFF vs ON: drift detection 0%->100%; false-positive on fresh data 0%->0% (null control, no fresh-data tax); worst=breaking bump caught+blocked, best=no-bump quiet
   - 0 regressions; +4 tests; first shipped step of ontology-lifecycle OS (ia4); Trust/Safety+Long-Horizon tracks
+## 2026-08-16 (ontology freshness policy)
+
+- [Accepted] ADR-0176 bounded-staleness freshness policy (seocho-ia4.6) — strict, but not stale
+  - ia4.1 barrier is binary (mismatch->block) = unconditional strict = over-refuses; warn = under-refuses
+  - evaluate_freshness: staleness = version_distance x drift_relevance, gated by coverage/age; serve/repair/refuse
+  - refusal-ROC ablation: always_warn (under 100/over 0), always_block (under 0/over 100), freshness b=H (0/0) => dominates both corners; bound sweep = graceful ROC frontier
+  - honest: synthetic mechanism-frontier demo (separates the two error types fixed policies cannot); live payoff needs ia4.2 classifier (relevance/horizon) + ia4.3 version chain (distance)
+  - 7 tests; standalone module; Long-Horizon + Trust/Safety tracks
 
 ## Template
 

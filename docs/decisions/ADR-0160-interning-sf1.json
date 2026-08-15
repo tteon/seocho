@@ -1,0 +1,65 @@
+{
+  "nodes_dir": "/home/hadry/lab/seocho/outputs/finbench/sf1/nodes",
+  "variants": 4,
+  "homonym_rate": 0.15,
+  "labels": {
+    "Person": {
+      "disambiguator": "country",
+      "arms": {
+        "name_only": {
+          "policy": "name_only",
+          "canonicals": 1000,
+          "distinct_addresses": 4700,
+          "normalization_collapse_rate": 1.0,
+          "suffix_recall": 0.0,
+          "mean_addresses_per_canonical": 5.0,
+          "colliding_addresses": 300,
+          "planted_homonym_pairs": 60,
+          "planted_pairs_collided": 60,
+          "collision_rate": 1.0
+        },
+        "composite": {
+          "policy": "composite",
+          "canonicals": 1000,
+          "distinct_addresses": 5000,
+          "normalization_collapse_rate": 1.0,
+          "suffix_recall": 0.0,
+          "mean_addresses_per_canonical": 5.0,
+          "colliding_addresses": 0,
+          "planted_homonym_pairs": 60,
+          "planted_pairs_collided": 0,
+          "collision_rate": 0.0
+        }
+      }
+    },
+    "Company": {
+      "disambiguator": "sector",
+      "arms": {
+        "name_only": {
+          "policy": "name_only",
+          "canonicals": 100,
+          "distinct_addresses": 475,
+          "normalization_collapse_rate": 1.0,
+          "suffix_recall": 0.0,
+          "mean_addresses_per_canonical": 5.0,
+          "colliding_addresses": 25,
+          "planted_homonym_pairs": 5,
+          "planted_pairs_collided": 5,
+          "collision_rate": 1.0
+        },
+        "composite": {
+          "policy": "composite",
+          "canonicals": 100,
+          "distinct_addresses": 500,
+          "normalization_collapse_rate": 1.0,
+          "suffix_recall": 0.0,
+          "mean_addresses_per_canonical": 5.0,
+          "colliding_addresses": 0,
+          "planted_homonym_pairs": 5,
+          "planted_pairs_collided": 0,
+          "collision_rate": 0.0
+        }
+      }
+    }
+  }
+}

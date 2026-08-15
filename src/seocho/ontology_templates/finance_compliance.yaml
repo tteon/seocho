@@ -1,0 +1,95 @@
+graph_type: finance_compliance
+package_id: finance_compliance
+version: 1.0.0
+description: Starter ontology for finance compliance knowledge graphs.
+graph_model: lpg
+nodes:
+  Company:
+    description: A regulated financial entity.
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+      ticker:
+        type: STRING
+      jurisdiction:
+        type: STRING
+  Regulator:
+    description: A government or industry body that enforces regulations.
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+      jurisdiction:
+        type: STRING
+  Regulation:
+    description: A specific rule or statute that governs company behavior.
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+      code:
+        type: STRING
+      jurisdiction:
+        type: STRING
+  ComplianceIncident:
+    description: A reported breach, near-miss, or anomaly.
+    properties:
+      summary:
+        type: STRING
+        constraint: UNIQUE
+      date:
+        type: STRING
+      severity:
+        type: STRING
+  ControlEvidence:
+    description: Evidence that a control is operating (attestation, test, log).
+    properties:
+      summary:
+        type: STRING
+        constraint: UNIQUE
+      date:
+        type: STRING
+      status:
+        type: STRING
+  Policy:
+    description: An internal policy that governs company behavior.
+    properties:
+      name:
+        type: STRING
+        constraint: UNIQUE
+      version:
+        type: STRING
+      effective_date:
+        type: STRING
+relationships:
+  SUBJECT_TO:
+    source: Company
+    target: Regulation
+    description: ''
+    cardinality: MANY_TO_MANY
+  ENFORCED_BY:
+    source: Regulation
+    target: Regulator
+    description: ''
+    cardinality: MANY_TO_MANY
+  REPORTED:
+    source: Company
+    target: ComplianceIncident
+    description: ''
+    cardinality: MANY_TO_MANY
+  RELATES_TO:
+    source: ComplianceIncident
+    target: Regulation
+    description: ''
+    cardinality: MANY_TO_MANY
+  MITIGATED_BY:
+    source: ComplianceIncident
+    target: ControlEvidence
+    description: ''
+    cardinality: MANY_TO_MANY
+  GOVERNED_BY:
+    source: Company
+    target: Policy
+    description: ''
+    cardinality: MANY_TO_MANY

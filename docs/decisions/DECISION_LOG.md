@@ -915,6 +915,30 @@ Each entry must link to a full ADR when impact is non-trivial.
   - H1 left open (share rising with scale); rerun at SF100 before pin/quantization verdict
   - caveat: read set is variable-binding based (CE exposes no page identities) — biases overlap up, so FAIL is robust
 
+## 2026-08-15
+
+- [Accepted] ADR-0157 agentos-surface
+  - one facade (seocho.agentos.AgentOS) binds the five pillars to two interfaces: Bolt-aware governed store path, OpenAI Agents SDK (Session protocol memory, RunHooks, tool_input_guardrail)
+  - tenancy pinned never trusted (model-supplied workspace params overwritten); one admission gate inside the tool; budget exhaustion structured; truncation always disclosed
+  - scalability validated live: SF1/SF10 x N in {1,4,16}, 336 calls, zero bound violations at the Bolt boundary
+  - remaining on epic seocho-xdp: fairness (S1), routing exposure, durable PG session backend
+
+## 2026-08-15
+
+- [Accepted] ADR-0158 execution-scheduling-ablations (E1/S1 measurement record)
+  - E1: governed admission keeps p50 at single-session latency under 16-way contention (93.7ms vs 223.7ms light; 8.0s vs 21.8s heavy) and converts overload into structured rejections; bound held in every cell
+  - S1: a 2-permit priority reserve takes high-class starvation from 94% timeouts to zero at an explicit normal-throughput price; Jain 1.0 within-class both arms
+  - claim stated carefully: the layer makes the contention trade visible and configurable, not free
+  - PriorityAdmission ships on AgentOS (reserved_for_high, default 0)
+
+## 2026-08-15
+
+- [Accepted] ADR-0159 scheduler-v2-p99 (E2/S2 measurement record)
+  - probe caught estimate poisoning: global EWMA + fast-fail starved the polite high class 0/85; fixed with per-lane service EWMA — fast-fail is only as safe as its estimator
+  - E2: with a correct estimator, single lane + fast-fail holds light p99 at 122ms; static lanes pay a partition tax (565ms) — lanes demoted to opt-in
+  - S2: work-conserving reserve keeps interactive protection while lifting normal throughput +56~59% vs the static reserve
+  - defaults: single lane + fast-fail + borrowable reserve, all off-by-default on Seocho(...)
+
 ## Template
 
 Use this block for new entries:

@@ -15,11 +15,11 @@ draft. Two rules shape everything here:
    warning instead of silently defaulted — the draft is a starting point,
    and the warnings are its review checklist.
 
-Formats (P1 slice): ``arrows`` (Arrows.app JSON), ``cypher`` (DDL —
-CREATE CONSTRAINT / CREATE INDEX statements), ``native`` (this library's
-own JSON/YAML), ``auto`` (content sniffing). GraphQL SDL / LinkML /
-Data Importer are detected and reported as not-yet-supported rather than
-mis-parsed.
+Formats: ``arrows`` (Arrows.app JSON), ``cypher`` (DDL as SHOW INDEXES /
+SHOW CONSTRAINTS dump it), ``graphql`` (SDL object types), ``linkml``
+(classes/attributes; ``is_a`` becomes the native ``broader`` taxonomy),
+``data-importer`` (Neo4j Data Importer model JSON, tolerantly walked),
+``native`` (this library's own JSON/YAML), ``auto`` (content sniffing).
 """
 
 from __future__ import annotations
@@ -31,8 +31,8 @@ from typing import Any, Dict, List, Optional
 
 from .ontology import NodeDef, Ontology, P, RelDef
 
-SUPPORTED_FORMATS = ("arrows", "cypher", "native", "auto")
-DETECT_ONLY_FORMATS = ("graphql", "linkml", "data-importer")
+SUPPORTED_FORMATS = ("arrows", "cypher", "native", "graphql", "linkml", "data-importer", "auto")
+DETECT_ONLY_FORMATS: tuple = ()
 
 
 @dataclass(slots=True)
@@ -337,3 +337,227 @@ __all__ = [
     "import_document",
     "import_native",
 ]
+
+
+# ---------------------------------------------------------------------------
+# GraphQL SDL — object types as labels, object-typed fields as relationships
+# ---------------------------------------------------------------------------
+
+_GQL_TYPE = re.compile(r"\btype\s+(\w+)[^{]*\{([^}]*)\}", re.S)
+# No line anchor: SDL allows several fields per line, and arguments in
+# parentheses are stripped before matching so `field(arg: X): Y` keeps Y.
+_GQL_FIELD = re.compile(r"(\w+)\s*:\s*(\[?)\s*(\w+)\s*\]?\s*(!?)")
+_GQL_SCALARS = {
+    "String": str, "ID": str, "Int": int, "Float": float, "Boolean": bool,
+    "DateTime": "DATETIME", "Date": "DATE",
+}
+_GQL_ROOTS = {"Query", "Mutation", "Subscription"}
+
+
+def import_graphql(content: str) -> OntologyImportResult:
+    result = OntologyImportResult(detected_format="graphql")
+    type_blocks = {name: body for name, body in _GQL_TYPE.findall(content)
+                   if name not in _GQL_ROOTS}
+    if not type_blocks:
+        result.warnings.append("no object type definitions found (Query/Mutation "
+                               "roots are intentionally skipped)")
+        return result
+    if re.search(r"\b(interface|union)\s+\w+", content):
+        result.warnings.append(
+            "interface/union definitions have no native equivalent; skipped — "
+            "model shared fields on each concrete type")
+
+    node_defs: Dict[str, NodeDef] = {}
+    rel_defs: Dict[str, RelDef] = {}
+    for name, body in type_blocks.items():
+        props: Dict[str, P] = {}
+        body = re.sub(r"\([^)]*\)", "", body)  # drop argument lists
+        for field_name, is_list, field_type, required in _GQL_FIELD.findall(body):
+            if field_type in _GQL_SCALARS:
+                props[field_name] = P(_GQL_SCALARS[field_type],
+                                      required=required == "!",
+                                      unique=field_type == "ID")
+            elif field_type in type_blocks:
+                rtype = re.sub(r"(?<!^)(?=[A-Z])", "_", field_name).upper()
+                existing = rel_defs.get(rtype)
+                if existing and (existing.source, existing.target) != (name, field_type):
+                    result.warnings.append(
+                        f"relationship {rtype} (field {field_name!r}) maps to two "
+                        f"endpoint pairs; kept the first — rename one field")
+                    continue
+                rel_defs[rtype] = RelDef(source=name, target=field_type)
+                if is_list != "[":
+                    result.warnings.append(
+                        f"{name}.{field_name} is single-valued; cardinality "
+                        f"defaulted to MANY_TO_MANY — tighten it manually")
+            else:
+                result.warnings.append(
+                    f"{name}.{field_name}: unknown type {field_type!r} "
+                    f"(enum or missing definition); property skipped")
+        node_defs[name] = NodeDef(properties=props)
+
+    onto = Ontology(name="imported_graphql", graph_model="lpg",
+                    nodes=node_defs, relationships=rel_defs)
+    result.document = onto.to_dict()
+    result.suggested_name = "imported_graphql"
+    return result
+
+
+# ---------------------------------------------------------------------------
+# LinkML — classes/attributes; is_a becomes the native `broader` taxonomy
+# ---------------------------------------------------------------------------
+
+_LINKML_SCALARS = {
+    "string": str, "str": str, "uri": str, "uriorcurie": str,
+    "integer": int, "int": int, "float": float, "double": float,
+    "decimal": float, "boolean": bool, "date": "DATE", "datetime": "DATETIME",
+}
+
+
+def import_linkml(content: str) -> OntologyImportResult:
+    import yaml
+
+    result = OntologyImportResult(detected_format="linkml")
+    payload = yaml.safe_load(content)
+    if not isinstance(payload, dict) or not isinstance(payload.get("classes"), dict):
+        result.warnings.append("no `classes:` mapping found; not a LinkML schema?")
+        return result
+    classes: Dict[str, Any] = payload["classes"]
+    slot_index: Dict[str, Any] = payload.get("slots") or {}
+
+    def norm(name: str) -> str:
+        return "".join(part.capitalize() for part in re.split(r"[\s_-]+", name))
+
+    node_defs: Dict[str, NodeDef] = {}
+    rel_defs: Dict[str, RelDef] = {}
+    class_names = {norm(c) for c in classes}
+    for raw_name, spec in classes.items():
+        spec = spec or {}
+        label = norm(raw_name)
+        props: Dict[str, P] = {}
+        attrs: Dict[str, Any] = dict(spec.get("attributes") or {})
+        for slot in spec.get("slots") or []:
+            attrs.setdefault(slot, slot_index.get(slot) or {})
+        for attr_name, attr_spec in attrs.items():
+            attr_spec = attr_spec or {}
+            rng = str(attr_spec.get("range", "string")).strip()
+            if norm(rng) in class_names:
+                rtype = attr_name.upper().replace("-", "_").replace(" ", "_")
+                rel_defs[rtype] = RelDef(source=label, target=norm(rng))
+            elif rng.lower() in _LINKML_SCALARS:
+                props[attr_name] = P(
+                    _LINKML_SCALARS[rng.lower()],
+                    required=bool(attr_spec.get("required")),
+                    unique=bool(attr_spec.get("identifier")))
+            else:
+                result.warnings.append(
+                    f"{raw_name}.{attr_name}: range {rng!r} is neither a scalar "
+                    f"nor a class in this schema; property skipped")
+        broader = []
+        if spec.get("is_a"):
+            parent = norm(str(spec["is_a"]))
+            if parent in class_names:
+                broader = [parent]
+            else:
+                result.warnings.append(
+                    f"{raw_name}: is_a {spec['is_a']!r} not defined here; "
+                    f"hierarchy link dropped")
+        node_defs[label] = NodeDef(properties=props, broader=broader)
+
+    name = re.sub(r"[^a-z0-9_]+", "_", str(payload.get("name", "imported_linkml")).lower())
+    onto = Ontology(name=name or "imported_linkml", graph_model="lpg",
+                    nodes=node_defs, relationships=rel_defs)
+    result.document = onto.to_dict()
+    result.suggested_name = name or "imported_linkml"
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Neo4j Data Importer — tolerant walk over its versioned model JSON
+# ---------------------------------------------------------------------------
+
+_DI_TYPES = {"string": str, "integer": int, "float": float, "boolean": bool,
+             "datetime": "DATETIME", "date": "DATE"}
+
+
+def import_data_importer(content: str) -> OntologyImportResult:
+    result = OntologyImportResult(detected_format="data-importer")
+    payload = json.loads(content)
+    model = payload.get("dataModel") or payload
+    graph = (model.get("graphSchema") or model.get("graphModel") or model)
+
+    def walk_collect(obj: Any, key_names: tuple) -> List[Dict[str, Any]]:
+        found: List[Dict[str, Any]] = []
+        if isinstance(obj, dict):
+            for key, value in obj.items():
+                if key in key_names and isinstance(value, (list, dict)):
+                    found.extend(value.values() if isinstance(value, dict) else value)
+                else:
+                    found.extend(walk_collect(value, key_names))
+        elif isinstance(obj, list):
+            for item in obj:
+                found.extend(walk_collect(item, key_names))
+        return found
+
+    node_specs = walk_collect(graph, ("nodeLabels", "nodeSchemas", "nodeObjectTypes"))
+    rel_specs = walk_collect(graph, ("relationshipTypes", "relationshipSchemas",
+                                     "relationshipObjectTypes"))
+    if not node_specs:
+        result.warnings.append("no node label definitions recognized in the model "
+                               "JSON; the Data Importer export format may have "
+                               "changed — file an issue with the file attached")
+        return result
+
+    label_by_ref: Dict[str, str] = {}
+    node_defs: Dict[str, NodeDef] = {}
+    for spec in node_specs:
+        token = str(spec.get("token") or spec.get("label")
+                    or (spec.get("labels") or [""])[0] or "").strip()
+        if not token:
+            continue
+        if ref := spec.get("$id") or spec.get("id"):
+            label_by_ref[str(ref)] = token
+        props: Dict[str, P] = {}
+        for prop in spec.get("properties") or []:
+            pname = str(prop.get("token") or prop.get("name") or "").strip()
+            ptype = str(prop.get("type", {}).get("type")
+                        if isinstance(prop.get("type"), dict)
+                        else prop.get("type", "string")).lower()
+            if pname:
+                props[pname] = P(_DI_TYPES.get(ptype, str))
+        node_defs[token] = NodeDef(properties=props)
+
+    def endpoint(spec: Dict[str, Any], side: str) -> str:
+        value = spec.get(side) or spec.get(f"{side}NodeLabel") or {}
+        if isinstance(value, dict):
+            value = value.get("$ref") or value.get("nodeSchema") or value.get("label") or ""
+        label = label_by_ref.get(str(value).lstrip("#"), str(value).lstrip("#"))
+        return label if label in node_defs else "Any"
+
+    rel_defs: Dict[str, RelDef] = {}
+    for spec in rel_specs:
+        token = str(spec.get("token") or spec.get("type") or "").strip()
+        if not token:
+            continue
+        source, target = endpoint(spec, "from"), endpoint(spec, "to")
+        if "Any" in (source, target):
+            result.warnings.append(
+                f"relationship {token}: endpoint reference not resolved; "
+                f"left as 'Any' — edit before use")
+        rel_defs[token] = RelDef(source=source, target=target)
+
+    onto = Ontology(name="imported_data_importer", graph_model="lpg",
+                    nodes=node_defs, relationships=rel_defs)
+    result.document = onto.to_dict()
+    result.suggested_name = "imported_data_importer"
+    result.warnings.append(
+        "Data Importer models vary by app version; verify every property type "
+        "against your source data")
+    return result
+
+
+_IMPORTERS.update({
+    "graphql": import_graphql,
+    "linkml": import_linkml,
+    "data-importer": import_data_importer,
+})

@@ -76,7 +76,7 @@ from .client_artifacts import (
     prompt_context_from_ontology as build_prompt_context_from_ontology,
 )
 from .client_remote import RemoteClientHelper
-from .exceptions import SeochoConnectionError, SeochoHTTPError
+from .exceptions import SeochoError
 from .governance import ArtifactDiff, ArtifactValidationResult, diff_artifact_payloads, validate_artifact_payload
 from .ontology_control_plane import (
     CompiledOntologyProfile,
@@ -215,6 +215,13 @@ class Seocho:
         agent_config: Optional[Any] = None,  # seocho.agent_config.AgentConfig
         ontology_profile: str = "default",
         enforcement: Optional[str] = None,  # "strict" | "guided" | "open"
+        # --- Operating-layer controls (local mode; explicit opt-in) ---
+        max_inflight: int = 0,
+        light_permits: int = 0,
+        reserved_for_high: int = 0,
+        admission_wait_s: float = 5.0,
+        token_budget: int = 0,
+        agent_row_cap: int = 50,
         # --- HTTP client mode ---
         base_url: Optional[str] = None,
         workspace_id: Optional[str] = None,
@@ -305,6 +312,16 @@ class Seocho:
         self.default_database = self._resolve_default_database(ontology)
 
         # Determine mode
+        # Operating-layer state (seocho-dxe: the OS surface is Seocho itself —
+        # no side class in the public API). Built lazily on first use; every
+        # control defaults to off/unlimited, per the explicit-opt-in rule.
+        self._os_config = {
+            "max_inflight": max_inflight, "light_permits": light_permits,
+            "reserved_for_high": reserved_for_high,
+            "admission_wait_s": admission_wait_s,
+            "token_budget": token_budget, "row_cap": agent_row_cap,
+        }
+        self._operating_layer: Optional[Any] = None
         self._local_mode = ontology is not None and graph_store is not None and llm is not None
 
         if self._local_mode:
@@ -1500,6 +1517,7 @@ class Seocho:
         name: str = "",
         *,
         database: Optional[str] = None,
+        priority: str = "normal",
     ) -> "Session":
         """Create an agent-level session with context and tracing.
 
@@ -1534,7 +1552,7 @@ class Seocho:
 
         from .session import Session
 
-        return Session(
+        sess = Session(
             name=name,
             ontology=self.ontology,
             graph_store=self.graph_store,
@@ -1547,6 +1565,17 @@ class Seocho:
             ontology_profile=self.ontology_profile,
             user_id=self.user_id,
         )
+        # One session concept (seocho-dxe): the same object carries the
+        # operating-layer handles. Hand ``sess.sdk_session`` and
+        # ``sess.hooks`` to openai-agents ``Runner.run``; the shared
+        # admission gate and per-session budget ride the layer.
+        os_session = self._os().session(sess.session_id, priority=priority,
+                                        user_id=self.user_id)
+        sess.priority = os_session.priority
+        sess.sdk_session = os_session.sdk_session
+        sess.hooks = os_session.hooks
+        sess.budget = os_session.budget
+        return sess
 
     def ensure_constraints(self, *, database: str = "neo4j") -> Dict[str, Any]:
         """Apply ontology-derived constraints to the graph database.
@@ -2739,6 +2768,46 @@ class Seocho:
         )
         from .client_bundle import RuntimeBundleClientHelper  # lazy
         return RuntimeBundleClientHelper.create_client(bundle_source, workspace_id=workspace_id)
+
+    # ------------------------------------------------------------------
+    # The operating layer: memory / execution / scheduling / governance /
+    # resource, exposed as methods of Seocho itself (local mode).
+    # ------------------------------------------------------------------
+
+    def _os(self) -> Any:
+        if self.ontology is None or self.graph_store is None:
+            raise SeochoError(
+                "the operating layer needs local mode: construct "
+                "Seocho(ontology=..., graph_store=...)")
+        if self._operating_layer is None:
+            from .operating_layer import SeochoOS
+
+            self._operating_layer = SeochoOS(
+                ontology=self.ontology, graph_store=self.graph_store,
+                database=self.default_database or "neo4j",
+                workspace_id=self.workspace_id or "default",
+                **self._os_config)
+        return self._operating_layer
+
+    def _os_session_for(self, session: Any) -> Any:
+        return self._os().session(session.session_id,
+                                  priority=getattr(session, "priority", "normal"))
+
+    def build_agent(self, session: Any, *, name: str = "seocho_agent",
+                    model: Optional[Any] = None,
+                    extra_tools: Sequence[Any] = ()) -> Any:
+        """An openai-agents Agent whose only graph access is governed by
+        this client's ontology, tenancy, and admission."""
+        return self._os().build_agent(self._os_session_for(session),
+                                      name=name, model=model,
+                                      extra_tools=extra_tools)
+
+    def execute_query(self, session: Any, cypher: str,
+                      params_json: str = "{}") -> str:
+        """The governed read path (pinned tenancy, lanes, fail-closed)."""
+        return self._os().execute_query(self._os_session_for(session),
+                                        cypher, params_json)
+
 
     def close(self) -> None:
         """Release resources held by the client.

@@ -106,6 +106,29 @@ def get_llm_call_observer() -> Optional[Callable[..., ContextManager[Any]]]:
     return _llm_call_observer
 
 
+# Byte offsets at which a prompt-prefix hash is taken. Powers of two give log
+# granularity for a couple of hashes per call, which is enough to locate where a
+# prompt stops being byte-stable without ever storing the prompt itself.
+_PREFIX_CHECKPOINTS = (256, 512, 1024, 2048, 4096, 8192)
+
+
+def prefix_checkpoints(text: str) -> Dict[str, str]:
+    """Short hashes of ``text`` truncated at each checkpoint it reaches.
+
+    Content-free by construction: only digests leave the process. Two calls
+    agreeing at checkpoint N shared at least N bytes of prompt, which is the
+    ceiling on what prefix caching can reuse between them.
+    """
+    import hashlib
+
+    out: Dict[str, str] = {}
+    for size in _PREFIX_CHECKPOINTS:
+        if len(text) < size:
+            break
+        out[str(size)] = hashlib.sha256(text[:size].encode("utf-8")).hexdigest()[:16]
+    return out
+
+
 @contextmanager
 def observe_llm_call(
     *,
@@ -114,6 +137,7 @@ def observe_llm_call(
     provider: str = "",
     prompt_chars: int = 0,
     prompt_sections: Optional[Dict[str, int]] = None,
+    prefix_hashes: Optional[Dict[str, str]] = None,
 ) -> Iterator[Any]:
     """Wrap one LLM call for the installed observer; a no-op when none is.
 
@@ -134,6 +158,7 @@ def observe_llm_call(
             provider=provider,
             prompt_chars=prompt_chars,
             prompt_sections=dict(prompt_sections or {}),
+            prefix_hashes=dict(prefix_hashes or {}),
         )
         handle = manager.__enter__()
     except Exception:
@@ -159,6 +184,7 @@ __all__ = [
     "StageTimer",
     "timed_stage",
     "current_stage",
+    "prefix_checkpoints",
     "observe_llm_call",
     "set_llm_call_observer",
     "get_llm_call_observer",

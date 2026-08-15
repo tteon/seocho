@@ -145,6 +145,31 @@ def _stable_prefix_chars(section_maps: Iterable[Dict[str, int]]) -> int:
     return stable
 
 
+def _stable_prefix_bytes(hash_maps: Iterable[Dict[str, str]]) -> Optional[int]:
+    """Deepest checkpoint at which every call's prompt prefix still agrees.
+
+    `stable_prefix_chars` compares section *sizes*, so it reports 0 whenever a
+    section's length varies — even when the section shares almost all its bytes.
+    That is exactly the intent-extraction prompt's shape, where question-scoped
+    hints live inside the system section. These digests measure the thing that
+    actually bounds prefix reuse.
+
+    Returns None when calls carry no checkpoints (prompt shorter than the first
+    offset, or an older run) — absent is not zero.
+    """
+    maps = [m for m in hash_maps if m]
+    if not maps:
+        return None
+    shared = 0
+    for offset in sorted({int(k) for m in maps for k in m}):
+        key = str(offset)
+        digests = {m.get(key) for m in maps}
+        if None in digests or len(digests) > 1:
+            break
+        shared = offset
+    return shared
+
+
 def correlate(run_dir: Path) -> Dict[str, Any]:
     windows = _read_jsonl(run_dir / "kv_windows.jsonl")
     # A run without the ZMQ subscriber still yields per-stage prompt shape and
@@ -165,6 +190,7 @@ def correlate(run_dir: Path) -> Dict[str, Any]:
             "cached_tokens_reported": 0,
             "latency_ms": 0.0,
             "_sections": [],
+            "_prefix_hashes": [],
             "_metrics": defaultdict(float),
         }
     )
@@ -208,6 +234,7 @@ def correlate(run_dir: Path) -> Dict[str, Any]:
         bucket["calls"] += 1
         bucket["latency_ms"] += (window["t_end"] - window["t_start"]) * 1000.0
         bucket["_sections"].append(window.get("prompt_sections") or {})
+        bucket["_prefix_hashes"].append(window.get("prefix_hashes") or {})
         for metric, value in (window.get("metrics_delta") or {}).items():
             # Counters sum across a stage's calls; the occupancy gauge is kept
             # as the last value it held, since summing percentages is nonsense.
@@ -229,6 +256,7 @@ def correlate(run_dir: Path) -> Dict[str, Any]:
     stages = {}
     for role, bucket in per_role.items():
         sections = bucket.pop("_sections")
+        prefix_hashes = bucket.pop("_prefix_hashes")
         metrics = {k: round(v, 6) for k, v in bucket.pop("_metrics").items()}
         bucket.setdefault("blocks_per_call", [])
         bucket.setdefault("tokens_stored", 0)
@@ -253,6 +281,9 @@ def correlate(run_dir: Path) -> Dict[str, Any]:
             ),
             "latency_ms_mean": round(bucket["latency_ms"] / calls, 2),
             "stable_prefix_chars": _stable_prefix_chars(sections),
+            # Byte-level floor on the shared prefix, at checkpoint granularity.
+            # Trust this over stable_prefix_chars when a section's length varies.
+            "stable_prefix_bytes": _stable_prefix_bytes(prefix_hashes),
             # Block-derived reuse: prompt tokens the engine did NOT have to
             # store, over prompt tokens. This is the usable hit rate on vLLM,
             # where `cached_tokens` is absent.

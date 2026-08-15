@@ -57,6 +57,10 @@ class StepWindow:
     # the prefix story legible: a stage whose leading sections are stable
     # across calls is a stage whose KV prefix can be reused.
     prompt_sections: Dict[str, int] = field(default_factory=dict)
+    # Content-free prompt-prefix digests at fixed byte offsets. Two calls that
+    # agree at offset N shared at least N bytes, which is what section sizes
+    # cannot show when the volatile part lives inside a section.
+    prefix_hashes: Dict[str, str] = field(default_factory=dict)
     # Change in vLLM's process-wide KV counters across this window. Empty when
     # no metrics endpoint was configured or the scrape failed — an absent delta
     # is not a zero one, and zeros would read as "no bytes moved".
@@ -95,6 +99,7 @@ class WindowRecorder:
         provider: str,
         prompt_chars: int = 0,
         prompt_sections: Optional[Dict[str, int]] = None,
+        prefix_hashes: Optional[Dict[str, str]] = None,
     ) -> Iterator[StepWindow]:
         """Open a window around one LLM call and append it on exit.
 
@@ -117,6 +122,7 @@ class WindowRecorder:
             t_start=time.time(),
             prompt_chars=prompt_chars,
             prompt_sections=dict(prompt_sections or {}),
+            prefix_hashes=dict(prefix_hashes or {}),
         )
         before = self._sample()
         self._open = window

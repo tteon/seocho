@@ -816,7 +816,7 @@ class OpenAICompatibleBackend(LLMBackend):
         # The serve-track KV rig needs the wall-clock extent of this call and
         # the stage that issued it; vLLM's cache events carry no request id.
         # No-op unless an observer was explicitly installed.
-        from ..observability import observe_llm_call
+        from ..observability import observe_llm_call, prefix_checkpoints
 
         with start_span(
             "gen_ai.chat",
@@ -830,6 +830,9 @@ class OpenAICompatibleBackend(LLMBackend):
             # system before user is the prompt's actual layout, and the split
             # that decides prefix reuse: the system half is the stable head.
             prompt_sections={"system": len(system), "user": len(user)},
+            # Section sizes alone cannot see stability *inside* a section — a
+            # system prompt whose length varies still shares most of its bytes.
+            prefix_hashes=prefix_checkpoints(system),
         ) as llm_observation:
             last_exc: Optional[Exception] = None
             budget_boosted = False
@@ -969,7 +972,7 @@ class OpenAICompatibleBackend(LLMBackend):
         metrics = get_metrics()
         resolved_model = model or self.model
         variants = self._completion_retry_variants(kwargs)
-        from ..observability import observe_llm_call
+        from ..observability import observe_llm_call, prefix_checkpoints
 
         with start_span(
             "gen_ai.chat",
@@ -981,6 +984,9 @@ class OpenAICompatibleBackend(LLMBackend):
             provider=self.provider,
             prompt_chars=len(system) + len(user),
             prompt_sections={"system": len(system), "user": len(user)},
+            # Section sizes alone cannot see stability *inside* a section — a
+            # system prompt whose length varies still shares most of its bytes.
+            prefix_hashes=prefix_checkpoints(system),
         ) as llm_observation:
             last_exc: Optional[Exception] = None
             budget_boosted = False

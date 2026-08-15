@@ -164,3 +164,27 @@ def test_freshness_exhaustion_counts_a_violation(meter):
         router.choose([], client_region="kr")
     calls = meter.instruments["seocho.answer.freshness_violation.count"].calls
     assert calls == [("add", 1, {"query.class": "memory_read"})]
+
+
+def test_admission_permits_gauge_moves_before_shedding(meter):
+    from seocho.query.query_proxy import QueryAdmissionController
+
+    controller = QueryAdmissionController(max_inflight=2, wait_seconds=0.0)
+    assert controller.acquire()
+    gauge = meter.instruments["seocho.retrieval.admission.available_permits"]
+    assert gauge.calls[-1] == ("set", 1, {"source": "graph"})
+    assert controller.acquire()
+    assert gauge.calls[-1] == ("set", 0, {"source": "graph"})
+    controller.release()
+    assert gauge.calls[-1] == ("set", 1, {"source": "graph"})
+
+
+def test_admission_rejection_does_not_move_the_gauge(meter):
+    from seocho.query.query_proxy import QueryAdmissionController
+
+    controller = QueryAdmissionController(max_inflight=1, wait_seconds=0.0)
+    assert controller.acquire()
+    gauge = meter.instruments["seocho.retrieval.admission.available_permits"]
+    before = list(gauge.calls)
+    assert not controller.acquire()
+    assert gauge.calls == before

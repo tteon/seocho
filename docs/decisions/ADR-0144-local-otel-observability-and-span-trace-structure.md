@@ -153,6 +153,18 @@ add `seocho_validation_errors_total{mode,ontology}`,
 `seocho_observations_reified_total`, `seocho_arbiter_route_total{route}`; and
 give the guardrail selector (ADR-0123) an audit span when invoked.
 
+> **Amended 2026-08-15.** The counters above no longer travel through this
+> module's private OTel meter. They live in the ADR-0146 metric catalog under
+> dotted names (`seocho.index.validation_errors.count`,
+> `seocho.index.observations_reified.count`, `seocho.arbiter.route.count`,
+> `seocho.query.plan.count` / `.db_hits.count` / `.scan.count` /
+> `.plan_route.count` / `.generation_declined.count`) and export through the
+> single `seocho.metrics` registry (`SEOCHO_METRICS_BACKEND`), which enforces
+> the label budget on every emitter. `seocho.tracing.record_metric` remains as
+> a shim translating the legacy snake_case names; uncataloged names are
+> dropped. None of the legacy names were referenced by any dashboard or alert
+> rule at the time of the rename.
+
 ### 7. Local compose profile (pattern, not LMCache manifest copy)
 
 Add `docker-compose.observability.yml` under a `--profile observability`:

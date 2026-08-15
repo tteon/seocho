@@ -29,7 +29,6 @@ from __future__ import annotations
 import argparse
 import json
 import statistics
-from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -81,6 +80,33 @@ def _panel_key(q: Dict[str, Any]) -> str:
     return f"{q['audience']}/{q['difficulty']}"
 
 
+def scored(episodes):
+    """Episodes that can be scored at all.
+
+    An episode whose reference query never completed has `score_correct = None`. Counting it as
+    a failure would charge the agent for the database's limit, and counting it as a success
+    would be worse; it is excluded from the numerator and the denominator both.
+    """
+    return [e for e in episodes if e.get("score_correct") is not None]
+
+
+def _face(rate, color):
+    """Marker fill encodes correctness, including the case where correctness is unknowable.
+
+    `None` is not zero. At SF1000 the reference query for the three-layer conjunction does not
+    complete in two hours, so there is no ground truth to be right or wrong against; drawing
+    those points as failures would charge the agent for the database's limit. They are drawn
+    faint and unfilled instead.
+    """
+    if rate is None:
+        return "none", 0.4
+    if rate >= 1.0:
+        return color, 1.0
+    if rate <= 0:
+        return "white", 1.0
+    return "#d9dde3", 1.0
+
+
 def plot_p99(cells: List[Dict[str, Any]], questions: List[Dict[str, Any]], out: Path) -> None:
     qmeta = {q["id"]: q for q in questions}
     ordered = sorted(
@@ -118,11 +144,10 @@ def plot_p99(cells: List[Dict[str, Any]], questions: List[Dict[str, Any]], out: 
                 # design that is fast by answering a cheaper question than the one asked —
                 # which is exactly what happens on int_hard_1.
                 for x, y, r in zip(xs, ys, right):
+                    fc, alpha = _face(r, ARM_COLOR[arm])
                     ax.plot([x], [y], marker=ARM_MARKER[arm], markersize=5.2,
-                            markerfacecolor=(ARM_COLOR[arm] if r >= 1.0
-                                             else ("white" if r <= 0 else "#d9dde3")),
-                            markeredgecolor=ARM_COLOR[arm], markeredgewidth=1.3,
-                            linestyle="none", zorder=4)
+                            markerfacecolor=fc, markeredgecolor=ARM_COLOR[arm],
+                            markeredgewidth=1.3, alpha=alpha, linestyle="none", zorder=4)
             for sf in miss:
                 # An x marks a cell where the agent never got a query to run — a real outcome,
                 # and one a gap in the line would hide.
@@ -174,6 +199,9 @@ def plot_p99(cells: List[Dict[str, Any]], questions: List[Dict[str, Any]], out: 
                linestyle="none", markersize=5, label="answer correct"),
         Line2D([], [], color="#47515f", marker="o", markerfacecolor="white",
                markeredgewidth=1.3, linestyle="none", markersize=5, label="answer wrong"),
+        Line2D([], [], color="#47515f", marker="o", markerfacecolor="none", alpha=0.4,
+               markeredgewidth=1.3, linestyle="none", markersize=5,
+               label="no ground truth obtainable"),
     ]
     fig.legend(handles=handles, loc="lower center", ncol=6, frameon=False,
                fontsize=8.5, bbox_to_anchor=(0.53, 0.004))
@@ -235,8 +263,8 @@ def plot_accuracy(episodes: List[Dict[str, Any]], out: Path) -> None:
             for i, arm in enumerate(ARM_ORDER):
                 ys = []
                 for sf in sfs:
-                    sel = [e for e in episodes if e["arm"] == arm and e["sf"] == sf
-                           and e["audience"] == aud and e["difficulty"] == diff]
+                    sel = scored([e for e in episodes if e["arm"] == arm and e["sf"] == sf
+                                  and e["audience"] == aud and e["difficulty"] == diff])
                     ys.append(sum(e["score_correct"] for e in sel) / len(sel) if sel else 0.0)
                 xs = [j + (i - 1.5) * width for j in range(len(sfs))]
                 ax.bar(xs, ys, width=width, color=ARM_COLOR[arm], label=ARM_LABEL[arm],

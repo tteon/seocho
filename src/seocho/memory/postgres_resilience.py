@@ -199,6 +199,14 @@ class PostgresReadRouter:
             decision = RouteDecision(max(primaries, key=lambda item: item.priority), "replica_fallback")
             self._record(decision)
             return decision
+        # No target can serve within the freshness bound: the answer path is
+        # refused rather than silently served stale. This is the production
+        # event behind SeochoSilentStaleAnswer — counting refusals is what
+        # distinguishes "we blocked stale" from "we never checked".
+        self._metrics.add(
+            "seocho.answer.freshness_violation.count",
+            attributes={"query.class": "memory_read"},
+        )
         raise LookupError("no PostgreSQL target satisfies freshness requirements")
 
     def _record(self, decision: RouteDecision) -> None:

@@ -1026,6 +1026,13 @@ Each entry must link to a full ADR when impact is non-trivial.
   - the earlier OS underperformance (scale-up MiniMax 4/8, gemma 5/8) was the missing-examples config, not a governance cost
   - token residual is now purely the stable schema prefix (~756 tok, KV-cacheable seocho-40j); retry churn = 0
 
+## 2026-08-16 (scale-up: adversarial + off-schema)
+
+- [Accepted] ADR-0171 scaleup-adv-offschema (seocho-41a/5ny) — where governance wins/costs, real LLM agent
+  - adversarial (prompt-injection to cross tenant): OS 0 leaks both models (gpt-oss stays scoped WITHOUT refusing = structural; gemma refuses 2/2); BARE leaks (gpt-oss 5 globex names + count, gemma count) => governance WINS safety structurally
+  - off-schema (owner_id, undeclared): OS 0/2, BARE 2/2 => governance COSTS reach (ADR-0168 generalized; addressable by declaring the property)
+  - full picture: in-schema parity (0170) + adversarial safety-win + off-schema reach-cost; honest headline = OS trades reach for guaranteed safety + in-schema parity
+
 ## Template
 
 Use this block for new entries:

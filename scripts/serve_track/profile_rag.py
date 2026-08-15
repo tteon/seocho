@@ -43,7 +43,7 @@ import sys
 import time
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 _HERE = Path(__file__).resolve().parent
 _ROOT = _HERE.parents[1]
@@ -93,7 +93,7 @@ _DEMO_QUESTIONS = [
 ]
 
 
-def _build_client(args: argparse.Namespace) -> Any:
+def _build_client(args: argparse.Namespace, llm: str, api_key: Optional[str]) -> Any:
     from seocho import Ontology, Seocho
 
     if args.ontology:
@@ -103,11 +103,12 @@ def _build_client(args: argparse.Namespace) -> Any:
 
     return Seocho.local(
         ontology,
-        llm=args.llm,
-        api_key=args.api_key,
+        llm=llm,
+        api_key=api_key,
         graph=args.graph,
         neo4j_user=args.neo4j_user,
         neo4j_password=args.neo4j_password,
+        enforcement=args.enforcement,
     )
 
 
@@ -117,6 +118,21 @@ def main() -> None:
     parser.add_argument("--llm", default="vllm/Qwen/Qwen3-0.6B",
                         help="e.g. vllm/MiniMaxAI/MiniMax-M2.7 or mara/MiniMax-M2.7")
     parser.add_argument("--api-key", default="serve-track")
+    # Indexing may run on a different model than serving. A pipe-cleaner model
+    # extracts nothing, leaving an empty graph and a query path with no records
+    # to retrieve — which makes the cache numbers real but the retrieval shape
+    # fictional. Point indexing at a capable model; the measured serving path
+    # stays whatever --llm names.
+    parser.add_argument("--index-llm", default=None,
+                        help="model for indexing only, e.g. mara/MiniMax-M2.7 "
+                             "(default: same as --llm)")
+    parser.add_argument("--index-api-key", default=None)
+    # Guided extraction is free to fall back to a generic `Entity` label, which
+    # leaves the ontology's own labels unpopulated — every :Account query then
+    # matches nothing and synthesis is handed an empty record set. Strict makes
+    # the graph match the ontology the queries are written against.
+    parser.add_argument("--enforcement", default="strict",
+                        choices=["strict", "guided", "open"])
     parser.add_argument("--ontology", default=None, help="ontology YAML (default: demo)")
     # DozerDB over Bolt is the product's serving path, so it is the default.
     # Seocho.local() only routes to Neo4j/DozerDB when `graph` is a Bolt URI;
@@ -152,15 +168,20 @@ def main() -> None:
         else list(_DEMO_QUESTIONS)
     )
 
-    client = _build_client(args)
+    client = _build_client(args, args.llm, args.api_key)
 
     # Indexing is *outside* the observed region on purpose: it is a different
     # workload with a different prompt shape, and mixing its windows into the
     # query numbers would misattribute blocks to stages that never served a
     # question. Profile it as its own run if you want it.
     if not args.skip_index:
+        indexer = (
+            _build_client(args, args.index_llm, args.index_api_key)
+            if args.index_llm
+            else client
+        )
         for doc in _DEMO_DOCS:
-            client.add(doc)
+            indexer.add(doc)
 
     set_llm_call_observer(lambda **kw: recorder.record_step(trace_id=run_id, **kw))
     answers: List[Dict[str, Any]] = []

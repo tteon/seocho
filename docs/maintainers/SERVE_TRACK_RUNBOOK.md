@@ -124,6 +124,81 @@ everything is `{"GPU": 55}`. With offloading enabled, recalled blocks appear
 under a non-GPU medium, so the question "did offloading actually save prefill,
 or just move bytes?" is answerable from the same artifact — no new instrument.
 
+## Per-request facts: the stat-logger plugin
+
+The window/containment join exists only because vLLM's KV events name no
+request. `FinishedRequestStats` does — and also carries `num_cached_tokens`,
+`num_prompt_tokens`, and a queue/prefill/decode time breakdown. So the better
+instrument is a plugin, and vLLM has a documented group for exactly this.
+
+```bash
+VIRTUAL_ENV=~/.venvs/vllm-serve uv pip install -e scripts/serve_track/vllm_plugin
+SEOCHO_PROBE_OUT=outputs/serve_track/<run>/request_stats.jsonl \
+  VLLM_PLUGINS=seocho_probe scripts/serve_track/launch_vllm.sh
+```
+
+Measured on 1x RTX 3070 / Qwen3-0.6B, two requests sharing an 847-token prefix:
+
+| request | prompt tokens | cached | prefill |
+|---|---:|---:|---:|
+| cold | 847 | 0 | 47.5 ms |
+| warm | 847 | 832 (98.2%) | 11.7 ms |
+
+That prefill pair is the number the offloading decision turns on: recall is only
+worth it when moving the bytes beats the ~47 ms of prefill it avoids.
+
+Two reasons this is a plugin and not a patch of `vllm.v1.core`:
+`EngineCoreProc` runs in its own process, so patching from the caller reaches
+nothing; and `vllm.stat_logger_plugins` is a documented extension point, which
+`vllm.v1.core.kv_cache_coordinator` is not. The caveat is in `StatLoggerBase`
+itself: "the `SchedulerStats` and `IterationStats` classes are not considered
+stable interfaces". Pin the vLLM version.
+
+## Structured decoding does not cost prefix reuse
+
+Constrained decoding shapes output tokens, not the prompt, and the measurement
+agrees. Same prefix across four arms — plain, `response_format=json_object`,
+and two distinct `guided_json` schemas — all reported **cached 832/847 (98.2%)**.
+
+The cost is elsewhere and is one-time. The first guided request paid ~240 ms of
+initialisation (325 ms vs ~85 ms plain); afterwards a brand-new schema cost
+96 ms against 83 ms plain, and a repeated schema was indistinguishable from
+plain (76 ms). Single request per arm — treat the millisecond deltas as
+indicative, the 98.2% as solid.
+
+## Where each stage's reuse ceiling comes from
+
+| stage | system | user | what is stable |
+|---|---:|---:|---|
+| `plan` | ~3.2 KB ontology schema pack | ~55 char question | everything up to the question-scoped hints |
+| `generation` | 639 char instruction block | question + retrieved records (74-1681 chars) | the instruction block only |
+
+`generation` is already ordered correctly — stable system, volatile user — so
+there is nothing to reorder there. Its ceiling is low because the retrieved
+records genuinely differ per question. Raising it would mean moving stable
+ontology context into its system prompt, which trades tokens for cacheability
+and is a product decision, not a bug fix.
+
+## Getting a graph the queries can actually match
+
+Indexing with a pipe-cleaner model produces nothing, and under the default
+`guided` enforcement that failure is silent: extraction falls back and writes
+generic `Entity` nodes, so every `:Account` query matches nothing and synthesis
+is handed an empty record set while the run still "succeeds". Use a capable
+model for indexing and `--enforcement strict`, which refuses rather than falls
+back:
+
+```bash
+python scripts/serve_track/profile_rag.py --out-dir <run> \
+  --index-llm mara/MiniMax-M2.7 --index-api-key "$MARA_API_KEY"   # strict is the default
+```
+
+MiniMax-M2.7 is the model the H200 run will serve under vLLM, so indexing uses
+it here too rather than an older MARA model.
+
+`MARA_API_KEY` is quoted in `.env`; strip the quotes when exporting it, or the
+key reaches the API with them attached and returns 401.
+
 ## Reading the output honestly
 
 - **`prefix_reuse_rate: null` is per *run*, not per stage.** On a rig that emits

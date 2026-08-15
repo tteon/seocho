@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "seocho-vllm-probe"
+version = "0.1.0"
+description = "vLLM stat-logger plugin exporting per-request KV-cache facts for the SEOCHO serve-track rig"
+requires-python = ">=3.11"
+# vLLM is intentionally not a dependency: this installs *into* an existing vLLM
+# environment, and pinning it here would let pip pull a second copy.
+dependencies = []
+
+# Loaded by every vLLM engine process, and only when named in VLLM_PLUGINS.
+[project.entry-points."vllm.stat_logger_plugins"]
+seocho_probe = "seocho_vllm_probe:SeochoRequestStatsLogger"
+
+[tool.setuptools.packages.find]
+include = ["seocho_vllm_probe*"]

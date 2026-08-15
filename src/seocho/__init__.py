@@ -414,9 +414,6 @@ def __dir__():
 # ---------------------------------------------------------------------------
 
 __all__ = [
-    "SeochoOS",
-    "OSSession",
-    "PriorityAdmission",
     # Core client + version
     "__version__",
     "Seocho",

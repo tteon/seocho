@@ -58,10 +58,13 @@ session protocol round-trip, cross-session privacy, workspace pinning,
 truncation disclosure, admission bounding under threads, budget stop,
 agent/guardrail assembly.
 
-> **Amended 2026-08-15 (seocho-dxe).** The layer is SEOCHO itself, not a
-> side brand: the public spelling is ``from seocho import SeochoOS`` (module
-> ``seocho.operating_layer``); ``seocho.agentos`` / ``AgentOS`` remain as a
-> deprecated alias for one release.
+> **Amended 2026-08-15 (seocho-dxe, final).** The layer is SEOCHO itself —
+> no side class, no second session concept: ``Seocho.session()`` (the same
+> Session that ``add()``/``ask()`` use) now carries ``sdk_session`` /
+> ``hooks`` / ``priority``; ``build_agent()`` / ``execute_query()`` accept
+> it directly, and operating controls are ``Seocho(...)`` constructor
+> kwargs defaulting to off (explicit opt-in). ``SeochoOS`` / ``AgentOS`` /
+> ``seocho.agentos`` remain importable for one release.
 
 ## Consequences
 

@@ -931,6 +931,14 @@ Each entry must link to a full ADR when impact is non-trivial.
   - claim stated carefully: the layer makes the contention trade visible and configurable, not free
   - PriorityAdmission ships on AgentOS (reserved_for_high, default 0)
 
+## 2026-08-15
+
+- [Accepted] ADR-0159 scheduler-v2-p99 (E2/S2 measurement record)
+  - probe caught estimate poisoning: global EWMA + fast-fail starved the polite high class 0/85; fixed with per-lane service EWMA — fast-fail is only as safe as its estimator
+  - E2: with a correct estimator, single lane + fast-fail holds light p99 at 122ms; static lanes pay a partition tax (565ms) — lanes demoted to opt-in
+  - S2: work-conserving reserve keeps interactive protection while lifting normal throughput +56~59% vs the static reserve
+  - defaults: single lane + fast-fail + borrowable reserve, all off-by-default on Seocho(...)
+
 ## Template
 
 Use this block for new entries:

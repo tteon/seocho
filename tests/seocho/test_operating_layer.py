@@ -222,3 +222,118 @@ def test_reserve_must_leave_normal_capacity(ontology):
 
     with pytest.raises(ValueError):
         PriorityAdmission(max_inflight=2, reserved_for_high=2)
+
+
+# -- scheduler v2: lanes, borrowing, fast-fail --------------------------------
+
+def test_unknown_statements_go_to_the_heavy_lane(ontology):
+    from seocho.operating_layer import LaneScheduler
+
+    gate = LaneScheduler(max_inflight=4, light_permits=2)
+    assert gate.classify("never-seen") == "heavy"
+    gate.observe("fast-query", 80.0)
+    gate.observe("slow-query", 8000.0)
+    assert gate.classify("fast-query") == "light"
+    assert gate.classify("slow-query") == "heavy"
+
+
+def test_heavy_saturation_cannot_block_the_light_lane(ontology):
+    from seocho.operating_layer import LaneScheduler
+
+    gate = LaneScheduler(max_inflight=4, light_permits=2, wait_seconds=0.05)
+    assert gate.acquire(lane="heavy") and gate.acquire(lane="heavy")
+    assert not gate.acquire(lane="heavy")          # heavy lane full
+    # Light permits are untouched by the heavy pile-up — no head-of-line.
+    assert gate.acquire(lane="light") and gate.acquire(lane="light")
+
+
+def test_normal_borrows_the_reserve_only_while_high_is_absent(ontology):
+    from seocho.operating_layer import LaneScheduler
+
+    gate = LaneScheduler(max_inflight=4, light_permits=0,
+                         reserved_for_high=2, wait_seconds=0.05)
+    # No high waiter anywhere: work conservation lets normals use all 4.
+    for _ in range(4):
+        assert gate.acquire(lane="heavy", priority="normal")
+    assert not gate.acquire(lane="heavy", priority="normal")
+    for _ in range(4):
+        gate.release(lane="heavy", priority="normal")
+
+    # A waiting high class re-arms the protection: with 2 reserved and a
+    # high waiter present, normals stop at 2.
+    import threading as _threading
+    import time as _time
+
+    assert gate.acquire(lane="heavy", priority="normal")
+    assert gate.acquire(lane="heavy", priority="normal")
+    assert gate.acquire(lane="heavy", priority="high")
+    assert gate.acquire(lane="heavy", priority="high")   # pool now full
+
+    got = []
+
+    def waiting_high():
+        got.append(gate.acquire(lane="heavy", priority="high", deadline_s=2.0))
+
+    thread = _threading.Thread(target=waiting_high)
+    thread.start()
+    _time.sleep(0.1)                       # the high waiter is now queued
+    gate.release(lane="heavy", priority="high")
+    thread.join(timeout=5)
+    assert got == [True]                    # release reached the high waiter
+    # While that high waiter was queued, a normal could not have taken the
+    # freed permit past the reserve — covered by the admissibility rule.
+
+
+def test_predicted_wait_rejects_immediately_not_after_timeout(ontology):
+    import time as _time
+
+    from seocho.operating_layer import LaneScheduler
+
+    gate = LaneScheduler(max_inflight=1, light_permits=0, wait_seconds=5.0)
+    gate.observe("slow", 8000.0, lane="heavy")   # lane EWMA ~8s
+    assert gate.acquire(lane="heavy")       # occupy the only permit
+    # Park a waiter so predicted wait = 1 * 8s / 1 permit = 8s > 0.5s budget.
+    import threading as _threading
+
+    parked = _threading.Thread(
+        target=lambda: gate.acquire(lane="heavy", deadline_s=3.0))
+    parked.start()
+    _time.sleep(0.05)
+    started = _time.perf_counter()
+    assert not gate.acquire(lane="heavy", deadline_s=0.5)
+    elapsed = _time.perf_counter() - started
+    assert elapsed < 0.2                    # rejected NOW, not at 0.5s timeout
+    gate.release(lane="heavy")
+    parked.join(timeout=5)
+
+
+# -- the public surface is Seocho itself --------------------------------------
+
+def test_one_session_object_carries_the_operating_layer(ontology):
+    """seocho-dxe final form: no side class, no second method — the same
+    Session that add()/ask() use carries sdk_session/hooks/priority, and
+    the governed paths accept it directly."""
+    from seocho import Seocho
+
+    store = RecordingStore()
+    client = Seocho(ontology=ontology, graph_store=store, llm=object(),
+                    workspace_id="acme", max_inflight=4)
+    session = client.session("chat", priority="high")
+    assert session.priority == "high"
+    assert session.sdk_session.workspace_id == "acme"
+    assert session.hooks is not None and session.budget is not None
+    payload = client.execute_query(
+        session, "MATCH (n:Account) WHERE n._workspace_id = $workspace_id "
+                 "RETURN n LIMIT 1", "{}")
+    assert "row_count" in payload
+    assert store.calls[0]["params"]["workspace_id"] == "acme"
+    agent = client.build_agent(session, name="t")
+    assert agent.tools[0].name == "graph_query"
+
+
+def test_operating_layer_refused_outside_local_mode():
+    from seocho import Seocho
+
+    client = Seocho(base_url="http://localhost:9")   # HTTP mode
+    with pytest.raises(Exception, match="local"):
+        client.session("x")

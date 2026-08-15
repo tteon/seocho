@@ -562,14 +562,14 @@ class Ontology:
               "relationships": { ... }
             }
         """
-        from .ontology_serialization import ontology_from_jsonld_path
+        from .serialization import ontology_from_jsonld_path
 
         return ontology_from_jsonld_path(cls, path)
 
     @classmethod
     def from_jsonld_dict(cls, data: Dict[str, Any]) -> "Ontology":
         """Build from a parsed JSON-LD dict."""
-        from .ontology_serialization import ontology_from_jsonld_dict
+        from .serialization import ontology_from_jsonld_dict
 
         return ontology_from_jsonld_dict(cls, data)
 
@@ -587,13 +587,13 @@ class Ontology:
 
     def to_ttl(self, path: Union[str, Path]) -> Path:
         """Write this ontology out as Turtle. Inverse of :meth:`from_ttl`."""
-        from .ontology_serialization import ontology_to_ttl
+        from .serialization import ontology_to_ttl
 
         return ontology_to_ttl(self, path)
 
     @classmethod
     def _from_jsonld_dict(cls, data: Dict[str, Any]) -> "Ontology":
-        from .ontology_serialization import ontology_from_jsonld_dict
+        from .serialization import ontology_from_jsonld_dict
 
         return ontology_from_jsonld_dict(cls, data)
     @classmethod
@@ -1071,7 +1071,7 @@ class Ontology:
         This is the **canonical** persistence format for SEOCHO
         ontologies.
         """
-        from .ontology_serialization import ontology_to_jsonld
+        from .serialization import ontology_to_jsonld
 
         return ontology_to_jsonld(self, path)
 
@@ -1179,19 +1179,19 @@ class Ontology:
 
     def to_ontology_candidate(self) -> Any:
         """Convert this ontology into the typed runtime ontology artifact."""
-        from .ontology_artifacts import ontology_to_ontology_candidate
+        from .artifacts import ontology_to_ontology_candidate
 
         return ontology_to_ontology_candidate(self)
 
     def to_shacl_candidate(self) -> Any:
         """Convert derived SHACL output into the typed runtime artifact shape."""
-        from .ontology_artifacts import ontology_to_shacl_candidate
+        from .artifacts import ontology_to_shacl_candidate
 
         return ontology_to_shacl_candidate(self)
 
     def to_vocabulary_candidate(self, *, include_properties: bool = True) -> Any:
         """Convert ontology labels and aliases into a lightweight vocabulary."""
-        from .ontology_artifacts import ontology_to_vocabulary_candidate
+        from .artifacts import ontology_to_vocabulary_candidate
 
         return ontology_to_vocabulary_candidate(self, include_properties=include_properties)
 
@@ -1202,7 +1202,7 @@ class Ontology:
         include_property_terms: bool = True,
     ) -> Any:
         """Build an ``ApprovedArtifacts`` payload from this ontology."""
-        from .ontology_artifacts import ontology_to_approved_artifacts
+        from .artifacts import ontology_to_approved_artifacts
 
         return ontology_to_approved_artifacts(
             self,
@@ -1218,7 +1218,7 @@ class Ontology:
         include_property_terms: bool = True,
     ) -> Any:
         """Build a typed semantic prompt context from this ontology."""
-        from .ontology_artifacts import ontology_to_semantic_prompt_context
+        from .artifacts import ontology_to_semantic_prompt_context
 
         return ontology_to_semantic_prompt_context(
             self,
@@ -1236,7 +1236,7 @@ class Ontology:
         source_summary: Optional[Dict[str, Any]] = None,
     ) -> Any:
         """Build a draft semantic artifact payload from this ontology."""
-        from .ontology_artifacts import ontology_to_semantic_artifact_draft
+        from .artifacts import ontology_to_semantic_artifact_draft
 
         return ontology_to_semantic_artifact_draft(
             self,
@@ -1728,25 +1728,25 @@ class Ontology:
 
     def schema_fingerprint(self) -> str:
         """Stable schema hash used for ontology versioning and cache keys."""
-        from .ontology_versioning import ontology_schema_fingerprint
+        from .versioning import ontology_schema_fingerprint
 
         return ontology_schema_fingerprint(self)
 
     def version_is_valid(self) -> bool:
         """Return True when ``version`` follows semantic versioning."""
-        from .ontology_versioning import is_valid_semver
+        from .versioning import is_valid_semver
 
         return is_valid_semver(self.version)
 
     def version_identity(self) -> Any:
         """Return version identity metadata for governance and runtime traces."""
-        from .ontology_versioning import ontology_version_identity
+        from .versioning import ontology_version_identity
 
         return ontology_version_identity(self)
 
     def upgrade_plan(self, next_ontology: "Ontology") -> Any:
         """Return indexing/query impact guidance for a proposed ontology update."""
-        from .ontology_versioning import build_ontology_upgrade_plan
+        from .versioning import build_ontology_upgrade_plan
 
         return build_ontology_upgrade_plan(self, next_ontology)
 
@@ -2342,7 +2342,7 @@ class Ontology:
             # or use the operator form:
             composed = base + extension - restricted
         """
-        from .ontology_serialization import ontology_subtract
+        from .serialization import ontology_subtract
 
         return ontology_subtract(self, other)
 

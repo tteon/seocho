@@ -111,6 +111,8 @@ uv run pytest \
   tests/seocho/test_entity_identity.py \
   tests/seocho/test_triage_metadata.py \
   tests/seocho/test_import_boundaries.py \
+  tests/seocho/test_ontology_package_surface.py \
+  tests/seocho/test_package_completeness.py \
   -q
 
 git diff --check

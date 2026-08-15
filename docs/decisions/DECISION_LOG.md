@@ -1059,3 +1059,7 @@ Use this block for new entries:
 - [Accepted] ADR-0172 remove-opik-tracing-backend — the SDK's own 97-instrument
   metric surface covers all four golden signals, so a second, data-exporting
   path is cost without benefit; tracing contract becomes `none|console|jsonl|otlp`
+- [Accepted] ADR-0173 ontology-subpackage (seocho-di8) — 16 flat `ontology*.py`
+  modules (7,872 LOC) become `src/seocho/ontology/`; lazy `__init__` because the
+  core/serialization cycles predate the move, `sys.modules` aliases so
+  `monkeypatch` still reaches the canonical module; zero public API change

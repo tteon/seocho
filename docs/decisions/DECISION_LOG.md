@@ -973,6 +973,13 @@ Each entry must link to a full ADR when impact is non-trivial.
   - neo4j-bolt-rs = a DATA-PLANE driver swap beneath the gate; gated on server_share measurement (ADR-0155 discipline, no Rust on speculation)
   - design rule: a change is control-plane XOR data-plane
 
+## 2026-08-15 (ablation A2 isolation)
+
+- [Accepted] ADR-0164 ablation-a2-isolation (seocho-76k) — isolation leak rate OFF vs ON on live DozerDB 2-tenant graph
+  - enforcement OFF leaks 21 cross-tenant rows across 5/6 attacks (wrong_node_binding worst at 9); ON leaks 0 (0/6), every attack blocked with a reason
+  - properly_scoped control passes both arms (3 acme rows, 0 leak) => gate blocks attacks without over-blocking
+  - first Level-2 ablation row measured; validates shipped defense-in-depth (per-workspace-DB endgame would make it structural)
+
 ## Template
 
 Use this block for new entries:

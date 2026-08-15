@@ -1667,9 +1667,17 @@ class LPGAgent:
         OPTIONAL MATCH (n)-[r{relation_clause}]-(m)
         WHERE $target_hint = ''
            OR toLower(coalesce(m.name, m.title, m.id, m.uri, elementId(m))) CONTAINS toLower($target_hint)
-        RETURN coalesce(n.name, n.title, n.id, n.uri, elementId(n)) AS source_entity,
+        RETURN CASE WHEN r IS NULL
+                    THEN coalesce(n.name, n.title, n.id, n.uri, elementId(n))
+                    ELSE coalesce(startNode(r).name, startNode(r).title,
+                                  startNode(r).id, startNode(r).uri,
+                                  elementId(startNode(r))) END AS source_entity,
                type(r) AS relation_type,
-               coalesce(m.name, m.title, m.id, m.uri, elementId(m)) AS target_entity,
+               CASE WHEN r IS NULL
+                    THEN coalesce(m.name, m.title, m.id, m.uri, elementId(m))
+                    ELSE coalesce(endNode(r).name, endNode(r).title,
+                                  endNode(r).id, endNode(r).uri,
+                                  elementId(endNode(r))) END AS target_entity,
                labels(m) AS target_labels,
                coalesce(m.content_preview, m.description, '') AS supporting_fact
         ORDER BY target_entity

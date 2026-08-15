@@ -734,7 +734,6 @@ class Session:
                     "MATCH (n) WHERE n._source_id = $sid "
                     "RETURN labels(n)[0] AS label, n.name AS name, properties(n) AS props",
                     params={"sid": sid}, database=database,
-                    workspace_id=self.workspace_id, enforce_workspace_filter=True,
                 )
                 for row in rows:
                     extracted_nodes.append({

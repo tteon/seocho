@@ -19,7 +19,7 @@ def _engine(fake_query):
     eng.workspace_id = "ws-cf"
 
     class _GS:
-        def query(self, cypher, params=None, database="neo4j", **kwargs):
+        def query(self, cypher, params=None, database="neo4j"):
             return fake_query(cypher, params or {}, database)
 
     eng.graph_store = _GS()

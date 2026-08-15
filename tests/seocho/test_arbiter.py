@@ -84,7 +84,7 @@ def test_hint_to_span_is_flat():
 
 def test_make_graph_probe_reads_periods():
     class _Store:
-        def query(self, cypher, params=None, database="neo4j", **kwargs):
+        def query(self, cypher, params=None, database="neo4j"):
             assert "concept_id" in cypher and params["cik"] == "0000320193"
             return [{"periods": ["fiscal:2024:FY", "fiscal:2023:FY"]}]
 

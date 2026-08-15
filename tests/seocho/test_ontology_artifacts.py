@@ -100,7 +100,7 @@ def test_local_query_builder_uses_registered_ontology_override() -> None:
         def get_schema(self, *, database="neo4j"):  # noqa: ANN001
             return {"labels": ["Customer"], "relationship_types": []}
 
-        def query(self, cypher, params=None, database="neo4j", **kwargs):  # noqa: ANN001
+        def query(self, cypher, params=None, database="neo4j"):  # noqa: ANN001
             return [{"count": 1}]
 
     default_ontology = Ontology(

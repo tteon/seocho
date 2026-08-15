@@ -27,7 +27,7 @@ class _StrictStore:
     path, this would raise TypeError — that's the regression guard.
     """
 
-    def query(self, cypher, *, params=None, database="neo4j", **kwargs):
+    def query(self, cypher, *, params=None, database="neo4j"):
         return [{"ok": True}]
 
 
@@ -39,7 +39,7 @@ class _EnforcingStore:
         self.calls = []
 
     def query(self, cypher, *, params=None, database="neo4j",
-              workspace_id=None, enforce_workspace_filter=False, **kwargs):
+              workspace_id=None, enforce_workspace_filter=False):
         self.calls.append({
             "cypher": cypher, "workspace_id": workspace_id,
             "enforce_workspace_filter": enforce_workspace_filter,

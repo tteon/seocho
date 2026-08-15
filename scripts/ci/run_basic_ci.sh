@@ -20,7 +20,7 @@ python3 -m py_compile $py_compile_files
 
 uv run ruff check \
   scripts/ci \
-  src/seocho/cli.py \
+  src/seocho/cli \
   src/seocho/connectors \
   src/seocho/e2e.py \
   src/seocho/index/file_reader.py \

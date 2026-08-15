@@ -294,17 +294,7 @@ class CypherBuilder:
             node_descriptions.append(f"  - {label}: {desc} (properties: {props})")
         node_block = "\n".join(node_descriptions)
         hint_block = self.render_schema_hints(schema_hints)
-        # Question-scoped hints are the only part of this prompt that changes
-        # between questions on one ontology, so they go LAST (ADR-0148: stable
-        # sections precede volatile ones). They used to sit just after the
-        # invariant header, which truncated the reusable KV prefix at ~112
-        # tokens and forced the ~2.7 KB ontology body — byte-identical across
-        # questions — to be re-prefilled every time.
-        hint_suffix = (
-            f"\nQuestion-scoped schema hints (specific to this question):\n{hint_block}\n"
-            if hint_block
-            else ""
-        )
+        hint_prefix = f"Question-scoped schema hints:\n{hint_block}\n\n" if hint_block else ""
 
         return (
             "You are a question analyzer for a knowledge graph.\n"
@@ -318,6 +308,7 @@ class CypherBuilder:
             f"- Ontology query profile: package_id={profile['package_id']}, "
             f"version={profile['version']}, graph_model={profile['graph_model']}.\n"
             f"- Deterministic intents supported: {', '.join(profile['deterministic_intents'])}.\n\n"
+            f"{hint_prefix}"
             f"Node types:\n{node_block}\n\n"
             f"Relationship types (ONLY these exist in the graph):\n{rel_block}\n\n"
             f"{role_block}"
@@ -362,7 +353,6 @@ class CypherBuilder:
             '  "How many accounts sent transfers into account 42?" → {"intent": "count", "anchor_entity": "42", '
             '"anchor_label": "Account", "target_label": "Account", "relationship_type": "TRANSFER"}\n'
             '  "Delta in CBOE Data & Access Solutions rev from 2021-23." → {"intent": "financial_metric_delta", "anchor_entity": "CBOE", "anchor_label": "Company", "metric_name": "Data & Access Solutions revenue", "years": ["2021", "2023"]}\n'
-            + hint_suffix
         )
 
     def derive_schema_hints(

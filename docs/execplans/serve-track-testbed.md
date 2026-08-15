@@ -33,9 +33,11 @@ behaviour to the pipeline stage that caused it.
 - Constrained decoding costs nothing in prefix reuse. Plain,
   `response_format=json_object`, and two distinct `guided_json` schemas all
   reported 832/847 cached. The cost is a one-time ~240 ms initialisation.
-- A prompt-ordering defect worth 5x: question-scoped hints sat before the ~2.7 KB
-  ontology body, capping the shared prefix at ~500 chars. Moving them to the tail
-  took it to 2,699 chars and the engine's own hit rate from 55.5% to 76.2%.
+- A prompt-ordering defect the rig surfaced: question-scoped hints sat before the
+  ~2.7 KB ontology body, capping the shared prefix at ~500 chars. Moving them to
+  the tail took it to ~2,690. Split out to its own PR (#503) rather than shipped
+  here, and deliberately not claimed as a latency win — prefill is a low
+  single-digit share of a planning call dominated by reasoning-token decode.
 
 ### What it deliberately cannot do
 

@@ -125,6 +125,7 @@ def _vector_best_f1(items, golden_fn) -> Dict[str, Any]:
 
     n = len(items)
     sims = {(a, b): cos(vecs[a], vecs[b]) for a, b in itertools.combinations(range(n), 2)}
+    sweep = []
     best = {"f1": -1.0}
     for thr_i in range(50, 100, 2):
         thr = thr_i / 100.0
@@ -149,10 +150,20 @@ def _vector_best_f1(items, golden_fn) -> Dict[str, Any]:
         prec = tp / (tp + fp) if (tp + fp) else 1.0
         rec = tp / (tp + fn) if (tp + fn) else 1.0
         f1 = 2 * prec * rec / (prec + rec) if (prec + rec) else 0.0
+        point = {"threshold": thr, "precision": round(prec, 4),
+                 "recall": round(rec, 4), "f1": round(f1, 4), "false_merges": fp}
+        sweep.append(point)
         if f1 > best["f1"]:
-            best = {"threshold": thr, "precision": round(prec, 4),
-                    "recall": round(rec, 4), "f1": round(f1, 4)}
-    best["note"] = "best-F1 over swept threshold = oracle ceiling for semantic fallback"
+            best = dict(point)
+    # The whole sweep is kept, not just the peak: vector's precision is
+    # threshold-dependent and collapses just below the best-F1 point, so the
+    # best-F1 number is an ORACLE ceiling, not an operational result.
+    best["note"] = "best-F1 over swept threshold = oracle ceiling (see full sweep)"
+    best["sweep"] = sweep
+    # precision at the operational thresholds just below the peak — the honesty
+    # check: how fragile is that 1.000?
+    below = [p for p in sweep if p["threshold"] in (0.78, 0.80)]
+    best["precision_just_below_peak"] = below
     return best
 
 

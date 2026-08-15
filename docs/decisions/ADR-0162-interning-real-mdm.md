@@ -32,7 +32,42 @@ best-F1 threshold = an oracle ceiling for the semantic fallback).
 | **intern_name** (compute_node_identity) | **1.000** | 0.811 | 0.896 |
 | intern_name_label | 1.000 | 0.755 | 0.860 |
 | business_key (MDM's own key) | 1.000 | 0.764 | 0.866 |
-| vector_bge @thr=0.82 (oracle) | 1.000 | 0.896 | 0.945 |
+| vector_bge @thr=0.82 (**oracle** — see caveat) | 1.000 | 0.896 | 0.945 |
+
+## The vector number is an oracle, not a win — the threshold sweep
+
+`vector_bge`'s 1.000 precision is **not** an operational result. It is the
+best-F1 point of a swept similarity threshold, and its precision **collapses**
+just below that point (full sweep in the JSON):
+
+| threshold | precision | recall | F1 | false merges |
+|---|---|---|---|---|
+| 0.70 | 0.112 | 1.000 | 0.201 | 843 |
+| 0.75 | 0.329 | 1.000 | 0.495 | 216 |
+| 0.80 | 0.505 | 0.906 | 0.649 | 94 |
+| **0.82** | **1.000** | 0.896 | 0.945 | 0 |
+| 0.90 | 1.000 | 0.877 | 0.935 | 0 |
+
+Two things this exposes:
+
+- **The 1.000 precision lives in a razor-thin band (0.82–0.90).** Two hundredths
+  lower and precision is 0.505 (94 false merges). There is no robust operating
+  point; the peak was *selected with the answer key*.
+- **Why the band is thin:** distinct entities embed as close as true duplicates.
+  "American Airlines" vs "Alaska Airlines" — two different airlines — have cosine
+  **0.820**, the same neighborhood as the true duplicate "Delta" vs "Delta Air
+  Lines". The threshold that separates them barely exists on these 114 clean
+  names and would not survive more entities or noisier surface forms, where the
+  true-duplicate and distinct-but-similar similarity distributions overlap and no
+  threshold yields P=1.000.
+
+So vector did **not** beat exact interning on precision. Its only real advantage
+is **recall** (it recovers abbreviations/suffixes exact keys miss), and it buys
+that recall with a tuned, fragile, model-dependent threshold. Exact interning's
+1.000 precision needs **no** threshold, **no** model, **no** tuning — it is a
+by-construction guarantee, identical at any scale. This is precisely why the
+hybrid is **intern-first** (guaranteed-precision bulk) **with vector fallback**
+(recall on the residue), not vector-first.
 
 ## What it confirms (the synthetic findings hold on real cross-model data)
 
@@ -51,10 +86,15 @@ best-F1 threshold = an oracle ceiling for the semantic fallback).
    This is ADR-0161's suffix recall ceiling, reproduced on real surface
    variation — and independently confirmed by the fact that MDM needed a
    fuzzy/semantic layer *on top of* its exact key to reach the golden truth.
-3. **The semantic fallback recovers what exact keys miss** (vector_bge R=0.896,
-   F1=0.945 at P=1.000). This validates the ADR-0161 **hybrid** (intern for
-   guaranteed precision, vector to lift recall) on real data — it is, in effect,
-   what the production MDM pipeline already had to do.
+3. **The semantic fallback recovers what exact keys miss — on recall only.**
+   vector_bge lifts recall to 0.896 by folding abbreviations/suffixes; its 1.000
+   precision, however, is an oracle-threshold artifact that collapses to 0.505 a
+   hundredth below the peak (see the sweep section). So the finding is not
+   "vector wins" but "vector adds recall at the cost of a fragile threshold" —
+   which is exactly why the ADR-0161 **hybrid** is intern-first (guaranteed
+   precision) with vector as a recall *fallback*. It is, in effect, what the
+   production MDM pipeline already had to do (its exact business_key alone
+   reached only R=0.764).
 
 ## New real-data insight (synthetic data could not show this)
 

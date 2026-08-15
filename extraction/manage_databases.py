@@ -10,7 +10,7 @@ import logging
 
 from neo4j import GraphDatabase
 
-from config import NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD, _VALID_DB_NAME_RE, db_registry
+from .config import NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD, _VALID_DB_NAME_RE, db_registry
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +61,7 @@ if __name__ == "__main__":
     create_databases(target_dbs)
 
     # --- Schema Application ---
-    from schema_manager import SchemaManager
+    from .schema_manager import SchemaManager
 
     sm = SchemaManager(NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD)
 

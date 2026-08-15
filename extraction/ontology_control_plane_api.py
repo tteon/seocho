@@ -5,7 +5,7 @@ from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, Field
 
-from ontology_control_plane_store import (
+from .ontology_control_plane_store import (
     compile_ontology_profile,
     evaluate_ontology_profile,
     get_ontology_profile,

@@ -1,24 +1,18 @@
 """Canonical runtime deployment shell package.
 
 This package is the long-term replacement for the historically overloaded
-``extraction/`` shell. During the staged migration, most runtime modules still
-depend on flat modules that live under ``extraction/``. Bootstrap the known
-legacy helper locations here so ``runtime.*`` modules can import those
-remaining helpers without requiring every downstream caller to mutate
-``sys.path`` first.
+``extraction/`` shell. Runtime modules still depend on modules that live under
+``extraction/``, and they now import them as ``extraction.<name>``.
+
+This module used to insert both the repository root and ``extraction/`` onto
+``sys.path`` so those helpers could be imported under bare top-level names.
+That is gone (seocho-60u). It made ``extraction/config.py`` load twice — once
+as ``config`` and once as ``extraction.config`` — which Python caches as two
+distinct module objects, producing two ``DatabaseRegistry`` classes and two
+``db_registry`` singletons. It also hid twenty-eight ``runtime`` →
+``extraction`` edges from every static tool, including the boundary checks that
+were supposed to police exactly this direction.
+
+Nothing replaced it: ``import runtime`` already requires the repository root on
+``sys.path``, which is the same condition ``import extraction`` needs.
 """
-
-from __future__ import annotations
-
-import sys
-from pathlib import Path
-
-
-_ROOT_DIR = Path(__file__).resolve().parent.parent
-
-for _helper_dir in (_ROOT_DIR, _ROOT_DIR / "extraction"):
-    if not _helper_dir.exists():
-        continue
-    _helper_dir_str = str(_helper_dir)
-    if _helper_dir_str not in sys.path:
-        sys.path.insert(0, _helper_dir_str)

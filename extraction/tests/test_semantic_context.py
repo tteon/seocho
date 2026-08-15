@@ -4,7 +4,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from semantic_context import build_dynamic_prompt_context
+from ..semantic_context import build_dynamic_prompt_context
 
 
 def test_build_dynamic_prompt_context_merges_graph_artifacts_and_developer_overrides():

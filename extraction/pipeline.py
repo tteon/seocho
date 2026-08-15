@@ -4,15 +4,15 @@ import logging
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any
 
-from collector import DataCollector
-from data_source import DataSource
-from graph_loader import GraphLoader
-from vector_store import VectorStore
-from deduplicator import EntityDeduplicator
-from rule_constraints import infer_rules_from_graph, apply_rules_to_graph
-from config import NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD
-from exceptions import PipelineError
-from tracing import track
+from .collector import DataCollector
+from .data_source import DataSource
+from .graph_loader import GraphLoader
+from .vector_store import VectorStore
+from .deduplicator import EntityDeduplicator
+from .rule_constraints import infer_rules_from_graph, apply_rules_to_graph
+from .config import NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD
+from .exceptions import PipelineError
+from .tracing import track
 from seocho.index import CanonicalExtractionEngine
 from seocho.store.llm import create_llm_backend
 
@@ -85,7 +85,7 @@ class ExtractionPipeline:
         self.deduplicator = EntityDeduplicator(vector_store=self.vector_store)
 
         # Schema Manager — reuse across items instead of creating per-item
-        from schema_manager import SchemaManager
+        from .schema_manager import SchemaManager
 
         self._schema_manager = SchemaManager(NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD)
 

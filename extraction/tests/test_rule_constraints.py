@@ -1,4 +1,4 @@
-from rule_constraints import (
+from ..rule_constraints import (
     apply_rules_to_graph,
     infer_rules_from_graph,
 )

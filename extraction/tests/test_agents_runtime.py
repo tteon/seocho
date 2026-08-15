@@ -35,7 +35,7 @@ fake_agents = types.SimpleNamespace(
 )
 sys.modules["agents"] = fake_agents
 
-import agents_runtime
+from .. import agents_runtime
 
 
 def teardown_module(module):

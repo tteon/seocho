@@ -66,14 +66,14 @@ def _register(workspace_id: str, graph_id: str, database: str, ontology) -> str:
 
 
 def test_helper_returns_hash_for_single_ontology_workspace():
-    import rule_api
+    from .. import rule_api
 
     expected = _register("acme", "finance", "kgnormal", _ontology("finance"))
     assert rule_api._active_ontology_hash("acme") == expected
 
 
 def test_helper_returns_empty_when_workspace_unknown():
-    import rule_api
+    from .. import rule_api
 
     _register("acme", "finance", "kgnormal", _ontology("finance"))
     assert rule_api._active_ontology_hash("other") == ""
@@ -84,7 +84,7 @@ def test_helper_returns_empty_for_multi_ontology_workspace():
     active hash from a workspace_id-only request — returns empty,
     consistent with Phase 5's `unknown` trichotomy."""
 
-    import rule_api
+    from .. import rule_api
 
     _register("acme", "finance", "kgnormal", _ontology("finance"))
     _register("acme", "legal", "kglegal", _ontology("legal"))
@@ -92,7 +92,7 @@ def test_helper_returns_empty_for_multi_ontology_workspace():
 
 
 def test_helper_returns_empty_for_empty_registry():
-    import rule_api
+    from .. import rule_api
 
     assert rule_api._active_ontology_hash("acme") == ""
 
@@ -103,7 +103,7 @@ def test_helper_returns_empty_for_empty_registry():
 
 
 def test_infer_stamps_active_ontology_hash():
-    import rule_api
+    from .. import rule_api
 
     expected = _register("acme", "finance", "kgnormal", _ontology("finance"))
 
@@ -118,7 +118,7 @@ def test_infer_stamps_active_ontology_hash():
 
 
 def test_infer_leaves_hash_empty_when_registry_inactive():
-    import rule_api
+    from .. import rule_api
 
     response = rule_api.infer_rule_profile(
         rule_api.RuleInferRequest(
@@ -135,7 +135,7 @@ def test_infer_leaves_hash_empty_when_registry_inactive():
 
 
 def test_create_stamps_active_hash_when_caller_omits_one():
-    import rule_api
+    from .. import rule_api
 
     expected = _register("acme", "finance", "kgnormal", _ontology("finance"))
 
@@ -155,7 +155,7 @@ def test_create_preserves_caller_supplied_hash_through_round_trip():
     the active hash takes precedence — but they should match for fresh
     inference, which is the common path."""
 
-    import rule_api
+    from .. import rule_api
 
     expected = _register("acme", "finance", "kgnormal", _ontology("finance"))
 
@@ -180,7 +180,7 @@ def test_create_preserves_caller_supplied_hash_through_round_trip():
 
 
 def test_read_returns_match_when_stored_equals_active():
-    import rule_api
+    from .. import rule_api
 
     active = _register("acme", "finance", "kgnormal", _ontology("finance"))
 
@@ -201,7 +201,7 @@ def test_read_returns_drift_after_ontology_changes():
     """The structural promise: re-registering the ontology under a new
     version makes the previously-saved profile read as drift."""
 
-    import rule_api
+    from .. import rule_api
 
     _register("acme", "finance", "kgnormal", _ontology("finance", version="1.0.0"))
 
@@ -229,7 +229,7 @@ def test_read_omits_drift_block_when_registry_inactive():
     """Backward compat: workspaces without registered ontologies see no
     drift block; the legacy endpoint shape is preserved."""
 
-    import rule_api
+    from .. import rule_api
 
     saved = rule_api.create_rule_profile(
         rule_api.RuleProfileCreateRequest(
@@ -248,7 +248,7 @@ def test_read_omits_drift_block_when_registry_inactive():
 
 
 def test_assess_with_supplied_profile_surfaces_drift():
-    import rule_api
+    from .. import rule_api
 
     active = _register("acme", "finance", "kgnormal", _ontology("finance"))
 
@@ -270,7 +270,7 @@ def test_assess_with_supplied_profile_surfaces_drift():
 
 
 def test_assess_with_inferred_profile_returns_match():
-    import rule_api
+    from .. import rule_api
 
     _register("acme", "finance", "kgnormal", _ontology("finance"))
 
@@ -289,7 +289,7 @@ def test_assess_with_legacy_supplied_profile_returns_unknown():
     active workspace hash must report status=unknown rather than drift,
     so legacy assessment paths keep working until profiles are re-saved."""
 
-    import rule_api
+    from .. import rule_api
 
     _register("acme", "finance", "kgnormal", _ontology("finance"))
 
@@ -305,7 +305,7 @@ def test_assess_with_legacy_supplied_profile_returns_unknown():
 
 
 def test_assess_with_no_active_hash_reports_no_drift_block():
-    import rule_api
+    from .. import rule_api
 
     response = rule_api.assess_rule_profile(
         rule_api.RuleAssessRequest(

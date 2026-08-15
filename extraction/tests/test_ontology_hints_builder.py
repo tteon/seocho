@@ -4,7 +4,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from ontology_hints_builder import build_hints_from_records
+from ..ontology_hints_builder import build_hints_from_records
 
 
 def test_build_hints_from_records_merges_aliases_and_keywords():

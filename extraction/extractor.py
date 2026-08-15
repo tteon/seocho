@@ -3,10 +3,10 @@ import logging
 import time
 from typing import Optional, Dict, Any
 from openai import OpenAI
-from prompt_manager import PromptManager
-from tracing import wrap_openai_client
-from exceptions import OpenAIAPIError, ExtractionError
-from retry_utils import openai_retry
+from .prompt_manager import PromptManager
+from .tracing import wrap_openai_client
+from .exceptions import OpenAIAPIError, ExtractionError
+from .retry_utils import openai_retry
 
 logger = logging.getLogger(__name__)
 

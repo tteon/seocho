@@ -5,10 +5,10 @@ from typing import Any, Dict, Optional
 
 from openai import OpenAI
 
-from prompt_manager import PromptManager
-from tracing import wrap_openai_client
-from exceptions import OpenAIAPIError, LinkingError
-from retry_utils import openai_retry
+from .prompt_manager import PromptManager
+from .tracing import wrap_openai_client
+from .exceptions import OpenAIAPIError, LinkingError
+from .retry_utils import openai_retry
 
 logger = logging.getLogger(__name__)
 

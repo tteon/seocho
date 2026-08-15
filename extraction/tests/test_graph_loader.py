@@ -12,8 +12,8 @@ from unittest.mock import MagicMock, patch
 sys.modules.setdefault("neo4j", MagicMock())
 sys.modules.setdefault("neo4j.exceptions", MagicMock())
 
-from exceptions import InvalidLabelError
-from graph_loader import _normalize_label, _sanitize_properties, _validate_label
+from ..exceptions import InvalidLabelError
+from ..graph_loader import _normalize_label, _sanitize_properties, _validate_label
 
 
 class TestValidateLabel:
@@ -74,18 +74,18 @@ class TestPropertySanitization:
 
 class TestGraphLoaderLoadGraph:
     def test_load_empty_data(self):
-        from graph_loader import GraphLoader
+        from ..graph_loader import GraphLoader
 
-        with patch("graph_loader.GraphDatabase") as mock_gdb:
+        with patch("extraction.graph_loader.GraphDatabase") as mock_gdb:
             loader = GraphLoader("bolt://test:7687", "user", "pass")
             # Should not raise or call session
             loader.load_graph({}, "src_1")
             loader.load_graph(None, "src_1")
 
     def test_load_valid_data(self):
-        from graph_loader import GraphLoader
+        from ..graph_loader import GraphLoader
 
-        with patch("graph_loader.GraphDatabase") as mock_gdb:
+        with patch("extraction.graph_loader.GraphDatabase") as mock_gdb:
             mock_session = MagicMock()
             mock_driver = MagicMock()
             mock_driver.session.return_value.__enter__ = MagicMock(return_value=mock_session)
@@ -106,7 +106,7 @@ class TestGraphLoaderLoadGraph:
             assert mock_session.execute_write.call_count == 2
 
     def test_create_node_normalizes_label_and_nested_properties(self):
-        from graph_loader import GraphLoader
+        from ..graph_loader import GraphLoader
 
         tx = MagicMock()
         GraphLoader._create_node(
@@ -128,7 +128,7 @@ class TestGraphLoaderLoadGraph:
         assert kwargs["props"]["workspace_id"] == "default"
 
     def test_create_relationship_sanitizes_nested_properties(self):
-        from graph_loader import GraphLoader
+        from ..graph_loader import GraphLoader
 
         tx = MagicMock()
         GraphLoader._create_relationship(

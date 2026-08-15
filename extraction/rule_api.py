@@ -7,9 +7,9 @@ from typing import Any, Dict, Literal, Optional
 
 from pydantic import BaseModel, Field
 
-from rule_constraints import RuleSet, apply_rules_to_graph, infer_rules_from_graph
-from rule_export import export_ruleset_to_cypher, export_ruleset_to_shacl
-from rule_profile_store import get_rule_profile, list_rule_profiles, save_rule_profile
+from .rule_constraints import RuleSet, apply_rules_to_graph, infer_rules_from_graph
+from .rule_export import export_ruleset_to_cypher, export_ruleset_to_shacl
+from .rule_profile_store import get_rule_profile, list_rule_profiles, save_rule_profile
 
 logger = logging.getLogger(__name__)
 

@@ -12,9 +12,9 @@ import json
 import logging
 from typing import Any, Callable, Dict, Optional
 
-from retry_utils import openai_retry
-from semantic_context import build_dynamic_prompt_context
-from tracing import track, wrap_openai_client
+from .retry_utils import openai_retry
+from .semantic_context import build_dynamic_prompt_context
+from .tracing import track, wrap_openai_client
 
 logger = logging.getLogger(__name__)
 

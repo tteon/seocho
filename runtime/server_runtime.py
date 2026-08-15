@@ -6,20 +6,20 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, List, Optional
 
-from agent_factory import AgentFactory as DebateAgentFactory
-from config import db_registry, graph_registry
-from database_manager import DatabaseManager
-from fulltext_index import FulltextIndexManager
-from graph_connector import MultiGraphConnector
+from extraction.agent_factory import AgentFactory as DebateAgentFactory
+from extraction.config import db_registry, graph_registry
+from extraction.database_manager import DatabaseManager
+from extraction.fulltext_index import FulltextIndexManager
+from extraction.graph_connector import MultiGraphConnector
 from runtime.memory_service import GraphMemoryService
-from platform_agents import (
+from extraction.platform_agents import (
     BackendSpecialistAgent,
     FrontendSpecialistAgent,
     PlatformSessionStore,
 )
 from runtime.runtime_ingest import RuntimeRawIngestor
-from semantic_query_flow import SemanticAgentFlow
-from shared_memory import SharedMemory
+from extraction.semantic_query_flow import SemanticAgentFlow
+from extraction.shared_memory import SharedMemory
 from seocho.query.agent_factory import (
     AgentConfig as SemanticFlowAgentConfig,
     AgentFactory as SemanticFlowAgentFactory,
@@ -111,7 +111,7 @@ def get_semantic_flow_factory_service() -> SemanticFlowAgentFactory:
 def get_vector_store_service():
     global _vector_store
     if _vector_store is None:
-        from vector_store import VectorStore
+        from extraction.vector_store import VectorStore
 
         _vector_store = VectorStore(api_key=os.getenv("OPENAI_API_KEY", ""))
     return _vector_store

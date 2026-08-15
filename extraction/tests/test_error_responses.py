@@ -11,7 +11,7 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from starlette.requests import Request
 
-from exceptions import (
+from ..exceptions import (
     SeochoError,
     ConfigurationError,
     InfrastructureError,

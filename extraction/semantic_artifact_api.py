@@ -5,7 +5,7 @@ from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, Field
 
-from semantic_artifact_store import (
+from .semantic_artifact_store import (
     approve_semantic_artifact,
     deprecate_semantic_artifact,
     get_semantic_artifact,

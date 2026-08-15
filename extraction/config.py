@@ -364,7 +364,7 @@ def validate_config() -> None:
     Raises:
         MissingAPIKeyError: If OPENAI_API_KEY is missing or empty.
     """
-    from exceptions import MissingAPIKeyError
+    from .exceptions import MissingAPIKeyError
 
     api_key = os.getenv("OPENAI_API_KEY", "")
     if not api_key:

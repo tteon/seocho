@@ -4,8 +4,8 @@ from unittest.mock import patch
 
 import pytest
 
-import raw_material_parser
-from raw_material_parser import MaterialParseError, parse_raw_material_record
+from .. import raw_material_parser
+from ..raw_material_parser import MaterialParseError, parse_raw_material_record
 
 
 def test_parse_text_material():

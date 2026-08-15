@@ -1,6 +1,6 @@
 import pytest
 
-from semantic_artifact_api import (
+from ..semantic_artifact_api import (
     SemanticArtifactApproveRequest,
     SemanticArtifactDeprecateRequest,
     SemanticArtifactDraftCreateRequest,

@@ -18,7 +18,7 @@ from pathlib import Path
 # Make `ontology.py` importable when running this file from any cwd.
 sys.path.insert(0, str(Path(__file__).parent))
 
-from ontology import build_ontology  # noqa: E402
+from extraction.ontology import build_ontology  # noqa: E402
 
 from seocho import Seocho  # noqa: E402
 

@@ -987,6 +987,14 @@ Each entry must link to a full ADR when impact is non-trivial.
   - A5 honesty (seocho-2ay): over-cap disclosure ON=1.0 (truncated flag always) vs OFF=0.0 (silent, partial looks complete)
   - Level-2 rows A1-A5 now measured; A6=seocho-xju, L1 integrated=seocho-41a next
 
+## 2026-08-16 (ablation L1 task axis)
+
+- [Accepted] ADR-0168 ablation-l1-task-parity (seocho-41a) — does governance cost answer quality? MARA gpt-oss-120b agent, BARE vs OS, live finbenchl1
+  - near-parity: BARE 5/5, OS 4/5; OS tokens 5.4x (18138 vs 3389 — schema-in-context + guardrail-retry)
+  - the one OS miss is diagnostic: guardrail steered the agent to a schema-conformant query on an off-schema property (owner_id) -> returned 0 vs gold 5; BARE unconstrained got it
+  - honest headline: governance near-free on correctness, at token cost + conformance-vs-raw trade (NOT 'free'); guardrail over-strict on aggregate LIMIT (seocho-6md); OS db-routing bug worked around (seocho-933)
+  - L1 complete on both axes: dominates governance (0167) at near-parity on task (0168)
+
 ## Template
 
 Use this block for new entries:

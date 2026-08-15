@@ -222,6 +222,39 @@ is a drop-in if you are not on uv.
 This is the core SEOCHO idea: one schema contract should govern what gets
 written, what gets retrieved, and what an agent is allowed to claim.
 
+## The Operating Layer (Governed Agents)
+
+When an agent uses SEOCHO, the schema contract becomes an operating layer: one
+`Session` object through which every subsystem an agent needs is a method, on one
+governed path. The economics is the OS one — pay for rigor once at write time
+(the ontology fixes each entity's canonical address), so every read is a cheap,
+guaranteed, governed lookup.
+
+```python
+with client.session("analyst", priority="high") as sess:
+    node = sess.resolve("Chipotle", label="Company", sector="restaurant")  # memory: read-time interning
+    rows = sess.query("MATCH (n:Company) WHERE n._workspace_id = $workspace_id RETURN n")  # scheduling + isolation
+    agent = sess.agent()          # execution: a governed openai-agents Agent
+    sess.os_stats()               # observability;  sess.budget / sess.priority = resources
+```
+
+| Subsystem | Method / handle | What the governed path guarantees |
+|---|---|---|
+| Memory | `sess.resolve()` / `add` / `ask` | Read-time interning reuses the write-time identity function — an exact, model-free, workspace-scoped address lookup. |
+| Scheduling | `sess.query()` | A shared admission gate bounds concurrency across all sessions of one layer. |
+| Isolation | `sess.query()` | The model's `workspace_id` is pinned server-side; reads that forget the tenant scope fail closed. |
+| Execution | `sess.agent()` | The agent's only graph access is this governed tool. |
+| Resources | `sess.budget` / `sess.priority` | A per-session token budget stops a run with a structured error, never a clipped answer. |
+
+Every control is opt-in on the `Seocho(...)` constructor and off by default
+(`max_inflight`, `token_budget`, `reserved_for_high`, …). Because all graph
+access funnels through one call, the safety is structural — a prompt-injected
+agent cannot route around it. Runnable offline walkthrough:
+[`examples/agent_designs/os_unified_surface.py`](examples/agent_designs/os_unified_surface.py).
+Design: [ADR-0157](docs/decisions/ADR-0157-agentos-surface.md) (surface),
+[ADR-0163](docs/decisions/ADR-0163-control-data-plane-split.md) (control/data
+plane split — where Bolt/LLM protocol optimization lives).
+
 ## Runtime Stack
 
 Run the local platform:

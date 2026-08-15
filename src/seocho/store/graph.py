@@ -82,6 +82,83 @@ class WorkspaceFilterMissingError(ValueError):
         self.cypher = cypher
 
 
+class WorkspaceScopeViolationError(ValueError):
+    """Raised by the governed read path when a query would escape workspace
+    scope or read-safety despite naming ``$workspace_id``.
+
+    Distinct from ``WorkspaceFilterMissingError`` (which only means the token
+    is absent): this fires when the token is present but the surrounding Cypher
+    smuggles a widening tautology, a write, or a procedure call past the naive
+    substring check that the security review (2026-08-15) demonstrated was
+    bypassable via ``... OR true`` and comment-embedded ``$workspace_id``.
+
+    NOTE (honest scope): this is a defense-in-depth *blocklist* run after
+    comment stripping, not a proof of workspace binding. A blocklist cannot be
+    complete; the sound fix is parse/AST-level verification that every returned
+    binding is constrained to ``_workspace_id = $workspace_id``, or DB-side
+    per-workspace databases/credentials. Tracked as a follow-up ticket.
+    """
+
+    def __init__(self, cypher: str, reason: str) -> None:
+        super().__init__(
+            f"Cypher rejected by governed read path ({reason}); refusing to run "
+            "with enforce_workspace_filter=True."
+        )
+        self.cypher = cypher
+        self.reason = reason
+
+
+# Line (// ...) and block (/* ... */) comment strippers. Comment smuggling —
+# `MATCH (n) RETURN n /* $workspace_id */` — otherwise satisfies the token
+# check while contributing nothing to scoping.
+_LINE_COMMENT_RE = re.compile(r"//[^\n]*")
+_BLOCK_COMMENT_RE = re.compile(r"/\*.*?\*/", re.DOTALL)
+
+# Widening tautologies that neutralize a WHERE scope even when $workspace_id is
+# named elsewhere. Matched on comment-stripped, whitespace-normalized, upper-
+# cased text. Defense-in-depth, not exhaustive.
+_TAUTOLOGY_RE = re.compile(
+    r"\bOR\b\s+(?:TRUE\b|\d+\s*=\s*\d+|'[^']*'\s*=\s*'[^']*'|\d+\b(?!\s*=))"
+)
+
+# Write/procedure tokens matched on word boundaries (not space-padding, which
+# `CALL{CREATE...}` slipped) over comment-stripped uppercased text. apoc/n10s
+# write-capable procedures are refused on the read path; the ontology guardrail
+# owns the fine-grained allow-list.
+_WRITE_TOKEN_RE = re.compile(
+    r"\b(CREATE|MERGE|DELETE|DETACH|SET|REMOVE|DROP|FOREACH|LOAD\s+CSV)\b"
+)
+_PROC_CALL_RE = re.compile(r"\bCALL\b")
+
+
+def _strip_cypher_comments(cypher: str) -> str:
+    return _BLOCK_COMMENT_RE.sub(" ", _LINE_COMMENT_RE.sub(" ", cypher))
+
+
+def enforce_read_workspace_scope(cypher: str) -> None:
+    """Gate a query on the governed read path.
+
+    Order matters: strip comments first, then require the ``$workspace_id``
+    token in the *stripped* text (so comment-embedded tokens don't count), then
+    reject widening tautologies, writes, and procedure calls. Raises
+    ``WorkspaceFilterMissingError`` or ``WorkspaceScopeViolationError``.
+
+    This does not prove the query is scope-safe (see
+    ``WorkspaceScopeViolationError``); it removes the specific bypasses the
+    security review found and pairs with the driver-level READ access mode.
+    """
+    stripped = _strip_cypher_comments(cypher)
+    if "$workspace_id" not in stripped:
+        raise WorkspaceFilterMissingError(cypher)
+    normalized = " " + re.sub(r"\s+", " ", stripped.upper()) + " "
+    if _TAUTOLOGY_RE.search(normalized):
+        raise WorkspaceScopeViolationError(cypher, "widening_tautology")
+    if _WRITE_TOKEN_RE.search(normalized):
+        raise WorkspaceScopeViolationError(cypher, "write_on_read_path")
+    if _PROC_CALL_RE.search(normalized):
+        raise WorkspaceScopeViolationError(cypher, "procedure_call_on_read_path")
+
+
 class EnsureConstraintsError(RuntimeError):
     """Raised by ``ensure_constraints(..., strict=True)`` when one or more
     constraint writes fail.
@@ -599,8 +676,8 @@ class Neo4jGraphStore(GraphStore):
         merged_params = dict(params or {})
         if workspace_id is not None and "workspace_id" not in merged_params:
             merged_params["workspace_id"] = workspace_id
-        if enforce_workspace_filter and "$workspace_id" not in cypher:
-            raise WorkspaceFilterMissingError(cypher)
+        if enforce_workspace_filter:
+            enforce_read_workspace_scope(cypher)
 
         from ..tracing import (
             capture_text,
@@ -610,8 +687,14 @@ class Neo4jGraphStore(GraphStore):
         )
 
         ws = workspace_id or merged_params.get("workspace_id") or ""
+        # This method's contract is read-only (docstring + CLAUDE.md read-safety
+        # guardrail). Pin the driver session to READ so a write that slips the
+        # token blocklist still cannot reach the database — enforcement at the
+        # driver, not just a naming convention. Routing a write here now errors
+        # at Bolt rather than mutating the graph. (Security review 2026-08-15.)
         if not is_tracing_enabled():
-            with self._driver.session(database=database) as session:
+            with self._driver.session(
+                database=database, default_access_mode="READ") as session:
                 result = session.run(cypher, parameters=merged_params)
                 return [record.data() for record in result]
 
@@ -624,7 +707,8 @@ class Neo4jGraphStore(GraphStore):
             metadata={"db.system": "neo4j", "db.name": database, "workspace_id": ws},
             tags=["db"],
         ) as span:
-            with self._driver.session(database=database) as session:
+            with self._driver.session(
+                    database=database, default_access_mode="READ") as session:
                 started = time.perf_counter()
                 result = session.run(cypher, parameters=merged_params)
                 rows = [record.data() for record in result]
@@ -691,8 +775,8 @@ class Neo4jGraphStore(GraphStore):
         merged_params = dict(params or {})
         if workspace_id is not None and "workspace_id" not in merged_params:
             merged_params["workspace_id"] = workspace_id
-        if enforce_workspace_filter and "$workspace_id" not in cypher:
-            raise WorkspaceFilterMissingError(cypher)
+        if enforce_workspace_filter:
+            enforce_read_workspace_scope(cypher)
         from ..tracing import is_tracing_enabled, start_span
 
         ws = workspace_id or merged_params.get("workspace_id") or ""
@@ -2012,8 +2096,8 @@ class LadybugGraphStore(GraphStore):
         merged_params = dict(params or {})
         if workspace_id is not None and "workspace_id" not in merged_params:
             merged_params["workspace_id"] = workspace_id
-        if enforce_workspace_filter and "$workspace_id" not in cypher:
-            raise WorkspaceFilterMissingError(cypher)
+        if enforce_workspace_filter:
+            enforce_read_workspace_scope(cypher)
         params = merged_params
         compact = " ".join(str(cypher).upper().split())
         if any(compact.startswith(pattern) for pattern in _LADYBUG_FULLTEXT_SHOW_PATTERNS):
@@ -2061,8 +2145,8 @@ class LadybugGraphStore(GraphStore):
         merged_params = dict(params or {})
         if workspace_id is not None and "workspace_id" not in merged_params:
             merged_params["workspace_id"] = workspace_id
-        if enforce_workspace_filter and "$workspace_id" not in cypher:
-            raise WorkspaceFilterMissingError(cypher)
+        if enforce_workspace_filter:
+            enforce_read_workspace_scope(cypher)
         params = merged_params
         try:
             self._locked_execute(cypher, params or {})

@@ -939,6 +939,14 @@ Each entry must link to a full ADR when impact is non-trivial.
   - S2: work-conserving reserve keeps interactive protection while lifting normal throughput +56~59% vs the static reserve
   - defaults: single lane + fast-fail + borrowable reserve, all off-by-default on Seocho(...)
 
+## 2026-08-15 (interning)
+
+- [Accepted] ADR-0160 interning-measurement (identity table = memory allocator)
+  - exercises real compute_node_identity over FinBench Person/Company, SF1+SF10
+  - collision: name_only 100% (SF10 569/569 homonym pairs aliased) vs composite 0% — 2,845 Person addresses lost to wrongful merges at SF10 under name-only
+  - collapse: case/whitespace 100%; suffix recall 0% (honest ceiling → alias/same_as follow-up)
+  - scale-invariant; feeds the allocator/interning Tier-1 claim (seocho-gzo, seocho-5r2)
+
 ## Template
 
 Use this block for new entries:

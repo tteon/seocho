@@ -132,3 +132,65 @@ def test_execute_write_supports_same_kwargs(tmp_path) -> None:
         workspace_id="alpha",
     )
     assert captured["params"]["workspace_id"] == "alpha"
+
+
+# ---------------------------------------------------------------------------
+# Adversarial tests for the hardened governed read path (security review
+# 2026-08-15). The old check was `"$workspace_id" not in cypher` — a substring
+# test bypassable by comment-smuggling the token or widening the scope with a
+# tautology, and it never blocked writes/procedures on the "read" path.
+# These exercise the UNHAPPY path directly, store-free, via the shared helper.
+# ---------------------------------------------------------------------------
+
+def test_scope_helper_allows_legitimately_scoped_query() -> None:
+    from seocho.store.graph import enforce_read_workspace_scope
+    # Must not raise — real scoping, and a benign OR between properties.
+    enforce_read_workspace_scope(
+        "MATCH (n) WHERE n._workspace_id = $workspace_id "
+        "AND (n.a = 1 OR n.b = 2) RETURN n")
+
+
+def test_scope_helper_rejects_comment_smuggled_token() -> None:
+    from seocho.store.graph import (
+        enforce_read_workspace_scope, WorkspaceFilterMissingError)
+    # Token only appears inside a block comment -> contributes no scoping.
+    with pytest.raises(WorkspaceFilterMissingError):
+        enforce_read_workspace_scope("MATCH (n) RETURN n /* $workspace_id */")
+    with pytest.raises(WorkspaceFilterMissingError):
+        enforce_read_workspace_scope("MATCH (n) RETURN n // $workspace_id")
+
+
+@pytest.mark.parametrize("cypher", [
+    "MATCH (n) WHERE n._workspace_id = $workspace_id OR true RETURN n",
+    "MATCH (n) WHERE n._workspace_id = $workspace_id OR 1=1 RETURN n",
+    "MATCH (n) WHERE n._workspace_id = $workspace_id OR 'a'='a' RETURN n",
+])
+def test_scope_helper_rejects_widening_tautology(cypher) -> None:
+    from seocho.store.graph import (
+        enforce_read_workspace_scope, WorkspaceScopeViolationError)
+    with pytest.raises(WorkspaceScopeViolationError) as ei:
+        enforce_read_workspace_scope(cypher)
+    assert ei.value.reason == "widening_tautology"
+
+
+@pytest.mark.parametrize("cypher", [
+    "MATCH (n) WHERE n._workspace_id = $workspace_id CREATE (m) RETURN n",
+    "MATCH (n) WHERE n._workspace_id = $workspace_id CALL{CREATE (m)} RETURN n",
+    "MATCH (n) WHERE n._workspace_id = $workspace_id DETACH DELETE n",
+])
+def test_scope_helper_rejects_writes_on_read_path(cypher) -> None:
+    from seocho.store.graph import (
+        enforce_read_workspace_scope, WorkspaceScopeViolationError)
+    with pytest.raises(WorkspaceScopeViolationError) as ei:
+        enforce_read_workspace_scope(cypher)
+    assert ei.value.reason == "write_on_read_path"
+
+
+def test_scope_helper_rejects_procedure_call_on_read_path() -> None:
+    from seocho.store.graph import (
+        enforce_read_workspace_scope, WorkspaceScopeViolationError)
+    with pytest.raises(WorkspaceScopeViolationError) as ei:
+        enforce_read_workspace_scope(
+            "CALL apoc.cypher.runMany('...') YIELD value "
+            "WHERE value._workspace_id = $workspace_id RETURN value")
+    assert ei.value.reason == "procedure_call_on_read_path"

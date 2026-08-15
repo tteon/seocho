@@ -47,6 +47,22 @@ def test_both_splits_the_budget_rather_than_doubling_it():
     assert out["arms"]["both"]["used"] < single * 2 or single == 0
 
 
+def test_both_is_capped_even_when_the_budget_never_binds():
+    """The guard must not depend on the budget being tight.
+
+    The first behaviour run set budget=2000 and the longest arm used 869, so the
+    split never engaged and `both` was exactly graph+vector concatenated in 12 of
+    12 items. Any `both` win was then purchasable with more context — the
+    doubling confound of ADR-0105, re-entered through a loose budget rather than
+    a missing cap.
+    """
+    out = arms.build_arms(_item(), budget=1_000_000, count=_COUNT, unit="chars")
+    single = max(out["arms"]["vector"]["used"], out["arms"]["graph"]["used"])
+    total = out["arms"]["vector"]["used"] + out["arms"]["graph"]["used"]
+    assert out["arms"]["both"]["used"] <= single, "both must not exceed the largest single arm"
+    assert out["arms"]["both"]["used"] < total, "both degenerated to concatenation"
+
+
 def test_vector_matched_is_capped_at_the_graph_arms_actual_length():
     """The floor control: same passages, cut to what the graph form actually used."""
     out = arms.build_arms(_item(), budget=500, count=_COUNT, unit="chars")

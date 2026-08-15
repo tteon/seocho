@@ -244,12 +244,12 @@ python3 scripts/serve_track/run_arms.py --arms outputs/serve_track/arms.jsonl \
     --out outputs/serve_track/results.jsonl
 ```
 
-| arm | correct | mean context |
-| --- | --- | --- |
-| `vector` | 12/12 | 467.5 chars |
-| `graph` | 11/12 | 79.5 chars |
-| `both` | 12/12 | 547.0 chars |
-| `vector_matched` | 1/12 | 71.0 chars |
+| arm | correct | prompt tokens | chars | TTFT median |
+| --- | --- | --- | --- | --- |
+| `vector` | 12/12 | 166.0 | 467.5 | 115 ms |
+| `graph` | 11/12 | 86.3 | 79.5 | 112 ms |
+| `both` | 12/12 | 168.8 | 456.8 | 115 ms |
+| `vector_matched` | 1/12 | 73.5 | 71.0 | 113 ms |
 
 **Accuracy separates nothing, and that is the honest headline.** Three arms sit
 at or beside the ceiling, so this set cannot support any claim that one context
@@ -258,11 +258,21 @@ than a powered comparison, and raising item difficulty comes before raising n
 (`seocho-eer`) — the same wall `ab_reasoning.py` already recorded for its own
 set.
 
-**The one measured difference is compression, not correctness.** The graph form
-carried the same answers in 5.9x fewer characters. That belongs to the serve
-track rather than the retrieval argument: it is prefill the engine never has to
-run, and it is the number to re-measure in tokens against a real tokenizer and
-then against KV-block counts on the H200 box.
+**The one measured difference is compression — 1.9x, not 5.9x.** The first
+write-up of this run quoted 5.9x, which is the ratio in *characters*. In prompt
+tokens, the unit prefill is actually billed in, the same two arms are 166.0 vs
+86.3 — **1.92x**. Triples are punctuation-dense and tokenize badly; prose does
+not. The character figure overstated the effect by three times and must not be
+quoted. This was avoidable: `make_context_arms.py` was written with a
+`budget_unit` field precisely so the two units could never be confused, and the
+run was then done at the character default and reported in characters anyway.
+
+**TTFT shows no prefill effect at all.** Median time-to-first-token is 112-115 ms
+for every arm, with a standard deviation of 127-155 ms across only 12 items. Over
+a network API, TTFT carries queueing and transport that have nothing to do with
+context length, and at this spread the 1.9x token difference is invisible. No
+latency claim can rest on this; the prefill saving has to be measured on the
+H200 box against KV-block counts, where the confound is absent.
 
 **`vector_matched` did not work and must not be quoted.** It trims passages to
 the graph arm's length, but prose stating a fact is inherently longer than the
@@ -284,17 +294,30 @@ candidate answer to *when does graph lose*, which is half the thesis, but it is
 n=1 on one model and one phrasing and is recorded as a hypothesis only
 (`seocho-2gq`).
 
-Two defects in the harness were found by this run and fixed before the numbers
-above were taken: questions carried no `id` (every result row was anonymous and
-could not be joined back), and the scorer marked a correct `Model K1` wrong
-because the model emitted U+202F between the words. The second is the dangerous
-kind — it under-counts whichever arm formats more prettily, which is the arm
-identity under measurement. Both are pinned by tests.
+**`both` was not splitting the budget, it was concatenation.** The budget was
+2000 characters and the longest arm used 869, so the split branch never engaged
+and `both` was exactly `vector + graph` in 12 of 12 items — the doubling confound
+of ADR-0105, re-entered not through a missing cap but through a budget too loose
+to bind. `both` is now capped at what the largest single arm actually used, which
+holds whether or not the budget binds. Re-running with the cap left `both` at
+12/12, so its score was not bought with the extra context — but that could only
+be known after the fix, not before.
+
+Four harness defects were found by this run and fixed before the numbers above
+were taken: questions carried no `id`, so every result row was anonymous and
+could not be joined back to its question; the scorer marked a correct `Model K1`
+wrong because the model emitted U+202F between the words; `both` doubled as
+described; and the run captured per-call telemetry into the results file and then
+never read it, which is how the character ratio survived as the headline. The
+runner now prints prompt tokens, output tokens, reasoning tokens and TTFT spread
+next to the accuracy table, because a number nobody prints is a number nobody
+checks. All four are pinned by tests.
 
 ## Status
 
 Layer 3 is built and validated. Layer 1 now has its first four-arm run, above:
-a null on accuracy, a 5.9x compression effect, and a negation hypothesis. Layer
+a null on accuracy, a 1.9x prompt-token compression, a null on TTFT, and a
+negation hypothesis. Layer
 2 is designed (`seocho-ees`) and blocked on hardware.
 
 Next: harder items (`seocho-eer`) and the structure-stripped control

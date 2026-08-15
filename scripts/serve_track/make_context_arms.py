@@ -130,10 +130,19 @@ def build_arms(item: Dict[str, Any], budget: int,
     vector_text, vector_used, vector_n = _fill(passages, budget, count)
     graph_text, graph_used, graph_n = _fill(triples, budget, count)
 
-    # Half each, so the total matches the single-form arms.
-    half = budget // 2
+    # `both` is capped at what the LARGEST single arm actually used, not at the
+    # nominal budget. Capping at the budget is not enough and the first run proved
+    # it: at budget=2000 nothing came close (max 869), so the split never engaged
+    # and `both` degenerated to graph+vector concatenated in 12 of 12 items — the
+    # doubling confound ADR-0105 recorded, reappearing because a loose budget
+    # silently disables the guard. Tying the cap to observed usage makes the
+    # guarantee hold whether or not the budget binds.
+    both_budget = min(budget, max(vector_used, graph_used))
+    half = both_budget // 2
     both_graph, both_graph_used, both_graph_n = _fill(triples, half, count)
-    both_vector, both_vector_used, both_vector_n = _fill(passages, budget - both_graph_used, count)
+    both_vector, both_vector_used, both_vector_n = _fill(
+        passages, both_budget - both_graph_used, count
+    )
     both_text = "\n".join(t for t in (both_graph, both_vector) if t)
 
     # Floor control: the same passages the vector arm gets, cut to the length the

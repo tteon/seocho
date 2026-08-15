@@ -245,8 +245,59 @@ def _report(results: List[Dict[str, Any]]) -> None:
             cells.append(f"{ok}/{len(rows)}".rjust(6))
         print("  " + stratum.ljust(20) + str(len(rows)).ljust(4) + "  ".join(cells))
 
+    _report_cost(results)
+
     print("\nRead `graph` against `vector_matched`, not against `vector`, wherever the")
     print("two differ in length — otherwise a graph win may just be a shorter context.")
+
+
+def _median(values: List[float]) -> float:
+    ordered = sorted(values)
+    if not ordered:
+        return 0.0
+    mid = len(ordered) // 2
+    return ordered[mid] if len(ordered) % 2 else (ordered[mid - 1] + ordered[mid]) / 2
+
+
+def _report_cost(results: List[Dict[str, Any]]) -> None:
+    """Print the serving cost of each arm, in the unit the engine actually bills.
+
+    This exists because the first run buried it. `usage` was written to the file
+    and never read, so the compression headline was quoted in CHARACTERS — where
+    the graph form looked 5.9x smaller — while in prompt tokens, the thing prefill
+    is paid in, the same arms were only 1.9x apart. Triples are punctuation-dense
+    and tokenize badly; prose does not. A ratio nobody prints is a ratio nobody
+    checks, so it is printed next to the accuracy table.
+
+    TTFT is shown because it is the only prefill signal an API exposes, and with
+    its spread because over a network it carries queueing and transport that have
+    nothing to do with context length. Read the spread before believing the gap.
+    """
+    print("\n=== serving cost — the unit the engine bills in ===")
+    print(f"  {'arm':16s}{'prompt_tok':>11s}{'output_tok':>11s}{'reason_tok':>11s}"
+          f"{'TTFT_med':>10s}{'TTFT_sd':>9s}")
+    means: Dict[str, float] = {}
+    for arm in ARMS:
+        usages = [r["arms"][arm].get("usage") or {} for r in results]
+        prompt = [u.get("prompt_tokens") for u in usages if u.get("prompt_tokens")]
+        out = [u.get("completion_tokens") for u in usages if u.get("completion_tokens")]
+        reason = [(u.get("completion_tokens_details") or {}).get("reasoning_tokens") or 0
+                  for u in usages]
+        ttft = [u["time_to_first_token"] * 1000 for u in usages if u.get("time_to_first_token")]
+        if not prompt:
+            continue
+        means[arm] = sum(prompt) / len(prompt)
+        spread = 0.0
+        if len(ttft) > 1:
+            mean_t = sum(ttft) / len(ttft)
+            spread = (sum((x - mean_t) ** 2 for x in ttft) / (len(ttft) - 1)) ** 0.5
+        print(f"  {arm:16s}{means[arm]:11.1f}{sum(out)/max(len(out),1):11.1f}"
+              f"{sum(reason)/max(len(reason),1):11.1f}{_median(ttft):9.0f}ms{spread:8.0f}ms")
+
+    if means.get("graph") and means.get("vector"):
+        ratio = means["vector"] / means["graph"]
+        print(f"\n  prompt-token ratio vector/graph = {ratio:.2f}x")
+        print("  Quote THIS, not the character ratio. Characters are not what prefill costs.")
 
 
 if __name__ == "__main__":

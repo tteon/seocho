@@ -64,6 +64,7 @@ uv run pytest \
   tests/seocho/test_cli_parser_contract.py \
   tests/seocho/test_pattern_trace_schema.py \
   tests/seocho/test_cache_simulator.py \
+  tests/seocho/test_ontology_import.py \
   tests/seocho/test_semantic_query_phase_a.py \
   extraction/tests/test_sdk_evaluation.py \
   tests/seocho/test_agent_design.py \

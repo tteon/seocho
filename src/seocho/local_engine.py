@@ -340,7 +340,21 @@ class _LocalEngine:
             graph_store=self.graph_store,
             workspace_id=self.workspace_id,
         )
-        return projector.project(snapshot, database=database)
+        # Stamp the active ontology version onto projected data so drift
+        # detection is not blind on this path (seocho-ia4.1).
+        ontology_context = None
+        if getattr(self, "ontology", None) is not None:
+            try:
+                ontology_context = self._ontology_context_cache.get(
+                    self.ontology,
+                    workspace_id=self.workspace_id,
+                    profile=self.ontology_profile,
+                )
+            except Exception:
+                ontology_context = None
+        return projector.project(
+            snapshot, database=database, ontology_context=ontology_context
+        )
 
     def add(
         self,
@@ -871,12 +885,16 @@ class _LocalEngine:
 
         with self._traced_stage(timer, "ontology_context_check"):
             ontology_context_mismatch = self._query_ontology_context_mismatch(database, ontology_context)
-        if ontology_context_mismatch.get("mismatch"):
-            logger.warning(
-                "Ontology context mismatch for database=%s active=%s indexed=%s",
-                database,
-                ontology_context_mismatch.get("active_context_hash", ""),
-                ontology_context_mismatch.get("indexed_context_hashes", []),
+            # Turn the detected mismatch into an enforced barrier instead of a
+            # bare warning (seocho-ia4.1). policy='warn' keeps back-compat;
+            # 'raise' throws OntologyDriftError; 'block' annotates blocked=True
+            # so the caller can refuse to answer against a stale contract.
+            from .ontology_context import enforce_drift_policy
+
+            ontology_context_mismatch = enforce_drift_policy(
+                ontology_context_mismatch,
+                policy=self._drift_policy(),
+                logger_obj=logger,
             )
 
         with self._traced_stage(timer, "deterministic_answer"):
@@ -1053,6 +1071,18 @@ class _LocalEngine:
             get_metrics().add("seocho.arbiter.route.count", attributes={"route": sr.route})
         except Exception:
             pass
+
+    def _drift_policy(self) -> str:
+        """Ontology-drift enforcement policy: 'warn' (default, back-compat),
+        'raise', or 'block'. Set via SEOCHO_ONTOLOGY_DRIFT_POLICY or the
+        ``drift_policy`` attribute (seocho-ia4.1)."""
+        import os
+
+        pol = str(
+            getattr(self, "drift_policy", None)
+            or os.environ.get("SEOCHO_ONTOLOGY_DRIFT_POLICY", "warn")
+        ).strip().lower()
+        return pol if pol in {"warn", "raise", "block"} else "warn"
 
     def _query_ontology_context_mismatch(self, database: str, ontology_context: Any) -> Dict[str, Any]:
         from .ontology_context import query_ontology_context_mismatch

@@ -365,8 +365,15 @@ def make_execute_cypher_tool(
     *,
     ontology_context: Any = None,
     workspace_id: str = "default",
+    drift_policy: str = "warn",
 ):
-    """Create an execute_cypher tool bound to this graph store."""
+    """Create an execute_cypher tool bound to this graph store.
+
+    ``drift_policy`` ('warn'|'raise'|'block') controls how an ontology-context
+    mismatch on the queried graph is handled (seocho-ia4.1): 'warn' annotates
+    only (back-compat), 'block' marks the payload ``drift_blocked`` so the agent
+    can refuse to answer against a stale contract, 'raise' throws.
+    """
     from agents import function_tool
 
     @function_tool
@@ -393,14 +400,21 @@ def make_execute_cypher_tool(
                 "count": len(records),
             }
             if ontology_context is not None:
-                from .ontology_context import query_ontology_context_mismatch
+                from .ontology_context import (
+                    enforce_drift_policy,
+                    query_ontology_context_mismatch,
+                )
 
-                payload["ontology_context_mismatch"] = query_ontology_context_mismatch(
+                mismatch = query_ontology_context_mismatch(
                     graph_store,
                     ontology_context,
                     workspace_id=workspace_id,
                     database=database,
                 )
+                mismatch = enforce_drift_policy(mismatch, policy=drift_policy, logger_obj=logger)
+                payload["ontology_context_mismatch"] = mismatch
+                if mismatch.get("blocked"):
+                    payload["drift_blocked"] = True
             return json.dumps(payload, default=str)
         except Exception as exc:
             logger.error("execute_cypher failed: %s", exc)

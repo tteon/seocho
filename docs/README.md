@@ -14,6 +14,7 @@ read first, and which words matter before you go deeper.
 | Use Python directly | [Python SDK](PYTHON_INTERFACE_QUICKSTART.md) | you know when to use local, remote, or explicit backend mode |
 | Bring files and connectors | [Bring Your Data](APPLY_YOUR_DATA.md) -> [Connectors](https://github.com/tteon/seocho/blob/main/docs/CONNECTORS.md) | you know how records from your tools enter the graph |
 | Run a service | [Runtime Deployment](RUNTIME_DEPLOYMENT.md) | you can start the API, UI, and graph services |
+| Share memory across agents | [Cross-Agent Memory Sharing](MEMORY_SHARING.md) | you know which namespace is private, which is shared, and why user identity stays out of the graph |
 | Contribute | [Open Source Playbook](OPEN_SOURCE_PLAYBOOK.md) | you know how to open a scoped issue or PR |
 
 If you only have ten minutes, read [Why SEOCHO](WHY_SEOCHO.md), then run the

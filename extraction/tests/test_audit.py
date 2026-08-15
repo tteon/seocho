@@ -5,7 +5,7 @@ import json
 import pytest
 
 from runtime.audit import build_event, record_access
-from runtime.identity import ANONYMOUS, Principal
+from runtime.identity import Principal
 from runtime.policy import require_runtime_permission
 
 USER = Principal(subject="alice", role="user", workspace_id="acme", authenticated=True)

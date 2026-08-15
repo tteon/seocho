@@ -5,7 +5,6 @@ from __future__ import annotations
 from seocho.ontology import NodeDef, Ontology, P
 from seocho.ontology_ambiguity import (
     AmbiguityQuarantine,
-    AmbiguousEntity,
     apply_mapping_spec,
     detect_ambiguities,
     starter_mapping_spec,

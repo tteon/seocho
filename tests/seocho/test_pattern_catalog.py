@@ -10,7 +10,6 @@ tests fail loudly instead.
 from __future__ import annotations
 
 from seocho.query import pattern_catalog
-from seocho.query.contracts import PatternSpec
 
 
 _EXPECTED_SHAPES = {

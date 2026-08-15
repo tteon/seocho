@@ -35,7 +35,7 @@ import logging
 import threading
 import time
 import uuid
-from typing import Any, Coroutine, Dict, List, Optional, Sequence, TypeVar
+from typing import Any, Coroutine, Dict, List, Optional, TypeVar
 
 from .agent.context import SessionContext
 from .agent.contracts import normalize_execution_mode

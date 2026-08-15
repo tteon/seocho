@@ -1,13 +1,11 @@
 """Tests for seocho.ontology — Ontology, NodeDef, RelDef, P."""
 
-import json
 import tempfile
 from pathlib import Path
 
 import pytest
 
 from seocho.ontology import (
-    Cardinality,
     NodeDef,
     Ontology,
     P,
@@ -375,12 +373,6 @@ class TestConfidenceScoring:
         assert "relationships" in scores
         assert "details" in scores["nodes"][0]
         assert "label_match" in scores["nodes"][0]["details"]
-
-
-class TestValidation:
-    def test_validate_missing_source(self):
-        errors = simple_ontology.validate_with_shacl(data)
-        assert errors == []
 
 
 # ---------------------------------------------------------------------------

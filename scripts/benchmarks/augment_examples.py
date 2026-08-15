@@ -26,14 +26,13 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import List
 
 sys.path.insert(0, str(Path(__file__).parent))
 import sec_temporal_bench as bench
 
 from seocho.query.fewshot import FewShotIndex
 from seocho.semantic_layer import (
-    EntityResolver,
     ObservationSlots,
     compile_observation_lookup,
     default_registry,
@@ -75,7 +74,6 @@ def run(dataset_path, *, limit, provider, model, paraphrase):
     tickers = sorted({r["ticker"] for r in rows})
     cik_by_ticker = bench.resolve_ciks(tickers)
     name_by_ticker = {r["ticker"].upper(): r.get("gold_entities", [""])[0] for r in rows}
-    resolver = EntityResolver.from_ticker_map(cik_by_ticker, name_by_ticker)
     registry = default_registry()
 
     idx = FewShotIndex()  # bge by default; lexical fallback if unavailable

@@ -21,7 +21,7 @@ from __future__ import annotations
 import json
 import re
 import urllib.request
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from ..semantic_layer import Period, observation_key
 from ..semantic_layer.concepts import ConceptRegistry

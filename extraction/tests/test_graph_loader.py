@@ -76,7 +76,7 @@ class TestGraphLoaderLoadGraph:
     def test_load_empty_data(self):
         from graph_loader import GraphLoader
 
-        with patch("graph_loader.GraphDatabase") as mock_gdb:
+        with patch("graph_loader.GraphDatabase"):
             loader = GraphLoader("bolt://test:7687", "user", "pass")
             # Should not raise or call session
             loader.load_graph({}, "src_1")

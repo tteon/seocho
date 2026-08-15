@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import json
-import sys
-from types import ModuleType
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional
 from unittest.mock import MagicMock
 
 import pytest
@@ -14,7 +12,6 @@ from seocho.models import Memory
 from seocho.ontology import Ontology, NodeDef, RelDef, P
 from seocho.tracing import (
     SessionTrace, begin_session, enable_tracing, disable_tracing,
-    is_tracing_enabled,
 )
 
 

@@ -14,7 +14,6 @@ import pytest
 
 from seocho.agent.reflection import (
     Critique,
-    ReflectionResult,
     make_llm_critic,
     make_llm_reviser,
     reflect,

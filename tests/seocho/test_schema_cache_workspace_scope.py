@@ -9,7 +9,6 @@ a workspace_id parameter.
 
 from __future__ import annotations
 
-from typing import Any, Dict
 
 
 def _build_store():

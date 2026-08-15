@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 # Canonical identifier validation lives in the SDK; re-exported here so existing
 # ``from extraction.fulltext_index import is_valid_identifier`` callers keep working.
-from seocho.cypher_ident import IDENT_RE as _IDENT_RE, is_valid_identifier
+from seocho.cypher_ident import is_valid_identifier
 
 
 def validate_identifiers(values: Sequence[str], field_name: str) -> List[str]:

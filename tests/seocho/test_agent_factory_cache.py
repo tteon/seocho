@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import time
 
-import pytest
 
 
 def test_cache_key_shape() -> None:
@@ -53,7 +52,6 @@ def test_distinct_ontology_versions_get_distinct_agents() -> None:
 def test_distinct_agent_configs_get_distinct_agents() -> None:
     from seocho.agent_factory_cache import AgentFactoryCache
     from seocho.agent_config import AgentConfig
-    cache = AgentFactoryCache()
     cfg1 = AgentConfig(execution_mode="agent")
     cfg2 = AgentConfig(execution_mode="supervisor", handoff=True)
     k1 = AgentFactoryCache.make_key(role="indexing", ontology_identity_hash="h", agent_config=cfg1)
@@ -67,7 +65,7 @@ def test_lru_evicts_oldest_when_full() -> None:
     k1 = AgentFactoryCache.make_key(role="r", ontology_identity_hash="h1")
     k2 = AgentFactoryCache.make_key(role="r", ontology_identity_hash="h2")
     k3 = AgentFactoryCache.make_key(role="r", ontology_identity_hash="h3")
-    a1 = cache.get_or_create(k1, lambda: object())
+    cache.get_or_create(k1, lambda: object())
     a2 = cache.get_or_create(k2, lambda: object())
     a3 = cache.get_or_create(k3, lambda: object())  # evicts k1 (oldest)
 

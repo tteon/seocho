@@ -1,6 +1,5 @@
 """Tests for seocho.indexing — chunking, dedup, pipeline."""
 
-import pytest
 
 from seocho.client import Seocho
 from seocho.indexing import (

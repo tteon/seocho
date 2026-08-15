@@ -6,7 +6,6 @@ from seocho.ontology import NodeDef, Ontology, P, RelDef
 from seocho.ontology_scorecard import (
     DEFAULT_WEIGHTS,
     WEIGHT_PROFILES,
-    CorpusProfile,
     OntologyScorecard,
     build_corpus_profile,
     score_ontology,

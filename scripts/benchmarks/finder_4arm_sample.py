@@ -26,7 +26,6 @@ Outputs:
 from __future__ import annotations
 
 import argparse
-import json
 import math  # noqa: F401  (used by vector-context cosine)
 import os
 import re

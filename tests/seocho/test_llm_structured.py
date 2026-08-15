@@ -5,7 +5,6 @@ from __future__ import annotations
 import pytest
 
 from seocho.llm_structured import (
-    ModelCapability,
     StructuredOutputError,
     capability_for,
     extract_json_object,

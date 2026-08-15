@@ -10,7 +10,7 @@ import pytest
 
 rdflib = pytest.importorskip("rdflib")
 
-from seocho import NodeDef, Ontology, P, RelDef
+from seocho import NodeDef, Ontology, P
 
 
 def test_to_ttl_emits_and_from_ttl_recovers_subclassof(tmp_path):

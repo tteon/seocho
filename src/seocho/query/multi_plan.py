@@ -14,8 +14,8 @@ local_engine — every other path keeps the proven single top-1 plan.
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from dataclasses import dataclass
+from typing import Any, Dict, List, Sequence, Tuple
 
 from ..agent.fusion import ReciprocalRankFusion
 from .contracts import QueryExecution, QueryPlan

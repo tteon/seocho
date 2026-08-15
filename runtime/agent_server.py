@@ -6,7 +6,7 @@ import os
 from typing import List, Dict, Any, Optional, Literal
 from uuid import uuid4
 
-from fastapi import FastAPI, HTTPException, Request, Depends, Query
+from fastapi import FastAPI, HTTPException, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
@@ -75,11 +75,8 @@ from runtime.server_runtime import (
     get_memory_service,
     get_platform_session_store_service,
     get_runtime_raw_ingestor,
-    get_schema_impl,
     get_semantic_agent_flow_service,
     get_vector_store_service,
-    get_graphs_impl,
-    get_databases_impl,
     invalidate_semantic_vocabulary_cache,
     utc_now_iso,
 )

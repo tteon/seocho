@@ -320,10 +320,6 @@ class ExecutionResult(JsonSerializable):
         return EvidenceBundle.from_dict(payload if isinstance(payload, dict) else {})
 
     @property
-    def agent_pattern(self) -> Dict[str, Any]:
-        return dict(self.answer_envelope.get("agent_pattern", {}) or {})
-
-    @property
     def graph_cot(self) -> Dict[str, Any]:
         payload = self.answer_envelope.get("graph_cot", {})
         if payload:

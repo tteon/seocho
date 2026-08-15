@@ -15,7 +15,6 @@ import sys
 import types
 from contextlib import nullcontext
 
-import pytest
 
 from seocho.agent.contract import (
     AgentFactoryProtocol,

@@ -20,7 +20,7 @@ selection (same interface, non-breaking).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, Optional, Sequence, Tuple
 
 from ..semantic_layer import ObservationSlots
 from ..semantic_layer.concepts import ConceptRegistry

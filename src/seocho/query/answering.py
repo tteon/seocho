@@ -6,7 +6,13 @@ import re
 from typing import Any, Dict, List, Optional, Sequence
 
 from ..store.llm import complete_with_task_hints
-from .intent import build_evidence_bundle, infer_question_intent
+
+# Re-exported for consumers that import these via seocho.query.answering
+# (query/__init__, semantic_flow, semantic_agents, extraction shims).
+from .intent import (
+    build_evidence_bundle as build_evidence_bundle,
+    infer_question_intent as infer_question_intent,
+)
 
 
 def _deterministic_financial_enabled() -> bool:

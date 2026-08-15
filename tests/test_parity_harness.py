@@ -14,7 +14,7 @@ marked ``xfail`` with the reason.  As phases land, we remove the
 import importlib
 import sys
 import types
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 from unittest.mock import MagicMock, patch
 
 import pytest

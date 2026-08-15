@@ -15,9 +15,7 @@ These tests verify:
 from __future__ import annotations
 
 import threading
-import time
 
-import pytest
 
 
 def _make_minimal_ontology():

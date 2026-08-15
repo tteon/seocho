@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 import os
 import re
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
 
 from semantic_artifact_store import (
     DEFAULT_SEMANTIC_ARTIFACT_DIR,

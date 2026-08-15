@@ -30,7 +30,6 @@ os.environ.setdefault("MARA_API_KEY", key or "")
 
 from seocho import NodeDef, Ontology, P, RelDef, Seocho
 from seocho.benchmarking import load_finder_cases, compare_answers, score_answer_slots
-from seocho.routing import ModelTier, ModelRouter
 import seocho.store.llm as llm_mod
 
 REL_COST = {"DeepSeek-V3.1": 1.0, "MiniMax-M2.5": 3.0, "MiniMax-M2.7": 10.0}

@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from .ontology import NodeDef, Ontology
+from .ontology import Ontology
 
 # ---------------------------------------------------------------------------
 # Records
@@ -198,7 +198,7 @@ def starter_mapping_spec(clusters: List[Dict[str, Any]], ontology: Ontology) -> 
     for c in clusters:
         surface = c["surface"]
         if c["candidate_labels"]:
-            action, entry = "alias", {"surface": surface, "action": "alias", "target": c["candidate_labels"][0]}
+            entry = {"surface": surface, "action": "alias", "target": c["candidate_labels"][0]}
         elif re.match(r"^[A-Z][A-Za-z0-9 ]+$", surface) and len(surface) <= 40:
             label = re.sub(r"[^A-Za-z0-9]", "", surface.title())
             entry = {"surface": surface, "action": "new_class", "target": label, "parent": "", "description": ""}

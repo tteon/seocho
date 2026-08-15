@@ -40,12 +40,11 @@ Canonical storage is **JSON-LD**; SHACL shapes are derived for validation::
 
 from __future__ import annotations
 
-import json
 import re
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Set, Type, Union
+from typing import Any, Dict, List, Optional, Sequence, Set, Union
 
 import yaml
 
@@ -2309,7 +2308,7 @@ class Ontology:
 
         if conflicts and strategy == "strict":
             raise ValueError(
-                f"Merge conflicts in strict mode:\n" +
+                "Merge conflicts in strict mode:\n" +
                 "\n".join(f"  - {c}" for c in conflicts)
             )
 

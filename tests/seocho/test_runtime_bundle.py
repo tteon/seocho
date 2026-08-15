@@ -11,7 +11,6 @@ from seocho.http_runtime import create_bundle_runtime_app
 from seocho.ontology import NodeDef, Ontology, P, RelDef
 from seocho.query.strategy import PromptTemplate
 from seocho.runtime_bundle import (
-    OntologyHashStabilityError,
     RuntimeBundle,
     RuntimeGraphBinding,
     RuntimeGraphStoreConfig,

@@ -16,8 +16,7 @@ from .cypher_validator import CypherQueryValidator
 from .intent import extract_tradeoff_points_from_triples
 from .insufficiency import QueryInsufficiencyClassifier
 from .query_proxy import QueryExecutionError, coerce_query_records
-from .run_registry import RunMetadataRegistry
-from .strategy_chooser import ExecutionStrategyChooser, IntentSupportValidator
+from .strategy_chooser import IntentSupportValidator
 
 logger = logging.getLogger(__name__)
 

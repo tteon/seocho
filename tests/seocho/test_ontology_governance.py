@@ -360,7 +360,6 @@ def test_every_authored_cq_requires_real_labels() -> None:
 
 
 def test_build_report_includes_competency_when_cqs_passed(tmp_path) -> None:
-    ttl = tmp_path / "arm.ttl"
     # reuse the TTL fixture path indirectly: write a tiny ontology via to_dict->yaml
     import yaml as _yaml
     arm = _arm(with_segments=False)

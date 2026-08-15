@@ -76,7 +76,6 @@ from .client_artifacts import (
     prompt_context_from_ontology as build_prompt_context_from_ontology,
 )
 from .client_remote import RemoteClientHelper
-from .exceptions import SeochoConnectionError, SeochoHTTPError
 from .governance import ArtifactDiff, ArtifactValidationResult, diff_artifact_payloads, validate_artifact_payload
 from .ontology_control_plane import (
     CompiledOntologyProfile,
@@ -136,6 +135,7 @@ from .runtime_contract import (
 )
 if TYPE_CHECKING:
     from .runtime_bundle import RuntimeBundle
+    from .session import Session
 
 logger = logging.getLogger(__name__)
 DEFAULT_LOCAL_LLM = "mara/MiniMax-M2.5"

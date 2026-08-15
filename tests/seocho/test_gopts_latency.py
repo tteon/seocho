@@ -9,7 +9,7 @@ Live PROFILE-driven runs are F4's scope.
 
 from __future__ import annotations
 
-from typing import Dict, List, Sequence
+from typing import Dict
 
 import pytest
 

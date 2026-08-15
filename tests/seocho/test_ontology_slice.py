@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 
 
 def _make_finance_ontology():

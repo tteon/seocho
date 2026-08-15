@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from seocho.ontology import NodeDef, Ontology, P
-from seocho.ontology_scorecard import CorpusProfile, build_corpus_profile
+from seocho.ontology_scorecard import build_corpus_profile
 from seocho.guardrail_selector import (
     load_corpus_profile,
     numeric_intensity,

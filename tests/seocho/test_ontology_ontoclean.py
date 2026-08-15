@@ -5,7 +5,7 @@ LLM inference path is tested with a fake backend (no live MARA call)."""
 
 from __future__ import annotations
 
-from seocho.ontology import NodeDef, Ontology, P, RelDef
+from seocho.ontology import NodeDef, Ontology, P
 from seocho.ontology_ontoclean import (
     MetaProperties,
     check_ontoclean,

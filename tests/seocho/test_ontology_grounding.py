@@ -7,7 +7,6 @@ threshold/top_k gating + edge/label grounding over an ontology.
 
 from __future__ import annotations
 
-import pytest
 
 from seocho import NodeDef, Ontology, P, RelDef
 from seocho.query.ontology_grounding import (

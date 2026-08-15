@@ -1,4 +1,3 @@
-import pytest
 from collector import DataCollector
 
 def test_data_collector():

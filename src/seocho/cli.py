@@ -4,7 +4,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict, Iterable, Optional, Sequence
+from typing import Any, Dict, Iterable, List, Optional, Sequence
 
 from .client import Seocho
 from .exceptions import SeochoError

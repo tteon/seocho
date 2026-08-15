@@ -30,7 +30,6 @@ import json
 import os
 import re
 import sys
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -151,7 +150,6 @@ def run_live_support_arm(cases: List[FinDERBenchmarkCase], router: ModelRouter, 
         slots = score_answer_slots(case.expected_answer, ans)
         return {"contains": contains, "numeric_recall": slots.get("numeric_recall", 0.0)}
 
-    arms: Dict[str, Dict[str, float]] = {"all_frontier": {}, "routed": {}}
     rows = []
     for case in cases:
         tier = route_tier_for_case(case)

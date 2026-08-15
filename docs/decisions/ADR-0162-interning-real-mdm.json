@@ -1,0 +1,83 @@
+{
+  "database": "mdmmaster",
+  "n_sourcerefs": 114,
+  "n_golden_clusters": 48,
+  "n_multisource_clusters": 36,
+  "models": [
+    "DeepSeek-V3.1",
+    "MiniMax-M2.5",
+    "gpt-oss-120b"
+  ],
+  "all": {
+    "intern_name": {
+      "precision": 1.0,
+      "recall": 0.8113,
+      "f1": 0.8958,
+      "tp": 86,
+      "fp": 0,
+      "fn": 20,
+      "distinct_keys": 55
+    },
+    "intern_name_label": {
+      "precision": 1.0,
+      "recall": 0.7547,
+      "f1": 0.8602,
+      "tp": 80,
+      "fp": 0,
+      "fn": 26,
+      "distinct_keys": 59
+    },
+    "business_key": {
+      "precision": 1.0,
+      "recall": 0.7642,
+      "f1": 0.8663,
+      "tp": 81,
+      "fp": 0,
+      "fn": 25,
+      "distinct_keys": 58
+    },
+    "vector_bge": {
+      "threshold": 0.82,
+      "precision": 1.0,
+      "recall": 0.8962,
+      "f1": 0.9453,
+      "note": "best-F1 over swept threshold = oracle ceiling for semantic fallback"
+    }
+  },
+  "multisource_only": {
+    "intern_name": {
+      "precision": 1.0,
+      "recall": 0.8113,
+      "f1": 0.8958,
+      "tp": 86,
+      "fp": 0,
+      "fn": 20,
+      "distinct_keys": 43
+    },
+    "intern_name_label": {
+      "precision": 1.0,
+      "recall": 0.7547,
+      "f1": 0.8602,
+      "tp": 80,
+      "fp": 0,
+      "fn": 26,
+      "distinct_keys": 47
+    },
+    "business_key": {
+      "precision": 1.0,
+      "recall": 0.7642,
+      "f1": 0.8663,
+      "tp": 81,
+      "fp": 0,
+      "fn": 25,
+      "distinct_keys": 46
+    },
+    "vector_bge": {
+      "threshold": 0.82,
+      "precision": 1.0,
+      "recall": 0.8962,
+      "f1": 0.9453,
+      "note": "best-F1 over swept threshold = oracle ceiling for semantic fallback"
+    }
+  }
+}

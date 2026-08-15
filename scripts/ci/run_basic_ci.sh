@@ -111,10 +111,12 @@ uv run pytest \
   tests/seocho/test_sweep.py \
   tests/seocho/test_entity_identity.py \
   tests/seocho/test_triage_metadata.py \
+  tests/seocho/test_import_boundaries.py \
   -q
 
 git diff --check
 scripts/ci/check-runtime-shell-contract.sh
 bash scripts/ci/check-module-ownership-contract.sh
+python3 scripts/ci/check-import-boundaries.py
 scripts/ci/check-root-hierarchy-contract.sh
 scripts/pm/lint-agent-docs.sh

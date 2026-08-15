@@ -235,6 +235,7 @@ Primary surfaces:
   - `git diff --check`
   - `bash scripts/ci/check-runtime-shell-contract.sh`
   - `bash scripts/ci/check-module-ownership-contract.sh`
+  - `python3 scripts/ci/check-import-boundaries.py`
   - `scripts/pm/lint-agent-docs.sh`
 
 Runtime migration slices should follow `docs/RUNTIME_PACKAGE_MIGRATION.md` and

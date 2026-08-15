@@ -1306,6 +1306,10 @@ _LADYBUG_COMMON_NODE_STRING_COLUMNS = (
     "_out_of_ontology",
     "_workspace_id",
     "_source_id",
+    # seocho-dgf: Track 3's active-graph predicate filters on
+    # coalesce(n._superseded_by, '') = '' for every node alias; the
+    # schema-typed binder needs the column declared on every node table.
+    "_superseded_by",
 )
 _LADYBUG_COMMON_REL_STRING_COLUMNS = (
     "type",
@@ -1655,6 +1659,18 @@ class LadybugGraphStore(GraphStore):
         except Exception:
             # CALL show_tables() may not be supported; ignore
             pass
+        # seocho-dgf: node tables created before `_superseded_by` joined the
+        # common columns make Track 3's active-graph predicate un-bindable
+        # (Binder exception on read-only opens, where the lazy write-path
+        # backfill never runs). ALTER once per table on open; failures mean
+        # the column already exists.
+        for table_name in list(self._declared_node_tables):
+            try:
+                self._locked_execute(
+                    f"ALTER TABLE `{table_name}` ADD `_superseded_by` STRING"
+                )
+            except Exception:
+                pass
 
     def _discover_table_pk(self, table_name: str) -> str:
         """Return the PRIMARY KEY column of an existing node table.

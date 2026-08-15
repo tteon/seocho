@@ -51,7 +51,16 @@ hot-expensive survival, tenant-floor fairness, shared boost, thread-safety).
 - CFP tracks: Memory/State/Storage (eviction/update policies, long-lived
   artifacts) + Resource/Execution (resource management under multi-agent
   contention). Turns hadry's "아직 멀었다" into a measured subsystem.
-- Follow-ups (seocho-ia4): wire `CostAwareEvictionCache` in place of the naive
-  `OntologyContextCache` keyed by `stable_prefix_hash`; extend to prefix-KV
-  (seocho-40j) and result buffers (handle-arm); version-aware retirement + TTL;
-  provenance-root GC for graph working sets; live-load measurement.
+- **Wired into the live path (this PR):** `OntologyContextCache` now delegates to
+  `CostAwareEvictionCache` — stable `schema_fingerprint` key (hits across distinct
+  instances, was `id()`-keyed), measured compile-cost + `stable_prefix_bytes`,
+  `workspace_id` as the fairness tenant, byte budget, thread-safe. 446
+  cache-consuming tests pass.
+- Follow-ups (seocho-ia4): extend to prefix-KV (seocho-40j) and result buffers
+  (handle-arm); version-aware retirement + TTL; provenance-root GC for graph
+  working sets; live-load measurement. **Separate open OS gaps surfaced by the
+  ontology-lifecycle survey (2026-08-16): no concurrency control on ontology
+  mutation (ADR-0151 leasing is memory-log-scoped, not schema-scoped), and no KG
+  re-projection on version change (drift is detect-and-warn; `enforce_drift_policy`
+  raise/block is implemented but never called) — see the eviction/lifecycle
+  design note and the multi-agent review.**

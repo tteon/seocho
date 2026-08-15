@@ -35,14 +35,20 @@ parameters directly, including the tenancy value.
    $workspace_id OR true`), smuggle the required token in a comment, or issue a
    write/procedure on the nominal read path. The governed read path now runs
    `enforce_read_workspace_scope` (comment-strip → token-presence → reject
-   widening tautologies / writes / `CALL` procedures) after opening the driver
-   session in READ mode, with adversarial tests
-   (`test_workspace_filter_enforcement.py`). That is defense-in-depth, **not a
-   proof of workspace binding** — a blocklist cannot be complete. Sound
-   isolation requires parse/AST-level verification that every returned binding
-   is constrained to `$workspace_id`, or DB-side per-workspace
-   databases/credentials, tracked as a follow-up (see DECISION_LOG). The paper
-   must claim the tested property, not the aspirational one.
+   widening tautologies / writes / procedures → **binding verification**
+   (seocho-5zz): every RETURNed node variable must carry `_workspace_id =
+   $workspace_id` (WHERE or inline), closing the "token present but constrains
+   the wrong node" class (`MATCH (n),(m) WHERE m._workspace_id=$workspace_id
+   RETURN n`). The binding pass is conservative — it declines to analyze
+   WITH/UNION/UNWIND rather than risk a false rejection, so it only adds
+   rejections it can prove) after opening the driver session in READ mode, with
+   adversarial tests (`test_workspace_filter_enforcement.py`). That is still
+   defense-in-depth, **not a full proof of workspace binding** — the binding
+   pass is regex-structural and declines complex queries. The sound endgame
+   remains parse/AST-level verification over every construct, or DB-side
+   per-workspace databases/credentials (separate address spaces), tracked as a
+   follow-up (seocho-5zz). The paper must claim the tested property, not the
+   aspirational one.
 3. **One gate, inside the tool.** Admission lives in `execute_query`, not
    in hooks, so the bound holds for hook-less callers and permits are never
    double-counted. All sessions of one AgentOS share the pool — that shared

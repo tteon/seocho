@@ -59,10 +59,10 @@ class CountingStore:
 
 def run_cell(*, ontology, store, database: str, sessions: int,
              calls_per_session: int, max_inflight: int) -> dict:
-    from seocho.agentos import AgentOS
+    from seocho.operating_layer import SeochoOS
 
     counting = CountingStore(store)
-    os_layer = AgentOS(ontology=ontology, graph_store=counting,
+    os_layer = SeochoOS(ontology=ontology, graph_store=counting,
                        database=database, workspace_id="default",
                        max_inflight=max_inflight, admission_wait_s=2.0,
                        row_cap=50)

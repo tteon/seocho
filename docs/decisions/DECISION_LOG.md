@@ -923,6 +923,14 @@ Each entry must link to a full ADR when impact is non-trivial.
   - scalability validated live: SF1/SF10 x N in {1,4,16}, 336 calls, zero bound violations at the Bolt boundary
   - remaining on epic seocho-xdp: fairness (S1), routing exposure, durable PG session backend
 
+## 2026-08-15
+
+- [Accepted] ADR-0158 execution-scheduling-ablations (E1/S1 measurement record)
+  - E1: governed admission keeps p50 at single-session latency under 16-way contention (93.7ms vs 223.7ms light; 8.0s vs 21.8s heavy) and converts overload into structured rejections; bound held in every cell
+  - S1: a 2-permit priority reserve takes high-class starvation from 94% timeouts to zero at an explicit normal-throughput price; Jain 1.0 within-class both arms
+  - claim stated carefully: the layer makes the contention trade visible and configurable, not free
+  - PriorityAdmission ships on AgentOS (reserved_for_high, default 0)
+
 ## Template
 
 Use this block for new entries:

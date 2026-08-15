@@ -41,6 +41,11 @@ except PackageNotFoundError:
     __version__ = "0.1.0"
 
 _MODULE_EXPORTS: Dict[str, Iterable[str]] = {
+    ".operating_layer": [
+        "SeochoOS",
+        "OSSession",
+        "PriorityAdmission",
+    ],
     ".api": [
         "advanced",
         "add",
@@ -409,6 +414,9 @@ def __dir__():
 # ---------------------------------------------------------------------------
 
 __all__ = [
+    "SeochoOS",
+    "OSSession",
+    "PriorityAdmission",
     # Core client + version
     "__version__",
     "Seocho",

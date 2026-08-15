@@ -915,6 +915,14 @@ Each entry must link to a full ADR when impact is non-trivial.
   - H1 left open (share rising with scale); rerun at SF100 before pin/quantization verdict
   - caveat: read set is variable-binding based (CE exposes no page identities) — biases overlap up, so FAIL is robust
 
+## 2026-08-15
+
+- [Accepted] ADR-0157 agentos-surface
+  - one facade (seocho.agentos.AgentOS) binds the five pillars to two interfaces: Bolt-aware governed store path, OpenAI Agents SDK (Session protocol memory, RunHooks, tool_input_guardrail)
+  - tenancy pinned never trusted (model-supplied workspace params overwritten); one admission gate inside the tool; budget exhaustion structured; truncation always disclosed
+  - scalability validated live: SF1/SF10 x N in {1,4,16}, 336 calls, zero bound violations at the Bolt boundary
+  - remaining on epic seocho-xdp: fairness (S1), routing exposure, durable PG session backend
+
 ## Template
 
 Use this block for new entries:

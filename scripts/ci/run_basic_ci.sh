@@ -66,6 +66,7 @@ uv run pytest \
   tests/seocho/test_cache_simulator.py \
   tests/seocho/test_ontology_import.py \
   tests/seocho/test_memory_sharing_contract.py \
+  tests/seocho/test_agentos.py \
   tests/seocho/test_semantic_query_phase_a.py \
   extraction/tests/test_sdk_evaluation.py \
   tests/seocho/test_agent_design.py \

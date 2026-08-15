@@ -451,6 +451,26 @@ class PostgreSQLMemoryRepository:
                     )
                 return tuple(entries)
 
+    def outbox_backlog(self, *, workspace_id: str) -> tuple[int, float]:
+        """Pending outbox size and age of its oldest entry, in seconds.
+
+        This is what makes a stalled projector observable *before* anything
+        pages: the SeochoProjectionStalled alert joins pending > 0 with
+        oldest-age > 60s, and both gauges were previously never fed.
+        """
+
+        with self._connection_factory() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """SELECT count(*),
+                              COALESCE(EXTRACT(EPOCH FROM (now() - min(created_at))), 0.0)
+                       FROM agent_memory_outbox
+                       WHERE workspace_id = %s AND projected_at IS NULL""",
+                    (workspace_id,),
+                )
+                pending, oldest_age = cursor.fetchone()
+                return int(pending), float(oldest_age)
+
     def acknowledge_projection(
         self,
         *,

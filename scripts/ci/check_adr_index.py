@@ -12,7 +12,7 @@ updated by hand. This asserts:
   2. every ADR-NNNN referenced in docs/decisions/DECISION_LOG.md resolves to an
      actual ADR file (no dangling log entry).
   3. no markdown under docs/ cites an ADR-NNNN that has no file. Reserving an id
-     for an unwritten ADR is how ids collide; see ADR-0156.
+     for an unwritten ADR is how ids collide; see ADR-0157.
 
 Pure stdlib, deterministic. Exit non-zero naming each offender. Run:
     python3 scripts/ci/check_adr_index.py

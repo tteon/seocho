@@ -1159,7 +1159,7 @@ not.
   is correct for a scalability benchmark where the graph is already typed. The
   projection ADR is a follow-up and is deliberately left unnumbered until it is
   written: reserving an id in advance is what produced the three-way claim on
-  id 0155 (see ADR-0156), and `scripts/ci/check_adr_index.py` now rejects a
+  id 0155 (see ADR-0157), and `scripts/ci/check_adr_index.py` now rejects a
   cited id that has no file.
 - DozerDB (primary serving path), not embedded Kùzu/Ladybug: the experiment is
   "real graph DB ↔ agent," and this sidesteps seocho-dgf.

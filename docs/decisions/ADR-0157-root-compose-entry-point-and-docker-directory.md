@@ -1,4 +1,4 @@
-# ADR-0156: One root compose entry point, overlays and side stacks under `docker/`
+# ADR-0157: One root compose entry point, overlays and side stacks under `docker/`
 
 Date: 2026-08-15 · Status: accepted
 
@@ -78,17 +78,28 @@ rule, and gives `compose.tls-enterprise.yaml` its first documented entry point.
 
 ### ADR id reservation
 
-This ADR was written as 0155 and renumbered to 0156: PR #484 claimed 0155 for
-the Rust data plane, and `docs/execplans/finbench-graph-agent-scalability.md`
-had separately pre-assigned 0155 to an unwritten PG->LPG projection ADR — three
-independent claims on one id.
+This ADR was written as 0155, renumbered to 0156, and renumbered again to 0157.
+Both moves were forced by a branch that landed while this one was open: 0155 by
+the Rust data plane ADR (#484), 0156 by the H0 gate verdict. Separately,
+`docs/execplans/finbench-graph-agent-scalability.md` had pre-assigned 0155 to an
+unwritten PG->LPG projection ADR — four claims across two ids.
 
-`check_adr_index.py` could not catch it. It validated duplicate *files* and
-`DECISION_LOG` references; a number reserved in prose for an ADR nobody had
-written yet was invisible to both. So the rule is now: **cite an ADR id only
-once its file exists.** The checker enforces it across `docs/**/*.md`, the
-execplan's reservation is removed, and picking the next free number is again a
-question the repository can answer.
+The two failure modes are different, and only one was already covered:
+
+- **Two files claiming an id.** `check_no_new_duplicates` catches this, and did:
+  merging main surfaced the 0156 collision immediately rather than at merge
+  time. Working. No change.
+- **An id reserved in prose for an ADR nobody has written.** Invisible to both
+  existing checks — there is no file to be duplicate, and it never reaches
+  `DECISION_LOG`. This is what let the execplan sit on 0155.
+
+So the rule is now: **cite an ADR id only once its file exists.**
+`check_no_dangling_references` enforces it across `docs/**/*.md` and the
+execplan's reservation is removed.
+
+Neither check can prevent a collision *between open branches* — an id is only
+knowable as taken once it lands. The mitigation is the cheap one: pick the
+number last, and merge main before you do.
 
 ## Consequences
 

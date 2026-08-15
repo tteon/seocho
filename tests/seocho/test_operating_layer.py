@@ -290,7 +290,7 @@ def test_predicted_wait_rejects_immediately_not_after_timeout(ontology):
     from seocho.operating_layer import LaneScheduler
 
     gate = LaneScheduler(max_inflight=1, light_permits=0, wait_seconds=5.0)
-    gate.observe("slow", 8000.0)            # EWMA says ~8s service time
+    gate.observe("slow", 8000.0, lane="heavy")   # lane EWMA ~8s
     assert gate.acquire(lane="heavy")       # occupy the only permit
     # Park a waiter so predicted wait = 1 * 8s / 1 permit = 8s > 0.5s budget.
     import threading as _threading

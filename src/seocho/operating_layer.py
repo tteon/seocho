@@ -192,6 +192,12 @@ class LaneScheduler:
         self._in_use = {lane: {"high": 0, "normal": 0} for lane in self._permits}
         self._waiters = {lane: {"high": 0, "normal": 0} for lane in self._permits}
         self._ewma_ms: Dict[str, float] = {}
+        # What actually runs in each lane, not a per-statement max: the
+        # wait predictor must reflect the lane's real traffic, or a single
+        # heavy observation poisons every estimate (found live: fast-fail
+        # + a contaminated global estimate starved the polite high class
+        # to 0/85 — the probe that caught it is e2_s2_probe.py).
+        self._lane_service_ms: Dict[str, float] = {}
         self._cond = threading.Condition()
 
     # -- classification ----------------------------------------------------
@@ -204,12 +210,18 @@ class LaneScheduler:
             return "heavy"                      # unknown means heavy
         return "light" if observed <= self.light_threshold_ms else "heavy"
 
-    def observe(self, statement_key: str, service_ms: float) -> None:
+    def observe(self, statement_key: str, service_ms: float,
+                lane: Optional[str] = None) -> None:
         with self._cond:
             prior = self._ewma_ms.get(statement_key)
             self._ewma_ms[statement_key] = (
                 service_ms if prior is None
                 else prior + self.ewma_alpha * (service_ms - prior))
+            if lane in self._permits:
+                lane_prior = self._lane_service_ms.get(lane)
+                self._lane_service_ms[lane] = (
+                    service_ms if lane_prior is None
+                    else lane_prior + self.ewma_alpha * (service_ms - lane_prior))
 
     # -- admission ----------------------------------------------------------
 
@@ -228,15 +240,9 @@ class LaneScheduler:
         return True
 
     def _predicted_wait_s(self, lane: str) -> float:
-        service_ms = max(
-            (v for k, v in self._ewma_ms.items()), default=0.0)
-        lane_ewmas = [v for v in self._ewma_ms.values()]
-        # Use the lane-appropriate scale: light lane waits are bounded by
-        # the threshold by construction.
+        service_ms = self._lane_service_ms.get(lane, 0.0)
         if lane == "light":
             service_ms = min(service_ms, self.light_threshold_ms)
-        elif lane_ewmas:
-            service_ms = max(lane_ewmas)
         waiters = self._waiters[lane]["high"] + self._waiters[lane]["normal"]
         permits = max(1, self._permits[lane])
         return (waiters * service_ms) / (permits * 1000.0)
@@ -479,7 +485,7 @@ class SeochoOS:
         # Feed the cost signal only on success: a failure's wall time says
         # nothing about the statement's service cost.
         self._admission.observe(
-            statement_key, (_time.perf_counter() - started) * 1000.0)
+            statement_key, (_time.perf_counter() - started) * 1000.0, lane=lane)
         capped = rows[: self.row_cap]
         return _json.dumps({"rows": capped, "row_count": len(capped),
                             "row_cap": self.row_cap,

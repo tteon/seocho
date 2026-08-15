@@ -1,9 +1,9 @@
-# ADR-0171: Grouped namespaces on the client facade
+# ADR-0174: Grouped namespaces on the client facade
 
 - Status: Accepted
 - Date: 2026-08-16
 - Ticket: `seocho-6yf`
-- Related: `ADR-0170` (ontology subpackage), `docs/SDK_CONTRACT.md`
+- Related: `ADR-0173` (ontology subpackage), `docs/SDK_CONTRACT.md`
 
 ## Context
 
@@ -59,7 +59,7 @@ method rather than an addition, and it needs its own deprecation cycle.
 **Namespaces resolve through the owner on every access, never caching bound
 methods.** A cache would keep serving the pre-patch callable after
 `monkeypatch.setattr` or a runtime-applied decorator — the same failure mode
-that made `ADR-0170` use `sys.modules` aliases instead of forwarding shims. The
+that made `ADR-0173` use `sys.modules` aliases instead of forwarding shims. The
 namespaces bind to whichever facade owns them, so the same four classes yield
 coroutines on `AsyncSeocho` with no second mapping table.
 
@@ -90,5 +90,5 @@ The gap is now pinned by a test comparing the two surfaces, so it cannot reopen.
 
 - Deprecation pass on the flat aliases once the names settle.
 - The callable-namespace decision for `query` and `agents`.
-- `client.py` is still 3,688 lines; `ADR-0170`'s follow-up to split `client_*`
+- `client.py` is still 3,688 lines; `ADR-0173`'s follow-up to split `client_*`
   into mixins is unaffected by this change and still open.

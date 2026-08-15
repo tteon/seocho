@@ -101,9 +101,7 @@ def migrate_dept(main_driver, dept: str, spec: dict) -> dict:
 def main() -> int:
     from neo4j import GraphDatabase
 
-    with (MDM_ROOT / "config" / "instances.yaml").open('r', encoding='utf-8') as f:
-
-        spec = yaml.safe_load(f)
+    spec = yaml.safe_load((MDM_ROOT / "config" / "instances.yaml").read_text())
     main_driver = GraphDatabase.driver(os.environ["NEO4J_URI"], auth=_auth())
     try:
         results = [migrate_dept(main_driver, dept, inst)

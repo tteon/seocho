@@ -35,16 +35,13 @@ def main() -> None:
     p.add_argument("--out", default=None, help="defaults to overwriting --episodes")
     args = p.parse_args()
 
-    with Path(args.episodes).open('r', encoding='utf-8') as f:
-
-        run = json.load(f)
+    run = json.loads(Path(args.episodes).read_text())
     by_id = {q["id"]: q for q in QUESTIONS}
 
     overrides = {}
     for spec in args.gold:
         qid, sf, path = spec.split(":", 2)
-        with Path(path).open('r', encoding='utf-8') as f:
-            payload = json.load(f)
+        payload = json.loads(Path(path).read_text())
         overrides[(qid, int(sf))] = payload
         print(f"gold for {qid} at SF{sf}: {len(payload['rows'])} rows, "
               f"reference query took {payload['seconds']:,.1f}s")

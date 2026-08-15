@@ -100,8 +100,7 @@ def _scenarios(gold: dict) -> list[tuple]:
 
 def verify(src: Path, uri: str, user: str, password: str, database: str,
            *, repeats: int = 10, warm: bool = True, container: str = "graphrag-neo4j") -> dict:
-    with (src / "gold.json").open('r', encoding='utf-8') as f:
-        gold = json.load(f)
+    gold = json.loads((src / "gold.json").read_text())
     driver = GraphDatabase.driver(uri, auth=(user, password))
     scenarios: list[dict] = []
     try:

@@ -1,2 +1,1 @@
 - Optimized memory usage for large JSONL files by replacing Path.read_text().splitlines() with lazy, line-by-line iteration using a context manager (with open(...) as f: for line in f:).
-- Replaced inline full-file string reads (json.loads/yaml.safe_load) with streaming context managers to reduce memory overhead when parsing files.

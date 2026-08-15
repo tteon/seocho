@@ -674,8 +674,7 @@ async def main_async(args) -> None:
                  else QUESTIONS)
     if args.only and not questions:
         raise SystemExit(f"no question matches {args.only}")
-    with Path(args.ontology).open('r', encoding='utf-8') as f:
-        ontology_doc = yaml.safe_load(f)
+    ontology_doc = yaml.safe_load(Path(args.ontology).read_text())
     from seocho.ontology import Ontology
     from seocho.query.hybrid_planner import policy_from_ontology, schema_for_prompt
     from seocho.query.workload_compiler import validate_text2cypher_fallback

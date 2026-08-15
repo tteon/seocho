@@ -186,8 +186,7 @@ def main() -> None:
 
     if args.update_manifest:
         path = args.src / "manifest.json"
-        with path.open('r', encoding='utf-8') as f:
-            manifest = json.load(f)
+        manifest = json.loads(path.read_text())
         manifest["structural_profile"] = profile
         path.write_text(json.dumps(manifest, indent=2) + "\n")
         print(f"  -> merged into {path} under structural_profile")

@@ -122,16 +122,10 @@ def main() -> None:
     p.add_argument("--replay", default="outputs/finbench/replay_p99.json")
     args = p.parse_args()
 
-    with Path(args.episodes).open('r', encoding='utf-8') as f:
-
-        run = json.load(f)
+    run = json.loads(Path(args.episodes).read_text())
     episodes = run["episodes"]
     replay_path = Path(args.replay)
-    if replay_path.exists():
-        with replay_path.open('r', encoding='utf-8') as f:
-            cells = json.load(f)["cells"]
-    else:
-        cells = []
+    cells = json.loads(replay_path.read_text())["cells"] if replay_path.exists() else []
 
     print("# Agent ↔ database interaction, by audience, difficulty, scale and agent design\n")
     print(f"Model `{run['model']}` · {len(episodes)} episodes · {run.get('repeats')} repeats "

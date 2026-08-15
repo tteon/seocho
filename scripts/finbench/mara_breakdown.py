@@ -163,8 +163,7 @@ def main() -> None:
 
     from seocho.ontology import Ontology
     ontology = Ontology.load(args.ontology)
-    with args.cases.open('r', encoding='utf-8') as f:
-        cases = json.load(f)["cases"]
+    cases = json.loads(args.cases.read_text())["cases"]
     models = [m.strip() for m in args.models.split(",") if m.strip()]
 
     model_reports = []

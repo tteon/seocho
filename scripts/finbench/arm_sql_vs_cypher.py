@@ -251,8 +251,7 @@ def main() -> None:
     from seocho.store.llm import create_llm_backend
 
     ontology = Ontology.load(args.ontology)
-    with args.cases.open('r', encoding='utf-8') as f:
-        cases = json.load(f)["cases"]
+    cases = json.loads(args.cases.read_text())["cases"]
     con = _register(args.src)
     schema = _sql_schema(con)
     llm = create_llm_backend(provider="mara", model=args.model)

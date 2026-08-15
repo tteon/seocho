@@ -135,8 +135,7 @@ def main() -> None:
 
     anchor = args.anchor
     if anchor is None and args.params and args.params.exists():
-        with args.params.open('r', encoding='utf-8') as f:
-            curated = json.load(f)
+        curated = json.loads(args.params.read_text())
         # The medium band: large enough that server work is real, small enough to finish.
         band = next((b for b in curated["bands"] if b["band"] == "medium"),
                     curated["bands"][0])

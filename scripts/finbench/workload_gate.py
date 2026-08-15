@@ -360,9 +360,7 @@ def main() -> None:
     if args.validate and not args.database:
         raise SystemExit("--validate requires --database")
 
-    with args.cases.open('r', encoding='utf-8') as f:
-
-        doc = json.load(f)
+    doc = json.loads(args.cases.read_text())
     cases = doc["cases"] if isinstance(doc, dict) else doc
 
     # Anchors are snapshot-specific ids. Estimating their cost against another snapshot

@@ -24,10 +24,25 @@ parameters directly, including the tenancy value.
    (verified injection points on openai-agents 0.10.3:
    `Runner.run(session=..., hooks=...)`).
 2. **Tenancy is pinned, never trusted.** The layer overwrites the model's
-   `workspace_id`/`ws` parameters with its own before execution — the
+   `workspace_id`/`ws` *parameters* with its own before execution — the
    FinBench harness's "parameters the model must not be trusted with" rule
-   becomes a product property. A prompt-injected workspace value cannot
-   cross the boundary (held by test).
+   becomes a product property. A prompt-injected workspace *parameter value*
+   cannot cross the boundary (held by test).
+
+   **Scope correction (security review 2026-08-15):** the pin covers the
+   parameter value, not the query *semantics*. A crafted Cypher body can widen
+   scope regardless of the pinned parameter (`... WHERE _workspace_id =
+   $workspace_id OR true`), smuggle the required token in a comment, or issue a
+   write/procedure on the nominal read path. The governed read path now runs
+   `enforce_read_workspace_scope` (comment-strip → token-presence → reject
+   widening tautologies / writes / `CALL` procedures) after opening the driver
+   session in READ mode, with adversarial tests
+   (`test_workspace_filter_enforcement.py`). That is defense-in-depth, **not a
+   proof of workspace binding** — a blocklist cannot be complete. Sound
+   isolation requires parse/AST-level verification that every returned binding
+   is constrained to `$workspace_id`, or DB-side per-workspace
+   databases/credentials, tracked as a follow-up (see DECISION_LOG). The paper
+   must claim the tested property, not the aspirational one.
 3. **One gate, inside the tool.** Admission lives in `execute_query`, not
    in hooks, so the bound holds for hook-less callers and permits are never
    double-counted. All sessions of one AgentOS share the pool — that shared

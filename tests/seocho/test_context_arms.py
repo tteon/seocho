@@ -110,3 +110,23 @@ def test_strata_survive_into_the_arms_row():
     item = _item(strata={"stratum": "S2_joined", "hops": 2})
     out = arms.build_arms(item, budget=500, count=_COUNT, unit="chars")
     assert out["strata"]["stratum"] == "S2_joined"
+
+
+def test_length_matched_prose_cannot_also_be_fact_matched():
+    """Why `vector_matched` is a diagnostic, not a control.
+
+    Prose stating a fact is inherently longer than the triple stating it, so an
+    arm cut to the graph arm's length must drop facts. The first behaviour run
+    confirmed it: 8 of 12 items lost the gold string entirely. The arm therefore
+    measures information deprivation, not compactness, and a `graph` win over it
+    is not evidence that structure helped. Pinned so nobody reads its score as a
+    floor. The real structure-at-matched-length control is tracked separately.
+    """
+    item = _item(corpus=["Northgate Plant assembles Model K1 for the Norland market."],
+                 gold_edges=[["Northgate Plant", "assembles", "Model K1"]])
+    out = arms.build_arms(item, budget=10_000, count=_COUNT, unit="chars")
+    matched = out["arms"]["vector_matched"]
+    assert matched["used"] <= out["arms"]["graph"]["used"]
+    assert matched["context"] != out["arms"]["vector"]["context"], (
+        "if the trim is a no-op the arm is silently a duplicate of `vector`"
+    )

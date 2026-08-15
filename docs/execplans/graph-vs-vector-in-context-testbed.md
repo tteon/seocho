@@ -231,9 +231,76 @@ exist under `seocho-vdw.6` and must be reused, not rebuilt.
 4. **Synthesise the when.** Map each stratum to a recommendation with its
    mechanism, and state the strata where the honest answer is "no difference".
 
+## First behaviour run — 2026-08-15, MiniMax-M2.7, 12 synthetic items
+
+Four arms, temperature 0, scored by token containment (short golds) with a
+`gpt-oss-120b` blind judge as the fallback. Reproduce with:
+
+```
+python3 scripts/serve_track/make_question_set.py  --out outputs/serve_track/questions.jsonl
+python3 scripts/serve_track/make_context_arms.py  --questions outputs/serve_track/questions.jsonl \
+    --out outputs/serve_track/arms.jsonl --budget 2000
+python3 scripts/serve_track/run_arms.py --arms outputs/serve_track/arms.jsonl \
+    --out outputs/serve_track/results.jsonl
+```
+
+| arm | correct | mean context |
+| --- | --- | --- |
+| `vector` | 12/12 | 467.5 chars |
+| `graph` | 11/12 | 79.5 chars |
+| `both` | 12/12 | 547.0 chars |
+| `vector_matched` | 1/12 | 71.0 chars |
+
+**Accuracy separates nothing, and that is the honest headline.** Three arms sit
+at or beside the ceiling, so this set cannot support any claim that one context
+form answers better than another. It was built as a hand-checkable probe rather
+than a powered comparison, and raising item difficulty comes before raising n
+(`seocho-eer`) — the same wall `ab_reasoning.py` already recorded for its own
+set.
+
+**The one measured difference is compression, not correctness.** The graph form
+carried the same answers in 5.9x fewer characters. That belongs to the serve
+track rather than the retrieval argument: it is prefill the engine never has to
+run, and it is the number to re-measure in tokens against a real tokenizer and
+then against KV-block counts on the H200 box.
+
+**`vector_matched` did not work and must not be quoted.** It trims passages to
+the graph arm's length, but prose stating a fact is inherently longer than the
+triple stating it, so the trim removes the fact — the gold string was absent
+from 8 of 12 contexts. Its 1/12 measures information deprivation, not
+compactness, so `graph` beating it is not evidence that structure helped. Length
+cannot be held constant while facts are; the replacement control renders the
+same triples with the relation markup stripped, matching facts *and* length and
+varying only structure (`seocho-alm`, pinned by
+`test_length_matched_prose_cannot_also_be_fact_matched`).
+
+**One case is worth more than the totals.** S5, the only item graph lost:
+*"Which of Model K1, K2, L9 is not sold in Norland?"* The graph arm received the
+single relevant edge, `(Model K2) -[SOLD_IN]-> (Sudmark)`, and answered NOT
+STATED; the vector arm held all three sold-in statements and did the exclusion.
+A triple list is a positive-assertion representation, and a negation needs the
+complement — which relevance filtering is precisely what destroys. This is a
+candidate answer to *when does graph lose*, which is half the thesis, but it is
+n=1 on one model and one phrasing and is recorded as a hypothesis only
+(`seocho-2gq`).
+
+Two defects in the harness were found by this run and fixed before the numbers
+above were taken: questions carried no `id` (every result row was anonymous and
+could not be joined back), and the scorer marked a correct `Model K1` wrong
+because the model emitted U+202F between the words. The second is the dangerous
+kind — it under-counts whichever arm formats more prettily, which is the arm
+identity under measurement. Both are pinned by tests.
+
 ## Status
 
-Layer 3 is built and validated. Layer 1 has one prior result (`ADR-0154`) and no
-three-arm run. Layer 2 is designed (`seocho-ees`) and blocked on hardware. The
-question set with the fact-distance stratifier does not exist yet and is the
-first thing to write.
+Layer 3 is built and validated. Layer 1 now has its first four-arm run, above:
+a null on accuracy, a 5.9x compression effect, and a negation hypothesis. Layer
+2 is designed (`seocho-ees`) and blocked on hardware.
+
+Next: harder items (`seocho-eer`) and the structure-stripped control
+(`seocho-alm`) before any GraphRAG-Bench run — a bench pass over a set that
+cannot separate the arms would only buy a larger null. GraphRAG-Bench is also
+gated on data: only the Medical split is downloaded locally and its
+`evidence_relations` field is prose, not triples, so it yields no `gold_edges`
+and every item is non-comparable. The Novel split, which carries
+`evidence_triple`, has to be fetched first.

@@ -67,6 +67,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -120,8 +121,13 @@ class Item:
     gold_edges: List[List[str]] = field(default_factory=list)
 
     def to_row(self) -> Dict[str, Any]:
+        # Content-derived, so it is stable across reordering and reruns. Without
+        # an id every downstream row is anonymous and results cannot be joined
+        # back to the question that produced them.
+        digest = hashlib.sha256(self.question.encode("utf-8")).hexdigest()[:8]
         return {
             "schema_version": SCHEMA_VERSION,
+            "id": f"{self.stratum}-{digest}",
             "question": self.question,
             "answer": self.answer,
             "corpus": self.corpus,

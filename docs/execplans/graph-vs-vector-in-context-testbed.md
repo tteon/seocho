@@ -80,11 +80,39 @@ Then, per question, measure all three layers and look for the *joint* pattern:
 | `both` wins with attention split | complementary, and the merge policy is the lever |
 | routing differs by context form beyond the null | the forms are being processed differently, not merely read differently |
 
-The stratifier that makes this legible — and the one prior work omits — is
-**how far the needed fact sits from the tokens that need it**, plus whether the
-question requires a relation that is *stated* in the graph form and only
-*implied* in the passages. Pooled averages hide exactly this, which is the same
-mistake the median hid in the FinBench db_hits data (see below).
+The stratifier that makes this legible is **how far the needed fact sits from
+the tokens that need it**, plus whether the question needs a relation that is
+*stated* in the graph form and only *implied* in the passages. Pooled averages
+hide exactly this — the same mistake the median hid in the FinBench db_hits data
+(see below).
+
+**Correction, 2026-08-15.** An earlier draft said GraphRAG-Bench "carries no
+gold triples, so hop count is not derivable". That was wrong. The Novel subset
+has an `evidence_triple` field holding literal triples, and counting them tracks
+the dataset's own labels closely: Fact Retrieval mean 1.19 (901 of 971 items
+exactly one), Complex Reasoning 2.67, Contextual Summarize 3.25, Creative
+Generation 6.16 with every item >= 4. Medical has no such field and supplies
+dispersion only (2.26 / 3.46 / 6.11 / 13.17 statements by the same four types),
+so the two subsets must not be pooled on the hop axis.
+`scripts/serve_track/annotate_graphrag_bench.py` derives this over all 4,072
+items; 2,009 carry a hop count.
+
+So the division of labour is narrower than first stated: real data supplies hops,
+dispersion and reasoning type, and the synthetic set is needed only for the four
+strata the benchmark cannot express — aggregation fan-out, absence/negation,
+entity ambiguity, and distractor density. Those four are precisely what separate
+"structure helped" from "redundancy removal helped" and from "retrieval
+precision helped".
+
+**What the GraphRAG-Bench paper already shows, and does not explain.** Across
+nine GraphRAG methods on GPT-4o-mini: average accuracy 69.30-73.58 against a
+70.68 no-retrieval baseline. Two methods (DALK, G-Retriever) *degrade* it;
+BM-25 and TF-IDF beat five of the nine; the winner is RAPTOR, a **tree**, not a
+graph. By question type, multi-choice accuracy drops for most methods while
+true/false and open-ended improve, and in the mathematics domain **every**
+GraphRAG method degrades accuracy. The paper attributes these to "retrieval
+noise" narratively. That is the phenomenon this testbed exists to give a
+mechanism to: the *when* is already visible in their numbers, the *why* is not.
 
 ## What is already known — carry these forward
 

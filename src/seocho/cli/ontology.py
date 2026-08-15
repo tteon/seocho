@@ -128,6 +128,22 @@ def register(subparsers) -> None:
     ontology_eval_answers_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
 
 
+    ontology_import_parser = ontology_subparsers.add_parser(
+        "import",
+        help="Convert an external schema (Arrows.app JSON, Cypher DDL, native "
+             "JSON/YAML) into a draft ontology document — never persists",
+    )
+    ontology_import_parser.add_argument("source", help="Path to the schema file")
+    ontology_import_parser.add_argument(
+        "--format", default="auto",
+        help="arrows | cypher | native | auto (default: detect from content)")
+    ontology_import_parser.add_argument(
+        "--output", default=None,
+        help="Write the draft document here (YAML); default prints to stdout")
+    ontology_import_parser.add_argument(
+        "--json", dest="output_json", action="store_true", help="JSON output")
+
+
 def handle(args: argparse.Namespace) -> int:
     from ..ontology_governance import (
         build_ontology_governance_report,
@@ -408,5 +424,33 @@ def handle(args: argparse.Namespace) -> int:
                 print(f"  {cat or '(uncategorized)'}: {report.by_category[cat]} "
                       f"(n={report.by_category_n.get(cat, 0)})")
         return 0
+
+    if args.ontology_command == "import":
+        import yaml
+
+        from ..ontology_import import import_document
+
+        content = Path(args.source).read_text(encoding="utf-8")
+        result = import_document(content, format=args.format)
+        if getattr(args, "output_json", False):
+            print(json.dumps(result.to_dict(), indent=2, ensure_ascii=False))
+        else:
+            if result.detected_format:
+                print(f"format: {result.detected_format}")
+            if result.suggested_name:
+                print(f"suggested name: {result.suggested_name}")
+            for warning in result.warnings:
+                print(f"warning: {warning}")
+            if result.document is not None:
+                rendered = yaml.safe_dump(result.document, sort_keys=False,
+                                          allow_unicode=True)
+                if args.output:
+                    Path(args.output).write_text(rendered, encoding="utf-8")
+                    print(f"draft written to {args.output} — review, then validate "
+                          f"with: seocho ontology check --schema {args.output}")
+                else:
+                    print(rendered)
+        # A draft with no document is an unusable import; say so in the exit code.
+        return 0 if result.document is not None else 1
 
     raise SeochoError(f"Unknown ontology command: {args.ontology_command}")

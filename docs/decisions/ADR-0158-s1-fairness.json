@@ -1,0 +1,46 @@
+[
+  {
+    "reserved_for_high": 0,
+    "max_inflight": 4,
+    "normals": 12,
+    "highs": 2,
+    "duration_s": 20.0,
+    "high": {
+      "calls": 36,
+      "served": 2,
+      "timeouts": 34,
+      "p50_ms": 551.4,
+      "p95_ms": 551.4
+    },
+    "normal": {
+      "calls": 1068,
+      "served": 908,
+      "timeouts": 160,
+      "p50_ms": 87.9,
+      "p95_ms": 92.6
+    },
+    "normal_jain_index": 1.0
+  },
+  {
+    "reserved_for_high": 2,
+    "max_inflight": 4,
+    "normals": 12,
+    "highs": 2,
+    "duration_s": 20.0,
+    "high": {
+      "calls": 166,
+      "served": 166,
+      "timeouts": 0,
+      "p50_ms": 92.4,
+      "p95_ms": 99.2
+    },
+    "normal": {
+      "calls": 650,
+      "served": 450,
+      "timeouts": 200,
+      "p50_ms": 88.7,
+      "p95_ms": 96.5
+    },
+    "normal_jain_index": 1.0
+  }
+]

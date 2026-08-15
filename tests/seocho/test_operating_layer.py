@@ -14,7 +14,7 @@ import threading
 
 import pytest
 
-from seocho.agentos import AgentOS, BudgetExceededError
+from seocho.operating_layer import BudgetExceededError, SeochoOS
 from seocho.ontology import NodeDef, Ontology, P, RelDef
 
 pytest.importorskip("agents", reason="openai-agents SDK not installed")
@@ -60,7 +60,7 @@ class RecordingStore:
 def make_os(ontology, store, **kw):
     defaults = dict(database="testdb", workspace_id="acme")
     defaults.update(kw)
-    return AgentOS(ontology=ontology, graph_store=store, **defaults)
+    return SeochoOS(ontology=ontology, graph_store=store, **defaults)
 
 
 # -- memory: conversation namespace ---------------------------------------
@@ -189,3 +189,36 @@ def test_build_agent_wires_governed_tool_and_guardrail(ontology):
     assert tool.name == "graph_query"
     assert tool.tool_input_guardrails            # ontology guardrail attached
     assert "truncated: true" in agent.instructions
+
+
+# -- scheduling: the priority reserve ----------------------------------------
+
+def test_reserve_keeps_capacity_for_high_priority(ontology):
+    from seocho.operating_layer import PriorityAdmission
+
+    gate = PriorityAdmission(max_inflight=4, reserved_for_high=2,
+                             wait_seconds=0.05)
+    # Normals may occupy at most max_inflight - reserved.
+    assert gate.acquire("normal") and gate.acquire("normal")
+    assert not gate.acquire("normal")          # third normal blocked
+    # The reserve is there for high — both reserved permits admit.
+    assert gate.acquire("high") and gate.acquire("high")
+    assert not gate.acquire("high")            # pool truly exhausted
+    gate.release("normal")
+    assert gate.acquire("normal")              # release wakes the class
+
+
+def test_zero_reserve_degrades_to_plain_bounded_admission(ontology):
+    from seocho.operating_layer import PriorityAdmission
+
+    gate = PriorityAdmission(max_inflight=2, reserved_for_high=0,
+                             wait_seconds=0.05)
+    assert gate.acquire("normal") and gate.acquire("high")
+    assert not gate.acquire("high")            # no favoritism without reserve
+
+
+def test_reserve_must_leave_normal_capacity(ontology):
+    from seocho.operating_layer import PriorityAdmission
+
+    with pytest.raises(ValueError):
+        PriorityAdmission(max_inflight=2, reserved_for_high=2)

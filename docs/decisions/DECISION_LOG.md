@@ -5,7 +5,7 @@ Each entry must link to a full ADR when impact is non-trivial.
 
 ## 2026-08-15
 
-- [Accepted] `ADR-0161-root-compose-entry-point-and-docker-directory.md`
+- [Accepted] `ADR-0163-root-compose-entry-point-and-docker-directory.md`
   - keep one `compose.yaml` in the root and move overlays/side stacks to `docker/`
   - absorb Compose's project-directory rule in the invocation, not in the
     compose files: overlays follow the root file, side stacks pass

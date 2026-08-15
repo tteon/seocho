@@ -947,6 +947,15 @@ Each entry must link to a full ADR when impact is non-trivial.
   - collapse: case/whitespace 100%; suffix recall 0% (honest ceiling → alias/same_as follow-up)
   - scale-invariant; feeds the allocator/interning Tier-1 claim (seocho-gzo, seocho-5r2)
 
+## 2026-08-15 (subgraph retrieval)
+
+- [Accepted] ADR-0161 subgraph-retrieval (boundary-1 resolution, seocho-zfe)
+  - real compute_node_identity + bge over FinBench; ceiling+floor controls; scale-invariant Company SF1/SF10 + Person SF1
+  - CONFIRMED: naive vector_name 50% wrong-anchor on homonyms (silent wrong subgraph); intern 0% homonym error by construction (exact/auditable)
+  - REFUTED overclaim: vector_disamb ~0% everywhere on clean synthetic names — vector not structurally incapable; distinction is guaranteed-vs-empirical + cost/auditability, not capability
+  - HONEST weakness: intern 100% miss on suffix variants (normalizer recall ceiling, closeable by alias/same_as)
+  - design = intern-first + vector fallback (hybrid); stronger than 'we beat vector'
+
 ## Template
 
 Use this block for new entries:

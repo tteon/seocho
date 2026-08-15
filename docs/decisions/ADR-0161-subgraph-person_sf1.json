@@ -1,0 +1,170 @@
+{
+  "arms": {
+    "floor_random": {
+      "normalizable/homonym": {
+        "wrong_anchor_rate": 0.7917,
+        "subgraph_precision": 0.2083,
+        "subgraph_recall": 0.2083,
+        "n": 144
+      },
+      "normalizable/unique": {
+        "wrong_anchor_rate": 0.8026,
+        "subgraph_precision": 0.1974,
+        "subgraph_recall": 0.1974,
+        "n": 456
+      },
+      "suffix/homonym": {
+        "wrong_anchor_rate": 0.7917,
+        "subgraph_precision": 0.2083,
+        "subgraph_recall": 0.2083,
+        "n": 96
+      },
+      "suffix/unique": {
+        "wrong_anchor_rate": 0.8026,
+        "subgraph_precision": 0.1974,
+        "subgraph_recall": 0.1974,
+        "n": 304
+      },
+      "ALL": {
+        "wrong_anchor_rate": 0.8,
+        "subgraph_precision": 0.2,
+        "subgraph_recall": 0.2,
+        "n": 1000
+      }
+    },
+    "vector_name": {
+      "normalizable/homonym": {
+        "wrong_anchor_rate": 0.5,
+        "subgraph_precision": 0.5,
+        "subgraph_recall": 0.5,
+        "n": 144
+      },
+      "normalizable/unique": {
+        "wrong_anchor_rate": 0.0,
+        "subgraph_precision": 1.0,
+        "subgraph_recall": 1.0,
+        "n": 456
+      },
+      "suffix/homonym": {
+        "wrong_anchor_rate": 0.5,
+        "subgraph_precision": 0.5,
+        "subgraph_recall": 0.5,
+        "n": 96
+      },
+      "suffix/unique": {
+        "wrong_anchor_rate": 0.0,
+        "subgraph_precision": 1.0,
+        "subgraph_recall": 1.0,
+        "n": 304
+      },
+      "ALL": {
+        "wrong_anchor_rate": 0.12,
+        "subgraph_precision": 0.88,
+        "subgraph_recall": 0.88,
+        "n": 1000
+      }
+    },
+    "vector_disamb": {
+      "normalizable/homonym": {
+        "wrong_anchor_rate": 0.0,
+        "subgraph_precision": 1.0,
+        "subgraph_recall": 1.0,
+        "n": 144
+      },
+      "normalizable/unique": {
+        "wrong_anchor_rate": 0.0,
+        "subgraph_precision": 1.0,
+        "subgraph_recall": 1.0,
+        "n": 456
+      },
+      "suffix/homonym": {
+        "wrong_anchor_rate": 0.0104,
+        "subgraph_precision": 0.9896,
+        "subgraph_recall": 0.9896,
+        "n": 96
+      },
+      "suffix/unique": {
+        "wrong_anchor_rate": 0.0,
+        "subgraph_precision": 1.0,
+        "subgraph_recall": 1.0,
+        "n": 304
+      },
+      "ALL": {
+        "wrong_anchor_rate": 0.001,
+        "subgraph_precision": 0.999,
+        "subgraph_recall": 0.999,
+        "n": 1000
+      }
+    },
+    "intern": {
+      "normalizable/homonym": {
+        "wrong_anchor_rate": 0.0,
+        "subgraph_precision": 1.0,
+        "subgraph_recall": 1.0,
+        "n": 144
+      },
+      "normalizable/unique": {
+        "wrong_anchor_rate": 0.0,
+        "subgraph_precision": 1.0,
+        "subgraph_recall": 1.0,
+        "n": 456
+      },
+      "suffix/homonym": {
+        "wrong_anchor_rate": 1.0,
+        "subgraph_precision": 0.0,
+        "subgraph_recall": 0.0,
+        "n": 96
+      },
+      "suffix/unique": {
+        "wrong_anchor_rate": 1.0,
+        "subgraph_precision": 0.0,
+        "subgraph_recall": 0.0,
+        "n": 304
+      },
+      "ALL": {
+        "wrong_anchor_rate": 0.4,
+        "subgraph_precision": 0.6,
+        "subgraph_recall": 0.6,
+        "n": 1000
+      }
+    },
+    "ceiling_oracle": {
+      "normalizable/homonym": {
+        "wrong_anchor_rate": 0.0,
+        "subgraph_precision": 1.0,
+        "subgraph_recall": 1.0,
+        "n": 144
+      },
+      "normalizable/unique": {
+        "wrong_anchor_rate": 0.0,
+        "subgraph_precision": 1.0,
+        "subgraph_recall": 1.0,
+        "n": 456
+      },
+      "suffix/homonym": {
+        "wrong_anchor_rate": 0.0,
+        "subgraph_precision": 1.0,
+        "subgraph_recall": 1.0,
+        "n": 96
+      },
+      "suffix/unique": {
+        "wrong_anchor_rate": 0.0,
+        "subgraph_precision": 1.0,
+        "subgraph_recall": 1.0,
+        "n": 304
+      },
+      "ALL": {
+        "wrong_anchor_rate": 0.0,
+        "subgraph_precision": 1.0,
+        "subgraph_recall": 1.0,
+        "n": 1000
+      }
+    }
+  },
+  "meta": {
+    "label": "Person",
+    "targets": 200,
+    "homonym_entities": 48,
+    "nodes_dir": "/home/hadry/lab/seocho/outputs/finbench/sf1/nodes"
+  }
+}

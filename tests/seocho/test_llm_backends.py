@@ -906,3 +906,138 @@ def test_vllm_to_agents_sdk_model_binding(
     assert sdk_provider.kwargs["base_url"] == "http://localhost:8000/v1"
     assert sdk_provider.kwargs["use_responses"] is False
     assert run_config.model.model == "Qwen2.5-7B-Instruct"
+
+
+def test_build_response_falls_back_to_provider_reasoning_fields():
+    """seocho-ub5: MARA MiniMax-M2.7 emits `reasoning` (not
+    `reasoning_content`) and may leave `content` empty; empty content must
+    not reach json.loads as ''."""
+    from types import SimpleNamespace
+
+    from seocho.store.llm import OpenAICompatibleBackend
+
+    def _resp(message):
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=message)], usage=None, model="m"
+        )
+
+    # kimi-style reasoning_content still works
+    kimi = SimpleNamespace(content="", reasoning_content='{"a": 1}')
+    assert OpenAICompatibleBackend._build_response(_resp(kimi)).json() == {"a": 1}
+
+    # mara/M2.7-style `reasoning` attribute
+    mara = SimpleNamespace(content="", reasoning='{"b": 2}')
+    assert OpenAICompatibleBackend._build_response(_resp(mara)).json() == {"b": 2}
+
+    # SDK models park unknown fields in model_extra
+    extra = SimpleNamespace(content="", model_extra={"reasoning": '{"c": 3}'})
+    assert OpenAICompatibleBackend._build_response(_resp(extra)).json() == {"c": 3}
+
+    # content wins when present
+    both = SimpleNamespace(content='{"d": 4}', reasoning='{"ignored": 0}')
+    assert OpenAICompatibleBackend._build_response(_resp(both)).json() == {"d": 4}
+
+
+def test_task_hint_json_extraction_gets_default_max_tokens():
+    """seocho-ub5: structured-output task hints must carry an explicit
+    token budget so reasoning models don't truncate mid-thinking."""
+    from seocho.store.llm import complete_with_task_hints
+
+    captured = {}
+
+    class FakeLLM:
+        def complete(self, **kwargs):
+            captured.update(kwargs)
+            return object()
+
+    complete_with_task_hints(
+        FakeLLM(), system="s", user="u", task_hint="json_extraction"
+    )
+    assert captured["max_tokens"] == 8192
+
+    captured.clear()
+    complete_with_task_hints(
+        FakeLLM(), system="s", user="u",
+        task_hint="json_extraction", max_tokens=1234,
+    )
+    assert captured["max_tokens"] == 1234  # explicit caller value wins
+
+    captured.clear()
+    complete_with_task_hints(
+        FakeLLM(), system="s", user="u", task_hint="answer_synthesis"
+    )
+    assert "max_tokens" not in captured  # non-structured hints unchanged
+
+
+def test_json_truncation_400_boosts_budget_before_stripping_response_format(monkeypatch):
+    """seocho-ub5: a provider 'JSON truncated by token limit' 400 must retry
+    the SAME shape with a doubled budget, not fall straight to the variant
+    that strips response_format (which yields runaway non-JSON prose)."""
+    from types import SimpleNamespace
+
+    from seocho.store.llm import OpenAICompatibleBackend
+
+    backend = OpenAICompatibleBackend(provider="mara", model="MiniMax-M2.7", api_key="k")
+
+    calls = []
+
+    def fake_create(**kwargs):
+        calls.append(kwargs)
+        if len(calls) == 1:
+            raise RuntimeError(
+                "Error code: 400 - Model did not output valid JSON. The output "
+                "was truncated before a complete JSON object could be generated"
+            )
+        msg = SimpleNamespace(content='{"nodes": []}')
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=msg, finish_reason="stop")],
+            usage=None, model="MiniMax-M2.7",
+        )
+
+    backend._client = SimpleNamespace(
+        chat=SimpleNamespace(completions=SimpleNamespace(create=fake_create))
+    )
+
+    result = backend.complete(
+        system="s", user="u",
+        max_tokens=8192,
+        response_format={"type": "json_object"},
+        task_hint="json_extraction",
+    )
+    assert result.json() == {"nodes": []}
+    assert len(calls) == 2
+    # retry keeps the JSON constraint and doubles the budget
+    assert calls[1]["response_format"] == {"type": "json_object"}
+    assert calls[1]["max_tokens"] == 16384
+
+
+def test_non_json_400_still_walks_strip_ladder():
+    """Payload-incompatibility errors keep the original strip behavior."""
+    from types import SimpleNamespace
+
+    from seocho.store.llm import OpenAICompatibleBackend
+
+    backend = OpenAICompatibleBackend(provider="mara", model="MiniMax-M2.7", api_key="k")
+
+    calls = []
+
+    def fake_create(**kwargs):
+        calls.append(kwargs)
+        if "response_format" in kwargs:
+            raise RuntimeError("Error code: 400 - response_format is not supported")
+        msg = SimpleNamespace(content='{"ok": true}')
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=msg, finish_reason="stop")],
+            usage=None, model="MiniMax-M2.7",
+        )
+
+    backend._client = SimpleNamespace(
+        chat=SimpleNamespace(completions=SimpleNamespace(create=fake_create))
+    )
+
+    result = backend.complete(
+        system="s", user="u",
+        response_format={"type": "json_object"},
+    )
+    assert result.json() == {"ok": True}
+    assert "response_format" not in calls[-1]

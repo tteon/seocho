@@ -128,7 +128,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_client_options(doctor_parser, include_scope=False, include_json=True)
 
     serve_parser = subparsers.add_parser("serve", help="Start the local SEOCHO docker stack")
-    serve_parser.add_argument("--project-dir", default=None, help="Repository root containing docker-compose.yml")
+    serve_parser.add_argument("--project-dir", default=None, help="Repository root containing compose.yaml")
     serve_parser.add_argument("--build", action="store_true", help="Rebuild images before starting")
     serve_parser.add_argument("--no-wait", action="store_true", help="Return after docker compose starts")
     serve_parser.add_argument("--timeout", type=float, default=90.0, help="Readiness wait timeout in seconds")
@@ -146,7 +146,7 @@ def build_parser() -> argparse.ArgumentParser:
     serve_parser.add_argument("--json", dest="output_json", action="store_true", help="Emit JSON output")
 
     stop_parser = subparsers.add_parser("stop", help="Stop the local SEOCHO docker stack")
-    stop_parser.add_argument("--project-dir", default=None, help="Repository root containing docker-compose.yml")
+    stop_parser.add_argument("--project-dir", default=None, help="Repository root containing compose.yaml")
     stop_parser.add_argument("--volumes", action="store_true", help="Also remove compose volumes")
     stop_parser.add_argument(
         "--instance",

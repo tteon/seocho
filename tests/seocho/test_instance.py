@@ -145,6 +145,10 @@ def test_serve_dry_run_with_instance_uses_isolated_project_and_ports():
     assert status.command[status.command.index("-p") + 1] == "seocho-alice"
     assert "-f" in status.command
     assert status.command[status.command.index("-f") + 1] == INSTANCE_COMPOSE_FILE
+    # The compose file lives under docker/, so the project directory must be
+    # pinned to the repo root or ./ paths and .env would resolve against docker/.
+    assert "--project-directory" in status.command
+    assert status.command[status.command.index("--project-directory") + 1] == str(REPO_ROOT)
     assert status.api_url == "http://localhost:8880"
     assert status.ui_url == "http://localhost:9180"
     assert status.instance == "alice"
@@ -162,7 +166,9 @@ def test_serve_dry_run_without_instance_is_unchanged():
 
 def test_stop_dry_run_with_instance_targets_only_that_project():
     status = stop_local_runtime(project_dir=str(REPO_ROOT), instance="bob", dry_run=True)
-    assert status.command[:4] == ["docker", "compose", "-p", "seocho-bob"]
+    assert status.command[:2] == ["docker", "compose"]
+    assert status.command[status.command.index("-p") + 1] == "seocho-bob"
+    assert status.command[status.command.index("--project-directory") + 1] == str(REPO_ROOT)
     assert "down" in status.command
     assert status.database == derive_instance("bob").database
 

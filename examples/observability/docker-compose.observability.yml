@@ -7,7 +7,7 @@
 # collector by container name, so no host.docker.internal is needed.
 #
 # Run alongside the main stack (shares the external seocho-net created by
-# docker-compose.yml):
+# compose.yaml):
 #
 #   docker compose -f examples/observability/docker-compose.observability.yml \
 #       --profile observability up -d

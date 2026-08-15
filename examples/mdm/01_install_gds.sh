@@ -9,7 +9,7 @@
 # (2026-06-11): same distributor as the graphstack/dozerdb image in use.
 #
 # Idempotent: skips the download when the jar is already in place. The
-# docker-compose.yml allowlist change (apoc.*,n10s.*,gds.*) is committed in
+# compose.yaml allowlist change (apoc.*,n10s.*,gds.*) is committed in
 # the repo; environment changes need `docker compose up -d` (a plain restart
 # keeps the old env).
 set -euo pipefail

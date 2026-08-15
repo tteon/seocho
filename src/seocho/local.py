@@ -27,7 +27,12 @@ _PLACEHOLDER_OPENAI_KEYS = {"sk-your-key-here", "your-openai-api-key", "changeme
 # COMPOSE_PROJECT_NAME=seocho). Per-instance app tiers reach its neo4j to
 # create/drop their ephemeral logical databases.
 SHARED_PROJECT_NAME = "seocho"
-INSTANCE_COMPOSE_FILE = "docker-compose.instance.yml"
+INSTANCE_COMPOSE_FILE = "docker/compose.instance.yaml"
+
+# Root stack entry points, newest name first. `compose.yaml` is the current
+# layout; `docker-compose.yml` is still accepted so an older checkout keeps
+# resolving as a project directory.
+_PROJECT_MARKER_FILES = ("compose.yaml", "docker-compose.yml")
 
 _DATABASE_NAME_RE = re.compile(DATABASE_NAME_PATTERN)
 
@@ -62,10 +67,12 @@ def find_project_dir(start_dir: Optional[str] = None) -> Path:
             if parent in checked:
                 continue
             checked.add(parent)
-            if (parent / "docker-compose.yml").exists() and (parent / "pyproject.toml").exists():
+            if not (parent / "pyproject.toml").exists():
+                continue
+            if any((parent / marker).exists() for marker in _PROJECT_MARKER_FILES):
                 return parent
     raise SeochoError(
-        "Could not find a SEOCHO project directory with docker-compose.yml. "
+        "Could not find a SEOCHO project directory with compose.yaml. "
         "Run this command from the repository or pass --project-dir."
     )
 
@@ -91,7 +98,18 @@ def serve_local_runtime(
     if layout is not None:
         # Per-instance app tier: its own project + self-contained app-only
         # compose file, reaching the shared neo4j over the shared network.
-        command.extend(["-p", layout.project_name, "-f", INSTANCE_COMPOSE_FILE])
+        # The compose file lives under docker/, so pin the project directory to
+        # the repo root; otherwise ./ paths and .env resolve against docker/.
+        command.extend(
+            [
+                "--project-directory",
+                str(root),
+                "-p",
+                layout.project_name,
+                "-f",
+                INSTANCE_COMPOSE_FILE,
+            ]
+        )
     command.extend(["up", "-d"])
     if build:
         command.append("--build")
@@ -172,7 +190,16 @@ def stop_local_runtime(
 
     command = ["docker", "compose"]
     if layout is not None:
-        command.extend(["-p", layout.project_name, "-f", INSTANCE_COMPOSE_FILE])
+        command.extend(
+            [
+                "--project-directory",
+                str(root),
+                "-p",
+                layout.project_name,
+                "-f",
+                INSTANCE_COMPOSE_FILE,
+            ]
+        )
     command.append("down")
     if volumes:
         command.append("-v")
@@ -198,7 +225,7 @@ def stop_local_runtime(
             database=layout.database if layout else "",
         )
 
-    # `docker compose -f docker-compose.instance.yml down` still interpolates the
+    # `docker compose --project-directory <root> -f docker/compose.instance.yaml down` still interpolates the
     # file, whose required vars (SEOCHO_DATABASE, ports) must be present even for
     # teardown — so apply the same instance env overrides as serve.
     down_env = os.environ.copy()

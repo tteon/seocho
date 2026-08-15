@@ -99,7 +99,7 @@ Current landed first slice:
   `runtime/*` modules when started from the `extraction/` directory
 - the default local `extraction-service` compose path is now rebuilt from a
   repo-root image that bakes `extraction/`, `runtime/`, and `seocho/`
-- explicit live bind mounts moved to `docker-compose.dev.yml` for development
+- explicit live bind mounts moved to `docker/compose.dev.yaml` for development
   loops that want host-edit reflection instead of snapshot reproducibility
 
 Target first modules:

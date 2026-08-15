@@ -1,9 +1,19 @@
 # Makefile for Seocho - Data Lineage & GraphRAG Framework
 
+# Compose layout (see docker/README.md):
+#   compose.yaml         — the one default stack, auto-discovered at the repo root
+#   docker/compose.*.yaml — overlays and optional side stacks
+#
+# Relative paths and ${...} interpolation inside every compose file resolve
+# against the *project directory*, which Compose defaults to the directory of
+# the FIRST -f file. Overlays therefore need no --project-directory (the root
+# compose.yaml comes first), but a side stack invoked on its own does, or it
+# would resolve ./data and .env against docker/ instead of the repo root.
 DOCKER_COMPOSE = docker compose
-DOCKER_COMPOSE_LIVE = docker compose -f docker-compose.yml -f docker-compose.dev.yml
-DOCKER_COMPOSE_TUTORIALS = docker compose -f docker-compose.tutorials.yml
-DOCKER_COMPOSE_MEMORY = docker compose -f docker-compose.memory.yml
+DOCKER_COMPOSE_SIDE = docker compose --project-directory $(CURDIR)
+DOCKER_COMPOSE_LIVE = docker compose -f compose.yaml -f docker/compose.dev.yaml
+DOCKER_COMPOSE_TUTORIALS = $(DOCKER_COMPOSE_SIDE) -f docker/compose.tutorials.yaml
+DOCKER_COMPOSE_MEMORY = $(DOCKER_COMPOSE_SIDE) -f docker/compose.memory.yaml
 
 # Shared stack project name (fixed so per-instance app tiers can target its
 # neo4j for ephemeral-database admin — see src/seocho/local.py).

@@ -134,7 +134,7 @@ def main() -> None:
     parser.add_argument("--user", default="neo4j")
     parser.add_argument("--password", default="")
     parser.add_argument("--container", default="graphrag-neo4j")
-    parser.add_argument("--compose", default="docker-compose.yml,docker-compose.finbench.yml")
+    parser.add_argument("--compose", default="compose.yaml,docker-compose.finbench.yml")
     parser.add_argument("--repeats", type=int, default=5)
     parser.add_argument("--query-timeout", type=float, default=30.0)
     parser.add_argument("--anchors-per-band", type=int, default=3)

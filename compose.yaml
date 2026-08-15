@@ -95,7 +95,7 @@ services:
 
 networks:
   graphrag-net:
-    # Fixed name so per-instance app projects (docker-compose.instance.yml,
+    # Fixed name so per-instance app projects (docker/compose.instance.yaml,
     # seocho-6q9.3) can attach to the shared stack's network as `external`.
     name: seocho-net
     driver: bridge

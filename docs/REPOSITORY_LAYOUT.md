@@ -18,6 +18,7 @@ should actually go.
 | `evaluation/` | Platform UI/backend | Static UI plus proxy/backend for the local platform path. |
 | `scripts/` | Ops, CI, demo, and PM helpers | Preferred home for repo automation. |
 | `docs/` | Product and operator contracts | Source-of-truth docs shipped with the repo. |
+| `docker/` | Compose overlays and optional side stacks | Only the default `compose.yaml` stays in the root; see `docker/README.md`. |
 | `tests/` | Top-level regression anchors | Most focused tests still live nearer to the owning package. |
 
 ## Root Files
@@ -30,8 +31,11 @@ metadata, and one-command local stack entry points.
 | `README.md`, `QUICKSTART.md`, `CONTRIBUTING.md`, `SECURITY.md`, `CHANGELOG.md`, `LICENSE` | yes | Standard public project entry points |
 | `AGENTS.md`, `CLAUDE.md` | yes | Coding-agent orientation and SEOCHO-specific guardrails |
 | `pyproject.toml`, `Makefile`, `.env.example`, `.gitignore`, `.dockerignore` | yes | Python packaging, common commands, and repo/tool defaults |
-| `docker-compose.yml`, `docker-compose.dev.yml`, `docker-compose.memory.yml`, `docker-compose.opik.yml`, `docker-compose.tutorials.yml` | yes | Core, development overlay, optional authoritative memory, legacy Opik, and tutorial entry points |
+| `compose.yaml` | yes | The one default local stack; every other compose file lives under `docker/` |
+| `llms.txt` | yes | Machine-readable docs index; the convention requires the repository root |
 | `.gitattributes` | only with active rules | Do not keep an empty placeholder |
+| `docker-compose.*.yml` | no | Overlays and side stacks belong in `docker/` |
+| agent-only dotfile docs (`.AGENTS.md`, `.PLANS.md`) | no | Maintainer/agent contracts belong in `docs/maintainers/` |
 | `setup_*.sh` | no | Put setup helpers under `scripts/setup/` |
 | generated data, logs, exports, scratch PR bodies | no | Keep ignored and outside the public repository surface |
 
@@ -95,15 +99,27 @@ These paths are usually not where feature work should land.
 
 ## Compose Files
 
-Only two compose files are part of the tracked repo contract:
+The repository root holds exactly one compose file. Overlays and optional side
+stacks live under `docker/`, documented in `docker/README.md`.
 
 | Path | Role |
 |---|---|
-| `docker-compose.yml` | Default image-backed local stack |
-| `docker-compose.dev.yml` | Live-mount overlay used with `make up-live` / `make dev-up` |
-| `docker-compose.opik.yml` | Optional legacy Opik services used by `make opik-up`; excluded from the default stack |
+| `compose.yaml` | Default image-backed local stack, auto-discovered by `docker compose` |
+| `docker/compose.dev.yaml` | Live-mount overlay used with `make up-live` / `make dev-up` |
+| `docker/compose.instance.yaml` | Isolated per-worktree app tier (`seocho serve --instance`) |
+| `docker/compose.memory.yaml` | Optional authoritative PostgreSQL agent memory (`make memory-up`) |
+| `docker/compose.opik.yaml` | Optional self-hosted Opik services (`make opik-up`); excluded from the default stack |
+| `docker/compose.tutorials.yaml` | FinDER tutorial JupyterLab + Neo4j (`make tutorials-up`) |
+| `docker/compose.tls-enterprise.yaml` | Neo4j Enterprise bolt-TLS stack for cert-rotation qualification |
 
-There is no tracked `docker-compose.prod.yml` in this repository. Production
+Compose resolves relative paths and `.env` against the directory of the first
+`-f` file. Overlays are therefore safe as-is, but a side stack invoked on its
+own must pass `--project-directory .`; see `docker/README.md`.
+
+Example-scoped stacks stay with the configs they load
+(`examples/observability/`, `examples/mdm/`) rather than moving under `docker/`.
+
+There is no tracked production compose file in this repository. Production
 overrides should be deployment-specific instead of implied by the default repo
 layout.
 

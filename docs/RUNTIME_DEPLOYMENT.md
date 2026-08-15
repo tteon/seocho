@@ -300,7 +300,7 @@ make memory-status
 make memory-smoke
 ```
 
-`memory-up` starts PostgreSQL 18 from `docker-compose.memory.yml`, waits for its
+`memory-up` starts PostgreSQL 18 from `docker/compose.memory.yaml`, waits for its
 healthcheck, and applies the idempotent schema from
 `seocho.memory.POSTGRES_MEMORY_SCHEMA_SQL`. `memory-smoke` performs a real
 atomic revision/outbox/idempotency commit, repeats the delivery to verify

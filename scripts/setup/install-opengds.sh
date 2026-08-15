@@ -39,4 +39,4 @@ echo
 echo "OpenGDS ${GDS_VERSION} installed. Restart your Neo4j container so it"
 echo "picks up the new plugin:"
 echo "  make restart                                # main stack"
-echo "  docker compose -f docker-compose.tutorials.yml restart tutorials-neo4j"
+echo "  docker compose --project-directory . -f docker/compose.tutorials.yaml restart tutorials-neo4j"

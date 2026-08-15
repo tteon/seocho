@@ -1,4 +1,4 @@
-# .AGENTS.md
+# Agent ExecPlan Conventions
 
 This file supplements the root `AGENTS.md`. The root file remains the canonical
 execution contract for all coding agents. This file defines SEOCHO's shorthand
@@ -9,7 +9,7 @@ is too complex for a direct edit.
 
 When writing complex features or significant refactors, use an ExecPlan from
 design to implementation. An ExecPlan is a living, self-contained execution
-document written according to `.PLANS.md`.
+document written according to `docs/maintainers/EXECPLAN_SPEC.md`.
 
 Use an ExecPlan for:
 

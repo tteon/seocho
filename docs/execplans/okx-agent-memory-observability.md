@@ -4,7 +4,7 @@ This ExecPlan is a living document. The sections `Progress`, `Surprises &
 Discoveries`, `Decision Log`, and `Outcomes & Retrospective` must be kept up to
 date as work proceeds.
 
-This plan follows `.PLANS.md` from the repository root and tracks local work
+This plan follows `docs/maintainers/EXECPLAN_SPEC.md` and tracks local work
 item `seocho-47m`.
 
 ## Purpose / Big Picture

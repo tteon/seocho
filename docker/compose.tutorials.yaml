@@ -1,6 +1,6 @@
-# Self-contained docker-compose for the FinDER tutorial notebooks.
+# Self-contained Compose stack for the FinDER tutorial notebooks.
 #
-#   docker compose -f docker-compose.tutorials.yml up --build
+#   docker compose --project-directory . -f docker/compose.tutorials.yaml up --build
 #   open http://localhost:8888/lab/tree/examples/finder   (JupyterLab)
 #   open http://localhost:7474                             (Neo4j Browser)
 #

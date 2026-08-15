@@ -22,7 +22,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 # Markdown surfaces to lint: root agent/entry docs + everything under docs/.
-ROOT_DOCS = ["README.md", "AGENTS.md", ".AGENTS.md", "CLAUDE.md", "docs/README.md"]
+ROOT_DOCS = ["README.md", "AGENTS.md", "CLAUDE.md", "docs/README.md"]
 LINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 # read-order seeds (CLAUDE.md "Read Order"): these must always resolve.
 READ_ORDER = [

@@ -53,7 +53,7 @@ class _FakeLLM:
 
 
 class _FakeGraphStore:
-    def query(self, cypher: str, *, params=None, database: str = "neo4j", **kwargs):  # noqa: ANN001
+    def query(self, cypher: str, *, params=None, database: str = "neo4j"):  # noqa: ANN001
         return [{"company": "CBOE", "metric_name": "Revenue 2023", "year": "2023", "value": "10.0"}]
 
 
@@ -132,7 +132,7 @@ def test_graph_query_executor_returns_canonical_execution_result() -> None:
     )
     plan = planner.plan("Delta in CBOE Data & Access Solutions rev from 2021-23.")
 
-    executor = GraphQueryExecutor(graph_store=_FakeGraphStore(), database="neo4j", workspace_id="finance_benchmark_test")
+    executor = GraphQueryExecutor(graph_store=_FakeGraphStore(), database="neo4j")
     execution = executor.execute(plan)
 
     assert execution.ok is True

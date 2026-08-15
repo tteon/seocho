@@ -18,7 +18,7 @@ class _BlockingStore:
         self.release = threading.Event()
         self.calls = 0
 
-    def query(self, cypher, *, params=None, database="neo4j", **kwargs):
+    def query(self, cypher, *, params=None, database="neo4j"):
         self.calls += 1
         self.entered.set()
         assert self.release.wait(timeout=2)

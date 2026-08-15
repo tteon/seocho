@@ -40,7 +40,7 @@ class FakeGraphStore:
         self._node_counts = node_counts or {}
         self._rel_counts = rel_counts or {}
 
-    def query(self, cypher: str, *, params=None, database="neo4j", **kwargs) -> List[Dict[str, Any]]:
+    def query(self, cypher: str, *, params=None, database="neo4j") -> List[Dict[str, Any]]:
         # Parse label/type from the Cypher MATCH pattern
         for label, count in self._node_counts.items():
             if f"`{label}`" in cypher and "count(n)" in cypher:

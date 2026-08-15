@@ -77,7 +77,7 @@ class _FakeGraphStore:
     def __init__(self) -> None:
         self.calls: list[dict[str, object]] = []
 
-    def query(self, cypher: str, *, params=None, database: str = "neo4j", **kwargs):  # noqa: ANN001
+    def query(self, cypher: str, *, params=None, database: str = "neo4j"):  # noqa: ANN001
         self.calls.append(
             {
                 "cypher": cypher,
@@ -89,12 +89,12 @@ class _FakeGraphStore:
 
 
 class _StringGraphStore:
-    def query(self, cypher: str, *, params=None, database: str = "neo4j", **kwargs):  # noqa: ANN001, ARG002
+    def query(self, cypher: str, *, params=None, database: str = "neo4j"):  # noqa: ANN001, ARG002
         return '[{"answer": 2}]'
 
 
 class _ErrorGraphStore:
-    def query(self, cypher: str, *, params=None, database: str = "neo4j", **kwargs):  # noqa: ANN001, ARG002
+    def query(self, cypher: str, *, params=None, database: str = "neo4j"):  # noqa: ANN001, ARG002
         return "Error executing Cypher in 'neo4j': boom"
 
 

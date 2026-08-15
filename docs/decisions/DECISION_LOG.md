@@ -965,6 +965,14 @@ Each entry must link to a full ADR when impact is non-trivial.
   - NEW insight: name-only out-recalls name+label (0.811>0.755) because models disagree on labels -> don't over-specify identity_keys with model-contested fields
   - real missed cases: Delta Air Lines/Delta, Pfizer Inc./Pfizer, Chipotle Mexican Grill Inc./CHIPOTLE, Enphase Energy Inc./ENPHASE
 
+## 2026-08-15 (OS I/O plane split)
+
+- [Accepted] ADR-0163 control-data-plane-split (the OS's I/O subsystem)
+  - control plane (admission/tenancy/budget/classification/observability) = Python, low QPS; data plane (Bolt round-trip + PackStream, LLM token stream) = high QPS optimization surface
+  - seam = SeochoOS.execute_query (control) -> graph_store.query (data); RunHooks (control) over LLM I/O (data)
+  - neo4j-bolt-rs = a DATA-PLANE driver swap beneath the gate; gated on server_share measurement (ADR-0155 discipline, no Rust on speculation)
+  - design rule: a change is control-plane XOR data-plane
+
 ## Template
 
 Use this block for new entries:

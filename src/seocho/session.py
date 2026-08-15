@@ -183,6 +183,17 @@ class Session:
         self._trace = None
         self._closed = False
 
+        # Operating-layer handles, attached by ``Seocho.session()`` so this one
+        # Session object is the whole OS surface: memory (add/ask/resolve),
+        # scheduling+isolation (query), execution (agent), resources (budget).
+        # None until attached — the OS methods raise a clear error otherwise.
+        self._os = None            # the SeochoOS instance (shared admission pool)
+        self._os_session = None    # this session's OSSession handle
+        self.priority = "normal"
+        self.sdk_session = None
+        self.hooks = None
+        self.budget = None
+
         # Start session trace
         try:
             from .tracing import begin_session, is_tracing_enabled
@@ -902,6 +913,110 @@ class Session:
             logger.warning("Streaming failed, falling back: %s", exc)
             answer = self.ask(question, database=database)
             yield answer
+
+    # -- operating-layer surface ------------------------------------------
+    # These make one Session the coherent OS object: every subsystem is a
+    # method here, not a free function taking the session as its first arg.
+    # They require the handles attached by ``Seocho.session()`` (local mode).
+
+    def _require_os(self) -> None:
+        if self._os is None or self._os_session is None:
+            from .exceptions import SeochoError
+
+            raise SeochoError(
+                "operating-layer methods need a session created by "
+                "Seocho.session() in local mode (ontology + graph_store).")
+
+    def query(self, cypher: str, **params: Any) -> List[Dict[str, Any]]:
+        """Governed graph read — the scheduling + isolation + memory-read path.
+
+        Runs through the shared admission gate (scheduling), pins this
+        session's workspace server-side (isolation), and executes fail-closed
+        (``enforce_workspace_filter``). Named parameters pass through as
+        ``$name``. Returns the row list; raises on a structured error so
+        callers see admission rejection / query failure rather than a silent
+        empty result.
+        """
+        import json as _json
+
+        self._require_os()
+        payload = self._os.execute_query(
+            self._os_session, cypher, _json.dumps(params, default=str))
+        result = _json.loads(payload)
+        if "error" in result:
+            from .exceptions import SeochoError
+
+            raise SeochoError(
+                f"query failed [{result['error']}]: {result.get('message', '')}")
+        return result.get("rows", [])
+
+    def resolve(self, mention: str, *, label: Optional[str] = None,
+                **identity_props: Any) -> Optional[Dict[str, Any]]:
+        """Resolve a surface mention to the one canonical node it denotes.
+
+        Read-time interning: this reuses the exact write-time identity
+        function (``seocho.index.identity.compute_node_identity``), so the
+        resolution recall/precision are the interning collapse/collision
+        measured in ADR-0160/0161/0162 — guaranteed-precision, model-free,
+        O(1) address lookup, scoped to this session's workspace.
+
+        Give a ``label`` (and any disambiguating identity properties) to use
+        the composite key — the precise path. With no label it falls back to a
+        normalized-name match, whose miss on un-normalized surface forms
+        (e.g. legal suffixes) is the documented recall ceiling a semantic
+        fallback would close (seocho-6l8). Returns the node dict, or ``None``.
+        """
+        self._require_os()
+        from .index.identity import _normalize_segment, compute_node_identity
+
+        nodes = getattr(self.ontology, "nodes", {}) or {}
+        if label and label in nodes:
+            node_def = nodes[label]
+            keys = list(getattr(node_def, "effective_identity_keys", [])
+                        or getattr(node_def, "identity_keys", []) or ["name"])
+            props = dict(identity_props)
+            props.setdefault("name", mention)
+            addr = compute_node_identity(label, props, keys)
+            if addr:
+                # label is validated by membership in the ontology above.
+                rows = self.query(
+                    f"MATCH (n:`{label}`) WHERE n.id = $addr "
+                    "AND n._workspace_id = $workspace_id RETURN n LIMIT 1",
+                    addr=addr)
+                if rows:
+                    node = rows[0].get("n", rows[0])
+                    return {"node": node, "address": addr, "method": "intern"}
+        # Fallback: normalized-name equality (best-effort; recall-ceiling path).
+        norm = _normalize_segment(mention)
+        rows = self.query(
+            "MATCH (n) WHERE n.name IS NOT NULL "
+            "AND n._workspace_id = $workspace_id "
+            "AND toLower(trim(n.name)) = $norm RETURN n LIMIT 5",
+            norm=norm)
+        if rows:
+            node = rows[0].get("n", rows[0])
+            return {"node": node, "address": None, "method": "normalized_name",
+                    "candidates": len(rows)}
+        return None
+
+    def agent(self, *, name: str = "seocho_agent", model: Any = None,
+              extra_tools: Sequence[Any] = ()) -> Any:
+        """An openai-agents Agent whose only graph access is this governed
+        session — the execution subsystem. Hand it to ``Runner.run(agent,
+        msg, session=sess.sdk_session, hooks=sess.hooks)`` so memory,
+        budget, and admission all ride along."""
+        self._require_os()
+        return self._os.build_agent(
+            self._os_session, name=name, model=model, extra_tools=extra_tools)
+
+    def os_stats(self) -> Dict[str, Any]:
+        """Operating-layer observability: shared pool + this session's budget."""
+        self._require_os()
+        stats = dict(self._os.stats())
+        stats["priority"] = self.priority
+        if self.budget is not None:
+            stats["budget"] = getattr(self.budget, "budget", 0)
+        return stats
 
     def close(self) -> Dict[str, Any]:
         """Close the session and finalize traces.

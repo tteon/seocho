@@ -1,0 +1,22 @@
+{
+  "database": "finbenchl10",
+  "codec": "rust-ext",
+  "classes": {
+    "light": {
+      "rows": 25,
+      "data_ms_median": 1.5873,
+      "control_ms_median": 0.0686,
+      "server_share": 0.9585,
+      "control_share": 0.0415
+    },
+    "heavy": {
+      "rows": 2000,
+      "data_ms_median": 43.9636,
+      "control_ms_median": 0.0624,
+      "server_share": 0.9986,
+      "control_share": 0.0014
+    }
+  },
+  "workspace_id": "default",
+  "verdict": "governance overhead is negligible (~0.069ms, 4.1% at most) \u2192 the OS control plane is nearly free; the data plane dominates, but the rust-ext codec (ADR-0111) already captured the realized lever there \u2014 a further native bolt-rs driver targets an already-accelerated plane and needs its own A/B before it is a go"
+}

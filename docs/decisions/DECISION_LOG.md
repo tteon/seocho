@@ -980,6 +980,13 @@ Each entry must link to a full ADR when impact is non-trivial.
   - properly_scoped control passes both arms (3 acme rows, 0 leak) => gate blocks attacks without over-blocking
   - first Level-2 ablation row measured; validates shipped defense-in-depth (per-workspace-DB endgame would make it structural)
 
+## 2026-08-15 (ablation A6 server_share)
+
+- [Accepted] ADR-0166 ablation-a6-server-share (seocho-xju) — the OS I/O plane, bolt-rs gate
+  - live finbenchl10: control-plane governance ~0.06-0.07ms = negligible (<=4.1% light, 0.1% heavy); server_share 95.9-99.9%
+  - OS control plane is nearly FREE (composition-overhead check passes); data plane dominates but rust-ext codec (ADR-0111) already captured the lever
+  - decision: bolt-rs = not-yet, needs its own A/B (ADR-0163 discipline held); completes Level-2 A1-A6
+
 ## 2026-08-15 (ablation A4+A5)
 
 - [Accepted] ADR-0165 ablation-a4-a5 (resources + execution honesty)

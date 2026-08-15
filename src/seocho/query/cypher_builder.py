@@ -672,12 +672,36 @@ class CypherBuilder:
             params.update(target_params)
 
         where = " AND ".join(where_parts)
+        # Two defects lived here, both invisible until the endpoints share a label
+        # (Account -TRANSFER-> Account), which is every payments/ownership schema.
+        #
+        # 1. The projection named the ANCHOR `source` and the neighbour `target`
+        #    regardless of which way the arrow pointed. Matching undirected then
+        #    labelling by binding order inverts every incoming edge: asked "which
+        #    accounts transferred to B2", it returned B2 as the source of A1's
+        #    transfer and the model answered the exact opposite of the graph, with
+        #    no error raised. Read the direction off the edge instead (seocho-k5n).
+        # 2. The pattern stayed undirected even when the ontology declared which end
+        #    the anchor sits on, so recall ignored the question's direction. Honour
+        #    `anchor_role` — the same flip `_count` (seocho-k2v) and `_list_all`
+        #    (seocho-pl1) already apply.
+        #
+        # `target_labels` / `target_properties` / `supporting_fact` stay bound to
+        # `b`, the anchor's counterpart, which is what an answer needs; only the
+        # source/target naming was ever a claim about direction.
+        role = getattr(self, "anchor_role", "")
+        if role == "source":
+            pattern = f"MATCH (a{a_label})-[r{rel_clause}]->(b{t_label})"
+        elif role == "target":
+            pattern = f"MATCH (a{a_label})<-[r{rel_clause}]-(b{t_label})"
+        else:
+            pattern = f"MATCH (a{a_label})-[r{rel_clause}]-(b{t_label})"
         return (
-            f"MATCH (a{a_label})-[r{rel_clause}]-(b{t_label})\n"
+            f"{pattern}\n"
             f"WHERE {where}\n"
-            "RETURN coalesce(a.name, a.uri) AS source,\n"
+            "RETURN coalesce(startNode(r).name, startNode(r).uri) AS source,\n"
             "       type(r) AS relationship,\n"
-            "       coalesce(b.name, b.uri) AS target,\n"
+            "       coalesce(endNode(r).name, endNode(r).uri) AS target,\n"
             "       labels(b) AS target_labels,\n"
             "       properties(b) AS target_properties,\n"
             "       coalesce(b.content_preview, b.description, b.content, '') AS supporting_fact\n"

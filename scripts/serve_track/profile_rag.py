@@ -27,6 +27,10 @@ Usage:
     # terminal 3
     python scripts/serve_track/profile_rag.py --out-dir <run>
 
+Writes `kv_windows.jsonl`, `run_manifest.json`, and — because the KV rig and the
+pipeline's own `rag.*` span tree answer different questions — `spans.jsonl`,
+which carries `n_records` per retrieval. Disable with `--trace-backend none`.
+
 Concurrency is not supported and not a limitation to fix here: KV attribution is
 a containment test on wall-clock windows, so overlapping calls would make it
 ambiguous. `WindowRecorder` refuses to open a second window rather than emit a
@@ -151,11 +155,29 @@ def main() -> None:
                              "between a cold and a warm pass")
     parser.add_argument("--skip-index", action="store_true",
                         help="reuse an already-populated store")
+    # On by default. The KV rig measures the serving path; the rag.* span tree
+    # measures what the pipeline actually retrieved, and the two answer
+    # different questions. Running without it once already produced a wrong
+    # diagnosis: `rag.retrieve_ctx` records `n_records`, so "retrieval returned
+    # nothing" was refutable in one line and went unrefuted for want of a
+    # backend. Costs one JSONL file per run.
+    parser.add_argument("--trace-backend", default="jsonl",
+                        choices=["jsonl", "console", "otlp", "opik", "none"])
     args = parser.parse_args()
 
     from seocho.observability import set_llm_call_observer
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
+
+    if args.trace_backend != "none":
+        os.environ.setdefault("SEOCHO_TRACE_BACKEND", args.trace_backend)
+        os.environ.setdefault(
+            "SEOCHO_TRACE_JSONL_PATH", str(args.out_dir / "spans.jsonl")
+        )
+        from seocho.tracing import configure_tracing_from_env
+
+        if not configure_tracing_from_env():
+            print("WARN: tracing requested but not enabled", file=sys.stderr)
     run_id = uuid.uuid4().hex[:12]
     recorder = kv_windows.WindowRecorder(
         args.out_dir / "kv_windows.jsonl",
@@ -205,6 +227,10 @@ def main() -> None:
                       f"{' — ' + error if error else ''}", flush=True)
     finally:
         set_llm_call_observer(None)
+        if args.trace_backend != "none":
+            from seocho.tracing import flush_tracing
+
+            flush_tracing()
 
     manifest = {
         "run_id": run_id,

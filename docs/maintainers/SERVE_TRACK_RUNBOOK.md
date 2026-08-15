@@ -64,9 +64,10 @@ python scripts/cache_probe/kv_events_probe.py \
 The harness writes three files into one run directory:
 
 ```
-outputs/serve_track/<run>/episodes.jsonl    # trace schema v1, untouched
 outputs/serve_track/<run>/kv_windows.jsonl  # per-step wall-clock extents
 outputs/serve_track/<run>/kv_events.jsonl   # from step 2
+outputs/serve_track/<run>/spans.jsonl       # rag.* tree: n_records, intent
+outputs/serve_track/<run>/run_manifest.json # questions, answers, wall time
 ```
 
 ### 4. Correlate
@@ -198,6 +199,31 @@ it here too rather than an older MARA model.
 
 `MARA_API_KEY` is quoted in `.env`; strip the quotes when exporting it, or the
 key reaches the API with them attached and returns 401.
+
+## Turn the span tree on — it answers different questions
+
+`profile_rag.py` now enables the `rag.*` span tree by default
+(`--trace-backend jsonl`, written to `spans.jsonl` in the run directory). The KV
+rig measures the serving path; the span tree measures what the pipeline actually
+retrieved. Confusing the two is not hypothetical:
+
+Investigating why two demo questions looked unanswered, `last_query_metadata`
+was read as `records: 0` and the conclusion drawn was "retrieval failed". It had
+not. `rag.retrieve_ctx` records `n_records` directly, and with tracing on the
+answer is one line:
+
+```
+rag.retrieve_ctx   {'n_records': 2, 'intent': 'relationship_lookup'}
+rag.synthesize     {'result_count': 2}
+```
+
+Two records, not zero. The instrument already existed and was simply switched
+off, so a refutable claim went unrefuted. Every serve-track run records it now.
+
+What the span tree does **not** settle: it counts records, it does not show
+their content, so it cannot reveal that the rows came back with their edge
+direction inverted (seocho-k5n). That needed the answer text and a direct
+Cypher run. Counts catch "did anything come back"; correctness needs the values.
 
 ## Reading the output honestly
 

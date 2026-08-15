@@ -113,6 +113,7 @@ uv run pytest \
   tests/seocho/test_import_boundaries.py \
   tests/seocho/test_ontology_package_surface.py \
   tests/seocho/test_package_completeness.py \
+  tests/seocho/test_client_namespaces.py \
   -q
 
 git diff --check

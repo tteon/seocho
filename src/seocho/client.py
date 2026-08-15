@@ -1517,6 +1517,7 @@ class Seocho:
         name: str = "",
         *,
         database: Optional[str] = None,
+        priority: str = "normal",
     ) -> "Session":
         """Create an agent-level session with context and tracing.
 
@@ -1551,7 +1552,7 @@ class Seocho:
 
         from .session import Session
 
-        return Session(
+        sess = Session(
             name=name,
             ontology=self.ontology,
             graph_store=self.graph_store,
@@ -1564,6 +1565,17 @@ class Seocho:
             ontology_profile=self.ontology_profile,
             user_id=self.user_id,
         )
+        # One session concept (seocho-dxe): the same object carries the
+        # operating-layer handles. Hand ``sess.sdk_session`` and
+        # ``sess.hooks`` to openai-agents ``Runner.run``; the shared
+        # admission gate and per-session budget ride the layer.
+        os_session = self._os().session(sess.session_id, priority=priority,
+                                        user_id=self.user_id)
+        sess.priority = os_session.priority
+        sess.sdk_session = os_session.sdk_session
+        sess.hooks = os_session.hooks
+        sess.budget = os_session.budget
+        return sess
 
     def ensure_constraints(self, *, database: str = "neo4j") -> Dict[str, Any]:
         """Apply ontology-derived constraints to the graph database.
@@ -2777,27 +2789,24 @@ class Seocho:
                 **self._os_config)
         return self._operating_layer
 
-    def session(self, session_id: Optional[str] = None, *,
-                priority: str = "normal",
-                user_id: Optional[str] = None) -> Any:
-        """An agent's handle on the layer: SDK-protocol memory, budget,
-        shared admission. Hand ``.sdk_session`` and ``.hooks`` to
-        ``Runner.run``; user_id rides the session/log plane only."""
-        return self._os().session(session_id, priority=priority,
-                                  user_id=user_id)
+    def _os_session_for(self, session: Any) -> Any:
+        return self._os().session(session.session_id,
+                                  priority=getattr(session, "priority", "normal"))
 
     def build_agent(self, session: Any, *, name: str = "seocho_agent",
                     model: Optional[Any] = None,
                     extra_tools: Sequence[Any] = ()) -> Any:
         """An openai-agents Agent whose only graph access is governed by
         this client's ontology, tenancy, and admission."""
-        return self._os().build_agent(session, name=name, model=model,
+        return self._os().build_agent(self._os_session_for(session),
+                                      name=name, model=model,
                                       extra_tools=extra_tools)
 
     def execute_query(self, session: Any, cypher: str,
                       params_json: str = "{}") -> str:
         """The governed read path (pinned tenancy, lanes, fail-closed)."""
-        return self._os().execute_query(session, cypher, params_json)
+        return self._os().execute_query(self._os_session_for(session),
+                                        cypher, params_json)
 
 
     def close(self) -> None:

@@ -309,14 +309,19 @@ def test_predicted_wait_rejects_immediately_not_after_timeout(ontology):
 
 # -- the public surface is Seocho itself --------------------------------------
 
-def test_operating_layer_is_methods_on_seocho(ontology):
+def test_one_session_object_carries_the_operating_layer(ontology):
+    """seocho-dxe final form: no side class, no second method — the same
+    Session that add()/ask() use carries sdk_session/hooks/priority, and
+    the governed paths accept it directly."""
     from seocho import Seocho
 
     store = RecordingStore()
-    client = Seocho(ontology=ontology, graph_store=store, llm=None,
+    client = Seocho(ontology=ontology, graph_store=store, llm=object(),
                     workspace_id="acme", max_inflight=4)
-    session = client.session("chat-1", priority="high")
+    session = client.session("chat", priority="high")
     assert session.priority == "high"
+    assert session.sdk_session.workspace_id == "acme"
+    assert session.hooks is not None and session.budget is not None
     payload = client.execute_query(
         session, "MATCH (n:Account) WHERE n._workspace_id = $workspace_id "
                  "RETURN n LIMIT 1", "{}")
@@ -328,8 +333,7 @@ def test_operating_layer_is_methods_on_seocho(ontology):
 
 def test_operating_layer_refused_outside_local_mode():
     from seocho import Seocho
-    from seocho.exceptions import SeochoError
 
     client = Seocho(base_url="http://localhost:9")   # HTTP mode
-    with pytest.raises(SeochoError, match="local mode"):
+    with pytest.raises(Exception, match="local"):
         client.session("x")

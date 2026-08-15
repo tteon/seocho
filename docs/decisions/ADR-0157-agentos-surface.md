@@ -59,11 +59,12 @@ truncation disclosure, admission bounding under threads, budget stop,
 agent/guardrail assembly.
 
 > **Amended 2026-08-15 (seocho-dxe, final).** The layer is SEOCHO itself —
-> no side class in the public API: the surface is methods on the existing
-> ``seocho.Seocho`` client in local mode (``session()``, ``build_agent()``,
-> ``execute_query()``, operating controls as constructor kwargs, all
-> defaulting to off per the explicit-opt-in rule). ``SeochoOS`` /
-> ``AgentOS`` / ``seocho.agentos`` remain importable for one release.
+> no side class, no second session concept: ``Seocho.session()`` (the same
+> Session that ``add()``/``ask()`` use) now carries ``sdk_session`` /
+> ``hooks`` / ``priority``; ``build_agent()`` / ``execute_query()`` accept
+> it directly, and operating controls are ``Seocho(...)`` constructor
+> kwargs defaulting to off (explicit opt-in). ``SeochoOS`` / ``AgentOS`` /
+> ``seocho.agentos`` remain importable for one release.
 
 ## Consequences
 

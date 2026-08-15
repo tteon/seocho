@@ -13,7 +13,21 @@ import pytest
 
 from seocho.agent.context import SessionContext
 from seocho.ontology import NodeDef, Ontology, P, RelDef
-from seocho.store.graph import LadybugGraphStore
+
+# The shared-backend tests run on the embedded Ladybug store; environments
+# without the optional driver (the basic-CI extra, notably) skip those and
+# still enforce the session-privacy and identity-plane halves of the contract.
+try:
+    import real_ladybug  # noqa: F401
+    _HAS_LADYBUG = True
+except ImportError:
+    _HAS_LADYBUG = False
+
+if _HAS_LADYBUG:
+    from seocho.store.graph import LadybugGraphStore
+
+requires_ladybug = pytest.mark.skipif(
+    not _HAS_LADYBUG, reason="optional real_ladybug driver not installed")
 
 
 @pytest.fixture
@@ -47,6 +61,7 @@ def _read_people(store, workspace_id: str) -> set:
     return {row["name"] for row in rows}
 
 
+@requires_ladybug
 class TestEntityNamespaceIsShared:
     def test_agent_b_reads_what_agent_a_wrote_as_soon_as_the_write_returns(
         self, backend
@@ -104,6 +119,7 @@ class TestConversationNamespaceIsPrivate:
         assert not context_b.entities
         assert not context_b.queries
 
+    @requires_ladybug
     def test_sessions_get_distinct_identities(self, ontology, tmp_path):
         """Two Session objects over ONE shared store: distinct session_id
         (private namespace key), same graph_store (shared namespace)."""
@@ -139,8 +155,8 @@ class TestSubScopingSeam:
         # user_id parameter to smuggle identity into node properties with.
         import inspect
 
-        from seocho.store.graph import LadybugGraphStore
+        from seocho.store.graph import Neo4jGraphStore
 
-        write_params = inspect.signature(LadybugGraphStore.write).parameters
+        write_params = inspect.signature(Neo4jGraphStore.write).parameters
         assert "workspace_id" in write_params
         assert "user_id" not in write_params

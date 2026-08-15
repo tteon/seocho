@@ -39,6 +39,16 @@ def fmt(n: Any, width: int = 0) -> str:
     return str(n).rjust(width)
 
 
+def scored(episodes):
+    """Episodes that can be scored at all.
+
+    An episode whose reference query never completed has `score_correct = None`. Counting it as
+    a failure would charge the agent for the database's limit, and counting it as a success
+    would be worse; it is excluded from the numerator and the denominator both, and the count
+    of exclusions is reported separately.
+    """
+    return [e for e in episodes if e.get("score_correct") is not None]
+
 def headline(episodes: List[Dict[str, Any]]) -> str:
     sfs = sorted({e["sf"] for e in episodes})
     lines = ["| scale | agent design | correct | db hits (median) | round trips | "
@@ -47,6 +57,9 @@ def headline(episodes: List[Dict[str, Any]]) -> str:
     for sf in sfs:
         for arm in ARM_ORDER:
             sel = [e for e in episodes if e["sf"] == sf and e["arm"] == arm]
+            if not sel:
+                continue
+            sel = scored(sel)
             if not sel:
                 continue
             correct = sum(e["score_correct"] for e in sel)

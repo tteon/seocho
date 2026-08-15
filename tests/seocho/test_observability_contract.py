@@ -125,3 +125,53 @@ def test_dashboards_only_reference_cataloged_metrics() -> None:
             if _resolve(token, prefixes) is None:
                 unresolved.append(f"{path.name}: {token}")
     assert not unresolved, f"dashboard metrics missing from METRIC_SPECS: {unresolved}"
+
+
+def test_dozerdb_bolt_exporter_extracts_saturation_samples() -> None:
+    """The exporter's bean parsing, held against the shapes DozerDB CE 5.26
+    actually returns (measured live 2026-08-15)."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "dozerdb_bolt_exporter",
+        OBSERVABILITY / "dozerdb_bolt_exporter.py",
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    beans = [
+        {
+            "name": "java.lang:type=Memory",
+            "attributes": {
+                "HeapMemoryUsage": {
+                    "value": {"properties": {"used": 100.0, "committed": 200.0, "max": 400.0}}
+                }
+            },
+        },
+        {
+            "name": "java.lang:name=G1 Young Generation,type=GarbageCollector",
+            "attributes": {
+                "CollectionCount": {"value": 16},
+                "CollectionTime": {"value": 49},
+            },
+        },
+        {
+            "name": "java.nio:name=direct,type=BufferPool",
+            "attributes": {
+                "MemoryUsed": {"value": 3211266},
+                "TotalCapacity": {"value": 3211265},
+                "Count": {"value": 70},
+            },
+        },
+    ]
+    samples = module.samples_from_beans(beans)
+    as_dict = {(name, tuple(sorted(labels.items()))): value for name, labels, value in samples}
+    assert as_dict[("dozerdb_jvm_heap_used_bytes", ())] == 100.0
+    assert as_dict[
+        ("dozerdb_jvm_gc_collection_total", (("collector", "G1 Young Generation"),))
+    ] == 16.0
+    assert as_dict[("dozerdb_jvm_buffer_pool_count", (("pool", "direct"),))] == 70.0
+
+    body = module.render_prometheus(samples)
+    assert 'dozerdb_jvm_gc_collection_total{collector="G1 Young Generation"} 16.0' in body
+    assert body.endswith("\n")

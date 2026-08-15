@@ -901,6 +901,12 @@ Each entry must link to a full ADR when impact is non-trivial.
   - Python touches the data plane only at control points; canonical SDK behavior stays in src/seocho/
   - risk: second toolchain + Bolt relay protocol drift, bounded by DozerDB 5.26 LTS pin and a relay-overhead kill criterion
 
+- [Accepted] ADR-0144 amendment — single metrics pipeline
+  - route the ADR-0144 §6 counters through the ADR-0146 registry (seocho.metrics), under catalog dotted names
+  - remove the tracing module's private OTel meter; one provider, one env switch, label budget enforced everywhere
+  - keep seocho.tracing.record_metric as a legacy-name shim; uncataloged names are dropped
+  - risk: legacy snake_case series end at the rename — none were referenced by any dashboard or rule
+
 ## Template
 
 Use this block for new entries:

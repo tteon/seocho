@@ -464,3 +464,62 @@ def test_run_spec_inline_enforcement_lands_on_agent_config() -> None:
     config = e2e.build_agent_config(spec)
     assert config.ontology_enforcement == "strict"
     assert config.validation_on_fail == "reject"
+
+
+# ---------------------------------------------------------------------------
+# Client wiring: Seocho(...) / Seocho.local(...) enforcement kwarg (seocho-vdw.5)
+# ---------------------------------------------------------------------------
+
+
+class _StubGraphStore:
+    pass
+
+
+class _StubLLM:
+    model = "stub-model"
+
+
+def _local_client(**kwargs: Any):
+    from seocho.client import Seocho
+
+    return Seocho(
+        ontology=_ontology(),
+        graph_store=_StubGraphStore(),
+        llm=_StubLLM(),
+        **kwargs,
+    )
+
+
+def test_client_enforcement_kwarg_reaches_pipeline_policy() -> None:
+    for mode in ("strict", "guided", "open"):
+        client = _local_client(enforcement=mode)
+        assert client._engine._indexing.enforcement_policy.mode == mode
+        assert client.agent_config.ontology_enforcement == mode
+
+
+def test_client_enforcement_default_stays_guided() -> None:
+    client = _local_client()
+    assert client._engine._indexing.enforcement_policy.mode == "guided"
+
+
+def test_client_enforcement_overrides_agent_config_without_mutation() -> None:
+    from seocho.agent_config import AgentConfig
+
+    supplied = AgentConfig(ontology_enforcement="open")
+    client = _local_client(agent_config=supplied, enforcement="strict")
+    assert client._engine._indexing.enforcement_policy.mode == "strict"
+    assert client.agent_config.ontology_enforcement == "strict"
+    # explicit kwarg must not mutate the caller's config object
+    assert supplied.ontology_enforcement == "open"
+
+
+def test_client_enforcement_rejects_unknown_mode() -> None:
+    with pytest.raises(ValueError, match="strict"):
+        _local_client(enforcement="paranoid")
+
+
+def test_client_enforcement_requires_local_mode() -> None:
+    from seocho.client import Seocho
+
+    with pytest.raises(ValueError, match="local-engine"):
+        Seocho(base_url="http://localhost:8001", enforcement="strict")

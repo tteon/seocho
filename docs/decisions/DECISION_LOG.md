@@ -1056,3 +1056,6 @@ Use this block for new entries:
   - define stability and tenant cache scope per prompt section
   - render by endpoint capabilities for hosted APIs, gateways, vLLM, and SGLang
   - keep prompt bodies out of receipts and require measured cold/warm validation
+- [Accepted] ADR-0172 remove-opik-tracing-backend — the SDK's own 97-instrument
+  metric surface covers all four golden signals, so a second, data-exporting
+  path is cost without benefit; tracing contract becomes `none|console|jsonl|otlp`

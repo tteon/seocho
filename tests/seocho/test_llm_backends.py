@@ -179,7 +179,7 @@ def test_openai_clients_are_never_wrapped_by_a_third_party_tracer(
 ) -> None:
     """The client handed to callers must be the OpenAI client, unwrapped.
 
-    Until ADR-0166 the backend wrapped it in Opik's `track_openai` whenever the
+    Until ADR-0172 the backend wrapped it in Opik's `track_openai` whenever the
     opik tracing backend was on, which quietly routed every prompt and
     completion to a third party. Opik is gone; this pins the general rule that
     replaced it, so a future integration cannot reintroduce silent wrapping

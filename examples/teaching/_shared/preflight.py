@@ -78,7 +78,7 @@ def check_providers() -> CheckResult:
 def check_tracing() -> CheckResult:
     """Confirm chapter traces have somewhere to land.
 
-    Since `ADR-0166` there is no vendor backend and no API key to check: traces
+    Since `ADR-0172` there is no vendor backend and no API key to check: traces
     go to a local JSONL file, so the only thing that can fail is the directory
     not being writable.
     """

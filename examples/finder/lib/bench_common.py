@@ -456,7 +456,7 @@ def stratified_sample(df, *, fraction: float, slice_col: str = "slice", seed: in
 # Tracing seams
 # ---------------------------------------------------------------------------
 #
-# Until `ADR-0166` these forwarded to Opik: `run_traced` wrapped the call in
+# Until `ADR-0172` these forwarded to Opik: `run_traced` wrapped the call in
 # Opik's ``@track``, and the two setters pushed metadata and feedback scores
 # onto the current Opik trace. Opik is gone and nothing replaced it at the
 # benchmark layer, so the arguments are accepted and ignored.

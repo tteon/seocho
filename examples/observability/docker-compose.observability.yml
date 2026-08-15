@@ -1,6 +1,6 @@
 # ADR-0144: lightweight local OpenTelemetry observability stack.
 #
-# Four containers (Collector + Tempo + Prometheus + Grafana). Since ADR-0166
+# Four containers (Collector + Tempo + Prometheus + Grafana). Since ADR-0172
 # removed the Opik backend this is the only observability stack, local and
 # otherwise — there is no vendor tier above it. Pattern borrowed from LMCache's
 # examples/observability (NOT a manifest copy): SEOCHO services push OTLP to the

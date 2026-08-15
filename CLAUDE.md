@@ -16,7 +16,7 @@ Current product consensus:
 - tenancy: single-tenant MVP, with `workspace_id` propagated end-to-end
 - tracing: vendor-neutral contract, no third-party observability vendor —
   `none | console | jsonl | otlp`, with metrics in `src/seocho/metrics.py`
-  (ADR-0166 removed the Opik backend)
+  (ADR-0172 removed the Opik backend)
 - ontology governance: Owlready2 only in offline governance paths
 
 ## Read Order

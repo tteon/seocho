@@ -2,7 +2,7 @@
 
 This module used to be an Opik integration and nothing else: it configured the
 Opik client, wrapped OpenAI clients with Opik's tracker, and forwarded span and
-trace attributes to Opik's context. Opik was removed (`ADR-0166`) in favour of
+trace attributes to Opik's context. Opik was removed (`ADR-0172`) in favour of
 the SDK's own metric and tracing surface, so nothing here exports to a vendor
 any more.
 

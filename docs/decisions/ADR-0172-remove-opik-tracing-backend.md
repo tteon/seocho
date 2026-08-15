@@ -1,4 +1,4 @@
-# ADR-0166: Remove the Opik tracing backend
+# ADR-0172: Remove the Opik tracing backend
 
 - Status: Accepted
 - Date: 2026-08-16

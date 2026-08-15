@@ -1,6 +1,6 @@
 """Per-chapter JSONL tracing setup for the teaching notebooks.
 
-Was `opik_setup.py`. `ADR-0166` removed the Opik backend, so a chapter's traces
+Was `opik_setup.py`. `ADR-0172` removed the Opik backend, so a chapter's traces
 now land in a local JSONL file and nowhere else — no workspace, no project, no
 API key, nothing leaving the machine. That is a better default for teaching
 material anyway: a learner can open `./traces/chapter_03.jsonl` and read what

@@ -1,4 +1,9 @@
-"""SeochoOS: SEOCHO *is* the operating layer, exposed through two interfaces.
+"""The operating layer behind ``Seocho`` (memory/execution/scheduling/governance/resource).
+
+Public surface: methods on ``seocho.Seocho`` itself — ``session()``,
+``build_agent()``, ``execute_query()`` (seocho-dxe: no side brand, no
+suffix). This module is the implementation; ``SeochoOS``/``AgentOS`` remain
+importable one release for anything written against the earlier spellings.
 
 The thesis this productizes: agentic systems need a common operating layer
 for memory, execution, scheduling, governance, and resource management. In
@@ -130,6 +135,147 @@ class PriorityAdmission:
             pass
 
 
+class LaneScheduler:
+    """Size-classed, class-aware, work-conserving admission (scheduler v2).
+
+    Three principles, one gate (design note: scheduler-v2-design.md):
+
+    - **Variance isolation.** Service times in graph agentic RAG are
+      heavy-tailed (measured 100x: ~80ms vs ~8s on the same store), so
+      permits are partitioned into a *light* and a *heavy* lane. A light
+      query never queues behind a heavy one — the head-of-line blocking
+      that made v1's FIFO admission *worsen* light-class p99 (1,767ms vs
+      239ms ungoverned, E1) is removed structurally, not tuned away.
+    - **Work conservation.** The high-priority reserve is borrowable: a
+      normal call may take a reserved permit *iff no high-class caller is
+      waiting*, and releases prefer high waiters. v1's static reserve
+      taxed normal throughput even when the high class was idle; v2 only
+      charges when protection is actually being used.
+    - **Fast structured failure.** On arrival, the expected wait
+      (waiters_ahead x lane EWMA service time / lane permits) is compared
+      to the caller's deadline; a wait that cannot be met is rejected
+      *immediately* instead of timing out later — the tail a queue would
+      have added becomes a zero-wait signal an agent loop can act on.
+
+    Classification uses the layer's unique asset: the graph gives cost
+    signal per statement. Planner row estimates measured unreliable
+    (FinBench), so lanes are assigned from an **observed EWMA per Cypher
+    hash**; a statement never seen before goes to the heavy lane —
+    "unknown means heavy" keeps the light lane's p99 pure.
+
+    ``light_permits=0`` collapses to a single lane (v1 behaviour);
+    ``max_inflight=0`` disables the gate entirely.
+    """
+
+    def __init__(self, *, max_inflight: int = 0, light_permits: int = 0,
+                 reserved_for_high: int = 0, wait_seconds: float = 5.0,
+                 light_threshold_ms: float = 500.0,
+                 ewma_alpha: float = 0.3) -> None:
+        if max_inflight < 0 or light_permits < 0 or reserved_for_high < 0:
+            raise ValueError("scheduler sizes must be non-negative")
+        if max_inflight and light_permits >= max_inflight:
+            raise ValueError("the light lane must leave heavy capacity")
+        if max_inflight and reserved_for_high >= max_inflight:
+            raise ValueError("the reserve must leave normal capacity")
+        self.max_inflight = max_inflight
+        self.wait_seconds = wait_seconds
+        self.light_threshold_ms = light_threshold_ms
+        self.ewma_alpha = ewma_alpha
+        self._permits = ({"light": light_permits,
+                          "heavy": max_inflight - light_permits}
+                         if light_permits else {"heavy": max_inflight})
+        self._reserved = {lane: 0 for lane in self._permits}
+        # The reserve protects interactive traffic where it lives; with
+        # lanes enabled that is the light lane, otherwise the single lane.
+        reserve_home = "light" if light_permits else "heavy"
+        self._reserved[reserve_home] = reserved_for_high
+        self._in_use = {lane: {"high": 0, "normal": 0} for lane in self._permits}
+        self._waiters = {lane: {"high": 0, "normal": 0} for lane in self._permits}
+        self._ewma_ms: Dict[str, float] = {}
+        self._cond = threading.Condition()
+
+    # -- classification ----------------------------------------------------
+
+    def classify(self, statement_key: str) -> str:
+        if "light" not in self._permits:
+            return "heavy"
+        observed = self._ewma_ms.get(statement_key)
+        if observed is None:
+            return "heavy"                      # unknown means heavy
+        return "light" if observed <= self.light_threshold_ms else "heavy"
+
+    def observe(self, statement_key: str, service_ms: float) -> None:
+        with self._cond:
+            prior = self._ewma_ms.get(statement_key)
+            self._ewma_ms[statement_key] = (
+                service_ms if prior is None
+                else prior + self.ewma_alpha * (service_ms - prior))
+
+    # -- admission ----------------------------------------------------------
+
+    def _admissible(self, lane: str, cls: str) -> bool:
+        used = self._in_use[lane]
+        free = self._permits[lane] - used["high"] - used["normal"]
+        if free <= 0:
+            return False
+        if cls == "high":
+            return True
+        headroom_for_high = max(0, self._reserved[lane] - used["high"])
+        if self._waiters[lane]["high"] > 0:
+            # Protection is in use: keep the reserve headroom for them.
+            return free > headroom_for_high
+        # Work conservation: nobody to protect, the reserve is borrowable.
+        return True
+
+    def _predicted_wait_s(self, lane: str) -> float:
+        service_ms = max(
+            (v for k, v in self._ewma_ms.items()), default=0.0)
+        lane_ewmas = [v for v in self._ewma_ms.values()]
+        # Use the lane-appropriate scale: light lane waits are bounded by
+        # the threshold by construction.
+        if lane == "light":
+            service_ms = min(service_ms, self.light_threshold_ms)
+        elif lane_ewmas:
+            service_ms = max(lane_ewmas)
+        waiters = self._waiters[lane]["high"] + self._waiters[lane]["normal"]
+        permits = max(1, self._permits[lane])
+        return (waiters * service_ms) / (permits * 1000.0)
+
+    def acquire(self, *, lane: str = "heavy", priority: str = "normal",
+                deadline_s: Optional[float] = None) -> bool:
+        if not self.max_inflight:
+            return True
+        cls = "high" if priority == "high" else "normal"
+        budget = self.wait_seconds if deadline_s is None else deadline_s
+        with self._cond:
+            if not self._admissible(lane, cls):
+                # Fast structured failure: a wait that cannot be met is
+                # rejected now, not timed out later.
+                if self._predicted_wait_s(lane) > budget:
+                    return False
+            deadline = time.monotonic() + budget
+            self._waiters[lane][cls] += 1
+            try:
+                while not self._admissible(lane, cls):
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        return False
+                    self._cond.wait(remaining)
+                self._in_use[lane][cls] += 1
+                return True
+            finally:
+                self._waiters[lane][cls] -= 1
+
+    def release(self, *, lane: str = "heavy", priority: str = "normal") -> None:
+        if not self.max_inflight:
+            return
+        cls = "high" if priority == "high" else "normal"
+        with self._cond:
+            self._in_use[lane][cls] -= 1
+            self._cond.notify_all()
+
+
+
 class SeochoSDKSession:
     """Conversation-namespace memory, speaking the SDK ``Session`` protocol.
 
@@ -243,8 +389,10 @@ class SeochoOS:
         workspace_id: str = "default",
         enforcement: str = "guided",
         max_inflight: int = 8,
+        light_permits: int = 0,
         reserved_for_high: int = 0,
         admission_wait_s: float = 5.0,
+        light_threshold_ms: float = 500.0,
         token_budget: int = 0,
         row_cap: int = 50,
     ) -> None:
@@ -255,9 +403,11 @@ class SeochoOS:
         self.enforcement = enforcement
         self.token_budget = token_budget
         self.row_cap = row_cap
-        self._admission = PriorityAdmission(
-            max_inflight=max_inflight, reserved_for_high=reserved_for_high,
-            wait_seconds=admission_wait_s)
+        self._admission = LaneScheduler(
+            max_inflight=max_inflight, light_permits=light_permits,
+            reserved_for_high=reserved_for_high,
+            wait_seconds=admission_wait_s,
+            light_threshold_ms=light_threshold_ms)
         self._sessions: Dict[str, OSSession] = {}
         self._lock = threading.Lock()
 
@@ -276,16 +426,17 @@ class SeochoOS:
 
     # -- execution / scheduling -------------------------------------------
 
-    def _admit(self, session: OSSession) -> None:
-        if not self._admission.acquire(session.priority):
+    def _admit(self, session: OSSession, lane: str = "heavy") -> None:
+        if not self._admission.acquire(lane=lane, priority=session.priority):
             from .query.query_proxy import QueryAdmissionRejected
 
             raise QueryAdmissionRejected(
                 f"admission denied for session={session.session_id} "
-                f"(priority={session.priority}): no capacity within deadline")
+                f"(priority={session.priority}, lane={lane}): no capacity "
+                f"within deadline")
 
-    def _release(self, session: OSSession) -> None:
-        self._admission.release(session.priority)
+    def _release(self, session: OSSession, lane: str = "heavy") -> None:
+        self._admission.release(lane=lane, priority=session.priority)
 
     # -- governance / the Bolt-aware tool surface --------------------------
 
@@ -308,7 +459,14 @@ class SeochoOS:
             return _json.dumps({"error": "params_json must be a JSON object"})
         params["workspace_id"] = self.workspace_id   # pinned, not trusted
         params["ws"] = self.workspace_id
-        self._admit(session)
+        import hashlib as _hashlib
+        import time as _time
+
+        statement_key = _hashlib.blake2b(
+            " ".join(cypher.split()).encode(), digest_size=8).hexdigest()
+        lane = self._admission.classify(statement_key)
+        self._admit(session, lane)
+        started = _time.perf_counter()
         try:
             rows = self.graph_store.query(
                 cypher, params=params, database=self.database,
@@ -317,7 +475,11 @@ class SeochoOS:
             return _json.dumps({"error": type(exc).__name__,
                                 "message": str(exc)[:300]})
         finally:
-            self._release(session)
+            self._release(session, lane)
+        # Feed the cost signal only on success: a failure's wall time says
+        # nothing about the statement's service cost.
+        self._admission.observe(
+            statement_key, (_time.perf_counter() - started) * 1000.0)
         capped = rows[: self.row_cap]
         return _json.dumps({"rows": capped, "row_count": len(capped),
                             "row_cap": self.row_cap,

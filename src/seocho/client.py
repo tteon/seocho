@@ -76,7 +76,7 @@ from .client_artifacts import (
     prompt_context_from_ontology as build_prompt_context_from_ontology,
 )
 from .client_remote import RemoteClientHelper
-from .exceptions import SeochoConnectionError, SeochoHTTPError
+from .exceptions import SeochoError
 from .governance import ArtifactDiff, ArtifactValidationResult, diff_artifact_payloads, validate_artifact_payload
 from .ontology_control_plane import (
     CompiledOntologyProfile,
@@ -215,6 +215,13 @@ class Seocho:
         agent_config: Optional[Any] = None,  # seocho.agent_config.AgentConfig
         ontology_profile: str = "default",
         enforcement: Optional[str] = None,  # "strict" | "guided" | "open"
+        # --- Operating-layer controls (local mode; explicit opt-in) ---
+        max_inflight: int = 0,
+        light_permits: int = 0,
+        reserved_for_high: int = 0,
+        admission_wait_s: float = 5.0,
+        token_budget: int = 0,
+        agent_row_cap: int = 50,
         # --- HTTP client mode ---
         base_url: Optional[str] = None,
         workspace_id: Optional[str] = None,
@@ -305,6 +312,16 @@ class Seocho:
         self.default_database = self._resolve_default_database(ontology)
 
         # Determine mode
+        # Operating-layer state (seocho-dxe: the OS surface is Seocho itself —
+        # no side class in the public API). Built lazily on first use; every
+        # control defaults to off/unlimited, per the explicit-opt-in rule.
+        self._os_config = {
+            "max_inflight": max_inflight, "light_permits": light_permits,
+            "reserved_for_high": reserved_for_high,
+            "admission_wait_s": admission_wait_s,
+            "token_budget": token_budget, "row_cap": agent_row_cap,
+        }
+        self._operating_layer: Optional[Any] = None
         self._local_mode = ontology is not None and graph_store is not None and llm is not None
 
         if self._local_mode:
@@ -2739,6 +2756,49 @@ class Seocho:
         )
         from .client_bundle import RuntimeBundleClientHelper  # lazy
         return RuntimeBundleClientHelper.create_client(bundle_source, workspace_id=workspace_id)
+
+    # ------------------------------------------------------------------
+    # The operating layer: memory / execution / scheduling / governance /
+    # resource, exposed as methods of Seocho itself (local mode).
+    # ------------------------------------------------------------------
+
+    def _os(self) -> Any:
+        if self.ontology is None or self.graph_store is None:
+            raise SeochoError(
+                "the operating layer needs local mode: construct "
+                "Seocho(ontology=..., graph_store=...)")
+        if self._operating_layer is None:
+            from .operating_layer import SeochoOS
+
+            self._operating_layer = SeochoOS(
+                ontology=self.ontology, graph_store=self.graph_store,
+                database=getattr(self, "database", None) or "neo4j",
+                workspace_id=self.workspace_id or "default",
+                **self._os_config)
+        return self._operating_layer
+
+    def session(self, session_id: Optional[str] = None, *,
+                priority: str = "normal",
+                user_id: Optional[str] = None) -> Any:
+        """An agent's handle on the layer: SDK-protocol memory, budget,
+        shared admission. Hand ``.sdk_session`` and ``.hooks`` to
+        ``Runner.run``; user_id rides the session/log plane only."""
+        return self._os().session(session_id, priority=priority,
+                                  user_id=user_id)
+
+    def build_agent(self, session: Any, *, name: str = "seocho_agent",
+                    model: Optional[Any] = None,
+                    extra_tools: Sequence[Any] = ()) -> Any:
+        """An openai-agents Agent whose only graph access is governed by
+        this client's ontology, tenancy, and admission."""
+        return self._os().build_agent(session, name=name, model=model,
+                                      extra_tools=extra_tools)
+
+    def execute_query(self, session: Any, cypher: str,
+                      params_json: str = "{}") -> str:
+        """The governed read path (pinned tenancy, lanes, fail-closed)."""
+        return self._os().execute_query(session, cypher, params_json)
+
 
     def close(self) -> None:
         """Release resources held by the client.

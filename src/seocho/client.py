@@ -214,6 +214,7 @@ class Seocho:
         extraction_prompt: Optional[Any] = None,  # seocho.query.PromptTemplate
         agent_config: Optional[Any] = None,  # seocho.agent_config.AgentConfig
         ontology_profile: str = "default",
+        enforcement: Optional[str] = None,  # "strict" | "guided" | "open"
         # --- HTTP client mode ---
         base_url: Optional[str] = None,
         workspace_id: Optional[str] = None,
@@ -240,6 +241,14 @@ class Seocho:
             extraction_prompt: Custom extraction prompt template.
             agent_config: Agent-level configuration (quality thresholds, reasoning defaults).
             ontology_profile: Stable context profile name shared by indexing, query, and agent runs.
+            enforcement: Ontology write-admission mode for the local indexing
+                pipeline: ``"strict"`` (closed validation, non-conforming
+                extraction rejected), ``"guided"`` (default; ontology guides,
+                violations warn), or ``"open"`` (admit everything,
+                out-of-ontology elements annotated). An explicit value
+                overrides ``agent_config.ontology_enforcement``, mirroring the
+                ``ontology.enforcement`` precedence in run specs. Local engine
+                mode only — HTTP-mode clients inherit the server's policy.
             base_url: SEOCHO server URL (HTTP mode). Defaults to ``SEOCHO_BASE_URL`` env
                 var or ``http://localhost:8001``.
             workspace_id: Workspace identifier propagated to all API calls.
@@ -272,6 +281,24 @@ class Seocho:
         if agent_config is None:
             from .agent_config import AgentConfig
             agent_config = AgentConfig()
+        if enforcement is not None:
+            normalized_enforcement = str(enforcement).strip().lower()
+            if normalized_enforcement not in ("strict", "guided", "open"):
+                raise ValueError(
+                    "enforcement must be 'strict', 'guided', or 'open', "
+                    f"got {enforcement!r}"
+                )
+            if ontology is None or graph_store is None or llm is None:
+                raise ValueError(
+                    "enforcement is a local-engine indexing option and requires "
+                    "local engine mode (ontology + graph_store + llm, or "
+                    "Seocho.local). HTTP-mode clients inherit the server's "
+                    "enforcement policy."
+                )
+            from dataclasses import replace as _dc_replace
+            agent_config = _dc_replace(
+                agent_config, ontology_enforcement=normalized_enforcement
+            )
         self.agent_config = agent_config
 
         # Default database — auto-generated from ontology if not specified
@@ -339,6 +366,7 @@ class Seocho:
         neo4j_user: str = "neo4j",
         neo4j_password: str = "password",
         api_key: Optional[str] = None,
+        enforcement: Optional[str] = None,
         **kwargs: Any,
     ) -> "Seocho":
         """Create a local-engine ``Seocho`` with sensible defaults.
@@ -368,6 +396,9 @@ class Seocho:
             api_key: Optional API key override for the LLM provider.
                 Falls back to the provider's env var (``MARA_API_KEY``,
                 ``OPENAI_API_KEY``, etc.).
+            enforcement: Ontology write-admission mode for indexing —
+                ``"strict"``, ``"guided"`` (default), or ``"open"``. See
+                :meth:`Seocho.__init__` for precedence semantics.
             **kwargs: Extra arguments forwarded to the :class:`Seocho`
                 constructor (``workspace_id``, ``agent_config``,
                 ``extraction_prompt``, …).
@@ -401,6 +432,7 @@ class Seocho:
             ontology=ontology,
             graph_store=graph_store,
             llm=llm_backend,
+            enforcement=enforcement,
             **kwargs,
         )
 

@@ -207,6 +207,14 @@ class OntologyDisclosurePolicy:
                 "seocho.governance.policy_version_mismatch.count",
                 attributes={"stage": "disclosure"},
             )
+            # A stale binding attempting to read through the filter is a
+            # disclosure violation caught at the boundary — the event the
+            # SeochoDisclosureViolation page watches. disposition records that
+            # it was blocked, not served.
+            get_metrics().add(
+                "seocho.governance.disclosure_violation.count",
+                attributes={"stage": "disclosure", "policy.disposition": "blocked"},
+            )
             raise ValueError("subject disclosure binding does not match active policy")
         return self.filter_record(
             record,

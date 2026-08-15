@@ -91,11 +91,76 @@ def test_unknown_content_asks_for_explicit_format():
     assert any("--format" in w for w in result.warnings)
 
 
-def test_detected_but_unsupported_format_is_reported_not_misparsed():
-    result = import_document("type Account { id: ID! }", format="auto")
-    assert result.document is None
+GRAPHQL_SDL = """
+type Account { id: ID!  balance: Float  owner: Company  transfers: [Transfer] }
+type Company { name: String! }
+type Transfer { amount: Float! }
+"""
+
+LINKML = """
+name: aml-mini
+classes:
+  account:
+    attributes:
+      acct_no: {range: integer, identifier: true}
+      owner: {range: company}
+  company:
+    attributes:
+      name: {range: string, required: true}
+  shell company:
+    is_a: company
+"""
+
+DATA_IMPORTER = """
+{"dataModel": {"graphSchema": {
+  "nodeLabels": [
+    {"$id": "n0", "token": "Account",
+     "properties": [{"token": "acct_no", "type": {"type": "integer"}}]},
+    {"$id": "n1", "token": "Company",
+     "properties": [{"token": "name", "type": {"type": "string"}}]}
+  ],
+  "relationshipTypes": [
+    {"token": "OWNS", "from": {"$ref": "#n1"}, "to": {"$ref": "#n0"}}
+  ]}}}
+"""
+
+
+def test_graphql_object_types_become_labels_and_relationships():
+    result = import_document(GRAPHQL_SDL, format="auto")
     assert result.detected_format == "graphql"
-    assert any("not yet supported" in w for w in result.warnings)
+    doc = result.document
+    assert doc["nodes"]["Account"]["properties"]["id"]["constraint"] == "UNIQUE"
+    assert doc["nodes"]["Account"]["properties"]["balance"]["type"] == "FLOAT"
+    assert doc["relationships"]["OWNER"]["target"] == "Company"
+    assert doc["relationships"]["TRANSFERS"]["target"] == "Transfer"
+    Ontology.from_dict(doc)
+
+
+def test_linkml_classes_map_and_is_a_becomes_broader():
+    result = import_document(LINKML, format="linkml")
+    doc = result.document
+    assert doc["nodes"]["Account"]["properties"]["acct_no"]["type"] == "INTEGER"
+    assert doc["relationships"]["OWNER"]["target"] == "Company"
+    assert doc["nodes"]["ShellCompany"]["broader"] == ["Company"]
+    Ontology.from_dict(doc)
+
+
+def test_data_importer_model_resolves_endpoint_refs():
+    result = import_document(DATA_IMPORTER, format="auto")
+    assert result.detected_format == "data-importer"
+    doc = result.document
+    assert doc["relationships"]["OWNS"]["source"] == "Company"
+    assert doc["relationships"]["OWNS"]["target"] == "Account"
+    Ontology.from_dict(doc)
+
+
+def test_every_template_clones_into_a_valid_ontology():
+    from seocho.ontology_templates import list_templates, load_template
+
+    names = [t["name"] for t in list_templates()]
+    assert {"quickstart", "finance-aml", "finance-compliance"} <= set(names)
+    for name in names:
+        Ontology.from_dict(load_template(name))
 
 
 def test_import_never_persists(tmp_path, monkeypatch):

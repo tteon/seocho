@@ -3,8 +3,10 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import traceback
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, Optional, Sequence
+from typing import Any, Callable, Dict, Iterable, Optional, Sequence
 
 from .client import Seocho
 from .exceptions import SeochoError
@@ -14,8 +16,53 @@ from .semantic import SemanticArtifact, SemanticArtifactSummary
 from .models import ArchiveResult, ChatResponse, GraphTarget, Memory, MemoryCreateResult, SearchResult
 
 
+def _package_version() -> str:
+    try:
+        from importlib.metadata import version
+
+        return version("seocho")
+    except Exception:
+        return "unknown"
+
+
+@dataclass(frozen=True)
+class CommandGroup:
+    """A pluggable top-level command group.
+
+    This is the extension seam new command families (``seocho ont``,
+    ``seocho policy``) attach to, instead of the four legacy edit sites
+    (build_parser, LOCAL_COMMANDS, _dispatch_local, a _cmd_* if-chain).
+    ``register`` receives the top-level subparsers object and builds the
+    group's parser tree; ``handle`` receives the parsed namespace and returns
+    an exit code. ``local`` marks groups that never need the HTTP client.
+    Existing commands stay on the legacy dispatch and migrate group by group.
+    """
+
+    name: str
+    register: Callable[[Any], None]
+    handle: Callable[[argparse.Namespace], int]
+    local: bool = True
+
+
+COMMAND_GROUPS: Dict[str, CommandGroup] = {}
+
+
+def register_group(group: CommandGroup) -> None:
+    if group.name in COMMAND_GROUPS:
+        raise ValueError(f"command group already registered: {group.name}")
+    COMMAND_GROUPS[group.name] = group
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="seocho", description="SEOCHO memory-first CLI")
+    parser.add_argument(
+        "--version", action="version", version=f"%(prog)s {_package_version()}"
+    )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Print full tracebacks instead of one-line error messages",
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     add_parser = subparsers.add_parser("add", help="Store one memory")
@@ -545,7 +592,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--show-rendered", action="store_true",
         help="Print rendered template YAML, or the plain YAML spec, and exit",
     )
-    run_parser.add_argument("--output-json", action="store_true", help="Emit JSON")
+    run_parser.add_argument("--output-json", "--json", action="store_true", help="Emit JSON")
 
     sweep_parser = subparsers.add_parser(
         "sweep",
@@ -593,7 +640,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--force", action="store_true",
         help="Re-index files even if unchanged",
     )
-    sweep_parser.add_argument("--output-json", action="store_true", help="Emit JSON")
+    sweep_parser.add_argument("--output-json", "--json", action="store_true", help="Emit JSON")
 
     traces_parser = subparsers.add_parser(
         "traces",
@@ -623,7 +670,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--sort-latency", action="store_true",
         help="Sort by latency descending",
     )
-    traces_parser.add_argument("--output-json", action="store_true", help="Emit JSON")
+    traces_parser.add_argument("--output-json", "--json", action="store_true", help="Emit JSON")
+
+    # Registered command groups build their parser trees last, so a group can
+    # never shadow a legacy command (register_group refuses duplicate names).
+    for group in COMMAND_GROUPS.values():
+        group.register(subparsers)
 
     return parser
 
@@ -647,16 +699,32 @@ LOCAL_COMMANDS = {
 }
 
 
+def _print_error(exc: BaseException, *, debug: bool) -> None:
+    if debug:
+        traceback.print_exc(file=sys.stderr)
+    else:
+        print(str(exc), file=sys.stderr)
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
+    debug = bool(getattr(args, "debug", False))
+
+    group = COMMAND_GROUPS.get(args.command)
+    if group is not None:
+        try:
+            return group.handle(args)
+        except Exception as exc:
+            _print_error(exc, debug=debug)
+            return 1
 
     # Local-mode commands don't need HTTP client
     if args.command in LOCAL_COMMANDS:
         try:
             return _dispatch_local(args)
-        except (SeochoError, Exception) as exc:
-            print(str(exc), file=sys.stderr)
+        except Exception as exc:
+            _print_error(exc, debug=debug)
             return 1
 
     client: Optional[Seocho] = None
@@ -673,7 +741,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     try:
         return _dispatch(client, args)
     except SeochoError as exc:
-        print(str(exc), file=sys.stderr)
+        _print_error(exc, debug=debug)
         return 1
     finally:
         if client is not None:

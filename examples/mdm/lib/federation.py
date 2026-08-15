@@ -213,8 +213,7 @@ class Instance:
 def load_instances(path: Path) -> List["Instance"]:
     import yaml
 
-    with Path(path).open("r", encoding="utf-8") as _f:
-        spec = yaml.safe_load(_f)
+    spec = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
     return [Instance(dept=d, uri=i["uri"], database=i.get("database", "neo4j"),
                      model=i["model"])
             for d, i in spec["instances"].items()]

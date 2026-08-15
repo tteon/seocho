@@ -18,11 +18,9 @@ from seocho.store.llm import MaraBackend
 
 def _load(path: Path) -> list[dict[str, Any]]:
     rows = []
-    with path.open("r", encoding="utf-8") as _f:
-        for line in _f:
-            line = line.rstrip("\n")
-            if line.strip():
-                rows.append(json.loads(line))
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.strip():
+            rows.append(json.loads(line))
     return rows
 
 

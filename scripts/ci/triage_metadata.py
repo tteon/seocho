@@ -206,8 +206,7 @@ def infer_labels(event: dict[str, object], changed_files: Iterable[str]) -> list
 def read_changed_files(path: Path | None) -> list[str]:
     if path is None or not path.exists():
         return []
-    with path.open("r", encoding="utf-8") as _f:
-        return [line.strip() for line in _f]
+    return [line.strip() for line in path.read_text(encoding="utf-8").splitlines()]
 
 
 def format_labels(labels: list[str], output_format: str) -> str:

@@ -50,13 +50,11 @@ def open_extract_all(jsonl_path, *, model, workers, max_chars, resume):
     jp = Path(jsonl_path); jp.parent.mkdir(parents=True, exist_ok=True)
     done_ids = set()
     if resume and jp.exists():
-        with jp.open("r", encoding="utf-8") as _f:
-            for line in _f:
-                line = line.rstrip("\n")
-                try:
-                    done_ids.add(json.loads(line)["id"])
-                except Exception:
-                    pass
+        for line in jp.read_text(encoding="utf-8").splitlines():
+            try:
+                done_ids.add(json.loads(line)["id"])
+            except Exception:
+                pass
     docs = []
     for _, row in df.iterrows():
         _id = str(row["_id"])
@@ -98,16 +96,14 @@ def open_extract_all(jsonl_path, *, model, workers, max_chars, resume):
 def build_profile_from_jsonl(jsonl_path):
     from collections import Counter
     freqs = Counter(); ndoc = 0
-    with Path(jsonl_path).open("r", encoding="utf-8") as _f:
-        for line in _f:
-            line = line.rstrip("\n")
-            try:
-                rec = json.loads(line)
-            except Exception:
-                continue
-            ndoc += 1
-            for l in rec.get("labels", []):
-                freqs[l] += 1
+    for line in Path(jsonl_path).read_text(encoding="utf-8").splitlines():
+        try:
+            rec = json.loads(line)
+        except Exception:
+            continue
+        ndoc += 1
+        for l in rec.get("labels", []):
+            freqs[l] += 1
     return dict(freqs), ndoc
 
 

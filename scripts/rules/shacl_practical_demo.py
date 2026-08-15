@@ -20,7 +20,7 @@ from typing import Any, Dict
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "extraction"))
 
-from rule_api import RuleAssessRequest, RuleInferRequest, assess_rule_profile, infer_rule_profile
+from extraction.rule_api import RuleAssessRequest, RuleInferRequest, assess_rule_profile, infer_rule_profile
 
 logger = logging.getLogger("shacl_practical_demo")
 

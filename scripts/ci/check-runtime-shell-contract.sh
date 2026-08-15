@@ -82,7 +82,11 @@ check_present "_alias_runtime_module(__name__, \"runtime.runtime_ingest\")" \
   extraction/runtime_ingest.py
 check_present "_alias_runtime_module(__name__, \"runtime.server_runtime\")" \
   extraction/server_runtime.py
-check_present "cwd=os.path.join(ROOT_DIR, \"extraction\")" \
+# extraction/ is a package (seocho-60u); the flat-name alias it used to pin is
+# gone, and the test now asserts the bare name does NOT resolve. Structural
+# enforcement lives in scripts/ci/check-import-boundaries.py, which parses
+# rather than greps.
+check_present "def test_extraction_modules_do_not_resolve_under_a_bare_flat_name" \
   extraction/tests/test_runtime_package_aliases.py
 check_present "import runtime.agent_readiness as runtime_agent_readiness" \
   extraction/tests/test_runtime_package_aliases.py

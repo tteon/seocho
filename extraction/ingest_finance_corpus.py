@@ -9,9 +9,9 @@ import pandas as pd
 import yaml
 from openai import OpenAI
 
-from graph_loader import GraphLoader
-from tracing import wrap_openai_client
-from vector_store import VectorStore
+from .graph_loader import GraphLoader
+from .tracing import wrap_openai_client
+from .vector_store import VectorStore
 
 # Initialize generic client, will set API key in main or environment
 client = None

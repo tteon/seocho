@@ -15,7 +15,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from semantic_artifact_store import (  # noqa: E402
+from ..semantic_artifact_store import (  # noqa: E402
     approve_semantic_artifact,
     get_semantic_artifact,
     save_semantic_artifact,

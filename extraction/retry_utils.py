@@ -14,7 +14,7 @@ from tenacity import (
     before_sleep_log,
 )
 
-from exceptions import OpenAIAPIError, Neo4jConnectionError
+from .exceptions import OpenAIAPIError, Neo4jConnectionError
 
 logger = logging.getLogger(__name__)
 

@@ -80,7 +80,7 @@ def test_infer_rules_default_hash_is_empty_string():
 
 
 def test_save_semantic_artifact_stamps_ontology_identity_hash(tmp_path):
-    import semantic_artifact_store as sas
+    from .. import semantic_artifact_store as sas
 
     payload = sas.save_semantic_artifact(
         workspace_id="acme",
@@ -96,7 +96,7 @@ def test_save_semantic_artifact_stamps_ontology_identity_hash(tmp_path):
 
 
 def test_get_semantic_artifact_match(tmp_path):
-    import semantic_artifact_store as sas
+    from .. import semantic_artifact_store as sas
 
     payload = sas.save_semantic_artifact(
         workspace_id="acme",
@@ -118,7 +118,7 @@ def test_get_semantic_artifact_match(tmp_path):
 
 
 def test_get_semantic_artifact_drift(tmp_path):
-    import semantic_artifact_store as sas
+    from .. import semantic_artifact_store as sas
 
     payload = sas.save_semantic_artifact(
         workspace_id="acme",
@@ -149,7 +149,7 @@ def test_get_semantic_artifact_legacy_unknown(tmp_path):
     parity gap to the operator."""
 
     import json as _json
-    import semantic_artifact_store as sas
+    from .. import semantic_artifact_store as sas
 
     payload = sas.save_semantic_artifact(
         workspace_id="acme",
@@ -178,7 +178,7 @@ def test_get_semantic_artifact_no_expected_hash_skips_drift_block(tmp_path):
     """Backward compat: callers that don't pass expected_ontology_hash get
     the legacy payload without the artifact_ontology_mismatch block."""
 
-    import semantic_artifact_store as sas
+    from .. import semantic_artifact_store as sas
 
     payload = sas.save_semantic_artifact(
         workspace_id="acme",
@@ -197,7 +197,7 @@ def test_get_semantic_artifact_no_expected_hash_skips_drift_block(tmp_path):
 
 
 def test_rule_profile_save_and_get_round_trip_hash(tmp_path):
-    import rule_profile_store as rps
+    from .. import rule_profile_store as rps
 
     out = rps.save_rule_profile(
         "acme",
@@ -213,7 +213,7 @@ def test_rule_profile_save_and_get_round_trip_hash(tmp_path):
 
 
 def test_rule_profile_drift_detection(tmp_path):
-    import rule_profile_store as rps
+    from .. import rule_profile_store as rps
 
     out = rps.save_rule_profile(
         "acme",
@@ -235,7 +235,7 @@ def test_rule_profile_migration_adds_column_to_legacy_db(tmp_path):
     """Pre-Phase-5 sqlite DBs lack ontology_identity_hash. Connecting via
     the Phase 5 _connect must ALTER the table without dropping data."""
 
-    import rule_profile_store as rps
+    from .. import rule_profile_store as rps
 
     db_path = tmp_path / "rule_profiles.db"
     legacy = sqlite3.connect(str(db_path))
@@ -280,7 +280,7 @@ def test_rule_profile_migration_adds_column_to_legacy_db(tmp_path):
 def test_rule_profile_legacy_row_reads_unknown_status(tmp_path):
     """Drift detection on a pre-Phase-5 row reports status=unknown, not drift."""
 
-    import rule_profile_store as rps
+    from .. import rule_profile_store as rps
 
     db_path = tmp_path / "rule_profiles.db"
     legacy = sqlite3.connect(str(db_path))
@@ -320,7 +320,7 @@ def test_rule_profile_save_propagates_hash_into_stored_json(tmp_path):
     """The hash is also stamped into the JSON blob, so a profile reconstructed
     from JSON alone (e.g. read by a different tool) still carries it."""
 
-    import rule_profile_store as rps
+    from .. import rule_profile_store as rps
 
     out = rps.save_rule_profile(
         "acme",
@@ -334,7 +334,7 @@ def test_rule_profile_save_propagates_hash_into_stored_json(tmp_path):
 
 
 def test_rule_profile_no_expected_hash_skips_drift_block(tmp_path):
-    import rule_profile_store as rps
+    from .. import rule_profile_store as rps
 
     out = rps.save_rule_profile(
         "acme",

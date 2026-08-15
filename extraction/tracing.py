@@ -12,7 +12,7 @@ and simply disable Opik-specific instrumentation.
 import logging
 import inspect
 
-from config import (
+from .config import (
     OPIK_API_KEY,
     OPIK_ENABLED,
     OPIK_MODE,

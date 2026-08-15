@@ -533,7 +533,7 @@ class _LocalEngine:
             reasoning_mode = self.agent_config.reasoning_mode
         if repair_budget is None:
             repair_budget = self.agent_config.repair_budget
-        # RouteProfile (opik-derived, A/B-gated): when SEOCHO_ROUTE_PROFILE is
+        # RouteProfile (trace-derived, A/B-gated): when SEOCHO_ROUTE_PROFILE is
         # set, classify the question's route_class and let its planner choose
         # the execution levers — escalate to multi-step (reasoning + repair)
         # ONLY for multi-hop, keep simple lookups on the cheap single pass
@@ -583,7 +583,7 @@ class _LocalEngine:
 
         # ADR-0144: wrap the retrieval pipeline in a single rag.ask root span so
         # its stages (compile_cypher -> execute -> retrieve_ctx -> synthesize)
-        # nest as a tree in Tempo/Opik instead of one flat sdk.query event.
+        # nest as a tree in Tempo instead of one flat sdk.query event.
         from .tracing import start_span
 
         with start_span(
@@ -945,7 +945,7 @@ class _LocalEngine:
             pass
 
         with timer.stage("generation"):
-            # AnswerShape (opik-derived): classify the question's expected
+            # AnswerShape (trace-derived): classify the question's expected
             # answer shape and steer the synthesizer toward a terse
             # value/name/location answer. DEFAULT ON (opt-out via
             # SEOCHO_ANSWER_SHAPE=0); explanation/unknown shapes emit no

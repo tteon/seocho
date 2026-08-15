@@ -54,7 +54,6 @@ ci = [
     "numpy",
     "openai",
     "openai-agents",
-    "opik",
     "pydantic>=2.0",
     "pytest>=7.0",
     "pytest-asyncio>=0.21.0",
@@ -88,7 +87,6 @@ dev = [
     "numpy",
     "openai",
     "openai-agents",
-    "opik",
     "pandas",
     "pyarrow",
     "pydantic>=2.0",
@@ -118,8 +116,8 @@ pdf = [
     "opendataloader-pdf",
 ]
 otel = [
-    # ADR-0144: local OpenTelemetry tracing backend (otlp). Lightweight
-    # alternative to self-hosted Opik; exports spans to an OTel Collector.
+    # ADR-0144: the OpenTelemetry tracing backend (otlp). Exports spans to an
+    # OTel Collector; the vendor-neutral default since ADR-0166 removed Opik.
     "opentelemetry-sdk",
     "opentelemetry-exporter-otlp-proto-grpc",
 ]

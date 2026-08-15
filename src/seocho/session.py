@@ -260,7 +260,7 @@ class Session:
     def _stamp_observability_health(self, result: Dict[str, Any]) -> None:
         """Stamp degraded_observability=True on result when traces are silently dropped.
 
-        Closes seocho-qr74 (depends-on seocho-8k1h). When OpikBackend (or any
+        Closes seocho-qr74 (depends-on seocho-8k1h). When a tracing backend (any
         future backend) initialises but its underlying client fails, every
         ``log_span`` call becomes a no-op. The Session result needs to carry
         a flag so callers can fail fast when observability is required —
@@ -320,7 +320,7 @@ class Session:
             result = self._add_via_pipeline(content, db, category, metadata)
 
         # seocho-qr74: stamp degraded_observability if any tracing backend
-        # is silently dropping spans (e.g., OpikBackend init failure).
+        # is silently dropping spans (e.g. a backend that failed to initialise).
         self._stamp_observability_health(result)
 
         elapsed = time.time() - start

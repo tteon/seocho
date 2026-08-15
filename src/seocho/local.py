@@ -73,7 +73,6 @@ def find_project_dir(start_dir: Optional[str] = None) -> Path:
 def serve_local_runtime(
     *,
     project_dir: Optional[str] = None,
-    with_opik: bool = False,
     build: bool = False,
     wait: bool = True,
     timeout: float = 90.0,
@@ -93,8 +92,6 @@ def serve_local_runtime(
         # Per-instance app tier: its own project + self-contained app-only
         # compose file, reaching the shared neo4j over the shared network.
         command.extend(["-p", layout.project_name, "-f", INSTANCE_COMPOSE_FILE])
-    if with_opik:
-        command.extend(["--profile", "opik"])
     command.extend(["up", "-d"])
     if build:
         command.append("--build")

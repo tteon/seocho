@@ -181,8 +181,6 @@ def _benchmark_setup_payload(args: argparse.Namespace, *, tracing_configured: bo
         "trace_backend_env": os.getenv("SEOCHO_TRACE_BACKEND", "none"),
         "active_trace_backends": active_trace_backends,
         "tracing_configured": tracing_configured,
-        "opik_project": os.getenv("OPIK_PROJECT_NAME", ""),
-        "opik_workspace": os.getenv("OPIK_WORKSPACE", ""),
     }
 
 

@@ -641,19 +641,15 @@ def test_finder_benchmark_setup_payload_records_model_and_trace_env(monkeypatch)
         model = "gpt-4o-mini"
         llm = "deepseek/gpt-4o-mini"
 
-    monkeypatch.setenv("SEOCHO_TRACE_BACKEND", "opik")
-    monkeypatch.setenv("OPIK_PROJECT_NAME", "seocho-e2e")
-    monkeypatch.setenv("OPIK_WORKSPACE", "tteon")
+    monkeypatch.setenv("SEOCHO_TRACE_BACKEND", "otlp")
 
     payload = _benchmark_setup_payload(_Args(), tracing_configured=True)
 
     assert payload["provider"] == "deepseek"
     assert payload["model"] == "gpt-4o-mini"
     assert payload["llm"] == "deepseek/gpt-4o-mini"
-    assert payload["trace_backend_env"] == "opik"
+    assert payload["trace_backend_env"] == "otlp"
     assert payload["tracing_configured"] is True
-    assert payload["opik_project"] == "seocho-e2e"
-    assert payload["opik_workspace"] == "tteon"
 
 
 def test_extract_agent_metrics_from_semantic_runtime_payload():

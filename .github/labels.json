@@ -47,7 +47,7 @@
   {
     "name": "area-observability",
     "color": "1d76db",
-    "description": "Tracing, Opik, OpenTelemetry, metrics, or evaluation telemetry."
+    "description": "Tracing, OpenTelemetry, metrics, or evaluation telemetry."
   },
   {
     "name": "area-website",

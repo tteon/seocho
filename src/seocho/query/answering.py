@@ -123,7 +123,7 @@ class QueryAnswerSynthesizer:
             user_ans += f"\n\nReasoning trace (query attempts):\n{reasoning_trace}"
         if vector_context:
             user_ans += f"\n\nAdditional context from vector search:\n{vector_context}"
-        # AnswerShape (opik-derived): append a terse-output directive when the
+        # AnswerShape (trace-derived): append a terse-output directive when the
         # classified shape expects a value/name/location/list. None or shapes
         # without a directive (explanation/unknown) leave the prompt unchanged
         # — exact baseline behavior, so this is additive.

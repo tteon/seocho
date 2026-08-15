@@ -1,6 +1,7 @@
 """AnswerShape — classify the expected answer shape and steer terse synthesis.
 
-Empirically motivated (opik icml/kdd traces + the FinDER T2 baseline): the
+Empirically motivated (the icml2026/kdd2026 trace corpus + the FinDER T2
+baseline): the
 query lane retrieves the right facts (contains-match = 1.0) but the
 synthesizer wraps them in prose ("Based on the query results, ... is **X**"),
 so exact-match = 0 and token-F1 ≈ 0.18. The kdd `build_semantic_intent_context`

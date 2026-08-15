@@ -20,7 +20,7 @@ behaviour without yet refactoring the whole agent runtime:
    stagnation, hard caps, time/cost budgets.
 
 Every iteration is captured as a :class:`LoopIteration` for downstream
-inspection (Opik trace, learner debugging).
+inspection (trace review, learner debugging).
 """
 
 from __future__ import annotations

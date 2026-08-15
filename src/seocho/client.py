@@ -1524,7 +1524,7 @@ class Seocho:
         A session maintains state across ``add()`` and ``ask()`` calls.
         Each operation prefers the agent/tool path, falls back to the
         canonical local engine when the agent path is unavailable, and
-        rolls all operations into a single parent trace in Opik.
+        rolls all operations into a single parent trace.
 
         Parameters
         ----------

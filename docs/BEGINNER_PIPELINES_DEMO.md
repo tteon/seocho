@@ -106,7 +106,7 @@ Output file:
 ### 4.4 GraphRAG / Chat Pipeline
 
 ```bash
-scripts/demo/pipeline_graphrag_opik.sh --workspace default --db kgdemo_graphrag
+scripts/demo/pipeline_graphrag.sh --workspace default --db kgdemo_graphrag
 ```
 
 What it verifies:

@@ -160,13 +160,13 @@ def run_one(*, case: dict, table, llm, oai_client, llm_spec: str, prompt_hash: s
                 ask_ms = round((time.perf_counter() - t1) * 1000, 2)
                 answer = getattr(resp, "text", None) or getattr(resp, "content", None) or str(resp)
             m = evaluate_answer(case["expected_answer"], answer)
-            bc.set_opik_feedback_scores({
+            bc.set_feedback_scores({
                 "number_overlap": m["number_overlap_ratio"],
                 "contains_match": 1.0 if m["contains_match"] else 0.0,
             })
-            bc.set_opik_trace_metadata(name=trace_name, tags=tags, metadata=metadata)
+            bc.set_trace_metadata(name=trace_name, tags=tags, metadata=metadata)
             return answer
-        answer = bc.run_under_opik_track(name=trace_name, tags=tags, metadata=metadata, work_fn=_work)
+        answer = bc.run_traced(name=trace_name, tags=tags, metadata=metadata, work_fn=_work)
     except Exception as exc:
         error = f"{type(exc).__name__}: {exc}"
         traceback.print_exc()
@@ -237,7 +237,7 @@ def main() -> int:
     # Experiment-traces-only: do NOT enable SEOCHO's OpikBackend (it emits internal
     # sdk.extraction/sdk.query traces and wraps the LLM with track_openai →
     # chat_completion_create noise). Our traces come solely from
-    # bc.run_under_opik_track (@track) + set_opik_trace_metadata.
+    # bc.run_traced + bc.set_trace_metadata.
     print(f"== tracing: experiment-traces-only (no SEOCHO backend) "
           f"project={os.environ.get('OPIK_PROJECT_NAME')} ws={os.environ.get('OPIK_WORKSPACE')} ==")
 
@@ -284,8 +284,6 @@ def main() -> int:
         "lancedb_table": args.table, "lancedb_dir": str(LANCEDB_DIR.relative_to(ROOT)),
         "top_k": args.top_k, "chunk_size": args.chunk_size, "n_per_slice": args.n_per_slice,
         "prompt_id": PROMPT_ID, "prompt_hash": prompt_hash,
-        "opik_project": os.environ.get("OPIK_PROJECT_NAME", ""),
-        "opik_workspace": os.environ.get("OPIK_WORKSPACE", ""),
         "total_runs": len(results), "total_wall_seconds": round(time.perf_counter() - started, 2),
         "summary": summary, "results": results,
     }

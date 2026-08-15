@@ -20,7 +20,7 @@ def test_enable_tracing_none_disables_all_backends() -> None:
 
         assert enabled is False
         assert current_backend_names() == []
-        assert is_backend_enabled("opik") is False
+        assert is_backend_enabled("otlp") is False
     finally:
         disable_tracing()
 

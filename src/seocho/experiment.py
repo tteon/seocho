@@ -557,7 +557,7 @@ class Workbench:
             usage=total_usage,
         )
 
-        # --- Opik tracing ---
+        # --- experiment tracing ---
         try:
             from .tracing import log_experiment_run, is_tracing_enabled
             if is_tracing_enabled():

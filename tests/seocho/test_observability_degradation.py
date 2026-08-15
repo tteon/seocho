@@ -1,7 +1,7 @@
 """Regression tests for seocho-qr74 — degraded_observability stamping.
 
 When a tracing backend silently drops spans (the canonical case is
-``OpikBackend`` whose ``__init__`` catches client-init failures and
+a backend whose ``__init__`` catches client-init failures and
 sets ``_client = None``), ``Session`` results should carry
 ``degraded_observability=True`` so callers can fail fast when
 observability is required.
@@ -28,21 +28,21 @@ def test_tracing_degraded_reasons_returns_empty_when_no_backends() -> None:
     assert tracing_degraded_reasons() == []
 
 
-def test_tracing_degraded_reasons_reports_failed_opik_backend(monkeypatch) -> None:
+def test_tracing_degraded_reasons_reports_a_failed_backend(monkeypatch) -> None:
     """A backend that ships an _init_error attribute is reported as degraded."""
     from seocho import tracing as t
 
     class _FakeBrokenBackend:
-        _init_error = "ConnectionRefused: opik unreachable"
+        _init_error = "ConnectionRefused: collector unreachable"
 
         def log_span(self, *a, **kw): pass
         def close(self): pass
 
     monkeypatch.setattr(t, "_BACKENDS", [_FakeBrokenBackend()])
-    monkeypatch.setattr(t, "_BACKEND_NAMES", ["opik"])
+    monkeypatch.setattr(t, "_BACKEND_NAMES", ["otlp"])
     reasons = t.tracing_degraded_reasons()
     assert len(reasons) == 1
-    assert "opik" in reasons[0]
+    assert "otlp" in reasons[0]
     assert "ConnectionRefused" in reasons[0]
     assert t.is_observability_degraded() is True
 
@@ -66,14 +66,14 @@ def test_session_stamps_degraded_observability_on_add(monkeypatch) -> None:
     from seocho.agent.context import SessionContext
     from seocho.session import Session
 
-    class _BrokenOpik:
+    class _BrokenBackend:
         _init_error = "auth failed"
 
         def log_span(self, *a, **kw): pass
         def close(self): pass
 
-    monkeypatch.setattr(t, "_BACKENDS", [_BrokenOpik()])
-    monkeypatch.setattr(t, "_BACKEND_NAMES", ["opik"])
+    monkeypatch.setattr(t, "_BACKENDS", [_BrokenBackend()])
+    monkeypatch.setattr(t, "_BACKEND_NAMES", ["otlp"])
 
     sess = Session(
         ontology=_make_minimal_ontology(),
@@ -98,7 +98,7 @@ def test_session_stamps_degraded_observability_on_add(monkeypatch) -> None:
     result = sess.add("Tim Cook leads Apple.")
     assert result.get("degraded_observability") is True
     reasons = result.get("observability_degradation_reasons", [])
-    assert any("opik" in r for r in reasons)
+    assert any("otlp" in r for r in reasons)
 
 
 def test_session_does_not_stamp_when_tracing_healthy(monkeypatch) -> None:

@@ -9,7 +9,7 @@ import pytest
 from unittest.mock import MagicMock
 
 # Mock heavy dependencies before any extraction imports
-for mod in ["faiss", "openai", "opik", "opik.integrations", "opik.integrations.openai"]:
+for mod in ["faiss", "openai"]:
     sys.modules.setdefault(mod, MagicMock())
 
 import numpy as np

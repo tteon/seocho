@@ -1,4 +1,4 @@
-"""RouteProfile route-conditional planner selection (opik exp5-derived).
+"""RouteProfile route-conditional planner selection (exp5 trace-derived).
 
 Pins the core empirical rule: multi-step planner is reserved for
 multi-hop/compositional questions; simple lookups stay on the cheap

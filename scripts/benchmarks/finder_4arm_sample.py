@@ -393,17 +393,17 @@ def run_one(*, case: dict, arm: str, modules: list[str], llm_spec: str,
             # Opik UI shows a sortable/chartable column (judge_score is backfilled
             # offline by finder_judge). Set metadata too.
             m = evaluate_answer(_exp, ans)
-            bc.set_opik_feedback_scores({
+            bc.set_feedback_scores({
                 "number_overlap": m["number_overlap_ratio"],
                 "contains_match": 1.0 if m["contains_match"] else 0.0,
             })
-            bc.set_opik_trace_metadata(name=tname, tags=tags, metadata=metadata)
+            bc.set_trace_metadata(name=tname, tags=tags, metadata=metadata)
             return ans
 
         try:
             if llm is None:
                 raise RuntimeError("LLM backend unavailable")
-            answer = bc.run_under_opik_track(name=tname, tags=tags, metadata=metadata, work_fn=_work)
+            answer = bc.run_traced(name=tname, tags=tags, metadata=metadata, work_fn=_work)
         except Exception as exc:
             answer, ans_err = "", f"{type(exc).__name__}: {exc}"
         ask_ms = round((time.perf_counter() - t1) * 1000, 2)
@@ -517,7 +517,7 @@ def main() -> int:
     # Enabling SEOCHO's OpikBackend also (a) emits internal sdk.extraction/sdk.query
     # traces and (b) wraps the LLM client with opik track_openai (chat_completion_create
     # traces) — both flood the Opik project with logs users don't recognize. Our
-    # experiment traces come ONLY from bc.run_under_opik_track (@track) + set_opik_
+    # experiment runs are labelled ONLY via bc.run_traced + bc.set_trace_
     # trace_metadata, which use opik's own env/config (~/.opik.config) directly.
     # Result: the Opik project shows exactly one clean, tagged trace per run.
     print(f"== tracing: experiment-traces-only (no SEOCHO backend) "
@@ -580,8 +580,6 @@ def main() -> int:
         "database": database,
         "n_per_slice": args.n_per_slice, "arms": arms,
         "prompt_id": PROMPT_ID, "prompt_hash": prompt_hash,
-        "opik_project": os.environ.get("OPIK_PROJECT_NAME", ""),
-        "opik_workspace": os.environ.get("OPIK_WORKSPACE", ""),
         "tracing_backends": current_backend_names(),
         "total_runs": len(results),
         "total_wall_seconds": round(time.perf_counter() - started, 2),

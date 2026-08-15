@@ -15,11 +15,8 @@ Multiple backends supported::
     # Console output (debugging)
     enable_tracing(backend="console")
 
-    # Opik exporter (hosted or self-hosted)
-    enable_tracing(backend="opik", project_name="my-project")
-
     # Multiple backends at once
-    enable_tracing(backend=["opik", "jsonl"], output="./traces/seocho.jsonl")
+    enable_tracing(backend=["otlp", "jsonl"], output="./traces/seocho.jsonl")
 
     # Custom backend
     class MyTracer(TracingBackend):
@@ -47,10 +44,9 @@ logger = logging.getLogger(__name__)
 
 TRACE_BACKEND_ENV = "SEOCHO_TRACE_BACKEND"
 TRACE_JSONL_PATH_ENV = "SEOCHO_TRACE_JSONL_PATH"
-TRACE_OPIK_MODE_ENV = "SEOCHO_TRACE_OPIK_MODE"
 TRACE_OTLP_ENDPOINT_ENV = "SEOCHO_TRACE_OTLP_ENDPOINT"
 TRACE_CONTENT_CAPTURE_ENV = "SEOCHO_TRACE_CAPTURE_CONTENT"
-_VALID_BACKEND_NAMES = {"none", "console", "jsonl", "opik", "otlp"}
+_VALID_BACKEND_NAMES = {"none", "console", "jsonl", "otlp"}
 _TRUTHY = {"1", "true", "yes", "on"}
 
 # Module-level state
@@ -118,135 +114,6 @@ class TracingBackend(ABC):
 # ======================================================================
 # Built-in backends
 # ======================================================================
-
-_OPIK_VERSION_WARNED = False
-# Opik SDK major version known-compatible with current Opik servers (>=2.x).
-# SDK 1.x against a 2.x server silently drops trace payloads (all-null traces).
-_OPIK_MIN_MAJOR = 2
-
-
-def _warn_opik_version_once(opik_mod: Any) -> None:
-    """Emit a one-time warning if the installed Opik SDK major version is older
-    than the era of current Opik servers. SDK 1.x talking to a 2.x server lands
-    traces with null name/tags/metadata (observed 2026-05-30)."""
-    global _OPIK_VERSION_WARNED
-    if _OPIK_VERSION_WARNED:
-        return
-    _OPIK_VERSION_WARNED = True
-    ver = str(getattr(opik_mod, "__version__", "") or "")
-    try:
-        major = int(ver.split(".", 1)[0])
-    except (ValueError, IndexError):
-        return
-    if major < _OPIK_MIN_MAJOR:
-        logger.warning(
-            "Opik SDK version %s (<%d.x) may be incompatible with current Opik "
-            "servers: traces can land with null name/tags/metadata. "
-            "Run `pip install -U opik` to match the server release.",
-            ver, _OPIK_MIN_MAJOR,
-        )
-
-
-class OpikBackend(TracingBackend):
-    """Opik tracing backend — follows icml2026 verified patterns.
-
-    Relies on ``~/.opik.config`` for workspace/url configuration.
-    Does NOT call ``opik.configure()`` to avoid config conflicts.
-
-    Set these in ``~/.opik.config``::
-
-        [opik]
-        url_override = https://www.comet.com/opik/api/
-        workspace = your_workspace
-        api_key = your_api_key
-
-    Or via env vars: ``OPIK_API_KEY``, ``OPIK_PROJECT_NAME``.
-    """
-
-    def __init__(
-        self,
-        *,
-        url: Optional[str] = None,
-        workspace: Optional[str] = None,
-        project_name: Optional[str] = None,
-        api_key: Optional[str] = None,
-        mode: Optional[str] = None,
-    ) -> None:
-        try:
-            import opik as _opik
-            self._opik = _opik
-        except ImportError:
-            raise ImportError("OpikBackend requires opik: pip install opik")
-        _warn_opik_version_once(self._opik)
-
-        self._url = url or os.getenv("OPIK_URL_OVERRIDE", "") or os.getenv("OPIK_URL", "")
-        self._workspace = workspace or os.getenv("OPIK_WORKSPACE", "")
-        self._project = project_name or os.getenv("OPIK_PROJECT_NAME", "seocho-sdk")
-        self._api_key = api_key or os.getenv("OPIK_API_KEY", "")
-        self._mode = str(
-            mode
-            or os.getenv(TRACE_OPIK_MODE_ENV, "")
-            or ("self_host" if self._url else "hosted")
-        ).strip().lower()
-
-        # Set env vars so the SDK client can resolve hosted vs self-hosted config
-        if self._url:
-            os.environ["OPIK_URL_OVERRIDE"] = self._url
-        if self._workspace:
-            os.environ["OPIK_WORKSPACE"] = self._workspace
-        os.environ["OPIK_PROJECT_NAME"] = self._project
-        if self._api_key:
-            os.environ["OPIK_API_KEY"] = self._api_key
-
-        try:
-            self._client = self._opik.Opik(project_name=self._project)
-            self._init_error: Optional[str] = None
-        except Exception as exc:
-            logger.warning("Opik client init failed: %s", exc)
-            self._client = None
-            self._init_error = f"{type(exc).__name__}: {exc}"
-
-    def log_span(
-        self,
-        name: str,
-        *,
-        input_data: Optional[Dict[str, Any]] = None,
-        output_data: Optional[Dict[str, Any]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-        tags: Optional[List[str]] = None,
-    ) -> None:
-        if self._client is None:
-            return
-        try:
-            # Pass end_time in the single create call instead of calling
-            # trace.end() right after creation. With opik's batched message
-            # manager (SDK >= 2.0), create-then-immediate-end() races and the
-            # create payload (name/tags/metadata) is silently dropped — the
-            # trace lands with all fields null. See:
-            # https://www.comet.com/docs/opik/tracing/batching_and_updates
-            self._client.trace(
-                name=name,
-                input=input_data or {},
-                output=output_data or {},
-                metadata=metadata or {},
-                tags=tags or [],
-                end_time=datetime.now(timezone.utc),
-            )
-        except Exception as exc:
-            logger.debug("Opik trace failed: %s", exc)
-
-    def flush(self) -> None:
-        """Flush pending traces to Opik cloud."""
-        if self._client is None:
-            return
-        try:
-            self._client.flush()
-        except Exception:
-            pass
-
-    def close(self) -> None:
-        self.flush()
-
 
 class JSONLBackend(TracingBackend):
     """Write traces as JSON lines to a file. No dependencies needed."""
@@ -345,8 +212,8 @@ def _flatten_attributes(
 class OTLPBackend(TracingBackend):
     """Export spans over OTLP gRPC to an OpenTelemetry Collector (ADR-0144).
 
-    The lightweight local alternative to self-hosted Opik: spans flow to a
-    Collector and on to Tempo (traces) / Prometheus (metrics) / Grafana. Opik
+    The vendor-neutral default: spans flow to a Collector and on to
+    Tempo (traces) / Prometheus (metrics) / Grafana. A hosted SaaS backend
     stays the cloud team backend; both can run together via a backend list.
 
     Requires the OTel SDK + OTLP exporter::
@@ -539,7 +406,6 @@ class OTLPBackend(TracingBackend):
 # ======================================================================
 
 _BACKEND_MAP = {
-    "opik": OpikBackend,
     "jsonl": JSONLBackend,
     "console": ConsoleBackend,
     "otlp": OTLPBackend,
@@ -584,7 +450,7 @@ def tracing_degraded_reasons() -> List[str]:
     """
     reasons: List[str] = []
     for backend, name in zip(_BACKENDS, _BACKEND_NAMES):
-        # OpikBackend exposes _init_error; other backends don't (currently) fail init silently.
+        # Some backends expose _init_error; others don't (currently) fail init silently.
         init_error = getattr(backend, "_init_error", None)
         if init_error:
             reasons.append(f"{name}: {init_error}")
@@ -600,7 +466,7 @@ def configure_tracing_from_env() -> bool:
     """Enable tracing from the repository's env contract.
 
     Supported values for ``SEOCHO_TRACE_BACKEND``:
-    ``none | console | jsonl | opik | otlp``.
+    ``none | console | jsonl | otlp``.
     """
     backend_name = str(os.getenv(TRACE_BACKEND_ENV, "none") or "none").strip().lower()
     if backend_name not in _VALID_BACKEND_NAMES:
@@ -620,11 +486,6 @@ def configure_tracing_from_env() -> bool:
     return enable_tracing(
         backend=backend_name,
         output=os.getenv(TRACE_JSONL_PATH_ENV) or "./traces/seocho.jsonl",
-        url=os.getenv("OPIK_URL_OVERRIDE", "") or os.getenv("OPIK_URL", ""),
-        workspace=os.getenv("OPIK_WORKSPACE", ""),
-        project_name=os.getenv("OPIK_PROJECT_NAME", ""),
-        api_key=os.getenv("OPIK_API_KEY", ""),
-        opik_mode=os.getenv(TRACE_OPIK_MODE_ENV, "") or None,
     )
 
 
@@ -632,11 +493,6 @@ def enable_tracing(
     *,
     backend: Union[str, TracingBackend, List[Union[str, TracingBackend]]] = "console",
     output: Optional[str] = None,
-    url: Optional[str] = None,
-    workspace: Optional[str] = None,
-    project_name: Optional[str] = None,
-    api_key: Optional[str] = None,
-    opik_mode: Optional[str] = None,
     endpoint: Optional[str] = None,
     service_name: Optional[str] = None,
 ) -> bool:
@@ -647,17 +503,12 @@ def enable_tracing(
     backend:
         Backend name(s) or instance(s):
         - ``"none"`` — disable tracing
-        - ``"opik"`` — Opik hosted/self-hosted
         - ``"jsonl"`` — raw JSON lines file
         - ``"console"`` — stdout
         - ``TracingBackend`` instance — custom
         - list of above — multiple backends
     output:
         File path for JSONL backend.
-    url, workspace, project_name:
-        Opik-specific configuration.
-    opik_mode:
-        ``"hosted"`` or ``"self_host"``. Used only for the Opik backend.
     endpoint, service_name:
         OTLP collector endpoint and OTel service name. Environment defaults are
         used when omitted.
@@ -682,14 +533,7 @@ def enable_tracing(
 
         if isinstance(b, str):
             try:
-                if b == "opik":
-                    new_backends.append(OpikBackend(
-                        url=url, workspace=workspace,
-                        project_name=project_name, api_key=api_key,
-                        mode=opik_mode,
-                    ))
-                    active_backend_names.append("opik")
-                elif b == "jsonl":
+                if b == "jsonl":
                     new_backends.append(JSONLBackend(output=output or "./traces/seocho.jsonl"))
                     active_backend_names.append("jsonl")
                 elif b == "console":
@@ -723,13 +567,6 @@ def flush_tracing() -> None:
                 b.flush()
             except Exception:
                 pass
-    if is_backend_enabled("opik"):
-        try:
-            import opik
-
-            opik.flush_tracker()
-        except Exception:
-            pass
 
 
 def disable_tracing() -> None:
@@ -883,7 +720,7 @@ def start_span(
 
     Backends exposing ``open_span``/``close_span`` (OTLP) get real nested spans
     via the OTel context, so an ``ask()`` lands as a tree in Tempo. Flat
-    backends (JSONL, console, Opik) receive one record at span close, carrying
+    backends (JSONL, console, OTLP) receive one record at span close, carrying
     ``span_id`` / ``parent_span_id`` / ``trace_id`` / ``duration_ms`` so the
     tree is reconstructable offline.
 
@@ -1101,7 +938,7 @@ class SessionTrace:
     """A session-level parent trace that groups operations.
 
     All spans logged within a session are children of this trace,
-    giving a single workflow view in Opik / JSONL.
+    giving a single workflow view in the JSONL and OTLP backends.
     """
 
     def __init__(self, session_id: str, name: str = "") -> None:
@@ -1109,21 +946,6 @@ class SessionTrace:
         self.name = name or f"session:{session_id}"
         self._spans: List[Dict[str, Any]] = []
         self._start_time = datetime.now(timezone.utc)
-        self._opik_trace: Any = None
-
-        # Start Opik parent trace if backend is active
-        for b in _BACKENDS:
-            if isinstance(b, OpikBackend) and b._client is not None:
-                try:
-                    self._opik_trace = b._client.trace(
-                        name=self.name,
-                        input={"session_id": session_id},
-                        metadata={"session": True},
-                        tags=["session"],
-                    )
-                except Exception as exc:
-                    logger.debug("Opik session trace start failed: %s", exc)
-                break
 
     def log_span(
         self,
@@ -1146,20 +968,7 @@ class SessionTrace:
         }
         self._spans.append(record)
 
-        # Log to Opik as child span
-        if self._opik_trace is not None:
-            try:
-                self._opik_trace.span(
-                    name=name,
-                    input=input_data or {},
-                    output=output_data or {},
-                    metadata=metadata or {},
-                    tags=tags or [],
-                )
-            except Exception:
-                pass
-
-        # Also log to all backends
+        # Fan out to all backends
         enriched_meta = {**(metadata or {}), "session_id": self.session_id}
         log_span(name, input_data=input_data, output_data=output_data,
                  metadata=enriched_meta, tags=tags)
@@ -1174,16 +983,6 @@ class SessionTrace:
             "total_spans": len(self._spans),
             "elapsed_seconds": round(elapsed, 2),
         }
-
-        # End Opik parent trace
-        if self._opik_trace is not None:
-            try:
-                self._opik_trace.end(
-                    output=summary,
-                    metadata={"elapsed_seconds": round(elapsed, 2)},
-                )
-            except Exception:
-                pass
 
         log_span(
             "sdk.session.end",
@@ -1202,7 +1001,7 @@ def begin_session(session_id: str, name: str = "") -> SessionTrace:
     """Start a new session-level trace.
 
     Returns a SessionTrace that groups all subsequent operations
-    into a single parent trace in Opik.
+    into a single parent trace.
     """
     trace = SessionTrace(session_id, name)
     log_span(

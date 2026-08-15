@@ -173,61 +173,25 @@ def test_agents_sdk_helpers_build_model_provider_and_run_config(
     assert run_config.model.model == "kimi-k2.5"
 
 
-def test_openai_clients_are_not_opik_wrapped_without_explicit_backend(
+def test_openai_clients_are_never_wrapped_by_a_third_party_tracer(
     fake_openai: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls = []
+    """The client handed to callers must be the OpenAI client, unwrapped.
 
-    opik_module = ModuleType("opik")
-    integrations_module = ModuleType("opik.integrations")
-    openai_integration_module = ModuleType("opik.integrations.openai")
+    Until ADR-0166 the backend wrapped it in Opik's `track_openai` whenever the
+    opik tracing backend was on, which quietly routed every prompt and
+    completion to a third party. Opik is gone; this pins the general rule that
+    replaced it, so a future integration cannot reintroduce silent wrapping
+    without failing here.
+    """
+    import openai as openai_module
 
-    def track_openai(client):
-        calls.append(client)
-        return client
-
-    openai_integration_module.track_openai = track_openai
-    monkeypatch.setitem(sys.modules, "opik", opik_module)
-    monkeypatch.setitem(sys.modules, "opik.integrations", integrations_module)
-    monkeypatch.setitem(sys.modules, "opik.integrations.openai", openai_integration_module)
     monkeypatch.setenv("OPENAI_API_KEY", "openai-secret")
+    backend = create_llm_backend(provider="openai", model="gpt-4o-mini")
 
-    create_llm_backend(provider="openai")
-
-    assert calls == []
-
-
-def test_openai_clients_are_wrapped_only_when_opik_backend_is_enabled(
-    fake_openai: None,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls = []
-
-    opik_module = ModuleType("opik")
-    integrations_module = ModuleType("opik.integrations")
-    openai_integration_module = ModuleType("opik.integrations.openai")
-
-    def track_openai(client):
-        client.opik_wrapped = True
-        calls.append(client)
-        return client
-
-    openai_integration_module.track_openai = track_openai
-    monkeypatch.setitem(sys.modules, "opik", opik_module)
-    monkeypatch.setitem(sys.modules, "opik.integrations", integrations_module)
-    monkeypatch.setitem(sys.modules, "opik.integrations.openai", openai_integration_module)
-    monkeypatch.setenv("OPENAI_API_KEY", "openai-secret")
-
-    import seocho.tracing as tracing
-
-    monkeypatch.setattr(tracing, "is_backend_enabled", lambda name: name == "opik")
-
-    backend = create_llm_backend(provider="openai")
-
-    assert len(calls) == 2
-    assert getattr(backend._client, "opik_wrapped", False) is True
-    assert getattr(backend._async_client, "opik_wrapped", False) is True
+    assert type(backend._client) is openai_module.OpenAI
+    assert type(backend._async_client) is openai_module.AsyncOpenAI
 
 
 def test_openai_reasoning_model_uses_max_completion_tokens(

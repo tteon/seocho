@@ -129,7 +129,6 @@ def build_parser() -> argparse.ArgumentParser:
 
     serve_parser = subparsers.add_parser("serve", help="Start the local SEOCHO docker stack")
     serve_parser.add_argument("--project-dir", default=None, help="Repository root containing docker-compose.yml")
-    serve_parser.add_argument("--opik", action="store_true", help="Start optional Opik services too")
     serve_parser.add_argument("--build", action="store_true", help="Rebuild images before starting")
     serve_parser.add_argument("--no-wait", action="store_true", help="Return after docker compose starts")
     serve_parser.add_argument("--timeout", type=float, default=90.0, help="Readiness wait timeout in seconds")
@@ -731,7 +730,6 @@ def _dispatch(client: Optional[Seocho], args: argparse.Namespace) -> int:
     if args.command == "serve":
         status = serve_local_runtime(
             project_dir=args.project_dir,
-            with_opik=args.opik,
             build=args.build,
             wait=not args.no_wait,
             timeout=args.timeout,

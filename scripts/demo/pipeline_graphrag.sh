@@ -8,7 +8,7 @@ source "${SCRIPT_DIR}/_common.sh"
 usage() {
   cat <<'USAGE'
 Usage:
-  scripts/demo/pipeline_graphrag_opik.sh [options]
+  scripts/demo/pipeline_graphrag.sh [options]
 
 Options:
   --workspace <id>      Workspace ID (default: default)
@@ -16,7 +16,6 @@ Options:
   --api-port <port>     Extraction API port (default: 8001)
   --chat-port <port>    Chat API port (default: 8501)
   --output-dir <path>   Output directory (default: /tmp/seocho_beginner_demo)
-  --allow-no-opik       Do not fail when Opik profile is not running
   --skip-wait           Skip API readiness wait
   -h, --help            Show this help
 USAGE
@@ -25,7 +24,6 @@ USAGE
 workspace_id="default"
 target_db="kgdemo_graphrag"
 output_dir="${DEMO_OUTPUT_DIR:-/tmp/seocho_beginner_demo}"
-allow_no_opik=false
 skip_wait=false
 
 while [[ $# -gt 0 ]]; do
@@ -49,10 +47,6 @@ while [[ $# -gt 0 ]]; do
     --output-dir)
       output_dir="$2"
       shift 2
-      ;;
-    --allow-no-opik)
-      allow_no_opik=true
-      shift
       ;;
     --skip-wait)
       skip_wait=true
@@ -79,7 +73,7 @@ if [[ "${skip_wait}" != "true" ]]; then
   ensure_chat_ready
 fi
 
-log "running GraphRAG + Opik demo (workspace=${workspace_id}, db=${target_db})"
+log "running GraphRAG demo (workspace=${workspace_id}, db=${target_db})"
 
 ingest_payload="$({
   jq -n \
@@ -208,32 +202,6 @@ else
 fi
 rm -f "${debate_tmp}"
 
-opik_backend_running=false
-opik_ui_reachable=false
-extraction_opik_configured=false
-extraction_opik_url=""
-
-if docker ps --format '{{.Names}}' | grep -Fxq "opik-backend"; then
-  opik_backend_running=true
-fi
-if curl -fsS "http://localhost:5173" >/dev/null 2>&1; then
-  opik_ui_reachable=true
-fi
-if docker ps --format '{{.Names}}' | grep -Fxq "extraction-service"; then
-  extraction_opik_url="$(docker exec extraction-service sh -lc 'printf "%s" "${OPIK_URL_OVERRIDE:-}"' 2>/dev/null || true)"
-  if [[ -n "${extraction_opik_url}" ]]; then
-    extraction_opik_configured=true
-  fi
-fi
-
-if [[ "${allow_no_opik}" != "true" ]]; then
-  if [[ "${opik_backend_running}" != "true" || "${opik_ui_reachable}" != "true" || "${extraction_opik_configured}" != "true" ]]; then
-    err "opik checks failed (backend=${opik_backend_running}, ui=${opik_ui_reachable}, extraction_configured=${extraction_opik_configured})"
-    err "start with 'make opik-up' and ensure OPIK_URL is configured in .env"
-    exit 1
-  fi
-fi
-
 summary_payload="$({
   jq -n \
     --arg workspace_id "${workspace_id}" \
@@ -244,11 +212,7 @@ summary_payload="$({
     --argjson debate_chat_result "${debate_response}" \
     --arg debate_http_code "${debate_http_code}" \
     --arg debate_status "${debate_status}" \
-    --arg extraction_opik_url "${extraction_opik_url}" \
     --argjson strict_debate "${strict_debate}" \
-    --argjson opik_backend_running "${opik_backend_running}" \
-    --argjson opik_ui_reachable "${opik_ui_reachable}" \
-    --argjson extraction_opik_configured "${extraction_opik_configured}" \
     '{
       workspace_id: $workspace_id,
       database: $database,
@@ -260,18 +224,11 @@ summary_payload="$({
         strict_mode: $strict_debate,
         http_code: $debate_http_code,
         response: $debate_chat_result
-      },
-      opik_checks: {
-        backend_running: $opik_backend_running,
-        ui_reachable: $opik_ui_reachable,
-        extraction_configured: $extraction_opik_configured,
-        extraction_opik_url: $extraction_opik_url
       }
     }'
 })"
 
-output_path="${output_dir}/04_graphrag_with_opik.json"
+output_path="${output_dir}/04_graphrag.json"
 write_json_output "${output_path}" "${summary_payload}"
 
 log "GraphRAG demo complete."
-log "if Opik is enabled, inspect traces at http://localhost:5173 (project: seocho)."

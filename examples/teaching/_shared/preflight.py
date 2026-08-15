@@ -5,7 +5,7 @@ Run BEFORE chapter-00-setup.ipynb to validate the environment:
     python -m _shared.preflight
 
 Outputs a 4-row table:
-    [Providers]  [Opik]  [FinDER]  [Neo4j]
+    [Providers]  [Tracing]  [FinDER]  [Neo4j]
 
 Each row is OK / WARN / FAIL with a one-line hint. Exit code is non-zero if
 any row is FAIL (so this can also gate CI / shell scripts).
@@ -75,44 +75,27 @@ def check_providers() -> CheckResult:
     )
 
 
-def check_opik() -> CheckResult:
-    """Verify Opik can construct a client with the current env."""
-    user = os.getenv("OPIK_USER", "").strip()
-    workspace = os.getenv("OPIK_WORKSPACE", "seocho").strip()
-    api_key = os.getenv("OPIK_API_KEY", "").strip()
+def check_tracing() -> CheckResult:
+    """Confirm chapter traces have somewhere to land.
 
-    if not user:
-        return CheckResult(
-            "Opik",
-            "WARN",
-            f"workspace={workspace}, user=<unset>",
-            hint="Set OPIK_USER (e.g. OPIK_USER=hardy) so chapter notebooks create "
-            "'teaching-ch{N}-{user}' projects scoped to you.",
-        )
-
-    if not api_key:
-        return CheckResult(
-            "Opik",
-            "WARN",
-            f"workspace={workspace}, user={user}, api_key=<unset>",
-            hint="JSONL fallback only. Set OPIK_API_KEY to push traces to comet.com.",
-        )
-
+    Since `ADR-0166` there is no vendor backend and no API key to check: traces
+    go to a local JSONL file, so the only thing that can fail is the directory
+    not being writable.
+    """
+    directory = Path(os.environ.get("TEACHING_TRACE_DIR", "./traces"))
     try:
-        import opik  # noqa: F401
-    except ImportError:
+        directory.mkdir(parents=True, exist_ok=True)
+        probe = directory / ".preflight"
+        probe.write_text("", encoding="utf-8")
+        probe.unlink()
+    except OSError as exc:
         return CheckResult(
-            "Opik",
+            "Tracing",
             "FAIL",
-            "opik package not installed",
-            hint="pip install opik",
+            f"{directory} not writable: {type(exc).__name__}",
+            hint="Set TEACHING_TRACE_DIR to a writable path.",
         )
-
-    return CheckResult(
-        "Opik",
-        "OK",
-        f"workspace={workspace}, user={user}, sdk installed, api_key set",
-    )
+    return CheckResult("Tracing", "OK", f"jsonl -> {directory}/chapter_NN.jsonl")
 
 
 def check_finder(refresh: bool = False) -> CheckResult:
@@ -257,7 +240,7 @@ def run(*, refresh_finder: bool = False, color: bool = True) -> int:
     _load_env()
     results = [
         check_providers(),
-        check_opik(),
+        check_tracing(),
         check_finder(refresh=refresh_finder),
         check_neo4j(),
     ]

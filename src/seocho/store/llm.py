@@ -152,25 +152,6 @@ def _resolve_client_kwargs(
     return spec, kwargs, resolved_api_key, resolved_base_url
 
 
-def _wrap_with_opik(client: Any) -> Any:
-    try:
-        from ..tracing import is_backend_enabled
-
-        if not is_backend_enabled("opik"):
-            return client
-    except Exception:
-        return client
-
-    try:
-        from opik.integrations.openai import track_openai
-
-        return track_openai(client)
-    except ImportError:
-        return client
-    except Exception:
-        return client
-
-
 @dataclass(slots=True)
 class LLMResponse:
     """Structured response from an LLM call."""
@@ -457,8 +438,8 @@ class OpenAICompatibleBackend(LLMBackend):
             base_url=base_url,
             timeout=timeout,
         )
-        client = _wrap_with_opik(openai.OpenAI(**kwargs))
-        async_client = _wrap_with_opik(openai.AsyncOpenAI(**kwargs))
+        client = openai.OpenAI(**kwargs)
+        async_client = openai.AsyncOpenAI(**kwargs)
 
         self.provider = spec.name
         self.provider_spec = spec
@@ -1209,7 +1190,7 @@ class OpenAICompatibleEmbeddingBackend(EmbeddingBackend):
         self._api_key_env = spec.api_key_env
         self._base_url = resolved_base_url
         self._timeout = timeout
-        self._client = _wrap_with_opik(openai.OpenAI(**kwargs))
+        self._client = openai.OpenAI(**kwargs)
 
     def embed(
         self,

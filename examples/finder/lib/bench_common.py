@@ -9,16 +9,12 @@ Designed to be imported as ``from examples.finder.lib import bench_common``.
 """
 from __future__ import annotations
 
-import contextlib
-import dataclasses
 import hashlib
 import json
 import os
 import random
-import re
 import shutil
 import sys
-import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable, Mapping, Sequence
@@ -105,61 +101,6 @@ def set_global_determinism(seed: int = 42) -> None:
 # ---------------------------------------------------------------------------
 
 # Cache to avoid repeated REST calls.
-_OPIK_WORKSPACES_CACHE: list[str] | None = None
-
-
-def _fetch_opik_workspaces() -> list[str]:
-    """Best-effort list of available Opik workspaces via REST.
-
-    Falls back to a small verified set if the API call fails (offline mode).
-    """
-    global _OPIK_WORKSPACES_CACHE
-    if _OPIK_WORKSPACES_CACHE is not None:
-        return _OPIK_WORKSPACES_CACHE
-    api_key = os.environ.get("OPIK_API_KEY")
-    if not api_key:
-        _OPIK_WORKSPACES_CACHE = []
-        return _OPIK_WORKSPACES_CACHE
-    try:
-        import urllib.request
-        req = urllib.request.Request(
-            "https://www.comet.com/api/rest/v2/workspaces",
-            headers={"Authorization": api_key},
-        )
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            data = json.loads(resp.read().decode("utf-8") or "{}")
-        names = list(data.get("workspaceNames") or [])
-        _OPIK_WORKSPACES_CACHE = names
-        return names
-    except Exception:
-        # Conservative fallback derived from prior session verification
-        _OPIK_WORKSPACES_CACHE = ["seocho", "tteon"]
-        return _OPIK_WORKSPACES_CACHE
-
-
-def alias_opik_project(*, verbose: bool = False) -> None:
-    """Normalize Opik env variable naming and detect workspace/project swap.
-
-    SEOCHO ``seocho.tracing.configure_tracing_from_env`` reads
-    ``OPIK_PROJECT_NAME``; users frequently write ``OPIK_PROJECT`` instead.
-    Additionally users sometimes swap the workspace and project values — when
-    the workspace is not in the verified set but the project is, we swap.
-    """
-    if not os.environ.get("OPIK_PROJECT_NAME") and os.environ.get("OPIK_PROJECT"):
-        os.environ["OPIK_PROJECT_NAME"] = os.environ["OPIK_PROJECT"]
-    ws = os.environ.get("OPIK_WORKSPACE", "")
-    pj = os.environ.get("OPIK_PROJECT_NAME", "")
-    verified = set(_fetch_opik_workspaces())
-    if ws and verified and ws not in verified and pj in verified:
-        if verbose:
-            print(f"[opik] swapping mis-matched workspace/project: {ws!r} ↔ {pj!r}", flush=True)
-        os.environ["OPIK_WORKSPACE"] = pj
-        os.environ["OPIK_PROJECT_NAME"] = ws
-
-
-# ---------------------------------------------------------------------------
-# Neo4j user case normalization (CLAUDE.md §8 — DB safety)
-# ---------------------------------------------------------------------------
 
 def normalize_neo4j_user() -> None:
     """Lower-case NEO4J_USER (Neo4j default account is lowercase).
@@ -364,7 +305,7 @@ def atomic_write_json(path: Path | str, payload, *, indent: int = 2) -> Path:
 # Trace tagging helpers
 # ---------------------------------------------------------------------------
 
-def opik_tags(
+def trace_tags(
     *,
     llm_spec: str,
     dataset_index: str,
@@ -511,48 +452,35 @@ def stratified_sample(df, *, fraction: float, slice_col: str = "slice", seed: in
     return pd.concat(parts, ignore_index=True)
 
 
-def set_opik_trace_metadata(*, name: str, tags: Sequence[str], metadata: Mapping[str, object] | None = None) -> None:
-    """Best-effort: update the current Opik trace if one is active."""
-    try:
-        from opik import opik_context  # type: ignore
-        opik_context.update_current_trace(name=name, tags=list(tags), metadata=dict(metadata or {}))
-    except Exception:
-        pass
+# ---------------------------------------------------------------------------
+# Tracing seams
+# ---------------------------------------------------------------------------
+#
+# Until `ADR-0166` these forwarded to Opik: `run_traced` wrapped the call in
+# Opik's ``@track``, and the two setters pushed metadata and feedback scores
+# onto the current Opik trace. Opik is gone and nothing replaced it at the
+# benchmark layer, so the arguments are accepted and ignored.
+#
+# They are kept rather than deleted because the call sites are the only place
+# that records WHAT each benchmark run is measuring — the tag set, the four
+# core meta axes, the judge scores. Deleting them would delete that labelling
+# along with the exporter. A future tracer has exactly three places to hook.
 
 
-def set_opik_feedback_scores(scores: Mapping[str, object]) -> None:
-    """Attach numeric feedback scores to the CURRENT Opik trace.
-
-    Feedback scores (not tags) are what the Opik UI renders as sortable,
-    chartable columns — this is what makes vector vs graph vs hybrid trivially
-    comparable. Call from inside a run_under_opik_track work_fn.
-    """
-    try:
-        from opik import opik_context  # type: ignore
-        fs = [{"name": k, "value": float(v)} for k, v in scores.items() if v is not None]
-        if fs:
-            opik_context.update_current_trace(feedback_scores=fs)
-    except Exception:
-        pass
+def run_traced(name: str, tags: Sequence[str], metadata: Mapping[str, object], work_fn):
+    """Execute ``work_fn``. The name/tags/metadata describe the run; nothing exports them."""
+    return work_fn()
 
 
-def run_under_opik_track(name: str, tags: Sequence[str], metadata: Mapping[str, object], work_fn):
-    """Execute ``work_fn`` inside an explicit Opik @track context.
+def set_trace_metadata(*, name: str, tags: Sequence[str],
+                       metadata: Mapping[str, object] | None = None) -> None:
+    """Retained no-op seam."""
+    return None
 
-    Falls back to direct execution if Opik isn't installed. Mirrors the
-    pattern previously inlined in benchmark scripts.
-    """
-    try:
-        from opik import track  # type: ignore
-    except Exception:
-        return work_fn()
-    decorated = track(
-        name=name,
-        tags=list(tags),
-        metadata=dict(metadata or {}),
-        project_name=os.environ.get("OPIK_PROJECT_NAME"),
-    )(work_fn)
-    return decorated()
+
+def set_feedback_scores(scores: Mapping[str, object]) -> None:
+    """Retained no-op seam. Scores still reach the run's JSON output separately."""
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -671,23 +599,6 @@ def _check_openai_ping(*, strict: bool) -> PreflightResult:
         return PreflightResult("openai_ping", ok=False, detail=f"{type(exc).__name__}: {str(exc)[:80]}", fatal=strict)
 
 
-def _check_opik(*, strict: bool) -> PreflightResult:
-    if not os.environ.get("OPIK_API_KEY"):
-        return PreflightResult("opik_workspace", ok=False, detail="OPIK_API_KEY missing", fatal=False)
-    workspaces = _fetch_opik_workspaces()
-    if not workspaces:
-        return PreflightResult("opik_workspace", ok=False, detail="REST workspaces fetch failed", fatal=False)
-    ws = os.environ.get("OPIK_WORKSPACE", "")
-    if ws and ws not in workspaces:
-        return PreflightResult(
-            "opik_workspace",
-            ok=False,
-            detail=f"{ws!r} not in {workspaces}",
-            fatal=False,
-        )
-    return PreflightResult("opik_workspace", ok=True, detail=f"{ws} ({len(workspaces)} workspaces)", fatal=False)
-
-
 def _check_neo4j(*, strict: bool) -> PreflightResult:
     uri = os.environ.get("NEO4J_URI") or os.environ.get("BOLT_URL")
     if not uri:
@@ -736,7 +647,6 @@ def preflight(
     require_moonshot: bool = True,
     require_openai_embed: bool = False,
     require_neo4j: bool = False,
-    require_opik: bool = False,
     require_slices: bool = True,
     require_xai: bool = False,
     require_deepseek: bool = False,
@@ -767,8 +677,6 @@ def preflight(
         report.append(_check_xai_ping(strict=strict))
     if require_deepseek:
         report.append(_check_deepseek_ping(strict=strict))
-    if require_opik:
-        report.append(_check_opik(strict=strict))
     if require_neo4j:
         report.append(_check_neo4j(strict=strict))
     if require_slices:
@@ -795,7 +703,6 @@ def bootstrap(
     4. Set global determinism (random/numpy)
     """
     report = load_env_files(env_files)
-    alias_opik_project(verbose=verbose)
     normalize_neo4j_user()
     set_global_determinism(seed)
     if verbose:

@@ -1,6 +1,6 @@
 """RouteProfile — route-conditional tool_policy + planner selection.
 
-Empirically motivated by the opik kdd2026/icml2026 traces:
+Empirically motivated by the kdd2026/icml2026 trace corpus:
 
 - kdd `semantic.route_profile` spans map each question to a
   (route_class, tool_policy, planner, determinism) tuple before execution

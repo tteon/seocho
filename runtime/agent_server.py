@@ -29,7 +29,7 @@ from extraction.exceptions import (
 from runtime.middleware import RequestIDMiddleware, RequestMetricsMiddleware
 from runtime.identity import PrincipalMiddleware
 from seocho.metrics import enable_metrics, get_metrics
-from extraction.tracing import configure_opik, track, update_current_span, update_current_trace
+from extraction.tracing import track, update_current_span, update_current_trace
 from runtime.policy import require_runtime_permission
 from seocho.runtime_contract import (
     DATABASE_NAME_PATTERN,
@@ -262,7 +262,6 @@ def _customer_query_metric(query_class: str):
 @app.on_event("startup")
 async def _startup():
     validate_config()
-    configure_opik()
     # ADR-0146 metrics registry. Env-gated: SEOCHO_METRICS_BACKEND=none (the
     # default) yields no-op instruments, so boot never depends on a collector.
     try:

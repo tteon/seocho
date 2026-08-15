@@ -71,11 +71,6 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - SEOCHO_TRACE_BACKEND=${SEOCHO_TRACE_BACKEND:-none}
       - SEOCHO_TRACE_JSONL_PATH=${SEOCHO_TRACE_JSONL_PATH:-/tmp/seocho-runtime.jsonl}
-      - SEOCHO_TRACE_OPIK_MODE=${SEOCHO_TRACE_OPIK_MODE:-self_host}
-      - OPIK_URL_OVERRIDE=${OPIK_URL:-}
-      - OPIK_WORKSPACE=${OPIK_WORKSPACE:-default}
-      - OPIK_PROJECT_NAME=${OPIK_PROJECT_NAME:-seocho}
-      - OPIK_API_KEY=${OPIK_API_KEY:-}
     depends_on:
       neo4j:
         condition: service_healthy

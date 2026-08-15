@@ -980,6 +980,13 @@ Each entry must link to a full ADR when impact is non-trivial.
   - properly_scoped control passes both arms (3 acme rows, 0 leak) => gate blocks attacks without over-blocking
   - first Level-2 ablation row measured; validates shipped defense-in-depth (per-workspace-DB endgame would make it structural)
 
+## 2026-08-15 (ablation A4+A5)
+
+- [Accepted] ADR-0165 ablation-a4-a5 (resources + execution honesty)
+  - A4 budget (seocho-4rb): OFF spends 32000/40 turns unbounded; ON halts turn 13 at 10400, overshoot 400 (< one turn) — structured stop
+  - A5 honesty (seocho-2ay): over-cap disclosure ON=1.0 (truncated flag always) vs OFF=0.0 (silent, partial looks complete)
+  - Level-2 rows A1-A5 now measured; A6=seocho-xju, L1 integrated=seocho-41a next
+
 ## Template
 
 Use this block for new entries:

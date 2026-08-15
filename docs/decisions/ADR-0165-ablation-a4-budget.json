@@ -1,0 +1,21 @@
+{
+  "turns": 40,
+  "per_turn": 800,
+  "cap": 10000,
+  "off": {
+    "budget": 0,
+    "halted": false,
+    "halted_at_turn": null,
+    "turns_run": 40,
+    "tokens_spent": 32000,
+    "overshoot": null
+  },
+  "on": {
+    "budget": 10000,
+    "halted": true,
+    "halted_at_turn": 13,
+    "turns_run": 13,
+    "tokens_spent": 10400,
+    "overshoot": 400
+  }
+}

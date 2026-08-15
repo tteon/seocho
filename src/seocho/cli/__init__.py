@@ -1768,5 +1768,15 @@ register_group(
     )
 )
 
+from . import ont as _ont_group  # noqa: E402
+
+register_group(
+    CommandGroup(
+        name="ont",
+        register=_ont_group.register,
+        handle=_ont_group.handle,
+    )
+)
+
 if __name__ == "__main__":
     raise SystemExit(main())

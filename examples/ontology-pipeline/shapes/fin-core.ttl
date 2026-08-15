@@ -1,0 +1,60 @@
+@prefix brick: <https://brickschema.org/schema/Brick#> .
+@prefix csvw: <http://www.w3.org/ns/csvw#> .
+@prefix dc: <http://purl.org/dc/elements/1.1/> .
+@prefix dcam: <http://purl.org/dc/dcam/> .
+@prefix dcat: <http://www.w3.org/ns/dcat#> .
+@prefix dcmitype: <http://purl.org/dc/dcmitype/> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix doap: <http://usefulinc.com/ns/doap#> .
+@prefix fin: <https://seocho.dev/shapes/fin#> .
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .
+@prefix geo: <http://www.opengis.net/ont/geosparql#> .
+@prefix odrl: <http://www.w3.org/ns/odrl/2/> .
+@prefix org: <http://www.w3.org/ns/org#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix prof: <http://www.w3.org/ns/dx/prof/> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix qb: <http://purl.org/linked-data/cube#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix schema: <https://schema.org/> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix sosa: <http://www.w3.org/ns/sosa/> .
+@prefix ssn: <http://www.w3.org/ns/ssn/> .
+@prefix time: <http://www.w3.org/2006/time#> .
+@prefix vann: <http://purl.org/vocab/vann/> .
+@prefix void: <http://rdfs.org/ns/void#> .
+@prefix wgs: <https://www.w3.org/2003/01/geo/wgs84_pos#> .
+@prefix xml: <http://www.w3.org/XML/1998/namespace> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+_:cb1106edcd723b8052bf4ded2718ab522f2d1df6aa1faaf3d039598f420ae406af5 sh:class fin:Account ;
+    sh:path fin:transfersTo .
+
+_:cb1709033ba40ad582d28b0ea2ae5188374fa7d5e7b4246b49a44711bd18c511367 sh:datatype xsd:string ;
+    sh:path fin:name .
+
+_:cb1bc195bd8e4ebd3e57a9e23c24fcc93a6d85023f5a839566de0fc7b98d3d2f888 sh:datatype xsd:date ;
+    sh:path fin:open_date .
+
+_:cb1bef65b32b0b1cdcd0420112d51064fd207767942bddeb4f35f2dbec5bb3b391e sh:datatype xsd:string ;
+    sh:path fin:country .
+
+_:cb1d4d7a178f94a7d9f01d91ab45c207e4a1da33e3af9b20dd236ae0e79b570c66d sh:datatype xsd:integer ;
+    sh:path fin:acct_no .
+
+_:cbc4b4668affc6c51fcf777920c795aa5a86001a22830805188b963cc84cdeee5f sh:class fin:Account ;
+    sh:path fin:owns .
+
+fin:AccountShape rdf:type sh:NodeShape ;
+    sh:property _:cb1106edcd723b8052bf4ded2718ab522f2d1df6aa1faaf3d039598f420ae406af5 ;
+    sh:property _:cb1bc195bd8e4ebd3e57a9e23c24fcc93a6d85023f5a839566de0fc7b98d3d2f888 ;
+    sh:property _:cb1d4d7a178f94a7d9f01d91ab45c207e4a1da33e3af9b20dd236ae0e79b570c66d ;
+    sh:targetClass fin:Account .
+
+fin:CompanyShape rdf:type sh:NodeShape ;
+    sh:property _:cb1709033ba40ad582d28b0ea2ae5188374fa7d5e7b4246b49a44711bd18c511367 ;
+    sh:property _:cb1bef65b32b0b1cdcd0420112d51064fd207767942bddeb4f35f2dbec5bb3b391e ;
+    sh:property _:cbc4b4668affc6c51fcf777920c795aa5a86001a22830805188b963cc84cdeee5f ;
+    sh:targetClass fin:Company .

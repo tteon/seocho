@@ -1,12 +1,30 @@
 from __future__ import annotations
 
+import contextvars
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from time import perf_counter
-from typing import Callable, Dict, Iterator, TypeVar
+from typing import Any, Callable, ContextManager, Dict, Iterator, Optional, TypeVar
 
 
 F = TypeVar("F", bound=Callable)
+
+# Name of the pipeline stage currently executing. Every stage in the retrieval
+# pipeline passes through ``StageTimer.stage``, so setting it there covers the
+# traced and untraced stages alike without touching each call site.
+#
+# Deliberately independent of tracing: ``tracing.start_span`` returns a no-op
+# span and never pushes its stack when no backend is configured, and its stack
+# holds ``(trace_id, span_id)`` rather than names — so it cannot answer "which
+# stage is running" even when tracing is on.
+_stage_var: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "seocho_pipeline_stage", default=""
+)
+
+
+def current_stage() -> str:
+    """Name of the innermost active pipeline stage, or "" outside one."""
+    return _stage_var.get()
 
 
 @dataclass
@@ -19,9 +37,16 @@ class StageTimer:
     @contextmanager
     def stage(self, name: str) -> Iterator[None]:
         started = perf_counter()
+        token = _stage_var.set(name)
         try:
             yield
         finally:
+            try:
+                _stage_var.reset(token)
+            except ValueError:
+                # Reset across a context boundary (e.g. a stage opened in one
+                # task and closed in another). Timing is still recorded.
+                pass
             self.record(name, (perf_counter() - started) * 1000.0)
 
     def record(self, name: str, elapsed_ms: float) -> None:
@@ -48,4 +73,93 @@ def timed_stage(timer: StageTimer, name: str) -> Callable[[F], F]:
     return decorator
 
 
-__all__ = ["StageTimer", "timed_stage"]
+# --- LLM call observation -------------------------------------------------
+#
+# An out-of-tree instrument (the serve-track KV rig) needs to know the wall-clock
+# extent of every LLM call and which stage issued it, because vLLM's KV-cache
+# events carry no request id and cannot otherwise be attributed. Rather than
+# have the SDK depend on that rig, it exposes this seam and the rig installs
+# itself into it.
+#
+# Opt-in is explicit — installing an observer is a function call, never an env
+# var or an import side effect. Nothing observes unless something asked to.
+
+_llm_call_observer: Optional[Callable[..., ContextManager[Any]]] = None
+
+
+def set_llm_call_observer(
+    observer: Optional[Callable[..., ContextManager[Any]]],
+) -> None:
+    """Install (or clear, with ``None``) an observer around every LLM call.
+
+    ``observer`` is called as a context-manager factory with keyword arguments
+    ``role``, ``model``, ``provider``, ``prompt_chars`` and ``prompt_sections``,
+    and should yield a handle the caller may stamp with provider-verbatim
+    ``usage``. ``WindowRecorder.record_step`` in the serve-track rig matches
+    this shape.
+    """
+    global _llm_call_observer
+    _llm_call_observer = observer
+
+
+def get_llm_call_observer() -> Optional[Callable[..., ContextManager[Any]]]:
+    return _llm_call_observer
+
+
+@contextmanager
+def observe_llm_call(
+    *,
+    role: str = "",
+    model: str = "",
+    provider: str = "",
+    prompt_chars: int = 0,
+    prompt_sections: Optional[Dict[str, int]] = None,
+) -> Iterator[Any]:
+    """Wrap one LLM call for the installed observer; a no-op when none is.
+
+    Observer failures never escape — instrumentation must not break a query.
+    Business exceptions do propagate, and the observer is told about them
+    first so a failed call still closes its window: a call that failed still
+    consumed cache, and dropping it would bias attribution.
+    """
+    observer = _llm_call_observer
+    if observer is None:
+        yield None
+        return
+
+    try:
+        manager = observer(
+            role=role or current_stage(),
+            model=model,
+            provider=provider,
+            prompt_chars=prompt_chars,
+            prompt_sections=dict(prompt_sections or {}),
+        )
+        handle = manager.__enter__()
+    except Exception:
+        yield None
+        return
+
+    try:
+        yield handle
+    except BaseException as exc:
+        try:
+            manager.__exit__(type(exc), exc, exc.__traceback__)
+        except Exception:
+            pass
+        raise
+    else:
+        try:
+            manager.__exit__(None, None, None)
+        except Exception:
+            pass
+
+
+__all__ = [
+    "StageTimer",
+    "timed_stage",
+    "current_stage",
+    "observe_llm_call",
+    "set_llm_call_observer",
+    "get_llm_call_observer",
+]

@@ -102,11 +102,25 @@ def _medium(event: Dict[str, Any]) -> str:
 
 
 def _cached_tokens(usage: Dict[str, Any]) -> Optional[int]:
+    """API-side cache signal, from either shape of the usage dict.
+
+    A raw OpenAI-compatible response nests it under ``prompt_tokens_details``;
+    SEOCHO's ``LLMResponse.usage`` flattens it to a top-level ``cached_tokens``.
+
+    The flattened form is lossy on purpose upstream — `_build_response` coerces
+    an absent field with ``int(cached_tokens or 0)`` — so a 0 arriving through
+    the SDK path means "zero *or* never reported". Only the nested form can say
+    "absent". This is why `prefix_reuse_rate` (block-derived) is the primary
+    signal on vLLM and this one is kept for the MARA rig.
+    """
     details = usage.get("prompt_tokens_details")
     if isinstance(details, dict):
         value = details.get("cached_tokens")
         if isinstance(value, int):
             return value
+    flattened = usage.get("cached_tokens")
+    if isinstance(flattened, int):
+        return flattened
     return None
 
 
@@ -133,7 +147,10 @@ def _stable_prefix_chars(section_maps: Iterable[Dict[str, int]]) -> int:
 
 def correlate(run_dir: Path) -> Dict[str, Any]:
     windows = _read_jsonl(run_dir / "kv_windows.jsonl")
-    events = _read_jsonl(run_dir / "kv_events.jsonl")
+    # A run without the ZMQ subscriber still yields per-stage prompt shape and
+    # metric deltas; only block-level attribution is unavailable.
+    events_path = run_dir / "kv_events.jsonl"
+    events = _read_jsonl(events_path) if events_path.exists() else []
     if not windows:
         raise SystemExit(f"no windows in {run_dir}/kv_windows.jsonl")
 
@@ -148,6 +165,7 @@ def correlate(run_dir: Path) -> Dict[str, Any]:
             "cached_tokens_reported": 0,
             "latency_ms": 0.0,
             "_sections": [],
+            "_metrics": defaultdict(float),
         }
     )
     # Per-window block totals, so reuse is readable call by call. On vLLM this
@@ -190,6 +208,13 @@ def correlate(run_dir: Path) -> Dict[str, Any]:
         bucket["calls"] += 1
         bucket["latency_ms"] += (window["t_end"] - window["t_start"]) * 1000.0
         bucket["_sections"].append(window.get("prompt_sections") or {})
+        for metric, value in (window.get("metrics_delta") or {}).items():
+            # Counters sum across a stage's calls; the occupancy gauge is kept
+            # as the last value it held, since summing percentages is nonsense.
+            if metric.endswith("_usage_perc"):
+                bucket["_metrics"][metric] = value
+            else:
+                bucket["_metrics"][metric] += value
         usage = window.get("usage") or {}
         prompt_tokens = usage.get("prompt_tokens")
         if isinstance(prompt_tokens, int):
@@ -204,6 +229,7 @@ def correlate(run_dir: Path) -> Dict[str, Any]:
     stages = {}
     for role, bucket in per_role.items():
         sections = bucket.pop("_sections")
+        metrics = {k: round(v, 6) for k, v in bucket.pop("_metrics").items()}
         bucket.setdefault("blocks_per_call", [])
         bucket.setdefault("tokens_stored", 0)
         calls = bucket["calls"] or 1
@@ -212,6 +238,19 @@ def correlate(run_dir: Path) -> Dict[str, Any]:
         stages[role] = {
             **bucket,
             "media": dict(sorted(per_role_medium[role].items())),
+            "vllm_metrics": dict(sorted(metrics.items())),
+            # vLLM's own prefix-cache accounting, summed over the stage's calls.
+            # Independent of the block-side estimate and of the API's
+            # cached_tokens, so a disagreement between them is itself a signal.
+            "engine_prefix_hit_rate": (
+                round(
+                    metrics.get("vllm:prefix_cache_hits_total", 0.0)
+                    / metrics["vllm:prefix_cache_queries_total"],
+                    4,
+                )
+                if metrics.get("vllm:prefix_cache_queries_total")
+                else None
+            ),
             "latency_ms_mean": round(bucket["latency_ms"] / calls, 2),
             "stable_prefix_chars": _stable_prefix_chars(sections),
             # Block-derived reuse: prompt tokens the engine did NOT have to

@@ -31,7 +31,7 @@ import time
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Iterator, Optional
+from typing import Any, Callable, Dict, Iterator, Optional
 
 WINDOW_SCHEMA_VERSION = 1
 
@@ -57,6 +57,10 @@ class StepWindow:
     # the prefix story legible: a stage whose leading sections are stable
     # across calls is a stage whose KV prefix can be reused.
     prompt_sections: Dict[str, int] = field(default_factory=dict)
+    # Change in vLLM's process-wide KV counters across this window. Empty when
+    # no metrics endpoint was configured or the scrape failed — an absent delta
+    # is not a zero one, and zeros would read as "no bytes moved".
+    metrics_delta: Dict[str, float] = field(default_factory=dict)
 
     @property
     def duration_ms(self) -> float:
@@ -66,11 +70,20 @@ class StepWindow:
 class WindowRecorder:
     """Append-only writer for step windows, one file per run."""
 
-    def __init__(self, path: str | os.PathLike[str]) -> None:
+    def __init__(
+        self,
+        path: str | os.PathLike[str],
+        *,
+        metrics_sampler: Optional[Callable[[], Dict[str, float]]] = None,
+    ) -> None:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._open: Optional[StepWindow] = None
         self._counter: Dict[str, int] = {}
+        # Optional snapshot of vLLM's /metrics at each window boundary. The
+        # difference is what turns process-wide counters — offload bytes,
+        # transfer time, prefix-cache hits — into per-stage numbers.
+        self._metrics_sampler = metrics_sampler
 
     @contextmanager
     def record_step(
@@ -105,14 +118,53 @@ class WindowRecorder:
             prompt_chars=prompt_chars,
             prompt_sections=dict(prompt_sections or {}),
         )
+        before = self._sample()
         self._open = window
         try:
             yield window
         finally:
             window.t_end = time.time()
+            window.metrics_delta = _metrics_delta(before, self._sample())
             self._open = None
             with self.path.open("a", encoding="utf-8") as handle:
                 handle.write(json.dumps(asdict(window), ensure_ascii=False) + "\n")
+
+
+    def _sample(self) -> Dict[str, float]:
+        if self._metrics_sampler is None:
+            return {}
+        try:
+            return self._metrics_sampler()
+        except Exception:
+            return {}
+
+
+_VLLM_METRICS = None
+
+
+def _metrics_module():
+    """Load the sibling metrics helper once, by path.
+
+    These scripts are loaded standalone (no package), so a plain import would
+    not resolve; caching keeps a per-window scrape from re-executing the module.
+    """
+    global _VLLM_METRICS
+    if _VLLM_METRICS is None:
+        from importlib.util import module_from_spec, spec_from_file_location
+
+        spec = spec_from_file_location(
+            "serve_track_vllm_metrics", Path(__file__).with_name("vllm_metrics.py")
+        )
+        module = module_from_spec(spec)
+        spec.loader.exec_module(module)
+        _VLLM_METRICS = module
+    return _VLLM_METRICS
+
+
+def _metrics_delta(before: Dict[str, float], after: Dict[str, float]) -> Dict[str, float]:
+    if not before and not after:
+        return {}
+    return _metrics_module().delta(before, after)
 
 
 def read_windows(path: str | os.PathLike[str]) -> list[Dict[str, Any]]:

@@ -1009,6 +1009,16 @@ Each entry must link to a full ADR when impact is non-trivial.
   - honest headline: governance near-free on correctness, at token cost + conformance-vs-raw trade (NOT 'free'); guardrail over-strict on aggregate LIMIT (seocho-6md); OS db-routing bug worked around (seocho-933)
   - L1 complete on both axes: dominates governance (0167) at near-parity on task (0168)
 
+## 2026-08-16 (killer: ICL vs enforcement)
+
+- [Accepted] ADR-0169 killer-icl-alignment (seocho-41a) — in-context specification vs enforced alignment, live finbenchl1, gpt-oss-120b + gemma-4-31B
+  - conformance is an ICL dose-response (soft): none 0% / labels 0% / full 66%(gpt),16%(gemma) / full+examples 100% both, drift 0
+  - full+examples (worked exact-form examples) is the lever that closes 0->100%; ontology-alone (full) insufficient esp. for weak models
+  - full/hard (OS default) is worst: 2x queries (repair loop), 41-50% conform, most tokens, gpt-oss 6/6->5/6 (stuck re-emitting)
+  - killer conclusion: good in-context spec beats hard enforcement; examples-first-try + enforcement-as-safety-net; repair loop is append-only multi-turn => KV prefix-reuse candidate (cuts prefill not retries/decode; examples cut retries) - seocho-40j
+  - guardrail bug surfaced: result_limit_exceeded fires on aggregates + unactionable rejection msg => 6-turn flail failure (seocho-6md)
+  - explains scale-up: OS looked bad on MiniMax(4/8)/gemma(5/8) because = full/hard config, not governance cost
+
 ## Template
 
 Use this block for new entries:

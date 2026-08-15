@@ -46,11 +46,14 @@ from typing import Dict, Iterator, List, NamedTuple, Set, Tuple
 
 ROOT = Path(__file__).resolve().parents[2]
 
-# Bare-name imports that resolve into extraction/ because runtime/__init__.py
-# injects that directory onto sys.path. Tracked as a ratchet, not a hard zero:
-# removing them is seocho-60u, ~173 statements across ~69 files, and it must be
-# one reviewable change rather than a drip. This number may fall, never rise.
-FLAT_EXTRACTION_IMPORT_BUDGET = 95  # measured 2026-08-16: 66 in extraction/, 29 in runtime/
+# Bare-name imports that resolve into extraction/ because that directory used to
+# be injected onto sys.path. seocho-60u removed the injection and rewrote all
+# 176 statements, so this is now a hard zero: extraction/ is a package and the
+# bare names do not resolve at all. The ratchet is kept rather than deleted
+# because it is what caught the regression risk in the first place -- and it
+# fires in both directions, so a reintroduced flat import fails here rather
+# than silently reviving the duplicate-module defect.
+FLAT_EXTRACTION_IMPORT_BUDGET = 0
 
 # Violations that exist today and are owned by a ticket. Each entry is
 # (path, imported_module, ticket). An allowlisted violation still has to be a

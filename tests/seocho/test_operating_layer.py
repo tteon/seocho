@@ -414,3 +414,30 @@ def test_session_agent_and_stats_on_one_object(named_ontology):
     stats = sess.os_stats()
     assert stats["workspace_id"] == "acme" and stats["priority"] == "high"
     assert stats["budget"] == 1000
+
+
+def test_build_agent_ships_conformant_worked_examples(named_ontology):
+    """ADR-0169: the governed agent must SHOW the exact conformant form, not
+    just describe the schema — and the shown examples must pass the guardrail."""
+    import re
+
+    from seocho.operating_layer import SeochoOS
+    from seocho.query.hybrid_planner import policy_from_ontology
+    from seocho.query.workload_compiler import validate_text2cypher_fallback
+
+    store = RecordingStore()
+    os_layer = SeochoOS(ontology=named_ontology, graph_store=store,
+                        database="testdb", workspace_id="acme")
+    agent = os_layer.build_agent(os_layer.session("s"), name="t")
+    instr = agent.instructions
+    assert "Worked examples" in instr
+    assert "{_workspace_id: $workspace_id}" in instr      # the inline-map form
+    assert "params_json" in instr and "\"limit\": 1" in instr
+    # every worked-example Cypher must actually pass the guardrail validator
+    policy = policy_from_ontology(named_ontology)
+    examples = re.findall(r"(MATCH .+?LIMIT \$limit)", instr)
+    assert examples, "no worked-example queries found in instructions"
+    for cypher in examples:
+        violations = validate_text2cypher_fallback(
+            cypher, params={"workspace_id": "acme", "limit": 1}, policy=policy)
+        assert not violations, f"shipped example is non-conformant: {violations}"

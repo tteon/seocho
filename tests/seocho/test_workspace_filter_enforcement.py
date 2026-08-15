@@ -194,3 +194,45 @@ def test_scope_helper_rejects_procedure_call_on_read_path() -> None:
             "CALL apoc.cypher.runMany('...') YIELD value "
             "WHERE value._workspace_id = $workspace_id RETURN value")
     assert ei.value.reason == "procedure_call_on_read_path"
+
+
+# ---------------------------------------------------------------------------
+# Binding verification (seocho-5zz): the token can be present yet constrain the
+# WRONG node. These prove the returned node is actually workspace-scoped, and —
+# critically — that the analysis is conservative enough to never reject a legit
+# query it cannot fully parse (WITH/UNION/UNWIND are declined, not refused).
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("cypher", [
+    "MATCH (n),(m) WHERE m._workspace_id = $workspace_id RETURN n",
+    "MATCH (a)-[r]->(b) WHERE a._workspace_id = $workspace_id RETURN a, b",
+    "MATCH (secret) MATCH (ok) WHERE ok._workspace_id = $workspace_id RETURN secret",
+])
+def test_binding_rejects_returned_node_not_scoped(cypher) -> None:
+    from seocho.store.graph import (
+        enforce_read_workspace_scope, WorkspaceScopeViolationError)
+    with pytest.raises(WorkspaceScopeViolationError) as ei:
+        enforce_read_workspace_scope(cypher)
+    assert ei.value.reason == "unbound_return"
+
+
+@pytest.mark.parametrize("cypher", [
+    "MATCH (n:Account) WHERE n._workspace_id = $workspace_id RETURN n",
+    "MATCH (n:Account {_workspace_id: $workspace_id}) RETURN n.name",
+    "MATCH (a)-[r]->(b) WHERE a._workspace_id = $workspace_id "
+    "AND b._workspace_id = $workspace_id RETURN a, b",
+    "MATCH (n:Account) WHERE n._workspace_id = $workspace_id RETURN count(n)",
+    "MATCH (n:Account) WHERE n._workspace_id = $workspace_id RETURN n AS acct",
+    # rebinding constructs are declined, not falsely rejected:
+    "MATCH (n) WHERE n._workspace_id = $workspace_id WITH n "
+    "MATCH (n)-->(m) RETURN m",
+])
+def test_binding_allows_properly_scoped_queries(cypher) -> None:
+    from seocho.store.graph import enforce_read_workspace_scope
+    enforce_read_workspace_scope(cypher)   # must not raise
+
+
+def test_verify_workspace_binding_is_exposed():
+    from seocho.store.graph import verify_workspace_binding  # public helper
+    verify_workspace_binding(
+        "MATCH (n) WHERE n._workspace_id = $workspace_id RETURN n")

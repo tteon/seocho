@@ -135,12 +135,81 @@ def _strip_cypher_comments(cypher: str) -> str:
     return _BLOCK_COMMENT_RE.sub(" ", _LINE_COMMENT_RE.sub(" ", cypher))
 
 
+# Constructs that rebind variables (WITH), fuse result sets (UNION), or expand
+# rows (UNWIND). Binding verification below cannot reason about them safely, so
+# it declines to analyze such queries rather than risk a false rejection — it
+# only ever ADDS rejections for queries it can positively prove are unscoped.
+_REBIND_CONSTRUCTS_RE = re.compile(r"\b(WITH|UNION|UNWIND)\b", re.IGNORECASE)
+# MATCH clause body up to the next clause keyword (where node patterns bind).
+_MATCH_SEGMENT_RE = re.compile(
+    r"\bMATCH\b(.*?)(?=\b(?:WHERE|RETURN|WITH|MATCH|OPTIONAL|ORDER|SKIP|LIMIT|"
+    r"UNION|CALL|UNWIND)\b|$)", re.IGNORECASE | re.DOTALL)
+# A node variable is the identifier immediately after a pattern '(' .
+_NODE_VAR_RE = re.compile(r"\(\s*([A-Za-z_]\w*)")
+_RETURN_CLAUSE_RE = re.compile(
+    r"\bRETURN\b(.*?)(?=\b(?:ORDER|SKIP|LIMIT|UNION)\b|$)",
+    re.IGNORECASE | re.DOTALL)
+_IDENT_RE = re.compile(r"[A-Za-z_]\w*")
+
+
+def _bound_node_vars(stripped: str) -> set:
+    vars_: set = set()
+    for seg in _MATCH_SEGMENT_RE.finditer(stripped):
+        vars_.update(_NODE_VAR_RE.findall(seg.group(1)))
+    return vars_
+
+
+def _var_is_workspace_scoped(var: str, stripped: str) -> bool:
+    # WHERE style: var._workspace_id = $workspace_id
+    if re.search(rf"\b{re.escape(var)}\._workspace_id\s*=\s*\$workspace_id",
+                 stripped):
+        return True
+    # Inline pattern style: (var ... {_workspace_id: $workspace_id})
+    if re.search(rf"\(\s*{re.escape(var)}\b[^()]*\{{[^}}]*_workspace_id\s*:\s*"
+                 r"\$workspace_id", stripped):
+        return True
+    return False
+
+
+def verify_workspace_binding(cypher: str) -> None:
+    """Best-effort proof that every RETURNed node is scoped to the workspace.
+
+    Closes the class the token-presence check misses: ``$workspace_id`` appears
+    but constrains the *wrong* node, e.g. ``MATCH (n),(m) WHERE m._workspace_id
+    = $workspace_id RETURN n`` — token present, ``n`` returned unscoped. This
+    finds the node variables bound in MATCH, the node variables named in RETURN,
+    and rejects when a returned node variable has no ``_workspace_id =
+    $workspace_id`` binding (WHERE or inline).
+
+    Conservative by construction: if the query rebinds variables (WITH / UNION /
+    UNWIND) it is not analyzed — declined, never falsely rejected. So this only
+    ADDS rejections for queries it can positively prove unscoped; it never
+    refuses a query it cannot understand. Still NOT a full AST proof (see
+    ``WorkspaceScopeViolationError``); the sound form is DB-side per-workspace
+    enforcement.
+    """
+    stripped = _strip_cypher_comments(cypher)
+    if _REBIND_CONSTRUCTS_RE.search(stripped):
+        return
+    ret = _RETURN_CLAUSE_RE.search(stripped)
+    if not ret:
+        return
+    bound = _bound_node_vars(stripped)
+    if not bound:
+        return
+    returned_idents = set(_IDENT_RE.findall(ret.group(1)))
+    for var in bound & returned_idents:
+        if not _var_is_workspace_scoped(var, stripped):
+            raise WorkspaceScopeViolationError(cypher, "unbound_return")
+
+
 def enforce_read_workspace_scope(cypher: str) -> None:
     """Gate a query on the governed read path.
 
     Order matters: strip comments first, then require the ``$workspace_id``
     token in the *stripped* text (so comment-embedded tokens don't count), then
-    reject widening tautologies, writes, and procedure calls. Raises
+    reject widening tautologies, writes, and procedure calls, then verify that
+    the token actually binds the returned nodes. Raises
     ``WorkspaceFilterMissingError`` or ``WorkspaceScopeViolationError``.
 
     This does not prove the query is scope-safe (see
@@ -157,6 +226,7 @@ def enforce_read_workspace_scope(cypher: str) -> None:
         raise WorkspaceScopeViolationError(cypher, "write_on_read_path")
     if _PROC_CALL_RE.search(normalized):
         raise WorkspaceScopeViolationError(cypher, "procedure_call_on_read_path")
+    verify_workspace_binding(cypher)
 
 
 class EnsureConstraintsError(RuntimeError):

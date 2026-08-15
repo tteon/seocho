@@ -1,0 +1,141 @@
+{
+  "database": "finbenchl1",
+  "gold": {
+    "company_count": 100,
+    "transfer_count": 10895,
+    "flagged": 1,
+    "risk_tier_1": 255,
+    "persons_owning": 829,
+    "transfer_sources": 2234
+  },
+  "by_model": {
+    "gpt-oss-120b": {
+      "os_correct": 6,
+      "bare_correct": 5,
+      "n": 6,
+      "os_guardrail_rejections": 0,
+      "os_tokens": 14777,
+      "bare_tokens": 4192,
+      "os_cases": [
+        {
+          "id": "company_count",
+          "correct": true,
+          "tokens": 2369,
+          "err": null,
+          "guardrail_rejected": 0,
+          "guardrail_allowed": 1,
+          "reasons": {}
+        },
+        {
+          "id": "transfer_count",
+          "correct": true,
+          "tokens": 2495,
+          "err": null,
+          "guardrail_rejected": 0,
+          "guardrail_allowed": 1,
+          "reasons": {}
+        },
+        {
+          "id": "flagged",
+          "correct": true,
+          "tokens": 2461,
+          "err": null,
+          "guardrail_rejected": 0,
+          "guardrail_allowed": 1,
+          "reasons": {}
+        },
+        {
+          "id": "risk_tier_1",
+          "correct": true,
+          "tokens": 2452,
+          "err": null,
+          "guardrail_rejected": 0,
+          "guardrail_allowed": 1,
+          "reasons": {}
+        },
+        {
+          "id": "persons_owning",
+          "correct": true,
+          "tokens": 2485,
+          "err": null,
+          "guardrail_rejected": 0,
+          "guardrail_allowed": 1,
+          "reasons": {}
+        },
+        {
+          "id": "transfer_sources",
+          "correct": true,
+          "tokens": 2515,
+          "err": null,
+          "guardrail_rejected": 0,
+          "guardrail_allowed": 1,
+          "reasons": {}
+        }
+      ]
+    },
+    "gemma-4-31B-it": {
+      "os_correct": 6,
+      "bare_correct": 6,
+      "n": 6,
+      "os_guardrail_rejections": 0,
+      "os_tokens": 15183,
+      "bare_tokens": 3965,
+      "os_cases": [
+        {
+          "id": "company_count",
+          "correct": true,
+          "tokens": 2508,
+          "err": null,
+          "guardrail_rejected": 0,
+          "guardrail_allowed": 1,
+          "reasons": {}
+        },
+        {
+          "id": "transfer_count",
+          "correct": true,
+          "tokens": 2537,
+          "err": null,
+          "guardrail_rejected": 0,
+          "guardrail_allowed": 1,
+          "reasons": {}
+        },
+        {
+          "id": "flagged",
+          "correct": true,
+          "tokens": 2510,
+          "err": null,
+          "guardrail_rejected": 0,
+          "guardrail_allowed": 1,
+          "reasons": {}
+        },
+        {
+          "id": "risk_tier_1",
+          "correct": true,
+          "tokens": 2534,
+          "err": null,
+          "guardrail_rejected": 0,
+          "guardrail_allowed": 1,
+          "reasons": {}
+        },
+        {
+          "id": "persons_owning",
+          "correct": true,
+          "tokens": 2544,
+          "err": null,
+          "guardrail_rejected": 0,
+          "guardrail_allowed": 1,
+          "reasons": {}
+        },
+        {
+          "id": "transfer_sources",
+          "correct": true,
+          "tokens": 2550,
+          "err": null,
+          "guardrail_rejected": 0,
+          "guardrail_allowed": 1,
+          "reasons": {}
+        }
+      ]
+    }
+  }
+}

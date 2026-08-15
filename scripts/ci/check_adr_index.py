@@ -11,6 +11,8 @@ updated by hand. This asserts:
      canonical number is an author decision, so they are flagged, not guessed.
   2. every ADR-NNNN referenced in docs/decisions/DECISION_LOG.md resolves to an
      actual ADR file (no dangling log entry).
+  3. no markdown under docs/ cites an ADR-NNNN that has no file. Reserving an id
+     for an unwritten ADR is how ids collide; see ADR-0156.
 
 Pure stdlib, deterministic. Exit non-zero naming each offender. Run:
     python3 scripts/ci/check_adr_index.py
@@ -27,6 +29,7 @@ ROOT = Path(__file__).resolve().parents[2]
 ADR_DIR = ROOT / "docs" / "decisions"
 DECISION_LOG = ADR_DIR / "DECISION_LOG.md"
 ADR_ID_RE = re.compile(r"ADR-(\d{4})")
+DOCS_DIR = ROOT / "docs"
 
 # Historical duplicates that predate this validator. New duplicates outside
 # this set fail CI. Renumbering these (and rewiring DECISION_LOG) is a separate
@@ -60,10 +63,35 @@ def check_decision_log_resolves(errors: list[str]) -> None:
             errors.append(f"DECISION_LOG references ADR-{adr_id} with no matching file")
 
 
+def check_no_dangling_references(errors: list[str]) -> None:
+    """No doc may cite an ADR id that has no file (seocho-b01.3 follow-up).
+
+    Reserving an id for an ADR you have not written yet is how ids collide:
+    `docs/execplans/finbench-graph-agent-scalability.md` pre-assigned 0155 to a
+    planned projection ADR while two other branches were independently claiming
+    it. Citing only ids that exist makes the reservation impossible.
+    """
+    have = set(_adr_ids_by_file())
+    for path in sorted(DOCS_DIR.rglob("*.md")):
+        if path == DECISION_LOG:
+            continue  # already covered, with a more specific message
+        for lineno, line in enumerate(
+            path.read_text(encoding="utf-8", errors="replace").splitlines(), 1
+        ):
+            for adr_id in ADR_ID_RE.findall(line):
+                if adr_id not in have:
+                    rel = path.relative_to(ROOT)
+                    errors.append(
+                        f"{rel}:{lineno} cites ADR-{adr_id} with no matching file "
+                        f"(write the ADR, or drop the id until it exists)"
+                    )
+
+
 def main() -> int:
     errors: list[str] = []
     check_no_new_duplicates(errors)
     check_decision_log_resolves(errors)
+    check_no_dangling_references(errors)
     # surface the standing historical-dup TODO without failing (visibility)
     still_dup = [i for i, fs in _adr_ids_by_file().items() if len(fs) > 1]
     if errors:

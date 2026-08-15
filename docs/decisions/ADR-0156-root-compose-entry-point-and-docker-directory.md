@@ -76,6 +76,20 @@ the "AGENTS.md/.AGENTS.md duality" weakness recorded in
 `docker/README.md` documents the stack inventory and the project-directory
 rule, and gives `compose.tls-enterprise.yaml` its first documented entry point.
 
+### ADR id reservation
+
+This ADR was written as 0155 and renumbered to 0156: PR #484 claimed 0155 for
+the Rust data plane, and `docs/execplans/finbench-graph-agent-scalability.md`
+had separately pre-assigned 0155 to an unwritten PG->LPG projection ADR — three
+independent claims on one id.
+
+`check_adr_index.py` could not catch it. It validated duplicate *files* and
+`DECISION_LOG` references; a number reserved in prose for an ADR nobody had
+written yet was invisible to both. So the rule is now: **cite an ADR id only
+once its file exists.** The checker enforces it across `docs/**/*.md`, the
+execplan's reservation is removed, and picking the next free number is again a
+question the repository can answer.
+
 ## Consequences
 
 - The tracked root drops from 25 files to 17, and every remaining one is an

@@ -164,7 +164,7 @@ def main() -> None:
     parser.add_argument("--user", default="neo4j")
     parser.add_argument("--password", default="")
     parser.add_argument("--container", default="graphrag-neo4j")
-    parser.add_argument("--compose", default="compose.yaml,docker-compose.finbench.yml")
+    parser.add_argument("--compose", default="compose.yaml,docker/compose.finbench.yaml")
     parser.add_argument("--repeats", type=int, default=10)
     parser.add_argument("--override", type=Path,
                         default=Path("outputs/finbench/_cliff-override.yml"))

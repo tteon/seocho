@@ -895,11 +895,25 @@ Each entry must link to a full ADR when impact is non-trivial.
 
 ## 2026-08-15
 
+- [Proposed] ADR-0155 rust-dataplane-proxy-for-unified-cache-layer
+  - the cache-layer data plane (Bolt relay, KV reverse index, xlat table, Arrow projection) is a new Rust component from day one (docs.rs `neo4j` crate client leg, `neo4rs` fallback)
+  - the Python SDK Bolt path is NOT rewritten; gate = measured db.client server_share from PR #482
+  - Python touches the data plane only at control points; canonical SDK behavior stays in src/seocho/
+  - risk: second toolchain + Bolt relay protocol drift, bounded by DozerDB 5.26 LTS pin and a relay-overhead kill criterion
+
 - [Accepted] ADR-0144 amendment — single metrics pipeline
   - route the ADR-0144 §6 counters through the ADR-0146 registry (seocho.metrics), under catalog dotted names
   - remove the tracing module's private OTel meter; one provider, one env switch, label budget enforced everywhere
   - keep seocho.tracing.record_metric as a legacy-name shim; uncataloged names are dropped
   - risk: legacy snake_case series end at the rename — none were referenced by any dashboard or rule
+
+## 2026-08-15
+
+- [Accepted] ADR-0156 h0-gate-verdict-working-sets-diverge
+  - measured on SF1/SF10 FinBench replay: DB and KV working sets diverge with scale (top-decile Jaccard 0.226 -> 0.050); KV is an anchor-centric subset (containment 1.0)
+  - per the plan's own gate: joint budget (WP3) and cross-prefetch dropped; WP4 invalidation and WP2 KV-side optimization kept; ADR-0155 data plane narrowed to invalidation+observation
+  - H1 left open (share rising with scale); rerun at SF100 before pin/quantization verdict
+  - caveat: read set is variable-binding based (CE exposes no page identities) — biases overlap up, so FAIL is robust
 
 ## Template
 

@@ -74,6 +74,13 @@ ROW_CAP = 50
 TX_TIMEOUT_S = 60.0
 MAX_TURNS = 8
 
+# The in-context arm pays for its rows in context and in turns, so it gets its own budget.
+# Sized so the task is *feasible at SF1 and not at SF100*: the SF1 anchor has ~800 incoming
+# transfers (4 pages) and the SF100 anchor has ~16,700 (84 pages). Without that transition the
+# arm would be uniformly impossible and the scale axis would say nothing.
+IN_CONTEXT_ROW_CAP = 200
+IN_CONTEXT_MAX_TURNS = 16
+
 # The plan arm runs a query under a short budget first and only commits to the full one if it
 # survives. The budget is elapsed time, not the planner's row estimate, because the estimate
 # does not work: measured across the 48 queries this run settled on at SF100, actual db hits
@@ -258,7 +265,21 @@ QUESTIONS: List[Dict[str, Any]] = [
     },
 ]
 
-ARMS = ["labels", "ontology", "guardrail", "plan"]
+ARMS = ["labels", "ontology", "guardrail", "plan", "in_context", "in_context_blind"]
+
+# `in_context_blind` is the control for `in_context`, differing in exactly one thing: the tool
+# response omits `more_available`, and the instructions never mention that a result can be
+# bounded. Everything else — row cap, turn budget, aggregate ban, schema, model, temperature —
+# is identical. The pair is what separates "the model does not disclose truncation" from "the
+# model was never told the result was truncated", which are different problems with different
+# fixes and were previously conflated.
+_IN_CONTEXT_ARMS = ("in_context", "in_context_blind")
+
+# Aggregate functions the in-context arm may not push into Cypher. The point of that arm is to
+# move the arithmetic out of the database and into the model, so a query that aggregates
+# server-side defeats it.
+_AGGREGATE_RE = re.compile(
+    r"\b(count|sum|avg|min|max|collect|percentile\w*|stdev\w*)\s*\(", re.I)
 
 
 # --------------------------------------------------------------------------------------
@@ -301,6 +322,19 @@ def build_instructions(schema: Dict[str, Any], *, arm: str) -> str:
             "- The tool runs EXPLAIN before executing. If the plan scans all nodes or the "
             "planner estimates too many rows, the query is refused and you are given the plan. "
             "Rewrite it to start from an indexed lookup and to filter earlier.")
+    if arm in _IN_CONTEXT_ARMS:
+        parts.append(
+            "- You may NOT use aggregate functions in Cypher (count, sum, avg, min, max, "
+            "collect, percentile). Return the underlying rows and compute the answer yourself "
+            "from what you receive.")
+    if arm == "in_context":
+        parts.append(
+            f"- The tool caps each call at {IN_CONTEXT_ROW_CAP} rows and reports "
+            "`more_available` when there were more; page through with SKIP/ORDER BY if you "
+            "need them.")
+        parts.append(
+            "- If you cannot see all the rows the answer depends on, say so in your reply "
+            "instead of answering from the rows you happen to have.")
     parts += [
         "",
         "Finish your reply with a single line of the form:",
@@ -348,7 +382,8 @@ def _estimated_rows(plan: Any) -> float:
 
 
 def make_instrumented_tool(driver, database: str, *, arm: str, anchor: Optional[int],
-                           calls: List[Dict[str, Any]], guardrail_fn=None):
+                           calls: List[Dict[str, Any]], guardrail_fn=None,
+                           row_cap: int = ROW_CAP):
     """One tool, four behaviours, one record per call.
 
     The parameters the model must not be trusted with — the workspace scope, the row cap, and
@@ -372,10 +407,24 @@ def make_instrumented_tool(driver, database: str, *, arm: str, anchor: Optional[
         # Both spellings are bound. Neo4j ignores a parameter the query does not mention, and
         # an episode that failed because the harness bound `ws` while the model wrote
         # `workspace_id` would be measuring the harness rather than the agent.
-        params = {"workspace_id": WS, "ws": WS, "limit": ROW_CAP}
+        params = {"workspace_id": WS, "ws": WS, "limit": row_cap}
         if anchor is not None:
             params["a"] = anchor
             params["acct_no"] = anchor
+
+        if arm in _IN_CONTEXT_ARMS:
+            # Enforced rather than requested. Asked politely, the model pushes the aggregate
+            # back into Cypher on the first hard question and the arm measures nothing.
+            hit = _AGGREGATE_RE.search(cypher)
+            if hit:
+                record["outcome"] = "aggregate_rejected"
+                record["violations"] = [f"server_side_aggregate:{hit.group(1).lower()}"]
+                msg = (f"REJECTED — `{hit.group(1)}(` is an aggregate and this task requires you "
+                       f"to compute the answer from the rows yourself. Re-emit the query so it "
+                       f"returns the underlying rows, and page through them if there are more "
+                       f"than {row_cap}.")
+                record["chars"] = len(msg)
+                return msg
 
         if guardrail_fn is not None:
             violations = guardrail_fn(cypher, params)
@@ -436,7 +485,7 @@ def make_instrumented_tool(driver, database: str, *, arm: str, anchor: Optional[
             tx = session.begin_transaction(timeout=budget)
             try:
                 result = tx.run("PROFILE " + cypher, **params)
-                rows = [dict(r) for _, r in zip(range(ROW_CAP), result)]
+                rows = [dict(r) for _, r in zip(range(row_cap), result)]
                 summary = result.consume()
                 tx.commit()
             except Neo4jError as exc:
@@ -463,8 +512,17 @@ def make_instrumented_tool(driver, database: str, *, arm: str, anchor: Optional[
         record["db_hits"] = _db_hits(summary.profile)
         record["rows"] = len(rows)
         record["operators"] = dict(ops)
-        payload = json.dumps({"rows": rows, "row_count": len(rows), "row_cap": ROW_CAP},
-                             default=str)
+        # `more_available` is what makes truncation detectable rather than inferable. Whether
+        # the agent acts on it is the measurement.
+        more = len(rows) >= row_cap
+        record["truncated"] = more
+        body: Dict[str, Any] = {"rows": rows, "row_count": len(rows)}
+        if arm != "in_context_blind":
+            # The one field the control withholds. Recorded either way, so the measurement is
+            # of what the agent does with the information, not of whether it was collected.
+            body["row_cap"] = row_cap
+            body["more_available"] = more
+        payload = json.dumps(body, default=str)
         record["chars"] = len(payload)
         return payload
 
@@ -475,6 +533,44 @@ def make_instrumented_tool(driver, database: str, *, arm: str, anchor: Optional[
 # Scoring
 # --------------------------------------------------------------------------------------
 _ANSWER_RE = re.compile(r"ANSWER:\s*(.+)\s*$", re.S | re.I)
+
+# Whether the reply admits the answer rests on a bounded view of the data. Deliberately broad:
+# the failure being looked for is silence, so a false positive here understates the problem
+# rather than inventing one. Only the prose is searched, never the ANSWER line, because a
+# number is not a disclosure.
+_DISCLOSURE_RE = re.compile(
+    r"\b(truncat\w*|incomplete|partial(?:ly)?|not (?:all|every|complete)|only (?:the )?first"
+    r"|more (?:rows|records|results) (?:are |were )?(?:available|exist)|capp?ed"
+    r"|row cap|limited to|cannot see all|did not see all|may be missing|under[- ]?count\w*"
+    r"|lower bound|at least|insufficient (?:data|rows|information)"
+    r"|cannot (?:reliably|accurately|fully)|unable to (?:rank|determine|compute|count)"
+    r"|not (?:enough|sufficient) (?:rows|data)|beyond the (?:retrieved|returned))\b", re.I)
+
+
+def discloses_truncation(final_text: str, answer: Any = None) -> bool:
+    """Whether the reply says the answer rests on a bounded view of the data.
+
+    Searches the prose and any *string* the answer carries, but not its numbers. A model that
+    reports `{"n": 50, "note": "partial"}` has disclosed; one that reports `50` has not, and
+    counting the bare number would turn every capped answer into a disclosure. Undercounting
+    here would overstate the failure, which is the error worth avoiding when the failure is
+    the headline.
+    """
+    haystack = [_ANSWER_RE.sub("", final_text or "")]
+
+    def strings(obj):
+        if isinstance(obj, str):
+            haystack.append(obj)
+        elif isinstance(obj, dict):
+            for k, v in obj.items():
+                haystack.append(str(k))
+                strings(v)
+        elif isinstance(obj, list):
+            for v in obj:
+                strings(v)
+
+    strings(answer)
+    return any(_DISCLOSURE_RE.search(h) for h in haystack)
 
 
 def parse_answer(text: str) -> Tuple[Optional[Any], str]:
@@ -603,8 +699,14 @@ async def run_episode(*, driver, database: str, sf: int, arm: str, question: Dic
                       schema: Dict[str, Any], guardrail_fn, model_name: str,
                       repeat: int = 0) -> Dict[str, Any]:
     calls: List[Dict[str, Any]] = []
+    # The in-context arm pays for its rows twice — in context and in turns — so it gets its
+    # own budget. The other four arms share one, because between them the database does the
+    # aggregating and a single call answers.
+    row_cap = IN_CONTEXT_ROW_CAP if arm in _IN_CONTEXT_ARMS else ROW_CAP
+    max_turns = IN_CONTEXT_MAX_TURNS if arm in _IN_CONTEXT_ARMS else MAX_TURNS
     tool = make_instrumented_tool(driver, database, arm=arm, anchor=anchor, calls=calls,
-                                  guardrail_fn=guardrail_fn if arm in ("guardrail", "plan") else None)
+                                  guardrail_fn=guardrail_fn if arm in ("guardrail", "plan") else None,
+                                  row_cap=row_cap)
     agent = Agent(
         name=f"analyst_{arm}",
         instructions=build_instructions(schema, arm=arm),
@@ -617,7 +719,7 @@ async def run_episode(*, driver, database: str, sf: int, arm: str, question: Dic
     final_text, err = "", None
     usage_in = usage_out = 0
     try:
-        result = await Runner.run(agent, prompt, max_turns=MAX_TURNS)
+        result = await Runner.run(agent, prompt, max_turns=max_turns)
         final_text = str(result.final_output or "")
         usage = getattr(getattr(result, "context_wrapper", None), "usage", None)
         if usage is not None:
@@ -645,6 +747,7 @@ async def run_episode(*, driver, database: str, sf: int, arm: str, question: Dic
     return {
         "sf": sf, "database": database, "arm": arm, "question_id": question["id"],
         "repeat": repeat, "settled_cypher": settled,
+        "row_cap": row_cap, "max_turns": max_turns,
         "audience": question["audience"], "difficulty": question["difficulty"],
         "anchor": anchor,
         "round_trips": len(calls),
@@ -662,6 +765,19 @@ async def run_episode(*, driver, database: str, sf: int, arm: str, question: Dic
         "timeouts": sum(1 for c in calls if c["outcome"] == "timeout"),
         "violations": [v for c in calls for v in (c.get("violations") or [])],
         "parse": parse_note, "error": err,
+        # Did any call come back bounded, and if so did the reply say so? The pair is the
+        # measurement: disclosure only counts where there was something to disclose.
+        "hit_row_cap": any(c.get("truncated") for c in calls),
+        "disclosed_truncation": discloses_truncation(final_text, answer),
+        # The failure worth counting is not "was the view bounded" — a top-5 under an ORDER BY
+        # is bounded and still exactly right. It is answering *wrongly* off a bounded view
+        # without saying the view was bounded. Episodes that never produced an answer are
+        # excluded: running out of turns is the harness's limit, not the model's silence.
+        "silent_truncation_failure": bool(
+            err is None and answer is not None
+            and any(c.get("truncated") for c in calls)
+            and not verdict.get("correct")
+            and not discloses_truncation(final_text, answer)),
         **{f"score_{k}": v for k, v in verdict.items()},
         "calls": [{k: v for k, v in c.items() if k != "cypher"} | {"cypher": c["cypher"][:600]}
                   for c in calls],

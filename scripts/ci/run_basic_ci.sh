@@ -104,6 +104,7 @@ uv run pytest \
   tests/seocho/test_relationship_direction.py \
   tests/seocho/test_question_set_strata.py \
   tests/seocho/test_bench_annotation.py \
+  tests/seocho/test_context_arms.py \
   tests/seocho/test_prompt_prefix_stability.py \
   tests/seocho/test_run_spec.py \
   tests/seocho/test_e2e_runner.py \

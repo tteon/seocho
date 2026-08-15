@@ -359,6 +359,18 @@ def complete_with_task_hints(
         "user": user,
         "temperature": temperature,
     }
+    if max_tokens is None and _strip_text(task_hint).lower() in (
+        "json_extraction",
+        "json_extraction_retry",
+        "entity_linking",
+    ):
+        # Structured-output calls on reasoning models (MARA MiniMax-M2.7,
+        # DeepSeek) spend thousands of completion tokens thinking before the
+        # JSON payload. Leaving max_tokens to the server default truncates
+        # mid-reasoning — the response carries reasoning text and no JSON,
+        # or the provider 400s ("token limit reached before a complete JSON
+        # object"). Give these calls an explicit generous budget (seocho-ub5).
+        max_tokens = 8192
     if max_tokens is not None:
         kwargs["max_tokens"] = max_tokens
     if response_format is not None:
@@ -377,19 +389,33 @@ def complete_with_task_hints(
         kwargs["model"] = model
     if provider_options:
         kwargs["provider_options"] = provider_options
-    try:
-        return llm.complete(**kwargs)
-    except TypeError as exc:
-        if "unexpected keyword argument" not in str(exc):
-            raise
-        # Older backends predate mode/reasoning_mode/task_hint/model — strip
-        # them and retry so this helper stays drop-in for legacy doubles.
-        kwargs.pop("reasoning_mode", None)
-        kwargs.pop("task_hint", None)
-        kwargs.pop("mode", None)
-        kwargs.pop("model", None)
-        kwargs.pop("provider_options", None)
-        return llm.complete(**kwargs)
+    # Older backends predate some optional kwargs (mode/reasoning_mode/
+    # task_hint/model/provider_options, and the task-hint max_tokens
+    # default). Strip ONLY the kwarg each TypeError names, so a double that
+    # accepts reasoning_mode but not max_tokens keeps every kwarg it
+    # understands.
+    import re as _re
+
+    optional_kwargs = (
+        "reasoning_mode", "task_hint", "mode", "model",
+        "provider_options", "max_tokens",
+    )
+    for _ in range(len(optional_kwargs) + 1):
+        try:
+            return llm.complete(**kwargs)
+        except TypeError as exc:
+            message = str(exc)
+            if "unexpected keyword argument" not in message:
+                raise
+            match = _re.search(r"unexpected keyword argument '([^']*)'", message)
+            offender = match.group(1) if match else None
+            if offender in optional_kwargs and offender in kwargs:
+                kwargs.pop(offender)
+                continue
+            # Unparseable message — legacy blanket strip as a last resort.
+            for key in optional_kwargs:
+                kwargs.pop(key, None)
+    return llm.complete(**kwargs)
 
 
 class EmbeddingBackend(ABC):
@@ -640,6 +666,42 @@ class OpenAICompatibleBackend(LLMBackend):
         if "Return ONLY valid JSON." not in content:
             messages[0]["content"] = f"{content}\n\nReturn ONLY valid JSON."
 
+    # Provider error text signalling "payload fine, the model ran out of
+    # budget before completing the constrained JSON" (MARA wording).
+    _JSON_GENERATION_FAILURE_MARKERS = (
+        "did not output valid json",
+        "truncated before a complete json",
+    )
+
+    @classmethod
+    def _maybe_boost_json_budget(
+        cls,
+        *,
+        exc: Exception,
+        attempt_kwargs: Dict[str, Any],
+        variants: List[Dict[str, Any]],
+        position: int,
+    ) -> bool:
+        """Insert a same-shape, doubled-budget retry for JSON-truncation 400s.
+
+        These errors are generation failures, not payload rejections: falling
+        straight down the strip ladder removes ``response_format``, and the
+        unconstrained retry produces runaway thinking-in-content prose with no
+        JSON at all (observed 43k-char responses on MARA MiniMax-M2.7). Retry
+        the SAME request shape with more budget first; the strip ladder stays
+        as the final fallback. Returns True if a variant was inserted."""
+        if "response_format" not in attempt_kwargs:
+            return False
+        message = str(exc).lower()
+        if not any(m in message for m in cls._JSON_GENERATION_FAILURE_MARKERS):
+            return False
+        boosted = cls._clone_completion_request_kwargs(attempt_kwargs)
+        boosted["max_tokens"] = max(
+            int(attempt_kwargs.get("max_tokens") or 0) * 2, 16384
+        )
+        variants.insert(position, boosted)
+        return True
+
     def _completion_retry_variants(self, kwargs: Dict[str, Any]) -> List[Dict[str, Any]]:
         variants = [self._clone_completion_request_kwargs(kwargs)]
         has_provider_overrides = any(
@@ -758,6 +820,7 @@ class OpenAICompatibleBackend(LLMBackend):
             tags=["gen_ai", f"provider:{self.provider}"],
         ) as span:
             last_exc: Optional[Exception] = None
+            budget_boosted = False
             for attempt, attempt_kwargs in enumerate(variants, start=1):
                 try:
                     resp = self._client.chat.completions.create(**attempt_kwargs)
@@ -808,6 +871,16 @@ class OpenAICompatibleBackend(LLMBackend):
                     return result
                 except Exception as exc:
                     last_exc = exc
+                    if not budget_boosted:
+                        # list.insert during iteration is safe here: the
+                        # boosted variant lands at the position the loop
+                        # visits next.
+                        budget_boosted = self._maybe_boost_json_budget(
+                            exc=exc,
+                            attempt_kwargs=attempt_kwargs,
+                            variants=variants,
+                            position=attempt,
+                        )
                     if attempt < len(variants):
                         metrics.add(
                             "seocho.gen_ai.retry.count",
@@ -889,6 +962,7 @@ class OpenAICompatibleBackend(LLMBackend):
             tags=["gen_ai", f"provider:{self.provider}"],
         ) as span:
             last_exc: Optional[Exception] = None
+            budget_boosted = False
             for attempt, attempt_kwargs in enumerate(variants, start=1):
                 try:
                     resp = await self._async_client.chat.completions.create(**attempt_kwargs)
@@ -939,6 +1013,16 @@ class OpenAICompatibleBackend(LLMBackend):
                     return result
                 except Exception as exc:
                     last_exc = exc
+                    if not budget_boosted:
+                        # list.insert during iteration is safe here: the
+                        # boosted variant lands at the position the loop
+                        # visits next.
+                        budget_boosted = self._maybe_boost_json_budget(
+                            exc=exc,
+                            attempt_kwargs=attempt_kwargs,
+                            variants=variants,
+                            position=attempt,
+                        )
                     if attempt < len(variants):
                         metrics.add(
                             "seocho.gen_ai.retry.count",
@@ -1058,12 +1142,22 @@ class OpenAICompatibleBackend(LLMBackend):
                 "total_tokens": int(getattr(resp.usage, "total_tokens", 0) or 0),
                 "cached_tokens": int(cached_tokens or 0),
             }
-        # Reasoning models (e.g. Kimi K2.5) may return the answer in
-        # ``reasoning_content`` when ``content`` is empty — typically
-        # when the generation was cut short by max_tokens.
+        # Reasoning models may return the answer in a reasoning field when
+        # ``content`` is empty — typically when generation was cut short by
+        # max_tokens. Field name varies by provider: ``reasoning_content``
+        # (Kimi K2.5) vs ``reasoning`` (MARA MiniMax-M2.7). Unknown fields
+        # land in the SDK model's ``model_extra``, so check both surfaces.
         text = getattr(choice.message, "content", "") or ""
         if not text:
-            text = getattr(choice.message, "reasoning_content", "") or ""
+            extra = getattr(choice.message, "model_extra", None) or {}
+            for field_name in ("reasoning_content", "reasoning"):
+                text = (
+                    getattr(choice.message, field_name, "")
+                    or extra.get(field_name)
+                    or ""
+                )
+                if text:
+                    break
         return LLMResponse(
             text=text,
             model=getattr(resp, "model", "") or "",

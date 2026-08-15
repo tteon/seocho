@@ -810,3 +810,29 @@ class TestCrossDocumentEntityMerge:
             relationships=[], source_id="doc-b",
         )
         assert again["merge_conflicts"] == []
+
+
+class TestSupersededByBackfill:
+    """seocho-dgf: Track 3's active-graph predicate must bind on Ladybug."""
+
+    def test_reopen_backfills_superseded_by_on_legacy_tables(self, tmp_path):
+        # Simulate a pre-Track-3 database: a node table WITHOUT the column.
+        path = str(tmp_path / "legacy.lbug")
+        old = LadybugGraphStore(path)
+        old._locked_execute(
+            "CREATE NODE TABLE IF NOT EXISTS `Legacy` (`name` STRING, `id` STRING, PRIMARY KEY (`id`))"
+        )
+        old._locked_execute("CREATE (:`Legacy` {id: 'l1', name: 'Old Row'})")
+        old.close()
+
+        # Reopen: _load_existing_schema must ALTER the column in, so the
+        # read-only ask path (which never writes) can bind the predicate.
+        reopened = LadybugGraphStore(path)
+        try:
+            rows = reopened.query(
+                "MATCH (n:Legacy) WHERE coalesce(n._superseded_by, '') = '' RETURN n.name",
+                database="neo4j",
+            )
+            assert any("Old Row" in str(r) for r in rows)
+        finally:
+            reopened.close()

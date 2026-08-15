@@ -1,4 +1,4 @@
-# ADR-0170: `seocho.ontology` becomes a package
+# ADR-0173: `seocho.ontology` becomes a package
 
 - Status: Accepted
 - Date: 2026-08-16

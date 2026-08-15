@@ -12,6 +12,7 @@ should actually go.
 | Path | Role | Notes |
 |---|---|---|
 | `src/seocho/` | Canonical SDK engine | Distributable Python package; primary owner for indexing, query, ontology, and client engine logic. |
+| `src/seocho/ontology/` | Canonical SDK engine | Ontology definition, governance, and lifecycle (ADR-0170). The flat `seocho.ontology_*` paths are compatibility aliases to modules here. |
 | `runtime/` | Canonical deployment shell | Active runtime package for server composition and policy-facing runtime wiring. |
 | `extraction/` | Extraction + compatibility layer | Still active, but many modules are staged shims during the `extraction/` -> `runtime/` migration. |
 | `evaluation/` | Platform UI/backend | Static UI plus proxy/backend for the local platform path. |

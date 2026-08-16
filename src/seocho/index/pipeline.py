@@ -1134,6 +1134,14 @@ class IndexingPipeline:
                     validation_errors=len(result.validation_errors),
                     elapsed_seconds=_pipeline_elapsed,
                     metadata=_meta,
+                    # Without these the span shows that an extraction happened
+                    # and nothing about which tenant it belonged to or which
+                    # stage produced it, so a shared deployment cannot filter
+                    # its own traces. The capability was added and never
+                    # passed; the arguments are the whole point of it.
+                    workspace_id=self.workspace_id,
+                    provider=getattr(self.llm, "provider", None),
+                    stage="indexing",
                 )
                 get_metrics().add(
                     "seocho.index.validation_errors.count",

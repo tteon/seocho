@@ -1056,6 +1056,9 @@ class _LocalEngine:
                     reasoning_attempts=reasoning_attempts,
                     elapsed_seconds=elapsed_seconds,
                     metadata=self._last_query_metadata,
+                    workspace_id=self.workspace_id,
+                    provider=getattr(self.llm, "provider", None),
+                    stage="query",
                 )
         except Exception:
             pass

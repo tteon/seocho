@@ -271,6 +271,28 @@ async def _startup():
             "Metrics backend initialisation failed; instruments stay no-op.",
             exc_info=True,
         )
+    # Tracing was plumbed end-to-end and never switched on. SEOCHO_TRACE_BACKEND
+    # is documented in .env.example and passed by docker-compose, and nothing in
+    # the server read it, so `_BACKENDS` stayed empty and every rag.* span
+    # resolved to _NullSpan. The span tree existed, its tests passed, and no
+    # production request ever produced one — which makes stage attribution
+    # impossible however good the tree is.
+    #
+    # Same contract as metrics: SEOCHO_TRACE_BACKEND=none (the default) disables
+    # tracing, so boot never depends on a collector.
+    try:
+        from seocho.tracing import configure_tracing_from_env
+
+        if configure_tracing_from_env():
+            logger.info(
+                "Tracing enabled: backend=%s",
+                os.getenv("SEOCHO_TRACE_BACKEND", "none"),
+            )
+    except Exception:
+        logger.warning(
+            "Tracing initialisation failed; spans stay no-op.",
+            exc_info=True,
+        )
     # Phase 1.5: populate the runtime ontology registry from
     # SEOCHO_RUNTIME_ONTOLOGIES if set. Empty/missing manifest leaves the
     # registry empty so Phases 1/2/3 stay inert (their backward-compatible

@@ -1827,6 +1827,18 @@ class Ontology:
             # uniqueness constraint over the identity members instead, and
             # skip the per-member UNIQUE.
             identity = set(nd.identity_keys)
+            if len(nd.identity_keys) == 1:
+                # A single identity key IS the identity, so it takes a plain
+                # UNIQUE. Previously the composite branch needed >1 key and the
+                # per-property branch skipped anything in `identity`, so a class
+                # with exactly one identity key got no constraint at all --
+                # silently, and precisely for the property the writer dedupes on.
+                (only,) = nd.identity_keys
+                if only in nd.properties:
+                    stmts.append(
+                        f"CREATE CONSTRAINT constraint_{label}_identity_unique "
+                        f"IF NOT EXISTS FOR (n:{label}) REQUIRE n.{only} IS UNIQUE"
+                    )
             if len(nd.identity_keys) > 1:
                 props = ", ".join(f"n.{k}" for k in nd.identity_keys)
                 cname = f"constraint_{label}_identity_unique"
@@ -1848,6 +1860,57 @@ class Ontology:
                         f"CREATE INDEX {iname} IF NOT EXISTS "
                         f"FOR (n:{label}) ON (n.{pname})"
                     )
+
+            # The three indexes below cover the properties the WRITE and READ
+            # paths actually use, which were disjoint from the properties this
+            # method indexed. Measured before adding them: the ontology indexed
+            # whatever was declared `unique`/`index`; the writer MERGEs on `id`;
+            # the retriever filters on the display property and `_workspace_id`.
+            # Three disjoint sets, so no index served any predicate a correct
+            # query would use — and a plan grader then reads that as "the LLM
+            # writes unsargable Cypher" when the truth is "no index exists".
+
+            # 1. The MERGE key. Every node write is `MERGE (n:L {id: ...})`, so
+            #    without this each write is a label scan plus a property filter,
+            #    and relationship writes do two. Ingest is quadratic.
+            stmts.append(
+                f"CREATE INDEX index_{label}_id IF NOT EXISTS "
+                f"FOR (n:{label}) ON (n.id)"
+            )
+
+            # 2. Tenancy first, then the anchor. `_workspace_id` alone is the
+            #    lowest-cardinality property in the store, so a seek on it
+            #    returns most of the label; composite with the identity key it
+            #    becomes O(this tenant's matching entities) instead of
+            #    O(all tenants' data) on every query in the system.
+            anchor = (nd.effective_identity_keys or [None])[0]
+            if anchor:
+                stmts.append(
+                    f"CREATE INDEX index_{label}_workspace_{anchor} IF NOT EXISTS "
+                    f"FOR (n:{label}) ON (n._workspace_id, n.{anchor})"
+                )
+
+        # 3. Entity-name resolution is a fuzzy substring match, which a RANGE
+        #    index (what CREATE INDEX gives you) cannot serve. FULLTEXT is the
+        #    only index type appropriate for it, and `graph_router.py` already
+        #    calls db.index.fulltext.queryNodes against exactly this index name
+        #    — nothing in the SDK created it, so that retrieval path failed and
+        #    was swallowed by a bare except, degrading to a keyword heuristic
+        #    with no signal.
+        display_props = sorted({
+            prop
+            for nd in self.nodes.values()
+            for prop in ((nd.effective_identity_keys or []) + ["name"])
+            if prop in nd.properties or prop == "name"
+        })
+        if self.nodes and display_props:
+            labels = "|".join(sorted(self.nodes))
+            props = ", ".join(f"n.{p}" for p in display_props)
+            stmts.append(
+                f"CREATE FULLTEXT INDEX entity_fulltext IF NOT EXISTS "
+                f"FOR (n:{labels}) ON EACH [{props}]"
+            )
+
         return stmts
 
     # ------------------------------------------------------------------

@@ -1,4 +1,4 @@
-# ADR-0163: One root compose entry point, overlays and side stacks under `docker/`
+# ADR-0186: One root compose entry point, overlays and side stacks under `docker/`
 
 Date: 2026-08-15 · Status: accepted
 

@@ -1106,6 +1106,14 @@ Each entry must link to a full ADR when impact is non-trivial.
   - => ontology = shared type system + address space across models = OS memory claim embodied (heterogeneous clients, one governed heap)
   - honest limit: 26% + name variants (berkshire hathaway vs ... inc.) = boundary-1 recall ceiling now cross-model; fuzzy fallback = follow-up
 
+## 2026-08-16 (publish compatibility gate)
+
+- [Accepted] ADR-0184 publish-time compatibility gate (seocho-ia4.2)
+  - publish_gate.check_publish_compatibility: BACKWARD(default)/FORWARD/FULL/NONE; refuse incompatible publish; first version always ok
+  - OntologySnapshotStore.publish() = gated save (allow_breaking bypass); plain save() untouched
+  - derive_drift_policy ties verdict to ia4.1 read barrier (BREAKING/FORWARD->block); PublishCompatibilityError carries report
+  - turns silent-breaking publishes into explicit blocked-by-default; +4 tests; completes ia4.2
+
 ## Template
 
 Use this block for new entries:

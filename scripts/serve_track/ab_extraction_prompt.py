@@ -49,7 +49,6 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import collections
 import json
 import os
 import sys
@@ -88,6 +87,53 @@ MODELLING_DECISIONS = [
     "A person and the organisation they belong to are separate nodes joined by "
     "WORKS_FOR; do not fold the org into Person.org alone.",
 ]
+
+
+# The label-selection rules exactly as they shipped before this branch removed
+# them. Restored here rather than left in the SDK so the arm that measures their
+# cost is explicit and the production path stays domain-neutral.
+_FINDER_RULES = (
+    "  1. Use the MOST-SPECIFIC class that matches each entity. "
+    "If both an abstract base (e.g. FinancialMetric) and a concrete "
+    "subclass (Revenue, OperatingIncome, NetIncome, EPS, GrossProfit, "
+    "OperatingMargin) are listed, pick the subclass."
+)
+_FINDER_RULE_3 = (
+    "  3. Use canonical class names exactly as listed above (e.g. "
+    "'LegalEntity' not 'Company'; 'Revenue' not 'Sales')."
+)
+_FINDER_EXAMPLE = (
+    '  Example node: {"id": "unique_id", "label": "EntityType", '
+    '"properties": {"name": "Entity Name"}}'
+)
+
+
+def with_finder_literals(system: str) -> str:
+    """Put the FinDER vocabulary back, for the arm that measures what it cost.
+
+    Matches the shipped text by anchoring on the generic sentences that
+    replaced it, so a future edit to those lines fails loudly here rather than
+    silently producing two identical arms.
+    """
+    generic_1 = ("  1. Use the MOST-SPECIFIC class that matches each entity. "
+                 "If both an abstract base and a concrete subclass are listed, "
+                 "pick the subclass.")
+    if generic_1 not in system:
+        raise SystemExit("rule 1 text moved; the finder arm would be a no-op")
+    system = system.replace(generic_1, _FINDER_RULES)
+
+    marker = "  3. Use canonical class names exactly as listed above."
+    index = system.find(marker)
+    if index < 0:
+        raise SystemExit("rule 3 text moved; the finder arm would be a no-op")
+    end = system.find("\n", index)
+    system = system[:index] + _FINDER_RULE_3 + system[end:]
+
+    example_start = system.find('  Example node: {"id": "unique_id"')
+    if example_start < 0:
+        raise SystemExit("output-format example moved; the finder arm would be a no-op")
+    example_end = system.find("\n", example_start)
+    return system[:example_start] + _FINDER_EXAMPLE + system[example_end:]
 
 
 def make_ontology(with_requirements: bool):
@@ -170,9 +216,13 @@ def main() -> None:
                              api_key=key, base_url=args.base_url)
     allowed = set(erb_index.build_ontology().nodes.keys())
 
+    # 2x2: requirements on/off crossed with the FinDER literals present/absent.
+    # `base+finder` is the true baseline — it is what the 322-document run used.
     arms = {
-        "baseline": make_ontology(with_requirements=False),
-        "requirements": make_ontology(with_requirements=True),
+        "base+finder": (False, True),
+        "base": (False, False),
+        "req+finder": (True, True),
+        "req": (True, False),
     }
     results: Dict[str, List[Dict[str, Any]]] = {}
     prompt_tokens: Dict[str, int] = {}
@@ -181,12 +231,22 @@ def main() -> None:
     args.out.parent.mkdir(parents=True, exist_ok=True)
     handle = args.out.open("w", encoding="utf-8")
 
-    for arm, ontology in arms.items():
-        engine = CanonicalExtractionEngine(llm=llm, ontology=ontology,
-                                           enforcement="guided")
-        system, _ = engine._render_extraction_prompts(
+    for arm, (requirements, finder) in arms.items():
+        ontology = make_ontology(with_requirements=requirements)
+        rendered = CanonicalExtractionEngine(
+            llm=llm, ontology=ontology, enforcement="guided")
+        system, _ = rendered._render_extraction_prompts(
             text="probe", category="general", metadata=None, extra_context=None)
+        if finder:
+            system = with_finder_literals(system)
         prompt_tokens[arm] = len(system) // 4  # rough; chars/4, stated as such
+
+        # Pin the exact system prompt for this arm so the only difference
+        # between arms is the text under test.
+        engine = CanonicalExtractionEngine(
+            llm=llm, ontology=ontology, enforcement="guided",
+            custom_prompts={"system": system, "user": "Text to extract:\n{{text}}"},
+        )
 
         def extract_one(pair, engine=engine):
             doc_id, doc = pair

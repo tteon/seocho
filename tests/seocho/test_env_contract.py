@@ -18,6 +18,7 @@ wiring is asserted rather than trusted.
 
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -86,3 +87,84 @@ def test_container_hostname_still_overrides_env_file():
     assert "localhost" not in uri[0], (
         f"{uri[0]} points the container at itself instead of the neo4j service"
     )
+
+
+def test_documented_variables_never_inject_empty_values():
+    """A documented variable must not change behaviour just by being documented.
+
+    This is the bug the compose-text assertions above could not see, and it was
+    introduced by the very commit that added them.
+
+    Compose injects `NAME=` from env_file as a present-but-empty key, and
+    `os.getenv("NAME", default)` returns "" rather than the default when the key
+    is present. `extraction/config.py` gives DOZERDB_* precedence over NEO4J_*,
+    so an empty `DOZERDB_URI=` line in .env.example silently defeated the
+    container-hostname override the test above so carefully pins -- the
+    container resolved an empty URI, user and password.
+
+    So: a variable with no value is commented out. It stays documented (the
+    contract checker counts `# NAME=`) and stays inert.
+    """
+    lines = (ROOT / ".env.example").read_text().splitlines()
+    live_empty = [
+        line for line in lines
+        if re.fullmatch(r"[A-Z][A-Z0-9_]*=", line.strip())
+    ]
+    assert not live_empty, (
+        "these declarations inject an empty value into every container, which "
+        "defeats the code default rather than documenting it -- comment them "
+        f"out instead: {live_empty}"
+    )
+
+
+def test_empty_env_value_really_does_defeat_a_default():
+    """Pin the mechanism, so the rule above cannot be argued away later."""
+    import os
+
+    key = "SEOCHO_TEST_EMPTY_PROBE"
+    previous = os.environ.get(key)
+    try:
+        os.environ[key] = ""
+        assert os.getenv(key, "fallback") == "", (
+            "if this ever fails, os.getenv semantics changed and the rule in "
+            "test_documented_variables_never_inject_empty_values can be relaxed"
+        )
+        del os.environ[key]
+        assert os.getenv(key, "fallback") == "fallback"
+    finally:
+        if previous is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = previous
+
+
+def test_graph_credentials_resolve_under_the_documented_env():
+    """Resolve the real precedence chain against the real .env.example.
+
+    extraction/config.py prefers DOZERDB_* over NEO4J_*, so this walks the
+    documented file into an environment and checks that the compose override
+    survives -- the assertion the compose-text test cannot make.
+    """
+    import os
+
+    env = {}
+    for line in (ROOT / ".env.example").read_text().splitlines():
+        stripped = line.strip()
+        if stripped.startswith("#") or "=" not in stripped:
+            continue
+        name, _, value = stripped.partition("=")
+        env[name.strip()] = value
+
+    # What docker-compose.yml pins for the container.
+    env["NEO4J_URI"] = "bolt://neo4j:7687"
+
+    def getenv(name, default=None):
+        return env.get(name, default)
+
+    resolved = getenv("DOZERDB_URI", getenv("NEO4J_URI", "bolt://localhost:7687"))
+    assert resolved == "bolt://neo4j:7687", (
+        f"container would connect to {resolved!r} instead of the neo4j service"
+    )
+    assert getenv("DOZERDB_USER", getenv("NEO4J_USER", "neo4j"))
+    assert getenv("DOZERDB_PASSWORD", getenv("NEO4J_PASSWORD", "password"))
+

@@ -52,7 +52,11 @@ _READ = re.compile(
     r'|environ\[\s*"([A-Z][A-Z0-9_]*)"\]',
     re.S,
 )
-_DECLARED = re.compile(r"^([A-Z][A-Z0-9_]*)=", re.M)
+# A commented-out declaration still documents the variable. It must, because
+# an uncommented empty one is actively harmful: compose injects `NAME=` as a
+# present-but-empty key, and os.getenv("NAME", default) then returns "" rather
+# than the default. Documenting a variable must not change behaviour.
+_DECLARED = re.compile(r"^#?\s*([A-Z][A-Z0-9_]*)=", re.M)
 _COMPOSE_SUBST = re.compile(r"\$\{([A-Z][A-Z0-9_]*)")
 _COMPOSE_ENV = re.compile(r"^\s*-\s*([A-Z][A-Z0-9_]*)=", re.M)
 
@@ -93,6 +97,31 @@ def code_variables() -> Dict[str, str]:
                 name = first or second
                 if name:
                     found.setdefault(name, rel)
+    return found
+
+
+def script_variables() -> Set[str]:
+    """Names read by scripts/ — used only to suppress the orphan check.
+
+    A variable read by an operator script (`scripts/setup/agent-memory-postgres.py`
+    reads SEOCHO_POSTGRES_DSN) is documented for a reason and is not orphaned.
+    Scripts are deliberately excluded from CODE_PATHS, though: a script-only
+    variable does not have to appear in .env.example, because .env.example is
+    the surface for running the system, not for running every tool in the repo.
+    """
+    found: Set[str] = set()
+    result = subprocess.run(
+        ["git", "ls-files", "--", "scripts/**.py", "scripts/*.py"],
+        cwd=ROOT, capture_output=True, text=True,
+    )
+    for rel in result.stdout.split():
+        try:
+            text = (ROOT / rel).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        for first, second in _READ.findall(text):
+            if first or second:
+                found.add(first or second)
     return found
 
 
@@ -145,7 +174,8 @@ def main() -> int:
                        and n not in code}
     # A documented name nothing reads is its own defect: it tells a user to set
     # something that has no effect.
-    orphaned = sorted(declared - set(code) - set(compose) - THIRD_PARTY)
+    orphaned = sorted(declared - set(code) - set(compose)
+                      - THIRD_PARTY - script_variables())
 
     print(f"env contract: code reads {len(code)}, compose references "
           f"{len(compose)}, .env.example declares {len(declared)}")

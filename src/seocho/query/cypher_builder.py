@@ -130,6 +130,7 @@ class CypherBuilder:
         # Cleared per build: a builder is constructed per plan, but `build` may
         # be called more than once on one (repair paths do).
         self.anchor_role = ""
+        self.unbound_slots: List[str] = []
         if anchor_label and anchor_label not in self.ontology.nodes:
             anchor_label = ""
         if target_label and target_label not in self.ontology.nodes:
@@ -639,7 +640,24 @@ class CypherBuilder:
         an identifier or prose?" — governs plan shape everywhere. Applying it to only
         one template is what left `_list_all` doing 86M dbHits at SF1000 while the
         repaired `_count` did 105.
+
+        An EMPTY mention is a third case, and it was being handled as the second.
+        "Which decisions apply to the Payments API?" names one endpoint and asks
+        the system to find the other, so the unnamed slot is an unknown to solve
+        for, not a mention to match. Falling through to the text anchor produced
+        ``toLower(...) CONTAINS toLower('')``, which is true for every node in
+        the database — an accidental wildcard that reads as a filter. It also
+        forces a scan, since a CONTAINS over a coalesce chain cannot use an
+        index, so the plan cost is paid for a predicate that excludes nothing.
+
+        An unbound slot is now constrained by its LABEL alone, which the caller
+        has already put in the MATCH pattern. `is_bound=False` tells the caller
+        the slot is open, so it can distinguish "no constraint" from "constraint
+        that happens to match everything".
         """
+        if not str(entity or "").strip():
+            self.unbound_slots = sorted(set(getattr(self, "unbound_slots", set())) | {alias})
+            return "true", {}
         sargable = self._sargable_anchor(alias, label, entity)
         if sargable is not None:
             return sargable
@@ -840,6 +858,51 @@ class CypherBuilder:
         # Self-referential (Account->Account) or a single consistent orientation.
         return ">" if len(pairs) == 1 else ""
 
+    def _connecting_relationship_types(
+        self, start_label: str, end_label: str, *, max_hops: int = 4,
+    ) -> List[str]:
+        """Declared relationship types on any chain from start_label to end_label.
+
+        Used when the model names a relationship that cannot on its own reach the
+        target ("which decision applies to the Payments API, and what did it
+        supersede" names SUPERSEDES, declared Decision -> Decision, while the
+        anchor is a System). The previous relaxation dropped the restriction
+        entirely, which admits every edge in the store -- including the
+        provenance layer this pipeline writes. Measured on a live graph: the
+        unrestricted form returned 20 paths, most of them Chunk MENTIONS
+        detours, for a question with two relevant edges.
+
+        Widening to the types that CAN connect the endpoints keeps the chain the
+        question needs and leaves the provenance edges out.
+        """
+        rels = self.ontology.relationships or {}
+        adjacency: Dict[str, List[Tuple[str, str]]] = {}
+        for name, rel in rels.items():
+            source, target = rel.source, rel.target
+            if not source or not target:
+                continue
+            adjacency.setdefault(source, []).append((target, name))
+            adjacency.setdefault(target, []).append((source, name))
+
+        used: Set[str] = set()
+        # Breadth-first over label space, recording the types on any chain that
+        # reaches the end label within the hop bound.
+        frontier: List[Tuple[str, List[str]]] = [(start_label, [])]
+        for _ in range(max(1, int(max_hops))):
+            nxt: List[Tuple[str, List[str]]] = []
+            for label, path in frontier:
+                for neighbour, rel_name in adjacency.get(label, []):
+                    if rel_name in path:
+                        continue  # do not repeat a type within one chain
+                    chain = path + [rel_name]
+                    if neighbour == end_label:
+                        used.update(chain)
+                    nxt.append((neighbour, chain))
+            frontier = nxt
+            if not frontier:
+                break
+        return sorted(used)
+
     def _path(
         self,
         from_entity: str,
@@ -875,12 +938,20 @@ class CypherBuilder:
                 if target_label in widened:
                     # Reachable, just not over the relationship the model named:
                     # drop the restriction rather than return a wrong empty answer.
+                    # Widen to the types that can actually connect the two
+                    # endpoints, rather than to everything. Dropping the
+                    # restriction entirely admits the provenance layer
+                    # (Chunk MENTIONS, HAS_SECTION), which floods the answer
+                    # context with document-structure detours.
+                    connecting = self._connecting_relationship_types(
+                        anchor_label, target_label, max_hops=bounded_hops)
                     self.last_path_pruning = {
                         "action": "relaxed_relationship_type",
                         "requested": relationship_type,
+                        "widened_to": connecting,
                         "reason": "target_label_unreachable_over_requested_relationship",
                     }
-                    rel_types = []
+                    rel_types = connecting
                 else:
                     # Provably empty per the schema: answer immediately instead of
                     # exhaustively searching for something that cannot exist.
@@ -899,8 +970,14 @@ class CypherBuilder:
 
         a_label = f":{quote_identifier(anchor_label)}" if anchor_label else ""
         b_label = f":{quote_identifier(target_label)}" if target_label else ""
-        rel_name = self._rel_name(rel_types[0]) if rel_types else ""
-        rel_clause = f":{quote_identifier(rel_name)}" if rel_name else ""
+        # All resolved types, not just the first. A widened set describes a chain
+        # (APPLIES_TO then SUPERSEDES); keeping only rel_types[0] would restrict
+        # the traversal to one leg of it and return nothing.
+        rel_names = [n for n in (self._rel_name(r) for r in rel_types) if n]
+        rel_clause = (
+            ":" + "|".join(quote_identifier(n) for n in dict.fromkeys(rel_names))
+            if rel_names else ""
+        )
         # Only orient the pattern when the target is genuinely reachable following
         # declared directions; otherwise the question needs undirected traversal and
         # forcing an arrow would return nothing.
@@ -916,10 +993,29 @@ class CypherBuilder:
             "b", target_label, to_entity, value_param="to_e", norm_param="to_e_norm")
         params: Dict[str, Any] = {**from_params, **to_params,
                                   "workspace_id": workspace_id, "limit": limit}
+        # Drop a `true` from an unbound endpoint rather than emitting `AND true`.
+        # It is harmless to the planner but it is noise in an EXPLAIN, and the
+        # plan grader reads operator shape from exactly that.
+        endpoint_preds = " AND ".join(
+            pred for pred in (from_pred, to_pred) if pred != "true"
+        ) or "true"
+        # shortestPath answers "how are THESE TWO connected" -- one path per
+        # endpoint pair. When an endpoint is unbound the question is "what is
+        # connected", and shortestPath answers it wrongly by construction: a
+        # 1-hop edge between the same pair hides every longer chain. Measured on
+        # a live graph, asking which decision applies to a system and what it
+        # superseded, shortestPath returned only the two APPLIES_TO edges and
+        # the model correctly reported that no SUPERSEDES relationship was in
+        # its results.
+        #
+        # Enumerating all paths is only safe because the relationship set is now
+        # constrained: unrestricted it returned 20 paths, mostly Chunk MENTIONS
+        # detours through the provenance layer. Constrained it returns 4, which
+        # are exactly the APPLIES_TO edges and the two SUPERSEDES chains.
+        primitive = "shortestPath" if not self.unbound_slots else ""
         return (
-            f"MATCH path = shortestPath((a{a_label})-[{rel_clause}*..{bounded_hops}]-{arrow}(b{b_label}))\n"
-            f"WHERE {from_pred}\n"
-            f"  AND {to_pred}\n"
+            f"MATCH path = {primitive}((a{a_label})-[{rel_clause}*..{bounded_hops}]-{arrow}(b{b_label}))\n"
+            f"WHERE {endpoint_preds}\n"
             "  AND ($workspace_id = '' OR all(n IN nodes(path) WHERE coalesce(n._workspace_id, '') = $workspace_id))\n"
             f"RETURN [n IN nodes(path) | {self._display_expr('n', anchor_label)}] AS nodes,\n"
             "       [r IN relationships(path) | type(r)] AS relationships\n"

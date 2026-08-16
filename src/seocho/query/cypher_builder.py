@@ -226,8 +226,19 @@ class CypherBuilder:
             intent = raw_intent_name or "neighbors"
 
         if intent in {"financial_metric_lookup", "financial_metric_delta"}:
-            intent_data["anchor_label"] = str(intent_data.get("anchor_label") or "Company")
-            intent_data["target_label"] = str(intent_data.get("target_label") or "FinancialMetric")
+            # Fall back to the ontology's own metric/anchor labels rather than
+            # to "Company"/"FinancialMetric". Those names were hardcoded, so an
+            # ontology without them produced a query against classes its graph
+            # does not contain.
+            metric_labels, anchor_labels = self._metric_anchor_labels()
+            intent_data["anchor_label"] = str(
+                intent_data.get("anchor_label")
+                or (anchor_labels[0] if anchor_labels else "")
+            )
+            intent_data["target_label"] = str(
+                intent_data.get("target_label")
+                or (metric_labels[0] if metric_labels else "")
+            )
         elif intent == "relationship_lookup" and self._is_legal_issue_question(question, raw_intent_name):
             anchor_label = str(intent_data.get("anchor_label") or "Company")
             target_label = str(intent_data.get("target_label") or "LegalIssue")
@@ -1082,8 +1093,14 @@ class CypherBuilder:
             props = getattr(nd, "properties", {}) or {}
             if isinstance(props, dict) and any(str(k).lower() == "value" for k in props):
                 metric_labels.append(label)
+        # Legacy names are appended only when the ontology actually declares
+        # them. They used to be added unconditionally, so every ontology --
+        # including ones with no financial concepts at all -- was told that
+        # FinancialMetric and MonetaryAmount were valid metric labels. That
+        # builds Cypher against labels the graph does not contain.
+        declared = set(getattr(self.ontology, "nodes", {}) or {})
         for legacy in ("FinancialMetric", "MonetaryAmount"):
-            if legacy not in metric_labels:
+            if legacy in declared and legacy not in metric_labels:
                 metric_labels.append(legacy)
         metric_set = set(metric_labels)
         anchor_labels = sorted({
@@ -1092,7 +1109,7 @@ class CypherBuilder:
             if getattr(rd, "target", None) in metric_set and rd.source and rd.source != "Any"
         })
         for legacy in ("Company", "LegalEntity", "Entity"):
-            if legacy not in anchor_labels:
+            if legacy in declared and legacy not in anchor_labels:
                 anchor_labels.append(legacy)
         return metric_labels, anchor_labels
 

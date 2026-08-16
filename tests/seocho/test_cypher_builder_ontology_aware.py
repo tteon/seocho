@@ -44,11 +44,47 @@ def _lookup(builder: CypherBuilder):
 
 def test_metric_anchor_labels_derived_from_ontology() -> None:
     metric_labels, anchor_labels = CypherBuilder(_fibo_ontology())._metric_anchor_labels()
-    # value-bearing subclasses become metric labels (plus legacy bases)
+    # value-bearing subclasses become metric labels
     assert "Revenue" in metric_labels and "NetIncome" in metric_labels
-    assert "FinancialMetric" in metric_labels  # legacy base kept
-    # the relationship source becomes an anchor label (plus legacy)
+    # the relationship source becomes an anchor label
     assert "LegalEntity" in anchor_labels
+
+
+def test_undeclared_legacy_labels_are_not_injected() -> None:
+    """A generic builder must not assume a financial domain.
+
+    `FinancialMetric`, `MonetaryAmount`, `Company` and `Entity` used to be
+    appended unconditionally, so an ontology with no financial concepts was
+    still told they were valid labels and built Cypher against classes its
+    graph does not contain. The fixture here declares `LegalEntity`, `Revenue`
+    and `NetIncome` and nothing else.
+
+    An ontology that genuinely has legacy nodes under those names should
+    declare them, or alias them on the class that replaced them; the builder
+    reads the ontology rather than guessing a domain.
+    """
+    metric_labels, anchor_labels = CypherBuilder(_fibo_ontology())._metric_anchor_labels()
+    for undeclared in ("FinancialMetric", "MonetaryAmount"):
+        assert undeclared not in metric_labels, undeclared
+    for undeclared in ("Company", "Entity"):
+        assert undeclared not in anchor_labels, undeclared
+
+
+def test_declared_legacy_labels_are_still_honoured() -> None:
+    """Removing the guess must not remove the capability."""
+    from seocho import NodeDef, Ontology, P
+
+    ontology = Ontology(
+        name="legacy",
+        nodes={
+            "Company": NodeDef(properties={"name": P(str, unique=True)}),
+            "FinancialMetric": NodeDef(properties={"name": P(str, unique=True),
+                                                   "value": P(str)}),
+        },
+    )
+    metric_labels, anchor_labels = CypherBuilder(ontology)._metric_anchor_labels()
+    assert "FinancialMetric" in metric_labels
+    assert "Company" in anchor_labels
 
 
 def test_aliases_and_scope_tokens_are_soft_order_by_not_where() -> None:

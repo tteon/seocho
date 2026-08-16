@@ -40,12 +40,11 @@ Canonical storage is **JSON-LD**; SHACL shapes are derived for validation::
 
 from __future__ import annotations
 
-import json
 import re
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Set, Type, Union
+from typing import Any, Dict, List, Optional, Sequence, Set, Union
 
 import yaml
 
@@ -299,8 +298,18 @@ class Ontology:
         namespace: str = "",  # RDF namespace URI (e.g. "https://schema.org/")
         nodes: Optional[Dict[str, NodeDef]] = None,
         relationships: Optional[Dict[str, RelDef]] = None,
+        annotations: Optional[Dict[str, Any]] = None,
     ) -> None:
         self.name = name
+        # Requirements-side metadata that the schema itself cannot express:
+        # `competency_questions` (what the graph must be able to answer) and
+        # `modelling_decisions` (choices a human author made -- attribute vs
+        # class, relation direction, what a status value means). Keet's
+        # micro-level methodologies treat these as determining the axioms
+        # rather than as preliminaries, and this package already scores
+        # coverage against competency questions; until now nothing carried
+        # them into the prompt that does the modelling.
+        self.annotations: Dict[str, Any] = dict(annotations or {})
         self.package_id = package_id.strip() or name
         self.version = version
         self.description = description
@@ -1666,12 +1675,37 @@ class Ontology:
         context.  Keys:
 
         - ``ontology_name``
+        - ``ontology_description`` — what the ontology is FOR. Carried because
+          the extraction prompt previously named the ontology and stopped
+          there, leaving the model a list of types with no statement of intent.
         - ``entity_types``  — human-readable list of node types + props
         - ``relationship_types`` — human-readable relationship listing
         - ``constraints_summary`` — property constraints for the LLM
         """
+        # Requirements, not just the formalised artefact. Keet's micro-level
+        # methodologies (OntoSpec / OD101 / DiDOn) make the point that authoring
+        # an ontology starts from purpose, competency questions, and explicit
+        # modelling decisions -- and that those are not trivial preliminaries,
+        # they determine the axioms. An extraction prompt that ships only the
+        # class list hands the model the output of that analysis with none of
+        # the analysis, which is the position a human ontologist would also
+        # find unworkable.
+        #
+        # These are read from optional annotations so an ontology that does not
+        # declare them renders exactly as before.
+        annotations = getattr(self, "annotations", None) or {}
         return {
             "ontology_name": self.name,
+            "ontology_description": self.description or "",
+            # Rendered to strings, not left as lists: this context is declared
+            # `Dict[str, str]` and callers join its values, so a list here is a
+            # TypeError at a distance.
+            "competency_questions": "\n".join(
+                f"  - {q}" for q in (annotations.get("competency_questions") or [])
+            ),
+            "modelling_decisions": "\n".join(
+                f"  - {d}" for d in (annotations.get("modelling_decisions") or [])
+            ),
             "entity_types": self._cached_render("entity_types", self._render_entity_types),
             "relationship_types": self._cached_render("relationship_types", self._render_relationship_types),
             "constraints_summary": self._cached_render("constraints_summary", self._render_constraints_summary),
@@ -2309,7 +2343,7 @@ class Ontology:
 
         if conflicts and strategy == "strict":
             raise ValueError(
-                f"Merge conflicts in strict mode:\n" +
+                "Merge conflicts in strict mode:\n" +
                 "\n".join(f"  - {c}" for c in conflicts)
             )
 

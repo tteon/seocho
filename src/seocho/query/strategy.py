@@ -22,7 +22,7 @@ The strategies are designed to be composable::
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 from seocho.ontology import Ontology
@@ -114,7 +114,8 @@ PRESET_PROMPTS: Dict[str, PromptTemplate] = {
             "- Regulatory references (GAAP, IFRS, SEC filings)\n"
             "- Temporal context (fiscal year, quarter, date)\n\n"
             "Important financial extraction rules:\n"
-            "- Preserve business-segment or line-item metrics as separate FinancialMetric nodes.\n"
+            "- Preserve segment-level or line-item values as separate nodes of the "
+            "matching ontology class rather than folding them into a parent.\n"
             "- Do not collapse segment metrics into a total revenue metric.\n"
             "- When the same metric appears for multiple periods, create one metric node per period.\n"
             '- Include the period in the metric node name when needed, for example "Data and access solutions revenue 2023".\n'
@@ -210,7 +211,8 @@ PRESET_PROMPTS: Dict[str, PromptTemplate] = {
             "- Financial instruments reference SEC/ISIN identifiers\n"
             "- Regulatory references link to specific regulation URIs\n\n"
             "Important financial extraction rules:\n"
-            "- Preserve business-segment or line-item metrics as separate FinancialMetric resources.\n"
+            "- Preserve segment-level or line-item values as separate resources of the "
+            "matching ontology class rather than folding them into a parent.\n"
             "- Do not collapse segment metrics into a total revenue resource.\n"
             "- When the same metric appears for multiple periods, create one resource per period.\n"
             '- Include the period in the resource name when needed, for example "Data and access solutions revenue 2023".\n'
@@ -255,7 +257,7 @@ PRESET_PROMPTS: Dict[str, PromptTemplate] = {
             "Entity types:\n{{entity_types}}\nRelationships:\n{{relationship_types}}\n\n"
             "Focus on: revenue, segment revenue, net income, operating income, margins, and YoY comparisons.\n"
             "Extract exact numerical values with year/period context.\n"
-            "Preserve segment line items such as business-unit revenue as separate FinancialMetric resources.\n"
+            "Preserve line items as separate resources of the matching ontology class.\n"
             "Do not replace a segment metric with Total Revenues.\n"
             'When one metric appears in multiple years, create one metric resource per year and include the year in the metric name when needed.\n'
             '{{constraints_summary}}\nReturn JSON with "nodes" and "triples" keys.'
@@ -433,6 +435,36 @@ class ExtractionStrategy(PromptStrategy):
         parts.append("")
         parts.append("Context:")
         parts.append(f'- Ontology: "{ctx["ontology_name"]}".')
+        # The ontology's INTENT, not just its name. `Ontology(description=...)`
+        # was accepted and stored and then dropped exactly here, so the model
+        # received a bare list of types with no statement of what they are for.
+        # That is the difference between "extract Decisions" and "extract
+        # Decisions because a reader needs to know which value is CURRENT" —
+        # the second tells the extractor which properties carry the answer.
+        purpose = str(ctx.get("ontology_description") or "").strip()
+        if purpose:
+            parts.append(f"- Purpose: {purpose}")
+
+        # Competency questions state what the ontology must be able to ANSWER.
+        # They are the standard requirements artefact in ontology engineering
+        # and this package already computes coverage against them
+        # (`competency_question_report`) -- it just never told the extractor
+        # what they were. Naming them tells the model which properties carry
+        # the answer, which a bare type list cannot.
+        questions = str(ctx.get("competency_questions") or "").strip()
+        if questions:
+            parts.append("")
+            parts.append("- The extracted graph must be able to answer:")
+            parts.append(questions)
+
+        # Modelling decisions: the choices a human author made that the schema
+        # alone does not reveal -- whether something is an attribute or a class,
+        # which direction a relation runs, what a status value means.
+        decisions = str(ctx.get("modelling_decisions") or "").strip()
+        if decisions:
+            parts.append("")
+            parts.append("- Modelling decisions to honour:")
+            parts.append(decisions)
         parts.append("")
         parts.append("- Allowed entity types:")
         parts.append(ctx["entity_types"])
@@ -445,19 +477,28 @@ class ExtractionStrategy(PromptStrategy):
         domain_node_count = sum(1 for _ in (getattr(self.ontology, "nodes", {}) or {}))
         parts.append("")
         parts.append("Label selection rules (MANDATORY):")
+        # The rules are domain-agnostic; the EXAMPLES are drawn from this
+        # ontology. They used to be FinDER literals -- FinancialMetric,
+        # Revenue, OperatingIncome, EPS, "'LegalEntity' not 'Company'" --
+        # shipped verbatim to every extraction regardless of domain, which
+        # spends tokens on vocabulary the model must ignore and names classes
+        # that are not in the allowed list it was just given.
+        label_names = list((getattr(self.ontology, "nodes", {}) or {}).keys())
+        example = (
+            f" For example, prefer '{label_names[0]}' over a generic synonym."
+            if label_names else ""
+        )
         parts.append(
             "  1. Use the MOST-SPECIFIC class that matches each entity. "
-            "If both an abstract base (e.g. FinancialMetric) and a concrete "
-            "subclass (Revenue, OperatingIncome, NetIncome, EPS, GrossProfit, "
-            "OperatingMargin) are listed, pick the subclass."
+            "If both an abstract base and a concrete subclass are listed, "
+            "pick the subclass."
         )
         parts.append(
             "  2. Never default to a generic 'Entity' label when ANY domain "
             "class above matches. 'Entity' is a last-resort fallback only."
         )
         parts.append(
-            "  3. Use canonical class names exactly as listed above (e.g. "
-            "'LegalEntity' not 'Company'; 'Revenue' not 'Sales')."
+            "  3. Use canonical class names exactly as listed above." + example
         )
         if domain_node_count >= 10:
             parts.append(
@@ -502,7 +543,7 @@ class ExtractionStrategy(PromptStrategy):
         parts.append("")
         parts.append("Output format:")
         parts.append('- Return exactly one valid json object with keys "nodes" and "relationships".')
-        parts.append('  Example node: {"id": "unique_id", "label": "EntityType", "properties": {"name": "Entity Name"}}')
+        parts.append('  Example node: {"id": "unique_id", "label": "<one of the allowed types above>", "properties": {"name": "<literal from the text>"}}')
         parts.append('  Example relationship: {"source": "source_id", "target": "target_id", "type": "RELATIONSHIP_TYPE", "properties": {}}')
         parts.append("")
         parts.append("Verification:")

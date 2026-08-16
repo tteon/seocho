@@ -407,12 +407,21 @@ class CanonicalExtractionEngine:
                 "class clearly applies. Never default to 'Entity' when the "
                 "ontology offers a domain label that matches."
             )
+        # The rule is domain-agnostic; any example must come from THIS
+        # ontology. It used to name FinancialMetric, Revenue, OperatingIncome,
+        # NetIncome, EPS, GrossProfit and OperatingMargin -- FinDER vocabulary
+        # shipped to every extraction in every domain, naming classes absent
+        # from the allowed list the model was just handed.
+        labels = list((getattr(self.ontology, "nodes", {}) or {}).keys())
+        example = (
+            f" This ontology defines, among others: {', '.join(labels[:4])}."
+            if labels else ""
+        )
         base = (
             "Label selection rules:\n"
             "  1. Use the most-specific class that matches the entity. "
-            "If both an abstract base (e.g. FinancialMetric) and a concrete "
-            "subclass (Revenue, OperatingIncome, NetIncome, EPS, GrossProfit, "
-            "OperatingMargin) are listed, pick the subclass.\n"
+            "If both an abstract base and a concrete subclass are listed, "
+            "pick the subclass." + example + "\n"
             + fallback_rule
         )
         if node_count >= 10:

@@ -29,6 +29,9 @@ services:
       # Persistent on-host artifacts directory the tutorials write to
       # (LanceDB tables, captured spans, scoreboards, RDF dumps).
       - ./.seocho:/workspace/.seocho
+    env_file:
+      - path: .env
+        required: false
     environment:
       # LLM provider for completions — defaults to openai/gpt-4o-mini.
       # Override with SEOCHO_LLM=grok/grok-2-mini, kimi/kimi-k2.5,

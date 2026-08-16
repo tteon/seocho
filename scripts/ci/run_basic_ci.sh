@@ -134,6 +134,7 @@ uv run pytest \
   tests/seocho/test_ontology_package_surface.py \
   tests/seocho/test_package_completeness.py \
   tests/seocho/test_client_namespaces.py \
+  tests/seocho/test_env_contract.py \
   -q
 
 git diff --check
@@ -141,4 +142,5 @@ scripts/ci/check-runtime-shell-contract.sh
 bash scripts/ci/check-module-ownership-contract.sh
 python3 scripts/ci/check-import-boundaries.py
 scripts/ci/check-root-hierarchy-contract.sh
+python3 scripts/ci/check-env-contract.py
 scripts/pm/lint-agent-docs.sh

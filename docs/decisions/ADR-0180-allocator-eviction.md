@@ -1,4 +1,4 @@
-# ADR-0172: the allocator's reclamation half — cost-aware, fair eviction
+# ADR-0180: the allocator's reclamation half — cost-aware, fair eviction
 
 Date: 2026-08-16 · Status: accepted (design + measurement) · seocho-ia4
 

@@ -1035,7 +1035,7 @@ Each entry must link to a full ADR when impact is non-trivial.
 
 ## 2026-08-16 (allocator eviction)
 
-- [Accepted] ADR-0172 allocator-eviction (seocho-ia4) — the reclamation half of the allocator
+- [Accepted] ADR-0180 allocator-eviction (seocho-ia4) — the reclamation half of the allocator
   - gap (hadry): interning=alloc + admission=scheduling, but NO eviction/GC/lifecycle; status quo = naive fixed-LRU (id-keyed, no cost/fairness/budget)
   - CostAwareEvictionCache: GDSF (freq x recompute_cost / size) + per-tenant floor + shared boost + byte budget + thread-safe; keyed by stable content hash
   - vs naive LRU under multi-tenant skewed churn: hit-rate 35.3%->48.1%, recompute-ms avoided +36%, hot-shared retention 86.6%->99.9%

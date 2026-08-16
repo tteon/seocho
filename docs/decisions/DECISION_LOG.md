@@ -1063,6 +1063,14 @@ Each entry must link to a full ADR when impact is non-trivial.
   - live refusal-ROC (real v1->v2 diff, property-level ground truth): always_warn 100/0, always_block 0/100, fresh_OLD(false-major) 0/83, fresh_label 0/50, fresh_prop 0/0 => freshness dominates corners; over-refusal shrinks with signal fidelity (OLD->label->prop), 0 under throughout
   - non-tautological (ground truth property-level, signals coarser); fully-live (real data answers) = pending e2e
   - 8 tests; promotes ADR-0176 to real signals
+## 2026-08-16 (axiom induction + deduction)
+
+- [Accepted] ADR-0178 inductive axiom mining + deductive entailment, A/B vs SHACL-only (seocho-ia4.8/9/10)
+  - axioms.py: mine_axioms (functional/inverse-functional/disjoint/subclass/AMIE-lite rules w/ support+confidence) + approve() gate + materialize_entailments (subclass closure + rule edges marked _entailed; functional/disjoint contradiction detection); structural, owlready2 stays offline
+  - resolves 'axiom extraction cumbersome' (mined not authored -> approval gate) + 'SHACL shapes human-in-loop' (shapes induced)
+  - A/B (offline fixture): SHACL-only 0 axioms / 0 contradictions / 0 entailed vs induced+deduced 12 axioms / 2 contradictions caught (functional+disjoint, which SHACL can't see) / 1 entailed edge; approval burden 12 of 15
+  - honest: mechanism measured offline; ANSWER-QUALITY delta = pending live e2e (never run) which gates DL-as-shape ia4.7
+  - 6 tests; insertion point pipeline.py:1002; complements rules.py
 
 ## Template
 

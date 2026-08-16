@@ -1,0 +1,40 @@
+{
+  "graph": {
+    "nodes": 6,
+    "relationships": 7,
+    "docs_ingested": 0
+  },
+  "arm_A_shacl_only": {
+    "axiom_classes_mined": 0,
+    "contradictions_caught": 0,
+    "entailed_edges": 0,
+    "entailed_labels": 0
+  },
+  "arm_B_induced_deduced": {
+    "candidates_mined": 2,
+    "approved_axioms": 2,
+    "approved_by_kind": {
+      "functional": 1,
+      "inverse_functional": 1
+    },
+    "contradictions_caught": 0,
+    "contradiction_kinds": [],
+    "entailed_edges": 0,
+    "entailed_labels": 0
+  },
+  "top_axioms": [
+    {
+      "kind": "functional",
+      "subject": "MITIGATED_BY",
+      "support": 2,
+      "confidence": 1.0
+    },
+    {
+      "kind": "inverse_functional",
+      "subject": "MITIGATED_BY",
+      "support": 2,
+      "confidence": 1.0
+    }
+  ],
+  "note": "mechanism on REAL extracted data; answer-quality A/B (competency questions) is the next layer."
+}

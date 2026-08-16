@@ -726,9 +726,16 @@ class _LocalEngine:
         LLM/graph (the e2e)."""
         gen = self._structured_cypher_generator
         if gen is None:
-            def gen(question: str, schema_text: str) -> str:  # noqa: E306
-                cypher, _params, _intent, _err = self._generate_cypher(question, active_ontology)
-                return cypher or ""
+            from .query.grounded_text2cypher import generate_grounded_cypher
+
+            def gen(question: str, schema_text: str):  # noqa: E306
+                # Ontology-grounded, guardrail-conformant: declared identifiers,
+                # $params (no inlined literals), $workspace_id scope, LIMIT $limit —
+                # so the governed guardrail passes it instead of rejecting the
+                # deterministic planner's non-conformant Cypher (the live-smoke gap).
+                return generate_grounded_cypher(
+                    self.llm, question, schema_text,
+                    workspace_id=self.workspace_id, limit=getattr(self, "row_cap", 50))
         synth = self._structured_synthesizer
         if synth is None:
             answerer = QueryAnswerSynthesizer(query_strategy=self._query, llm=self.llm)

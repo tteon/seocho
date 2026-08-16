@@ -84,6 +84,8 @@ uv run pytest \
   tests/seocho/test_faiss_delete.py \
   tests/seocho/test_delete_source_vectors.py \
   tests/seocho/test_llm_backends.py \
+  tests/seocho/test_semantic_artifact_lifecycle.py \
+  tests/seocho/test_semantic_artifact_durability.py \
   tests/seocho/test_llm_model_override.py \
   tests/seocho/test_model_router.py \
   tests/seocho/test_reflection.py \

@@ -1203,6 +1203,14 @@ Each entry must link to a full ADR when impact is non-trivial.
   - pinned_run_context(...) + with_pinned_version/pinned_epoch: when an RCU pin registry+pointer are configured, the request pins ONE frozen ontology version for its whole duration (B2 read side, per (workspace,package)); a mid-request publish swap does not change what the pinned request reads (tested) -> the e2e mutation probe is meaningful
   - all new wiring defaults OFF (behaviour identical until configured); multi-tenancy first-class (per-(ws,pkg) isolated pins); 6 new tests + run-context/drift/ontology-context suites green
 
+## 2026-08-16 (structured runtime step 2a: concurrency-safe context + pinned-schema resolver)
+
+- [Accepted] ADR-0201 concurrency-safe run context + pinned-schema resolver (seocho-ia4 structured runtime)
+  - orchestrator design review returned go-with-fixes / 7 blockers; step 2a lands the two foundational ones (one a defect in shipped ADR-0200 code)
+  - B7: in-flight run context moved from a shared instance attr (clobbered by concurrent multi-tenant asks) to a contextvars.ContextVar (active_run_context()); ask() finally folds drift into the LOCAL context; last_run_context() documented post-hoc/not-concurrency-safe
+  - B1: PinnedSchemaResolver (query/pinned_schema.py) loads the immutable snapshot for a pinned (package_id,version) and compiles prompt schema + guardrail policy from the SAME frozen ontology -> per-request pinned delivery is now real (pinned 1.0.0 resolves 1.0.0 even after 2.0.0 publishes); caches ONLY the pure tenant-agnostic schema block by (package,version,fingerprint), never a workspace-bound agent (pre-empts B3/B6)
+  - 13 new tests; run-context/ontology-context/drift/snapshot/RCU suites green. Deferred to step 2b: B2/B4/B5 + majors (governed execute, arm x organ matrix, retrieve-only specialist, plain-function orchestrator, engine axis, per-request ledger)
+
 ## Template
 
 Use this block for new entries:

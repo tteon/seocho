@@ -5,6 +5,7 @@ import logging
 import os
 import re
 from contextlib import contextmanager
+from contextvars import ContextVar
 from typing import Any, Dict, Iterator, List, Optional, Sequence
 
 from .curation_design import load_curation_design_spec
@@ -29,6 +30,19 @@ from .store.llm import complete_with_task_hints
 
 logger = logging.getLogger(__name__)
 _FOUR_DIGIT_YEAR_RE = re.compile(r"\b(20\d{2})\b")
+
+# The in-flight per-request run context, isolated per execution context so that
+# concurrent multi-tenant asks() never observe each other's workspace/pin (the
+# structured-runtime B7 fix). Mid-run consumers (the structured orchestrator, the
+# synthesizer, tracing) read THIS, never a shared instance attribute.
+_ACTIVE_RUN_CONTEXT: "ContextVar[Any]" = ContextVar("seocho_active_run_context", default=None)
+
+
+def active_run_context() -> Any:
+    """The `OntologyRunContext` of the request running in the current execution
+    context, or None. Concurrency-safe (unlike the post-hoc
+    `_LocalEngine.last_run_context()`)."""
+    return _ACTIVE_RUN_CONTEXT.get()
 
 
 class _LocalEngine:
@@ -86,7 +100,6 @@ class _LocalEngine:
         )
         self._ontology_pin_registry: Any = None
         self._active_ontology_pointer: Any = None
-        self._current_run_context: Any = None
         self._last_run_context: Any = None
         self._events = NullEventPublisher()
         self._ingest_request_cls = IngestRequest
@@ -645,7 +658,10 @@ class _LocalEngine:
             },
             tags=["rag"],
         ), pin_cm as pinned_context:
-            self._current_run_context = pinned_context
+            # Publish the in-flight context in a ContextVar (isolated per execution
+            # context) — NEVER on a shared instance attribute, so concurrent
+            # multi-tenant asks() cannot clobber each other (B7).
+            token = _ACTIVE_RUN_CONTEXT.set(pinned_context)
             try:
                 return self._run_query_pipeline(
                     question,
@@ -657,19 +673,25 @@ class _LocalEngine:
                     ontology_context=ontology_context,
                 )
             finally:
-                # Fold the drift outcome the pipeline computed into the exposed
-                # run context, then publish it as the last request's context.
-                ctx = self._current_run_context
+                # Fold the drift outcome the pipeline computed into the LOCAL
+                # request context (not a shared attr), then publish it as the
+                # last request's context (post-hoc convenience only).
+                ctx = pinned_context
                 mismatch = (self._last_query_metadata or {}).get("ontology_context_mismatch")
                 if mismatch:
                     ctx = ctx.with_mismatch(mismatch)
+                _ACTIVE_RUN_CONTEXT.reset(token)
                 self._last_run_context = ctx
 
     def last_run_context(self) -> Any:
-        """The typed :class:`OntologyRunContext` built for the most recent ``ask``
-        — workspace-scoped, carrying the ontology identity/hash, the RCU-pinned
-        version (when pinning is configured), and the drift outcome. The single
-        per-request context object the structured runtime delivers downstream."""
+        """The typed :class:`OntologyRunContext` of the MOST RECENT ``ask`` on this
+        engine — workspace-scoped, carrying the ontology identity/hash, the
+        RCU-pinned version, and the drift outcome.
+
+        This is a **post-hoc convenience and is NOT concurrency-safe**: under
+        concurrent multi-tenant calls it reflects whichever request finished last.
+        Mid-run consumers must read :func:`active_run_context` (ContextVar-isolated)
+        instead."""
         return self._last_run_context
 
     @contextmanager

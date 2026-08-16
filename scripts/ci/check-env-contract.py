@@ -125,6 +125,11 @@ def script_variables() -> Set[str]:
     return found
 
 
+_PROVIDER_KEY_FIELD = re.compile(
+    r'api_key_env(?:_aliases)?\s*=\s*(?:\(\s*)?((?:"[A-Z][A-Z0-9_]*"\s*,?\s*)+)'
+)
+
+
 def provider_key_variables() -> Dict[str, str]:
     """Env names that live as DATA rather than as literals in a getenv call.
 
@@ -133,22 +138,24 @@ def provider_key_variables() -> Dict[str, str]:
     (`os.getenv(env_name)`). A regex over call sites cannot see them.
 
     That is not a cosmetic gap: `SEOCHO_VLLM_API_KEY` is the credential for the
-    vLLM serving tier, and the checker was reporting "all three surfaces agree"
-    while it was undocumented. A gate that reports success on the one variable
-    the target deployment most needs is worse than no gate.
+    vLLM serving tier, and the checker reported "all three surfaces agree" while
+    it was undocumented. A gate that reports success on the one variable the
+    target deployment most needs is worse than no gate.
+
+    Parsed from source rather than imported. Importing `seocho.store.llm` makes
+    the result depend on whether the SDK's dependencies are installed, so the
+    checker would pass locally and flip these names to "declared but read
+    nowhere" in a leaner CI environment — which is exactly what happened.
     """
     found: Dict[str, str] = {}
+    source_path = ROOT / "src" / "seocho" / "store" / "llm.py"
     try:
-        import sys
-
-        sys.path.insert(0, str(ROOT / "src"))
-        from seocho.store.llm import list_provider_specs
-    except Exception:
+        text = source_path.read_text(encoding="utf-8")
+    except OSError:
         return found
-    for spec in list_provider_specs().values():
-        for name in (spec.api_key_env, *spec.api_key_env_aliases):
-            if name:
-                found.setdefault(name, f"src/seocho/store/llm.py (provider {spec.name!r})")
+    for group in _PROVIDER_KEY_FIELD.findall(text):
+        for name in re.findall(r'"([A-Z][A-Z0-9_]*)"', group):
+            found.setdefault(name, "src/seocho/store/llm.py (provider preset)")
     return found
 
 

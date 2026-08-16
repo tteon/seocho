@@ -198,3 +198,38 @@ def test_thin_proxy_does_not_receive_every_secret():
         leaked = {k for k in keys if "SECRET" in k or "PASSWORD" in k}
         assert not leaked, f"{name} is handed {sorted(leaked)}"
 
+
+
+def test_checker_finds_provider_credentials_without_importing_the_sdk():
+    """The vLLM tier's credential is ProviderSpec data, not a getenv literal.
+
+    It was undocumented while the checker printed "all three surfaces agree".
+    The first fix imported `seocho.store.llm` to read the presets — which made
+    the result depend on whether the SDK's dependencies were installed, so the
+    checker passed locally and flipped those names to "declared but read
+    nowhere" in CI. Parsing the source is deterministic.
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "env_contract_checker", ROOT / "scripts" / "ci" / "check-env-contract.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    names = module.provider_key_variables()
+    assert "SEOCHO_VLLM_API_KEY" in names, "the H200 tier's credential is invisible"
+    assert "VLLM_API_KEY" in names, "the legacy alias is invisible"
+    assert "MARA_API_KEY" in names, "the default provider's key is invisible"
+
+
+def test_checker_agrees_in_a_clean_environment():
+    """CI is leaner than a dev box; the checker must not depend on that."""
+    import os
+
+    result = subprocess.run(
+        [sys.executable, "scripts/ci/check-env-contract.py"],
+        cwd=ROOT, capture_output=True, text=True,
+        env={"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "HOME": "/tmp"},
+    )
+    assert result.returncode == 0, result.stdout + result.stderr

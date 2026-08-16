@@ -647,6 +647,35 @@ class Neo4jGraphStore(GraphStore):
             self.invalidate_schema_cache(database)
         return summary
 
+    def explain_plan(
+        self,
+        cypher: str,
+        *,
+        params: Optional[Dict[str, Any]] = None,
+        database: str = "neo4j",
+    ) -> Optional[Dict[str, Any]]:
+        """Compile the query and return its plan tree. Does NOT execute it.
+
+        Separate from `query` because the plan lives on the result summary and
+        `query` is contracted to return records; widening that return type to
+        smuggle a plan out would change every caller. Returns None when the
+        backend does not report one, so a caller can treat "no plan" and "bad
+        plan" differently rather than conflating them.
+
+        Verified against DozerDB 5.26.3: EXPLAIN yields args.EstimatedRows and
+        no dbHits, operators suffixed as `NodeByLabelScan@neo4j`.
+        """
+        try:
+            with self._driver.session(
+                    database=database, default_access_mode="READ") as session:
+                summary = session.run(f"EXPLAIN {cypher}",
+                                      parameters=dict(params or {})).consume()
+                plan = getattr(summary, "plan", None)
+                return dict(plan) if plan else None
+        except Exception:  # noqa: BLE001 — planning is advisory; never fail a caller
+            logger.debug("EXPLAIN unavailable for query: %s", cypher[:120])
+            return None
+
     def query(
         self,
         cypher: str,

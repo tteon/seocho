@@ -809,9 +809,19 @@ class _LocalEngine:
                     params = fb_params
 
         attempts = []
-        if reasoning_mode and repair_budget > 0 and not records:
+        # A plan hint enters the repair loop the same way an error does. Repair
+        # previously fired only on `not records`, so a query that returned rows
+        # while planning a full scan was a success that could never be improved
+        # -- and that is exactly the query whose cost explodes with the graph
+        # (25 db hits vs 6.6M at SF1000 for the same answer). The hint is
+        # computed from EXPLAIN, which does not execute, so asking costs a
+        # compile and nothing else.
+        plan_hint = self._plan_repair_hint(cypher, params, database,
+                                           executor=executor, ontology=active_ontology)
+        if reasoning_mode and repair_budget > 0 and (not records or plan_hint):
             with timer.stage("repair"):
-                attempts.append({"cypher": cypher, "result_count": 0, "error": None})
+                attempts.append({"cypher": cypher, "result_count": len(records or []),
+                                 "error": None, "plan_hint": plan_hint})
 
                 for _attempt_num in range(repair_budget):
                     repair_cypher, repair_params, repair_error = self._generate_repair_query(
@@ -1104,6 +1114,33 @@ class _LocalEngine:
         execution = active_executor.execute(QueryPlan(question="", cypher=cypher, params=params))
         self._record_plan_quality(cypher, params, database, executor=active_executor)
         return execution.records, execution.error
+
+    def _plan_repair_hint(self, cypher: str, params: Dict, database: str, *,
+                          executor: Optional[GraphQueryExecutor] = None,
+                          ontology: Optional[Any] = None) -> Optional[str]:
+        """EXPLAIN the query and, if it plans a scan, say what to do instead.
+
+        Gated by SEOCHO_PLAN_GATE because it changes when repair fires, and a
+        behaviour change belongs behind a flag until it has been measured on a
+        real corpus. Off by default.
+
+        EXPLAIN rather than PROFILE: it compiles without executing, so this can
+        run on every query instead of a sample, and the seek/scan distinction is
+        already settled at plan time.
+        """
+        import os
+
+        if os.getenv("SEOCHO_PLAN_GATE", "").strip().lower() not in {"1", "true", "on"}:
+            return None
+        try:
+            from .query.plan_quality import repair_hint, summarize_plan
+
+            explained = (executor or GraphQueryExecutor(
+                graph_store=self.graph_store, database=database,
+            )).explain(QueryPlan(question="", cypher=cypher, params=params))
+            return repair_hint(summarize_plan(explained), ontology)
+        except Exception:  # noqa: BLE001 — a planning probe must never fail a query
+            return None
 
     # Sampled because PROFILE is not free: it re-runs the query with full
     # accounting. Off by default; SEOCHO_PLAN_PROFILE_SAMPLE=0.05 profiles one

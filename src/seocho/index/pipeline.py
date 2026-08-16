@@ -1152,21 +1152,50 @@ class IndexingPipeline:
                 try:
                     from .quality_metrics import record_extraction, record_off_vocabulary
 
+                    # Only the EXTRACTED graph is checked against the ontology.
+                    # result.nodes also carries the provenance layer this
+                    # pipeline writes itself -- Document, DocumentVersion,
+                    # Section, Chunk -- which the ontology does not and should
+                    # not declare. Counting those as violations reported a
+                    # constant 4 on every document forever, which would have
+                    # made the signal useless in exactly the way that is hard to
+                    # notice: a metric that is always wrong by the same amount
+                    # still moves correctly, so nobody questions the baseline.
+                    _extracted = [
+                        n for n in result.nodes
+                        if not self._system_layer_label(n.get("label"))
+                    ]
                     _allowed = set(self.ontology.nodes) if self.ontology else None
                     record_extraction(
                         ontology=self.ontology.name,
                         source_type=str((metadata or {}).get("source_type") or "unknown"),
-                        nodes=result.nodes,
+                        nodes=_extracted,
                         relationships=result.relationships,
                         allowed_labels=_allowed,
                     )
-                    _vocab = (getattr(self.ontology, "annotations", None) or {}).get(
-                        "vocabularies"
+                    # Vocabularies come from BOTH declaration sites. `P(enum=)`
+                    # is the SDK-native one; the OS-contract sidecar writes
+                    # `annotations["vocabularies"]`. Reading only the sidecar
+                    # meant an ontology declaring `P(str, enum=[...])` had its
+                    # vocabulary enforced by SHACL and never counted here -- so
+                    # the metric reported zero deviations for a property that
+                    # was deviating. Verified e2e: a declared
+                    # [proposed|applied|superseded|reverted] came back as
+                    # "active" on every node, silently.
+                    _vocab = dict(
+                        (getattr(self.ontology, "annotations", None) or {}).get(
+                            "vocabularies"
+                        ) or {}
                     )
+                    for _label, _nd in (self.ontology.nodes or {}).items():
+                        for _pname, _prop in (_nd.properties or {}).items():
+                            if getattr(_prop, "enum", None):
+                                _vocab.setdefault(f"{_label}.{_pname}",
+                                                  list(_prop.enum))
                     if _vocab:
                         record_off_vocabulary(
                             ontology=self.ontology.name,
-                            nodes=result.nodes,
+                            nodes=_extracted,
                             vocabularies=_vocab,
                         )
                 except Exception:  # noqa: BLE001 - telemetry never fails indexing

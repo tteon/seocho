@@ -2269,6 +2269,23 @@ class Ontology:
                     lines.append(f"- {label}.{pname}: {p.constraint.value}")
                 if p.property_type != PropertyType.STRING:
                     lines.append(f"- {label}.{pname}: datatype={p.property_type.value}")
+                # A declared vocabulary that never reaches the extractor is a
+                # constraint the model cannot honour: it can only be rejected
+                # after the fact, for a rule it was never told. ADR-0181's own
+                # finding was that what has a declarative home in the prompt is
+                # obeyed (Step.position, 175/175) and what does not is invented
+                # (Decision.status, 8 values across 51 documents) -- so the enum
+                # has to be rendered, not only validated.
+                if p.enum:
+                    allowed = ", ".join(str(v) for v in p.enum)
+                    lines.append(
+                        f"- {label}.{pname}: MUST be exactly one of [{allowed}]"
+                    )
+                if p.value_range:
+                    low, high = p.value_range
+                    lines.append(
+                        f"- {label}.{pname}: numeric, between {low} and {high} inclusive"
+                    )
         return "\n".join(lines)
 
     # ------------------------------------------------------------------

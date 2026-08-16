@@ -44,7 +44,7 @@ import re
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Set, Union
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Union
 
 import yaml
 
@@ -110,6 +110,13 @@ class Property:
         Human-readable description shown in prompts.
     aliases:
         Alternative names an LLM might use for this property.
+    enum:
+        Optional allowed value set. An extracted value outside it is a
+        validation error, emitted as ``sh:in`` and enforced by
+        :meth:`validate_with_shacl`.
+    value_range:
+        Optional inclusive numeric ``(min, max)`` bound, emitted as
+        ``sh:minInclusive`` / ``sh:maxInclusive``.
 
     Example::
 
@@ -117,6 +124,8 @@ class Property:
 
         name = Property(str, unique=True)
         age = Property(int, required=True, description="Age in years")
+        rating = Property(str, enum=["buy", "hold", "sell"])
+        score = Property(float, value_range=(0.0, 1.0))
     """
 
     type: Union[type, PropertyType, str] = str
@@ -125,6 +134,8 @@ class Property:
     required: bool = False
     description: str = ""
     aliases: List[str] = field(default_factory=list)
+    enum: Optional[List[Any]] = None
+    value_range: Optional[Tuple[float, float]] = None
 
     @property
     def property_type(self) -> PropertyType:
@@ -382,6 +393,8 @@ class Ontology:
             for pname, pd in (nd.get("properties") or {}).items():
                 ptype = PropertyType[pd.get("type", "STRING").upper()] if isinstance(pd, dict) else PropertyType.STRING
                 constraint_str = pd.get("constraint", "").upper() if isinstance(pd, dict) else ""
+                enum_vals = pd.get("enum") if isinstance(pd, dict) else None
+                range_vals = pd.get("range") if isinstance(pd, dict) else None
                 props[pname] = P(
                     type=ptype,
                     unique=constraint_str == "UNIQUE",
@@ -389,6 +402,9 @@ class Ontology:
                     required=pd.get("required", False) if isinstance(pd, dict) else False,
                     description=pd.get("description", "") if isinstance(pd, dict) else "",
                     aliases=pd.get("aliases", []) if isinstance(pd, dict) else [],
+                    enum=list(enum_vals) if enum_vals is not None else None,
+                    value_range=(float(range_vals[0]), float(range_vals[1]))
+                    if range_vals and len(range_vals) == 2 else None,
                 )
             nodes[label] = NodeDef(
                 description=nd.get("description", ""),
@@ -458,6 +474,10 @@ class Ontology:
                     entry["description"] = p.description
                 if p.aliases:
                     entry["aliases"] = list(p.aliases)
+                if p.enum is not None:
+                    entry["enum"] = list(p.enum)
+                if p.value_range is not None:
+                    entry["range"] = [p.value_range[0], p.value_range[1]]
                 props_out[pname] = entry
             node_entry: Dict[str, Any] = {"description": nd.description, "properties": props_out}
             if nd.same_as:
@@ -1140,6 +1160,11 @@ class Ontology:
                 elif p.required:
                     ps["minCount"] = 1
                     ps["message"] = f"Every {label} must have a {pname}."
+                if p.enum is not None:
+                    ps["in"] = list(p.enum)
+                if p.value_range is not None:
+                    ps["minInclusive"] = p.value_range[0]
+                    ps["maxInclusive"] = p.value_range[1]
                 if p.description:
                     ps["description"] = p.description
                 prop_shapes.append(ps)
@@ -1321,6 +1346,36 @@ class Ontology:
                             f"Node '{nid}' ({label}).{pname}: "
                             f"expected boolean, got {type(value).__name__}"
                         )
+
+                # enum (sh:in) — the declared allowed value set. Without this,
+                # a vocabulary could be declared and was never enforced: the
+                # only channel that controlled extracted values was prose in
+                # the prompt.
+                allowed = ps.get("in")
+                if allowed is not None and value is not None and value != "":
+                    if value not in allowed:
+                        errors.append(
+                            f"Node '{nid}' ({label}).{pname}: value {value!r} "
+                            f"not in allowed set {allowed}"
+                        )
+
+                # range (sh:minInclusive / sh:maxInclusive)
+                if ("minInclusive" in ps or "maxInclusive" in ps) and value is not None and value != "":
+                    try:
+                        numeric = float(value)
+                    except (ValueError, TypeError):
+                        errors.append(
+                            f"Node '{nid}' ({label}).{pname}: "
+                            f"non-numeric value {value!r} for a ranged property"
+                        )
+                    else:
+                        lo = ps.get("minInclusive")
+                        hi = ps.get("maxInclusive")
+                        if (lo is not None and numeric < lo) or (hi is not None and numeric > hi):
+                            errors.append(
+                                f"Node '{nid}' ({label}).{pname}: value {value!r} "
+                                f"out of range [{lo}, {hi}]"
+                            )
 
         # Relationship cardinality check
         source_rel_counts: Dict[str, Dict[str, int]] = {}  # node_id -> {rel_type -> count}
@@ -2016,8 +2071,19 @@ class Ontology:
                             type_correct += 1
                         elif p.property_type.value in ("DATETIME", "DATE") and isinstance(val, str):
                             type_correct += 1
+                        elif p.property_type.value == "LIST" and isinstance(val, (list, tuple)):
+                            type_correct += 1
+                        elif p.property_type.value == "POINT" and isinstance(val, (dict, list, tuple)):
+                            type_correct += 1
                         else:
-                            type_correct += 0.5  # partial credit for other types
+                            # A genuine type mismatch scores 0. The old +0.5
+                            # kept malformed extractions above quality_threshold
+                            # and so silently disabled the indexing quality-retry
+                            # gate. LIST and POINT are handled above because they
+                            # fell into this same branch: a correctly typed list
+                            # was docked half a point, which is the other half of
+                            # the same bug.
+                            type_correct += 0
                 score_parts["type_correctness"] = (
                     type_correct / type_checks if type_checks > 0 else 1.0
                 )
@@ -2415,14 +2481,21 @@ class Ontology:
         if strategy == "right_wins":
             return right
 
-        # Check source/target compatibility
+        # Record every conflicting definition. merge() raises on the accumulated
+        # list afterwards in strict mode, so returning early on the first one
+        # meant a cardinality mismatch was never compared: two ontologies
+        # declaring the same relationship ONE_TO_MANY and MANY_TO_MANY merged
+        # silently to the left side's cardinality.
         if left.source != right.source or left.target != right.target:
             conflicts.append(
                 f"Relationship '{rtype}': "
                 f"{left.source}->{left.target} vs {right.source}->{right.target}"
             )
-            if strategy == "strict":
-                return left
+        if str(left.cardinality).strip().upper() != str(right.cardinality).strip().upper():
+            conflicts.append(
+                f"Relationship '{rtype}': cardinality "
+                f"{left.cardinality} vs {right.cardinality}"
+            )
 
         merged_props = dict(left.properties)
         merged_props.update(right.properties)

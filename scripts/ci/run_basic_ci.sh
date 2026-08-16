@@ -109,6 +109,7 @@ uv run pytest \
   tests/seocho/test_observability_contract.py \
   tests/seocho/test_golden_signal_emitters.py \
   tests/seocho/test_cypher_builder.py \
+  tests/seocho/test_plan_profile_harvest.py \
   tests/seocho/test_cypher_builder_ontology_aware.py \
   tests/seocho/test_extraction_engine.py \
   tests/seocho/test_graph_ensure_database.py \

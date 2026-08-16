@@ -747,6 +747,38 @@ class Neo4jGraphStore(GraphStore):
             logger.debug("EXPLAIN unavailable for query: %s", cypher[:120])
             return None
 
+    def profile_plan(
+        self,
+        cypher: str,
+        *,
+        params: Optional[Dict[str, Any]] = None,
+        database: str = "neo4j",
+    ) -> Optional[Dict[str, Any]]:
+        """Execute the query and return its profiled plan tree, with real counters.
+
+        Same reason `explain_plan` exists: the profile lives on the ResultSummary,
+        not in the result rows, and `query()` returns `[record.data() ...]` and
+        discards the summary. Sending `PROFILE <cypher>` through `query()` and
+        then scanning the rows for a `profile` key -- which is what the sampling
+        path did -- can never find one. It collected nothing while paying for a
+        second full execution of the query.
+
+        EXPLAIN gives estimates; this gives dbHits, rows and page-cache counters,
+        which is what separates "the planner was wrong" from "the query was
+        wrong". Executes, so callers must sample.
+        """
+        try:
+            with self._driver.session(
+                    database=database, default_access_mode="READ") as session:
+                result = session.run(f"PROFILE {cypher}",
+                                     parameters=dict(params or {}))
+                result.consume()  # drain before the summary is complete
+                profile = getattr(result.consume(), "profile", None)
+                return dict(profile) if profile else None
+        except Exception:  # noqa: BLE001 — profiling is advisory; never fail a caller
+            logger.debug("PROFILE unavailable for query: %s", cypher[:120])
+            return None
+
     def query(
         self,
         cypher: str,

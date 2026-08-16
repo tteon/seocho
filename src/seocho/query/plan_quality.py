@@ -132,22 +132,48 @@ def summarize_profile(profile: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     operators: List[str] = []
     db_hits = 0
     rows = 0
+    cache_hits = 0
+    cache_misses = 0
+    worst_estimate_ratio = 0.0
 
     def walk(node: Dict[str, Any]) -> None:
-        nonlocal db_hits, rows
+        nonlocal db_hits, rows, cache_hits, cache_misses, worst_estimate_ratio
         operators.append(str(node.get("operatorType", "")))
         db_hits += int(node.get("dbHits", 0) or 0)
         rows += int(node.get("rows", 0) or 0)
+        cache_hits += int(node.get("pageCacheHits", 0) or 0)
+        cache_misses += int(node.get("pageCacheMisses", 0) or 0)
+
+        # Estimated vs actual, per operator. This is the single best signal for
+        # "the planner was wrong", which is a DIFFERENT root cause from "the
+        # query was wrong" — and the two were indistinguishable before.
+        estimated = (node.get("args") or {}).get("EstimatedRows")
+        actual = node.get("rows")
+        if isinstance(estimated, (int, float)) and isinstance(actual, (int, float)):
+            hi, lo = max(float(estimated), float(actual)), min(float(estimated), float(actual))
+            if lo >= 1.0:
+                worst_estimate_ratio = max(worst_estimate_ratio, hi / lo)
+
         for child in node.get("children", []) or []:
             walk(child)
 
     walk(profile)
     scans = [op for op in operators if any(s in op for s in SCAN_OPERATORS)]
     seeks = [op for op in operators if any(s in op for s in SEEK_OPERATORS)]
+    cache_total = cache_hits + cache_misses
     return {
         "available": True,
         "db_hits": db_hits,
+        # Summed across the whole tree, so this double-counts every pipeline
+        # stage and is neither result size nor total work. Named for what it is.
+        "intermediate_rows": rows,
         "rows": rows,
+        # Scale-free: raw db_hits is not comparable across questions.
+        "db_hits_per_row": (db_hits / rows) if rows else float(db_hits),
+        # Separates "the graph does not fit in the page cache" from "the query
+        # is bad". Without it an infra problem attributes to retrieval quality.
+        "page_cache_hit_ratio": (cache_hits / cache_total) if cache_total else None,
+        "worst_estimate_ratio": round(worst_estimate_ratio, 2) or None,
         "operator_count": len(operators),
         "scans": scans,
         "seeks": seeks,
@@ -163,12 +189,25 @@ def span_attributes(summary: Dict[str, Any]) -> Dict[str, Any]:
     """
     if not summary.get("available"):
         return {}
+    # .get(), not [] — summarize_plan (EXPLAIN) has no db_hits or rows at all,
+    # so indexing them raised KeyError for the caller this function exists to
+    # serve. Worse, record_metrics used `.get("db_hits") or 0` and silently
+    # recorded ZERO db hits for every explained plan, which is data corruption
+    # rather than a missing signal. EXPLAIN summaries now omit the field.
     attrs: Dict[str, Any] = {
-        "db.plan.db_hits": summary["db_hits"],
-        "db.plan.rows": summary["rows"],
-        "db.plan.operator_count": summary["operator_count"],
-        "db.plan.sargable": summary["sargable"],
+        "db.plan.operator_count": summary.get("operator_count", 0),
+        "db.plan.sargable": summary.get("sargable", False),
+        "db.plan.source": "profile" if "db_hits" in summary else "explain",
     }
+    for key, attr in (("db_hits", "db.plan.db_hits"),
+                      ("intermediate_rows", "db.plan.intermediate_rows"),
+                      ("db_hits_per_row", "db.plan.db_hits_per_row"),
+                      ("page_cache_hit_ratio", "db.plan.page_cache_hit_ratio"),
+                      ("worst_estimate_ratio", "db.plan.worst_estimate_ratio"),
+                      ("estimated_rows", "db.plan.estimated_rows")):
+        value = summary.get(key)
+        if value is not None:
+            attrs[attr] = value
     if summary.get("scans"):
         attrs["db.plan.scan_operators"] = ",".join(sorted(set(summary["scans"])))
     if summary.get("seeks"):
@@ -201,7 +240,12 @@ def record_metrics(summary: Dict[str, Any], *, route: Optional[str] = None,
         )
         # A counter carrying db hits lets a rate() show cost per query over time
         # without needing a histogram on every backend.
-        metrics.add("seocho.query.db_hits.count", float(summary.get("db_hits") or 0))
+        # Only from a PROFILE. An EXPLAIN summary has no db_hits, and
+        # `or 0` recorded a real zero for it — indistinguishable from a
+        # query that genuinely touched nothing, and wrong in the same
+        # direction every time.
+        if summary.get("db_hits") is not None:
+            metrics.add("seocho.query.db_hits.count", float(summary["db_hits"]))
         for operator in sorted(set(summary.get("scans") or []))[:3]:
             metrics.add("seocho.query.scan.count", 1, attributes={"operator": operator})
     if route:

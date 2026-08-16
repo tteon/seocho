@@ -1265,6 +1265,12 @@ Each entry must link to a full ADR when impact is non-trivial.
   - generate_grounded_cypher(llm, question, schema_text, *, workspace_id, limit) -> (cypher, params): declared ids only, every value a $param (no inlined literal), {_workspace_id:$workspace_id} on EVERY node (satisfies store verify_workspace_binding, not just the anchor), LIMIT $limit; returns value params. Now the structured engine's default generator; orchestrator threads (cypher,params) into guardrail + governed execute (back-compat with bare-string generators)
   - LIVE-VALIDATED (DozerDB+MARA): governed arm produced conformant workspace-scoped Cypher, guardrail allowed:1/rejected:0, store filter passed, CORRECT answer (real incident) vs deterministic confabulation. Plane-2 blocker removed. wires the ADR-0191 grounding thesis into the runtime. 3 unit tests; orchestrator/engine green (13). asset: scripts/agentos/e2e_structured_smoke.py
 
+## 2026-08-16 (structured runtime: text2cypher repair loop)
+
+- [Accepted] ADR-0209 text2cypher repair loop (seocho-ia4.13)
+  - StructuredQueryOrchestrator.repair_budget (default 0; local engine sets 1): on a guardrail rejection, feed the violation reasons + rejected query back to generate_grounded_cypher(feedback=) and retry up to budget before abstaining; _call_gen keeps 2-arg test doubles compatible; StructuredQueryResult.repair_attempts records retries
+  - removes the Plane-2 confound (governed abstaining on a fixable one-shot miss); bounded + honest (still abstains after budget). 3 tests; structured suites green (16)
+
 ## Template
 
 Use this block for new entries:

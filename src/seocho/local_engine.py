@@ -112,6 +112,7 @@ class _LocalEngine:
         self._pinned_schema_resolver: Any = None
         self._structured_cypher_generator: Any = None
         self._structured_synthesizer: Any = None
+        self._structured_repair_budget = 1   # guardrail-reject -> retry-with-feedback (ADR-0209)
         self._events = NullEventPublisher()
         self._ingest_request_cls = IngestRequest
 
@@ -728,14 +729,16 @@ class _LocalEngine:
         if gen is None:
             from .query.grounded_text2cypher import generate_grounded_cypher
 
-            def gen(question: str, schema_text: str):  # noqa: E306
+            def gen(question: str, schema_text: str, feedback=None):  # noqa: E306
                 # Ontology-grounded, guardrail-conformant: declared identifiers,
                 # $params (no inlined literals), $workspace_id scope, LIMIT $limit —
                 # so the governed guardrail passes it instead of rejecting the
                 # deterministic planner's non-conformant Cypher (the live-smoke gap).
+                # `feedback` carries a prior guardrail rejection for the repair loop.
                 return generate_grounded_cypher(
                     self.llm, question, schema_text,
-                    workspace_id=self.workspace_id, limit=getattr(self, "row_cap", 50))
+                    workspace_id=self.workspace_id, limit=getattr(self, "row_cap", 50),
+                    feedback=feedback)
         synth = self._structured_synthesizer
         if synth is None:
             answerer = QueryAnswerSynthesizer(query_strategy=self._query, llm=self.llm)
@@ -771,6 +774,7 @@ class _LocalEngine:
             resolver=self._pinned_schema_resolver,
             get_schema_fn=lambda: self._get_schema_info(database),
             database=database,
+            repair_budget=getattr(self, "_structured_repair_budget", 1),
         )
         result = orchestrator.answer(question, run_context, workspace_id=self.workspace_id)
         if ledger is not None:

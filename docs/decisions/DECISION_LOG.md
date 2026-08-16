@@ -1056,6 +1056,14 @@ Each entry must link to a full ADR when impact is non-trivial.
   - honest: synthetic mechanism-frontier demo (separates the two error types fixed policies cannot); live payoff needs ia4.2 classifier (relevance/horizon) + ia4.3 version chain (distance)
   - 7 tests; standalone module; Long-Horizon + Trust/Safety tracks
 
+## 2026-08-16 (compatibility classifier + live freshness)
+
+- [Accepted] ADR-0177 typed compatibility classifier -> live freshness signals (seocho-ia4.2 + ia4.6)
+  - classify_ontology_change: BACKWARD/FORWARD/BREAKING per change atom (structural, no DL); fixes diff_ontologies false-major (add-optional flagged breaking); breaking_labels + breaking_properties + semver_distance
+  - live refusal-ROC (real v1->v2 diff, property-level ground truth): always_warn 100/0, always_block 0/100, fresh_OLD(false-major) 0/83, fresh_label 0/50, fresh_prop 0/0 => freshness dominates corners; over-refusal shrinks with signal fidelity (OLD->label->prop), 0 under throughout
+  - non-tautological (ground truth property-level, signals coarser); fully-live (real data answers) = pending e2e
+  - 8 tests; promotes ADR-0176 to real signals
+
 ## Template
 
 Use this block for new entries:

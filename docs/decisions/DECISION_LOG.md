@@ -1129,6 +1129,14 @@ Each entry must link to a full ADR when impact is non-trivial.
   - Part B (ia4.5): migration_plan(tombstone=True default) = SET _ontology_tombstoned_at instead of DETACH DELETE; removed prop kept+_deprecated_ not dropped; data_loss flag per stmt; tombstone=False = legacy destructive
   - non-destructive migration by default (VACUUM discipline); epoch-gated vacuum+RELABEL/BACKFILL+scavenger = ia4.3/4.5 follow-up; +3 tests
 
+## 2026-08-16 (text2cypher intern grounding)
+
+- [Accepted] ADR-0187 text2cypher grounding via shared intern table + competency questions (seocho-ia4)
+  - query/intern_grounding.py: resolve_mentions (request mentions -> canonical ids via SharedInternTable; unresolved = can't-find-entity signal for fuzzy routing) + rank_competency_questions (tf-idf cosine intent) + ground_request
+  - attacks the Cypher-gen agent's hardest moment (entity resolution + intent); model-agnostic via cross-model shared namespace (ADR-0183)
+  - honest: exact-name resolution (variants surface as unresolved = boundary-1 ceiling), tf-idf baseline (bge next); +4 tests
+  - follow-up: wire into live cypher-gen prompt + repair loop (PR #542 merged), vector fallback for unresolved
+
 ## Template
 
 Use this block for new entries:

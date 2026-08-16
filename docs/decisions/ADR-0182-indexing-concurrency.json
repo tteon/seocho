@@ -1,0 +1,37 @@
+{
+  "chunks": 12,
+  "extract_latency_s": 0.4,
+  "extraction_concurrency": {
+    "1": {
+      "wall_s": 4.806,
+      "speedup": 1.0
+    },
+    "2": {
+      "wall_s": 2.404,
+      "speedup": 2.0
+    },
+    "4": {
+      "wall_s": 1.203,
+      "speedup": 4.0
+    },
+    "8": {
+      "wall_s": 0.802,
+      "speedup": 5.99
+    },
+    "12": {
+      "wall_s": 0.403,
+      "speedup": 11.94
+    }
+  },
+  "interning": {
+    "ops": 200000,
+    "wall_s": 0.167,
+    "ops_per_s": 1194727,
+    "time_to_intern_one_doc_of_extraction_worth": 0.0005
+  },
+  "verdict": {
+    "extraction_is_io_bound_concurrency_win": 5.99,
+    "interning_share_of_a_sequential_extract": 0.000104,
+    "rust_intern_table_warranted_now": false
+  }
+}

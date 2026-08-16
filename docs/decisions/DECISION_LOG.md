@@ -1088,6 +1088,14 @@ Each entry must link to a full ADR when impact is non-trivial.
   - structure/axiom-support: bootstrap wins (hierarchical types 36/36 vs 0, axioms 20 vs 13)
   - drift INCONCLUSIVE: string-norm metric too weak for semantic synonyms; bootstrap increased granularity; true control = grouping under ~11 upper cats not fewer types; embedding-cluster metric = follow-up
   - decision: wiring bootstrap mode into engine warranted (recall fear disproven)
+## 2026-08-16 (indexing parallelism)
+
+- [Accepted] ADR-0182 indexing parallelism — concurrent extraction + shared intern table (seocho-ia4)
+  - step 1: concurrent_map pre-fetches per-chunk LLM extraction (I/O-bound -> thread pool, order-preserving, opt-in SEOCHO_EXTRACTION_CONCURRENCY); 151 index tests pass identically off AND on
+  - step 2 profile: extraction near-linear (8w=5.99x, 12w=11.94x); interning 1.19M ops/s (~0.5ms/doc, negligible)
+  - step 3: SharedInternTable = thread-safe workspace-scoped sharded intern table (shared-memory core); 16 threads racing one entity converge to one canonical id (no fragmentation)
+  - step 4: Rust intern table NOT warranted now (data: extraction I/O-bound, interning 1.2M ops/s); trigger documented; measure-first
+  - +7 tests
 
 ## Template
 

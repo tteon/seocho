@@ -739,7 +739,7 @@ class CypherBuilder:
             "       type(r) AS relationship,\n"
             "       coalesce(endNode(r).name, endNode(r).uri) AS target,\n"
             "       labels(b) AS target_labels,\n"
-            "       properties(b) AS target_properties,\n"
+            f"       {self._declared_props_expr('b', target_label)} AS target_properties,\n"
             "       coalesce(b.content_preview, b.description, b.content, '') AS supporting_fact\n"
             "LIMIT $limit",
             params,
@@ -1018,6 +1018,7 @@ class CypherBuilder:
             f"WHERE {endpoint_preds}\n"
             "  AND ($workspace_id = '' OR all(n IN nodes(path) WHERE coalesce(n._workspace_id, '') = $workspace_id))\n"
             f"RETURN [n IN nodes(path) | {self._display_expr('n', anchor_label)}] AS nodes,\n"
+            f"       [n IN nodes(path) | {self._path_props_expr('n')}] AS node_properties,\n"
             "       [r IN relationships(path) | type(r)] AS relationships\n"
             "LIMIT $limit",
             params,
@@ -1080,6 +1081,68 @@ class CypherBuilder:
             "RETURN count(n) AS count",
             {"workspace_id": workspace_id},
         )
+
+    def _declared_props_expr(self, alias: str, label: str = "") -> str:
+        """Project the properties the ontology declares, not the whole node.
+
+        `properties(n)` returns everything the writer put there, and most of it
+        is this pipeline's own bookkeeping: _workspace_id, _sources, _source_id,
+        _writer_agent, _writer_ts, and eight _ontology_* fields. Measured on a
+        two-row answer against a live graph, 23 keys were returned of which the
+        ontology declared 2 -- 80% of the answer context was provenance the
+        model cannot use and must still read.
+
+        Cost is the smaller half. The larger half is that a model given twenty
+        internal keys alongside two meaningful ones has to guess which carry the
+        answer, and `status` -- the property the question was about -- arrives
+        with the same weight as `_ontology_glossary_hash`.
+
+        Falls back to the whole map when the label is unknown, because returning
+        nothing is worse than returning too much.
+        """
+        node = self.ontology.nodes.get(label) if label else None
+        declared = list(getattr(node, "properties", {}) or {}) if node is not None else []
+        if not declared:
+            return f"properties({alias})"
+        pairs = ", ".join(
+            f"{quote_identifier(name)}: {alias}.{quote_identifier(name)}"
+            for name in declared
+        )
+        # Plain Cypher rather than apoc.map.clean: a projection is not worth a
+        # procedure dependency, and the read path refuses procedure calls
+        # (enforce_read_workspace_scope) precisely so it does not have to reason
+        # about what they can do. An unset optional property comes back null,
+        # which the answer layer already handles.
+        return f"{{{pairs}}}"
+
+    def _path_props_expr(self, alias: str, *, max_keys: int = 12) -> str:
+        """Map projection over every property name the ontology declares.
+
+        A path crosses several labels, so a per-label projection is not
+        available statically. The union of declared names is, and it is bounded
+        by the ontology rather than by what the writer happened to store -- which
+        is the property that matters, since the alternative (`properties(n)`)
+        returns this pipeline's _workspace_id/_sources/_ontology_* bookkeeping on
+        every node of every path.
+
+        Identity properties come first so the cap, if it binds, keeps the keys
+        that identify a node over the ones that describe it.
+        """
+        identity: List[str] = []
+        rest: List[str] = []
+        for node in (self.ontology.nodes or {}).values():
+            keys = list(getattr(node, "properties", {}) or {})
+            for key in getattr(node, "effective_identity_keys", None) or []:
+                if key in keys and key not in identity:
+                    identity.append(key)
+            for key in keys:
+                if key not in identity and key not in rest:
+                    rest.append(key)
+        names = (identity + rest)[:max_keys]
+        if not names:
+            return self._display_expr(alias)
+        projection = ", ".join(f".{quote_identifier(name)}" for name in names)
+        return f"{alias}{{{projection}}}"
 
     def _display_expr(self, alias: str, label: str = "") -> str:
         """Ontology-aware display expression for a node.

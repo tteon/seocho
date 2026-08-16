@@ -74,6 +74,41 @@ class TestChunkFunctionHappyPath:
         first = chunks[0]
         assert text[first.char_start : first.char_end] == first.text
 
+    def test_overlapped_long_chunks_keep_valid_offsets(self):
+        # Regression for #124. Two effects combined to collapse overlapped
+        # chunks to (-1, -1) under the old post-hoc `str.find` locator:
+        #   1. bodies longer than ~512 chars carry a 200-char overlap prefix
+        #      that drifts out of the 512-char lookback window, and
+        #   2. paragraphs are stripped before re-joining, so a body whose
+        #      source had surrounding whitespace no longer matches verbatim
+        #      and `find` returns -1.
+        # The whitespace padding below reproduces (2) on top of (1). Offsets
+        # are now tracked from real paragraph positions, so they stay valid.
+        paragraphs = [
+            "   " + f"Paragraph {i}: " + ("lorem ipsum dolor sit amet " * 6).strip() + "   "
+            for i in range(12)
+        ]
+        text = "\n\n".join(paragraphs)
+        chunks = chunk(text, source_id="doc1", max_chars=800, overlap_chars=200)
+
+        assert len(chunks) > 1
+        assert any(len(c.text) > 512 for c in chunks)  # the failing-size regime
+
+        prev_start = -1
+        for c in chunks:
+            # No chunk loses its provenance (the old code returned (-1, -1)).
+            assert c.char_start >= 0
+            assert c.char_end > c.char_start
+            assert c.char_end <= len(text)
+            # Spans advance monotonically through the document.
+            assert c.char_start >= prev_start
+            prev_start = c.char_start
+            # The span ends exactly at this chunk's last paragraph, so the
+            # source slice resolves the chunk's own (non-overlap) tail even
+            # when stripping changed the body away from the raw source.
+            last_paragraph = c.text.split("\n\n")[-1]
+            assert text[c.char_start : c.char_end].endswith(last_paragraph)
+
     def test_markdown_headings_attach_section_paths(self):
         text = (
             "# Overview\n\n"

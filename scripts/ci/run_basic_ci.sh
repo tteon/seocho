@@ -73,6 +73,9 @@ uv run pytest \
   tests/seocho/test_benchmarking.py \
   tests/seocho/test_finder_benchmark_script.py \
   tests/seocho/test_indexing_design.py \
+  tests/seocho/test_dedup_scope.py \
+  tests/seocho/test_indexing_fallback_honesty.py \
+  tests/seocho/test_provider_timeout_defaults.py \
   tests/seocho/test_llm_backends.py \
   tests/seocho/test_llm_model_override.py \
   tests/seocho/test_model_router.py \

@@ -117,6 +117,7 @@ uv run pytest \
   tests/seocho/test_triage_metadata.py \
   tests/seocho/test_ontology_requirements_in_prompt.py \
   tests/seocho/test_index_quality_metrics.py \
+  tests/seocho/test_plan_quality_wiring.py \
   -q
 
 git diff --check

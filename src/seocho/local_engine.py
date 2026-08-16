@@ -1102,7 +1102,46 @@ class _LocalEngine:
             database=database,
         )
         execution = active_executor.execute(QueryPlan(question="", cypher=cypher, params=params))
+        self._record_plan_quality(cypher, params, database, executor=active_executor)
         return execution.records, execution.error
+
+    # Sampled because PROFILE is not free: it re-runs the query with full
+    # accounting. Off by default; SEOCHO_PLAN_PROFILE_SAMPLE=0.05 profiles one
+    # query in twenty, which is enough for a rate() over an hour and far too
+    # little to notice per request.
+    #
+    # This is worth sampling rather than skipping because db hits are the
+    # leading indicator wall-clock cannot give: ADR-0144 measured two queries
+    # returning identical answers at 25 db hits and 6.6M at SF1000, while at SF1
+    # the same pair differed by 4 ms. Latency finds this after the graph has
+    # grown; the seek/scan distinction finds it before.
+    def _record_plan_quality(self, cypher: str, params: Dict, database: str,
+                             *, executor: Optional[GraphQueryExecutor] = None) -> None:
+        import os
+        import random
+
+        try:
+            rate = float(os.getenv("SEOCHO_PLAN_PROFILE_SAMPLE", "0") or 0)
+        except ValueError:
+            return
+        if rate <= 0 or random.random() >= rate:
+            return
+
+        try:
+            from .query.plan_quality import record_metrics, summarize_profile
+
+            profiled = (executor or GraphQueryExecutor(
+                graph_store=self.graph_store, database=database,
+            )).execute(QueryPlan(question="", cypher=f"PROFILE {cypher}", params=params))
+            profile = None
+            for row in profiled.records or []:
+                if isinstance(row, dict) and row.get("profile"):
+                    profile = row["profile"]
+                    break
+            summary = summarize_profile(profile)
+            record_metrics(summary, route=getattr(self, "_last_route_class", None))
+        except Exception:  # noqa: BLE001 — a profiling failure must never fail a query
+            return
 
     def _generate_repair_query(
         self,

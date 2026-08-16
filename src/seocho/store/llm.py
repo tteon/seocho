@@ -864,6 +864,18 @@ class OpenAICompatibleBackend(LLMBackend):
                         time.perf_counter() - metric_started,
                         {**metric_labels, "gen_ai.operation.name": "chat"},
                     )
+                    # Time to first token. The instrument was declared for a
+                    # streaming path this SDK does not have, so it never fired.
+                    # Some OpenAI-compatible providers (MARA among them) report
+                    # it in `usage` on an ordinary non-streaming response, which
+                    # is the only prefill signal an API exposes at all — worth
+                    # emitting where it is offered rather than leaving the
+                    # instrument dead until streaming lands.
+                    ttft = result.usage.get("time_to_first_token")
+                    if isinstance(ttft, (int, float)) and ttft > 0:
+                        metrics.record(
+                            "seocho.gen_ai.time_to_first_token", float(ttft), metric_labels
+                        )
                     for token_type, usage_key in (
                         ("input", "prompt_tokens"),
                         ("output", "completion_tokens"),

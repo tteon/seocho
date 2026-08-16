@@ -1189,6 +1189,13 @@ Each entry must link to a full ADR when impact is non-trivial.
 - [Accepted] ADR-0196 freshness real read-time repair, not a serve stub (seocho-ia4.6)
   - repair_read drops soft-deleted rows + strips deprecated props so a drifted-but-within-bound read conforms to the active contract; wired into local_engine after the drift barrier (gated on proceeding mismatch, O(records) self-describing scan = no ontology reasoning on hot path); plan_read_repair derives deprecated-prop set off hot path + marks destructive changes non-repairable (-> refuse). Closes the soft-delete read-leak. 6 tests; drift/context suites unchanged
 
+## 2026-08-16 (observability stack -> root compose profile)
+
+- [Accepted] ADR-0199 observability stack as a first-class root-compose profile
+  - root docker-compose.yml `include:`s examples/observability/docker-compose.observability.yml behind the existing `observability` profile (OFF by default); definition + 8 Grafana dashboards stay in examples/, only the entry point moved
+  - network declared identically to root (graphrag-net -> name seocho-net, bridge, non-external) so include merges to ONE project-created network (no external-union breaking core network creation); make observability-up|down|logs drive root compose with an explicit 4-service list (core + volumes untouched)
+  - verified live via the new path: 4 containers healthy, 8 dashboards, Prometheus+Tempo datasources, collector scrape target up; default config unchanged
+
 ## Template
 
 Use this block for new entries:

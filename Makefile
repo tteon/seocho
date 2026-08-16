@@ -165,21 +165,17 @@ memory-down: ## Stop PostgreSQL memory without deleting its volume
 
 ##@ Observability
 
-observability-up: ## Start the lightweight OTel + Tempo + Prometheus + Grafana stack
-	@COMPOSE_PROJECT_NAME=seocho-observability docker compose \
-		-f examples/observability/docker-compose.observability.yml \
-		--profile observability up -d --wait --remove-orphans
+OBS_SERVICES := tempo prometheus otel-collector grafana
+
+observability-up: ## Start the local OTel + Tempo + Prometheus + Grafana stack (root compose, `observability` profile, alongside the core stack)
+	docker compose --profile observability up -d --wait $(OBS_SERVICES)
 	@echo "📊 Grafana: http://$${SEOCHO_BIND_HOST:-127.0.0.1}:$${GRAFANA_PORT:-3000}"
 
-observability-down: ## Stop the lightweight observability stack
-	@COMPOSE_PROJECT_NAME=seocho-observability docker compose \
-		-f examples/observability/docker-compose.observability.yml \
-		--profile observability down
+observability-down: ## Stop and remove ONLY the observability containers (core stack + named volumes untouched)
+	docker compose --profile observability rm -fs $(OBS_SERVICES)
 
 observability-logs: ## Tail Collector, Tempo, Prometheus, and Grafana logs
-	@COMPOSE_PROJECT_NAME=seocho-observability docker compose \
-		-f examples/observability/docker-compose.observability.yml \
-		--profile observability logs -f --tail=100
+	docker compose --profile observability logs -f --tail=100 $(OBS_SERVICES)
 
 ##@ FinDER Tutorials
 

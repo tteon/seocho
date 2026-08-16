@@ -1,6 +1,7 @@
 {
   "adr": "ADR-0213",
   "title": "Graph agentic-RAG stage breakdown",
+  "status": "experimental (downgraded after multi-agent review 2026-08-17)",
   "date": "2026-08-17",
   "environment": {
     "llm": "MARA MiniMax-M2.7 (hosted)",
@@ -39,12 +40,19 @@
   },
   "generated_cypher_stage3": "MATCH (n:`Entity`) WHERE (toLower(coalesce(n.name,n.uri,'')) CONTAINS toLower($entity) OR toLower(coalesce(n.name,n.uri,'')) CONTAINS toLower($entity_norm)) AND ($workspace_id='' OR coalesce(n._workspace_id,'')=$workspace_id) AND coalesce(n._superseded_by,'')='' RETURN n LIMIT $limit",
   "intent_data_stage3": {"intent": "entity_lookup", "anchor_entity": "Erica vagans", "target_entity": "", "relationship_type": ""},
-  "reporting_artifact": {"symptom": "_last_query_metadata.records == 0 while manual re-exec of same cypher+params returned 1 row", "impact": "diagnostics undercount only; answers unaffected"},
+  "correction_2026_08_17": {
+    "records_zero_is_faithful": "executor feeds the same records list to synthesis and metadata; metadata cannot undercount. On the captured run the anchor was mis-selected as the book title and 0 rows returned (direct re-exec also 0).",
+    "root_cause": "stage-3 anchor-slot extraction non-deterministically picks the question framing-clause book title 'An Unsentimental Journey through Cornwall' as the anchor entity",
+    "attribution_revised": "failure spans stage-1 (alias not lifted) AND stage-3 (anchor mis-selection), non-deterministic; n=1 with no ceiling/floor control cannot attribute to one stage"
+  },
   "gold_hit_rate": "0/3",
-  "conclusion": "For appositive/alias fact-retrieval, GraphRAG breaks at stage-1 extraction coverage; retrieval/generation cannot recover an answer that is structurally absent. Highest-leverage fix is extraction-side alias capture + an ontology alias slot.",
+  "conclusion": "For THIS sample: no answer because the fact was not reliably in the graph (stage 1) AND the anchor was mis-selected (stage 3), non-deterministically. NOT a defensible class-level claim about alias fact-retrieval (needs stratified sample + ceiling/floor controls). Lowest-complexity/highest-frequency fix: strip question framing clauses before anchor-slot extraction.",
+  "review_caveats": [
+    "graph_store.write counts submitted rows not created edges (no .consume()); written_to_store/total_relationships inflated + provenance-inclusive",
+    "gold_hit is a bare substring match (false pos on name-dropping refusal, false neg on paraphrase)",
+    "n=1, no ceiling/floor control though query_no_graph_records / indexing_no_graph_writes exist"
+  ],
   "followups": [
-    "extraction: appositive/alias capture -> ALSO_KNOWN_AS edge or alias property + ontology slot (prove before/after gold_hit)",
-    "retrieval: intent classifier routes 'also known as / another name for' as alias traversal, not entity_lookup",
-    "bug: _LocalEngine._last_query_metadata['records'] undercounts retrieved rows"
+    "retrieval (highest-value): anchor-slot extraction strips question framing clauses and ranks real-subject names over quoted titles"
   ]
 }

@@ -1327,11 +1327,11 @@ Use this block for new entries:
   / `sc.platform` / `sc.sessions` group 54 of 80 facade methods; `AsyncSeocho`'s
   25 missing methods are generated rather than hand-written; additive, nothing
   deprecated yet
-- [Accepted] ADR-0213 graphrag-stage-breakdown (seocho-5ny) — e2e attribution on
-  MARA MiniMax-M2.7 + live DozerDB: with the #589 endpoint-remap fix landed
-  (`endpoints_resolvable` 0→12), stage 1 is healthy but appositive-alias fact
-  retrieval (Erica vagans → "Cornish heath") fails at **stage-1 extraction
-  coverage** — the alias is never lifted into a node/edge, so retrieval and the
-  (honest, non-hallucinating) generator cannot recover it; gold_hit 0/3.
-  Follow-ups: extraction alias capture + ontology slot, alias-aware intent
-  routing, and a `_last_query_metadata["records"]` undercount bug
+- [Experimental] ADR-0213 graphrag-stage-breakdown (seocho-5ny) — e2e attribution
+  on MARA MiniMax-M2.7 + live DozerDB. #589 (endpoint remap, `endpoints_resolvable`
+  0→12) is solid. The stage attribution was **downgraded after multi-agent review**:
+  a follow-up diagnostic showed `records=0` is faithful (not an artifact) and the
+  Erica vagans → "Cornish heath" failure is non-deterministic across **stage-1**
+  (alias not lifted) AND **stage-3** (anchor-slot picks the question's framing-clause
+  book title). n=1 with no ceiling/floor control ⇒ not a class claim. Lowest-
+  complexity fix: strip question framing clauses before anchor-slot extraction.

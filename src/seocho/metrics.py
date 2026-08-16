@@ -72,6 +72,20 @@ _LATENCY_MILLISECONDS_BUCKETS = (
     2500.0,
     5000.0,
 )
+# Ratios and shares live in [0, 1] — except plan.speedup, which is a factor and
+# runs past it. Default OTel boundaries start at 5, so every one of these landed
+# in the first bucket and their percentiles were unreadable.
+_RATIO_BUCKETS = (
+    0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9,
+    0.95, 0.99, 1.0, 2.0, 5.0, 10.0,
+)
+# Token counts (prompt, completion, context) span three orders of magnitude.
+_TOKEN_COUNT_BUCKETS = (
+    16.0, 64.0, 256.0, 512.0, 1024.0, 2048.0, 4096.0,
+    8192.0, 16384.0, 32768.0, 131072.0,
+)
+# Small cardinal counts: retrieval candidates, attempts, batch entries.
+_ITEM_COUNT_BUCKETS = (1.0, 2.0, 3.0, 5.0, 8.0, 13.0, 21.0, 50.0, 100.0, 500.0)
 
 
 @dataclass(frozen=True, slots=True)
@@ -271,8 +285,84 @@ _metrics = ProductionMetrics()
 _provider: Any | None = None
 
 
-def enable_metrics(*, backend: str | None = None, endpoint: str | None = None) -> ProductionMetrics:
-    """Enable the process-wide production metrics registry."""
+def build_histogram_views() -> tuple:
+    """Bucket boundaries per instrument unit.
+
+    Extracted from enable_metrics so the boundaries can be asserted
+    without standing up an exporter -- they were wrong for 18 of 30
+    histograms and nothing could see it.
+    """
+    from opentelemetry.sdk.metrics.view import (
+        ExplicitBucketHistogramAggregation,
+        View,
+    )
+
+    # Matched on UNIT, not on a name suffix. The name-suffix form covered
+    # 12 of 30 histograms: `seocho.gen_ai.time_to_first_token` is in
+    # seconds and does not end in `.duration`, and
+    # `seocho.memory.commit.phase.duration` does end in `.duration` but is
+    # in milliseconds, so neither matched. Both fell back to OTel's default
+    # boundaries, which run 0..10000 and are shaped for milliseconds — a
+    # 0.8 s TTFT lands in the (0, 5] bucket and p95 reads ~5 s regardless of
+    # reality. Ratios in [0, 1] collapsed into the first bucket entirely.
+    #
+    # Unit is the property that actually determines the right boundaries,
+    # so a new instrument gets sensible buckets by declaring its unit
+    # rather than by being named a particular way.
+    views = (
+        View(
+            instrument_unit="s",
+            instrument_name="*",
+            aggregation=ExplicitBucketHistogramAggregation(
+                _DURATION_SECONDS_BUCKETS
+            ),
+        ),
+        View(
+            instrument_unit="ms",
+            instrument_name="*",
+            aggregation=ExplicitBucketHistogramAggregation(
+                _LATENCY_MILLISECONDS_BUCKETS
+            ),
+        ),
+        View(
+            instrument_unit="1",
+            instrument_name="*",
+            aggregation=ExplicitBucketHistogramAggregation(_RATIO_BUCKETS),
+        ),
+        View(
+            instrument_unit="{token}",
+            instrument_name="*",
+            aggregation=ExplicitBucketHistogramAggregation(
+                _TOKEN_COUNT_BUCKETS
+            ),
+        ),
+    ) + tuple(
+        View(
+            instrument_unit=unit,
+            instrument_name="*",
+            aggregation=ExplicitBucketHistogramAggregation(
+                _ITEM_COUNT_BUCKETS
+            ),
+        )
+        for unit in ("{item}", "{attempt}", "{entry}")
+    )
+    return views
+
+
+def enable_metrics(
+    *,
+    backend: str | None = None,
+    endpoint: str | None = None,
+    reader: Any = None,
+) -> ProductionMetrics:
+    """Enable the process-wide production metrics registry.
+
+    ``reader`` substitutes the exporting reader, so a test can pass an
+    ``InMemoryMetricReader`` and assert what was actually emitted. Without it
+    the only way to check a metric was to grep for its name in the source --
+    which is how a module full of instruments that nothing ever calls passed
+    the observability contract test.
+    """
 
     global _metrics, _provider
     selected = (backend or os.getenv(METRICS_BACKEND_ENV, "none")).strip().lower()
@@ -285,42 +375,33 @@ def enable_metrics(*, backend: str | None = None, endpoint: str | None = None) -
             return _metrics
         if selected != "otlp":
             raise ValueError("metrics backend must be 'none' or 'otlp'")
-        target = (endpoint or os.getenv(METRICS_OTLP_ENDPOINT_ENV, "")).strip()
-        if not target:
-            raise ValueError("OTLP metrics endpoint is required")
         try:
-            from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
             from opentelemetry.sdk.metrics import MeterProvider
-            from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
-            from opentelemetry.sdk.metrics.view import (
-                ExplicitBucketHistogramAggregation,
-                View,
-            )
             from opentelemetry.sdk.resources import Resource
         except ImportError as exc:
             raise ImportError("OTLP metrics require the seocho[otel] extra") from exc
-        exporter = OTLPMetricExporter(endpoint=target, insecure=target.startswith("http://"))
-        reader = PeriodicExportingMetricReader(exporter, export_interval_millis=5000)
+        if reader is None:
+            target = (endpoint or os.getenv(METRICS_OTLP_ENDPOINT_ENV, "")).strip()
+            if not target:
+                raise ValueError("OTLP metrics endpoint is required")
+            try:
+                from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import (
+                    OTLPMetricExporter,
+                )
+                from opentelemetry.sdk.metrics.export import (
+                    PeriodicExportingMetricReader,
+                )
+            except ImportError as exc:
+                raise ImportError("OTLP metrics require the seocho[otel] extra") from exc
+            exporter = OTLPMetricExporter(
+                endpoint=target, insecure=target.startswith("http://")
+            )
+            reader = PeriodicExportingMetricReader(exporter, export_interval_millis=5000)
         resource_attributes = {"service.name": os.getenv("OTEL_SERVICE_NAME", "seocho")}
         if instance_id := os.getenv("OTEL_SERVICE_INSTANCE_ID"):
             resource_attributes["service.instance.id"] = instance_id
         resource = Resource.create(resource_attributes)
-        views = (
-            View(
-                instrument_name="*.duration",
-                instrument_unit="s",
-                aggregation=ExplicitBucketHistogramAggregation(
-                    _DURATION_SECONDS_BUCKETS
-                ),
-            ),
-            View(
-                instrument_name="*.latency",
-                instrument_unit="ms",
-                aggregation=ExplicitBucketHistogramAggregation(
-                    _LATENCY_MILLISECONDS_BUCKETS
-                ),
-            ),
-        )
+        views = build_histogram_views()
         _provider = MeterProvider(
             resource=resource,
             metric_readers=(reader,),

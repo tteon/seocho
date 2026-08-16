@@ -599,14 +599,41 @@ def log_span(
     metadata: Optional[Dict[str, Any]] = None,
     tags: Optional[List[str]] = None,
 ) -> None:
-    """Log a span to ALL active backends."""
+    """Log a point-in-time span to ALL active backends.
+
+    Unlike :func:`start_span` this does not time anything — the caller already
+    finished the work and knows how long it took. What it must still do is
+    attach to the enclosing trace, and it did not: `sdk.extraction` and
+    `sdk.query` were emitted with no `trace_id` and no `parent_span_id`, so
+    they landed as orphan records beside the `rag.*` tree instead of inside it.
+
+    Stage attribution is exactly the ability to ask "which part of *this*
+    request was slow or wrong", and an orphan span cannot answer it however
+    complete its own attributes are. So the current trace context is stamped on
+    here, and `elapsed_seconds` in the caller's metadata is promoted to
+    `duration_ms` so the record is placeable on a waterfall.
+    """
+    enriched = dict(metadata or {})
+
+    stack = _span_stack.get()
+    if stack:
+        enriched.setdefault("trace_id", stack[0])
+        if len(stack) > 1:
+            enriched.setdefault("parent_span_id", stack[-1])
+    enriched.setdefault("span_id", uuid.uuid4().hex[:16])
+
+    # Callers of log_extraction/log_query already measured the work.
+    elapsed = enriched.get("elapsed_seconds")
+    if "duration_ms" not in enriched and isinstance(elapsed, (int, float)):
+        enriched["duration_ms"] = round(float(elapsed) * 1000, 2)
+
     for b in _BACKENDS:
         try:
             b.log_span(
                 name,
                 input_data=input_data,
                 output_data=output_data,
-                metadata=metadata,
+                metadata=enriched,
                 tags=tags,
             )
         except Exception:

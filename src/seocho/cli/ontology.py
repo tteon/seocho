@@ -22,6 +22,17 @@ def register(subparsers) -> None:
     ontology_check_parser = ontology_subparsers.add_parser("check", help="Validate one ontology definition")
     ontology_check_parser.add_argument("--schema", required=True, help="Ontology file (JSON-LD, YAML, or TTL)")
     ontology_check_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
+    # ADR-0181: structural validity is not readiness. The scorecard already
+    # names what an ontology is missing and nothing forced anyone to look --
+    # a 322-document corpus was indexed against an unscored ontology that
+    # turned out to be grade B with three weak points.
+    ontology_check_parser.add_argument(
+        "--score", action="store_true",
+        help="also run the quality scorecard and report OS-contract gaps")
+    ontology_check_parser.add_argument(
+        "--strict", action="store_true",
+        help="with --score, exit non-zero on a blocking scorecard or a missing "
+             "OS-contract element. Use this as an indexing gate.")
 
     ontology_export_parser = ontology_subparsers.add_parser("export", help="Export ontology-derived artifacts")
     ontology_export_parser.add_argument("--schema", required=True, help="Ontology file (JSON-LD, YAML, or TTL)")
@@ -183,6 +194,11 @@ def handle(args: argparse.Namespace) -> int:
             )
             for item in result.errors:
                 print(f"error: {item}")
+
+        if getattr(args, "score", False):
+            return _report_quality(ontology, result,
+                                   strict=getattr(args, "strict", False),
+                                   as_json=getattr(args, "output_json", False))
             for item in result.warnings:
                 print(f"warning: {item}")
         return 0 if result.ok else 1
@@ -495,3 +511,69 @@ def handle(args: argparse.Namespace) -> int:
         return 0
 
     raise SeochoError(f"Unknown ontology command: {args.ontology_command}")
+
+
+def _contract_gaps(ontology) -> list:
+    """OS-contract elements an ontology FILE cannot carry (ADR-0181).
+
+    Reported separately from scorecard findings because their absence is
+    expected on first import: a `.ttl` has nowhere to put a competency question
+    or an identity key. Naming them is what turns "you should add these" into a
+    list that can be driven to empty.
+    """
+    annotations = getattr(ontology, "annotations", None) or {}
+    nodes = getattr(ontology, "nodes", None) or {}
+    gaps = []
+    if not (getattr(ontology, "description", "") or "").strip():
+        gaps.append(("purpose", "extraction is told what to build, not why"))
+    if not annotations.get("competency_questions"):
+        gaps.append(("competency_questions",
+                     "nothing states what the graph must be able to answer"))
+    if not annotations.get("modelling_decisions"):
+        gaps.append(("modelling_decisions",
+                     "relation direction and attribute-vs-class choices are implicit"))
+    if not any(getattr(nd, "identity_keys", None) for nd in nodes.values()):
+        gaps.append(("identity",
+                     "no identity_keys: the same entity in two documents stays two nodes"))
+    if not annotations.get("vocabularies"):
+        gaps.append(("vocabularies",
+                     "no allowed values: a measured run produced 8 spellings of one status"))
+    return gaps
+
+
+def _report_quality(ontology, result, *, strict: bool, as_json: bool) -> int:
+    from ..ontology_scorecard import score_ontology
+
+    card = score_ontology(ontology)
+    data = card.to_dict() if hasattr(card, "to_dict") else dict(card)
+    gaps = _contract_gaps(ontology)
+
+    try:
+        from ..index.quality_metrics import record_contract_gaps, record_scorecard
+
+        name = getattr(ontology, "name", "") or "ontology"
+        record_scorecard(card, ontology=name)
+        record_contract_gaps(ontology, ontology=name)
+    except Exception:  # noqa: BLE001 — telemetry must never fail the check
+        pass
+
+    blocking = bool(data.get("blocking"))
+    major = [w for w in (data.get("weak_points") or [])
+             if str(w.get("severity")) == "major"]
+
+    if as_json:
+        print(json.dumps({"scorecard": data,
+                          "contract_gaps": [{"element": e, "why": w} for e, w in gaps]},
+                         indent=2, default=str))
+    else:
+        print(f"  grade={data.get('grade')} blocking={blocking}")
+        for dim in data.get("dimensions") or []:
+            print(f"    {float(dim.get('score', 0)):.2f}  {dim.get('name')}")
+        for weak in data.get("weak_points") or []:
+            print(f"  [{weak.get('severity')}] {weak.get('message')}")
+        for element, why in gaps:
+            print(f"  [contract] {element}: {why}")
+
+    if strict and (blocking or gaps or major):
+        return 1
+    return 0 if result.ok else 1

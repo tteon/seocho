@@ -141,6 +141,24 @@ METRIC_SPECS: dict[str, MetricSpec] = {
         _spec("seocho.arbiter.route.count", "counter", "{route}", ("route",), "Arbiter routing decisions."),
         _spec("seocho.index.validation_errors.count", "counter", "{error}", ("mode", "ontology"), "Ontology validation errors during indexing."),
         _spec("seocho.index.observations_reified.count", "counter", "{observation}", ("ontology",), "Observation nodes reified during indexing."),
+        # Ontology quality (ADR-0114 scorecard, ADR-0181 OS contract). The
+        # scorecard already names what an ontology is missing; nothing emitted
+        # it, so a run could be indexed against a grade-D ontology and nobody
+        # would see it until the answers were wrong.
+        _spec("seocho.ontology.scorecard.score", "gauge", "1", ("ontology", "profile"), "Overall ontology scorecard score."),
+        _spec("seocho.ontology.scorecard.dimension", "gauge", "1", ("ontology", "dimension"), "Per-dimension scorecard score."),
+        _spec("seocho.ontology.weak_point.count", "counter", "{finding}", ("ontology", "dimension", "severity"), "Scorecard weak points by severity."),
+        _spec("seocho.ontology.contract.missing", "counter", "{element}", ("ontology", "element"), "OS-contract elements absent (identity, vocabularies, competency questions)."),
+        # Extraction quality. Each of these is a failure measured on a real run
+        # rather than an imagined one: off-vocabulary property values, nodes
+        # whose label is not in the ontology, and documents that produced no
+        # graph at all.
+        _spec("seocho.index.extraction.nodes", "histogram", "{node}", ("ontology", "source_type"), "Nodes extracted per document."),
+        _spec("seocho.index.extraction.relationships", "histogram", "{relationship}", ("ontology", "source_type"), "Relationships extracted per document."),
+        _spec("seocho.index.extraction.retry.count", "counter", "{retry}", ("ontology", "reason"), "Extraction retries, e.g. a reasoning model returning prose instead of JSON."),
+        _spec("seocho.index.extraction.empty.count", "counter", "{document}", ("ontology", "source_type"), "Documents that yielded no nodes."),
+        _spec("seocho.index.off_ontology_label.count", "counter", "{node}", ("ontology", "label"), "Extracted nodes whose label is not declared by the ontology."),
+        _spec("seocho.index.off_vocabulary_value.count", "counter", "{value}", ("ontology", "property"), "Property values outside a declared vocabulary."),
         _spec("seocho.query.plan.speedup", "histogram", "1", ("cohort",), "Baseline-to-candidate query-plan speedup after semantic parity."),
         _spec("seocho.query.plan.db_hits_reduction", "histogram", "1", ("cohort",), "Fractional DB-hit reduction for a semantically equivalent query plan."),
         _spec("seocho.query.plan.finding.count", "counter", "{finding}", ("variant", "finding"), "Execution-plan findings attributed by the GOpt-inspired audit."),

@@ -115,6 +115,8 @@ uv run pytest \
   tests/seocho/test_sweep.py \
   tests/seocho/test_entity_identity.py \
   tests/seocho/test_triage_metadata.py \
+  tests/seocho/test_ontology_requirements_in_prompt.py \
+  tests/seocho/test_index_quality_metrics.py \
   -q
 
 git diff --check

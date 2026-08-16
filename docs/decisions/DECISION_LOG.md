@@ -1122,6 +1122,13 @@ Each entry must link to a full ADR when impact is non-trivial.
   - light gate (RCU-free) closes the bug now; full epoch-based version reclamation waits on ia4.3
   - +2 tests
 
+## 2026-08-16 (memory-manager demo + tombstone migration)
+
+- [Accepted] ADR-0186 memory-manager demonstration + tombstone migration (seocho-ia4.4/ia4.5)
+  - Part A (demo, hadry scenario): demo_memory_manager.py runs ref-count->lookup->fill->pressure->pin->churn->unpin; 4 invariants ALL hold (pinned-in-use never evicted, hot-shared retained, cold reclaimed on unpin, evicts under pressure); 64 evictions, hit-rate 49%
+  - Part B (ia4.5): migration_plan(tombstone=True default) = SET _ontology_tombstoned_at instead of DETACH DELETE; removed prop kept+_deprecated_ not dropped; data_loss flag per stmt; tombstone=False = legacy destructive
+  - non-destructive migration by default (VACUUM discipline); epoch-gated vacuum+RELABEL/BACKFILL+scavenger = ia4.3/4.5 follow-up; +3 tests
+
 ## Template
 
 Use this block for new entries:

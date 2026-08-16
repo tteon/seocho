@@ -1199,6 +1199,7 @@ class Seocho:
         repair_budget: int = 0,
         query_mode: Optional[str] = None,
         cot_mode: bool = False,
+        engine: str = "deterministic",
     ) -> str:
         """Ask a question through the primary public query facade.
 
@@ -1221,6 +1222,7 @@ class Seocho:
             repair_budget=repair_budget,
             query_mode=query_mode,
             cot_mode=cot_mode,
+            engine=engine,
         ).response
 
     def ask_response(
@@ -1238,6 +1240,7 @@ class Seocho:
         repair_budget: int = 0,
         query_mode: Optional[str] = None,
         cot_mode: bool = False,
+        engine: str = "deterministic",
     ) -> AskResponse:
         """Return the primary query answer plus runtime metadata."""
         normalized_query_mode = _resolve_semantic_query_mode(
@@ -1253,6 +1256,7 @@ class Seocho:
                 repair_budget=repair_budget,
                 query_mode=normalized_query_mode,
                 ontology_override=self._ontology_registry.get(db),
+                engine=engine,
             )
             metadata = self.last_query_metadata
             semantic_context = dict(metadata.get("semantic_context", {}) or {})

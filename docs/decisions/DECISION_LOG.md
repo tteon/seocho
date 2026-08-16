@@ -1071,6 +1071,14 @@ Each entry must link to a full ADR when impact is non-trivial.
   - A/B (offline fixture): SHACL-only 0 axioms / 0 contradictions / 0 entailed vs induced+deduced 12 axioms / 2 contradictions caught (functional+disjoint, which SHACL can't see) / 1 entailed edge; approval burden 12 of 15
   - honest: mechanism measured offline; ANSWER-QUALITY delta = pending live e2e (never run) which gates DL-as-shape ia4.7
   - 6 tests; insertion point pipeline.py:1002; complements rules.py
+## 2026-08-16 (cold-start schema bootstrap)
+
+- [Accepted] ADR-0179 cold-start schema bootstrap — upper-ontology-anchored open extraction (seocho-ia4)
+  - principle (hadry): domain-driven interface = design against an ABSTRACT upper ontology, concrete types emerge anchored under it (no dataset-quirk hyperfixation)
+  - upper.py: ~11-category foundational ontology + abstract relations, small/soft (avoids firewall recall hit); render_upper_frame()
+  - induce.py: induce_ontology_from_graph (concrete types -> NodeDef broader=[upper], relationships from majority endpoints) + optional mined axioms; induction_report drift diagnostics
+  - Keet triad: cold-start = abduction (hypothesize types) -> induction (mine schema/axioms) -> deduction; 1 pass + growing soft frame, no forced re-extraction
+  - core landed+tested; WIP = live bootstrap extraction mode + cold-start A/B (drift/axiom-support/recall vs pure-open) on instance-diverse corpus
 
 ## Template
 

@@ -26,6 +26,7 @@ N-way concurrency the LaneScheduler admits).
 
 from __future__ import annotations
 
+import contextlib
 import threading
 from dataclasses import dataclass, field
 from typing import Callable, Dict, Hashable, Set
@@ -39,6 +40,7 @@ class _Entry:
     freq: int = 0                   # reference count since admission
     tenants: Set[str] = field(default_factory=set)   # who has referenced it
     value: float = 0.0              # cached GDSF priority (with aging term)
+    pins: int = 0                   # in-flight readers; pinned entries are never evicted
 
 
 class CostAwareEvictionCache:
@@ -144,10 +146,15 @@ class CostAwareEvictionCache:
                     protected.add(e.key)
         # Evict lowest-priority unprotected entries until under budget.
         while self._bytes > self.byte_budget:
+            # Safety gate (seocho-ia4.4): never evict a PINNED entry — one a
+            # concurrent request is mid-flight on. Value ranking chooses only among
+            # already-safe (unpinned, unprotected) candidates. The full epoch-based
+            # gate (min_pinned_epoch / version reclamation) is ia4.3/RCU; this is the
+            # hot-cache pin refcount that closes the use-after-evict bug without it.
             candidates = [e for e in self._entries.values()
-                          if e.key not in protected]
+                          if e.key not in protected and e.pins <= 0]
             if not candidates:
-                break                    # everything is floor-protected
+                break                    # everything is floor-protected or pinned
             victim = min(candidates, key=self._priority)
             self._age = self._priority(victim)   # GDSF aging: raise the floor
             self._bytes -= victim.size
@@ -167,11 +174,43 @@ class CostAwareEvictionCache:
             "recompute_ms_incurred": round(self.recompute_ms_incurred, 1),
             "recompute_ms_avoided": round(self.recompute_ms_avoided, 1),
             "evictions": self.evictions,
+            "pinned": sum(1 for e in self._entries.values() if e.pins > 0),
         }
 
     def holds(self, key: Hashable) -> bool:
         with self._lock:
             return key in self._entries
+
+    # -- pinning (ia4.4): protect an in-use entry from reclamation ------------
+    def pin(self, key: Hashable) -> bool:
+        """Mark ``key`` as in-use so it is never evicted until unpinned. Returns
+        False if the key is not resident."""
+        with self._lock:
+            e = self._entries.get(key)
+            if e is None:
+                return False
+            e.pins += 1
+            return True
+
+    def unpin(self, key: Hashable) -> None:
+        with self._lock:
+            e = self._entries.get(key)
+            if e is not None and e.pins > 0:
+                e.pins -= 1
+
+    @contextlib.contextmanager
+    def pinned(self, key: Hashable):
+        """Context manager: pin ``key`` for the duration of an in-flight use."""
+        ok = self.pin(key)
+        try:
+            yield ok
+        finally:
+            if ok:
+                self.unpin(key)
+
+    def pinned_count(self) -> int:
+        with self._lock:
+            return sum(1 for e in self._entries.values() if e.pins > 0)
 
     def clear(self) -> None:
         with self._lock:

@@ -102,3 +102,31 @@ def test_ontology_context_cache_stable_key_and_fairness():
     b = cache.get(o2, workspace_id="acme")   # id()-keyed cache would MISS here
     assert a is b, "stable content key must hit across distinct instances"
     assert cache.stats()["hits"] >= 1
+
+
+def test_pinned_entry_is_never_evicted():
+    """A pinned (in-use) entry survives budget pressure even when it is the
+    lowest-value victim (seocho-ia4.4 safe-reclamation gate)."""
+    c = CostAwareEvictionCache(byte_budget=250)   # holds ~2 size-100 entries
+    _get(c, "hot", size=100, cost=1.0)            # low value, but we'll pin it
+    assert c.pin("hot")
+    for i in range(6):                            # flood -> pressure
+        _get(c, f"x{i}", size=100, cost=50.0)
+    assert c.holds("hot"), "pinned entry must not be evicted under pressure"
+    assert c.stats()["pinned"] == 1
+    c.unpin("hot")
+    # once unpinned, it is a normal (low-value) eviction candidate again
+    for i in range(6):
+        _get(c, f"y{i}", size=100, cost=50.0)
+    assert not c.holds("hot")
+
+
+def test_pinned_context_manager():
+    c = CostAwareEvictionCache(byte_budget=250)
+    _get(c, "k", size=100, cost=1.0)
+    with c.pinned("k") as ok:
+        assert ok
+        for i in range(6):
+            _get(c, f"z{i}", size=100, cost=50.0)
+        assert c.holds("k")            # protected inside the context
+    assert c.pinned_count() == 0       # released on exit

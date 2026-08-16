@@ -1114,6 +1114,14 @@ Each entry must link to a full ADR when impact is non-trivial.
   - derive_drift_policy ties verdict to ia4.1 read barrier (BREAKING/FORWARD->block); PublishCompatibilityError carries report
   - turns silent-breaking publishes into explicit blocked-by-default; +4 tests; completes ia4.2
 
+## 2026-08-16 (pin-aware eviction)
+
+- [Accepted] ADR-0185 pin-aware eviction — safe-reclamation gate (light) (seocho-ia4.4)
+  - eviction cache ranked value but had NO safety gate -> could evict an in-flight entry (use-after-evict bug)
+  - add pin/unpin/pinned() refcount; _evict_to_budget skips pinned entries; stats.pinned
+  - light gate (RCU-free) closes the bug now; full epoch-based version reclamation waits on ia4.3
+  - +2 tests
+
 ## Template
 
 Use this block for new entries:

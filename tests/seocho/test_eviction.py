@@ -130,3 +130,35 @@ def test_pinned_context_manager():
             _get(c, f"z{i}", size=100, cost=50.0)
         assert c.holds("k")            # protected inside the context
     assert c.pinned_count() == 0       # released on exit
+
+
+def test_heap_eviction_correct_and_bounded_under_scale(monkeypatch):
+    """The lazy-heap eviction (ia4.12) evicts the true lowest-value victims and
+    keeps the heap O(live entries) despite many priority updates (hits)."""
+    budget = 50 * 100                              # holds 50 size-100 entries
+    c = CostAwareEvictionCache(byte_budget=budget)
+    # Warm a hot, expensive, frequently-referenced working set of 50 pages.
+    for r in range(20):
+        for k in range(50):
+            _get(c, f"hot-{k}", size=100, cost=100.0)
+    # Now flood 5000 cheap one-shots. With an O(n)-per-eviction scan this is
+    # ~O(n^2); with the heap it stays fast and the hot set must survive.
+    for i in range(5000):
+        _get(c, f"churn-{i}", size=100, cost=1.0)
+    assert c.stats()["bytes"] <= budget
+    survived = sum(1 for k in range(50) if c.holds(f"hot-{k}"))
+    assert survived == 50, f"all hot pages should survive churn, kept {survived}/50"
+    # Lazy-deletion housekeeping keeps the heap from growing without bound.
+    assert len(c._heap) <= 2 * len(c._entries) + 64
+
+
+def test_eviction_picks_global_min_value_victim():
+    """The victim is the globally lowest-priority unpinned entry, not a scan
+    artifact — verified by controlled values."""
+    c = CostAwareEvictionCache(byte_budget=300)    # holds 3
+    _get(c, "cheap", size=100, cost=1.0)           # lowest value
+    _get(c, "mid", size=100, cost=10.0)
+    _get(c, "rich", size=100, cost=100.0)
+    _get(c, "new", size=100, cost=50.0)            # forces one eviction
+    assert not c.holds("cheap"), "the globally cheapest entry must be evicted"
+    assert c.holds("mid") and c.holds("rich") and c.holds("new")

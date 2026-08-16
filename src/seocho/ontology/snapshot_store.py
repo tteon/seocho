@@ -237,6 +237,27 @@ class OntologySnapshotStore:
         snaps = self.list(package_id)
         return snaps[-1] if snaps else None
 
+    # ---- reclaim (seocho-ia4.4) ------------------------------------------
+    def delete(self, package_id: str, version: str) -> bool:
+        """Remove a stored snapshot version. Returns True if a file was removed.
+
+        This is the ONLY mutation of the otherwise-immutable store, and it is
+        reserved for **safe reclamation** of a fully-retired version — one the
+        active pointer no longer references AND that has no reader pinned at or
+        below its retirement epoch. That safety judgement is not made here; it is
+        owned by :class:`~seocho.ontology.reclamation.SafeReclamationGate`, which
+        consumes ``VersionPinRegistry.min_pinned_epoch``. Deleting a still-active
+        or still-pinned version is a use-after-free — never call this directly to
+        bypass the gate."""
+        removed = False
+        for s in self._versions(package_id):
+            if s.version == version:
+                p = self._path(package_id, version, s.schema_fingerprint)
+                if p.exists():
+                    p.unlink()
+                    removed = True
+        return removed
+
     def history(self, package_id: str) -> List[Dict[str, Any]]:
         """A compact lineage timeline for display."""
         return [

@@ -905,6 +905,21 @@ class _LocalEngine:
                 logger_obj=logger,
             )
 
+            # Read-time repair (seocho-ia4.6): on a proceeding drift (mismatch but
+            # not blocked), reconcile the retrieved records to the ACTIVE contract
+            # before answering — drop soft-deleted (logically removed) rows and
+            # strip deprecated properties. This makes the "repair" freshness
+            # decision a real reconciliation instead of serving stale data as-is.
+            # Cheap O(records) scan of self-describing data — no ontology reasoning
+            # on the hot path.
+            if (records and ontology_context_mismatch.get("mismatch")
+                    and not ontology_context_mismatch.get("blocked")):
+                from .ontology.freshness import repair_read
+
+                records, _repair_report = repair_read(records)
+                if _repair_report.dropped_records or _repair_report.stripped_property_keys:
+                    ontology_context_mismatch["read_repair"] = _repair_report.to_dict()
+
         with self._traced_stage(timer, "deterministic_answer"):
             deterministic_answer = self._build_deterministic_answer(
                 question,

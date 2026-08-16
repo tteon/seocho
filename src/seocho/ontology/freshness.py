@@ -25,8 +25,8 @@ module is that judgment. See wiki/ontology-lifecycle-os-design.md.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Optional
+from dataclasses import dataclass, field
+from typing import Any, Dict, FrozenSet, List, Optional, Tuple
 
 
 @dataclass(frozen=True)
@@ -86,5 +86,125 @@ def evaluate_freshness(
 
 def freshness_to_drift_policy(decision: FreshnessDecision) -> str:
     """Bridge a freshness decision to the ia4.1 barrier's policy vocabulary:
-    ``refuse`` → 'block'; ``serve``/``repair`` → 'warn' (proceed)."""
+    ``refuse`` → 'block'; ``serve``/``repair`` → 'warn' (proceed).
+
+    Note that ``repair`` is no longer *only* 'warn-and-serve-as-is': the caller
+    that proceeds on a ``repair`` decision should reconcile the read with
+    :func:`repair_read` (below) before answering — 'warn' governs the barrier,
+    ``repair_read`` performs the reconciliation. See :func:`apply_read_repair`."""
     return "block" if decision.blocks else "warn"
+
+
+# ---------------------------------------------------------------------------
+# Read-time repair — the reconciliation that makes a "repair" decision real.
+#
+# The review flagged "repair" as stubbed to serve. A drifted-but-within-bound
+# read is served against data indexed under an older contract; to conform to the
+# ACTIVE contract we reconcile the retrieved records on the way out:
+#
+#   - drop records that reference a **soft-deleted** node — one the migration
+#     logically removed (``_ontology_soft_deleted_at`` stamp, ia4.5). Serving
+#     logically-removed data is exactly the staleness the barrier exists to stop.
+#   - strip **deprecated properties** the active schema no longer declares.
+#
+# Both are O(records) scans of self-describing data: NO ontology reasoning on the
+# hot path (the ``keep ontology reasoning out of hot request paths`` guardrail).
+# The deprecated-property set is derived once off the hot path (:func:`plan_read_repair`).
+# ---------------------------------------------------------------------------
+
+_SOFT_DELETE_KEY = "_ontology_soft_deleted_at"
+
+
+@dataclass(frozen=True)
+class ReadRepairReport:
+    dropped_records: int = 0          # records referencing a soft-deleted node
+    stripped_property_keys: int = 0   # deprecated property values removed
+    reconcilable: bool = True         # False if a breaking change blocks read-repair
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"dropped_records": self.dropped_records,
+                "stripped_property_keys": self.stripped_property_keys,
+                "reconcilable": self.reconcilable}
+
+
+@dataclass(frozen=True)
+class ReadRepairPlan:
+    """The reconcilable-on-read part of a schema change, precomputed off the hot
+    path from a migration plan."""
+    deprecated_properties: FrozenSet[str] = field(default_factory=frozenset)
+    removed_labels: FrozenSet[str] = field(default_factory=frozenset)
+    reconcilable: bool = True         # a breaking change (e.g. prop retyped) is NOT read-repairable
+    reason: str = ""
+
+
+def plan_read_repair(migration_plan: Dict[str, Any]) -> ReadRepairPlan:
+    """Derive the read-repair plan from ``Ontology.migration_plan`` output.
+
+    Removed properties/labels are read-repairable (strip / filter on read); a
+    change that alters the *meaning* of retained data (a retype, a newly-required
+    property) is NOT — such a read must refuse, not silently reconcile."""
+    removals = migration_plan.get("removals", []) or []
+    deprecated = frozenset(r.get("property") for r in removals
+                           if r.get("type") == "property" and r.get("property"))
+    removed_labels = frozenset(r.get("label") for r in removals
+                               if r.get("type") == "node" and r.get("label"))
+    # A retype / required-add is a semantic break we cannot fix by dropping data.
+    breaking_unrepairable = any(
+        s.get("data_loss") for s in migration_plan.get("cypher_statements", []) or []
+    )
+    reconcilable = not breaking_unrepairable
+    reason = "" if reconcilable else "breaking_change_not_read_repairable"
+    return ReadRepairPlan(deprecated, removed_labels, reconcilable, reason)
+
+
+def _is_soft_deleted(value: Any) -> bool:
+    if isinstance(value, dict):
+        if any(k == _SOFT_DELETE_KEY or str(k).endswith("." + _SOFT_DELETE_KEY) for k in value):
+            return True
+        return any(_is_soft_deleted(v) for v in value.values())
+    if isinstance(value, (list, tuple)):
+        return any(_is_soft_deleted(v) for v in value)
+    return False
+
+
+def _strip_props(value: Any, deprecated: FrozenSet[str], counter: List[int]) -> Any:
+    if isinstance(value, dict):
+        out = {}
+        for k, v in value.items():
+            if k in deprecated or any(str(k).endswith("." + d) for d in deprecated):
+                counter[0] += 1
+                continue
+            out[k] = _strip_props(v, deprecated, counter)
+        return out
+    if isinstance(value, list):
+        return [_strip_props(v, deprecated, counter) for v in value]
+    return value
+
+
+def repair_read(
+    records: Optional[List[Any]],
+    *,
+    deprecated_properties: FrozenSet[str] = frozenset(),
+    reconcilable: bool = True,
+) -> Tuple[List[Any], ReadRepairReport]:
+    """Reconcile retrieved ``records`` to the active contract.
+
+    Drops any record referencing a soft-deleted node and strips deprecated
+    property values. Cheap (O(records), self-describing data). If
+    ``reconcilable`` is False (a breaking change), returns the records unchanged
+    with ``reconcilable=False`` in the report so the caller escalates to refuse."""
+    recs = list(records or [])
+    if not reconcilable:
+        return recs, ReadRepairReport(reconcilable=False)
+    kept: List[Any] = []
+    dropped = 0
+    counter = [0]
+    for rec in recs:
+        if _is_soft_deleted(rec):
+            dropped += 1
+            continue
+        kept.append(_strip_props(rec, deprecated_properties, counter)
+                    if deprecated_properties else rec)
+    return kept, ReadRepairReport(dropped_records=dropped,
+                                  stripped_property_keys=counter[0],
+                                  reconcilable=True)

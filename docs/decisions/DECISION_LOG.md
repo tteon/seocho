@@ -1033,6 +1033,14 @@ Each entry must link to a full ADR when impact is non-trivial.
   - off-schema (owner_id, undeclared): OS 0/2, BARE 2/2 => governance COSTS reach (ADR-0168 generalized; addressable by declaring the property)
   - full picture: in-schema parity (0170) + adversarial safety-win + off-schema reach-cost; honest headline = OS trades reach for guaranteed safety + in-schema parity
 
+## 2026-08-16 (allocator eviction)
+
+- [Accepted] ADR-0180 allocator-eviction (seocho-ia4) — the reclamation half of the allocator
+  - gap (hadry): interning=alloc + admission=scheduling, but NO eviction/GC/lifecycle; status quo = naive fixed-LRU (id-keyed, no cost/fairness/budget)
+  - CostAwareEvictionCache: GDSF (freq x recompute_cost / size) + per-tenant floor + shared boost + byte budget + thread-safe; keyed by stable content hash
+  - vs naive LRU under multi-tenant skewed churn: hit-rate 35.3%->48.1%, recompute-ms avoided +36%, hot-shared retention 86.6%->99.9%
+  - completes the allocator (alloc+reclaim+schedule); Memory+Resource tracks; follow-ups: wire into OntologyContextCache, extend to prefix-KV/buffers, TTL/version retirement, provenance GC
+
 ## Template
 
 Use this block for new entries:

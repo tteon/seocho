@@ -1,4 +1,4 @@
-# ADR-0192: CostAwareEvictionCache — O(log n) lazy-heap victim selection
+# ADR-0193: CostAwareEvictionCache — O(log n) lazy-heap victim selection
 
 - Status: accepted
 - Date: 2026-08-16

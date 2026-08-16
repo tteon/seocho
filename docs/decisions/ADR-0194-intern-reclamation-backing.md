@@ -1,4 +1,4 @@
-# ADR-0193: SharedInternTable — free()/reclamation + cross-process backing
+# ADR-0194: SharedInternTable — free()/reclamation + cross-process backing
 
 - Status: accepted
 - Date: 2026-08-16

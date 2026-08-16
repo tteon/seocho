@@ -1,4 +1,4 @@
-# ADR-0195: Freshness — real read-time repair (not a serve stub)
+# ADR-0196: Freshness — real read-time repair (not a serve stub)
 
 - Status: accepted
 - Date: 2026-08-16

@@ -1,4 +1,4 @@
-# ADR-0194: RCU B3 — EBR safe-reclamation gate for retired ontology versions
+# ADR-0195: RCU B3 — EBR safe-reclamation gate for retired ontology versions
 
 - Status: accepted
 - Date: 2026-08-16

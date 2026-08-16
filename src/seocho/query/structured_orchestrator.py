@@ -40,6 +40,7 @@ class StructuredQueryResult:
     guardrail_on: bool = False
     guardrail_violations: Tuple[str, ...] = ()
     guardrail_rejected: bool = False
+    repair_attempts: int = 0
     arm: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
@@ -51,6 +52,7 @@ class StructuredQueryResult:
             "guardrail_on": self.guardrail_on,
             "guardrail_violations": list(self.guardrail_violations),
             "guardrail_rejected": self.guardrail_rejected,
+            "repair_attempts": self.repair_attempts,
         }
 
 
@@ -75,6 +77,7 @@ class StructuredQueryOrchestrator:
         get_schema_fn: Optional[Callable[[], Dict[str, Any]]] = None,
         database: str = "neo4j",
         row_cap: int = 50,
+        repair_budget: int = 0,
     ) -> None:
         self.arm = arm
         self.graph_store = graph_store
@@ -85,6 +88,7 @@ class StructuredQueryOrchestrator:
         self._get_schema_fn = get_schema_fn or (lambda: graph_store.get_schema(database=database))
         self.database = database
         self.row_cap = row_cap
+        self.repair_budget = max(0, int(repair_budget))   # guardrail-reject -> retry-with-feedback
 
     # -- schema organ (pinned frozen snapshot vs real introspection) ----------
     def _resolve_schema(self, run_context: Any) -> Tuple[str, Any, str, str]:
@@ -117,25 +121,39 @@ class StructuredQueryOrchestrator:
             cypher, params={**gen_params, "limit": self.row_cap}, database=self.database
         )
 
+    def _call_gen(self, question: str, schema_text: str, feedback: Any):
+        """Call the generator, passing repair ``feedback`` when it accepts it
+        (the grounded generator does; a 2-arg test double does not)."""
+        try:
+            gen_out = self._gen(question, schema_text, feedback=feedback)
+        except TypeError:
+            gen_out = self._gen(question, schema_text)
+        if isinstance(gen_out, tuple):
+            return (gen_out[0] or ""), (gen_out[1] or {})
+        return (gen_out or ""), {}
+
     def answer(self, question: str, run_context: Any, *, workspace_id: str) -> StructuredQueryResult:
         schema_text, policy, source, version = self._resolve_schema(run_context)
-        gen_out = self._gen(question, schema_text)        # retrieve step (no prose)
-        # the generator may return just a cypher string (back-compat) or
-        # (cypher, params) — the grounded generator returns value params so no
-        # literal is inlined (guardrail rule) yet the query stays executable.
-        if isinstance(gen_out, tuple):
-            cypher, gen_params = gen_out[0], (gen_out[1] or {})
-        else:
-            cypher, gen_params = gen_out, {}
-        cypher = cypher or ""
 
+        # Retrieve step (no prose), with a repair loop: when the guardrail rejects
+        # the generated Cypher, feed the violation reasons back for a retry (up to
+        # repair_budget) so a fixable non-conformance does not force an abstain —
+        # the governed arm then differs by GOVERNANCE, not a generator defect.
         violations: Tuple[str, ...] = ()
-        rejected = False
-        if self.arm.guardrail:
+        cypher, gen_params, feedback, attempts = "", {}, None, 0
+        while True:
+            cypher, gen_params = self._call_gen(question, schema_text, feedback)
+            if not self.arm.guardrail:
+                violations = ()
+                break
             violations = tuple(validate_text2cypher_fallback(
                 cypher, params={**gen_params, "workspace_id": workspace_id, "limit": 1},
                 policy=policy))
-            rejected = bool(violations)
+            if not violations or attempts >= self.repair_budget:
+                break
+            feedback = {"prior_cypher": cypher, "violations": list(violations)}
+            attempts += 1
+        rejected = bool(violations)
 
         rows = [] if rejected else self._execute(cypher, workspace_id, gen_params)
         answer = self._synth(question, rows)              # the ONLY prose writer (B5)
@@ -144,5 +162,5 @@ class StructuredQueryOrchestrator:
             answer=answer, cypher=cypher, rows=rows, schema_source=source,
             pinned_version=version, workspace_enforced=self.arm.workspace_enforce,
             guardrail_on=self.arm.guardrail, guardrail_violations=violations,
-            guardrail_rejected=rejected, arm=self.arm.name,
+            guardrail_rejected=rejected, repair_attempts=attempts, arm=self.arm.name,
         )

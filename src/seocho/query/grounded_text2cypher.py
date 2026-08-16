@@ -62,6 +62,20 @@ def _extract_json(text: str) -> Dict[str, Any]:
         return {}
 
 
+def _feedback_note(feedback: Any) -> str:
+    """A retry directive built from the guardrail's rejection of a prior attempt."""
+    if not feedback:
+        return ""
+    prior = str((feedback or {}).get("prior_cypher", ""))[:400]
+    viols = ", ".join(str(v) for v in (feedback or {}).get("violations", []))[:400]
+    return ("\n\nYOUR PREVIOUS QUERY WAS REJECTED — fix it and try again.\n"
+            f"Rejected query: {prior}\n"
+            f"Violations (each MUST be fixed): {viols}\n"
+            "Common fixes: use only SCHEMA identifiers; add "
+            "`{_workspace_id: $workspace_id}` to EVERY node; replace every inlined "
+            "literal with a `$param`; end with `LIMIT $limit`.")
+
+
 def generate_grounded_cypher(
     llm: Any,
     question: str,
@@ -69,12 +83,14 @@ def generate_grounded_cypher(
     *,
     workspace_id: str = "default",
     limit: int = 50,
+    feedback: Any = None,
 ) -> Tuple[str, Dict[str, Any]]:
     """Generate guardrail-conformant Cypher + its value params for ``question``,
     grounded in ``schema_text`` (the pinned-schema block). Returns
     ``(cypher, params)``; ``params`` excludes ``workspace_id``/``limit`` (the
-    orchestrator binds those)."""
-    system = build_text2cypher_system_prompt(schema_text)
+    orchestrator binds those). ``feedback`` (a prior rejection) drives a repair
+    retry that names the violations to fix."""
+    system = build_text2cypher_system_prompt(schema_text) + _feedback_note(feedback)
     try:
         resp = complete_with_task_hints(
             llm, system=system, user=question, temperature=0.0,

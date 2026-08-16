@@ -140,6 +140,25 @@ def require_runtime_permission(
         principal=principal,
     )
 
+    # Every authorization decision, at the one place they are all made. The
+    # instrument was declared and never emitted, so a deployment could not see
+    # its own denial rate -- and with SEOCHO_AUTH_MODE defaulting to "none" the
+    # interesting number is how many decisions are format-only rather than
+    # ownership-checked, which `outcome` distinguishes.
+    try:
+        from seocho.metrics import get_metrics
+
+        get_metrics().add("seocho.agent.authorization.count", 1, {
+            "action": action,
+            "outcome": "allowed" if decision.allowed else "denied",
+            # Bounded on purpose: the reason text is free-form, the mode is not.
+            "reason": ("ok" if decision.allowed
+                       else ("unauthenticated" if not principal.authenticated
+                             else "policy")),
+        })
+    except Exception:  # noqa: BLE001 — telemetry must never deny or allow a request
+        pass
+
     if not decision.allowed:
         raise PermissionError(decision.reason)
 

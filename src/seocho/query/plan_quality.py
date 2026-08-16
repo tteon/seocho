@@ -27,6 +27,98 @@ SEEK_OPERATORS = (
 )
 
 
+def summarize_plan(plan: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """Flatten an EXPLAIN tree — the same signals, before the query runs.
+
+    `PROFILE` executes the query to get real `dbHits`; `EXPLAIN` only compiles
+    it and reports the optimiser's `EstimatedRows`. That difference is what
+    makes a pre-execution gate possible at all: EXPLAIN costs nothing, so it can
+    run on every query rather than on a sample, and the seek/scan distinction —
+    the signal that actually predicts how a query behaves as the graph grows —
+    is already decided at plan time.
+
+    Verified against DozerDB 5.26.3: `EXPLAIN MATCH (n:X) WHERE n.name='x'`
+    yields NodeByLabelScan, and dropping the label yields AllNodesScan, both
+    without touching the data. Operator names arrive suffixed (`NodeByLabelScan
+    @neo4j`), which the substring matching below already tolerates.
+
+    `estimated_rows` is the optimiser's guess and is often wrong in absolute
+    terms; it is carried for ordering candidates, never as a cost claim.
+    """
+    if not plan:
+        return {"available": False, "source": "explain"}
+
+    operators: List[str] = []
+    estimated = 0.0
+
+    def walk(node: Dict[str, Any]) -> None:
+        nonlocal estimated
+        operators.append(str(node.get("operatorType", "")))
+        args = node.get("args") or {}
+        try:
+            estimated = max(estimated, float(args.get("EstimatedRows") or 0))
+        except (TypeError, ValueError):
+            pass
+        for child in node.get("children", []) or []:
+            walk(child)
+
+    walk(plan)
+    scans = [op for op in operators if any(s in op for s in SCAN_OPERATORS)]
+    seeks = [op for op in operators if any(s in op for s in SEEK_OPERATORS)]
+    return {
+        "available": True,
+        "source": "explain",
+        "estimated_rows": estimated,
+        "operator_count": len(operators),
+        "scans": scans,
+        "seeks": seeks,
+        "sargable": bool(seeks) and not scans,
+    }
+
+
+def repair_hint(summary: Dict[str, Any], ontology: Any = None) -> Optional[str]:
+    """Turn a bad plan into an instruction the repair prompt can act on.
+
+    The repair loop today sees only errors, so a query that runs and burns 6.6M
+    db hits is treated as a success. This gives it the other half.
+
+    The last line is the part worth having. Because the ontology declares which
+    properties are unique, the hint can state that an index seek EXISTS rather
+    than suggesting the model guess — the schema is the evidence, not the
+    model's prior.
+    """
+    if not summary.get("available") or summary.get("sargable"):
+        return None
+    scans = summary.get("scans") or []
+    if not scans:
+        return None
+
+    lines = [
+        "The previous query was valid but not sargable.",
+        f"  plan operators: {', '.join(sorted(set(scans))[:3])}",
+        f"  estimated rows: {summary.get('estimated_rows', 0):.0f}",
+        "  A scan grows with the graph; a seek does not.",
+    ]
+
+    indexed: List[str] = []
+    for label, node in (getattr(ontology, "nodes", None) or {}).items():
+        for prop, spec in (getattr(node, "properties", None) or {}).items():
+            if getattr(spec, "unique", False):
+                indexed.append(f"{label}.{prop}")
+    if indexed:
+        lines.append(
+            "  The ontology declares these as unique, so an index seek is "
+            f"available on: {', '.join(sorted(indexed)[:6])}."
+        )
+        lines.append("  Rewrite as an anchored lookup on one of them.")
+    else:
+        lines.append(
+            "  The ontology declares no unique property, so no seek is "
+            "available; narrow the match instead of anchoring it."
+        )
+    return "\n".join(lines)
+
+
 def summarize_profile(profile: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     """Flatten a PROFILE tree into plan-quality signals.
 

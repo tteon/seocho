@@ -119,6 +119,7 @@ uv run pytest \
   tests/seocho/test_index_quality_metrics.py \
   tests/seocho/test_plan_quality_wiring.py \
   tests/seocho/test_metrics_e2e_emission.py \
+  tests/seocho/test_plan_quality_explain.py \
   -q
 
 git diff --check

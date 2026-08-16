@@ -110,3 +110,26 @@ def test_attribute_values_survive_the_bounded_contract(emitted):
                          allowed_labels={"Person"})
     point = emitted()["seocho.index.off_ontology_label.count"]
     assert dict(point.attributes)["label"] == "Ghost"
+
+
+def test_authorization_decisions_reach_a_real_meter(emitted, monkeypatch):
+    """The single enforcement point emits, allowed and denied alike.
+
+    With SEOCHO_AUTH_MODE defaulting to "none" the interesting number is how
+    many decisions are format-only rather than ownership-checked, so `reason`
+    separates `unauthenticated` from `policy`.
+    """
+    import sys
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    if str(root) not in sys.path:
+        sys.path.insert(0, str(root))
+    from runtime.policy import require_runtime_permission
+
+    require_runtime_permission("read", "default")
+    seen = emitted()
+    assert "seocho.agent.authorization.count" in seen, sorted(seen)
+    attributes = dict(seen["seocho.agent.authorization.count"].attributes)
+    assert attributes["action"] == "read"
+    assert attributes["outcome"] in {"allowed", "denied"}

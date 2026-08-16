@@ -133,6 +133,7 @@ uv run pytest \
   tests/seocho/test_anchor_orientation.py \
   tests/seocho/test_unbound_slot.py \
   tests/seocho/test_query_projection.py \
+  tests/seocho/test_text2cypher_literals.py \
   tests/seocho/test_prompt_prefix_stability.py \
   tests/seocho/test_run_spec.py \
   tests/seocho/test_e2e_runner.py \

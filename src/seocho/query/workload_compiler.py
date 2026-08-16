@@ -115,6 +115,46 @@ def validate_workload_query(
     return tuple(violations)
 
 
+#: Comparison and containment operators whose right-hand side must be a
+#: parameter. A literal there is what creates a new plan-cache key per entity.
+_LITERAL_COMPARISON_RE = re.compile(
+    r"(?:[=<>]=?|<>|\bCONTAINS\b|\bSTARTS\s+WITH\b|\bENDS\s+WITH\b|\bIN\b)"
+    r"\s*(?:'[^']*'|\"[^\"]*\"|\d+(?:\.\d+)?)",
+    re.IGNORECASE,
+)
+
+#: Values that are structural rather than entity-identifying. `LIMIT 0`,
+#: `*..4`, and `= 0` on a count are not cache-key explosions, and rejecting
+#: them would reject correct queries.
+_STRUCTURAL_LITERAL_RE = re.compile(
+    r"(?:\bLIMIT\b|\bSKIP\b|\*\s*\d*\s*\.\.)\s*\d+", re.IGNORECASE
+)
+
+
+def _inlined_literals(cypher: str) -> Tuple[str, ...]:
+    """Comparison literals that should have been parameters.
+
+    The system prompt says "Never insert literal IDs" and nothing checked it.
+    Neo4j keys its plan cache on the query STRING, so `WHERE n.name = 'Tesla'`
+    is a different cache entry for every entity asked about. The default cache
+    holds 1000 entries (verified on the DozerDB instance:
+    server.memory.query_cache.per_db_cache_num_entries = 1000), and a
+    text2cypher workload emits a new string shape constantly -- so inlined
+    literals evict the plans that were worth keeping and turn compile time into
+    the p99.
+
+    Correctness is affected too: a parameterised query can use an index seek on
+    a composite index, while a literal forces the planner to re-plan and can
+    change the shape it picks between otherwise identical questions.
+
+    Structural literals (LIMIT, SKIP, hop bounds) are exempt -- they do not vary
+    per entity, so they do not multiply cache keys.
+    """
+    scrubbed = _STRUCTURAL_LITERAL_RE.sub(" ", cypher)
+    found = [m.group(0).strip() for m in _LITERAL_COMPARISON_RE.finditer(scrubbed)]
+    return tuple(dict.fromkeys(found))
+
+
 def validate_text2cypher_fallback(
     cypher: str,
     *,
@@ -159,6 +199,18 @@ def validate_text2cypher_fallback(
         unknown_properties = properties - set(policy.allowed_properties)
         if unknown_properties:
             violations.append("unknown_properties:" + ",".join(sorted(unknown_properties)))
+    inlined = _inlined_literals(cypher)
+    if inlined:
+        # The code before the colon is what the metric reads and is bounded;
+        # the payload after it is data-dependent, and it is what the repair
+        # prompt needs -- "inlined_literal:3" tells a model that it erred and
+        # not where, so it has no basis for a different second attempt. The
+        # metric already splits on the colon, so carrying the values here costs
+        # no cardinality.
+        violations.append(
+            "inlined_literal:" + ",".join(inlined[:5])
+        )
+
     scope_pattern = rf"{re.escape(policy.workspace_property)}\s*:\s*\$workspace_id"
     if not re.search(scope_pattern, cypher):
         violations.append("missing_workspace_scope_expression")

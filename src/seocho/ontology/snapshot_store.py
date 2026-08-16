@@ -25,7 +25,7 @@ Design:
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -200,6 +200,38 @@ class OntologySnapshotStore:
             if s.version == version:
                 return s
         return None
+
+    def publish(
+        self,
+        ontology: Ontology,
+        *,
+        compatibility_mode: str = "BACKWARD",
+        allow_breaking: bool = False,
+        **save_kwargs: Any,
+    ):
+        """Compatibility-gated save (seocho-ia4.2).
+
+        Classifies ``ontology`` against the current latest version and REFUSES the
+        publish (``PublishCompatibilityError``) when the change violates
+        ``compatibility_mode`` — unless ``allow_breaking`` is set (an explicit,
+        acknowledged breaking bump). On success, delegates to :meth:`save` and returns
+        ``(snapshot, compatibility_report)``. The report's verdict also derives the
+        read-time drift policy (``publish_gate.derive_drift_policy``), tying publish
+        governance to the ia4.1 barrier. Plain :meth:`save` remains ungated.
+        """
+        from .publish_gate import PublishCompatibilityError, check_publish_compatibility
+
+        prior = self.latest(ontology.package_id)
+        report = check_publish_compatibility(
+            prior.ontology if prior is not None else None,
+            ontology,
+            mode=compatibility_mode,
+        )
+        report["allow_breaking"] = bool(allow_breaking)
+        if not report["allowed"] and not allow_breaking:
+            raise PublishCompatibilityError(report)
+        snap = self.save(ontology, **save_kwargs)
+        return snap, report
 
     def latest(self, package_id: str) -> Optional[OntologySnapshot]:
         snaps = self.list(package_id)

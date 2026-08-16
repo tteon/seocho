@@ -50,7 +50,15 @@ def _load_env(root: Path) -> None:
             for line in envf.read_text().splitlines():
                 if line.strip() and not line.startswith("#") and "=" in line:
                     k, v = line.split("=", 1)
-                    os.environ.setdefault(k.strip(), v.strip())
+                    k = k.strip()
+                    # Only load LLM/provider API keys from .env; NEVER load NEO4J_*
+                    # (the .env points at a different DozerDB instance than this
+                    # e2e uses — loading it caused a wrong-password lockout).
+                    if k.startswith("NEO4J") or k.startswith("BOLT"):
+                        continue
+                    # strip surrounding quotes — a quoted key is otherwise sent
+                    # verbatim (quotes included) and 401s.
+                    os.environ.setdefault(k, v.strip().strip('"').strip("'"))
             return
 
 
@@ -62,13 +70,24 @@ def _load_ontology(root: Path) -> Any:
     return mod.build_ontology()
 
 
-def _read_store_graph(uri: str, user: str, pw: str, database: str, ws: str) -> Dict[str, Any]:
+# The runtime memory-graph scaffolding (ensure_memory_graph) is provenance plumbing,
+# not domain knowledge — axioms must be mined over DOMAIN nodes/rels, else the miner
+# just rediscovers that "each Document HAS_VERSION its versions" etc.
+_MEMORY_LABELS = {"Document", "DocumentVersion", "Chunk", "Section", "Observation"}
+_MEMORY_RELS = {"HAS_CHUNK", "HAS_VERSION", "CURRENT_VERSION", "HAS_SECTION",
+                "MENTIONS", "HAS_OBSERVATION", "NEXT_CHUNK"}
+
+
+def _read_store_graph(uri: str, user: str, pw: str, database: str, ws: str,
+                      *, domain_only: bool = True) -> Dict[str, Any]:
     """Read the WHOLE materialized graph (workspace-scoped) — corpus scope, all docs
-    merged by interning. This is where cross-chunk / cross-document axioms live."""
+    merged by interning. This is where cross-chunk / cross-document axioms live.
+    With ``domain_only`` the memory-graph provenance layer is excluded."""
     from neo4j import GraphDatabase
     d = GraphDatabase.driver(uri, auth=(user, pw))
     nodes: List[Dict[str, Any]] = []
     rels: List[Dict[str, Any]] = []
+    domain_ids: set = set()
     with d.session(database=database) as s:
         for r in s.run(
             "MATCH (n) WHERE coalesce(n._workspace_id, n.workspace_id, $ws) = $ws "
@@ -76,12 +95,18 @@ def _read_store_graph(uri: str, user: str, pw: str, database: str, ws: str) -> D
             ws=ws,
         ):
             labs = [x for x in (r["labels"] or []) if not str(x).startswith("_")]
+            if domain_only and (not labs or any(x in _MEMORY_LABELS for x in labs)):
+                continue
+            domain_ids.add(r["id"])
             nodes.append({"id": r["id"], "label": labs, "properties": dict(r["props"] or {})})
         for r in s.run(
             "MATCH (a)-[e]->(b) WHERE coalesce(a._workspace_id, a.workspace_id, $ws) = $ws "
             "RETURN elementId(a) AS source, elementId(b) AS target, type(e) AS type",
             ws=ws,
         ):
+            if domain_only and (r["type"] in _MEMORY_RELS
+                                or r["source"] not in domain_ids or r["target"] not in domain_ids):
+                continue
             rels.append({"source": r["source"], "target": r["target"], "type": r["type"]})
     d.close()
     return {"nodes": nodes, "relationships": rels}

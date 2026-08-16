@@ -47,6 +47,38 @@ B catches 2 contradictions A structurally CANNOT (cross-type functional + disjoi
 and materializes an edge the LLM never asserted — at a quantified approval burden of
 12 candidates. The "cumbersome" worry becomes a measured number, not a guess.
 
+## Live e2e result (real MARA extraction → DozerDB, 2026-08-16)
+
+`scripts/agentos/e2e_axiom_ab.py`, MARA `MiniMax-M2.7`, dedicated DB `axiome2e`
+(isolated from the finbench data on the same instance), finance-compliance corpus
+(6 docs). End-to-end validated: real extraction → materialize → **corpus-scope**
+mining (reads the whole assembled, interned graph from the store — the cross-chunk /
+cross-document answer, not per-chunk).
+
+- Extraction is REAL (ontology-typed: Company/Regulation/Regulator/Policy/
+  ComplianceIncident/ControlEvidence), not the heuristic fallback (two credential
+  bugs fixed en route: a quoted `MARA_API_KEY` sent verbatim → 401, and the model
+  `MiniMax-M2.5` not on the new plan → swapped to `M2.7`).
+- Whole graph: 30 nodes / 87 rels — but **24/30 are the memory-graph provenance
+  layer** (Document/DocumentVersion/Chunk/Section) and most edges are plumbing
+  (MENTIONS/HAS_CHUNK/HAS_VERSION). The miner must (and now does) scope to the
+  DOMAIN layer, else it just rediscovers "each Document HAS_VERSION its versions".
+- **Domain-scoped: 6 nodes / 7 rels → 2 trivial functional axioms, 0 disjoint/
+  subclass/rule, 0 contradictions, 0 entailed.** The reason is decisive and honest:
+  the 6 docs describe the SAME entities, so interning collapses them to **one
+  instance per type** — there is no statistical mass for domain axioms; and this
+  ontology is single-label (no multi-typing → disjoint/subclass cannot arise by
+  construction).
+
+**Finding:** the pipeline is correct and validated on real extraction, but induced
+axioms need a corpus with **many instances per type** (many companies, regulations,
+incidents) and, for disjoint/subclass, an ontology with multi-typing / a class
+hierarchy. A 6-doc single-scenario sample is far below that threshold. The offline
+fixture (above) already shows the mechanism fires when the data carries the patterns;
+the live gap is corpus scale + type diversity, not the mechanism. Next: re-run on a
+larger, instance-diverse corpus (e.g. FinDER / many filings) before judging the
+answer-quality A/B and the DL-as-shape (ia4.7) decision.
+
 ## Consequences
 
 - The induction→deduction→projection pipeline is real and measured offline. `rules.py`

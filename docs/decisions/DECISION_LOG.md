@@ -1278,6 +1278,14 @@ Each entry must link to a full ADR when impact is non-trivial.
   - MEASURED live (dozerdb-h0 finbenchl1, dedup 4x3 same): redundancy_factor=12, total_bytes_json=82068 vs unique_bytes_json=6839 = 12x redundant wire bytes for one answer's unique data; ~2.7-4e4 rows/s. transport-level statement of the shared-memory thesis (interning must drop redundancy) -> a Plane-1 metric (bolt-rs on/off)
   - roadmap: wire governed execute_query over the Rust bolt path; add dedup/contention to arm x organ Plane-1. builds ~1.5s; target/ gitignored
 
+## 2026-08-16 (organ 3: Postgres ground truth + fact-level provenance chain)
+
+- [Accepted] ADR-0211 PostgreSQL ground truth + fact-level provenance chain (seocho-ia4.15)
+  - hadry: Postgres = system of record, graph = PROJECTION of it -> resolves the review's #1 plane-mismatch (graph is a governed projection, not a decorative bypass)
+  - seocho.provenance: content_fact_id (content-addressed, ties row/node/bundle, idempotent) + per-run PROV-O Bundle (correct vocab, VALUE-FREE: fact-id refs only, never embeds object -> not a leak channel)
+  - seocho.provenance_store: prov_fact/provenance/classification + governed projection. Honors review: FORCE RLS + non-owner seocho_reader role + SET LOCAL app.workspace/grant (not agent input) (#2); trusted per-source classify_by_source + append-only classification (#3); default-DENY restricted + row-drop escalation; reuse filter_record/AgentPrincipal not re-impl (#4); projection stamps sensitivity onto graph nodes
+  - 7 tests (fact_id, value-free PROV-O ttl, DDL security props, trusted classification, idempotent write via fake conn); ruff clean. DEFERRED to live: RLS across principals + projection wiring (needs pg container + psycopg) + a measured result needs gold sensitivity/PII labels (honest boundary)
+
 ## Template
 
 Use this block for new entries:

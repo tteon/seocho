@@ -1235,6 +1235,15 @@ Each entry must link to a full ADR when impact is non-trivial.
   - SharedInternTable.reconcile + union-find (_find, path-compressed) kept as the residual/explicit read-level reconciliation for fragments not caught at write
   - 6 tests; ontology/identity/intern green (332). Note for D3: MERGE on (id,_workspace_id) so two tenants' identical ~xs| entity never share a node (review #6)
 
+## 2026-08-16 (structured runtime Step 2c/1: engine=structured axis wired into Seocho.ask)
+
+- [Accepted] ADR-0205 engine="structured" axis — orchestrator wired into Seocho.ask (seocho-ia4)
+  - orthogonal `engine` param (deterministic default | structured) on Seocho.ask/ask_response/_LocalEngine.ask; NOT overloading query_mode (reasoning semantics)
+  - structured routes (inside the per-request pin + ContextVar) to _run_structured_pipeline -> StructuredQueryOrchestrator: resolve schema -> retrieve (seam) -> guardrail (pinned-snapshot policy) -> governed execute (force-pin workspace + enforce_workspace_filter, D1/B2) -> synthesizer owns prose (B5)
+  - honest abstain (D5): answer_source in {structured | structured_no_evidence | structured_guardrail_rejected} (a rejection is never "no evidence"); per-request GuardrailLedger (un-poisoned across tenants); seams injectable (unit-tested without live LLM/DB), snapshot-store resolver enables pinned schema organ
+  - refcount leak-safety: structured pipeline inside pinned_run_context+ContextVar finally -> pin released even on exception (tested). default deterministic path byte-for-byte unchanged. 4 wiring tests; client/run-context/orchestrator green (24)
+  - remaining Step 2c/2: live e2e validation (MARA/DozerDB), D3 single-graph indexing ((id,_workspace_id) MERGE), D4 scheduler fairness, bolt-rs I/O organ
+
 ## Template
 
 Use this block for new entries:

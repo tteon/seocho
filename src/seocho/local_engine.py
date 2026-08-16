@@ -101,6 +101,17 @@ class _LocalEngine:
         self._ontology_pin_registry: Any = None
         self._active_ontology_pointer: Any = None
         self._last_run_context: Any = None
+        # Structured engine (ADR-0205): the organ-flagged orchestrator path. All
+        # optional/injectable so `engine="deterministic"` (the default) never
+        # touches any of this. A snapshot-store-backed resolver enables the pinned
+        # schema organ; the two seams default to real (LLM text2cypher +
+        # QueryAnswerSynthesizer) but are injectable for tests.
+        from .query.arm_config import ArmConfig
+
+        self._structured_arm = ArmConfig.governed()
+        self._pinned_schema_resolver: Any = None
+        self._structured_cypher_generator: Any = None
+        self._structured_synthesizer: Any = None
         self._events = NullEventPublisher()
         self._ingest_request_cls = IngestRequest
 
@@ -553,8 +564,15 @@ class _LocalEngine:
         repair_budget: Optional[int] = None,
         query_mode: str = DEFAULT_QUERY_MODE,
         ontology_override: Optional[Any] = None,
+        engine: str = "deterministic",
     ) -> str:
-        """Ontology-aware query: generate Cypher -> execute -> synthesize answer."""
+        """Ontology-aware query: generate Cypher -> execute -> synthesize answer.
+
+        ``engine`` selects the runtime (orthogonal to ``query_mode``, which is
+        reasoning semantics): ``"deterministic"`` (default) is the existing
+        monolithic pipeline; ``"structured"`` routes through the organ-flagged
+        :class:`~seocho.query.structured_orchestrator.StructuredQueryOrchestrator`
+        (the governed multi-agent path the arm×organ e2e exercises)."""
         query_mode = normalize_query_mode(query_mode)
         active_ontology = ontology_override or self.ontology
         ontology_context = self._ontology_context_cache.get(
@@ -663,6 +681,13 @@ class _LocalEngine:
             # multi-tenant asks() cannot clobber each other (B7).
             token = _ACTIVE_RUN_CONTEXT.set(pinned_context)
             try:
+                if str(engine) == "structured":
+                    return self._run_structured_pipeline(
+                        question,
+                        database=database,
+                        active_ontology=active_ontology,
+                        run_context=pinned_context,
+                    )
                 return self._run_query_pipeline(
                     question,
                     database=database,
@@ -693,6 +718,79 @@ class _LocalEngine:
         Mid-run consumers must read :func:`active_run_context` (ContextVar-isolated)
         instead."""
         return self._last_run_context
+
+    def _structured_seams(self, active_ontology: Any, database: str):
+        """The (cypher_generator, synthesizer) the structured orchestrator drives.
+        Injectable (set the ``_structured_*`` attrs) for tests; the defaults are the
+        real LLM text2cypher + the QueryAnswerSynthesizer, invoked only with a live
+        LLM/graph (the e2e)."""
+        gen = self._structured_cypher_generator
+        if gen is None:
+            def gen(question: str, schema_text: str) -> str:  # noqa: E306
+                cypher, _params, _intent, _err = self._generate_cypher(question, active_ontology)
+                return cypher or ""
+        synth = self._structured_synthesizer
+        if synth is None:
+            answerer = QueryAnswerSynthesizer(query_strategy=self._query, llm=self.llm)
+
+            def synth(question: str, rows: List[Dict[str, Any]]) -> str:  # noqa: E306
+                return answerer.synthesize(question, rows)
+        return gen, synth
+
+    def _run_structured_pipeline(
+        self, question: str, *, database: str, active_ontology: Any, run_context: Any
+    ) -> str:
+        """Organ-flagged structured path (ADR-0205): resolve schema -> retrieve ->
+        guardrail -> governed execute -> synthesize, over the per-request run
+        context. A per-request GuardrailLedger keeps the before/after governance
+        signal un-poisoned across tenants; abstain is honest (a guardrail
+        rejection is reported as such, never as 'no supporting evidence')."""
+        from .query.structured_orchestrator import StructuredQueryOrchestrator
+
+        ledger = None
+        try:
+            from .integrations.openai_agents import GuardrailLedger
+            ledger = GuardrailLedger()
+        except Exception:
+            ledger = None
+
+        gen, synth = self._structured_seams(active_ontology, database)
+        orchestrator = StructuredQueryOrchestrator(
+            arm=self._structured_arm,
+            graph_store=self.graph_store,
+            ontology=active_ontology,
+            cypher_generator=gen,
+            synthesizer=synth,
+            resolver=self._pinned_schema_resolver,
+            get_schema_fn=lambda: self._get_schema_info(database),
+            database=database,
+        )
+        result = orchestrator.answer(question, run_context, workspace_id=self.workspace_id)
+        if ledger is not None:
+            ledger.record(result.guardrail_violations)
+
+        # Honest abstain (D5): a guardrail rejection is NOT "no evidence".
+        if result.guardrail_rejected:
+            answer_source = "structured_guardrail_rejected"
+        elif not result.rows:
+            answer_source = "structured_no_evidence"
+        else:
+            answer_source = "structured"
+
+        self._last_query_metadata = {
+            "schema_version": "local_query_metadata.v1",
+            "workspace_id": self.workspace_id,
+            "database": database,
+            "engine": "structured",
+            "answer_source": answer_source,
+            "arm": self._structured_arm.to_dict(),
+            "structured": result.to_dict(),
+            "guardrail_ledger": ledger.summary() if ledger is not None else {},
+            "semantic_context": {},
+            "cypher": result.cypher,
+            "result_count": len(result.rows),
+        }
+        return result.answer
 
     @contextmanager
     def _traced_stage(

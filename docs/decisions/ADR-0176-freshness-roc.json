@@ -1,0 +1,50 @@
+{
+  "population": 300,
+  "max_distance": 5,
+  "reconcilable_horizon": 2,
+  "fixed_policies": {
+    "always_warn": {
+      "under_refusal": 1.0,
+      "over_refusal": 0.0
+    },
+    "always_block": {
+      "under_refusal": 0.0,
+      "over_refusal": 1.0
+    },
+    "freshness_b=H": {
+      "under_refusal": 0.0,
+      "over_refusal": 0.0
+    }
+  },
+  "freshness_bound_sweep": {
+    "0": {
+      "under_refusal": 0.0,
+      "over_refusal": 0.286
+    },
+    "1": {
+      "under_refusal": 0.0,
+      "over_refusal": 0.143
+    },
+    "2": {
+      "under_refusal": 0.0,
+      "over_refusal": 0.0
+    },
+    "3": {
+      "under_refusal": 0.333,
+      "over_refusal": 0.0
+    },
+    "4": {
+      "under_refusal": 0.667,
+      "over_refusal": 0.0
+    },
+    "5": {
+      "under_refusal": 1.0,
+      "over_refusal": 0.0
+    }
+  },
+  "best_bound": {
+    "bound": 2,
+    "under_refusal": 0.0,
+    "over_refusal": 0.0
+  }
+}

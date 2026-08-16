@@ -1047,6 +1047,22 @@ Each entry must link to a full ADR when impact is non-trivial.
   - fix (wiring, no new mechanism): projector stamps ontology_context_graph_properties; local_engine + execute_cypher run enforce_drift_policy(policy=warn|raise|block); SEOCHO_ONTOLOGY_DRIFT_POLICY
   - ablation OFF vs ON: drift detection 0%->100%; false-positive on fresh data 0%->0% (null control, no fresh-data tax); worst=breaking bump caught+blocked, best=no-bump quiet
   - 0 regressions; +4 tests; first shipped step of ontology-lifecycle OS (ia4); Trust/Safety+Long-Horizon tracks
+## 2026-08-16 (ontology freshness policy)
+
+- [Accepted] ADR-0176 bounded-staleness freshness policy (seocho-ia4.6) — strict, but not stale
+  - ia4.1 barrier is binary (mismatch->block) = unconditional strict = over-refuses; warn = under-refuses
+  - evaluate_freshness: staleness = version_distance x drift_relevance, gated by coverage/age; serve/repair/refuse
+  - refusal-ROC ablation: always_warn (under 100/over 0), always_block (under 0/over 100), freshness b=H (0/0) => dominates both corners; bound sweep = graceful ROC frontier
+  - honest: synthetic mechanism-frontier demo (separates the two error types fixed policies cannot); live payoff needs ia4.2 classifier (relevance/horizon) + ia4.3 version chain (distance)
+  - 7 tests; standalone module; Long-Horizon + Trust/Safety tracks
+
+## 2026-08-16 (compatibility classifier + live freshness)
+
+- [Accepted] ADR-0177 typed compatibility classifier -> live freshness signals (seocho-ia4.2 + ia4.6)
+  - classify_ontology_change: BACKWARD/FORWARD/BREAKING per change atom (structural, no DL); fixes diff_ontologies false-major (add-optional flagged breaking); breaking_labels + breaking_properties + semver_distance
+  - live refusal-ROC (real v1->v2 diff, property-level ground truth): always_warn 100/0, always_block 0/100, fresh_OLD(false-major) 0/83, fresh_label 0/50, fresh_prop 0/0 => freshness dominates corners; over-refusal shrinks with signal fidelity (OLD->label->prop), 0 under throughout
+  - non-tautological (ground truth property-level, signals coarser); fully-live (real data answers) = pending e2e
+  - 8 tests; promotes ADR-0176 to real signals
 
 ## Template
 

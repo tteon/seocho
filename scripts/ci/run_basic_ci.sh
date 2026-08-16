@@ -118,6 +118,7 @@ uv run pytest \
   tests/seocho/test_finder_cache_synergy.py \
   tests/seocho/test_ontology_extraction_firewall.py \
   tests/seocho/test_ontology_lint.py \
+  tests/seocho/test_index_coverage.py \
   tests/seocho/test_shacl_enum_range.py \
   tests/seocho/test_ontology_merge_conflicts.py \
   tests/seocho/test_extraction_type_scoring.py \

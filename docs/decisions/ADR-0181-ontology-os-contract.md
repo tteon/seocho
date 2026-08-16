@@ -146,13 +146,48 @@ nothing is saved until the user acts on it"* — carries over unchanged.
 - Layer 2 is optional. An ontology without it renders and indexes exactly as
   before; the scorecard reports the absence rather than the pipeline refusing.
 
-## What is not yet established
+## Measured: Layer 2 changes extraction, decisively
 
-Whether Layer 2 changes *extraction* is being measured, not assumed. The
-requirements channels reach the prompt now, and a 2x2 A/B (requirements on/off
-crossed with the removed FinDER literals) is running against the 322-document
-baseline. If it comes back null, the case for putting competency questions and
-modelling decisions in the prompt is gone and Layer 2 narrows to validation
-metadata — still needed for the gate and the scorecard, but not for extraction.
-`identity` and `vocabularies` are unaffected by that result: both failures are
-already demonstrated in extracted data.
+The 2x2 A/B (requirements on/off, crossed with the removed FinDER literals) ran
+over 24 gold documents against the 322-document baseline. Scored by counting,
+no judge.
+
+| metric | base+finder | base | req+finder | req |
+| --- | --- | --- | --- | --- |
+| `status` values outside the declared set | 51 | 47 | **0** | **0** |
+| distinct `status` values | 9 | 6 | 3 | 3 |
+| distinct after case folding | 6 | 4 | 3 | 3 |
+| `SUPERSEDES` edges | 7 | 7 | **17** | **14** |
+| off-ontology labels | 0 | 0 | 0 | 0 |
+| `Step.position` set | 57/57 | 39/39 | 60/60 | 43/43 |
+
+**Vocabulary control works completely.** Without the requirements, `status` left
+the declared set 51 and 47 times and split on case as well. With them, zero. `P`
+has no enum argument (`seocho-8v5`), so a modelling decision in prose was the
+only channel available — and it holds.
+
+**`SUPERSEDES` roughly doubles**, 7 to 17. The `conflicting_info` stratum is
+unanswerable without those edges, so naming the competency question is what made
+the graph able to answer it.
+
+**The control behaved.** `Step.position` is 100% in all four arms, because
+`P(int)` renders as `datatype=INTEGER` and was already honoured. It does not
+move with the requirements, which is the evidence that the other movements are
+not noise.
+
+**The FinDER literals changed nothing measurable** — off-ontology labels are 0
+in every arm — while costing tokens. Removing them was right for a reason
+unrelated to accuracy.
+
+One honest cost: the `req` arm had the most extraction failures (10 of 24 against
+4 for `base+finder`). A longer prompt raises the rate at which a reasoning model
+returns prose instead of JSON. Retries absorb it, and it is a real trade.
+
+## Turtle carries less than expected, which changes Layer 2's job
+
+`from_ttl` yields classes with **no properties at all** — verified, not assumed.
+So a Turtle ontology cannot declare an identity key, because the key must name a
+property that exists. The contract therefore carries a `properties:` block as
+well, and `identity` referring to an undeclared property raises rather than
+being ignored: silently dropping it would leave extracted ids document-local
+with no signal.

@@ -121,6 +121,7 @@ uv run pytest \
   tests/seocho/test_metrics_e2e_emission.py \
   tests/seocho/test_workflow_scorecard.py \
   tests/seocho/test_ontology_modularity.py \
+  tests/seocho/test_ontology_contract_sidecar.py \
   tests/seocho/test_plan_quality_explain.py \
   -q
 

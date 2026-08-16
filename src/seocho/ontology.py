@@ -267,6 +267,21 @@ RelationshipDefinition = RelDef
 # ---------------------------------------------------------------------------
 
 
+
+_CONTRACT_SUFFIX = ".seocho.yaml"
+
+
+def _find_sidecar(path: Union[str, Path]) -> Optional[Path]:
+    """`foo.ttl` -> `foo.seocho.yaml`, if it exists.
+
+    Beside the ontology rather than in a registry, so the two travel together:
+    a contract that can be separated from its ontology will be.
+    """
+    source = Path(path)
+    candidate = source.with_name(source.stem + _CONTRACT_SUFFIX)
+    return candidate if candidate.exists() else None
+
+
 class Ontology:
     """Schema definition that drives extraction prompts, query prompts,
     graph constraints, and post-extraction validation.
@@ -323,6 +338,100 @@ class Ontology:
     # Loaders
     # ------------------------------------------------------------------
 
+    def apply_contract(self, sidecar: Union[str, Path, None]) -> "Ontology":
+        """Apply an OS-contract sidecar to this ontology in place (`ADR-0181`).
+
+        Three of the five keys do real work rather than only annotating:
+
+        `identity` sets `NodeDef.identity_keys`, without which extracted ids stay
+        document-local and the same person in two documents remains two nodes.
+
+        `vocabularies` is the allowed-value set `P` cannot declare
+        (`seocho-8v5`). A measured 322-document run produced eight spellings of
+        one status property -- CURRENT/current/SUPERSEDED/superseded plus four
+        invented values -- so a filter on `superseded` missed half its rows.
+        Declaring it here reached the prompt and drove off-vocabulary values from
+        51 to 0 in a 2x2 A/B on the same corpus.
+
+        `competency_questions` and `modelling_decisions` reach the extraction
+        prompt, where the same A/B measured SUPERSEDES edges rising from 7 to 17.
+
+        Unknown keys are ignored rather than rejected, so a newer contract can be
+        read by an older SDK; a malformed one raises, because silently indexing
+        against a contract that did not apply is the failure this exists to
+        prevent.
+        """
+        if sidecar is None:
+            return self
+
+        import yaml
+
+        path = Path(sidecar)
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        if not isinstance(data, dict):
+            raise ValueError(f"{path}: contract must be a mapping, got {type(data).__name__}")
+
+        version = data.get("seocho_contract")
+        if version is not None and int(version) != 1:
+            raise ValueError(
+                f"{path}: seocho_contract {version} is newer than this SDK understands (1)"
+            )
+
+        if purpose := str(data.get("purpose") or "").strip():
+            self.description = purpose
+
+        for key in ("competency_questions", "modelling_decisions", "vocabularies"):
+            value = data.get(key)
+            if value:
+                self.annotations[key] = value
+
+        # `properties` exists because from_ttl produces classes with NO
+        # properties at all -- it reads OWL.Class and the label/comment
+        # annotations and nothing else. Without a way to declare them here, an
+        # ontology loaded from Turtle could never declare an identity key,
+        # because the key must name a property that exists.
+        for label, declared in (data.get("properties") or {}).items():
+            node = self.nodes.get(label)
+            if node is None:
+                continue
+            for prop_name, spec in (declared or {}).items():
+                if prop_name in (node.properties or {}):
+                    continue
+                spec = spec or {}
+                node.properties[prop_name] = P(
+                    str,
+                    unique=bool(spec.get("unique")),
+                    required=bool(spec.get("required")),
+                    description=str(spec.get("description") or ""),
+                )
+
+        unknown_labels = []
+        for label, keys in (data.get("identity") or {}).items():
+            node = self.nodes.get(label)
+            if node is None:
+                unknown_labels.append(label)
+                continue
+            missing = [k for k in keys if k not in (node.properties or {})]
+            if missing:
+                raise ValueError(
+                    f"{path}: identity keys {missing} for '{label}' are not "
+                    f"properties of that class. Declare them under `properties:` "
+                    f"in the same contract -- a .ttl carries classes, not "
+                    f"property slots."
+                )
+            node.identity_keys = list(keys)
+        if unknown_labels:
+            raise ValueError(
+                f"{path}: identity declared for classes not in the ontology: "
+                f"{sorted(unknown_labels)}"
+            )
+
+        for key in ("_render_cache", "_system_prompt_cache"):
+            cache = getattr(self, key, None)
+            if isinstance(cache, dict):
+                cache.clear()
+        return self
+
     @classmethod
     def load(cls, path: Union[str, Path]) -> "Ontology":
         """Load an ontology from a path by file extension.
@@ -333,16 +442,30 @@ class Ontology:
         - ``.yaml`` / ``.yml`` → :meth:`from_yaml`
         - ``.ttl`` → :meth:`from_ttl`
         - ``.owl`` → :meth:`from_owl`
+
+        A sidecar named ``<stem>.seocho.yaml`` beside the file is applied if it
+        exists (`ADR-0181`). It carries what an ontology FILE cannot: purpose,
+        competency questions, modelling decisions, identity keys, and property
+        vocabularies. `from_ttl` reads only OWL.Class/Ontology/versionIRI/
+        versionInfo, RDFS.Class/subClassOf/label/comment and SKOS.altLabel/
+        definition — `owl:hasKey` and `owl:oneOf` are not consulted anywhere in
+        this package — so even the two needs OWL could express are unreachable
+        without it.
         """
         suffix = Path(path).suffix.lower()
         if suffix in {".yaml", ".yml"}:
-            return cls.from_yaml(path)
-        if suffix in {".jsonld", ".json"}:
-            return cls.from_jsonld(path)
-        if suffix == ".ttl":
-            return cls.from_ttl(path)
-        if suffix == ".owl":
-            return cls.from_owl(path)
+            ontology = cls.from_yaml(path)
+        elif suffix in {".jsonld", ".json"}:
+            ontology = cls.from_jsonld(path)
+        elif suffix == ".ttl":
+            ontology = cls.from_ttl(path)
+        elif suffix == ".owl":
+            ontology = cls.from_owl(path)
+        else:
+            ontology = None
+        if ontology is not None:
+            ontology.apply_contract(_find_sidecar(path))
+            return ontology
         raise ValueError(
             "Unsupported ontology file extension. Use .jsonld/.json, .yaml/.yml, .ttl, or .owl "
             "or call the explicit loader directly."
@@ -1700,8 +1823,15 @@ class Ontology:
             # Rendered to strings, not left as lists: this context is declared
             # `Dict[str, str]` and callers join its values, so a list here is a
             # TypeError at a distance.
+            # A competency question may be a bare string or the dict shape
+            # `competency_question_report` consumes ({id, ask, requires}). Only
+            # the question itself belongs in the prompt -- rendering the dict
+            # put `{'id': 'cq1', 'ask': ...}` in front of the model, which reads
+            # as noise rather than as a requirement.
             "competency_questions": "\n".join(
-                f"  - {q}" for q in (annotations.get("competency_questions") or [])
+                f"  - {q['ask'] if isinstance(q, dict) else q}"
+                for q in (annotations.get("competency_questions") or [])
+                if (q.get("ask") if isinstance(q, dict) else q)
             ),
             "modelling_decisions": "\n".join(
                 f"  - {d}" for d in (annotations.get("modelling_decisions") or [])

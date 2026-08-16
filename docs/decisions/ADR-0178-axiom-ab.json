@@ -1,0 +1,34 @@
+{
+  "graph": {
+    "nodes": 70,
+    "relationships": 35
+  },
+  "arm_A_shacl_only": {
+    "property_shape_constraints": 13,
+    "axiom_classes_mined": 0,
+    "contradictions_caught": 0,
+    "entailed_edges": 0,
+    "entailed_labels": 0
+  },
+  "arm_B_induced_deduced": {
+    "property_shape_constraints": 13,
+    "candidates_mined": 15,
+    "approved_axioms": 12,
+    "approved_by_kind": {
+      "functional": 4,
+      "inverse_functional": 1,
+      "disjoint": 5,
+      "subclass": 1,
+      "rule": 1
+    },
+    "contradictions_caught": 2,
+    "contradiction_kinds": [
+      "disjoint_violation",
+      "functional_violation"
+    ],
+    "entailed_edges": 1,
+    "entailed_labels": 0,
+    "graph_enrichment_ratio": 0.029
+  },
+  "note": "answer-quality delta requires the live LLM e2e (real dataset -> extraction -> DozerDB); this offline arm measures the mechanism."
+}

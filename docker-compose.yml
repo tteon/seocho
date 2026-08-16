@@ -1,3 +1,10 @@
+# Optional local observability stack (ADR-0144): OTel Collector + Tempo +
+# Prometheus + Grafana. Gated behind the `observability` profile, so it is OFF
+# by default and only starts with `docker compose --profile observability up`.
+# The stack definition lives with its dashboards under examples/observability/.
+include:
+  - path: examples/observability/docker-compose.observability.yml
+
 services:
   # --- Core Local Stack: graph DB + runtime API + thin UI proxy ---
   apoc-extended-init:

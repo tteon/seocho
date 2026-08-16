@@ -3,7 +3,7 @@
 Before this, three property sets were disjoint:
 
   the ontology indexed   whatever was declared `unique` / `index`
-  the writer MERGEd on   `id`            (store/graph.py: MERGE (n:L {id: row.id}))
+  the writer MERGEd on   `id` (+`_workspace_id` since review #6: MERGE (n:L {id: row.id, _workspace_id: $ws}))
   the retriever filters  the display property and `_workspace_id`
 
 So no index served any predicate a correct query would use. The consequence is

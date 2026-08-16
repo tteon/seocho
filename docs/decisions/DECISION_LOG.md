@@ -1244,6 +1244,13 @@ Each entry must link to a full ADR when impact is non-trivial.
   - refcount leak-safety: structured pipeline inside pinned_run_context+ContextVar finally -> pin released even on exception (tested). default deterministic path byte-for-byte unchanged. 4 wiring tests; client/run-context/orchestrator green (24)
   - remaining Step 2c/2: live e2e validation (MARA/DozerDB), D3 single-graph indexing ((id,_workspace_id) MERGE), D4 scheduler fairness, bolt-rs I/O organ
 
+## 2026-08-16 (structured runtime: workspace-scoped graph MERGE, review #6)
+
+- [Accepted] ADR-0206 workspace-scoped node/rel MERGE (seocho-ia4, review #6, D3 code-half)
+  - Neo4jGraphStore.write MERGEd nodes on id alone; with ADR-0204's source-agnostic ~xs|<name> ids (identical across tenants), a shared graph would MERGE two tenants' entity onto ONE node + rels could bridge tenants (cross-tenant collision)
+  - fix: node MERGE (n:L {id, _workspace_id: $ws}) + rel endpoints MATCH scoped by _workspace_id; write() already stamps _workspace_id on every node so existing nodes still match -> no migration break; two tenants' identical id now key to distinct (id,_workspace_id) nodes
+  - 3 tests assert workspace-scoped Cypher (node + both rel endpoints, distinct ws per tenant); LWW test endpoint assertion updated. graph/index/convergence green (24). test_graph_db_span's 3 fails are PRE-EXISTING on origin/main (query-path fake missing default_access_mode, unrelated)
+
 ## Template
 
 Use this block for new entries:

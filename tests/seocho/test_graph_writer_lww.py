@@ -19,6 +19,17 @@ from seocho.store.graph import Neo4jGraphStore
 # Offline — stamping + guard wiring (mock driver, no DB)
 # --------------------------------------------------------------------------- #
 
+class _FakeCounters:
+    def __init__(self, nodes_created=0, relationships_created=0):
+        self.nodes_created = nodes_created
+        self.relationships_created = relationships_created
+
+
+class _FakeSummary:
+    def __init__(self, counters):
+        self.counters = counters
+
+
 class _Rec:
     def __init__(self):
         self.calls = []
@@ -32,6 +43,11 @@ class _Rec:
 
             def __iter__(self_inner):
                 return iter([])
+
+            def consume(self_inner):
+                # write() now reads real server counters; the bare fake reports
+                # zero created (tests here assert query shape, not counts).
+                return _FakeSummary(_FakeCounters())
 
         return _R()
 
@@ -242,6 +258,9 @@ class _ConflictRec(_Rec):
                         ]}
                     ])
                 return iter([])
+
+            def consume(self_inner):
+                return _FakeSummary(_FakeCounters(nodes_created=1 if is_node_merge else 0))
 
         return _R()
 

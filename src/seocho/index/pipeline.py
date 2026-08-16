@@ -880,9 +880,25 @@ class IndexingPipeline:
         )
         result.total_nodes = summary.get("nodes_created", 0)
         result.total_relationships = summary.get("relationships_created", 0)
+        # Terminal census stage: count DOMAIN edges actually in the store for
+        # this write, so it is comparable to the domain-only earlier stages.
+        # The write summary's relationships_created is provenance-inclusive
+        # (MENTIONS/HAS_CHUNK/...), which made written_to_store apples-to-oranges
+        # vs endpoints_resolvable (audit 2026-08-17). A single scoped count query.
+        domain_persisted = int(summary.get("relationships_created", 0) or 0)
+        try:
+            _rows = self.graph_store.query(
+                "MATCH (a)-[r]->(b) WHERE a._workspace_id=$ws AND r._source_id=$sid "
+                "AND NOT type(r) IN $prov RETURN count(r) AS c",
+                params={"ws": self.workspace_id, "sid": source_id,
+                        "prov": list(self._PROVENANCE_REL_TYPES)},
+                database=database)
+            if _rows:
+                domain_persisted = int((_rows[0].get("c") if _rows[0] else 0) or 0)
+        except Exception:  # noqa: BLE001 - census must never fail the write
+            pass
         self._relcensus(result, "written_to_store",
-                        [{"type": "?"}] * int(summary.get("relationships_created", 0) or 0),
-                        already_domain=True)
+                        [{"type": "?"}] * domain_persisted, already_domain=True)
         result.write_errors = summary.get("errors", [])
         result.merge_conflicts = summary.get("merge_conflicts", [])
 

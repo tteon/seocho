@@ -663,9 +663,12 @@ class Neo4jGraphStore(GraphStore):
                     + " RETURN row.id AS id, _conflicts AS conflicts"
                 )
                 try:
-                    for record in session.run(batch_q, rows=rows, ws=workspace_id):
-                        summary["nodes_created"] += 1
+                    _res = session.run(batch_q, rows=rows, ws=workspace_id)
+                    for record in _res:
                         _collect_conflicts(record)
+                    # Real created count, not one-per-submitted-row (a MERGE onto
+                    # an existing node creates zero). audit 2026-08-17.
+                    summary["nodes_created"] += _res.consume().counters.nodes_created
                 except Exception:
                     for row in rows:
                         try:
@@ -678,9 +681,10 @@ class Neo4jGraphStore(GraphStore):
                                 + sources_clause.format(p="$props")
                                 + " RETURN $id AS id, _conflicts AS conflicts"
                             )
-                            for record in session.run(single_q, id=row["id"], props=row["props"], ws=workspace_id):
+                            _res = session.run(single_q, id=row["id"], props=row["props"], ws=workspace_id)
+                            for record in _res:
                                 _collect_conflicts(record)
-                            summary["nodes_created"] += 1
+                            summary["nodes_created"] += _res.consume().counters.nodes_created
                         except Exception as exc:
                             summary["errors"].append(f"Node {row['id']}: {exc}")
 
@@ -704,8 +708,16 @@ class Neo4jGraphStore(GraphStore):
                            "OR r._writer_ts <= row.props._writer_ts THEN row.props ELSE {} END"
                            + rel_sources_clause.format(p="row.props"))
                 try:
-                    session.run(batch_q, rows=rows, ws=workspace_id)
-                    summary["relationships_created"] += len(rows)
+                    # Count edges ACTUALLY created (not submitted rows): the
+                    # batch is MATCH (a),(b) MERGE, so a row whose endpoint node
+                    # is absent creates zero edges, and a MERGE onto an existing
+                    # edge creates zero. len(rows) counted both as writes,
+                    # inflating total_relationships and masking the exact
+                    # orphan-drop the survival census exists to catch (audit
+                    # 2026-08-17). Read the real server counter, as execute_write
+                    # already does.
+                    _res = session.run(batch_q, rows=rows, ws=workspace_id)
+                    summary["relationships_created"] += _res.consume().counters.relationships_created
                 except Exception:
                     for row in rows:
                         try:
@@ -713,14 +725,14 @@ class Neo4jGraphStore(GraphStore):
                                              if source_label else "(a {id: $src, _workspace_id: $ws})")
                             target_single = (f"(b:{target_label} {{id: $tgt, _workspace_id: $ws}})"
                                              if target_label else "(b {id: $tgt, _workspace_id: $ws})")
-                            session.run(
+                            _res = session.run(
                                 f"MATCH {source_single}, {target_single} "
                                 f"MERGE (a)-[r:{rtype}]->(b) SET r += CASE WHEN "
                                 "r._writer_ts IS NULL OR r._writer_ts <= $props._writer_ts "
                                 "THEN $props ELSE {} END"
                                 + rel_sources_clause.format(p="$props"),
                                 src=row["src"], tgt=row["tgt"], props=row["props"], ws=workspace_id)
-                            summary["relationships_created"] += 1
+                            summary["relationships_created"] += _res.consume().counters.relationships_created
                         except Exception as exc:
                             summary["errors"].append(
                                 f"Rel {row['src']}-[{rtype}]->{row['tgt']}: {exc}")

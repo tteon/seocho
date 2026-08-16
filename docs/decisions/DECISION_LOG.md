@@ -5,7 +5,7 @@ Each entry must link to a full ADR when impact is non-trivial.
 
 ## 2026-08-15
 
-- [Accepted] `ADR-0186-root-compose-entry-point-and-docker-directory.md`
+- [Accepted] `ADR-0195-root-compose-entry-point-and-docker-directory.md`
   - keep one `compose.yaml` in the root and move overlays/side stacks to `docker/`
   - absorb Compose's project-directory rule in the invocation, not in the
     compose files: overlays follow the root file, side stacks pass
@@ -1173,3 +1173,6 @@ Use this block for new entries:
   / `sc.platform` / `sc.sessions` group 54 of 80 facade methods; `AsyncSeocho`'s
   25 missing methods are generated rather than hand-written; additive, nothing
   deprecated yet
+- [Accepted] ADR-0196 untrack-agent-state-directories — supersedes ADR-0113;
+  `.claude/` and `.serena/` are forbidden outright so the hygiene contract is
+  one list matching CLAUDE.md, with no exception to maintain

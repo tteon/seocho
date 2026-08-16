@@ -18,9 +18,10 @@ tracked_existing_under() {
 forbidden_tracked_paths=(
   ".agents"
   ".beads"
-  # ".claude" is checked separately below — .claude/skills/ is intentionally
-  # tracked (shared project skills, ADR-0113); everything else under .claude/
-  # stays forbidden.
+  # ".claude" is forbidden outright now. ADR-0113 carved out .claude/skills/ as
+  # shared project tooling; that exception is withdrawn, so the whole directory
+  # is agent state like the others and the special-case check below is gone.
+  ".claude"
   ".githooks"
   # .jules and .serena were on CLAUDE.md's non-tracked list and missing from
   # this one, so .jules/bolt.md sat in the tree for months while the contract
@@ -50,13 +51,6 @@ for path in "${forbidden_tracked_paths[@]}"; do
   fi
 done
 
-# .claude/ is untracked EXCEPT .claude/skills/ (ADR-0113). Flag any tracked
-# file under .claude/ that is not a shared skill.
-claude_forbidden="$(git ls-files -- ".claude" ":(exclude).claude/skills" ":(exclude).claude/skills/**" 2>/dev/null | head -1)"
-if [ -n "$claude_forbidden" ]; then
-  echo "Forbidden tracked path under .claude/ (only .claude/skills/ may be tracked): $claude_forbidden" >&2
-  exit 1
-fi
 
 required_paths=(
   "src/seocho/__init__.py"

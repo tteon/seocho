@@ -142,6 +142,7 @@ uv run pytest \
   tests/seocho/test_ontology_enforcement.py \
   tests/seocho/test_generic_label_coercion.py \
   tests/seocho/test_generic_relationship_coercion.py \
+  tests/seocho/test_extraction_split_retry.py \
   tests/seocho/test_run_template.py \
   tests/seocho/test_sweep.py \
   tests/seocho/test_entity_identity.py \

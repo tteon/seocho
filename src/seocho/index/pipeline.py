@@ -468,6 +468,55 @@ class IndexingPipeline:
             coerced.append(node)
         return coerced
 
+    def _extract_by_splitting(
+        self, text: str, *, category: str, metadata: Optional[Dict[str, Any]],
+        depth: int = 0,
+    ) -> Optional[Dict[str, Any]]:
+        """Recover a failed extraction by halving the chunk, or return None.
+
+        A hosted reasoning model that emits prose-not-JSON on a large chunk
+        usually emits clean JSON on a smaller one. Rather than fall straight to
+        the capitalized-token heuristic -- which loses every real relationship --
+        split at a paragraph or sentence boundary near the middle and extract
+        each half, merging the results.
+
+        Bounded: at most 2 splits deep, and text below _SPLIT_FLOOR chars is not
+        split (below that a failure is not size-related, so retrying smaller only
+        burns tokens). Returns None when splitting cannot help, so the caller
+        falls through to its existing heuristic/strict handling unchanged.
+        """
+        _SPLIT_FLOOR = 800
+        if depth >= 2 or len(text) <= _SPLIT_FLOOR:
+            return None
+
+        mid = len(text) // 2
+        # Prefer a paragraph break, then a sentence break, near the midpoint, so
+        # a relationship is not cut across the split.
+        for sep in ("\n\n", ". ", "\n", " "):
+            cut = text.rfind(sep, _SPLIT_FLOOR // 2, mid + mid // 2)
+            if cut > 0:
+                mid = cut + len(sep)
+                break
+        halves = [text[:mid].strip(), text[mid:].strip()]
+
+        merged: Dict[str, List[Any]] = {"nodes": [], "relationships": []}
+        recovered_any = False
+        for half in halves:
+            if not half:
+                continue
+            try:
+                part = self._graph_extraction.extract(
+                    half, category=category, metadata=metadata)
+            except Exception:  # noqa: BLE001 - this half may still be too big
+                part = self._extract_by_splitting(
+                    half, category=category, metadata=metadata, depth=depth + 1)
+                if part is None:
+                    continue
+            recovered_any = True
+            merged["nodes"].extend(part.get("nodes", []) or [])
+            merged["relationships"].extend(part.get("relationships", []) or [])
+        return merged if recovered_any else None
+
     def _coerce_generic_relationship_types(
         self, rels: Sequence[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
@@ -908,7 +957,27 @@ class IndexingPipeline:
                     )
                 extracted = response
             except Exception as exc:
-                if not self.enforcement_policy.allow_heuristic_fallback:
+                # A hosted reasoning model spends its budget thinking and, on a
+                # large chunk, emits reasoning prose with no JSON at all --
+                # measured live on MARA MiniMax-M2.7, "no JSON object found
+                # (head: 'Let me analyze this text carefully...')". The same
+                # model emits clean JSON on a smaller input. So before falling to
+                # the capitalized-token heuristic (which manufactures
+                # Entity/MENTIONS structure and loses every real relationship),
+                # try halving the chunk and extracting each part. This recovers
+                # real structure the heuristic cannot, and then falls through the
+                # normal downstream path exactly as a clean extraction would.
+                split = self._extract_by_splitting(
+                    chunk, category=category, metadata=metadata)
+                if split is not None:
+                    extracted = split
+                    try:
+                        get_metrics().add(
+                            "seocho.index.extraction.split_retry.count", 1,
+                            {"ontology": self.ontology.name})
+                    except Exception:  # noqa: BLE001 - telemetry never fails indexing
+                        pass
+                elif not self.enforcement_policy.allow_heuristic_fallback:
                     # seocho-snt strict: an LLM transport failure becomes a
                     # recorded error, not fabricated out-of-vocabulary graph
                     # structure.
@@ -919,17 +988,18 @@ class IndexingPipeline:
                     )
                     result.skipped_chunks += 1
                     continue
-                logger.warning(
-                    "LLM extraction failed for chunk %d, using heuristic fallback: %s",
-                    i, exc,
-                )
-                # Heuristic fallback — capture capitalized tokens as Entity
-                # nodes so the chunk produces *some* graph structure even
-                # without LLM access.  Marks the result as fallback_used for
-                # parity with server-side fallback_records tracking.
-                extracted = self._fallback_extract(chunk, source_id=source_id)
-                result.fallback_used = True
-                result.fallback_reason = f"{type(exc).__name__}: {str(exc)[:200]}"
+                else:
+                    logger.warning(
+                        "LLM extraction failed for chunk %d, using heuristic fallback: %s",
+                        i, exc,
+                    )
+                    # Heuristic fallback — capture capitalized tokens as Entity
+                    # nodes so the chunk produces *some* graph structure even
+                    # without LLM access.  Marks the result as fallback_used for
+                    # parity with server-side fallback_records tracking.
+                    extracted = self._fallback_extract(chunk, source_id=source_id)
+                    result.fallback_used = True
+                    result.fallback_reason = f"{type(exc).__name__}: {str(exc)[:200]}"
 
             nodes = extracted.get("nodes", [])
             rels = extracted.get("relationships", [])

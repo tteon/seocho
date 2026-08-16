@@ -125,6 +125,33 @@ def script_variables() -> Set[str]:
     return found
 
 
+def provider_key_variables() -> Dict[str, str]:
+    """Env names that live as DATA rather than as literals in a getenv call.
+
+    `ProviderSpec.api_key_env` / `api_key_env_aliases` are dataclass fields, and
+    `_resolve_client_kwargs` looks them up through a variable
+    (`os.getenv(env_name)`). A regex over call sites cannot see them.
+
+    That is not a cosmetic gap: `SEOCHO_VLLM_API_KEY` is the credential for the
+    vLLM serving tier, and the checker was reporting "all three surfaces agree"
+    while it was undocumented. A gate that reports success on the one variable
+    the target deployment most needs is worse than no gate.
+    """
+    found: Dict[str, str] = {}
+    try:
+        import sys
+
+        sys.path.insert(0, str(ROOT / "src"))
+        from seocho.store.llm import list_provider_specs
+    except Exception:
+        return found
+    for spec in list_provider_specs().values():
+        for name in (spec.api_key_env, *spec.api_key_env_aliases):
+            if name:
+                found.setdefault(name, f"src/seocho/store/llm.py (provider {spec.name!r})")
+    return found
+
+
 def _strip_yaml_comments(text: str) -> str:
     """Drop whole-line comments before scanning for variables.
 
@@ -164,6 +191,9 @@ def main() -> int:
     args = parser.parse_args()
 
     code = code_variables()
+    # Names carried as provider-preset data, invisible to the regex.
+    for name, origin in provider_key_variables().items():
+        code.setdefault(name, origin)
     compose = compose_variables()
     declared = declared_variables()
 

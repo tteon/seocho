@@ -32,11 +32,20 @@ except ImportError:  # pragma: no cover - yaml ships with the runtime deps
 
 ROOT = Path(__file__).resolve().parents[2]
 
-#: Services that run our code and therefore need the whole configuration
-#: surface. Backing stores (neo4j, postgres) are deliberately excluded: they
-#: read their own vendor variables and handing them ours would leak secrets
-#: into a container that has no use for them.
-APP_SERVICES = ("extraction-service", "evaluation-interface")
+#: Services that need the whole configuration surface. The rule is "a container
+#: gets the configuration it reads", so this is narrower than "our code":
+#:
+#:  - backing stores (neo4j, postgres) read their own vendor variables;
+#:  - `evaluation-interface` is our code but reads exactly ONE variable,
+#:    EXTRACTION_SERVICE_URL, and is the internet-facing tier. Handing it the
+#:    whole .env put SEOCHO_AUTH_SECRET, NEO4J_PASSWORD and every provider key
+#:    into the environment of a thin proxy with no use for them.
+APP_SERVICES = ("extraction-service",)
+
+#: Services that must NOT receive the whole .env, with the reason.
+SECRET_MINIMISED_SERVICES = {
+    "evaluation-interface": "reads only EXTRACTION_SERVICE_URL",
+}
 
 
 def test_env_example_matches_code_and_compose():
@@ -167,4 +176,25 @@ def test_graph_credentials_resolve_under_the_documented_env():
     )
     assert getenv("DOZERDB_USER", getenv("NEO4J_USER", "neo4j"))
     assert getenv("DOZERDB_PASSWORD", getenv("NEO4J_PASSWORD", "password"))
+
+
+@pytest.mark.skipif(yaml is None, reason="pyyaml not installed")
+def test_thin_proxy_does_not_receive_every_secret():
+    """A container gets the configuration it reads, not the configuration that
+    exists. `evaluation/server.py` reads one variable; env_file would give it
+    every provider key and the auth secret."""
+    compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text())
+
+    for name, reason in SECRET_MINIMISED_SERVICES.items():
+        service = compose["services"][name]
+        assert not service.get("env_file"), (
+            f"{name} {reason}, so the whole .env must not be injected into it"
+        )
+        env = service.get("environment") or {}
+        keys = (
+            set(env) if isinstance(env, dict)
+            else {entry.split("=")[0] for entry in env}
+        )
+        leaked = {k for k in keys if "SECRET" in k or "PASSWORD" in k}
+        assert not leaked, f"{name} is handed {sorted(leaked)}"
 

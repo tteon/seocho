@@ -118,9 +118,12 @@ services:
       - "${SEOCHO_BIND_HOST:-127.0.0.1}:${CHAT_INTERFACE_PORT:-8501}:8501"
     volumes:
       - ./evaluation:/app
-    env_file:
-      - path: .env
-        required: false
+    # Deliberately NO env_file here. `evaluation/server.py` reads exactly one
+    # variable — EXTRACTION_SERVICE_URL — and handing it the whole .env would
+    # put SEOCHO_AUTH_SECRET, NEO4J_PASSWORD and every provider key into the
+    # environment of an internet-facing thin proxy that has no use for them.
+    # This is the same rule the backing stores already follow: a container gets
+    # the configuration it reads, not the configuration that exists.
     environment:
       - EXTRACTION_SERVICE_URL=http://extraction-service:8001
       - OPENAI_API_KEY=${OPENAI_API_KEY}

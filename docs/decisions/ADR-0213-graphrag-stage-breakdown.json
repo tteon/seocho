@@ -1,0 +1,50 @@
+{
+  "adr": "ADR-0213",
+  "title": "Graph agentic-RAG stage breakdown",
+  "date": "2026-08-17",
+  "environment": {
+    "llm": "MARA MiniMax-M2.7 (hosted)",
+    "graph": "DozerDB 5.26.3 (live, bolt://localhost:7687)",
+    "code": "origin/main @ #589 (relationship-endpoint remap)",
+    "observability": "ADR-0144 rag.ask span tree (JSONL backend, 17 spans/ask)"
+  },
+  "prerequisite_fix_589": {
+    "instrument": "seocho.index.relationship_survival.count (_relcensus / _resolvable_rels)",
+    "root_cause": "node_lookup not keyed by original sequential id; endpoints orphaned after name-based id normalization",
+    "census_before_fix": {
+      "extracted": 11, "after_memory_shaping": 11, "after_ontology_context": 11,
+      "after_identity_keys": 11, "endpoints_resolvable": 0
+    },
+    "before_after": {"endpoints_resolvable": [0, 12], "related_to_persisted": [0, 12]}
+  },
+  "sample": {
+    "source": "An Unsentimental Journey through Cornwall",
+    "qtype": "Fact Retrieval",
+    "question": "which plant known scientifically as Erica vagans is also referred to by another common name, and what is that name?",
+    "gold": "Cornish heath",
+    "source_sentence": "the _erica vagans_ -- the lovely Cornish heath",
+    "alias_kind": "appositive"
+  },
+  "runs": [
+    {"run": 0, "ok": true, "nodes": 24, "entity_nodes": 20, "domain_edges": 17, "endpoints_resolvable": 17, "needed_edge_captured": false, "retrieval_rows": 0, "gold_hit": false},
+    {"run": 1, "ok": true, "nodes": 24, "entity_nodes": 20, "domain_edges": 17, "endpoints_resolvable": 17, "needed_edge_captured": false, "retrieval_rows": 0, "gold_hit": false},
+    {"run": 2, "ok": true, "nodes": 24, "entity_nodes": 20, "domain_edges": 17, "endpoints_resolvable": 17, "needed_edge_captured": false, "retrieval_rows": 0, "gold_hit": false}
+  ],
+  "note_needed_edge_flag": "The automated needed_edge check was too loose (any edge on the erica node), so it read true; manual inspection confirmed the specific erica<->cornish-heath alias edge was NOT captured. The 'Cornish heath' node does not exist.",
+  "attribution": {
+    "stage_1_indexing": {"verdict": "dominant_miss", "detail": "appositive alias 'Cornish heath' not lifted into structure; only in Chunk.text; no node/edge/alias-property"},
+    "stage_2_ontology": {"verdict": "contributes", "detail": "generic single-Entity + verb-in-property has no slot for an appositive alias"},
+    "stage_3_retrieval": {"verdict": "secondary_miss", "detail": "intent=entity_lookup (relationship_type empty); Cypher fetches node, no alias traversal"},
+    "stage_4_generation": {"verdict": "honest", "detail": "refused to fabricate; no hallucination"}
+  },
+  "generated_cypher_stage3": "MATCH (n:`Entity`) WHERE (toLower(coalesce(n.name,n.uri,'')) CONTAINS toLower($entity) OR toLower(coalesce(n.name,n.uri,'')) CONTAINS toLower($entity_norm)) AND ($workspace_id='' OR coalesce(n._workspace_id,'')=$workspace_id) AND coalesce(n._superseded_by,'')='' RETURN n LIMIT $limit",
+  "intent_data_stage3": {"intent": "entity_lookup", "anchor_entity": "Erica vagans", "target_entity": "", "relationship_type": ""},
+  "reporting_artifact": {"symptom": "_last_query_metadata.records == 0 while manual re-exec of same cypher+params returned 1 row", "impact": "diagnostics undercount only; answers unaffected"},
+  "gold_hit_rate": "0/3",
+  "conclusion": "For appositive/alias fact-retrieval, GraphRAG breaks at stage-1 extraction coverage; retrieval/generation cannot recover an answer that is structurally absent. Highest-leverage fix is extraction-side alias capture + an ontology alias slot.",
+  "followups": [
+    "extraction: appositive/alias capture -> ALSO_KNOWN_AS edge or alias property + ontology slot (prove before/after gold_hit)",
+    "retrieval: intent classifier routes 'also known as / another name for' as alias traversal, not entity_lookup",
+    "bug: _LocalEngine._last_query_metadata['records'] undercounts retrieved rows"
+  ]
+}

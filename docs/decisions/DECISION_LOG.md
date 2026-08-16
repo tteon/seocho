@@ -1219,6 +1219,14 @@ Each entry must link to a full ADR when impact is non-trivial.
   - StructuredQueryOrchestrator: plain deterministic function (not an LLM manager), resolve schema -> generate cypher (retrieve-only) -> guardrail (policy from the SAME pinned snapshot, B3) -> governed execute (force-pin workspace + enforce_workspace_filter, B2) -> synthesizer owns prose (B5); LLM+graph are injected seams
   - 11 tests prove each organ changes execution deterministically; monolithic composition supplanted by an organ-flagged, tenant-safe orchestrator. Step 2c = wire into Seocho.ask (engine=structured axis) + live cypher_generator/synthesizer + per-request ledger; bolt-rs (AIsummit26 rust-harness) on roadmap as the I/O-plane organ
 
+## 2026-08-16 (structured runtime D2: read-side canonical resolver)
+
+- [Accepted] ADR-0203 read-side canonical resolver via a name-alias index (seocho-t28/zfe)
+  - closes multi-agent-flow review blocker #3 (shared pool write-only on the read path): write interns composite identity label|name|company|year, a bare mention can't rebuild it, so resolve_mentions always missed multi-key entities
+  - SharedInternTable.alias/candidates/resolve_one = source-agnostic (workspace, normalized-name) -> {canonical} MULTIMAP; homonyms accumulate as a SET (surfaced, never a silent guess); apply_identity_keys registers name->canonical additively; resolve_mentions falls back to resolve_one
+  - t28 closed for unambiguous multi-key names; homonyms surface candidates (boundary1 honest); workspace-scoped. intern organ now mechanism-true on reads. 17 tests; identity/intern/grounding green
+  - deferred: cross-source CONVERGENCE (fragments->one canonical) needs source-agnostic write identity/reconciliation; flagged review #6 sub-claim (composite id has no workspace -> verify graph MERGE key when D3 single-graph indexing lands)
+
 ## Template
 
 Use this block for new entries:

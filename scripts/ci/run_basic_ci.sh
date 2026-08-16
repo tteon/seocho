@@ -83,6 +83,7 @@ uv run pytest \
   tests/seocho/test_bench_annotation.py \
   tests/seocho/test_finder_benchmark_script.py \
   tests/seocho/test_indexing_design.py \
+  tests/seocho/test_indexing_quality_metrics.py \
   tests/seocho/test_dedup_scope.py \
   tests/seocho/test_indexing_fallback_honesty.py \
   tests/seocho/test_provider_timeout_defaults.py \

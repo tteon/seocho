@@ -1157,6 +1157,12 @@ Each entry must link to a full ADR when impact is non-trivial.
   - AIsummit26 reminder: ontology-vs-not ablation harness (agent_interaction.py, 468-ep) + 3-tier repair loop + bolt-rs rust-harness already exist -> reuse; NEW = this gate + ontology-source axis (introspected vs declared) + bolt-rs LLM loop
   - full loop: intern_grounding -> generate -> validate -> EXPLAIN/profile_gate DETECT -> improve_directive repair -> execute(bolt-rs) -> computed-gold 3-layer score
 
+## 2026-08-16 (RCU B2 version pin)
+
+- [Accepted] ADR-0190 RCU reader pin/epoch registry (seocho-ia4.3 B2)
+  - VersionPinRegistry(pointer): increment-then-recheck pin (publish-before-observe, retries mid-pin swap), returns incremented epoch, unpin decrements that epoch; request-level context manager decoupled from admission; min_pinned_epoch None-when-no-pins (gate decides); finally-release liveness
+  - all 3 review blockers fixed; 7 tests incl. mid-pin-swap retry + min-advances. Next B3 EBR gate, B4 barrier
+
 ## Template
 
 Use this block for new entries:

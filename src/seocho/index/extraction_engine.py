@@ -312,8 +312,7 @@ class CanonicalExtractionEngine:
             )
 
         if self._extraction is not None:
-            self._extraction.category = category
-            return self._extraction.render(text, metadata=metadata)
+            return self._extraction.render(text, metadata=metadata, category=category)
 
         system = (
             "You are an expert entity extraction system.\n"

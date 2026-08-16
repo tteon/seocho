@@ -59,7 +59,6 @@ def test_staleness_is_distance_times_relevance():
 # --- read-time repair (the reconciliation that makes "repair" real) ----------
 
 from seocho.ontology.freshness import (  # noqa: E402
-    ReadRepairPlan,
     plan_read_repair,
     repair_read,
 )

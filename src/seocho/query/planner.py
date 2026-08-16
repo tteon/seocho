@@ -103,9 +103,15 @@ class DeterministicQueryPlanner:
             )
 
         ctx = active_ontology.to_query_context()
+        # A plan hint travels the same channel as an error, because to the
+        # repair agent they are the same kind of fact: a reason the previous
+        # attempt is not the answer. Without it a query that returns rows while
+        # planning a full scan reads as a success and is never revisited, which
+        # is exactly the query whose cost explodes as the graph grows.
         attempts_summary = "\n".join(
             f"  Attempt {i+1}: {a['cypher'][:100]}... → {a['result_count']} results"
             + (f" (error: {a['error']})" if a.get("error") else "")
+            + (f"\n{a['plan_hint']}" if a.get("plan_hint") else "")
             for i, a in enumerate(attempts)
         )
 
@@ -113,7 +119,19 @@ class DeterministicQueryPlanner:
             "You are a knowledge graph query repair agent.\n"
             "\n"
             "Task:\n"
-            "- Generate one relaxed alternative query plan after earlier attempts failed.\n\n"
+            + (
+                "- The previous attempt returned rows but plans a scan. Generate one "
+                "NARROWER plan that anchors on an indexed property. Do not relax the "
+                "match — relaxing it makes the scan wider.\n\n"
+                if any(a.get("plan_hint") for a in attempts)
+                # Two different repairs share one prompt, and they pull in
+                # opposite directions: an empty result wants a looser match, an
+                # unsargable plan wants a tighter one. Telling the model to
+                # "relax" when the problem is a full scan makes the plan worse.
+                else "- Generate one relaxed alternative query plan after earlier "
+                     "attempts failed.\n\n"
+            )
+            +
             "Context:\n"
             f'- Ontology: "{ctx["ontology_name"]}".\n'
             f"--- Graph Schema ---\n{ctx['graph_schema']}\n\n"

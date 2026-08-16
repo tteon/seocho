@@ -37,9 +37,12 @@ from __future__ import annotations
 
 import os
 import random
+import logging
 from functools import lru_cache
 from pathlib import Path
 from typing import Iterable, List, Optional
+
+logger = logging.getLogger(__name__)
 
 
 CATEGORIES: tuple[str, ...] = (
@@ -53,6 +56,16 @@ CATEGORIES: tuple[str, ...] = (
     "ShareholderReturn",
 )
 
+
+def _category_key(value: str) -> str:
+    """Collapse a category label to a casing/spacing-insensitive lookup key."""
+    return "".join(str(value).split()).lower()
+
+
+# Reverse index derived from CATEGORIES so the normalizer and the declared
+# category set cannot drift apart.
+_CANONICAL_BY_KEY: dict[str, str] = {_category_key(c): c for c in CATEGORIES}
+
 DEFAULT_HF_REPO = os.getenv("FINDER_HF_REPO", "Linq-AI-Research/FinDER")
 DEFAULT_HF_SUBSET = os.getenv("FINDER_HF_SUBSET", "")  # no subset
 DEFAULT_HF_SPLIT = os.getenv("FINDER_HF_SPLIT", "train")
@@ -64,9 +77,25 @@ def _cache_dir() -> Path:
 
 
 def _normalize_category(raw: Optional[str]) -> str:
+    """Normalize a raw FinDER category to its declared :data:`CATEGORIES` form.
+
+    Stripping whitespace without folding case meant the multi-word categories
+    never matched: FinDER ships "Company overview", CATEGORIES declares
+    "CompanyOverview", and the old normalizer produced "Companyoverview". A
+    filter on either multi-word category silently returned zero rows -- a wrong
+    answer that looks like an empty slice rather than an error.
+
+    Resolution is casing- and spacing-insensitive through _CANONICAL_BY_KEY,
+    which is derived from CATEGORIES so the two cannot drift. An unknown label
+    falls back to a title-cased form rather than failing, so a category FinDER
+    adds later still loads.
+    """
     if raw is None:
         return ""
-    return "".join(str(raw).split())
+    canonical = _CANONICAL_BY_KEY.get(_category_key(raw))
+    if canonical is not None:
+        return canonical
+    return "".join(word[:1].upper() + word[1:] for word in str(raw).split())
 
 
 def _coerce_bool(value) -> bool:

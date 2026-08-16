@@ -893,7 +893,7 @@ class _LocalEngine:
             llm=self.llm,
             workspace_id=self.workspace_id,
         )
-        executor = GraphQueryExecutor(graph_store=self.graph_store, database=database)
+        executor = GraphQueryExecutor(graph_store=self.graph_store, database=database, workspace_id=self.workspace_id)
         answer_synthesizer = QueryAnswerSynthesizer(
             query_strategy=self._query,
             llm=self.llm,
@@ -1354,6 +1354,7 @@ class _LocalEngine:
         active_executor = executor or GraphQueryExecutor(
             graph_store=self.graph_store,
             database=database,
+            workspace_id=self.workspace_id,
         )
         execution = active_executor.execute(QueryPlan(question="", cypher=cypher, params=params))
         return execution.records, execution.error
@@ -1379,7 +1380,7 @@ class _LocalEngine:
             from .query.plan_quality import repair_hint, summarize_plan
 
             explained = (executor or GraphQueryExecutor(
-                graph_store=self.graph_store, database=database,
+                graph_store=self.graph_store, database=database, workspace_id=self.workspace_id,
             )).explain(QueryPlan(question="", cypher=cypher, params=params))
             return repair_hint(summarize_plan(explained), ontology)
         except Exception:  # noqa: BLE001 — a planning probe must never fail a query

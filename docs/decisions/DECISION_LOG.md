@@ -1143,6 +1143,13 @@ Each entry must link to a full ADR when impact is non-trivial.
   - migration_plan(soft_delete=True) [was tombstone]; graph props _ontology_soft_deleted_at / _soft_delete_reason [were _ontology_tombstoned_at / _tombstone_reason]; new, no production data, safe rename
   - audit of this session's OS-lifecycle modules: tombstone was the only genuinely-ambiguous term; the rest (GDSF, intern/interning, tenant_floor, shared_boost, anchor, staleness, AMIE-lite, epoch/watermark/fencing[design]) are standard CS/DL/schema-registry terms already explained in module docstrings — no rename needed
 
+## 2026-08-16 (RCU B1 active pointer)
+
+- [Accepted] ADR-0188 RCU active-version pointer + atomic CAS (seocho-ia4.3 B1)
+  - ActiveOntologyPointer (SQLite BEGIN IMMEDIATE conditional UPDATE): real CAS on read (generation,epoch), not TOCTOU; concurrent same-expected -> exactly one winner
+  - (generation,epoch) globally non-decreasing (generation_hwm survives recreate); fencing token rejects stale leader; workspace-keyed (store lacked it); the 'active' pointer latest()-by-sort isn't
+  - 8 tests incl. concurrent-CAS-one-winner + recreate-monotonic-generation. Next B2 pin, B3 EBR gate
+
 ## Template
 
 Use this block for new entries:

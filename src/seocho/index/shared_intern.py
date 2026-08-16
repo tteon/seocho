@@ -73,3 +73,47 @@ class SharedInternTable:
         with self._stats_lock:
             self._interns = 0
             self._hits = 0
+
+    # -- cross-session persistence -------------------------------------------
+    # The canonical namespace outlives one process: persist to a shared file so a
+    # later session (or a different model run) loads the SAME addresses and its
+    # entities intern INTO the existing namespace — the allocator's heap survives
+    # the process, and many sessions/agents/models share one address space.
+
+    def snapshot(self) -> list:
+        """Return a JSON-serialisable list of [workspace, identity, canonical]."""
+        out = []
+        for i in range(self._shards):
+            with self._locks[i]:
+                for (ws, ident), canon in self._maps[i].items():
+                    out.append([ws, ident, canon])
+        return out
+
+    def persist(self, path) -> None:
+        import json
+        from pathlib import Path
+        p = Path(path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps({"entries": self.snapshot()}, indent=0))
+
+    def load(self, path, *, merge: bool = True) -> int:
+        """Load a persisted namespace. ``merge`` keeps existing entries (first-writer
+        wins across the merge too). Returns the number of entries loaded."""
+        import json
+        from pathlib import Path
+        p = Path(path)
+        if not p.exists():
+            return 0
+        data = json.loads(p.read_text() or "{}")
+        n = 0
+        for ws, ident, canon in data.get("entries", []):
+            key = (str(ws), str(ident))
+            s = self._shard(key)
+            with self._locks[s]:
+                if not merge:
+                    self._maps[s][key] = canon
+                    n += 1
+                elif key not in self._maps[s]:
+                    self._maps[s][key] = canon
+                    n += 1
+        return n

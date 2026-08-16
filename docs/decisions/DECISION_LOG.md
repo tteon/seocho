@@ -1163,6 +1163,13 @@ Each entry must link to a full ADR when impact is non-trivial.
   - VersionPinRegistry(pointer): increment-then-recheck pin (publish-before-observe, retries mid-pin swap), returns incremented epoch, unpin decrements that epoch; request-level context manager decoupled from admission; min_pinned_epoch None-when-no-pins (gate decides); finally-release liveness
   - all 3 review blockers fixed; 7 tests incl. mid-pin-swap retry + min-advances. Next B3 EBR gate, B4 barrier
 
+## 2026-08-16 (ontology-source A/B for text2cypher)
+
+- [Accepted] ADR-0191 is the ontology useful to text2cypher? ontology-source A/B (seocho-ia4.13)
+  - THIN (labels only) vs DECLARED (schema_for_prompt: rels+directions+cardinality+props+tenant scope), same 8 questions, same MARA model; deterministic conformance via validate_text2cypher_fallback
+  - DECISIVE: conformance 0%->100%, hallucination 100%->0%, avg violations 2.62->0 across all 8; labels-only invents rel names/directions/props + omits tenant scope, declared schema eliminates it
+  - ontology decisively useful to text2cypher (conformance = necessary condition; answer-quality + profile_gate loop + bolt-rs = remaining ia4.13)
+
 ## Template
 
 Use this block for new entries:

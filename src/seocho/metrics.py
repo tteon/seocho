@@ -7,11 +7,15 @@ request causality belongs in traces and auditable receipts, never metric labels.
 from __future__ import annotations
 
 import atexit
+import logging
 import os
 import threading
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any, Mapping, Protocol
 
+
+logger = logging.getLogger(__name__)
 
 METRICS_BACKEND_ENV = "SEOCHO_METRICS_BACKEND"
 METRICS_OTLP_ENDPOINT_ENV = "SEOCHO_METRICS_OTLP_ENDPOINT"
@@ -259,25 +263,57 @@ class ProductionMetrics:
                 raise ValueError(f"metric attribute {key} exceeds 80 characters")
         return values
 
+    #: When true, a validation failure raises instead of being swallowed. Tests
+    #: and CI set it; production leaves it off. See _guard().
+    strict: bool = False
+
+    @contextmanager
+    def _guard(self, name: str):
+        """Never let telemetry fail the work it measures.
+
+        The emit calls in `store/llm.py` sit inside the same `try` as the
+        provider request, whose `except Exception` is the RETRY handler. So a
+        malformed attribute on a SUCCESSFUL completion was reclassified as an
+        LLM failure: it triggered a real retry at real cost, and recorded itself
+        as `seocho.gen_ai.retry.count{reason: "ValueError"}`. The retry metric
+        contained our own bugs, and the same shape in
+        `runtime/agent_server.py`'s bare `finally` turned a telemetry error into
+        a 500.
+
+        A monitoring system that can take down the thing it monitors, and that
+        misreports its own defects as vendor failures, fails the one job it has.
+        Guarding here rather than at each call site means a new emitter cannot
+        reintroduce it by forgetting to wrap.
+        """
+        try:
+            yield
+        except Exception as exc:  # noqa: BLE001 - telemetry must not escape
+            if self.strict:
+                raise
+            logger.debug("metric %s dropped: %s", name, exc)
+
     def add(self, name: str, amount: int | float = 1, attributes: Mapping[str, Any] | None = None) -> None:
-        spec = METRIC_SPECS[name]
-        if spec.kind not in {"counter", "up_down_counter"}:
-            raise TypeError(f"{name} is not an additive instrument")
-        self._instruments[name].add(amount, self._attributes(spec, attributes))
+        with self._guard(name):
+            spec = METRIC_SPECS[name]
+            if spec.kind not in {"counter", "up_down_counter"}:
+                raise TypeError(f"{name} is not an additive instrument")
+            self._instruments[name].add(amount, self._attributes(spec, attributes))
 
     def record(self, name: str, value: int | float, attributes: Mapping[str, Any] | None = None) -> None:
-        spec = METRIC_SPECS[name]
-        if spec.kind != "histogram":
-            raise TypeError(f"{name} is not a histogram")
-        if value < 0:
-            raise ValueError("histogram values must be non-negative")
-        self._instruments[name].record(value, self._attributes(spec, attributes))
+        with self._guard(name):
+            spec = METRIC_SPECS[name]
+            if spec.kind != "histogram":
+                raise TypeError(f"{name} is not a histogram")
+            if value < 0:
+                raise ValueError("histogram values must be non-negative")
+            self._instruments[name].record(value, self._attributes(spec, attributes))
 
     def set(self, name: str, value: int | float, attributes: Mapping[str, Any] | None = None) -> None:
-        spec = METRIC_SPECS[name]
-        if spec.kind != "gauge":
-            raise TypeError(f"{name} is not a gauge")
-        self._instruments[name].set(value, self._attributes(spec, attributes))
+        with self._guard(name):
+            spec = METRIC_SPECS[name]
+            if spec.kind != "gauge":
+                raise TypeError(f"{name} is not a gauge")
+            self._instruments[name].set(value, self._attributes(spec, attributes))
 
 
 _lock = threading.Lock()

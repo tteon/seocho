@@ -80,6 +80,8 @@ _EXPORTS = {
     "UPPER_RELATION_NAMES": "upper",
     "induce_ontology_from_graph": "induce",
     "induction_report": "induce",
+    "ActiveOntologyPointer": "active_pointer",
+    "ActiveVersion": "active_pointer",
     "compute_ontology_metrics": "metrics",
     "BoundaryViolation": "context_map",
     "BoundedContext": "context_map",

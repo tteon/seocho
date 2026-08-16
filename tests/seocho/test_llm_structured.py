@@ -124,3 +124,53 @@ def test_structured_complete_falls_back_to_json_method():
         def complete(self, **kw):
             return _JsonOnlyResp({"ok": True})
     assert structured_complete(B(), system="s", user="u") == {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# Capability is a function of (server, model), not of the model name alone.
+# ---------------------------------------------------------------------------
+
+def test_self_hosted_reasoning_model_can_reach_schema_enforcement():
+    """The vLLM registry entry was dead code.
+
+    `_REGISTRY` is first-match-wins on the MODEL name, and its `vllm` entry
+    matches the literal string "vllm" — never a served model name. A self-hosted
+    `MiniMax-M2.7` matched `minimax` first and inherited
+    `supports_guided_json=False`, so the one deployment where enforcement is
+    exact (vLLM constrains the decoder with a grammar) could never reach it.
+    """
+    from seocho.llm_structured import capability_for
+
+    assert capability_for("MiniMax-M2.7").supports_guided_json is False
+    assert capability_for("MiniMax-M2.7", "vllm").supports_guided_json is True
+
+
+def test_hosted_provider_stays_conservative():
+    """The upgrade is for servers that enforce, not for every provider.
+
+    MARA serves MiniMax over an OpenAI-compatible API with no decoder-level
+    grammar, so it keeps json_object + robust parsing.
+    """
+    from seocho.llm_structured import capability_for
+
+    assert capability_for("MiniMax-M2.7", "mara").supports_guided_json is False
+
+
+def test_provider_upgrade_preserves_the_rest_of_the_profile():
+    """Only schema support changes; reasoning and token floor must survive."""
+    from seocho.llm_structured import capability_for
+
+    base = capability_for("MiniMax-M2.7")
+    upgraded = capability_for("MiniMax-M2.7", "vllm")
+
+    assert upgraded.family == base.family
+    assert upgraded.emits_reasoning == base.emits_reasoning is True
+    assert upgraded.max_tokens_floor == base.max_tokens_floor
+
+
+def test_provider_is_optional():
+    """Existing single-argument callers keep working."""
+    from seocho.llm_structured import capability_for
+
+    assert capability_for("gpt-4o").supports_guided_json is True
+    assert capability_for(None).family == "unknown"

@@ -557,42 +557,6 @@ class OpenAICompatibleBackend(LLMBackend):
         model = self.model.strip().lower()
         return model.startswith(("o1", "o3", "o4", "gpt-5"))
 
-    @staticmethod
-    def _translate_response_format_to_guided(
-        response_format: Optional[Dict[str, Any]],
-    ) -> Optional[Dict[str, Any]]:
-        """Translate an OpenAI ``response_format`` into a vLLM guided-decoding
-        ``extra_body`` payload (ADR-0098). Returns None if the format is
-        not translatable so the caller leaves ``response_format`` in place.
-
-        Mapping per ADR-0098 §3:
-            {"type":"json_object"}             → {"guided_json": {"type":"object"}}
-            {"type":"json_schema","json_schema":S} → {"guided_json": S}
-            {"type":"regex","pattern":P}       → {"guided_regex": P}
-            {"type":"choice","options":[...]}  → {"guided_choice": [...]}
-        """
-        if not isinstance(response_format, dict):
-            return None
-        rf_type = str(response_format.get("type") or "").lower()
-        if rf_type == "json_object":
-            return {"guided_json": {"type": "object"}}
-        if rf_type == "json_schema":
-            schema = response_format.get("json_schema") or response_format.get("schema")
-            if schema is None:
-                return None
-            return {"guided_json": schema}
-        if rf_type == "regex":
-            pattern = response_format.get("pattern")
-            if pattern is None:
-                return None
-            return {"guided_regex": pattern}
-        if rf_type == "choice":
-            options = response_format.get("options")
-            if options is None:
-                return None
-            return {"guided_choice": list(options)}
-        return None
-
     def _completion_request_kwargs(
         self,
         *,
@@ -627,26 +591,26 @@ class OpenAICompatibleBackend(LLMBackend):
                 kwargs["max_tokens"] = max_tokens
 
         normalized_mode = (mode or "").strip().lower() or None
-        # ADR-0098 V3: in pipeline mode against vLLM, translate
-        # response_format into extra_body.guided_*. In agent mode the
-        # Agents SDK tool-call structure carries shape; leave response_format
-        # alone so we never JSON-force a tool-call response. For other
-        # providers, response_format flows through unchanged in every mode.
-        guided_kwargs: Optional[Dict[str, Any]] = None
-        if (
-            normalized_mode == "pipeline"
-            and self.provider == "vllm"
-            and response_format is not None
-        ):
-            guided_kwargs = self._translate_response_format_to_guided(response_format)
-
-        if guided_kwargs is not None:
-            # Guided decoding supersedes response_format on vLLM.
-            kwargs["extra_body"] = self._merge_extra_body(
-                kwargs.get("extra_body"),
-                guided_kwargs,
-            )
-        elif response_format is not None:
+        # ADR-0098 translated response_format into extra_body.guided_* for
+        # vLLM. That was correct for vLLM 0.4-era guided decoding and is now
+        # actively harmful: `guided_json` does not exist in vLLM 0.27 (grep of
+        # the installed package returns zero hits — the API is
+        # `structured_outputs`), and OpenAIBaseModel is ConfigDict(extra="allow"),
+        # so the unknown field is accepted and dropped with only a debug log.
+        #
+        # The translation was an `elif`, so when it fired `response_format` was
+        # stripped from the request. vLLM handles `response_format` natively and
+        # correctly — structured_outputs_from_response_format maps json_object
+        # and json_schema itself, including the schema unwrap our translator got
+        # wrong. So the net effect was to convert working structured output into
+        # none at all, on exactly the self-hosted deployment we target.
+        #
+        # Three JSON safety nets keyed off `response_format` being present and
+        # therefore also disabled themselves: the doubled-budget retry, the
+        # "Return ONLY valid JSON" prompt variant, and the salvage-parser
+        # accounting. Passing response_format straight through re-arms all of
+        # them. Deleting the translation is strictly better than fixing it.
+        if response_format is not None:
             kwargs["response_format"] = response_format
 
         if "extra_body" in reasoning_overrides:

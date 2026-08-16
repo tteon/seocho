@@ -1169,6 +1169,12 @@ Each entry must link to a full ADR when impact is non-trivial.
   - THIN (labels only) vs DECLARED (schema_for_prompt: rels+directions+cardinality+props+tenant scope), same 8 questions, same MARA model; deterministic conformance via validate_text2cypher_fallback
   - DECISIVE: conformance 0%->100%, hallucination 100%->0%, avg violations 2.62->0 across all 8; labels-only invents rel names/directions/props + omits tenant scope, declared schema eliminates it
   - ontology decisively useful to text2cypher (conformance = necessary condition; answer-quality + profile_gate loop + bolt-rs = remaining ia4.13)
+- [Accepted] ADR-0192 pass response_format through to vLLM; drop the guided-decoding translation
+  - guided_json does not exist in vLLM 0.27.1 (zero hits in the installed package); the field was accepted and dropped by extra="allow"
+  - the translation was an elif, so it stripped response_format -- which vLLM handles natively and correctly. Net: structured output was OFF on self-hosted vLLM
+  - three JSON retries gate on response_format being present and were disabled with it; the repair counter is a serving-config alarm, not a model signal
+  - capability_for now takes (model, provider): a self-hosted MiniMax reaches schema enforcement, MARA-hosted stays conservative
+  - supersedes ADR-0098 section 3 only; the vLLM preset, agent-mode handling and the probe plugin stand
 
 ## Template
 

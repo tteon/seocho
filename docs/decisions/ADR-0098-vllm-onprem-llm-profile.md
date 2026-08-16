@@ -1,7 +1,14 @@
 # ADR-0098: vLLM On-Prem LLM Profile
 
 Date: 2026-05-25
-Status: Proposed
+Status: Proposed (section 3 superseded by ADR-0192)
+
+> **Section 3 (guided-decoding translation) is superseded by ADR-0192.**
+> `guided_json` does not exist in vLLM 0.27; the translation silently
+> dropped the field *and* stripped the `response_format` that vLLM
+> handles natively, turning structured output off on self-hosted
+> deployments. The vLLM provider preset and agent-mode handling below
+> stand unchanged.
 
 ## Context
 

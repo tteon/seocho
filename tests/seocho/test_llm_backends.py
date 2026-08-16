@@ -565,127 +565,86 @@ def test_vllm_complete_round_trip_against_mocked_endpoint(
     assert call["model"] == "Qwen2.5-7B-Instruct"
 
 
-def test_vllm_pipeline_mode_translates_json_object_to_guided_json(
+def test_vllm_pipeline_mode_passes_response_format_through(
     fake_openai: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """V3: pipeline-mode + response_format={'type':'json_object'} on vLLM
-    translates to extra_body.guided_json. response_format is dropped
-    because guided decoding supersedes it on the vLLM endpoint."""
-    monkeypatch.delenv("SEOCHO_VLLM_API_KEY", raising=False)
-    monkeypatch.delenv("VLLM_API_KEY", raising=False)
+    """response_format must reach vLLM unchanged.
 
+    ADR-0098 translated it into ``extra_body.guided_json``. That field does not
+    exist in vLLM 0.27 -- a grep of the installed package returns zero hits, the
+    API is ``structured_outputs`` -- and OpenAIBaseModel is
+    ``ConfigDict(extra="allow")``, so the unknown key was accepted and dropped
+    with only a debug log.
+
+    The translation was an ``elif``, so when it fired ``response_format`` was
+    stripped. vLLM maps ``response_format`` natively and correctly via
+    ``structured_outputs_from_response_format``. The net effect of the
+    translation was therefore to turn working structured output into none at
+    all, silently, on the deployment we target.
+    """
     backend = create_llm_backend(provider="vllm", model="Qwen2.5-7B-Instruct")
     backend.complete(
         system="reply json",
         user="ok",
-        temperature=0.0,
         response_format={"type": "json_object"},
         mode="pipeline",
-    )
-
-    call = backend._client.chat.completions.calls[0]
-    assert "response_format" not in call
-    assert call["extra_body"] == {"guided_json": {"type": "object"}}
-
-
-def test_vllm_pipeline_mode_translates_json_schema(
-    fake_openai: None,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """V3: pipeline-mode + response_format={'type':'json_schema',...}
-    on vLLM translates to extra_body.guided_json with the schema."""
-    monkeypatch.delenv("SEOCHO_VLLM_API_KEY", raising=False)
-    monkeypatch.delenv("VLLM_API_KEY", raising=False)
-
-    schema = {"type": "object", "properties": {"answer": {"type": "string"}}}
-    backend = create_llm_backend(provider="vllm", model="Qwen2.5-7B-Instruct")
-    backend.complete(
-        system="reply json",
-        user="ok",
-        temperature=0.0,
-        response_format={"type": "json_schema", "json_schema": schema},
-        mode="pipeline",
-    )
-
-    call = backend._client.chat.completions.calls[0]
-    assert "response_format" not in call
-    assert call["extra_body"] == {"guided_json": schema}
-
-
-def test_vllm_pipeline_mode_translates_regex_and_choice(
-    fake_openai: None,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """V3: regex and choice response_format types translate to the
-    corresponding guided_* extra_body keys."""
-    monkeypatch.delenv("SEOCHO_VLLM_API_KEY", raising=False)
-    monkeypatch.delenv("VLLM_API_KEY", raising=False)
-
-    backend = create_llm_backend(provider="vllm", model="Qwen2.5-7B-Instruct")
-
-    backend.complete(
-        system="match",
-        user="ok",
-        response_format={"type": "regex", "pattern": r"^[A-Z]{3}$"},
-        mode="pipeline",
-    )
-    call = backend._client.chat.completions.calls[-1]
-    assert call["extra_body"] == {"guided_regex": r"^[A-Z]{3}$"}
-
-    backend.complete(
-        system="pick one",
-        user="ok",
-        response_format={"type": "choice", "options": ["yes", "no", "maybe"]},
-        mode="pipeline",
-    )
-    call = backend._client.chat.completions.calls[-1]
-    assert call["extra_body"] == {"guided_choice": ["yes", "no", "maybe"]}
-
-
-def test_vllm_agent_mode_does_not_translate_response_format(
-    fake_openai: None,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """V3: agent mode preserves the OpenAI response_format because the
-    Agents SDK's tool-call structure carries the shape — we must never
-    JSON-force a tool-call response."""
-    monkeypatch.delenv("SEOCHO_VLLM_API_KEY", raising=False)
-    monkeypatch.delenv("VLLM_API_KEY", raising=False)
-
-    backend = create_llm_backend(provider="vllm", model="Qwen2.5-7B-Instruct")
-    backend.complete(
-        system="agent mode",
-        user="ok",
-        response_format={"type": "json_object"},
-        mode="agent",
     )
 
     call = backend._client.chat.completions.calls[0]
     assert call["response_format"] == {"type": "json_object"}
-    assert "extra_body" not in call or "guided_json" not in (call.get("extra_body") or {})
+    assert "guided_json" not in (call.get("extra_body") or {})
 
 
-def test_vllm_default_mode_preserves_pre_adr_behavior(
+def test_vllm_pipeline_mode_passes_json_schema_through(
     fake_openai: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """V3 backward compat: when ``mode`` is unset, response_format flows
-    through unchanged — pre-ADR-0098 callers are unaffected."""
-    monkeypatch.delenv("SEOCHO_VLLM_API_KEY", raising=False)
-    monkeypatch.delenv("VLLM_API_KEY", raising=False)
+    """The schema must arrive intact, at the level vLLM expects.
 
+    The translator also unwrapped one level too few: it took
+    ``response_format["json_schema"]``, which is ``{"name": ..., "schema": ...}``
+    -- a JSON Schema with no ``type`` and no ``properties``, matching any JSON.
+    vLLM unwraps to ``json_schema.json_schema`` itself, so passing the whole
+    response_format through is both simpler and correct.
+    """
+    schema = {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "output",
+            "schema": {"type": "object", "properties": {"a": {"type": "string"}}},
+        },
+    }
+    backend = create_llm_backend(provider="vllm", model="Qwen2.5-7B-Instruct")
+    backend.complete(system="s", user="u", response_format=schema, mode="pipeline")
+
+    call = backend._client.chat.completions.calls[0]
+    assert call["response_format"] == schema
+    assert "extra_body" not in call or not (call.get("extra_body") or {})
+
+
+def test_json_safety_nets_stay_armed_on_vllm(
+    fake_openai: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Three retries key off response_format being present in the request.
+
+    ``_maybe_boost_json_budget`` returns early without it, and the
+    "Return ONLY valid JSON" prompt variant is skipped. Stripping
+    response_format disabled both -- so on self-hosted vLLM the runaway
+    thinking-in-content failure they were written for was the default, with
+    every mitigation off.
+    """
     backend = create_llm_backend(provider="vllm", model="Qwen2.5-7B-Instruct")
     backend.complete(
-        system="default",
-        user="ok",
-        response_format={"type": "json_object"},
-        # no mode arg
+        system="s", user="u",
+        response_format={"type": "json_object"}, mode="pipeline",
     )
 
     call = backend._client.chat.completions.calls[0]
-    assert call["response_format"] == {"type": "json_object"}
-    assert "extra_body" not in call or "guided_json" not in (call.get("extra_body") or {})
+    assert "response_format" in call, (
+        "the JSON budget-boost and prompt-variant retries both gate on this key"
+    )
 
 
 def test_pipeline_mode_is_noop_on_non_vllm_provider(

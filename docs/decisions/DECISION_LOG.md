@@ -1271,6 +1271,13 @@ Each entry must link to a full ADR when impact is non-trivial.
   - StructuredQueryOrchestrator.repair_budget (default 0; local engine sets 1): on a guardrail rejection, feed the violation reasons + rejected query back to generate_grounded_cypher(feedback=) and retry up to budget before abstaining; _call_gen keeps 2-arg test doubles compatible; StructuredQueryResult.repair_attempts records retries
   - removes the Plane-2 confound (governed abstaining on a fixable one-shot miss); bounded + honest (still abstains after budget). 3 tests; structured suites green (16)
 
+## 2026-08-16 (organ 4: bolt-rs I/O-plane organ, measured)
+
+- [Accepted] ADR-0210 bolt-rs I/O-plane organ (seocho-ia4)
+  - vendored the AIsummit26 Rust data-plane harness into scripts/agentos/bolt_rs/ (env-configurable BOLT_HOST/PORT/USER/PASS), the 6th organ = OS owns the agent<->KB transport; CFP "execution substrates / cross-layer network,latency"
+  - MEASURED live (dozerdb-h0 finbenchl1, dedup 4x3 same): redundancy_factor=12, total_bytes_json=82068 vs unique_bytes_json=6839 = 12x redundant wire bytes for one answer's unique data; ~2.7-4e4 rows/s. transport-level statement of the shared-memory thesis (interning must drop redundancy) -> a Plane-1 metric (bolt-rs on/off)
+  - roadmap: wire governed execute_query over the Rust bolt path; add dedup/contention to arm x organ Plane-1. builds ~1.5s; target/ gitignored
+
 ## Template
 
 Use this block for new entries:

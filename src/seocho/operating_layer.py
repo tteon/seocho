@@ -47,9 +47,26 @@ layer across the FinBench SF axis under concurrent sessions.
 
 from __future__ import annotations
 
+import re
 import threading
 import time
 import uuid
+
+# A cheap single-node point lookup — an id-equality bound + LIMIT 1, no
+# aggregation/ordering. This is exactly the read-side canonical resolver's shape
+# (ADR-0203: WHERE n.id=$addr LIMIT 1), and a fan-out issues a BURST of them. Left
+# to the "unknown means heavy" EWMA cold-start they would flood the heavy lane on
+# first sight — so route them to the light lane directly (seocho-ia4 D4).
+_POINT_LOOKUP_ID = re.compile(r"(\{[^}]*\bid\b\s*:)|(\bid\b\s*=)|(\bid\b\s+IN)", re.IGNORECASE)
+_LIMIT_ONE = re.compile(r"\bLIMIT\s+1\b", re.IGNORECASE)
+_HEAVY_SHAPE = re.compile(r"\b(count|sum|avg|collect|order\s+by)\b", re.IGNORECASE)
+
+
+def _is_cheap_point_lookup(cypher: str) -> bool:
+    c = cypher or ""
+    if not _LIMIT_ONE.search(c) or _HEAVY_SHAPE.search(c):
+        return False
+    return bool(_POINT_LOOKUP_ID.search(c))
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence
 
@@ -199,6 +216,10 @@ class LaneScheduler:
         # to 0/85 — the probe that caught it is e2_s2_probe.py).
         self._lane_service_ms: Dict[str, float] = {}
         self._cond = threading.Condition()
+
+    @property
+    def has_light_lane(self) -> bool:
+        return "light" in self._permits
 
     # -- classification ----------------------------------------------------
 
@@ -470,7 +491,14 @@ class SeochoOS:
 
         statement_key = _hashlib.blake2b(
             " ".join(cypher.split()).encode(), digest_size=8).hexdigest()
-        lane = self._admission.classify(statement_key)
+        # A cheap point lookup goes to the light lane directly, so a fan-out's
+        # burst of canonical-id resolves (ADR-0203) does not flood the protected
+        # heavy lane on EWMA cold-start (D4); everything else uses the observed
+        # per-statement classification.
+        if self._admission.has_light_lane and _is_cheap_point_lookup(cypher):
+            lane = "light"
+        else:
+            lane = self._admission.classify(statement_key)
         self._admit(session, lane)
         started = _time.perf_counter()
         try:

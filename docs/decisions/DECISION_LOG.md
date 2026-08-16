@@ -1251,6 +1251,13 @@ Each entry must link to a full ADR when impact is non-trivial.
   - fix: node MERGE (n:L {id, _workspace_id: $ws}) + rel endpoints MATCH scoped by _workspace_id; write() already stamps _workspace_id on every node so existing nodes still match -> no migration break; two tenants' identical id now key to distinct (id,_workspace_id) nodes
   - 3 tests assert workspace-scoped Cypher (node + both rel endpoints, distinct ws per tenant); LWW test endpoint assertion updated. graph/index/convergence green (24). test_graph_db_span's 3 fails are PRE-EXISTING on origin/main (query-path fake missing default_access_mode, unrelated)
 
+## 2026-08-16 (structured runtime D4: scheduling — per-tenant structural + point-lookup light lane)
+
+- [Accepted] ADR-0207 scheduling: per-tenant isolation is structural; point lookups take the light lane (seocho-ia4, review #5)
+  - review #5 ("no tenant dimension -> one tenant starves co-tenants") REFUTED vs origin/main: LaneScheduler is per SeochoOS instance, SeochoOS is one per (workspace,database) -> each tenant has its own scheduler+permits (structural isolation, no starvation). Same stale-tree over-read as #1/#6-resolver. Disclosed residual: no global cross-tenant ceiling (isolation-over-global-cap choice; future work)
+  - real within-workspace fix: a fan-out's burst of id-equality+LIMIT1 canonical-id resolves (ADR-0203 shape) flooded the heavy lane on 'unknown=heavy' cold-start -> execute_query now routes cheap point lookups to the light lane (has_light_lane gate), keeping the protected heavy lane free
+  - OS scheduling stated precisely: cross-tenant=separate instances, within-tenant=light/heavy+high/normal reserve+EWMA with point-lookups seeded light. 3 tests; operating-layer/admission green (31)
+
 ## Template
 
 Use this block for new entries:

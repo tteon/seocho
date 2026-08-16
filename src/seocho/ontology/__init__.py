@@ -82,6 +82,7 @@ _EXPORTS = {
     "induction_report": "induce",
     "ActiveOntologyPointer": "active_pointer",
     "ActiveVersion": "active_pointer",
+    "VersionPinRegistry": "version_pin",
     "compute_ontology_metrics": "metrics",
     "BoundaryViolation": "context_map",
     "BoundedContext": "context_map",

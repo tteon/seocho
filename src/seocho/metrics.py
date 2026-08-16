@@ -168,6 +168,7 @@ METRIC_SPECS: dict[str, MetricSpec] = {
         _spec("seocho.index.extraction.retry.count", "counter", "{attempt}", ("ontology", "reason"), "Extraction retries by reason."),
         _spec("seocho.index.off_ontology_label.count", "counter", "{node}", ("ontology",), "Extracted node labels the ontology does not declare."),
         _spec("seocho.index.off_vocabulary_value.count", "counter", "{value}", ("ontology",), "Property values outside a declared vocabulary."),
+        _spec("seocho.index.relationship_survival.count", "histogram", "{item}", ("ontology", "stage"), "Domain relationships surviving each write-path stage."),
         _spec("seocho.index.observations_reified.count", "counter", "{observation}", ("ontology",), "Observation nodes reified during indexing."),
         _spec("seocho.query.plan.speedup", "histogram", "1", ("cohort",), "Baseline-to-candidate query-plan speedup after semantic parity."),
         _spec("seocho.query.plan.db_hits_reduction", "histogram", "1", ("cohort",), "Fractional DB-hit reduction for a semantically equivalent query plan."),

@@ -1097,6 +1097,15 @@ Each entry must link to a full ADR when impact is non-trivial.
   - step 4: Rust intern table NOT warranted now (data: extraction I/O-bound, interning 1.2M ops/s); trigger documented; measure-first
   - +7 tests
 
+## 2026-08-16 (cross-model shared intern table)
+
+- [Accepted] ADR-0183 cross-model + cross-session shared intern table (seocho-ia4)
+  - SharedInternTable.persist/load = cross-session canonical namespace (heap outlives process)
+  - experiment: same ontology + FinDER 10 docs, ONE shared table, 3 model families (MiniMax-M2.7/gpt-oss-120b/gemma-4-31B-it via MARA)
+  - result: 23 canonical entities; ALL-3 agreement 15 (65%), >=2 17 (74%), unique-to-one 6; collapse 35 cross-model+doc folds
+  - => ontology = shared type system + address space across models = OS memory claim embodied (heterogeneous clients, one governed heap)
+  - honest limit: 26% + name variants (berkshire hathaway vs ... inc.) = boundary-1 recall ceiling now cross-model; fuzzy fallback = follow-up
+
 ## Template
 
 Use this block for new entries:

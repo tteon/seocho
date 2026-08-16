@@ -40,6 +40,7 @@ _ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_ROOT / "src"))
 
 from seocho.ontology.induce import induce_ontology_from_graph, induction_report  # noqa: E402
+from seocho.ontology.metrics import compute_ontology_metrics  # noqa: E402
 from seocho.ontology.upper import render_upper_frame  # noqa: E402
 
 _CORPUS = "examples/finder/datasets/finder_tutorial_subset.json"
@@ -120,6 +121,9 @@ def _measure(graph: Dict[str, Any], arm: str) -> Dict[str, Any]:
     companies = sorted({c for c in _EXPECTED_COMPANIES if any(c in nm for nm in names)})
     onto, axioms = induce_ontology_from_graph(graph)
     hierarchical = sum(1 for nd in onto.nodes.values() if nd.broader)
+    # Ontology-evaluation metrics (Keet §11.2.5) — perceive extraction quality via
+    # the induced ontology's structure, not just downstream answer quality.
+    om = compute_ontology_metrics(onto)
     m = {
         "nodes": len(nodes),
         "relationships": len(rels),
@@ -132,6 +136,11 @@ def _measure(graph: Dict[str, Any], arm: str) -> Dict[str, Any]:
         "induced_hierarchical_types": hierarchical,
         "induced_relationships": len(onto.relationships),
         "axioms_mined": len(axioms),
+        # Keet ontology-evaluation metrics (extraction quality perceived structurally)
+        "onto_inheritance_richness": om["inheritance_richness"],
+        "onto_attribute_richness": om["attribute_richness"],
+        "onto_relationship_richness": om["relationship_richness"],
+        "onto_cohesion": om["cohesion"],
         "entity_types_sample": distinct_raw[:20],
     }
     if arm == "BOOTSTRAP":

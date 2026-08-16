@@ -77,6 +77,7 @@ _EXPORTS = {
     "UPPER_RELATION_NAMES": "upper",
     "induce_ontology_from_graph": "induce",
     "induction_report": "induce",
+    "compute_ontology_metrics": "metrics",
     "BoundaryViolation": "context_map",
     "BoundedContext": "context_map",
     "ContextMap": "context_map",

@@ -1,0 +1,51 @@
+{
+  "models": [
+    "MiniMax-M2.7",
+    "gpt-oss-120b",
+    "gemma-4-31B-it"
+  ],
+  "docs": 10,
+  "ontology": "finance-compliance",
+  "shared_namespace_size": 23,
+  "agreed_by_all_models": 15,
+  "agreed_by_ge2_models": 17,
+  "unique_to_one_model": 6,
+  "agreement_rate_ge2": 0.739,
+  "agreement_rate_all": 0.652,
+  "intern_table_stats": {
+    "size": 23,
+    "interns": 23,
+    "hits": 35,
+    "shards": 16
+  },
+  "per_model_canonical_count": {
+    "MiniMax-M2.7": 19,
+    "gpt-oss-120b": 18,
+    "gemma-4-31B-it": 18
+  },
+  "sample_agreed_by_all": [
+    "company|alphabet inc.",
+    "company|amazon.com, inc.",
+    "company|american express",
+    "company|apple inc.",
+    "company|bank of america",
+    "company|berkshire hathaway",
+    "company|berkshire hathaway inc.",
+    "company|coca-cola",
+    "company|geico",
+    "company|general re",
+    "company|jpmorgan chase & co.",
+    "company|meta platforms, inc.",
+    "company|nvidia corporation",
+    "company|tesla, inc.",
+    "regulator|federal trade commission"
+  ],
+  "sample_unique_to_one": [
+    "company|microsoft",
+    "regulation|regulatory minimum capital requirements",
+    "regulation|standardized approach",
+    "regulation|standardized approach for cet1 capital ratio",
+    "regulation|tier 1 capital ratio regulatory minimum",
+    "regulator|federal reserve"
+  ]
+}

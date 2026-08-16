@@ -262,6 +262,13 @@ class IndexingPipeline:
             self._extraction_concurrency = int(os.environ.get("SEOCHO_EXTRACTION_CONCURRENCY", "1") or "1")
         except ValueError:
             self._extraction_concurrency = 1
+        # The allocator's shared-memory intern table: one workspace-scoped canonical
+        # namespace across chunks/documents (and concurrency-safe under the concurrent
+        # extraction above). Populated at the identity step; its hit count measures
+        # interning collapse (ADR-0182 / ADR-0160).
+        from .shared_intern import SharedInternTable
+
+        self._intern_table = SharedInternTable()
         self._seen_hashes: set = set()
         self.extraction_prompt = extraction_prompt
         self.ontology_profile = str(ontology_profile or "default")
@@ -599,7 +606,10 @@ class IndexingPipeline:
         # store's single-key MERGE. No-op for ontologies without identity_keys.
         from seocho.index.identity import apply_identity_keys
 
-        all_nodes, all_rels = apply_identity_keys(self.ontology, all_nodes, all_rels)
+        all_nodes, all_rels = apply_identity_keys(
+            self.ontology, all_nodes, all_rels,
+            intern_table=self._intern_table, workspace_id=self.workspace_id,
+        )
 
         if _graph_cot_properties_enabled():
             shaper = PropertyShaper()

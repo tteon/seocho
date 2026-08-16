@@ -293,13 +293,24 @@ class CanonicalExtractionEngine:
                 continue
             nodes.append(normalized)
             props = normalized.get("properties", {})
-            for key in (
+            new_id = str(normalized["id"])
+            keys = [
                 str(normalized.get("id", "")),
                 str(props.get("name", "")),
                 str(props.get("uri", "")),
-            ):
+            ]
+            # The original LLM id -- typically a sequential integer -- is what
+            # the model writes in relationship endpoints. _normalize_node
+            # replaces a sequential id with the entity name (cross-document
+            # collision avoidance, line 474), which drops the original->new
+            # mapping. Without this key, a relationship referencing "2" resolves
+            # to nothing, orphans, and the edge is silently lost -- the measured
+            # "47 extracted, 0 domain edges persisted" symptom. Key by it too.
+            if isinstance(raw_node, dict):
+                keys.append(str(raw_node.get("id", "")))
+            for key in keys:
                 if key:
-                    node_lookup[key] = str(normalized["id"])
+                    node_lookup[key] = new_id
 
         relationships = []
         for raw_rel in (raw_relationships or raw_triples):

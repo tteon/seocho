@@ -122,6 +122,8 @@ class IndexingResult:
     layered_graph_summary: Optional[Dict[str, Any]] = None
     fallback_used: bool = False
     fallback_reason: str = ""
+    # Domain-relationship survival count per write-path stage (diagnostic).
+    relationship_census: Dict[str, int] = field(default_factory=dict)
 
     # Materialised extracted graph payload — the post-write graph view that the
     # caller (e.g. ``_LocalEngine.add``) can surface to users via
@@ -684,6 +686,57 @@ class IndexingPipeline:
         except Exception as exc:
             logger.warning("Semantic artifact draft skipped: %s", exc)
 
+    #: Relationship types the pipeline writes for provenance, not extraction.
+    #: The census counts everything else -- the ontology's own edges, the ones
+    #: a question actually traverses.
+    _PROVENANCE_REL_TYPES = frozenset({
+        "MENTIONS", "HAS_CHUNK", "HAS_SECTION", "HAS_VERSION",
+        "CURRENT_VERSION", "HAS_OBSERVATION",
+    })
+
+    def _relcensus(self, result: IndexingResult, stage: str,
+                   rels: Sequence[Dict[str, Any]], *,
+                   already_domain: bool = False) -> None:
+        """Record how many domain (non-provenance) relationships survive a stage.
+
+        Stored on result.relationship_census and emitted as a metric, so one
+        live run shows exactly where between extraction and the store a real
+        edge is lost -- rather than inferring it from a 47->0 end state.
+        """
+        if already_domain:
+            count = len(rels)
+        else:
+            count = sum(
+                1 for r in rels
+                if str((r or {}).get("type") or "").strip()
+                not in self._PROVENANCE_REL_TYPES
+            )
+        census = getattr(result, "relationship_census", None)
+        if census is None:
+            census = {}
+            try:
+                result.relationship_census = census
+            except Exception:  # noqa: BLE001 - result is a dataclass; attr may be slotted
+                pass
+        census[stage] = count
+        try:
+            get_metrics().add(
+                "seocho.index.relationship_survival.count", count,
+                {"ontology": getattr(self.ontology, "name", "?"), "stage": stage})
+        except Exception:  # noqa: BLE001 - telemetry never fails indexing
+            pass
+
+    @staticmethod
+    def _resolvable_rels(nodes: Sequence[Dict[str, Any]],
+                         rels: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Rels whose BOTH endpoints match a node id present in the payload."""
+        ids = {str((n or {}).get("id")) for n in nodes}
+        out = []
+        for r in rels:
+            if str((r or {}).get("source")) in ids and str((r or {}).get("target")) in ids:
+                out.append(r)
+        return out
+
     def _shape_and_write_graph(
         self,
         *,
@@ -707,6 +760,14 @@ class IndexingPipeline:
         source_type = "text"
         if isinstance(metadata, dict):
             source_type = str(metadata.get("source_type") or "text")
+
+        # Relationship-survival census across the write path. The measured
+        # symptom was 47 relationships extracted and 0 domain edges persisted,
+        # non-deterministically -- so where in this pipeline a real edge is lost
+        # was unknown. Each stage records how many NON-provenance relationships
+        # (the ontology's own types, not MENTIONS/HAS_CHUNK/etc.) survive it, and
+        # every stage's count is emitted so a single live run pins the drop.
+        self._relcensus(result, "extracted", all_rels)
 
         if all_nodes or all_rels:
             try:
@@ -734,6 +795,7 @@ class IndexingPipeline:
                 result.layered_graph_summary = shaped.get("layered_graph_summary")
             except Exception as exc:
                 logger.warning("Memory graph shaping skipped: %s", exc)
+        self._relcensus(result, "after_memory_shaping", all_rels)
 
         if not (all_nodes or all_rels):
             return all_nodes, all_rels
@@ -743,6 +805,7 @@ class IndexingPipeline:
             all_rels,
             ontology_context,
         )
+        self._relcensus(result, "after_ontology_context", all_rels)
 
         # seocho-uxs: rewrite ids to composite identities for node types that
         # declare identity_keys, so dimension-bearing entities (same name,
@@ -754,6 +817,11 @@ class IndexingPipeline:
             self.ontology, all_nodes, all_rels,
             intern_table=self._intern_table, workspace_id=self.workspace_id,
         )
+        self._relcensus(result, "after_identity_keys", all_rels)
+        # Endpoint resolvability against the node id set at write time: a rel
+        # whose source/target is not a written node id cannot become an edge.
+        self._relcensus(result, "endpoints_resolvable",
+                        self._resolvable_rels(all_nodes, all_rels))
 
         if _graph_cot_properties_enabled():
             shaper = PropertyShaper()
@@ -812,6 +880,9 @@ class IndexingPipeline:
         )
         result.total_nodes = summary.get("nodes_created", 0)
         result.total_relationships = summary.get("relationships_created", 0)
+        self._relcensus(result, "written_to_store",
+                        [{"type": "?"}] * int(summary.get("relationships_created", 0) or 0),
+                        already_domain=True)
         result.write_errors = summary.get("errors", [])
         result.merge_conflicts = summary.get("merge_conflicts", [])
 

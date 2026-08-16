@@ -79,10 +79,20 @@ def apply_identity_keys(
         label = str(node.get("label", "") or "")
         nd = node_defs.get(label)
         identity_keys = list(getattr(nd, "identity_keys", []) or []) if nd else []
-        if not identity_keys:
+        cross_unique = bool(getattr(nd, "cross_source_unique", False)) if nd else False
+        if not identity_keys and not cross_unique:
             continue
         props = node.get("properties") or {}
-        new_id = compute_node_identity(label, props, identity_keys)
+        name = str(props.get("name", "") or "")
+        if cross_unique and name:
+            # Cross-source-unique (seocho-zfe D2-2): a SOURCE-AGNOSTIC, label-free
+            # canonical address. The same real entity written from two sources with
+            # different labels (company|acme vs organization|acme) gets the SAME id
+            # here, so both graph nodes MERGE to one — cross-source joins land on one
+            # node. Safe because the modeler declared this type globally name-unique.
+            new_id = "~xs|" + _normalize_segment(name)
+        else:
+            new_id = compute_node_identity(label, props, identity_keys)
         if not new_id:
             continue
         if intern_table is not None:

@@ -51,7 +51,7 @@ def recorder(monkeypatch):
 
 def test_scorecard_emits_score_dimensions_and_weak_points(recorder):
     scorecard = {
-        "score": 0.83,
+        "overall_score": 0.83,
         "dimensions": [{"name": "taxonomy_health", "score": 0.8}],
         "weak_points": [{"dimension": "taxonomy_health", "severity": "major"}],
     }
@@ -162,3 +162,16 @@ def test_every_emitted_name_is_a_declared_instrument():
 
     undeclared = sorted({name for _, name, _, _ in rec.calls} - set(METRIC_SPECS))
     assert not undeclared, undeclared
+
+
+def test_the_overall_score_key_is_the_one_the_scorecard_emits(recorder):
+    """`OntologyScorecard.to_dict()` writes `overall_score`, not `score`.
+
+    Reading the wrong key made this emitter skip in silence: a grade was still
+    produced, so nothing looked broken, and the single panel answering "is this
+    ontology good enough" would have had no data. Both spellings are accepted
+    so a fixture using either still exercises the path.
+    """
+    qm.record_scorecard({"overall_score": 0.78}, ontology="ent")
+    hits = recorder.by("seocho.ontology.scorecard.score")
+    assert hits and hits[0][2] == 0.78

@@ -54,7 +54,11 @@ def record_scorecard(scorecard: Any, *, ontology: str, profile: str = "default")
         scorecard.to_dict() if hasattr(scorecard, "to_dict") else dict(scorecard or {})
     )
 
-    score = data.get("score")
+    # `overall_score`, not `score`. Reading the wrong key made this emitter
+    # skip silently — the scorecard still produced a grade, so nothing looked
+    # broken, and the one panel that answers "is this ontology good enough"
+    # would simply have had no data.
+    score = data.get("overall_score", data.get("score"))
     if isinstance(score, (int, float)):
         metrics.set("seocho.ontology.scorecard.score",
                     float(score), {"ontology": ontology, "profile": profile})

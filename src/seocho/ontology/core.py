@@ -40,12 +40,11 @@ Canonical storage is **JSON-LD**; SHACL shapes are derived for validation::
 
 from __future__ import annotations
 
-import json
 import re
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Set, Type, Union
+from typing import Any, Dict, List, Optional, Sequence, Set, Union
 
 import yaml
 
@@ -2309,7 +2308,7 @@ class Ontology:
 
         if conflicts and strategy == "strict":
             raise ValueError(
-                f"Merge conflicts in strict mode:\n" +
+                "Merge conflicts in strict mode:\n" +
                 "\n".join(f"  - {c}" for c in conflicts)
             )
 
@@ -2442,7 +2441,7 @@ class Ontology:
     # Migration
     # ------------------------------------------------------------------
 
-    def migration_plan(self, new_ontology: "Ontology") -> Dict[str, Any]:
+    def migration_plan(self, new_ontology: "Ontology", *, tombstone: bool = True) -> Dict[str, Any]:
         """Compute a migration plan from this ontology to a new version.
 
         Returns Cypher statements needed to transform existing graph
@@ -2452,6 +2451,14 @@ class Ontology:
         ----------
         new_ontology:
             The target ontology to migrate to.
+        tombstone:
+            When True (default, seocho-ia4.5) a removed label/relationship is
+            **tombstoned** (``SET ... _ontology_tombstoned_at``, hidden from new
+            reads) rather than destructively deleted — physical deletion becomes a
+            later GC decision on a retention clock (gated by the RCU epoch, ia4.3),
+            not a migration side effect. A removed property is kept (deprecated),
+            not dropped. Pass ``tombstone=False`` for the legacy destructive plan.
+            Every statement carries a ``data_loss`` flag.
 
         Returns
         -------
@@ -2482,15 +2489,24 @@ class Ontology:
         for label in sorted(new_labels - old_labels):
             plan["additions"].append({"type": "node", "label": label})
 
-        # Removed node types (breaking)
+        # Removed node types (breaking). Tombstone (default) instead of destroy.
+        _ts = new_ontology.version
         for label in sorted(old_labels - new_labels):
             plan["removals"].append({"type": "node", "label": label})
             plan["breaking"] = True
-            plan["cypher_statements"].append({
-                "description": f"Remove all :{label} nodes",
-                "cypher": f"MATCH (n:{label}) DETACH DELETE n",
-                "breaking": True,
-            })
+            if tombstone:
+                plan["cypher_statements"].append({
+                    "description": f"Tombstone :{label} nodes (removed in {_ts})",
+                    "cypher": (f"MATCH (n:{label}) SET n._ontology_tombstoned_at = '{_ts}', "
+                               f"n._tombstone_reason = 'label removed'"),
+                    "breaking": True, "data_loss": False,
+                })
+            else:
+                plan["cypher_statements"].append({
+                    "description": f"Remove all :{label} nodes",
+                    "cypher": f"MATCH (n:{label}) DETACH DELETE n",
+                    "breaking": True, "data_loss": True,
+                })
 
         # Changed node types (property changes)
         for label in sorted(old_labels & new_labels):
@@ -2502,11 +2518,20 @@ class Ontology:
 
             for prop in sorted(old_props - new_props):
                 plan["removals"].append({"type": "property", "label": label, "property": prop})
-                plan["cypher_statements"].append({
-                    "description": f"Remove property {prop} from :{label}",
-                    "cypher": f"MATCH (n:{label}) REMOVE n.`{prop}`",
-                    "breaking": False,
-                })
+                if tombstone:
+                    # keep the data; mark the property deprecated (no data loss)
+                    plan["cypher_statements"].append({
+                        "description": f"Deprecate property {prop} on :{label} (kept)",
+                        "cypher": (f"MATCH (n:{label}) WHERE n.`{prop}` IS NOT NULL "
+                                   f"SET n.`_deprecated_{prop}` = true"),
+                        "breaking": False, "data_loss": False,
+                    })
+                else:
+                    plan["cypher_statements"].append({
+                        "description": f"Remove property {prop} from :{label}",
+                        "cypher": f"MATCH (n:{label}) REMOVE n.`{prop}`",
+                        "breaking": False, "data_loss": True,
+                    })
 
         # Relationship changes
         old_rels = set(self.relationships.keys())
@@ -2518,11 +2543,19 @@ class Ontology:
         for rtype in sorted(old_rels - new_rels):
             plan["removals"].append({"type": "relationship", "relationship": rtype})
             plan["breaking"] = True
-            plan["cypher_statements"].append({
-                "description": f"Remove all [{rtype}] relationships",
-                "cypher": f"MATCH ()-[r:{rtype}]->() DELETE r",
-                "breaking": True,
-            })
+            if tombstone:
+                plan["cypher_statements"].append({
+                    "description": f"Tombstone [{rtype}] relationships (removed in {_ts})",
+                    "cypher": (f"MATCH ()-[r:{rtype}]->() SET r._ontology_tombstoned_at = '{_ts}', "
+                               f"r._tombstone_reason = 'rel type removed'"),
+                    "breaking": True, "data_loss": False,
+                })
+            else:
+                plan["cypher_statements"].append({
+                    "description": f"Remove all [{rtype}] relationships",
+                    "cypher": f"MATCH ()-[r:{rtype}]->() DELETE r",
+                    "breaking": True, "data_loss": True,
+                })
 
         plan["summary"] = (
             f"Migration {self.version} → {new_ontology.version}: "

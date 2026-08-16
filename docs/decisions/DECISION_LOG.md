@@ -1211,6 +1211,14 @@ Each entry must link to a full ADR when impact is non-trivial.
   - B1: PinnedSchemaResolver (query/pinned_schema.py) loads the immutable snapshot for a pinned (package_id,version) and compiles prompt schema + guardrail policy from the SAME frozen ontology -> per-request pinned delivery is now real (pinned 1.0.0 resolves 1.0.0 even after 2.0.0 publishes); caches ONLY the pure tenant-agnostic schema block by (package,version,fingerprint), never a workspace-bound agent (pre-empts B3/B6)
   - 13 new tests; run-context/ontology-context/drift/snapshot/RCU suites green. Deferred to step 2b: B2/B4/B5 + majors (governed execute, arm x organ matrix, retrieve-only specialist, plain-function orchestrator, engine axis, per-request ledger)
 
+## 2026-08-16 (structured runtime step 2b: orchestrator + arm x organ config)
+
+- [Accepted] ADR-0202 structured query orchestrator + arm x organ config (seocho-ia4)
+  - framing set to "measured agent-OS layer" (hadry; matches the AgenticOS CFP's own words) — organ guarantees measured, then composed into the OS claim
+  - ArmConfig: 5 organs (intern/schema/pin/workspace/guardrail) as independent flags; bare()/governed()/without(organ); ablation_arms() = BARE+GOVERNED+5 leave-one-out (not 2^5)
+  - StructuredQueryOrchestrator: plain deterministic function (not an LLM manager), resolve schema -> generate cypher (retrieve-only) -> guardrail (policy from the SAME pinned snapshot, B3) -> governed execute (force-pin workspace + enforce_workspace_filter, B2) -> synthesizer owns prose (B5); LLM+graph are injected seams
+  - 11 tests prove each organ changes execution deterministically; monolithic composition supplanted by an organ-flagged, tenant-safe orchestrator. Step 2c = wire into Seocho.ask (engine=structured axis) + live cypher_generator/synthesizer + per-request ledger; bolt-rs (AIsummit26 rust-harness) on roadmap as the I/O-plane organ
+
 ## Template
 
 Use this block for new entries:

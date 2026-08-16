@@ -1137,6 +1137,12 @@ Each entry must link to a full ADR when impact is non-trivial.
   - honest: exact-name resolution (variants surface as unresolved = boundary-1 ceiling), tf-idf baseline (bge next); +4 tests
   - follow-up: wire into live cypher-gen prompt + repair loop (PR #542 merged), vector fallback for unresolved
 
+## 2026-08-16 (terminology: soft-delete)
+
+- [Clarification] rename ontology-migration "tombstone" -> "soft-delete" (hadry: term unclear)
+  - migration_plan(soft_delete=True) [was tombstone]; graph props _ontology_soft_deleted_at / _soft_delete_reason [were _ontology_tombstoned_at / _tombstone_reason]; new, no production data, safe rename
+  - audit of this session's OS-lifecycle modules: tombstone was the only genuinely-ambiguous term; the rest (GDSF, intern/interning, tenant_floor, shared_boost, anchor, staleness, AMIE-lite, epoch/watermark/fencing[design]) are standard CS/DL/schema-registry terms already explained in module docstrings — no rename needed
+
 ## Template
 
 Use this block for new entries:

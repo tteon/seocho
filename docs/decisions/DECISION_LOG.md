@@ -1040,6 +1040,13 @@ Each entry must link to a full ADR when impact is non-trivial.
   - CostAwareEvictionCache: GDSF (freq x recompute_cost / size) + per-tenant floor + shared boost + byte budget + thread-safe; keyed by stable content hash
   - vs naive LRU under multi-tenant skewed churn: hit-rate 35.3%->48.1%, recompute-ms avoided +36%, hot-shared retention 86.6%->99.9%
   - completes the allocator (alloc+reclaim+schedule); Memory+Resource tracks; follow-ups: wire into OntologyContextCache, extend to prefix-KV/buffers, TTL/version retirement, provenance GC
+## 2026-08-16 (ontology drift barrier)
+
+- [Accepted] ADR-0175 ontology-drift read barrier (seocho-ia4.1) — detect->enforce
+  - two verified bugs: GraphProjector.project() never stamped _ontology_* (drift blind on projected data); enforce_drift_policy had zero call sites (warn-only)
+  - fix (wiring, no new mechanism): projector stamps ontology_context_graph_properties; local_engine + execute_cypher run enforce_drift_policy(policy=warn|raise|block); SEOCHO_ONTOLOGY_DRIFT_POLICY
+  - ablation OFF vs ON: drift detection 0%->100%; false-positive on fresh data 0%->0% (null control, no fresh-data tax); worst=breaking bump caught+blocked, best=no-bump quiet
+  - 0 regressions; +4 tests; first shipped step of ontology-lifecycle OS (ia4); Trust/Safety+Long-Horizon tracks
 
 ## Template
 

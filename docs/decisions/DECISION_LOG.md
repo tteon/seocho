@@ -1080,6 +1080,15 @@ Each entry must link to a full ADR when impact is non-trivial.
   - Keet triad: cold-start = abduction (hypothesize types) -> induction (mine schema/axioms) -> deduction; 1 pass + growing soft frame, no forced re-extraction
   - core landed+tested; WIP = live bootstrap extraction mode + cold-start A/B (drift/axiom-support/recall vs pure-open) on instance-diverse corpus
 
+## 2026-08-16 (cold-start extraction A/B)
+
+- [Accepted] ADR-0181 cold-start extraction A/B pure-open vs upper-anchored (seocho-ia4.11)
+  - live MARA extraction, FinDER 10 docs; only variable = extraction context
+  - RECALL no penalty (bootstrap 86n/92r vs pure-open 69/69, coverage 8/9 vs 9/9) => small abstract frame is recall-safe (firewall re-test confirmed)
+  - structure/axiom-support: bootstrap wins (hierarchical types 36/36 vs 0, axioms 20 vs 13)
+  - drift INCONCLUSIVE: string-norm metric too weak for semantic synonyms; bootstrap increased granularity; true control = grouping under ~11 upper cats not fewer types; embedding-cluster metric = follow-up
+  - decision: wiring bootstrap mode into engine warranted (recall fear disproven)
+
 ## Template
 
 Use this block for new entries:

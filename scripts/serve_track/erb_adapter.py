@@ -26,6 +26,15 @@ The two selected strata behave differently on purpose:
                      no contradictions by construction, so this stratum is not
                      reachable from it at all.
 
+Use the upstream parquet, not a local slice. `--erb` pointed at a directory of
+per-source sample zips resolves only 55.6% of gold doc ids, and the loss is not
+uniform: Confluence came out at 97.8% and **Slack at 0 of 57**. Strata then
+survive by source rather than at random -- of the 20 `completeness` items, the
+11 with complete gold were 11/11 Confluence-only and 0/11 cross-source, so a
+run on that slice would measure single-wiki procedure assembly while reporting
+it as cross-system aggregation. The upstream release
+(`onyx-dot-app/EnterpriseRAG-Bench`, 511,958 documents) resolves 742 of 742.
+
 Triples come from two different places, and the difference is the point. ERB
 has no gold graph, so a subject-relation-object rendering must be derived.
 
@@ -80,6 +89,26 @@ def load_documents(erb_root: Path) -> Dict[str, Path]:
         stem = path.name.split("__", 1)[0]
         index.setdefault(stem, path)
     return index
+
+
+def load_documents_parquet(parquet_dir: Path) -> Dict[str, str]:
+    """Load the upstream release: 511,958 documents keyed by `doc_id`.
+
+    Held in memory as text rather than paths because the file is one 1.4 GB
+    parquet, not a tree. Roughly 2 GB resident; the alternative is re-reading
+    the column per lookup, which is slower than the whole experiment.
+    """
+    import pyarrow.parquet as pq
+
+    table = pq.read_table(parquet_dir / "data" / "documents" / "test.parquet",
+                          columns=["doc_id", "title", "content"])
+    ids = table["doc_id"].to_pylist()
+    titles = table["title"].to_pylist()
+    contents = table["content"].to_pylist()
+    return {
+        doc_id: f"{title}\n\n{content}" if title else str(content)
+        for doc_id, title, content in zip(ids, titles, contents)
+    }
 
 
 def read_doc(path: Path, max_chars: int) -> str:
@@ -138,6 +167,24 @@ def edges_from_text(texts: List[str], limit: int) -> List[List[str]]:
     return edges
 
 
+def _neighbourhood_parquet(docs: Dict[str, str], question: str, limit: int) -> List[str]:
+    """Near-miss documents for an `info_not_found` item, by rare-word overlap.
+
+    Crude on purpose: a good retriever would stop the item being unanswerable.
+    """
+    words = {w.lower() for w in re.findall(r"[A-Za-z]{6,}", question)}
+    if not words:
+        return []
+    scored = []
+    for doc_id, text in docs.items():
+        head = text[:400].lower()
+        hits = sum(1 for w in words if w in head)
+        if hits:
+            scored.append((hits, doc_id))
+    scored.sort(key=lambda t: (-t[0], t[1]))
+    return [docs[i] for _, i in scored[:limit]]
+
+
 def _neighbourhood(doc_index: Dict[str, Path], question: str, limit: int) -> List[str]:
     """Documents to hand an `info_not_found` item, which has no gold docs.
 
@@ -156,17 +203,23 @@ def _neighbourhood(doc_index: Dict[str, Path], question: str, limit: int) -> Lis
     return [str(p) for _, _, p in scored[:limit]]
 
 
-def build_item(row: Dict[str, Any], doc_index: Dict[str, Path], *,
+def build_item(row: Dict[str, Any], doc_index: Dict[str, Any], *,
                max_doc_chars: int, neighbourhood: int,
-               edge_limit: int = 40) -> Dict[str, Any]:
+               edge_limit: int = 40, from_parquet: bool = False) -> Dict[str, Any]:
     gold_ids = list(row.get("expected_doc_ids") or [])
-    paths = [doc_index[i] for i in gold_ids if i in doc_index]
     missing = [i for i in gold_ids if i not in doc_index]
 
-    if not paths and row["question_type"] == "info_not_found":
-        paths = [Path(p) for p in _neighbourhood(doc_index, row["question"], neighbourhood)]
-
-    corpus = [read_doc(p, max_doc_chars) for p in paths]
+    if from_parquet:
+        texts = [doc_index[i] for i in gold_ids if i in doc_index]
+        if not texts and row["question_type"] == "info_not_found":
+            texts = _neighbourhood_parquet(doc_index, row["question"], neighbourhood)
+        corpus = [t[:max_doc_chars] for t in texts]
+    else:
+        paths = [doc_index[i] for i in gold_ids if i in doc_index]
+        if not paths and row["question_type"] == "info_not_found":
+            paths = [Path(p) for p in
+                     _neighbourhood(doc_index, row["question"], neighbourhood)]
+        corpus = [read_doc(p, max_doc_chars) for p in paths]
     corpus = [c for c in corpus if c]
 
     facts = list(row.get("answer_facts") or [])
@@ -201,7 +254,13 @@ def build_item(row: Dict[str, Any], doc_index: Dict[str, Path], *,
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--erb", type=Path, required=True)
+    src = parser.add_mutually_exclusive_group(required=True)
+    src.add_argument("--erb", type=Path,
+                     help="local slice directory. Resolves 55.6% of gold ids and "
+                          "biases by source; prefer --parquet")
+    src.add_argument("--parquet", type=Path,
+                     help="upstream release dir (onyx-dot-app/EnterpriseRAG-Bench); "
+                          "resolves 742 of 742")
     parser.add_argument("--types", nargs="+",
                         default=["info_not_found", "conflicting_info"])
     parser.add_argument("--out", type=Path,
@@ -213,16 +272,26 @@ def main() -> None:
                         help="documents to give an info_not_found item")
     args = parser.parse_args()
 
-    doc_index = load_documents(args.erb)
-    print(f"indexed {len(doc_index)} documents")
+    if args.parquet:
+        import pyarrow.parquet as pq
 
-    rows = [json.loads(line) for line in
-            (args.erb / "questions.jsonl").read_text(encoding="utf-8").splitlines()
-            if line.strip()]
+        doc_index = load_documents_parquet(args.parquet)
+        rows = pq.read_table(args.parquet / "data" / "questions" / "test.parquet").to_pylist()
+        rows = [{k: (list(v) if hasattr(v, "__iter__") and not isinstance(v, str) else v)
+                 for k, v in r.items()} for r in rows]
+        from_parquet = True
+    else:
+        doc_index = load_documents(args.erb)
+        rows = [json.loads(line) for line in
+                (args.erb / "questions.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()]
+        from_parquet = False
+    print(f"indexed {len(doc_index)} documents")
     selected = [r for r in rows if r["question_type"] in args.types]
 
     built = [build_item(r, doc_index, max_doc_chars=args.max_doc_chars,
-                        neighbourhood=args.neighbourhood) for r in selected]
+                        neighbourhood=args.neighbourhood,
+                        from_parquet=from_parquet) for r in selected]
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     with args.out.open("w", encoding="utf-8") as handle:

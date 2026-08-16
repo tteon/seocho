@@ -76,6 +76,11 @@ uv run pytest \
   extraction/tests/test_sdk_evaluation.py \
   tests/seocho/test_agent_design.py \
   tests/seocho/test_benchmarking.py \
+  tests/seocho/test_erb_edge_source.py \
+  tests/seocho/test_context_arms.py \
+  tests/seocho/test_run_arms.py \
+  tests/seocho/test_question_set_strata.py \
+  tests/seocho/test_bench_annotation.py \
   tests/seocho/test_finder_benchmark_script.py \
   tests/seocho/test_indexing_design.py \
   tests/seocho/test_dedup_scope.py \

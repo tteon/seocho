@@ -2441,7 +2441,7 @@ class Ontology:
     # Migration
     # ------------------------------------------------------------------
 
-    def migration_plan(self, new_ontology: "Ontology", *, tombstone: bool = True) -> Dict[str, Any]:
+    def migration_plan(self, new_ontology: "Ontology", *, soft_delete: bool = True) -> Dict[str, Any]:
         """Compute a migration plan from this ontology to a new version.
 
         Returns Cypher statements needed to transform existing graph
@@ -2451,13 +2451,13 @@ class Ontology:
         ----------
         new_ontology:
             The target ontology to migrate to.
-        tombstone:
+        soft_delete:
             When True (default, seocho-ia4.5) a removed label/relationship is
-            **tombstoned** (``SET ... _ontology_tombstoned_at``, hidden from new
+            **soft-deleted** (``SET ... _ontology_soft_deleted_at``, hidden from new
             reads) rather than destructively deleted — physical deletion becomes a
             later GC decision on a retention clock (gated by the RCU epoch, ia4.3),
             not a migration side effect. A removed property is kept (deprecated),
-            not dropped. Pass ``tombstone=False`` for the legacy destructive plan.
+            not dropped. Pass ``soft_delete=False`` for the legacy destructive (hard-delete) plan.
             Every statement carries a ``data_loss`` flag.
 
         Returns
@@ -2489,16 +2489,16 @@ class Ontology:
         for label in sorted(new_labels - old_labels):
             plan["additions"].append({"type": "node", "label": label})
 
-        # Removed node types (breaking). Tombstone (default) instead of destroy.
+        # Removed node types (breaking). Soft-delete (default) instead of destroy.
         _ts = new_ontology.version
         for label in sorted(old_labels - new_labels):
             plan["removals"].append({"type": "node", "label": label})
             plan["breaking"] = True
-            if tombstone:
+            if soft_delete:
                 plan["cypher_statements"].append({
-                    "description": f"Tombstone :{label} nodes (removed in {_ts})",
-                    "cypher": (f"MATCH (n:{label}) SET n._ontology_tombstoned_at = '{_ts}', "
-                               f"n._tombstone_reason = 'label removed'"),
+                    "description": f"Soft-delete :{label} nodes (removed in {_ts})",
+                    "cypher": (f"MATCH (n:{label}) SET n._ontology_soft_deleted_at = '{_ts}', "
+                               f"n._soft_delete_reason = 'label removed'"),
                     "breaking": True, "data_loss": False,
                 })
             else:
@@ -2518,7 +2518,7 @@ class Ontology:
 
             for prop in sorted(old_props - new_props):
                 plan["removals"].append({"type": "property", "label": label, "property": prop})
-                if tombstone:
+                if soft_delete:
                     # keep the data; mark the property deprecated (no data loss)
                     plan["cypher_statements"].append({
                         "description": f"Deprecate property {prop} on :{label} (kept)",
@@ -2543,11 +2543,11 @@ class Ontology:
         for rtype in sorted(old_rels - new_rels):
             plan["removals"].append({"type": "relationship", "relationship": rtype})
             plan["breaking"] = True
-            if tombstone:
+            if soft_delete:
                 plan["cypher_statements"].append({
-                    "description": f"Tombstone [{rtype}] relationships (removed in {_ts})",
-                    "cypher": (f"MATCH ()-[r:{rtype}]->() SET r._ontology_tombstoned_at = '{_ts}', "
-                               f"r._tombstone_reason = 'rel type removed'"),
+                    "description": f"Soft-delete [{rtype}] relationships (removed in {_ts})",
+                    "cypher": (f"MATCH ()-[r:{rtype}]->() SET r._ontology_soft_deleted_at = '{_ts}', "
+                               f"r._soft_delete_reason = 'rel type removed'"),
                     "breaking": True, "data_loss": False,
                 })
             else:

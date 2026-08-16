@@ -1143,6 +1143,35 @@ class IndexingPipeline:
                     provider=getattr(self.llm, "provider", None),
                     stage="indexing",
                 )
+                # Indexing-stage quality. These emitters existed and had no
+                # production caller: six declared instruments that never fired,
+                # so the indexing stage of a four-stage breakdown emitted
+                # nothing at all. The observability contract test could not see
+                # it, because it defines "emitted" as the metric name appearing
+                # as a string somewhere under src/.
+                try:
+                    from .quality_metrics import record_extraction, record_off_vocabulary
+
+                    _allowed = set(self.ontology.nodes) if self.ontology else None
+                    record_extraction(
+                        ontology=self.ontology.name,
+                        source_type=str((metadata or {}).get("source_type") or "unknown"),
+                        nodes=result.nodes,
+                        relationships=result.relationships,
+                        allowed_labels=_allowed,
+                    )
+                    _vocab = (getattr(self.ontology, "annotations", None) or {}).get(
+                        "vocabularies"
+                    )
+                    if _vocab:
+                        record_off_vocabulary(
+                            ontology=self.ontology.name,
+                            nodes=result.nodes,
+                            vocabularies=_vocab,
+                        )
+                except Exception:  # noqa: BLE001 - telemetry never fails indexing
+                    logger.debug("indexing quality metrics skipped", exc_info=True)
+
                 get_metrics().add(
                     "seocho.index.validation_errors.count",
                     len(result.validation_errors),

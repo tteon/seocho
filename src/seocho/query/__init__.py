@@ -17,6 +17,7 @@ from .answering import (
     infer_question_intent,
 )
 from .constraints import SemanticConstraintSliceBuilder
+from .pinned_schema import PinnedSchemaResolver, ResolvedSchema
 from .contracts import (
     CypherPlan,
     AnswerShape,
@@ -110,6 +111,8 @@ from .workload_compiler import (
 )
 
 __all__ = [
+    "PinnedSchemaResolver",
+    "ResolvedSchema",
     "IntentSpec",
     "RouteProfile",
     "AnswerShape",

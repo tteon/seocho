@@ -71,6 +71,27 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - SEOCHO_TRACE_BACKEND=${SEOCHO_TRACE_BACKEND:-none}
       - SEOCHO_TRACE_JSONL_PATH=${SEOCHO_TRACE_JSONL_PATH:-/tmp/seocho-runtime.jsonl}
+      # Auth defaults to "none" in runtime/identity.py, so the stack shipped
+      # unauthenticated and nothing made the operator notice. Compose already
+      # guards NEO4J_PASSWORD this way; the access-control decision deserves
+      # the same treatment. Set it to "none" explicitly to keep the old
+      # behaviour.
+      - SEOCHO_AUTH_MODE=${SEOCHO_AUTH_MODE:?Set SEOCHO_AUTH_MODE (none|token) in .env -- the default was anonymous access}
+      # Opt-in, and off by default. See extraction/entrypoint.sh.
+      - SEOCHO_ENABLE_JUPYTER=${SEOCHO_ENABLE_JUPYTER:-0}
+      - SEOCHO_JUPYTER_TOKEN=${SEOCHO_JUPYTER_TOKEN:-}
+      - SEOCHO_RUN_BATCH_ON_START=${SEOCHO_RUN_BATCH_ON_START:-0}
+    # Without these a dead API server left the container "up" indefinitely:
+    # uvicorn was backgrounded behind `tail -f /dev/null`, there was no probe,
+    # and no restart policy. /health/runtime is used rather than /health/batch
+    # because the latter reports on a batch that no longer runs by default.
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8001/health/runtime', timeout=4).status==200 else 1)\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
     depends_on:
       neo4j:
         condition: service_healthy
@@ -87,8 +108,12 @@ services:
     environment:
       - EXTRACTION_SERVICE_URL=http://extraction-service:8001
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+    restart: unless-stopped
+    # Wait for readiness, not just start order. Bare `depends_on` only orders
+    # container creation, so the UI came up against an API that was not serving.
     depends_on:
-      - extraction-service
+      extraction-service:
+        condition: service_healthy
     networks:
       - graphrag-net
 

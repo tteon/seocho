@@ -18,4 +18,12 @@ COPY src/seocho/ /app/seocho/
 
 RUN chmod +x /app/extraction/entrypoint.sh
 
+# Run as a non-root user. Nothing here needs root, and the image previously ran
+# every process as root -- including, until it was gated, a tokenless notebook
+# server. `USER` is the difference between a container escape being a privileged
+# one and an unprivileged one.
+RUN useradd --create-home --uid 10001 seocho \
+    && chown -R seocho:seocho /app
+USER seocho
+
 CMD ["/bin/bash", "./extraction/entrypoint.sh"]

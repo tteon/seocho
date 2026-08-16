@@ -102,6 +102,7 @@ uv run pytest \
   tests/seocho/test_graph_loop_model_routing.py \
   tests/seocho/test_tracing.py \
   tests/seocho/test_observability_wiring.py \
+  tests/seocho/test_metrics_never_fail_the_work.py \
   tests/seocho/test_histogram_buckets.py \
   tests/seocho/test_trace_span_context.py \
   tests/seocho/test_observability_contract.py \

@@ -1176,6 +1176,19 @@ Each entry must link to a full ADR when impact is non-trivial.
   - capability_for now takes (model, provider): a self-hosted MiniMax reaches schema enforcement, MARA-hosted stays conservative
   - supersedes ADR-0098 section 3 only; the vLLM preset, agent-mode handling and the probe plugin stand
 
+## 2026-08-16 (review-hardening: fix the 4-reviewer-panel code defects before measuring)
+
+- [Accepted] ADR-0192 eviction O(log n) lazy-heap victim selection (seocho-ia4.12)
+  - replace per-eviction O(n) candidate scan + min() with a lazy-deletion min-heap keyed by the age-invariant GDSF contribution (freq*cost*boost/size); stale nodes skipped by seq; pinned/floor-protected nodes deferred+re-pushed; heap rebuilt from live set when stale nodes dominate
+  - discovery: the original recomputed _priority fresh each compare so aging cancelled -> observable policy was cost-weighted-LFU, preserved exactly; removes the O(n*k)/admission tail cliff. All pre-existing tests unchanged + 2 new (5000-churn scale, global-min victim)
+- [Accepted] ADR-0193 intern table free()/reclamation + SQLite cross-process backing (seocho-ia4)
+  - 'a heap with no free()' -> optional max_entries + retain/release refcount + LRU zero-ref reclaim(); correctness-preserved because canonical id is deterministic f(identity); 'process-local + racy JSON' -> optional sqlite_path atomic first-writer-wins with coherent-by-immutability L1; atomic (temp+os.replace) persist. Defaults unchanged. 8 tests
+  - deferred (panel): cross-process refcount-driven reclamation + Redis/etcd backing
+- [Accepted] ADR-0194 RCU B3 EBR safe-reclamation gate (seocho-ia4.4)
+  - closes 'the RCU pins gate nothing': SafeReclamationGate consumes VersionPinRegistry.min_pinned_epoch to free a retired snapshot only when min is None or >= retirement_epoch; OntologySnapshotStore.delete (gate-reserved). Conservatively safe, epoch-precise grace period. 4 tests demonstrate pins gating reclamation + newer reader not holding older version
+- [Accepted] ADR-0195 freshness real read-time repair, not a serve stub (seocho-ia4.6)
+  - repair_read drops soft-deleted rows + strips deprecated props so a drifted-but-within-bound read conforms to the active contract; wired into local_engine after the drift barrier (gated on proceeding mismatch, O(records) self-describing scan = no ontology reasoning on hot path); plan_read_repair derives deprecated-prop set off hot path + marks destructive changes non-repairable (-> refuse). Closes the soft-delete read-leak. 6 tests; drift/context suites unchanged
+
 ## Template
 
 Use this block for new entries:

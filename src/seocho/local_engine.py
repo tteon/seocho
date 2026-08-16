@@ -905,6 +905,11 @@ class _LocalEngine:
         # answer, while at SF1 the two shapes were 4 ms apart.
         plan_hint = self._plan_repair_hint(cypher, params, database,
                                            executor=executor, ontology=active_ontology)
+        # Whether the original query already answered. A plan-hint-only repair
+        # (this is True) is a COST optimisation, not a correctness one, so it
+        # must never trade a correct answer for a cheaper wrong one — see the
+        # result-count guard below.
+        original_had_records = bool(records)
         if reasoning_mode and repair_budget > 0 and (not records or plan_hint):
             with timer.stage("repair"):
                 attempts.append({"cypher": cypher, "result_count": len(records or []),
@@ -937,6 +942,15 @@ class _LocalEngine:
                     )
 
                     if repair_records:
+                        # If the original already returned rows, the repair was
+                        # fired for plan cost alone. Accepting a repair that
+                        # returns FEWER rows would turn a correct answer into a
+                        # cheaper, smaller one -- a silent correctness
+                        # regression to save db-hits. Keep the original unless
+                        # the repair at least matches it.
+                        if original_had_records and \
+                                len(repair_records) < len(records or []):
+                            break
                         records = repair_records
                         cypher = repair_cypher
                         params = repair_params

@@ -58,6 +58,10 @@ uv run pytest \
   tests/seocho/test_query_proxy_workspace_enforcement.py \
   tests/seocho/test_ontology_context.py \
   tests/seocho/test_session_agent.py \
+  tests/seocho/test_stream_async_in_thread.py \
+  tests/seocho/test_extraction_category_per_call.py \
+  tests/seocho/test_financial_delta_direction.py \
+  tests/seocho/test_neo4j_store_close.py \
   tests/seocho/test_response_cache_wiring.py \
   tests/seocho/test_user_facing_edge_cases.py \
   tests/seocho/test_connectors.py \

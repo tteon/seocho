@@ -127,6 +127,9 @@ class CypherBuilder:
         schema_hints: Optional[Dict[str, Any]] = None,
     ) -> Tuple[str, Dict[str, Any]]:
         hint_payload = dict(schema_hints or {})
+        # Cleared per build: a builder is constructed per plan, but `build` may
+        # be called more than once on one (repair paths do).
+        self.anchor_role = ""
         if anchor_label and anchor_label not in self.ontology.nodes:
             anchor_label = ""
         if target_label and target_label not in self.ontology.nodes:
@@ -173,7 +176,12 @@ class CypherBuilder:
         # a template kwarg so every registered PatternSpec factory keeps its signature —
         # the same approach ``last_orientation_repair`` already uses, and safe because a
         # builder is constructed per plan.
-        self.anchor_role = str(hint_payload.get("anchor_role", "") or "")
+        # _orient_relationship above may already have determined the role from
+        # the ontology's declared direction. The ontology is authoritative about
+        # direction and the hint is a model guess, so the derived role wins;
+        # otherwise fall back to the hint.
+        _derived_role = getattr(self, "anchor_role", "")
+        self.anchor_role = _derived_role or str(hint_payload.get("anchor_role", "") or "")
 
         # ADR-0097 G3: dispatch via externalized PatternSpec catalog.
         # Behavior is bit-identical to the pre-G3 inline if/elif chain;
@@ -1398,13 +1406,29 @@ class CypherBuilder:
             self.last_orientation_repair = None
             return anchor_label, target_label
 
+        # The anchor sits on the relationship's TARGET end. That is not an error
+        # -- "Which decisions apply to the Payments API?" legitimately anchors on
+        # the System, and the ontology says APPLIES_TO runs Decision -> System.
+        #
+        # Swapping the labels was the wrong repair, because the anchor ENTITY
+        # filter does not move with them: the generated query became
+        # `MATCH (a:Decision)-[:APPLIES_TO]-(b:System) WHERE a.name CONTAINS
+        # "Payments API"` -- a Decision named "Payments API", which does not
+        # exist. Measured on a live graph containing the answer: 0 rows, and the
+        # model then reported no data for a question the graph could answer.
+        #
+        # The labels the model gave are consistent with the entity it named. It
+        # is the TRAVERSAL that has to run backwards, which is exactly what
+        # anchor_role expresses and what every pattern builder already honours.
         self.last_orientation_repair = {
             "relationship_type": relationship_type,
             "from": {"anchor_label": anchor_label, "target_label": target_label},
-            "to": {"anchor_label": source, "target_label": target},
-            "reason": "reversed_endpoints_vs_ontology",
+            "to": {"anchor_label": anchor_label or target,
+                   "target_label": source, "anchor_role": "target"},
+            "reason": "anchor_on_relationship_target_end",
         }
-        return source, target
+        self.anchor_role = "target"
+        return (anchor_label or target), source
 
     def _match_relationship(self, rel_type: str, *, anchor_label: str, target_label: str) -> str:
         # 1. Exact or alias match

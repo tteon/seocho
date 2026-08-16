@@ -16,8 +16,10 @@ from .answering import (
     build_evidence_bundle,
     infer_question_intent,
 )
+from .arm_config import ArmConfig, ablation_arms
 from .constraints import SemanticConstraintSliceBuilder
 from .pinned_schema import PinnedSchemaResolver, ResolvedSchema
+from .structured_orchestrator import StructuredQueryOrchestrator, StructuredQueryResult
 from .contracts import (
     CypherPlan,
     AnswerShape,
@@ -111,8 +113,12 @@ from .workload_compiler import (
 )
 
 __all__ = [
+    "ArmConfig",
+    "ablation_arms",
     "PinnedSchemaResolver",
     "ResolvedSchema",
+    "StructuredQueryOrchestrator",
+    "StructuredQueryResult",
     "IntentSpec",
     "RouteProfile",
     "AnswerShape",

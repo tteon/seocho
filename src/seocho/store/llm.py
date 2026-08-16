@@ -794,18 +794,35 @@ class OpenAICompatibleBackend(LLMBackend):
         metrics = get_metrics()
         resolved_model = model or self.model
         variants = self._completion_retry_variants(kwargs)
+        # The serve-track KV rig needs the wall-clock extent of this call and
+        # the stage that issued it; vLLM's cache events carry no request id.
+        # No-op unless an observer was explicitly installed.
+        from ..observability import observe_llm_call, prefix_checkpoints
+
         with start_span(
             "gen_ai.chat",
             input_data=trace_input,
             metadata=trace_metadata,
             tags=["gen_ai", f"provider:{self.provider}"],
-        ) as span:
+        ) as span, observe_llm_call(
+            model=resolved_model,
+            provider=self.provider,
+            prompt_chars=len(system) + len(user),
+            # system before user is the prompt's actual layout, and the split
+            # that decides prefix reuse: the system half is the stable head.
+            prompt_sections={"system": len(system), "user": len(user)},
+            # Section sizes alone cannot see stability *inside* a section — a
+            # system prompt whose length varies still shares most of its bytes.
+            prefix_hashes=prefix_checkpoints(system),
+        ) as llm_observation:
             last_exc: Optional[Exception] = None
             budget_boosted = False
             for attempt, attempt_kwargs in enumerate(variants, start=1):
                 try:
                     resp = self._client.chat.completions.create(**attempt_kwargs)
                     result = self._build_response(resp)
+                    if llm_observation is not None:
+                        llm_observation.usage = dict(result.usage or {})
                     span.set_output(
                         **{
                             "gen_ai.response.model": result.model,
@@ -936,18 +953,30 @@ class OpenAICompatibleBackend(LLMBackend):
         metrics = get_metrics()
         resolved_model = model or self.model
         variants = self._completion_retry_variants(kwargs)
+        from ..observability import observe_llm_call, prefix_checkpoints
+
         with start_span(
             "gen_ai.chat",
             input_data=trace_input,
             metadata=trace_metadata,
             tags=["gen_ai", f"provider:{self.provider}"],
-        ) as span:
+        ) as span, observe_llm_call(
+            model=resolved_model,
+            provider=self.provider,
+            prompt_chars=len(system) + len(user),
+            prompt_sections={"system": len(system), "user": len(user)},
+            # Section sizes alone cannot see stability *inside* a section — a
+            # system prompt whose length varies still shares most of its bytes.
+            prefix_hashes=prefix_checkpoints(system),
+        ) as llm_observation:
             last_exc: Optional[Exception] = None
             budget_boosted = False
             for attempt, attempt_kwargs in enumerate(variants, start=1):
                 try:
                     resp = await self._async_client.chat.completions.create(**attempt_kwargs)
                     result = self._build_response(resp)
+                    if llm_observation is not None:
+                        llm_observation.usage = dict(result.usage or {})
                     span.set_output(
                         **{
                             "gen_ai.response.model": result.model,

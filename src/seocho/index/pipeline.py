@@ -45,6 +45,7 @@ _SLUG_RE = re.compile(r"[^a-z0-9]+")
 
 from .chunk import Chunk, build_chunk_id, chunk as _canonical_chunk
 from .extraction_engine import CanonicalExtractionEngine
+from .parallel import concurrent_map, resolve_workers
 from .property_shaper import PropertyShaper
 from ..store.llm import complete_with_task_hints
 
@@ -254,6 +255,13 @@ class IndexingPipeline:
         self.enable_dedup = enable_dedup
         self.enable_rule_constraints = enable_rule_constraints
         self.vector_store = vector_store
+        # Per-chunk LLM extraction is I/O-bound and independent across chunks, so it
+        # can overlap (seocho-ia4 parallelism, step 1). Opt-in; 1 = sequential
+        # (exact back-compat). Set via SEOCHO_EXTRACTION_CONCURRENCY or the attribute.
+        try:
+            self._extraction_concurrency = int(os.environ.get("SEOCHO_EXTRACTION_CONCURRENCY", "1") or "1")
+        except ValueError:
+            self._extraction_concurrency = 1
         self._seen_hashes: set = set()
         self.extraction_prompt = extraction_prompt
         self.ontology_profile = str(ontology_profile or "default")
@@ -756,18 +764,38 @@ class IndexingPipeline:
         chunk_records: List[Dict[str, Any]] = []
         _total_usage: Dict[str, int] = {}
 
+        # Concurrent extraction pre-fetch (seocho-ia4 step 1): the LLM extract call
+        # per chunk is I/O-bound and independent, so overlap the round-trips while
+        # keeping the deterministic post-processing loop below in chunk order. A
+        # per-chunk failure is captured in place (Exception) and re-raised into the
+        # existing per-chunk fallback handler, so behavior is identical to sequential.
+        _workers = resolve_workers(getattr(self, "_extraction_concurrency", 1), len(chunks))
+        _prefetched = None
+        if _workers > 1:
+            _prefetched = concurrent_map(
+                chunks,
+                lambda c: self._graph_extraction.extract(
+                    c.text, category=category, metadata=metadata),
+                max_workers=_workers,
+            )
+
         for i, chunk_obj in enumerate(chunks):
             chunk = chunk_obj.text
             if on_chunk:
                 on_chunk(i, len(chunks))
 
-            # Extract
+            # Extract (use the concurrent pre-fetch when enabled)
             try:
-                response = self._graph_extraction.extract(
-                    chunk,
-                    category=category,
-                    metadata=metadata,
-                )
+                if _prefetched is not None:
+                    response = _prefetched[i]
+                    if isinstance(response, Exception):
+                        raise response
+                else:
+                    response = self._graph_extraction.extract(
+                        chunk,
+                        category=category,
+                        metadata=metadata,
+                    )
                 extracted = response
             except Exception as exc:
                 if not self.enforcement_policy.allow_heuristic_fallback:

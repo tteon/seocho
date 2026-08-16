@@ -1150,6 +1150,13 @@ Each entry must link to a full ADR when impact is non-trivial.
   - (generation,epoch) globally non-decreasing (generation_hwm survives recreate); fencing token rejects stale leader; workspace-keyed (store lacked it); the 'active' pointer latest()-by-sort isn't
   - 8 tests incl. concurrent-CAS-one-winner + recreate-monotonic-generation. Next B2 pin, B3 EBR gate
 
+## 2026-08-16 (text2cypher profile gate)
+
+- [Accepted] ADR-0189 text2cypher metric-threshold profile gate (seocho-ia4)
+  - query/profile_gate.py: evaluate_plan detects db_hits/estimated_rows/SLO/rows/full-scan/cartesian breaches -> profiles -> emits improve_directive (auto-driven, generalizes AIsummit26's 2s-wall-only gate); parse_explain_metrics walks PROFILE tree; DB-free +7 tests
+  - AIsummit26 reminder: ontology-vs-not ablation harness (agent_interaction.py, 468-ep) + 3-tier repair loop + bolt-rs rust-harness already exist -> reuse; NEW = this gate + ontology-source axis (introspected vs declared) + bolt-rs LLM loop
+  - full loop: intern_grounding -> generate -> validate -> EXPLAIN/profile_gate DETECT -> improve_directive repair -> execute(bolt-rs) -> computed-gold 3-layer score
+
 ## Template
 
 Use this block for new entries:

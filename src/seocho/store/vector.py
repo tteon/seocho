@@ -418,14 +418,37 @@ class LanceDBVectorStore(VectorStore):
         return True
 
     def delete_by_source(self, source_id: str) -> int:
-        # Vectors are keyed by ``{source_id}_chunk_{ordinal}``; metadata is a
-        # JSON string here, so match on the id prefix (issue #123).
+        """Delete this source's vectors — by range, never by LIKE.
+
+        Vectors are keyed ``{source_id}_chunk_{ordinal:04d}``, and matching that
+        with ``id LIKE 'src_chunk_%'`` deletes other documents' vectors. In SQL
+        LIKE, ``_`` matches any single character, so the pattern is
+        ``src`` + any + ``chunk`` + any + anything, and a neighbouring source
+        ``src_chunked_v2`` — whose ids are ``src_chunked_v2_chunk_0000`` —
+        matches it. `reindex()` routes through here, so a routine re-index of
+        one document silently destroyed another's retrieval surface, and the
+        loss surfaced later as a retrieval or generation failure rather than as
+        a delete bug. A source id containing ``%`` or ``_`` widened it further,
+        since only quotes were escaped.
+
+        A half-open range on the id prefix has none of that: it is exact, needs
+        no escaping beyond quotes, and an ordered index can serve it.
+        """
         if self._table is None:
             return 0
         before = self.count()
-        safe = str(source_id).replace("'", "''")
+
+        def _quote(value: str) -> str:
+            return str(value).replace("'", "''")
+
+        prefix = f"{source_id}_chunk_"
+        # chr(ord('_') + 1) == '`' — the successor of the prefix, so the range
+        # is exactly the ids that start with it.
+        upper = f"{source_id}_chunk`"
         try:
-            self._table.delete(f"id LIKE '{safe}_chunk_%'")
+            self._table.delete(
+                f"id >= '{_quote(prefix)}' AND id < '{_quote(upper)}'"
+            )
         except Exception:
             return 0
         return max(0, before - self.count())

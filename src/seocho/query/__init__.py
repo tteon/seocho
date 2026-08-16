@@ -18,6 +18,7 @@ from .answering import (
 )
 from .arm_config import ArmConfig, ablation_arms
 from .constraints import SemanticConstraintSliceBuilder
+from .grounded_text2cypher import generate_grounded_cypher
 from .pinned_schema import PinnedSchemaResolver, ResolvedSchema
 from .structured_orchestrator import StructuredQueryOrchestrator, StructuredQueryResult
 from .contracts import (
@@ -113,6 +114,7 @@ from .workload_compiler import (
 )
 
 __all__ = [
+    "generate_grounded_cypher",
     "ArmConfig",
     "ablation_arms",
     "PinnedSchemaResolver",

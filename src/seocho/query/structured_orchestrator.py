@@ -99,33 +99,45 @@ class StructuredQueryOrchestrator:
         return _introspected_schema_text(schema), policy_from_ontology(self.ontology), "introspected", ""
 
     # -- workspace organ (governed execute vs bare) ---------------------------
-    def _execute(self, cypher: str, workspace_id: str) -> List[Dict[str, Any]]:
+    def _execute(self, cypher: str, workspace_id: str,
+                 gen_params: Dict[str, Any]) -> List[Dict[str, Any]]:
         if self.arm.workspace_enforce:
-            # governed: force-pin the tenant and let the store enforce the filter (B2)
+            # governed: force-pin the tenant and let the store enforce the filter (B2).
+            # The generator's value params ride along so a value never has to be
+            # inlined (which the guardrail forbids) to be executable.
             return self.graph_store.query(
                 cypher,
-                params={"workspace_id": workspace_id, "limit": self.row_cap},
+                params={**gen_params, "workspace_id": workspace_id, "limit": self.row_cap},
                 database=self.database,
                 workspace_id=workspace_id,
                 enforce_workspace_filter=True,
             )
         # bare: no forced workspace, no DB-enforced filter (a real un-governed read)
         return self.graph_store.query(
-            cypher, params={"limit": self.row_cap}, database=self.database
+            cypher, params={**gen_params, "limit": self.row_cap}, database=self.database
         )
 
     def answer(self, question: str, run_context: Any, *, workspace_id: str) -> StructuredQueryResult:
         schema_text, policy, source, version = self._resolve_schema(run_context)
-        cypher = self._gen(question, schema_text)         # retrieve step (no prose)
+        gen_out = self._gen(question, schema_text)        # retrieve step (no prose)
+        # the generator may return just a cypher string (back-compat) or
+        # (cypher, params) — the grounded generator returns value params so no
+        # literal is inlined (guardrail rule) yet the query stays executable.
+        if isinstance(gen_out, tuple):
+            cypher, gen_params = gen_out[0], (gen_out[1] or {})
+        else:
+            cypher, gen_params = gen_out, {}
+        cypher = cypher or ""
 
         violations: Tuple[str, ...] = ()
         rejected = False
         if self.arm.guardrail:
             violations = tuple(validate_text2cypher_fallback(
-                cypher, params={"workspace_id": workspace_id, "limit": 1}, policy=policy))
+                cypher, params={**gen_params, "workspace_id": workspace_id, "limit": 1},
+                policy=policy))
             rejected = bool(violations)
 
-        rows = [] if rejected else self._execute(cypher, workspace_id)
+        rows = [] if rejected else self._execute(cypher, workspace_id, gen_params)
         answer = self._synth(question, rows)              # the ONLY prose writer (B5)
 
         return StructuredQueryResult(

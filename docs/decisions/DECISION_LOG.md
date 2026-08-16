@@ -1258,6 +1258,13 @@ Each entry must link to a full ADR when impact is non-trivial.
   - real within-workspace fix: a fan-out's burst of id-equality+LIMIT1 canonical-id resolves (ADR-0203 shape) flooded the heavy lane on 'unknown=heavy' cold-start -> execute_query now routes cheap point lookups to the light lane (has_light_lane gate), keeping the protected heavy lane free
   - OS scheduling stated precisely: cross-tenant=separate instances, within-tenant=light/heavy+high/normal reserve+EWMA with point-lookups seeded light. 3 tests; operating-layer/admission green (31)
 
+## 2026-08-16 (structured runtime: ontology-grounded text2cypher, live-validated)
+
+- [Accepted] ADR-0208 ontology-grounded text2cypher for the structured engine (seocho-ia4.13)
+  - live smoke exposed: default (deterministic-planner) cypher_generator emits undeclared props + inlined literals + no tenant scope -> governed guardrail rejects -> governed arm spuriously abstains (the exact Plane-2 confound the review warned of)
+  - generate_grounded_cypher(llm, question, schema_text, *, workspace_id, limit) -> (cypher, params): declared ids only, every value a $param (no inlined literal), {_workspace_id:$workspace_id} on EVERY node (satisfies store verify_workspace_binding, not just the anchor), LIMIT $limit; returns value params. Now the structured engine's default generator; orchestrator threads (cypher,params) into guardrail + governed execute (back-compat with bare-string generators)
+  - LIVE-VALIDATED (DozerDB+MARA): governed arm produced conformant workspace-scoped Cypher, guardrail allowed:1/rejected:0, store filter passed, CORRECT answer (real incident) vs deterministic confabulation. Plane-2 blocker removed. wires the ADR-0191 grounding thesis into the runtime. 3 unit tests; orchestrator/engine green (13). asset: scripts/agentos/e2e_structured_smoke.py
+
 ## Template
 
 Use this block for new entries:

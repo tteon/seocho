@@ -84,12 +84,23 @@ def resolve_mentions(
         if len(getattr(nd, "identity_keys", []) or []) == 1
     ]
     def _lookup(text: str) -> Optional[str]:
+        # 1) single-identity-key labels: the composite id IS `label|name`, so the
+        #    read reconstructs it exactly (this path already agrees with the write).
         for label, key in single_key_labels:
             identity = compute_node_identity(label, {key: text}, [key])
             if identity:
                 canon = intern_table.get(workspace_id, identity)
                 if canon:
                     return canon
+        # 2) name-alias index (seocho-t28/zfe): resolves MULTI-key entities, whose
+        #    composite id (label|name|company|year) a bare mention cannot rebuild.
+        #    Only an UNAMBIGUOUS name resolves here; a homonym (>1 candidate) returns
+        #    "" so the mention is reported unresolved rather than guessed — context
+        #    disambiguation is a separate step, never a silent pick.
+        if hasattr(intern_table, "resolve_one"):
+            canon = intern_table.resolve_one(workspace_id, text)
+            if canon:
+                return canon
         return None
 
     resolved: List[Tuple[str, str]] = []

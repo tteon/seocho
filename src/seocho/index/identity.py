@@ -89,6 +89,13 @@ def apply_identity_keys(
             # Register/resolve in the workspace canonical namespace. The composite
             # id is the identity AND the canonical address; first-writer-wins.
             new_id = intern_table.intern(workspace_id, new_id, new_id)
+            # Also index the entity's bare NAME -> canonical so a read that knows
+            # only the mention text can resolve it (seocho-t28/zfe). The composite
+            # identity is not reconstructable from a bare mention, so without this a
+            # multi-key entity is never found on the read side. Best-effort: skip if
+            # the table predates the alias index.
+            if hasattr(intern_table, "alias"):
+                intern_table.alias(workspace_id, str(props.get("name", "") or ""), new_id)
         old_id = str(node.get("id") or props.get("name") or "")
         if old_id:
             id_remap[old_id] = new_id

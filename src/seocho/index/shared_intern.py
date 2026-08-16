@@ -53,6 +53,15 @@ class SharedInternTable:
         self._shards = max(1, shards)
         self._maps: list[OrderedDict[Tuple[str, str], str]] = [OrderedDict() for _ in range(self._shards)]
         self._refs: list[Dict[Tuple[str, str], int]] = [dict() for _ in range(self._shards)]
+        # Read-side resolution index (seocho-t28/zfe): a source-agnostic
+        # (workspace, normalized-name) -> {canonical_id, ...} MULTIMAP. Writes
+        # register their canonical id under the entity's bare name so a read that
+        # only knows the mention text can find it — the composite identity
+        # (label|name|company|year) is not reconstructable from a bare mention, so
+        # the primary map alone always misses multi-key entities. Homonyms keep a
+        # SET (not first-writer-wins): resolution surfaces the candidates rather
+        # than silently collapsing "PTC revenue" and "Tesla revenue" onto one node.
+        self._alias: list[Dict[Tuple[str, str], set]] = [dict() for _ in range(self._shards)]
         self._locks = [threading.Lock() for _ in range(self._shards)]
         self._max_entries = int(max_entries) if max_entries else None
         # per-shard soft cap; None = unbounded (back-compatible default)
@@ -69,6 +78,41 @@ class SharedInternTable:
 
     def _shard(self, key: Tuple[str, str]) -> int:
         return hash(key) % self._shards
+
+    # -- read-side name resolution index (seocho-t28/zfe) --------------------
+    @staticmethod
+    def _norm_name(name: str) -> str:
+        return " ".join(str(name or "").strip().lower().split())
+
+    def alias(self, workspace_id: str, name: str, canonical_id: str) -> None:
+        """Register ``name -> canonical_id`` so a read that knows only the mention
+        text can find this entity. Additive to :meth:`intern`; homonyms accumulate
+        (a SET), they do not overwrite. No-op for an empty name/canonical."""
+        norm = self._norm_name(name)
+        if not norm or not canonical_id:
+            return
+        key = (str(workspace_id), norm)
+        s = self._shard(key)
+        with self._locks[s]:
+            self._alias[s].setdefault(key, set()).add(canonical_id)
+
+    def candidates(self, workspace_id: str, name: str) -> Tuple[str, ...]:
+        """Canonical ids registered under ``name`` in this workspace, sorted.
+        One element = an unambiguous resolve; more than one = a homonym the caller
+        must disambiguate with query context (never silently pick one)."""
+        norm = self._norm_name(name)
+        if not norm:
+            return ()
+        key = (str(workspace_id), norm)
+        s = self._shard(key)
+        with self._locks[s]:
+            return tuple(sorted(self._alias[s].get(key, set())))
+
+    def resolve_one(self, workspace_id: str, name: str) -> str:
+        """The single canonical id for ``name``, or ``""`` if absent OR ambiguous
+        (a homonym is deliberately NOT resolved to a guess here)."""
+        cands = self.candidates(workspace_id, name)
+        return cands[0] if len(cands) == 1 else ""
 
     # -- SQLite cross-process backing ----------------------------------------
     def _init_sqlite(self) -> None:
@@ -223,6 +267,7 @@ class SharedInternTable:
         return {"size": len(self), "interns": self._interns, "hits": self._hits,
                 "shards": self._shards, "reclaimed": self._reclaimed,
                 "pinned": self.pinned_count(),
+                "aliases": sum(len(a) for a in self._alias),
                 "max_entries": self._max_entries or 0,
                 "backing": "sqlite" if self._sqlite_path else "memory"}
 
@@ -231,6 +276,7 @@ class SharedInternTable:
             with self._locks[i]:
                 self._maps[i].clear()
                 self._refs[i].clear()
+                self._alias[i].clear()
         with self._stats_lock:
             self._interns = 0
             self._hits = 0

@@ -155,6 +155,7 @@ _EXPORTS = {
     "OntologyRunContext": "run_context",
     "build_local_ontology_run_context": "run_context",
     "build_runtime_ontology_run_context": "run_context",
+    "pinned_run_context": "run_context",
     "CorpusProfile": "scorecard",
     "DimensionScore": "scorecard",
     "OntologyScorecard": "scorecard",

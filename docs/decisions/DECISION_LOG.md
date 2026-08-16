@@ -1196,6 +1196,13 @@ Each entry must link to a full ADR when impact is non-trivial.
   - network declared identically to root (graphrag-net -> name seocho-net, bridge, non-external) so include merges to ONE project-created network (no external-union breaking core network creation); make observability-up|down|logs drive root compose with an explicit 4-service list (core + volumes untouched)
   - verified live via the new path: 4 containers healthy, 8 dashboards, Prometheus+Tempo datasources, collector scrape target up; default config unchanged
 
+## 2026-08-16 (structured multi-agent runtime — step 1: run-context spine)
+
+- [Accepted] ADR-0200 per-request run-context spine (seocho-ia4 structured runtime)
+  - OntologyRunContext (defined but referenced nowhere in the runtime) is now built once per ask(), workspace-scoped, and exposed via _LocalEngine.last_run_context(); closes the review's "per-request ontology delivery doesn't exist" gap at the foundation
+  - pinned_run_context(...) + with_pinned_version/pinned_epoch: when an RCU pin registry+pointer are configured, the request pins ONE frozen ontology version for its whole duration (B2 read side, per (workspace,package)); a mid-request publish swap does not change what the pinned request reads (tested) -> the e2e mutation probe is meaningful
+  - all new wiring defaults OFF (behaviour identical until configured); multi-tenancy first-class (per-(ws,pkg) isolated pins); 6 new tests + run-context/drift/ontology-context suites green
+
 ## Template
 
 Use this block for new entries:

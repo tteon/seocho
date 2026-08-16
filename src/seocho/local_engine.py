@@ -76,6 +76,18 @@ class _LocalEngine:
 
         self._ontology_context_cache = OntologyContextCache()
         self._last_query_metadata: Dict[str, Any] = {}
+        # Per-request run-context spine (seocho structured-runtime, ADR-0200):
+        # the typed OntologyRunContext built once per ask() and exposed via
+        # last_run_context(). Optional RCU wiring (a VersionPinRegistry + active
+        # pointer) makes the request pin ONE frozen ontology version for its whole
+        # duration; all default to None so behaviour is unchanged until configured.
+        self._ontology_package_id = str(
+            getattr(ontology, "package_id", "") or getattr(ontology, "name", "") or "default"
+        )
+        self._ontology_pin_registry: Any = None
+        self._active_ontology_pointer: Any = None
+        self._current_run_context: Any = None
+        self._last_run_context: Any = None
         self._events = NullEventPublisher()
         self._ingest_request_cls = IngestRequest
 
@@ -599,6 +611,30 @@ class _LocalEngine:
         # nest as a tree in Tempo instead of one flat sdk.query event.
         from .tracing import start_span
 
+        # Build the per-request run context ONCE (workspace-scoped, typed) and,
+        # when an RCU pin registry is configured, pin ONE frozen ontology version
+        # for the whole request; the deterministic pipeline runs inside that pin.
+        from contextlib import nullcontext
+
+        from .ontology.run_context import build_local_ontology_run_context, pinned_run_context
+
+        run_context = build_local_ontology_run_context(
+            ontology_context,
+            workspace_id=self.workspace_id,
+            database=database,
+            reasoning_mode=bool(reasoning_mode),
+            repair_budget=int(repair_budget or 0),
+        )
+        pin_cm = (
+            pinned_run_context(
+                run_context,
+                pin_registry=self._ontology_pin_registry,
+                package_id=self._ontology_package_id,
+                active_pointer=self._active_ontology_pointer,
+            )
+            if self._ontology_pin_registry is not None
+            else nullcontext(run_context)
+        )
         with start_span(
             "rag.ask",
             input_data={"question": question[:200]},
@@ -608,16 +644,33 @@ class _LocalEngine:
                 "ontology": getattr(active_ontology, "name", ""),
             },
             tags=["rag"],
-        ):
-            return self._run_query_pipeline(
-                question,
-                database=database,
-                reasoning_mode=reasoning_mode,
-                repair_budget=repair_budget,
-                query_mode=query_mode,
-                active_ontology=active_ontology,
-                ontology_context=ontology_context,
-            )
+        ), pin_cm as pinned_context:
+            self._current_run_context = pinned_context
+            try:
+                return self._run_query_pipeline(
+                    question,
+                    database=database,
+                    reasoning_mode=reasoning_mode,
+                    repair_budget=repair_budget,
+                    query_mode=query_mode,
+                    active_ontology=active_ontology,
+                    ontology_context=ontology_context,
+                )
+            finally:
+                # Fold the drift outcome the pipeline computed into the exposed
+                # run context, then publish it as the last request's context.
+                ctx = self._current_run_context
+                mismatch = (self._last_query_metadata or {}).get("ontology_context_mismatch")
+                if mismatch:
+                    ctx = ctx.with_mismatch(mismatch)
+                self._last_run_context = ctx
+
+    def last_run_context(self) -> Any:
+        """The typed :class:`OntologyRunContext` built for the most recent ``ask``
+        — workspace-scoped, carrying the ontology identity/hash, the RCU-pinned
+        version (when pinning is configured), and the drift outcome. The single
+        per-request context object the structured runtime delivers downstream."""
+        return self._last_run_context
 
     @contextmanager
     def _traced_stage(

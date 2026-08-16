@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from typing import Any, Dict, Iterable, Literal, Mapping, Sequence, Tuple
 
@@ -283,6 +284,32 @@ class OntologyRunContext:
     ) -> "OntologyRunContext":
         return replace(self, ontology_context_mismatch=_dict(ontology_context_mismatch))
 
+    def with_pinned_version(
+        self,
+        *,
+        version: str,
+        epoch: int,
+        fingerprint: str = "",
+    ) -> "OntologyRunContext":
+        """Record the RCU-pinned ontology version this request is reading — the
+        frozen (version, epoch, fingerprint) the whole request sees even if a
+        publish swaps the active pointer mid-run (RCU B1/B2)."""
+        md = dict(self.metadata)
+        md.update(
+            {
+                "pinned_ontology_version": _clean_str(version),
+                "pinned_ontology_epoch": int(epoch),
+                "pinned_ontology_fingerprint": _clean_str(fingerprint),
+            }
+        )
+        return replace(self, metadata=md)
+
+    @property
+    def pinned_epoch(self) -> int | None:
+        """The pinned RCU epoch for this request, or None when no version was pinned."""
+        value = self.metadata.get("pinned_ontology_epoch")
+        return int(value) if isinstance(value, int) else None
+
     def with_session_scope(
         self,
         *,
@@ -483,3 +510,37 @@ def build_runtime_ontology_run_context(
     """Build an `OntologyRunContext` from runtime graph target records."""
 
     return OntologyRunContext.from_runtime_graph_targets(graph_targets, **kwargs)
+
+
+@contextmanager
+def pinned_run_context(
+    context: OntologyRunContext,
+    *,
+    pin_registry: Any,
+    package_id: str,
+    active_pointer: Any = None,
+):
+    """Pin the active ontology version for a request's whole duration and yield a
+    run context stamped with the pinned version (RCU B2 read side, per
+    ``(workspace_id, package_id)``); unpin on exit.
+
+    This is what makes "the OS delivers ONE frozen ontology version per request"
+    real: the request reads a consistent version even if a publish swaps the active
+    pointer mid-run (RCU B1), and the B3 reclamation gate will not free a retired
+    version while a request still pins it. When there is no active pointer for the
+    ``(workspace, package)``, yields ``context`` unchanged (nothing to pin)."""
+    ws = context.workspace_id
+    epoch = pin_registry.pin(ws, package_id)
+    try:
+        if epoch is None:
+            yield context
+        else:
+            av = active_pointer.read(ws, package_id) if active_pointer is not None else None
+            yield context.with_pinned_version(
+                version=getattr(av, "version", "") or "",
+                epoch=epoch,
+                fingerprint=getattr(av, "fingerprint", "") or "",
+            )
+    finally:
+        if epoch is not None:
+            pin_registry.unpin(ws, package_id, epoch)

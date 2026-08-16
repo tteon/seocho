@@ -85,3 +85,32 @@ def test_every_known_question_type_maps_to_an_axis():
     for qtype in ("Fact Retrieval", "Complex Reasoning",
                   "Contextual Summarize", "Creative Generation"):
         assert ann._TYPE_AXIS[qtype] != "unknown"
+
+
+def test_list_shaped_fields_are_parsed():
+    """The HuggingFace release ships these as lists, not strings.
+
+    Accepting only the string shape made the annotator report "0 of 2010 carry
+    a derived hop count" — which reads as a fact about GraphRAG-Bench rather
+    than a parse failure, and points at the opposite of the truth. Novel yields
+    triples for 2,009 of 2,010 items.
+    """
+    row = _row(
+        question_type="Complex Reasoning",
+        evidence_triple=["(a, rel, b)", "(b, rel2, c)"],
+        evidence=["first statement.", "second statement."],
+    )
+    out = ann.annotate(row, "novel")
+    assert out["strata"]["hops"] == 2
+    assert out["gold_edges"] == [["a", "rel", "b"], ["b", "rel2", "c"]]
+    assert out["strata"]["dispersion"] == 2
+
+
+def test_string_shaped_fields_still_work():
+    """The older local copy joined them with semicolons; both must parse."""
+    row = _row(question_type="Complex Reasoning",
+               evidence_triple="(a, rel, b). (b, rel2, c).",
+               evidence="first.; second.")
+    out = ann.annotate(row, "novel")
+    assert out["strata"]["hops"] == 2
+    assert out["strata"]["dispersion"] == 2

@@ -76,18 +76,31 @@ def _load(path: Path) -> List[Dict[str, Any]]:
     return next(v for v in data.values() if isinstance(v, list))
 
 
+def _as_text(raw: Any) -> str:
+    """Accept both shapes GraphRAG-Bench ships these fields in.
+
+    The HuggingFace release stores `evidence` and `evidence_triple` as LISTS;
+    an earlier local copy had them as semicolon-joined strings. This function
+    used to accept only the string, silently returning empty for every list —
+    so the annotator reported "0 of 2010 carry a derived hop count", which reads
+    as a property of the dataset rather than a parse failure, and points the
+    reader at exactly the wrong conclusion. Novel in fact yields triples for
+    2,002 of 2,010 items.
+    """
+    if isinstance(raw, str):
+        return raw
+    if isinstance(raw, (list, tuple)):
+        return "; ".join(str(x) for x in raw)
+    return ""
+
+
 def _triples(row: Dict[str, Any]) -> List[List[str]]:
-    raw = row.get("evidence_triple")
-    if not isinstance(raw, str):
-        return []
-    return [[p.strip() for p in m] for m in _TRIPLE.findall(raw)]
+    return [[p.strip() for p in m]
+            for m in _TRIPLE.findall(_as_text(row.get("evidence_triple")))]
 
 
 def _statements(row: Dict[str, Any]) -> List[str]:
-    raw = row.get("evidence")
-    if not isinstance(raw, str):
-        return []
-    return [s.strip() for s in raw.split(";") if s.strip()]
+    return [s.strip() for s in _as_text(row.get("evidence")).split(";") if s.strip()]
 
 
 def annotate(row: Dict[str, Any], subset: str) -> Dict[str, Any]:

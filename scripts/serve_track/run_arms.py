@@ -165,6 +165,15 @@ def check_deterministic(gold: str, candidate: str) -> Optional[bool]:
         return None
     if "," in gold:
         return None  # handled by check_set, which needs the complement
+    # A SENTENCE gold cannot be checked by containment even when it is short.
+    # GraphRAG-Bench answers are full sentences: gold "Rubber boots are worn on
+    # the feet." is 33 characters, passed the length test, and scored the reply
+    # "feet" wrong — 31 of 32 items failed this way, which reads as a model
+    # collapse and was a scorer artefact. Containment is for VALUE golds, the
+    # entity names and counts the synthetic set uses; anything sentence-shaped
+    # goes to the judge, which can see that "feet" conveys the reference.
+    if gold.endswith(".") or len(gold.split()) > 3:
+        return None
     hay = _normalise(candidate)
     if gold.lower() in ("none", "not stated", "no answer"):
         return "not stated" in hay or "not present" in hay or "none" in hay
@@ -241,14 +250,34 @@ def check_refusal(candidate: str) -> bool:
     return any(p.search(hay) for p in _REFUSAL_PATTERNS)
 
 
+# A reasoning judge needs room to reason before it can answer. At max_tokens=8
+# gpt-oss-120b spent the whole budget thinking and never emitted a verdict: the
+# reply came back as "We need to compare answer", leaked reasoning text that
+# `startswith("CORRECT")` rejects. Every judge-scored item in every run before
+# this was therefore marked wrong, which on the GraphRAG-Bench sample looked
+# like all four arms collapsing to 1 of 32.
+_JUDGE_MAX_TOKENS = 512
+
+
 def judge(client, model: str, question: str, gold: str, candidate: str) -> bool:
-    """Blind: the judge is told the question, the reference and one answer. Never the arm."""
+    """Blind: the judge is told the question, the reference and one answer. Never the arm.
+
+    The verdict is searched for rather than required at position zero, because a
+    reasoning model emits it after its reasoning and an unparseable reply must
+    be visibly wrong rather than silently WRONG.
+    """
     if not candidate:
         return False
     user = (f"Question: {question}\nReference answer: {gold}\n"
             f"Answer to grade: {candidate}")
-    verdict = _ask(client, model, _JUDGE_SYSTEM, user, 8)["text"].upper()
-    return verdict.startswith("CORRECT")
+    verdict = _ask(client, model, _JUDGE_SYSTEM, user, _JUDGE_MAX_TOKENS)["text"].upper()
+    if "CORRECT" in verdict and "INCORRECT" not in verdict:
+        return True
+    if "WRONG" in verdict or "INCORRECT" in verdict:
+        return False
+    # Neither token present: the judge did not answer. Count it wrong, but say so.
+    print(f"    WARN unparseable judge verdict: {verdict[:60]!r}")
+    return False
 
 
 def main() -> None:

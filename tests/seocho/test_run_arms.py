@@ -114,3 +114,33 @@ def test_an_asserted_answer_is_not_a_refusal():
         "Northgate Plant assembles Model K1.",
     ):
         assert runner.check_refusal(reply) is False, reply
+
+
+def test_a_short_sentence_gold_is_not_scored_by_containment():
+    """GraphRAG-Bench golds are sentences, and short ones slipped through.
+
+    Gold "Rubber boots are worn on the feet." is 33 characters, passed the
+    length gate, and scored the reply "feet" wrong. 31 of 32 bench items failed
+    that way, which reads as a model collapse and was a scorer artefact.
+    """
+    assert runner.check_deterministic("Rubber boots are worn on the feet.", "feet") is None
+    assert runner.check_deterministic("Wetherall defeated the rebels", "Wetherall") is None
+    assert runner.check_deterministic("The Mayas had unknown rites", "unknown rites") is None
+
+
+def test_value_shaped_golds_still_score_deterministically():
+    """The synthetic set's golds are entity names and counts; keep them cheap."""
+    assert runner.check_deterministic("Eastfield Plant", "Eastfield Plant") is True
+    assert runner.check_deterministic("5", "The answer is 5.") is True
+    assert runner.check_deterministic("Model K2", "Model L9") is False
+
+
+def test_the_judge_is_given_room_to_reason():
+    """gpt-oss-120b is a reasoning model; at max_tokens=8 it never reaches a verdict.
+
+    The reply came back as leaked reasoning ("We need to compare answer"), which
+    startswith("CORRECT") rejects, so every judge-scored item in every earlier
+    run was marked wrong -- on the GraphRAG-Bench sample that looked like all
+    four arms collapsing to 1 of 32.
+    """
+    assert runner._JUDGE_MAX_TOKENS >= 256

@@ -34,8 +34,24 @@ _ONTOLOGY_RELAXED_RETRY_GUIDANCE = (
 _STRICT_VOCABULARY_GUIDANCE = (
     "Closed vocabulary: only use the entity and relationship types listed "
     "above. If something in the text does not fit a listed type, omit it. "
-    "Never use the generic 'Entity' label. An empty result is acceptable "
-    "when nothing in the text fits the listed types."
+    "An empty result is acceptable when nothing in the text fits the listed "
+    "types."
+)
+# Appended ONLY when the ontology does not declare a class literally named
+# `Entity`. The base guidance forbids inventing types; this line additionally
+# forbids the lazy `Entity` fallback that collapses a rich schema (FIBO's many
+# classes) into one bucket. But an open-domain ontology whose single declared
+# class IS `Entity` -- the generic who/what/how-related schema the benchmark
+# corpora need -- was being told never to use its own only label, so the
+# extractor invented Place/Person/Value from the `kind` hint instead. The
+# query side then MATCHed (:Entity) against a graph that had none, and every
+# such question returned no result. This clause is gated on a single fact --
+# is `Entity` a declared label -- not on ontology structure, so the
+# extraction-firewall invariant (rendered context byte-identical under
+# broader/same_as enrichment) is untouched.
+_NO_GENERIC_ENTITY_CLAUSE = (
+    "Do not fall back to a generic 'Entity' label; use one of the listed "
+    "types or omit the node."
 )
 
 
@@ -84,6 +100,10 @@ class CanonicalExtractionEngine:
         )
         if self.enforcement_policy.prompt_strict and self.ontology is not None:
             system = f"{system}\n\n{_STRICT_VOCABULARY_GUIDANCE}"
+            declared = {str(lbl).strip().lower()
+                        for lbl in (getattr(self.ontology, "nodes", None) or {})}
+            if "entity" not in declared:
+                system = f"{system} {_NO_GENERIC_ENTITY_CLAUSE}"
         response = complete_with_task_hints(
             self.llm,
             system=system,

@@ -1227,6 +1227,14 @@ Each entry must link to a full ADR when impact is non-trivial.
   - t28 closed for unambiguous multi-key names; homonyms surface candidates (boundary1 honest); workspace-scoped. intern organ now mechanism-true on reads. 17 tests; identity/intern/grounding green
   - deferred: cross-source CONVERGENCE (fragments->one canonical) needs source-agnostic write identity/reconciliation; flagged review #6 sub-claim (composite id has no workspace -> verify graph MERGE key when D3 single-graph indexing lands)
 
+## 2026-08-16 (structured runtime D2-2: cross-source canonical convergence)
+
+- [Accepted] ADR-0204 cross-source canonical convergence (seocho-zfe)
+  - closes the cross-source half of blocker #3: same real entity from two sources fragments (company|acme vs organization|acme), so joins land on 2 nodes
+  - NodeDef.cross_source_unique (opt-in, default False, roundtrips): a declared globally-name-unique type gets a label-free source-agnostic canonical id ~xs|<name> in apply_identity_keys -> both sources' nodes MERGE to ONE physical node (write-time physical convergence). Safe: never fuses distinct types sharing a name (Apple co vs fruit) or homonym metrics (those keep identity_keys, surfaced as candidates)
+  - SharedInternTable.reconcile + union-find (_find, path-compressed) kept as the residual/explicit read-level reconciliation for fragments not caught at write
+  - 6 tests; ontology/identity/intern green (332). Note for D3: MERGE on (id,_workspace_id) so two tenants' identical ~xs| entity never share a node (review #6)
+
 ## Template
 
 Use this block for new entries:

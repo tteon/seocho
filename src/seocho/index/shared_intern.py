@@ -74,10 +74,57 @@ class SharedInternTable:
         self._interns = 0
         self._hits = 0
         self._reclaimed = 0
+        # Cross-source reconciliation (seocho-zfe D2-2): a union-find over canonical
+        # ids per workspace. The same real entity written from two sources gets two
+        # composite ids (label prefix differs: company|acme vs organization|acme);
+        # reconcile() unions them to ONE representative so cross-source sub-queries
+        # resolve one string to one node. Opt-in per node type (NodeDef.
+        # cross_source_unique) — NEVER blanket name-merge (that would fuse Apple the
+        # company with Apple the fruit).
+        self._merge: Dict[Tuple[str, str], str] = {}
+        self._merge_lock = threading.Lock()
         self._stats_lock = threading.Lock()
 
     def _shard(self, key: Tuple[str, str]) -> int:
         return hash(key) % self._shards
+
+    # -- cross-source reconciliation (union-find, seocho-zfe D2-2) -----------
+    def _find(self, workspace_id: str, canonical_id: str) -> str:
+        """Representative canonical for a reconciled set (path-compressed)."""
+        with self._merge_lock:
+            root = canonical_id
+            seen = []
+            while (str(workspace_id), root) in self._merge:
+                seen.append(root)
+                root = self._merge[(str(workspace_id), root)]
+            for c in seen:                       # path compression
+                self._merge[(str(workspace_id), c)] = root
+            return root
+
+    def reconcile(self, workspace_id: str, name: str) -> str:
+        """Union every canonical currently registered under ``name`` in this
+        workspace to ONE deterministic representative (the lexicographically
+        smallest), and return it. Idempotent. Call this ONLY for a node type the
+        ontology declares cross-source-unique — it fuses distinct composite ids of
+        the same real entity across sources."""
+        raw = self._raw_candidates(workspace_id, name)
+        if len(raw) < 2:
+            return raw[0] if raw else ""
+        rep = min(raw)                            # deterministic representative
+        with self._merge_lock:
+            for c in raw:
+                if c != rep:
+                    self._merge[(str(workspace_id), c)] = rep
+        return rep
+
+    def _raw_candidates(self, workspace_id: str, name: str) -> Tuple[str, ...]:
+        norm = self._norm_name(name)
+        if not norm:
+            return ()
+        key = (str(workspace_id), norm)
+        s = self._shard(key)
+        with self._locks[s]:
+            return tuple(sorted(self._alias[s].get(key, set())))
 
     # -- read-side name resolution index (seocho-t28/zfe) --------------------
     @staticmethod
@@ -97,16 +144,16 @@ class SharedInternTable:
             self._alias[s].setdefault(key, set()).add(canonical_id)
 
     def candidates(self, workspace_id: str, name: str) -> Tuple[str, ...]:
-        """Canonical ids registered under ``name`` in this workspace, sorted.
-        One element = an unambiguous resolve; more than one = a homonym the caller
-        must disambiguate with query context (never silently pick one)."""
-        norm = self._norm_name(name)
-        if not norm:
+        """Canonical ids registered under ``name`` in this workspace, sorted and
+        collapsed through cross-source reconciliation. One element = an unambiguous
+        resolve (a single entity, possibly reconciled across sources); more than
+        one = a genuine homonym the caller must disambiguate with query context
+        (never silently pick one)."""
+        raw = self._raw_candidates(workspace_id, name)
+        if not raw:
             return ()
-        key = (str(workspace_id), norm)
-        s = self._shard(key)
-        with self._locks[s]:
-            return tuple(sorted(self._alias[s].get(key, set())))
+        reps = {self._find(workspace_id, c) for c in raw}
+        return tuple(sorted(reps))
 
     def resolve_one(self, workspace_id: str, name: str) -> str:
         """The single canonical id for ``name``, or ``""`` if absent OR ambiguous
@@ -268,6 +315,7 @@ class SharedInternTable:
                 "shards": self._shards, "reclaimed": self._reclaimed,
                 "pinned": self.pinned_count(),
                 "aliases": sum(len(a) for a in self._alias),
+                "reconciled": len(self._merge),
                 "max_entries": self._max_entries or 0,
                 "backing": "sqlite" if self._sqlite_path else "memory"}
 
@@ -277,6 +325,8 @@ class SharedInternTable:
                 self._maps[i].clear()
                 self._refs[i].clear()
                 self._alias[i].clear()
+        with self._merge_lock:
+            self._merge.clear()
         with self._stats_lock:
             self._interns = 0
             self._hits = 0

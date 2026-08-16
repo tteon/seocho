@@ -189,6 +189,14 @@ class NodeDef:
     # (name, company, year) match, instead of collapsing on name alone.
     # Empty == legacy behavior (single unique property / id is the key).
     identity_keys: List[str] = field(default_factory=list)
+    # seocho-zfe D2-2: when True, this type's entities are the SAME real entity
+    # across sources when their name matches — so the SAME name written from two
+    # sources (with different labels: company|acme vs organization|acme) converges
+    # to ONE canonical id / one physical node, enabling cross-source joins. Opt-in
+    # (default False): the modeler declares which types are globally name-unique,
+    # so name-merge never fuses genuinely-distinct types (Apple the company vs the
+    # fruit) or homonym-prone metrics (which use identity_keys instead).
+    cross_source_unique: bool = False
 
     # --- introspection helpers ------------------------------------------------
 
@@ -413,6 +421,9 @@ class Ontology:
                 broader=nd.get("broader", []),
                 same_as=nd.get("sameAs") or nd.get("same_as"),
                 identity_keys=list(nd.get("identity_keys", []) or nd.get("identityKeys", [])),
+                cross_source_unique=bool(
+                    nd.get("cross_source_unique", nd.get("crossSourceUnique", False))
+                ),
             )
 
         rels: Dict[str, RelDef] = {}
@@ -488,6 +499,8 @@ class Ontology:
                 node_entry["broader"] = list(nd.broader)
             if nd.identity_keys:
                 node_entry["identity_keys"] = list(nd.identity_keys)
+            if getattr(nd, "cross_source_unique", False):
+                node_entry["cross_source_unique"] = True
             nodes_out[label] = node_entry
 
         rels_out: Dict[str, Any] = {}

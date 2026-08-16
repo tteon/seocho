@@ -424,6 +424,50 @@ class IndexingPipeline:
                 entity_ids.append(node_id)
         return entity_ids
 
+    def _coerce_generic_labels(
+        self, nodes: Sequence[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """Fold an over-specified label onto a declared generic class.
+
+        A generic open-domain ontology declares one catch-all class -- `Entity`
+        with a `kind` property whose description enumerates person/place/etc --
+        precisely so the specific type lives in `kind`, not in the label. But a
+        model with no grammar enforcement (any hosted endpoint) reads that
+        enumeration and promotes it: it emits label="Place", label="Person",
+        which the query side, matching (:Entity), cannot find. Measured over ten
+        benchmark documents, this was the dominant failure -- 8 of 10 questions
+        returned no result against graphs full of correctly-extracted facts
+        under the wrong labels.
+
+        So when a node's label is not declared but the ontology has a class
+        literally named `Entity`, the node is relabelled to `Entity` and the
+        emitted label is preserved as `kind` (never overwriting a kind the model
+        already set). The specificity is not lost, it moves to where the
+        ontology said it belongs.
+
+        A no-op for a rich ontology: with no `Entity` class declared, an
+        off-ontology label still falls through to the existing validation, which
+        warns or rejects it per enforcement mode. Coercion needs a catch-all to
+        coerce onto, and only the generic ontology has one.
+        """
+        ontology_nodes = getattr(self.ontology, "nodes", None) or {}
+        declared = set(ontology_nodes)
+        if "Entity" not in declared:
+            return list(nodes)
+
+        coerced: List[Dict[str, Any]] = []
+        for node in nodes:
+            label = str(node.get("label", "")).strip()
+            if (label and label != "Entity" and label not in declared
+                    and not self._system_layer_label(label)):
+                node = dict(node)
+                props = dict(node.get("properties") or {})
+                props.setdefault("kind", label)
+                node["properties"] = props
+                node["label"] = "Entity"
+            coerced.append(node)
+        return coerced
+
     def _coerce_chunk_records(
         self,
         *,
@@ -871,6 +915,9 @@ class IndexingPipeline:
                 if not nodes and not rels:
                     result.skipped_chunks += 1
                     continue
+
+            # Coerce over-specified labels onto a declared generic class.
+            nodes = self._coerce_generic_labels(nodes)
 
             # --- Callback: on_after_extract ---
             if self.on_after_extract:

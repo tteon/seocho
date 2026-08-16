@@ -203,7 +203,33 @@ def test_strict_disables_relaxed_retry_and_adds_constant_prompt_line() -> None:
     assert result == {"nodes": [], "relationships": []}
     assert len(llm.calls) == 1  # no relaxed retry call
     assert "Closed vocabulary" in llm.calls[0]["system"]
-    assert "Never use the generic 'Entity' label" in llm.calls[0]["system"]
+    # This ontology declares Company/etc but NOT a class named Entity, so the
+    # no-generic-Entity clause applies and forbids the lazy fallback.
+    assert "generic 'Entity'" in llm.calls[0]["system"]
+
+
+def test_declared_entity_class_is_not_forbidden() -> None:
+    """An open-domain ontology whose only class is `Entity` must be allowed to
+    use it. The unconditional 'Never use Entity' line told the extractor to
+    forbid its own only label, so it invented Place/Person/Value from the
+    `kind` hint and the query side matched (:Entity) against a graph with none.
+    """
+    from seocho import Ontology, NodeDef, P
+    entity_onto = Ontology(
+        name="generic",
+        nodes={"Entity": NodeDef(properties={"name": P(str, unique=True),
+                                             "kind": P(str)})},
+        relationships={},
+    )
+    llm = _RecordingLLM([{"nodes": [], "relationships": []}])
+    engine = CanonicalExtractionEngine(ontology=entity_onto, llm=llm,
+                                       enforcement="strict")
+    engine.extract("Some text.")
+    system = llm.calls[0]["system"]
+    assert "Closed vocabulary" in system, "base guidance must still apply"
+    assert "Do not fall back to a generic 'Entity'" not in system, (
+        "the extractor was told to forbid the ontology's only declared label"
+    )
 
 
 def test_guided_keeps_relaxed_retry_and_plain_prompt() -> None:

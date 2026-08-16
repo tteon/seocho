@@ -120,7 +120,9 @@ def test_relationship_write_uses_typed_endpoints_when_declared():
         source_id="src1",
     )
     rel_calls = [c for c in store._driver.rec.calls if "MERGE (a)-[r:" in c[0]]
-    assert "MATCH (a:Company {id: row.src}), (b:Metric {id: row.tgt})" in rel_calls[0][0]
+    # endpoints are workspace-scoped (review #6): a rel never bridges two tenants' nodes
+    assert ("MATCH (a:Company {id: row.src, _workspace_id: $ws}), "
+            "(b:Metric {id: row.tgt, _workspace_id: $ws})") in rel_calls[0][0]
 
 
 # --------------------------------------------------------------------------- #

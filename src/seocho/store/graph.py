@@ -650,7 +650,12 @@ class Neo4jGraphStore(GraphStore):
                         )
 
                 batch_q = (
-                    f"UNWIND $rows AS row MERGE (n:{label} {{id: row.id}})"
+                    # seocho review-#6: scope node identity by (id, _workspace_id) so
+                    # two tenants' identical id (e.g. the source-agnostic ~xs|<name>
+                    # from cross-source convergence) NEVER MERGE onto one physical
+                    # node in a shared graph. _workspace_id is always set on props
+                    # (below), so existing nodes still match — no migration break.
+                    f"UNWIND $rows AS row MERGE (n:{label} {{id: row.id, _workspace_id: $ws}})"
                     + _conflict_with("row.props", "n, row")
                     + " SET n += CASE WHEN n._writer_ts IS NULL "
                     "OR n._writer_ts <= row.props._writer_ts THEN row.props ELSE {} END"
@@ -658,14 +663,14 @@ class Neo4jGraphStore(GraphStore):
                     + " RETURN row.id AS id, _conflicts AS conflicts"
                 )
                 try:
-                    for record in session.run(batch_q, rows=rows):
+                    for record in session.run(batch_q, rows=rows, ws=workspace_id):
                         summary["nodes_created"] += 1
                         _collect_conflicts(record)
                 except Exception:
                     for row in rows:
                         try:
                             single_q = (
-                                f"MERGE (n:{label} {{id: $id}})"
+                                f"MERGE (n:{label} {{id: $id, _workspace_id: $ws}})"
                                 + _conflict_with("$props", "n")
                                 + " SET n += CASE WHEN "
                                 "n._writer_ts IS NULL OR n._writer_ts <= $props._writer_ts "
@@ -673,7 +678,7 @@ class Neo4jGraphStore(GraphStore):
                                 + sources_clause.format(p="$props")
                                 + " RETURN $id AS id, _conflicts AS conflicts"
                             )
-                            for record in session.run(single_q, id=row["id"], props=row["props"]):
+                            for record in session.run(single_q, id=row["id"], props=row["props"], ws=workspace_id):
                                 _collect_conflicts(record)
                             summary["nodes_created"] += 1
                         except Exception as exc:
@@ -687,28 +692,34 @@ class Neo4jGraphStore(GraphStore):
                     "WHEN NOT {p}._source_id IN r._sources THEN r._sources + {p}._source_id "
                     "ELSE r._sources END"
                 )
-                source_pattern = f"(a:{source_label} {{id: row.src}})" if source_label else "(a {id: row.src})"
-                target_pattern = f"(b:{target_label} {{id: row.tgt}})" if target_label else "(b {id: row.tgt})"
+                # endpoints matched within the SAME workspace (review-#6): a rel
+                # never bridges two tenants' nodes even when they share an id.
+                source_pattern = (f"(a:{source_label} {{id: row.src, _workspace_id: $ws}})"
+                                  if source_label else "(a {id: row.src, _workspace_id: $ws})")
+                target_pattern = (f"(b:{target_label} {{id: row.tgt, _workspace_id: $ws}})"
+                                  if target_label else "(b {id: row.tgt, _workspace_id: $ws})")
                 batch_q = (f"UNWIND $rows AS row MATCH {source_pattern}, {target_pattern} "
                            f"MERGE (a)-[r:{rtype}]->(b) "
                            "SET r += CASE WHEN r._writer_ts IS NULL "
                            "OR r._writer_ts <= row.props._writer_ts THEN row.props ELSE {} END"
                            + rel_sources_clause.format(p="row.props"))
                 try:
-                    session.run(batch_q, rows=rows)
+                    session.run(batch_q, rows=rows, ws=workspace_id)
                     summary["relationships_created"] += len(rows)
                 except Exception:
                     for row in rows:
                         try:
-                            source_single = f"(a:{source_label} {{id: $src}})" if source_label else "(a {id: $src})"
-                            target_single = f"(b:{target_label} {{id: $tgt}})" if target_label else "(b {id: $tgt})"
+                            source_single = (f"(a:{source_label} {{id: $src, _workspace_id: $ws}})"
+                                             if source_label else "(a {id: $src, _workspace_id: $ws})")
+                            target_single = (f"(b:{target_label} {{id: $tgt, _workspace_id: $ws}})"
+                                             if target_label else "(b {id: $tgt, _workspace_id: $ws})")
                             session.run(
                                 f"MATCH {source_single}, {target_single} "
                                 f"MERGE (a)-[r:{rtype}]->(b) SET r += CASE WHEN "
                                 "r._writer_ts IS NULL OR r._writer_ts <= $props._writer_ts "
                                 "THEN $props ELSE {} END"
                                 + rel_sources_clause.format(p="$props"),
-                                src=row["src"], tgt=row["tgt"], props=row["props"])
+                                src=row["src"], tgt=row["tgt"], props=row["props"], ws=workspace_id)
                             summary["relationships_created"] += 1
                         except Exception as exc:
                             summary["errors"].append(

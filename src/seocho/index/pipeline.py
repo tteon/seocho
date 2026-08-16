@@ -468,6 +468,47 @@ class IndexingPipeline:
             coerced.append(node)
         return coerced
 
+    def _coerce_generic_relationship_types(
+        self, rels: Sequence[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """Fold an over-specified relationship type onto a declared generic one.
+
+        The exact symmetry of the label problem, and the larger half of it.
+        Measured on a benchmark document: the extractor produced 62
+        relationships and NONE reached the graph -- only provenance MENTIONS
+        edges existed. A generic ontology declares one relationship,
+        `RELATED_TO`, whose description says to put the verb in a property; the
+        model instead emits the verb AS the type (IS_ALSO_KNOWN_AS, GROWS_IN),
+        which the canonical-vocabulary check rejects, so every real edge is
+        dropped. The `erica vagans -[is also known as]-> Cornish heath` edge the
+        question needed was among the 62 that vanished.
+
+        When the ontology declares exactly one relationship type, an off-ontology
+        type is folded onto it and the emitted type is preserved as `verb` (never
+        overwriting one the model set). The relation is kept and its specificity
+        moves to where the ontology said it belongs.
+
+        A no-op unless there is exactly one declared relationship to coerce onto:
+        a multi-relationship ontology keeps its existing validation, which maps
+        or rejects an unknown type per enforcement mode.
+        """
+        declared = list(getattr(self.ontology, "relationships", None) or {})
+        if len(declared) != 1:
+            return list(rels)
+        target = declared[0]
+
+        coerced: List[Dict[str, Any]] = []
+        for rel in rels:
+            rel_type = str(rel.get("type", "")).strip()
+            if rel_type and rel_type != target:
+                rel = dict(rel)
+                props = dict(rel.get("properties") or {})
+                props.setdefault("verb", rel_type)
+                rel["properties"] = props
+                rel["type"] = target
+            coerced.append(rel)
+        return coerced
+
     def _coerce_chunk_records(
         self,
         *,
@@ -916,8 +957,11 @@ class IndexingPipeline:
                     result.skipped_chunks += 1
                     continue
 
-            # Coerce over-specified labels onto a declared generic class.
+            # Coerce over-specified labels and relationship types onto declared
+            # generic ones, so the model's natural over-specification lands as
+            # graph structure instead of being dropped.
             nodes = self._coerce_generic_labels(nodes)
+            rels = self._coerce_generic_relationship_types(rels)
 
             # --- Callback: on_after_extract ---
             if self.on_after_extract:

@@ -77,3 +77,27 @@ def test_shared_intern_concurrent_convergence():
         th.join()
     assert len(set(results)) == 1        # all threads got the SAME canonical id
     assert len(t) == 1
+
+
+def test_apply_identity_keys_interns_and_measures_collapse():
+    """apply_identity_keys wired to a SharedInternTable registers canonical ids and
+    counts collapse (same entity across calls -> a hit)."""
+    from seocho.index.identity import apply_identity_keys
+    from seocho.index.shared_intern import SharedInternTable
+
+    class _ND:
+        identity_keys = ["name", "year"]
+
+    class _Onto:
+        nodes = {"Company": _ND()}
+
+    table = SharedInternTable()
+    # doc 1: Apple(2023)
+    n1 = [{"id": "x1", "label": "Company", "properties": {"name": "Apple", "year": "2023"}}]
+    apply_identity_keys(_Onto(), n1, [], intern_table=table, workspace_id="ws")
+    # doc 2: the SAME entity again (different raw id) -> must intern to the same canonical
+    n2 = [{"id": "x2", "label": "Company", "properties": {"name": "Apple", "year": "2023"}}]
+    apply_identity_keys(_Onto(), n2, [], intern_table=table, workspace_id="ws")
+    assert n1[0]["id"] == n2[0]["id"]                       # converged to one canonical id
+    s = table.stats()
+    assert s["size"] == 1 and s["interns"] == 1 and s["hits"] == 1   # collapse measured

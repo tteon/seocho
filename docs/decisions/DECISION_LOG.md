@@ -1286,6 +1286,13 @@ Each entry must link to a full ADR when impact is non-trivial.
   - seocho.provenance_store: prov_fact/provenance/classification + governed projection. Honors review: FORCE RLS + non-owner seocho_reader role + SET LOCAL app.workspace/grant (not agent input) (#2); trusted per-source classify_by_source + append-only classification (#3); default-DENY restricted + row-drop escalation; reuse filter_record/AgentPrincipal not re-impl (#4); projection stamps sensitivity onto graph nodes
   - 7 tests (fact_id, value-free PROV-O ttl, DDL security props, trusted classification, idempotent write via fake conn); ruff clean. DEFERRED to live: RLS across principals + projection wiring (needs pg container + psycopg) + a measured result needs gold sensitivity/PII labels (honest boundary)
 
+## 2026-08-16 (organ 3: Palantir-style layered security dataset/row/cell/sub-cell)
+
+- [Accepted] ADR-0212 Palantir-Ontology layered security (seocho-ia4.15)
+  - hadry's model (Palantir Ontology): Postgres ground truth authors security semantically at 4 granularities, graph = governed projection carrying it forward
+  - seocho.security_levels over the public<internal<restricted<secret lattice (default-DENY): dataset_visible (workspace/ADR-0164); row_visible (OSP, denied row DROPPED not masked); cell = reuse filter_record (review #4, not re-impl); sub-cell = filter_array_elements (DERIVED PROPERTY keeping only in-clearance array elements = the piece field-level filter can't do). SecurityPolicy.apply composes all four + returns redaction audit list
+  - sub-cell array-element protection is the new capability (patient-notes example tested); 6 tests; ruff clean. live enforcement rides ADR-0211 RLS+projection (pg infra gated)
+
 ## Template
 
 Use this block for new entries:

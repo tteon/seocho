@@ -192,3 +192,29 @@ Convergence comes from the ADDRESS's determinism, not a shared in-process table.
 Total collapse vs total immunity — stronger than the sequential probe (2/4). Timing
 matters: with the mutation landing at t=4s (after schema resolves), no-pin also
 survives — the race window is real and measured, not assumed.
+
+## Memory-plane workload characterization (vs arXiv:2605.26297)
+
+The serving-side characterization of agentic workloads (Yuan et al., "Agentic AI
+Workload Characteristics") measures the LLM-serving + generic-tool planes; the
+memory/governance plane is uncharacterized. First pass on our own data:
+
+**Mined from 445 asks** (medical run1/run2 + erb rerun):
+- Guided repair: only 9.9% of asks needed repair, ALL converged within the 1-attempt
+  budget (violation mix: unknown_labels 13 / unknown_relationships 11 / properties 4)
+  — vs the paper's blind-retry pathology (Edit retried 2,757×, 95.4% fail, 786 turns).
+- Honest-abstain load economics: abstain outputs are 2.2× SMALLER than answers —
+  rejection terminates early, vs the paper's failed agents inflating context 1.8×.
+- row_cap structurally bounds observation growth (rows mean 23.2, max 50).
+
+**Stage-time breakdown** (N=12 asks, governed, `stage_ms` instrumentation):
+generate_llm 74.4% + synthesize_llm 24.9% = LLM 99.3%; execute_graph 0.2%;
+**governance tax (resolve_schema + guardrail + entity_resolve) = 0.5% (17.5ms)** —
+pinned schema resolve 0.4ms, guardrail 0.2ms, read-side entity resolution 16.9ms.
+All five organs together cost half a percent of request latency while being
+load-bearing under the adversarial probes above. Consistent with ADR-0166 (A6).
+
+**Open angle the paper cannot see:** pinned schema blocks are byte-stable prompt
+prefixes across requests (KV prefix-cache friendly); un-pinned introspected schema
+drifts with graph writes (cache invalidation). "Governance stabilizes the serving
+prefix" — candidate for the serve-track (KV dissection).

@@ -22,6 +22,7 @@ execution are injected SEAMS so the organ semantics are testable without live in
 from __future__ import annotations
 
 import re
+import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -44,6 +45,7 @@ class StructuredQueryResult:
     repair_attempts: int = 0
     arm: str = ""
     entity_resolutions: Dict[str, str] = field(default_factory=dict)
+    stage_ms: Dict[str, float] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -56,6 +58,7 @@ class StructuredQueryResult:
             "guardrail_rejected": self.guardrail_rejected,
             "repair_attempts": self.repair_attempts,
             "entity_resolutions": dict(self.entity_resolutions),
+            "stage_ms": dict(self.stage_ms),
         }
 
 
@@ -225,7 +228,12 @@ class StructuredQueryOrchestrator:
         return (gen_out or ""), {}
 
     def answer(self, question: str, run_context: Any, *, workspace_id: str) -> StructuredQueryResult:
+        # per-stage wall time (ms): the memory-plane analog of a serving trace's
+        # prefill/decode split — quantifies the governance tax vs the LLM call.
+        _t: Dict[str, float] = {}
+        _t0 = time.perf_counter()
         schema_text, policy, source, version = self._resolve_schema(run_context)
+        _t["resolve_schema"] = (time.perf_counter() - _t0) * 1000
 
         # Retrieve step (no prose), with a repair loop: when the guardrail rejects
         # the generated Cypher, feed the violation reasons back for a retry (up to
@@ -233,8 +241,12 @@ class StructuredQueryOrchestrator:
         # the governed arm then differs by GOVERNANCE, not a generator defect.
         violations: Tuple[str, ...] = ()
         cypher, gen_params, feedback, attempts = "", {}, None, 0
+        _gen_ms = _guard_ms = 0.0
         while True:
+            _t1 = time.perf_counter()
             cypher, gen_params = self._call_gen(question, schema_text, feedback)
+            _gen_ms += (time.perf_counter() - _t1) * 1000
+            _t1 = time.perf_counter()
             if not self.arm.guardrail:
                 violations = ()
                 break
@@ -251,23 +263,32 @@ class StructuredQueryOrchestrator:
                     if v != "missing_workspace_scope_expression"
                     and v != "missing_parameter:workspace_id"
                     and v != "missing_parameter_value:workspace_id")
+            _guard_ms += (time.perf_counter() - _t1) * 1000
             if not violations or attempts >= self.repair_budget:
                 break
             feedback = {"prior_cypher": cypher, "violations": list(violations)}
             attempts += 1
         rejected = bool(violations)
 
+        _t["generate_llm"] = _gen_ms
+        _t["guardrail"] = _guard_ms
         resolutions: Dict[str, str] = {}
         exec_params = gen_params
+        _t1 = time.perf_counter()
         if not rejected:
             exec_params, resolutions = self._resolve_entity_params(gen_params, workspace_id)
+        _t["entity_resolve"] = (time.perf_counter() - _t1) * 1000
+        _t1 = time.perf_counter()
         rows = [] if rejected else self._execute(cypher, workspace_id, exec_params)
+        _t["execute_graph"] = (time.perf_counter() - _t1) * 1000
+        _t1 = time.perf_counter()
         answer = self._synth(question, rows)              # the ONLY prose writer (B5)
+        _t["synthesize_llm"] = (time.perf_counter() - _t1) * 1000
 
         return StructuredQueryResult(
             answer=answer, cypher=cypher, rows=rows, schema_source=source,
             pinned_version=version, workspace_enforced=self.arm.workspace_enforce,
             guardrail_on=self.arm.guardrail, guardrail_violations=violations,
             guardrail_rejected=rejected, repair_attempts=attempts, arm=self.arm.name,
-            entity_resolutions=resolutions,
+            entity_resolutions=resolutions, stage_ms={k: round(v, 1) for k, v in _t.items()},
         )

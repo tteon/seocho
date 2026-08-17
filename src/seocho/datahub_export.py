@@ -31,7 +31,7 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 from .ontology import Ontology
 
@@ -58,8 +58,23 @@ def _mcp(entity_type: str, urn: str, aspect_name: str, aspect: Dict[str, Any]) -
     }
 
 
-def ontology_to_glossary_mcps(ontology: Ontology) -> List[Dict[str, Any]]:
-    """Map an Ontology to DataHub glossary MCPs (pure; deterministic URNs)."""
+def ontology_to_glossary_mcps(
+    ontology: Ontology,
+    *,
+    preserve_definitions: Optional[Iterable[str]] = None,
+) -> List[Dict[str, Any]]:
+    """Map an Ontology to DataHub glossary MCPs (pure; deterministic URNs).
+
+    ``preserve_definitions`` is the set of class labels whose glossaryTermInfo
+    aspect is now human-owned (a reviewer edited the definition in the DataHub
+    UI, pulled back via ``action="annotate"``). For those terms this skips the
+    glossaryTermInfo aspect entirely so a re-export does NOT clobber the human's
+    text — glossaryTermInfo is atomic, so definition and customProperties cannot
+    be updated independently, and definition ownership wins. The taxonomy
+    (glossaryRelatedTerms / is-a) stays SEOCHO-owned and is always emitted.
+    Pass the labels present in the last approved round-trip; omit for a first
+    export."""
+    preserved = {str(x) for x in (preserve_definitions or ())}
     pkg = ontology.package_id or ontology.name
     pkg_node_id = pkg
     rel_node_id = f"{pkg}.Relationships"
@@ -75,23 +90,24 @@ def ontology_to_glossary_mcps(ontology: Ontology) -> List[Dict[str, Any]]:
     # classes → terms
     for label, nd in ontology.nodes.items():
         term_id = f"{pkg}.{label}"
-        custom: Dict[str, str] = {"seocho_class": label, "ontology_version": str(ontology.version)}
-        aliases = [str(a) for a in (getattr(nd, "aliases", []) or [])]
-        if aliases:
-            custom["aliases"] = ", ".join(aliases)
-        if getattr(nd, "same_as", None):
-            custom["same_as"] = str(nd.same_as)
-        ik = nd.effective_identity_keys
-        if ik:
-            custom["identity_keys"] = ", ".join(ik)
-        mcps.append(_mcp("glossaryTerm", _term_urn(term_id), "glossaryTermInfo", {
-            "name": label,
-            "definition": (str(getattr(nd, "description", "") or "").strip() or f"{label} (no definition)"),
-            "termSource": "INTERNAL",
-            "parentNode": _node_urn(pkg_node_id),
-            "customProperties": custom,
-        }))
-        # broader (is-a) → glossaryRelatedTerms.isRelatedTerms
+        if label not in preserved:
+            custom: Dict[str, str] = {"seocho_class": label, "ontology_version": str(ontology.version)}
+            aliases = [str(a) for a in (getattr(nd, "aliases", []) or [])]
+            if aliases:
+                custom["aliases"] = ", ".join(aliases)
+            if getattr(nd, "same_as", None):
+                custom["same_as"] = str(nd.same_as)
+            ik = nd.effective_identity_keys
+            if ik:
+                custom["identity_keys"] = ", ".join(ik)
+            mcps.append(_mcp("glossaryTerm", _term_urn(term_id), "glossaryTermInfo", {
+                "name": label,
+                "definition": (str(getattr(nd, "description", "") or "").strip() or f"{label} (no definition)"),
+                "termSource": "INTERNAL",
+                "parentNode": _node_urn(pkg_node_id),
+                "customProperties": custom,
+            }))
+        # broader (is-a) → glossaryRelatedTerms.isRelatedTerms (always SEOCHO-owned)
         parents = [p for p in (getattr(nd, "broader", []) or []) if p in ontology.nodes]
         if parents:
             mcps.append(_mcp("glossaryTerm", _term_urn(term_id), "glossaryRelatedTerms", {
@@ -284,6 +300,11 @@ def datahub_glossary_to_mapping_spec(
     ``review_status`` / ``action`` / ``target`` / ``parent`` / ``description``.
     Only terms whose status matches ``only_status`` become mappings.
 
+    ``action="annotate"`` edits metadata on an EXISTING class — the common case
+    when a reviewer fills in or rewrites a term's definition in the DataHub UI;
+    it carries the edited ``description`` (and/or an added ``alias``) back onto a
+    class that already exists, where ``new_class`` would wrongly create one.
+
     (A live DataHub GraphQL source adapter that produces these records is a
     follow-up; this function defines the offline contract and is fully tested.)"""
     mappings: List[Dict[str, Any]] = []
@@ -296,10 +317,10 @@ def datahub_glossary_to_mapping_spec(
         if not name:
             continue
         action = str(rec.get("action") or "new_class").strip()
-        if action not in {"alias", "new_class", "same_as"}:
+        if action not in {"alias", "new_class", "same_as", "annotate"}:
             continue
         entry: Dict[str, Any] = {"surface": name, "action": action}
-        target = str(rec.get("target") or (name if action == "new_class" else "")).strip()
+        target = str(rec.get("target") or (name if action in ("new_class", "annotate") else "")).strip()
         if target:
             entry["target"] = target
         if action == "new_class":
@@ -309,5 +330,14 @@ def datahub_glossary_to_mapping_spec(
             desc = str(rec.get("description", "")).strip()
             if desc:
                 entry["description"] = desc
+        elif action == "annotate":
+            # description is present-but-possibly-empty: forward the key so an
+            # intentional clear is distinguishable from an untouched field, but
+            # apply only writes it when non-empty.
+            if "description" in rec:
+                entry["description"] = str(rec.get("description") or "").strip()
+            add_alias = str(rec.get("alias") or "").strip()
+            if add_alias:
+                entry["alias"] = add_alias
         mappings.append(entry)
     return {"ontology": ontology_name, "mappings": mappings}

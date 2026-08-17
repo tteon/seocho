@@ -23,7 +23,7 @@ Run offline (no Docker, no GMS):   python examples/datahub/roundtrip_demo.py
 Run against a live GMS (STAGE 2):   GMS=http://localhost:8080 python examples/datahub/roundtrip_demo.py
                                     (bring the UI up first with `datahub docker quickstart`)
 
-Boundary discipline (ADR-0214): `urn:li:*` / aspect shapes stay inside
+Boundary discipline (ADR-0216): `urn:li:*` / aspect shapes stay inside
 `datahub_export`; everything else speaks SEOCHO's own Ontology / mapping-spec /
 term_records contracts.
 """

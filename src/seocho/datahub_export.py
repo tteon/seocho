@@ -221,8 +221,11 @@ def scorecard_to_structured_properties(
          "values": [scorecard.get("overall_score")]},
         {"propertyUrn": "urn:li:structuredProperty:seocho.scorecard.grade",
          "values": [scorecard.get("grade")]},
+        # DataHub has no boolean dataType — blocking is a STRING property, so its
+        # value is stringified to match the definition emitted by
+        # scorecard_structured_property_definitions().
         {"propertyUrn": "urn:li:structuredProperty:seocho.scorecard.blocking",
-         "values": [bool(scorecard.get("blocking"))]},
+         "values": ["true" if scorecard.get("blocking") else "false"]},
     ]
     for dim in scorecard.get("dimensions", []):
         name = dim.get("name")
@@ -233,6 +236,58 @@ def scorecard_to_structured_properties(
             })
     entity_type = "glossaryNode" if ":glossaryNode:" in target_urn else "dataset"
     return [_mcp(entity_type, target_urn, "structuredProperties", {"properties": props})]
+
+
+# Value types + entity types a scorecard structured property can carry.
+_DATATYPE_NUMBER = "urn:li:dataType:datahub.number"
+_DATATYPE_STRING = "urn:li:dataType:datahub.string"
+_SCORECARD_ENTITY_TYPES = [
+    "urn:li:entityType:datahub.glossaryNode",
+    "urn:li:entityType:datahub.dataset",
+]
+
+
+def _property_definition_mcp(qualified_name: str, *, value_type: str, display_name: str,
+                             description: str) -> Dict[str, Any]:
+    urn = f"urn:li:structuredProperty:{qualified_name}"
+    return _mcp("structuredProperty", urn, "propertyDefinition", {
+        "qualifiedName": qualified_name,
+        "displayName": display_name,
+        "valueType": value_type,
+        "cardinality": "SINGLE",
+        "entityTypes": list(_SCORECARD_ENTITY_TYPES),
+        "description": description,
+    })
+
+
+def scorecard_structured_property_definitions(
+    dimension_names: Optional[List[str]] = None,
+) -> List[Dict[str, Any]]:
+    """The ``propertyDefinition`` MCPs that MUST exist on a GMS before
+    ``scorecard_to_structured_properties`` values can be emitted — DataHub's
+    StructuredPropertiesValidator rejects assignments to undefined properties, so
+    live Phase-C emit fails without this bootstrap (seocho-v6w.2). Emit these
+    once per GMS (idempotent UPSERT by URN), then emit the values.
+
+    ``dimension_names`` declares the per-dimension score properties (e.g.
+    ``taxonomy_health``); omit for just the three fixed properties."""
+    mcps = [
+        _property_definition_mcp("seocho.scorecard.overall_score", value_type=_DATATYPE_NUMBER,
+                                 display_name="SEOCHO overall score",
+                                 description="SEOCHO ontology scorecard: weighted overall score [0,1]."),
+        _property_definition_mcp("seocho.scorecard.grade", value_type=_DATATYPE_STRING,
+                                 display_name="SEOCHO grade",
+                                 description="SEOCHO ontology scorecard: letter grade."),
+        _property_definition_mcp("seocho.scorecard.blocking", value_type=_DATATYPE_STRING,
+                                 display_name="SEOCHO blocking",
+                                 description="SEOCHO ontology scorecard: 'true' if a blocking weakness exists."),
+    ]
+    for name in (dimension_names or []):
+        mcps.append(_property_definition_mcp(
+            f"seocho.scorecard.{name}", value_type=_DATATYPE_NUMBER,
+            display_name=f"SEOCHO {name}",
+            description=f"SEOCHO ontology scorecard dimension '{name}' score [0,1]."))
+    return mcps
 
 
 def numeric_validation_to_assertions(

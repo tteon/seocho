@@ -422,6 +422,51 @@ def make_execute_cypher_tool(
     return execute_cypher
 
 
+def make_deterministic_query_tool(
+    *,
+    ontology: Any,
+    graph_store: Any,
+    llm: Any,
+    vector_store: Any = None,
+    workspace_id: str = "default",
+    default_database: str = "neo4j",
+):
+    """One controlled tool that runs SEOCHO's deterministic query path end to end.
+
+    Wraps the deterministic path (intent slots -> planner builds Cypher -> execute
+    -> synthesize; the accuracy winner in ADR-0214) as a single SDK function-tool.
+    Giving a query agent THIS tool instead of the free-form
+    text2cypher/execute/validate set turns its job into "call once, relay" -- a
+    controlled flow that CONVERGES where the autonomous multi-tool loop did not
+    (ADR-0215 MaxTurnsExceeded; ADR-0217 spike). `workspace_id` is closed over,
+    so scope cannot leak through a hand-off.
+    """
+    from agents import function_tool
+
+    from .local_engine import _LocalEngine
+
+    engine = _LocalEngine(
+        ontology=ontology,
+        graph_store=graph_store,
+        llm=llm,
+        vector_store=vector_store,
+        workspace_id=workspace_id,
+    )
+
+    @function_tool
+    def answer_from_graph(question: str, database: str = default_database) -> str:
+        """Answer a question from the knowledge graph using SEOCHO's deterministic
+        ontology-grounded query path. Pass the user's question verbatim and call
+        this exactly once; its result is the final answer."""
+        try:
+            return str(engine.ask(question, database=database))
+        except Exception as exc:  # noqa: BLE001 - surface the error to the model, do not raise
+            logger.error("answer_from_graph failed: %s", exc)
+            return json.dumps({"error": str(exc)})
+
+    return answer_from_graph
+
+
 def make_search_similar_tool(vector_store: Any):
     """Create a search_similar tool bound to this vector store."""
     from agents import function_tool

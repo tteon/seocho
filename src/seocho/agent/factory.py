@@ -239,6 +239,50 @@ def create_query_agent(
     )
 
 
+def create_controlled_query_agent(
+    *,
+    ontology: Any,
+    graph_store: Any,
+    llm: Any,
+    vector_store: Any = None,
+    workspace_id: str = "default",
+    model: Optional[str] = None,
+    name: str = "QueryAgent",
+) -> Any:
+    """A query agent driven by a CONTROLLED flow: one deterministic tool.
+
+    ADR-0217 (spike-verified): the autonomous multi-tool query loop did not
+    converge with a hosted reasoning model (ADR-0215 MaxTurnsExceeded). Giving the
+    agent a single deterministic tool (`answer_from_graph`, the ADR-0214 path)
+    shrinks its job to "call once, relay" and the hand-off converges. The moat
+    stays deterministic; the SDK only supplies the loop/hand-off/guardrail slots.
+    """
+    from agents import Agent
+
+    from ..tools import make_deterministic_query_tool
+
+    _ensure_sdk_tracing_policy()
+
+    tool = make_deterministic_query_tool(
+        ontology=ontology,
+        graph_store=graph_store,
+        llm=llm,
+        vector_store=vector_store,
+        workspace_id=workspace_id,
+    )
+    return Agent(
+        name=name,
+        instructions=(
+            "Answer the user's question by calling answer_from_graph exactly once "
+            "with the question verbatim, then relay its result as the final answer. "
+            "Do not call it more than once; do not write Cypher yourself."
+        ),
+        tools=[tool],
+        model=llm.to_agents_sdk_model(model=model),
+        model_settings=_tool_agent_model_settings(llm, temperature=0.0),
+    )
+
+
 def create_supervisor_agent(
     *,
     ontology: Any,

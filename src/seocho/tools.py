@@ -727,4 +727,23 @@ def create_query_tools(
     ]
     if vector_store is not None:
         tools.append(make_search_similar_tool(vector_store))
+
+    # ADR-0215/0216 Phase 0: gate execute_cypher with SEOCHO's deterministic
+    # ontology guardrail (a SDK tool_input_guardrail). It runs BEFORE the tool
+    # touches the database and rejects an off-schema / unscoped / literal-inlined
+    # query with a message the model repairs from -- turning an unguarded loop
+    # (the MaxTurnsExceeded seen in ADR-0215) into a bounded repair. Defense in
+    # depth: never let attaching it break tool creation.
+    if ontology is not None:
+        try:
+            from .integrations.openai_agents import make_ontology_guardrail
+
+            guardrail = make_ontology_guardrail(ontology)
+            for _t in tools:
+                if getattr(_t, "name", None) == "execute_cypher":
+                    _t.tool_input_guardrails = [guardrail]
+                    break
+        except Exception as exc:  # noqa: BLE001 - guardrail is additive hardening
+            logger.warning("ontology guardrail not attached to execute_cypher: %s", exc)
+
     return tools

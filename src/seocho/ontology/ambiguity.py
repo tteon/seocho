@@ -275,7 +275,7 @@ def load_mapping_spec(path: str | Path) -> Dict[str, Any]:
 # YAML sheet (a reviewer flips ``status`` to APPROVED and adjusts action/target),
 # then parse it back into the SAME ``term_records`` that
 # ``datahub_export.datahub_glossary_to_mapping_spec`` consumes — so the DataHub
-# path and this path share one backend (ADR-0217). No DataHub, no Docker.
+# path and this path share one backend (ADR-0218). No DataHub, no Docker.
 # ---------------------------------------------------------------------------
 
 _REVIEW_SHEET_HEADER = (

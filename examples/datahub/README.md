@@ -62,7 +62,7 @@ the `glossaryTermInfo` aspect for that term (the taxonomy / Is-A edges stay
 SEOCHO-owned and are always emitted). Aspects are atomic, so definition and
 custom properties cannot be updated independently — definition ownership wins.
 
-## Boundary discipline (ADR-0216)
+## Boundary discipline (ADR-0217)
 
 DataHub is a **serialization target, not SEOCHO's internal model**. `urn:li:*`
 strings and DataHub aspect names live only inside `seocho.datahub_export` (and

@@ -30,14 +30,38 @@ the target ``datahub`` version when wiring live emit (Phase C).
 from __future__ import annotations
 
 import json
-import re
+import string
 from typing import Any, Dict, Iterable, List, Optional
 
 from .ontology import Ontology
 
+# Safe passthrough for URN ids: alphanumerics plus '.' and '-'. Deliberately
+# EXCLUDES '_', which is reserved as the escape sentinel below.
+_SLUG_SAFE = frozenset(string.ascii_letters + string.digits + ".-")
+
 
 def _slug(s: str) -> str:
-    return re.sub(r"[^A-Za-z0-9_.-]", "_", str(s).strip())
+    """URN-safe, INJECTIVE encoding of an arbitrary identifier.
+
+    Output uses only ``[A-Za-z0-9.-]`` plus ``_`` as an escape sentinel: safe
+    characters pass through, and every other character (including a literal
+    ``_``) is escaped as ``_`` followed by two hex digits per UTF-8 byte. Because
+    ``_`` only ever appears as an escape prefix and no safe character produces
+    one, distinct inputs can never collide.
+
+    This fixes the silent glossary-term merge where the old replace-with-``_``
+    slug mapped e.g. ``"Total Revenue"`` and ``"Total_Revenue"`` to the same URN
+    (idempotent UPSERT keys on the URN, so a collision overwrote another term —
+    worst in the review queue the URNs exist to serve). Class labels without
+    ``_`` are unchanged; identifiers containing ``_`` or non-safe characters get
+    a new, collision-free URN."""
+    out = []
+    for ch in str(s).strip():
+        if ch in _SLUG_SAFE:
+            out.append(ch)
+        else:
+            out.extend(f"_{b:02x}" for b in ch.encode("utf-8"))
+    return "".join(out)
 
 
 def _node_urn(node_id: str) -> str:

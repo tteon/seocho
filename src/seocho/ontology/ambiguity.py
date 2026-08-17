@@ -186,7 +186,7 @@ class AmbiguityQuarantine:
 # action: "alias" (add surface as alias of target class), "new_class" (add a new
 # class `target` with broader `parent`), "same_as" (alias to an existing class),
 # "ignore" (noise — leave in quarantine, no ontology change).
-_VALID_ACTIONS = {"alias", "new_class", "same_as", "ignore"}
+_VALID_ACTIONS = {"alias", "new_class", "same_as", "ignore", "annotate"}
 
 
 def starter_mapping_spec(clusters: List[Dict[str, Any]], ontology: Ontology) -> Dict[str, Any]:
@@ -250,6 +250,23 @@ def apply_mapping_spec(ontology: Ontology, spec: Dict[str, Any]) -> Ontology:
                 if _norm(surface) != _norm(label):
                     nd["aliases"] = [surface]
                 nodes[label] = nd
+        elif action == "annotate":
+            # Edit metadata on an EXISTING class reviewed downstream (e.g. a
+            # human-authored definition from the DataHub glossary). Unlike
+            # new_class this never creates; the class must already exist.
+            target = _resolve_class(str(m.get("target") or surface))
+            if not target:
+                raise ValueError(f"annotate target class not found: {m.get('target') or surface!r}")
+            nd = nodes[target]
+            if "description" in m:
+                description = str(m.get("description") or "").strip()
+                if description:
+                    nd["description"] = description
+            add_alias = str(m.get("alias") or "").strip()
+            if add_alias:
+                aliases = nd.setdefault("aliases", [])
+                if add_alias not in aliases:
+                    aliases.append(add_alias)
 
     new_onto = Ontology.from_dict(data)
     new_onto.version = _bump_minor(ontology.version)

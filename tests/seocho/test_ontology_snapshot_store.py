@@ -129,3 +129,29 @@ def test_idempotent_save_preserves_original_created_at(tmp_path):
     # identical evidence (created_at excluded) → idempotent, original kept
     assert second.created_at == first.created_at == "2026-01-01T00:00:00+00:00"
     assert len([s for s in store.list("acme") if s.version == "1.0.0"]) == 1
+
+
+def test_audit_fields_persist_and_roundtrip(tmp_path):
+    """seocho-v6w.4: reviewed changes carry an audit chain in the JSON plane."""
+    store = OntologySnapshotStore(tmp_path)
+    store.save(_v1(), created_by="reviewer-a", change_source="datahub-approval",
+               approval_ref="http://gms tags :: Animal, Breed")
+    got = store.get("acme", "1.0.0")
+    assert got.created_by == "reviewer-a"
+    assert got.change_source == "datahub-approval"
+    assert "Animal" in got.approval_ref
+
+
+def test_audit_fields_are_evidence_guarded(tmp_path):
+    """A re-save claiming a different approver must not silently rewrite history."""
+    store = OntologySnapshotStore(tmp_path)
+    store.save(_v1(), created_by="reviewer-a", change_source="datahub-approval")
+    with pytest.raises(SnapshotConflict, match="different evidence"):
+        store.save(_v1(), created_by="reviewer-b", change_source="datahub-approval")
+    assert store.get("acme", "1.0.0").created_by == "reviewer-a"
+
+
+def test_audit_fields_default_empty_backward_compat(tmp_path):
+    store = OntologySnapshotStore(tmp_path)
+    snap = store.save(_v1())
+    assert snap.created_by == "" and snap.change_source == "" and snap.approval_ref == ""

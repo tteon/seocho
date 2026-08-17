@@ -64,6 +64,14 @@ class OntologySnapshot:
     corpus_profile: Optional[Dict[str, Any]] = None
     weight_profile: str = "balanced"
     notes: str = ""
+    # Audit chain for reviewed changes (seocho-v6w.4). Lives in the JSON plane
+    # only — never the graph (user_id-not-in-graph). created_by identifies the
+    # actor (a reviewer handle or "system"); change_source names the pipeline
+    # ("datahub-approval", "review-sheet", "manual"); approval_ref points at the
+    # reviewed artifact (a term URN list, a sheet path, a PR).
+    created_by: str = ""
+    change_source: str = ""
+    approval_ref: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -77,6 +85,9 @@ class OntologySnapshot:
             "corpus_profile": self.corpus_profile,
             "weight_profile": self.weight_profile,
             "notes": self.notes,
+            "created_by": self.created_by,
+            "change_source": self.change_source,
+            "approval_ref": self.approval_ref,
         }
 
     @classmethod
@@ -92,6 +103,9 @@ class OntologySnapshot:
             corpus_profile=data.get("corpus_profile"),
             weight_profile=data.get("weight_profile", "balanced"),
             notes=data.get("notes", ""),
+            created_by=data.get("created_by", ""),
+            change_source=data.get("change_source", ""),
+            approval_ref=data.get("approval_ref", ""),
         )
 
     def load_ontology(self) -> Ontology:
@@ -139,12 +153,17 @@ class OntologySnapshotStore:
         weight_profile: str = "balanced",
         notes: str = "",
         created_at: Optional[str] = None,
+        created_by: str = "",
+        change_source: str = "",
+        approval_ref: str = "",
     ) -> OntologySnapshot:
         """Persist ``ontology`` as a snapshot of ``(package_id, version)``.
 
         ``scorecard`` may be an ``OntologyScorecard`` or its dict; ``corpus_profile``
         a ``CorpusProfile`` or its dict; ``ontoclean_tags`` the dict form from
-        ``dump_metaproperties``. Idempotent for identical content; raises
+        ``dump_metaproperties``. ``created_by`` / ``change_source`` /
+        ``approval_ref`` record the audit chain for reviewed changes
+        (seocho-v6w.4). Idempotent for identical content; raises
         :class:`SnapshotConflict` if the version already exists with different
         content."""
         fp = ontology.schema_fingerprint()
@@ -159,6 +178,9 @@ class OntologySnapshotStore:
             corpus_profile=corpus_profile.to_dict() if hasattr(corpus_profile, "to_dict") else corpus_profile,
             weight_profile=weight_profile,
             notes=notes,
+            created_by=created_by,
+            change_source=change_source,
+            approval_ref=approval_ref,
         )
 
         # immutability guard: same version + different fingerprint = conflict

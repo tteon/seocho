@@ -118,6 +118,12 @@ def register(subparsers) -> None:
         help="DataHub GMS URL to pull reviewed glossary terms from live (instead of --terms)")
     ontology_dhapply_parser.add_argument("--status", default="APPROVED", help="Only apply terms with this review status")
     ontology_dhapply_parser.add_argument("--output", default=None, help="Write the new ontology JSON-LD here")
+    ontology_dhapply_parser.add_argument(
+        "--snapshot-root", default=None,
+        help="Also save the applied result as a governed snapshot version here (audit chain included)")
+    ontology_dhapply_parser.add_argument(
+        "--reviewed-by", default="",
+        help="Reviewer handle recorded on the snapshot audit chain (with --snapshot-root)")
     ontology_dhapply_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
 
     ontology_dhqueue_parser = ontology_subparsers.add_parser(
@@ -443,6 +449,22 @@ def handle(args: argparse.Namespace) -> int:
                   f"{len(ontology.nodes)} → {len(new_onto.nodes)} classes → {args.output}")
         else:
             print(json.dumps(payload, indent=2, ensure_ascii=False))
+        if args.snapshot_root:
+            # Close the loop (seocho-v6w.4): version the governed result with the
+            # audit chain. The runtime picks new versions up via its manifest/env
+            # ontology loading path — nothing mutates a live server from here.
+            from ..ontology_snapshot_store import OntologySnapshotStore
+            approved_names = sorted({str(m.get("surface", "")) for m in spec["mappings"]})
+            snap = OntologySnapshotStore(args.snapshot_root).save(
+                new_onto,
+                notes=f"Applied {len(spec['mappings'])} approved review term(s).",
+                created_by=args.reviewed_by or "unknown-reviewer",
+                change_source="datahub-approval" if args.gms else "review-sheet",
+                approval_ref=(f"{args.gms} tags" if args.gms else str(args.terms))
+                             + " :: " + ", ".join(approved_names)[:300],
+            )
+            print(f"snapshot: {snap.package_id} v{snap.version} fp={snap.schema_fingerprint[:8]} "
+                  f"by={snap.created_by} source={snap.change_source} → {args.snapshot_root}")
         return 0
 
     if args.ontology_command == "datahub-queue":

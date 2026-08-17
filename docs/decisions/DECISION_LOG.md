@@ -1357,3 +1357,12 @@ Use this block for new entries:
   maps the pillars. Gap: factory-built agents don't wire it → the unguarded loop.
   Follow-ups: wire guardrails onto factory agents, fix agent-mode Cypher, add
   handoff input_filter / RunContextWrapper.
+
+- [Proposed] ADR-0216 agents-sdk-coupling-strategy (seocho-5ny) — strongly couple
+  SEOCHO to the OpenAI Agents SDK, but ONLY at the orchestration plane: the SDK
+  supplies loop/handoffs/guardrail-slots/tools/sessions/MCP/HITL/spans; SEOCHO
+  supplies the deterministic BODIES (planner-as-tool per ADR-0214, ontology/Cypher/
+  workspace guardrail per ADR-0215, graph-backed memory + workspace scope). Core
+  SDK is provider-agnostic (runs on MARA); tracing must stay vendor-neutral (no
+  OpenAI backend); Realtime/Voice is OpenAI-only (defer). Phase 0 = wire guardrails
+  onto factory agents + fix tracing + re-run hand-off (expect convergence).

@@ -1335,3 +1335,14 @@ Use this block for new entries:
   (alias not lifted) AND **stage-3** (anchor-slot picks the question's framing-clause
   book title). n=1 with no ceiling/floor control ⇒ not a class claim. Lowest-
   complexity fix: strip question framing clauses before anchor-slot extraction.
+
+- [Experimental] ADR-0214 ontology-modeling-drives-accuracy (seocho-5ny) — live on
+  MARA MiniMax-M2.7 + DozerDB, 8 stratified Qs, MARA-judged. Ontology modeling is
+  the top query-side accuracy lever: generic single-Entity **1/8** vs typed MODELED
+  **5/8**, silent_wrong **0** in all cells (SEOCHO fails loud). Ceiling (inject the
+  alias) → recovers, so failures were upstream not retrieval. A demand-driven
+  `propose_ontology(docs, questions)` prototype climbs **1→3→4/8** with zero
+  hand-authoring; after modeling is right the residual shifts to stage-1 extraction
+  coverage. Enabled by #592 (anchor de-framing) + #593 (real write counters).
+  Caveats: n small, single-path, judge unaudited. Follow-ups: productize proposer +
+  coverage-feedback surface, broaden to ≥20 Qs + text2cypher arm.

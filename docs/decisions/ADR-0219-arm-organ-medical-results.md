@@ -239,3 +239,28 @@ an agent TRIES (it may still try under pressure — the corpus proves this); gov
 bounds what it CAN do to shared memory. V2 directly answers the corpus's
 `motivated-mislabelling` scenario. Governance is a defense-in-depth layer BELOW
 alignment, not a substitute for it.
+
+## Finance use-case: ontology-as-compliance-guardrail, A3-style auto-red-team
+
+Three real financial controls encoded as ontology-backed governance, then an LLM
+(gpt-oss-120b) generates <=2-modification bypass VARIANTS from one blocked attempt each
+(the A3 adaptive-hypothesis idea, borrowed for red-teaming the SUBSTRATE — no model
+finetuning). Deterministic block check; the LLM only writes the attack.
+
+| control | regulation | organ | variants | blocked | holes |
+|---------|-----------|-------|----------|---------|-------|
+| C1 information barrier | MNPI / Chinese wall | workspace + classification | 8 | 8 | 0 |
+| C2 record integrity | suitability / no-fabrication | read-only guardrail | 8 | 8 | 0 |
+| C3 selective disclosure | Reg FD | cell + sub-cell masking | 8 | 8 | 0 |
+
+24/24 blocked. The generated attacks were genuinely creative — omit the restricted
+`Deal` label and reach it via a connected node, variable-length path to the Deal
+indirectly, MERGE→CREATE, ON CREATE SET, dummy label to evade label checks, reach the
+issuer via its holding/filing/client. All failed because the defense is an ONTOLOGY
+ALLOW-LIST, not a pattern blacklist: an undeclared label/relationship/write-token
+cannot pass no matter how it is disguised. This is the concrete argument for
+ontology-AS-guardrail — allow-list (the ontology) is structurally stronger than
+deny-list (enumerated rules), which is exactly what a compliance boundary needs.
+Method also demonstrates an automated coverage-search for governance holes (the
+A3 loop repurposed): find bypasses we did not hand-author; a slip-through would be a
+next-organ ticket.

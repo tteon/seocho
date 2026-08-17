@@ -1,6 +1,29 @@
 from __future__ import annotations
 
+import logging
+import os
 from typing import Any, Optional
+
+logger = logging.getLogger(__name__)
+
+
+def _ensure_sdk_tracing_policy() -> None:
+    """Keep the Agents SDK's tracing vendor-neutral (ADR-0216).
+
+    The SDK's default trace processor exports to OpenAI's backend and needs an
+    OpenAI API key (the 401 seen in ADR-0215); SEOCHO's tracing is vendor-neutral
+    (ADR-0144, Opik/OTLP). Disable the SDK exporter unless a deployment explicitly
+    opts in with SEOCHO_AGENTS_SDK_TRACING=1, so building a SEOCHO agent never
+    phones home. Idempotent and best-effort.
+    """
+    if os.getenv("SEOCHO_AGENTS_SDK_TRACING", "").strip().lower() in ("1", "true", "yes"):
+        return
+    try:
+        from agents import set_tracing_disabled
+
+        set_tracing_disabled(True)
+    except Exception as exc:  # noqa: BLE001 - tracing policy must never block agent build
+        logger.debug("could not set Agents SDK tracing policy: %s", exc)
 
 
 def _tool_agent_model_settings(llm: Any, *, temperature: float) -> Any:
@@ -165,6 +188,8 @@ def create_indexing_agent(
     from agents import Agent
     from ..tools import create_indexing_tools
 
+    _ensure_sdk_tracing_policy()
+
     tools = create_indexing_tools(
         ontology=ontology,
         graph_store=graph_store,
@@ -196,6 +221,8 @@ def create_query_agent(
     from agents import Agent
     from ..tools import create_query_tools
 
+    _ensure_sdk_tracing_policy()
+
     tools = create_query_tools(
         ontology=ontology,
         graph_store=graph_store,
@@ -226,6 +253,8 @@ def create_supervisor_agent(
     name: str = "Supervisor",
 ) -> Any:
     from agents import Agent, handoff
+
+    _ensure_sdk_tracing_policy()
 
     idx_agent = create_indexing_agent(
         ontology=ontology,

@@ -287,6 +287,87 @@ def load_mapping_spec(path: str | Path) -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# Infra-free review sheet (seocho-v6w.8): the Docker-free alternative to the
+# DataHub glossary UI. Render the ranked proposed clusters as a human-editable
+# YAML sheet (a reviewer flips ``status`` to APPROVED and adjusts action/target),
+# then parse it back into the SAME ``term_records`` that
+# ``datahub_export.datahub_glossary_to_mapping_spec`` consumes — so the DataHub
+# path and this path share one backend (ADR-0218). No DataHub, no Docker.
+# ---------------------------------------------------------------------------
+
+_REVIEW_SHEET_HEADER = (
+    "# SEOCHO ontology review sheet — no DataHub / Docker required.\n"
+    "#\n"
+    "# For each proposed term below: set `status: APPROVED` to accept it, and\n"
+    "# adjust `action` (new_class | alias | annotate | ignore) and `target` as\n"
+    "# needed. Leave `status: PROPOSED` to skip. Then apply:\n"
+    "#\n"
+    "#   seocho ontology datahub-apply --schema <ontology> --terms <this-file>\n"
+    "#\n"
+    "# `context` lines are read-only evidence to help you decide.\n"
+)
+
+
+def render_review_sheet(clusters: List[Dict[str, Any]], *, ontology_name: str = "") -> str:
+    """Render ranked proposed clusters as a reviewer-editable YAML sheet.
+
+    Each cluster becomes a term with a pre-filled ``status: PROPOSED`` (the
+    reviewer flips to APPROVED), a suggested ``action``/``target``, and read-only
+    ``context`` (frequency, examples, candidate labels). The output is valid YAML
+    that :func:`parse_review_sheet` turns back into ``term_records``."""
+    lines: List[str] = [_REVIEW_SHEET_HEADER, f"ontology: {ontology_name}", "terms:"]
+    for c in clusters:
+        surface = str(c.get("surface", "")).strip()
+        if not surface:
+            continue
+        candidates = [str(x) for x in (c.get("candidate_labels") or []) if str(x).strip()]
+        # suggest alias to the top candidate if any, else a new class
+        if candidates:
+            action, target = "alias", candidates[0]
+        else:
+            action = "new_class"
+            target = re.sub(r"[^A-Za-z0-9]", "", surface.title()) or "Entity"
+        examples = [str(e).strip() for e in (c.get("examples") or []) if str(e).strip()]
+        lines.append(f"  - name: {json.dumps(surface, ensure_ascii=False)}")
+        lines.append("    status: PROPOSED        # set APPROVED to accept")
+        lines.append(f"    action: {action}        # new_class | alias | annotate | ignore")
+        lines.append(f"    target: {json.dumps(target, ensure_ascii=False)}")
+        ctx_bits = [f"frequency={int(c.get('frequency', 0))}"]
+        if candidates:
+            ctx_bits.append("candidates=" + ", ".join(candidates))
+        lines.append(f"    context: {json.dumps('; '.join(ctx_bits), ensure_ascii=False)}")
+        for ex in examples[:2]:
+            lines.append(f"    # e.g. {ex[:160]}")
+    return "\n".join(lines) + "\n"
+
+
+def parse_review_sheet(text: str) -> List[Dict[str, Any]]:
+    """Parse an edited review sheet back into ``term_records`` (the contract
+    shared with the DataHub round-trip). ``context`` is dropped — it is evidence,
+    not a mapping field."""
+    import yaml
+    data = yaml.safe_load(text) or {}
+    records: List[Dict[str, Any]] = []
+    for item in (data.get("terms") or []):
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name", "")).strip()
+        if not name:
+            continue
+        rec: Dict[str, Any] = {
+            "name": name,
+            "review_status": str(item.get("status") or item.get("review_status") or "PROPOSED").strip(),
+            "action": str(item.get("action") or "new_class").strip(),
+        }
+        for key in ("target", "parent", "description", "alias"):
+            val = str(item.get(key, "")).strip()
+            if val:
+                rec[key] = val
+        records.append(rec)
+    return records
+
+
+# ---------------------------------------------------------------------------
 # Phase 2 — LLM proposal engine (ADR-0128, seocho-2mg). Phase 1 gives a
 # heuristic ``starter_mapping_spec``; this generates proposals with an LLM (via
 # the provider-aware structured layer) and scores each by its predicted

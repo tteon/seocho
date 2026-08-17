@@ -66,9 +66,11 @@ def register(subparsers) -> None:
     )
     ontology_review_parser.add_argument(
         "review_action",
-        choices=["ingest", "clusters", "export-spec", "apply"],
+        choices=["ingest", "clusters", "export-spec", "review-sheet", "apply"],
         help="ingest: detect+quarantine from an extracted-graph JSON; clusters: list ranked quarantine; "
-             "export-spec: write a starter mapping-spec YAML; apply: apply a mapping-spec to an ontology",
+             "export-spec: write a starter mapping-spec YAML; review-sheet: write a non-developer, "
+             "Docker-free YAML review sheet (edit status→APPROVED, then datahub-apply --terms); "
+             "apply: apply a mapping-spec to an ontology",
     )
     ontology_review_parser.add_argument("--quarantine", default=".seocho_quarantine.jsonl", help="Quarantine JSONL path")
     ontology_review_parser.add_argument("--schema", default=None, help="Ontology file (for ingest/export-spec/apply)")
@@ -289,6 +291,7 @@ def handle(args: argparse.Namespace) -> int:
             apply_mapping_spec,
             detect_ambiguities,
             load_mapping_spec,
+            render_review_sheet,
             starter_mapping_spec,
         )
 
@@ -318,6 +321,19 @@ def handle(args: argparse.Namespace) -> int:
                 for c in clusters:
                     print(f"  {c['frequency']:4d}×  {c['surface']:30s} signals={c['signals']} "
                           f"candidates={c['candidate_labels']}")
+            return 0
+
+        if args.review_action == "review-sheet":
+            ontology_name = ""
+            if args.schema:
+                ontology_name = Ontology.load(args.schema).name
+            text = render_review_sheet(q.clusters(), ontology_name=ontology_name)
+            if args.output:
+                Path(args.output).write_text(text, encoding="utf-8")
+                print(f"wrote review sheet → {args.output}  "
+                      "(edit `status: APPROVED`, then: seocho ontology datahub-apply --terms this-file)")
+            else:
+                print(text)
             return 0
 
         if args.review_action == "export-spec":
@@ -380,11 +396,18 @@ def handle(args: argparse.Namespace) -> int:
     if args.ontology_command == "datahub-apply":
         from ..ontology import Ontology
         from ..datahub_export import datahub_glossary_to_mapping_spec
-        from ..ontology_ambiguity import apply_mapping_spec
+        from ..ontology_ambiguity import apply_mapping_spec, parse_review_sheet
 
         ontology = Ontology.load(args.schema)
-        with open(args.terms, "r", encoding="utf-8") as f:
-            term_records = json.load(f)
+        raw = Path(args.terms).read_text(encoding="utf-8")
+        # Accept either raw term_records JSON (list) or an infra-free review
+        # sheet (YAML with a `terms:` list, seocho-v6w.8) — both normalize to the
+        # same term_records contract.
+        stripped = raw.lstrip()
+        if stripped.startswith("["):
+            term_records = json.loads(raw)
+        else:
+            term_records = parse_review_sheet(raw)
         spec = datahub_glossary_to_mapping_spec(term_records, only_status=args.status, ontology_name=ontology.name)
         new_onto = apply_mapping_spec(ontology, spec)
         payload = new_onto.to_jsonld()

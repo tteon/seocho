@@ -1,0 +1,50 @@
+{
+  "agentic": {
+    "runs_with_ragask": 3,
+    "agent_loop_llm": {
+      "calls": 2,
+      "total_ms": 194028,
+      "per_run_calls": 0.67,
+      "per_run_ms": 64676
+    },
+    "compile_llm": {
+      "calls": 3,
+      "total_ms": 26991,
+      "per_run_ms": 8997
+    },
+    "synth_llm": {
+      "calls": 3,
+      "total_ms": 14766,
+      "per_run_ms": 4922
+    },
+    "graph_ops": {
+      "calls": 13,
+      "total_ms": 124.9,
+      "per_run_ms": 41.6
+    }
+  },
+  "direct": {
+    "runs_with_ragask": 3,
+    "agent_loop_llm": {
+      "calls": 0,
+      "total_ms": 0,
+      "per_run_calls": 0.0,
+      "per_run_ms": 0
+    },
+    "compile_llm": {
+      "calls": 3,
+      "total_ms": 38722,
+      "per_run_ms": 12907
+    },
+    "synth_llm": {
+      "calls": 3,
+      "total_ms": 15730,
+      "per_run_ms": 5243
+    },
+    "graph_ops": {
+      "calls": 12,
+      "total_ms": 58.7,
+      "per_run_ms": 19.6
+    }
+  }
+}

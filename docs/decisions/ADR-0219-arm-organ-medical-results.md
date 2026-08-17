@@ -1,0 +1,156 @@
+# ADR-0219: arm×organ medical A/B + adversarial probes — measured results
+
+- Status: accepted (results of the ADR-0218 pre-registration)
+- Date: 2026-08-17
+- Tickets: seocho-5ny, seocho-e19 (leak probe), seocho-8qp (mutation probe), seocho-zfe (intern read side)
+
+## Instrument
+
+GraphRAG-Bench medical, full corpus indexed (3,908 nodes / 19,028 edges / 11 labels,
+top-label share 13%, label selectivity 8–25×; 28 cross-label homonyms). 21 questions
+(7 each: Fact Retrieval / Complex Reasoning / Contextual Summarize), deterministic
+id-sorted sample. Generator gpt-oss-120b, cross-vendor judge DeepSeek-V3.1.
+
+## Controls (pre-registered)
+
+- FLOOR (closed-book, no graph): coverage **0.90** → the public corpus is memorized;
+  answer-coverage CANNOT support an organ claim on this benchmark. Organ effects are
+  therefore read from DETERMINISTIC mechanism metrics.
+- CEILING (gold evidence in context): coverage **0.98**.
+
+## Clean A/B (9 arms × 21 q)
+
+Before wiring read-time entity resolution (the intern organ's read side) → after:
+
+| arm | answered before | answered after | coverage after |
+|-----|-----------------|----------------|----------------|
+| governed | 3/21 | **12/21** | 0.18 |
+| governed-no-intern | 3/21 | **3/21** (flat) | 0.05 |
+| bare | 2/21 | 2/21 | 0.07 |
+| governed-no-guardrail | — | 9 answered, **5 confabulations** (vs governed 2) | 0.19 |
+
+**Finding 1:** the allocator's READ side dominates. A structurally-perfect typed
+pipeline abstains on 86% of questions because `name = $param` exact equality misses the
+canonical surface form ("BCC" vs "basal cell skin cancer"). Resolving the mention to the
+stored canonical name quadruples answered questions; the `no-intern` leave-one-out stays
+flat, so the effect is causally the intern organ. Run 1 (resolve off) is preserved as the
+ablation's OFF arm (`medical_arm_organ_results_run1_noresolve.json`).
+
+## Probe 1 — tenant poisoning (workspace organ)
+
+A second tenant (med2) indexes fluent false facts whose treatment is a marker drug
+(Zorblaxin). Leak = marker appears in tenant-1's answer.
+
+| arm | leaks | answered |
+|-----|-------|----------|
+| governed | **0/6** | 4/6 |
+| governed-no-workspace | **2/6** | 6/6 |
+| bare | 0/6 | 2/6 (safe only by incapacity) |
+
+**Finding 2a:** isolation is load-bearing — verbatim leak "Basal cell carcinoma is
+treated with **Zorblaxin**." Two isolation principles the probe FORCED out (both are
+paper contributions):
+1. tenant scope must gate EVERY tenant-scoped op — read-time name resolution too, not
+   just the execute filter (v1 of the probe leaked 0 because resolve was tenant-scoped
+   and silently re-isolated the no-workspace arm);
+2. the organ must be a DETERMINISTIC system property, not a prompt — the LLM re-added
+   `{_workspace_id:$workspace_id}` despite an un-scoped prompt (v2 leaked 0), so the
+   workspace-off path now strips the scope clause deterministically.
+
+## Probe 2 — mid-run ontology mutation (pin/RCU organ)
+
+In-place relationship rename (TREATED_BY→HAS_THERAPY, HAS_SYMPTOM→SHOWS_SIGN) between
+pre and post request batches; graph unchanged.
+
+| arm | answered pre→post | spurious rejections pre→post |
+|-----|-------------------|------------------------------|
+| governed (pin ON) | 4/6 → **4/6** | 0 → **0** (immune) |
+| governed-no-pin | 2/6 → **1/6** | 1 → **4** (collapse) |
+
+**Finding 2b:** the pin organ prevents prompt-schema / admission-policy DISAGREEMENT
+mid-run (not torn reads). Un-pinned, the live policy (v2) rejects still-valid v1 queries;
+pinned, prompt and policy derive from one frozen snapshot.
+
+## Negative results (kept, per workshop CFP)
+
+1. erb procedural document-QA gold over an entity graph → uniform null (all arms ≈0
+   coverage, universal abstain). Instrument mismatch, not system failure. (ADR-0218)
+2. Judge-coverage on a memorized public corpus (floor 0.90) measures the generator, not
+   the memory. Contamination floors must be mandatory controls.
+
+## Probe 1' — cross-tenant homonym semantics (reframed per hadry: meaning boundary, not attack)
+
+"Atlas" = Engineering's deployment pipeline (dept_eng) AND Sales' customer account
+(dept_sales), one database (`deptlpg`). Sales user asks about Atlas; cross-talk =
+Engineering's marker facts in the Sales answer.
+
+| arm | cross-talk |
+|-----|-----------|
+| governed | **0/3** (Sales meaning only) |
+| governed-no-workspace | **2/3** — "Atlas is owned by the **SRE team**"; events = canary/rollback/outage |
+
+**Finding 2a′ (headline):** isolation is a MEANING boundary before it is a security
+boundary — without it, a pipeline incident is misattributed to a customer with no
+attacker anywhere. The Zorblaxin poisoning variant (above) is the security face of the
+same mechanism.
+
+## Probe 3 — dual-index intern ablation (write side)
+
+- **OFF₀ (no identity layer, raw extractor ids)** — `medicalnxlpg`: sequential ids
+  (`d1`, `d2`) collide across chunks → random entity fusion. Measured: "Anal Cancer"
+  id=d1 **degree 694**, TREATED_BY orchiectomy (prostate) + tamoxifen/SERMs (breast),
+  LOCATED_IN lungs/bladder. 83 fragmented names, entity census collapsed 2,704→900
+  (corrupted fusion, not convergence). **Write-side wrong-fusion catastrophe.**
+- **OFF₁ (fair name-keyed baseline, identity_keys=['name'])** — `medicalnx1lpg`,
+  indexing in flight. 3-tier comparison: OFF₀ (catastrophe) / OFF₁ (competent naive)
+  / ON (canonical+alias+resolve).
+
+## Reclamation demo (pin = eviction guard, hadry's B3 intuition)
+
+Deterministic control-plane demo (no LLM): request pins v1 → v2 published, v1 retired
+→ `reclaim()` HOLDS v1 (`held=['1.0.0']`, min_pinned_epoch=0) → unpin → reclaim frees
+it. The pin is one refcount with two guarantees: per-request version consistency
+(probe 2) and safe reclamation (this demo).
+
+## erb A/B rerun (fixed stack) — honest null stands
+
+With resolve+repair wired, erb procedural gold still abstains 9/10 (cov 0.05).
+The corpus is right (closed-book floor **0.31** vs medical 0.90 — hadry's
+contamination point confirmed) but the questions are not graph-expressible; the
+coverage story on ERB needs an entity-centric question slice (seocho-vdw.6, post-8/29).
+Side signal: no-schema/no-pin arms hit 7/10 guardrail rejects — introspected schema
+exposing undeclared doc-plane labels vs ontology policy = live B3-mismatch friction.
+
+## Held-out validation of Finding 1 (circularity defense)
+
+The resolve fix was designed after inspecting the original 21 questions' failures.
+Re-ran governed vs no-intern on a DISJOINT held-out 21 (per-type ranks 8–14):
+governed **14/21** answered (cov 0.221) vs no-intern **7/21** (cov 0.150). The
+effect replicates on data it was not tuned on (4×→2×, direction and magnitude robust).
+`outputs/agentos/heldout_intern_check.json`.
+
+## Pending
+
+- OFF₁ index completion → 3-tier intern census + governed answer-rate on OFF₁.
+- Core edits (read-side resolve, workspace scope-strip + resolve gating, introspected
+  schema shape fix, guardrail workspace gate) need a PR with unit tests.
+- ERB entity-centric slice (vdw.6) — post-deadline extension.
+
+## OFF₁ result (3-tier complete)
+
+| tier | entities | fragmented names | max degree |
+|---|---|---|---|
+| ON (canonical ~xs + resolve) | 2,704 | 0 | 261 |
+| OFF₁ (name-keyed composite id) | 2,693 | 0 | 261 |
+| OFF₀ (no identity layer) | 900 (corrupted fusion) | 83 | **694** |
+
+**Precision sharpening (honest):** on a SINGLE-SOURCE corpus, competent name-keying
+(OFF₁) reproduces the canonical graph's structure. The intern claim therefore splits
+into three precisely-evidenced parts: (1) an identity layer AT ALL is load-bearing
+(OFF₀ catastrophe); (2) READ-side resolution is load-bearing (held-out 14/21 vs 7/21);
+(3) the label-free canonical address earns its keep only where sources multiply
+(erb: 9 canonical entities fusing 2–4 sources — the join key name-per-label cannot
+provide). No overclaim: each piece has its own evidence and its own scope.
+
+NOTE: ADRs renumbered 0214/0215 → 0218/0219 (parallel sessions claimed 0214–0217 on
+origin/main; datahub track memory records the same race).

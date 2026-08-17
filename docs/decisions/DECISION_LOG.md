@@ -1346,3 +1346,14 @@ Use this block for new entries:
   coverage. Enabled by #592 (anchor de-framing) + #593 (real write counters).
   Caveats: n small, single-path, judge unaudited. Follow-ups: productize proposer +
   coverage-feedback surface, broaden to ≥20 Qs + text2cypher arm.
+- [Experimental] ADR-0215 multi-agent-handoff + SDK guardrails/context (seocho-5ny) —
+  hand-off mechanism code-verified: workspace_id baked into each sub-agent's tools
+  (scope can't leak via NL hand-off); no input_filter so full conversation crosses.
+  Live (MARA + Agents SDK 0.13.6): the hand-off loop did NOT converge
+  (MaxTurnsExceeded) — agent-mode query tool emitted malformed Cypher and spun; the
+  deterministic single-agent path stays reliable. Guardrails/context CAN and partly
+  DO ride the SDK: integrations/openai_agents.py already wraps SEOCHO's deterministic
+  ontology guardrail into tool_input_guardrail (+ GuardrailLedger); operating_layer
+  maps the pillars. Gap: factory-built agents don't wire it → the unguarded loop.
+  Follow-ups: wire guardrails onto factory agents, fix agent-mode Cypher, add
+  handoff input_filter / RunContextWrapper.

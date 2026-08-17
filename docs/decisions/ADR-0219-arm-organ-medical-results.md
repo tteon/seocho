@@ -154,3 +154,41 @@ provide). No overclaim: each piece has its own evidence and its own scope.
 
 NOTE: ADRs renumbered 0214/0215 → 0218/0219 (parallel sessions claimed 0214–0217 on
 origin/main; datahub track memory records the same race).
+
+## Multi-agent upgrade: organs under REAL OpenAI-Agents-SDK concurrency
+
+The sequential probes' honest caveats (no concurrency; mutation between requests)
+are now closed by two SDK-level checks (`check_sdk_context_mgmt.py`,
+`check_sdk_shared_memory_organs.py`):
+
+**SDK context management** (3 verdicts): per-run `RunContextWrapper` context reaches
+SEOCHO and selects the tenant (A=works, 0 cross-markers); concurrent closure agents
+stay isolated under `asyncio.gather` (B=holds, ContextVar B7); current closure-factory
+tools SILENTLY ignore `Runner.run(context=...)` (C=gap → seocho-8iq).
+
+**Shared memory + intern (cross-writer convergence):** two SDK writer agents, each
+with its OWN client, concurrently ingest halves of a fact into one workspace →
+ONE canonical node (`~xs|atlas gateway`, sources=2) and a third agent answers the
+cross-writer join ("Which team owns the entity involved in INC-7?" → Platform Team).
+Convergence comes from the ADDRESS's determinism, not a shared in-process table.
+
+**Concurrency bugs found → fixed → re-verified (the point of the exercise):**
+1. MERGE race (seocho-19f): without a DB constraint, two concurrent writers
+   nondeterministically produced TWO nodes with the same canonical id (run1 converged,
+   run2 raced). Fix: composite `UNIQUE (id, _workspace_id)` per label created on the
+   EMPTY database gives MERGE the key lock — post-fix rerun converges deterministically.
+2. DozerDB NODE KEY crash (seocho-r52): NODE-KEY-type constraint creation crashes the
+   database (empty DB too — type-specific bug); composite UNIQUE works and suffices.
+   deptlpg was wedged and rebuilt (synthetic probe data, no loss).
+
+**pin/RCU under in-flight mutation (final numbers):** 4 reader agents concurrent via
+`asyncio.gather`, live ontology renamed at t=0.5s (before their schema resolves):
+
+| arm | answered | spurious rejections |
+|-----|----------|---------------------|
+| governed (pin ON) | **4/4** | **0** |
+| governed-no-pin | **0/4** | **4/4** (`unknown_relationships:OWNED_BY/INVOLVED_IN`) |
+
+Total collapse vs total immunity — stronger than the sequential probe (2/4). Timing
+matters: with the mutation landing at t=4s (after schema resolves), no-pin also
+survives — the race window is real and measured, not assumed.

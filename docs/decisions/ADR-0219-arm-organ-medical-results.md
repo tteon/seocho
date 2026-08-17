@@ -290,3 +290,32 @@ refuses any query not referencing the authenticated session's `$workspace_id` bi
 so specifying another tenant by literal cannot cross the wall (the RLS SET-LOCAL
 lesson). Ontology-as-guardrail holds on real data at execution time, not just in the
 validator.
+
+## Hybrid deployment probe: does the guardrail let a SMALL model do text2cypher? (NULL, honest)
+
+Motivated by the hybrid thesis (on-prem small text2cypher + API large synthesis, keep
+sensitive data local). Size proxy via MARA: LARGE=gpt-oss-120b, SMALL=gemma-4-31B, on
+the medical graph, 15 questions, governed arm.
+
+| condition | answered | guardrail rejects | mean repairs |
+|-----------|----------|-------------------|--------------|
+| A large + guardrail | 9/15 | 0 | 0.0 |
+| B small + guardrail | 3/15 | 0 | 0.2 |
+| C small - guardrail | 3/13 | 0 | 0.0 |
+
+**Result: the original hybrid framing is REFUTED.** The guardrail does NOT close the
+small→large gap (B==C==3). Mechanism: the small model's shortfall is NOT guardrail
+rejections (rejects=0) — its queries PASS the guardrail but return 0 rows, i.e. they
+are schema-valid but SEMANTICALLY wrong (wrong entity/traversal). The guardrail catches
+schema violations, not semantic wrongness.
+
+**The precise, defensible conclusion:** governance (safety) is model-size-INDEPENDENT
+(a small governed model is as SAFE as a large one — rejects=0 here, and finance 8/8 /
+misalignment 3/3 confirm), because it is deterministic (0.5% tax, size-independent);
+but generation CAPABILITY (correct multi-hop Cypher) is size-DEPENDENT and the guardrail
+cannot rescue it. So the hybrid split (safety on-prem-small, synthesis on API-large) is
+a real TRADE-OFF, not a free lunch: data sovereignty is preserved and safety is
+lossless, but on-prem-small generation costs answer-rate. Mitigations to test:
+read-side entity resolution (the intern lever that lifted governed 3→12), higher repair
+budget, or a slightly larger on-prem model. Caveats: N=15, single small model, hard
+medical set (floor 0.90), 31B-vs-120B proxy (a true tiny model would gap more).

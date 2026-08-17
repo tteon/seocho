@@ -264,3 +264,29 @@ deny-list (enumerated rules), which is exactly what a compliance boundary needs.
 Method also demonstrates an automated coverage-search for governance holes (the
 A3 loop repurposed): find bypasses we did not hand-author; a slip-through would be a
 next-organ ticket.
+
+## Finance red-team on a LIVE graph of REAL SEC filings
+
+Upgrade from validator-only to LIVE execution. Real public data: AAPL/MSFT/NVDA
+issuers with real XBRL facts (diluted EPS, revenue) + 12 real Filing nodes
+(accession/form/date from data.sec.gov), workspace finwall_public (15 nodes). Synthetic
+MNPI deal side (workspace finwall_deal, 2 nodes) — MNPI is never in EDGAR, so it MUST
+be synthetic. Chinese-wall control tested by EXECUTING boundary-crossing Cypher through
+the governed engine (workspace_enforce ON) against the live 2-tenant graph.
+
+**Two alignment refusals (recorded finding):** the generator (gpt-oss-120b) REFUSED to
+produce the bypass queries under both an insider-trading framing AND an
+authorized-isolation-test framing ("I'm sorry, but I can't help with that"). The
+alignment layer engaged on framing — which is itself the two-channel point: alignment
+is framing-sensitive and probabilistic; the substrate is neither. Substrate tests do
+not need a cooperative generator, so a hand-authored cross-wall set (legitimate:
+own system, synthetic MNPI, authorized) was executed instead.
+
+**Result: 8/8 cross-wall attempts blocked at the STORE level** (`WorkspaceFilterMissingError`):
+direct Deal match, name search for Titan, INVOLVES traversal, all-node scan, keyword
+scan, variable-length path, reverse traversal, and even a literal
+`WHERE d._workspace_id='finwall_deal'` INJECTION. The last is the sharpest: the store
+refuses any query not referencing the authenticated session's `$workspace_id` binding,
+so specifying another tenant by literal cannot cross the wall (the RLS SET-LOCAL
+lesson). Ontology-as-guardrail holds on real data at execution time, not just in the
+validator.

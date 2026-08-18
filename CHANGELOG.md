@@ -3,7 +3,84 @@
 All notable changes to this project are documented here. Versioning follows
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.6.0] — 2026-08-18
+
+Minor release covering everything since the last published version (0.4.1,
+2026-05-17). The 0.5.0 release below was prepared on 2026-06-05 but never
+uploaded to PyPI; this release supersedes it and includes its
+semantic-layer/arbiter and ontology-engineering content. Headline: the SEOCHO
+operating layer (AgentOS), the structured query engine, identity interning as
+a governed shared-memory layer, provenance + layered security, and OpenAI
+Agents SDK orchestration coupling. Additive except where noted under
+**Changed/Removed**.
+
+### Added — operating layer (AgentOS)
+- **`seocho.agentos.AgentOS`** — one facade binding admission control, pinned
+  tenancy (model-supplied workspace params are always overwritten), token
+  budgets with structured exhaustion, and always-disclosed truncation, exposed
+  over the governed store path and the OpenAI Agents SDK (`Session` protocol
+  memory, `RunHooks`, `tool_input_guardrail`) (ADR-0157).
+- **Scheduler** — light/heavy lanes with per-lane service EWMA, fast-fail,
+  work-conserving priority reserve; per-tenant scheduler instances plus
+  point-lookup light-lane routing. All off by default on `Seocho(...)`
+  (ADR-0158/0159/0207).
+- **Measured guarantees** (ablations ADR-0164..0168): cross-tenant leaks
+  21 → 0 under attack; budget overshoot under one turn; truncation disclosure
+  0 → 1.0; control-plane overhead ≤ 4.1% of request time; task-correctness
+  near-parity under governance (disclosed cost: ~5x tokens on the agent path).
+
+### Added — structured query engine
+- **`Seocho.ask(..., engine="structured")`** — deterministic pipeline:
+  pinned-schema resolve → ontology-grounded text2cypher (declared identifiers
+  only, fully parameterized, workspace-scoped on every node) → guardrail →
+  governed execute → synthesizer. Honest abstain reasons distinguish
+  `structured_no_evidence` from `structured_guardrail_rejected`
+  (ADR-0202/0205/0208).
+- **Repair loop** — guardrail rejections feed back into generation with a
+  bounded retry budget before abstaining (ADR-0209).
+- **Per-request run-context spine** — concurrency-safe ContextVar context with
+  RCU ontology version pinning; readers never see a mid-request schema swap
+  (ADR-0200/0201, RCU B1–B3).
+
+### Added — identity / shared memory
+- **`SharedInternTable`** read-side canonical resolver (name-alias index,
+  homonyms surface candidates instead of guessing) and opt-in cross-source
+  convergence via `NodeDef.cross_source_unique` (ADR-0203/0204).
+- **Workspace-scoped graph MERGE** — nodes key on `(id, _workspace_id)` and
+  relationship endpoints match within the workspace, so two tenants' identical
+  canonical id never share a physical node (ADR-0206).
+- Pin-aware eviction, ontology freshness policy with read repair, drift
+  barrier, and offline axiom induction (ADR-0186, 0193–0196).
+
+### Added — provenance + layered security
+- **`seocho.provenance` / `seocho.provenance_store`** — content-addressed fact
+  ids tying Postgres ground-truth rows to graph nodes, value-free PROV-O
+  bundles, RLS-backed governed projection (ADR-0211).
+- **`seocho.security_levels`** — dataset/row/cell/sub-cell security over a
+  public<internal<restricted<secret lattice, default-deny, with a redaction
+  audit trail; sub-cell array-element filtering is new capability (ADR-0212).
+
+### Added — Agents SDK orchestration
+- Ontology guardrail wired onto factory-built agents; **controlled query
+  agent** (single deterministic `answer_from_graph` tool) with Supervisor
+  routing to it by default — orchestration is consumed from the Agents SDK,
+  deterministic bodies stay SEOCHO's (ADR-0215/0216/0217).
+
+### Added — client ergonomics + integration surface
+- Client namespaces **`sc.index` / `sc.governance` / `sc.platform` /
+  `sc.sessions`** grouping the facade; `AsyncSeocho` parity generated
+  (ADR-0174).
+- `seocho.ontology` is now a subpackage with an unchanged public API
+  (ADR-0173).
+- Read-only **connector materialization layer** (Notion, Slack, DataHub,
+  PostgreSQL, Neo4j/DozerDB + LangChain/LlamaIndex converters) writing
+  `seocho.connector_record.v1` JSONL (ADR-0150).
+
+### Changed / Removed
+- **Tracing backend contract is now `none | console | jsonl | otlp`; the Opik
+  backend was removed** (ADR-0172). Metrics consolidate into the
+  `seocho.metrics` registry (single provider, bounded labels).
+- New extras: `otel`, `postgres`, `memory-bench`.
 
 ### Operations
 - Added release and Discord community operating criteria in
@@ -11,7 +88,18 @@ All notable changes to this project are documented here. Versioning follows
 - Added a GitHub release checklist issue template to capture release gates,
   release notes, and the `#seocho` announcement draft before publishing.
 
-## [0.5.0] — 2026-06-04
+### Known gaps
+- Release validation = basic CI + clean-venv wheel build, import smoke of all
+  headline modules, `seocho --help`, and `Seocho.local(...)` construction
+  against embedded LadybugDB. Live LLM/graph end-to-end and answer quality are
+  tracked separately (ADR-0214/0218 caveats apply).
+- `Seocho.local(...)` without an `api_key` fails at construction with an
+  upstream OpenAI-branded credential error; a SEOCHO-native message is a
+  follow-up.
+- `runtime/` (agent server, policy) remains git/Docker-distributed by design;
+  the wheel ships the SDK only.
+
+## [0.5.0] — 2026-06-04 (not published to PyPI; superseded by 0.6.0)
 
 Minor release shipping the ontology-as-semantic-layer + arbiter retrieval path
 (ADR-0103) and a new ontology-engineering layer. The previously published 0.4.1

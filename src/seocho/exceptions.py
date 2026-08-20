@@ -11,6 +11,15 @@ class SeochoConnectionError(SeochoError):
     """Raised when the client cannot reach the SEOCHO backend."""
 
 
+class SeochoCredentialError(SeochoError):
+    """Raised when an LLM provider credential is missing.
+
+    Replaces the upstream ``openai`` client's ``OPENAI_API_KEY``-branded
+    construction error with a message that names the actual provider and
+    the environment variable(s) SEOCHO resolves for it.
+    """
+
+
 class SeochoHTTPError(SeochoError):
     """Raised when the SEOCHO backend returns an HTTP error."""
 

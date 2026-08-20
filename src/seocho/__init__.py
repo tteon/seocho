@@ -133,6 +133,7 @@ _MODULE_EXPORTS: Dict[str, Iterable[str]] = {
     ],
     ".exceptions": [
         "SeochoConnectionError",
+        "SeochoCredentialError",
         "SeochoError",
         "SeochoHTTPError",
     ],
@@ -458,6 +459,7 @@ __all__ = [
     # Errors users catch
     "SeochoError",
     "SeochoConnectionError",
+    "SeochoCredentialError",
     "SeochoHTTPError",
     "OntologyDriftError",
 ]

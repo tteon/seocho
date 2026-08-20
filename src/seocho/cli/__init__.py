@@ -364,6 +364,7 @@ def build_parser() -> argparse.ArgumentParser:
     local_ask_parser.add_argument("--llm-base-url", default=None, help="Override the provider base URL")
     local_ask_parser.add_argument("--reasoning", action="store_true", help="Enable reasoning mode (auto-retry)")
     local_ask_parser.add_argument("--repair-budget", type=int, default=2, help="Max repair attempts")
+    local_ask_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
 
     status_parser = subparsers.add_parser("status", help="Show graph database status")
     status_parser.add_argument("--database", default="neo4j", help="Target database")
@@ -1534,7 +1535,10 @@ def _cmd_local_ask(args: argparse.Namespace) -> int:
             reasoning_mode=args.reasoning,
             repair_budget=args.repair_budget,
         )
-        print(answer)
+        if getattr(args, "output_json", False):
+            print(json.dumps({"answer": answer}, indent=2))
+        else:
+            print(answer)
     finally:
         client.close()
 

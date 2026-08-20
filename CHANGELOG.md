@@ -3,6 +3,16 @@
 All notable changes to this project are documented here. Versioning follows
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+- **`SeochoCredentialError` on missing LLM credentials.** Constructing an LLM
+  backend (including via `Seocho.local(...)`) with no API key now raises a
+  SEOCHO-native error naming the actual provider and its environment
+  variable(s) (e.g. `MARA_API_KEY`), instead of the upstream `openai` client's
+  `OPENAI_API_KEY`-branded error. Keyless local gateways keep working via the
+  documented `api_key="EMPTY"` sentinel (vLLM applies it automatically).
+
 ## [0.6.0] — 2026-08-18
 
 Minor release covering everything since the last published version (0.4.1,

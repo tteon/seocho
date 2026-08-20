@@ -1039,11 +1039,31 @@ class CypherBuilder:
         # scan and report the total node count.
         if anchor_entity and relationship_type in self.ontology.relationships:
             src_label = target_label if target_label in self.ontology.nodes else label
-            src_clause = f":{quote_identifier(src_label)}" if src_label else ""
-            rel_clause = f":{quote_identifier(relationship_type)}"
             # Anchor label matters twice: it makes the pattern index-eligible and it
             # tells us which identity key to compare against.
             anchor_label = label if label in self.ontology.nodes else src_label
+            # When the ontology declares two DISTINCT endpoint labels, the
+            # declaration is authoritative for which side is counted and which
+            # side carries the anchor predicate. Plans routinely arrive with the
+            # counted label in the anchor slot ("how many projects in Vietnam"
+            # → anchor_label=Project), and _orient_relationship then pins the
+            # anchor to the declared source — so the filter equality landed on
+            # the counted side (anchor.registry_id = 'Vietnam') while the
+            # pattern ran against the declared direction reversed: a valid query
+            # that always matches zero rows. Same-label relationships (TRANSFER:
+            # Account -> Account) keep the existing role-based behaviour.
+            rel_def = self.ontology.relationships[relationship_type]
+            if (
+                rel_def.source in self.ontology.nodes
+                and rel_def.target in self.ontology.nodes
+                and rel_def.source != rel_def.target
+            ):
+                if getattr(self, "anchor_role", "") == "source":
+                    anchor_label, src_label = rel_def.source, rel_def.target
+                else:
+                    anchor_label, src_label = rel_def.target, rel_def.source
+            src_clause = f":{quote_identifier(src_label)}" if src_label else ""
+            rel_clause = f":{quote_identifier(relationship_type)}"
             anchor_clause = f":{quote_identifier(anchor_label)}" if anchor_label else ""
             sargable = self._sargable_anchor("anchor", anchor_label, anchor_entity)
             if sargable is not None:

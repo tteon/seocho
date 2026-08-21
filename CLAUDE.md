@@ -114,10 +114,10 @@ These are intentionally not tracked public surfaces:
 
 - `.agents/`
 - `.beads/`
-- `.claude/` — all of it, with no exception. `ADR-0113` once carved out
-  `.claude/skills/`; `ADR-0196` withdrew that, because one tracked file needed
-  a bespoke branch in the hygiene contract and a partial rule is the kind that
-  drifts.
+- `.claude/` — **except `.claude/skills/`**, which is version-controlled
+  shared project tooling (ADR-0113). Claude Code auto-loads project skills
+  from there on clone; everything else under `.claude/` (settings, local
+  state) stays untracked.
 - `.githooks/`
 - `.jules/`
 - `.serena/`

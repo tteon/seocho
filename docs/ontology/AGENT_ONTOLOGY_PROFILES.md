@@ -23,7 +23,7 @@ SHACL change creates a new canonical bundle digest and requires governance.
 
 The intended promotion path is:
 
-    JSON-LD source -> Turtle/SHACL -> Oxigraph validation/reasoning ->
+    JSON-LD source -> Turtle/SHACL -> offline SHACL validation ->
     governance receipt (promotable=true) -> approved candidate ->
     projection profile -> seochod Rust Bolt write -> DozerDB canonical graph
 
@@ -45,6 +45,11 @@ placing a raw JSON-LD file into every prompt.
 (`ontology_profile`, `ontology_slice`) into a real OpenAI Agents SDK agent.
 Without that explicit argument, the existing graph agent remains compatible and
 does not claim agent-selected JIT context delivery.
+
+Oxigraph is the bounded RDF read model in this flow; it is not the SHACL
+validator. The current offline validation implementation is PySHACL. This
+separation keeps expensive governance work out of the request and projection
+hot paths.
 
 For receipt-enforced Rust projection, set `SEOCHO_RDF_GOVERNANCE_RECEIPT` and
 `SEOCHO_AGENT_ONTOLOGY_PROFILE` together in the SEOCHO process, and set

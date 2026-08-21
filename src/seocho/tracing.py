@@ -969,13 +969,23 @@ def log_query(
     """
     model_tag = f"{provider}/{model}" if provider else model
     output_data: Dict[str, Any] = {
-        "cypher_preview": cypher[:200],
         "result_count": result_count,
         "reasoning_attempts": reasoning_attempts,
     }
+    captured_question = capture_text(question, max_chars=200)
+    captured_cypher = capture_text(cypher, max_chars=200)
+    if captured_cypher is not None:
+        output_data["cypher_preview"] = captured_cypher
     captured_answer = capture_text(answer)
     if captured_answer is not None:
         output_data["answer"] = captured_answer
+
+    input_data: Dict[str, Any] = {
+        "ontology": ontology_name,
+        **({"ontology_package": ontology_package} if ontology_package else {}),
+    }
+    if captured_question is not None:
+        input_data["question"] = captured_question
 
     tags = [
         "query", f"stage:{stage}",
@@ -986,20 +996,74 @@ def log_query(
 
     log_span(
         "sdk.query",
-        input_data={
-            "question": question[:200],
-            "ontology": ontology_name,
-            **({"ontology_package": ontology_package} if ontology_package else {}),
-        },
+        input_data=input_data,
         output_data=output_data,
         metadata={
             "model": model_tag,
             "elapsed_seconds": round(elapsed_seconds, 2),
             "workspace_id": workspace_id,
-            **(metadata or {}),
+            **_query_trace_metadata(metadata),
         },
         tags=tags,
     )
+
+
+def _query_trace_metadata(metadata: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """Return query metadata safe for normal, content-free tracing.
+
+    ``build_local_query_metadata`` is intentionally rich enough for a local
+    response/debug artifact: it includes answer text, Cypher, parameters, and
+    evidence slot values.  Passing it wholesale to JSONL/OTLP made the default
+    trace contradict the content-capture policy.  Keep aggregate and receipt
+    fields in normal telemetry; an explicitly authorized content-capture run
+    may retain the full diagnostic payload.
+    """
+    source = dict(metadata or {})
+    if content_capture_enabled():
+        return source
+
+    result: Dict[str, Any] = {}
+    for key in (
+        "schema_version",
+        "workspace_id",
+        "database",
+        "query_mode",
+        "ontology_name",
+        "ontology_context_hash",
+        "result_count",
+        "reasoning_attempts",
+        "latency_breakdown_ms",
+        "token_usage",
+        "agent_pattern",
+    ):
+        if key in source:
+            result[key] = source[key]
+
+    support = source.get("support_assessment")
+    if isinstance(support, dict):
+        result["support_assessment"] = {
+            key: support[key]
+            for key in ("status", "reason", "row_count")
+            if key in support
+        }
+        result["support_assessment"]["missing_slot_count"] = len(
+            support.get("missing_slots", []) or []
+        )
+
+    evidence = source.get("evidence_bundle")
+    if isinstance(evidence, dict):
+        result["evidence_summary"] = {
+            "schema_version": evidence.get("schema_version"),
+            "intent_id": evidence.get("intent_id"),
+            "coverage": evidence.get("coverage"),
+            "confidence": evidence.get("confidence"),
+            "focus_slot_count": len(evidence.get("focus_slots", []) or []),
+            "grounded_slot_count": len(evidence.get("grounded_slots", []) or []),
+            "missing_slot_count": len(evidence.get("missing_slots", []) or []),
+            "provenance_count": len(evidence.get("provenance", []) or []),
+            "selected_triple_count": len(evidence.get("selected_triples", []) or []),
+        }
+    return result
 
 
 def log_experiment_run(

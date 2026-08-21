@@ -32,3 +32,17 @@ directly to `seochod`. Filesystem-managed bundles should be immutable version
 directories, with a separate atomic `current` pointer controlled by the
 SEOCHO CLI. This gives agents stable read snapshots and makes rollback a pointer
 change rather than an in-place edit.
+
+For just-in-time context, use `seocho ontology context profile --bundle ...
+--purpose query` for the fixed purpose profile, or `ontology context slice
+--terms Account,TRANSFER --max-chars 4000` for a bounded, verified view. A
+slice returns its canonical bundle and profile digests plus allowed vocabulary;
+it never returns a host path or silently injects the entire ontology. This is
+the CLI-level primitive that an Agents SDK tool should expose, rather than
+placing a raw JSON-LD file into every prompt.
+
+For receipt-enforced Rust projection, set `SEOCHO_RDF_GOVERNANCE_RECEIPT` and
+`SEOCHO_AGENT_ONTOLOGY_PROFILE` together in the SEOCHO process, and set
+`SEOCHOD_REQUIRE_GOVERNANCE=1` in the daemon process. SEOCHO validates that the
+profile derives from the promotable governed bundle; `seochod` stamps the four
+resulting hashes on canonical nodes and relationships.

@@ -106,6 +106,61 @@ def build_bundle_atomically(ontology: Any, destination: str | Path) -> dict[str,
         raise
 
 
+def load_agent_profile(bundle_dir: str | Path, purpose: str) -> dict[str, Any]:
+    """Load a verified, purpose-scoped profile without exposing a host path."""
+    checked = verify_rdf_bundle(bundle_dir)
+    if not checked["ok"]:
+        raise ValueError("cannot load a profile from an invalid bundle")
+    path = Path(bundle_dir) / "agent-profiles" / f"{purpose}.json"
+    try:
+        profile = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise ValueError(f"agent profile unavailable: {purpose}") from exc
+    if profile.get("schema_version") != "seocho.agent_ontology_profile.v1" or profile.get("purpose") != purpose:
+        raise ValueError("agent profile schema or purpose mismatch")
+    if profile.get("canonical_bundle_sha256") != checked["bundle_sha256"]:
+        raise ValueError("agent profile is not derived from this bundle")
+    candidate = dict(profile); profile_hash = candidate.pop("profile_sha256", "")
+    computed = hashlib.sha256(json.dumps(candidate, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    if profile_hash != computed:
+        raise ValueError("agent profile hash mismatch")
+    return profile
+
+
+def slice_agent_profile(bundle_dir: str | Path, purpose: str, terms: list[str], *, max_chars: int = 4000) -> dict[str, Any]:
+    """Return a bounded, term-relevant profile view for JIT agent context."""
+    if max_chars < 256:
+        raise ValueError("max_chars must be at least 256")
+    profile = load_agent_profile(bundle_dir, purpose)
+    haystack = json.dumps(profile, ensure_ascii=False, sort_keys=True)
+    normalized = [term.casefold() for term in terms if term.strip()]
+    if not normalized:
+        raise ValueError("at least one retrieval term is required")
+    matched = [term for term in normalized if term in haystack.casefold()]
+    # Stable, bounded fields are intentionally returned instead of raw ontology
+    # source.  The agent can request a second, more specific slice when needed.
+    payload = {
+        "schema_version": "seocho.agent_ontology_slice.v1",
+        "purpose": purpose,
+        "canonical_bundle_sha256": profile["canonical_bundle_sha256"],
+        "profile_sha256": profile["profile_sha256"],
+        "terms": normalized,
+        "matched_terms": matched,
+        "allowed_node_labels": profile.get("allowed_node_labels", []),
+        "allowed_relationship_types": profile.get("allowed_relationship_types", []),
+    }
+    context = profile.get(f"{purpose}_context", {})
+    selected = {key: value for key, value in context.items() if any(term in str(value).casefold() or term in key.casefold() for term in normalized)}
+    payload["context"] = selected
+    rendered = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+    if len(rendered) > max_chars:
+        payload["context"] = {"notice": "slice truncated; refine terms or request a narrower tool call"}
+        payload["truncated"] = True
+    else:
+        payload["truncated"] = False
+    return payload
+
+
 class OntologyLifecycleStore:
     """Persistent active-pointer plus expiring writer lease store for one host."""
 

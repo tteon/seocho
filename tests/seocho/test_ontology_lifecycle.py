@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from seocho.ontology.active_pointer import ActiveOntologyPointer
-from seocho.ontology.lifecycle import OntologyLifecycleStore
+from seocho.ontology import NodeDef, Ontology, Property, build_rdf_ontology_bundle
+from seocho.ontology.lifecycle import OntologyLifecycleStore, load_agent_profile, slice_agent_profile
 
 
 def _manifest(bundle, package: str = "demo", version: str = "1.0.0") -> None:
@@ -53,3 +54,13 @@ def test_admission_is_minimal_and_requires_a_live_lease(tmp_path):
         "epoch": 0,
         "fencing_token": lease.fencing_token,
     }
+
+
+def test_verified_profile_and_jit_slice_are_bounded(tmp_path):
+    ontology = Ontology(name="people", namespace="https://example.test/people#", version="1.0.0", nodes={"Person": NodeDef(properties={"name": Property(str, required=True)})})
+    bundle = build_rdf_ontology_bundle(ontology, tmp_path / "bundle")
+    profile = load_agent_profile(bundle.directory, "query")
+    assert profile["purpose"] == "query"
+    sliced = slice_agent_profile(bundle.directory, "query", ["Person"], max_chars=4000)
+    assert sliced["canonical_bundle_sha256"] == bundle.digest
+    assert "Person" in sliced["allowed_node_labels"]

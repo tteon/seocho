@@ -1415,3 +1415,22 @@ Use this block for new entries:
   3-tier shows no-identity-layer catastrophic fusion (degree-694 node) while a fair
   name-keyed baseline matches canonical structure on a single-source corpus —
   sharpening the intern claim to its three separately-evidenced parts.
+
+## 2026-08-17 (DataHub interchange: boundary, not internalization)
+
+- [Accepted] ADR-0222 DataHub = boundary serialization target (seocho-v6w)
+  - 12-agent review (6/6 adversarial verifications CONFIRMED): rejected
+    internalizing DataHub's entities/aspects/URN/entity-registry — aspect
+    decomposition destroys the whole-document fingerprint / SnapshotConflict /
+    cross-facet validate() invariants; corpuser violates user_id-not-in-graph;
+    Unity Catalog (HMS as foreign catalog) and all healthy DataHub integrations
+    are boundary adapters
+  - seam rule: `urn:li:*` + aspect names live only in datahub_export.py and
+    connectors/datahub.py; only normalized term_records / connector_record.v1
+    cross inward
+  - accepted internalizations: seocho-native URN scheme (portable intern-table
+    address, urn:li derived at the boundary) + audit fields on OntologySnapshot
+  - review signal = globalTags tag (advisory; SEOCHO never writes that aspect,
+    so re-export can't clobber approvals); pull → diff → human confirm →
+    snapshot save; infra-free review path stays first-class; docs say
+    "DataHub integration", never "DataHub-compatible"

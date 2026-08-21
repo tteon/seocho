@@ -1,0 +1,24 @@
+{
+  "adr": "ADR-0218", "status": "experimental", "date": "2026-08-17",
+  "goal": "identify where the agentic-RAG bottleneck is",
+  "environment": {"model": "MARA MiniMax-M2.7 (API)", "graph": "DozerDB 5.26.3",
+                  "orchestration": "OpenAI Agents SDK", "trace": "SEOCHO OTLP -> Tempo",
+                  "sample": "EnterpriseRAG-Bench (multipart upload limits)", "runs_per_arm": 3},
+  "gen_ai_chat_seconds": {
+    "compile_cypher": {"agentic": [10.0, 9.4, 7.6], "direct": [17.6, 15.9, 5.2]},
+    "synthesize":     {"agentic": [7.1, 4.1, 3.6],  "direct": [6.0, 4.9, 4.9]},
+    "orchestration":  {"agentic": [177.3, 16.8],    "direct": []}
+  },
+  "graph_ops_per_run_ms": {"agentic": 41.6, "direct": 19.6},
+  "findings": {
+    "graph_db_share_of_latency": "~0.1% (NOT the bottleneck)",
+    "cost_is": "LLM round-trips (~11s/call avg on MiniMax-M2.7, high variance)",
+    "agentic_tax": "agentic adds >=1 orchestration LLM turn/query; direct adds 0",
+    "worst_tail": "177s single supervisor orchestration turn (reasoning-model spin)"
+  },
+  "decision": "bottleneck = LLM round-trips; most removable slice = agentic orchestration. Prefer direct controlled query agent for single-intent; Agent.as_tool over handoff; do not optimize the graph (0.1%). Faster model / self-hosted vLLM attacks the floor.",
+  "chart": "https://claude.ai/code/artifact/6d49ed3c-7ff9-40ed-8ee9-19dcc0016d89",
+  "caveats": ["n=3, large API-latency variance (order-of-magnitude only)",
+              "177s is one real outlier kept visible",
+              "answer quality is a separate axis (ADR-0214 generic ontology); latency path is answer-independent"]
+}

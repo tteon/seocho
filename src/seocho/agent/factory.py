@@ -1,6 +1,29 @@
 from __future__ import annotations
 
+import logging
+import os
 from typing import Any, Optional
+
+logger = logging.getLogger(__name__)
+
+
+def _ensure_sdk_tracing_policy() -> None:
+    """Keep the Agents SDK's tracing vendor-neutral (ADR-0216).
+
+    The SDK's default trace processor exports to OpenAI's backend and needs an
+    OpenAI API key (the 401 seen in ADR-0215); SEOCHO's tracing is vendor-neutral
+    (ADR-0144, Opik/OTLP). Disable the SDK exporter unless a deployment explicitly
+    opts in with SEOCHO_AGENTS_SDK_TRACING=1, so building a SEOCHO agent never
+    phones home. Idempotent and best-effort.
+    """
+    if os.getenv("SEOCHO_AGENTS_SDK_TRACING", "").strip().lower() in ("1", "true", "yes"):
+        return
+    try:
+        from agents import set_tracing_disabled
+
+        set_tracing_disabled(True)
+    except Exception as exc:  # noqa: BLE001 - tracing policy must never block agent build
+        logger.debug("could not set Agents SDK tracing policy: %s", exc)
 
 
 def _tool_agent_model_settings(llm: Any, *, temperature: float) -> Any:
@@ -165,6 +188,8 @@ def create_indexing_agent(
     from agents import Agent
     from ..tools import create_indexing_tools
 
+    _ensure_sdk_tracing_policy()
+
     tools = create_indexing_tools(
         ontology=ontology,
         graph_store=graph_store,
@@ -196,6 +221,8 @@ def create_query_agent(
     from agents import Agent
     from ..tools import create_query_tools
 
+    _ensure_sdk_tracing_policy()
+
     tools = create_query_tools(
         ontology=ontology,
         graph_store=graph_store,
@@ -212,6 +239,50 @@ def create_query_agent(
     )
 
 
+def create_controlled_query_agent(
+    *,
+    ontology: Any,
+    graph_store: Any,
+    llm: Any,
+    vector_store: Any = None,
+    workspace_id: str = "default",
+    model: Optional[str] = None,
+    name: str = "QueryAgent",
+) -> Any:
+    """A query agent driven by a CONTROLLED flow: one deterministic tool.
+
+    ADR-0217 (spike-verified): the autonomous multi-tool query loop did not
+    converge with a hosted reasoning model (ADR-0215 MaxTurnsExceeded). Giving the
+    agent a single deterministic tool (`answer_from_graph`, the ADR-0214 path)
+    shrinks its job to "call once, relay" and the hand-off converges. The moat
+    stays deterministic; the SDK only supplies the loop/hand-off/guardrail slots.
+    """
+    from agents import Agent
+
+    from ..tools import make_deterministic_query_tool
+
+    _ensure_sdk_tracing_policy()
+
+    tool = make_deterministic_query_tool(
+        ontology=ontology,
+        graph_store=graph_store,
+        llm=llm,
+        vector_store=vector_store,
+        workspace_id=workspace_id,
+    )
+    return Agent(
+        name=name,
+        instructions=(
+            "Answer the user's question by calling answer_from_graph exactly once "
+            "with the question verbatim, then relay its result as the final answer. "
+            "Do not call it more than once; do not write Cypher yourself."
+        ),
+        tools=[tool],
+        model=llm.to_agents_sdk_model(model=model),
+        model_settings=_tool_agent_model_settings(llm, temperature=0.0),
+    )
+
+
 def create_supervisor_agent(
     *,
     ontology: Any,
@@ -224,8 +295,11 @@ def create_supervisor_agent(
     workspace_id: str = "default",
     model: Optional[str] = None,
     name: str = "Supervisor",
+    controlled_query: bool = True,
 ) -> Any:
     from agents import Agent, handoff
+
+    _ensure_sdk_tracing_policy()
 
     idx_agent = create_indexing_agent(
         ontology=ontology,
@@ -236,15 +310,30 @@ def create_supervisor_agent(
         workspace_id=workspace_id,
         model=model,
     )
-    qry_agent = create_query_agent(
-        ontology=ontology,
-        graph_store=graph_store,
-        llm=llm,
-        vector_store=vector_store,
-        ontology_context=ontology_context,
-        workspace_id=workspace_id,
-        model=model,
-    )
+    # Default to the controlled query agent (one deterministic tool): the
+    # autonomous multi-tool query loop did not converge with a hosted reasoning
+    # model (ADR-0215 MaxTurnsExceeded), while the controlled flow converges
+    # (ADR-0217 spike, #607). Set controlled_query=False to route to the tiered
+    # autonomous agent instead.
+    if controlled_query:
+        qry_agent = create_controlled_query_agent(
+            ontology=ontology,
+            graph_store=graph_store,
+            llm=llm,
+            vector_store=vector_store,
+            workspace_id=workspace_id,
+            model=model,
+        )
+    else:
+        qry_agent = create_query_agent(
+            ontology=ontology,
+            graph_store=graph_store,
+            llm=llm,
+            vector_store=vector_store,
+            ontology_context=ontology_context,
+            workspace_id=workspace_id,
+            model=model,
+        )
     return Agent(
         name=name,
         instructions=supervisor_system_prompt(ontology, routing_policy=routing_policy),

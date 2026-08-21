@@ -723,6 +723,16 @@ def run(
 
     semantic_receipt = load_projection_receipt_from_env()
     admission = load_projection_admission_from_env()
+    if spec.governance_mode in {"governed", "lockdown"} and admission is None:
+        from .ontology.lifecycle import OntologyLifecycleStore
+
+        state_db = str(spec.governance.get("state_db") or "").strip()
+        lease_id = str(spec.governance.get("lease_id") or "").strip()
+        if not state_db or not lease_id:
+            raise RunSpecError(
+                ["governed/lockdown requires governance.state_db and governance.lease_id"]
+            )
+        admission = OntologyLifecycleStore(state_db).admission(lease_id)
     staged_receipt = {"per_candidate": True} if spec.governance_mode in {"governed", "lockdown"} else None
     projection_decision = decide_projection(
         spec.governance_mode,
@@ -787,14 +797,34 @@ def run(
             durations["query_s"] = round(time.monotonic() - started, 2)
             _emit(quiet)
 
+        indexing_summary = payload.get("indexing") or {}
+        query_records = payload.get("queries") or []
+        if int(indexing_summary.get("files_failed", 0) or 0) or any(
+            record.get("error") for record in query_records
+        ):
+            experiment_manifest["outcome"] = "partial"
+
         payload["run"]["finished_at"] = datetime.now().isoformat(timespec="seconds")
         payload["run"]["durations"] = durations
         # A single run produces a baseline. Cross-arm causal claims use the
         # explicit, conservative comparison helper rather than a blended score.
         from .eval.semantic_scorecard import score_semantic_utility
 
+        candidates = [
+            (item.get("indexing") or {}).get("governance_candidate")
+            for item in (indexing_summary.get("results") or [])
+            if (item.get("indexing") or {}).get("governance_candidate")
+        ]
+        governance = None
+        if candidates:
+            governance = {
+                "promotable": all(bool(item.get("projection_receipt_sha256")) for item in candidates),
+                "rdf_bundle_sha256": candidates[0].get("rdf_bundle_sha256"),
+                "projection_receipt_sha256": candidates[0].get("projection_receipt_sha256"),
+                "candidate_count": len(candidates),
+            }
         payload["agent_scorecard"] = score_semantic_utility(
-            payload.get("indexing"), payload.get("queries"),
+            payload.get("indexing"), payload.get("queries"), governance=governance,
         ).to_dict()
 
         ctx.output_dir.mkdir(parents=True, exist_ok=True)

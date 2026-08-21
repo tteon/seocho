@@ -880,7 +880,14 @@ class IndexingPipeline:
         if stager is not None:
             staged = stager.stage(all_nodes, all_rels)
             write_kwargs = {"semantic_receipt": staged.semantic_receipt, "admission": staged.admission}
-            result.governance_candidate = {"data_graph_sha256": staged.data_graph_sha256, "artifact_dir": staged.artifact_dir}
+            result.governance_candidate = {
+                **staged.semantic_receipt,
+                "data_graph_sha256": staged.data_graph_sha256,
+                "artifact_dir": staged.artifact_dir,
+                "admission_generation": staged.admission.get("generation"),
+                "admission_epoch": staged.admission.get("epoch"),
+                "admission_fence": staged.admission.get("fence"),
+            }
         summary = self.graph_store.write(
             all_nodes,
             all_rels,

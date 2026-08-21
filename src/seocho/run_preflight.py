@@ -337,6 +337,21 @@ def _check_projection_governance(spec: RunSpec, *, online: bool) -> PreflightChe
     try:
         receipt = load_projection_receipt_from_env()
         admission = load_projection_admission_from_env()
+        # A governed run stages a distinct receipt after each extraction, but
+        # its lease capability is already concrete and must be checked before
+        # paid work begins. Prefer an explicitly supplied capability for
+        # operator tooling; otherwise derive the run-scoped one from its
+        # lifecycle store rather than requiring an unrelated environment file.
+        if spec.governance_mode in {"governed", "lockdown"} and admission is None:
+            from .ontology.lifecycle import OntologyLifecycleStore
+
+            state_db = str(spec.governance.get("state_db") or "").strip()
+            lease_id = str(spec.governance.get("lease_id") or "").strip()
+            if not state_db or not lease_id:
+                raise ValueError(
+                    "governed candidate staging requires governance.state_db and governance.lease_id"
+                )
+            admission = OntologyLifecycleStore(state_db).admission(lease_id)
         # In a governed run the receipt is created after extraction from each
         # candidate payload.  A pre-existing receipt is optional evidence, not
         # a substitute for that per-candidate stage.

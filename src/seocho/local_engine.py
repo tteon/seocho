@@ -738,7 +738,10 @@ class _LocalEngine:
                 return generate_grounded_cypher(
                     self.llm, question, schema_text,
                     workspace_id=self.workspace_id, limit=getattr(self, "row_cap", 50),
-                    feedback=feedback)
+                    feedback=feedback,
+                    # workspace organ: OFF -> generate an un-governed (unscoped) read
+                    # instead of Cypher that references an unbound $workspace_id.
+                    workspace_scoped=self._structured_arm.workspace_enforce)
         synth = self._structured_synthesizer
         if synth is None:
             answerer = QueryAnswerSynthesizer(query_strategy=self._query, llm=self.llm)

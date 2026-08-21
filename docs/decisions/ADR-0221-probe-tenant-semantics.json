@@ -1,0 +1,99 @@
+{
+  "questions": [
+    "What is Atlas and which team owns it?",
+    "What events was Atlas involved in recently?",
+    "Who should I contact about Atlas?"
+  ],
+  "eng_markers": [
+    "pipeline",
+    "canary",
+    "rollback",
+    "sre",
+    "outage"
+  ],
+  "sales_markers": [
+    "renewal",
+    "contract",
+    "csm",
+    "sso",
+    "customer account"
+  ],
+  "arms": [
+    {
+      "arm": "governed",
+      "cross_talk_answers": 0,
+      "n": 3,
+      "per_q": [
+        {
+          "q": "What is Atlas and which team owns it?",
+          "cross_talk": [],
+          "own_meaning": [
+            "csm"
+          ],
+          "rows": 1,
+          "answer_source": "structured",
+          "answer": "Atlas refers to the entity **Atlas Corp**, and it is owned by the **CSM team**."
+        },
+        {
+          "q": "What events was Atlas involved in recently?",
+          "cross_talk": [],
+          "own_meaning": [
+            "renewal",
+            "contract",
+            "sso"
+          ],
+          "rows": 1,
+          "answer_source": "structured",
+          "answer": "Atlas was involved in the **\u201cQ1 contract renewal\u201d** event, where it renewed its annual contract and requested the SSO feature."
+        },
+        {
+          "q": "Who should I contact about Atlas?",
+          "cross_talk": [],
+          "own_meaning": [
+            "csm"
+          ],
+          "rows": 1,
+          "answer_source": "structured",
+          "answer": "You should contact the **CSM team**."
+        }
+      ]
+    },
+    {
+      "arm": "governed-no-workspace",
+      "cross_talk_answers": 2,
+      "n": 3,
+      "per_q": [
+        {
+          "q": "What is Atlas and which team owns it?",
+          "cross_talk": [
+            "sre"
+          ],
+          "own_meaning": [],
+          "rows": 1,
+          "answer_source": "structured",
+          "answer": "Atlas is an entity in the department, and it is owned by the **SRE team**."
+        },
+        {
+          "q": "What events was Atlas involved in recently?",
+          "cross_talk": [
+            "canary",
+            "rollback",
+            "outage"
+          ],
+          "own_meaning": [],
+          "rows": 2,
+          "answer_source": "structured",
+          "answer": "Atlas was involved in the following recent events:\n\n| Event Name      | Event Detail                                   |\n|-----------------|------------------------------------------------|\n| March outage    | A bad cana"
+        },
+        {
+          "q": "Who should I contact about Atlas?",
+          "cross_talk": [],
+          "own_meaning": [],
+          "rows": 0,
+          "answer_source": "structured_no_evidence",
+          "answer": "I\u2019m sorry, but I don\u2019t have any information about who to contact regarding Atlas."
+        }
+      ]
+    }
+  ]
+}

@@ -120,6 +120,7 @@ class IndexingResult:
     semantic_artifacts: Optional[Dict[str, Any]] = None
     ontology_context: Optional[Dict[str, Any]] = None
     layered_graph_summary: Optional[Dict[str, Any]] = None
+    governance_candidate: Optional[Dict[str, Any]] = None
     fallback_used: bool = False
     fallback_reason: str = ""
     # Domain-relationship survival count per write-path stage (diagnostic).
@@ -167,6 +168,7 @@ class IndexingResult:
             "semantic_artifacts": self.semantic_artifacts,
             "ontology_context": self.ontology_context,
             "layered_graph_summary": self.layered_graph_summary,
+            "governance_candidate": self.governance_candidate,
             "fallback_used": self.fallback_used,
             "fallback_reason": self.fallback_reason,
         }
@@ -871,12 +873,21 @@ class IndexingPipeline:
             except Exception as exc:  # never let reification break ingestion
                 logger.warning("Observation dual-write skipped: %s", exc)
 
+        write_kwargs: Dict[str, Any] = {}
+        # Governed runs stage the *actual* extracted payload as RDF before the
+        # canonical write. A receipt for another candidate cannot be reused.
+        stager = getattr(self.graph_store, "_governed_candidate_stager", None)
+        if stager is not None:
+            staged = stager.stage(all_nodes, all_rels)
+            write_kwargs = {"semantic_receipt": staged.semantic_receipt, "admission": staged.admission}
+            result.governance_candidate = {"data_graph_sha256": staged.data_graph_sha256, "artifact_dir": staged.artifact_dir}
         summary = self.graph_store.write(
             all_nodes,
             all_rels,
             database=database,
             workspace_id=self.workspace_id,
             source_id=source_id,
+            **write_kwargs,
         )
         result.total_nodes = summary.get("nodes_created", 0)
         result.total_relationships = summary.get("relationships_created", 0)

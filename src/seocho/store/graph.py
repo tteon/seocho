@@ -542,6 +542,8 @@ class Neo4jGraphStore(GraphStore):
         triples: Optional[Sequence[Dict[str, Any]]] = None,
         graph_model: str = "lpg",
         governance_mode: str | None = None,
+        semantic_receipt: Optional[Dict[str, Any]] = None,
+        admission: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         # The Python SDK remains the ontology/policy control plane.  When this
         # explicit opt-in socket is configured, the canonical DozerDB projection
@@ -557,8 +559,8 @@ class Neo4jGraphStore(GraphStore):
         # Receipt loading is intentionally performed before routing.  A partial
         # receipt configuration is an operator error in every mode; in direct
         # and shadow it is reported as absent only when not configured at all.
-        semantic_receipt = load_projection_receipt_from_env()
-        admission = load_projection_admission_from_env()
+        semantic_receipt = semantic_receipt if semantic_receipt is not None else load_projection_receipt_from_env()
+        admission = admission if admission is not None else load_projection_admission_from_env()
         decision = decide_projection(
             governance_mode or getattr(self, "_governance_mode", None),
             rust_socket=rust_socket,

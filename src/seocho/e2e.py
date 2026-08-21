@@ -252,6 +252,19 @@ def build(spec: RunSpec) -> RunContext:
     # All indexing paths share this adapter.  Attach the run-scoped projection
     # policy once so file, batch, and agent writes cannot silently disagree.
     setattr(graph_store, "_governance_mode", spec.governance_mode)
+    if spec.governance_mode in {"governed", "lockdown"}:
+        from .ontology.candidate_stage import GovernedCandidateStager
+        import os
+        cfg = spec.governance
+        bundle_dir = str(cfg.get("bundle_dir") or "")
+        state_db = str(cfg.get("state_db") or os.getenv("SEOCHO_ONTOLOGY_STATE_DB", ""))
+        lease_id = str(cfg.get("lease_id") or os.getenv("SEOCHO_ONTOLOGY_LEASE_ID", ""))
+        artifact_dir = str(cfg.get("artifact_dir") or (_resolve(spec, spec.output_dir) / "governance-candidates"))
+        if not bundle_dir or not state_db or not lease_id:
+            raise RunSpecError(["governed/lockdown requires governance.bundle_dir, state_db, and lease_id"])
+        setattr(graph_store, "_governed_candidate_stager", GovernedCandidateStager(
+            bundle_dir=bundle_dir, state_db=state_db, lease_id=lease_id, artifact_root=artifact_dir
+        ))
     client_kwargs["graph_store"] = graph_store
     vector_store = _build_vector_store(spec)
     if vector_store is not None:

@@ -902,11 +902,12 @@ def log_extraction(
     does not decide that they are recorded.
     """
     model_tag = f"{provider}/{model}" if provider else model
-    input_data: Dict[str, Any] = {
-        "text_preview": text_preview[:200],
-        "ontology": ontology_name,
-        "model": model_tag,
-    }
+    input_data: Dict[str, Any] = {"ontology": ontology_name, "model": model_tag}
+    # Source excerpts are user content too.  Never make them an accidental
+    # exception to the opt-in prompt/completion policy.
+    captured_preview = capture_text(text_preview[:200])
+    if captured_preview is not None:
+        input_data["text_preview"] = captured_preview
     captured_system = capture_text(system_prompt)
     if captured_system is not None:
         input_data["system_prompt"] = captured_system

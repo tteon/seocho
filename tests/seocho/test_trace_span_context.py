@@ -74,6 +74,7 @@ def test_prompt_body_is_omitted_when_capture_is_off(monkeypatch, recorder):
 
     assert recorder.spans, "log_extraction emitted no span"
     span = recorder.spans[-1]
+    assert "text_preview" not in span["input"]
     assert "system_prompt" not in span["input"]
     assert "user_prompt" not in span["input"]
     assert "completion" not in span["output"]
@@ -85,6 +86,7 @@ def test_prompt_body_is_recorded_when_capture_is_on(monkeypatch, recorder):
 
     assert recorder.spans, "log_extraction emitted no span"
     span = recorder.spans[-1]
+    assert span["input"]["text_preview"] == "some source text"
     assert span["input"]["system_prompt"] == "SYS"
     assert span["input"]["user_prompt"] == "USR"
     assert span["output"]["completion"] == "OUT"

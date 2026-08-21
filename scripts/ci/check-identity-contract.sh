@@ -42,6 +42,9 @@ ALLOWED_SUFFIX=(
   "@example.com"
   "@example.org"
   "@example.net"
+  # RFC 2606 reserves the .example TLD for documentation; synthetic fixture
+  # addresses like kyle@hanbit.example are safe by construction.
+  ".example"
 )
 
 read -r -a extra_exact <<<"${SEOCHO_ALLOWED_EMAILS:-}"

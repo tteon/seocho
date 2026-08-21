@@ -178,7 +178,8 @@ class OntologySnapshotStore:
         # documented contract: identical content is an idempotent no-op; changed
         # content raises rather than clobbering.
         if path.exists():
-            prior = OntologySnapshot.from_dict(json.loads(path.read_text(encoding="utf-8")))
+            with path.open("r", encoding="utf-8") as f:
+                prior = OntologySnapshot.from_dict(json.load(f))
             if _evidence_key(prior) != _evidence_key(snap):
                 raise SnapshotConflict(
                     f"version '{ontology.version}' of '{ontology.package_id}' already exists with the "

@@ -19,6 +19,8 @@ Semantic lift means that facts extracted from raw source material give an agent 
 - [ ] Run a single-host three-worker model/versioning workload using `MiniMax-M2.7`, `gpt-oss-120b`, and `gemma-4-31B-it`.
 - [ ] Before paid full-factorial execution, implement canonical RDF semantic identity, persistent cross-process leases, stale-projection fencing/idempotency, and a case-level gold scorer.
 - [ ] Implement and evaluate a hybrid context-delivery router: a minimal task bootstrap followed by receipt-pinned, just-in-time ontology and evidence tools.
+- [ ] Add an execution-runtime receipt to every arm, and run the agent-selected JIT arm through the installed OpenAI Agents SDK rather than inferring SDK use from a prompt or model name.
+- [ ] Close the RDF experiment observability gaps: content-free JSONL evidence, live Tempo readiness, Rust projection spans/metrics, and context/lock lifecycle signals.
 
 ## Surprises & Discoveries
 
@@ -31,6 +33,12 @@ Semantic lift means that facts extracted from raw source material give an agent 
   receive generation/fence/idempotency. The current code therefore cannot prove
   JSON-LD/Turtle semantic equality or reject a late N worker after N+1.
   Evidence: 2026-08-21 OS, LLM, and ontology workload review.
+- Observation: this checkout has `openai-agents` 0.10.3 installed and the
+  adapter/factory tests build real SDK objects, but the RDF diagnostic trace
+  contains only the direct `ask_response()`/`rag.*` path. The optional dependency
+  is unpinned while earlier live ADR evidence names 0.13.6, so SDK-version and
+  runtime receipts are required before attributing a JIT result to Agents SDK.
+  Evidence: 2026-08-21 local package inspection and RDF diagnostic JSONL audit.
 
 ## Decision Log
 
@@ -94,6 +102,41 @@ from normal task context. The lock is a capability and consistency boundary in
 the handle/receipt, not verbose prompt text. Logical namespace, purpose,
 freshness, and size metadata may guide tool choice; host paths and unbounded
 directory scanning must not be exposed as an implicit retrieval API.
+
+### Execution-runtime truthfulness
+
+`SEOCHO` is the common engine for every arm, but an OpenAI Agents SDK agent is
+an additional execution runtime, not a synonym for an LLM call. The current
+`seocho run` E2E path invokes `Seocho.ask_response()` and the deterministic
+local query pipeline. It does not construct an Agents SDK `Agent` or invoke
+`Runner.run`; its traces must be labelled `execution_runtime=seocho_direct`.
+This makes A-E and J0/J1/J2/J4 useful deterministic baselines.
+
+J3 (agent-selected just-in-time expansion) must instead construct the
+SEOCHO-owned tool set through the installed OpenAI Agents SDK and call its
+`Runner` through `AgentsRuntimeAdapter`. Its receipt must name
+`execution_runtime=agents_sdk`, `agents_sdk_version`, `max_turns`, tool-set
+digest, tool-call count, terminal outcome, and the underlying SEOCHO/LLM
+versions. A test that only builds an `Agent` is wiring evidence, not an E2E
+claim. Do not aggregate direct and Agents-SDK results as one arm; the
+orchestration runtime is an independent experimental factor.
+
+### Observability planes and vocabulary
+
+JSONL is the portable, append-only **trace evidence artifact**; it is not an
+observability stack and it is not a metrics database. The local observability
+stack is `SEOCHO -> OTLP Collector -> Tempo (traces) + Prometheus (metrics) ->
+Grafana`. Reports, gold labels, manifests, and receipts form a separate
+reproducibility/evaluation plane. Every live experiment needs all three:
+
+1. JSONL and Tempo traces answer per-run causal questions. Default traces are
+   content-free; raw prompts/Cypher/evidence require explicit local capture.
+2. Prometheus metrics answer aggregate latency, traffic, error, saturation, and
+   bounded quality questions. Digests, workspace IDs, paths, request IDs, and
+   source text belong only in traces/receipts, never metric labels.
+3. An immutable run manifest/report binds the trace IDs and aggregate metric
+   query window to exact corpus, code, model, ontology, profile, and lock
+   identities.
 
 ## SEOCHO Evidence Contract
 
@@ -303,6 +346,22 @@ in the trace.
     - Use a deterministic router for known workflow stages first. Agent-driven
       expansion is a separately budgeted arm, with explicit no-result and
       insufficient-context responses so dead-end navigation is measurable.
+13. Add observability admission checks before a paid arm:
+
+    - Emit one `experiment.run` root trace with a generated run ID and runtime
+      receipt; all index, query, context, LLM, Rust projection, and evaluator
+      spans must be descendants or carry that ID.
+    - Verify JSONL has no raw content with capture disabled and that the
+      configured OTLP Collector accepts the root trace and Tempo can retrieve
+      it. A running container or a Prometheus-only health check is insufficient.
+    - Add bounded metrics and trace spans for ontology bundle verification,
+      activation, lease acquire/renew/expiry, stale-fence admission rejection,
+      profile/slice/constraint/evidence tool calls, slice token/byte size,
+      insufficiency, run-note compaction/reload, and Rust daemon request bytes,
+      queue wait, server duration, outcome, and idempotency/admission result.
+    - Distinguish implementation status from a zero: an unavailable daemon,
+      lock backend, or native DozerDB metric source is `unsupported` in the
+      run manifest, never a healthy zero metric.
 
 ## Validation and Acceptance
 
@@ -345,6 +404,14 @@ triple count, direction error, slot/provenance recall, SHACL/repair/admission/
 revalidation/projection outcomes, and query scorecard. Report per-model
 distributions and same-case deltas; cross-model profile leakage, stale-fence
 projection, or a missing model/ontology receipt tuple is a hard failure.
+
+For J0-J4 additionally record `execution_runtime`, runtime/Agents-SDK version,
+tool-set digest, `max_turns`, initial/total context tokens, context-tool calls
+by bounded tool name/outcome, no-result/insufficient responses, slice/evidence
+bytes and tokens, run-note compaction/reload, and the context-to-answer trace
+completeness outcome. Aggregate quality metrics are evaluation-only and retain
+the bounded `(cohort, arm, model, dimension)` labels; exact case IDs, digests,
+and source spans remain in the JSONL trace and immutable report.
 
 ## Idempotence and Recovery
 

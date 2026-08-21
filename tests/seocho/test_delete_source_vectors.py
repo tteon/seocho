@@ -13,7 +13,8 @@ from seocho.ontology import NodeDef, Ontology, P
 
 
 class _FakeGraphStore:
-    def delete_by_source(self, source_id, *, database="neo4j"):
+    def delete_by_source(self, source_id, *, database="neo4j", workspace_id=None):
+        self.workspace_id = workspace_id
         return {"nodes_deleted": 1, "relationships_deleted": 0}
 
 
@@ -40,6 +41,13 @@ def test_delete_source_also_deletes_vectors():
     assert spy.deleted == ["src-1"]
     assert summary["vectors_deleted"] == 3
     assert summary["nodes_deleted"] == 1
+
+
+def test_delete_source_is_scoped_to_the_pipeline_workspace():
+    pipeline = _pipeline(None)
+    pipeline.workspace_id = "workspace-a"
+    pipeline.delete_source("src-1")
+    assert pipeline.graph_store.workspace_id == "workspace-a"
 
 
 def test_delete_source_without_vector_store_is_unaffected():

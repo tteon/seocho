@@ -49,6 +49,88 @@ The research question is: **when does carrying this tuple through an agent
 workflow provide a measurable benefit over passing schema text or writing to a
 graph directly, and what is its operational cost?**
 
+## Before and After: Why Ontology Exists in This System
+
+### Before: enterprise knowledge is present but not operationally coherent
+
+Enterprise knowledge is already spread across documents, databases, tickets,
+policies, business glossaries, and the private vocabulary used by individual
+teams. The recurring need for an ontology is not academic classification. It
+is to make that domain knowledge explicit enough that different people,
+services, and agents can agree on entity identity, permitted relationships,
+property meaning, provenance, and change ownership.
+
+Without this contract, an agent receives an unstructured user request and must
+infer names, relation directions, authority, and scope from whatever text is
+currently in its prompt. A vector search may retrieve relevant passages, but
+it does not by itself establish that two names mean one entity, that a proposed
+edge is legal, that the evidence is from the right workspace, or that a fact
+was produced under the active policy. Each agent turn can therefore recreate a
+slightly different local schema. In a long-running workflow, copied prompts,
+stale summaries, and growing history make this drift more likely rather than
+less likely.
+
+The practical failure is not simply a malformed graph. It is a loss of shared
+operational meaning: one agent can write a fact that a later agent cannot
+reliably locate, interpret, validate, or safely change.
+
+### After: ontology becomes a context and navigation control plane
+
+SEOCHO treats the ontology as an immutable, versioned semantic source from
+which several compact operational artifacts are derived. The agent is not
+given a full JSON-LD file on every turn. It receives a purpose-bound profile or
+a just-in-time slice, identified by digests and attached to the active
+lifecycle tuple. This is context engineering: select the smallest high-signal
+semantic context that permits the next authorized action, instead of growing a
+single permanent prompt.
+
+The control plane has two complementary roles.
+
+- A **guardrail** is a hard boundary. It rejects an out-of-ontology extraction,
+  invalid candidate, absent receipt, wrong workspace, stale lease/fence, or
+  unsafe graph operation. A guardrail answers, “may this action proceed?”
+- A **navigator** is a context-selection policy. It chooses the task purpose,
+  active ontology version, bounded profile/slice, required interface terms,
+  and next verification action. A navigator answers, “what semantic context
+  should the agent inspect before it acts?”
+
+The module-quality decision connects the two: `ready` permits normal use,
+`needs_reasoning` requires an observable bounded retrieval/verification step,
+and `reject` prevents the profile from supplying graph vocabulary. The term
+“reasoning” here never asks for hidden chain-of-thought; it means an auditable
+extra tool action such as a narrow ontology slice, interface check, or host
+escalation.
+
+### Long-running agent policy
+
+For long-running tasks, navigation must recur at explicit checkpoints rather
+than be a one-time prompt prefix. The intended checkpoint policy is:
+
+1. At task start, pin the workspace, ontology bundle/profile, and lifecycle
+   tuple; load only the profile for the immediate task purpose.
+2. At a phase boundary (extract, plan, query, write, answer), ask whether the
+   current required slots/relation path still fit the selected profile.
+3. Before a state-changing action, re-check the live lease/fence and obtain a
+   candidate receipt; the Rust data plane independently verifies admission.
+4. On ontology activation, profile mismatch, context-budget pressure,
+   low-quality module signal, tool failure, or unresolved required slot, stop
+   treating the old context as authoritative. Navigate to a bounded new slice,
+   revalidate, abstain, or escalate.
+5. Persist a compact run note containing only the pin tuple, selected handles,
+   confirmed evidence, open slots, and decisions. On compaction/restart, reload
+   the note and profiles by handle rather than replaying an unbounded transcript.
+
+Steps 1 and the write-time admission path are built in this repository. The
+phase/checkpoint scheduler and durable run-note policy are proposed experiment
+work; they must not be described as already deployed until their tool traces
+and recovery tests exist.
+
+This produces the paper's end-to-end story:
+
+    enterprise domain knowledge -> versioned ontology -> compact task profile
+    -> navigator-selected slice -> agent tool/action -> guardrail/receipt
+    -> canonical graph memory -> evidence-backed next checkpoint
+
 ## Scope and Claims
 
 Tier 1, evaluated claim: a governed schema contract provides verifiable
@@ -73,6 +155,7 @@ chain-of-thought as evidence.
 | --- | --- | --- | --- |
 | Immutable ontology bundle | one authored JSON-LD graph with derived Turtle/SHACL | `src/seocho/ontology/rdf_bundle.py` | manifest and bundle SHA-256 |
 | Bounded profile/slice | agent sees purpose-specific, JIT context rather than a full file | `lifecycle.py`, `openai_agents.py` | profile hash, slice size, tool span |
+| Navigator policy | selects/reloads the smallest valid semantic context at checkpoints | profile selection plus proposed checkpoint scheduler | selected purpose/slice handle, trigger, outcome |
 | Module-quality gate | structural quality changes allowed agent action | `module_scorecard.py` | gate disposition, verification-call count |
 | Candidate receipt | data RDF conformed to the pinned shapes/profile | `rdf_governance.py`, `candidate_stage.py` | receipt/data graph digest, SHACL outcome |
 | Lifecycle capability | a writer must hold a live matching version lease/fence | `active_pointer.py`, `lifecycle.py` | generation/epoch/fence, stale rejection |

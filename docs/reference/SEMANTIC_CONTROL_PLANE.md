@@ -297,6 +297,83 @@ A benchmark summary is incomplete unless it can answer:
 - heavy ontology reasoning stays out of the hot path
 - evaluation records semantic package identity on every important run
 
+## Plane Boundary And Admission Policy
+
+The names describe **authority**, not process placement. A single-host CLI,
+SQLite database, and local Rust daemon can implement both planes; splitting
+them into services is not a prerequisite. The boundary is that data-plane
+workers may execute approved work but may not decide what is active or weaken
+an approval.
+
+| Concern | Control plane owns | Data plane owns |
+| --- | --- | --- |
+| Ontology lifecycle | immutable bundle publication, active-pointer CAS, version rollback, retention | read a hash-pinned snapshot only |
+| Governance | promotion decision and policy mode | construct candidate RDF and execute offline validation to produce a receipt |
+| Agent context | purpose policy, profile/slice limits, profile identity | retrieve and use the bounded approved slice |
+| Canonical projection | admission, lease, fencing, idempotency scope | typed Rust Bolt projection and receipt stamping |
+| Serving | workspace/model/tool authorization and rollout state | Oxigraph lookup, DozerDB query, extraction, indexing, answer generation |
+| Audit | durable decision/audit records and trace policy | emit correlation IDs, bounded metrics, and content-safe receipts |
+
+### Governed-write capability
+
+For a canonical graph write in `governed` mode, the control plane must issue a
+single capability tuple:
+
+```text
+(workspace_id, package_id, bundle_sha256, profile_sha256,
+ governance_receipt_sha256, generation, epoch, fencing_token,
+ purpose=projection, expiry, idempotency_key)
+```
+
+The daemon must independently re-check the lease and active pointer just before
+the write. Missing, expired, mismatched, or stale tuples are rejected and
+quarantined; they never silently fall back to an ungoverned Python/Bolt write.
+`direct` mode is allowed only when explicitly configured and its trace/report
+must say `governance_enforced=false`. It is useful for development and baseline
+experiments, but cannot be used as evidence of governed semantic lift.
+
+The current first vertical slice enforces the bundle fingerprint, active
+generation/epoch, fencing token, receipt digest shape, and projection
+idempotency inside `seochod` when `SEOCHOD_CONTROL_DB` is configured. It does
+not yet bind the profile and governance-receipt digests into the durable active
+pointer/lease tuple, and the normal Python graph adapter can still use its
+direct path when the Rust socket is not configured. Therefore it is a
+**shadow/enforcement-ready slice**, not yet a repository-wide mandatory
+governed-write policy.
+
+### Operational modes
+
+| Mode | Intended use | Required result |
+| --- | --- | --- |
+| `direct` | local development and baseline workload | trace declares no governance enforcement |
+| `shadow` | compare governed receipts while allowing a non-canonical candidate path | receipt failures are measured; no canonical promotion claim |
+| `governed` | canonical ingestion and projection | valid capability + receipt + Rust admission required |
+| `lockdown` | regulated or high-integrity workspace | governed mode only; deny direct graph writes and raw ontology paths |
+
+The default rollout is `direct -> shadow -> governed -> lockdown` per
+workspace/package after live evidence, never globally by an undocumented
+environment variable.
+
+### Failure, recovery, and deployment rules
+
+- A data-plane process has least privilege: indexing cannot activate an
+  ontology; query agents receive read-only query profiles; only projection
+  leases can invoke canonical writes.
+- A pending projection idempotency record fails closed. An operator must
+  reconcile it with DozerDB before retrying or mark it terminally failed; it
+  must not be deleted automatically.
+- Store only stable IDs, digests, policy mode, and bounded counters in default
+  telemetry. Raw requests/RDF/Cypher require the existing explicit
+  content-capture control.
+- SQLite/WAL is the authority only for a single host. Before multi-host
+  operation, replace it with one linearizable shared authority (for example
+  etcd for leases/pointers or PostgreSQL with an equivalent transactional CAS
+  contract) and rerun fencing/failover tests. Do not share a SQLite file over a
+  network filesystem.
+- Garbage collection is a control-plane operation: it may remove only immutable
+  bundles that have no active pointer, live lease, retained audit reference, or
+  recoverable idempotency record.
+
 ## Phased Delivery
 
 ### Stage 1. Contract

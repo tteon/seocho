@@ -7,7 +7,7 @@ prevent the second.
 reader cannot discover a setting that is not listed. That is what
 `check-env-contract.py` measures.
 
-A variable reaching `docker-compose.yml` but not the process inside the container
+A variable reaching `compose.yaml` but not the process inside the container
 is a different and quieter failure. Compose reads `.env` for `${VAR}`
 substitution and does *not* inject it into containers, so before `env_file:` was
 added the service passed 11 variables while the code read 74 -- setting
@@ -60,11 +60,11 @@ def test_env_example_matches_code_and_compose():
 @pytest.mark.skipif(yaml is None, reason="pyyaml not installed")
 def test_app_services_load_env_file():
     """Without this, everything in .env is inert inside the container."""
-    compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text())
+    compose = yaml.safe_load((ROOT / "compose.yaml").read_text())
     services = compose["services"]
 
     for name in APP_SERVICES:
-        assert name in services, f"{name} vanished from docker-compose.yml"
+        assert name in services, f"{name} vanished from compose.yaml"
         env_file = services[name].get("env_file")
         assert env_file, (
             f"{name} has no env_file, so .env never reaches the process inside "
@@ -87,7 +87,7 @@ def test_container_hostname_still_overrides_env_file():
     `environment` is applied after `env_file`. If the override were dropped in
     favour of the .env value, the stack would come up and fail to connect.
     """
-    compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text())
+    compose = yaml.safe_load((ROOT / "compose.yaml").read_text())
     env = compose["services"]["extraction-service"]["environment"]
     entries = env if isinstance(env, list) else [f"{k}={v}" for k, v in env.items()]
 
@@ -164,7 +164,7 @@ def test_graph_credentials_resolve_under_the_documented_env():
         name, _, value = stripped.partition("=")
         env[name.strip()] = value
 
-    # What docker-compose.yml pins for the container.
+    # What compose.yaml pins for the container.
     env["NEO4J_URI"] = "bolt://neo4j:7687"
 
     def getenv(name, default=None):
@@ -183,7 +183,7 @@ def test_thin_proxy_does_not_receive_every_secret():
     """A container gets the configuration it reads, not the configuration that
     exists. `evaluation/server.py` reads one variable; env_file would give it
     every provider key and the auth secret."""
-    compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text())
+    compose = yaml.safe_load((ROOT / "compose.yaml").read_text())
 
     for name, reason in SECRET_MINIMISED_SERVICES.items():
         service = compose["services"][name]

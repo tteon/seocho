@@ -295,6 +295,7 @@ def create_supervisor_agent(
     workspace_id: str = "default",
     model: Optional[str] = None,
     name: str = "Supervisor",
+    controlled_query: bool = True,
 ) -> Any:
     from agents import Agent, handoff
 
@@ -309,15 +310,30 @@ def create_supervisor_agent(
         workspace_id=workspace_id,
         model=model,
     )
-    qry_agent = create_query_agent(
-        ontology=ontology,
-        graph_store=graph_store,
-        llm=llm,
-        vector_store=vector_store,
-        ontology_context=ontology_context,
-        workspace_id=workspace_id,
-        model=model,
-    )
+    # Default to the controlled query agent (one deterministic tool): the
+    # autonomous multi-tool query loop did not converge with a hosted reasoning
+    # model (ADR-0215 MaxTurnsExceeded), while the controlled flow converges
+    # (ADR-0217 spike, #607). Set controlled_query=False to route to the tiered
+    # autonomous agent instead.
+    if controlled_query:
+        qry_agent = create_controlled_query_agent(
+            ontology=ontology,
+            graph_store=graph_store,
+            llm=llm,
+            vector_store=vector_store,
+            workspace_id=workspace_id,
+            model=model,
+        )
+    else:
+        qry_agent = create_query_agent(
+            ontology=ontology,
+            graph_store=graph_store,
+            llm=llm,
+            vector_store=vector_store,
+            ontology_context=ontology_context,
+            workspace_id=workspace_id,
+            model=model,
+        )
     return Agent(
         name=name,
         instructions=supervisor_system_prompt(ontology, routing_policy=routing_policy),

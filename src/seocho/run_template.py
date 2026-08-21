@@ -436,14 +436,12 @@ def derive_variant_isolation(
     spec.name = f"{spec.name}-{slug}"
 
     if not spec.graph:
-        # Embedded ladybug: one .lbug file = one graph; the `database`
-        # parameter does not partition storage — only the path does.
-        spec.graph = str(variant_dir / "graph.lbug")
+        raise ValueError("Sweep variants require a DozerDB/Neo4j Bolt graph URI.")
     elif spec.graph.startswith(_BOLT_SCHEMES) and not spec.database:
         spec.database = _database_safe(f"{spec.name}")
 
-    # On-disk vector stores share the same comparison-poisoning hazard as
-    # graph.lbug — variant 2 would retrieve variant 1's chunks. Fill a blank
+    # On-disk vector stores share the same comparison-poisoning hazard as a
+    # graph projection — variant 2 would retrieve variant 1's chunks. Fill a blank
     # lancedb uri with a variant-local path (explicit values untouched;
     # faiss is in-memory and rebuilt per variant, nothing to isolate).
     if spec.vector and spec.vector_kind() == "lancedb" and not str(spec.vector.get("uri") or "").strip():
@@ -512,8 +510,10 @@ ontology:
 
 documents: ./docs/
 
+graph: "{{ graph | default('bolt://localhost:7687') }}"
+
 models:
-  default: "{{ model | default('mara/MiniMax-M2.5') }}"
+  default: "{{ model | default('mara/MiniMax-M2.7') }}"
 
 query:
   limit: {{ limit | default(5) }}
@@ -536,7 +536,7 @@ name: enforcement-shootout
 template: ./run.yaml.j2
 
 vars:                         # shared by every variant (variant vars override)
-  model: mara/MiniMax-M2.5
+  model: mara/MiniMax-M2.7
   questions:
     - Who is the CEO of Acme Corp?
     - What did Beta Industries acquire?

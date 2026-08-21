@@ -69,7 +69,7 @@ _SECTION_KEYS: Dict[str, set] = {
     "agent": {"design", "execution_mode", "routing_policy", "runtime", "ontology_bundle_dir", "max_turns"},
     "query": {"reasoning_mode", "repair_budget", "answer_style", "limit"},
     "vector": {"kind", "embedding", "embedding_model", "dimension", "uri", "table_name"},
-    "governance": {"mode"},
+    "governance": {"mode", "bundle_dir", "state_db", "lease_id", "artifact_dir"},
     "output": {"dir"},
 }
 
@@ -159,6 +159,7 @@ class RunSpec:
     # This is distinct from extraction enforcement: strict extraction alone
     # does not make a graph write canonically governed.
     governance_mode: str = "direct"
+    governance: Dict[str, Any] = field(default_factory=dict)
     questions: List[QuestionSpec] = field(default_factory=list)
     output_dir: str = "runs"
     source_path: str = ""
@@ -381,6 +382,7 @@ def parse_run_spec(payload: Any, *, source_path: str = "") -> RunSpec:
         query=query,
         vector=vector,
         governance_mode=_string(governance.get("mode")).lower() or "direct",
+        governance=governance,
         questions=_parse_questions(payload.get("questions"), errors=errors),
         output_dir=_string(output.get("dir")) or "runs",
         source_path=source_path,

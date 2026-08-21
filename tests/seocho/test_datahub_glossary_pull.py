@@ -127,4 +127,29 @@ def test_blocking_value_is_stringified():
         {"overall_score": 0.9, "grade": "A", "blocking": True, "dimensions": []},
         target_urn="urn:li:glossaryNode:demo")[0]["aspect"]["properties"]
     blocking = next(p for p in props if p["propertyUrn"].endswith("blocking"))
-    assert blocking["values"] == ["true"]  # string, matches datahub.string definition
+    # tagged union (PDL PrimitivePropertyValue) — raw scalars fail GMS validation
+    assert blocking["values"] == [{"string": "true"}]
+
+
+def test_pull_scopes_to_the_package_urn_prefix(monkeypatch):
+    """A GMS holding two SEOCHO ontologies must not leak ontology B's approved
+    terms into ontology A's apply: urn_prefix keeps only this package's terms."""
+    import seocho.connectors.datahub as dh
+    from seocho.datahub_export import package_term_urn_prefix
+
+    ours = _term("Animal", "A creature.", approved=True)
+    foreign = _term("Revenue", "Other ontology.", approved=True)
+    foreign["urn"] = "urn:li:glossaryTerm:otherpkg.Revenue"
+
+    monkeypatch.setattr(
+        dh.DataHubGraphQLClient, "__init__", lambda self, **kw: None)
+    monkeypatch.setattr(
+        dh.DataHubGraphQLClient, "iter_glossary_terms",
+        lambda self, **kw: iter([ours, foreign]))
+
+    recs = dh.fetch_glossary_term_records(
+        server="http://gms:8080", urn_prefix=package_term_urn_prefix("demo"))
+    assert [r["name"] for r in recs] == ["Animal"]
+
+    unscoped = dh.fetch_glossary_term_records(server="http://gms:8080")
+    assert [r["name"] for r in unscoped] == ["Animal", "Revenue"]

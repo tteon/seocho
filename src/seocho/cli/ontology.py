@@ -432,8 +432,10 @@ def handle(args: argparse.Namespace) -> int:
             # live pull: reviewed terms come straight from a running GMS. Known
             # labels let the pull mark edits to existing classes as 'annotate'.
             from ..connectors.datahub import fetch_glossary_term_records
+            from ..datahub_export import package_term_urn_prefix
             term_records = fetch_glossary_term_records(
-                server=args.gms, known_labels=frozenset(ontology.nodes))
+                server=args.gms, known_labels=frozenset(ontology.nodes),
+                urn_prefix=package_term_urn_prefix(ontology.package_id or ontology.name))
         elif args.terms:
             with open(args.terms, "r", encoding="utf-8") as f:
                 term_records = json.load(f)

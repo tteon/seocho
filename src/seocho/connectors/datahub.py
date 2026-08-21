@@ -348,13 +348,20 @@ def fetch_glossary_term_records(
     limit: int = 200,
     known_labels: frozenset[str] = frozenset(),
     approved_tag: str = DEFAULT_APPROVED_TAG,
+    urn_prefix: str = "",
 ) -> list[dict[str, Any]]:
     """Pull reviewed glossary terms from a live GMS as ``term_records`` ready for
-    ``datahub_glossary_to_mapping_spec`` → ``apply_mapping_spec``."""
+    ``datahub_glossary_to_mapping_spec`` → ``apply_mapping_spec``.
+
+    ``urn_prefix`` scopes the pull to one ontology's terms (see
+    ``datahub_export.package_term_urn_prefix``). Without it a GMS holding two
+    SEOCHO ontologies would leak ontology B's approved terms into ontology A's
+    apply — the search is server-wide and the record does not carry the URN."""
     client = DataHubGraphQLClient(server=server, token_env=token_env)
     return [
         glossary_term_to_record(entity, known_labels=known_labels, approved_tag=approved_tag)
         for entity in client.iter_glossary_terms(query_text=query_text, max_results=limit)
+        if not urn_prefix or str(entity.get("urn") or "").startswith(urn_prefix)
     ]
 
 

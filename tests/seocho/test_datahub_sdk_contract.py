@@ -82,3 +82,14 @@ def test_mcp_wrapper_accepts_our_aspects():
             entityUrn=m["entityUrn"], aspect=cls.from_obj(m["aspect"]),
         )
         assert wrapper.entityUrn == m["entityUrn"]
+
+
+def test_live_emit_import_block_is_importable():
+    """Regression (found live): emit_to_datahub's guarded import block must not
+    reference names absent from the installed SDK — a stale unused import made
+    every live emit silently fall back to mode='unavailable'. With the SDK
+    installed and an empty MCP list, a non-dry-run emit must reach mode='live'
+    (no network is touched for zero MCPs)."""
+    from seocho.datahub_export import emit_to_datahub
+    res = emit_to_datahub([], gms_server="http://localhost:1", dry_run=False)
+    assert res["mode"] == "live", res.get("error", res)

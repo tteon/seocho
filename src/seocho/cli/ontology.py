@@ -60,6 +60,16 @@ def register(subparsers) -> None:
     ontology_inspect_parser.add_argument("--source", required=True, help="OWL file path or URI")
     ontology_inspect_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
 
+    ontology_rdf_governance_parser = ontology_subparsers.add_parser(
+        "rdf-governance", help="Run hash-pinned offline SHACL and optional OWL consistency checks",
+    )
+    ontology_rdf_governance_parser.add_argument("--bundle", required=True, help="RDF ontology bundle directory")
+    ontology_rdf_governance_parser.add_argument("--data", required=True, help="RDF instance data graph")
+    ontology_rdf_governance_parser.add_argument("--data-format", default="turtle", help="RDF data format for pySHACL")
+    ontology_rdf_governance_parser.add_argument("--run-reasoner", action="store_true", help="Run optional offline Owlready2/Pellet consistency check")
+    ontology_rdf_governance_parser.add_argument("--output", default=None, help="Optional receipt JSON path")
+    ontology_rdf_governance_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
+
     ontology_review_parser = ontology_subparsers.add_parser(
         "review",
         help="Ambiguity review loop: quarantine OOV entities, cluster them, and map them back into the taxonomy",
@@ -281,6 +291,24 @@ def handle(args: argparse.Namespace) -> int:
                 f"imports={inspection.stats.get('import_count', 0)}"
             )
         return 0 if inspection.available and inspection.error is None else 1
+
+    if args.ontology_command == "rdf-governance":
+        from ..ontology.rdf_governance import run_rdf_governance, write_rdf_governance_receipt
+
+        receipt = run_rdf_governance(
+            args.bundle, args.data, data_format=args.data_format,
+            run_reasoner=args.run_reasoner,
+        )
+        if args.output:
+            write_rdf_governance_receipt(receipt, args.output)
+        if getattr(args, "output_json", False):
+            print(json.dumps(receipt.to_dict(), indent=2, ensure_ascii=False))
+        else:
+            print(f"rdf governance: {'promotable' if receipt.promotable else 'not promotable'}")
+            print(f"  bundle_sha256={receipt.bundle_sha256}")
+            if args.output:
+                print(f"written: {args.output}")
+        return 0 if receipt.promotable else 1
 
     if args.ontology_command == "review":
         from ..ontology import Ontology

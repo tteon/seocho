@@ -3,7 +3,8 @@ ask questions that cross entity boundaries.
 
 Run from the repository root:
 
-    MARA_API_KEY=... python examples/finance-compliance/quickstart.py
+    MARA_API_KEY=... python examples/finance-compliance/quickstart.py \\
+        --graph bolt://localhost:7687
 
 Swap to another provider with --llm (e.g. openai/gpt-4o).
 """
@@ -18,7 +19,7 @@ from pathlib import Path
 # Make `ontology.py` importable when running this file from any cwd.
 sys.path.insert(0, str(Path(__file__).parent))
 
-from extraction.ontology import build_ontology  # noqa: E402
+from ontology import build_ontology  # noqa: E402
 
 from seocho import Seocho  # noqa: E402
 
@@ -42,7 +43,8 @@ PROVIDER_KEY_HINTS = {
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--llm", default="mara/MiniMax-M2.5", help="Provider/model string.")
+    parser.add_argument("--llm", default="mara/MiniMax-M2.7", help="Provider/model string.")
+    parser.add_argument("--graph", required=True, help="DozerDB/Neo4j Bolt URI.")
     parser.add_argument(
         "--skip-query",
         action="store_true",
@@ -67,7 +69,7 @@ def main() -> int:
         return 2
 
     onto = build_ontology()
-    s = Seocho.local(onto, llm=args.llm)
+    s = Seocho.local(onto, llm=args.llm, graph=args.graph)
 
     for path in doc_paths:
         print(f"ingesting {path.name}")

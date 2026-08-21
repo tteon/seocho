@@ -43,6 +43,12 @@ the seam where protocol optimization belongs:
   DozerDB, the LLM token stream. This is where a Rust driver (neo4j-bolt-rs)
   pays — gated on a `server_share` measurement, never on speculation.
 
+The optional Oxigraph sidecar under `dataplane/oxigraph_read_model/` is a
+different, low-QPS data-plane component: it serves a versioned RDF ontology
+read model over a local Unix-domain socket. It never becomes the canonical
+graph write authority; DozerDB remains the property-graph and Cypher backend.
+See the repository's [Ontology RDF Read Model guide](https://github.com/tteon/seocho/blob/main/docs/ONTOLOGY_RDF_READ_MODEL.md).
+
 The seam is one call: `execute_query` (control) invokes `graph_store.query`
 (data). In OS terms the governed call is a syscall — the single guarded boundary
 every agent graph access must pass, where tenancy, read-safety, admission, and

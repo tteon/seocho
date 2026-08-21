@@ -95,6 +95,8 @@ def _write_sweep(tmp_path, *, variants=("alpha", "beta"), template_extra="") -> 
             name: demo
             ontology: ./schema.yaml
             documents: ./docs/
+            graph: bolt://localhost:7687
+            graph: bolt://localhost:7687
             models:
               default: "{{{{ model | default('mara/MiniMax-M2.5') }}}}"
             questions:
@@ -155,10 +157,9 @@ def test_sweep_variants_are_isolated(tmp_path, monkeypatch) -> None:
     code = e2e.run_sweep_from_config(sweep_path, json_output=True)
     assert code == 0
 
-    # distinct graph paths under the sweep run dir, one per variant
+    # DozerDB is shared; workspace isolation is the sweep boundary.
     assert len(created["graphs"]) == 2
-    assert created["graphs"][0] != created["graphs"][1]
-    assert all("graph.lbug" in graph for graph in created["graphs"])
+    assert created["graphs"] == ["bolt://localhost:7687", "bolt://localhost:7687"]
     # distinct workspaces (response-cache key invariant)
     workspaces = [spec.workspace_id for spec in created["specs"]]
     assert workspaces[0] != workspaces[1]
@@ -242,7 +243,7 @@ def test_sweep_stage1_config_error_runs_nothing(tmp_path, monkeypatch, capsys) -
     sweep_path = _write_sweep(tmp_path)
     # break the template for every variant
     (tmp_path / "run.yaml.j2").write_text(
-        'ontology: ./schema.yaml\ndocuments: ./docs/\nmodels:\n  default: "{{ missing_model }}"\n',
+        'ontology: ./schema.yaml\ndocuments: ./docs/\ngraph: bolt://localhost:7687\nmodels:\n  default: "{{ missing_model }}"\n',
         encoding="utf-8",
     )
 
@@ -269,7 +270,7 @@ def test_sweep_var_flag_applies_to_all_variants(tmp_path, monkeypatch) -> None:
 
 def test_run_from_config_rejects_vars_for_plain_yaml(tmp_path, capsys) -> None:
     config = tmp_path / "run.yaml"
-    config.write_text("ontology: s.yaml\ndocuments: docs\n", encoding="utf-8")
+    config.write_text("ontology: s.yaml\ndocuments: docs\ngraph: bolt://localhost:7687\n", encoding="utf-8")
     code = e2e.run_from_config(config, var_flags=["a=1"])
     assert code == 2
     assert ".j2" in capsys.readouterr().err
@@ -279,7 +280,7 @@ def test_run_from_config_show_rendered(tmp_path, capsys) -> None:
     (tmp_path / "schema.yaml").write_text("name: t\nnodes: {}\nrelationships: {}\n")
     template = tmp_path / "run.yaml.j2"
     template.write_text(
-        'ontology: ./schema.yaml\ndocuments: ./docs/\nmodels:\n  default: "{{ model }}"\n',
+        'ontology: ./schema.yaml\ndocuments: ./docs/\ngraph: bolt://localhost:7687\nmodels:\n  default: "{{ model }}"\n',
         encoding="utf-8",
     )
     code = e2e.run_from_config(
@@ -292,7 +293,7 @@ def test_run_from_config_show_rendered(tmp_path, capsys) -> None:
 
 def test_run_from_config_show_rendered_plain_yaml(tmp_path, capsys) -> None:
     config = tmp_path / "run.yaml"
-    config.write_text("ontology: s.yaml\ndocuments: docs\n", encoding="utf-8")
+    config.write_text("ontology: s.yaml\ndocuments: docs\ngraph: bolt://localhost:7687\n", encoding="utf-8")
 
     code = e2e.run_from_config(config, show_rendered=True)
 

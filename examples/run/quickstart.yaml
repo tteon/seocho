@@ -3,12 +3,17 @@
 #   export MARA_API_KEY=...        # or switch models.default below
 #   seocho run examples/run/quickstart.yaml
 #
-# No graph server needed: with no `graph:` key the run uses the embedded
-# LadybugDB engine. See docs/RUN_SPECS.md for every available key.
+# A DozerDB/Neo4j endpoint is required. See docs/RUN_SPECS.md for every key.
 name: quickstart
 
 ontology: ./schema.yaml
 documents: ./docs/
+graph:
+  kind: dozerdb
+  uri: ${NEO4J_URI:-bolt://localhost:7687}
+  user: ${NEO4J_USER:-neo4j}
+  password: ${NEO4J_PASSWORD}
+  database: neo4j
 
 questions:
   - What product does Acme Corp offer?

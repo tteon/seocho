@@ -227,6 +227,17 @@ def register(subparsers) -> None:
     gc.add_argument("--dry-run", action="store_true", required=True, help="Required: no deletion is implemented")
     gc.add_argument("--json", dest="output_json", action="store_true")
 
+    context_parser = ontology_subparsers.add_parser("context", help="Return verified, bounded ontology context for an agent")
+    context_sub = context_parser.add_subparsers(dest="context_action", required=True)
+    profile_parser = context_sub.add_parser("profile", help="Return one purpose-scoped immutable profile")
+    profile_parser.add_argument("--bundle", required=True); profile_parser.add_argument("--purpose", required=True, choices=["indexing", "query", "projection"])
+    profile_parser.add_argument("--json", dest="output_json", action="store_true")
+    slice_parser = context_sub.add_parser("slice", help="Return a bounded JIT slice; never raw ontology files")
+    slice_parser.add_argument("--bundle", required=True); slice_parser.add_argument("--purpose", required=True, choices=["indexing", "query", "projection"])
+    slice_parser.add_argument("--terms", required=True, help="Comma-separated retrieval terms")
+    slice_parser.add_argument("--max-chars", type=int, default=4000)
+    slice_parser.add_argument("--json", dest="output_json", action="store_true")
+
 
 def handle(args: argparse.Namespace) -> int:
     from ..ontology_governance import (
@@ -285,6 +296,15 @@ def handle(args: argparse.Namespace) -> int:
         candidates = [str(path) for path in sorted(root.iterdir()) if path.is_dir() and (path / "manifest.json").exists() and verify_rdf_bundle(path).get("ok")]
         result = {"dry_run": True, "deletions": [], "candidate_bundles": candidates, "note": "GC is report-only; immutable bundles are never deleted by this command."}
         print(json.dumps(result, indent=2, ensure_ascii=False) if getattr(args, "output_json", False) else result)
+        return 0
+
+    if args.ontology_command == "context":
+        from ..ontology.lifecycle import load_agent_profile, slice_agent_profile
+        if args.context_action == "profile":
+            result = load_agent_profile(args.bundle, args.purpose)
+        else:
+            result = slice_agent_profile(args.bundle, args.purpose, args.terms.split(","), max_chars=args.max_chars)
+        print(json.dumps(result, indent=2, ensure_ascii=False))
         return 0
 
     if args.ontology_command == "check":

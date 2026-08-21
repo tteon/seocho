@@ -57,6 +57,7 @@ def experiment_run_trace(
     runtime = str(receipt.get("execution_runtime", "unknown"))
     manifest = {
         "run_id": run_id,
+        "outcome": "ok",
         "runtime_receipt": dict(receipt),
         "trace_backends": current_backend_names(),
         "trace_content_capture": str(os.getenv("SEOCHO_TRACE_CAPTURE_CONTENT", "")).lower()
@@ -79,10 +80,12 @@ def experiment_run_trace(
             outcome = "error"
             raise
         finally:
+            # A process may return normally with per-file failures. Record that
+            # degraded outcome at the root instead of calling the run successful.
+            outcome = str(manifest.get("outcome", outcome))
             elapsed = time.perf_counter() - started
             span.set_metadata({"experiment.outcome": outcome, "duration_ms": round(elapsed * 1000, 2)})
             metrics = get_metrics()
             metrics.record("seocho.experiment.run.duration", elapsed, {"runtime": runtime, "outcome": outcome})
             metrics.add("seocho.experiment.run.count", attributes={"runtime": runtime, "outcome": outcome})
             metrics.add("seocho.observability.trace_complete.count", attributes={"workflow": "experiment", "outcome": outcome})
-

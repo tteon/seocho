@@ -46,6 +46,41 @@ def _is_property_value(value: Any) -> bool:
         return all(isinstance(item, (str, int, float, bool)) or item is None for item in value)
     return False
 
+
+def _canonical_projection_payload(
+    nodes: Sequence[Dict[str, Any]], relationships: Sequence[Dict[str, Any]],
+) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """Prepare a Rust payload with the Python writer's identity semantics.
+
+    Extractors commonly use document-local IDs. The Python writer already
+    canonicalises them to a declared ``name`` before merging; the Rust daemon
+    deliberately does not infer business keys. Do that in the control plane so
+    both paths retain the same identity rules.
+    """
+    canonical_ids: Dict[str, str] = {}
+    canonical_nodes: List[Dict[str, Any]] = []
+    for node in nodes:
+        item = dict(node)
+        props = dict(item.get("properties") or {})
+        original_id = str(item.get("id", ""))
+        canonical_id = str(props.get("name") or original_id or props.get("id", ""))
+        if original_id:
+            canonical_ids[original_id] = canonical_id
+        props["id"] = canonical_id
+        item["id"] = canonical_id
+        item["properties"] = props
+        canonical_nodes.append(item)
+
+    canonical_relationships: List[Dict[str, Any]] = []
+    for relationship in relationships:
+        item = dict(relationship)
+        source, target = str(item.get("source", "")), str(item.get("target", ""))
+        item["source"] = canonical_ids.get(source, source)
+        item["target"] = canonical_ids.get(target, target)
+        item["properties"] = dict(item.get("properties") or {})
+        canonical_relationships.append(item)
+    return canonical_nodes, canonical_relationships
+
 # Neo4j database naming: 3-63 chars, lowercase alpha start, alphanumeric only
 _VALID_DB_NAME_RE = re.compile(r"^[a-z][a-z0-9]{2,62}$")
 _RESERVED_DB_NAMES = {"system", "neo4j"}
@@ -573,9 +608,13 @@ class Neo4jGraphStore(GraphStore):
                 raise RuntimeError("seochod supports approved LPG projection only")
             from ..dataplane.seochod import SeochodProjectionClient
 
+            projection_nodes, projection_relationships = _canonical_projection_payload(
+                nodes, relationships
+            )
+
             result = SeochodProjectionClient(rust_socket).project(
-                nodes,
-                relationships,
+                projection_nodes,
+                projection_relationships,
                 database=database,
                 workspace_id=workspace_id,
                 source_id=source_id,

@@ -1818,7 +1818,9 @@ class IndexingPipeline:
         Summary with ``nodes_deleted``, ``relationships_deleted`` (and
         ``vectors_deleted`` when a vector store is attached).
         """
-        summary = self.graph_store.delete_by_source(source_id, database=database)
+        summary = self.graph_store.delete_by_source(
+            source_id, database=database, workspace_id=self.workspace_id
+        )
         # Also drop the source's vectors so the vector store stays consistent
         # with the graph; otherwise stale vectors keep surfacing as top-k hits
         # pointing at deleted nodes (issue #123). reindex() goes through here.

@@ -466,8 +466,9 @@ class GraphStore(ABC):
         source_id: str,
         *,
         database: str = "neo4j",
+        workspace_id: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Delete all nodes and relationships created by a given source_id.
+        """Delete graph data for a source, optionally within one workspace.
 
         Returns summary with ``nodes_deleted``, ``relationships_deleted``.
         """
@@ -1386,6 +1387,7 @@ class Neo4jGraphStore(GraphStore):
         source_id: str,
         *,
         database: str = "neo4j",
+        workspace_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         summary = {"nodes_deleted": 0, "relationships_deleted": 0, "errors": []}
 
@@ -1394,8 +1396,9 @@ class Neo4jGraphStore(GraphStore):
             try:
                 result = session.run(
                     "MATCH ()-[r]->() WHERE r._source_id = $sid "
+                    "AND ($workspace_id IS NULL OR r._workspace_id = $workspace_id) "
                     "WITH r LIMIT 10000 DELETE r RETURN count(r) AS cnt",
-                    sid=source_id,
+                    sid=source_id, workspace_id=workspace_id,
                 )
                 record = result.single()
                 summary["relationships_deleted"] = record["cnt"] if record else 0
@@ -1410,23 +1413,25 @@ class Neo4jGraphStore(GraphStore):
             try:
                 session.run(
                     "MATCH (n) WHERE n._sources IS NOT NULL AND $sid IN n._sources "
+                    "AND ($workspace_id IS NULL OR n._workspace_id = $workspace_id) "
                     "AND size([s IN n._sources WHERE s <> $sid]) > 0 "
                     "WITH n, [s IN n._sources WHERE s <> $sid] AS rest LIMIT 10000 "
                     "SET n._sources = rest, "
                     "    n._source_id = CASE WHEN n._source_id = $sid "
                     "THEN rest[-1] ELSE n._source_id END",
-                    sid=source_id,
+                    sid=source_id, workspace_id=workspace_id,
                 )
             except Exception as exc:
                 summary["errors"].append(f"Source retire: {exc}")
 
             try:
                 result = session.run(
-                    "MATCH (n) WHERE (n._sources IS NULL AND n._source_id = $sid) "
+                    "MATCH (n) WHERE ((n._sources IS NULL AND n._source_id = $sid) "
                     "OR (n._sources IS NOT NULL AND $sid IN n._sources "
-                    "AND size([s IN n._sources WHERE s <> $sid]) = 0) "
+                    "AND size([s IN n._sources WHERE s <> $sid]) = 0)) "
+                    "AND ($workspace_id IS NULL OR n._workspace_id = $workspace_id) "
                     "WITH n LIMIT 10000 DETACH DELETE n RETURN count(n) AS cnt",
-                    sid=source_id,
+                    sid=source_id, workspace_id=workspace_id,
                 )
                 record = result.single()
                 summary["nodes_deleted"] = record["cnt"] if record else 0

@@ -149,6 +149,29 @@ Compare S1, S2, S3, S5, and S6 with the same model, temperature, prompt
 envelope, normalized RDF graph, workspace, documents, and retrieval results.
 S4 verifies semantic equivalence only and is not given to an agent.
 
+## Single-host multi-model versioning workload
+
+Run three independent worker processes through the same local control plane:
+
+| Worker | MARA model |
+|---|---|
+| `worker-minimax` | `MiniMax-M2.7` |
+| `worker-gptoss` | `gpt-oss-120b` |
+| `worker-gemma` | `gemma-4-31B-it` |
+
+Workers do not share mutable agent state. Each pins a complete ontology tuple
+before prompt assembly: semantic/profile digest, generation, epoch, and
+fencing token. First send identical gold cases under generation N and report
+model-specific triples, direction/type errors, required-slot/provenance recall,
+SHACL, repair count, tokens/latency, and answer/abstention accuracy. Then
+activate N+1 while workers still hold N pins. N candidates retain N receipts;
+they must be revalidated to receive an N+1 admission and can never project with
+an N+1 identity by accident. Finally roll back to N and verify fresh pins.
+
+The workload makes lock value measurable even on one host: different models
+produce different plausible semantic graphs, while concurrent version changes
+would otherwise let one model's result be written under another ontology.
+
 ## Adoption gates
 
 A source serialization is acceptable only if its canonical digest and SHACL
@@ -158,6 +181,9 @@ token count, p95 latency, or aggregate RSS improves by a pre-registered
 threshold. Any cross-workspace leak, mixed generation, stale-fence projection,
 or torn manifest/profile/receipt tuple is a hard failure. Run 10,000
 publish/read/rollback/crash operations before claiming CLI lock correctness.
+For the three-model workload, a missing `(model, semantic digest, profile
+digest, generation, fencing token)` receipt, cross-model profile leakage, or
+stale-fence projection is also a hard failure.
 
 ## Sources
 

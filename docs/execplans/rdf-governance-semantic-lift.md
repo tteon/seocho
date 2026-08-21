@@ -16,6 +16,7 @@ Semantic lift means that facts extracted from raw source material give an agent 
 - [ ] Define a serialization-neutral portable ontology-bundle, profile-pool, and lock contract; measure agent readability, reuse, lifecycle cost, and RDF-tool compatibility before selecting a canonical authoring format.
 - [ ] Bind immutable RDF bundle publication, active-pointer generation/fence, and projection admission together before claiming filesystem/version safety.
 - [ ] Execute live MARA/DozerDB A-E arms with JSONL traces, resource metrics, and blinded judging.
+- [ ] Run a single-host three-worker model/versioning workload using `MiniMax-M2.7`, `gpt-oss-120b`, and `gemma-4-31B-it`.
 
 ## Surprises & Discoveries
 
@@ -127,6 +128,20 @@ rejected before projection. A lock must not become a global long-lived mutex:
 immutable bundle reads remain concurrent and only activation/lease bookkeeping
 uses a short CAS-protected critical section.
 
+H11 (model variance under one semantic contract): Three worker processes using
+MARA models `MiniMax-M2.7`, `gpt-oss-120b`, and `gemma-4-31B-it` will produce
+different extraction candidates, but a pinned ontology profile makes those
+differences inspectable rather than silently incompatible. Measure candidate
+triple agreement, relation direction, required-slot/provenance recall, SHACL
+rejection, repair rate, and grounded answer quality by model.
+
+H12 (lock protects cross-model version races): When one worker extracts under
+generation N while another activates N+1 or rolls back, every candidate and
+projection remains attributed to exactly one `(model, semantic digest, profile
+digest, generation, fencing token)` tuple. An N candidate can be audited or
+revalidated under N+1, but cannot project as though it had been generated under
+N+1. Stale projection is rejected and recorded.
+
 ## Concrete Steps
 
 1. Create a local-only gold corpus manifest and record its SHA-256, model, prompt/profile digest, git revision, DozerDB/Oxigraph/seochod versions, resource limits, warmup, and concurrency in every JSONL trace.
@@ -180,6 +195,17 @@ uses a short CAS-protected critical section.
    retain multiple canonical-equivalent serializations when one is best for
    author review and another is best for RDF tooling, provided the manifest
    explicitly names the authoritative graph digest.
+10. Execute a three-process model/versioning workload. Give each MARA model a
+    unique worker/process ID but the same documents, workspace, and gold cases:
+
+        A. all workers pin generation N/profile P_N and extract;
+        B. activate N+1 while N workers finish, preserving N receipts;
+        C. revalidate N candidates under N+1 before projection;
+        D. roll back to N, create fresh pins, and verify new-worker attribution.
+
+    Canonical DozerDB projection is allowed only for a candidate with the
+    matching active generation and fencing token. This measures model variance
+    and proves why a single-host lock matters.
 
 ## Validation and Acceptance
 
@@ -208,6 +234,13 @@ test workload includes 1, 4, and 16 agents reading different purposes from the
 same bundle while another process activates, rolls back, or crashes. A lock is
 correct only if each response and projected fact can be traced to one complete
 lock tuple; it is efficient only if readers do not serialize behind writers.
+
+For H11/H12 record model/provider request ID where available, worker/process
+ID, semantic/profile digests, generation/epoch/fencing token, candidate hash,
+triple count, direction error, slot/provenance recall, SHACL/repair/admission/
+revalidation/projection outcomes, and query scorecard. Report per-model
+distributions and same-case deltas; cross-model profile leakage, stale-fence
+projection, or a missing model/ontology receipt tuple is a hard failure.
 
 ## Idempotence and Recovery
 

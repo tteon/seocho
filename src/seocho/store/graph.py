@@ -541,20 +541,35 @@ class Neo4jGraphStore(GraphStore):
         source_id: str = "",
         triples: Optional[Sequence[Dict[str, Any]]] = None,
         graph_model: str = "lpg",
+        governance_mode: str | None = None,
     ) -> Dict[str, Any]:
         # The Python SDK remains the ontology/policy control plane.  When this
         # explicit opt-in socket is configured, the canonical DozerDB projection
         # crosses the OS boundary to the Rust Bolt driver and fails closed.
         # Reading, query safety, and schema management remain in this adapter.
         rust_socket = os.environ.get("SEOCHO_RUST_PROJECTOR_SOCKET")
+        from ..ontology.plane_policy import decide_projection
+        from ..ontology.projection_receipt import (
+            load_projection_admission_from_env,
+            load_projection_receipt_from_env,
+        )
+
+        # Receipt loading is intentionally performed before routing.  A partial
+        # receipt configuration is an operator error in every mode; in direct
+        # and shadow it is reported as absent only when not configured at all.
+        semantic_receipt = load_projection_receipt_from_env()
+        admission = load_projection_admission_from_env()
+        decision = decide_projection(
+            governance_mode or getattr(self, "_governance_mode", None),
+            rust_socket=rust_socket,
+            semantic_receipt=semantic_receipt,
+            admission=admission,
+            graph_model=graph_model,
+        )
         if rust_socket:
             if graph_model == "rdf" and triples:
                 raise RuntimeError("seochod supports approved LPG projection only")
             from ..dataplane.seochod import SeochodProjectionClient
-            from ..ontology.projection_receipt import (
-                load_projection_admission_from_env,
-                load_projection_receipt_from_env,
-            )
 
             result = SeochodProjectionClient(rust_socket).project(
                 nodes,
@@ -562,8 +577,8 @@ class Neo4jGraphStore(GraphStore):
                 database=database,
                 workspace_id=workspace_id,
                 source_id=source_id,
-                semantic_receipt=load_projection_receipt_from_env(),
-                admission=load_projection_admission_from_env(),
+                semantic_receipt=semantic_receipt,
+                admission=admission,
             )
             self.invalidate_schema_cache(database)
             return {
@@ -572,6 +587,7 @@ class Neo4jGraphStore(GraphStore):
                 "errors": result.get("errors", []),
                 "merge_conflicts": result.get("merge_conflicts", []),
                 "driver": result.get("driver", "rust-neo4j"),
+                "governance": decision.to_dict(),
             }
 
         # Validate database name (skip for default 'neo4j')
@@ -580,7 +596,9 @@ class Neo4jGraphStore(GraphStore):
 
         # RDF mode: write triples via n10s
         if graph_model == "rdf" and triples:
-            return self._write_rdf(triples, database=database, source_id=source_id)
+            rdf_summary = self._write_rdf(triples, database=database, source_id=source_id)
+            rdf_summary["governance"] = decision.to_dict()
+            return rdf_summary
 
         # seocho-uxs.1: merge_conflicts surfaces value divergence when a MERGE
         # lands on an existing node whose user-facing property already holds a
@@ -590,6 +608,7 @@ class Neo4jGraphStore(GraphStore):
             "relationships_created": 0,
             "errors": [],
             "merge_conflicts": [],
+            "governance": decision.to_dict(),
         }
 
         # seocho-4rg (Lamport): stamp a writer timestamp so concurrent/replayed

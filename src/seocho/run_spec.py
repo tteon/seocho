@@ -32,10 +32,12 @@ DEFAULT_MODEL = "mara/MiniMax-M2.7"
 
 _ALLOWED_ENFORCEMENT_MODES = {"strict", "guided", "open"}
 _ALLOWED_EXECUTION_MODES = {"pipeline", "agent", "supervisor"}
+_ALLOWED_AGENT_RUNTIMES = {"direct", "agents_sdk"}
 _ALLOWED_ROUTING_POLICIES = {"fast", "balanced", "thorough"}
 _ALLOWED_ANSWER_STYLES = {"concise", "evidence", "table"}
 _ALLOWED_GRAPH_KINDS = {"neo4j", "dozerdb"}
 _ALLOWED_VECTOR_KINDS = {"faiss", "lancedb"}
+_ALLOWED_GOVERNANCE_MODES = {"direct", "shadow", "governed", "lockdown"}
 _BOLT_SCHEMES = ("bolt://", "neo4j://", "neo4j+s://", "bolt+s://")
 
 _TOP_LEVEL_KEYS = {
@@ -54,6 +56,7 @@ _TOP_LEVEL_KEYS = {
     "agent",
     "query",
     "vector",
+    "governance",
     "questions",
     "output",
 }
@@ -63,9 +66,10 @@ _SECTION_KEYS: Dict[str, set] = {
     "models": {"default", "indexing", "query"},
     "graph": {"kind", "uri", "path", "user", "password", "database"},
     "indexing": {"design", "category", "force"},
-    "agent": {"design", "execution_mode", "routing_policy"},
+    "agent": {"design", "execution_mode", "routing_policy", "runtime", "ontology_bundle_dir", "max_turns"},
     "query": {"reasoning_mode", "repair_budget", "answer_style", "limit"},
     "vector": {"kind", "embedding", "embedding_model", "dimension", "uri", "table_name"},
+    "governance": {"mode"},
     "output": {"dir"},
 }
 
@@ -152,6 +156,9 @@ class RunSpec:
     # Optional hybrid-search vector store: {kind, embedding, embedding_model,
     # dimension, uri, table_name}. Absent section → no vector store.
     vector: Dict[str, Any] = field(default_factory=dict)
+    # This is distinct from extraction enforcement: strict extraction alone
+    # does not make a graph write canonically governed.
+    governance_mode: str = "direct"
     questions: List[QuestionSpec] = field(default_factory=list)
     output_dir: str = "runs"
     source_path: str = ""
@@ -330,6 +337,7 @@ def parse_run_spec(payload: Any, *, source_path: str = "") -> RunSpec:
     agent = _section(payload, "agent", errors=errors)
     query = _section(payload, "query", errors=errors)
     vector = _section(payload, "vector", errors=errors)
+    governance = _section(payload, "governance", errors=errors)
     output = _section(payload, "output", errors=errors)
 
     # ``graph`` accepts a bare Bolt URI
@@ -372,6 +380,7 @@ def parse_run_spec(payload: Any, *, source_path: str = "") -> RunSpec:
         agent=agent,
         query=query,
         vector=vector,
+        governance_mode=_string(governance.get("mode")).lower() or "direct",
         questions=_parse_questions(payload.get("questions"), errors=errors),
         output_dir=_string(output.get("dir")) or "runs",
         source_path=source_path,
@@ -394,6 +403,11 @@ def parse_run_spec(payload: Any, *, source_path: str = "") -> RunSpec:
             "at ontology.enforcement: must be one of: "
             f"{', '.join(sorted(_ALLOWED_ENFORCEMENT_MODES))}; got {spec.enforcement!r}."
         )
+    if spec.governance_mode not in _ALLOWED_GOVERNANCE_MODES:
+        errors.append(
+            "at governance.mode: must be one of: "
+            f"{', '.join(sorted(_ALLOWED_GOVERNANCE_MODES))}; got {spec.governance_mode!r}."
+        )
 
     for key in ("default", "indexing", "query"):
         if _string(spec.models.get(key)):
@@ -411,6 +425,17 @@ def parse_run_spec(payload: Any, *, source_path: str = "") -> RunSpec:
             "at agent.routing_policy: must be one of: "
             f"{', '.join(sorted(_ALLOWED_ROUTING_POLICIES))}; got {routing_policy!r}."
         )
+    agent_runtime = _string(spec.agent.get("runtime")).lower()
+    if agent_runtime and agent_runtime not in _ALLOWED_AGENT_RUNTIMES:
+        errors.append(
+            "at agent.runtime: must be one of: "
+            f"{', '.join(sorted(_ALLOWED_AGENT_RUNTIMES))}; got {agent_runtime!r}."
+        )
+    if agent_runtime == "agents_sdk" and not _string(spec.agent.get("ontology_bundle_dir")):
+        errors.append("at agent.ontology_bundle_dir: required when agent.runtime is 'agents_sdk'.")
+    max_turns = spec.agent.get("max_turns")
+    if max_turns is not None and (not isinstance(max_turns, int) or max_turns < 1):
+        errors.append("at agent.max_turns: must be a positive integer.")
     answer_style = _string(spec.query.get("answer_style")).lower()
     if answer_style and answer_style not in _ALLOWED_ANSWER_STYLES:
         errors.append(
@@ -532,6 +557,9 @@ questions:
 #
 # agent:
 #   design: ./agent_design.yaml     # optional AgentDesignSpec
+#   runtime: direct                 # direct | agents_sdk
+#   ontology_bundle_dir: ./bundle   # required by agents_sdk JIT ontology tools
+#   max_turns: 6                    # positive integer, agents_sdk only
 #   execution_mode: pipeline        # pipeline | agent | supervisor
 #   routing_policy: balanced        # fast | balanced | thorough
 #
@@ -546,6 +574,11 @@ questions:
 #
 # output:
 #   dir: runs                       # report lands in runs/<name>-<timestamp>/
+#
+# governance:
+#   mode: direct                    # direct | shadow | governed | lockdown
+#                                   # strict modes require Rust projection,
+#                                   # lifecycle admission, and a RDF receipt
 """
 
 

@@ -9,7 +9,7 @@ import pytest
 from seocho import NodeDef, Ontology, P, RelDef
 from seocho import e2e
 from seocho.models import AskResponse
-from seocho.run_spec import parse_run_spec
+from seocho.run_spec import RunSpecError, parse_run_spec
 
 
 class _DummyGraphStore:
@@ -120,6 +120,38 @@ def test_build_agent_config_inline_overrides() -> None:
     assert config.repair_budget == 7
     assert config.answer_style == "table"
     assert config.routing_policy is not None
+
+
+def test_run_spec_governance_mode_is_scoped_to_the_built_store(tmp_path, monkeypatch) -> None:
+    created = _patch_backends(monkeypatch)
+    payload = _write_fixture(tmp_path)
+    payload["governance"] = {"mode": "shadow"}
+    ctx = e2e.build(parse_run_spec(payload, source_path=str(tmp_path / "run.yaml")))
+    try:
+        assert ctx.spec.governance_mode == "shadow"
+        assert created["stores"][0]._governance_mode == "shadow"
+    finally:
+        ctx.close()
+
+
+def test_run_spec_rejects_an_unknown_projection_governance_mode() -> None:
+    with pytest.raises(RunSpecError, match="governance.mode"):
+        parse_run_spec(
+            {
+                "ontology": "schema.yaml", "documents": "docs", "graph": "bolt://localhost:7687",
+                "governance": {"mode": "maybe"},
+            }
+        )
+
+
+def test_run_spec_accepts_explicit_agents_sdk_ontology_context() -> None:
+    spec = parse_run_spec(
+        {
+            "ontology": "schema.yaml", "documents": "docs", "graph": "bolt://localhost:7687",
+            "agent": {"runtime": "agents_sdk", "ontology_bundle_dir": "bundle", "max_turns": 3},
+        }
+    )
+    assert e2e._agents_sdk_config(spec) == ("bundle", 3)
 
 
 def test_build_agent_config_strict_defaults_validation_to_reject() -> None:

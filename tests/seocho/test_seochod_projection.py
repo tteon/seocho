@@ -41,3 +41,5 @@ def test_write_routes_to_rust_projector_when_socket_is_configured(
     assert captured["socket"] == "/tmp/seochod.sock"
     assert captured["workspace_id"] == "workspace-a"
     assert captured["source_id"] == "source-a"
+    assert result["governance"]["mode"] == "direct"
+    assert not result["governance"]["canonical_claim_allowed"]

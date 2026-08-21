@@ -28,7 +28,7 @@ class _FakeGraph:
         self.rows = [{"c": {"name": "Acme"}}]
 
     def query(self, cypher, *, params=None, database="neo4j", workspace_id=None,
-              enforce_workspace_filter=False):
+              enforce_workspace_filter=False, **kwargs):
         self.calls.append({"cypher": cypher, "workspace_id": workspace_id,
                            "enforce_workspace_filter": enforce_workspace_filter})
         return list(self.rows)

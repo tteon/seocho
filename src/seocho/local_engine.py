@@ -1626,6 +1626,8 @@ class _LocalEngine:
                 "LIMIT $k",
                 params={"workspace_id": self.workspace_id, "kws": kws, "k": 3},
                 database=database,
+                workspace_id=self.workspace_id,
+                enforce_workspace_filter=True,
             )
         except Exception:
             return ""

@@ -1,5 +1,14 @@
 # Decision Log
 
+## 2026-08-21
+
+- Accepted `ADR-0219-rust-dozer-projection-daemon.md`
+  - `seochod` owns the local Unix-socket and Rust Bolt boundary for approved,
+    workspace-scoped DozerDB LPG projections; Python retains ontology/policy and
+    read/query control-plane responsibilities.
+  - APOC Extended `parallel2` is read-side only in the tested DozerDB deployment
+    because its parallel workers reject canonical writes.
+
 This file is the lightweight index of architecture/product decisions.
 Each entry must link to a full ADR when impact is non-trivial.
 
@@ -1139,6 +1148,170 @@ Each entry must link to a full ADR when impact is non-trivial.
   - Part B (ia4.5): migration_plan(tombstone=True default) = SET _ontology_tombstoned_at instead of DETACH DELETE; removed prop kept+_deprecated_ not dropped; data_loss flag per stmt; tombstone=False = legacy destructive
   - non-destructive migration by default (VACUUM discipline); epoch-gated vacuum+RELABEL/BACKFILL+scavenger = ia4.3/4.5 follow-up; +3 tests
 
+## 2026-08-16 (text2cypher intern grounding)
+
+- [Accepted] ADR-0187 text2cypher grounding via shared intern table + competency questions (seocho-ia4)
+  - query/intern_grounding.py: resolve_mentions (request mentions -> canonical ids via SharedInternTable; unresolved = can't-find-entity signal for fuzzy routing) + rank_competency_questions (tf-idf cosine intent) + ground_request
+  - attacks the Cypher-gen agent's hardest moment (entity resolution + intent); model-agnostic via cross-model shared namespace (ADR-0183)
+  - honest: exact-name resolution (variants surface as unresolved = boundary-1 ceiling), tf-idf baseline (bge next); +4 tests
+  - follow-up: wire into live cypher-gen prompt + repair loop (PR #542 merged), vector fallback for unresolved
+
+## 2026-08-16 (terminology: soft-delete)
+
+- [Clarification] rename ontology-migration "tombstone" -> "soft-delete" (hadry: term unclear)
+  - migration_plan(soft_delete=True) [was tombstone]; graph props _ontology_soft_deleted_at / _soft_delete_reason [were _ontology_tombstoned_at / _tombstone_reason]; new, no production data, safe rename
+  - audit of this session's OS-lifecycle modules: tombstone was the only genuinely-ambiguous term; the rest (GDSF, intern/interning, tenant_floor, shared_boost, anchor, staleness, AMIE-lite, epoch/watermark/fencing[design]) are standard CS/DL/schema-registry terms already explained in module docstrings — no rename needed
+
+## 2026-08-16 (RCU B1 active pointer)
+
+- [Accepted] ADR-0188 RCU active-version pointer + atomic CAS (seocho-ia4.3 B1)
+  - ActiveOntologyPointer (SQLite BEGIN IMMEDIATE conditional UPDATE): real CAS on read (generation,epoch), not TOCTOU; concurrent same-expected -> exactly one winner
+  - (generation,epoch) globally non-decreasing (generation_hwm survives recreate); fencing token rejects stale leader; workspace-keyed (store lacked it); the 'active' pointer latest()-by-sort isn't
+  - 8 tests incl. concurrent-CAS-one-winner + recreate-monotonic-generation. Next B2 pin, B3 EBR gate
+
+## 2026-08-16 (text2cypher profile gate)
+
+- [Accepted] ADR-0189 text2cypher metric-threshold profile gate (seocho-ia4)
+  - query/profile_gate.py: evaluate_plan detects db_hits/estimated_rows/SLO/rows/full-scan/cartesian breaches -> profiles -> emits improve_directive (auto-driven, generalizes AIsummit26's 2s-wall-only gate); parse_explain_metrics walks PROFILE tree; DB-free +7 tests
+  - AIsummit26 reminder: ontology-vs-not ablation harness (agent_interaction.py, 468-ep) + 3-tier repair loop + bolt-rs rust-harness already exist -> reuse; NEW = this gate + ontology-source axis (introspected vs declared) + bolt-rs LLM loop
+  - full loop: intern_grounding -> generate -> validate -> EXPLAIN/profile_gate DETECT -> improve_directive repair -> execute(bolt-rs) -> computed-gold 3-layer score
+
+## 2026-08-16 (RCU B2 version pin)
+
+- [Accepted] ADR-0190 RCU reader pin/epoch registry (seocho-ia4.3 B2)
+  - VersionPinRegistry(pointer): increment-then-recheck pin (publish-before-observe, retries mid-pin swap), returns incremented epoch, unpin decrements that epoch; request-level context manager decoupled from admission; min_pinned_epoch None-when-no-pins (gate decides); finally-release liveness
+  - all 3 review blockers fixed; 7 tests incl. mid-pin-swap retry + min-advances. Next B3 EBR gate, B4 barrier
+
+## 2026-08-16 (ontology-source A/B for text2cypher)
+
+- [Accepted] ADR-0191 is the ontology useful to text2cypher? ontology-source A/B (seocho-ia4.13)
+  - THIN (labels only) vs DECLARED (schema_for_prompt: rels+directions+cardinality+props+tenant scope), same 8 questions, same MARA model; deterministic conformance via validate_text2cypher_fallback
+  - DECISIVE: conformance 0%->100%, hallucination 100%->0%, avg violations 2.62->0 across all 8; labels-only invents rel names/directions/props + omits tenant scope, declared schema eliminates it
+  - ontology decisively useful to text2cypher (conformance = necessary condition; answer-quality + profile_gate loop + bolt-rs = remaining ia4.13)
+- [Accepted] ADR-0192 pass response_format through to vLLM; drop the guided-decoding translation
+  - guided_json does not exist in vLLM 0.27.1 (zero hits in the installed package); the field was accepted and dropped by extra="allow"
+  - the translation was an elif, so it stripped response_format -- which vLLM handles natively and correctly. Net: structured output was OFF on self-hosted vLLM
+  - three JSON retries gate on response_format being present and were disabled with it; the repair counter is a serving-config alarm, not a model signal
+  - capability_for now takes (model, provider): a self-hosted MiniMax reaches schema enforcement, MARA-hosted stays conservative
+  - supersedes ADR-0098 section 3 only; the vLLM preset, agent-mode handling and the probe plugin stand
+
+## 2026-08-16 (review-hardening: fix the 4-reviewer-panel code defects before measuring)
+
+- [Accepted] ADR-0193 eviction O(log n) lazy-heap victim selection (seocho-ia4.12)
+  - replace per-eviction O(n) candidate scan + min() with a lazy-deletion min-heap keyed by the age-invariant GDSF contribution (freq*cost*boost/size); stale nodes skipped by seq; pinned/floor-protected nodes deferred+re-pushed; heap rebuilt from live set when stale nodes dominate
+  - discovery: the original recomputed _priority fresh each compare so aging cancelled -> observable policy was cost-weighted-LFU, preserved exactly; removes the O(n*k)/admission tail cliff. All pre-existing tests unchanged + 2 new (5000-churn scale, global-min victim)
+- [Accepted] ADR-0194 intern table free()/reclamation + SQLite cross-process backing (seocho-ia4)
+  - 'a heap with no free()' -> optional max_entries + retain/release refcount + LRU zero-ref reclaim(); correctness-preserved because canonical id is deterministic f(identity); 'process-local + racy JSON' -> optional sqlite_path atomic first-writer-wins with coherent-by-immutability L1; atomic (temp+os.replace) persist. Defaults unchanged. 8 tests
+  - deferred (panel): cross-process refcount-driven reclamation + Redis/etcd backing
+- [Accepted] ADR-0195 RCU B3 EBR safe-reclamation gate (seocho-ia4.4)
+  - closes 'the RCU pins gate nothing': SafeReclamationGate consumes VersionPinRegistry.min_pinned_epoch to free a retired snapshot only when min is None or >= retirement_epoch; OntologySnapshotStore.delete (gate-reserved). Conservatively safe, epoch-precise grace period. 4 tests demonstrate pins gating reclamation + newer reader not holding older version
+- [Accepted] ADR-0196 freshness real read-time repair, not a serve stub (seocho-ia4.6)
+  - repair_read drops soft-deleted rows + strips deprecated props so a drifted-but-within-bound read conforms to the active contract; wired into local_engine after the drift barrier (gated on proceeding mismatch, O(records) self-describing scan = no ontology reasoning on hot path); plan_read_repair derives deprecated-prop set off hot path + marks destructive changes non-repairable (-> refuse). Closes the soft-delete read-leak. 6 tests; drift/context suites unchanged
+
+## 2026-08-16 (observability stack -> root compose profile)
+
+- [Accepted] ADR-0199 observability stack as a first-class root-compose profile
+  - root docker-compose.yml `include:`s examples/observability/docker-compose.observability.yml behind the existing `observability` profile (OFF by default); definition + 8 Grafana dashboards stay in examples/, only the entry point moved
+  - network declared identically to root (graphrag-net -> name seocho-net, bridge, non-external) so include merges to ONE project-created network (no external-union breaking core network creation); make observability-up|down|logs drive root compose with an explicit 4-service list (core + volumes untouched)
+  - verified live via the new path: 4 containers healthy, 8 dashboards, Prometheus+Tempo datasources, collector scrape target up; default config unchanged
+
+## 2026-08-16 (structured multi-agent runtime — step 1: run-context spine)
+
+- [Accepted] ADR-0200 per-request run-context spine (seocho-ia4 structured runtime)
+  - OntologyRunContext (defined but referenced nowhere in the runtime) is now built once per ask(), workspace-scoped, and exposed via _LocalEngine.last_run_context(); closes the review's "per-request ontology delivery doesn't exist" gap at the foundation
+  - pinned_run_context(...) + with_pinned_version/pinned_epoch: when an RCU pin registry+pointer are configured, the request pins ONE frozen ontology version for its whole duration (B2 read side, per (workspace,package)); a mid-request publish swap does not change what the pinned request reads (tested) -> the e2e mutation probe is meaningful
+  - all new wiring defaults OFF (behaviour identical until configured); multi-tenancy first-class (per-(ws,pkg) isolated pins); 6 new tests + run-context/drift/ontology-context suites green
+
+## 2026-08-16 (structured runtime step 2a: concurrency-safe context + pinned-schema resolver)
+
+- [Accepted] ADR-0201 concurrency-safe run context + pinned-schema resolver (seocho-ia4 structured runtime)
+  - orchestrator design review returned go-with-fixes / 7 blockers; step 2a lands the two foundational ones (one a defect in shipped ADR-0200 code)
+  - B7: in-flight run context moved from a shared instance attr (clobbered by concurrent multi-tenant asks) to a contextvars.ContextVar (active_run_context()); ask() finally folds drift into the LOCAL context; last_run_context() documented post-hoc/not-concurrency-safe
+  - B1: PinnedSchemaResolver (query/pinned_schema.py) loads the immutable snapshot for a pinned (package_id,version) and compiles prompt schema + guardrail policy from the SAME frozen ontology -> per-request pinned delivery is now real (pinned 1.0.0 resolves 1.0.0 even after 2.0.0 publishes); caches ONLY the pure tenant-agnostic schema block by (package,version,fingerprint), never a workspace-bound agent (pre-empts B3/B6)
+  - 13 new tests; run-context/ontology-context/drift/snapshot/RCU suites green. Deferred to step 2b: B2/B4/B5 + majors (governed execute, arm x organ matrix, retrieve-only specialist, plain-function orchestrator, engine axis, per-request ledger)
+
+## 2026-08-16 (structured runtime step 2b: orchestrator + arm x organ config)
+
+- [Accepted] ADR-0202 structured query orchestrator + arm x organ config (seocho-ia4)
+  - framing set to "measured agent-OS layer" (hadry; matches the AgenticOS CFP's own words) — organ guarantees measured, then composed into the OS claim
+  - ArmConfig: 5 organs (intern/schema/pin/workspace/guardrail) as independent flags; bare()/governed()/without(organ); ablation_arms() = BARE+GOVERNED+5 leave-one-out (not 2^5)
+  - StructuredQueryOrchestrator: plain deterministic function (not an LLM manager), resolve schema -> generate cypher (retrieve-only) -> guardrail (policy from the SAME pinned snapshot, B3) -> governed execute (force-pin workspace + enforce_workspace_filter, B2) -> synthesizer owns prose (B5); LLM+graph are injected seams
+  - 11 tests prove each organ changes execution deterministically; monolithic composition supplanted by an organ-flagged, tenant-safe orchestrator. Step 2c = wire into Seocho.ask (engine=structured axis) + live cypher_generator/synthesizer + per-request ledger; bolt-rs (AIsummit26 rust-harness) on roadmap as the I/O-plane organ
+
+## 2026-08-16 (structured runtime D2: read-side canonical resolver)
+
+- [Accepted] ADR-0203 read-side canonical resolver via a name-alias index (seocho-t28/zfe)
+  - closes multi-agent-flow review blocker #3 (shared pool write-only on the read path): write interns composite identity label|name|company|year, a bare mention can't rebuild it, so resolve_mentions always missed multi-key entities
+  - SharedInternTable.alias/candidates/resolve_one = source-agnostic (workspace, normalized-name) -> {canonical} MULTIMAP; homonyms accumulate as a SET (surfaced, never a silent guess); apply_identity_keys registers name->canonical additively; resolve_mentions falls back to resolve_one
+  - t28 closed for unambiguous multi-key names; homonyms surface candidates (boundary1 honest); workspace-scoped. intern organ now mechanism-true on reads. 17 tests; identity/intern/grounding green
+  - deferred: cross-source CONVERGENCE (fragments->one canonical) needs source-agnostic write identity/reconciliation; flagged review #6 sub-claim (composite id has no workspace -> verify graph MERGE key when D3 single-graph indexing lands)
+
+## 2026-08-16 (structured runtime D2-2: cross-source canonical convergence)
+
+- [Accepted] ADR-0204 cross-source canonical convergence (seocho-zfe)
+  - closes the cross-source half of blocker #3: same real entity from two sources fragments (company|acme vs organization|acme), so joins land on 2 nodes
+  - NodeDef.cross_source_unique (opt-in, default False, roundtrips): a declared globally-name-unique type gets a label-free source-agnostic canonical id ~xs|<name> in apply_identity_keys -> both sources' nodes MERGE to ONE physical node (write-time physical convergence). Safe: never fuses distinct types sharing a name (Apple co vs fruit) or homonym metrics (those keep identity_keys, surfaced as candidates)
+  - SharedInternTable.reconcile + union-find (_find, path-compressed) kept as the residual/explicit read-level reconciliation for fragments not caught at write
+  - 6 tests; ontology/identity/intern green (332). Note for D3: MERGE on (id,_workspace_id) so two tenants' identical ~xs| entity never share a node (review #6)
+
+## 2026-08-16 (structured runtime Step 2c/1: engine=structured axis wired into Seocho.ask)
+
+- [Accepted] ADR-0205 engine="structured" axis — orchestrator wired into Seocho.ask (seocho-ia4)
+  - orthogonal `engine` param (deterministic default | structured) on Seocho.ask/ask_response/_LocalEngine.ask; NOT overloading query_mode (reasoning semantics)
+  - structured routes (inside the per-request pin + ContextVar) to _run_structured_pipeline -> StructuredQueryOrchestrator: resolve schema -> retrieve (seam) -> guardrail (pinned-snapshot policy) -> governed execute (force-pin workspace + enforce_workspace_filter, D1/B2) -> synthesizer owns prose (B5)
+  - honest abstain (D5): answer_source in {structured | structured_no_evidence | structured_guardrail_rejected} (a rejection is never "no evidence"); per-request GuardrailLedger (un-poisoned across tenants); seams injectable (unit-tested without live LLM/DB), snapshot-store resolver enables pinned schema organ
+  - refcount leak-safety: structured pipeline inside pinned_run_context+ContextVar finally -> pin released even on exception (tested). default deterministic path byte-for-byte unchanged. 4 wiring tests; client/run-context/orchestrator green (24)
+  - remaining Step 2c/2: live e2e validation (MARA/DozerDB), D3 single-graph indexing ((id,_workspace_id) MERGE), D4 scheduler fairness, bolt-rs I/O organ
+
+## 2026-08-16 (structured runtime: workspace-scoped graph MERGE, review #6)
+
+- [Accepted] ADR-0206 workspace-scoped node/rel MERGE (seocho-ia4, review #6, D3 code-half)
+  - Neo4jGraphStore.write MERGEd nodes on id alone; with ADR-0204's source-agnostic ~xs|<name> ids (identical across tenants), a shared graph would MERGE two tenants' entity onto ONE node + rels could bridge tenants (cross-tenant collision)
+  - fix: node MERGE (n:L {id, _workspace_id: $ws}) + rel endpoints MATCH scoped by _workspace_id; write() already stamps _workspace_id on every node so existing nodes still match -> no migration break; two tenants' identical id now key to distinct (id,_workspace_id) nodes
+  - 3 tests assert workspace-scoped Cypher (node + both rel endpoints, distinct ws per tenant); LWW test endpoint assertion updated. graph/index/convergence green (24). test_graph_db_span's 3 fails are PRE-EXISTING on origin/main (query-path fake missing default_access_mode, unrelated)
+
+## 2026-08-16 (structured runtime D4: scheduling — per-tenant structural + point-lookup light lane)
+
+- [Accepted] ADR-0207 scheduling: per-tenant isolation is structural; point lookups take the light lane (seocho-ia4, review #5)
+  - review #5 ("no tenant dimension -> one tenant starves co-tenants") REFUTED vs origin/main: LaneScheduler is per SeochoOS instance, SeochoOS is one per (workspace,database) -> each tenant has its own scheduler+permits (structural isolation, no starvation). Same stale-tree over-read as #1/#6-resolver. Disclosed residual: no global cross-tenant ceiling (isolation-over-global-cap choice; future work)
+  - real within-workspace fix: a fan-out's burst of id-equality+LIMIT1 canonical-id resolves (ADR-0203 shape) flooded the heavy lane on 'unknown=heavy' cold-start -> execute_query now routes cheap point lookups to the light lane (has_light_lane gate), keeping the protected heavy lane free
+  - OS scheduling stated precisely: cross-tenant=separate instances, within-tenant=light/heavy+high/normal reserve+EWMA with point-lookups seeded light. 3 tests; operating-layer/admission green (31)
+
+## 2026-08-16 (structured runtime: ontology-grounded text2cypher, live-validated)
+
+- [Accepted] ADR-0208 ontology-grounded text2cypher for the structured engine (seocho-ia4.13)
+  - live smoke exposed: default (deterministic-planner) cypher_generator emits undeclared props + inlined literals + no tenant scope -> governed guardrail rejects -> governed arm spuriously abstains (the exact Plane-2 confound the review warned of)
+  - generate_grounded_cypher(llm, question, schema_text, *, workspace_id, limit) -> (cypher, params): declared ids only, every value a $param (no inlined literal), {_workspace_id:$workspace_id} on EVERY node (satisfies store verify_workspace_binding, not just the anchor), LIMIT $limit; returns value params. Now the structured engine's default generator; orchestrator threads (cypher,params) into guardrail + governed execute (back-compat with bare-string generators)
+  - LIVE-VALIDATED (DozerDB+MARA): governed arm produced conformant workspace-scoped Cypher, guardrail allowed:1/rejected:0, store filter passed, CORRECT answer (real incident) vs deterministic confabulation. Plane-2 blocker removed. wires the ADR-0191 grounding thesis into the runtime. 3 unit tests; orchestrator/engine green (13). asset: scripts/agentos/e2e_structured_smoke.py
+
+## 2026-08-16 (structured runtime: text2cypher repair loop)
+
+- [Accepted] ADR-0209 text2cypher repair loop (seocho-ia4.13)
+  - StructuredQueryOrchestrator.repair_budget (default 0; local engine sets 1): on a guardrail rejection, feed the violation reasons + rejected query back to generate_grounded_cypher(feedback=) and retry up to budget before abstaining; _call_gen keeps 2-arg test doubles compatible; StructuredQueryResult.repair_attempts records retries
+  - removes the Plane-2 confound (governed abstaining on a fixable one-shot miss); bounded + honest (still abstains after budget). 3 tests; structured suites green (16)
+
+## 2026-08-16 (organ 4: bolt-rs I/O-plane organ, measured)
+
+- [Accepted] ADR-0210 bolt-rs I/O-plane organ (seocho-ia4)
+  - vendored the AIsummit26 Rust data-plane harness into scripts/agentos/bolt_rs/ (env-configurable BOLT_HOST/PORT/USER/PASS), the 6th organ = OS owns the agent<->KB transport; CFP "execution substrates / cross-layer network,latency"
+  - MEASURED live (dozerdb-h0 finbenchl1, dedup 4x3 same): redundancy_factor=12, total_bytes_json=82068 vs unique_bytes_json=6839 = 12x redundant wire bytes for one answer's unique data; ~2.7-4e4 rows/s. transport-level statement of the shared-memory thesis (interning must drop redundancy) -> a Plane-1 metric (bolt-rs on/off)
+  - roadmap: wire governed execute_query over the Rust bolt path; add dedup/contention to arm x organ Plane-1. builds ~1.5s; target/ gitignored
+
+## 2026-08-16 (organ 3: Postgres ground truth + fact-level provenance chain)
+
+- [Accepted] ADR-0211 PostgreSQL ground truth + fact-level provenance chain (seocho-ia4.15)
+  - hadry: Postgres = system of record, graph = PROJECTION of it -> resolves the review's #1 plane-mismatch (graph is a governed projection, not a decorative bypass)
+  - seocho.provenance: content_fact_id (content-addressed, ties row/node/bundle, idempotent) + per-run PROV-O Bundle (correct vocab, VALUE-FREE: fact-id refs only, never embeds object -> not a leak channel)
+  - seocho.provenance_store: prov_fact/provenance/classification + governed projection. Honors review: FORCE RLS + non-owner seocho_reader role + SET LOCAL app.workspace/grant (not agent input) (#2); trusted per-source classify_by_source + append-only classification (#3); default-DENY restricted + row-drop escalation; reuse filter_record/AgentPrincipal not re-impl (#4); projection stamps sensitivity onto graph nodes
+  - 7 tests (fact_id, value-free PROV-O ttl, DDL security props, trusted classification, idempotent write via fake conn); ruff clean. DEFERRED to live: RLS across principals + projection wiring (needs pg container + psycopg) + a measured result needs gold sensitivity/PII labels (honest boundary)
+
+## 2026-08-16 (organ 3: Palantir-style layered security dataset/row/cell/sub-cell)
+
+- [Accepted] ADR-0212 Palantir-Ontology layered security (seocho-ia4.15)
+  - hadry's model (Palantir Ontology): Postgres ground truth authors security semantically at 4 granularities, graph = governed projection carrying it forward
+  - seocho.security_levels over the public<internal<restricted<secret lattice (default-DENY): dataset_visible (workspace/ADR-0164); row_visible (OSP, denied row DROPPED not masked); cell = reuse filter_record (review #4, not re-impl); sub-cell = filter_array_elements (DERIVED PROPERTY keeping only in-clearance array elements = the piece field-level filter can't do). SecurityPolicy.apply composes all four + returns redaction audit list
+  - sub-cell array-element protection is the new capability (patient-notes example tested); 6 tests; ruff clean. live enforcement rides ADR-0211 RLS+projection (pg infra gated)
+
 ## Template
 
 Use this block for new entries:
@@ -1173,6 +1346,101 @@ Use this block for new entries:
   / `sc.platform` / `sc.sessions` group 54 of 80 facade methods; `AsyncSeocho`'s
   25 missing methods are generated rather than hand-written; additive, nothing
   deprecated yet
-- [Accepted] ADR-0196 untrack-agent-state-directories — supersedes ADR-0113;
-  `.claude/` and `.serena/` are forbidden outright so the hygiene contract is
-  one list matching CLAUDE.md, with no exception to maintain
+- [Experimental] ADR-0213 graphrag-stage-breakdown (seocho-5ny) — e2e attribution
+  on MARA MiniMax-M2.7 + live DozerDB. #589 (endpoint remap, `endpoints_resolvable`
+  0→12) is solid. The stage attribution was **downgraded after multi-agent review**:
+  a follow-up diagnostic showed `records=0` is faithful (not an artifact) and the
+  Erica vagans → "Cornish heath" failure is non-deterministic across **stage-1**
+  (alias not lifted) AND **stage-3** (anchor-slot picks the question's framing-clause
+  book title). n=1 with no ceiling/floor control ⇒ not a class claim. Lowest-
+  complexity fix: strip question framing clauses before anchor-slot extraction.
+
+- [Experimental] ADR-0214 ontology-modeling-drives-accuracy (seocho-5ny) — live on
+  MARA MiniMax-M2.7 + DozerDB, 8 stratified Qs, MARA-judged. Ontology modeling is
+  the top query-side accuracy lever: generic single-Entity **1/8** vs typed MODELED
+  **5/8**, silent_wrong **0** in all cells (SEOCHO fails loud). Ceiling (inject the
+  alias) → recovers, so failures were upstream not retrieval. A demand-driven
+  `propose_ontology(docs, questions)` prototype climbs **1→3→4/8** with zero
+  hand-authoring; after modeling is right the residual shifts to stage-1 extraction
+  coverage. Enabled by #592 (anchor de-framing) + #593 (real write counters).
+  Caveats: n small, single-path, judge unaudited. Follow-ups: productize proposer +
+  coverage-feedback surface, broaden to ≥20 Qs + text2cypher arm.
+- [Experimental] ADR-0215 multi-agent-handoff + SDK guardrails/context (seocho-5ny) —
+  hand-off mechanism code-verified: workspace_id baked into each sub-agent's tools
+  (scope can't leak via NL hand-off); no input_filter so full conversation crosses.
+  Live (MARA + Agents SDK 0.13.6): the hand-off loop did NOT converge
+  (MaxTurnsExceeded) — agent-mode query tool emitted malformed Cypher and spun; the
+  deterministic single-agent path stays reliable. Guardrails/context CAN and partly
+  DO ride the SDK: integrations/openai_agents.py already wraps SEOCHO's deterministic
+  ontology guardrail into tool_input_guardrail (+ GuardrailLedger); operating_layer
+  maps the pillars. Gap: factory-built agents don't wire it → the unguarded loop.
+  Follow-ups: wire guardrails onto factory agents, fix agent-mode Cypher, add
+  handoff input_filter / RunContextWrapper.
+
+- [Proposed] ADR-0216 agents-sdk-coupling-strategy (seocho-5ny) — strongly couple
+  SEOCHO to the OpenAI Agents SDK, but ONLY at the orchestration plane: the SDK
+  supplies loop/handoffs/guardrail-slots/tools/sessions/MCP/HITL/spans; SEOCHO
+  supplies the deterministic BODIES (planner-as-tool per ADR-0214, ontology/Cypher/
+  workspace guardrail per ADR-0215, graph-backed memory + workspace scope). Core
+  SDK is provider-agnostic (runs on MARA); tracing must stay vendor-neutral (no
+  OpenAI backend); Realtime/Voice is OpenAI-only (defer). Phase 0 = wire guardrails
+  onto factory agents + fix tracing + re-run hand-off (expect convergence).
+
+- [Accepted] ADR-0217 orchestration-adopt-not-build (seocho-5ny) — SEOCHO's moat is
+  the data plane; orchestration is consumed, not built. Spike proved the ADR-0215
+  non-convergence was LOOP CONTROL, not the framework: a single deterministic tool
+  (answer_from_graph) under a bounded hand-off converges where the autonomous
+  multi-tool loop hit MaxTurnsExceeded (shipped Phase 1 #607; Phase 0 guardrail
+  wiring #606). Agents SDK CAN be driven deterministically (input_filter, max_turns,
+  as_tool, or plain-Python control) so the state-machine desire is met now WITHOUT
+  LangGraph; LangGraph stays deferred behind seocho-ihg's MCP-first triple gate,
+  reconsidered only if a durable/branching/resumable StateGraph becomes required.
+  Orchestration kept a thin swappable adapter behind agent/factory + integrations.
+
+- [Experimental] ADR-0218 agentic-rag-bottleneck (seocho-5ny) — EnterpriseRAG e2e via
+  Agents SDK + MARA MiniMax-M2.7 + live DozerDB, traced to Tempo, agentic vs direct arm
+  (3 runs each). **Graph DB = ~0.1% of latency (NOT the bottleneck)**; LLM round-trips are
+  the entire cost; the **agentic layer adds >=1 removable orchestration turn/query (direct=0)
+  and holds the worst tail (177s spin)**. Implication: prefer the direct controlled query
+  agent for single-intent, Agent.as_tool over handoff, don't optimize the graph; faster
+  model / self-hosted vLLM attacks the floor. Shareable chart artifact. Caveats: n=3, high
+  variance, answer-quality is a separate axis (ADR-0214).
+
+- [Accepted] ADR-0220 arm-organ-medical-instrument (seocho-5ny) — pre-registered the
+  arm×organ A/B's pivot to GraphRAG-Bench medical after the erb procedural gold
+  produced a uniform null (wrong instrument): floor/ceiling controls mandatory
+  (closed-book floor 0.90 = memorized corpus, so organ effects are read from
+  deterministic mechanism metrics), six review-verified harness bugs fixed before
+  the run, governed-no-intern relabeled an index-time no-op control, and the clean
+  single-tenant run scoped as the task-parity control — load-bearing claims gated
+  on the adversarial probes.
+
+- [Accepted] ADR-0221 arm-organ-medical-results (seocho-5ny, seocho-e19, seocho-8qp,
+  seocho-zfe, seocho-svf) — measured results: read-time canonical resolution
+  quadruples answered questions (3→12/21; held-out replication 14/21 vs 7/21);
+  no-guardrail confabulates 5/21 vs governed 2/21; cross-tenant homonym probe shows
+  isolation is a MEANING boundary (no-workspace imports the other department's
+  referent into 2/3 answers, governed 0/3); mid-run ontology mutation collapses the
+  un-pinned arm (spurious rejections 1→4) while the pinned arm is immune; dual-index
+  3-tier shows no-identity-layer catastrophic fusion (degree-694 node) while a fair
+  name-keyed baseline matches canonical structure on a single-source corpus —
+  sharpening the intern claim to its three separately-evidenced parts.
+
+## 2026-08-17 (DataHub interchange: boundary, not internalization)
+
+- [Accepted] ADR-0222 DataHub = boundary serialization target (seocho-v6w)
+  - 12-agent review (6/6 adversarial verifications CONFIRMED): rejected
+    internalizing DataHub's entities/aspects/URN/entity-registry — aspect
+    decomposition destroys the whole-document fingerprint / SnapshotConflict /
+    cross-facet validate() invariants; corpuser violates user_id-not-in-graph;
+    Unity Catalog (HMS as foreign catalog) and all healthy DataHub integrations
+    are boundary adapters
+  - seam rule: `urn:li:*` + aspect names live only in datahub_export.py and
+    connectors/datahub.py; only normalized term_records / connector_record.v1
+    cross inward
+  - accepted internalizations: seocho-native URN scheme (portable intern-table
+    address, urn:li derived at the boundary) + audit fields on OntologySnapshot
+  - review signal = globalTags tag (advisory; SEOCHO never writes that aspect,
+    so re-export can't clobber approvals); pull → diff → human confirm →
+    snapshot save; infra-free review path stays first-class; docs say
+    "DataHub integration", never "DataHub-compatible"

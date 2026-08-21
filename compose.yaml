@@ -1,8 +1,18 @@
+# Optional local observability stack (ADR-0144): OTel Collector + Tempo +
+# Prometheus + Grafana. Gated behind the `observability` profile, so it is OFF
+# by default and only starts with `docker compose --profile observability up`.
+# The stack definition lives with its dashboards under examples/observability/.
+include:
+  - path: examples/observability/docker-compose.observability.yml
+
 services:
   # --- Core Local Stack: graph DB + runtime API + thin UI proxy ---
   apoc-extended-init:
     image: curlimages/curl:8.10.1
-    user: "${UID:-1000}:${GID:-1000}"
+    # The plugin bind mount can be owned by an earlier Neo4j container (often
+    # uid 65534).  The one-shot installer must be able to write the versioned
+    # jars; Neo4j only needs read access after this step.
+    user: "0:0"
     environment:
       APOC_EXTENDED_VERSION: ${APOC_EXTENDED_VERSION:-5.26.4}
       SEOCHO_NEO4J_PLUGIN_DIR: /plugins
@@ -62,6 +72,19 @@ services:
     volumes:
       - ./notebooks:/app/notebooks
       - ./demos:/app/demos
+    # Compose reads .env for ${VAR} substitution but does NOT put it inside the
+    # container. Measured before adding this: the code reads 74 environment
+    # variables and this service passed 11, so 63 were silently inert in the
+    # container -- MARA_API_KEY (the default LLM provider), every OTEL_* name,
+    # SEOCHO_AUTH_MODE and SEOCHO_AUTH_SECRET among them. Setting one in .env
+    # and watching it do nothing is the failure this prevents.
+    #
+    # env_file loads first and `environment` below overrides it, which is the
+    # order we want: host-side values are the default, container-internal
+    # corrections win.
+    env_file:
+      - path: .env
+        required: false
     environment:
       # Container-internal hostname. Host-side SDK/scripts should use
       # NEO4J_URI=bolt://localhost:7687 in .env.
@@ -71,6 +94,27 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - SEOCHO_TRACE_BACKEND=${SEOCHO_TRACE_BACKEND:-none}
       - SEOCHO_TRACE_JSONL_PATH=${SEOCHO_TRACE_JSONL_PATH:-/tmp/seocho-runtime.jsonl}
+      # Auth defaults to "none" in runtime/identity.py, so the stack shipped
+      # unauthenticated and nothing made the operator notice. Compose already
+      # guards NEO4J_PASSWORD this way; the access-control decision deserves
+      # the same treatment. Set it to "none" explicitly to keep the old
+      # behaviour.
+      - SEOCHO_AUTH_MODE=${SEOCHO_AUTH_MODE:?Set SEOCHO_AUTH_MODE (none|token) in .env -- the default was anonymous access}
+      # Opt-in, and off by default. See extraction/entrypoint.sh.
+      - SEOCHO_ENABLE_JUPYTER=${SEOCHO_ENABLE_JUPYTER:-0}
+      - SEOCHO_JUPYTER_TOKEN=${SEOCHO_JUPYTER_TOKEN:-}
+      - SEOCHO_RUN_BATCH_ON_START=${SEOCHO_RUN_BATCH_ON_START:-0}
+    # Without these a dead API server left the container "up" indefinitely:
+    # uvicorn was backgrounded behind `tail -f /dev/null`, there was no probe,
+    # and no restart policy. /health/runtime is used rather than /health/batch
+    # because the latter reports on a batch that no longer runs by default.
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8001/health/runtime', timeout=4).status==200 else 1)\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
     depends_on:
       neo4j:
         condition: service_healthy
@@ -84,11 +128,21 @@ services:
       - "${SEOCHO_BIND_HOST:-127.0.0.1}:${CHAT_INTERFACE_PORT:-8501}:8501"
     volumes:
       - ./evaluation:/app
+    # Deliberately NO env_file here. `evaluation/server.py` reads exactly one
+    # variable — EXTRACTION_SERVICE_URL — and handing it the whole .env would
+    # put SEOCHO_AUTH_SECRET, NEO4J_PASSWORD and every provider key into the
+    # environment of an internet-facing thin proxy that has no use for them.
+    # This is the same rule the backing stores already follow: a container gets
+    # the configuration it reads, not the configuration that exists.
     environment:
       - EXTRACTION_SERVICE_URL=http://extraction-service:8001
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+    restart: unless-stopped
+    # Wait for readiness, not just start order. Bare `depends_on` only orders
+    # container creation, so the UI came up against an API that was not serving.
     depends_on:
-      - extraction-service
+      extraction-service:
+        condition: service_healthy
     networks:
       - graphrag-net
 

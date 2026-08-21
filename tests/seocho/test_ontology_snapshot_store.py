@@ -100,3 +100,32 @@ def test_compare_missing_version_raises(tmp_path):
     store.save(_v1())
     with pytest.raises(KeyError):
         store.compare("acme", "1.0.0", "9.9.9")
+
+
+def test_changed_evidence_same_schema_raises_not_clobber(tmp_path):
+    """seocho-v6w.5: the schema fingerprint does not cover the scorecard/notes,
+    so a re-save with the same (version, schema) but different EVIDENCE used to
+    silently overwrite the published version's evidence at the same path."""
+    store = OntologySnapshotStore(tmp_path)
+    store.save(_v1(), notes="reviewed by A")
+    with pytest.raises(SnapshotConflict, match="different evidence"):
+        store.save(_v1(), notes="reviewed by B")  # same schema, changed notes
+    # the original evidence survives
+    assert store.get("acme", "1.0.0").notes == "reviewed by A"
+
+
+def test_changed_scorecard_same_schema_raises(tmp_path):
+    store = OntologySnapshotStore(tmp_path)
+    store.save(_v1(), scorecard={"overall_score": 0.7, "dimensions": []})
+    with pytest.raises(SnapshotConflict, match="different evidence"):
+        store.save(_v1(), scorecard={"overall_score": 0.9, "dimensions": []})
+    assert store.get("acme", "1.0.0").overall_score() == 0.7
+
+
+def test_idempotent_save_preserves_original_created_at(tmp_path):
+    store = OntologySnapshotStore(tmp_path)
+    first = store.save(_v1(), notes="same", created_at="2026-01-01T00:00:00+00:00")
+    second = store.save(_v1(), notes="same", created_at="2026-09-09T00:00:00+00:00")
+    # identical evidence (created_at excluded) → idempotent, original kept
+    assert second.created_at == first.created_at == "2026-01-01T00:00:00+00:00"
+    assert len([s for s in store.list("acme") if s.version == "1.0.0"]) == 1

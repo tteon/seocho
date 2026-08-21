@@ -83,6 +83,7 @@ and must not be tracked as part of the public GitHub surface.
 | Path | Status | Notes |
 |---|---|---|
 | `seocho-core/` | Optional accelerator workspace | Rust/Python hybrid support code, not the first stop for normal app changes. |
+| `dataplane/` | Optional native runtime components | Rust sidecars/proxies that sit below the Python control plane; the first component is the Oxigraph ontology read model. |
 
 ## Local Runtime State And Generated Artifacts
 
@@ -108,9 +109,12 @@ stacks live under `docker/`, documented in `docker/README.md`.
 | `docker/compose.dev.yaml` | Live-mount overlay used with `make up-live` / `make dev-up` |
 | `docker/compose.instance.yaml` | Isolated per-worktree app tier (`seocho serve --instance`) |
 | `docker/compose.memory.yaml` | Optional authoritative PostgreSQL agent memory (`make memory-up`) |
-| `docker/compose.opik.yaml` | Optional self-hosted Opik services (`make opik-up`); excluded from the default stack |
 | `docker/compose.tutorials.yaml` | FinDER tutorial JupyterLab + Neo4j (`make tutorials-up`) |
-| `docker/compose.tls-enterprise.yaml` | Neo4j Enterprise bolt-TLS stack for cert-rotation qualification |
+
+The Opik compose overlay was removed with the Opik tracing backend
+(ADR-0172); the TLS-enterprise overlay was removed as unreferenced (#617);
+the observability stack is a root compose profile via ``include:``
+(ADR-0199).
 
 Compose resolves relative paths and `.env` against the directory of the first
 `-f` file. Overlays are therefore safe as-is, but a side stack invoked on its

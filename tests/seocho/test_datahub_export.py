@@ -75,3 +75,38 @@ def test_emit_without_server_is_dry_run():
     mcps = ontology_to_glossary_mcps(_onto())
     result = emit_to_datahub(mcps, gms_server=None, dry_run=False)
     assert result["emitted"] is False  # no server → dry-run, never crashes
+
+
+# --- _slug injectivity (seocho-v6w.6): no silent URN collisions ---------------
+
+from seocho.datahub_export import _slug  # noqa: E402
+
+
+def test_slug_is_injective_for_space_vs_underscore():
+    # the original bug: both collapsed to "Total_Revenue"
+    assert _slug("Total Revenue") != _slug("Total_Revenue")
+
+
+def test_slug_distinguishes_distinct_specials():
+    variants = ["Total Revenue", "Total_Revenue", "Total-Revenue", "Total.Revenue",
+                "Total/Revenue", "Total  Revenue", "Total(Revenue)"]
+    slugs = [_slug(v) for v in variants]
+    assert len(set(slugs)) == len(variants)  # all distinct → injective
+
+
+def test_slug_output_is_urn_safe():
+    import string
+    safe = set(string.ascii_letters + string.digits + "._-")
+    for v in ["Total Revenue", "매출", "a/b:c", "x_y"]:
+        assert set(_slug(v)) <= safe
+
+
+def test_slug_stable_and_idempotent():
+    assert _slug("Total Revenue") == _slug("Total Revenue")  # deterministic
+
+
+def test_slug_passes_plain_alnum_labels_unchanged():
+    # class labels without '_' keep their existing URN (backward compatible)
+    assert _slug("Person") == "Person"
+    assert _slug("po.Person") == "po.Person"
+    assert _slug("Financial-Metric") == "Financial-Metric"

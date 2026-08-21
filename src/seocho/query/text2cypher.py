@@ -38,10 +38,23 @@ async def generate_validated_cypher(
 ) -> Text2CypherResult:
     """Generate, validate, EXPLAIN, and at most once repair a read query."""
 
+    # The contract has to be stated exactly, because the validator checks it
+    # exactly. "It must include tenant scope" left the model to guess the
+    # expression, and it guessed `{workspace_id: $workspace_id}` -- rejected as
+    # unknown_properties AND missing_workspace_scope_expression. Measured live
+    # against MiniMax-M2.7: 2 of 2 generations failed that way, and the repair
+    # loop reproduced the identical violation on every attempt, because the
+    # feedback names what is wrong and the prompt never says what is right.
+    scope_expression = f"{{{policy.workspace_property}: $workspace_id}}"
     system = (
         "SEOCHO Text2Cypher v1. Return one JSON object with key cypher. Generate a "
-        "read-only Cypher query using only the supplied schema and named parameters. "
-        "It must include tenant scope, RETURN, and LIMIT $limit. Never insert literal IDs."
+        "read-only Cypher query using only the supplied schema and named parameters.\n"
+        f"Every matched node MUST carry the tenant scope {scope_expression} — that "
+        f"exact property name, matched inline in the node pattern.\n"
+        "The query MUST end with LIMIT $limit and MUST RETURN something.\n"
+        "Compare against PARAMETERS, never inline literals: write `WHERE n.name = "
+        "$name`, not `WHERE n.name = 'Tesla'`. An inlined literal creates a new "
+        "plan-cache entry per entity. LIMIT/SKIP/hop bounds are the exception."
     )
     feedback: list[str] = []
     metrics = get_metrics()
@@ -61,6 +74,7 @@ async def generate_validated_cypher(
                 {
                     "question": question,
                     "schema": schema,
+                    "required_node_scope": scope_expression,
                     "available_parameters": sorted(params),
                     "max_hops": policy.max_graph_hops,
                     "prior_failures": feedback,

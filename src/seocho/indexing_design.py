@@ -8,7 +8,7 @@ import yaml
 
 
 _SUPPORTED_GRAPH_MODELS = {"lpg", "rdf", "hybrid"}
-_SUPPORTED_STORAGE_TARGETS = {"ladybug", "neo4j", "dozerdb"}
+_SUPPORTED_STORAGE_TARGETS = {"neo4j", "dozerdb"}
 _ALLOWED_EXTRACTION_STRATEGIES = {"general", "domain", "multi_pass"}
 _ALLOWED_LINKING_STRATEGIES = {"llm", "embedding", "none"}
 _ALLOWED_VALIDATION_MODES = {"reject", "retry", "relax", "warn"}

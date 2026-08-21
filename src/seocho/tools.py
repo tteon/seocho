@@ -52,8 +52,7 @@ def make_extract_entities_tool(ontology: Any, llm: Any, extraction_prompt: Any =
         Returns:
             JSON string with extracted nodes and relationships.
         """
-        strategy.category = category
-        system, user = strategy.render(text)
+        system, user = strategy.render(text, category=category)
         try:
             response = complete_with_task_hints(
                 llm,
@@ -394,7 +393,13 @@ def make_execute_cypher_tool(
             params = {}
 
         try:
-            records = graph_store.query(cypher, params=params, database=database)
+            records = graph_store.query(
+                cypher,
+                params=params,
+                database=database,
+                workspace_id=workspace_id,
+                enforce_workspace_filter=True,
+            )
             payload = {
                 "records": records,
                 "count": len(records),
@@ -421,6 +426,51 @@ def make_execute_cypher_tool(
             return json.dumps({"records": [], "count": 0, "error": str(exc)})
 
     return execute_cypher
+
+
+def make_deterministic_query_tool(
+    *,
+    ontology: Any,
+    graph_store: Any,
+    llm: Any,
+    vector_store: Any = None,
+    workspace_id: str = "default",
+    default_database: str = "neo4j",
+):
+    """One controlled tool that runs SEOCHO's deterministic query path end to end.
+
+    Wraps the deterministic path (intent slots -> planner builds Cypher -> execute
+    -> synthesize; the accuracy winner in ADR-0214) as a single SDK function-tool.
+    Giving a query agent THIS tool instead of the free-form
+    text2cypher/execute/validate set turns its job into "call once, relay" -- a
+    controlled flow that CONVERGES where the autonomous multi-tool loop did not
+    (ADR-0215 MaxTurnsExceeded; ADR-0217 spike). `workspace_id` is closed over,
+    so scope cannot leak through a hand-off.
+    """
+    from agents import function_tool
+
+    from .local_engine import _LocalEngine
+
+    engine = _LocalEngine(
+        ontology=ontology,
+        graph_store=graph_store,
+        llm=llm,
+        vector_store=vector_store,
+        workspace_id=workspace_id,
+    )
+
+    @function_tool
+    def answer_from_graph(question: str, database: str = default_database) -> str:
+        """Answer a question from the knowledge graph using SEOCHO's deterministic
+        ontology-grounded query path. Pass the user's question verbatim and call
+        this exactly once; its result is the final answer."""
+        try:
+            return str(engine.ask(question, database=database))
+        except Exception as exc:  # noqa: BLE001 - surface the error to the model, do not raise
+            logger.error("answer_from_graph failed: %s", exc)
+            return json.dumps({"error": str(exc)})
+
+    return answer_from_graph
 
 
 def make_search_similar_tool(vector_store: Any):
@@ -728,4 +778,23 @@ def create_query_tools(
     ]
     if vector_store is not None:
         tools.append(make_search_similar_tool(vector_store))
+
+    # ADR-0215/0216 Phase 0: gate execute_cypher with SEOCHO's deterministic
+    # ontology guardrail (a SDK tool_input_guardrail). It runs BEFORE the tool
+    # touches the database and rejects an off-schema / unscoped / literal-inlined
+    # query with a message the model repairs from -- turning an unguarded loop
+    # (the MaxTurnsExceeded seen in ADR-0215) into a bounded repair. Defense in
+    # depth: never let attaching it break tool creation.
+    if ontology is not None:
+        try:
+            from .integrations.openai_agents import make_ontology_guardrail
+
+            guardrail = make_ontology_guardrail(ontology)
+            for _t in tools:
+                if getattr(_t, "name", None) == "execute_cypher":
+                    _t.tool_input_guardrails = [guardrail]
+                    break
+        except Exception as exc:  # noqa: BLE001 - guardrail is additive hardening
+            logger.warning("ontology guardrail not attached to execute_cypher: %s", exc)
+
     return tools

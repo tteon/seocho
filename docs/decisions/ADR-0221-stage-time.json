@@ -1,0 +1,110 @@
+[
+  {
+    "qid": "Medical-0047c320",
+    "resolve_schema": 0.3,
+    "generate_llm": 2703.3,
+    "guardrail": 0.5,
+    "entity_resolve": 42.7,
+    "execute_graph": 1.8,
+    "synthesize_llm": 653.6
+  },
+  {
+    "qid": "Medical-0155c059",
+    "resolve_schema": 0.5,
+    "generate_llm": 1963.1,
+    "guardrail": 0.2,
+    "entity_resolve": 26.9,
+    "execute_graph": 1.7,
+    "synthesize_llm": 390.4
+  },
+  {
+    "qid": "Medical-015910ee",
+    "resolve_schema": 0.5,
+    "generate_llm": 3315.2,
+    "guardrail": 0.3,
+    "entity_resolve": 28.8,
+    "execute_graph": 1.8,
+    "synthesize_llm": 752.8
+  },
+  {
+    "qid": "Medical-01f113f7",
+    "resolve_schema": 0.5,
+    "generate_llm": 2772.9,
+    "guardrail": 0.5,
+    "entity_resolve": 15.7,
+    "execute_graph": 3.3,
+    "synthesize_llm": 742.5
+  },
+  {
+    "qid": "Medical-0030eab4",
+    "resolve_schema": 0.5,
+    "generate_llm": 2073.9,
+    "guardrail": 0.1,
+    "entity_resolve": 1.8,
+    "execute_graph": 1.8,
+    "synthesize_llm": 910.7
+  },
+  {
+    "qid": "Medical-0093e2ec",
+    "resolve_schema": 0.5,
+    "generate_llm": 1988.7,
+    "guardrail": 0.2,
+    "entity_resolve": 8.8,
+    "execute_graph": 2.0,
+    "synthesize_llm": 368.5
+  },
+  {
+    "qid": "Medical-00ef7b5d",
+    "resolve_schema": 0.4,
+    "generate_llm": 2799.4,
+    "guardrail": 0.1,
+    "entity_resolve": 0.0,
+    "execute_graph": 49.5,
+    "synthesize_llm": 895.8
+  },
+  {
+    "qid": "Medical-0103d518",
+    "resolve_schema": 0.1,
+    "generate_llm": 3062.5,
+    "guardrail": 0.2,
+    "entity_resolve": 55.1,
+    "execute_graph": 1.7,
+    "synthesize_llm": 694.9
+  },
+  {
+    "qid": "Medical-0002d2de",
+    "resolve_schema": 0.1,
+    "generate_llm": 3328.6,
+    "guardrail": 0.3,
+    "entity_resolve": 7.9,
+    "execute_graph": 2.8,
+    "synthesize_llm": 2164.2
+  },
+  {
+    "qid": "Medical-00bf955d",
+    "resolve_schema": 0.4,
+    "generate_llm": 2764.2,
+    "guardrail": 0.1,
+    "entity_resolve": 2.8,
+    "execute_graph": 2.2,
+    "synthesize_llm": 369.1
+  },
+  {
+    "qid": "Medical-01692d91",
+    "resolve_schema": 0.4,
+    "generate_llm": 1480.2,
+    "guardrail": 0.2,
+    "entity_resolve": 8.3,
+    "execute_graph": 3.2,
+    "synthesize_llm": 1619.0
+  },
+  {
+    "qid": "Medical-0170eecb",
+    "resolve_schema": 0.1,
+    "generate_llm": 1520.9,
+    "guardrail": 0.2,
+    "entity_resolve": 3.9,
+    "execute_graph": 5.8,
+    "synthesize_llm": 388.7
+  }
+]

@@ -22,13 +22,27 @@ Flow: `SEOCHO → OTLP gRPC → Collector → Tempo (traces) + Prometheus (metri
 
 ## Run
 
-The stack joins the **external** `seocho-net` network created by the repo's main
-`compose.yaml`, so bring the main stack up first, then use the repository
-entry point:
+This stack is a first-class **`observability` profile** of the repo's root
+`compose.yaml` (pulled in via `include:`), so it shares the core stack's
+`seocho-net` network and project. It is OFF by default — nothing here starts on a
+plain `docker compose up`. Start it either way:
 
 ```bash
-make observability-up
+make observability-up                          # the four services only
+# or, directly, from the repo root:
+docker compose --profile observability up -d tempo prometheus otel-collector grafana
 ```
+
+Stopping removes only the four observability containers (the core stack and the
+named data volumes are left alone):
+
+```bash
+make observability-down
+```
+
+The definition and dashboards still live in this directory; only the entry point
+moved to the root compose. Bringing the core stack up first is no longer required
+— the profile creates/attaches `seocho-net` on its own.
 
 Point SEOCHO at the collector:
 

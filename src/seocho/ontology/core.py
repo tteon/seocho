@@ -44,7 +44,7 @@ import re
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Set, Union
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Union
 
 import yaml
 
@@ -110,6 +110,13 @@ class Property:
         Human-readable description shown in prompts.
     aliases:
         Alternative names an LLM might use for this property.
+    enum:
+        Optional allowed value set. An extracted value outside it is a
+        validation error, emitted as ``sh:in`` and enforced by
+        :meth:`validate_with_shacl`.
+    value_range:
+        Optional inclusive numeric ``(min, max)`` bound, emitted as
+        ``sh:minInclusive`` / ``sh:maxInclusive``.
 
     Example::
 
@@ -117,6 +124,8 @@ class Property:
 
         name = Property(str, unique=True)
         age = Property(int, required=True, description="Age in years")
+        rating = Property(str, enum=["buy", "hold", "sell"])
+        score = Property(float, value_range=(0.0, 1.0))
     """
 
     type: Union[type, PropertyType, str] = str
@@ -125,6 +134,8 @@ class Property:
     required: bool = False
     description: str = ""
     aliases: List[str] = field(default_factory=list)
+    enum: Optional[List[Any]] = None
+    value_range: Optional[Tuple[float, float]] = None
 
     @property
     def property_type(self) -> PropertyType:
@@ -178,6 +189,14 @@ class NodeDef:
     # (name, company, year) match, instead of collapsing on name alone.
     # Empty == legacy behavior (single unique property / id is the key).
     identity_keys: List[str] = field(default_factory=list)
+    # seocho-zfe D2-2: when True, this type's entities are the SAME real entity
+    # across sources when their name matches — so the SAME name written from two
+    # sources (with different labels: company|acme vs organization|acme) converges
+    # to ONE canonical id / one physical node, enabling cross-source joins. Opt-in
+    # (default False): the modeler declares which types are globally name-unique,
+    # so name-merge never fuses genuinely-distinct types (Apple the company vs the
+    # fruit) or homonym-prone metrics (which use identity_keys instead).
+    cross_source_unique: bool = False
 
     # --- introspection helpers ------------------------------------------------
 
@@ -382,6 +401,8 @@ class Ontology:
             for pname, pd in (nd.get("properties") or {}).items():
                 ptype = PropertyType[pd.get("type", "STRING").upper()] if isinstance(pd, dict) else PropertyType.STRING
                 constraint_str = pd.get("constraint", "").upper() if isinstance(pd, dict) else ""
+                enum_vals = pd.get("enum") if isinstance(pd, dict) else None
+                range_vals = pd.get("range") if isinstance(pd, dict) else None
                 props[pname] = P(
                     type=ptype,
                     unique=constraint_str == "UNIQUE",
@@ -389,6 +410,9 @@ class Ontology:
                     required=pd.get("required", False) if isinstance(pd, dict) else False,
                     description=pd.get("description", "") if isinstance(pd, dict) else "",
                     aliases=pd.get("aliases", []) if isinstance(pd, dict) else [],
+                    enum=list(enum_vals) if enum_vals is not None else None,
+                    value_range=(float(range_vals[0]), float(range_vals[1]))
+                    if range_vals and len(range_vals) == 2 else None,
                 )
             nodes[label] = NodeDef(
                 description=nd.get("description", ""),
@@ -397,6 +421,9 @@ class Ontology:
                 broader=nd.get("broader", []),
                 same_as=nd.get("sameAs") or nd.get("same_as"),
                 identity_keys=list(nd.get("identity_keys", []) or nd.get("identityKeys", [])),
+                cross_source_unique=bool(
+                    nd.get("cross_source_unique", nd.get("crossSourceUnique", False))
+                ),
             )
 
         rels: Dict[str, RelDef] = {}
@@ -458,6 +485,10 @@ class Ontology:
                     entry["description"] = p.description
                 if p.aliases:
                     entry["aliases"] = list(p.aliases)
+                if p.enum is not None:
+                    entry["enum"] = list(p.enum)
+                if p.value_range is not None:
+                    entry["range"] = [p.value_range[0], p.value_range[1]]
                 props_out[pname] = entry
             node_entry: Dict[str, Any] = {"description": nd.description, "properties": props_out}
             if nd.same_as:
@@ -468,6 +499,8 @@ class Ontology:
                 node_entry["broader"] = list(nd.broader)
             if nd.identity_keys:
                 node_entry["identity_keys"] = list(nd.identity_keys)
+            if getattr(nd, "cross_source_unique", False):
+                node_entry["cross_source_unique"] = True
             nodes_out[label] = node_entry
 
         rels_out: Dict[str, Any] = {}
@@ -1140,6 +1173,11 @@ class Ontology:
                 elif p.required:
                     ps["minCount"] = 1
                     ps["message"] = f"Every {label} must have a {pname}."
+                if p.enum is not None:
+                    ps["in"] = list(p.enum)
+                if p.value_range is not None:
+                    ps["minInclusive"] = p.value_range[0]
+                    ps["maxInclusive"] = p.value_range[1]
                 if p.description:
                     ps["description"] = p.description
                 prop_shapes.append(ps)
@@ -1321,6 +1359,36 @@ class Ontology:
                             f"Node '{nid}' ({label}).{pname}: "
                             f"expected boolean, got {type(value).__name__}"
                         )
+
+                # enum (sh:in) — the declared allowed value set. Without this,
+                # a vocabulary could be declared and was never enforced: the
+                # only channel that controlled extracted values was prose in
+                # the prompt.
+                allowed = ps.get("in")
+                if allowed is not None and value is not None and value != "":
+                    if value not in allowed:
+                        errors.append(
+                            f"Node '{nid}' ({label}).{pname}: value {value!r} "
+                            f"not in allowed set {allowed}"
+                        )
+
+                # range (sh:minInclusive / sh:maxInclusive)
+                if ("minInclusive" in ps or "maxInclusive" in ps) and value is not None and value != "":
+                    try:
+                        numeric = float(value)
+                    except (ValueError, TypeError):
+                        errors.append(
+                            f"Node '{nid}' ({label}).{pname}: "
+                            f"non-numeric value {value!r} for a ranged property"
+                        )
+                    else:
+                        lo = ps.get("minInclusive")
+                        hi = ps.get("maxInclusive")
+                        if (lo is not None and numeric < lo) or (hi is not None and numeric > hi):
+                            errors.append(
+                                f"Node '{nid}' ({label}).{pname}: value {value!r} "
+                                f"out of range [{lo}, {hi}]"
+                            )
 
         # Relationship cardinality check
         source_rel_counts: Dict[str, Dict[str, int]] = {}  # node_id -> {rel_type -> count}
@@ -1772,6 +1840,18 @@ class Ontology:
             # uniqueness constraint over the identity members instead, and
             # skip the per-member UNIQUE.
             identity = set(nd.identity_keys)
+            if len(nd.identity_keys) == 1:
+                # A single identity key IS the identity, so it takes a plain
+                # UNIQUE. Previously the composite branch needed >1 key and the
+                # per-property branch skipped anything in `identity`, so a class
+                # with exactly one identity key got no constraint at all --
+                # silently, and precisely for the property the writer dedupes on.
+                (only,) = nd.identity_keys
+                if only in nd.properties:
+                    stmts.append(
+                        f"CREATE CONSTRAINT constraint_{label}_identity_unique "
+                        f"IF NOT EXISTS FOR (n:{label}) REQUIRE n.{only} IS UNIQUE"
+                    )
             if len(nd.identity_keys) > 1:
                 props = ", ".join(f"n.{k}" for k in nd.identity_keys)
                 cname = f"constraint_{label}_identity_unique"
@@ -1793,6 +1873,57 @@ class Ontology:
                         f"CREATE INDEX {iname} IF NOT EXISTS "
                         f"FOR (n:{label}) ON (n.{pname})"
                     )
+
+            # The three indexes below cover the properties the WRITE and READ
+            # paths actually use, which were disjoint from the properties this
+            # method indexed. Measured before adding them: the ontology indexed
+            # whatever was declared `unique`/`index`; the writer MERGEs on `id`;
+            # the retriever filters on the display property and `_workspace_id`.
+            # Three disjoint sets, so no index served any predicate a correct
+            # query would use — and a plan grader then reads that as "the LLM
+            # writes unsargable Cypher" when the truth is "no index exists".
+
+            # 1. The MERGE key. Every node write is `MERGE (n:L {id: ...})`, so
+            #    without this each write is a label scan plus a property filter,
+            #    and relationship writes do two. Ingest is quadratic.
+            stmts.append(
+                f"CREATE INDEX index_{label}_id IF NOT EXISTS "
+                f"FOR (n:{label}) ON (n.id)"
+            )
+
+            # 2. Tenancy first, then the anchor. `_workspace_id` alone is the
+            #    lowest-cardinality property in the store, so a seek on it
+            #    returns most of the label; composite with the identity key it
+            #    becomes O(this tenant's matching entities) instead of
+            #    O(all tenants' data) on every query in the system.
+            anchor = (nd.effective_identity_keys or [None])[0]
+            if anchor:
+                stmts.append(
+                    f"CREATE INDEX index_{label}_workspace_{anchor} IF NOT EXISTS "
+                    f"FOR (n:{label}) ON (n._workspace_id, n.{anchor})"
+                )
+
+        # 3. Entity-name resolution is a fuzzy substring match, which a RANGE
+        #    index (what CREATE INDEX gives you) cannot serve. FULLTEXT is the
+        #    only index type appropriate for it, and `graph_router.py` already
+        #    calls db.index.fulltext.queryNodes against exactly this index name
+        #    — nothing in the SDK created it, so that retrieval path failed and
+        #    was swallowed by a bare except, degrading to a keyword heuristic
+        #    with no signal.
+        display_props = sorted({
+            prop
+            for nd in self.nodes.values()
+            for prop in ((nd.effective_identity_keys or []) + ["name"])
+            if prop in nd.properties or prop == "name"
+        })
+        if self.nodes and display_props:
+            labels = "|".join(sorted(self.nodes))
+            props = ", ".join(f"n.{p}" for p in display_props)
+            stmts.append(
+                f"CREATE FULLTEXT INDEX entity_fulltext IF NOT EXISTS "
+                f"FOR (n:{labels}) ON EACH [{props}]"
+            )
+
         return stmts
 
     # ------------------------------------------------------------------
@@ -2016,8 +2147,19 @@ class Ontology:
                             type_correct += 1
                         elif p.property_type.value in ("DATETIME", "DATE") and isinstance(val, str):
                             type_correct += 1
+                        elif p.property_type.value == "LIST" and isinstance(val, (list, tuple)):
+                            type_correct += 1
+                        elif p.property_type.value == "POINT" and isinstance(val, (dict, list, tuple)):
+                            type_correct += 1
                         else:
-                            type_correct += 0.5  # partial credit for other types
+                            # A genuine type mismatch scores 0. The old +0.5
+                            # kept malformed extractions above quality_threshold
+                            # and so silently disabled the indexing quality-retry
+                            # gate. LIST and POINT are handled above because they
+                            # fell into this same branch: a correctly typed list
+                            # was docked half a point, which is the other half of
+                            # the same bug.
+                            type_correct += 0
                 score_parts["type_correctness"] = (
                     type_correct / type_checks if type_checks > 0 else 1.0
                 )
@@ -2140,6 +2282,23 @@ class Ontology:
                     lines.append(f"- {label}.{pname}: {p.constraint.value}")
                 if p.property_type != PropertyType.STRING:
                     lines.append(f"- {label}.{pname}: datatype={p.property_type.value}")
+                # A declared vocabulary that never reaches the extractor is a
+                # constraint the model cannot honour: it can only be rejected
+                # after the fact, for a rule it was never told. ADR-0181's own
+                # finding was that what has a declarative home in the prompt is
+                # obeyed (Step.position, 175/175) and what does not is invented
+                # (Decision.status, 8 values across 51 documents) -- so the enum
+                # has to be rendered, not only validated.
+                if p.enum:
+                    allowed = ", ".join(str(v) for v in p.enum)
+                    lines.append(
+                        f"- {label}.{pname}: MUST be exactly one of [{allowed}]"
+                    )
+                if p.value_range:
+                    low, high = p.value_range
+                    lines.append(
+                        f"- {label}.{pname}: numeric, between {low} and {high} inclusive"
+                    )
         return "\n".join(lines)
 
     # ------------------------------------------------------------------
@@ -2415,14 +2574,21 @@ class Ontology:
         if strategy == "right_wins":
             return right
 
-        # Check source/target compatibility
+        # Record every conflicting definition. merge() raises on the accumulated
+        # list afterwards in strict mode, so returning early on the first one
+        # meant a cardinality mismatch was never compared: two ontologies
+        # declaring the same relationship ONE_TO_MANY and MANY_TO_MANY merged
+        # silently to the left side's cardinality.
         if left.source != right.source or left.target != right.target:
             conflicts.append(
                 f"Relationship '{rtype}': "
                 f"{left.source}->{left.target} vs {right.source}->{right.target}"
             )
-            if strategy == "strict":
-                return left
+        if str(left.cardinality).strip().upper() != str(right.cardinality).strip().upper():
+            conflicts.append(
+                f"Relationship '{rtype}': cardinality "
+                f"{left.cardinality} vs {right.cardinality}"
+            )
 
         merged_props = dict(left.properties)
         merged_props.update(right.properties)
@@ -2441,7 +2607,7 @@ class Ontology:
     # Migration
     # ------------------------------------------------------------------
 
-    def migration_plan(self, new_ontology: "Ontology", *, tombstone: bool = True) -> Dict[str, Any]:
+    def migration_plan(self, new_ontology: "Ontology", *, soft_delete: bool = True) -> Dict[str, Any]:
         """Compute a migration plan from this ontology to a new version.
 
         Returns Cypher statements needed to transform existing graph
@@ -2451,13 +2617,13 @@ class Ontology:
         ----------
         new_ontology:
             The target ontology to migrate to.
-        tombstone:
+        soft_delete:
             When True (default, seocho-ia4.5) a removed label/relationship is
-            **tombstoned** (``SET ... _ontology_tombstoned_at``, hidden from new
+            **soft-deleted** (``SET ... _ontology_soft_deleted_at``, hidden from new
             reads) rather than destructively deleted — physical deletion becomes a
             later GC decision on a retention clock (gated by the RCU epoch, ia4.3),
             not a migration side effect. A removed property is kept (deprecated),
-            not dropped. Pass ``tombstone=False`` for the legacy destructive plan.
+            not dropped. Pass ``soft_delete=False`` for the legacy destructive (hard-delete) plan.
             Every statement carries a ``data_loss`` flag.
 
         Returns
@@ -2489,16 +2655,16 @@ class Ontology:
         for label in sorted(new_labels - old_labels):
             plan["additions"].append({"type": "node", "label": label})
 
-        # Removed node types (breaking). Tombstone (default) instead of destroy.
+        # Removed node types (breaking). Soft-delete (default) instead of destroy.
         _ts = new_ontology.version
         for label in sorted(old_labels - new_labels):
             plan["removals"].append({"type": "node", "label": label})
             plan["breaking"] = True
-            if tombstone:
+            if soft_delete:
                 plan["cypher_statements"].append({
-                    "description": f"Tombstone :{label} nodes (removed in {_ts})",
-                    "cypher": (f"MATCH (n:{label}) SET n._ontology_tombstoned_at = '{_ts}', "
-                               f"n._tombstone_reason = 'label removed'"),
+                    "description": f"Soft-delete :{label} nodes (removed in {_ts})",
+                    "cypher": (f"MATCH (n:{label}) SET n._ontology_soft_deleted_at = '{_ts}', "
+                               f"n._soft_delete_reason = 'label removed'"),
                     "breaking": True, "data_loss": False,
                 })
             else:
@@ -2518,7 +2684,7 @@ class Ontology:
 
             for prop in sorted(old_props - new_props):
                 plan["removals"].append({"type": "property", "label": label, "property": prop})
-                if tombstone:
+                if soft_delete:
                     # keep the data; mark the property deprecated (no data loss)
                     plan["cypher_statements"].append({
                         "description": f"Deprecate property {prop} on :{label} (kept)",
@@ -2543,11 +2709,11 @@ class Ontology:
         for rtype in sorted(old_rels - new_rels):
             plan["removals"].append({"type": "relationship", "relationship": rtype})
             plan["breaking"] = True
-            if tombstone:
+            if soft_delete:
                 plan["cypher_statements"].append({
-                    "description": f"Tombstone [{rtype}] relationships (removed in {_ts})",
-                    "cypher": (f"MATCH ()-[r:{rtype}]->() SET r._ontology_tombstoned_at = '{_ts}', "
-                               f"r._tombstone_reason = 'rel type removed'"),
+                    "description": f"Soft-delete [{rtype}] relationships (removed in {_ts})",
+                    "cypher": (f"MATCH ()-[r:{rtype}]->() SET r._ontology_soft_deleted_at = '{_ts}', "
+                               f"r._soft_delete_reason = 'rel type removed'"),
                     "breaking": True, "data_loss": False,
                 })
             else:

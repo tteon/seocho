@@ -27,9 +27,10 @@ N-way concurrency the LaneScheduler admits).
 from __future__ import annotations
 
 import contextlib
+import heapq
 import threading
 from dataclasses import dataclass, field
-from typing import Callable, Dict, Hashable, Set
+from typing import Callable, Dict, Hashable, List, Set, Tuple
 
 
 @dataclass
@@ -41,6 +42,7 @@ class _Entry:
     tenants: Set[str] = field(default_factory=set)   # who has referenced it
     value: float = 0.0              # cached GDSF priority (with aging term)
     pins: int = 0                   # in-flight readers; pinned entries are never evicted
+    heap_seq: int = 0               # seq of this entry's most recent heap node (lazy deletion)
 
 
 class CostAwareEvictionCache:
@@ -60,6 +62,12 @@ class CostAwareEvictionCache:
         self._store: Dict[Hashable, object] = {}
         self._bytes = 0
         self._age = 0.0                 # GDSF aging term ("L"): floor of evicted value
+        # Lazy-deletion min-heap of (priority, seq, key) for O(log n) victim
+        # selection (seocho-ia4.12). A key may have several nodes (one per
+        # priority change); only the one whose seq == entry.heap_seq is live, the
+        # rest are discarded on pop. Replaces the old O(n)-scan-per-eviction.
+        self._heap: List[Tuple[float, int, Hashable]] = []
+        self._seq = 0
         self._lock = threading.Lock()
         # observability
         self.hits = 0
@@ -68,10 +76,21 @@ class CostAwareEvictionCache:
         self.recompute_ms_avoided = 0.0      # saved on hit
         self.evictions = 0
 
-    def _priority(self, e: _Entry) -> float:
-        # GDSF: aging + frequency * cost / size, with a boost for shared reuse.
+    def _contribution(self, e: _Entry) -> float:
+        # The age-invariant GDSF value: frequency * cost / size, boosted for
+        # shared reuse. This — NOT the aging term — is what orders eviction: the
+        # aging term is added uniformly to every entry, so it cancels out of the
+        # argmin. Ordering the heap by contribution reproduces the original
+        # cost-weighted-LFU victim exactly (a hot/expensive/shared page survives
+        # churn as the docstring promises), while giving O(log n) selection.
         shared_boost = 1.0 + 0.5 * max(0, len(e.tenants) - 1)
-        return self._age + (e.freq * e.recompute_cost * shared_boost) / max(e.size, 1)
+        return (e.freq * e.recompute_cost * shared_boost) / max(e.size, 1)
+
+    def _priority(self, e: _Entry) -> float:
+        # GDSF: aging + contribution. Used for the fairness-floor ranking and to
+        # advance the aging term on eviction (kept for behavioural compatibility);
+        # the aging term does not affect relative eviction order (see above).
+        return self._age + self._contribution(e)
 
     def get(self, key: Hashable, *, tenant: str, size: int,
             recompute_cost: float, compute_fn: Callable[[], object]) -> object:
@@ -83,6 +102,7 @@ class CostAwareEvictionCache:
                 e.freq += 1
                 e.tenants.add(tenant)
                 e.value = self._priority(e)
+                self._push(e)
                 return self._store[key]
             self.misses += 1
             self.recompute_ms_incurred += recompute_cost
@@ -93,6 +113,7 @@ class CostAwareEvictionCache:
             self._entries[key] = e
             self._store[key] = value
             self._bytes += e.size
+            self._push(e)
             self._evict_to_budget(protect_tenant=tenant)
             return value
 
@@ -115,6 +136,7 @@ class CostAwareEvictionCache:
                 e.freq += 1
                 e.tenants.add(tenant)
                 e.value = self._priority(e)
+                self._push(e)
                 return self._store[key]
             self.misses += 1
             value, size, recompute_cost = compute_fn()
@@ -126,14 +148,33 @@ class CostAwareEvictionCache:
             self._entries[key] = e
             self._store[key] = value
             self._bytes += e.size
+            self._push(e)
             self._evict_to_budget(protect_tenant=tenant)
             return value
+
+    def _push(self, e: _Entry) -> None:
+        """Record ``e``'s current priority as a fresh heap node (lazy deletion:
+        older nodes for the same key become stale and are skipped on pop)."""
+        self._seq += 1
+        e.heap_seq = self._seq
+        # Order by the age-invariant contribution: it only ever rises (freq and
+        # tenant-set grow), so a key's stale nodes carry SMALLER values and are
+        # popped-then-skipped before its current one — the first live node popped
+        # is the true minimum-contribution victim.
+        heapq.heappush(self._heap, (self._contribution(e), self._seq, e.key))
+        # Housekeeping: rebuild from the live set when stale nodes dominate, so
+        # the heap stays O(live entries) rather than growing with every hit.
+        if len(self._heap) > 2 * len(self._entries) + 32:
+            self._heap = [(self._contribution(en), en.heap_seq, en.key)
+                          for en in self._entries.values()]
+            heapq.heapify(self._heap)
 
     def _evict_to_budget(self, *, protect_tenant: str) -> None:
         if self._bytes <= self.byte_budget:
             return
-        # Per-tenant floor: the top-`tenant_floor` entries of each tenant are
-        # protected. Contend only over the rest.
+        # Per-tenant floor (fairness): protect each active tenant's top-`tenant_floor`
+        # most-valuable entries. Computed ONCE per pressured admission, not per
+        # victim — the O(n)-per-eviction scan is gone (seocho-ia4.12).
         protected: Set[Hashable] = set()
         if self.tenant_floor:
             by_tenant: Dict[str, list] = {}
@@ -144,23 +185,27 @@ class CostAwareEvictionCache:
                 entries.sort(key=self._priority, reverse=True)
                 for e in entries[: self.tenant_floor]:
                     protected.add(e.key)
-        # Evict lowest-priority unprotected entries until under budget.
-        while self._bytes > self.byte_budget:
-            # Safety gate (seocho-ia4.4): never evict a PINNED entry — one a
-            # concurrent request is mid-flight on. Value ranking chooses only among
-            # already-safe (unpinned, unprotected) candidates. The full epoch-based
-            # gate (min_pinned_epoch / version reclamation) is ia4.3/RCU; this is the
-            # hot-cache pin refcount that closes the use-after-evict bug without it.
-            candidates = [e for e in self._entries.values()
-                          if e.key not in protected and e.pins <= 0]
-            if not candidates:
-                break                    # everything is floor-protected or pinned
-            victim = min(candidates, key=self._priority)
-            self._age = self._priority(victim)   # GDSF aging: raise the floor
-            self._bytes -= victim.size
-            del self._entries[victim.key]
-            del self._store[victim.key]
+        # Lazy min-heap eviction: pop the lowest-priority LIVE node. A node is
+        # stale (skip) if its key is gone or its seq was superseded by a later
+        # push. A PINNED (in-flight, seocho-ia4.4) or floor-protected current node
+        # cannot be evicted now — set it aside and re-push after the loop so it
+        # stays a future candidate. Victim selection is ~O(log n), not O(n).
+        deferred: List[Tuple[float, int, Hashable]] = []
+        while self._bytes > self.byte_budget and self._heap:
+            val, seq, key = heapq.heappop(self._heap)
+            e = self._entries.get(key)
+            if e is None or seq != e.heap_seq:
+                continue                          # stale node — entry gone or superseded
+            if key in protected or e.pins > 0:
+                deferred.append((val, seq, key))  # safe candidate, just not now
+                continue
+            self._age = self._priority(e)         # GDSF aging: floor rises to evicted key
+            self._bytes -= e.size
+            del self._entries[key]
+            del self._store[key]
             self.evictions += 1
+        for node in deferred:
+            heapq.heappush(self._heap, node)
 
     def stats(self) -> Dict[str, float]:
         total = self.hits + self.misses
@@ -216,6 +261,8 @@ class CostAwareEvictionCache:
         with self._lock:
             self._entries.clear()
             self._store.clear()
+            self._heap.clear()
+            self._seq = 0
             self._bytes = 0
             self._age = 0.0
             self.hits = 0

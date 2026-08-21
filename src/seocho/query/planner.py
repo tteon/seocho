@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import Any, Dict, Optional, Sequence
 
 from ..store.llm import complete_with_task_hints
@@ -9,6 +10,39 @@ from .contracts import QueryPlan
 from .cypher_builder import CypherBuilder
 
 logger = logging.getLogger(__name__)
+
+# A leading source-framing clause names a document, not the entity the question
+# is about -- e.g. "In the narrative of 'An Unsentimental Journey through
+# Cornwall', which plant ...". Left in, the intent extractor anchors on the
+# quoted TITLE, the anchor matches no node, and retrieval returns 0 rows
+# (measured live: ADR-0213 records=0 diagnosis). Strip only a leading clause
+# that (a) starts with a framing preposition, (b) cites a quoted title, and
+# (c) ends at the first comma -- conservative, so ordinary questions are
+# untouched and only the framing noise is removed.
+_QUOTE = "\"'‘’“”"
+_FRAMING_CLAUSE = re.compile(
+    r"^\s*(?:in|within|according to|based on|from|per|throughout)\b"
+    r"[^,]*?[" + _QUOTE + r"][^" + _QUOTE + r"]+[" + _QUOTE + r"]"
+    r"[^,]*,\s+",
+    re.IGNORECASE,
+)
+
+
+def _strip_framing_clause(question: str) -> str:
+    """Drop a leading source-framing clause so the anchor is the real subject.
+
+    Returns the question unchanged unless a conservative framing clause matches
+    AND enough question remains after it (a bare title with nothing following is
+    left intact rather than stripped to empty).
+    """
+    q = question or ""
+    m = _FRAMING_CLAUSE.match(q)
+    if not m:
+        return question
+    remainder = q[m.end():].strip()
+    if len(remainder) < 12:  # nothing substantive left -> do not strip
+        return question
+    return remainder
 
 
 class DeterministicQueryPlanner:
@@ -21,10 +55,13 @@ class DeterministicQueryPlanner:
 
     def plan(self, question: str) -> QueryPlan:
         builder = CypherBuilder(self.ontology)
-        question_hints = builder.derive_schema_hints(question)
+        # De-frame the question for all anchor-relevant steps; keep the original
+        # on the returned QueryPlan for provenance.
+        focus = _strip_framing_clause(question)
+        question_hints = builder.derive_schema_hints(focus)
         response = self._complete(
             system=builder.intent_extraction_prompt(schema_hints=question_hints),
-            user=f'Question:\n"""\n{question}\n"""',
+            user=f'Question:\n"""\n{focus}\n"""',
             temperature=0.0,
             response_format={"type": "json_object"},
             reasoning_mode=False,
@@ -35,11 +72,11 @@ class DeterministicQueryPlanner:
             intent_data = response.json()
         except (json.JSONDecodeError, ValueError):
             logger.error("LLM returned non-JSON intent: %s", response.text[:200])
-            intent_data = {"intent": "neighbors", "anchor_entity": question}
+            intent_data = {"intent": "neighbors", "anchor_entity": focus}
 
-        intent_data = builder.normalize_intent(question, intent_data)
+        intent_data = builder.normalize_intent(focus, intent_data)
         schema_hints = builder.derive_schema_hints(
-            question,
+            focus,
             raw_intent=intent_data,
             resolved_entities=[
                 str(intent_data.get("anchor_entity", "") or "").strip(),
@@ -52,7 +89,7 @@ class DeterministicQueryPlanner:
         try:
             cypher, params = builder.build(
                 intent=intent_data.get("intent", "neighbors"),
-                anchor_entity=intent_data.get("anchor_entity", question),
+                anchor_entity=intent_data.get("anchor_entity", focus),
                 anchor_label=intent_data.get("anchor_label", ""),
                 target_entity=intent_data.get("target_entity", ""),
                 target_label=intent_data.get("target_label", ""),

@@ -186,7 +186,7 @@ class AmbiguityQuarantine:
 # action: "alias" (add surface as alias of target class), "new_class" (add a new
 # class `target` with broader `parent`), "same_as" (alias to an existing class),
 # "ignore" (noise — leave in quarantine, no ontology change).
-_VALID_ACTIONS = {"alias", "new_class", "same_as", "ignore"}
+_VALID_ACTIONS = {"alias", "new_class", "same_as", "ignore", "annotate"}
 
 
 def starter_mapping_spec(clusters: List[Dict[str, Any]], ontology: Ontology) -> Dict[str, Any]:
@@ -250,6 +250,23 @@ def apply_mapping_spec(ontology: Ontology, spec: Dict[str, Any]) -> Ontology:
                 if _norm(surface) != _norm(label):
                     nd["aliases"] = [surface]
                 nodes[label] = nd
+        elif action == "annotate":
+            # Edit metadata on an EXISTING class reviewed downstream (e.g. a
+            # human-authored definition from the DataHub glossary). Unlike
+            # new_class this never creates; the class must already exist.
+            target = _resolve_class(str(m.get("target") or surface))
+            if not target:
+                raise ValueError(f"annotate target class not found: {m.get('target') or surface!r}")
+            nd = nodes[target]
+            if "description" in m:
+                description = str(m.get("description") or "").strip()
+                if description:
+                    nd["description"] = description
+            add_alias = str(m.get("alias") or "").strip()
+            if add_alias:
+                aliases = nd.setdefault("aliases", [])
+                if add_alias not in aliases:
+                    aliases.append(add_alias)
 
     new_onto = Ontology.from_dict(data)
     new_onto.version = _bump_minor(ontology.version)
@@ -267,6 +284,90 @@ def load_mapping_spec(path: str | Path) -> Dict[str, Any]:
     import yaml
     with Path(path).open("r", encoding="utf-8") as f:
         return yaml.safe_load(f) or {}
+
+
+# ---------------------------------------------------------------------------
+# Infra-free review sheet (seocho-v6w.8): the Docker-free alternative to the
+# DataHub glossary UI. Render the ranked proposed clusters as a human-editable
+# YAML sheet (a reviewer flips ``status`` to APPROVED and adjusts action/target),
+# then parse it back into the SAME ``term_records`` that
+# ``datahub_export.datahub_glossary_to_mapping_spec`` consumes — so the DataHub
+# path and this path share one backend (ADR-0222). No DataHub, no Docker.
+# ---------------------------------------------------------------------------
+
+_REVIEW_SHEET_HEADER = (
+    "# SEOCHO ontology review sheet — no DataHub / Docker required.\n"
+    "#\n"
+    "# For each proposed term below: set `status: APPROVED` to accept it, and\n"
+    "# adjust `action` (new_class | alias | annotate | ignore) and `target` as\n"
+    "# needed. Leave `status: PROPOSED` to skip. Then apply:\n"
+    "#\n"
+    "#   seocho ontology datahub-apply --schema <ontology> --terms <this-file>\n"
+    "#\n"
+    "# `context` lines are read-only evidence to help you decide.\n"
+)
+
+
+def render_review_sheet(clusters: List[Dict[str, Any]], *, ontology_name: str = "") -> str:
+    """Render ranked proposed clusters as a reviewer-editable YAML sheet.
+
+    Each cluster becomes a term with a pre-filled ``status: PROPOSED`` (the
+    reviewer flips to APPROVED), a suggested ``action``/``target``, and read-only
+    ``context`` (frequency, examples, candidate labels). The output is valid YAML
+    that :func:`parse_review_sheet` turns back into ``term_records``."""
+    lines: List[str] = [_REVIEW_SHEET_HEADER, f"ontology: {ontology_name}", "terms:"]
+    for c in clusters:
+        surface = str(c.get("surface", "")).strip()
+        if not surface:
+            continue
+        candidates = [str(x) for x in (c.get("candidate_labels") or []) if str(x).strip()]
+        # suggest alias to the top candidate if any, else a new class
+        if candidates:
+            action, target = "alias", candidates[0]
+        else:
+            action = "new_class"
+            target = re.sub(r"[^A-Za-z0-9]", "", surface.title()) or "Entity"
+        examples = [str(e).strip() for e in (c.get("examples") or []) if str(e).strip()]
+        lines.append(f"  - name: {json.dumps(surface, ensure_ascii=False)}")
+        lines.append("    status: PROPOSED        # set APPROVED to accept")
+        lines.append(f"    action: {action}        # new_class | alias | annotate | ignore")
+        lines.append(f"    target: {json.dumps(target, ensure_ascii=False)}")
+        ctx_bits = [f"frequency={int(c.get('frequency', 0))}"]
+        if candidates:
+            ctx_bits.append("candidates=" + ", ".join(candidates))
+        lines.append(f"    context: {json.dumps('; '.join(ctx_bits), ensure_ascii=False)}")
+        for ex in examples[:2]:
+            # quarantine context preserves newlines; a multi-line example would
+            # emit an uncommented raw line -> invalid YAML at apply time.
+            first_line = str(ex).splitlines()[0] if str(ex).strip() else ""
+            lines.append(f"    # e.g. {first_line[:160]}")
+    return "\n".join(lines) + "\n"
+
+
+def parse_review_sheet(text: str) -> List[Dict[str, Any]]:
+    """Parse an edited review sheet back into ``term_records`` (the contract
+    shared with the DataHub round-trip). ``context`` is dropped — it is evidence,
+    not a mapping field."""
+    import yaml
+    data = yaml.safe_load(text) or {}
+    records: List[Dict[str, Any]] = []
+    for item in (data.get("terms") or []):
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name", "")).strip()
+        if not name:
+            continue
+        rec: Dict[str, Any] = {
+            "name": name,
+            "review_status": str(item.get("status") or item.get("review_status") or "PROPOSED").strip(),
+            "action": str(item.get("action") or "new_class").strip(),
+        }
+        for key in ("target", "parent", "description", "alias"):
+            val = str(item.get(key, "")).strip()
+            if val:
+                rec[key] = val
+        records.append(rec)
+    return records
 
 
 # ---------------------------------------------------------------------------

@@ -42,6 +42,14 @@ def _safe(name: str) -> str:
     return "".join(c if (c.isalnum() or c in "-._") else "_" for c in str(name))
 
 
+def _evidence_key(snap: "OntologySnapshot") -> Dict[str, Any]:
+    """Content identity of a snapshot for the idempotency check, excluding the
+    ``created_at`` timestamp (which changes every save and is not evidence)."""
+    d = snap.to_dict()
+    d.pop("created_at", None)
+    return d
+
+
 @dataclass(slots=True)
 class OntologySnapshot:
     """One immutable, evidence-carrying ontology version."""
@@ -163,6 +171,23 @@ class OntologySnapshotStore:
                 )
 
         path = self._path(ontology.package_id, ontology.version, fp)
+        # evidence-immutability guard: the schema fingerprint does NOT cover the
+        # scorecard / ontoclean_tags / corpus_profile / notes, so a re-save with
+        # the same (version, schema) but different EVIDENCE would silently
+        # overwrite the published version's evidence at the same path. Honour the
+        # documented contract: identical content is an idempotent no-op; changed
+        # content raises rather than clobbering.
+        if path.exists():
+            prior = OntologySnapshot.from_dict(json.loads(path.read_text(encoding="utf-8")))
+            if _evidence_key(prior) != _evidence_key(snap):
+                raise SnapshotConflict(
+                    f"version '{ontology.version}' of '{ontology.package_id}' already exists with the "
+                    f"same schema (fingerprint {fp[:8]}) but different evidence "
+                    f"(scorecard/ontoclean/corpus/notes). Bump the version before saving changed "
+                    f"evidence for a published version."
+                )
+            return prior  # idempotent: keep the original, do not rewrite created_at
+
         path.write_text(json.dumps(snap.to_dict(), indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         return snap
 
@@ -236,6 +261,27 @@ class OntologySnapshotStore:
     def latest(self, package_id: str) -> Optional[OntologySnapshot]:
         snaps = self.list(package_id)
         return snaps[-1] if snaps else None
+
+    # ---- reclaim (seocho-ia4.4) ------------------------------------------
+    def delete(self, package_id: str, version: str) -> bool:
+        """Remove a stored snapshot version. Returns True if a file was removed.
+
+        This is the ONLY mutation of the otherwise-immutable store, and it is
+        reserved for **safe reclamation** of a fully-retired version — one the
+        active pointer no longer references AND that has no reader pinned at or
+        below its retirement epoch. That safety judgement is not made here; it is
+        owned by :class:`~seocho.ontology.reclamation.SafeReclamationGate`, which
+        consumes ``VersionPinRegistry.min_pinned_epoch``. Deleting a still-active
+        or still-pinned version is a use-after-free — never call this directly to
+        bypass the gate."""
+        removed = False
+        for s in self._versions(package_id):
+            if s.version == version:
+                p = self._path(package_id, version, s.schema_fingerprint)
+                if p.exists():
+                    p.unlink()
+                    removed = True
+        return removed
 
     def history(self, package_id: str) -> List[Dict[str, Any]]:
         """A compact lineage timeline for display."""

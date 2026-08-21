@@ -63,6 +63,32 @@ class TestCSVReader:
         records = read_csv_file(f)
         assert len(records) == 0
 
+    def test_csv_short_row_does_not_crash(self, tmp_dir):
+        # Regression #140: a data row shorter than the header used to leave
+        # content=None (DictReader restval), which crashed index_file's
+        # content.strip(). Missing fields now coerce to "".
+        f = tmp_dir / "ragged.csv"
+        f.write_text("id,content,category\n1,ACME news,news\n2\n")
+        records = read_csv_file(f)
+        assert len(records) == 2
+        assert records[1]["content"] == ""
+        # every content is a real string, so downstream .strip() is safe
+        for r in records:
+            assert isinstance(r["content"], str)
+            r["content"].strip()  # would raise AttributeError on None
+        assert records[1]["metadata"]["category"] == ""
+
+    def test_csv_long_row_drops_overflow_restkey(self, tmp_dir):
+        # A row longer than the header collects overflow under DictReader's
+        # None restkey; metadata must stay string-keyed and serializable.
+        f = tmp_dir / "long.csv"
+        f.write_text("id,content\n1,hello,extra1,extra2\n")
+        records = read_csv_file(f)
+        assert len(records) == 1
+        assert records[0]["content"] == "hello"
+        assert None not in records[0]["metadata"]
+        json.dumps(records[0]["metadata"])  # must be serializable
+
 
 class TestJSONReader:
     def test_json_array(self, tmp_dir):

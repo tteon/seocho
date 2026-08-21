@@ -599,14 +599,41 @@ def log_span(
     metadata: Optional[Dict[str, Any]] = None,
     tags: Optional[List[str]] = None,
 ) -> None:
-    """Log a span to ALL active backends."""
+    """Log a point-in-time span to ALL active backends.
+
+    Unlike :func:`start_span` this does not time anything — the caller already
+    finished the work and knows how long it took. What it must still do is
+    attach to the enclosing trace, and it did not: `sdk.extraction` and
+    `sdk.query` were emitted with no `trace_id` and no `parent_span_id`, so
+    they landed as orphan records beside the `rag.*` tree instead of inside it.
+
+    Stage attribution is exactly the ability to ask "which part of *this*
+    request was slow or wrong", and an orphan span cannot answer it however
+    complete its own attributes are. So the current trace context is stamped on
+    here, and `elapsed_seconds` in the caller's metadata is promoted to
+    `duration_ms` so the record is placeable on a waterfall.
+    """
+    enriched = dict(metadata or {})
+
+    stack = _span_stack.get()
+    if stack:
+        enriched.setdefault("trace_id", stack[0])
+        if len(stack) > 1:
+            enriched.setdefault("parent_span_id", stack[-1])
+    enriched.setdefault("span_id", uuid.uuid4().hex[:16])
+
+    # Callers of log_extraction/log_query already measured the work.
+    elapsed = enriched.get("elapsed_seconds")
+    if "duration_ms" not in enriched and isinstance(elapsed, (int, float)):
+        enriched["duration_ms"] = round(float(elapsed) * 1000, 2)
+
     for b in _BACKENDS:
         try:
             b.log_span(
                 name,
                 input_data=input_data,
                 output_data=output_data,
-                metadata=metadata,
+                metadata=enriched,
                 tags=tags,
             )
         except Exception:
@@ -854,19 +881,66 @@ def log_extraction(
     validation_errors: int,
     elapsed_seconds: float,
     metadata: Optional[Dict[str, Any]] = None,
+    system_prompt: Optional[str] = None,
+    user_prompt: Optional[str] = None,
+    completion: Optional[str] = None,
+    workspace_id: Optional[str] = None,
+    provider: Optional[str] = None,
+    stage: str = "extraction",
 ) -> None:
-    """Log an extraction event."""
+    """Log an extraction event.
+
+    The span carried counts and a bare model name, so it could show that an
+    extraction happened but not what was asked or which tenant asked it. With
+    the prompt body and the semantic context (stage, ontology, workspace,
+    provider-qualified model) one span is enough to audit an extraction, and
+    traces can be filtered per tenant.
+
+    Prompt and completion bodies go through :func:`capture_text`, so they appear
+    only when content capture is enabled and are omitted entirely otherwise --
+    the same opt-in policy every other content field obeys. Passing them here
+    does not decide that they are recorded.
+    """
+    model_tag = f"{provider}/{model}" if provider else model
+    input_data: Dict[str, Any] = {
+        "text_preview": text_preview[:200],
+        "ontology": ontology_name,
+        "model": model_tag,
+    }
+    captured_system = capture_text(system_prompt)
+    if captured_system is not None:
+        input_data["system_prompt"] = captured_system
+    captured_user = capture_text(user_prompt)
+    if captured_user is not None:
+        input_data["user_prompt"] = captured_user
+
+    output_data: Dict[str, Any] = {
+        "nodes": nodes_count,
+        "relationships": relationships_count,
+        "score": round(score, 3),
+        "validation_errors": validation_errors,
+    }
+    captured_completion = capture_text(completion)
+    if captured_completion is not None:
+        output_data["completion"] = captured_completion
+
+    tags = [
+        "extraction", f"stage:{stage}",
+        f"model:{model_tag}", f"ontology:{ontology_name}",
+    ]
+    if workspace_id:
+        tags.append(f"workspace:{workspace_id}")
+
     log_span(
         "sdk.extraction",
-        input_data={"text_preview": text_preview[:200], "ontology": ontology_name, "model": model},
-        output_data={
-            "nodes": nodes_count,
-            "relationships": relationships_count,
-            "score": round(score, 3),
-            "validation_errors": validation_errors,
+        input_data=input_data,
+        output_data=output_data,
+        metadata={
+            "elapsed_seconds": round(elapsed_seconds, 2),
+            "workspace_id": workspace_id,
+            **(metadata or {}),
         },
-        metadata={"elapsed_seconds": round(elapsed_seconds, 2), **(metadata or {})},
-        tags=["extraction", f"model:{model}"],
+        tags=tags,
     )
 
 
@@ -881,8 +955,35 @@ def log_query(
     reasoning_attempts: int = 0,
     elapsed_seconds: float = 0.0,
     metadata: Optional[Dict[str, Any]] = None,
+    answer: Optional[str] = None,
+    workspace_id: Optional[str] = None,
+    provider: Optional[str] = None,
+    stage: str = "query",
 ) -> None:
-    """Log a query event."""
+    """Log a query event.
+
+    Carries the provider-qualified model, stage / ontology / workspace tags and,
+    when content capture is on, the synthesized ``answer``. Without the
+    workspace tag a trace could not be filtered per tenant, which is what makes
+    a shared deployment auditable.
+    """
+    model_tag = f"{provider}/{model}" if provider else model
+    output_data: Dict[str, Any] = {
+        "cypher_preview": cypher[:200],
+        "result_count": result_count,
+        "reasoning_attempts": reasoning_attempts,
+    }
+    captured_answer = capture_text(answer)
+    if captured_answer is not None:
+        output_data["answer"] = captured_answer
+
+    tags = [
+        "query", f"stage:{stage}",
+        f"model:{model_tag}", f"ontology:{ontology_name}",
+    ]
+    if workspace_id:
+        tags.append(f"workspace:{workspace_id}")
+
     log_span(
         "sdk.query",
         input_data={
@@ -890,17 +991,14 @@ def log_query(
             "ontology": ontology_name,
             **({"ontology_package": ontology_package} if ontology_package else {}),
         },
-        output_data={
-            "cypher_preview": cypher[:200],
-            "result_count": result_count,
-            "reasoning_attempts": reasoning_attempts,
-        },
+        output_data=output_data,
         metadata={
-            "model": model,
+            "model": model_tag,
             "elapsed_seconds": round(elapsed_seconds, 2),
+            "workspace_id": workspace_id,
             **(metadata or {}),
         },
-        tags=["query", f"model:{model}"],
+        tags=tags,
     )
 
 

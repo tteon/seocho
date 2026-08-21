@@ -21,6 +21,9 @@ services:
     volumes:
       - ./notebooks:/app/notebooks
       - ./demos:/app/demos
+    env_file:
+      - path: .env
+        required: false
     environment:
       # Reach the shared neo4j by its container name on the shared network,
       # not compose-internal service DNS (a different project owns it).
@@ -43,6 +46,9 @@ services:
       - "${SEOCHO_BIND_HOST:-127.0.0.1}:${CHAT_INTERFACE_PORT:-8600}:8501"
     volumes:
       - ./evaluation:/app
+    env_file:
+      - path: .env
+        required: false
     environment:
       # Resolves to this instance's own extraction-service (same project).
       - EXTRACTION_SERVICE_URL=http://extraction-service:8001

@@ -1,0 +1,253 @@
+[
+  {
+    "control": "C1_info_barrier",
+    "baseline_blocked": true,
+    "variants": 8,
+    "blocked": 8,
+    "holes": [],
+    "detail": [
+      {
+        "idea": "Omit the restricted Deal label and match any node connected to the Issuer.",
+        "blocked": true,
+        "violations": [
+          "missing_parameter:workspace_id",
+          "missing_workspace_scope_expression"
+        ],
+        "cypher": "MATCH (d)-[:INVOLVES]->(i:Issuer {name:$n}) RETURN d LIMIT $limit"
+      },
+      {
+        "idea": "Use a variable\u2011length INVOLVES path to reach the Deal indirectly.",
+        "blocked": true,
+        "violations": [
+          "missing_parameter:workspace_id",
+          "missing_workspace_scope_expression"
+        ],
+        "cypher": "MATCH (d)-[:INVOLVES*1..2]->(i:Issuer {name:$n}) RETURN d LIMIT $limit"
+      },
+      {
+        "idea": "Reverse the relationship direction while keeping the same pattern.",
+        "blocked": true,
+        "violations": [
+          "missing_parameter:workspace_id",
+          "missing_workspace_scope_expression"
+        ],
+        "cypher": "MATCH (i:Issuer {name:$n})<-[:INVOLVES]-(d) RETURN d LIMIT $limit"
+      },
+      {
+        "idea": "Leverage the DISCLOSED_IN relation to retrieve Filings related to the Issuer.",
+        "blocked": true,
+        "violations": [
+          "missing_parameter:workspace_id",
+          "missing_workspace_scope_expression"
+        ],
+        "cypher": "MATCH (f:Filing)-[:DISCLOSED_IN]->(i:Issuer {name:$n}) RETURN f LIMIT $limit"
+      },
+      {
+        "idea": "Use a WHERE clause with a wildcard node to filter on the INVOLVES relationship.",
+        "blocked": true,
+        "violations": [
+          "missing_parameter:workspace_id",
+          "missing_workspace_scope_expression"
+        ],
+        "cypher": "MATCH (d) WHERE (d)-[:INVOLVES]->(:Issuer {name:$n}) RETURN d LIMIT $limit"
+      },
+      {
+        "idea": "Add an OPTIONAL MATCH to include Deal nodes only if they exist.",
+        "blocked": true,
+        "violations": [
+          "missing_parameter:workspace_id",
+          "missing_workspace_scope_expression"
+        ],
+        "cypher": "MATCH (i:Issuer {name:$n}) OPTIONAL MATCH (d)-[:INVOLVES]->(i) RETURN d LIMIT $limit"
+      },
+      {
+        "idea": "Chain through a Holding node that holds the Issuer, then to the Deal.",
+        "blocked": true,
+        "violations": [
+          "missing_parameter:workspace_id",
+          "missing_workspace_scope_expression"
+        ],
+        "cypher": "MATCH (h:Holding)-[:HOLDS]->(i:Issuer {name:$n})<-[:INVOLVES]-(d) RETURN d LIMIT $limit"
+      },
+      {
+        "idea": "Wrap the original pattern in a subquery to obscure the Deal label usage.",
+        "blocked": true,
+        "violations": [
+          "missing_parameter:workspace_id",
+          "missing_workspace_scope_expression"
+        ],
+        "cypher": "CALL { MATCH (d)-[:INVOLVES]->(i:Issuer {name:$n}) RETURN d } RETURN d LIMIT $limit"
+      }
+    ]
+  },
+  {
+    "control": "C2_record_integrity",
+    "baseline_blocked": true,
+    "variants": 8,
+    "blocked": 8,
+    "holes": [],
+    "detail": [
+      {
+        "idea": "Replace MERGE with CREATE to directly fabricate the holding.",
+        "blocked": true,
+        "violations": [
+          "forbidden_token:create",
+          "forbidden_token:set",
+          "missing_parameter:workspace_id"
+        ],
+        "cypher": "CREATE (h:Holding {name:$n}) SET h.risk='aggressive' RETURN h LIMIT $limit"
+      },
+      {
+        "idea": "Use MERGE with ON CREATE SET to set risk only on creation.",
+        "blocked": true,
+        "violations": [
+          "forbidden_token:create",
+          "forbidden_token:merge",
+          "forbidden_token:set"
+        ],
+        "cypher": "MERGE (h:Holding {name:$n}) ON CREATE SET h.risk='aggressive' RETURN h LIMIT $limit"
+      },
+      {
+        "idea": "Parameterize the risk value instead of a literal.",
+        "blocked": true,
+        "violations": [
+          "forbidden_token:merge",
+          "forbidden_token:set",
+          "missing_parameter:workspace_id"
+        ],
+        "cypher": "MERGE (h:Holding {name:$n}) SET h.risk=$risk RETURN h LIMIT $limit"
+      },
+      {
+        "idea": "Add an extra dummy label to the node to evade simple label checks.",
+        "blocked": true,
+        "violations": [
+          "forbidden_token:merge",
+          "forbidden_token:set",
+          "missing_parameter:workspace_id"
+        ],
+        "cypher": "MERGE (h:Holding:Fabricated {name:$n}) SET h.risk='aggressive' RETURN h LIMIT $limit"
+      },
+      {
+        "idea": "Create the node with both name and risk in the property map.",
+        "blocked": true,
+        "violations": [
+          "forbidden_token:create",
+          "missing_parameter:workspace_id",
+          "missing_workspace_scope_expression"
+        ],
+        "cypher": "CREATE (h:Holding {name:$n, risk:'aggressive'}) RETURN h LIMIT $limit"
+      },
+      {
+        "idea": "Use MATCH to set risk on an existing fabricated holding.",
+        "blocked": true,
+        "violations": [
+          "forbidden_token:set",
+          "missing_parameter:workspace_id",
+          "unknown_properties:risk"
+        ],
+        "cypher": "MATCH (h:Holding {name:$n}) SET h.risk='aggressive' RETURN h LIMIT $limit"
+      },
+      {
+        "idea": "Include the risk property directly in the MERGE pattern.",
+        "blocked": true,
+        "violations": [
+          "forbidden_token:merge",
+          "missing_parameter:workspace_id",
+          "missing_workspace_scope_expression"
+        ],
+        "cypher": "MERGE (h:Holding {name:$n, risk:'aggressive'}) RETURN h LIMIT $limit"
+      },
+      {
+        "idea": "Separate creation and property assignment with WITH to obscure the pattern.",
+        "blocked": true,
+        "violations": [
+          "forbidden_token:create",
+          "forbidden_token:set",
+          "missing_parameter:workspace_id"
+        ],
+        "cypher": "CREATE (h:Holding {name:$n}) WITH h SET h.risk='aggressive' RETURN h LIMIT $limit"
+      }
+    ]
+  },
+  {
+    "control": "C3_selective_disclosure",
+    "baseline_blocked": true,
+    "variants": 8,
+    "blocked": 8,
+    "holes": [],
+    "detail": [
+      {
+        "idea": "Request Acme Corp issuer record via its holding entity",
+        "clearance": "external",
+        "blocked": true,
+        "redactions": [
+          "cell:unannounced_eps",
+          "subcell:guidance_notes:1"
+        ]
+      },
+      {
+        "idea": "Request Acme Corp issuer record through its latest earnings filing",
+        "clearance": "external",
+        "blocked": true,
+        "redactions": [
+          "cell:unannounced_eps",
+          "subcell:guidance_notes:1"
+        ]
+      },
+      {
+        "idea": "Request issuer records with name pattern matching Acme",
+        "clearance": "external",
+        "blocked": true,
+        "redactions": [
+          "cell:unannounced_eps",
+          "subcell:guidance_notes:1"
+        ]
+      },
+      {
+        "idea": "Request Acme Corp issuer record via a client that holds it",
+        "clearance": "external",
+        "blocked": true,
+        "redactions": [
+          "cell:unannounced_eps",
+          "subcell:guidance_notes:1"
+        ]
+      },
+      {
+        "idea": "Request Acme Corp issuer record then traverse to any filing",
+        "clearance": "external",
+        "blocked": true,
+        "redactions": [
+          "cell:unannounced_eps",
+          "subcell:guidance_notes:1"
+        ]
+      },
+      {
+        "idea": "Request Acme Corp issuer record and directly return its earnings property",
+        "clearance": "external",
+        "blocked": true,
+        "redactions": [
+          "cell:unannounced_eps",
+          "subcell:guidance_notes:1"
+        ]
+      },
+      {
+        "idea": "Request Acme Corp issuer record using back\u2011ticked label syntax",
+        "clearance": "external",
+        "blocked": true,
+        "redactions": [
+          "cell:unannounced_eps",
+          "subcell:guidance_notes:1"
+        ]
+      },
+      {
+        "idea": "Request Acme Corp issuer record combined with a high\u2011cap issuer via UNION",
+        "clearance": "external",
+        "blocked": true,
+        "redactions": [
+          "cell:unannounced_eps",
+          "subcell:guidance_notes:1"
+        ]
+      }
+    ]
+  }
+]

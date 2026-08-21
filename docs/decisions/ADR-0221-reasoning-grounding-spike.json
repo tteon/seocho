@@ -1,0 +1,23 @@
+{
+  "ungrounded": {
+    "off_domain": [
+      "cern"
+    ],
+    "on_domain": [],
+    "reasoning_chars": 0,
+    "reasoning_head": "",
+    "answer": "Of course. Let's break down your question about \"Atlas\" step-by-step, as there are several major entities with that name. I'll cover the most likely ones in the enterprise and tech context.\n\n### 1. Project Atlas (by Facebook/Meta)\n\nThis is the most common reference in recent tech news, especially co"
+  },
+  "grounded": {
+    "off_domain": [],
+    "on_domain": [
+      "atlas gateway",
+      "platform team",
+      "inc-7",
+      "incident"
+    ],
+    "reasoning_chars": 0,
+    "reasoning_head": "",
+    "answer": "Based on the canonical knowledge provided:\n\n- **What is Atlas?** Atlas is referred to as \"Atlas Gateway\" in the knowledge base. It is an entity within the organization.\n- **Who owns it?** Atlas Gateway is owned by the Platform Team.\n- **What happened with it recently?** According to the knowledge, A"
+  }
+}

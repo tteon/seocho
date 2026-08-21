@@ -1,0 +1,161 @@
+{
+  "model": "mara/MiniMax-M2.7",
+  "questions": 8,
+  "arms": {
+    "THIN": {
+      "n": 8,
+      "conformance_rate": 0.0,
+      "hallucination_rate": 1.0,
+      "avg_violations": 2.62
+    },
+    "DECLARED": {
+      "n": 8,
+      "conformance_rate": 1.0,
+      "hallucination_rate": 0.0,
+      "avg_violations": 0.0
+    }
+  },
+  "detail": {
+    "THIN": {
+      "n": 8,
+      "conformance_rate": 0.0,
+      "hallucination_rate": 1.0,
+      "avg_violations": 2.62,
+      "per_q": [
+        {
+          "cypher": "MATCH (c:Company {name: 'Acme Corp', workspace_id: $workspace_id})-[:SUBJECT_TO]-(r:Regulation) RETURN r.name AS regulation, r.id AS regulationId LIMIT $limit",
+          "violations": [
+            "unknown_properties:id,workspace_id",
+            "missing_workspace_scope_expression"
+          ],
+          "hallucinated": true,
+          "conformant": false
+        },
+        {
+          "cypher": "MATCH (reg:Regulation {name: 'GDPR', workspace_id: $workspace_id})-[:ENFORCED_BY]->(regulator:Regulator) RETURN regulator.name AS regulatorName LIMIT $limit",
+          "violations": [
+            "unknown_properties:workspace_id",
+            "missing_workspace_scope_expression"
+          ],
+          "hallucinated": true,
+          "conformant": false
+        },
+        {
+          "cypher": "MATCH (c:Company {workspace_id: $workspace_id, name: 'Globex'})-[:REPORTED]->(ci:ComplianceIncident) RETURN ci LIMIT $limit",
+          "violations": [
+            "unknown_properties:workspace_id",
+            "missing_workspace_scope_expression"
+          ],
+          "hallucinated": true,
+          "conformant": false
+        },
+        {
+          "cypher": "MATCH (c:Company {workspace_id: $workspace_id})-[:HAS_INCIDENT]->(ci:ComplianceIncident)<-[:MITIGATES]-(ce:ControlEvidence) WHERE ci.name CONTAINS 'data-breach' OR ci.type = 'DataBreach' RETURN ce LIMIT $limit",
+          "violations": [
+            "unknown_relationships:HAS_INCIDENT,MITIGATES",
+            "unknown_properties:type,workspace_id",
+            "missing_workspace_scope_expression"
+          ],
+          "hallucinated": true,
+          "conformant": false
+        },
+        {
+          "cypher": "MATCH (c:Company {name: 'Initech', workspace_id: $workspace_id})<-[:GOVERNS]-(p:Policy) RETURN p LIMIT $limit",
+          "violations": [
+            "unknown_relationships:GOVERNS",
+            "unknown_properties:workspace_id",
+            "missing_workspace_scope_expression"
+          ],
+          "hallucinated": true,
+          "conformant": false
+        },
+        {
+          "cypher": "MATCH (c:Company {workspaceId: $workspace_id, name: 'Acme'})-[:VIOLATED]->(r:Regulation)-[:ENFORCED_BY]->(reg:Regulator) RETURN reg.name AS regulator LIMIT $limit",
+          "violations": [
+            "unknown_relationships:VIOLATED",
+            "unknown_properties:workspaceId",
+            "missing_workspace_scope_expression"
+          ],
+          "hallucinated": true,
+          "conformant": false
+        },
+        {
+          "cypher": "MATCH (c:Company {workspace_id: $workspace_id})-[:HAS_INCIDENT|:RELATED_TO*]-(i:ComplianceIncident)-[:RELATES_TO]-(r:Regulation) WHERE r.name = 'AML' RETURN count(DISTINCT i) AS incidentCount LIMIT $limit",
+          "violations": [
+            "unbounded_graph_path",
+            "unknown_relationships:RELATED_TO",
+            "unknown_properties:workspace_id",
+            "missing_workspace_scope_expression"
+          ],
+          "hallucinated": true,
+          "conformant": false
+        },
+        {
+          "cypher": "MATCH (c:Company {workspaceId: $workspace_id})-[:GOVERNED_BY]->(p:Policy {type: 'Retention'}) RETURN c.name AS company, p.name AS policy LIMIT $limit",
+          "violations": [
+            "unknown_properties:workspaceId",
+            "missing_workspace_scope_expression"
+          ],
+          "hallucinated": true,
+          "conformant": false
+        }
+      ]
+    },
+    "DECLARED": {
+      "n": 8,
+      "conformance_rate": 1.0,
+      "hallucination_rate": 0.0,
+      "avg_violations": 0.0,
+      "per_q": [
+        {
+          "cypher": "MATCH (c:Company {_workspace_id: $workspace_id, name: 'Acme Corp'})-[:SUBJECT_TO]->(r:Regulation {_workspace_id: $workspace_id}) RETURN r.code, r.name, r.jurisdiction LIMIT $limit",
+          "violations": [],
+          "hallucinated": false,
+          "conformant": true
+        },
+        {
+          "cypher": "MATCH (r:Regulation {_workspace_id: $workspace_id, code: 'GDPR'})-[:ENFORCED_BY]->(reg:Regulator {_workspace_id: $workspace_id}) RETURN reg.name AS regulatorName, reg.jurisdiction AS jurisdiction LIMIT $limit",
+          "violations": [],
+          "hallucinated": false,
+          "conformant": true
+        },
+        {
+          "cypher": "MATCH (c:Company {_workspace_id: $workspace_id, name: 'Globex'})-[:REPORTED]->(ci:ComplianceIncident {_workspace_id: $workspace_id}) RETURN ci.date, ci.severity, ci.summary LIMIT $limit",
+          "violations": [],
+          "hallucinated": false,
+          "conformant": true
+        },
+        {
+          "cypher": "MATCH (ci:ComplianceIncident {_workspace_id: $workspace_id}) WHERE ci.summary CONTAINS 'data-breach' MATCH (ci)-[:MITIGATED_BY]->(ce:ControlEvidence {_workspace_id: $workspace_id}) RETURN ce LIMIT $limit",
+          "violations": [],
+          "hallucinated": false,
+          "conformant": true
+        },
+        {
+          "cypher": "MATCH (c:Company {_workspace_id: $workspace_id, name: 'Initech'})-[:GOVERNED_BY]->(p:Policy) RETURN p LIMIT $limit",
+          "violations": [],
+          "hallucinated": false,
+          "conformant": true
+        },
+        {
+          "cypher": "MATCH (c:Company {_workspace_id: $workspace_id, name: 'Acme'})-[:REPORTED]->(ci:ComplianceIncident {_workspace_id: $workspace_id})-[:RELATES_TO]->(r:Regulation {_workspace_id: $workspace_id})-[:ENFORCED_BY]->(reg:Regulator {_workspace_id: $workspace_id}) RETURN DISTINCT reg.name AS regulatorName, reg.jurisdiction AS regulatorJurisdiction LIMIT $limit",
+          "violations": [],
+          "hallucinated": false,
+          "conformant": true
+        },
+        {
+          "cypher": "MATCH (c:ComplianceIncident {_workspace_id: $workspace_id})-[:RELATES_TO]->(r:Regulation {_workspace_id: $workspace_id}) WHERE r.name = 'AML' OR r.code = 'AML' RETURN count(DISTINCT c) AS incidentCount LIMIT $limit",
+          "violations": [],
+          "hallucinated": false,
+          "conformant": true
+        },
+        {
+          "cypher": "MATCH (c:Company {_workspace_id: $workspace_id})-[:GOVERNED_BY]->(p:Policy {name: 'retention policy', _workspace_id: $workspace_id}) RETURN c.name AS companyName LIMIT $limit",
+          "violations": [],
+          "hallucinated": false,
+          "conformant": true
+        }
+      ]
+    }
+  }
+}

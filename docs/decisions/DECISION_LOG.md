@@ -1377,7 +1377,7 @@ Use this block for new entries:
   LangGraph; LangGraph stays deferred behind seocho-ihg's MCP-first triple gate,
   reconsidered only if a durable/branching/resumable StateGraph becomes required.
   Orchestration kept a thin swappable adapter behind agent/factory + integrations.
-- [Accepted] ADR-0218 arm-organ-medical-instrument (seocho-5ny) — pre-registered the
+- [Accepted] ADR-0220 arm-organ-medical-instrument (seocho-5ny) — pre-registered the
   arm×organ A/B's pivot to GraphRAG-Bench medical after the erb procedural gold
   produced a uniform null (wrong instrument): floor/ceiling controls mandatory
   (closed-book floor 0.90 = memorized corpus, so organ effects are read from
@@ -1386,7 +1386,7 @@ Use this block for new entries:
   single-tenant run scoped as the task-parity control — load-bearing claims gated
   on the adversarial probes.
 
-- [Accepted] ADR-0219 arm-organ-medical-results (seocho-5ny, seocho-e19, seocho-8qp,
+- [Accepted] ADR-0221 arm-organ-medical-results (seocho-5ny, seocho-e19, seocho-8qp,
   seocho-zfe, seocho-svf) — measured results: read-time canonical resolution
   quadruples answered questions (3→12/21; held-out replication 14/21 vs 7/21);
   no-guardrail confabulates 5/21 vs governed 2/21; cross-tenant homonym probe shows

@@ -1,6 +1,6 @@
-# ADR-0219: arm×organ medical A/B + adversarial probes — measured results
+# ADR-0221: arm×organ medical A/B + adversarial probes — measured results
 
-- Status: accepted (results of the ADR-0218 pre-registration)
+- Status: accepted (results of the ADR-0220 pre-registration)
 - Date: 2026-08-17
 - Tickets: seocho-5ny, seocho-e19 (leak probe), seocho-8qp (mutation probe), seocho-zfe (intern read side)
 
@@ -74,7 +74,7 @@ pinned, prompt and policy derive from one frozen snapshot.
 ## Negative results (kept, per workshop CFP)
 
 1. erb procedural document-QA gold over an entity graph → uniform null (all arms ≈0
-   coverage, universal abstain). Instrument mismatch, not system failure. (ADR-0218)
+   coverage, universal abstain). Instrument mismatch, not system failure. (ADR-0220)
 2. Judge-coverage on a memorized public corpus (floor 0.90) measures the generator, not
    the memory. Contamination floors must be mandatory controls.
 

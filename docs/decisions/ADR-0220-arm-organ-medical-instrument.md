@@ -1,4 +1,4 @@
-# ADR-0218: arm×organ A/B — instrument pivot to GraphRAG-Bench medical, controls, and scope
+# ADR-0220: arm×organ A/B — instrument pivot to GraphRAG-Bench medical, controls, and scope
 
 - Status: accepted (pre-registered BEFORE the run)
 - Date: 2026-08-17

@@ -1,4 +1,4 @@
-"""Unit tests for the five organ fixes the arm×organ e2e forced out (ADR-0219).
+"""Unit tests for the five organ fixes the arm×organ e2e forced out (ADR-0221).
 
 Each test pins a bug that corrupted or confounded a measured arm:
 1. introspected-schema char-corruption (engine pre-joined strings re-joined char-wise)

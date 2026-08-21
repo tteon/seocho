@@ -1037,8 +1037,20 @@ class Neo4jGraphStore(GraphStore):
         inside transactions; opt in only when you've verified your
         deployment supports it).
         """
-        stmts = ontology.to_cypher_constraints()
+        # All SDK writes stamp `_workspace_id`, so graph constraints must use
+        # the same tenant key. A global `name UNIQUE` makes two legitimate
+        # workspaces collide before the writer's workspace-scoped MERGE runs.
+        stmts = ontology.to_cypher_constraints(workspace_scoped=True)
         summary = {"success": 0, "errors": []}
+
+        legacy = []
+        for label, node in ontology.nodes.items():
+            identity = set(node.identity_keys)
+            if len(node.identity_keys) == 1:
+                legacy.append(f"constraint_{label}_identity_unique")
+            for pname, prop in node.properties.items():
+                if prop.unique and pname not in identity:
+                    legacy.append(f"constraint_{label}_{pname}_unique")
 
         with self._driver.session(database=database) as session:
             if transactional:
@@ -1068,6 +1080,13 @@ class Neo4jGraphStore(GraphStore):
                         f"transactional ensure_constraints rolled back: {exc}"
                     )
             else:
+                # Only remove SEOCHO's documented legacy names. Arbitrary
+                # operator constraints are never discovered/deleted here.
+                for name in legacy:
+                    try:
+                        session.run(f"DROP CONSTRAINT {name} IF EXISTS")
+                    except Exception as exc:
+                        summary["errors"].append(f"drop legacy constraint {name}: {exc}")
                 for stmt in stmts:
                     try:
                         session.run(stmt)

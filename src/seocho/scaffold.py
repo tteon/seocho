@@ -84,8 +84,10 @@ documents:
   path: ./docs/
   recursive: true
 
+graph: ${NEO4J_URI:-bolt://localhost:7687}
+
 models:
-  default: mara/MiniMax-M2.5
+  default: mara/MiniMax-M2.7
 
 agent:
   execution_mode: pipeline
@@ -126,7 +128,7 @@ seocho run
 
 From a repository checkout, use `uv run seocho ...` instead of `seocho ...`.
 
-The run uses the embedded LadybugDB graph store by default, so no graph server
+The run requires a DozerDB or Neo4j Bolt graph endpoint.
 is required. The generated report lands under `runs/`.
 
 ## Try Edits

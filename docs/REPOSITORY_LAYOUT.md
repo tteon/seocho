@@ -30,7 +30,7 @@ metadata, and one-command local stack entry points.
 | `README.md`, `QUICKSTART.md`, `CONTRIBUTING.md`, `SECURITY.md`, `CHANGELOG.md`, `LICENSE` | yes | Standard public project entry points |
 | `AGENTS.md`, `CLAUDE.md` | yes | Coding-agent orientation and SEOCHO-specific guardrails |
 | `pyproject.toml`, `Makefile`, `.env.example`, `.gitignore`, `.dockerignore` | yes | Python packaging, common commands, and repo/tool defaults |
-| `docker-compose.yml`, `docker-compose.dev.yml`, `docker-compose.memory.yml`, `docker-compose.opik.yml`, `docker-compose.tutorials.yml` | yes | Core, development overlay, optional authoritative memory, legacy Opik, and tutorial entry points |
+| `docker-compose.yml`, `docker-compose.dev.yml`, `docker-compose.instance.yml`, `docker-compose.memory.yml`, `docker-compose.tutorials.yml` | yes | Core, development overlay, worktree-isolated instance, optional authoritative memory, and tutorial entry points |
 | `.gitattributes` | only with active rules | Do not keep an empty placeholder |
 | `setup_*.sh` | no | Put setup helpers under `scripts/setup/` |
 | generated data, logs, exports, scratch PR bodies | no | Keep ignored and outside the public repository surface |
@@ -79,6 +79,7 @@ and must not be tracked as part of the public GitHub surface.
 | Path | Status | Notes |
 |---|---|---|
 | `seocho-core/` | Optional accelerator workspace | Rust/Python hybrid support code, not the first stop for normal app changes. |
+| `dataplane/` | Optional native runtime components | Rust sidecars/proxies that sit below the Python control plane; the first component is the Oxigraph ontology read model. |
 
 ## Local Runtime State And Generated Artifacts
 
@@ -95,13 +96,19 @@ These paths are usually not where feature work should land.
 
 ## Compose Files
 
-Only two compose files are part of the tracked repo contract:
+Five compose files are part of the tracked repo contract:
 
 | Path | Role |
 |---|---|
 | `docker-compose.yml` | Default image-backed local stack |
 | `docker-compose.dev.yml` | Live-mount overlay used with `make up-live` / `make dev-up` |
-| `docker-compose.opik.yml` | Optional legacy Opik services used by `make opik-up`; excluded from the default stack |
+| `docker-compose.instance.yml` | Worktree-isolated app tier (`make up INSTANCE=<id>`, ADR-0104) |
+| `docker-compose.memory.yml` | Optional Postgres authoritative-memory services (`make memory-up`) |
+| `docker-compose.tutorials.yml` | Tutorial stacks (`make tutorials-up`) |
+
+The Opik compose overlay was removed with the Opik tracing backend
+(ADR-0172); the observability stack is a root compose profile instead
+(ADR-0199).
 
 There is no tracked `docker-compose.prod.yml` in this repository. Production
 overrides should be deployment-specific instead of implied by the default repo

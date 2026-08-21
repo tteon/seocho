@@ -60,6 +60,16 @@ def register(subparsers) -> None:
     ontology_inspect_parser.add_argument("--source", required=True, help="OWL file path or URI")
     ontology_inspect_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
 
+    ontology_rdf_governance_parser = ontology_subparsers.add_parser(
+        "rdf-governance", help="Run hash-pinned offline SHACL and optional OWL consistency checks",
+    )
+    ontology_rdf_governance_parser.add_argument("--bundle", required=True, help="RDF ontology bundle directory")
+    ontology_rdf_governance_parser.add_argument("--data", required=True, help="RDF instance data graph")
+    ontology_rdf_governance_parser.add_argument("--data-format", default="turtle", help="RDF data format for pySHACL")
+    ontology_rdf_governance_parser.add_argument("--run-reasoner", action="store_true", help="Run optional offline Owlready2/Pellet consistency check")
+    ontology_rdf_governance_parser.add_argument("--output", default=None, help="Optional receipt JSON path")
+    ontology_rdf_governance_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
+
     ontology_review_parser = ontology_subparsers.add_parser(
         "review",
         help="Ambiguity review loop: quarantine OOV entities, cluster them, and map them back into the taxonomy",
@@ -117,6 +127,18 @@ def register(subparsers) -> None:
     ontology_dhapply_parser.add_argument("--status", default="APPROVED", help="Only apply terms with this review status")
     ontology_dhapply_parser.add_argument("--output", default=None, help="Write the new ontology JSON-LD here")
     ontology_dhapply_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
+
+    ontology_dhqueue_parser = ontology_subparsers.add_parser(
+        "datahub-queue",
+        help="Surface the ambiguity review queue in DataHub as PROPOSED glossary terms for non-developer review",
+    )
+    ontology_dhqueue_parser.add_argument("--schema", required=True, help="Ontology file (for the package id)")
+    ontology_dhqueue_parser.add_argument("--quarantine", default=".seocho_quarantine.jsonl", help="Quarantine JSONL path")
+    ontology_dhqueue_parser.add_argument("--gms", default=None, help="DataHub GMS server URL (for live emit)")
+    ontology_dhqueue_parser.add_argument("--token", default=None, help="DataHub access token (for live emit)")
+    ontology_dhqueue_parser.add_argument("--emit", action="store_true", help="Actually emit to --gms (default: dry-run)")
+    ontology_dhqueue_parser.add_argument("--output", default=None, help="Write MCP JSON to this path (dry-run)")
+    ontology_dhqueue_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
 
     ontology_eval_answers_parser = ontology_subparsers.add_parser(
         "eval-answers",
@@ -287,6 +309,24 @@ def handle(args: argparse.Namespace) -> int:
             )
         return 0 if inspection.available and inspection.error is None else 1
 
+    if args.ontology_command == "rdf-governance":
+        from ..ontology.rdf_governance import run_rdf_governance, write_rdf_governance_receipt
+
+        receipt = run_rdf_governance(
+            args.bundle, args.data, data_format=args.data_format,
+            run_reasoner=args.run_reasoner,
+        )
+        if args.output:
+            write_rdf_governance_receipt(receipt, args.output)
+        if getattr(args, "output_json", False):
+            print(json.dumps(receipt.to_dict(), indent=2, ensure_ascii=False))
+        else:
+            print(f"rdf governance: {'promotable' if receipt.promotable else 'not promotable'}")
+            print(f"  bundle_sha256={receipt.bundle_sha256}")
+            if args.output:
+                print(f"written: {args.output}")
+        return 0 if receipt.promotable else 1
+
     if args.ontology_command == "review":
         from ..ontology import Ontology
         from ..ontology_ambiguity import (
@@ -410,6 +450,31 @@ def handle(args: argparse.Namespace) -> int:
         else:
             print(json.dumps(payload, indent=2, ensure_ascii=False))
         return 0
+
+    if args.ontology_command == "datahub-queue":
+        from ..ontology import Ontology
+        from ..datahub_export import ambiguity_clusters_to_glossary_proposals, emit_to_datahub
+        from ..ontology_ambiguity import AmbiguityQuarantine
+
+        ontology = Ontology.load(args.schema)
+        package_id = ontology.package_id or ontology.name
+        clusters = AmbiguityQuarantine(args.quarantine).clusters()
+        mcps = ambiguity_clusters_to_glossary_proposals(clusters, package_id=package_id)
+        result = emit_to_datahub(mcps, gms_server=args.gms, token=args.token,
+                                 dry_run=not (args.emit and args.gms))
+        n_terms = sum(1 for m in mcps if m["entityType"] == "glossaryTerm")
+        if args.output:
+            Path(args.output).write_text(json.dumps(mcps, indent=2, ensure_ascii=False), encoding="utf-8")
+        if getattr(args, "output_json", False):
+            print(json.dumps({"proposed_terms": n_terms, "mode": result["mode"],
+                              "emitted": result["emitted"]}, indent=2, ensure_ascii=False))
+        else:
+            print(f"review queue: {n_terms} PROPOSED term(s) under '{package_id}.Proposed'  "
+                  f"mode={result['mode']} emitted={result['emitted']}"
+                  + ("  (add --gms URL --emit to publish to DataHub)" if not result["emitted"] else ""))
+        # Mirror the `ontology datahub` handler: a requested live emit that came
+        # back unavailable/failed must not exit 0 (silent-failure honesty).
+        return 0 if result.get("emitted") or result["mode"] == "dry_run" else 1
 
     if args.ontology_command == "select-guardrail":
         from ..ontology import Ontology

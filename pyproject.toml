@@ -119,6 +119,16 @@ otel = [
 postgres = [
     "psycopg[binary,pool]>=3.1",
 ]
+datahub = [
+    # ADR-0216: the DataHub interchange surface. Installs the acryl-datahub SDK
+    # (REST emitter for live glossary emit) + the `datahub docker quickstart` CLI
+    # that brings up the review UI. SEOCHO's export/pull/apply stay pure-Python
+    # and need neither this extra nor Docker; only live emit and viewing the
+    # glossary do. Pinned to a tested range — the env-guarded live gate
+    # (tests/seocho/test_datahub_live_gate.py) verifies aspect shapes against the
+    # running GMS before we claim compatibility (ADR-0121/0129 caveat).
+    "acryl-datahub>=0.13,<0.16",
+]
 memory-bench = [
     "langgraph>=1.2,<2",
     "langgraph-checkpoint-postgres>=3.1,<4",

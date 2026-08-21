@@ -14,12 +14,14 @@ use std::io::{BufRead, BufReader, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::Path;
 use std::sync::Arc;
+use std::time::Instant;
 
 const MAX_REQUEST_BYTES: usize = 2 * 1024 * 1024;
 
 #[derive(Deserialize)]
 struct Request {
     op: String,
+    request_id: Option<String>,
     database: Option<String>,
     workspace_id: Option<String>,
     source_id: Option<String>,
@@ -51,6 +53,8 @@ struct Response {
     merge_conflicts: Vec<Value>,
     driver: &'static str,
     error: Option<String>,
+    request_id: Option<String>,
+    duration_ms: f64,
 }
 
 fn valid_identifier(value: &str) -> bool {
@@ -95,6 +99,8 @@ fn driver_from_env() -> Result<Driver, String> {
 }
 
 fn project(driver: &Driver, request: Request) -> Response {
+    let started = Instant::now();
+    let request_id = request.request_id.clone();
     let database = request.database.unwrap_or_else(|| "neo4j".into());
     let workspace_id = request.workspace_id.unwrap_or_else(|| "default".into());
     let source_id = request.source_id.unwrap_or_default();
@@ -124,11 +130,13 @@ fn project(driver: &Driver, request: Request) -> Response {
         }
     }
     response.ok = response.errors.is_empty();
+    response.request_id = request_id;
+    response.duration_ms = started.elapsed().as_secs_f64() * 1000.0;
     response
 }
 
-fn success() -> Response { Response { ok: true, nodes_created: 0, relationships_created: 0, errors: vec![], merge_conflicts: vec![], driver: "rust-neo4j", error: None } }
-fn failure(error: String) -> Response { Response { ok: false, nodes_created: 0, relationships_created: 0, errors: vec![], merge_conflicts: vec![], driver: "rust-neo4j", error: Some(error) } }
+fn success() -> Response { Response { ok: true, nodes_created: 0, relationships_created: 0, errors: vec![], merge_conflicts: vec![], driver: "rust-neo4j", error: None, request_id: None, duration_ms: 0.0 } }
+fn failure(error: String) -> Response { Response { ok: false, nodes_created: 0, relationships_created: 0, errors: vec![], merge_conflicts: vec![], driver: "rust-neo4j", error: Some(error), request_id: None, duration_ms: 0.0 } }
 
 fn handle(stream: UnixStream, driver: &Driver) {
     let mut line = String::new();

@@ -628,6 +628,19 @@ def _render_report_md(payload: Dict[str, Any]) -> str:
                     lines.append("")
     else:
         lines += ["## Queries", "", "Index-only run (no questions declared).", ""]
+    scorecard = payload.get("agent_scorecard", {})
+    if scorecard:
+        agent = scorecard.get("agent", {})
+        lines += [
+            "## Agent semantic scorecard",
+            "",
+            f"- evidence coverage: {agent.get('mean_evidence_coverage')}",
+            f"- supported rate: {agent.get('supported_rate')}",
+            f"- missing slots per question: {agent.get('missing_slots_per_question')}",
+            f"- reference containment: {agent.get('reference_contains_rate')}",
+            "- interpretation: compare matched runs before claiming RDF-governance lift.",
+            "",
+        ]
     return "\n".join(lines)
 
 
@@ -657,42 +670,55 @@ def run(
             "workspace_id": spec.resolved_workspace_id(),
         }
     }
+    from .eval.experiment_observability import direct_runtime_receipt, experiment_run_trace
 
-    phase_count = 2 if not only and not spec.index_only() else 1
-    phase = 1
-    durations: Dict[str, float] = {}
+    with experiment_run_trace(
+        receipt=direct_runtime_receipt(), run_name=spec.name,
+        workspace_id=spec.resolved_workspace_id(),
+    ) as experiment_manifest:
+        payload["run"]["experiment"] = experiment_manifest
+        phase_count = 2 if not only and not spec.index_only() else 1
+        phase = 1
+        durations: Dict[str, float] = {}
 
-    if only in (None, "index"):
-        _emit(quiet, f"Phase {phase}/{phase_count}: Indexing ({ctx.documents_path})")
-        started = time.monotonic()
-        payload["indexing"] = _run_index_phase(ctx, force=force, quiet=quiet, track=track)
-        durations["index_s"] = round(time.monotonic() - started, 2)
-        phase += 1
-        _emit(quiet)
+        if only in (None, "index"):
+            _emit(quiet, f"Phase {phase}/{phase_count}: Indexing ({ctx.documents_path})")
+            started = time.monotonic()
+            payload["indexing"] = _run_index_phase(ctx, force=force, quiet=quiet, track=track)
+            durations["index_s"] = round(time.monotonic() - started, 2)
+            phase += 1
+            _emit(quiet)
 
-    if only in (None, "query") and not spec.index_only():
-        mode = build_agent_config(spec).execution_mode
-        _emit(quiet, f"Phase {phase}/{phase_count}: Querying ({len(spec.questions)} questions, mode={mode})")
-        started = time.monotonic()
-        payload["queries"] = _run_query_phase(ctx, quiet=quiet)
-        durations["query_s"] = round(time.monotonic() - started, 2)
-        _emit(quiet)
+        if only in (None, "query") and not spec.index_only():
+            mode = build_agent_config(spec).execution_mode
+            _emit(quiet, f"Phase {phase}/{phase_count}: Querying ({len(spec.questions)} questions, mode={mode})")
+            started = time.monotonic()
+            payload["queries"] = _run_query_phase(ctx, quiet=quiet)
+            durations["query_s"] = round(time.monotonic() - started, 2)
+            _emit(quiet)
 
-    payload["run"]["finished_at"] = datetime.now().isoformat(timespec="seconds")
-    payload["run"]["durations"] = durations
+        payload["run"]["finished_at"] = datetime.now().isoformat(timespec="seconds")
+        payload["run"]["durations"] = durations
+        # A single run produces a baseline. Cross-arm causal claims use the
+        # explicit, conservative comparison helper rather than a blended score.
+        from .eval.semantic_scorecard import score_semantic_utility
 
-    ctx.output_dir.mkdir(parents=True, exist_ok=True)
-    report_json = ctx.output_dir / "report.json"
-    report_md = ctx.output_dir / "report.md"
-    report_json.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
-    report_md.write_text(_render_report_md(payload), encoding="utf-8")
+        payload["agent_scorecard"] = score_semantic_utility(
+            payload.get("indexing"), payload.get("queries"),
+        ).to_dict()
 
-    if not quiet:
-        _print_summary(payload)
-        print(f"Report: {report_md}")
-        print(f"        {report_json}")
+        ctx.output_dir.mkdir(parents=True, exist_ok=True)
+        report_json = ctx.output_dir / "report.json"
+        report_md = ctx.output_dir / "report.md"
+        report_json.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+        report_md.write_text(_render_report_md(payload), encoding="utf-8")
 
-    return RunReport(payload=payload, report_json=report_json, report_md=report_md)
+        if not quiet:
+            _print_summary(payload)
+            print(f"Report: {report_md}")
+            print(f"        {report_json}")
+
+        return RunReport(payload=payload, report_json=report_json, report_md=report_md)
 
 
 def _print_summary(payload: Dict[str, Any]) -> None:

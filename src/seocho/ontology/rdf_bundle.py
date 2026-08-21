@@ -6,7 +6,7 @@ import hashlib
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict
+from typing import TYPE_CHECKING, Any, Dict, Mapping
 
 from .governance import _render_shacl_turtle
 
@@ -27,7 +27,12 @@ class RdfOntologyBundle:
     digest: str
 
 
-def build_rdf_ontology_bundle(ontology: "Ontology", output_dir: str | Path) -> RdfOntologyBundle:
+def build_rdf_ontology_bundle(
+    ontology: "Ontology",
+    output_dir: str | Path,
+    *,
+    module_specs: Mapping[str, Mapping[str, Any]] | None = None,
+) -> RdfOntologyBundle:
     """Write JSON-LD source plus derived Turtle and SHACL Turtle artifacts.
 
     JSON-LD remains SEOCHO's authored representation. Turtle is deliberately a
@@ -102,12 +107,54 @@ def build_rdf_ontology_bundle(ontology: "Ontology", output_dir: str | Path) -> R
             "provenance_required": ["_source_id", "_writer_ts", "_writer_agent"],
         },
     }
+    # A profile may carry an explicit module-quality boundary. It is metadata
+    # for admission and JIT verification, not an implicit rewrite of the
+    # profile vocabulary; a narrowed prompt payload must be built as a
+    # separately reviewed context slice.
+    from .module_scorecard import ModuleQualityPolicy, decide_module_quality, score_module
+
+    declared_specs = module_specs or {}
+    unknown_purposes = set(declared_specs) - set(profiles)
+    if unknown_purposes:
+        raise ValueError(
+            "module_specs contains unsupported profile purposes: "
+            + ", ".join(sorted(str(item) for item in unknown_purposes))
+        )
     for purpose, payload in profiles.items():
+        spec = declared_specs.get(purpose, {})
+        if not isinstance(spec, Mapping):
+            raise ValueError(f"module_specs[{purpose!r}] must be a mapping")
+        class_names = spec.get("class_names", payload["allowed_node_labels"])
+        required_relations = spec.get(
+            "required_relations", payload["allowed_relationship_types"]
+        )
+        policy_values = spec.get("quality_policy", {})
+        if isinstance(class_names, str) or isinstance(required_relations, str):
+            raise ValueError(
+                f"module_specs[{purpose!r}] class_names and required_relations must be lists"
+            )
+        if not isinstance(policy_values, Mapping):
+            raise ValueError(f"module_specs[{purpose!r}].quality_policy must be a mapping")
+        policy = ModuleQualityPolicy(**dict(policy_values))
+        scorecard = score_module(
+            ontology,
+            module_id=str(spec.get("module_id", f"profile:{purpose}")),
+            class_names=class_names,
+            sibling_modules=spec.get("sibling_modules", ()),
+            required_relations=required_relations,
+            target_entities=policy.target_entities,
+        )
+        decision = decide_module_quality(scorecard, policy=policy)
         profile = {
             "schema_version": "seocho.agent_ontology_profile.v1",
             "purpose": purpose,
             "canonical_bundle_sha256": digest,
             "ontology_context_hash": compiled.descriptor.context_hash,
+            "module_quality": {
+                "scorecard": scorecard.to_dict(),
+                "policy": policy.to_dict(),
+                "decision": decision.to_dict(),
+            },
             **payload,
         }
         profile["profile_sha256"] = hashlib.sha256(

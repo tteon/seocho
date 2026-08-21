@@ -322,13 +322,39 @@ def make_ontology_context_tools(*, bundle_dir: str, purpose: str = "query") -> l
     def ontology_profile() -> str:
         from ..ontology.lifecycle import load_agent_profile
         from ..metrics import get_metrics
+        from ..ontology.module_scorecard import quality_gate_payload
         from ..tracing import start_span
         with start_span("ontology.profile", metadata={"purpose": purpose}, tags=["ontology", "agent-tool"]) as span:
             try:
                 profile = load_agent_profile(bundle_dir, purpose)
+                module_quality = profile.get("module_quality", {})
+                decision = module_quality.get("decision", {})
+                gate = {
+                    "disposition": str(decision.get("disposition", "ready")),
+                    "additional_verification_calls": int(
+                        decision.get("additional_verification_calls", 0)
+                    ),
+                    "required_action": "use the bounded profile normally",
+                    "reasons": list(decision.get("reasons", [])),
+                }
+                if module_quality:
+                    from ..ontology.module_scorecard import ModuleQualityDecision, ModuleQualityPolicy, ModuleScorecard
+                    scorecard = ModuleScorecard(**module_quality["scorecard"])
+                    policy = ModuleQualityPolicy(**module_quality["policy"])
+                    gate = dict(quality_gate_payload(ModuleQualityDecision(
+                        disposition=gate["disposition"],
+                        additional_verification_calls=gate["additional_verification_calls"],
+                        reasons=tuple(gate["reasons"]), scorecard=scorecard, policy=policy,
+                    )))
                 response = {key: profile[key] for key in ("purpose", "canonical_bundle_sha256", "profile_sha256", "allowed_node_labels", "allowed_relationship_types")}
-                span.set_output({"profile_sha256": response["profile_sha256"]})
-                get_metrics().add("seocho.ontology.tool.call.count", attributes={"tool": "profile", "outcome": "ok"})
+                response["module_quality_gate"] = gate
+                outcome = "rejected" if gate["disposition"] == "reject" else "ok"
+                if outcome == "rejected":
+                    response.pop("allowed_node_labels", None)
+                    response.pop("allowed_relationship_types", None)
+                span.set_output({"profile_sha256": response["profile_sha256"], "quality_disposition": gate["disposition"]})
+                get_metrics().add("seocho.ontology.tool.call.count", attributes={"tool": "profile", "outcome": outcome})
+                get_metrics().add("seocho.ontology.module.quality.decision.count", attributes={"disposition": gate["disposition"]})
                 return json.dumps(response, ensure_ascii=False)
             except Exception as exc:
                 get_metrics().add("seocho.ontology.tool.call.count", attributes={"tool": "profile", "outcome": "error"})
@@ -336,12 +362,20 @@ def make_ontology_context_tools(*, bundle_dir: str, purpose: str = "query") -> l
 
     @function_tool(name_override="ontology_slice", description_override="Fetch a bounded, term-relevant verified ontology slice. Use specific entity or relationship terms; do not request the whole ontology.")
     def ontology_slice(terms: str, max_chars: int = 4000) -> str:
-        from ..ontology.lifecycle import slice_agent_profile
+        from ..ontology.lifecycle import load_agent_profile, slice_agent_profile
         from ..metrics import get_metrics
         from ..tracing import start_span
         budget = min(max(256, int(max_chars)), 8000)
         with start_span("ontology.slice", metadata={"purpose": purpose, "max_chars": budget}, tags=["ontology", "agent-tool"]) as span:
             try:
+                profile = load_agent_profile(bundle_dir, purpose)
+                decision = profile.get("module_quality", {}).get("decision", {})
+                if decision.get("disposition") == "reject":
+                    get_metrics().add("seocho.ontology.tool.call.count", attributes={"tool": "slice", "outcome": "rejected"})
+                    return json.dumps({
+                        "error": "ontology profile rejected by module quality policy",
+                        "reasons": decision.get("reasons", []),
+                    })
                 response = slice_agent_profile(bundle_dir, purpose, terms.split(","), max_chars=budget)
                 span.set_output({"profile_sha256": response["profile_sha256"], "truncated": response["truncated"]})
                 metrics = get_metrics()

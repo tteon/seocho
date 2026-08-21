@@ -28,6 +28,7 @@ dependencies = [
     "python-dotenv",
     "jinja2>=3.0",
     "pyyaml",
+    "pyshacl>=0.31.0",
 ]
 
 [project.scripts]

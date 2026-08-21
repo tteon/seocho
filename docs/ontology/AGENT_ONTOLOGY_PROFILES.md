@@ -23,7 +23,7 @@ SHACL change creates a new canonical bundle digest and requires governance.
 
 The intended promotion path is:
 
-    JSON-LD source -> Turtle/SHACL -> Oxigraph validation/reasoning ->
+    JSON-LD source -> Turtle/SHACL -> offline SHACL validation ->
     governance receipt (promotable=true) -> approved candidate ->
     projection profile -> seochod Rust Bolt write -> DozerDB canonical graph
 
@@ -32,3 +32,27 @@ directly to `seochod`. Filesystem-managed bundles should be immutable version
 directories, with a separate atomic `current` pointer controlled by the
 SEOCHO CLI. This gives agents stable read snapshots and makes rollback a pointer
 change rather than an in-place edit.
+
+For just-in-time context, use `seocho ontology context profile --bundle ...
+--purpose query` for the fixed purpose profile, or `ontology context slice
+--terms Account,TRANSFER --max-chars 4000` for a bounded, verified view. A
+slice returns its canonical bundle and profile digests plus allowed vocabulary;
+it never returns a host path or silently injects the entire ontology. This is
+the CLI-level primitive that an Agents SDK tool should expose, rather than
+placing a raw JSON-LD file into every prompt.
+
+`build_graph_agent(..., ontology_bundle_dir=...)` wires the same two tools
+(`ontology_profile`, `ontology_slice`) into a real OpenAI Agents SDK agent.
+Without that explicit argument, the existing graph agent remains compatible and
+does not claim agent-selected JIT context delivery.
+
+Oxigraph is the bounded RDF read model in this flow; it is not the SHACL
+validator. The current offline validation implementation is PySHACL. This
+separation keeps expensive governance work out of the request and projection
+hot paths.
+
+For receipt-enforced Rust projection, set `SEOCHO_RDF_GOVERNANCE_RECEIPT` and
+`SEOCHO_AGENT_ONTOLOGY_PROFILE` together in the SEOCHO process, and set
+`SEOCHOD_REQUIRE_GOVERNANCE=1` in the daemon process. SEOCHO validates that the
+profile derives from the promotable governed bundle; `seochod` stamps the four
+resulting hashes on canonical nodes and relationships.

@@ -551,6 +551,10 @@ class Neo4jGraphStore(GraphStore):
             if graph_model == "rdf" and triples:
                 raise RuntimeError("seochod supports approved LPG projection only")
             from ..dataplane.seochod import SeochodProjectionClient
+            from ..ontology.projection_receipt import (
+                load_projection_admission_from_env,
+                load_projection_receipt_from_env,
+            )
 
             result = SeochodProjectionClient(rust_socket).project(
                 nodes,
@@ -558,6 +562,8 @@ class Neo4jGraphStore(GraphStore):
                 database=database,
                 workspace_id=workspace_id,
                 source_id=source_id,
+                semantic_receipt=load_projection_receipt_from_env(),
+                admission=load_projection_admission_from_env(),
             )
             self.invalidate_schema_cache(database)
             return {
@@ -599,6 +605,12 @@ class Neo4jGraphStore(GraphStore):
         # row neither loses its siblings nor its error message — behavior stays
         # identical to the old per-row loop, just N round-trips -> #labels.
         nodes_by_label: Dict[str, List[Dict[str, Any]]] = {}
+        # Extraction-local IDs (often ``c1``) are not stable across documents.
+        # Prefer a declared business name when present and remap relationship
+        # endpoints in this payload to the same canonical identity.  Otherwise
+        # a graph-level UNIQUE(name) constraint rejects a second source that
+        # describes the same company/person with a different local ID.
+        canonical_ids: Dict[str, str] = {}
         for node in nodes:
             label = node.get("label", "Entity")
             if not _LABEL_RE.match(label):
@@ -609,7 +621,10 @@ class Neo4jGraphStore(GraphStore):
             props["_workspace_id"] = workspace_id
             props["_writer_ts"] = now
             props["_writer_agent"] = source_id or "unknown"
-            node_id = node.get("id", props.get("name", ""))
+            original_id = str(node.get("id", ""))
+            node_id = str(props.get("name") or original_id or props.get("id", ""))
+            if original_id:
+                canonical_ids[original_id] = node_id
             props["id"] = node_id
             nodes_by_label.setdefault(label, []).append({"id": node_id, "props": props})
 
@@ -634,7 +649,8 @@ class Neo4jGraphStore(GraphStore):
             props["_writer_ts"] = now
             props["_writer_agent"] = source_id or "unknown"
             rels_by_type.setdefault((rtype, source_label, target_label), []).append(
-                {"src": rel.get("source", ""), "tgt": rel.get("target", ""), "props": props})
+                {"src": canonical_ids.get(str(rel.get("source", "")), rel.get("source", "")),
+                 "tgt": canonical_ids.get(str(rel.get("target", "")), rel.get("target", "")), "props": props})
 
         with self._driver.session(database=database) as session:
             # --- Nodes (one UNWIND per label) ---
@@ -1021,8 +1037,20 @@ class Neo4jGraphStore(GraphStore):
         inside transactions; opt in only when you've verified your
         deployment supports it).
         """
-        stmts = ontology.to_cypher_constraints()
+        # All SDK writes stamp `_workspace_id`, so graph constraints must use
+        # the same tenant key. A global `name UNIQUE` makes two legitimate
+        # workspaces collide before the writer's workspace-scoped MERGE runs.
+        stmts = ontology.to_cypher_constraints(workspace_scoped=True)
         summary = {"success": 0, "errors": []}
+
+        legacy = []
+        for label, node in ontology.nodes.items():
+            identity = set(node.identity_keys)
+            if len(node.identity_keys) == 1:
+                legacy.append(f"constraint_{label}_identity_unique")
+            for pname, prop in node.properties.items():
+                if prop.unique and pname not in identity:
+                    legacy.append(f"constraint_{label}_{pname}_unique")
 
         with self._driver.session(database=database) as session:
             if transactional:
@@ -1052,6 +1080,13 @@ class Neo4jGraphStore(GraphStore):
                         f"transactional ensure_constraints rolled back: {exc}"
                     )
             else:
+                # Only remove SEOCHO's documented legacy names. Arbitrary
+                # operator constraints are never discovered/deleted here.
+                for name in legacy:
+                    try:
+                        session.run(f"DROP CONSTRAINT {name} IF EXISTS")
+                    except Exception as exc:
+                        summary["errors"].append(f"drop legacy constraint {name}: {exc}")
                 for stmt in stmts:
                     try:
                         session.run(stmt)

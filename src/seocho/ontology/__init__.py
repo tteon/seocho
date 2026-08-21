@@ -179,6 +179,8 @@ _EXPORTS = {
     "build_ontology_upgrade_plan": "versioning",
     "RdfOntologyBundle": "rdf_bundle",
     "build_rdf_ontology_bundle": "rdf_bundle",
+    "load_projection_receipt_from_env": "projection_receipt",
+    "validate_projection_receipt": "projection_receipt",
     "OxigraphReadModelClient": "oxigraph",
     "OxigraphTermResult": "oxigraph",
     "RdfGovernanceReceipt": "rdf_governance",

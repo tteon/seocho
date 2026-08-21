@@ -136,6 +136,9 @@ answer live in its sampled trace and auditable receipt.
 | `seocho.projection.replay.count` | counter | `projection`, `outcome` | Required |
 | `seocho.projection.fencing_rejection.count` | counter | `projection` | Required with distributed projector |
 | `seocho.projection.worker.active` | observable gauge `{worker}` | `projection` | Required with distributed projector |
+| `seocho.projection.daemon.request.duration` | histogram `s` | `outcome` | Required when `seochod` is enabled |
+| `seocho.projection.daemon.request.count` | counter | `outcome` | Required when `seochod` is enabled |
+| `seocho.projection.daemon.payload_bytes` | histogram `By` | none | Required when `seochod` is enabled |
 
 Recording rules compute:
 
@@ -179,6 +182,10 @@ may be used; user-provided database or graph names may not.
 | `seocho.context.budget_exceeded.count` | counter | `strategy` | Required |
 | `seocho.context.cache.request.count` | counter | `result=hit|miss` | Conditional: cache |
 | `seocho.context.policy_filtered.count` | counter | `reason` | Required |
+| `seocho.ontology.tool.call.count` | counter | `tool`, `outcome` | Required when JIT ontology tools are enabled |
+| `seocho.ontology.tool.duration` | histogram `s` | `tool`, `outcome` | Required when JIT ontology tools are enabled |
+| `seocho.ontology.slice.size` | histogram `By` | `kind` | Required when JIT ontology tools are enabled |
+| `seocho.ontology.lock.operation.count` | counter | `operation`, `outcome` | Required when ontology control-plane locks are enabled |
 
 Token compression is a recording rule:
 
@@ -225,6 +232,9 @@ Agent role and workflow values are configured enums, never dynamic names.
 | `seocho.governance.receipt_write.count` | counter | `receipt.type`, `outcome` | Required |
 | `seocho.observability.trace_complete.count` | counter | `workflow`, `outcome` | Required for retained/evaluation traces |
 | `seocho.observability.export_failure.count` | counter | `signal`, `exporter` | Required |
+| `seocho.observability.trace_complete.count` | counter | `workflow`, `outcome` | Required for experiment/evaluation runs |
+| `seocho.experiment.run.duration` | histogram `s` | `runtime`, `outcome` | Required for experiment/evaluation runs |
+| `seocho.experiment.run.count` | counter | `runtime`, `outcome` | Required for experiment/evaluation runs |
 | `seocho.observability.dropped.count` | counter | `signal`, `reason` | Required |
 
 Policy and ontology versions must be bounded release identifiers. Unknown or

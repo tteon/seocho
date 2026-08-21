@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import socket
 import time
+import uuid
 from typing import Any, Mapping, Sequence
 
 
@@ -27,21 +28,64 @@ class SeochodProjectionClient:
         database: str,
         workspace_id: str,
         source_id: str,
+        semantic_receipt: Mapping[str, Any] | None = None,
+        admission: Mapping[str, Any] | None = None,
+        idempotency_key: str | None = None,
     ) -> dict[str, Any]:
+        request_id = uuid.uuid4().hex
+        idempotency_key = idempotency_key or request_id
         payload = {
             "op": "project",
+            "request_id": request_id,
+            "idempotency_key": idempotency_key,
             "database": database,
             "workspace_id": workspace_id,
             "source_id": source_id,
             "writer_ts": time.time(),
             "nodes": list(nodes),
             "relationships": list(relationships),
+            "semantic_receipt": dict(semantic_receipt or {}),
+            "admission": dict(admission or {}),
         }
-        response = self._request(payload)
-        if not response.get("ok"):
-            detail = response.get("error") or "; ".join(response.get("errors", [])) or "unknown daemon error"
-            raise SeochodProtocolError(f"seochod projection rejected: {detail}")
-        return response
+        payload_bytes = len(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
+        from ..metrics import get_metrics
+        from ..tracing import start_span
+
+        started = time.perf_counter()
+        outcome = "ok"
+        with start_span(
+            "seochod.project",
+            input_data={
+                "node_count": len(nodes), "relationship_count": len(relationships),
+                "payload_bytes": payload_bytes, "has_semantic_receipt": bool(semantic_receipt),
+                "has_lifecycle_admission": bool(admission),
+            },
+            metadata={"seochod.request_id": request_id, "workspace_id": workspace_id},
+            tags=["projection", "driver:rust-neo4j"],
+        ) as span:
+            try:
+                response = self._request(payload)
+                if not response.get("ok"):
+                    outcome = "rejected"
+                    detail = response.get("error") or "; ".join(response.get("errors", [])) or "unknown daemon error"
+                    raise SeochodProtocolError(f"seochod projection rejected: {detail}")
+                span.set_output({
+                    "nodes_created": response.get("nodes_created", 0),
+                    "relationships_created": response.get("relationships_created", 0),
+                    "daemon_duration_ms": response.get("duration_ms"),
+                })
+                return response
+            except Exception:
+                if outcome == "ok":
+                    outcome = "error"
+                raise
+            finally:
+                elapsed = time.perf_counter() - started
+                span.set_metadata({"outcome": outcome, "duration_ms": round(elapsed * 1000, 2)})
+                metrics = get_metrics()
+                metrics.record("seocho.projection.daemon.request.duration", elapsed, {"outcome": outcome})
+                metrics.add("seocho.projection.daemon.request.count", attributes={"outcome": outcome})
+                metrics.record("seocho.projection.daemon.payload_bytes", payload_bytes)
 
     def health(self) -> dict[str, Any]:
         return self._request({"op": "health"})

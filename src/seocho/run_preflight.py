@@ -337,10 +337,14 @@ def _check_projection_governance(spec: RunSpec, *, online: bool) -> PreflightChe
     try:
         receipt = load_projection_receipt_from_env()
         admission = load_projection_admission_from_env()
+        # In a governed run the receipt is created after extraction from each
+        # candidate payload.  A pre-existing receipt is optional evidence, not
+        # a substitute for that per-candidate stage.
+        staged_receipt = {"per_candidate": True} if spec.governance_mode in {"governed", "lockdown"} else None
         decision = decide_projection(
             spec.governance_mode,
             rust_socket=socket_path,
-            semantic_receipt=receipt,
+            semantic_receipt=receipt or staged_receipt,
             admission=admission,
         )
     except (ProjectionPolicyError, ProjectionReceiptError, ValueError) as exc:
@@ -366,6 +370,8 @@ def _check_projection_governance(spec: RunSpec, *, online: bool) -> PreflightChe
               f"canonical_claim_allowed={str(decision.canonical_claim_allowed).lower()}")
     if decision.missing:
         detail += "; optional signals absent=" + ",".join(decision.missing)
+    if spec.governance_mode in {"governed", "lockdown"}:
+        detail += "; receipt=per-candidate-stage"
     return PreflightCheck(name="projection governance", status="ok", detail=detail)
 
 

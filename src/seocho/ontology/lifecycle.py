@@ -176,6 +176,11 @@ class OntologyLifecycleStore:
                 "acquired_at_ms INTEGER NOT NULL, expires_at_ms INTEGER NOT NULL)"
             )
             conn.execute("CREATE INDEX IF NOT EXISTS ontology_lease_live ON ontology_lease(workspace_id, package_id, expires_at_ms)")
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS projection_idempotency ("
+                "idempotency_key TEXT PRIMARY KEY, workspace_id TEXT NOT NULL, fingerprint TEXT NOT NULL, "
+                "state TEXT NOT NULL, response_json TEXT, created_at_ms INTEGER NOT NULL, completed_at_ms INTEGER)"
+            )
 
     def _conn(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.path, isolation_level=None, timeout=10.0)

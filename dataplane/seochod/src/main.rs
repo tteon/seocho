@@ -23,6 +23,7 @@ const MAX_REQUEST_BYTES: usize = 2 * 1024 * 1024;
 struct Request {
     op: String,
     request_id: Option<String>,
+    idempotency_key: Option<String>,
     database: Option<String>,
     workspace_id: Option<String>,
     source_id: Option<String>,
@@ -73,14 +74,14 @@ struct Relationship {
     properties: HashMap<String, Value>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Clone)]
 struct Response {
     ok: bool,
     nodes_created: i64,
     relationships_created: i64,
     errors: Vec<String>,
     merge_conflicts: Vec<Value>,
-    driver: &'static str,
+    driver: String,
     error: Option<String>,
     request_id: Option<String>,
     duration_ms: f64,
@@ -234,9 +235,54 @@ fn validate_admission(
     Ok(())
 }
 
+fn claim_idempotency(
+    control_db: &str,
+    key: &str,
+    workspace_id: &str,
+    fingerprint: &str,
+    now_ms: i64,
+) -> Result<Option<Response>, String> {
+    if key.is_empty() || key.len() > 256 {
+        return Err("invalid projection idempotency key".into());
+    }
+    let mut conn = Connection::open(control_db)
+        .map_err(|_| "ontology lifecycle control database unavailable".to_string())?;
+    let tx = conn
+        .transaction()
+        .map_err(|_| "projection idempotency transaction unavailable".to_string())?;
+    let inserted = tx.execute("INSERT OR IGNORE INTO projection_idempotency (idempotency_key, workspace_id, fingerprint, state, created_at_ms) VALUES (?1, ?2, ?3, 'pending', ?4)", (key, workspace_id, fingerprint, now_ms)).map_err(|_| "projection idempotency table unavailable".to_string())?;
+    if inserted == 1 {
+        tx.commit()
+            .map_err(|_| "projection idempotency commit failed".to_string())?;
+        return Ok(None);
+    }
+    let row: Option<(String, String, String, Option<String>)> = tx.query_row("SELECT workspace_id, fingerprint, state, response_json FROM projection_idempotency WHERE idempotency_key=?1", [key], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?))).optional().map_err(|_| "projection idempotency lookup failed".to_string())?;
+    tx.commit()
+        .map_err(|_| "projection idempotency commit failed".to_string())?;
+    let (stored_ws, stored_fp, state, response) =
+        row.ok_or_else(|| "projection idempotency state disappeared".to_string())?;
+    if stored_ws != workspace_id || stored_fp != fingerprint {
+        return Err("projection idempotency key is bound to another scope".into());
+    }
+    if state == "completed" {
+        return response
+            .and_then(|raw| serde_json::from_str(&raw).ok())
+            .map(Some)
+            .ok_or_else(|| "completed projection receipt is unreadable".into());
+    }
+    Err("projection with this idempotency key is pending; reconcile before retry".into())
+}
+
+fn complete_idempotency(control_db: &str, key: &str, response: &Response, now_ms: i64) {
+    if let Ok(conn) = Connection::open(control_db) {
+        let _ = conn.execute("UPDATE projection_idempotency SET state='completed', response_json=?1, completed_at_ms=?2 WHERE idempotency_key=?3 AND state='pending'", (serde_json::to_string(response).unwrap_or_default(), now_ms, key));
+    }
+}
+
 fn project(driver: &Driver, request: Request) -> Response {
     let started = Instant::now();
     let request_id = request.request_id.clone();
+    let idempotency_key = request.idempotency_key.clone();
     let database = request.database.unwrap_or_else(|| "neo4j".into());
     let workspace_id = request.workspace_id.unwrap_or_else(|| "default".into());
     let source_id = request.source_id.unwrap_or_default();
@@ -268,7 +314,8 @@ fn project(driver: &Driver, request: Request) -> Response {
             return failure("invalid semantic governance receipt".into());
         }
     }
-    if let Some(control_db) = std::env::var("SEOCHOD_CONTROL_DB").ok() {
+    let control_db = std::env::var("SEOCHOD_CONTROL_DB").ok();
+    if let Some(control_db) = control_db.as_ref() {
         match receipt {
             Some(value) => {
                 if let Err(error) = validate_admission(
@@ -289,6 +336,25 @@ fn project(driver: &Driver, request: Request) -> Response {
                     "canonical projection requires a semantic governance receipt".into(),
                 )
             }
+        }
+        let now_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as i64;
+        let key = match idempotency_key.as_deref() {
+            Some(value) => value,
+            None => return failure("canonical projection requires an idempotency key".into()),
+        };
+        match claim_idempotency(
+            control_db,
+            key,
+            &workspace_id,
+            &receipt.unwrap().rdf_bundle_sha256,
+            now_ms,
+        ) {
+            Ok(Some(cached)) => return cached,
+            Ok(None) => {}
+            Err(error) => return failure(error),
         }
     }
     let mut response = success();
@@ -362,6 +428,17 @@ fn project(driver: &Driver, request: Request) -> Response {
     response.ok = response.errors.is_empty();
     response.request_id = request_id;
     response.duration_ms = started.elapsed().as_secs_f64() * 1000.0;
+    if let (Some(control_db), Some(key)) = (control_db.as_deref(), idempotency_key.as_deref()) {
+        complete_idempotency(
+            control_db,
+            key,
+            &response,
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis() as i64,
+        );
+    }
     response
 }
 
@@ -372,7 +449,7 @@ fn success() -> Response {
         relationships_created: 0,
         errors: vec![],
         merge_conflicts: vec![],
-        driver: "rust-neo4j",
+        driver: "rust-neo4j".into(),
         error: None,
         request_id: None,
         duration_ms: 0.0,
@@ -385,7 +462,7 @@ fn failure(error: String) -> Response {
         relationships_created: 0,
         errors: vec![],
         merge_conflicts: vec![],
-        driver: "rust-neo4j",
+        driver: "rust-neo4j".into(),
         error: Some(error),
         request_id: None,
         duration_ms: 0.0,
@@ -490,6 +567,33 @@ mod tests {
             validate_admission(path.to_str().unwrap(), "ws", &receipt, Some(&admission), 1)
                 .unwrap_err()
                 .contains("stale")
+        );
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn completed_idempotency_key_replays_receipt_not_write_permission() {
+        let path = std::env::temp_dir().join(format!(
+            "seochod-idempotency-{}.sqlite",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let conn = Connection::open(&path).unwrap();
+        conn.execute_batch("CREATE TABLE projection_idempotency (idempotency_key TEXT PRIMARY KEY, workspace_id TEXT, fingerprint TEXT, state TEXT, response_json TEXT, created_at_ms INTEGER, completed_at_ms INTEGER);").unwrap();
+        drop(conn);
+        assert!(
+            claim_idempotency(path.to_str().unwrap(), "key", "ws", "a", 1)
+                .unwrap()
+                .is_none()
+        );
+        let response = success();
+        complete_idempotency(path.to_str().unwrap(), "key", &response, 2);
+        assert!(
+            claim_idempotency(path.to_str().unwrap(), "key", "ws", "a", 3)
+                .unwrap()
+                .is_some()
         );
         std::fs::remove_file(path).unwrap();
     }

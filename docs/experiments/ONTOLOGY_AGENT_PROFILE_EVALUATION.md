@@ -17,9 +17,20 @@ coverage relative to canonical JSON-LD.
 OS measurements include Unix-socket request size, Rust daemon wall time,
 Bolt round trips, process RSS, and file lifecycle operations. Agent
 measurements include profile token count, response latency, valid extraction
-rate, relation recall, and missing-slot rate. Store the resulting JSONL traces
-and run metadata outside the repository; promote only aggregate, reproducible
-evidence into a dated report.
+rate, relation recall, and missing-slot rate. Each arm also records its
+execution runtime: `seocho_direct` for the deterministic `ask_response()` path,
+or `agents_sdk` only when it actually invokes an OpenAI Agents SDK `Runner`
+over SEOCHO-owned tools. An agent object that was merely constructed is not
+evidence of an Agents-SDK experiment.
+
+Store content-free JSONL trace evidence and immutable run metadata outside the
+repository; promote only aggregate, reproducible evidence into a dated report.
+JSONL is a portable trace artifact, not a metrics database or an observability
+stack. The live stack is OTLP Collector, Tempo, Prometheus, and Grafana; it
+must be able to retrieve the run's root trace before a live result is accepted.
+Receipt/digest/source-span detail belongs in trace/run artifacts, while metric
+labels remain bounded and exclude paths, workspace IDs, request IDs, digests,
+and source text.
 
 The filesystem lifecycle is immutable: write a new content-addressed bundle
 directory, validate it offline, then atomically update a `current` pointer.

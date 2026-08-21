@@ -21,7 +21,7 @@ class _FakeHTTPResponse:
 
 
 def _write_project_files(project_dir: Path) -> None:
-    (project_dir / "docker-compose.yml").write_text("services: {}\n", encoding="utf-8")
+    (project_dir / "compose.yaml").write_text("services: {}\n", encoding="utf-8")
     (project_dir / "pyproject.toml").write_text("[project]\nname='seocho'\n", encoding="utf-8")
 
 

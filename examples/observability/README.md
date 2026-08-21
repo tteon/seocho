@@ -23,7 +23,7 @@ Flow: `SEOCHO → OTLP gRPC → Collector → Tempo (traces) + Prometheus (metri
 ## Run
 
 This stack is a first-class **`observability` profile** of the repo's root
-`docker-compose.yml` (pulled in via `include:`), so it shares the core stack's
+`compose.yaml` (pulled in via `include:`), so it shares the core stack's
 `seocho-net` network and project. It is OFF by default — nothing here starts on a
 plain `docker compose up`. Start it either way:
 

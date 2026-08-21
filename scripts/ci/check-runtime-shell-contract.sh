@@ -98,17 +98,17 @@ check_present "import runtime.runtime_ingest as runtime_runtime_ingest" \
   extraction/tests/test_runtime_package_aliases.py
 
 echo "Checking local compose runtime visibility..."
-# Live-edit bind mounts live in docker-compose.dev.yml (make up-live path).
-# docker-compose.yml itself is image-backed per ADR-0075 and does not mount
+# Live-edit bind mounts live in docker/compose.dev.yaml (make up-live path).
+# compose.yaml itself is image-backed per ADR-0075 and does not mount
 # runtime/ or src/seocho/ at runtime — the check points at the dev override.
 check_absent "./runtime:/app/runtime:ro" \
-  docker-compose.yml
+  compose.yaml
 check_absent "./src/seocho:/app/seocho:ro" \
-  docker-compose.yml
+  compose.yaml
 check_present "./runtime:/app/runtime:ro" \
-  docker-compose.dev.yml
+  docker/compose.dev.yaml
 check_present "./src/seocho:/app/seocho:ro" \
-  docker-compose.dev.yml
+  docker/compose.dev.yaml
 
 echo "Checking repo-owned runtime tests..."
 check_present "from runtime.agent_readiness import summarize_readiness" \

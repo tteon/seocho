@@ -1,1 +1,0 @@
-- Optimized memory usage for large JSONL files by replacing Path.read_text().splitlines() with lazy, line-by-line iteration using a context manager (with open(...) as f: for line in f:).

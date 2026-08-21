@@ -12,6 +12,16 @@
 This file is the lightweight index of architecture/product decisions.
 Each entry must link to a full ADR when impact is non-trivial.
 
+## 2026-08-15
+
+- [Accepted] `ADR-0223-root-compose-entry-point-and-docker-directory.md`
+  - keep one `compose.yaml` in the root and move overlays/side stacks to `docker/`
+  - absorb Compose's project-directory rule in the invocation, not in the
+    compose files: overlays follow the root file, side stacks pass
+    `--project-directory`
+  - move `.AGENTS.md`/`.PLANS.md` into `docs/maintainers/` so the root holds
+    only entry points, standard GitHub files, and tool configuration
+
 ## 2026-07-13
 
 - [Accepted] `ADR-0152-sdcr-evidence-swarm-coordinator.md`

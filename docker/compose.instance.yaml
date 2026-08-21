@@ -1,7 +1,7 @@
 # Per-instance app tier for worktree-isolated runtime boot (seocho-6q9.3).
 #
 # This is a SELF-CONTAINED compose file (used alone, not as an overlay on
-# docker-compose.yml) that brings up only the stateless app tier — extraction
+# the root compose.yaml) that brings up only the stateless app tier — extraction
 # API + thin UI — in its own compose project on offset ports, all reaching the
 # SHARED neo4j started by `make up`. Each instance drives its own ephemeral
 # logical database (SEOCHO_DATABASE), so the heavyweight graph backend stays
@@ -9,7 +9,7 @@
 #
 # Boot:     COMPOSE_PROJECT_NAME=seocho-<id> EXTRACTION_API_PORT=81x0 \
 #           CHAT_INTERFACE_PORT=86x0 SEOCHO_DATABASE=wt<hash> \
-#           docker compose -f docker-compose.instance.yml up -d
+#           docker compose --project-directory . -f docker/compose.instance.yaml up -d
 # Network:  attaches to the shared stack's external `seocho-net`.
 services:
   extraction-service:
@@ -60,6 +60,6 @@ services:
 
 networks:
   graphrag-net:
-    # The shared stack (docker-compose.yml) owns this network; attach to it.
+    # The shared stack (compose.yaml) owns this network; attach to it.
     name: seocho-net
     external: true

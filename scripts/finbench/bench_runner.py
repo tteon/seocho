@@ -239,7 +239,7 @@ def stage_infra_sweep(spec: Dict[str, Any]) -> Dict[str, Any]:
     cliff = _load_module("finbench_cliff", "cliff_pagecache.py")
     override = out_root / "_bench-infra-override.yml"
     override.parent.mkdir(parents=True, exist_ok=True)
-    compose = ["docker-compose.yml", "docker-compose.finbench.yml"]
+    compose = ["compose.yaml", "docker/compose.finbench.yaml"]
     steps = []
     for profile in cfg.get("profiles", []):
         entry = {k: str(v) for k, v in profile.items() if k != "name"}

@@ -245,7 +245,7 @@ paths, commands, and expected observations.
     `Surprises & Discoveries`, `Decision Log`, and `Outcomes & Retrospective`
     must be kept up to date as work proceeds.
 
-    This plan follows `.PLANS.md` from the repository root.
+    This plan follows `docs/maintainers/EXECPLAN_SPEC.md`.
 
     ## Purpose / Big Picture
 

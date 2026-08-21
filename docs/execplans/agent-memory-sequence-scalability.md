@@ -4,7 +4,7 @@ This ExecPlan is a living document. The sections `Progress`, `Surprises &
 Discoveries`, `Decision Log`, and `Outcomes & Retrospective` must be kept up to
 date as work proceeds.
 
-This plan follows `.PLANS.md` from the repository root. Beads registration was
+This plan follows `docs/maintainers/EXECPLAN_SPEC.md`. Beads registration was
 attempted on 2026-07-13, but the shared Dolt workspace at
 `/home/hadry/lab/seocho/.beads` was read-only from this worktree and could not
 create its server lock. This plan is the temporary local execution record; the

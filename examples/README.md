@@ -129,7 +129,7 @@ echo 'OPENAI_API_KEY=sk-...' >> ../.env
 
 # 2. Bring up JupyterLab
 make tutorials-up
-# or: docker compose -f docker-compose.tutorials.yml up -d --build
+# or: docker compose --project-directory . -f docker/compose.tutorials.yaml up -d --build
 
 # 3. Open JupyterLab (token disabled in this dev image)
 open http://localhost:28888/lab/tree/examples

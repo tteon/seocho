@@ -90,7 +90,7 @@ Most feature work should stay inside:
 
 ### Use extra caution
 
-- `docker-compose.yml`
+- `compose.yaml`
 - `pyproject.toml`
 - `Makefile`
 - `scripts/land.sh`

@@ -4,7 +4,7 @@ This ExecPlan is a living document. The sections `Progress`, `Surprises &
 Discoveries`, `Decision Log`, and `Outcomes & Retrospective` must be kept up to
 date as work proceeds.
 
-This plan follows `.PLANS.md` from the repository root and is tracked by Beads
+This plan follows `docs/maintainers/EXECPLAN_SPEC.md` and is tracked by Beads
 item `seocho-vu4`.
 
 ## Purpose / Big Picture

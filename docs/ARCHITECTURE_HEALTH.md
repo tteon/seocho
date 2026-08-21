@@ -21,7 +21,7 @@ qualifies within a band.
 | Runtime shell & API wiring | `runtime/*` | B | 13 modules; worktree-isolated boot + policy/readiness (seocho-6q9.3) | live two-worktree concurrent boot is a documented manual check, not in CI | 2026-06-09 |
 | Extraction compatibility | `extraction/*` (wrappers) | C | compat-only; legacy aliases | intentionally frozen — no new canonical logic here (per ownership rule) | 2026-06-09 |
 | Benchmark harnesses & eval | `src/seocho/eval/*`, `scripts/benchmarks/*` | B | FinDER backbone/arms/bake-off harnesses, perf-budget gate; private corpora | results are local/uncommitted by rule; LLM-judged metrics confirmatory only (deterministic metrics primary) | 2026-06-09 |
-| Entry docs & contributor contracts | `README.md`, `AGENTS.md`, `CLAUDE.md`, `docs/*` | A− | 109 ADRs + DECISION_LOG, read-orders, mechanical linters | AGENTS.md/.AGENTS.md duality + duplicate ADR IDs (seocho-b01.3); structure/drift linting (seocho-b01.4) | 2026-06-09 |
+| Entry docs & contributor contracts | `README.md`, `AGENTS.md`, `CLAUDE.md`, `docs/*` | A− | 109 ADRs + DECISION_LOG, read-orders, mechanical linters | AGENTS.md/docs/maintainers/AGENT_EXECPLAN_CONVENTIONS.md duality + duplicate ADR IDs (seocho-b01.3); structure/drift linting (seocho-b01.4) | 2026-06-09 |
 | GitHub automation & CI | `.github/*`, `scripts/ci/*` | B+ | doc/hierarchy/runtime-shell/module-ownership contracts, basic CI | contracts check presence, not structure/freshness/drift (seocho-b01.4) | 2026-06-09 |
 
 ## How to use this

@@ -87,7 +87,7 @@ def test_images_do_not_run_as_root(dockerfile):
 
 @pytest.fixture(scope="module")
 def compose() -> dict:
-    return yaml.safe_load((ROOT / "docker-compose.yml").read_text())
+    return yaml.safe_load((ROOT / "compose.yaml").read_text())
 
 
 def test_app_service_has_a_healthcheck_and_restart_policy(compose):

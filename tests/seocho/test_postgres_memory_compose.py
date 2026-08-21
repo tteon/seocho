@@ -6,7 +6,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_optional_memory_compose_has_health_volume_and_no_hardcoded_password() -> None:
-    rendered = (ROOT / "docker-compose.memory.yml").read_text()
+    rendered = (ROOT / "docker" / "compose.memory.yaml").read_text()
     compose = yaml.safe_load(rendered)
     service = compose["services"]["postgres-memory"]
 

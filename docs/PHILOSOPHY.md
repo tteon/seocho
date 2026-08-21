@@ -58,7 +58,7 @@ For multi-role feasibility reviews (frontend/backend/architect/software engineer
   - `extraction/semantic_query_flow.py`
 - Flow telemetry and auditability:
   - `extraction/tracing.py`
-  - JSONL trace artifacts and optional Opik profile in `docker-compose.yml`
+  - JSONL trace artifacts and optional Opik profile in `compose.yaml`
 
 ## Operating Checks
 

@@ -230,7 +230,7 @@ edge table cannot recurse over.
       latency, which is 0.3–0.9% of end to end
 - [ ] Discriminating scenario: heterogeneous edge types along a variable-depth path
 - [ ] SF10000 (~25 GiB store, fits this host) then SF100000 (~250 GiB, needs a large-memory instance)
-- [ ] Optional: exercise ADR-0155 PG→LPG projection path instead of direct load
+- [ ] Optional: exercise the PG→LPG projection path instead of direct load
 
 ## Outcomes & Retrospective
 
@@ -1156,8 +1156,11 @@ not.
 
 - Direct typed load over PG→LPG projection for the slice: the relational→LPG
   `ProjectionRule` mapper (ADR-0154 §4) does not exist yet; direct `GraphStore.write`
-  is correct for a scalability benchmark where the graph is already typed. ADR-0155
-  projection is a follow-up.
+  is correct for a scalability benchmark where the graph is already typed. The
+  projection ADR is a follow-up and is deliberately left unnumbered until it is
+  written: reserving an id in advance is what produced the three-way claim on
+  id 0155 (see ADR-0157), and `scripts/ci/check_adr_index.py` now rejects a
+  cited id that has no file.
 - DozerDB (primary serving path), not embedded Kùzu/Ladybug: the experiment is
   "real graph DB ↔ agent," and this sidesteps seocho-dgf.
 - `query_mode="graph_cot"`: the default semantic path uses an entity-lookup

@@ -22,6 +22,12 @@ forbidden_tracked_paths=(
   # tracked (shared project skills, ADR-0113); everything else under .claude/
   # stays forbidden.
   ".githooks"
+  # .jules and .serena were on CLAUDE.md's non-tracked list and missing from
+  # this one, so .jules/bolt.md sat in the tree for months while the contract
+  # reported passing. A hygiene list that does not match the documented rule is
+  # worse than none: it certifies the drift.
+  ".jules"
+  ".serena"
   ".github/README.md"
   ".gitattributes"
   "experiments/retrieval_comparison"

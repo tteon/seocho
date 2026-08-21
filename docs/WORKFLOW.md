@@ -160,7 +160,7 @@ Primary surfaces:
   running runtime matches a known source snapshot
 - use `make up-live` or `make dev-up` only when you explicitly want bind-mounted
   edits from `extraction/`, `runtime/`, and `seocho/` reflected immediately
-- keep graph procedure privileges scoped (`apoc.*,n10s.*`) in `docker-compose.yml`
+- keep graph procedure privileges scoped (`apoc.*,n10s.*`) in `compose.yaml`
 - default local compose stack is `neo4j + extraction-service + evaluation-interface`
 - when decomposing large files, prefer the internal seam classes documented in
   `docs/INTERNAL_CLASS_DESIGN.md` before introducing new top-level services

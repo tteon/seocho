@@ -68,7 +68,7 @@ ontology = Ontology(
     },
 )
 
-client = Seocho.local(ontology, llm="mara/MiniMax-M2.5")
+client = Seocho.local(ontology, graph="bolt://localhost:7687", llm="mara/MiniMax-M2.7")
 client.add("Marie Curie worked at the University of Paris.")
 
 print(client.ask("Where did Marie Curie work?"))
@@ -78,7 +78,7 @@ print(client.ask("Where did Marie Curie work?"))
 > Prefer another provider? Pass `llm="openai/gpt-4o"` (or `deepseek/…`, `kimi/…`)
 > and export that provider's key instead.
 
-That example creates a local ontology-aware graph memory. The same public
+That example writes an ontology-aware graph memory to DozerDB or Neo4j. The same public
 facade can later point at a running SEOCHO runtime:
 
 ```python

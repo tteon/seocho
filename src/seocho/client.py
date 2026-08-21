@@ -144,7 +144,7 @@ if TYPE_CHECKING:
     from .runtime_bundle import RuntimeBundle
 
 logger = logging.getLogger(__name__)
-DEFAULT_LOCAL_LLM = "mara/MiniMax-M2.5"
+DEFAULT_LOCAL_LLM = "mara/MiniMax-M2.7"
 
 
 def _env_str(name: str, default: str) -> str:
@@ -417,7 +417,7 @@ class Seocho:
         ontology: Any,
         *,
         llm: str = DEFAULT_LOCAL_LLM,
-        graph: Optional[str] = None,
+        graph: str,
         neo4j_user: str = "neo4j",
         neo4j_password: str = "password",
         api_key: Optional[str] = None,
@@ -426,28 +426,19 @@ class Seocho:
     ) -> "Seocho":
         """Create a local-engine ``Seocho`` with sensible defaults.
 
-        Zero-config path (uses embedded LadybugDB, no server needed)::
-
-            s = Seocho.local(ontology)   # → .seocho/local.lbug
-            s.add("text")
-            s.ask("question")
-
-        Neo4j/DozerDB path::
+        DozerDB / Neo4j path::
 
             s = Seocho.local(ontology, graph="bolt://localhost:7687")
 
         Args:
             ontology: :class:`~seocho.ontology.Ontology` to bind.
-            llm: Provider/model string (``"mara/MiniMax-M2.5"``,
+            llm: Provider/model string (``"mara/MiniMax-M2.7"``,
                 ``"openai/gpt-4o"``, ``"deepseek/deepseek-chat"``,
                 ``"kimi/kimi-k2.5"``) or plain model name. Plain model names
                 still default to the OpenAI provider for backward compatibility.
-            graph: Graph backend selector.
-                - ``None`` (default): embedded LadybugDB at ``.seocho/local.lbug``.
-                - ``"bolt://..."``: Neo4j/DozerDB over Bolt protocol.
-                - Any other path: LadybugDB file path.
-            neo4j_user: Neo4j username (only used when *graph* is a Bolt URI).
-            neo4j_password: Neo4j password (only used when *graph* is a Bolt URI).
+            graph: Required ``bolt://``/``neo4j://`` URI for DozerDB or Neo4j.
+            neo4j_user: Neo4j username.
+            neo4j_password: Neo4j password.
             api_key: Optional API key override for the LLM provider.
                 Falls back to the provider's env var (``MARA_API_KEY``,
                 ``OPENAI_API_KEY``, etc.).
@@ -470,18 +461,10 @@ class Seocho:
             api_key=api_key,
         )
 
-        if graph and graph.startswith(("bolt://", "neo4j://", "neo4j+s://", "bolt+s://")):
-            from .store.graph import Neo4jGraphStore
-            graph_store = Neo4jGraphStore(graph, neo4j_user, neo4j_password)
-        else:
-            from .store.graph import LadybugGraphStore
-            path = graph or ".seocho/local.lbug"
-            graph_store = LadybugGraphStore(path)
-            # Declare tables from the ontology so writes work immediately
-            try:
-                graph_store.ensure_constraints(ontology)
-            except Exception:
-                pass
+        if not graph.startswith(("bolt://", "neo4j://", "neo4j+s://", "bolt+s://")):
+            raise ValueError("Seocho.local requires a DozerDB/Neo4j Bolt URI in graph=.")
+        from .store.graph import Neo4jGraphStore
+        graph_store = Neo4jGraphStore(graph, neo4j_user, neo4j_password)
 
         return cls(
             ontology=ontology,

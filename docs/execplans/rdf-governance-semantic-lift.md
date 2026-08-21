@@ -13,7 +13,7 @@ Semantic lift means that facts extracted from raw source material give an agent 
 - [x] 2026-08-21: Created Beads item `seocho-hr3` and completed independent semantic, software, and systems reviews.
 - [x] 2026-08-21: Added deterministic `seocho.agent_semantic_scorecard.v1` to E2E reports and conservative matched-arm comparison gates.
 - [ ] Add a versioned gold semantic-case corpus with source spans, gold entities/triples, required slots, and seeded invalid candidates.
-- [ ] Define a portable ontology-bundle and profile-pool contract, then measure agent readability, reuse, and lifecycle cost separately from semantic quality.
+- [ ] Define a serialization-neutral portable ontology-bundle, profile-pool, and lock contract; measure agent readability, reuse, lifecycle cost, and RDF-tool compatibility before selecting a canonical authoring format.
 - [ ] Bind immutable RDF bundle publication, active-pointer generation/fence, and projection admission together before claiming filesystem/version safety.
 - [ ] Execute live MARA/DozerDB A-E arms with JSONL traces, resource metrics, and blinded judging.
 
@@ -42,13 +42,17 @@ The initial outcome is a report-level baseline, not an adoption claim. It record
 `src/seocho/e2e.py` produces the CLI's `report.json`; query records already carry coverage, support status, selected-triple count, missing slots, and latency. `src/seocho/eval/semantic_scorecard.py` aggregates those records. `src/seocho/ontology/rdf_governance.py` produces a hash-pinned receipt. `dataplane/seochod` is the Rust Unix-domain-socket daemon that projects approved LPG payloads to DozerDB. `ActiveOntologyPointer` is the existing SQLite compare-and-swap primitive; it is not yet the RDF file publication lifecycle.
 
 An ontology bundle is a portable, content-addressed directory containing one
-canonical JSON-LD ontology, deterministic Turtle/SHACL derivatives, a manifest,
-and purpose-specific agent profiles. A profile pool is an OS-managed cache of
-immutable, already-verified profiles that agents lease by `(bundle digest,
-purpose, workspace, generation)` instead of parsing or prompting with the full
-ontology on every task. A lease is a read-only version pin, not a mutable shared
-object: it expires when the agent finishes, while the pinned files remain valid
-for replay and rollback.
+declared RDF source serialization (JSON-LD, Turtle, or another supported RDF
+serialization), optional deterministic interoperable derivatives, a manifest,
+and purpose-specific agent profiles. JSON-LD is itself RDF and can be parsed by
+RDF tooling; Turtle is not a prerequisite for SHACL validation or RDF storage.
+The source serialization is therefore an experimental choice, not an assumed
+product truth. A profile pool is an OS-managed cache of immutable,
+already-verified profiles that agents lease by `(bundle digest, purpose,
+workspace, generation)` instead of parsing or prompting with the full ontology
+on every task. A lease is a read-only version pin, not a mutable shared object:
+it expires when the agent finishes, while the pinned files remain valid for
+replay and rollback.
 
 ## SEOCHO Evidence Contract
 
@@ -95,13 +99,13 @@ produces the same profile digests and semantic context. It passes only when the
 manifest, JSON-LD, Turtle, SHACL, profiles, and receipt hashes verify without a
 host-specific path, database state, or mutable registry.
 
-H7 (agent-readable minimal view): An indexing/query/projection profile reduces
-prompt bytes and selection latency relative to full JSON-LD without reducing
-gold triple F1, required-slot recall, provenance coverage, or governance
-rejection accuracy. The primary agent-readable format is compact deterministic
-JSON, not raw Turtle: JSON is concise for structured tools and stable key-based
-diffing; JSON-LD remains the canonical human/RDF source and Turtle remains the
-RDF interoperability form.
+H7 (serialization and agent-readable view): JSON-LD, Turtle, and a compact
+purpose profile are compared rather than assumed. A representation is better
+only when it preserves RDF parse/SHACL results and gold triple F1,
+required-slot recall, provenance coverage, and governance-rejection accuracy,
+while improving a declared combination of tokenized prompt bytes, selection
+latency, and agent repair rate. Compact profile JSON is a candidate agent
+transport format, not a preselected winner.
 
 H8 (profile pooling): A local pool reduces aggregate cold-start parsing and
 resident memory for repeated agents without cross-workspace/profile leakage.
@@ -114,6 +118,15 @@ concurrent workload observes zero torn manifest/profile/receipt tuple, zero
 stale-fence projection admission, and deterministic recovery after a killed
 publisher or daemon.
 
+H10 (ontology lock correctness): An ontology lock pins exactly one approved
+bundle/profile/receipt tuple for an agent run and prevents concurrent activation
+from changing that run's semantic contract. It passes only if a lock has an
+owner, workspace, purpose, bundle digest, profile digest, generation, fencing
+token, expiry, and renewal/audit outcome; stale or mismatched lock holders are
+rejected before projection. A lock must not become a global long-lived mutex:
+immutable bundle reads remain concurrent and only activation/lease bookkeeping
+uses a short CAS-protected critical section.
+
 ## Concrete Steps
 
 1. Create a local-only gold corpus manifest and record its SHA-256, model, prompt/profile digest, git revision, DozerDB/Oxigraph/seochod versions, resource limits, warmup, and concurrency in every JSONL trace.
@@ -122,32 +135,51 @@ publisher or daemon.
 4. Require projection requests to carry the pinned pointer tuple and idempotency key. The daemon rejects stale/mismatched tuples, bounds requests, uses a private socket directory, and records applied/no-op/error results.
 5. Use MARA as a blinded answer/evidence judge only after deterministic gold metrics are emitted; preserve prompts, judge model, and judge result in the local trace.
 6. Compare report artifacts with `compare_semantic_utility`; record per-case deltas rather than only averages.
-7. Define the portable on-disk layout before implementing pooling:
+7. Define the portable, serialization-neutral on-disk layout before implementing pooling:
 
        .seocho/ontology/
          bundles/<bundle-sha256>/
            manifest.json
-           ontology.jsonld
-           ontology.ttl
-           shapes.ttl
+           source.<jsonld|ttl>
+           derived/ontology.<jsonld|ttl>
+           derived/shapes.<jsonld|ttl>
            agent-profiles/indexing.json
            agent-profiles/query.json
            agent-profiles/projection.json
            governance-receipt.json
          current/<workspace>/<package>.json
-         leases/<workspace>/<lease-id>.json
+         locks/<workspace>/<lock-id>.json
 
-   The manifest is the only file an agent/CLI resolves first. It names all
-   immutable artifacts and their SHA-256 digests. `current` and `leases` are
-   the only mutable records; update them with atomic replace/CAS and fsync.
-   Never let agents scan arbitrary ontology directories or infer the active
-   version from filenames.
+   The manifest is the only file an agent/CLI resolves first. It declares the
+   source MIME type/RDF syntax, parser/derivation version, every immutable
+   artifact, and their SHA-256 digests. `current` and `locks` are the only
+   mutable records; update them with atomic replace/CAS and fsync. Never let
+   agents scan arbitrary ontology directories or infer the active version from
+   filenames.
 8. Add a CLI contract with explicit lifecycle operations: `ontology bundle
    build`, `ontology bundle verify`, `ontology activate`, `ontology lease`,
+   `ontology lock acquire`, `ontology lock renew`, `ontology lock release`,
    `ontology rollback`, `ontology gc --dry-run`, and `ontology status`. The
    first implementation must expose read-only status/verify before destructive
    garbage collection. A lease response supplies only the purpose profile,
    manifest receipt, generation/fence, and filesystem-safe path or UDS handle.
+   A lock response additionally has a bounded TTL and must be present in the
+   projection receipt/event; `release` is idempotent and expiry is auditable.
+9. Execute a format-neutral workload before choosing the authoring canonical:
+
+   - parse the identical ontology authored/serialized as JSON-LD and Turtle;
+   - run the same SHACL shapes/data through the selected RDF validator and
+     Oxigraph load path; assert equal normalized triples and conformance;
+   - give each representation, then each compact profile, to the same MARA
+     indexing/query tasks with fixed prompts; judge triple/slot/provenance
+     outputs against gold labels;
+   - measure bytes, token count, parse/load p50-p95-p99, RSS, file reads,
+     deterministic diff quality, agent repair turns, and error rate.
+
+   Select the canonical source format only after this workload. It is valid to
+   retain multiple canonical-equivalent serializations when one is best for
+   author review and another is best for RDF tooling, provided the manifest
+   explicitly names the authoritative graph digest.
 
 ## Validation and Acceptance
 
@@ -169,6 +201,14 @@ lease contention, CAS retries, and cross-workspace digest mismatches. H7/H8
 fail if any required ontology element is absent from an agent response or if a
 lease returns another workspace's profile, even when latency improves.
 
+For H10 record lock acquisition latency, contention/retry count, TTL expiry,
+renewal failures, stale-fence rejections, abandoned-lock recovery time, and the
+ratio of concurrent immutable reads to activation critical-section time. The
+test workload includes 1, 4, and 16 agents reading different purposes from the
+same bundle while another process activates, rolls back, or crashes. A lock is
+correct only if each response and projected fact can be traced to one complete
+lock tuple; it is efficient only if readers do not serialize behind writers.
+
 ## Idempotence and Recovery
 
 Every arm uses a new workspace/database or a documented cleanup transaction, never an ambiguous reused graph. Immutable bundles are never overwritten; retrying publication verifies the same digest and then performs a no-op/CAS retry. Rollback updates only the current pointer to a previously verified digest. A failed daemon projection must record its idempotency key and outcome before retry; do not rely on client wall-clock timestamps for fencing.
@@ -177,11 +217,12 @@ Every arm uses a new workspace/database or a documented cleanup transaction, nev
 
 Keep raw documents, API keys, traces, and per-case outputs under ignored `.seocho/` or `outputs/`. Promote only aggregate reproducible measurements and a dated scrubbed report under `docs/experiments/`. `report.json` contains `agent_scorecard`; it is a baseline and comparison input, not a product-quality claim by itself.
 
-The canonical file-format decision is therefore layered rather than a forced
-single format: JSON-LD is authored and versioned; Turtle/SHACL serve RDF tools;
-the manifest is the portable integrity entrypoint; compact JSON profiles are
-the agent payload; the OS CLI owns atomic activation and leases. This preserves
-RDF semantics without paying full-RDF prompt and parse cost for every agent.
+The file-format decision is deliberately open: JSON-LD, Turtle, and compact
+profiles each have a role only if the workload proves it. The invariant is not
+the filename extension; it is a manifest-pinned normalized RDF graph digest,
+approved receipt, purpose profile, and bounded ontology lock. The OS CLI owns
+atomic activation and locking so agents preserve RDF semantics without being
+forced to parse a full source serialization on every task.
 
 ## Cost, Latency, and Provider Policy
 

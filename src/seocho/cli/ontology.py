@@ -118,7 +118,12 @@ def register(subparsers) -> None:
         help="Round-trip approved DataHub glossary terms back into the ontology (close the review loop)",
     )
     ontology_dhapply_parser.add_argument("--schema", required=True, help="Ontology file (JSON-LD, YAML, or TTL)")
-    ontology_dhapply_parser.add_argument("--terms", required=True, help="Reviewed glossary terms JSON (list of records)")
+    ontology_dhapply_parser.add_argument(
+        "--terms", default=None,
+        help="Reviewed glossary terms JSON (list of records). Omit when using --gms to pull live.")
+    ontology_dhapply_parser.add_argument(
+        "--gms", default=None,
+        help="DataHub GMS URL to pull reviewed glossary terms from live (instead of --terms)")
     ontology_dhapply_parser.add_argument("--status", default="APPROVED", help="Only apply terms with this review status")
     ontology_dhapply_parser.add_argument("--output", default=None, help="Write the new ontology JSON-LD here")
     ontology_dhapply_parser.add_argument("--json", dest="output_json", action="store_true", help="JSON output")
@@ -423,8 +428,20 @@ def handle(args: argparse.Namespace) -> int:
         from ..ontology_ambiguity import apply_mapping_spec
 
         ontology = Ontology.load(args.schema)
-        with open(args.terms, "r", encoding="utf-8") as f:
-            term_records = json.load(f)
+        if args.gms:
+            # live pull: reviewed terms come straight from a running GMS. Known
+            # labels let the pull mark edits to existing classes as 'annotate'.
+            from ..connectors.datahub import fetch_glossary_term_records
+            from ..datahub_export import package_term_urn_prefix
+            term_records = fetch_glossary_term_records(
+                server=args.gms, known_labels=frozenset(ontology.nodes),
+                urn_prefix=package_term_urn_prefix(ontology.package_id or ontology.name))
+        elif args.terms:
+            with open(args.terms, "r", encoding="utf-8") as f:
+                term_records = json.load(f)
+        else:
+            print("datahub-apply: provide --terms <file> or --gms <url>")
+            return 2
         spec = datahub_glossary_to_mapping_spec(term_records, only_status=args.status, ontology_name=ontology.name)
         new_onto = apply_mapping_spec(ontology, spec)
         payload = new_onto.to_jsonld()

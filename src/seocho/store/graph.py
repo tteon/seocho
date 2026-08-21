@@ -551,6 +551,10 @@ class Neo4jGraphStore(GraphStore):
             if graph_model == "rdf" and triples:
                 raise RuntimeError("seochod supports approved LPG projection only")
             from ..dataplane.seochod import SeochodProjectionClient
+            from ..ontology.projection_receipt import (
+                load_projection_admission_from_env,
+                load_projection_receipt_from_env,
+            )
 
             result = SeochodProjectionClient(rust_socket).project(
                 nodes,
@@ -558,6 +562,8 @@ class Neo4jGraphStore(GraphStore):
                 database=database,
                 workspace_id=workspace_id,
                 source_id=source_id,
+                semantic_receipt=load_projection_receipt_from_env(),
+                admission=load_projection_admission_from_env(),
             )
             self.invalidate_schema_cache(database)
             return {

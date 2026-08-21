@@ -39,3 +39,17 @@ def test_activation_requires_pointer_cas_and_valid_manifest(tmp_path):
     assert not store.activate("ws", "demo", bundle, fencing_token=2)[0]
     assert store.activate("ws", "demo", bundle, fencing_token=2, expected=(0, 0))[0]
     assert ActiveOntologyPointer(tmp_path / "state.sqlite").read("ws", "demo").epoch == 1
+
+
+def test_admission_is_minimal_and_requires_a_live_lease(tmp_path):
+    bundle = tmp_path / "bundle"; _manifest(bundle)
+    store = OntologyLifecycleStore(tmp_path / "state.sqlite")
+    assert store.activate("ws", "demo", bundle, fencing_token=1)[0]
+    lease = store.acquire("ws", "demo", purpose="projection", owner="pid:1", ttl_seconds=30)
+    assert store.admission(lease.lease_id) == {
+        "lease_id": lease.lease_id,
+        "fingerprint": lease.fingerprint,
+        "generation": 0,
+        "epoch": 0,
+        "fencing_token": lease.fencing_token,
+    }

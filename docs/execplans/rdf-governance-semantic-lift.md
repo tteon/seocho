@@ -300,10 +300,13 @@ using an explicit fencing token and optional `generation:epoch` expectation.
 writer lease in the same state database; `status` exposes only the active
 pointer and live leases. `gc --dry-run` is intentionally report-only.
 
-This is a one-host operator control plane, not an etcd substitute and not yet
-projection admission. A `seochod` request still cannot prove its lease/profile/
-receipt tuple against this database, so this slice must not be used to claim
-cross-process stale-write protection end-to-end.
+This is a one-host operator control plane, not an etcd substitute. When
+`SEOCHOD_CONTROL_DB` is set, `seochod` opens this database read-only before a
+canonical write and rejects an absent/expired lease, a capability mismatch, a
+bundle mismatch, or an activation-stale `(fingerprint, generation, epoch)`.
+The Python client transports only the minimal lease capability; it is not
+trusted without the daemon-side reread. Projection idempotency is still a
+separate remaining requirement.
 9. Execute a format-neutral workload before choosing the authoring canonical:
 
    - parse the identical ontology authored/serialized as JSON-LD and Turtle;

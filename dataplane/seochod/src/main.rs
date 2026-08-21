@@ -6,6 +6,7 @@ use neo4j::address::Address;
 use neo4j::driver::auth::AuthToken;
 use neo4j::driver::{ConnectionConfig, Driver, DriverConfig};
 use neo4j::{value_map, ValueSend};
+use rusqlite::{Connection, OpenFlags, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -28,10 +29,38 @@ struct Request {
     writer_ts: Option<f64>,
     nodes: Option<Vec<Node>>,
     relationships: Option<Vec<Relationship>>,
+    semantic_receipt: Option<SemanticReceipt>,
+    admission: Option<ProjectionAdmission>,
 }
 
 #[derive(Deserialize)]
-struct Node { id: String, label: String, properties: HashMap<String, Value> }
+struct SemanticReceipt {
+    schema_version: String,
+    rdf_bundle_sha256: String,
+    rdf_data_graph_sha256: String,
+    agent_profile_sha256: String,
+    projection_receipt_sha256: String,
+}
+
+/// Capability issued by the single-host ontology lifecycle store.  The daemon
+/// never trusts it by itself: it is checked against SQLite immediately before
+/// writes.  This prevents a stale/expired CLI holder from projecting merely by
+/// replaying an old request.
+#[derive(Deserialize)]
+struct ProjectionAdmission {
+    lease_id: String,
+    fingerprint: String,
+    generation: i64,
+    epoch: i64,
+    fencing_token: i64,
+}
+
+#[derive(Deserialize)]
+struct Node {
+    id: String,
+    label: String,
+    properties: HashMap<String, Value>,
+}
 
 #[derive(Deserialize)]
 struct Relationship {
@@ -63,39 +92,146 @@ fn valid_identifier(value: &str) -> bool {
         && chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
 
-fn valid_database(value: &str) -> bool { valid_identifier(value) && value.len() <= 63 }
+fn valid_database(value: &str) -> bool {
+    valid_identifier(value) && value.len() <= 63
+}
 
 fn value_send(value: &Value) -> Result<ValueSend, String> {
     match value {
         Value::Null => Ok(ValueSend::Null),
         Value::Bool(v) => Ok(ValueSend::Boolean(*v)),
-        Value::Number(v) => v.as_i64().map(ValueSend::Integer)
+        Value::Number(v) => v
+            .as_i64()
+            .map(ValueSend::Integer)
             .or_else(|| v.as_f64().map(ValueSend::Float))
             .ok_or_else(|| "unsupported JSON number".into()),
         Value::String(v) => Ok(ValueSend::String(v.clone())),
-        Value::Array(values) => values.iter().map(value_send).collect::<Result<Vec<_>, _>>().map(ValueSend::List),
+        Value::Array(values) => values
+            .iter()
+            .map(value_send)
+            .collect::<Result<Vec<_>, _>>()
+            .map(ValueSend::List),
         Value::Object(_) => Err("nested object values are not graph properties".into()),
     }
 }
 
-fn props_send(mut props: HashMap<String, Value>, workspace_id: &str, source_id: &str, writer_ts: f64) -> Result<HashMap<String, ValueSend>, String> {
+fn props_send(
+    mut props: HashMap<String, Value>,
+    workspace_id: &str,
+    source_id: &str,
+    writer_ts: f64,
+    receipt: Option<&SemanticReceipt>,
+) -> Result<HashMap<String, ValueSend>, String> {
     props.insert("_source_id".into(), Value::String(source_id.into()));
     props.insert("_workspace_id".into(), Value::String(workspace_id.into()));
-    props.insert("_writer_agent".into(), Value::String(if source_id.is_empty() { "unknown".into() } else { source_id.into() }));
+    props.insert(
+        "_writer_agent".into(),
+        Value::String(if source_id.is_empty() {
+            "unknown".into()
+        } else {
+            source_id.into()
+        }),
+    );
     props.insert("_writer_ts".into(), serde_json::json!(writer_ts));
-    props.into_iter().map(|(key, value)| {
-        if key.is_empty() { return Err("empty property key".into()); }
-        Ok((key, value_send(&value)?))
-    }).collect()
+    if let Some(receipt) = receipt {
+        props.insert(
+            "_rdf_bundle_sha256".into(),
+            Value::String(receipt.rdf_bundle_sha256.clone()),
+        );
+        props.insert(
+            "_rdf_data_graph_sha256".into(),
+            Value::String(receipt.rdf_data_graph_sha256.clone()),
+        );
+        props.insert(
+            "_agent_profile_sha256".into(),
+            Value::String(receipt.agent_profile_sha256.clone()),
+        );
+        props.insert(
+            "_projection_receipt_sha256".into(),
+            Value::String(receipt.projection_receipt_sha256.clone()),
+        );
+    }
+    props
+        .into_iter()
+        .map(|(key, value)| {
+            if key.is_empty() {
+                return Err("empty property key".into());
+            }
+            Ok((key, value_send(&value)?))
+        })
+        .collect()
 }
 
 fn driver_from_env() -> Result<Driver, String> {
     let host = std::env::var("SEOCHOD_BOLT_HOST").unwrap_or_else(|_| "127.0.0.1".into());
-    let port = std::env::var("SEOCHOD_BOLT_PORT").ok().and_then(|v| v.parse().ok()).unwrap_or(7687);
+    let port = std::env::var("SEOCHOD_BOLT_PORT")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(7687);
     let user = std::env::var("SEOCHOD_BOLT_USER").unwrap_or_else(|_| "neo4j".into());
-    let password = std::env::var("SEOCHOD_BOLT_PASSWORD").map_err(|_| "SEOCHOD_BOLT_PASSWORD is required".to_string())?;
+    let password = std::env::var("SEOCHOD_BOLT_PASSWORD")
+        .map_err(|_| "SEOCHOD_BOLT_PASSWORD is required".to_string())?;
     let auth = AuthToken::new_basic_auth(&user, &password);
-    Ok(Driver::new(ConnectionConfig::new(Address::from((host.as_str(), port))), DriverConfig::new().with_auth(Arc::new(auth))))
+    Ok(Driver::new(
+        ConnectionConfig::new(Address::from((host.as_str(), port))),
+        DriverConfig::new().with_auth(Arc::new(auth)),
+    ))
+}
+
+fn valid_digest(value: &str) -> bool {
+    value.len() == 64 && value.chars().all(|c| c.is_ascii_hexdigit())
+}
+
+fn validate_admission(
+    control_db: &str,
+    workspace_id: &str,
+    receipt: &SemanticReceipt,
+    admission: Option<&ProjectionAdmission>,
+    now_ms: i64,
+) -> Result<(), String> {
+    let capability =
+        admission.ok_or_else(|| "canonical projection requires lifecycle admission".to_string())?;
+    if !valid_digest(&capability.fingerprint) || capability.fencing_token < 0 {
+        return Err("invalid lifecycle admission".into());
+    }
+    if receipt.rdf_bundle_sha256 != capability.fingerprint {
+        return Err("governance receipt bundle does not match lifecycle admission".into());
+    }
+    let conn = Connection::open_with_flags(control_db, OpenFlags::SQLITE_OPEN_READ_ONLY)
+        .map_err(|_| "ontology lifecycle control database unavailable".to_string())?;
+    // The active pointer is package scoped, therefore resolve the lease first
+    // and use its package as the exact pointer key.
+    let lease: Option<(String, String, i64, i64, i64, i64)> = conn.query_row(
+        "SELECT package_id, fingerprint, generation, epoch, fencing_token, expires_at_ms FROM ontology_lease WHERE lease_id=?1 AND workspace_id=?2",
+        (&capability.lease_id, workspace_id),
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?)),
+    ).optional().map_err(|_| "ontology lifecycle lease unavailable".to_string())?;
+    let (package_id, lease_fp, lease_gen, lease_epoch, lease_fence, expires_at_ms) =
+        lease.ok_or_else(|| "lifecycle lease is absent".to_string())?;
+    if expires_at_ms <= now_ms {
+        return Err("lifecycle lease has expired".into());
+    }
+    if lease_fp != capability.fingerprint
+        || lease_gen != capability.generation
+        || lease_epoch != capability.epoch
+        || lease_fence != capability.fencing_token
+    {
+        return Err("lifecycle lease capability mismatch".into());
+    }
+    let pointer: Option<(String, i64, i64, i64)> = conn.query_row(
+        "SELECT fingerprint, generation, epoch, fencing_token FROM active_ontology WHERE workspace_id=?1 AND package_id=?2",
+        (workspace_id, package_id.as_str()),
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+    ).optional().map_err(|_| "ontology lifecycle pointer unavailable".to_string())?;
+    let (fp, generation, epoch, _pointer_fence) =
+        pointer.ok_or_else(|| "active ontology is absent".to_string())?;
+    if fp != capability.fingerprint
+        || generation != capability.generation
+        || epoch != capability.epoch
+    {
+        return Err("lifecycle admission is stale against active ontology".into());
+    }
+    Ok(())
 }
 
 fn project(driver: &Driver, request: Request) -> Response {
@@ -104,14 +240,76 @@ fn project(driver: &Driver, request: Request) -> Response {
     let database = request.database.unwrap_or_else(|| "neo4j".into());
     let workspace_id = request.workspace_id.unwrap_or_else(|| "default".into());
     let source_id = request.source_id.unwrap_or_default();
-    let writer_ts = request.writer_ts.unwrap_or_else(|| std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs_f64());
+    let writer_ts = request.writer_ts.unwrap_or_else(|| {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs_f64()
+    });
     if !valid_database(&database) || workspace_id.len() > 256 || source_id.len() > 2048 {
         return failure("invalid projection scope".into());
     }
+    let receipt = request.semantic_receipt.as_ref();
+    let required = std::env::var("SEOCHOD_REQUIRE_GOVERNANCE").ok().as_deref() == Some("1");
+    if required && receipt.is_none() {
+        return failure("canonical projection requires a semantic governance receipt".into());
+    }
+    if let Some(value) = receipt {
+        if value.schema_version != "seocho.canonical_projection_receipt.v1"
+            || ![
+                &value.rdf_bundle_sha256,
+                &value.rdf_data_graph_sha256,
+                &value.agent_profile_sha256,
+                &value.projection_receipt_sha256,
+            ]
+            .iter()
+            .all(|digest| valid_digest(digest))
+        {
+            return failure("invalid semantic governance receipt".into());
+        }
+    }
+    if let Some(control_db) = std::env::var("SEOCHOD_CONTROL_DB").ok() {
+        match receipt {
+            Some(value) => {
+                if let Err(error) = validate_admission(
+                    &control_db,
+                    &workspace_id,
+                    value,
+                    request.admission.as_ref(),
+                    std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_millis() as i64,
+                ) {
+                    return failure(error);
+                }
+            }
+            None => {
+                return failure(
+                    "canonical projection requires a semantic governance receipt".into(),
+                )
+            }
+        }
+    }
     let mut response = success();
     for node in request.nodes.unwrap_or_default() {
-        if !valid_identifier(&node.label) || node.id.len() > 2048 { response.errors.push(format!("invalid node {}", node.id)); continue; }
-        let props = match props_send(node.properties, &workspace_id, &source_id, writer_ts) { Ok(v) => v, Err(e) => { response.errors.push(format!("node {}: {e}", node.id)); continue; } };
+        if !valid_identifier(&node.label) || node.id.len() > 2048 {
+            response.errors.push(format!("invalid node {}", node.id));
+            continue;
+        }
+        let props = match props_send(
+            node.properties,
+            &workspace_id,
+            &source_id,
+            writer_ts,
+            receipt,
+        ) {
+            Ok(v) => v,
+            Err(e) => {
+                response.errors.push(format!("node {}: {e}", node.id));
+                continue;
+            }
+        };
         let query = format!("MERGE (n:{} {{id: $id, _workspace_id: $ws}}) SET n += CASE WHEN n._writer_ts IS NULL OR n._writer_ts <= $props._writer_ts THEN $props ELSE {{}} END RETURN n", node.label);
         match driver.execute_query(query).with_database(Arc::new(database.clone())).with_parameters(value_map!({"id": node.id, "ws": workspace_id.clone(), "props": ValueSend::Map(props)})).run() {
             Ok(result) => { response.nodes_created += result.summary.counters.nodes_created; }
@@ -119,10 +317,42 @@ fn project(driver: &Driver, request: Request) -> Response {
         }
     }
     for rel in request.relationships.unwrap_or_default() {
-        if !valid_identifier(&rel.kind) || rel.source.len() > 2048 || rel.target.len() > 2048 || rel.source_label.as_deref().is_some_and(|v| !valid_identifier(v)) || rel.target_label.as_deref().is_some_and(|v| !valid_identifier(v)) { response.errors.push("invalid relationship".into()); continue; }
-        let props = match props_send(rel.properties, &workspace_id, &source_id, writer_ts) { Ok(v) => v, Err(e) => { response.errors.push(format!("relationship: {e}")); continue; } };
-        let source = rel.source_label.map(|v| format!(":{v}")).unwrap_or_default();
-        let target = rel.target_label.map(|v| format!(":{v}")).unwrap_or_default();
+        if !valid_identifier(&rel.kind)
+            || rel.source.len() > 2048
+            || rel.target.len() > 2048
+            || rel
+                .source_label
+                .as_deref()
+                .is_some_and(|v| !valid_identifier(v))
+            || rel
+                .target_label
+                .as_deref()
+                .is_some_and(|v| !valid_identifier(v))
+        {
+            response.errors.push("invalid relationship".into());
+            continue;
+        }
+        let props = match props_send(
+            rel.properties,
+            &workspace_id,
+            &source_id,
+            writer_ts,
+            receipt,
+        ) {
+            Ok(v) => v,
+            Err(e) => {
+                response.errors.push(format!("relationship: {e}"));
+                continue;
+            }
+        };
+        let source = rel
+            .source_label
+            .map(|v| format!(":{v}"))
+            .unwrap_or_default();
+        let target = rel
+            .target_label
+            .map(|v| format!(":{v}"))
+            .unwrap_or_default();
         let query = format!("MATCH (a{} {{id: $src, _workspace_id: $ws}}), (b{} {{id: $tgt, _workspace_id: $ws}}) MERGE (a)-[r:{}]->(b) SET r += CASE WHEN r._writer_ts IS NULL OR r._writer_ts <= $props._writer_ts THEN $props ELSE {{}} END RETURN r", source, target, rel.kind);
         match driver.execute_query(query).with_database(Arc::new(database.clone())).with_parameters(value_map!({"src": rel.source, "tgt": rel.target, "ws": workspace_id.clone(), "props": ValueSend::Map(props)})).run() {
             Ok(result) => { response.relationships_created += result.summary.counters.relationships_created; }
@@ -135,8 +365,32 @@ fn project(driver: &Driver, request: Request) -> Response {
     response
 }
 
-fn success() -> Response { Response { ok: true, nodes_created: 0, relationships_created: 0, errors: vec![], merge_conflicts: vec![], driver: "rust-neo4j", error: None, request_id: None, duration_ms: 0.0 } }
-fn failure(error: String) -> Response { Response { ok: false, nodes_created: 0, relationships_created: 0, errors: vec![], merge_conflicts: vec![], driver: "rust-neo4j", error: Some(error), request_id: None, duration_ms: 0.0 } }
+fn success() -> Response {
+    Response {
+        ok: true,
+        nodes_created: 0,
+        relationships_created: 0,
+        errors: vec![],
+        merge_conflicts: vec![],
+        driver: "rust-neo4j",
+        error: None,
+        request_id: None,
+        duration_ms: 0.0,
+    }
+}
+fn failure(error: String) -> Response {
+    Response {
+        ok: false,
+        nodes_created: 0,
+        relationships_created: 0,
+        errors: vec![],
+        merge_conflicts: vec![],
+        driver: "rust-neo4j",
+        error: Some(error),
+        request_id: None,
+        duration_ms: 0.0,
+    }
+}
 
 fn handle(stream: UnixStream, driver: &Driver) {
     let mut line = String::new();
@@ -154,18 +408,89 @@ fn handle(stream: UnixStream, driver: &Driver) {
 }
 
 fn main() -> Result<(), String> {
-    let socket = std::env::args().nth(1).ok_or("usage: seochod <unix-socket-path>")?;
+    let socket = std::env::args()
+        .nth(1)
+        .ok_or("usage: seochod <unix-socket-path>")?;
     let socket_path = Path::new(&socket);
-    if socket_path.exists() { fs::remove_file(socket_path).map_err(|e| e.to_string())?; }
+    if socket_path.exists() {
+        fs::remove_file(socket_path).map_err(|e| e.to_string())?;
+    }
     let driver = driver_from_env()?;
     let listener = UnixListener::bind(socket_path).map_err(|e| e.to_string())?;
-    for stream in listener.incoming() { if let Ok(stream) = stream { handle(stream, &driver); } }
+    for stream in listener.incoming() {
+        if let Ok(stream) = stream {
+            handle(stream, &driver);
+        }
+    }
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[test] fn identifiers_are_constrained() { assert!(valid_identifier("Person_2")); assert!(!valid_identifier("Person:Bad")); assert!(!valid_identifier("2Person")); }
-    #[test] fn nested_properties_are_rejected() { assert!(value_send(&serde_json::json!({"bad": true})).is_err()); }
+    use std::time::{SystemTime, UNIX_EPOCH};
+    #[test]
+    fn identifiers_are_constrained() {
+        assert!(valid_identifier("Person_2"));
+        assert!(!valid_identifier("Person:Bad"));
+        assert!(!valid_identifier("2Person"));
+    }
+    #[test]
+    fn nested_properties_are_rejected() {
+        assert!(value_send(&serde_json::json!({"bad": true})).is_err());
+    }
+
+    #[test]
+    fn admission_rejects_stale_active_pointer() {
+        let path = std::env::temp_dir().join(format!(
+            "seochod-admission-{}.sqlite",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let conn = Connection::open(&path).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE active_ontology (workspace_id TEXT, package_id TEXT, version TEXT, fingerprint TEXT, generation INTEGER, epoch INTEGER, fencing_token INTEGER, PRIMARY KEY(workspace_id, package_id));
+             CREATE TABLE ontology_lease (lease_id TEXT PRIMARY KEY, workspace_id TEXT, package_id TEXT, purpose TEXT, owner TEXT, fingerprint TEXT, generation INTEGER, epoch INTEGER, fencing_token INTEGER, acquired_at_ms INTEGER, expires_at_ms INTEGER);",
+        ).unwrap();
+        let digest = "a".repeat(64);
+        conn.execute(
+            "INSERT INTO active_ontology VALUES ('ws','pkg','1.0',?1,0,0,1)",
+            [&digest],
+        )
+        .unwrap();
+        conn.execute("INSERT INTO ontology_lease VALUES ('lease','ws','pkg','projection','owner',?1,0,0,2,0,9999999999999)", [&digest]).unwrap();
+        drop(conn);
+        let receipt = SemanticReceipt {
+            schema_version: "seocho.canonical_projection_receipt.v1".into(),
+            rdf_bundle_sha256: digest.clone(),
+            rdf_data_graph_sha256: "b".repeat(64),
+            agent_profile_sha256: "c".repeat(64),
+            projection_receipt_sha256: "d".repeat(64),
+        };
+        let admission = ProjectionAdmission {
+            lease_id: "lease".into(),
+            fingerprint: digest,
+            generation: 0,
+            epoch: 0,
+            fencing_token: 2,
+        };
+        assert!(
+            validate_admission(path.to_str().unwrap(), "ws", &receipt, Some(&admission), 1).is_ok()
+        );
+        let conn = Connection::open(&path).unwrap();
+        conn.execute(
+            "UPDATE active_ontology SET epoch=1 WHERE workspace_id='ws'",
+            [],
+        )
+        .unwrap();
+        drop(conn);
+        assert!(
+            validate_admission(path.to_str().unwrap(), "ws", &receipt, Some(&admission), 1)
+                .unwrap_err()
+                .contains("stale")
+        );
+        std::fs::remove_file(path).unwrap();
+    }
 }

@@ -36,6 +36,12 @@ from .plan_audit import (
     compare_plans,
     emit_plan_comparison_metrics,
 )
+from .semantic_scorecard import (
+    SCORECARD_SCHEMA_VERSION,
+    SemanticUtilityScorecard,
+    compare_semantic_utility,
+    score_semantic_utility,
+)
 
 __all__ = [
     "BenchmarkCorpus",
@@ -51,4 +57,8 @@ __all__ = [
     "audit_profile",
     "compare_plans",
     "emit_plan_comparison_metrics",
+    "SCORECARD_SCHEMA_VERSION",
+    "SemanticUtilityScorecard",
+    "compare_semantic_utility",
+    "score_semantic_utility",
 ]

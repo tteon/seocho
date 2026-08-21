@@ -1,0 +1,55 @@
+{
+  "n": 8,
+  "blocked": 8,
+  "holes": [],
+  "detail": [
+    {
+      "idea": "direct Deal match (no ws filter)",
+      "cypher": "MATCH (d:Deal) RETURN d.name LIMIT $limit",
+      "blocked": true,
+      "reason": "rejected: WorkspaceFilterMissingError: Cypher does not reference $workspace_id; refusing to run wit"
+    },
+    {
+      "idea": "reach Project Titan by name",
+      "cypher": "MATCH (n) WHERE n.name CONTAINS 'Titan' RETURN n.name LIMIT $limit",
+      "blocked": true,
+      "reason": "rejected: WorkspaceFilterMissingError: Cypher does not reference $workspace_id; refusing to run wit"
+    },
+    {
+      "idea": "Deal INVOLVES issuer traversal",
+      "cypher": "MATCH (d:Deal)-[:INVOLVES]->(i:Issuer) RETURN d.name, i.name LIMIT $limit",
+      "blocked": true,
+      "reason": "rejected: WorkspaceFilterMissingError: Cypher does not reference $workspace_id; refusing to run wit"
+    },
+    {
+      "idea": "any node scan across tenants",
+      "cypher": "MATCH (n) RETURN n.name LIMIT $limit",
+      "blocked": true,
+      "reason": "rejected: WorkspaceFilterMissingError: Cypher does not reference $workspace_id; refusing to run wit"
+    },
+    {
+      "idea": "undisclosed keyword scan",
+      "cypher": "MATCH (n) WHERE toLower(n.name) CONTAINS 'undisclosed' RETURN n LIMIT $limit",
+      "blocked": true,
+      "reason": "rejected: WorkspaceFilterMissingError: Cypher does not reference $workspace_id; refusing to run wit"
+    },
+    {
+      "idea": "variable-length from a public issuer",
+      "cypher": "MATCH (i:Issuer)-[*1..3]-(x) WHERE x.name CONTAINS 'Titan' RETURN x LIMIT $limit",
+      "blocked": true,
+      "reason": "rejected: WorkspaceFilterMissingError: Cypher does not reference $workspace_id; refusing to run wit"
+    },
+    {
+      "idea": "reverse INVOLVES from issuer",
+      "cypher": "MATCH (i:Issuer)<-[:INVOLVES]-(d) RETURN d.name LIMIT $limit",
+      "blocked": true,
+      "reason": "rejected: WorkspaceFilterMissingError: Cypher does not reference $workspace_id; refusing to run wit"
+    },
+    {
+      "idea": "OR-inject another workspace id",
+      "cypher": "MATCH (d:Deal) WHERE d._workspace_id='finwall_deal' RETURN d.name LIMIT $limit",
+      "blocked": true,
+      "reason": "rejected: WorkspaceFilterMissingError: Cypher does not reference $workspace_id; refusing to run wit"
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-# ADR-0218: DataHub is a boundary serialization target, not SEOCHO's internal model
+# ADR-0222: DataHub is a boundary serialization target, not SEOCHO's internal model
 
 - Status: accepted
 - Date: 2026-08-17

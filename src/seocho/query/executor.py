@@ -11,9 +11,19 @@ logger = logging.getLogger(__name__)
 class GraphQueryExecutor:
     """Canonical graph query executor for local SDK and adapter runtimes."""
 
-    def __init__(self, *, graph_store: Any, database: str) -> None:
+    def __init__(
+        self,
+        *,
+        graph_store: Any,
+        database: str,
+        workspace_id: Optional[str] = None,
+    ) -> None:
         self.graph_store = graph_store
         self.database = database
+        # When a workspace is bound, every executed plan is required to carry
+        # the $workspace_id predicate (store-level enforcement, seocho-y4at).
+        # None keeps the legacy unscoped behavior for workspace-less callers.
+        self.workspace_id = workspace_id
 
     def explain(self, plan: QueryPlan) -> Optional[Dict[str, Any]]:
         """Return the query's plan tree without executing it.
@@ -35,6 +45,12 @@ class GraphQueryExecutor:
                 plan.cypher,
                 params=plan.params,
                 database=self.database,
+                **(
+                    {"workspace_id": self.workspace_id,
+                     "enforce_workspace_filter": True}
+                    if self.workspace_id is not None
+                    else {}
+                ),
             )
             return QueryExecution(
                 cypher=plan.cypher,

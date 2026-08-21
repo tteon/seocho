@@ -42,6 +42,14 @@ def _safe(name: str) -> str:
     return "".join(c if (c.isalnum() or c in "-._") else "_" for c in str(name))
 
 
+def _evidence_key(snap: "OntologySnapshot") -> Dict[str, Any]:
+    """Content identity of a snapshot for the idempotency check, excluding the
+    ``created_at`` timestamp (which changes every save and is not evidence)."""
+    d = snap.to_dict()
+    d.pop("created_at", None)
+    return d
+
+
 @dataclass(slots=True)
 class OntologySnapshot:
     """One immutable, evidence-carrying ontology version."""
@@ -163,6 +171,23 @@ class OntologySnapshotStore:
                 )
 
         path = self._path(ontology.package_id, ontology.version, fp)
+        # evidence-immutability guard: the schema fingerprint does NOT cover the
+        # scorecard / ontoclean_tags / corpus_profile / notes, so a re-save with
+        # the same (version, schema) but different EVIDENCE would silently
+        # overwrite the published version's evidence at the same path. Honour the
+        # documented contract: identical content is an idempotent no-op; changed
+        # content raises rather than clobbering.
+        if path.exists():
+            prior = OntologySnapshot.from_dict(json.loads(path.read_text(encoding="utf-8")))
+            if _evidence_key(prior) != _evidence_key(snap):
+                raise SnapshotConflict(
+                    f"version '{ontology.version}' of '{ontology.package_id}' already exists with the "
+                    f"same schema (fingerprint {fp[:8]}) but different evidence "
+                    f"(scorecard/ontoclean/corpus/notes). Bump the version before saving changed "
+                    f"evidence for a published version."
+                )
+            return prior  # idempotent: keep the original, do not rewrite created_at
+
         path.write_text(json.dumps(snap.to_dict(), indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         return snap
 

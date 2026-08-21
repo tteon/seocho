@@ -51,7 +51,10 @@ def test_repair_recovers_a_rejected_query():
     assert gen.saw_feedback, "the guardrail violations were fed back for a retry"
     assert r.repair_attempts == 1
     assert not r.guardrail_rejected, "the repaired query passed the guardrail"
-    assert len(g.calls) == 1 and r.answer == "answer:1"
+    # the intern organ's read-side canonical resolver may issue lookup queries
+    # before execute; the execute call itself must be exactly the repaired one.
+    executes = [c for c in g.calls if "toLower(" not in c]
+    assert executes == [SAFE] and r.answer == "answer:1"
 
 
 def test_no_budget_means_no_repair():

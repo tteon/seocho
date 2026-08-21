@@ -229,18 +229,6 @@ def _check_models(spec: RunSpec) -> List[PreflightCheck]:
 
 def _check_graph(spec: RunSpec, *, online: bool) -> PreflightCheck:
     target = spec.graph
-    if spec.resolved_graph_kind() == "ladybug":
-        path = target or ".seocho/local.lbug"
-        try:
-            import real_ladybug  # noqa: F401
-        except ImportError:
-            return PreflightCheck(
-                name="graph",
-                status="fail",
-                detail=f"embedded ladybug ({path}) — the 'real_ladybug' package is not installed.",
-                fix="pip install 'seocho[local]', or set graph: bolt://... to use Neo4j/DozerDB",
-            )
-        return PreflightCheck(name="graph", status="ok", detail=f"embedded ladybug ({path})")
     kind = spec.resolved_graph_kind()
     if not online:
         return PreflightCheck(

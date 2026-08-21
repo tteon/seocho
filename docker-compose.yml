@@ -9,7 +9,10 @@ services:
   # --- Core Local Stack: graph DB + runtime API + thin UI proxy ---
   apoc-extended-init:
     image: curlimages/curl:8.10.1
-    user: "${UID:-1000}:${GID:-1000}"
+    # The plugin bind mount can be owned by an earlier Neo4j container (often
+    # uid 65534).  The one-shot installer must be able to write the versioned
+    # jars; Neo4j only needs read access after this step.
+    user: "0:0"
     environment:
       APOC_EXTENDED_VERSION: ${APOC_EXTENDED_VERSION:-5.26.4}
       SEOCHO_NEO4J_PLUGIN_DIR: /plugins

@@ -126,20 +126,12 @@ def _build_llm(model_ref: str) -> Any:
 
 
 def _build_graph_store(spec: RunSpec, ontology: Any) -> Any:
-    # Backend selection: explicit graph.kind wins; a bare string falls back
-    # to URI inference (bolt scheme → Neo4j/DozerDB, else embedded path).
+    # Backend selection only permits Bolt-compatible DozerDB / Neo4j stores.
     if spec.resolved_graph_kind() in ("neo4j", "dozerdb"):
         from .store.graph import Neo4jGraphStore
 
         return Neo4jGraphStore(spec.graph, spec.graph_user, spec.graph_password)
-    from .store.graph import LadybugGraphStore
-
-    store = LadybugGraphStore(spec.graph or ".seocho/local.lbug")
-    try:
-        store.ensure_constraints(ontology)
-    except Exception:
-        pass
-    return store
+    raise RunSpecError(["graph.uri is required and must be a DozerDB/Neo4j Bolt URI."])
 
 
 def _build_vector_store(spec: RunSpec) -> Optional[Any]:
@@ -570,7 +562,7 @@ def _render_report_md(payload: Dict[str, Any]) -> str:
         f"- models: indexing={run.get('models', {}).get('indexing', '')}, "
         f"query={run.get('models', {}).get('query', '')}",
         f"- enforcement: {run.get('enforcement', '')}",
-        f"- graph: {run.get('graph', 'embedded ladybug')} (database={run.get('database', '')})",
+        f"- graph: {run.get('graph', 'DozerDB/Neo4j Bolt URI required')} (database={run.get('database', '')})",
         "",
         "## Indexing",
         "",
@@ -824,7 +816,7 @@ def run_from_config(
         _emit(quiet, f"  models: indexing={spec.indexing_model()}, query={spec.query_model()}")
         _emit(quiet, f"  enforcement: {spec.enforcement} (strict_validation={spec.strict_validation()})")
         _emit(quiet, f"  graph: {spec.resolved_graph_kind()} "
-                     f"({spec.graph or '.seocho/local.lbug'})")
+                     f"({spec.graph or 'missing Bolt URI'})")
         if spec.uses_vector_store():
             _emit(quiet, f"  vector: {spec.vector_kind()} (embedding={spec.vector_embedding()})")
         _emit(quiet, f"  workspace: {spec.resolved_workspace_id()}")
@@ -1084,7 +1076,7 @@ def run_sweep_from_config(
 
     # Shared-server note: bolt variants coexist on one server — isolation
     # rides on per-variant database/workspace only (panel-recommended warning).
-    bolt_variants = [v.name for v, s, _r in prepared if s.resolved_graph_kind() != "ladybug"]
+    bolt_variants = [v.name for v, _s, _r in prepared]
     if len(bolt_variants) > 1:
         _emit(
             quiet,

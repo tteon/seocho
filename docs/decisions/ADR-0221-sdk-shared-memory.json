@@ -1,0 +1,102 @@
+{
+  "phase1": {
+    "converged": true,
+    "gateway_nodes": [
+      {
+        "l": "Entity",
+        "id": "~xs|atlas gateway",
+        "name": "Atlas Gateway",
+        "srcs": 2
+      },
+      {
+        "l": "Document",
+        "id": "1c9fce19-77cc-45e4-b795-f2f52551772d_doc",
+        "name": "Atlas Gateway is a core service. Atlas Gateway is owned by the Platform Team. Th",
+        "srcs": 1
+      },
+      {
+        "l": "Document",
+        "id": "30bb6cbf-6032-4b96-a5ac-de83e19d0305_doc",
+        "name": "Atlas Gateway was involved in incident INC-7. INC-7 was a latency spike affectin",
+        "srcs": 1
+      }
+    ],
+    "join_ok": true,
+    "join_answer": "The entity involved in incident **INC\u20117** is owned by the **Platform Team**."
+  },
+  "phase2_governed": {
+    "answered": 4,
+    "rejected": 0,
+    "n": 4,
+    "detail": [
+      {
+        "answered": true,
+        "rejected": false,
+        "violations": []
+      },
+      {
+        "answered": true,
+        "rejected": false,
+        "violations": []
+      },
+      {
+        "answered": true,
+        "rejected": false,
+        "violations": []
+      },
+      {
+        "answered": true,
+        "rejected": false,
+        "violations": []
+      }
+    ],
+    "answers": [
+      "The Atlas Gateway is owned by the **Platform Team**.",
+      "Atlas Gateway was involved in incident **INC\u20117**.",
+      "The Platform Team owns **Atlas\u202fGateway**.",
+      "The entity involved in **INC\u20117** is **Atlas Gateway**."
+    ]
+  },
+  "phase2_governed-no-pin": {
+    "answered": 0,
+    "rejected": 4,
+    "n": 4,
+    "detail": [
+      {
+        "answered": false,
+        "rejected": true,
+        "violations": [
+          "unknown_relationships:OWNED_BY"
+        ]
+      },
+      {
+        "answered": false,
+        "rejected": true,
+        "violations": [
+          "unknown_relationships:INVOLVED_IN"
+        ]
+      },
+      {
+        "answered": false,
+        "rejected": true,
+        "violations": [
+          "unknown_relationships:OWNED_BY"
+        ]
+      },
+      {
+        "answered": false,
+        "rejected": true,
+        "violations": [
+          "unknown_relationships:INVOLVED_IN",
+          "unknown_properties:code"
+        ]
+      }
+    ],
+    "answers": [
+      "I\u2019m sorry, but I couldn\u2019t find any information about which team owns Atlas Gateway.",
+      "I\u2019m sorry, but I don\u2019t have any information about an incident involving Atlas\u202fGateway.",
+      "I\u2019m sorry, but I couldn\u2019t find any information on what the Platform Team owns.",
+      "I\u2019m sorry, but there\u2019s no information available about any entity involved in\u202fINC\u20117."
+    ]
+  }
+}

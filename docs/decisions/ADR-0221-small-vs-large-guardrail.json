@@ -1,0 +1,38 @@
+[
+  {
+    "condition": "A_large_guardrail",
+    "model": "mara/gpt-oss-120b",
+    "guardrail": true,
+    "n": 15,
+    "answered": 9,
+    "gold_hits": 3,
+    "mean_coverage": 0.113,
+    "mean_repairs": 0.0,
+    "rejects": 0,
+    "errors": 0
+  },
+  {
+    "condition": "B_small_guardrail",
+    "model": "mara/gemma-4-31B-it",
+    "guardrail": true,
+    "n": 15,
+    "answered": 3,
+    "gold_hits": 1,
+    "mean_coverage": 0.0,
+    "mean_repairs": 0.2,
+    "rejects": 0,
+    "errors": 0
+  },
+  {
+    "condition": "C_small_noguardrail",
+    "model": "mara/gemma-4-31B-it",
+    "guardrail": false,
+    "n": 13,
+    "answered": 3,
+    "gold_hits": 0,
+    "mean_coverage": 0.0,
+    "mean_repairs": 0.0,
+    "rejects": 0,
+    "errors": 2
+  }
+]

@@ -69,7 +69,7 @@ ontology = Ontology(
     },
 )
 
-client = Seocho.local(ontology, llm="mara/MiniMax-M2.5")
+client = Seocho.local(ontology, graph="bolt://localhost:7687", llm="mara/MiniMax-M2.7")
 client.add("Marie Curie worked at the University of Paris.")
 
 print(client.ask("Where did Marie Curie work?"))

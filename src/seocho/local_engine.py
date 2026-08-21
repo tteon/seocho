@@ -738,7 +738,10 @@ class _LocalEngine:
                 return generate_grounded_cypher(
                     self.llm, question, schema_text,
                     workspace_id=self.workspace_id, limit=getattr(self, "row_cap", 50),
-                    feedback=feedback)
+                    feedback=feedback,
+                    # workspace organ: OFF -> generate an un-governed (unscoped) read
+                    # instead of Cypher that references an unbound $workspace_id.
+                    workspace_scoped=self._structured_arm.workspace_enforce)
         synth = self._structured_synthesizer
         if synth is None:
             answerer = QueryAnswerSynthesizer(query_strategy=self._query, llm=self.llm)
@@ -893,7 +896,8 @@ class _LocalEngine:
             llm=self.llm,
             workspace_id=self.workspace_id,
         )
-        executor = GraphQueryExecutor(graph_store=self.graph_store, database=database)
+        executor = GraphQueryExecutor(graph_store=self.graph_store, database=database,
+                                      workspace_id=self.workspace_id)
         answer_synthesizer = QueryAnswerSynthesizer(
             query_strategy=self._query,
             llm=self.llm,
@@ -1354,6 +1358,7 @@ class _LocalEngine:
         active_executor = executor or GraphQueryExecutor(
             graph_store=self.graph_store,
             database=database,
+            workspace_id=self.workspace_id,
         )
         execution = active_executor.execute(QueryPlan(question="", cypher=cypher, params=params))
         return execution.records, execution.error

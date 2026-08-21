@@ -110,7 +110,7 @@ def semantic_answer(
 
     cypher, params = compile_observation_lookup(slots, workspace_id=workspace_id)
     try:
-        rows = graph_store.query(cypher, params=params, database=database) or []
+        rows = graph_store.query(cypher, params=params, database=database, workspace_id=workspace_id, enforce_workspace_filter=True) or []
     except Exception:
         rows = []
     if not rows:

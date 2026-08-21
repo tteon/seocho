@@ -396,9 +396,14 @@ class Session:
 
         # Trace
         if self._trace:
+            from .tracing import capture_text
+            trace_input = {"database": db, "category": category}
+            preview = capture_text(content[:200])
+            if preview is not None:
+                trace_input["text_preview"] = preview
             self._trace.log_span(
                 "session.add",
-                input_data={"text_preview": content[:200], "database": db, "category": category},
+                input_data=trace_input,
                 output_data={
                     "source_id": source_id,
                     "nodes": nodes,

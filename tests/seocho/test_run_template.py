@@ -84,6 +84,7 @@ def test_env_interpolation_happens_after_render(monkeypatch) -> None:
             """
             ontology: "{{ schema }}"
             documents: ./docs/
+            graph: bolt://localhost:7687
             database: ${RUN_TEMPLATE_TEST_DB}
             """
         ),
@@ -193,14 +194,14 @@ def test_variant_variables_precedence_and_builtins() -> None:
 
 
 def _spec(**overrides):
-    payload = {"ontology": "s.yaml", "documents": "docs", "name": "base"}
+    payload = {"ontology": "s.yaml", "documents": "docs", "graph": "bolt://localhost:7687", "name": "base"}
     payload.update(overrides)
     return parse_run_spec(payload, source_path="run.yaml.j2")
 
 
-def test_isolation_fills_blank_graph_with_variant_path(tmp_path) -> None:
+def test_isolation_keeps_required_bolt_graph(tmp_path) -> None:
     spec = derive_variant_isolation(_spec(), variant_name="strict", sweep_run_dir=tmp_path)
-    assert spec.graph == str(tmp_path / "strict" / "graph.lbug")
+    assert spec.graph == "bolt://localhost:7687"
     assert spec.workspace_id.endswith("_strict")
     assert spec.name == "base-strict"
 
@@ -248,6 +249,7 @@ def test_load_templated_run_spec(tmp_path) -> None:
             """
             ontology: ./schema.yaml
             documents: ./docs/
+            graph: bolt://localhost:7687
             models:
               default: "{{ model }}"
             questions:

@@ -597,6 +597,37 @@ fn smoke(driver: Arc<Driver>, db: Arc<String>, n_agents: usize) {
     );
 }
 
+/// Live compatibility probe for the direct-jar APOC Extended deployment.
+/// The Cypher is issued by the Rust `neo4j` driver, not by the Python SDK.
+/// It writes only a unique probe workspace and removes it before returning.
+fn parallel2_probe(driver: Arc<Driver>, db: Arc<String>) -> Json {
+    // DozerDB registers APOC Extended but executes its worker transactions with
+    // write privileges overridden to READ. Therefore parallel2 is a read-side
+    // capability here; approved graph projection uses bounded client-side Rust
+    // concurrency instead of invoking this procedure for MERGE writes.
+    let call = r#"
+        CALL apoc.cypher.parallel2(
+          'RETURN toString(rows) AS id',
+          {rows: range(0, 19)},
+          'rows'
+        ) YIELD value
+        RETURN count(value) AS completed
+    "#;
+    let completed = driver
+        .execute_query(call)
+        .with_database(Arc::clone(&db))
+        .run_with_retry(ExponentialBackoff::default())
+        .expect("apoc.cypher.parallel2 call failed")
+        .into_scalar()
+        .expect("parallel2 completed scalar missing");
+    driver
+        .execute_query("MATCH (n:ApocParallelProbe {_workspace_id:'seocho_apoc_parallel2_probe'}) DETACH DELETE n")
+        .with_database(Arc::clone(&db))
+        .run_with_retry(ExponentialBackoff::default())
+        .expect("parallel2 probe cleanup failed");
+    json!({"driver": "rust-neo4j", "procedure": "apoc.cypher.parallel2", "mode": "read_only", "completed": to_json(completed), "cleanup": "ok"})
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let cmd = args.first().map(String::as_str).unwrap_or("smoke");
@@ -609,6 +640,7 @@ fn main() {
             smoke(driver, Arc::new(sarg(1, "finbenchl1")), narg(2, 4));
             return;
         }
+        "parallel2" => parallel2_probe(driver, Arc::new(sarg(1, "neo4j"))),
         "scale" => arm_scale(driver, Arc::new(sarg(1, "finbenchl10")), narg(2, 4), narg(3, 15)),
         "mix" => arm_mix(
             driver,

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "seocho"
-version = "0.5.0"
+version = "0.6.0"
 description = "Ontology-aligned middleware between agents and graph databases"
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.10"
@@ -42,7 +42,6 @@ local = [
     "openai-agents",
     "pydantic>=2.0",
     "pyyaml",
-    "real_ladybug>=0.15.0",
     "tenacity>=8.2.0",
     "uvicorn",
 ]
@@ -107,10 +106,6 @@ ontology = [
     "owlready2",
     "pyshacl",
     "rdflib>=6.0",
-]
-embedded = [
-    "real_ladybug>=0.15.0",
-    "openai",
 ]
 pdf = [
     "opendataloader-pdf",

@@ -36,12 +36,14 @@ from __future__ import annotations
 import json
 import logging
 import os
+import socket
 import threading
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Dict, Optional
 
 from seocho.ontology import Ontology
 from seocho.ontology_context import CompiledOntologyContext, compile_ontology_context
+from seocho.ontology.oxigraph import OxigraphReadModelClient, OxigraphTermResult
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +69,7 @@ class RuntimeOntologyRegistry:
         self._contexts: Dict[tuple[str, str], CompiledOntologyContext] = {}
         # (workspace_id, graph_id) -> database
         self._database_for: Dict[tuple[str, str], str] = {}
+        self._read_models: Dict[tuple[str, str], OxigraphReadModelClient] = {}
 
     def register(
         self,
@@ -76,6 +79,7 @@ class RuntimeOntologyRegistry:
         *,
         workspace_id: str = _DEFAULT_WORKSPACE,
         profile: str = _DEFAULT_PROFILE,
+        oxigraph_socket: Optional[str] = None,
     ) -> CompiledOntologyContext:
         """Register an ontology for a graph and return its compiled context.
 
@@ -104,6 +108,10 @@ class RuntimeOntologyRegistry:
             self._ontologies[key] = ontology
             self._contexts[key] = compiled
             self._database_for[key] = db
+            if oxigraph_socket:
+                self._read_models[key] = OxigraphReadModelClient(oxigraph_socket)
+            else:
+                self._read_models.pop(key, None)
         logger.info(
             "Registered runtime ontology graph_id=%s database=%s workspace=%s context_hash=%s",
             gid,
@@ -112,6 +120,25 @@ class RuntimeOntologyRegistry:
             compiled.descriptor.context_hash,
         )
         return compiled
+
+    def lookup_rdf_term(
+        self, graph_id: str, term: str, *, workspace_id: str = _DEFAULT_WORKSPACE
+    ) -> Optional[OxigraphTermResult]:
+        """Return optional ontology evidence; daemon absence never blocks runtime."""
+        key = (workspace_id, graph_id)
+        with self._lock:
+            client = self._read_models.get(key)
+            context = self._contexts.get(key)
+        if client is None or context is None:
+            return None
+        try:
+            return client.lookup_term(
+                term, workspace_id=workspace_id,
+                ontology_context_hash=context.descriptor.context_hash,
+            )
+        except (OSError, RuntimeError, socket.timeout) as exc:
+            logger.warning("Oxigraph read model unavailable graph_id=%s: %s", graph_id, exc)
+            return None
 
     def get_ontology(
         self,
@@ -174,6 +201,7 @@ class RuntimeOntologyRegistry:
             self._ontologies.clear()
             self._contexts.clear()
             self._database_for.clear()
+            self._read_models.clear()
 
     def __len__(self) -> int:
         with self._lock:
@@ -295,6 +323,7 @@ def load_runtime_ontologies_from_manifest(
                 or _DEFAULT_WORKSPACE,
                 profile=str(entry.get("profile", _DEFAULT_PROFILE)).strip()
                 or _DEFAULT_PROFILE,
+                oxigraph_socket=str(entry.get("oxigraph_socket", "")).strip() or None,
             )
         except Exception as exc:
             logger.warning(

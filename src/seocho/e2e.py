@@ -18,6 +18,7 @@ import dataclasses
 import asyncio
 import hashlib
 import json
+import os
 import sys
 import time
 from dataclasses import dataclass, field
@@ -248,6 +249,9 @@ def build(spec: RunSpec) -> RunContext:
         ontology = client_kwargs["ontology"]
 
     graph_store = _build_graph_store(spec, ontology)
+    # All indexing paths share this adapter.  Attach the run-scoped projection
+    # policy once so file, batch, and agent writes cannot silently disagree.
+    setattr(graph_store, "_governance_mode", spec.governance_mode)
     client_kwargs["graph_store"] = graph_store
     vector_store = _build_vector_store(spec)
     if vector_store is not None:
@@ -605,6 +609,7 @@ def _render_report_md(payload: Dict[str, Any]) -> str:
         f"- models: indexing={run.get('models', {}).get('indexing', '')}, "
         f"query={run.get('models', {}).get('query', '')}",
         f"- enforcement: {run.get('enforcement', '')}",
+        f"- projection governance: {run.get('governance_mode', 'direct')}",
         f"- graph: {run.get('graph', 'DozerDB/Neo4j Bolt URI required')} (database={run.get('database', '')})",
         "",
         "## Indexing",
@@ -697,6 +702,23 @@ def run(
 ) -> RunReport:
     """Execute the run: index → query → report. ``only`` limits to one phase."""
     spec = ctx.spec
+    from .ontology.plane_policy import decide_projection, projection_trace_receipt
+    from .ontology.projection_receipt import (
+        load_projection_admission_from_env,
+        load_projection_receipt_from_env,
+    )
+
+    semantic_receipt = load_projection_receipt_from_env()
+    admission = load_projection_admission_from_env()
+    projection_decision = decide_projection(
+        spec.governance_mode,
+        rust_socket=os.environ.get("SEOCHO_RUST_PROJECTOR_SOCKET"),
+        semantic_receipt=semantic_receipt,
+        admission=admission,
+    )
+    governance_receipt = projection_trace_receipt(
+        projection_decision, semantic_receipt=semantic_receipt, admission=admission
+    )
     started_at = datetime.now().isoformat(timespec="seconds")
     payload: Dict[str, Any] = {
         "run": {
@@ -711,6 +733,8 @@ def run(
             "vector": spec.vector_kind() if spec.uses_vector_store() else "",
             "database": ctx.database,
             "workspace_id": spec.resolved_workspace_id(),
+            "governance_mode": spec.governance_mode,
+            "projection_governance": governance_receipt,
         }
     }
     from .eval.experiment_observability import agents_sdk_runtime_receipt, direct_runtime_receipt, experiment_run_trace
@@ -724,7 +748,7 @@ def run(
         runtime_receipt = direct_runtime_receipt()
 
     with experiment_run_trace(
-        receipt=runtime_receipt, run_name=spec.name,
+        receipt={**runtime_receipt, "projection_governance": governance_receipt}, run_name=spec.name,
         workspace_id=spec.resolved_workspace_id(),
     ) as experiment_manifest:
         payload["run"]["experiment"] = experiment_manifest

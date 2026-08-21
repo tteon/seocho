@@ -56,3 +56,29 @@ For receipt-enforced Rust projection, set `SEOCHO_RDF_GOVERNANCE_RECEIPT` and
 `SEOCHOD_REQUIRE_GOVERNANCE=1` in the daemon process. SEOCHO validates that the
 profile derives from the promotable governed bundle; `seochod` stamps the four
 resulting hashes on canonical nodes and relationships.
+
+## Governed E2E contract
+
+The run spec declares projection canonicality independently from extraction
+enforcement:
+
+```yaml
+governance:
+  mode: governed # direct | shadow | governed | lockdown
+```
+
+`governed` and `lockdown` fail preflight unless a valid projection receipt,
+live lifecycle lease, and local `seochod` socket are present. The online
+preflight also checks DozerDB and daemon health before an LLM request is sent.
+Each E2E report and root experiment trace records the selected mode, receipt
+hashes, lease ID, generation, epoch, and fencing token without recording raw
+RDF or filesystem paths. `direct` and `shadow` reports explicitly set
+`canonical_claim_allowed=false`; neither is evidence of a governed canonical
+write.
+
+The present CLI workflow intentionally keeps semantic validation offline:
+produce an extracted candidate RDF graph, validate it with
+`seocho ontology rdf-governance`, then use the resulting receipt for the
+approved projection. A normal immediate LLM indexing run must not reuse a
+receipt for a different candidate graph; candidate staging/promotion is the
+required boundary before calling it a governed ingestion workflow.

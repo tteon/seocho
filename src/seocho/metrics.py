@@ -88,6 +88,10 @@ _TOKEN_COUNT_BUCKETS = (
     16.0, 64.0, 256.0, 512.0, 1024.0, 2048.0, 4096.0,
     8192.0, 16384.0, 32768.0, 131072.0,
 )
+_BYTE_SIZE_BUCKETS = (
+    256.0, 1024.0, 4096.0, 16_384.0, 65_536.0, 262_144.0,
+    1_048_576.0, 2_097_152.0, 8_388_608.0,
+)
 # Small cardinal counts: retrieval candidates, attempts, batch entries.
 _ITEM_COUNT_BUCKETS = (1.0, 2.0, 3.0, 5.0, 8.0, 13.0, 21.0, 50.0, 100.0, 500.0)
 
@@ -392,6 +396,11 @@ def build_histogram_views() -> tuple:
             aggregation=ExplicitBucketHistogramAggregation(
                 _TOKEN_COUNT_BUCKETS
             ),
+        ),
+        View(
+            instrument_unit="By",
+            instrument_name="*",
+            aggregation=ExplicitBucketHistogramAggregation(_BYTE_SIZE_BUCKETS),
         ),
     ) + tuple(
         View(

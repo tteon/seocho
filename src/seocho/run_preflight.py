@@ -306,6 +306,58 @@ def _check_vector(spec: RunSpec) -> "PreflightCheck | None":
     )
 
 
+def _check_projection_governance(spec: RunSpec, *, online: bool) -> PreflightCheck:
+    """Check a declared projection contract before any paid LLM call.
+
+    The result is a readiness check, not an authorization decision: the Rust
+    daemon re-reads the active pointer and lease immediately before every
+    governed graph write.
+    """
+    import os
+
+    from .ontology.plane_policy import ProjectionPolicyError, decide_projection
+    from .ontology.projection_receipt import (
+        ProjectionReceiptError,
+        load_projection_admission_from_env,
+        load_projection_receipt_from_env,
+    )
+
+    socket_path = os.getenv("SEOCHO_RUST_PROJECTOR_SOCKET", "").strip() or None
+    try:
+        receipt = load_projection_receipt_from_env()
+        admission = load_projection_admission_from_env()
+        decision = decide_projection(
+            spec.governance_mode,
+            rust_socket=socket_path,
+            semantic_receipt=receipt,
+            admission=admission,
+        )
+    except (ProjectionPolicyError, ProjectionReceiptError, ValueError) as exc:
+        return PreflightCheck(
+            name="projection governance", status="fail", detail=str(exc),
+            fix=("for governed/lockdown configure the Rust socket, promotable RDF receipt, "
+                 "projection profile, lifecycle state DB, and live projection lease"),
+        )
+    if online and decision.requires_rust_projector:
+        try:
+            from .dataplane.seochod import SeochodProjectionClient
+
+            health = SeochodProjectionClient(socket_path or "").health()
+            if not health.get("ok"):
+                raise RuntimeError(health.get("error") or "health rejected")
+        except Exception as exc:  # no paid work can begin in a strict mode
+            return PreflightCheck(
+                name="projection governance", status="fail",
+                detail=f"{spec.governance_mode} capability is valid but seochod is unavailable: {exc}",
+                fix="start seochod with SEOCHOD_CONTROL_DB and SEOCHOD_REQUIRE_GOVERNANCE=1",
+            )
+    detail = (f"mode={spec.governance_mode}; "
+              f"canonical_claim_allowed={str(decision.canonical_claim_allowed).lower()}")
+    if decision.missing:
+        detail += "; optional signals absent=" + ",".join(decision.missing)
+    return PreflightCheck(name="projection governance", status="ok", detail=detail)
+
+
 def run_preflight(spec: RunSpec, *, online: bool = False) -> PreflightReport:
     """Run all preflight checks for a run spec.
 
@@ -321,6 +373,7 @@ def run_preflight(spec: RunSpec, *, online: bool = False) -> PreflightReport:
             report.checks.append(check)
     report.checks.extend(_check_models(spec))
     report.checks.append(_check_graph(spec, online=online))
+    report.checks.append(_check_projection_governance(spec, online=online))
     vector_check = _check_vector(spec)
     if vector_check is not None:
         report.checks.append(vector_check)

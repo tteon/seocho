@@ -100,8 +100,14 @@ identity. JCS is used for the JSON manifest/profile byte identity; RDFC-1.0 is
 used for RDF semantic identity.
 
 Reuse existing `ActiveOntologyPointer`, `VersionPinRegistry`, and
-`SafeReclamationGate` as the local SQLite WAL control plane rather than adding
-a second lock system. There are three distinct mechanisms:
+`SafeReclamationGate` as the first local control-plane implementation rather
+than adding a second lock system. SQLite WAL is not an ontology store, an agent
+pool, or a mandatory deployment dependency: it is one durable same-host CAS
+backend for activation/lease/fence metadata. The control-plane interface must
+remain backend-neutral so a later etcd or PostgreSQL adapter can serve
+multi-host ownership without changing bundle/profile contracts. A filesystem
+lock is a useful single-host publish guard but is not sufficient as the source
+of truth for stale-writer fencing. There are three distinct mechanisms:
 
 1. A read pin holds one immutable `(workspace, purpose, semantic digest,
    profile digest, generation)` tuple for an agent run; it never serializes
@@ -110,6 +116,13 @@ a second lock system. There are three distinct mechanisms:
    a new generation/epoch/fencing token.
 3. A writer lease authorizes publish/projection, has owner and TTL, and carries
    the fencing token to the Rust daemon. A stale writer is rejected.
+
+For a one-process CLI, an in-memory implementation is acceptable for
+development only and must report `durability=ephemeral`; it cannot be used as
+evidence for crash recovery. For one host with multiple CLI/daemon processes,
+the existing SQLite backend is the simplest correct starting point. For
+multiple hosts, use an external linearizable CAS backend rather than a shared
+SQLite file on network storage.
 
 The Rust pool is a bounded weighted LRU keyed by:
 
